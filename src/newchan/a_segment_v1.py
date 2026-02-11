@@ -315,35 +315,6 @@ def segments_from_strokes_v1(
             strokes, 0, first.s1, first.direction, first.confirmed,
         )
 
-    # ── 退化段合并：方向与价格矛盾的段不是有效线段 ──
-    def _is_degenerate(seg: Segment) -> bool:
-        if seg.direction == "up":
-            return not (seg.ep1_price > seg.ep0_price + 1e-9)
-        return not (seg.ep1_price < seg.ep0_price - 1e-9)
-
-    changed = True
-    while changed and len(segments) >= 3:
-        changed = False
-        new_segs: list[Segment] = []
-        i = 0
-        while i < len(segments):
-            if 0 < i < len(segments) - 1 and _is_degenerate(segments[i]):
-                prev = new_segs[-1] if new_segs else segments[i - 1]
-                nxt = segments[i + 1]
-                merged = _make_segment(
-                    strokes, prev.s0, nxt.s1, prev.direction, nxt.confirmed,
-                )
-                if new_segs:
-                    new_segs[-1] = merged
-                else:
-                    new_segs.append(merged)
-                i += 2
-                changed = True
-            else:
-                new_segs.append(segments[i])
-                i += 1
-        segments = new_segs
-
     # ── 确保最后一段 confirmed=False ──
     if segments and segments[-1].confirmed:
         last = segments[-1]
