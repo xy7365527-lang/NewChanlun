@@ -108,11 +108,21 @@ class _FeatureSeqState:
         self.std: list[list[float | int]] = []
         self.dir_state: str | None = None
         self.last_checked: int = 0  # 上次分型检查的起始位置
+        self._skip_until_stroke: int = -1  # 跳过 stroke_idx <= 此值的分型
 
     def reset(self) -> None:
         self.std = []
         self.dir_state = None
         self.last_checked = 0
+        self._skip_until_stroke = -1
+
+    def skip_trigger(self, stroke_idx: int) -> None:
+        """标记：跳过 stroke_idx <= 此值的分型触发。
+        
+        当主循环因 min_seg_strokes 拒绝了一个触发时调用，
+        防止下次 scan_trigger 反复返回同一个分型。
+        """
+        self._skip_until_stroke = stroke_idx
 
     def append(self, stroke_idx: int, high: float, low: float) -> None:
         """增量添加一个反向笔并做包含处理。"""
@@ -155,6 +165,8 @@ class _FeatureSeqState:
         向上段找顶分型（high 先升后降 AND low 先升后降）。
         向下段找底分型（low 先降后升 AND high 先降后升）。
 
+        跳过 stroke_idx <= _skip_until_stroke 的分型（已被主循环拒绝）。
+
         Returns: 分型中心 b 对应的 stroke_idx，或 None。
         """
         n = len(self.std)
@@ -163,6 +175,12 @@ class _FeatureSeqState:
 
         start = max(1, self.last_checked)
         for i in range(start, n - 1):
+            b_stroke = int(self.std[i][2])
+
+            # 跳过已被拒绝的分型
+            if b_stroke <= self._skip_until_stroke:
+                continue
+
             a_h, a_l = self.std[i - 1][0], self.std[i - 1][1]
             b_h, b_l = self.std[i][0], self.std[i][1]
             c_h, c_l = self.std[i + 1][0], self.std[i + 1][1]
@@ -173,14 +191,11 @@ class _FeatureSeqState:
                     # 缺口检测：b 和 c 之间是否有缺口（不重叠）
                     has_gap = max(b_l, c_l) >= min(b_h, c_h)
                     if has_gap:
-                        # 第一类缺口：b 本身突破 a（b_h > a_h，已满足）→ 直接确认
-                        # 第二类缺口：b 未突破 a → 需要后续确认
                         if not (b_h > a_h):
-                            # 第二类：检查后续是否还有分型确认
                             if i + 2 >= n:
-                                continue  # 后续不足，暂不触发
+                                continue
                     self.last_checked = max(0, i - 1)
-                    return int(self.std[i][2])  # b 的 stroke_idx
+                    return b_stroke
             else:
                 # 底分型：b 的 low 和 high 都小于两侧
                 if b_l < a_l and b_l < c_l and b_h < a_h and b_h < c_h:
@@ -190,10 +205,9 @@ class _FeatureSeqState:
                             if i + 2 >= n:
                                 continue
                     self.last_checked = max(0, i - 1)
-                    return int(self.std[i][2])
+                    return b_stroke
 
-        # 更新检查位置（避免重复扫描）
-        self.last_checked = max(0, n - 3)
+        # 不推进 last_checked：避免跳过后续新增元素可能形成的分型
         return None
 
 
@@ -251,7 +265,8 @@ def segments_from_strokes_v1(
 
         # 保证至少3笔
         if end_stroke - seg_start < min_seg_strokes - 1:
-            # 分型太早，段不够3笔 → 跳过此触发，继续
+            # 分型太早，段不够3笔 → 标记跳过此触发，继续找下一个
+            feat.skip_trigger(k)
             cursor += 1
             continue
 
