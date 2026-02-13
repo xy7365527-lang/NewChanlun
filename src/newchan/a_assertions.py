@@ -62,7 +62,80 @@ def assert_inclusion_direction_rule(*args: Any, enable: bool = False) -> AssertR
     """Spec: docs/chan_spec.md §2.3
     Direction (dir) update must follow the strict high&low rule.
     """
-    return _ok("assert_inclusion_direction_rule")
+    name = "assert_inclusion_direction_rule"
+    # Usage: assert_inclusion_direction_rule(df_raw, df_merged, merged_to_raw)
+    if len(args) < 3:
+        return _ok(name)
+    df_raw, df_merged, merged_to_raw = args[0], args[1], args[2]
+
+    # 防御：缺少列就放过（由 merge_inclusion 自身/单测兜底）
+    try:
+        raw_highs = df_raw["high"].values
+        raw_lows = df_raw["low"].values
+        raw_opens = df_raw["open"].values
+        raw_closes = df_raw["close"].values
+    except Exception:
+        return _ok(name)
+
+    # ── 以规格 §2.3+§2.2 的“参考实现”重跑一次，并与输出对比 ──
+    buf: list[list[float | int]] = [
+        [float(raw_opens[0]), float(raw_highs[0]), float(raw_lows[0]), float(raw_closes[0]), 0, 0]
+    ]
+    dir_state: str | None = None  # None / "UP" / "DOWN"
+
+    for i in range(1, len(raw_highs)):
+        curr_h, curr_l = float(raw_highs[i]), float(raw_lows[i])
+        last = buf[-1]
+        last_h, last_l = float(last[1]), float(last[2])
+
+        left_inc = last_h >= curr_h and last_l <= curr_l
+        right_inc = curr_h >= last_h and curr_l <= last_l
+        has_inc = left_inc or right_inc
+
+        if has_inc:
+            effective_up = dir_state != "DOWN"  # dir=None 也默认 UP
+            if effective_up:
+                new_h = max(last_h, curr_h)
+                new_l = max(last_l, curr_l)
+            else:
+                new_h = min(last_h, curr_h)
+                new_l = min(last_l, curr_l)
+            last[1] = new_h
+            last[2] = new_l
+            last[3] = float(raw_closes[i])
+            last[5] = i
+        else:
+            if curr_h > last_h and curr_l > last_l:
+                dir_state = "UP"
+            elif curr_h < last_h and curr_l < last_l:
+                dir_state = "DOWN"
+            buf.append([float(raw_opens[i]), curr_h, curr_l, float(raw_closes[i]), i, i])
+
+    sim_map = [(int(r[4]), int(r[5])) for r in buf]
+    if list(merged_to_raw) != sim_map:
+        return _fail(
+            name,
+            f"merged_to_raw mismatch: expected={sim_map} got={list(merged_to_raw)}",
+        )
+
+    try:
+        out = df_merged[["open", "high", "low", "close"]].values
+    except Exception:
+        return _ok(name)
+    if len(out) != len(buf):
+        return _fail(name, f"df_merged len mismatch: expected={len(buf)} got={len(out)}")
+
+    for j in range(len(buf)):
+        exp_o, exp_h, exp_l, exp_c = float(buf[j][0]), float(buf[j][1]), float(buf[j][2]), float(buf[j][3])
+        got_o, got_h, got_l, got_c = map(float, out[j])
+        if (got_o, got_h, got_l, got_c) != (exp_o, exp_h, exp_l, exp_c):
+            return _fail(
+                name,
+                f"df_merged row[{j}] mismatch: "
+                f"expected=({exp_o},{exp_h},{exp_l},{exp_c}) got=({got_o},{got_h},{got_l},{got_c})",
+            )
+
+    return _ok(name)
 
 
 def assert_fractal_definition(*args: Any, enable: bool = False) -> AssertResult:
@@ -208,7 +281,35 @@ def assert_no_pen_center(*args: Any, enable: bool = False) -> AssertResult:
     """Spec: docs/chan_spec.md §4.6 and §7.1
     Pen overlap zones are hypothesis only; strokes must NOT be center components.
     """
-    return _ok("assert_no_pen_center")
+    name = "assert_no_pen_center"
+    # Usage: assert_no_pen_center(moves, centers)
+    if len(args) < 2:
+        return _ok(name)
+    moves, centers = args[0], args[1]
+    if not centers:
+        return _ok(name)
+    if not moves:
+        return _ok(name)
+
+    # “笔不裁决”：任何层级的 Center 组件都必须来自 Move[k-1]（Segment/TrendTypeInstance），不能是 Stroke
+    move_type = type(moves[0]).__name__
+    if move_type == "Stroke":
+        msg = "Center components must NOT be Stroke (pen overlap is hypothesis only)"
+        if enable:
+            raise AssertionError(f"[{name}] {msg}")
+        return _fail(name, msg)
+
+    for i, c in enumerate(centers):
+        if c.seg0 < 0 or c.seg1 >= len(moves):
+            msg = (
+                f"Center[{i}] component range [{c.seg0},{c.seg1}] out of bounds "
+                f"(n_moves={len(moves)})"
+            )
+            if enable:
+                raise AssertionError(f"[{name}] {msg}")
+            return _fail(name, msg)
+
+    return _ok(name)
 
 
 def assert_segment_min_three_strokes_overlap(*args: Any, enable: bool = False) -> AssertResult:
@@ -459,7 +560,117 @@ def assert_ledger_separation(*args: Any, enable: bool = False) -> AssertResult:
     """Spec: docs/chan_spec.md §10
     Hypothesis vs settlement separation must hold; settlement is append-only.
     """
-    return _ok("assert_ledger_separation")
+    name = "assert_ledger_separation"
+    # Usage: assert_ledger_separation(rec_levels)
+    if not args:
+        return _ok(name)
+    rec_levels = args[0]
+    if not rec_levels:
+        return _ok(name)
+
+    # 递归层之间：下一层 moves 必须来自上一层“已确认”的趋势实例（Move[k] = confirmed TrendTypeInstance[k]）
+    for i in range(len(rec_levels) - 1):
+        cur = rec_levels[i]
+        nxt = rec_levels[i + 1]
+        expected_moves = [t for t in cur.trends if getattr(t, "confirmed", False)]
+        if len(expected_moves) != len(nxt.moves):
+            msg = (
+                f"Level {nxt.level} moves count mismatch: "
+                f"expected={len(expected_moves)} got={len(nxt.moves)}"
+            )
+            if enable:
+                raise AssertionError(f"[{name}] {msg}")
+            return _fail(name, msg)
+        for j, (exp, got) in enumerate(zip(expected_moves, nxt.moves)):
+            if got != exp:
+                msg = (
+                    f"Level {nxt.level} moves[{j}] is not previous confirmed trend"
+                )
+                if enable:
+                    raise AssertionError(f"[{name}] {msg}")
+                return _fail(name, msg)
+
+        if any(getattr(m, "confirmed", False) is False for m in nxt.moves):
+            msg = f"Level {nxt.level} moves contains unconfirmed objects"
+            if enable:
+                raise AssertionError(f"[{name}] {msg}")
+            return _fail(name, msg)
+
+    return _ok(name)
+
+
+def run_a_system_assertions(
+    *,
+    df_raw: Any | None = None,
+    df_merged: Any | None = None,
+    merged_to_raw: Any | None = None,
+    fractals: Any | None = None,
+    strokes: Any | None = None,
+    segments: Any | None = None,
+    centers: Any | None = None,
+    rec_levels: Any | None = None,
+    level_views: Any | None = None,
+    last_price: float | None = None,
+    segment_algo: str = "v1",
+    stroke_mode: str = "wide",
+    min_strict_sep: int = 5,
+    center_sustain_m: int = 2,
+    enable: bool = False,
+) -> list[AssertResult]:
+    """运行 A 系统 Step7 断言集合（用于“锁语义”）。
+
+    设计原则：
+    - 断言应尽量验证“不变量”，而不是某个实现的偶然细节。
+    - enable=True 时：任何失败都应抛出 AssertionError（用于测试/CI）。
+    - enable=False 时：返回失败列表供调用方记录/展示（默认不打断主流程）。
+    """
+    results: list[AssertResult] = []
+
+    def _push(r: AssertResult) -> None:
+        results.append(r)
+        if enable and not r.ok:
+            raise AssertionError(f"[{r.name}] {r.message}")
+
+    # ── Inclusion ────────────────────────────────────────────────
+    if df_merged is not None:
+        _push(assert_inclusion_no_residual(df_merged))
+    if df_raw is not None and df_merged is not None and merged_to_raw is not None:
+        _push(assert_inclusion_direction_rule(df_raw, df_merged, merged_to_raw))
+
+    # ── Fractal / Stroke ─────────────────────────────────────────
+    if df_merged is not None and fractals is not None:
+        _push(assert_fractal_definition(df_merged, fractals))
+    if strokes is not None:
+        _push(assert_stroke_alternation_and_gap(strokes, stroke_mode, min_strict_sep))
+
+    # ── Segment ──────────────────────────────────────────────────
+    if segments is not None:
+        if segment_algo == "v1":
+            if strokes is not None:
+                _push(assert_segment_theorem_v1(strokes, segments))
+        else:
+            if strokes is not None:
+                _push(assert_segment_min_three_strokes_overlap(segments, strokes))
+
+    # ── Center（逐级） ────────────────────────────────────────────
+    if rec_levels:
+        for rl in rec_levels:
+            _push(assert_center_definition(rl.moves, rl.centers, center_sustain_m))
+            _push(assert_no_pen_center(rl.moves, rl.centers))
+    elif segments is not None and centers is not None:
+        # 无递归层时，仅验证 Level-1（segments→centers）
+        _push(assert_center_definition(segments, centers, center_sustain_m))
+        _push(assert_no_pen_center(segments, centers))
+
+    # ── Recursion ledger separation ──────────────────────────────
+    if rec_levels is not None:
+        _push(assert_ledger_separation(rec_levels))
+
+    # ── L* uniqueness (across levels) ────────────────────────────
+    if level_views is not None and last_price is not None:
+        _push(assert_single_lstar(level_views, last_price))
+
+    return results
 
 
 def assert_segment_theorem_v1(*args: Any, enable: bool = False) -> AssertResult:
@@ -497,6 +708,18 @@ def assert_segment_theorem_v1(*args: Any, enable: bool = False) -> AssertResult:
                 msg = (
                     f"Segment[{i}].s0={seg.s0} not adjacent to "
                     f"Segment[{i-1}].s1={prev.s1}"
+                )
+                if enable:
+                    raise AssertionError(f"[{name}] {msg}")
+                return _fail(name, msg)
+
+        # ── direction alternation ──
+        if i > 0:
+            prev = segments[i - 1]
+            if seg.direction == prev.direction:
+                msg = (
+                    f"Segment[{i}].direction={seg.direction} same as "
+                    f"Segment[{i-1}].direction={prev.direction}"
                 )
                 if enable:
                     raise AssertionError(f"[{name}] {msg}")
