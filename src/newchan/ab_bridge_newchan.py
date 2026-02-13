@@ -164,6 +164,29 @@ def build_overlay_newchan(
         level_views, last_price, max_post_exit_segments=max_post_exit_segments,
     )
 
+    # ── 规格断言（可选，用于“锁语义”） ─────────────────────────────
+    # 通过 .env / 环境变量控制：NEWCHAN_ASSERT=1/true/yes/on
+    from newchan import config
+    if config.env_flag("NEWCHAN_ASSERT", False):
+        from newchan.a_assertions import run_a_system_assertions
+        run_a_system_assertions(
+            df_raw=df_raw,
+            df_merged=df_merged,
+            merged_to_raw=merged_to_raw,
+            fractals=fractals,
+            strokes=strokes,
+            segments=segments,
+            centers=centers,
+            rec_levels=rec_levels,
+            level_views=level_views,
+            last_price=last_price,
+            segment_algo=segment_algo,
+            stroke_mode=stroke_mode,
+            min_strict_sep=min_strict_sep,
+            center_sustain_m=center_sustain_m,
+            enable=True,
+        )
+
     # ── 构建输出 ──
     out_strokes = _build_strokes(strokes, merged_to_raw, raw_index, df_macd, df_merged)
     out_segments = _build_segments(segments, strokes, merged_to_raw, raw_index, df_macd, df_merged)
@@ -338,6 +361,7 @@ def _build_segments(segments, strokes, m2r, raw_index, df_macd, df_merged):
             "s1": seg.s1,
             "dir": seg.direction,
             "confirmed": seg.confirmed,
+            "kind": getattr(seg, "kind", "settled"),
             "high": float(max(seg.high, p0_render, p1_render)),
             "low": float(min(seg.low, p0_render, p1_render)),
             "p0": float(p0_render),  # backward-compatible alias of ep0.price
@@ -383,6 +407,10 @@ def _build_centers(centers, segments, m2r, raw_index, df_macd):
             "DD": getattr(c, "dd", 0.0),
             "G": getattr(c, "g", 0.0),
             "D": getattr(c, "d", 0.0),
+            "development": getattr(c, "development", ""),
+            "level_id": getattr(c, "level_id", 0),
+            "terminated": getattr(c, "terminated", False),
+            "termination_side": getattr(c, "termination_side", ""),
             **{f"macd_{k}": v for k, v in area.items()},
         })
     return result
@@ -414,6 +442,7 @@ def _build_trends(trends, segments, strokes, m2r, raw_index, df_macd, df_merged)
             "confirmed": tr.confirmed,
             "high": tr.high, "low": tr.low,
             "p0": p0, "p1": p1,
+            "level_id": getattr(tr, "level_id", 0),
             **{f"macd_{k}": v for k, v in area.items()},
         })
     return result

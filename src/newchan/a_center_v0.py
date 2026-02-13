@@ -60,6 +60,15 @@ class Center:
         G = min(gn)，所有 Z走势段 高点的最小值。
     d : float
         D = max(dn)，所有 Z走势段 低点的最大值。
+    development : ``""`` | ``"extension"`` | ``"newborn"`` | ``"expansion"``
+        中枢发展类型（§8）：延伸/新生/扩展。
+        由 ``label_centers_development()`` 在走势类型构造后填充。
+    level_id : int
+        中枢所属递归级别（由递归引擎填充）。
+    terminated : bool
+        中枢是否已终结（次级别走势离开后回抽不回）。
+    termination_side : ``""`` | ``"above"`` | ``"below"``
+        终结方向：从上方还是下方离开。
     """
 
     seg0: int
@@ -79,6 +88,13 @@ class Center:
     # 原文L46："由所有构筑中枢的线段的重叠部分确定中枢区间"
     zg_dynamic: float = 0.0  # 所有段 high 的 min
     zd_dynamic: float = 0.0  # 所有段 low 的 max
+    # ── 中枢发展类型（§8 延伸/新生/扩展） ──
+    development: Literal["extension", "newborn", "expansion", ""] = ""
+    # ── 中枢所属级别（递归层级） ──
+    level_id: int = 0
+    # ── 中枢终结标记（§8 中枢终结定理） ──
+    terminated: bool = False
+    termination_side: Literal["above", "below", ""] = ""
 
 
 # ====================================================================
@@ -187,6 +203,8 @@ def centers_from_segments_v0(
         seg0 = i
         seg1 = i + 2
         sustain = 0
+        _terminated = False
+        _term_side: Literal["above", "below", ""] = ""
 
         # ── B) 延伸 + 回抽确认 ──
         j = i + 3
@@ -225,6 +243,15 @@ def centers_from_segments_v0(
                     continue
                 else:
                     # 回抽失败或无后续段 → 中枢破坏
+                    # 判定终结方向
+                    if j + 1 < n:
+                        # 有回抽段但未重返 → 确认终结
+                        _terminated = True
+                        if seg_j.low >= zg:
+                            _term_side = "above"
+                        elif seg_j.high <= zd:
+                            _term_side = "below"
+                    # j + 1 >= n: 无后续数据，不能确认终结
                     break
 
         kind: Literal["candidate", "settled"] = (
@@ -251,6 +278,8 @@ def centers_from_segments_v0(
             d=d,
             zg_dynamic=zg_dyn,
             zd_dynamic=zd_dyn,
+            terminated=_terminated,
+            termination_side=_term_side,
         ))
 
         # 推进到中枢终点之后
@@ -269,6 +298,8 @@ def centers_from_segments_v0(
             g=last.g, d=last.d,
             zg_dynamic=last.zg_dynamic,
             zd_dynamic=last.zd_dynamic,
+            terminated=last.terminated,
+            termination_side=last.termination_side,
         )
 
     return centers

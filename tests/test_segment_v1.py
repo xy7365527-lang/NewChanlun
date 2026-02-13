@@ -14,7 +14,7 @@ from __future__ import annotations
 import pytest
 
 from newchan.a_stroke import Stroke
-from newchan.a_segment_v0 import Segment
+from newchan.a_segment_v0 import Segment, BreakEvidence
 from newchan.a_segment_v1 import segments_from_strokes_v1
 from newchan.a_feature_sequence import (
     FeatureBar,
@@ -309,7 +309,9 @@ class TestAssertIntegration:
         """手工构造不拼接的 segments → 断言失败。"""
         bad = [
             Segment(s0=0, s1=3, i0=0, i1=20, direction="up",
-                    high=20, low=5, confirmed=True),
+                    high=20, low=5, confirmed=True,
+                    break_evidence=BreakEvidence(
+                        trigger_stroke_k=4, fractal_abc=(0, 1, 2), gap_type="none")),
             Segment(s0=5, s1=8, i0=25, i1=40, direction="down",
                     high=25, low=10, confirmed=False),
         ]
@@ -323,7 +325,9 @@ class TestAssertIntegration:
         """最后一段 confirmed=True → 断言失败。"""
         bad = [
             Segment(s0=0, s1=3, i0=0, i1=20, direction="up",
-                    high=20, low=5, confirmed=True),
+                    high=20, low=5, confirmed=True,
+                    break_evidence=BreakEvidence(
+                        trigger_stroke_k=4, fractal_abc=(0, 1, 2), gap_type="none")),
         ]
         result = assert_segment_theorem_v1([], bad)
         assert result.ok is False

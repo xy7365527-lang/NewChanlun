@@ -61,6 +61,9 @@ class Segment:
         段内所有笔 low 的最小值。
     confirmed : bool
         最后一段 ``False``，其余 ``True``（§5.3）。
+    kind : ``"candidate"`` | ``"settled"``
+        ``"settled"`` = 已被后续新段确认（结算锚验证通过）；
+        ``"candidate"`` = 最后一段，尚未被确认（默认 ``"settled"`` 兼容 v0）。
     """
 
     s0: int
@@ -71,6 +74,7 @@ class Segment:
     high: float
     low: float
     confirmed: bool
+    kind: Literal["candidate", "settled"] = "settled"
     # ── 端点分型价格（特征序列驱动） ──
     # ── 结构端点（对象层唯一真相） ──
     # ep*_i: merged idx；ep*_price: 分型价；ep*_type: top/bottom。
