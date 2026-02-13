@@ -107,6 +107,9 @@ def _make_segment(
 class _FeatureSeqState:
     """增量维护标准特征序列的状态。"""
 
+    # 尾窗扫描大小：分型检测只在最近 N 个元素内进行
+    TAIL_WINDOW: int = 7
+
     def __init__(self, seg_direction: str = "up") -> None:
         # 标准特征序列：每个元素 = [high, low, stroke_idx]
         self.std: list[list[float | int]] = []
@@ -163,15 +166,37 @@ class _FeatureSeqState:
                 self.dir_state = "DOWN"
             self.std.append([high, low, stroke_idx])
 
+    @staticmethod
+    def _has_any_fractal_after(std: list[list[float | int]], start_pos: int) -> bool:
+        """检查 std[start_pos:] 是否存在任意类型分型（顶或底）。
+
+        缠论原文第二种情况：有缺口时，后一特征序列只要出现分型即可，
+        不分第一二种，不分顶底。
+        """
+        n = len(std)
+        for j in range(max(start_pos, 1), n - 1):
+            ja_h, ja_l = std[j - 1][0], std[j - 1][1]
+            jb_h, jb_l = std[j][0], std[j][1]
+            jc_h, jc_l = std[j + 1][0], std[j + 1][1]
+            # 顶分型
+            if jb_h > ja_h and jb_h > jc_h and jb_l > ja_l and jb_l > jc_l:
+                return True
+            # 底分型
+            if jb_l < ja_l and jb_l < jc_l and jb_h < ja_h and jb_h < jc_h:
+                return True
+        return False
+
     def scan_trigger(
         self, seg_direction: str,
     ) -> tuple[int, tuple[int, int, int], str] | None:
-        """从 last_checked 向后扫描，找第一个匹配分型。
+        """从 last_checked 向后扫描（受尾窗限制），找第一个匹配分型。
 
         向上段找顶分型（high 先升后降 AND low 先升后降）。
         向下段找底分型（low 先降后升 AND high 先降后升）。
 
         跳过 stroke_idx <= _skip_until_stroke 的分型（已被主循环拒绝）。
+
+        尾窗优化：只在最近 TAIL_WINDOW 个元素内搜索分型。
 
         Returns
         -------
@@ -183,7 +208,8 @@ class _FeatureSeqState:
         if n < 3:
             return None
 
-        start = max(1, self.last_checked)
+        # 尾窗扫描：取 last_checked 和 (n - TAIL_WINDOW) 中较大者
+        start = max(1, self.last_checked, n - self.TAIL_WINDOW)
         for i in range(start, n - 1):
             b_stroke = int(self.std[i][2])
 
@@ -199,14 +225,11 @@ class _FeatureSeqState:
                 # 顶分型：b 的 high 和 low 都大于两侧
                 if b_h > a_h and b_h > c_h and b_l > a_l and b_l > c_l:
                     # 缺口检测：第1(a)与第2(b)元素间是否无重叠区间
-                    # 原文§三："第一元素就是假设转折点前线段的最后一个
-                    # 特征元素，第二个元素就是从这转折点开始的第一笔"
                     has_gap = b_l >= a_h  # b低>=a高 → a与b无重叠
                     if has_gap:
-                        # 第二种：有缺口，需后一特征序列出现底分型确认
-                        # 简化：要求 c 之后还有元素（可形成后续分型）
-                        if i + 2 >= n:
-                            continue  # 后续元素不足，暂不触发
+                        # 第二种：有缺口，后一特征序列须出现任意分型才确认
+                        if not self._has_any_fractal_after(self.std, i + 1):
+                            continue  # 第二序列尚无分型，暂不触发
                     gap_type = "second" if has_gap else "none"
                     self.last_checked = max(0, i - 1)
                     return b_stroke, (i - 1, i, i + 1), gap_type
@@ -216,9 +239,9 @@ class _FeatureSeqState:
                     # 缺口检测：第1(a)与第2(b)元素间是否无重叠区间
                     has_gap = a_l >= b_h  # a低>=b高 → a与b无重叠
                     if has_gap:
-                        # 第二种：有缺口，需后一特征序列出现顶分型确认
-                        if i + 2 >= n:
-                            continue  # 后续元素不足，暂不触发
+                        # 第二种：有缺口，后一特征序列须出现任意分型才确认
+                        if not self._has_any_fractal_after(self.std, i + 1):
+                            continue  # 第二序列尚无分型，暂不触发
                     gap_type = "second" if has_gap else "none"
                     self.last_checked = max(0, i - 1)
                     return b_stroke, (i - 1, i, i + 1), gap_type

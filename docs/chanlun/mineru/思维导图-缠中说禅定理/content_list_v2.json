@@ -1,0 +1,41 @@
+[
+    [
+        {
+            "type": "image",
+            "content": {
+                "image_source": {
+                    "path": "images/366018f9fb5fd1f78c88e6c9ba77a9b28a84d38d55cfa59240066c7f3d2490c7.jpg"
+                },
+                "image_caption": [],
+                "image_footnote": []
+            },
+            "bbox": [
+                0,
+                0,
+                1000,
+                672
+            ]
+        },
+        {
+            "type": "image",
+            "content": {
+                "image_source": {
+                    "path": "images/78492c7f97f666ebe64bf0e1fe03712637f2c16654c37a18c9a032d8759e74b7.jpg"
+                },
+                "image_caption": [
+                    {
+                        "type": "text",
+                        "content": "Neil Pan 记录于2021年08月30日"
+                    }
+                ],
+                "image_footnote": []
+            },
+            "bbox": [
+                461,
+                680,
+                645,
+                992
+            ]
+        }
+    ]
+]
