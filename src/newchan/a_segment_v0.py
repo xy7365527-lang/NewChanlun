@@ -9,7 +9,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
 
 from newchan.a_stroke import Stroke
 
@@ -17,6 +17,27 @@ from newchan.a_stroke import Stroke
 # ====================================================================
 # 数据类型
 # ====================================================================
+
+@dataclass(frozen=True, slots=True)
+class BreakEvidence:
+    """线段断段证据。
+
+    记录特征序列分型触发时的关键信息，用于审计和上层裁决。
+
+    Attributes
+    ----------
+    trigger_stroke_k : int
+        分型中心 b 对应的反向笔索引（stroke index）。
+    fractal_abc : tuple[int, int, int]
+        分型三元组在标准特征序列中的位置索引 (a, b, c)。
+    gap_type : ``"none"`` | ``"first"`` | ``"second"``
+        缺口类型：none=第一种(无缺口)，second=第二种(有缺口)。
+    """
+
+    trigger_stroke_k: int
+    fractal_abc: tuple[int, int, int]
+    gap_type: Literal["none", "second"]
+
 
 @dataclass(frozen=True, slots=True)
 class Segment:
@@ -62,6 +83,8 @@ class Segment:
     # DEPRECATED: 历史兼容字段，等同于 ep0_price / ep1_price。
     p0: float = 0.0
     p1: float = 0.0
+    # ── 断段证据（v1 特征序列法写入） ──
+    break_evidence: BreakEvidence | None = None
 
 
 def _stroke_endpoint_by_type(

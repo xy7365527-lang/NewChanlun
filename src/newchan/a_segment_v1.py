@@ -21,7 +21,7 @@ import logging
 from typing import Literal
 
 from newchan.a_feature_sequence import FeatureBar
-from newchan.a_segment_v0 import Segment
+from newchan.a_segment_v0 import BreakEvidence, Segment
 from newchan.a_stroke import Stroke
 
 logger = logging.getLogger(__name__)
@@ -76,6 +76,7 @@ def _make_segment(
     s1: int,
     direction: Literal["up", "down"],
     confirmed: bool,
+    break_evidence: BreakEvidence | None = None,
 ) -> Segment:
     """创建 Segment：端点从边界笔取，保证相邻段视觉连续。"""
     seg_strokes = strokes[s0 : s1 + 1]
@@ -93,6 +94,7 @@ def _make_segment(
         ep0_i=ep0_i, ep0_price=ep0_price, ep0_type=start_type,
         ep1_i=ep1_i, ep1_price=ep1_price, ep1_type=end_type,
         p0=ep0_price, p1=ep1_price,
+        break_evidence=break_evidence,
     )
 
 
@@ -103,16 +105,18 @@ def _make_segment(
 class _FeatureSeqState:
     """增量维护标准特征序列的状态。"""
 
-    def __init__(self) -> None:
+    def __init__(self, seg_direction: str = "up") -> None:
         # 标准特征序列：每个元素 = [high, low, stroke_idx]
         self.std: list[list[float | int]] = []
-        self.dir_state: str | None = None
+        # 向上段特征序列（down笔）趋势向上 → 初始 None（默认UP）
+        # 向下段特征序列（up笔）趋势向下 → 初始 "DOWN"
+        self.dir_state: str | None = "DOWN" if seg_direction == "down" else None
         self.last_checked: int = 0  # 上次分型检查的起始位置
         self._skip_until_stroke: int = -1  # 跳过 stroke_idx <= 此值的分型
 
-    def reset(self) -> None:
+    def reset(self, seg_direction: str = "up") -> None:
         self.std = []
-        self.dir_state = None
+        self.dir_state = "DOWN" if seg_direction == "down" else None
         self.last_checked = 0
         self._skip_until_stroke = -1
 
@@ -159,7 +163,7 @@ class _FeatureSeqState:
 
     def scan_trigger(
         self, seg_direction: str,
-    ) -> int | None:
+    ) -> tuple[int, tuple[int, int, int], str] | None:
         """从 last_checked 向后扫描，找第一个匹配分型。
 
         向上段找顶分型（high 先升后降 AND low 先升后降）。
@@ -167,7 +171,11 @@ class _FeatureSeqState:
 
         跳过 stroke_idx <= _skip_until_stroke 的分型（已被主循环拒绝）。
 
-        Returns: 分型中心 b 对应的 stroke_idx，或 None。
+        Returns
+        -------
+        tuple[int, tuple[int, int, int], str] | None
+            (b_stroke_idx, (a_seq_idx, b_seq_idx, c_seq_idx), gap_type)
+            gap_type: "none" = 第一种(无缺口), "second" = 第二种(有缺口)
         """
         n = len(self.std)
         if n < 3:
@@ -188,24 +196,30 @@ class _FeatureSeqState:
             if seg_direction == "up":
                 # 顶分型：b 的 high 和 low 都大于两侧
                 if b_h > a_h and b_h > c_h and b_l > a_l and b_l > c_l:
-                    # 缺口检测：b 和 c 之间是否有缺口（不重叠）
-                    has_gap = max(b_l, c_l) >= min(b_h, c_h)
+                    # 缺口检测：第1(a)与第2(b)元素间是否无重叠区间
+                    # 原文§三："第一元素就是假设转折点前线段的最后一个
+                    # 特征元素，第二个元素就是从这转折点开始的第一笔"
+                    has_gap = b_l >= a_h  # b低>=a高 → a与b无重叠
                     if has_gap:
-                        if not (b_h > a_h):
-                            if i + 2 >= n:
-                                continue
+                        # 第二种：有缺口，需后一特征序列出现底分型确认
+                        # 简化：要求 c 之后还有元素（可形成后续分型）
+                        if i + 2 >= n:
+                            continue  # 后续元素不足，暂不触发
+                    gap_type = "second" if has_gap else "none"
                     self.last_checked = max(0, i - 1)
-                    return b_stroke
+                    return b_stroke, (i - 1, i, i + 1), gap_type
             else:
                 # 底分型：b 的 low 和 high 都小于两侧
                 if b_l < a_l and b_l < c_l and b_h < a_h and b_h < c_h:
-                    has_gap = max(b_l, c_l) >= min(b_h, c_h)
+                    # 缺口检测：第1(a)与第2(b)元素间是否无重叠区间
+                    has_gap = a_l >= b_h  # a低>=b高 → a与b无重叠
                     if has_gap:
-                        if not (b_l < a_l):
-                            if i + 2 >= n:
-                                continue
+                        # 第二种：有缺口，需后一特征序列出现顶分型确认
+                        if i + 2 >= n:
+                            continue  # 后续元素不足，暂不触发
+                    gap_type = "second" if has_gap else "none"
                     self.last_checked = max(0, i - 1)
-                    return b_stroke
+                    return b_stroke, (i - 1, i, i + 1), gap_type
 
         # 不推进 last_checked：避免跳过后续新增元素可能形成的分型
         return None
@@ -238,7 +252,7 @@ def segments_from_strokes_v1(
         return []
 
     seg_dir: Literal["up", "down"] = strokes[seg_start].direction
-    feat = _FeatureSeqState()
+    feat = _FeatureSeqState(seg_dir)
 
     cursor = seg_start
     while cursor < n:
@@ -254,13 +268,13 @@ def segments_from_strokes_v1(
         feat.append(cursor, sk.high, sk.low)
 
         # 检测分型触发
-        trigger_stroke = feat.scan_trigger(seg_dir)
-        if trigger_stroke is None:
+        trig = feat.scan_trigger(seg_dir)
+        if trig is None:
             cursor += 1
             continue
 
         # ── 分型触发：旧段终结，新段生成 ──
-        k = trigger_stroke  # 分型中心 b 对应的反向笔索引
+        k, fractal_abc, gap_type = trig
         end_stroke = k - 1  # 旧段终点 = b 之前的同向笔
 
         # 保证至少3笔
@@ -270,20 +284,28 @@ def segments_from_strokes_v1(
             cursor += 1
             continue
 
+        # 构造断段证据
+        break_ev = BreakEvidence(
+            trigger_stroke_k=k,
+            fractal_abc=fractal_abc,
+            gap_type=gap_type,
+        )
+
         # 发射旧段
         segments.append(
-            _make_segment(strokes, seg_start, end_stroke, seg_dir, True)
+            _make_segment(strokes, seg_start, end_stroke, seg_dir, True,
+                          break_evidence=break_ev)
         )
 
         logger.debug(
-            "segment break: dir=%s, s0=%d, s1=%d, trigger_k=%d",
-            seg_dir, seg_start, end_stroke, k,
+            "segment break: dir=%s, s0=%d, s1=%d, trigger_k=%d, gap=%s",
+            seg_dir, seg_start, end_stroke, k, gap_type,
         )
 
         # 新段从 k 开始，方向翻转
         seg_start = k
         seg_dir = opposite
-        feat.reset()
+        feat.reset(seg_dir)
         cursor = k  # 从新段起点重新开始扫描
         continue
 
