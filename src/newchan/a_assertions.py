@@ -725,8 +725,69 @@ def assert_segment_theorem_v1(*args: Any, enable: bool = False) -> AssertResult:
                     raise AssertionError(f"[{name}] {msg}")
                 return _fail(name, msg)
 
-        # ── confirmed rule ──
+        # ── degenerate segment check (direction vs price) ──
+        if seg.ep0_price != 0.0 and seg.ep1_price != 0.0:
+            if seg.direction == "up" and seg.ep1_price < seg.ep0_price - 1e-9:
+                msg = (
+                    f"Segment[{i}] degenerate: direction=up but "
+                    f"ep1_price={seg.ep1_price} < ep0_price={seg.ep0_price}"
+                )
+                if enable:
+                    raise AssertionError(f"[{name}] {msg}")
+                return _fail(name, msg)
+            if seg.direction == "down" and seg.ep1_price > seg.ep0_price + 1e-9:
+                msg = (
+                    f"Segment[{i}] degenerate: direction=down but "
+                    f"ep1_price={seg.ep1_price} > ep0_price={seg.ep0_price}"
+                )
+                if enable:
+                    raise AssertionError(f"[{name}] {msg}")
+                return _fail(name, msg)
+
+        # ── settlement anchor: confirmed seg's successor must have overlap ──
+        if seg.confirmed and seg.break_evidence is not None and strokes:
+            k = seg.break_evidence.trigger_stroke_k
+            if k + 2 < len(strokes):
+                s1 = strokes[k]
+                s2 = strokes[k + 1]
+                s3 = strokes[k + 2]
+                overlap_low = max(s1.low, s2.low, s3.low)
+                overlap_high = min(s1.high, s2.high, s3.high)
+                if not (overlap_low < overlap_high):
+                    msg = (
+                        f"Segment[{i}] settlement anchor violated: "
+                        f"new seg strokes[{k},{k+1},{k+2}] no overlap"
+                    )
+                    if enable:
+                        raise AssertionError(f"[{name}] {msg}")
+                    return _fail(name, msg)
+
+        # ── kind constraints ──
+        seg_kind = getattr(seg, "kind", "settled")
         is_last = i == len(segments) - 1
+
+        # candidate 段只允许出现在列表末尾
+        if seg_kind == "candidate" and not is_last:
+            msg = (
+                f"Segment[{i}] kind='candidate' but is not the last segment "
+                f"(only the last segment may be candidate)"
+            )
+            if enable:
+                raise AssertionError(f"[{name}] {msg}")
+            return _fail(name, msg)
+
+        # settled + confirmed=True 的段必须有 break_evidence
+        if seg_kind == "settled" and seg.confirmed:
+            if getattr(seg, "break_evidence", None) is None:
+                msg = (
+                    f"Segment[{i}] kind='settled' and confirmed=True "
+                    f"but has no break_evidence"
+                )
+                if enable:
+                    raise AssertionError(f"[{name}] {msg}")
+                return _fail(name, msg)
+
+        # ── confirmed rule ──
         if is_last and seg.confirmed:
             msg = f"Last segment [{i}] should be confirmed=False"
             if enable:

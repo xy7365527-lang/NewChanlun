@@ -77,6 +77,7 @@ def _make_segment(
     direction: Literal["up", "down"],
     confirmed: bool,
     break_evidence: BreakEvidence | None = None,
+    kind: Literal["candidate", "settled"] = "settled",
 ) -> Segment:
     """创建 Segment：端点从边界笔取，保证相邻段视觉连续。"""
     seg_strokes = strokes[s0 : s1 + 1]
@@ -91,6 +92,7 @@ def _make_segment(
         direction=direction,
         high=seg_high, low=seg_low,
         confirmed=confirmed,
+        kind=kind,
         ep0_i=ep0_i, ep0_price=ep0_price, ep0_type=start_type,
         ep1_i=ep1_i, ep1_price=ep1_price, ep1_type=end_type,
         p0=ep0_price, p1=ep1_price,
@@ -284,6 +286,17 @@ def segments_from_strokes_v1(
             cursor += 1
             continue
 
+        # ── 结算锚验证：新段前三笔必须有重叠 ──
+        # 原文："线段终结的充要条件就是新线段生成"
+        # 新段从 k 开始，需要 strokes[k], [k+1], [k+2] 三笔交集重叠
+        if k + 2 >= n or not _three_stroke_overlap(
+            strokes[k], strokes[k + 1], strokes[k + 2]
+        ):
+            # 新段无法形成 → 旧段延续（事件锚不结算）
+            feat.skip_trigger(k)
+            cursor += 1
+            continue
+
         # 构造断段证据
         break_ev = BreakEvidence(
             trigger_stroke_k=k,
@@ -294,7 +307,7 @@ def segments_from_strokes_v1(
         # 发射旧段
         segments.append(
             _make_segment(strokes, seg_start, end_stroke, seg_dir, True,
-                          break_evidence=break_ev)
+                          break_evidence=break_ev, kind="settled")
         )
 
         logger.debug(
@@ -315,33 +328,37 @@ def segments_from_strokes_v1(
     if seg_start < n:
         last_end = n - 1
         if last_end - seg_start >= min_seg_strokes - 1:
+            # 判断最后一段 kind：首三笔有重叠 → settled，否则 → candidate
+            if seg_start + 2 < n and _three_stroke_overlap(
+                strokes[seg_start], strokes[seg_start + 1], strokes[seg_start + 2]
+            ):
+                last_kind: Literal["candidate", "settled"] = "settled"
+            else:
+                last_kind = "candidate"
             segments.append(
-                _make_segment(strokes, seg_start, last_end, seg_dir, False)
+                _make_segment(strokes, seg_start, last_end, seg_dir, False,
+                              kind=last_kind)
             )
         elif segments:
-            # 剩余笔不够3笔 → 并入前一段
+            # 剩余笔不够3笔 → 并入前一段（保持前段 kind）
             prev = segments[-1]
             segments[-1] = _make_segment(
                 strokes, prev.s0, last_end, prev.direction, False,
+                kind=prev.kind,
             )
         else:
             # 全部笔不够形成任何段
             segments.append(
-                _make_segment(strokes, seg_start, last_end, seg_dir, False)
+                _make_segment(strokes, seg_start, last_end, seg_dir, False,
+                              kind="candidate")
             )
-
-    # ── 首段覆盖 stroke 0 ──
-    if segments and segments[0].s0 > 0:
-        first = segments[0]
-        segments[0] = _make_segment(
-            strokes, 0, first.s1, first.direction, first.confirmed,
-        )
 
     # ── 确保最后一段 confirmed=False ──
     if segments and segments[-1].confirmed:
         last = segments[-1]
         segments[-1] = _make_segment(
             strokes, last.s0, last.s1, last.direction, False,
+            kind=last.kind,
         )
 
     return segments

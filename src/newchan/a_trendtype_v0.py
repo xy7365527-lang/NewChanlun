@@ -55,6 +55,8 @@ class TrendTypeInstance:
         包含的 center 索引（在 centers 列表中的位置）。
     confirmed : bool
         最后一个实例 ``False``，其余 ``True``。
+    level_id : int
+        走势类型所属递归级别（由递归引擎填充）。
     """
 
     kind: Literal["trend", "consolidation"]
@@ -67,6 +69,8 @@ class TrendTypeInstance:
     low: float
     center_indices: tuple[int, ...]
     confirmed: bool
+    # ── 新增字段（有默认值，向下兼容） ──
+    level_id: int = 0
 
 
 # ====================================================================
@@ -357,3 +361,70 @@ def trend_instances_from_centers(
         )
 
     return instances
+
+
+# ====================================================================
+# 中枢发展标签
+# ====================================================================
+
+def label_centers_development(
+    centers: list[Center],
+) -> list[Center]:
+    """根据相邻中枢关系，为每个 settled 中枢打上 development 标签。
+
+    规则（§8 中枢中心定理二）：
+    - 与后续中枢关系为 "up"/"down" → 本中枢 development = "newborn"（新生：形成趋势）
+    - 与后续中枢关系为 "higher_center" → 本中枢 development = "expansion"（扩展）
+    - 无后续 settled 中枢且中枢延伸中 → "extension"（延伸）
+    - candidate 中枢不标注
+
+    Parameters
+    ----------
+    centers : list[Center]
+
+    Returns
+    -------
+    list[Center]
+        带 development 标签的新 Center 列表（frozen，返回新对象）。
+    """
+    if not centers:
+        return []
+
+    settled_indices = [i for i, c in enumerate(centers) if c.kind == "settled"]
+    result = list(centers)  # shallow copy
+
+    for pos, si in enumerate(settled_indices):
+        dev = ""
+        if pos < len(settled_indices) - 1:
+            # 有后续 settled 中枢 → 用关系判定
+            next_si = settled_indices[pos + 1]
+            rel = _centers_relation(centers[si], centers[next_si])
+            if rel in ("up", "down"):
+                dev = "newborn"
+            elif rel == "higher_center":
+                dev = "expansion"
+            else:
+                dev = "extension"
+        else:
+            # 最后一个 settled 中枢
+            c = centers[si]
+            if c.terminated:
+                dev = "newborn"  # 已终结，意味着走势离开形成新结构
+            elif c.sustain > 0:
+                dev = "extension"
+
+        if dev:
+            c = result[si]
+            result[si] = Center(
+                seg0=c.seg0, seg1=c.seg1, low=c.low, high=c.high,
+                kind=c.kind, confirmed=c.confirmed, sustain=c.sustain,
+                direction=c.direction,
+                gg=c.gg, dd=c.dd, g=c.g, d=c.d,
+                zg_dynamic=c.zg_dynamic, zd_dynamic=c.zd_dynamic,
+                development=dev,
+                level_id=c.level_id,
+                terminated=c.terminated,
+                termination_side=c.termination_side,
+            )
+
+    return result

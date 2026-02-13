@@ -1,0 +1,441 @@
+# ============================================================
+# definitions.yaml -- 缠论核心实体"条件-结论"条款
+# 生成时间: 2026-02-13
+# 权威来源: docs/chanlun/text/chan99/ 原文
+# ============================================================
+
+entities:
+
+  # ----------------------------------------------------------
+  # 1. K线 (Bar)
+  # ----------------------------------------------------------
+  - name: K线
+    english_name: Bar
+    code_class: Bar
+    file: src/newchan/types.py
+    implementation_status: complete
+    necessary_conditions:
+      - 具有时间戳 ts、开盘价 open、最高价 high、最低价 low、收盘价 close
+      - high >= low
+      - high >= max(open, close)
+      - low <= min(open, close)
+    sufficient_conditions:
+      - 一根原始K线记录即构成一个 Bar 对象
+    boundary_conditions:
+      - volume 可为 None（无成交量数据时）
+      - 单根K线退化为一个点时 high == low == open == close
+    counterexamples:
+      - high < low 的记录不是合法K线
+    labels:
+      data_layer: [raw_input]
+    testable_assertions:
+      - "Bar.high >= Bar.low"
+      - "Bar.high >= max(Bar.open, Bar.close)"
+      - "Bar.low <= min(Bar.open, Bar.close)"
+    dependencies: []
+    agent_assignment: D线段修复
+
+  # ----------------------------------------------------------
+  # 2. 包含关系 (Inclusion)
+  # ----------------------------------------------------------
+  - name: 包含关系
+    english_name: Inclusion
+    code_class: "(函数 merge_inclusion)"
+    file: src/newchan/a_inclusion.py
+    implementation_status: complete
+    necessary_conditions:
+      - "包含判定(原文§四.一): 一K线的高低点全在另一K线的范围里"
+      - "即 (h1 >= h2 AND l1 <= l2) OR (h2 >= h1 AND l2 <= l1)"
+    sufficient_conditions:
+      - 满足包含判定条件即触发合并处理
+    boundary_conditions:
+      - "合并方向初始为 None; None 时默认按 UP 合并(缠论惯例)"
+      - "方向更新仅在相邻两根无包含时发生: h_i > h_{i-1} AND l_i > l_{i-1} -> UP; h_i < h_{i-1} AND l_i < l_{i-1} -> DOWN; 否则保持不变"
+      - "包含关系遵守结合律但不遵守传递律(原文§四.三)"
+      - "先左后右递推，按顺序原则处理(原文§四.二)"
+    counterexamples:
+      - "两根K线高低点交叉(h1 > h2 但 l1 > l2)不构成包含关系"
+      - "传递性不成立: A包含B, B包含C, 但A不一定包含C"
+    labels:
+      spec_section: ["§四 K线的包含关系"]
+    testable_assertions:
+      - "assert_inclusion_no_residual: 包含处理后不存在相邻包含对"
+      - "assert_inclusion_direction_rule: 方向更新严格遵循双条件规则"
+      - "向上合并: high=max(h1,h2), low=max(l1,l2)"
+      - "向下合并: high=min(h1,h2), low=min(l1,l2)"
+      - "合并后序列长度 <= 原始序列长度"
+      - "合并后 merged_to_raw 覆盖全部原始K线(无遗漏无重叠)"
+    dependencies:
+      - K线
+    agent_assignment: D线段修复
+
+  # ----------------------------------------------------------
+  # 3. 分型 (Fractal)
+  # ----------------------------------------------------------
+  - name: 分型
+    english_name: Fractal
+    code_class: Fractal
+    file: src/newchan/a_fractal.py
+    implementation_status: complete
+    necessary_conditions:
+      - "输入必须是包含处理后的 MergedBar 序列"
+      - "顶分型(原文§五.一): K[i].high > K[i-1].high AND K[i].high > K[i+1].high AND K[i].low > K[i-1].low AND K[i].low > K[i+1].low"
+      - "底分型(原文§五.一): K[i].low < K[i-1].low AND K[i].low < K[i+1].low AND K[i].high < K[i-1].high AND K[i].high < K[i+1].high"
+      - "分型确认需要看到 i+1 (第三根K线)"
+    sufficient_conditions:
+      - 满足顶分型或底分型的双条件即确认为分型
+    boundary_conditions:
+      - "第一根和最后一根 MergedBar 不可能是分型(需要前后邻居)"
+      - "至少需要3根 MergedBar 才可能出现分型"
+      - "分型的极值: 顶分型取 K[i].high, 底分型取 K[i].low"
+    counterexamples:
+      - "仅 high 满足条件但 low 不满足(只看单条件)不构成分型"
+      - "包含处理后的相邻K线理论上不会出现等值情况，但若出现 high 相等也不构成分型(严格大于)"
+    labels:
+      spec_section: ["§五 分型"]
+      kind: [top, bottom]
+    testable_assertions:
+      - "assert_fractal_definition: 每个分型严格满足双条件"
+      - "顶分型 price == K[idx].high"
+      - "底分型 price == K[idx].low"
+      - "所有分型 idx 在 [1, n-2] 范围内"
+    dependencies:
+      - 包含关系
+    agent_assignment: D线段修复
+
+  # ----------------------------------------------------------
+  # 4. 笔 (Stroke)
+  # ----------------------------------------------------------
+  - name: 笔
+    english_name: Stroke
+    code_class: Stroke
+    file: src/newchan/a_stroke.py
+    implementation_status: complete
+    necessary_conditions:
+      - "两个相邻的顶和底之间构成一笔(原文§六.一)"
+      - "上升笔: 底分型 + 上升K线 + 顶分型"
+      - "下降笔: 顶分型 + 下降K线 + 底分型"
+      - "顶和底之间至少有一个K线不属于顶分型与底分型(原文§六.二.2)"
+      - "笔至少由5根包含处理后的K线构成(原文§六.三)"
+      - "上升笔: end.price(顶) > start.price(底)"
+      - "下降笔: end.price(底) < start.price(顶)"
+    sufficient_conditions:
+      - "一顶一底(或一底一顶), 间距 >= min_gap, 方向有效 -> 构成一笔"
+    boundary_conditions:
+      - "宽笔模式(wide): 间距 >= 4 根 MergedBar"
+      - "严笔模式(strict): 间距 >= min_strict_sep (默认5)"
+      - "两个同类分型相邻时: 顶取更高者, 底取更低者, 另一个忽略(原文§六.三 步骤2)"
+      - "最后一笔 confirmed=False (延伸中)"
+      - "已成笔的终点被锁定，遇到同类更极端分型时延伸(不断开新笔)"
+    counterexamples:
+      - "顶和底之间只共用一个K线(图②): 不算一笔"
+      - "只有顶和底分型中间没有其他K线(图③): 不算一笔"
+      - "顶都在底的范围内或顶比底还低: 不可接受"
+    labels:
+      spec_section: ["§六 笔"]
+      direction: [up, down]
+    testable_assertions:
+      - "assert_stroke_alternation_and_gap: 方向严格交替 + 间距 >= min_gap"
+      - "笔首尾相连: strokes[i].i1 == strokes[i+1].i0"
+      - "i1 > i0 (终点在起点之后)"
+      - "最后一笔 confirmed=False, 其余 confirmed=True"
+      - "上升笔 p1 > p0; 下降笔 p1 < p0"
+    dependencies:
+      - 分型
+    agent_assignment: D线段修复
+
+  # ----------------------------------------------------------
+  # 5. 线段 (Segment)
+  # ----------------------------------------------------------
+  - name: 线段
+    english_name: Segment
+    code_class: Segment
+    file: src/newchan/a_segment_v0.py
+    implementation_status: partial
+    necessary_conditions:
+      - "至少由三笔组成(原文§七.一)"
+      - "前三笔必须有重叠部分(原文§七.一)"
+      - "线段被终结当且仅当至少被有重叠部分的连续三笔的其中一笔终结(线段划分定理)"
+      - "线段终结的充要条件就是形成新线段(原文§七.一)"
+      - "向上线段从向上笔开始, 向下线段从向下笔开始(原文§七.二.2)"
+      - "构成线段的笔数一定是奇数(原文§七.二.3)"
+    sufficient_conditions:
+      - "v0: 连续三笔交集重叠(max(lows) < min(highs))成立即生成一段"
+      - "v1: 特征序列标准分型法 -- 标准特征序列出现对应分型(第一种无缺口/第二种有缺口)"
+    boundary_conditions:
+      - "特征序列定义: 向上段取反向笔(X序列), 向下段取反向笔(S序列)"
+      - "特征序列包含关系需处理(类比K线包含处理)(原文§七.三)"
+      - "第一种情况: 特征序列分型第1和第2元素间无缺口, 线段在该分型极值处结束"
+      - "第二种情况: 第1和第2元素间有缺口, 需后续形成新线段才能确认原线段结束"
+      - "退化段: direction=up 但 ep1_price < ep0_price (v1 已知问题)"
+      - "最后一段 confirmed=False"
+    counterexamples:
+      - "连续三笔无重叠: 不构成线段"
+      - "只有两笔: 不构成线段(至少三笔)"
+      - "偶数笔构成的结构不是线段"
+    labels:
+      spec_section: ["§七 线段"]
+      direction: [up, down]
+      kind: [candidate, settled]
+      algorithm: [v0_三笔交集, v1_特征序列]
+    testable_assertions:
+      - "assert_segment_theorem_v1: 相邻段拼接 + >= 3笔 + 方向交替"
+      - "assert_segment_min_three_strokes_overlap: (v0) 三笔交集重叠成立"
+      - "s1 - s0 >= 2 (至少3笔)"
+      - "相邻段方向不同: seg[i].direction != seg[i-1].direction"
+      - "最后一段 confirmed=False, 其余 True"
+      - "seg.i0 == strokes[seg.s0].i0; seg.i1 == strokes[seg.s1].i1"
+    dependencies:
+      - 笔
+    agent_assignment: D线段修复
+
+  # ----------------------------------------------------------
+  # 6. 中枢 (Center / Zhongshu)
+  # ----------------------------------------------------------
+  - name: 中枢
+    english_name: Center
+    code_class: Center
+    file: src/newchan/a_center_v0.py
+    implementation_status: complete
+    necessary_conditions:
+      - "某级别走势类型中, 被至少三个连续次级别走势类型所重叠的部分(原文§八.一)"
+      - "三段全部重叠: max(s1.low, s2.low, s3.low) < min(s1.high, s2.high, s3.high)"
+      - "输入必须是次级别走势类型(v0实现中为 Segment), 禁止 Stroke(笔不裁决)"
+      - "Z走势段方向一致: s1 和 s3 方向相同(段交替下自然成立)"
+    sufficient_conditions:
+      - "三段全部重叠成立, 且 Z走势段方向一致 -> 中枢成立"
+    boundary_conditions:
+      - "ZG = min(g1, g2), ZD = max(d1, d2), 由前两个同向Z走势段确定(原文§八.二)"
+      - "GG = max(gn), DD = min(dn), G = min(gn), D = max(dn), n遍历所有Z走势段"
+      - "延伸: 任意区间[dn, gn]与[ZD, ZG]有重叠(原文§八.二), 表现为盘整"
+      - "新生: 不能延伸, 形成趋势(原文§八.二)"
+      - "扩展: 围绕新中枢的波动与前中枢波动重叠, 形成高级别中枢(原文§八.二)"
+      - "中枢终结定理(原文§八.一): 一个次级别走势离开后, 其后的次级别回抽不重新回到中枢内"
+      - "candidate -> settled: sustain >= sustain_m (延伸得到确认)"
+      - "最后一个中枢 confirmed=False"
+    counterexamples:
+      - "只有两段重叠不构成中枢(至少三段)"
+      - "三段没有公共重叠区间(max(lows) >= min(highs))不构成中枢"
+      - "笔构成的重叠只是假说(笔不裁决), 不能作为中枢组件"
+    labels:
+      spec_section: ["§八 走势中枢"]
+      kind: [candidate, settled]
+      development: [extension, newborn, expansion]
+      direction: [up, down]
+    testable_assertions:
+      - "assert_center_definition: ZG > ZD, settled iff sustain >= sustain_m"
+      - "assert_no_pen_center: 中枢组件不能是 Stroke"
+      - "assert_non_skip: 中枢组件索引在 segments 范围内"
+      - "seg1 - seg0 >= 2 (至少3段)"
+      - "最后一个中枢 confirmed=False"
+      - "terminated=True 当且仅当离开段+回抽均不重返[ZD, ZG]"
+    dependencies:
+      - 线段
+    agent_assignment: A中枢深化
+
+  # ----------------------------------------------------------
+  # 7. 走势类型 (TrendType)
+  # ----------------------------------------------------------
+  - name: 走势类型
+    english_name: TrendType
+    code_class: TrendTypeInstance
+    file: src/newchan/a_trendtype_v0.py
+    implementation_status: complete
+    necessary_conditions:
+      - "盘整(原文§九.一): 某完成的走势类型只包含一个走势中枢"
+      - "趋势(原文§九.一): 某完成的走势类型至少包含两个以上依次同向的走势中枢"
+      - "技术分析基本原理二: 任何级别任何完成的走势类型必然包含一个以上的走势中枢"
+      - "趋势方向: 中枢整体抬升=up(上涨), 下移=down(下跌)"
+    sufficient_conditions:
+      - "单个 settled 中枢 -> 盘整 (kind=consolidation)"
+      - ">= 2个依次同向 settled 中枢 -> 趋势 (kind=trend)"
+    boundary_conditions:
+      - "走势级别延续定理一: 在更大级别走势中枢产生前, 该级别走势类型将延续(原文§九.一)"
+      - "走势级别延续定理二: 更大级别走势中枢产生当且仅当围绕连续两个同级别走势中枢产生的波动区间产生重叠(原文§九.一)"
+      - "走势分解定理: 任何级别的走势都可以分解为盘整、下跌与上涨三种走势类型的连接"
+      - "走势类型实例首尾相连完全覆盖: instances[i].seg1 == instances[i+1].seg0"
+      - "中枢关系判定(中枢中心定理二): 后GG<前DD -> 下跌; 后DD>前GG -> 上涨; 后ZG<前ZD且后GG>=前DD -> 高级别中枢"
+      - "最后一个实例 confirmed=False"
+    counterexamples:
+      - "两个中枢方向不同(一升一降)不构成趋势, 而是形成高级别中枢或分为两个走势类型"
+      - "无中枢的走势在实际中不可能存在(原文§九.三)"
+    labels:
+      spec_section: ["§九 走势及走势类型"]
+      kind: [trend, consolidation]
+      direction: [up, down]
+    testable_assertions:
+      - "trend 类型至少包含 2 个 center_indices"
+      - "consolidation 类型恰好包含 1 个 center_indices"
+      - "趋势中相邻中枢同向: 后DD > 前GG (上涨) 或 后GG < 前DD (下跌)"
+      - "实例首尾相连: instances[i].seg1 == instances[i+1].seg0"
+      - "最后一个实例 confirmed=False"
+      - "走势类型至少由 3 段以上次级别走势类型构成"
+    dependencies:
+      - 中枢
+      - 线段
+    agent_assignment: B走势类型
+
+  # ----------------------------------------------------------
+  # 8. 级别 (Level)
+  # ----------------------------------------------------------
+  - name: 级别
+    english_name: Level
+    code_class: "LevelView / LStar"
+    file: src/newchan/a_level_fsm_newchan.py
+    implementation_status: partial
+    necessary_conditions:
+      - "级别 = 递归层级 (level_id), 从1分钟K线为底座无限向上递归构造(原文§三.一)"
+      - "级别的自组性: 自同构性结构自组出级别(原文§三.一)"
+      - "级别的独立性: 任意某级别都是一套独立系统, 不同级别之间不得组合(原文§三.一)"
+      - "级别的关联性: 任意某级别由次级别组合而来, 并为高一级别提供组合部件(原文§三.一)"
+      - "禁止用时间周期(日线/30分/5分)替代级别定义"
+    sufficient_conditions:
+      - "一级走势类型: 由1分钟线段组合而来"
+      - "N级走势类型: 由(N-1)级走势类型组合而来"
+    boundary_conditions:
+      - "原始级别系统: 每笔交易(分子级), 为1分钟笔提供部件"
+      - "最小级别系统: 1分钟笔系统(细胞级), 为1分钟线段提供部件"
+      - "三锚体系: 结算锚(中枢内) -> 运行锚(离开段) -> 事件锚(第一次回抽)"
+      - "L* 唯一裁决: 任何时刻只有一个有效决策级别 L*"
+      - "递归终止: 当某级别不再产生足够的中枢/趋势时递归停止"
+    counterexamples:
+      - "用'日线级别'等时间周期替代递归级别定义是错误的"
+      - "跳级组合(如直接用笔构造高级别中枢)违反级别关联性"
+    labels:
+      spec_section: ["§三 级别"]
+    testable_assertions:
+      - "assert_single_lstar: 任何时刻最多一个活跃 L*"
+      - "assert_ledger_separation: 递归层间 moves 必须来自上一层已确认的趋势实例"
+      - "assert_non_skip: Center[k] 组件必须是 Move[k-1]"
+      - "level_id 严格递增: level[i+1].level_id == level[i].level_id + 1"
+    dependencies:
+      - 走势类型
+      - 中枢
+    agent_assignment: B走势类型
+
+  # ----------------------------------------------------------
+  # 9. 背驰 (Divergence)
+  # ----------------------------------------------------------
+  - name: 背驰
+    english_name: Divergence
+    code_class: Divergence
+    file: src/newchan/a_divergence.py
+    implementation_status: complete
+    necessary_conditions:
+      - "趋势背驰(原文§动力学四.一): 趋势力度比上一次趋势力度弱(力竭)"
+      - "趋势中至少两个同级别走势中枢, 背驰不会发生在第一个走势中枢之后"
+      - "A+B+C结构: A/C同向趋势段, B中间连接(中枢/盘整); C段力度 < A段力度 -> 背驰"
+      - "盘整背驰(原文§动力学四.一): 盘整中当下同向离开段力度 < 前一次同向离开段力度"
+      - "背驰-买卖点定理: 任一背驰都必然制造某级别买卖点"
+    sufficient_conditions:
+      - "趋势中 C 段 MACD 柱子面积 < A 段面积 -> 标准背驰(上涨看红柱, 下跌看绿柱)"
+      - "盘整中最后一次同向离开力度 < 前一次同向离开力度 -> 盘整背驰"
+    boundary_conditions:
+      - "没有趋势就没有背驰(盘整中只有盘整背驰)(原文§动力学四.二)"
+      - "背驰后理论只保证回拉原来的走势中枢, 不保证更多(原文§动力学四.二)"
+      - "背驰有级别: 1分钟级别背驰不必然制造周线级别大顶(原文§动力学四.三)"
+      - "MACD 参数通常取 12/26/9; B段中枢一般将MACD黄白线回拉到0轴附近"
+      - "无 MACD 数据时用价格振幅 x 持续长度作为 fallback 力度"
+    counterexamples:
+      - "只有一个走势中枢的趋势(不可能, 趋势定义要求>=2个)中不会出现趋势背驰"
+      - "C 段力度 >= A 段力度: 不构成背驰(趋势延续)"
+    labels:
+      spec_section: ["§动力学四 背驰与盘整背驰"]
+      kind: [trend, consolidation]
+      direction: [top, bottom]
+    testable_assertions:
+      - "趋势背驰: trend.center_indices >= 2"
+      - "force_c < force_a (C段力度严格小于A段)"
+      - "kind=trend 时 direction=top 对应上涨力竭, direction=bottom 对应下跌力竭"
+      - "背驰确认: confirmed 与所属趋势实例的 confirmed 一致"
+    dependencies:
+      - 走势类型
+      - 中枢
+    agent_assignment: C买卖点
+
+  # ----------------------------------------------------------
+  # 10. 买卖点 (BuySellPoint)
+  # ----------------------------------------------------------
+  - name: 买卖点
+    english_name: BuySellPoint
+    code_class: "(缺失 -- 需实现)"
+    file: "(缺失)"
+    implementation_status: missing
+    necessary_conditions:
+      - "所有买卖点都必然对应着与该级别最靠近的一个走势中枢的关系(原文§操作四.二)"
+      - "第一类买点(原文§操作四.一): 某级别下跌趋势中, 一个次级别走势类型向下跌破最后一个走势中枢后形成的背驰点"
+      - "第一类卖点(原文§操作四.一): 某级别上涨趋势中, 一个次级别走势类型向上突破最后一个走势中枢后形成的背驰点"
+      - "第二类买点(原文§操作四.一): 某级别中, 第一类买点的次级别上涨结束后再次下跌的那个次级别走势的结束点"
+      - "第二类卖点(原文§操作四.一): 某级别中, 第一类卖点的次级别下跌结束后再次上涨的那个次级别走势的结束点"
+      - "第三类买点(原文§操作四.一): 某级别上涨中, 次级别走势向上离开走势中枢后回抽不跌破ZG的终结点"
+      - "第三类卖点(原文§操作四.一): 某级别下跌中, 次级别走势向下离开走势中枢后回抽不升破ZD的终结点"
+    sufficient_conditions:
+      - "第一类: 趋势 + 最后中枢后离开段背驰 -> 第一类买卖点"
+      - "第二类: 第一类买卖点后第一个次级别反向走势结束 -> 第二类买卖点"
+      - "第三类: 走势中枢终结(离开+回抽不回) -> 第三类买卖点"
+    boundary_conditions:
+      - "买卖点定律一: 任何级别的第二类买卖点都由次级别相应走势的第一类买点构成(原文§操作四.一)"
+      - "趋势转折定律: 任何上涨转折由某级别第一类卖点构成; 任何下跌转折由某级别第一类买点构成(原文§操作四.一)"
+      - "买卖点完备性定理: 市场必然产生赢利的买卖点只有第一、二、三类(原文§操作四.一)"
+      - "升跌完备性定理: 市场走势完全由端点为某级别三类买卖点的线段构成(原文§操作四.一)"
+      - "第一类与第二类买点前后出现不可能重合"
+      - "第一类与第三类一个在中枢下一个在中枢上不可能重合"
+      - "第二类与第三类可能重合(V型反转时)"
+      - "第三类买卖点后不必然是趋势, 也可能进入更大级别盘整"
+      - "第三类买卖点必须是第一次回抽, 不是任何回调回抽(原文§操作四.二)"
+    counterexamples:
+      - "盘整中走势中枢下方不必然产生买点(只有下跌趋势确立后才有第一类买点)"
+      - "走势中枢延续中, 走势中枢上方不可能有买点(只可能有卖点)"
+      - "不是第一次回抽的回调不是第三类买卖点"
+    labels:
+      spec_section: ["§操作四 走势中枢与买卖点"]
+      type: [first, second, third]
+      side: [buy, sell]
+    testable_assertions:
+      - "第一类买点: 所属趋势 kind=trend AND direction=down AND 最后中枢后存在背驰"
+      - "第一类卖点: 所属趋势 kind=trend AND direction=up AND 最后中枢后存在背驰"
+      - "第二类买点: 存在前置第一类买点 AND 次级别上涨后再次下跌结束"
+      - "第三类买点: 中枢终结 terminated=True AND termination_side=above AND 回抽低点 >= ZG"
+      - "第三类卖点: 中枢终结 terminated=True AND termination_side=below AND 回抽高点 <= ZD"
+      - "买卖点必然源自某级别走势的背驰(背驰-买卖点定理)"
+    dependencies:
+      - 背驰
+      - 中枢
+      - 走势类型
+    agent_assignment: C买卖点
+
+  # ----------------------------------------------------------
+  # 11. 区间套 (IntervalNesting)
+  # ----------------------------------------------------------
+  - name: 区间套
+    english_name: IntervalNesting
+    code_class: "(缺失 -- 需实现)"
+    file: "(缺失)"
+    implementation_status: missing
+    necessary_conditions:
+      - "根据背驰段从高级别向低级别逐级寻找背驰点的方法(原文§操作六.一)"
+      - "精确大转折点寻找程序定理: 某大级别的转折点, 可以通过不同级别背驰段的逐级收缩范围而确定(原文§操作六.一)"
+      - "低级别背驰是本级别背驰的必要条件而非充分条件(原文§操作六.三)"
+    sufficient_conditions:
+      - "大级别背驰段确定 -> 次级别中找对应背驰段 -> 反复直到最低级别 -> 转折点在最低级别背驰段范围内"
+    boundary_conditions:
+      - "第一种(最普遍): 时间和级别完全契合, 所有级别都在背驰段, 最小级别最终背驰(原文§操作六.四)"
+      - "第二种(小转大): 本级别未进入背驰段, 小级别突发导致本级别背驰, 无法抓第一买点, 只能确认后买第二类(原文§操作六.四)"
+      - "第三种(反复背离): 本级别进入背驰段但次级别力度大导致迟迟无法背驰, 背了又背(原文§操作六.四)"
+      - "只要没有打破背驰段就要密切注意"
+    counterexamples:
+      - "低级别背驰但高级别不在背驰段: 低级别背驰不构成高级别转折(充分条件不满足)"
+      - "跳过中间级别直接从最高到最低: 不符合逐级收缩原则"
+    labels:
+      spec_section: ["§操作六 区间套"]
+      situation: [standard, small_to_large, repeated_divergence]
+    testable_assertions:
+      - "区间套输出的转折点必须在最低级别背驰段范围内"
+      - "高级别背驰段范围 >= 次级别背驰段范围 >= ... >= 最低级别背驰段范围(区间严格收缩或相等)"
+      - "最终转折点对应某级别的第一类买卖点"
+      - "所有中间级别都必须处于背驰段内(第一种标准情况)"
+    dependencies:
+      - 背驰
+      - 级别
+      - 买卖点
+    agent_assignment: C买卖点
