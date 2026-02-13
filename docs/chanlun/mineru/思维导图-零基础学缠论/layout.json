@@ -1,0 +1,63 @@
+{
+    "pdf_info": [
+        {
+            "para_blocks": [
+                {
+                    "type": "image",
+                    "bbox": [
+                        0,
+                        0,
+                        2710,
+                        4021
+                    ],
+                    "blocks": [
+                        {
+                            "bbox": [
+                                0,
+                                0,
+                                2710,
+                                4021
+                            ],
+                            "lines": [
+                                {
+                                    "bbox": [
+                                        0,
+                                        0,
+                                        2710,
+                                        4021
+                                    ],
+                                    "spans": [
+                                        {
+                                            "bbox": [
+                                                0,
+                                                0,
+                                                2710,
+                                                4021
+                                            ],
+                                            "type": "image",
+                                            "image_path": "cd82a9b9149c2030d9e25837ded6400bf0bba8460e7a219d3a0b423987e74730.jpg"
+                                        }
+                                    ]
+                                }
+                            ],
+                            "index": 0,
+                            "angle": 0,
+                            "type": "image_body"
+                        }
+                    ],
+                    "index": 0
+                }
+            ],
+            "discarded_blocks": [],
+            "page_size": [
+                2710,
+                4021
+            ],
+            "page_idx": 0
+        }
+    ],
+    "_backend": "hybrid",
+    "_ocr_enable": false,
+    "_vlm_ocr_enable": false,
+    "_version_name": "2.7.6"
+}

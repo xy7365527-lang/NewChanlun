@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environment
+.venv/
+
+# Environment
+.env
+
+# IDE / tools
+.cursor/
+.claude/
+.serena/
+.cache/
+.pytest_cache/
+
+# Node
+node_modules/
+
+# OS
+nul
+Thumbs.db
+.DS_Store
+
+# Data / temp
+_test_db.py
+charting-library-context.txt
