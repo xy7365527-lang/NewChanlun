@@ -47,7 +47,9 @@
       "Bash(mkdir *)",
       "Bash(cp *)",
       "Bash(ls *)",
-      "Bash(cd *)"
+      "Bash(cd *)",
+      "mcp__serena__*",
+      "mcp__plugin_serena_serena__*"
     ],
     "deny": [
       "Bash(rm -rf *)",
