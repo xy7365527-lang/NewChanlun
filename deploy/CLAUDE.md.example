@@ -1,0 +1,74 @@
+# 缠论量化交易系统
+
+## 项目描述
+
+基于缠论（Chanlun）理论的量化交易程序。目标是将缠论的完全分类体系形式化为可执行代码。
+
+编排者是缠论领域专家，使用缠论术语进行交流。所有概念层的决断由编排者做出。
+
+## 当前阶段目标
+
+[在此填写当前阶段的具体目标，例如：]
+[完成笔的形式化定义，通过历史K线数据的质询验证]
+
+## 技术栈
+
+- 语言：Python
+- 框架：[待定]
+- 数据源：[待定]
+
+## 项目结构
+
+```
+.chanlun/
+├── definitions/     # 缠论概念定义仓库（由 /ritual 维护）
+└── genealogy/       # 谱系记录（由 /ritual 和 /inquire 维护）
+```
+
+## 编排规则
+
+本项目使用元编排 v2 方法论。以下规则始终生效：
+
+1. **概念优先于代码。** 定义不清楚时不写代码。
+2. **不绕过矛盾。** 见 `~/.claude/rules/no-workaround.md`。
+3. **所有产出必须可质询。** 见 `~/.claude/rules/result-package.md`。
+4. **谱系必须维护。** 每次矛盾处理后写入 `.chanlun/genealogy/`。
+5. **定义变更必须通过仪式。** 使用 `/ritual`，不直接编辑定义文件。
+
+## Agent Teams 工作模式
+
+本项目使用 Agent Teams 模式。需要启用：
+
+```bash
+export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
+```
+
+或在 settings.json 中设置。
+
+### 角色分工
+- **编排者（你）：** 用缠论术语下任务、做概念决断、触发 `/ritual`
+- **Lead：** 项目经理。分配任务、监控质询循环、执行谱系比对（第四步）、上浮矛盾
+- **Teammates：** 各自负责具体模块的实现和互相质询（第一至三步）
+
+### 质询分工
+- Teammates之间通过SendMessage互相质询（定义回溯、反例构造、推论检验）
+- 并行劳动产生的认知分化让质询有实质内容
+- 概念层矛盾上报lead → lead做谱系比对 → 必要时上浮给编排者
+- 实现层分歧teammates自行解决
+
+### 定义共享
+- 所有teammates自动加载本文件、rules、skills
+- 定义文件在 `.chanlun/definitions/`，所有teammates通过文件系统共享
+- `/ritual` 写入新定义后，lead通过SendMessage通知受影响的teammates
+
+## 可用命令
+
+- `/ceremony` — 创世仪式（会话开始时执行）
+- `/inquire` — 对产出执行四步质询
+- `/escalate` — 矛盾上浮（生成矛盾报告）
+- `/ritual` — 定义广播仪式（编排者决断后执行）
+- `/plan` — 实现规划（来自 ECC，受元编排规则约束）
+- `/tdd` — 测试驱动开发（来自 ECC，受元编排规则约束）
+- `/code-review` — 代码审查（来自 ECC，受元编排规则约束）
+- `/build-fix` — 构建错误修复（来自 ECC）
+- `/refactor-clean` — 死代码清理（来自 ECC）

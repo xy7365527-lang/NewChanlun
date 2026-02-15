@@ -16,7 +16,9 @@
       "Bash(pip install:*)",
       "Bash(\"C:\\\\Users\\\\hanju\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python311\\\\python.exe\" -m pip install vicoa)",
       "Bash(\"C:\\\\Users\\\\hanju\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python311\\\\Scripts\\\\vicoa.exe\" --version)",
-      "Bash(\"C:\\\\Users\\\\hanju\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python311\\\\Scripts\\\\vicoa\" --version)"
+      "Bash(\"C:\\\\Users\\\\hanju\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python311\\\\Scripts\\\\vicoa\" --version)",
+      "Bash(ssh:*)",
+      "Bash(unzip:*)"
     ]
   },
   "enableAllProjectMcpServers": true,
