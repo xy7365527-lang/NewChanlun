@@ -119,6 +119,7 @@ def strokes_from_fractals(
     fractals: list[Fractal],
     mode: str = "wide",
     min_strict_sep: int = 5,
+    merged_to_raw: list[tuple[int, int]] | None = None,
 ) -> list[Stroke]:
     """从分型序列构造笔（保证笔首尾相连，完全覆盖走势）。
 
@@ -128,10 +129,14 @@ def strokes_from_fractals(
         包含处理后的 K 线，必须含 ``high, low`` 列。
     fractals : list[Fractal]
         由 ``fractals_from_merged`` 返回的原始分型列表。
-    mode : ``"wide"`` | ``"strict"``
-        宽笔 / 严笔。
+    mode : ``"wide"`` | ``"strict"`` | ``"new"``
+        宽笔 / 严笔 / 新笔。
     min_strict_sep : int
         严笔模式下两分型中心 idx 的最小间距（默认 5）。
+    merged_to_raw : list[tuple[int, int]] | None
+        ``merge_inclusion()`` 返回的映射表。``mode="new"`` 时必需。
+        ``merged_to_raw[i] = (raw_start, raw_end)`` 表示第 i 根 merged bar
+        对应的原始K线位置范围（闭区间）。若未提供且 mode="new"，回退到旧笔。
 
     Returns
     -------
@@ -146,7 +151,8 @@ def strokes_from_fractals(
     1. §4.2 分型去重 + 顶底交替
     2. 逐对相邻分型尝试构笔，保持连续性：
        - bottom→top = up，top→bottom = down
-       - §4.3 gap 检查：wide ``idx2-idx1 >= 4``，strict ``>= min_strict_sep``
+       - §4.3 gap 检查：wide ``idx2-idx1 >= 4``，strict ``>= min_strict_sep``，
+         new = 原始K线间距 >= 3（《忽闻台风可休市》新笔定义）
        - §4.4 有效性：up 时 end.price > start.price；down 时 end.price < start.price
        - **锁定规则**：已成笔的终点 start 不可被同类分型替换；
          遇到同类更极端分型时，延伸上一笔（更新 i1/p1），确保连续
@@ -157,7 +163,8 @@ def strokes_from_fractals(
     if len(fxs) < 2:
         return []
 
-    min_gap = 4 if mode == "wide" else min_strict_sep
+    use_new_bi = mode == "new" and merged_to_raw is not None
+    min_gap = 4 if mode in ("wide", "new") else min_strict_sep
     highs = df_merged["high"].values.astype(np.float64)
     lows = df_merged["low"].values.astype(np.float64)
 
@@ -202,8 +209,16 @@ def strokes_from_fractals(
 
         # ── 异类分型 → 尝试成笔 ──
         # §4.3 gap 检查
-        gap = cand.idx - start.idx
-        if gap < min_gap:
+        merged_gap = cand.idx - start.idx
+        if use_new_bi:
+            # 新笔：在原始K线上计数（《忽闻台风可休市》"不考虑包含关系"）
+            # 条件1：分型不共用K线 → merged_gap >= 2（最低门槛）
+            # 条件2：极值K线之间原始K线数 >= 3
+            raw_gap = merged_to_raw[cand.idx][0] - merged_to_raw[start.idx][1] - 1  # type: ignore[index]
+            gap_ok = merged_gap >= 2 and raw_gap >= 3
+        else:
+            gap_ok = merged_gap >= min_gap
+        if not gap_ok:
             j += 1
             continue
 
