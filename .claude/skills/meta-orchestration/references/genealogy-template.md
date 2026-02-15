@@ -1,17 +1,30 @@
 # 谱系记录模板
 
-每一次矛盾的发现和处理都使用此模板记录。
+每一次矛盾的发现、概念分离、和处理都使用此模板记录。
 
 ```yaml
 id: [唯一标识，如 GEN-001]
 timestamp: [时间戳]
 status: [生成态 | 已结算]
+type: [矛盾发现 | 概念分离 | 蜂群内部消化 | 编排者决断 | 回溯结算]
 
-# 矛盾
+# 矛盾（type=矛盾发现 时必填）
 contradiction:
   description: [什么跟什么冲突]
   layer: [概念 | 代码 | 编排]
   trigger: [什么操作/事件暴露了这个矛盾]
+
+# 概念分离（type=概念分离 时必填）
+separation:
+  before: [分离前：什么概念被当作同一个]
+  after:
+    - name: [分离后概念A的名称]
+      definition: [定义]
+      source: [原文依据]
+    - name: [分离后概念B的名称]
+      definition: [定义]
+      source: [原文依据]
+  pending_verification: [分离后需要实证回答的问题]
 
 # 涉及的定义
 definitions_involved:
