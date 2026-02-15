@@ -36,3 +36,6 @@ Thumbs.db
 # Data / temp
 _test_db.py
 charting-library-context.txt
+
+# Deploy package (reference only)
+deploy/
