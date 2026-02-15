@@ -20,4 +20,35 @@ Always respond in Chinese-simplified (简体中文).
 ## 级别口径（本项目关键约束）
 
 - **级别 = 递归层级（level_id）**：从 1分钟K线为底座无限向上递归构造走势类型/中枢。
-- **禁止**用“日线/30分/5分”等时间周期替代级别定义（多周期下钻最多只能作为展示/验算手段）。
+- **禁止**用"日线/30分/5分"等时间周期替代级别定义（多周期下钻最多只能作为展示/验算手段）。
+
+## 元编排规则
+
+本项目使用元编排 v2 方法论（ECC 工程底座 + 概念层守卫）。
+
+### 核心原则
+1. **概念优先于代码。** 定义不清楚时不写代码。
+2. **不绕过矛盾。** 见 `~/.claude/rules/no-workaround.md`。
+3. **所有产出必须可质询。** 见 `~/.claude/rules/result-package.md`。
+4. **谱系必须维护。** 每次矛盾处理后写入 `.chanlun/genealogy/`。
+5. **定义变更必须通过仪式。** 使用 `/ritual`，不直接编辑定义文件。
+
+### 知识仓库映射
+元编排中的 `knowledge/` 在本项目中对应：
+- 速查定义：`缠论知识库.md`
+- 域对象 schema：`definitions.yaml`
+- 规则规范：`docs/spec/`（segment_rules_v1.md, zhongshu_rules_v1.md, move_rules_v1.md 等）
+- 原文参考：`docs/chanlun/text/chan99/`
+
+### 谱系目录
+- `.chanlun/genealogy/pending/` — 生成态矛盾
+- `.chanlun/genealogy/settled/` — 已结算记录
+
+### 可用命令
+- `/ceremony` — 创世仪式（会话开始时执行）
+- `/inquire` — 四步质询序列
+- `/escalate` — 矛盾上浮
+- `/ritual` — 定义广播仪式
+- `/plan` — 实现规划（ECC，受元编排约束）
+- `/tdd` — 测试驱动开发（ECC，受元编排约束）
+- `/code-review` — 代码审查（ECC，受元编排约束）
