@@ -14,7 +14,13 @@ build/
 
 # IDE / tools
 .cursor/
-.claude/
+.claude/*
+!.claude/rules/
+!.claude/agents/
+!.claude/commands/
+!.claude/skills/
+!.claude/settings.json
+!.claude/settings.local.json
 .serena/
 .cache/
 .pytest_cache/

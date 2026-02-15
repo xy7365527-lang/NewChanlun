@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir:*)",
+      "Bash(.venv\\\\Scripts\\\\pip install:*)",
+      "Bash(.venv\\\\Scripts\\\\pip.exe install:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(test:*)",
+      "Bash(git clone:*)",
+      "Bash(bash install.sh python)",
+      "Bash(gh repo view:*)",
+      "WebFetch(domain:github.com)",
+      "Bash(where:*)",
+      "Bash(pip show:*)",
+      "Bash(pip install:*)",
+      "Bash(\"C:\\\\Users\\\\hanju\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python311\\\\python.exe\" -m pip install vicoa)",
+      "Bash(\"C:\\\\Users\\\\hanju\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python311\\\\Scripts\\\\vicoa.exe\" --version)",
+      "Bash(\"C:\\\\Users\\\\hanju\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python311\\\\Scripts\\\\vicoa\" --version)"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "serena"
+  ]
+}
