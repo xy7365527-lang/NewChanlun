@@ -105,17 +105,19 @@ Always respond in Chinese-simplified (简体中文).
 | L1 compact | 上下文压缩 | PreCompact 保存 + SessionStart 恢复 | session 文件 |
 | L2 新对话 | 上下文彻底耗尽 | 新对话 + ceremony 从 session 文件恢复 | session 文件 + `.chanlun/` |
 
-**L1 — 同会话 compact 恢复**：
-1. PreCompact 钩子（未来实现）：压缩前自动写入当前蜂群状态到 session 文件
-2. SessionStart 恢复：压缩后加载最近 session 记录，恢复定义基底、工作进度、待决事项
+**L1 — 同会话 compact 恢复**（已实现）：
+1. PreCompact 钩子（`.claude/hooks/precompact-save.sh`）：压缩前自动写入蜂群状态到 `*-precompact.md`
+2. 压缩后加载最近 session 记录，恢复定义基底、工作进度、待决事项
 3. 直接续接中断点，不需要重新 ceremony
 
-**L2 — 跨会话热启动**：
+**L2 — 跨会话热启动**（已实现）：
 1. 当 compact 后上下文依然不足（或会话被关闭/超时），启动新对话
-2. 新对话执行 `/ceremony`，但 ceremony 检测到 session 记录存在时，切换为**热启动模式**：
-   - 跳过已结算定义的重新验证
+2. 新对话执行 `/ceremony`，ceremony 自动检测 session 记录，切换为**热启动模式**：
+   - 版本对比：扫描 `.chanlun/definitions/` 当前版本 vs session 记录版本
+   - 差异报告：只报告变更项（`↑`升级/`+`新增/`-`消失），未变更项标记 `=`
+   - 跳过已结算且版本未变更的定义的重新验证
    - 直接加载中断点和阻塞项
-   - 恢复蜂群并继续未完成的工位
+   - **不等待编排者确认**，直接进入蜂群循环
 3. session 文件是跨对话的唯一状态载体，必须在每次 commit 时同步更新
 
 **设计目标**：蜂群永远在线。compact 和新对话都不是中断，而是状态快照+恢复的不同级别。
