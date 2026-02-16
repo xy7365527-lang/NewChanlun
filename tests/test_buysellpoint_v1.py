@@ -11,6 +11,11 @@
   E) Type 3 不成立：回试跌破 ZG
   F) 空输入
   G) 盘整背驰不产生 Type 1
+  H) Type 2 买点：1B 后第一次回调 → 2B
+  I) Type 2 卖点：1S 后第一次反弹 → 2S
+  J) Type 2 不成立：1B 后没有足够段
+  K) 2B+3B 重合：同一 seg_idx 上同时产生 2B 和 3B
+  L) 2B+3B 不重合：不同 seg_idx
 """
 
 from __future__ import annotations
@@ -313,3 +318,150 @@ class TestConsolidationDivergenceNoType1:
         bsps = buysellpoints_from_level(segs, zhongshus, moves, divs, level_id=1)
         t1 = [bp for bp in bsps if bp.kind == "type1"]
         assert len(t1) == 0
+
+
+# =====================================================================
+# H) Type 2 买点：1B 后第一次回调 → 2B
+# =====================================================================
+
+class TestType2Buy:
+    def test_type2_buy_after_1b(self):
+        """1B 出现后，第一次反弹后的第一次回调 → 2B。
+
+        扩展下跌趋势 fixture：
+          seg10 = 1B（下跌趋势背驰底部）
+          seg11 (up) = 反弹
+          seg12 (down) = 回调 → 2B at seg_idx=12
+        """
+        segs, zss, mvs, divs = _make_downtrend_with_divergence()
+        # 追加反弹和回调段
+        segs.extend([
+            _seg(11, 11, 110, 130, "up", 60, 46),     # 反弹
+            _seg(12, 12, 130, 140, "down", 55, 48),    # 回调 → 2B
+        ])
+
+        bsps = buysellpoints_from_level(segs, zss, mvs, divs, level_id=1)
+        t2_buys = [bp for bp in bsps if bp.kind == "type2" and bp.side == "buy"]
+        assert len(t2_buys) >= 1
+        bp = t2_buys[0]
+        assert bp.seg_idx == 12  # 回调段
+        assert bp.divergence_key is not None  # 继承自 type1
+        assert bp.price == 48.0  # 回调段 low
+
+
+# =====================================================================
+# I) Type 2 卖点：1S 后第一次反弹 → 2S
+# =====================================================================
+
+class TestType2Sell:
+    def test_type2_sell_after_1s(self):
+        """1S 出现后，第一次回调后的第一次反弹 → 2S。
+
+        扩展上涨趋势 fixture：
+          seg10 = 1S（上涨趋势背驰顶部）
+          seg11 (down) = 回调
+          seg12 (up) = 反弹 → 2S at seg_idx=12
+        """
+        segs, zss, mvs, divs = _make_uptrend_with_divergence()
+        segs.extend([
+            _seg(11, 11, 110, 130, "down", 32, 25),   # 回调
+            _seg(12, 12, 130, 140, "up", 30, 26),      # 反弹 → 2S
+        ])
+
+        bsps = buysellpoints_from_level(segs, zss, mvs, divs, level_id=1)
+        t2_sells = [bp for bp in bsps if bp.kind == "type2" and bp.side == "sell"]
+        assert len(t2_sells) >= 1
+        bp = t2_sells[0]
+        assert bp.seg_idx == 12
+        assert bp.side == "sell"
+        assert bp.divergence_key is not None
+        assert bp.price == 30.0  # 反弹段 high
+
+
+# =====================================================================
+# J) Type 2 不成立：1B 后没有足够段
+# =====================================================================
+
+class TestType2NotEnoughSegments:
+    def test_no_type2_when_no_rebound(self):
+        """1B 之后没有反弹和回调段 → 不产生 2B。"""
+        segs, zss, mvs, divs = _make_downtrend_with_divergence()
+        # 不追加额外段
+        bsps = buysellpoints_from_level(segs, zss, mvs, divs, level_id=1)
+        t2 = [bp for bp in bsps if bp.kind == "type2"]
+        assert len(t2) == 0
+
+    def test_no_type2_when_only_rebound(self):
+        """1B 之后只有反弹没有回调 → 不产生 2B。"""
+        segs, zss, mvs, divs = _make_downtrend_with_divergence()
+        segs.append(_seg(11, 11, 110, 130, "up", 60, 46))
+        bsps = buysellpoints_from_level(segs, zss, mvs, divs, level_id=1)
+        t2 = [bp for bp in bsps if bp.kind == "type2"]
+        assert len(t2) == 0
+
+
+# =====================================================================
+# K) 2B+3B 重合
+# =====================================================================
+
+class TestOverlap2B3B:
+    def test_2b_3b_overlap_same_seg(self):
+        """V型反转：1B后凌厉上破最后中枢，回试不触及ZG → 2B+3B重合。
+
+        扩展下跌趋势：
+          seg10 = 1B
+          seg11 (up) = 凌厉反弹，突破 zhongshu1 的 ZG=60
+          seg12 (down) = 回试，low=62 > ZG=60 → 3B
+                         同时也是 1B 后的第一次回调 → 2B
+          → seg12 同时是 2B 和 3B → overlaps_with 标记
+        """
+        segs, zss, mvs, divs = _make_downtrend_with_divergence()
+
+        # 修改 zhongshu1：break_direction="up" 表示上方突破
+        zss[1] = Zhongshu(
+            zd=50.0, zg=60.0, seg_start=7, seg_end=9, seg_count=3,
+            settled=True, break_seg=11, break_direction="up",
+            first_seg_s0=7, last_seg_s1=9, gg=60.0, dd=50.0,
+        )
+
+        segs.extend([
+            _seg(11, 11, 110, 130, "up", 75, 46),     # 凌厉上破 ZG=60
+            _seg(12, 12, 130, 140, "down", 70, 62),    # 回试 low=62 > ZG=60 → 3B
+        ])
+
+        bsps = buysellpoints_from_level(segs, zss, mvs, divs, level_id=1)
+        t2_buys = [bp for bp in bsps if bp.kind == "type2" and bp.side == "buy"]
+        t3_buys = [bp for bp in bsps if bp.kind == "type3" and bp.side == "buy"]
+
+        # 都应在 seg12
+        assert len(t2_buys) >= 1
+        assert len(t3_buys) >= 1
+        assert t2_buys[0].seg_idx == 12
+        assert t3_buys[0].seg_idx == 12
+
+        # 重合标记
+        assert t2_buys[0].overlaps_with == "type3"
+        assert t3_buys[0].overlaps_with == "type2"
+
+
+# =====================================================================
+# L) 2B+3B 不重合
+# =====================================================================
+
+class TestOverlapNone:
+    def test_no_overlap_different_seg(self):
+        """2B 和 3B 不在同一段 → 无重合标记。"""
+        segs, zss, mvs, divs = _make_downtrend_with_divergence()
+
+        # zhongshu1 保持 break_direction="down"（不触发 3B）
+        segs.extend([
+            _seg(11, 11, 110, 130, "up", 60, 46),
+            _seg(12, 12, 130, 140, "down", 55, 48),
+        ])
+
+        bsps = buysellpoints_from_level(segs, zss, mvs, divs, level_id=1)
+        t2_buys = [bp for bp in bsps if bp.kind == "type2" and bp.side == "buy"]
+        # 有 2B 但 zhongshu1 的 break_direction="down" 不产生 3B
+        # 所以不会重合
+        for bp in t2_buys:
+            assert bp.overlaps_with is None

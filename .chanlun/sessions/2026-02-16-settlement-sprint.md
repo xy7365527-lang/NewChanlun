@@ -187,12 +187,32 @@
 
 **测试增量**：524→543 passed（+19），无退化
 
+### 第六轮蜂群结果（R6）
+
+| 工位 | 任务 | 产出 | 状态 |
+|------|------|------|------|
+| Q(主线程) | Type 2 买卖点实现 | `_detect_type2()` + 6 测试 GREEN | ✅ 已实现 |
+| Q(主线程) | 2B+3B 重合检测 | `_detect_overlap()` + 2 测试 GREEN | ✅ 已实现 |
+| S(主线程) | v1 管线 E2E 集成 | `test_v1_pipeline_e2e.py` 8 测试 GREEN | ✅ 已验证 |
+
+**买卖点三类完整实现**：
+- Type 1（趋势背驰→1B/1S）✅ R5 已实现
+- Type 2（回调/反弹→2B/2S）✅ R6 实现
+- Type 3（中枢突破回试→3B/3S）✅ R5 已实现
+- 2B+3B 重合检测 ✅ R6 实现
+
+**v1 管线端到端链路验证**：
+- segment → zhongshu_from_segments → moves_from_zhongshus → divergences_from_moves_v1 → buysellpoints_from_level
+- 8 个 E2E 测试：分层验证、确定性(I28)、索引合法性、空输入
+
+**测试增量**：543→557 passed（+14），无退化
+
 ## 下次中断点
 
 - **阻塞**：真实数据 E2E 验证（需编排者提供 API key 或本地数据文件）
-- **最高优先**：买卖点 Type 2 实现 + 2B+3B 重合检测
-- **次高优先**：v1 管线端到端集成（segment_v1 → zhongshu → move → divergence_v1 → buysellpoint）
 - **可结算**：zhongshu 待 /ritual 正式升级为已结算
 - **可继续**：003 谱系的 v0 保留决断（需编排者）
+- **可继续**：BuySellPointDetector 事件驱动引擎（maimai_rules_v1.md §10）
+- **可继续**：diff_buysellpoints 实现（maimai_rules_v1.md §5）
 - **背驰生成态**：T4(0轴回拉)/T6(创新高)/T7(柱子高度) 阈值待 beichi.md 结算
 - **编排者提出的未来议题**：真中枢/假中枢（级别递归），本次暂不触及
