@@ -222,7 +222,12 @@ def _detect_trend_divergence(
     2. 取 move 范围内最后两个 settled 中枢
     3. A 段 = 前中枢结束到后中枢开始
     4. C 段 = 后中枢结束到 move 终点
-    5. force_c < force_a → 背驰
+    5. T4 前提：B 段黄白线穿越 0 轴（仅有 MACD 时）
+    6. 三维度 OR 判定（beichi.md #2 已结算）：
+       - T2: force_c < force_a（面积）
+       - T6: dif_peak_c < dif_peak_a（DIF 峰值）
+       - T7: hist_peak_c < hist_peak_a（HIST 峰值）
+       任一满足 → 背驰 [旧缠论:选择]
     """
     if move.kind != "trend" or move.zs_count < 2:
         return None
@@ -269,6 +274,7 @@ def _detect_trend_divergence(
             )
             return None
 
+    # T2: 面积维度
     force_a = _compute_force(segments, a_start, a_end, move.direction,
                              df_macd, merged_to_raw)
     force_c = _compute_force(segments, c_start, c_end, move.direction,
@@ -277,7 +283,32 @@ def _detect_trend_divergence(
     if force_a <= 0:
         return None
 
-    if force_c < force_a:
+    # T6/T7: DIF 峰值 + HIST 峰值维度（仅有 MACD 时）
+    dif_peak_a = 0.0
+    dif_peak_c = 0.0
+    hist_peak_a = 0.0
+    hist_peak_c = 0.0
+
+    if df_macd is not None and merged_to_raw is not None:
+        a_i0, a_i1 = _seg_merged_range(segments, a_start, a_end)
+        raw_a_i0 = merged_to_raw[a_i0][0] if a_i0 < len(merged_to_raw) else 0
+        raw_a_i1 = merged_to_raw[a_i1][1] if a_i1 < len(merged_to_raw) else 0
+
+        c_i0, c_i1 = _seg_merged_range(segments, c_start, c_end)
+        raw_c_i0 = merged_to_raw[c_i0][0] if c_i0 < len(merged_to_raw) else 0
+        raw_c_i1 = merged_to_raw[c_i1][1] if c_i1 < len(merged_to_raw) else 0
+
+        dif_peak_a = dif_peak_for_range(df_macd, raw_a_i0, raw_a_i1, move.direction)
+        dif_peak_c = dif_peak_for_range(df_macd, raw_c_i0, raw_c_i1, move.direction)
+        hist_peak_a = histogram_peak_for_range(df_macd, raw_a_i0, raw_a_i1, move.direction)
+        hist_peak_c = histogram_peak_for_range(df_macd, raw_c_i0, raw_c_i1, move.direction)
+
+    # 三维度 OR 判定（beichi.md #2 结算：任一满足即背驰）[旧缠论:选择]
+    t2_diverged = force_c < force_a
+    t6_diverged = dif_peak_a > 0 and dif_peak_c < dif_peak_a
+    t7_diverged = hist_peak_a > 0 and hist_peak_c < hist_peak_a
+
+    if t2_diverged or t6_diverged or t7_diverged:
         div_dir: Literal["top", "bottom"] = (
             "top" if move.direction == "up" else "bottom"
         )
@@ -293,6 +324,10 @@ def _detect_trend_divergence(
             force_a=force_a,
             force_c=force_c,
             confirmed=move.settled,
+            dif_peak_a=dif_peak_a,
+            dif_peak_c=dif_peak_c,
+            hist_peak_a=hist_peak_a,
+            hist_peak_c=hist_peak_c,
         )
 
     return None
@@ -315,7 +350,11 @@ def _detect_consolidation_divergence(
     2. 取中枢
     3. 收集离开中枢的段（按方向分组）
     4. 对每个方向，比较最后两次离开力度
-    5. force_c < force_a → 盘整背驰
+    5. 三维度 OR 判定（beichi.md #2 已结算）：
+       - T2: force_c < force_a（面积）
+       - T6: dif_peak_c < dif_peak_a（DIF 峰值）
+       - T7: hist_peak_c < hist_peak_a（HIST 峰值）
+       任一满足 → 盘整背驰 [旧缠论:选择]
     """
     if move.kind != "consolidation" or move.zs_count < 1:
         return None
@@ -351,6 +390,7 @@ def _detect_consolidation_divergence(
         a_idx = exits[-2]
         c_idx = exits[-1]
 
+        # T2: 面积维度
         force_a = _compute_force(segments, a_idx, a_idx, direction,
                                  df_macd, merged_to_raw)
         force_c = _compute_force(segments, c_idx, c_idx, direction,
@@ -359,7 +399,32 @@ def _detect_consolidation_divergence(
         if force_a <= 0:
             continue
 
-        if force_c < force_a:
+        # T6/T7: DIF 峰值 + HIST 峰值维度
+        dif_peak_a = 0.0
+        dif_peak_c = 0.0
+        hist_peak_a = 0.0
+        hist_peak_c = 0.0
+
+        if df_macd is not None and merged_to_raw is not None:
+            a_i0, a_i1 = _seg_merged_range(segments, a_idx, a_idx)
+            raw_a_i0 = merged_to_raw[a_i0][0] if a_i0 < len(merged_to_raw) else 0
+            raw_a_i1 = merged_to_raw[a_i1][1] if a_i1 < len(merged_to_raw) else 0
+
+            c_i0, c_i1 = _seg_merged_range(segments, c_idx, c_idx)
+            raw_c_i0 = merged_to_raw[c_i0][0] if c_i0 < len(merged_to_raw) else 0
+            raw_c_i1 = merged_to_raw[c_i1][1] if c_i1 < len(merged_to_raw) else 0
+
+            dif_peak_a = dif_peak_for_range(df_macd, raw_a_i0, raw_a_i1, direction)
+            dif_peak_c = dif_peak_for_range(df_macd, raw_c_i0, raw_c_i1, direction)
+            hist_peak_a = histogram_peak_for_range(df_macd, raw_a_i0, raw_a_i1, direction)
+            hist_peak_c = histogram_peak_for_range(df_macd, raw_c_i0, raw_c_i1, direction)
+
+        # 三维度 OR 判定 [旧缠论:选择]
+        t2_diverged = force_c < force_a
+        t6_diverged = dif_peak_a > 0 and dif_peak_c < dif_peak_a
+        t7_diverged = hist_peak_a > 0 and hist_peak_c < hist_peak_a
+
+        if t2_diverged or t6_diverged or t7_diverged:
             div_dir: Literal["top", "bottom"] = (
                 "top" if direction == "up" else "bottom"
             )
@@ -375,6 +440,10 @@ def _detect_consolidation_divergence(
                 force_a=force_a,
                 force_c=force_c,
                 confirmed=move.settled,
+                dif_peak_a=dif_peak_a,
+                dif_peak_c=dif_peak_c,
+                hist_peak_a=hist_peak_a,
+                hist_peak_c=hist_peak_c,
             )
 
     return None
