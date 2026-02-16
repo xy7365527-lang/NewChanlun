@@ -687,16 +687,62 @@ deploy/ 包含完整的元编排可移植部署包：
 
 ---
 
+## R24蜂群（第24轮）
+
+### R24-A: beichi #5 divergences_in_bar_range TDD实现 (主线程，已提交commit 2968681)
+- **任务**: 区间套单级别检测入口 TDD 实现
+- **代码**: `src/newchan/a_divergence_v1.py` 新增 `divergences_in_bar_range()` + `_filter_moves_in_range()` + `_move_bar_range()`
+- **测试**: `tests/test_divergence_in_bar_range.py` — 15测试全GREEN
+- **设计**: bar_range闭区间过滤 + 复用现有检测逻辑零修改
+- **定义更新**: beichi.md v0.8→v0.9
+
+### R24-B': maimai #5 第三类买卖点中枢范围原文回溯 (后台agent a29c586)
+- **任务**: 第三类买卖点判定范围的原文依据收集
+- **结果**: 4条形式化结论
+  - C1: 判定范围 = [ZD, ZG] 中枢区间（非 [DD, GG] 波动区间）[旧缠论]
+  - C2: [DD, GG] 波动区间用于中枢扩张判定 [旧缠论:隐含]
+  - C3: "回试" = 次级别走势类型（非任意级别回调）[旧缠论]
+  - C4: 无距离约束 [旧缠论:隐含]
+- **定义更新**: maimai.md v0.4→v0.5
+
+### R24-C': zoushi 结算路径评估 (后台agent a442b23)
+- **任务**: zoushi.md 4个未结算问题的结算可行性评估
+- **结果**:
+  - #1 背驰与走势完成: 50% 可结算（beichi #3 充分非必要已结算）
+  - #2 买卖点精确对应: 需原文回溯（maimai confirmed 语义已结算但对应关系未形式化）
+  - #3 多级别共振: 长期阻塞（缺乏形式化定义）
+  - #4 确认时机: 60% 可结算（maimai #3 已有原文回溯）
+
+### R24-D: nested_divergence_search 区间套跨级别搜索 TDD实现 (主线程)
+- **任务**: 区间套跨级别搜索编排器 TDD 实现
+- **代码**: 新增 `src/newchan/a_nested_divergence.py`
+  - `NestedDivergence` dataclass (chain + bar_range)
+  - `nested_divergence_search()` 主编排（从最高递归级别向下搜索到 level 1）
+  - `divergences_from_level_snapshot()` level 2+ 背驰检测
+  - `_detect_level_trend_divergence()` / `_detect_level_consolidation_divergence()` — 使用 LevelZhongshu.comp_start/comp_end
+  - `_amplitude_force()` 价格振幅力度（level 2+ 无 MACD）
+  - `_level_move_to_bar_range()` 递归下降映射（level k → merged bar 索引）
+  - `_get_moves_at_level()` 统一 level 访问
+- **测试**: `tests/test_nested_divergence.py` — 20测试全GREEN
+- **关键设计决策**:
+  1. 级别=递归层级，不接受时间周期参数 [旧缠论]
+  2. 构造自下而上、搜索自上而下
+  3. Level 2+ 力度 = 价格振幅（无MACD）
+  4. 只有 settled=True 的 Move 参与递归 [旧缠论:选择]
+- **定义更新**: beichi.md v0.9→v1.0（#5完整结算，全部6问题已结算）
+
+### 测试基线（R24后）
+
+803 passed, 16 failed, 16 errors, 10 skipped（R23基线762 + beichi#5:15 + nested:20 + 其他调整），零退化
+
+---
+
 ## 下次中断点
 
-- ~~**P6 事件level_id扩展**~~ → ✅ 已完成
-- ~~**P8 RecursiveOrchestrator**~~ → ✅ 已完成
-- ~~**P9 口径A交叉验证**~~ → ✅ 已完成
-- ~~**maimai #2 代码落地**~~ → ✅ 已完成
-- ~~**maimai #3 原文回溯**~~ → ✅ 已完成（待编排者结算确认）
-- ~~**beichi #5 区间套原文回溯**~~ → ✅ 已完成
-- ~~**beichi #5 接口设计**~~ → ✅ 已完成
-- **beichi #5 TDD实现**: `divergences_in_bar_range()` 函数实现 + 18个测试
+- ~~**beichi #5 TDD实现**~~ → ✅ 已完成（单级别+跨级别，beichi v1.0 全部结算）
+- ~~**maimai #5 原文回溯**~~ → ✅ 已完成（[ZD,ZG]中枢区间，待编排者确认结算）
 - **maimai #3 结算**: 编排者确认C3（不可逆性）和C4（二义性辨析）后结算
-- **maimai #5**: 第三类买卖点的中枢范围
-- **zoushi 结算路径**: beichi→maimai→level_recursion 三定义推进后结算
+- **maimai #5 结算**: 编排者确认C2（波动区间用途区分）后结算
+- **zoushi #1/#4 结算推进**: 依赖 beichi→maimai 交叉结算
+- **zoushi #2 原文回溯**: 买卖点精确对应关系形式化
+- **zoushi #3 多级别共振**: 长期阻塞，缺乏形式化定义

@@ -1,7 +1,7 @@
 # 背驰（Beichi / Divergence）
 
-**版本**: v0.9
-**状态**: 生成态（#1/#2/#3/#4/#5/#6已结算，T6/T7三维度OR已集成；#5 divergences_in_bar_range 已实现+15测试GREEN）
+**版本**: v1.0
+**状态**: 生成态（#1/#2/#3/#4/#5/#6全部已结算，T6/T7三维度OR已集成；区间套单级别+跨级别搜索均已实现）
 **最后更新**: 2026-02-16
 **原文依据**: 第24课、第25课、第27课、第29课、第33课、第37课；编纂版§9（趋势力度、背驰与盘整背驰）、§10.6（区间套）
 
@@ -295,7 +295,7 @@ class Divergence:
 | 黄白线创新高检查 | ✅ 工具函数已实现（T6） | `dif_peak_for_range()`：计算指定范围DIF峰值。未集成到主检测（#2 or/and未结算） |
 | 柱子伸长高度比较 | ✅ 工具函数已实现（T7） | `histogram_peak_for_range()`：计算指定范围hist峰值。未集成到主检测（#2 or/and未结算） |
 | 盘整背驰 | ✅ 已实现 | 同向离开段力度比较 |
-| 区间套（多级别嵌套） | ❌ 未实现 | 当前仅单级别检测 |
+| 区间套（多级别嵌套） | ✅ 已实现 | 单级别 `divergences_in_bar_range` + 跨级别 `nested_divergence_search` |
 | 小转大 | ❌ 未实现 | 需跨级别联动 |
 | confirmed时机 | ✅ 基本实现 | 跟随trend的confirmed状态 |
 
@@ -357,7 +357,7 @@ class Divergence:
 - **[DD,GG]不适用原因**：延伸中枢的波动区间会包含所有Z走势，导致"无离开"的检测困难
 - **溯源**：[旧缠论] 第33课 + 第20课（ZG/ZD数学定义）+ 第24课（盘整背驰案例）
 
-### ~~5. 区间套的实现~~ → ✅ 单级别检测入口已实现
+### ~~5. 区间套的实现~~ → ✅ 已结算（单级别+跨级别）
 
 **原文回溯结论**（R22-C, 2026-02-16）：
 
@@ -401,6 +401,32 @@ def divergences_in_bar_range(
 
 **测试场景**：18个（A1-A6基本, B1-B5边界, C1-C3过滤, D1-D2一致性, E1-E2 MACD, F1-F2纯函数性）
 - **原文依据**：第27课（定理首次提出）、第27课答疑（三重背驰案例）、第37课（c内部递推）、第61课（四重背驰标准图解）
+
+**跨级别搜索实现**（R24-D, 2026-02-16）：
+
+**新增模块**：`src/newchan/a_nested_divergence.py`
+```python
+def nested_divergence_search(
+    snap: RecursiveOrchestratorSnapshot,
+    *, df_macd=None, merged_to_raw=None,
+) -> list[NestedDivergence]:
+    """区间套主编排：从最高递归级别向下搜索到 level 1"""
+```
+
+**关键设计决策**：
+1. **级别=递归层级**，不接受时间周期参数（无timeframe/period/tf参数）[旧缠论]
+2. **构造自下而上、搜索自上而下**：级别从1m构造向上递归，区间套从最高级别背驰段向下收缩
+3. **Level 2+ 独立检测函数**：`_detect_level_trend_divergence()` / `_detect_level_consolidation_divergence()` 使用 `LevelZhongshu.comp_start/comp_end`（非 `seg_start/seg_end`）
+4. **Level 2+ 力度 = 价格振幅**：无MACD（MACD仅在raw bar层面有意义）
+5. **递归下降映射**：`_level_move_to_bar_range()` 通过 settled moves 链递归到 merged bar 索引
+6. **只有 settled=True 的 Move 参与递归**（RecursiveLevelEngine 约束）[旧缠论:选择]
+
+**测试**：20个全GREEN（test_nested_divergence.py）
+- TestGetMovesAtLevel: 3个（level 1, level 2, beyond max）
+- TestLevelMoveToBarRange: 4个（level 1 直映射, level 2 递归, 单segment, 越界）
+- TestDivergencesFromLevelSnapshot: 5个（趋势检测, confirmed, 力度相等, 盘整非趋势, 空输入）
+- TestNestedDivergenceSearch: 6个（无递归层, 空结果, 结果类型, chain递减, bar_range收缩, 级别=递归非时间周期）
+- TestNestedDivergencePurity: 2个（输入不变性, 幂等性）
 
 ### ~~6. v0 TrendTypeInstance 依赖~~ → ✅ 已结算
 
@@ -486,3 +512,4 @@ def divergences_in_bar_range(
 - **v0.7** (2026-02-16): #5 区间套原文回溯完成——第27课定理首次提出、第61课四重背驰标准图解；递归收缩结构形式化；实现缺口：需限定bar范围的定向背驰检测
 - **v0.8** (2026-02-16): #5 接口设计完成——`divergences_in_bar_range()` 函数签名、严格落入过滤、18个测试场景；复用现有检测逻辑零修改
 - **v0.9** (2026-02-16): #5 TDD实现——`divergences_in_bar_range()` + `_filter_moves_in_range()` + `_move_bar_range()`，15测试全GREEN，零修改现有函数
+- **v1.0** (2026-02-16): #5 区间套完整实现——`nested_divergence_search()` 跨级别搜索 + `divergences_from_level_snapshot()` level 2+ 检测 + `_level_move_to_bar_range()` 递归下降映射；20测试全GREEN，803 passed零退化；全部6个未结算问题已结算
