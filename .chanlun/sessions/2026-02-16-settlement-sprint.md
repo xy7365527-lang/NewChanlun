@@ -207,12 +207,33 @@
 
 **测试增量**：543→557 passed（+14），无退化
 
+### 第七轮蜂群结果（R7）
+
+| 工位 | 任务 | 产出 | 状态 |
+|------|------|------|------|
+| Q(主线程) | BSP 事件类型 | events.py +4 event dataclass | ✅ 已实现 |
+| Q(主线程) | BSP 身份比较 | identity.py +2 函数 | ✅ 已实现 |
+| Q(主线程) | BSP Snapshot + diff | buysellpoint_state.py (新文件) | ✅ 已实现 |
+| Q(主线程) | BSP Engine | buysellpoint_engine.py (新文件) | ✅ 已实现 |
+| S(主线程) | BSP 事件层测试 | test_buysellpoint_events.py 17 测试 GREEN | ✅ 已验证 |
+| S(agent) | E2E 测试升级 | test_v1_pipeline_e2e.py 28 测试 GREEN | ✅ 已验证 |
+
+**五层引擎链完整**：
+- BiEngine → SegmentEngine → ZhongshuEngine → MoveEngine → **BuySellPointEngine** ✅
+- 每层同构：`*_state.py` (Snapshot + diff) + `*_engine.py` (Engine class)
+
+**BSP 事件驱动特性（区别于 Move 层）**：
+- 新增 `confirmed` 状态转换 → BuySellPointConfirmV1 事件
+- I24 不变量：confirmed=True 的新 BSP 先发 Candidate 再发 Confirm
+- 4 种事件类型：Candidate / Confirm / Settle / Invalidate
+
+**测试增量**：557→594 passed（+37），无退化
+
 ## 下次中断点
 
 - **阻塞**：真实数据 E2E 验证（需编排者提供 API key 或本地数据文件）
 - **可结算**：zhongshu 待 /ritual 正式升级为已结算
 - **可继续**：003 谱系的 v0 保留决断（需编排者）
-- **可继续**：BuySellPointDetector 事件驱动引擎（maimai_rules_v1.md §10）
-- **可继续**：diff_buysellpoints 实现（maimai_rules_v1.md §5）
+- **可继续**：Orchestrator 集成 BuySellPointEngine 到完整回放管线
 - **背驰生成态**：T4(0轴回拉)/T6(创新高)/T7(柱子高度) 阈值待 beichi.md 结算
 - **编排者提出的未来议题**：真中枢/假中枢（级别递归），本次暂不触及
