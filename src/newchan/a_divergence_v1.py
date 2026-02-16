@@ -17,7 +17,7 @@ Divergence 输出类型复用 v0 的定义（语义不变）。
 
 已知缺失（生成态）
 ------------------
-- T4: MACD 黄白线回拉 0 轴前提检查（beichi.md §T4）
+- T4: MACD 黄白线回拉 0 轴前提检查（beichi.md §T4）→ 已实现（方案3: B段穿越0轴）
 - T6: 创新高/新低前提（beichi.md §T6）
 - T7: K 线延伸判定（beichi.md §T7）
 """
@@ -81,6 +81,47 @@ def _compute_force(
     return (high - low) * duration
 
 
+# ── T4: B 段 MACD 黄白线穿越 0 轴检测 ──
+
+def _b_segment_crosses_zero(
+    segments: list,
+    zs_last: Zhongshu,
+    df_macd: pd.DataFrame,
+    merged_to_raw: list[tuple[int, int]],
+) -> bool:
+    """检查 B 段（最后中枢）覆盖的 raw bar 范围内，MACD 黄白线（DIF）是否穿越 0 轴。
+
+    方案3（无阈值）：穿越 = 同时存在 strictly positive 和 strictly negative 值。
+    0 值不算穿越（恰好在 0 轴上不算回拉到另一侧）。
+
+    原文依据（第25课）：
+    > "背驰需要多少个条件？光柱子缩短就背驰？前面的黄白线有回拉0轴吗？"
+    > "进入第二个中枢的形成过程中，同时MACD的黄白线会逐步回到0轴附近"
+
+    概念溯源: [旧缠论] — 第24/25课MACD标准背驰前提
+    """
+    # B 段的 merged bar 范围
+    i0 = segments[zs_last.seg_start].i0 if zs_last.seg_start < len(segments) else 0
+    i1 = segments[zs_last.seg_end].i1 if zs_last.seg_end < len(segments) else 0
+
+    # merged → raw
+    raw_i0 = merged_to_raw[i0][0] if i0 < len(merged_to_raw) else 0
+    raw_i1 = merged_to_raw[i1][1] if i1 < len(merged_to_raw) else 0
+
+    if raw_i0 < 0:
+        raw_i0 = 0
+    if raw_i1 >= len(df_macd):
+        raw_i1 = len(df_macd) - 1
+    if raw_i0 > raw_i1:
+        return False
+
+    macd_line = df_macd["macd"].iloc[raw_i0 : raw_i1 + 1]
+    has_positive = bool((macd_line > 0).any())
+    has_negative = bool((macd_line < 0).any())
+
+    return has_positive and has_negative
+
+
 # ── 趋势背驰检测 ──
 
 def _detect_trend_divergence(
@@ -134,6 +175,16 @@ def _detect_trend_divergence(
     # 边界检查
     if a_start >= len(segments) or c_end >= len(segments):
         return None
+
+    # T4 前提：B 段（最后中枢）MACD 黄白线穿越 0 轴（beichi.md §T4）
+    # 仅在有 MACD 数据时检查；无 MACD 数据时走 fallback 不检查 T4
+    if df_macd is not None and merged_to_raw is not None:
+        if not _b_segment_crosses_zero(segments, zs_last, df_macd, merged_to_raw):
+            logger.debug(
+                "T4 前提不满足: B 段 (zs[%d]) MACD 黄白线未穿越 0 轴，跳过趋势背驰检测",
+                idx_last,
+            )
+            return None
 
     force_a = _compute_force(segments, a_start, a_end, move.direction,
                              df_macd, merged_to_raw)

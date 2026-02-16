@@ -661,3 +661,226 @@ class TestEmptyInputV1:
     def test_no_moves(self):
         segs = [_seg(0, 0, 0, 10, "up", 20, 10)]
         assert divergences_from_moves_v1(segs, [], [], 1) == []
+
+
+# =====================================================================
+# T4) MACD 黄白线回拉 0 轴前提检查（beichi.md §T4）
+#
+# 方案3: B 段内黄白线穿越 0 轴 = has_positive AND has_negative
+# 原文第25课："背驰需要多少个条件？光柱子缩短就背驰？前面的黄白线有回拉0轴吗？"
+# =====================================================================
+
+import numpy as np
+import pandas as pd
+
+
+def _make_df_macd(macd_values: list[float]) -> pd.DataFrame:
+    """构造 MACD DataFrame，macd 列为黄白线 (DIF)，其余补零。"""
+    n = len(macd_values)
+    return pd.DataFrame({
+        "macd": macd_values,
+        "signal": [0.0] * n,
+        "hist": [0.1] * n,  # 非零 hist 确保力度计算有值
+    })
+
+
+def _make_merged_to_raw_identity(n: int) -> list[tuple[int, int]]:
+    """1:1 映射: merged bar i → raw bar (i, i)。"""
+    return [(i, i) for i in range(n)]
+
+
+class TestT4ZeroCrossPositive:
+    """T4_zero_cross_positive: B 段 MACD 黄白线有正有负 → 满足前提 → 正常检出趋势背驰。"""
+
+    def test_b_segment_crosses_zero_divergence_detected(self):
+        """B 段（最后中枢 zs1）覆盖的 raw bar 内，MACD macd 列同时有正有负。
+        力度比较 C < A → 应检出趋势背驰。
+
+        结构: 上涨趋势，2中枢
+          seg0-2  → zs0, merged bar [0..30]
+          seg3-6  → A段 过渡, merged bar [30..70]
+          seg7-9  → zs1 (B段), merged bar [70..100]
+          seg10   → C段, merged bar [100..110]
+
+        MACD macd 列:
+          bar 70-100 (zs1范围): 交替正负 → 穿越 0 轴 ✓
+        """
+        segs, zss, mvs = _make_uptrend_v1()
+
+        # 构造 111 根 bar 的 MACD 数据
+        # B 段 (zs1) 覆盖 merged bar 70..100 → raw bar 70..100
+        macd_vals = [0.0] * 111
+        # A段之前: 正值（上涨初段）
+        for i in range(0, 70):
+            macd_vals[i] = 2.0
+        # B段 (zs1, bar 70-100): 穿越 0 轴 — 有正有负
+        for i in range(70, 101):
+            macd_vals[i] = 1.5 if (i % 2 == 0) else -0.5
+        # C段 (bar 100-110): 弱正值
+        for i in range(101, 111):
+            macd_vals[i] = 0.3
+
+        df_macd = _make_df_macd(macd_vals)
+        merged_to_raw = _make_merged_to_raw_identity(111)
+
+        divs = divergences_from_moves_v1(
+            segs, zss, mvs, level_id=1,
+            df_macd=df_macd, merged_to_raw=merged_to_raw,
+        )
+        trend_divs = [d for d in divs if d.kind == "trend"]
+        assert len(trend_divs) >= 1
+        d = trend_divs[0]
+        assert d.direction == "top"
+        assert d.force_c < d.force_a
+
+    def test_no_macd_data_fallback_still_detects(self):
+        """df_macd=None 时，T4 不作为前提检查（fallback 逻辑），
+        力度用价格振幅，仍然检出背驰。"""
+        segs, zss, mvs = _make_uptrend_v1()
+        divs = divergences_from_moves_v1(
+            segs, zss, mvs, level_id=1,
+            df_macd=None, merged_to_raw=None,
+        )
+        trend_divs = [d for d in divs if d.kind == "trend"]
+        assert len(trend_divs) >= 1
+
+
+class TestT4ZeroCrossNegative:
+    """T4_zero_cross_negative: B 段 MACD 黄白线全正或全负 → 不满足前提 → 不产生趋势背驰。"""
+
+    def test_b_segment_all_positive_no_divergence(self):
+        """B 段 MACD macd 列全正（黄白线未回拉 0 轴）→ 前提不满足 → 无趋势背驰。
+
+        即使 C 段力度 < A 段力度，也因 T4 前提不满足而不产生背驰。
+        """
+        segs, zss, mvs = _make_uptrend_v1()
+
+        macd_vals = [0.0] * 111
+        # 全程正值 — B 段 (bar 70-100) 黄白线没有回拉 0 轴
+        for i in range(111):
+            macd_vals[i] = 2.0 + i * 0.01  # 全正，远离 0 轴
+        # C 段较弱
+        for i in range(100, 111):
+            macd_vals[i] = 0.1
+
+        df_macd = _make_df_macd(macd_vals)
+        merged_to_raw = _make_merged_to_raw_identity(111)
+
+        divs = divergences_from_moves_v1(
+            segs, zss, mvs, level_id=1,
+            df_macd=df_macd, merged_to_raw=merged_to_raw,
+        )
+        trend_divs = [d for d in divs if d.kind == "trend"]
+        assert len(trend_divs) == 0
+
+    def test_b_segment_all_negative_no_divergence(self):
+        """B 段 MACD macd 列全负（下跌趋势中黄白线未回拉 0 轴）→ 无趋势背驰。"""
+        segs, zss, mvs = _make_downtrend_v1()
+
+        macd_vals = [0.0] * 111
+        # 全程负值 — B 段黄白线没有回拉 0 轴
+        for i in range(111):
+            macd_vals[i] = -2.0 - i * 0.01  # 全负
+        # C 段较弱（接近 0 但仍负）
+        for i in range(100, 111):
+            macd_vals[i] = -0.1
+
+        df_macd = _make_df_macd(macd_vals)
+        # hist 列也需为负（下跌看 area_neg）
+        df_macd["hist"] = -0.1
+        merged_to_raw = _make_merged_to_raw_identity(111)
+
+        divs = divergences_from_moves_v1(
+            segs, zss, mvs, level_id=1,
+            df_macd=df_macd, merged_to_raw=merged_to_raw,
+        )
+        trend_divs = [d for d in divs if d.kind == "trend"]
+        assert len(trend_divs) == 0
+
+
+class TestT4ZeroCrossEdge:
+    """T4_zero_cross_edge: B 段 MACD 黄白线恰好触及 0 轴（有 0 值）的边界处理。
+
+    设计决策：恰好为 0 不算穿越。穿越要求 strictly positive AND strictly negative。
+    理由：0 值是黄白线恰好在 0 轴上，不算"回拉到 0 轴另一侧"。
+    方案3 的精确语义: has_positive = any(v > 0), has_negative = any(v < 0)
+    """
+
+    def test_b_segment_has_zero_and_positive_only_no_cross(self):
+        """B 段 MACD: [0, 0, 0.5, 1.0, 0, 0.3] — 有零和正值但无负值。
+        穿越 0 轴要求有负值，此处不满足 → 无背驰。"""
+        segs, zss, mvs = _make_uptrend_v1()
+
+        macd_vals = [2.0] * 111
+        # B 段 (bar 70-100): 全为 0 或正
+        for i in range(70, 101):
+            macd_vals[i] = 0.0 if (i % 3 == 0) else 0.5
+        # C 段弱
+        for i in range(100, 111):
+            macd_vals[i] = 0.1
+
+        df_macd = _make_df_macd(macd_vals)
+        merged_to_raw = _make_merged_to_raw_identity(111)
+
+        divs = divergences_from_moves_v1(
+            segs, zss, mvs, level_id=1,
+            df_macd=df_macd, merged_to_raw=merged_to_raw,
+        )
+        trend_divs = [d for d in divs if d.kind == "trend"]
+        assert len(trend_divs) == 0
+
+    def test_b_segment_has_zero_and_negative_only_no_cross(self):
+        """B 段 MACD: [0, -0.5, 0, -1.0] — 有零和负值但无正值 → 无穿越 → 无背驰。"""
+        segs, zss, mvs = _make_downtrend_v1()
+
+        macd_vals = [-2.0] * 111
+        # B 段: 0 和负值，无正值
+        for i in range(70, 101):
+            macd_vals[i] = 0.0 if (i % 3 == 0) else -0.5
+
+        df_macd = _make_df_macd(macd_vals)
+        df_macd["hist"] = -0.1  # 下跌需负 hist
+        merged_to_raw = _make_merged_to_raw_identity(111)
+
+        divs = divergences_from_moves_v1(
+            segs, zss, mvs, level_id=1,
+            df_macd=df_macd, merged_to_raw=merged_to_raw,
+        )
+        trend_divs = [d for d in divs if d.kind == "trend"]
+        assert len(trend_divs) == 0
+
+    def test_b_segment_has_positive_negative_and_zero_still_crosses(self):
+        """B 段 MACD: [0.5, 0, -0.3, 0, 0.2] — 同时有正和负值（也有零）→ 穿越成立。"""
+        segs, zss, mvs = _make_uptrend_v1()
+
+        macd_vals = [2.0] * 111
+        # B 段: 有正、有负、有零
+        b_values = [0.5, 0.0, -0.3, 0.0, 0.2, -0.1, 0.8, 0.0, -0.2, 0.3]
+        for i in range(70, 101):
+            macd_vals[i] = b_values[(i - 70) % len(b_values)]
+        # C 段弱
+        for i in range(100, 111):
+            macd_vals[i] = 0.1
+
+        df_macd = _make_df_macd(macd_vals)
+        merged_to_raw = _make_merged_to_raw_identity(111)
+
+        divs = divergences_from_moves_v1(
+            segs, zss, mvs, level_id=1,
+            df_macd=df_macd, merged_to_raw=merged_to_raw,
+        )
+        trend_divs = [d for d in divs if d.kind == "trend"]
+        assert len(trend_divs) >= 1
+
+    def test_t4_only_applies_to_trend_not_consolidation(self):
+        """T4 零轴穿越是趋势背驰的前提，盘整背驰不受此约束。
+
+        盘整背驰（单中枢）即使没有 MACD 数据也可以正常检出。
+        """
+        segs, zss, mvs = _make_consolidation_v1()
+        divs = divergences_from_moves_v1(
+            segs, zss, mvs, level_id=1,
+            df_macd=None, merged_to_raw=None,
+        )
+        cons_divs = [d for d in divs if d.kind == "consolidation"]
+        assert len(cons_divs) >= 1
