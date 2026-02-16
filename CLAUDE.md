@@ -59,6 +59,7 @@ Always respond in Chinese-simplified (简体中文).
 3. **所有产出必须可质询。** 见 `~/.claude/rules/result-package.md`。
 4. **谱系必须维护。** 每次矛盾处理后写入 `.chanlun/genealogy/`。
 5. **定义变更必须通过仪式。** 使用 `/ritual`，不直接编辑定义文件。
+6. **ceremony 是持续执行授权，不是一次性启动。** ceremony 建立目标后自主推进所有可推进工作，commit/push 不是断点，不要停下来等编排者确认下一步。只在概念矛盾（`/escalate`）、缺外部数据、或不可逆定义变更时才停。
 
 ### 知识仓库映射
 元编排中的 `knowledge/` 在本项目中对应：
