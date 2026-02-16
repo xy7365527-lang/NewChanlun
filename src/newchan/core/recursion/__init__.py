@@ -31,6 +31,7 @@ from newchan.core.recursion.buysellpoint_state import BuySellPointSnapshot, diff
 from newchan.core.recursion.buysellpoint_engine import BuySellPointEngine
 from newchan.core.recursion.recursive_level_state import RecursiveLevelSnapshot, diff_level_zhongshu, diff_level_moves
 from newchan.core.recursion.recursive_level_engine import RecursiveLevelEngine
+from newchan.core.recursion.recursive_stack import RecursiveStack
 
 __all__ = [
     "SegmentEngine",
@@ -49,4 +50,5 @@ __all__ = [
     "RecursiveLevelSnapshot",
     "diff_level_zhongshu",
     "diff_level_moves",
+    "RecursiveStack",
 ]

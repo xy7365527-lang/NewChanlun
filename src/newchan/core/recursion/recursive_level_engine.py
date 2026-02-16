@@ -78,8 +78,8 @@ class RecursiveLevelEngine:
 
     def reset(self) -> None:
         """重置引擎到初始状态（用于回放 seek）。"""
-        self._prev_zhongshus.clear()
-        self._prev_moves.clear()
+        self._prev_zhongshus = []
+        self._prev_moves = []
         self._event_seq = 0
 
     def process_move_snapshot(self, move_snap: MoveSnapshot) -> RecursiveLevelSnapshot:
