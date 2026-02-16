@@ -1,7 +1,7 @@
 # 级别递归（Level Recursion / 走势级别的递归构造）
 
-**版本**: v0.6
-**状态**: 生成态（#1/#5已结算，P5递归栈+P6事件level_id+P8编排器+P9交叉验证已实现；#2/#3/#4仍为生成态）
+**版本**: v0.7
+**状态**: 生成态（#1/#2/#3/#5已结算；#4 TF映射仍为生成态，低优先级工程问题）
 **创建日期**: 2026-02-16
 **溯源**: [旧缠论] 第12课、第17课、第20课
 
@@ -203,19 +203,27 @@ Move[2] = 2级走势类型（❌ 未实现：需要 moves_from_zhongshus 接受 
 - **测试**：22个测试全GREEN（10 protocol + 12 zhongshu_level），含 zhongshu_from_components 与 zhongshu_from_segments 交叉验证
 - **设计规范**：`docs/spec/level_recursion_interface_v1.md`
 
-### 2. Move[k-1] 完成判定
+### ~~2. Move[k-1] 完成判定~~ → ✅ 已结算（Option B: settled 标记）
 
-- **问题**：递归构造要求组件是"已完成的"次级别走势类型，但"完成"如何判定？
-- **选项 A**：背驰或第三类买卖点终结 → 完成（原文严格定义）
-- **选项 B**：`Move.settled = True`（当前实现的标记）
-- **影响**：若 A，则递归链需要等待背驰检测完成才能向上传递——延迟大
+**结算结论** [旧缠论:选择]：采用 Option B — `Move.settled = True` 作为递归构造的组件完成判定。
 
-### 3. 递归深度的实际限制
+**理由**：
+1. beichi #3 已结算：背驰→走势完成是充分非必要条件，走势可由第三类买卖点或"小转大"终结而无本级背驰
+2. Option A（要求背驰才完成）会将结构层与动力学层紧耦合，且与"小转大"终结机制矛盾
+3. 分离关注点：`Move.settled` 是结构标记（新实例产生时前一个自动结算），背驰检测是独立管道
+4. P9 交叉验证已确认 `RecursiveOrchestrator` 使用 settled 过滤后与手动管线一致
+5. `nested_divergence_search` 的递归下降映射也基于 settled 过滤，20测试GREEN
 
-- **问题**：理论上可无限递归，实际受数据长度限制
-- **观察**：1分钟 K 线约 240 根/天，一般股票历史数据 10 年 ≈ 600,000 根
-- **估算**：每级别约消耗 5-10x 的 Move（粗略），6 级递归 ≈ 10^6 → 可能到 4-5 级
-- **建议**：`max_recursive_level = 6`（可配置）
+**边界条件**：settled=False 的最后一个 Move 不参与高级别递归构造。这意味着实时数据中最高级别总是不完整的（正确行为：未完成的走势不应影响更高级别判断）
+
+### ~~3. 递归深度的实际限制~~ → ✅ 已结算（可配参数）
+
+**结算结论**：`RecursiveStack.max_levels`（默认6）作为可配置参数已实现。
+
+- **代码**：`recursive_stack.py :: RecursiveStack.__init__(max_levels=6)`
+- **终止条件**：`RecursiveStack` 在 settled moves < 3 时自动停止创建新层级（自然终止）
+- **估算验证**：1分钟 K 线 240根/天，10年 ≈ 600K 根 → 实际递归深度 4-5 层符合预期
+- **设计原则**：`max_levels` 是安全上限，实际深度由数据自然决定（对象否定对象，非人为截断）[新缠论]
 
 ### 4. 递归级别与 TF 级别的映射
 
@@ -238,7 +246,7 @@ Move[2] = 2级走势类型（❌ 未实现：需要 moves_from_zhongshus 接受 
 - **前置**：zhongshu.md v1.2（中枢定义，组件="至少三个连续次级别走势类型"）
 - **前置**：zoushi.md v1.1（走势类型定义，盘整/趋势分类）
 - **前置**：005-object-negation-principle.md（对象否定对象——递归是对象产生对象的核心机制）
-- **阻塞**：beichi.md #5 区间套（依赖多级别递归）
+- **已解除**：~~beichi.md #5 区间套~~ → ✅ beichi v1.0 已结算（nested_divergence_search 使用 RecursiveStack 递归结构）
 - **相关**：003-segment-concept-separation.md（Move[0] = Segment v1 为唯一口径）
 
 ---
@@ -252,3 +260,4 @@ Move[2] = 2级走势类型（❌ 未实现：需要 moves_from_zhongshus 接受 
 - 2026-02-16: v0.5 P6 事件level_id扩展（6事件类+level_id，EventBus级别路由，25测试全GREEN）
 - 2026-02-16: v0.6 P8 RecursiveOrchestrator口径A编排器 + P9交叉验证（编排器vs手动链level=1一致性，7测试全GREEN）
 - 2026-02-16: v0.2 P1-P3已实现：MoveProtocol + 适配器 + zhongshu_from_components + moves_from_level_zhongshus，22测试全GREEN
+- 2026-02-16: v0.7 #2 已结算（settled标记=递归完成判定，分离结构层与动力学层）；#3 已结算（max_levels可配参数+自然终止）；beichi阻塞已解除
