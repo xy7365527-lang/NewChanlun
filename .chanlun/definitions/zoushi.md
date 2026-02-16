@@ -277,9 +277,9 @@ class Move:
 4. **区间套（尚未创建）** — 多级别走势类型的嵌套关系
 
 ### 相关谱系记录
-1. **`.chanlun/genealogy/pending/001-degenerate-segment.md`** — 退化线段问题
+1. **`.chanlun/genealogy/settled/001-degenerate-segment.md`** — 退化线段问题（✅ 已结算）
    - 影响：退化线段导致走势类型判定异常
-   - 关联：v1特征序列法可能产生"下跌段价格反而上涨"
+   - 结算：真实数据退化段率=0%，新笔从根源解决
 2. **`.chanlun/genealogy/settled/002-source-incompleteness.md`** — 原文不完整性（已结算）
    - 影响：编纂版缺失第67、71、77、78课，已补录原始博文
 3. **`.chanlun/genealogy/pending/004-provenance-framework.md`** — 概念溯源框架

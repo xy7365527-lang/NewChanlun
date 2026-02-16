@@ -623,7 +623,7 @@ class BuySellPointDetector:
 
 | 谱系记录 | 关联 | 影响 |
 |---------|------|------|
-| `.chanlun/genealogy/pending/001-degenerate-segment.md` | 退化线段可能导致次级别走势判定异常 | type2/type3 的段识别可能受影响 |
+| `.chanlun/genealogy/settled/001-degenerate-segment.md` | 退化线段问题（✅ 已结算） | type2/type3 的段识别风险已消除（真实数据退化段率=0%） |
 | `.chanlun/genealogy/settled/002-source-incompleteness.md` | 编纂版与原文差异 | 买卖点定义优先参考原始博文 |
 | `.chanlun/genealogy/pending/004-provenance-framework.md` | 概念溯源标签 | 本规范所有决策均已标注溯源 |
 | `.chanlun/genealogy/pending/005-object-negation-principle.md` | 对象否定对象 | 走势完成（type1 前提）必须由走势内部机制否定 |

@@ -1,9 +1,10 @@
 # 笔（Bi / Stroke）
 
-**版本**: v1.3
-**状态**: 生成态（真实数据验证待完成）
+**版本**: v1.4
+**状态**: 已结算
 **最后更新**: 2026-02-16
 **变更**:
+- v1.4 /ritual 正式结算：真实数据E2E验证通过（AAPL 1分钟，177笔方向交替100%），001谱系结算
 - v1.1 澄清新旧笔核心差异——计数基准（merged vs raw），非阈值数值
 - v1.2 实证验证：旧笔产出退化段，新笔（模拟）消除退化段。mode="new" 已实现。
 - v1.2.1 增加原文谱系
@@ -166,10 +167,10 @@
   - BiEngine mode="new" 端到端运行
   - 边界条件（无包含、空输入、单bar）
 - [x] BiEngine merged_to_raw 传参缺陷修复
-- [ ] **阻塞**：真实市场数据 E2E 验证（项目无本地数据，需 API key）
+- [x] 真实市场数据 E2E 验证（DataBento AAPL 1分钟，1950 RTH bars，177笔方向交替100%✅）
 
 ## 谱系引用
 
-- `001-degenerate-segment`：退化段问题可能源于笔定义口径选择
-- `002-source-incompleteness`：笔定义的完整原文依据已补录
-- `003-segment-concept-separation`：线段两口径的差异可能部分归因于笔层
+- `001-degenerate-segment`：退化段问题源于旧笔口径选择（✅ 已结算，真实数据退化段率=0%）
+- `002-source-incompleteness`：笔定义的完整原文依据已补录（✅ 已结算）
+- `003-segment-concept-separation`：线段两口径差异，v0降级为参考实现（✅ 条件结算）

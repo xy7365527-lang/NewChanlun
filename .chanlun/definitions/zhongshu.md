@@ -1,7 +1,7 @@
 # 中枢（Zhongshu / Center / 走势中枢）
 
-**版本**: v1.2
-**状态**: 生成态（三问题全部已结算，待 /ritual 正式升级为已结算）
+**版本**: v1.3
+**状态**: 已结算
 **最后更新**: 2026-02-16
 **原文依据**: 第17课、第20课、第49课
 
@@ -378,7 +378,7 @@ class Zhongshu:
 
 ### 相关谱系记录
 
-- `.chanlun/genealogy/pending/001-degenerate-segment.md` — 退化段问题（可能影响中枢识别）
+- `.chanlun/genealogy/settled/001-degenerate-segment.md` — 退化段问题（✅ 已结算，真实数据退化段率=0%）
 - `.chanlun/genealogy/settled/002-source-incompleteness.md` — 原文缺失课程（第67、71、78课线段标准对中枢有间接影响）— ✅ 已结算
 
 ---
@@ -466,6 +466,7 @@ class Zhongshu:
 
 **更新日志**
 
+- 2026-02-16: v1.3 /ritual 正式结算：三问题全部结算，真实数据验证通过
 - 2026-02-16: v1.2 结算问题 #2（扩展充要条件）
   - 走势类型模块(a_move_v1.py)已实现，可以评估扩展的实际处理
   - 审计结论：充要条件，原文严格推导（"等价于"+"当且仅当"+"必然要"三次确认）

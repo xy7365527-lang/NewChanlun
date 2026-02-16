@@ -35,7 +35,7 @@ Always respond in Chinese-simplified (简体中文).
 - ✅ 第78课：继续说线段的划分（古怪线段 + "顶高于底"硬约束）
 - ✅ 《忽闻台风可休市》：新笔定义（包含在第81课页面中）
 
-> 相关谱系：`.chanlun/genealogy/pending/001-degenerate-segment.md`、`.chanlun/genealogy/pending/002-source-incompleteness.md`
+> 相关谱系：`.chanlun/genealogy/settled/001-degenerate-segment.md`、`.chanlun/genealogy/settled/002-source-incompleteness.md`
 
 ## 检索/引用原则（避免 prompt is too long）
 

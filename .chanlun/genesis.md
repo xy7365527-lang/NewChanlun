@@ -343,7 +343,7 @@
 > **发生学意义**：这是缠论历史上唯一一次对底层定义的**根本性修正**。
 > 新笔改变了"独立K线"的计量单位（从merged bar改为raw K线），
 > 导致笔的数量减少、质量提高，连锁影响线段和所有上层结构。
-> 相关谱系：`.chanlun/genealogy/pending/001-degenerate-segment.md`
+> 相关谱系：`.chanlun/genealogy/settled/001-degenerate-segment.md`（✅ 已结算）
 
 ### 第82课 (2007-09-24)：分型力度分析
 
