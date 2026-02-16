@@ -66,7 +66,7 @@ def _compute_force(
     i0, i1 = _seg_merged_range(segments, seg_start, seg_end)
 
     if df_macd is not None and merged_to_raw is not None:
-        raw_i0 = merged_to_raw[i0][1] if i0 < len(merged_to_raw) else 0
+        raw_i0 = merged_to_raw[i0][0] if i0 < len(merged_to_raw) else 0
         raw_i1 = merged_to_raw[i1][1] if i1 < len(merged_to_raw) else 0
         area = macd_area_for_range(df_macd, raw_i0, raw_i1)
         if trend_direction == "up":

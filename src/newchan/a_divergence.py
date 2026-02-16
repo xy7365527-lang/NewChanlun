@@ -103,7 +103,7 @@ def _compute_force(
 
     if df_macd is not None and merged_to_raw is not None:
         # 转换 merged → raw 索引
-        raw_i0 = merged_to_raw[i0][1] if i0 < len(merged_to_raw) else 0
+        raw_i0 = merged_to_raw[i0][0] if i0 < len(merged_to_raw) else 0
         raw_i1 = merged_to_raw[i1][1] if i1 < len(merged_to_raw) else 0
         area = macd_area_for_range(df_macd, raw_i0, raw_i1)
         # 上涨看 area_pos（红柱），下跌看 |area_neg|（绿柱）
