@@ -229,11 +229,24 @@
 
 **测试增量**：557→594 passed（+37），无退化
 
+### 第八轮蜂群结果（R8）
+
+| 工位 | 任务 | 产出 | 状态 |
+|------|------|------|------|
+| Q(主线程) | Orchestrator 集成 | timeframes.py +20行（init+step×2） | ✅ 已实现 |
+| Q(主线程) | seek() BSP reset | timeframes.py seek() 补全 | ✅ 已修复 |
+| Q(主线程) | recursion 包导出 | __init__.py +BSP 导出 | ✅ 已更新 |
+
+**回放管线完整**：TFOrchestrator.step() 中五层引擎链全部运转
+- level_id 按 TF 索引分配（base_tf=1, 高TF递增）
+- seek() 中所有引擎同步 reset
+
+**测试基线不变**：594 passed，零退化
+
 ## 下次中断点
 
 - **阻塞**：真实数据 E2E 验证（需编排者提供 API key 或本地数据文件）
 - **可结算**：zhongshu 待 /ritual 正式升级为已结算
 - **可继续**：003 谱系的 v0 保留决断（需编排者）
-- **可继续**：Orchestrator 集成 BuySellPointEngine 到完整回放管线
 - **背驰生成态**：T4(0轴回拉)/T6(创新高)/T7(柱子高度) 阈值待 beichi.md 结算
 - **编排者提出的未来议题**：真中枢/假中枢（级别递归），本次暂不触及
