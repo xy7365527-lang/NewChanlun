@@ -5,8 +5,8 @@
 核心规则（冻结 v1 spec）：
 - 盘整 = 包含恰好 1 个走势中枢
 - 趋势 = 包含 2+ 个依次同向走势中枢
-  - 上涨：C2.ZD > C1.ZG（后枢底 严格高于 前枢顶）
-  - 下跌：C2.ZG < C1.ZD（后枢顶 严格低于 前枢底）
+  - 上涨：C2.DD > C1.GG（后枢波动下界 严格高于 前枢波动上界，中心定理二）
+  - 下跌：C2.GG < C1.DD（后枢波动上界 严格低于 前枢波动下界，中心定理二）
 - 区间重叠的相邻中枢 → 截断为不同 move
 """
 
@@ -65,13 +65,13 @@ class Move:
 
 
 def _is_ascending(c1: Zhongshu, c2: Zhongshu) -> bool:
-    """后枢底 严格高于 前枢顶 → 上涨延续。"""
-    return c2.zd > c1.zg
+    """后枢 DD 严格高于 前枢 GG → 上涨延续（中心定理二）。"""
+    return c2.dd > c1.gg
 
 
 def _is_descending(c1: Zhongshu, c2: Zhongshu) -> bool:
-    """后枢顶 严格低于 前枢底 → 下跌延续。"""
-    return c2.zg < c1.zd
+    """后枢 GG 严格低于 前枢 DD → 下跌延续（中心定理二）。"""
+    return c2.gg < c1.dd
 
 
 def moves_from_zhongshus(zhongshus: list[Zhongshu]) -> list[Move]:

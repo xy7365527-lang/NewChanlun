@@ -184,6 +184,50 @@ class TestDirectionLabels:
 
 
 # =====================================================================
+# C) 盘整背驰
+# =====================================================================
+
+class TestConsolidationDivergence:
+    """盘整中后一次同向离开力度 < 前一次 → 盘整背驰。"""
+
+    def test_consolidation_divergence_detected(self):
+        """单中枢盘整，两次向下离开，后者力度弱 → 检出。"""
+        segs = [
+            _seg(0, 0, 0, 10, "up", 20, 10),       # center 初始段
+            _seg(1, 1, 10, 20, "down", 20, 12),     # center 段
+            _seg(2, 2, 20, 30, "up", 18, 12),       # center 段
+            _seg(3, 3, 30, 50, "down", 22, 5),      # 第一次向下离开（大力度）
+            _seg(4, 4, 50, 60, "up", 15, 10),       # 回抽
+            _seg(5, 5, 60, 70, "down", 19, 9),      # 第二次向下离开（小力度）
+        ]
+        centers = centers_from_segments_v0(segs, sustain_m=0)
+        trends = trend_instances_from_centers(segs, centers)
+
+        divs = divergences_from_level(segs, centers, trends, level_id=1)
+        cons_divs = [d for d in divs if d.kind == "consolidation"]
+        assert len(cons_divs) >= 1
+        d = cons_divs[0]
+        assert d.force_c < d.force_a
+
+    def test_no_consolidation_when_force_increases(self):
+        """后一次同向离开力度更大 → 不检出。"""
+        segs = [
+            _seg(0, 0, 0, 10, "up", 18, 12),       # center 段（完全在 [ZD,ZG] 内）
+            _seg(1, 1, 10, 20, "down", 18, 12),     # center 段
+            _seg(2, 2, 20, 30, "up", 18, 12),       # center 段
+            _seg(3, 3, 30, 40, "down", 19, 8),      # 第一次向下离开（小力度）
+            _seg(4, 4, 40, 50, "up", 16, 13),       # 回抽
+            _seg(5, 5, 50, 80, "down", 22, 2),      # 第二次向下离开（大力度）
+        ]
+        centers = centers_from_segments_v0(segs, sustain_m=0)
+        trends = trend_instances_from_centers(segs, centers)
+
+        divs = divergences_from_level(segs, centers, trends, level_id=1)
+        cons_divs = [d for d in divs if d.kind == "consolidation"]
+        assert len(cons_divs) == 0
+
+
+# =====================================================================
 # F) 空输入
 # =====================================================================
 

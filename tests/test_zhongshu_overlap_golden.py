@@ -204,6 +204,95 @@ class TestExtensionFourthSeg:
 
 
 # =====================================================================
+# 4b) 边界精确触及 → 延伸（中心定理一弱不等式验证）
+# =====================================================================
+
+class TestExtensionBoundaryTouch:
+    """中心定理一：延伸 ⟺ [dn,gn]∩[ZD,ZG]≠∅。
+
+    原文突破条件为严格不等（dn>ZG 或 gn<ZD），
+    因此精确触及边界（dn==ZG 或 gn==ZD）应判定为延伸而非突破。
+    """
+
+    def test_high_touches_zd(self):
+        """第四段 high == zd → 单点触及下沿 → 延伸（非突破）。"""
+        segs = [
+            _seg(0, "up",   20, 10),   # [10, 20]
+            _seg(1, "down", 18, 8),    # [8, 18]
+            _seg(2, "up",   22, 12),   # [12, 22]
+            # zd=12, zg=18; 第4段 high=12 == zd → 单点重叠
+            _seg(3, "down", 12, 2),    # [2, 12]
+        ]
+        result = zhongshu_from_segments(segs)
+        assert len(result) == 1
+        zs = result[0]
+        assert zs.seg_count == 4, "high==zd 应判定为延伸"
+        assert not zs.settled
+
+    def test_low_touches_zg(self):
+        """第四段 low == zg → 单点触及上沿 → 延伸（非突破）。"""
+        segs = [
+            _seg(0, "up",   20, 10),   # [10, 20]
+            _seg(1, "down", 18, 8),    # [8, 18]
+            _seg(2, "up",   22, 12),   # [12, 22]
+            # zd=12, zg=18; 第4段 low=18 == zg → 单点重叠
+            _seg(3, "down", 30, 18),   # [18, 30]
+        ]
+        result = zhongshu_from_segments(segs)
+        assert len(result) == 1
+        zs = result[0]
+        assert zs.seg_count == 4, "low==zg 应判定为延伸"
+        assert not zs.settled
+
+    def test_both_boundaries_touched(self):
+        """第四段 [zd, zg] 恰好等于中枢区间 → 完全重叠 → 延伸。"""
+        segs = [
+            _seg(0, "up",   20, 10),   # [10, 20]
+            _seg(1, "down", 18, 8),    # [8, 18]
+            _seg(2, "up",   22, 12),   # [12, 22]
+            # zd=12, zg=18; 第4段恰好 [12, 18] → 完全匹配
+            _seg(3, "down", 18, 12),   # [12, 18]
+        ]
+        result = zhongshu_from_segments(segs)
+        assert len(result) == 1
+        zs = result[0]
+        assert zs.seg_count == 4
+        assert not zs.settled
+
+    def test_just_below_zd_is_break(self):
+        """第四段 high < zd → 严格低于中枢下沿 → 突破。"""
+        segs = [
+            _seg(0, "up",   20, 10),   # [10, 20]
+            _seg(1, "down", 18, 8),    # [8, 18]
+            _seg(2, "up",   22, 12),   # [12, 22]
+            # zd=12, zg=18; 第4段 high=11 < zd=12 → 突破
+            _seg(3, "down", 11, 2),    # [2, 11]
+        ]
+        result = zhongshu_from_segments(segs)
+        assert len(result) == 1
+        zs = result[0]
+        assert zs.settled
+        assert zs.break_direction == "down"
+        assert zs.seg_count == 3
+
+    def test_just_above_zg_is_break(self):
+        """第四段 low > zg → 严格高于中枢上沿 → 突破。"""
+        segs = [
+            _seg(0, "up",   20, 10),   # [10, 20]
+            _seg(1, "down", 18, 8),    # [8, 18]
+            _seg(2, "up",   22, 12),   # [12, 22]
+            # zd=12, zg=18; 第4段 low=19 > zg=18 → 突破
+            _seg(3, "down", 30, 19),   # [19, 30]
+        ]
+        result = zhongshu_from_segments(segs)
+        assert len(result) == 1
+        zs = result[0]
+        assert zs.settled
+        assert zs.break_direction == "up"
+        assert zs.seg_count == 3
+
+
+# =====================================================================
 # 5) 突破段到来 → ZhongshuSettleV1
 # =====================================================================
 

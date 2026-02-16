@@ -1,9 +1,10 @@
-"""域事件定义 — 笔事件 + 线段事件 + 中枢事件 + 走势类型事件
+"""域事件定义 — 笔事件 + 线段事件 + 中枢事件 + 走势类型事件 + 买卖点事件
 
 笔事件（MVP-0）：四种差分快照产生的笔事件流。
 线段事件（MVP-B1）：三种线段事件（pending/settle/invalidate）。
 中枢事件（MVP-C0）：三种中枢事件（candidate/settle/invalidate）。
 走势类型事件（MVP-D0）：三种 Move 事件（candidate/settle/invalidate）。
+买卖点事件（MVP-E0）：四种 BSP 事件（candidate/confirm/settle/invalidate）。
 所有时间戳使用 epoch 秒（与 overlay 坐标系一致）。
 """
 
@@ -246,6 +247,63 @@ class MoveInvalidateV1(DomainEvent):
     seg_end: int = 0
 
 
+# ── 买卖点相关事件（MVP-E0）──
+
+
+@dataclass(frozen=True, slots=True)
+class BuySellPointCandidateV1(DomainEvent):
+    """买卖点候选 — 新买卖点出现或状态更新。"""
+
+    event_type: str = field(default="bsp_candidate", init=False)
+    bsp_id: int = 0
+    kind: str = "type1"      # type1 / type2 / type3
+    side: str = "buy"        # buy / sell
+    level_id: int = 1
+    seg_idx: int = 0
+    price: float = 0.0
+    move_seg_start: int = 0
+    center_seg_start: int = 0
+    overlaps_with: str = ""  # "" / "type2" / "type3"
+
+
+@dataclass(frozen=True, slots=True)
+class BuySellPointConfirmV1(DomainEvent):
+    """买卖点确认 — confirmed: False → True。"""
+
+    event_type: str = field(default="bsp_confirm", init=False)
+    bsp_id: int = 0
+    kind: str = "type1"
+    side: str = "buy"
+    level_id: int = 1
+    seg_idx: int = 0
+    price: float = 0.0
+
+
+@dataclass(frozen=True, slots=True)
+class BuySellPointSettleV1(DomainEvent):
+    """买卖点结算 — settled: False → True（后续走势验证）。"""
+
+    event_type: str = field(default="bsp_settle", init=False)
+    bsp_id: int = 0
+    kind: str = "type1"
+    side: str = "buy"
+    level_id: int = 1
+    seg_idx: int = 0
+    price: float = 0.0
+
+
+@dataclass(frozen=True, slots=True)
+class BuySellPointInvalidateV1(DomainEvent):
+    """买卖点否定 — 前提条件被否定导致买卖点消失。"""
+
+    event_type: str = field(default="bsp_invalidate", init=False)
+    bsp_id: int = 0
+    kind: str = "type1"
+    side: str = "buy"
+    level_id: int = 1
+    seg_idx: int = 0
+
+
 # ── 审计事件 ──
 
 
@@ -269,3 +327,9 @@ StrokeEvent = StrokeCandidate | StrokeSettled | StrokeExtended | StrokeInvalidat
 SegmentEvent = SegmentBreakPendingV1 | SegmentSettleV1 | SegmentInvalidateV1
 ZhongshuEvent = ZhongshuCandidateV1 | ZhongshuSettleV1 | ZhongshuInvalidateV1
 MoveEvent = MoveCandidateV1 | MoveSettleV1 | MoveInvalidateV1
+BuySellPointEvent = (
+    BuySellPointCandidateV1
+    | BuySellPointConfirmV1
+    | BuySellPointSettleV1
+    | BuySellPointInvalidateV1
+)

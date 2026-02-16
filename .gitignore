@@ -39,3 +39,6 @@ charting-library-context.txt
 
 # Deploy package (reference only)
 deploy/
+
+# Data files
+data/
