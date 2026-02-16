@@ -655,14 +655,48 @@ deploy/ 包含完整的元编排可移植部署包：
 
 ---
 
+## R23蜂群（第23轮）
+
+### R23-A: level_recursion P9 交叉验证 (主线程)
+- **任务**: RecursiveOrchestrator vs 手动管线链 level=1 一致性验证
+- **测试**: `test_p9_cross_validation.py` — 7测试全GREEN
+  - bi/seg/zs/move/bsp快照一致性 + 增量一致性 + reset重放一致性
+- **修复**: Stroke字段名 `s0/s1` → `i0/i1`（Stroke无s0属性）
+- **定义更新**: level_recursion.md v0.5→v0.6（P8编排器+P9交叉验证记录）
+
+### R23-B: maimai #3 确认时机原文回溯 (后台agent a6fec7b)
+- **任务**: 三类买卖点确认时机的原文依据收集
+- **结果**: 8条原文引用（R1-R8），4条形式化结论（C1-C4）
+  - C1: 识别速度 1B > 2B > 3B（第20课"后知后觉"）
+  - C2: `BSP.confirmed = underlying_Move.settled` 统一形式 [旧缠论:选择]
+  - C3: confirmed不可逆 [旧缠论]（第24课L48、第29课L32）
+  - C4: "不能等确认"（操作层）vs `confirmed`（结构层）不矛盾
+- **定义更新**: maimai.md v0.3→v0.4（#2已结算，#3原文回溯完成）
+
+### R23-C: beichi #5 限定范围背驰检测接口设计 (后台agent a9cc516)
+- **任务**: 区间套单级别检测入口函数设计
+- **结果**: `divergences_in_bar_range()` 完整接口设计
+  - bar_range: tuple[int, int] merged bar索引闭区间
+  - 严格"完全落入"过滤 + 复用现有检测逻辑零修改
+  - 18个测试场景设计（A1-F2）
+- **定义更新**: beichi.md v0.7→v0.8
+
+### 测试基线（R23后）
+
+762 passed, 12 failed, 10 skipped（R22基线761 + P9:7 - 已知dotenv依赖问题），零退化
+
+---
+
 ## 下次中断点
 
 - ~~**P6 事件level_id扩展**~~ → ✅ 已完成
 - ~~**P8 RecursiveOrchestrator**~~ → ✅ 已完成
+- ~~**P9 口径A交叉验证**~~ → ✅ 已完成
 - ~~**maimai #2 代码落地**~~ → ✅ 已完成
+- ~~**maimai #3 原文回溯**~~ → ✅ 已完成（待编排者结算确认）
 - ~~**beichi #5 区间套原文回溯**~~ → ✅ 已完成
-- **级别递归 P9**: 口径A正式集成测试 + 多周期钩子
-- **beichi #5 实现**: 限定bar范围的定向背驰检测（区间套前提）
-- **maimai #3**: 确认时机精确化（#1/#2/#4已结算）
+- ~~**beichi #5 接口设计**~~ → ✅ 已完成
+- **beichi #5 TDD实现**: `divergences_in_bar_range()` 函数实现 + 18个测试
+- **maimai #3 结算**: 编排者确认C3（不可逆性）和C4（二义性辨析）后结算
 - **maimai #5**: 第三类买卖点的中枢范围
 - **zoushi 结算路径**: beichi→maimai→level_recursion 三定义推进后结算

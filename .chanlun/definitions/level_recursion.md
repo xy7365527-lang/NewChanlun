@@ -1,7 +1,7 @@
 # 级别递归（Level Recursion / 走势级别的递归构造）
 
-**版本**: v0.5
-**状态**: 生成态（#1/#5已结算，P5递归栈+P6事件level_id已实现；#2/#3/#4仍为生成态）
+**版本**: v0.6
+**状态**: 生成态（#1/#5已结算，P5递归栈+P6事件level_id+P8编排器+P9交叉验证已实现；#2/#3/#4仍为生成态）
 **创建日期**: 2026-02-16
 **溯源**: [旧缠论] 第12课、第17课、第20课
 
@@ -189,6 +189,8 @@ Move[2] = 2级走势类型（❌ 未实现：需要 moves_from_zhongshus 接受 
 | 递归调度（事件驱动） | ✅ P4完成 | recursive_level_engine.py + recursive_level_state.py | RecursiveLevelEngine（全量重算+diff，21个测试全GREEN） |
 | 递归栈（多层自动调度） | ✅ P5完成 | recursive_stack.py | RecursiveStack（懒创建引擎，max_levels=6，终止条件=moves<3，16测试全GREEN） |
 | 事件level_id扩展 | ✅ P6完成 | events.py + bus.py + recursive_level_state.py | 6事件类+level_id:int=1，EventBus push_level/drain_by_level，25测试全GREEN |
+| 口径A编排器 | ✅ P8完成 | orchestrator/recursive.py | RecursiveOrchestrator.process_bar() 五引擎链+RecursiveStack，9测试全GREEN |
+| 口径A交叉验证 | ✅ P9完成 | test_p9_cross_validation.py | 编排器 vs 手动管线链 level=1 一致性，7测试全GREEN |
 
 ---
 
@@ -248,4 +250,5 @@ Move[2] = 2级走势类型（❌ 未实现：需要 moves_from_zhongshus 接受 
 - 2026-02-16: v0.3 P4 RecursiveLevelEngine 事件驱动引擎实现（#1/#5已结算）
 - 2026-02-16: v0.4 P5 RecursiveStack 多层自动递归栈实现 + 五引擎 reset() 突变 bug 修复
 - 2026-02-16: v0.5 P6 事件level_id扩展（6事件类+level_id，EventBus级别路由，25测试全GREEN）
+- 2026-02-16: v0.6 P8 RecursiveOrchestrator口径A编排器 + P9交叉验证（编排器vs手动链level=1一致性，7测试全GREEN）
 - 2026-02-16: v0.2 P1-P3已实现：MoveProtocol + 适配器 + zhongshu_from_components + moves_from_level_zhongshus，22测试全GREEN

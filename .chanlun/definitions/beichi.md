@@ -1,7 +1,7 @@
 # 背驰（Beichi / Divergence）
 
-**版本**: v0.7
-**状态**: 生成态（#1/#2/#3/#4/#6已结算，T6/T7三维度OR已集成；#5原文回溯完成待实现）
+**版本**: v0.8
+**状态**: 生成态（#1/#2/#3/#4/#6已结算，T6/T7三维度OR已集成；#5原文回溯+接口设计完成，待TDD实现）
 **最后更新**: 2026-02-16
 **原文依据**: 第24课、第25课、第27课、第29课、第33课、第37课；编纂版§9（趋势力度、背驰与盘整背驰）、§10.6（区间套）
 
@@ -381,9 +381,25 @@ class Divergence:
 2. 最低级别背驰段完成（转折出现）
 3. 力度否定：某级别走势力度超过前段 → 该级别区间套假设被否定
 
-**实现缺口**：
-- 当前 `a_divergence_v1.py` 只做**单级别全量检测**，缺少**限定bar范围内的定向背驰检测**
-- RecursiveStack (P5) 已提供多级别bar索引映射基础
+**实现缺口** → 接口设计完成（R23-C, agent a9cc516, 2026-02-16）：
+
+**新增接口设计**：
+```python
+def divergences_in_bar_range(
+    segments, zhongshus, moves, level_id, bar_range: tuple[int, int],
+    *, df_macd=None, merged_to_raw=None,
+) -> list[Divergence]:
+    """在指定 bar 范围内检测背驰（区间套的单级别检测入口）。"""
+```
+
+**设计决策**：
+1. `bar_range: tuple[int, int]`（merged bar 索引闭区间）— 跨级别公共坐标系
+2. 严格"完全落入"过滤：Move 的所有 segment 的 [i0, i1] 均在 bar_range 内
+3. 复用现有 `_detect_trend_divergence` / `_detect_consolidation_divergence`，零修改
+4. 新增 `_filter_moves_in_range()` + `_move_bar_range()` 辅助函数
+5. 独立函数（非扩展现有函数的 optional 参数）— 语义角色不同
+
+**测试场景**：18个（A1-A6基本, B1-B5边界, C1-C3过滤, D1-D2一致性, E1-E2 MACD, F1-F2纯函数性）
 - **原文依据**：第27课（定理首次提出）、第27课答疑（三重背驰案例）、第37课（c内部递推）、第61课（四重背驰标准图解）
 
 ### ~~6. v0 TrendTypeInstance 依赖~~ → ✅ 已结算
@@ -468,3 +484,4 @@ class Divergence:
 - **v0.3** (2026-02-16): T6/T7工具函数实现（dif_peak_for_range + histogram_peak_for_range，18测试全GREEN）；#6 v0→v1迁移已结算（a_divergence_v1.py 完全基于 v1 管线）
 - **v0.4** (2026-02-16): #2 三维度综合判断已结算（OR关系）——原文第25课L38-43明确用"或者"连接三维度；T6/T7待集成到主检测
 - **v0.7** (2026-02-16): #5 区间套原文回溯完成——第27课定理首次提出、第61课四重背驰标准图解；递归收缩结构形式化；实现缺口：需限定bar范围的定向背驰检测
+- **v0.8** (2026-02-16): #5 接口设计完成——`divergences_in_bar_range()` 函数签名、严格落入过滤、18个测试场景；复用现有检测逻辑零修改
