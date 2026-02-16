@@ -499,6 +499,26 @@ pending/001 → settled/001 引用更新：bi.md, zhongshu.md, zoushi.md, maimai
 
 675 passed（+18 T6/T7），16 failed + 16 errors（预存基线），零退化
 
+---
+
+## deploy/ v3 上线
+
+**提交**: 660af92
+**变更概要**: 6 个文件，+263/-61
+**内容**: 元编排部署包 v3
+
+deploy/ 包含完整的元编排可移植部署包：
+- `rules/`: no-workaround、result-package、testing-override
+- `commands/`: ceremony、inquire、escalate、ritual
+- `skills/meta-orchestration/`: SKILL.md + references（methodology-v2、genealogy-template、result-package-template）
+- `install.sh`: 一键安装脚本
+- `DEPLOY.md`: 部署指南
+- `CLAUDE.md.example`: 项目配置模板
+
+**状态**: ✅ 已推送上线
+
+---
+
 ## 下次中断点
 
 - **zoushi 阻塞路径**：beichi→maimai→level_recursion 三定义需推进后才可结算
