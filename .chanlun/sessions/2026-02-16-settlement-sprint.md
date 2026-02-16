@@ -406,8 +406,8 @@ bug 导致 MACD 面积起始点偏移，可能误判力度。仅在传入 MACD �
 | B | 003 谱系条件结算 | 003 移入 settled/，真实数据 v0/v1=4.72 验证 | ✅ |
 | C | zhongshu.md /ritual 结算 | v1.2→v1.3 已结算，三问题全部结算 | ✅ |
 | D | maimai TBD-4 结算 | 盘整背驰排除已结算（代码/规范/测试三层对齐） | ✅ |
-| E | 背驰方案3实现 | B段MACD零轴穿越前提检查 + 测试 | ⏳ 进行中 |
-| F | 级别递归 Move 统一接口设计 | 设计文档 level_recursion_interface_v1.md | ⏳ 进行中 |
+| E | 背驰方案3确认 | T4已于R15(ffe4d8a)实现，8测试GREEN，635passed零退化 | ✅ 已确认 |
+| F | 级别递归 Move 统一接口设计 | `level_recursion_interface_v1.md`(905行) MoveProtocol+LevelAdapter | ✅ 已完成 |
 
 ### 定义基底更新
 
@@ -416,6 +416,7 @@ bug 导致 MACD 面积起始点偏移，可能误判力度。仅在传入 MACD �
 | bi | v1.3→v1.4 | 生成态 → **已结算** |
 | zhongshu | v1.2→v1.3 | 生成态 → **已结算** |
 | maimai | v0.1 | TBD-4 结算（4→3 个未结算问题） |
+| beichi | v0.1→v0.2 | #1 T4已结算（方案3，无阈值） |
 
 ### 谱系更新
 
@@ -430,7 +431,7 @@ pending/001 → settled/001 引用更新：bi.md, zhongshu.md, zoushi.md, maimai
 
 ## 下次中断点
 
-- **E 待完成**：背驰方案3 实现 + 测试（beichi #1 结算）
-- **F 待完成**：级别递归 Move 统一接口设计文档
 - **背驰生成态**：T6(创新高)/T7(柱子高度) 仍待探索
-- **级别递归下一步**：Move 统一接口设计 → Center[k≥2] 构造 → 事件驱动递归引擎
+- **级别递归下一步**：MoveProtocol 实现 → LevelAdapter → Center[k≥2] 构造 → 递归引擎
+- **xianduan 生成态**：待审计+结算
+- **zoushi 生成态**：待审计+结算
