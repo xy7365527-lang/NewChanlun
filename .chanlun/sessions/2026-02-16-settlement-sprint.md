@@ -575,7 +575,7 @@ deploy/ 包含完整的元编排可移植部署包：
 
 - **RecursiveLevelEngine**：✅ 已实现，消费 MoveSnapshot[k-1]，产生 level=k 的中枢+走势+事件
 - **RecursiveStack**：✅ 已实现（R21-A），多层自动递归调度器，懒创建引擎，自动检测终止条件（len(moves)<3）
-- **后续路线图**：~~P4(单层引擎)~~ → ~~P5(递归栈)~~ → P6(事件level_id扩展) → ~~P7(diff_level_zhongshu)~~ → P8(集成) → P9(口径A正式)
+- **后续路线图**：~~P4(单层引擎)~~ → ~~P5(递归栈)~~ → ~~P6(事件level_id扩展)~~ → ~~P7(diff_level_zhongshu)~~ → ~~P8(RecursiveOrchestrator)~~ → P9(口径A正式集成测试)
 - **设计原则**：全量重算+Diff（与五层同构）、settled作为向上递归条件[旧缠论:选择]、对象否定对象[新缠论]
 
 ### 测试基线
@@ -611,10 +611,58 @@ deploy/ 包含完整的元编排可移植部署包：
 
 ---
 
+## R22蜂群（第22轮）
+
+### R22-A: level_recursion P6+P8 (主线程)
+
+1. **P6 事件level_id扩展**
+   - 6个事件类新增 `level_id: int = 1`（向后兼容）
+   - EventBus 新增 `push_level()`/`drain_by_level()` 级别路由
+   - diff 函数闭包自动注入 level_id
+   - 25 tests GREEN, commit: `b94a417`
+
+2. **P8 RecursiveOrchestrator 口径A正式路径**
+   - `RecursiveOrchestrator`: 单 `process_bar()` 驱动 BiEngine→SegmentEngine→ZhongshuEngine→MoveEngine→BuySellPointEngine→RecursiveStack 全链
+   - `RecursiveOrchestratorSnapshot`: 五层管线快照 + 递归层快照 + 全事件
+   - EventBus 级别路由消费
+   - 9 tests GREEN, commit: `16ddc46`
+   - level_recursion.md v0.4→v0.5
+
+### R22-B: maimai #2 confirmed语义代码落地
+
+- **核心修正**: Type 2/3 BSP.confirmed 从 Segment.confirmed 改为 Move.settled
+- **修改点**:
+  - `_detect_type2()`: callback_move.settled（buy）、rebound_move.settled（sell）
+  - `_detect_type3()`: 新增 moves 参数、pullback_move.settled
+  - 新增 `_find_move_for_seg()` 辅助函数
+  - 无 Move 覆盖时安全降级为 False
+- [TBD-2][TBD-3] 标记为已落地
+- 8 tests GREEN, commit: `5998c02`
+- maimai.md v0.2→v0.3
+
+### R22-C: beichi #5 区间套原文回溯
+
+- **定理原文**: 第27课L42-46「精确大转折点寻找程序定理」
+- **形式化**: D_n ⊃ D_{n-1} ⊃ ... ⊃ D_1，递归收缩到最低级别
+- **嵌套条件**: 范围收缩、级别递减、背驰独立成立
+- **实现缺口**: 需限定bar范围的定向背驰检测
+- **原文依据**: 第27课+答疑、第37课（c内部递推）、第61课（四重背驰标准图解）
+- beichi.md v0.6→v0.7
+
+### 测试基线（R22后）
+
+761 passed, 16 failed, 16 errors（R21基线719 + P6:25 + P8:9 + maimai#2:8），零退化
+
+---
+
 ## 下次中断点
 
-- **zoushi 阻塞路径**：beichi→maimai→level_recursion 三定义需推进后才可结算
-- **beichi #5**：区间套实现（依赖多级别递归引擎，P5已就绪）
-- **级别递归 P6-P9**：P6(事件level_id扩展) → P8(Orchestrator集成) → P9(口径A正式)
-- **maimai #2 代码落地**：confirmed 语义落入 BuySellPointEngine
-- **maimai #3**：确认时机（#1/#4已结算，#2待落地）
+- ~~**P6 事件level_id扩展**~~ → ✅ 已完成
+- ~~**P8 RecursiveOrchestrator**~~ → ✅ 已完成
+- ~~**maimai #2 代码落地**~~ → ✅ 已完成
+- ~~**beichi #5 区间套原文回溯**~~ → ✅ 已完成
+- **级别递归 P9**: 口径A正式集成测试 + 多周期钩子
+- **beichi #5 实现**: 限定bar范围的定向背驰检测（区间套前提）
+- **maimai #3**: 确认时机精确化（#1/#2/#4已结算）
+- **maimai #5**: 第三类买卖点的中枢范围
+- **zoushi 结算路径**: beichi→maimai→level_recursion 三定义推进后结算
