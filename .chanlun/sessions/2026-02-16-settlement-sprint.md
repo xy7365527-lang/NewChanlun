@@ -548,9 +548,9 @@ deploy/ 包含完整的元编排可移植部署包：
 | xianduan | v1.3 | ✅ 已结算 |
 | zhongshu | v1.3 | ✅ 已结算 |
 | zoushi | v1.1 | 生成态 |
-| beichi | v0.5 | 生成态（#1/#2/#3/#6已结算，T6/T7三维度OR已集成） |
-| maimai | v0.2 | 生成态（#1/#4已结算） |
-| level_recursion | v0.3 | 生成态（#1/#5已结算，P4引擎完成） |
+| beichi | v0.6 | 生成态（#1/#2/#3/#4/#6已结算，T6/T7三维度OR已集成） |
+| maimai | v0.2 | 生成态（#1/#4已结算，#2已研究待落地） |
+| level_recursion | v0.4 | 生成态（#1/#5已结算，P4引擎+P5递归栈完成） |
 
 **已结算率**: 5/9 (55.6%)
 
@@ -574,19 +574,47 @@ deploy/ 包含完整的元编排可移植部署包：
 ### P4 架构设计要点
 
 - **RecursiveLevelEngine**：✅ 已实现，消费 MoveSnapshot[k-1]，产生 level=k 的中枢+走势+事件
-- **RecursiveStack**：未实现，多层自动递归调度器，懒创建引擎，自动检测终止条件（len(moves)<3）
-- **后续路线图**：~~P4(单层引擎)~~ → P5(递归栈) → P6(事件level_id扩展) → ~~P7(diff_level_zhongshu)~~ → P8(集成) → P9(口径A正式)
+- **RecursiveStack**：✅ 已实现（R21-A），多层自动递归调度器，懒创建引擎，自动检测终止条件（len(moves)<3）
+- **后续路线图**：~~P4(单层引擎)~~ → ~~P5(递归栈)~~ → P6(事件level_id扩展) → ~~P7(diff_level_zhongshu)~~ → P8(集成) → P9(口径A正式)
 - **设计原则**：全量重算+Diff（与五层同构）、settled作为向上递归条件[旧缠论:选择]、对象否定对象[新缠论]
 
 ### 测试基线
 
 703 passed, 16 failed, 16 errors（R19基线675 + R20新增28），零退化
 
+### R21 成果
+
+1. **P5 RecursiveStack 多层自动递归栈** (R21-A)
+   - `recursive_stack.py`：懒创建引擎，level=1 MoveSnapshot 逐层向上递归至 moves<3 终止
+   - 16 个新测试全GREEN（空输入/不足/重叠中枢/突破/事件/多层/max_levels/reset/懒创建/增量）
+   - commit: `2052b44`
+
+2. **五引擎 reset() 突变 bug 修复** (R21-A')
+   - 发现：所有五引擎 `reset()` 使用 `.clear()` 会污染已返回的 Snapshot（共享引用突变）
+   - 修复：`.clear()` → `= []`（切断引用，保护已返回快照的不可变性）
+   - 影响引擎：SegmentEngine, ZhongshuEngine, MoveEngine, BuySellPointEngine, RecursiveLevelEngine
+
+3. **beichi #4 盘整离开段结算** (R21-B)
+   - 结论：离开段 = 超出 [ZD, ZG]（中枢区间），当前实现正确
+   - 原文依据：第33课L5+L8+L12，第24课L22-26，第20课L18-20
+   - 状态：#4 已结算，beichi v0.5→v0.6
+
+4. **maimai #2 走势完成映射研究** (R21-C)
+   - 结论：第一类买卖点 = 走势完成时刻的背驰信号
+   - 关键发现：confirmed=True 的买卖点可直接生成，无需等待后续确认
+   - 原文依据：第24课L18背驰-买卖点定理
+   - 状态：已研究完成，待代码落地
+
+### 测试基线（R21后）
+
+719 passed, 16 failed, 16 errors（R20基线703 + R21新增16），零退化
+
 ---
 
 ## 下次中断点
 
 - **zoushi 阻塞路径**：beichi→maimai→level_recursion 三定义需推进后才可结算
-- **beichi #4/#5**：盘整离开段定义、区间套实现（#1/#2/#3/#6已结算）
-- **级别递归 P5 递归栈**：RecursiveStack 多层自动调度（P4已完成）
-- **maimai TBDs**：#2 走势完成映射、#3 确认时机（#1/#4已结算）
+- **beichi #5**：区间套实现（依赖多级别递归引擎，P5已就绪）
+- **级别递归 P6-P9**：P6(事件level_id扩展) → P8(Orchestrator集成) → P9(口径A正式)
+- **maimai #2 代码落地**：confirmed 语义落入 BuySellPointEngine
+- **maimai #3**：确认时机（#1/#4已结算，#2待落地）

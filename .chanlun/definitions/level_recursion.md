@@ -1,7 +1,7 @@
 # 级别递归（Level Recursion / 走势级别的递归构造）
 
-**版本**: v0.3
-**状态**: 生成态（#1统一接口已实现，#2-5仍为生成态）
+**版本**: v0.4
+**状态**: 生成态（#1/#5已结算，P5递归栈已实现；#2/#3/#4仍为生成态）
 **创建日期**: 2026-02-16
 **溯源**: [旧缠论] 第12课、第17课、第20课
 
@@ -187,6 +187,7 @@ Move[2] = 2级走势类型（❌ 未实现：需要 moves_from_zhongshus 接受 
 | MoveProtocol | ✅ 已实现 | a_level_protocol.py | Protocol + SegmentAsComponent + MoveAsComponent |
 | 递归调度（批处理） | ⚠️ 有雏形 | a_recursive_engine.py | 类型混用（duck typing） |
 | 递归调度（事件驱动） | ✅ P4完成 | recursive_level_engine.py + recursive_level_state.py | RecursiveLevelEngine（全量重算+diff，21个测试全GREEN） |
+| 递归栈（多层自动调度） | ✅ P5完成 | recursive_stack.py | RecursiveStack（懒创建引擎，max_levels=6，终止条件=moves<3，16测试全GREEN） |
 
 ---
 
@@ -244,4 +245,5 @@ Move[2] = 2级走势类型（❌ 未实现：需要 moves_from_zhongshus 接受 
 - 2026-02-16: v0.1 初始版本，基于原文第12/17/20课 + 现有代码研究 + 编排者启动信号
 - 2026-02-16: v0.2 P1-P3 泛化接口实现，P4设计规范
 - 2026-02-16: v0.3 P4 RecursiveLevelEngine 事件驱动引擎实现（#1/#5已结算）
+- 2026-02-16: v0.4 P5 RecursiveStack 多层自动递归栈实现 + 五引擎 reset() 突变 bug 修复
 - 2026-02-16: v0.2 P1-P3已实现：MoveProtocol + 适配器 + zhongshu_from_components + moves_from_level_zhongshus，22测试全GREEN
