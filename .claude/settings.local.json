@@ -18,7 +18,9 @@
       "Bash(\"C:\\\\Users\\\\hanju\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python311\\\\Scripts\\\\vicoa.exe\" --version)",
       "Bash(\"C:\\\\Users\\\\hanju\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python311\\\\Scripts\\\\vicoa\" --version)",
       "Bash(ssh:*)",
-      "Bash(unzip:*)"
+      "Bash(unzip:*)",
+      "mcp__plugin_playwright_playwright__browser_navigate",
+      "mcp__plugin_playwright_playwright__browser_install"
     ]
   },
   "enableAllProjectMcpServers": true,
