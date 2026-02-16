@@ -260,6 +260,207 @@ class TestConsolidationDivergenceV1:
         cons_divs = [d for d in divs if d.kind == "consolidation"]
         assert len(cons_divs) == 0
 
+    # ── C1: 上行离开盘整背驰 → top ──
+
+    def test_upward_exit_divergence_top(self):
+        """两次向上离开中枢，第二次力度弱 → top 盘整背驰。
+
+        中枢内段严格在 [ZD,ZG] 内以避免意外 exit。
+        exit_segs_by_dir["up"] = [3, 5]
+        force(seg3) = (80-55) * (50-30) = 25*20 = 500
+        force(seg5) = (65-58) * (70-60) = 7*10 = 70
+        70 < 500 → top divergence
+        """
+        segments = [
+            _seg(0, 0, 0, 10, "up", 58, 52),       # 中枢内 (h<ZG=60, l>ZD=50)
+            _seg(1, 1, 10, 20, "down", 58, 52),     # 中枢内
+            _seg(2, 2, 20, 30, "up", 58, 52),       # 中枢内
+            _seg(3, 3, 30, 50, "up", 80, 55),       # 第一次 up 离开（大力度）
+            _seg(4, 4, 50, 60, "down", 62, 48),     # 回抽 (down 仅 1 次)
+            _seg(5, 5, 60, 70, "up", 65, 58),       # 第二次 up 离开（小力度）
+        ]
+
+        zhongshus = [
+            Zhongshu(zd=50.0, zg=60.0, seg_start=0, seg_end=2, seg_count=3,
+                     settled=True, break_seg=3, break_direction="up",
+                     first_seg_s0=0, last_seg_s1=5, gg=60.0, dd=50.0),
+        ]
+
+        moves = [
+            Move(kind="consolidation", direction="up", seg_start=0, seg_end=5,
+                 zs_start=0, zs_end=0, zs_count=1, settled=False,
+                 high=60.0, low=50.0, first_seg_s0=0, last_seg_s1=5),
+        ]
+
+        divs = divergences_from_moves_v1(segments, zhongshus, moves, level_id=1)
+        cons_divs = [d for d in divs if d.kind == "consolidation"]
+        assert len(cons_divs) == 1
+        d = cons_divs[0]
+        assert d.direction == "top"
+        assert d.force_c < d.force_a
+        assert d.seg_a_start == 3
+        assert d.seg_c_start == 5
+
+    # ── C2: 下行离开盘整背驰 → bottom ──
+
+    def test_downward_exit_divergence_bottom(self):
+        """两次向下离开中枢，第二次力度弱 → bottom 盘整背驰。
+
+        exit_segs_by_dir["down"] = [3, 5]
+        force(seg3) = (55-30) * (50-30) = 25*20 = 500
+        force(seg5) = (52-45) * (70-60) = 7*10 = 70
+        70 < 500 → bottom divergence
+        """
+        segments = [
+            _seg(0, 0, 0, 10, "down", 58, 52),      # 中枢内
+            _seg(1, 1, 10, 20, "up", 58, 52),        # 中枢内
+            _seg(2, 2, 20, 30, "down", 58, 52),      # 中枢内
+            _seg(3, 3, 30, 50, "down", 55, 30),      # 第一次 down 离开（大力度）
+            _seg(4, 4, 50, 60, "up", 62, 48),        # 回抽 (up 仅 1 次)
+            _seg(5, 5, 60, 70, "down", 52, 45),      # 第二次 down 离开（小力度）
+        ]
+
+        zhongshus = [
+            Zhongshu(zd=50.0, zg=60.0, seg_start=0, seg_end=2, seg_count=3,
+                     settled=True, break_seg=3, break_direction="down",
+                     first_seg_s0=0, last_seg_s1=5, gg=60.0, dd=50.0),
+        ]
+
+        moves = [
+            Move(kind="consolidation", direction="down", seg_start=0, seg_end=5,
+                 zs_start=0, zs_end=0, zs_count=1, settled=False,
+                 high=60.0, low=50.0, first_seg_s0=0, last_seg_s1=5),
+        ]
+
+        divs = divergences_from_moves_v1(segments, zhongshus, moves, level_id=1)
+        cons_divs = [d for d in divs if d.kind == "consolidation"]
+        assert len(cons_divs) == 1
+        d = cons_divs[0]
+        assert d.direction == "bottom"
+        assert d.force_c < d.force_a
+        assert d.seg_a_start == 3
+        assert d.seg_c_start == 5
+
+    # ── C3: confirmed 状态 = move.settled ──
+
+    def test_confirmed_true_from_settled_move(self):
+        """move.settled=True → divergence.confirmed=True。"""
+        segments = [
+            _seg(0, 0, 0, 10, "down", 58, 52),
+            _seg(1, 1, 10, 20, "up", 58, 52),
+            _seg(2, 2, 20, 30, "down", 58, 52),
+            _seg(3, 3, 30, 50, "down", 55, 30),
+            _seg(4, 4, 50, 60, "up", 62, 48),
+            _seg(5, 5, 60, 70, "down", 52, 45),
+        ]
+
+        zhongshus = [
+            Zhongshu(zd=50.0, zg=60.0, seg_start=0, seg_end=2, seg_count=3,
+                     settled=True, break_seg=3, break_direction="down",
+                     first_seg_s0=0, last_seg_s1=5, gg=60.0, dd=50.0),
+        ]
+
+        moves = [
+            Move(kind="consolidation", direction="down", seg_start=0, seg_end=5,
+                 zs_start=0, zs_end=0, zs_count=1, settled=True,
+                 high=60.0, low=50.0, first_seg_s0=0, last_seg_s1=5),
+        ]
+
+        divs = divergences_from_moves_v1(segments, zhongshus, moves, level_id=1)
+        cons_divs = [d for d in divs if d.kind == "consolidation"]
+        assert len(cons_divs) == 1
+        assert cons_divs[0].confirmed is True
+
+    def test_confirmed_false_from_unsettled_move(self):
+        """move.settled=False → divergence.confirmed=False。"""
+        segments = [
+            _seg(0, 0, 0, 10, "down", 58, 52),
+            _seg(1, 1, 10, 20, "up", 58, 52),
+            _seg(2, 2, 20, 30, "down", 58, 52),
+            _seg(3, 3, 30, 50, "down", 55, 30),
+            _seg(4, 4, 50, 60, "up", 62, 48),
+            _seg(5, 5, 60, 70, "down", 52, 45),
+        ]
+
+        zhongshus = [
+            Zhongshu(zd=50.0, zg=60.0, seg_start=0, seg_end=2, seg_count=3,
+                     settled=True, break_seg=3, break_direction="down",
+                     first_seg_s0=0, last_seg_s1=5, gg=60.0, dd=50.0),
+        ]
+
+        moves = [
+            Move(kind="consolidation", direction="down", seg_start=0, seg_end=5,
+                 zs_start=0, zs_end=0, zs_count=1, settled=False,
+                 high=60.0, low=50.0, first_seg_s0=0, last_seg_s1=5),
+        ]
+
+        divs = divergences_from_moves_v1(segments, zhongshus, moves, level_id=1)
+        cons_divs = [d for d in divs if d.kind == "consolidation"]
+        assert len(cons_divs) == 1
+        assert cons_divs[0].confirmed is False
+
+    # ── C4: 等力度 → 无背驰 ──
+
+    def test_equal_force_no_divergence(self):
+        """两次离开力度相同 → force_c 不小于 force_a → 无背驰。
+
+        force(seg3) = (55-45) * (40-30) = 10*10 = 100
+        force(seg5) = (55-45) * (70-60) = 10*10 = 100
+        100 不 < 100 → 无背驰
+        """
+        segments = [
+            _seg(0, 0, 0, 10, "down", 58, 52),
+            _seg(1, 1, 10, 20, "up", 58, 52),
+            _seg(2, 2, 20, 30, "down", 58, 52),
+            _seg(3, 3, 30, 40, "down", 55, 45),     # 第一次 down (force=100)
+            _seg(4, 4, 40, 60, "up", 62, 48),        # 回抽
+            _seg(5, 5, 60, 70, "down", 55, 45),      # 第二次 down (force=100)
+        ]
+
+        zhongshus = [
+            Zhongshu(zd=50.0, zg=60.0, seg_start=0, seg_end=2, seg_count=3,
+                     settled=True, break_seg=3, break_direction="down",
+                     first_seg_s0=0, last_seg_s1=5, gg=60.0, dd=50.0),
+        ]
+
+        moves = [
+            Move(kind="consolidation", direction="down", seg_start=0, seg_end=5,
+                 zs_start=0, zs_end=0, zs_count=1, settled=False,
+                 high=60.0, low=50.0, first_seg_s0=0, last_seg_s1=5),
+        ]
+
+        divs = divergences_from_moves_v1(segments, zhongshus, moves, level_id=1)
+        cons_divs = [d for d in divs if d.kind == "consolidation"]
+        assert len(cons_divs) == 0
+
+    # ── C6: 每方向仅一次离开 → 无背驰 ──
+
+    def test_single_exit_per_direction_no_divergence(self):
+        """每个方向只有 1 次离开（需 >= 2 次同向），无背驰。"""
+        segments = [
+            _seg(0, 0, 0, 10, "down", 58, 52),
+            _seg(1, 1, 10, 20, "up", 58, 52),
+            _seg(2, 2, 20, 30, "down", 58, 52),
+            _seg(3, 3, 30, 40, "down", 55, 30),     # 仅 1 次 down
+            _seg(4, 4, 40, 50, "up", 70, 55),       # 仅 1 次 up
+        ]
+
+        zhongshus = [
+            Zhongshu(zd=50.0, zg=60.0, seg_start=0, seg_end=2, seg_count=3,
+                     settled=True, break_seg=3, break_direction="down",
+                     first_seg_s0=0, last_seg_s1=4, gg=60.0, dd=50.0),
+        ]
+
+        moves = [
+            Move(kind="consolidation", direction="down", seg_start=0, seg_end=4,
+                 zs_start=0, zs_end=0, zs_count=1, settled=False,
+                 high=60.0, low=50.0, first_seg_s0=0, last_seg_s1=4),
+        ]
+
+        divs = divergences_from_moves_v1(segments, zhongshus, moves, level_id=1)
+        cons_divs = [d for d in divs if d.kind == "consolidation"]
+        assert len(cons_divs) == 0
+
 
 # =====================================================================
 # D) 不足条件
