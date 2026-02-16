@@ -164,6 +164,13 @@ class TestTrendDivergenceV1:
         assert d.direction == "top"
         assert d.force_c < d.force_a
         assert d.level_id == 1
+        # A段=[3,6]（zs0.seg_end+1 ~ zs1.seg_start-1），C段=[10,10]
+        assert d.seg_a_start == 3
+        assert d.seg_a_end == 6
+        assert d.seg_c_start == 10
+        assert d.seg_c_end == 10
+        assert d.center_idx == 1  # 最后中枢索引
+        assert d.confirmed is False  # move.settled=False
 
     def test_downtrend_divergence_detected(self):
         segs, zss, mvs = _make_downtrend_v1()
@@ -173,6 +180,53 @@ class TestTrendDivergenceV1:
         d = trend_divs[0]
         assert d.direction == "bottom"
         assert d.force_c < d.force_a
+        # 同结构：A=[3,6], C=[10,10]
+        assert d.seg_a_start == 3
+        assert d.seg_a_end == 6
+        assert d.seg_c_start == 10
+        assert d.seg_c_end == 10
+
+    def test_trend_confirmed_from_settled_move(self):
+        """move.settled=True → divergence.confirmed=True。"""
+        segs, zss, _ = _make_uptrend_v1()
+        mvs = [
+            Move(kind="trend", direction="up", seg_start=0, seg_end=10,
+                 zs_start=0, zs_end=1, zs_count=2, settled=True,
+                 high=32.0, low=12.0, first_seg_s0=0, last_seg_s1=10),
+        ]
+        divs = divergences_from_moves_v1(segs, zss, mvs, level_id=1)
+        trend_divs = [d for d in divs if d.kind == "trend"]
+        assert len(trend_divs) >= 1
+        assert trend_divs[0].confirmed is True
+
+    def test_c_segment_not_formed_no_divergence(self):
+        """C段未形成（zs_last.seg_end == move.seg_end）→ 无背驰。"""
+        segs = [
+            _seg(0, 0, 0, 10, "up", 20, 10),
+            _seg(1, 1, 10, 20, "down", 20, 12),
+            _seg(2, 2, 20, 30, "up", 18, 12),
+            _seg(3, 3, 30, 40, "down", 11, 8),
+            _seg(4, 4, 40, 50, "up", 25, 20),
+            _seg(5, 5, 50, 60, "down", 32, 26),
+            _seg(6, 6, 60, 70, "up", 34, 26),
+            _seg(7, 7, 70, 80, "down", 34, 28),  # move 终止于 zs1.seg_end
+        ]
+        zhongshus = [
+            Zhongshu(zd=12.0, zg=18.0, seg_start=0, seg_end=2, seg_count=3,
+                     settled=True, break_seg=3, break_direction="up",
+                     first_seg_s0=0, last_seg_s1=2, gg=20.0, dd=10.0),
+            Zhongshu(zd=28.0, zg=32.0, seg_start=5, seg_end=7, seg_count=3,
+                     settled=True, break_seg=-1, break_direction="",
+                     first_seg_s0=5, last_seg_s1=7, gg=34.0, dd=26.0),
+        ]
+        moves = [
+            Move(kind="trend", direction="up", seg_start=0, seg_end=7,
+                 zs_start=0, zs_end=1, zs_count=2, settled=False,
+                 high=32.0, low=12.0, first_seg_s0=0, last_seg_s1=7),
+        ]
+        divs = divergences_from_moves_v1(segs, zhongshus, moves, level_id=1)
+        trend_divs = [d for d in divs if d.kind == "trend"]
+        assert len(trend_divs) == 0
 
 
 # =====================================================================
