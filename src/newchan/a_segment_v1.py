@@ -20,7 +20,6 @@ from __future__ import annotations
 import logging
 from typing import Literal
 
-from newchan.a_feature_sequence import FeatureBar
 from newchan.a_segment_v0 import BreakEvidence, Segment
 from newchan.a_stroke import Stroke
 
@@ -167,28 +166,85 @@ class _FeatureSeqState:
             self.std.append([high, low, stroke_idx])
 
     @staticmethod
-    def _has_any_fractal_after(std: list[list[float | int]], start_pos: int) -> bool:
-        """检查 std[start_pos:] 是否存在任意类型分型（顶或底）。
+    def _second_seq_has_fractal(
+        strokes: list[Stroke],
+        seg_dir: str,
+        from_stroke_idx: int,
+    ) -> bool:
+        """检查第二特征序列是否存在分型。
 
-        缠论原文第二种情况：有缺口时，后一特征序列只要出现分型即可，
-        不分第一二种，不分顶底。
+        第67课第二种情况：特征序列分型的第一、第二元素间有缺口时，
+        需要从分型中心开始构建**第二特征序列**（同向笔，即 seg_dir 方向），
+        对其独立做包含处理，只要出现任意分型即可（L46："不分第一二种情况，
+        只要有分型就可以"）。
+
+        Parameters
+        ----------
+        strokes : list[Stroke]
+            完整的笔序列。
+        seg_dir : {"up", "down"}
+            当前线段方向。第二特征序列由同向笔构成。
+        from_stroke_idx : int
+            分型中心 b 元素对应的笔索引。从此笔之后收集同向笔。
         """
-        n = len(std)
-        for j in range(max(start_pos, 1), n - 1):
-            ja_h, ja_l = std[j - 1][0], std[j - 1][1]
-            jb_h, jb_l = std[j][0], std[j][1]
-            jc_h, jc_l = std[j + 1][0], std[j + 1][1]
+        # ── 收集同向笔（= 新潜在线段的反向笔 = 第二特征序列元素）──
+        elements: list[list[float]] = []  # [high, low]
+
+        # 包含处理方向：新线段方向与 seg_dir 相反
+        # seg_dir=="up"  → 新段 down → dir_state="DOWN"
+        # seg_dir=="down" → 新段 up  → dir_state=None (默认 UP)
+        dir_state: str | None = "DOWN" if seg_dir == "up" else None
+
+        for i in range(from_stroke_idx + 1, len(strokes)):
+            sk = strokes[i]
+            if sk.direction != seg_dir:
+                continue
+
+            h, l = sk.high, sk.low
+
+            if not elements:
+                elements.append([h, l])
+                continue
+
+            last = elements[-1]
+            last_h, last_l = last[0], last[1]
+
+            # 包含判定
+            left_inc = last_h >= h and last_l <= l
+            right_inc = h >= last_h and l <= last_l
+
+            if left_inc or right_inc:
+                effective_up = dir_state != "DOWN"
+                if effective_up:
+                    last[0] = max(last_h, h)
+                    last[1] = max(last_l, l)
+                else:
+                    last[0] = min(last_h, h)
+                    last[1] = min(last_l, l)
+            else:
+                if h > last_h and l > last_l:
+                    dir_state = "UP"
+                elif h < last_h and l < last_l:
+                    dir_state = "DOWN"
+                elements.append([h, l])
+
+        # 需要至少3个元素才能形成分型（第67课答疑 L152）
+        n = len(elements)
+        for j in range(1, n - 1):
+            a_h, a_l = elements[j - 1][0], elements[j - 1][1]
+            b_h, b_l = elements[j][0], elements[j][1]
+            c_h, c_l = elements[j + 1][0], elements[j + 1][1]
             # 顶分型
-            if jb_h > ja_h and jb_h > jc_h and jb_l > ja_l and jb_l > jc_l:
+            if b_h > a_h and b_h > c_h and b_l > a_l and b_l > c_l:
                 return True
             # 底分型
-            if jb_l < ja_l and jb_l < jc_l and jb_h < ja_h and jb_h < jc_h:
+            if b_l < a_l and b_l < c_l and b_h < a_h and b_h < c_h:
                 return True
         return False
 
     def scan_trigger(
-        self, seg_direction: str,
-    ) -> tuple[int, tuple[int, int, int], str] | None:
+        self, seg_direction: str, strokes: list[Stroke],
+    ) -> tuple[int, tuple[int, int, int], Literal["none", "second"]] | None:
         """从 last_checked 向后扫描（受尾窗限制），找第一个匹配分型。
 
         向上段找顶分型（high 先升后降 AND low 先升后降）。
@@ -197,6 +253,13 @@ class _FeatureSeqState:
         跳过 stroke_idx <= _skip_until_stroke 的分型（已被主循环拒绝）。
 
         尾窗优化：只在最近 TAIL_WINDOW 个元素内搜索分型。
+
+        Parameters
+        ----------
+        seg_direction : {"up", "down"}
+            当前线段方向。
+        strokes : list[Stroke]
+            完整的笔序列，用于第二种情况（缺口）时构建第二特征序列。
 
         Returns
         -------
@@ -227,8 +290,10 @@ class _FeatureSeqState:
                     # 缺口检测：第1(a)与第2(b)元素间是否无重叠区间
                     has_gap = b_l >= a_h  # b低>=a高 → a与b无重叠
                     if has_gap:
-                        # 第二种：有缺口，后一特征序列须出现任意分型才确认
-                        if not self._has_any_fractal_after(self.std, i + 1):
+                        # 第二种：有缺口，第二特征序列（同向笔）须出现分型
+                        if not self._second_seq_has_fractal(
+                            strokes, seg_direction, b_stroke,
+                        ):
                             continue  # 第二序列尚无分型，暂不触发
                     gap_type = "second" if has_gap else "none"
                     self.last_checked = max(0, i - 1)
@@ -239,8 +304,10 @@ class _FeatureSeqState:
                     # 缺口检测：第1(a)与第2(b)元素间是否无重叠区间
                     has_gap = a_l >= b_h  # a低>=b高 → a与b无重叠
                     if has_gap:
-                        # 第二种：有缺口，后一特征序列须出现任意分型才确认
-                        if not self._has_any_fractal_after(self.std, i + 1):
+                        # 第二种：有缺口，第二特征序列（同向笔）须出现分型
+                        if not self._second_seq_has_fractal(
+                            strokes, seg_direction, b_stroke,
+                        ):
                             continue  # 第二序列尚无分型，暂不触发
                     gap_type = "second" if has_gap else "none"
                     self.last_checked = max(0, i - 1)
@@ -293,7 +360,7 @@ def segments_from_strokes_v1(
         feat.append(cursor, sk.high, sk.low)
 
         # 检测分型触发
-        trig = feat.scan_trigger(seg_dir)
+        trig = feat.scan_trigger(seg_dir, strokes)
         if trig is None:
             cursor += 1
             continue

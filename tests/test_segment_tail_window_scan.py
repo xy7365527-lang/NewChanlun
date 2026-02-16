@@ -138,10 +138,16 @@ class TestTailWindowEfficiency:
             (17, 6.0, 2.0),
         ]
 
+        # scan_trigger 需要 strokes 参数（用于第二种情况检查）
+        dummy_strokes = [
+            _s(i * 5, (i + 1) * 5, "up" if i % 2 == 0 else "down", 15.0, 5.0)
+            for i in range(18)
+        ]
+
         prev_checked = 0
         for idx, h, l in data:
             fs.append(idx, h, l)
-            fs.scan_trigger("up")
+            fs.scan_trigger("up", dummy_strokes)
 
         # 在长序列中 last_checked 不应为 0
         if len(fs.std) > _FeatureSeqState.TAIL_WINDOW:
@@ -171,43 +177,70 @@ class TestTailWindowEfficiency:
 
 
 # =====================================================================
-# 3) _has_any_fractal_after 边界条件
+# 3) _second_seq_has_fractal 边界条件
 # =====================================================================
 
-class TestHasAnyFractalAfterEdgeCases:
-    """_has_any_fractal_after 的边界条件测试。"""
+class TestSecondSeqHasFractalEdgeCases:
+    """_second_seq_has_fractal 的边界条件测试。
 
-    def test_empty_std(self):
-        assert _FeatureSeqState._has_any_fractal_after([], 0) is False
+    第67课第二种情况：从分型中心之后收集同向笔，独立包含处理后检查分型。
+    """
 
-    def test_single_element(self):
-        std = [[10.0, 5.0, 0]]
-        assert _FeatureSeqState._has_any_fractal_after(std, 0) is False
+    def test_no_strokes_after(self):
+        """from_stroke_idx 之后无同向笔 → False。"""
+        strokes = [_s(0, 5, "up", 10, 5)]
+        assert _FeatureSeqState._second_seq_has_fractal(strokes, "up", 0) is False
 
-    def test_two_elements(self):
-        std = [[10.0, 5.0, 0], [15.0, 8.0, 1]]
-        assert _FeatureSeqState._has_any_fractal_after(std, 0) is False
-
-    def test_start_pos_beyond_end(self):
-        std = [[10.0, 5.0, 0], [15.0, 8.0, 1], [12.0, 6.0, 2]]
-        assert _FeatureSeqState._has_any_fractal_after(std, 3) is False
-
-    def test_fractal_at_exact_start(self):
-        """分型恰好从 start_pos 开始。"""
-        std = [
-            [10.0, 5.0, 0],   # a
-            [15.0, 8.0, 1],   # b (peak)
-            [12.0, 6.0, 2],   # c
+    def test_single_same_dir_stroke(self):
+        """只有1个同向笔 → 不足以形成分型。"""
+        strokes = [
+            _s(0, 5, "down", 10, 5),
+            _s(5, 10, "up", 12, 7),
         ]
-        # start_pos=0: 以 j=1 为中心 (a,b,c 构成顶分型)
-        assert _FeatureSeqState._has_any_fractal_after(std, 0) is True
+        assert _FeatureSeqState._second_seq_has_fractal(strokes, "up", 0) is False
+
+    def test_two_same_dir_strokes(self):
+        """只有2个同向笔 → 不足以形成分型。"""
+        strokes = [
+            _s(0, 5, "down", 10, 5),
+            _s(5, 10, "up", 12, 7),
+            _s(10, 15, "down", 11, 6),
+            _s(15, 20, "up", 15, 8),
+        ]
+        assert _FeatureSeqState._second_seq_has_fractal(strokes, "up", 0) is False
+
+    def test_from_beyond_end(self):
+        """from_stroke_idx 超出笔序列范围 → False。"""
+        strokes = [
+            _s(0, 5, "up", 10, 5),
+            _s(5, 10, "down", 8, 4),
+        ]
+        assert _FeatureSeqState._second_seq_has_fractal(strokes, "up", 10) is False
+
+    def test_top_fractal_detected(self):
+        """3个同向笔构成顶分型 → True。"""
+        # seg_dir="up" → 收集 up 笔: idx 1(h=10,l=5), 3(h=15,l=8), 5(h=12,l=6)
+        # 顶分型: 15>10, 15>12, 8>5, 8>6 ✓
+        strokes = [
+            _s(0, 5, "down", 10, 5),
+            _s(5, 10, "up", 10, 5),
+            _s(10, 15, "down", 9, 4),
+            _s(15, 20, "up", 15, 8),
+            _s(20, 25, "down", 14, 7),
+            _s(25, 30, "up", 12, 6),
+        ]
+        assert _FeatureSeqState._second_seq_has_fractal(strokes, "up", 0) is True
 
     def test_monotonic_no_fractal(self):
-        """单调序列无分型。"""
-        std = [
-            [10.0, 5.0, 0],
-            [12.0, 7.0, 1],
-            [14.0, 9.0, 2],
-            [16.0, 11.0, 3],
+        """同向笔单调递增 → 无分型。"""
+        # seg_dir="up" → 收集 up 笔: idx 1(10,5), 3(12,7), 5(14,9)
+        # 单调递增，无分型
+        strokes = [
+            _s(0, 5, "down", 10, 5),
+            _s(5, 10, "up", 10, 5),
+            _s(10, 15, "down", 9, 4),
+            _s(15, 20, "up", 12, 7),
+            _s(20, 25, "down", 11, 6),
+            _s(25, 30, "up", 14, 9),
         ]
-        assert _FeatureSeqState._has_any_fractal_after(std, 0) is False
+        assert _FeatureSeqState._second_seq_has_fractal(strokes, "up", 0) is False
