@@ -19,7 +19,12 @@ import pytest
 from newchan.a_segment_v0 import Segment
 from newchan.a_zhongshu_v1 import Zhongshu
 from newchan.a_move_v1 import Move
-from newchan.a_divergence_v1 import Divergence, divergences_from_moves_v1
+from newchan.a_divergence_v1 import (
+    Divergence,
+    dif_peak_for_range,
+    divergences_from_moves_v1,
+    histogram_peak_for_range,
+)
 
 
 # ── helpers ──
@@ -884,3 +889,146 @@ class TestT4ZeroCrossEdge:
         )
         cons_divs = [d for d in divs if d.kind == "consolidation"]
         assert len(cons_divs) >= 1
+
+
+# ── T6: dif_peak_for_range 测试 ──
+
+
+def _make_df_macd_full(macd_vals: list[float], hist_vals: list[float]) -> pd.DataFrame:
+    """构造 MACD DataFrame，macd 和 hist 分别指定。"""
+    n = len(macd_vals)
+    return pd.DataFrame({
+        "macd": macd_vals,
+        "signal": [0.0] * n,
+        "hist": hist_vals if hist_vals else [0.0] * n,
+    })
+
+
+class TestT6DifPeakForRange:
+    """T6: dif_peak_for_range — 黄白线（DIF）峰值比较工具函数。"""
+
+    def test_up_trend_returns_max_dif(self):
+        """上涨趋势：返回范围内 DIF 的最大值。"""
+        macd_vals = [0.5, 1.2, 0.8, 1.5, 0.3]
+        df = _make_df_macd_full(macd_vals, [0.0] * 5)
+        result = dif_peak_for_range(df, 0, 4, "up")
+        assert result == 1.5
+
+    def test_down_trend_returns_abs_min_dif(self):
+        """下跌趋势：返回范围内 DIF 最小值的绝对值。"""
+        macd_vals = [-0.5, -1.8, -0.3, -2.1, -0.7]
+        df = _make_df_macd_full(macd_vals, [0.0] * 5)
+        result = dif_peak_for_range(df, 0, 4, "down")
+        assert result == 2.1
+
+    def test_up_trend_all_negative_returns_zero(self):
+        """上涨趋势但 DIF 全为负（异常情况）：max(0.0, negative) = 0.0。"""
+        macd_vals = [-0.5, -1.0, -0.3]
+        df = _make_df_macd_full(macd_vals, [0.0] * 3)
+        result = dif_peak_for_range(df, 0, 2, "up")
+        assert result == 0.0
+
+    def test_down_trend_all_positive_returns_zero(self):
+        """下跌趋势但 DIF 全为正（异常情况）：abs(min(0.0, positive)) = 0.0。"""
+        macd_vals = [0.5, 1.0, 0.3]
+        df = _make_df_macd_full(macd_vals, [0.0] * 3)
+        result = dif_peak_for_range(df, 0, 2, "down")
+        assert result == 0.0
+
+    def test_subrange_only_reads_specified_bars(self):
+        """只读取指定范围 [raw_i0, raw_i1]，不受范围外数据影响。"""
+        macd_vals = [10.0, 0.5, 0.8, 0.3, 20.0]
+        df = _make_df_macd_full(macd_vals, [0.0] * 5)
+        result = dif_peak_for_range(df, 1, 3, "up")
+        assert result == 0.8
+
+    def test_invalid_range_returns_zero(self):
+        """raw_i0 > raw_i1 → 返回 0.0。"""
+        macd_vals = [1.0, 2.0, 3.0]
+        df = _make_df_macd_full(macd_vals, [0.0] * 3)
+        assert dif_peak_for_range(df, 2, 0, "up") == 0.0
+
+    def test_out_of_bounds_returns_zero(self):
+        """raw_i1 超出 DataFrame 长度 → 返回 0.0。"""
+        macd_vals = [1.0, 2.0]
+        df = _make_df_macd_full(macd_vals, [0.0] * 2)
+        assert dif_peak_for_range(df, 0, 5, "up") == 0.0
+
+    def test_negative_start_returns_zero(self):
+        """raw_i0 为负数 → 返回 0.0。"""
+        macd_vals = [1.0, 2.0]
+        df = _make_df_macd_full(macd_vals, [0.0] * 2)
+        assert dif_peak_for_range(df, -1, 1, "up") == 0.0
+
+    def test_single_bar_range(self):
+        """单 bar 范围 [i, i]：直接返回该 bar 的值。"""
+        macd_vals = [0.0, 3.7, 0.0]
+        df = _make_df_macd_full(macd_vals, [0.0] * 3)
+        assert dif_peak_for_range(df, 1, 1, "up") == 3.7
+
+
+# ── T7: histogram_peak_for_range 测试 ──
+
+
+class TestT7HistogramPeakForRange:
+    """T7: histogram_peak_for_range — MACD 柱子峰值比较工具函数。"""
+
+    def test_up_trend_returns_max_hist(self):
+        """上涨趋势：返回范围内 hist（红柱）最大值。"""
+        hist_vals = [0.1, 0.5, 0.3, 0.8, 0.2]
+        df = _make_df_macd_full([0.0] * 5, hist_vals)
+        result = histogram_peak_for_range(df, 0, 4, "up")
+        assert result == 0.8
+
+    def test_down_trend_returns_abs_min_hist(self):
+        """下跌趋势：返回范围内 hist（绿柱）最小值的绝对值。"""
+        hist_vals = [-0.2, -0.9, -0.4, -1.3, -0.1]
+        df = _make_df_macd_full([0.0] * 5, hist_vals)
+        result = histogram_peak_for_range(df, 0, 4, "down")
+        assert result == 1.3
+
+    def test_up_trend_all_negative_hist_returns_zero(self):
+        """上涨趋势但 hist 全为负：max(0.0, negative) = 0.0。"""
+        hist_vals = [-0.5, -0.3, -0.1]
+        df = _make_df_macd_full([0.0] * 3, hist_vals)
+        result = histogram_peak_for_range(df, 0, 2, "up")
+        assert result == 0.0
+
+    def test_down_trend_all_positive_hist_returns_zero(self):
+        """下跌趋势但 hist 全为正：abs(min(0.0, positive)) = 0.0。"""
+        hist_vals = [0.5, 0.3, 0.1]
+        df = _make_df_macd_full([0.0] * 3, hist_vals)
+        result = histogram_peak_for_range(df, 0, 2, "down")
+        assert result == 0.0
+
+    def test_subrange_only_reads_specified_bars(self):
+        """只读取指定 [raw_i0, raw_i1] 范围。"""
+        hist_vals = [10.0, 0.2, 0.4, 0.1, 20.0]
+        df = _make_df_macd_full([0.0] * 5, hist_vals)
+        result = histogram_peak_for_range(df, 1, 3, "up")
+        assert result == 0.4
+
+    def test_invalid_range_returns_zero(self):
+        """raw_i0 > raw_i1 → 返回 0.0。"""
+        hist_vals = [0.5, 1.0]
+        df = _make_df_macd_full([0.0] * 2, hist_vals)
+        assert histogram_peak_for_range(df, 1, 0, "up") == 0.0
+
+    def test_out_of_bounds_returns_zero(self):
+        """raw_i1 超出范围 → 返回 0.0。"""
+        hist_vals = [0.5]
+        df = _make_df_macd_full([0.0] * 1, hist_vals)
+        assert histogram_peak_for_range(df, 0, 3, "down") == 0.0
+
+    def test_single_bar_range(self):
+        """单 bar 范围。"""
+        hist_vals = [0.0, -2.5, 0.0]
+        df = _make_df_macd_full([0.0] * 3, hist_vals)
+        assert histogram_peak_for_range(df, 1, 1, "down") == 2.5
+
+    def test_mixed_hist_up_trend(self):
+        """混合正负 hist 的上涨趋势：只取正方向峰值。"""
+        hist_vals = [-0.3, 0.7, -0.1, 1.2, -0.5]
+        df = _make_df_macd_full([0.0] * 5, hist_vals)
+        result = histogram_peak_for_range(df, 0, 4, "up")
+        assert result == 1.2

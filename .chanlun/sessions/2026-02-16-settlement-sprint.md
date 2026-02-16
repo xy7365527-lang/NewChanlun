@@ -460,9 +460,49 @@ pending/001 → settled/001 引用更新：bi.md, zhongshu.md, zoushi.md, maimai
 
 **已结算率**: 5/9 (55.6%)
 
+---
+
+## R18 蜂群
+
+### 工位表
+
+| 工位 | 任务 | 状态 | 产出 |
+|------|------|------|------|
+| A | level_recursion.md v0.1→v0.2（#1 settled） | ✅ | 实现表更新，MoveProtocol P1-P3 记入 |
+| B | beichi T6+T7 工具函数 + 测试 | ✅ | `dif_peak_for_range()` + `histogram_peak_for_range()` + 18测试全GREEN |
+| C | beichi #6 v0→v1 迁移验证 | ✅ | a_divergence_v1.py 已完全基于 v1 管线 |
+
+### 定义基底更新
+
+| 定义 | 版本 | 状态变化 |
+|------|------|---------|
+| beichi | v0.2→v0.3 | T6/T7工具函数实现，#6结算 |
+| level_recursion | v0.1→v0.2 | #1(Move统一接口)已结算 |
+
+### 已结算定义汇总（R18后）
+
+| 定义 | 版本 | 状态 |
+|------|------|------|
+| baohan | v1.3 | ✅ 已结算 |
+| fenxing | v1.0 | ✅ 已结算 |
+| bi | v1.4 | ✅ 已结算 |
+| xianduan | v1.3 | ✅ 已结算 |
+| zhongshu | v1.3 | ✅ 已结算 |
+| zoushi | v1.1 | 生成态 |
+| beichi | v0.3 | 生成态（#1/#6已结算，T6/T7已实现） |
+| maimai | v0.1 | 生成态 |
+| level_recursion | v0.2 | 生成态（#1已结算） |
+
+**已结算率**: 5/9 (55.6%)
+
+### 测试基线
+
+675 passed（+18 T6/T7），16 failed + 16 errors（预存基线），零退化
+
 ## 下次中断点
 
 - **zoushi 阻塞路径**：beichi→maimai→level_recursion 三定义需推进后才可结算
-- **背驰生成态**：T6(创新高)/T7(柱子高度) 仍待探索
-- **级别递归**：MoveProtocol P1-P3 实现中，P4+(RecursiveLevelEngine)待后续
-- **MoveProtocol 与现有引擎桥接**：zhongshu_from_components 交叉验证与 zhongshu_from_segments 输出一致性
+- **beichi #2（or vs and）**：T6/T7 工具函数就位但未集成到主检测，待 #2 结算后组合
+- **beichi #3/#4/#5**：走势完成关系、盘整离开段定义、区间套实现
+- **级别递归 P4+**：RecursiveLevelEngine + RecursiveStack 待实现
+- **maimai TBDs**：#1 下跌确立条件、#2 走势完成映射、#3 确认时机

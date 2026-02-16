@@ -1,7 +1,7 @@
 # 级别递归（Level Recursion / 走势级别的递归构造）
 
-**版本**: v0.1
-**状态**: 生成态
+**版本**: v0.2
+**状态**: 生成态（#1统一接口已实现，#2-5仍为生成态）
 **创建日期**: 2026-02-16
 **溯源**: [旧缠论] 第12课、第17课、第20课
 
@@ -182,20 +182,22 @@ Move[2] = 2级走势类型（❌ 未实现：需要 moves_from_zhongshus 接受 
 | Move[0] = Segment | ✅ 完整 | a_segment_v1.py | 特征序列法 |
 | Center[1] | ✅ 完整 | a_zhongshu_v1.py | 三段重叠（输入=Segment） |
 | Move[1] | ✅ 完整 | a_move_v1.py | 盘整/趋势分类 |
-| Center[k≥2] | ❌ 未实现 | — | 需要 `zhongshu_from_moves()` |
-| Move[k≥2] | ❌ 未实现 | — | 需要泛化 Move 输入类型 |
+| Center[k≥2] | ✅ 泛化接口已实现 | a_zhongshu_level.py | `zhongshu_from_components(MoveProtocol列表)` |
+| Move[k≥2] | ✅ 泛化接口已实现 | a_zhongshu_level.py | `moves_from_level_zhongshus(LevelZhongshu列表)` |
+| MoveProtocol | ✅ 已实现 | a_level_protocol.py | Protocol + SegmentAsComponent + MoveAsComponent |
 | 递归调度（批处理） | ⚠️ 有雏形 | a_recursive_engine.py | 类型混用（duck typing） |
-| 递归调度（事件驱动） | ❌ 未实现 | — | 需要 RecursiveLevelEngine |
+| 递归调度（事件驱动） | ❌ 未实现 | — | 需要 RecursiveLevelEngine（设计见 level_recursion_interface_v1.md §4） |
 
 ---
 
 ## 未结算问题
 
-### 1. Move 的统一接口
+### ~~1. Move 的统一接口~~ → ✅ 已实现（P1-P3）
 
-- **问题**：Center[1] 输入 Segment，Center[k≥2] 输入 Move[k-1]（TrendTypeInstance）。两者数据结构不同，当前靠 duck typing 混用。
-- **方案**：创建 `AbstractMove` 协议/接口，Segment 和 TrendTypeInstance 都实现它
-- **需要的字段**：`start_idx`, `end_idx`, `high`, `low`, `direction`, `completed: bool`
+- **解决方案**：`MoveProtocol`（Protocol，结构化子类型） + `SegmentAsComponent` / `MoveAsComponent` 适配器
+- **代码**：`a_level_protocol.py`（Protocol + 适配器）、`a_zhongshu_level.py`（LevelZhongshu + zhongshu_from_components + moves_from_level_zhongshus）
+- **测试**：22个测试全GREEN（10 protocol + 12 zhongshu_level），含 zhongshu_from_components 与 zhongshu_from_segments 交叉验证
+- **设计规范**：`docs/spec/level_recursion_interface_v1.md`
 
 ### 2. Move[k-1] 完成判定
 
@@ -238,3 +240,4 @@ Move[2] = 2级走势类型（❌ 未实现：需要 moves_from_zhongshus 接受 
 ## 变更历史
 
 - 2026-02-16: v0.1 初始版本，基于原文第12/17/20课 + 现有代码研究 + 编排者启动信号
+- 2026-02-16: v0.2 P1-P3已实现：MoveProtocol + 适配器 + zhongshu_from_components + moves_from_level_zhongshus，22测试全GREEN

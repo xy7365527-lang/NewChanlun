@@ -17,9 +17,10 @@ Divergence 输出类型复用 v0 的定义（语义不变）。
 
 已知缺失（生成态）
 ------------------
-- T4: MACD 黄白线回拉 0 轴前提检查（beichi.md §T4）→ 已实现（方案3: B段穿越0轴）
-- T6: 创新高/新低前提（beichi.md §T6）
-- T7: K 线延伸判定（beichi.md §T7）
+- T4: MACD 黄白线回拉 0 轴前提检查（beichi.md §T4）→ ✅ 已实现（方案3: B段穿越0轴）
+- T6: 黄白线创新高比较（beichi.md §T6）→ ✅ 已实现（dif_peak_for_range 工具函数）
+- T7: 柱子伸长高度比较（beichi.md §T7）→ ✅ 已实现（histogram_peak_for_range 工具函数）
+- T6/T7 与 T5(面积) 的组合方式：未结算（beichi.md #2 "或 vs 且"问题）
 """
 
 from __future__ import annotations
@@ -120,6 +121,88 @@ def _b_segment_crosses_zero(
     has_negative = bool((macd_line < 0).any())
 
     return has_positive and has_negative
+
+
+# ── T6: DIF 峰值比较（黄白线创新高） ──
+
+
+def dif_peak_for_range(
+    df_macd: pd.DataFrame,
+    raw_i0: int,
+    raw_i1: int,
+    trend_direction: str,
+) -> float:
+    """计算指定 raw bar 范围内 DIF（黄白线）的峰值。
+
+    原文依据（第25课）：
+    > "黄白线不能创新高"
+
+    Parameters
+    ----------
+    df_macd : pd.DataFrame
+        由 compute_macd() 返回，含 'macd' 列（= DIF）。
+    raw_i0, raw_i1 : int
+        原始 bar 索引范围 [raw_i0, raw_i1]（闭区间）。
+    trend_direction : str
+        "up" → 取 max(DIF)；"down" → 取 abs(min(DIF))。
+
+    Returns
+    -------
+    float
+        峰值（≥0）。无效范围返回 0.0。
+
+    概念溯源: [旧缠论] — 第25课 MACD 三维度之一
+    """
+    if raw_i0 > raw_i1 or raw_i0 < 0 or raw_i1 >= len(df_macd):
+        return 0.0
+    dif = df_macd["macd"].iloc[raw_i0 : raw_i1 + 1]
+    if len(dif) == 0:
+        return 0.0
+    if trend_direction == "up":
+        return max(0.0, float(dif.max()))
+    else:
+        return abs(min(0.0, float(dif.min())))
+
+
+# ── T7: 柱子伸长高度比较 ──
+
+
+def histogram_peak_for_range(
+    df_macd: pd.DataFrame,
+    raw_i0: int,
+    raw_i1: int,
+    trend_direction: str,
+) -> float:
+    """计算指定 raw bar 范围内 MACD 柱子（hist）的最大伸长。
+
+    原文依据（第25课）：
+    > "柱子的面积或者伸长的高度不能突破新高"
+
+    Parameters
+    ----------
+    df_macd : pd.DataFrame
+        由 compute_macd() 返回，含 'hist' 列。
+    raw_i0, raw_i1 : int
+        原始 bar 索引范围 [raw_i0, raw_i1]（闭区间）。
+    trend_direction : str
+        "up" → 取 max(hist)（红柱子最高）；"down" → 取 abs(min(hist))（绿柱子最长）。
+
+    Returns
+    -------
+    float
+        峰值（≥0）。无效范围返回 0.0。
+
+    概念溯源: [旧缠论] — 第25课 MACD 三维度之一
+    """
+    if raw_i0 > raw_i1 or raw_i0 < 0 or raw_i1 >= len(df_macd):
+        return 0.0
+    hist = df_macd["hist"].iloc[raw_i0 : raw_i1 + 1]
+    if len(hist) == 0:
+        return 0.0
+    if trend_direction == "up":
+        return max(0.0, float(hist.max()))
+    else:
+        return abs(min(0.0, float(hist.min())))
 
 
 # ── 趋势背驰检测 ──

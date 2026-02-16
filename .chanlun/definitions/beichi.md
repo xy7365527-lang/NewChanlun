@@ -1,7 +1,7 @@
 # 背驰（Beichi / Divergence）
 
-**版本**: v0.2
-**状态**: 生成态（#1 T4已结算，#2/#3仍为生成态）
+**版本**: v0.3
+**状态**: 生成态（#1 T4已结算，#6 v0→v1迁移已结算；T6/T7工具函数已实现；#2/#3/#4/#5仍为生成态）
 **最后更新**: 2026-02-16
 **原文依据**: 第24课、第25课、第27课、第29课、第33课、第37课；编纂版§9（趋势力度、背驰与盘整背驰）、§10.6（区间套）
 
@@ -292,8 +292,8 @@ class Divergence:
 | A/B/C三段力度比较 | ✅ 已实现 | A段=两中枢间连接段，C段=最后中枢后的段 |
 | MACD面积比较 | ✅ 已实现 | 通过 `macd_area_for_range` |
 | 黄白线回拉0轴检查 | ✅ 已实现（T4） | B段MACD穿越0轴前提检查（方案3，无阈值） |
-| 黄白线创新高检查 | ❌ 未实现 | 原文提到"黄白线不能创新高"作为判断维度 |
-| 柱子伸长高度比较 | ❌ 未实现 | 原文提到单根柱子最大伸长高度 |
+| 黄白线创新高检查 | ✅ 工具函数已实现（T6） | `dif_peak_for_range()`：计算指定范围DIF峰值。未集成到主检测（#2 or/and未结算） |
+| 柱子伸长高度比较 | ✅ 工具函数已实现（T7） | `histogram_peak_for_range()`：计算指定范围hist峰值。未集成到主检测（#2 or/and未结算） |
 | 盘整背驰 | ✅ 已实现 | 同向离开段力度比较 |
 | 区间套（多级别嵌套） | ❌ 未实现 | 当前仅单级别检测 |
 | 小转大 | ❌ 未实现 | 需跨级别联动 |
@@ -333,10 +333,12 @@ class Divergence:
 - **依赖**：需要多级别递归引擎（a_level_fsm_newchan.py）完整运行
 - **影响**：无区间套则无法精确定位大级别转折点
 
-### 6. v0 TrendTypeInstance 依赖
-- **问题**：当前 a_divergence.py 依赖 v0 的 `TrendTypeInstance`（`a_trendtype_v0.py`），而非 v1 的 `Move`（`a_move_v1.py`）
-- **影响**：需要适配 v1 的 Move 数据结构，或创建统一接口
-- **与走势类型定义的关系**：zoushi.md 记录了 v0→v1 的迁移
+### ~~6. v0 TrendTypeInstance 依赖~~ → ✅ 已结算
+
+**结算结论**：`a_divergence_v1.py` 已完全使用 v1 的 `Move`（`a_move_v1.py`）和 `Zhongshu`（`a_zhongshu_v1.py`），不依赖 v0 的 `TrendTypeInstance`。
+- **代码**：`a_divergence_v1.py` — 入口函数 `divergences_from_moves_v1(segs, zss, mvs, ...)` 直接接收 v1 对象
+- **原 v0 管线**：`a_divergence.py` 保留为参考实现，不再更新
+- **测试**：T4 + T6/T7 全部基于 v1 管线验证，675 passed 零退化
 
 ---
 
@@ -402,4 +404,12 @@ class Divergence:
 1. **买卖点定义**：背驰-买卖点定理确立后，三类买卖点可以统一归结为某级别背驰
 2. **操作策略**：背驰检测的精确化直接影响买卖时机判断
 3. **区间套实现**：本定义的完善是实现区间套（多级别精确买卖点定位）的前提
-4. **v0→v1迁移**：a_divergence.py 需要从依赖 v0 TrendTypeInstance 迁移到 v1 Move
+4. ~~**v0→v1迁移**~~ → ✅ 已完成（a_divergence_v1.py 使用 v1 Move/Zhongshu）
+
+---
+
+## Changelog
+
+- **v0.1** (2026-02-16): 初始生成态草案 — 原文谱系、核心定义、力度量化、6个未结算问题
+- **v0.2** (2026-02-16): #1 T4已结算（方案3: B段穿越0轴），实现对齐表更新
+- **v0.3** (2026-02-16): T6/T7工具函数实现（dif_peak_for_range + histogram_peak_for_range，18测试全GREEN）；#6 v0→v1迁移已结算（a_divergence_v1.py 完全基于 v1 管线）
