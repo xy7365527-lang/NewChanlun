@@ -501,3 +501,83 @@ def divergences_from_moves_v1(
             result.append(div)
 
     return result
+
+
+# ── 区间套：限定 bar 范围的背驰检测 ──────────────────
+
+
+def _move_bar_range(segments: list, move: Move) -> tuple[int, int]:
+    """获取 Move 覆盖的 merged bar 索引范围 [i0, i1]。
+
+    概念溯源：[旧缠论] 第27课 — 区间套需要跨级别 bar 坐标映射。
+    """
+    return _seg_merged_range(segments, move.seg_start, move.seg_end)
+
+
+def _filter_moves_in_range(
+    segments: list,
+    moves: list[Move],
+    bar_range: tuple[int, int],
+) -> list[Move]:
+    """过滤出完全落入 bar_range 的 Move 列表。
+
+    "完全落入" = move_bar_start >= bar_range[0] AND move_bar_end <= bar_range[1]
+
+    概念溯源：[旧缠论] 第27课 — 低级别背驰段时间范围 ⊂ 高级别背驰段。
+    """
+    if bar_range[0] > bar_range[1]:
+        return []
+
+    result: list[Move] = []
+    for move in moves:
+        m_start, m_end = _move_bar_range(segments, move)
+        if m_start >= bar_range[0] and m_end <= bar_range[1]:
+            result.append(move)
+    return result
+
+
+def divergences_in_bar_range(
+    segments: list,
+    zhongshus: list[Zhongshu],
+    moves: list[Move],
+    level_id: int,
+    bar_range: tuple[int, int],
+    *,
+    df_macd: pd.DataFrame | None = None,
+    merged_to_raw: list[tuple[int, int]] | None = None,
+) -> list[Divergence]:
+    """在指定 bar 范围内检测背驰（区间套的单级别检测入口）。
+
+    与 divergences_from_moves_v1() 的区别：
+    只处理 **完全落入** bar_range 内的 Move，其余逻辑完全复用。
+
+    Parameters
+    ----------
+    segments : list
+        线段列表（需有 i0, i1, high, low, direction 属性）。
+    zhongshus : list[Zhongshu]
+        v1 中枢列表。
+    moves : list[Move]
+        v1 走势类型列表。
+    level_id : int
+        递归层级。
+    bar_range : tuple[int, int]
+        (bar_start, bar_end) — 限定检测的 merged bar 索引范围（闭区间）。
+        对应区间套中"高级别背驰段 D_n 在本级别的 bar 映射"。
+    df_macd : pd.DataFrame | None
+        MACD 数据。None 则用价格振幅 fallback。
+    merged_to_raw : list[tuple[int, int]] | None
+        merged → raw 索引映射。
+
+    Returns
+    -------
+    list[Divergence]
+        在 bar_range 范围内检测到的背驰列表。
+
+    概念溯源: [旧缠论] 第27课 区间套（精确大转折点寻找程序定理）
+    """
+    filtered = _filter_moves_in_range(segments, moves, bar_range)
+    return divergences_from_moves_v1(
+        segments, zhongshus, filtered, level_id,
+        df_macd=df_macd, merged_to_raw=merged_to_raw,
+    )
