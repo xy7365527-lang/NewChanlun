@@ -548,29 +548,45 @@ deploy/ 包含完整的元编排可移植部署包：
 | xianduan | v1.3 | ✅ 已结算 |
 | zhongshu | v1.3 | ✅ 已结算 |
 | zoushi | v1.1 | 生成态 |
-| beichi | v0.4 | 生成态（#1/#2/#6已结算） |
+| beichi | v0.5 | 生成态（#1/#2/#3/#6已结算，T6/T7三维度OR已集成） |
 | maimai | v0.2 | 生成态（#1/#4已结算） |
-| level_recursion | v0.2 | 生成态（#1已结算，P4设计完成） |
+| level_recursion | v0.3 | 生成态（#1/#5已结算，P4引擎完成） |
 
 **已结算率**: 5/9 (55.6%)
 
+### R20 成果
+
+1. **beichi T6/T7 三维度OR集成** (R20-A)
+   - T2(MACD面积) OR T6(DIF峰值) OR T7(HIST峰值)，任一维度触发即背驰
+   - Divergence dataclass 新增 4 字段（dif_peak_a/c, hist_peak_a/c），向后兼容
+   - 7 个新测试全GREEN（TestThreeDimensionOR）
+
+2. **beichi #3 走势完成关系结算** (R20-B)
+   - 背驰→走势完成是充分条件，走势完成→背驰不是必要条件（本级别）[旧缠论:选择]
+   - 原文依据：第24课L18背驰-买卖点定理 + 小级别转折非背驰案例
+
+3. **P4 RecursiveLevelEngine 实现** (R20-C)
+   - `recursive_level_state.py`：RecursiveLevelSnapshot + diff_level_zhongshu + diff_level_moves
+   - `recursive_level_engine.py`：RecursiveLevelEngine（全量重算+diff，与五层同构）
+   - level_id语义：引擎level_id=k → 消费 Move[k-1] → 产出 Center[k] + Move[k]
+   - 21 个新测试全GREEN
+
 ### P4 架构设计要点
 
-- **RecursiveLevelEngine**：单层引擎，消费 MoveSnapshot[k-1]，产生 level=k 的中枢+走势+事件
-- **RecursiveStack**：多层自动递归调度器，懒创建引擎，自动检测终止条件（len(moves)<3）
-- **实现路线图**：P4(单层引擎) → P5(递归栈) → P6(事件level_id扩展) → P7(diff_level_zhongshu) → P8(集成) → P9(口径A正式)
+- **RecursiveLevelEngine**：✅ 已实现，消费 MoveSnapshot[k-1]，产生 level=k 的中枢+走势+事件
+- **RecursiveStack**：未实现，多层自动递归调度器，懒创建引擎，自动检测终止条件（len(moves)<3）
+- **后续路线图**：~~P4(单层引擎)~~ → P5(递归栈) → P6(事件level_id扩展) → ~~P7(diff_level_zhongshu)~~ → P8(集成) → P9(口径A正式)
 - **设计原则**：全量重算+Diff（与五层同构）、settled作为向上递归条件[旧缠论:选择]、对象否定对象[新缠论]
 
 ### 测试基线
 
-675 passed, 16 failed, 16 errors（与R18一致），零退化
+703 passed, 16 failed, 16 errors（R19基线675 + R20新增28），零退化
 
 ---
 
 ## 下次中断点
 
 - **zoushi 阻塞路径**：beichi→maimai→level_recursion 三定义需推进后才可结算
-- **beichi T6/T7 集成**：#2 已结算(OR)，T6/T7工具函数待集成到 `_detect_trend_divergence()` 中（三维度任一满足即背驰）
-- **beichi #3/#4/#5**：走势完成关系、盘整离开段定义、区间套实现
-- **级别递归 P4-P9 实现**：设计方案已完成，按路线图编码
-- **maimai TBDs**：#2 走势完成映射、#3 确认时机（#1已结算）
+- **beichi #4/#5**：盘整离开段定义、区间套实现（#1/#2/#3/#6已结算）
+- **级别递归 P5 递归栈**：RecursiveStack 多层自动调度（P4已完成）
+- **maimai TBDs**：#2 走势完成映射、#3 确认时机（#1/#4已结算）

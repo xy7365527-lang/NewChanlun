@@ -1,6 +1,6 @@
 # 级别递归（Level Recursion / 走势级别的递归构造）
 
-**版本**: v0.2
+**版本**: v0.3
 **状态**: 生成态（#1统一接口已实现，#2-5仍为生成态）
 **创建日期**: 2026-02-16
 **溯源**: [旧缠论] 第12课、第17课、第20课
@@ -186,7 +186,7 @@ Move[2] = 2级走势类型（❌ 未实现：需要 moves_from_zhongshus 接受 
 | Move[k≥2] | ✅ 泛化接口已实现 | a_zhongshu_level.py | `moves_from_level_zhongshus(LevelZhongshu列表)` |
 | MoveProtocol | ✅ 已实现 | a_level_protocol.py | Protocol + SegmentAsComponent + MoveAsComponent |
 | 递归调度（批处理） | ⚠️ 有雏形 | a_recursive_engine.py | 类型混用（duck typing） |
-| 递归调度（事件驱动） | ❌ 未实现 | — | 需要 RecursiveLevelEngine（设计见 level_recursion_interface_v1.md §4） |
+| 递归调度（事件驱动） | ✅ P4完成 | recursive_level_engine.py + recursive_level_state.py | RecursiveLevelEngine（全量重算+diff，21个测试全GREEN） |
 
 ---
 
@@ -219,11 +219,13 @@ Move[2] = 2级走势类型（❌ 未实现：需要 moves_from_zhongshus 接受 
 - **方案**：维护近似映射表（如 L1≈5min, L2≈30min），仅用于展示，不用于计算
 - **原文依据**："级别在本ID的理论中有着严格的定义，是不能随意僭越的"
 
-### 5. 事件驱动递归引擎的设计
+### ~~5. 事件驱动递归引擎的设计~~ → ✅ 已实现（P4）
 
-- **问题**：当前 RecursiveEngine 是批处理，不支持逐 bar 增量
-- **影响**：无法用于实时回放或在线交易
-- **方案**：设计 `RecursiveLevelEngine`，每层维护状态机，低级别事件触发高级别重算
+- **解决方案**：`RecursiveLevelEngine`（事件驱动，全量重算+diff）
+- **代码**：`recursive_level_engine.py`（引擎）+ `recursive_level_state.py`（快照+diff）
+- **核心流程**：settled Move → adapt_moves → zhongshu_from_components → diff → moves_from_level_zhongshus → diff
+- **测试**：21个测试全GREEN（引擎基本、中枢形成、走势形成、增量处理、diff直接测试、settled过滤、reset）
+- **level_id语义**：引擎level_id=k → 消费 Move[k-1] → 产出 Center[k] + Move[k]
 
 ---
 
@@ -240,4 +242,6 @@ Move[2] = 2级走势类型（❌ 未实现：需要 moves_from_zhongshus 接受 
 ## 变更历史
 
 - 2026-02-16: v0.1 初始版本，基于原文第12/17/20课 + 现有代码研究 + 编排者启动信号
+- 2026-02-16: v0.2 P1-P3 泛化接口实现，P4设计规范
+- 2026-02-16: v0.3 P4 RecursiveLevelEngine 事件驱动引擎实现（#1/#5已结算）
 - 2026-02-16: v0.2 P1-P3已实现：MoveProtocol + 适配器 + zhongshu_from_components + moves_from_level_zhongshus，22测试全GREEN
