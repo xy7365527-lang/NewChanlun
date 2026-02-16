@@ -72,10 +72,16 @@ def diff_level_zhongshu(
     bar_idx: int,
     bar_ts: float,
     seq_start: int = 0,
+    level_id: int = 1,
 ) -> list[DomainEvent]:
     """比较前后两次 LevelZhongshu 列表，产生域事件。
 
     结构与 zhongshu_state.diff_zhongshu 同构，适配 LevelZhongshu 的字段。
+
+    Parameters
+    ----------
+    level_id : int
+        递归级别 ID，注入到所有产出事件的 level_id 字段（P6 扩展）。
 
     Returns
     -------
@@ -95,6 +101,7 @@ def diff_level_zhongshu(
 
     def _append(cls: type, **kwargs: object) -> None:
         nonlocal seq
+        kwargs["level_id"] = level_id
         eid = compute_event_id(
             bar_idx=bar_idx,
             bar_ts=bar_ts,
@@ -194,10 +201,16 @@ def diff_level_moves(
     bar_idx: int,
     bar_ts: float,
     seq_start: int = 0,
+    level_id: int = 1,
 ) -> list[DomainEvent]:
     """比较前后两次递归级别 Move 列表，产生域事件。
 
     结构与 move_state.diff_moves 同构。
+
+    Parameters
+    ----------
+    level_id : int
+        递归级别 ID，注入到所有产出事件的 level_id 字段（P6 扩展）。
 
     Returns
     -------
@@ -228,6 +241,7 @@ def diff_level_moves(
 
     def _append(cls: type, **kwargs: object) -> None:
         nonlocal seq
+        kwargs["level_id"] = level_id
         eid = compute_event_id(
             bar_idx=bar_idx,
             bar_ts=bar_ts,

@@ -113,26 +113,28 @@ class RecursiveLevelEngine:
         # 3. 全量计算中枢
         curr_zhongshus = zhongshu_from_components(components)
 
-        # 4. diff 产生中枢事件
+        # 4. diff 产生中枢事件（P6: 注入 level_id）
         zs_events = diff_level_zhongshu(
             self._prev_zhongshus,
             curr_zhongshus,
             bar_idx=move_snap.bar_idx,
             bar_ts=move_snap.bar_ts,
             seq_start=self._event_seq,
+            level_id=self._level_id,
         )
         self._event_seq += len(zs_events)
 
         # 5. 从中枢列表计算走势类型
         curr_moves = moves_from_level_zhongshus(curr_zhongshus)
 
-        # 6. diff 产生走势事件
+        # 6. diff 产生走势事件（P6: 注入 level_id）
         move_events = diff_level_moves(
             self._prev_moves,
             curr_moves,
             bar_idx=move_snap.bar_idx,
             bar_ts=move_snap.bar_ts,
             seq_start=self._event_seq,
+            level_id=self._level_id,
         )
         self._event_seq += len(move_events)
 
