@@ -107,8 +107,8 @@ def zhongshu_from_segments(segments: list[Segment]) -> list[Zhongshu]:
         j = i + 3
         while j < n:
             sj = confirmed[j]
-            # 延伸判定：与 [ZD, ZG] 有交集
-            if sj.high > zd and sj.low < zg:
+            # 延伸判定：与 [ZD, ZG] 有交集（中心定理一，弱不等式）
+            if sj.high >= zd and sj.low <= zg:
                 seg_end_idx = j
                 j += 1
             else:
@@ -122,12 +122,12 @@ def zhongshu_from_segments(segments: list[Segment]) -> list[Zhongshu]:
         break_dir = ""
         if settled:
             breaker = confirmed[j]
-            if breaker.low >= zg:
+            if breaker.low > zg:
                 break_dir = "up"
-            elif breaker.high <= zd:
+            elif breaker.high < zd:
                 break_dir = "down"
             else:
-                # 理论上不应出现（既然不重叠），但做防御
+                # 理论上不应出现（延伸用弱不等式后突破必为严格不等），做防御
                 break_dir = "up" if breaker.high > zg else "down"
 
         result.append(Zhongshu(
