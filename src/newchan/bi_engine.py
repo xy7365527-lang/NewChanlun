@@ -129,6 +129,7 @@ class BiEngine:
             fractals,
             mode=self._stroke_mode,
             min_strict_sep=self._min_strict_sep,
+            merged_to_raw=_merged_to_raw,
         )
 
         # 差分

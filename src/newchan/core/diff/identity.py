@@ -1,6 +1,6 @@
-"""Identity / state key helpers — 四层同构 diff 的身份分离工具。
+"""Identity / state key helpers — 五层同构 diff 的身份分离工具。
 
-每个 domain entity（笔/线段/中枢/走势类型）都有 *身份*（identity）和 *状态*（state）。
+每个 domain entity（笔/线段/中枢/走势类型/买卖点）都有 *身份*（identity）和 *状态*（state）。
 身份标识"它是谁"，状态标识"它现在怎样"。
 
 Diff 规则：
@@ -10,6 +10,7 @@ Diff 规则：
 
 from __future__ import annotations
 
+from newchan.a_buysellpoint_v1 import BuySellPoint
 from newchan.a_move_v1 import Move
 from newchan.a_segment_v0 import Segment
 from newchan.a_zhongshu_v1 import Zhongshu
@@ -52,3 +53,21 @@ def move_identity_key(m: Move) -> tuple[int]:
 def same_move_identity(a: Move, b: Move) -> bool:
     """两个 Move 是否具有同一身份（seg_start 相同）。"""
     return a.seg_start == b.seg_start
+
+
+# ── BuySellPoint ──────────────────────────────────────────
+
+
+def bsp_identity_key(bp: BuySellPoint) -> tuple[int, str, str, int]:
+    """买卖点身份 = (seg_idx, kind, side, level_id)。四元组唯一键。"""
+    return (bp.seg_idx, bp.kind, bp.side, bp.level_id)
+
+
+def same_bsp_identity(a: BuySellPoint, b: BuySellPoint) -> bool:
+    """两个买卖点是否具有同一身份。"""
+    return (
+        a.seg_idx == b.seg_idx
+        and a.kind == b.kind
+        and a.side == b.side
+        and a.level_id == b.level_id
+    )

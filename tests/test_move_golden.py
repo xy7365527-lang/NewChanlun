@@ -45,6 +45,8 @@ def _zs(
     break_seg: int = -1,
     first_seg_s0: int = 0,
     last_seg_s1: int = 0,
+    gg: float | None = None,
+    dd: float | None = None,
 ) -> Zhongshu:
     seg_count = seg_end - seg_start + 1
     if settled and break_seg == -1:
@@ -60,6 +62,8 @@ def _zs(
         break_direction=break_direction if settled else "",
         first_seg_s0=first_seg_s0,
         last_seg_s1=last_seg_s1,
+        gg=gg if gg is not None else zg,
+        dd=dd if dd is not None else zd,
     )
 
 
@@ -382,3 +386,61 @@ class TestDiffDeterminism:
             assert a.event_id == b.event_id
             assert a.event_type == b.event_type
             assert a.seq == b.seq
+
+
+# =====================================================================
+# 16) GG/DD 波动区间区分趋势（中心定理二）
+# =====================================================================
+
+class TestGGDDTrendDistinction:
+    """GG/DD vs ZG/ZD 的区别：波动区间重叠时非趋势。"""
+
+    def test_zd_above_zg_but_gg_dd_overlap(self):
+        """ZD/ZG 不重叠但 GG/DD 重叠 → 非趋势（盘整）。
+
+        C1: zd=10, zg=18, dd=5, gg=25
+        C2: zd=20, zg=28, dd=15, gg=35
+        ZD比较: C2.zd=20 > C1.zg=18 → 旧逻辑认为上涨
+        GG/DD比较: C2.dd=15 < C1.gg=25 → 波动区间重叠 → 非趋势
+        """
+        zhongshus = [
+            _zs(0, 2, 10.0, 18.0, break_direction="up", dd=5.0, gg=25.0),
+            _zs(6, 8, 20.0, 28.0, break_direction="up", dd=15.0, gg=35.0),
+        ]
+        moves = moves_from_zhongshus(zhongshus)
+        # 波动区间重叠 → 两个独立盘整，不是趋势
+        assert len(moves) == 2
+        assert moves[0].kind == "consolidation"
+        assert moves[1].kind == "consolidation"
+
+    def test_gg_dd_no_overlap_ascending(self):
+        """GG/DD 完全不重叠 → 真正的上涨趋势。
+
+        C1: zd=10, zg=18, dd=5, gg=22
+        C2: zd=25, zg=33, dd=23, gg=38
+        C2.dd=23 > C1.gg=22 → 波动区间不重叠 → 上涨
+        """
+        zhongshus = [
+            _zs(0, 2, 10.0, 18.0, break_direction="up", dd=5.0, gg=22.0),
+            _zs(6, 8, 25.0, 33.0, break_direction="up", dd=23.0, gg=38.0),
+        ]
+        moves = moves_from_zhongshus(zhongshus)
+        assert len(moves) == 1
+        assert moves[0].kind == "trend"
+        assert moves[0].direction == "up"
+
+    def test_gg_dd_no_overlap_descending(self):
+        """GG/DD 完全不重叠 → 真正的下跌趋势。
+
+        C1: zd=20, zg=30, dd=18, gg=35
+        C2: zd=5, zg=15, dd=3, gg=17
+        C2.gg=17 < C1.dd=18 → 波动区间不重叠 → 下跌
+        """
+        zhongshus = [
+            _zs(0, 2, 20.0, 30.0, break_direction="down", dd=18.0, gg=35.0),
+            _zs(6, 8, 5.0, 15.0, break_direction="down", dd=3.0, gg=17.0),
+        ]
+        moves = moves_from_zhongshus(zhongshus)
+        assert len(moves) == 1
+        assert moves[0].kind == "trend"
+        assert moves[0].direction == "down"

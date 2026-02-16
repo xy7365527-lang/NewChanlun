@@ -255,45 +255,61 @@ class TestGapNoSeq2Yet:
 # =====================================================================
 
 class TestGapSeq2AnyFractalType:
-    """第二序列分型不分一二种，不分顶底，只要有分型就可以。"""
+    """第二序列分型不分一二种，不分顶底，只要有分型就可以。
 
-    def test_has_any_fractal_top(self):
-        """后续元素构成顶分型 → 识别。"""
-        # 3 元素构成顶分型：b_h > a_h and b_h > c_h and b_l > a_l and b_l > c_l
-        std = [
-            [10.0, 5.0, 0],   # a
-            [15.0, 8.0, 1],   # b (peak)
-            [12.0, 6.0, 2],   # c
-        ]
-        assert _FeatureSeqState._has_any_fractal_after(std, 0) is True
+    第67课 L46："第二个序列中的分型，不分第一二种情况，只要有分型就可以。"
+    _second_seq_has_fractal 从同向笔构建独立特征序列并检测分型。
+    """
 
-    def test_has_any_fractal_bottom(self):
-        """后续元素构成底分型 → 识别。"""
-        # 3 元素构成底分型：b_l < a_l and b_l < c_l and b_h < a_h and b_h < c_h
-        std = [
-            [15.0, 8.0, 0],   # a
-            [10.0, 5.0, 1],   # b (trough)
-            [12.0, 6.0, 2],   # c
+    def test_second_seq_top_fractal(self):
+        """同向笔构成顶分型 → 识别。"""
+        # seg_dir="up" → 收集 up 笔: idx 1(h=10,l=5), 3(h=15,l=8), 5(h=12,l=6)
+        # 顶分型: 15>10, 15>12, 8>5, 8>6 ✓
+        strokes = [
+            _s(0, 5, "down", 10, 5),
+            _s(5, 10, "up", 10, 5),
+            _s(10, 15, "down", 9, 4),
+            _s(15, 20, "up", 15, 8),
+            _s(20, 25, "down", 14, 7),
+            _s(25, 30, "up", 12, 6),
         ]
-        assert _FeatureSeqState._has_any_fractal_after(std, 0) is True
+        assert _FeatureSeqState._second_seq_has_fractal(strokes, "up", 0) is True
 
-    def test_no_fractal(self):
-        """元素不构成分型 → 不识别。"""
-        # 单调上升，无分型
-        std = [
-            [10.0, 5.0, 0],
-            [12.0, 7.0, 1],
-            [14.0, 9.0, 2],
+    def test_second_seq_bottom_fractal(self):
+        """同向笔构成底分型 → 识别。"""
+        # seg_dir="up" → 收集 up 笔: idx 1(h=15,l=8), 3(h=10,l=5), 5(h=12,l=6)
+        # 底分型: 5<8, 5<6, 10<15, 10<12 ✓
+        strokes = [
+            _s(0, 5, "down", 10, 5),
+            _s(5, 10, "up", 15, 8),
+            _s(10, 15, "down", 14, 7),
+            _s(15, 20, "up", 10, 5),
+            _s(20, 25, "down", 9, 4),
+            _s(25, 30, "up", 12, 6),
         ]
-        assert _FeatureSeqState._has_any_fractal_after(std, 0) is False
+        assert _FeatureSeqState._second_seq_has_fractal(strokes, "up", 0) is True
 
-    def test_insufficient_elements(self):
-        """不足3个元素 → 无分型。"""
-        std = [
-            [10.0, 5.0, 0],
-            [15.0, 8.0, 1],
+    def test_second_seq_no_fractal(self):
+        """同向笔单调递增 → 不识别。"""
+        strokes = [
+            _s(0, 5, "down", 10, 5),
+            _s(5, 10, "up", 10, 5),
+            _s(10, 15, "down", 9, 4),
+            _s(15, 20, "up", 12, 7),
+            _s(20, 25, "down", 11, 6),
+            _s(25, 30, "up", 14, 9),
         ]
-        assert _FeatureSeqState._has_any_fractal_after(std, 0) is False
+        assert _FeatureSeqState._second_seq_has_fractal(strokes, "up", 0) is False
+
+    def test_second_seq_insufficient_elements(self):
+        """同向笔不足3个 → 无分型。"""
+        strokes = [
+            _s(0, 5, "down", 10, 5),
+            _s(5, 10, "up", 10, 5),
+            _s(10, 15, "down", 9, 4),
+            _s(15, 20, "up", 15, 8),
+        ]
+        assert _FeatureSeqState._second_seq_has_fractal(strokes, "up", 0) is False
 
 
 # =====================================================================
