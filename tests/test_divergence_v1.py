@@ -550,6 +550,85 @@ class TestInsufficientConditionsV1:
 
 
 # =====================================================================
+# G) force_a <= 0 守卫（退化 A 段）
+# =====================================================================
+
+class TestZeroForceGuard:
+    """A 段力度为零（价格平坦退化）时守卫应阻止误报。"""
+
+    def test_trend_zero_force_a_no_divergence(self):
+        """趋势背驰：A 段所有线段 high == low → force_a=0 → 无背驰。
+
+        结构：
+          seg0-seg2: zs0 (settled, [12,18])
+          seg3:      A 段 — high=low=15 → force=(15-15)*10 = 0
+          seg4-seg6: zs1 (settled, [22,28])
+          seg7:      C 段 — 正常力度
+        """
+        segments = [
+            _seg(0, 0, 0, 10, "up", 18, 12),
+            _seg(1, 1, 10, 20, "down", 18, 12),
+            _seg(2, 2, 20, 30, "up", 18, 12),       # zs0 结束
+            _seg(3, 3, 30, 40, "up", 15, 15),        # A 段：flat price → force=0
+            _seg(4, 4, 40, 50, "down", 28, 22),
+            _seg(5, 5, 50, 60, "up", 28, 22),
+            _seg(6, 6, 60, 70, "down", 28, 22),      # zs1 结束
+            _seg(7, 7, 70, 80, "up", 35, 30),        # C 段：5*10=50
+        ]
+
+        zhongshus = [
+            Zhongshu(zd=12.0, zg=18.0, seg_start=0, seg_end=2, seg_count=3,
+                     settled=True, break_seg=3, break_direction="up",
+                     first_seg_s0=0, last_seg_s1=2, gg=20.0, dd=10.0),
+            Zhongshu(zd=22.0, zg=28.0, seg_start=4, seg_end=6, seg_count=3,
+                     settled=True, break_seg=7, break_direction="up",
+                     first_seg_s0=4, last_seg_s1=6, gg=30.0, dd=20.0),
+        ]
+
+        moves = [
+            Move(kind="trend", direction="up", seg_start=0, seg_end=7,
+                 zs_start=0, zs_end=1, zs_count=2, settled=False,
+                 high=28.0, low=12.0, first_seg_s0=0, last_seg_s1=7),
+        ]
+
+        divs = divergences_from_moves_v1(segments, zhongshus, moves, level_id=1)
+        trend_divs = [d for d in divs if d.kind == "trend"]
+        assert len(trend_divs) == 0
+
+    def test_consolidation_zero_force_a_no_divergence(self):
+        """盘整背驰：第一次离开段 high == low → force_a=0 → 跳过 → 无背驰。
+
+        exit_segs_by_dir["down"] = [3, 5]
+        force(seg3) = (50-50) * 10 = 0   → force_a <= 0 → continue
+        结果：无盘整背驰
+        """
+        segments = [
+            _seg(0, 0, 0, 10, "down", 58, 52),      # 中枢内
+            _seg(1, 1, 10, 20, "up", 58, 52),        # 中枢内
+            _seg(2, 2, 20, 30, "down", 58, 52),      # 中枢内
+            _seg(3, 3, 30, 40, "down", 50, 50),      # 第一次 down 离开：flat → force=0
+            _seg(4, 4, 40, 50, "up", 58, 52),        # 回抽
+            _seg(5, 5, 50, 60, "down", 52, 45),      # 第二次 down 离开：正常力度
+        ]
+
+        zhongshus = [
+            Zhongshu(zd=50.0, zg=60.0, seg_start=0, seg_end=2, seg_count=3,
+                     settled=True, break_seg=3, break_direction="down",
+                     first_seg_s0=0, last_seg_s1=5, gg=60.0, dd=50.0),
+        ]
+
+        moves = [
+            Move(kind="consolidation", direction="down", seg_start=0, seg_end=5,
+                 zs_start=0, zs_end=0, zs_count=1, settled=False,
+                 high=60.0, low=50.0, first_seg_s0=0, last_seg_s1=5),
+        ]
+
+        divs = divergences_from_moves_v1(segments, zhongshus, moves, level_id=1)
+        cons_divs = [d for d in divs if d.kind == "consolidation"]
+        assert len(cons_divs) == 0
+
+
+# =====================================================================
 # E) 方向标签
 # =====================================================================
 
