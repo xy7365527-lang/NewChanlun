@@ -519,10 +519,58 @@ deploy/ 包含完整的元编排可移植部署包：
 
 ---
 
+## 新对话 — R19 蜂群结果
+
+**热启动**: L2（新对话 ceremony 从 session 文件恢复）
+
+### R19 — 3 工位并行（原文回溯×2 + 架构设计×1）
+
+| 工位 | 任务 | 产出 | 状态 |
+|------|------|------|------|
+| A | beichi #2 三维度 or/and 原文回溯 | OR关系（第25课L38-43"或者"连接） | ✅ 已结算 |
+| B | level_recursion P4 架构设计 | RecursiveLevelEngine + RecursiveStack 完整设计方案 | ✅ 设计完成 |
+| C | maimai TBD-1 下跌确立条件 | 严格口径（≥2中枢=下跌趋势，第21课L40-43） | ✅ 已结算 |
+
+### 定义基底更新
+
+| 定义 | 版本 | 状态变化 |
+|------|------|---------|
+| beichi | v0.3→v0.4 | #2 OR关系已结算（3/6已结算，#3/#4/#5仍为生成态） |
+| maimai | v0.1→v0.2 | TBD-1 下跌确立已结算（3→2个未结算问题） |
+
+### 已结算定义汇总（R19后）
+
+| 定义 | 版本 | 状态 |
+|------|------|------|
+| baohan | v1.3 | ✅ 已结算 |
+| fenxing | v1.0 | ✅ 已结算 |
+| bi | v1.4 | ✅ 已结算 |
+| xianduan | v1.3 | ✅ 已结算 |
+| zhongshu | v1.3 | ✅ 已结算 |
+| zoushi | v1.1 | 生成态 |
+| beichi | v0.4 | 生成态（#1/#2/#6已结算） |
+| maimai | v0.2 | 生成态（#1/#4已结算） |
+| level_recursion | v0.2 | 生成态（#1已结算，P4设计完成） |
+
+**已结算率**: 5/9 (55.6%)
+
+### P4 架构设计要点
+
+- **RecursiveLevelEngine**：单层引擎，消费 MoveSnapshot[k-1]，产生 level=k 的中枢+走势+事件
+- **RecursiveStack**：多层自动递归调度器，懒创建引擎，自动检测终止条件（len(moves)<3）
+- **实现路线图**：P4(单层引擎) → P5(递归栈) → P6(事件level_id扩展) → P7(diff_level_zhongshu) → P8(集成) → P9(口径A正式)
+- **设计原则**：全量重算+Diff（与五层同构）、settled作为向上递归条件[旧缠论:选择]、对象否定对象[新缠论]
+
+### 测试基线
+
+675 passed, 16 failed, 16 errors（与R18一致），零退化
+
+---
+
 ## 下次中断点
 
 - **zoushi 阻塞路径**：beichi→maimai→level_recursion 三定义需推进后才可结算
-- **beichi #2（or vs and）**：T6/T7 工具函数就位但未集成到主检测，待 #2 结算后组合
+- **beichi T6/T7 集成**：#2 已结算(OR)，T6/T7工具函数待集成到 `_detect_trend_divergence()` 中（三维度任一满足即背驰）
 - **beichi #3/#4/#5**：走势完成关系、盘整离开段定义、区间套实现
-- **级别递归 P4+**：RecursiveLevelEngine + RecursiveStack 待实现
-- **maimai TBDs**：#1 下跌确立条件、#2 走势完成映射、#3 确认时机
+- **级别递归 P4-P9 实现**：设计方案已完成，按路线图编码
+- **maimai TBDs**：#2 走势完成映射、#3 确认时机（#1已结算）
