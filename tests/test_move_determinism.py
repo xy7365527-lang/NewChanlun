@@ -27,6 +27,8 @@ def _zs(
     *,
     settled: bool = True,
     break_direction: str = "up",
+    gg: float | None = None,
+    dd: float | None = None,
 ) -> Zhongshu:
     seg_count = seg_end - seg_start + 1
     break_seg = seg_end + 1 if settled else -1
@@ -36,6 +38,8 @@ def _zs(
         seg_count=seg_count, settled=settled,
         break_seg=break_seg,
         break_direction=break_direction if settled else "",
+        gg=gg if gg is not None else zg,
+        dd=dd if dd is not None else zd,
     )
 
 
