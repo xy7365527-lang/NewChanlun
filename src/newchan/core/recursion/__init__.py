@@ -1,4 +1,4 @@
-"""递归层模块 — 线段引擎 + 中枢引擎 + 走势类型引擎 + 状态管理
+"""递归层模块 — 线段引擎 + 中枢引擎 + 走势类型引擎 + 买卖点引擎 + 状态管理
 
 从笔事件驱动的线段计算：
 - SegmentEngine: 事件驱动线段引擎（消费 BiEngineSnapshot）
@@ -14,6 +14,11 @@
 - MoveEngine: 事件驱动走势类型引擎（消费 ZhongshuSnapshot）
 - MoveSnapshot: 走势类型快照
 - diff_moves: Move 列表差分 → 走势类型事件
+
+从三层快照驱动的买卖点计算：
+- BuySellPointEngine: 事件驱动买卖点引擎（消费 MoveSnapshot + ZhongshuSnapshot + SegmentSnapshot）
+- BuySellPointSnapshot: 买卖点快照
+- diff_buysellpoints: BSP 列表差分 → 买卖点事件
 """
 
 from newchan.core.recursion.segment_state import SegmentSnapshot, diff_segments
@@ -22,6 +27,8 @@ from newchan.core.recursion.zhongshu_state import ZhongshuSnapshot, diff_zhongsh
 from newchan.core.recursion.zhongshu_engine import ZhongshuEngine
 from newchan.core.recursion.move_state import MoveSnapshot, diff_moves
 from newchan.core.recursion.move_engine import MoveEngine
+from newchan.core.recursion.buysellpoint_state import BuySellPointSnapshot, diff_buysellpoints
+from newchan.core.recursion.buysellpoint_engine import BuySellPointEngine
 
 __all__ = [
     "SegmentEngine",
@@ -33,4 +40,7 @@ __all__ = [
     "MoveEngine",
     "MoveSnapshot",
     "diff_moves",
+    "BuySellPointEngine",
+    "BuySellPointSnapshot",
+    "diff_buysellpoints",
 ]

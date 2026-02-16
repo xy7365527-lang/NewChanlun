@@ -304,6 +304,8 @@ class TFOrchestrator:
             eng.reset()
         for eng in self._move_engines.values():
             eng.reset()
+        for eng in self._bsp_engines.values():
+            eng.reset()
 
         # base TF seek
         base_snap = self.base_session.seek(target_idx)
