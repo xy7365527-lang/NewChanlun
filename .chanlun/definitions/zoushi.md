@@ -1,8 +1,8 @@
 # 走势类型（Zoushi / Trend Type）
 
-**版本**: v1.0
+**版本**: v1.1
 **状态**: 生成态
-**最后更新**: 2026-02-15
+**最后更新**: 2026-02-16
 **原文依据**: 第17课、第18课、第20课、第21课
 
 ---
@@ -136,47 +136,57 @@
 
 ## 当前实现
 
-### 代码位置
-`src/newchan/a_trendtype_v0.py`
+### v0 实现
+- **代码位置**：`src/newchan/a_trendtype_v0.py`
+- **状态**：完成（complete），保留供对比
+- **中枢关系判定**（`_centers_relation`）：使用 GG/DD 判断趋势方向 ✅
 
-### 实现状态
-**完成（complete）**
+### v1 实现（当前主线）
+- **代码位置**：`src/newchan/a_move_v1.py`
+- **状态**：完成（complete）
+- **规范文件**：`docs/spec/move_rules_v1.md`
 
-### 实现细节
-
-#### 数据结构
+#### v1 数据结构
 ```python
 @dataclass(frozen=True, slots=True)
-class TrendTypeInstance:
-    kind: Literal["trend", "consolidation"]  # 趋势或盘整
-    direction: Literal["up", "down"]         # 方向
-    seg0: int                                # 起点 segment 索引
-    seg1: int                                # 终点 segment 索引
-    i0, i1: int                              # 对应 merged K线索引
-    high, low: float                         # 价格区间
-    center_indices: tuple[int, ...]          # 包含的中枢索引
-    confirmed: bool                          # 最后一个 False
-    level_id: int                            # 递归级别
+class Move:
+    kind: Literal["consolidation", "trend"]
+    direction: Literal["up", "down"]
+    seg_start: int      # identity key（第一个中枢的首段索引）
+    seg_end: int
+    zs_start: int       # 在 zhongshu list 中的索引
+    zs_end: int
+    zs_count: int       # >= 1
+    settled: bool       # 最后一个 = False
+    high: float         # max(center.zg)
+    low: float          # min(center.zd)
+    first_seg_s0: int   # 前端定位
+    last_seg_s1: int    # 前端定位
 ```
 
-#### 核心算法
-1. **从中枢序列构造走势类型**（`trend_instances_from_centers`）：
-   - 将settled中枢按方向分组（连续同向→同组）
-   - ≥2同向中枢 → 趋势对象（kind="trend"）
-   - 1个中枢 → 盘整对象（kind="consolidation"）
-   - 分配segment边界（首尾相连，完全覆盖）
-   - 最后一个实例confirmed=False
+#### v1 核心算法
+1. **从中枢序列构造走势类型**（`moves_from_zhongshus`）：
+   - 过滤 settled=True 的中枢
+   - 贪心向右扫描，同向中枢归入同一 group
+   - ≥2同向中枢 → `kind="trend"`
+   - 1个中枢 → `kind="consolidation"`（方向=break_direction）
+   - 最后一个 move 强制 `settled=False`
 
-2. **中枢关系判定**（`_centers_relation`）：
-   - 后GG < 前DD → "down"（下跌及其延续）
-   - 后DD > 前GG → "up"（上涨及其延续）
-   - 后ZG < 前ZD 且 后GG ≥ 前DD → "higher_center"（形成高级别中枢）
-   - 后ZD > 前ZG 且 后DD ≤ 前GG → "higher_center"
+2. **趋势方向判定**（中心定理二，v1.1 修复）：
+   - `_is_ascending(c1, c2)`: **c2.dd > c1.gg**（后枢波动下界 > 前枢波动上界）→ 上涨
+   - `_is_descending(c1, c2)`: **c2.gg < c1.dd**（后枢波动上界 < 前枢波动下界）→ 下跌
+   - ⚠️ **v1.0 曾错误使用 ZD/ZG**，v1.1 已修正为 DD/GG
 
-3. **中枢发展标签**（`label_centers_development`）：
-   - 与后续中枢关系为"up"/"down" → development="newborn"（新生：形成趋势）
-   - 关系为"higher_center" → development="expansion"（扩展）
-   - 无后续settled中枢且延伸中 → development="extension"（延伸）
+3. **增量 Diff**（`diff_moves`）：
+   - 身份键 = `seg_start`
+   - 事件类型：MoveCandidateV1, MoveSettleV1, MoveInvalidateV1
+   - 与 diff_zhongshu 同构的三段式 diff 算法
+
+### v1.1 变更记录
+- **GG/DD 修复**：趋势方向判定从 ZD/ZG 改为 DD/GG（中心定理二）
+  - 原文依据：第20课 "后GG<前DD等价于下跌及其延续；后DD>前GG等价于上涨及其延续"
+  - 影响：当中枢有延伸时，ZG/ZD（固定区间）和 GG/DD（波动区间）可能不同
+  - v0 的 `_centers_relation` 已正确使用 GG/DD → v1.0 是回退，v1.1 修正回来
 
 ---
 
@@ -201,7 +211,11 @@ class TrendTypeInstance:
    - 上涨→盘整/下跌（第一类卖点）
 5. **退化情况**：
    - 实现中需处理segment不足3段的情况（向右扩展）
-   - 需处理GG/DD缺失情况（降级到ZG/ZD判定）
+6. **GG/DD 与 ZG/ZD 区分**（v1.1 新增）：
+   - 无延伸中枢：GG=ZG, DD=ZD → 两种判定等价
+   - 有延伸中枢：GG≥ZG, DD≤ZD → 波动区间更大
+   - 必须使用 GG/DD（波动区间）判定趋势方向（中心定理二）
+   - 使用 ZG/ZD（中枢区间）判定趋势方向会导致假趋势（两枢 ZD/ZG 不重叠但 GG/DD 重叠时）
 
 ### 级别递归约束
 - **底座**：1分钟K线（最小不可分级别）
@@ -266,20 +280,26 @@ class TrendTypeInstance:
 1. **`.chanlun/genealogy/pending/001-degenerate-segment.md`** — 退化线段问题
    - 影响：退化线段导致走势类型判定异常
    - 关联：v1特征序列法可能产生"下跌段价格反而上涨"
-2. **`.chanlun/genealogy/pending/002-source-incompleteness.md`** — 原文不完整性
-   - 影响：编纂版缺失第67、71、77、78课，可能遗漏走势类型定义细节
-   - 已补录原始博文，但尚未完全梳理差异
+2. **`.chanlun/genealogy/settled/002-source-incompleteness.md`** — 原文不完整性（已结算）
+   - 影响：编纂版缺失第67、71、77、78课，已补录原始博文
+3. **`.chanlun/genealogy/pending/004-provenance-framework.md`** — 概念溯源框架
+   - 影响：走势类型中的趋势定义使用 GG/DD → 溯源标签 `[旧缠论]`（原文第20课明确）
+4. **`.chanlun/genealogy/pending/005-object-negation-principle.md`** — 对象否定对象原则 `[新缠论]`
+   - 影响：走势完成必须由同级别内部机制否定，不允许超时/阈值等外部否定
 
 ---
 
 ## 影响声明
 
 ### 影响的模块
-1. **`src/newchan/a_trendtype_v0.py`** — 走势类型实例构造（已实现）
-2. **`src/newchan/a_level_fsm_newchan.py`** — 级别递归引擎（部分实现）
-3. **`src/newchan/a_divergence.py`** — 背驰判断（已实现，但可能需要调整）
-4. **买卖点模块（尚未实现）** — 三类买卖点识别
-5. **区间套模块（尚未实现）** — 多级别嵌套分析
+1. **`src/newchan/a_move_v1.py`** — 走势类型实例构造 v1（当前主线，v1.1 GG/DD 修复）
+2. **`src/newchan/a_trendtype_v0.py`** — 走势类型实例构造 v0（保留供对比）
+3. **`src/newchan/a_level_fsm_newchan.py`** — 级别递归引擎（部分实现）
+4. **`src/newchan/a_divergence.py`** — 背驰判断（已实现，但可能需要调整）
+5. **`src/newchan/core/recursion/move_engine.py`** — 走势类型增量引擎
+6. **`src/newchan/core/recursion/move_state.py`** — 走势类型 diff 状态机
+7. **买卖点模块（尚未实现）** — 三类买卖点识别
+8. **区间套模块（尚未实现）** — 多级别嵌套分析
 
 ### 影响的定义
 1. **中枢定义** — 走势类型与中枢互为定义（中枢由次级别走势类型重叠定义）
@@ -308,14 +328,20 @@ class TrendTypeInstance:
 
 **当前状态**：
 - 核心定义清晰（趋势/盘整的中枢数量判定）
-- 实现基本完整（v0版本已运行）
+- v0 和 v1 双实现已运行
+- v1.1 已修复趋势方向判定（GG/DD 中心定理二）
 - 但仍处于**生成态**，原因：
   1. 背驰判断与走势完成的关系需要明确（依赖背驰定义文件）
   2. 买卖点与走势类型的精确对应需要形式化（依赖买卖点定义文件）
   3. 多级别共振和级别递归的完整规则需要补充（依赖级别定义文件）
+  4. 确认时机的严格条件需要形式化
 
 **下一步**：
 1. 创建买卖点定义文件（三类买卖点的完整定义）
 2. 创建背驰定义文件（背驰与走势完成的关系）
 3. 创建级别定义文件（递归级别的形式化）
 4. 完成上述后，本定义可从生成态转为结算态
+
+**变更历史**：
+- v1.0 (2026-02-15)：初始定义，原文谱系梳理，4个未结算问题
+- v1.1 (2026-02-16)：GG/DD 修复（中心定理二），v1 实现信息更新，谱系 004/005 关联
