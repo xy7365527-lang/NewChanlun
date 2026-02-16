@@ -465,3 +465,132 @@ class TestOverlapNone:
         # 所以不会重合
         for bp in t2_buys:
             assert bp.overlaps_with is None
+
+
+# =====================================================================
+# G) 探索性测试 — TBD 定义矛盾暴露
+# （testing-override 生成态例外：目的是暴露问题，非覆盖率指标）
+# =====================================================================
+
+class TestTBD2ConfirmedPropagation:
+    """[TBD-2] confirmed 状态从 Divergence 传递到 Type1 BSP。
+
+    当前决策：BSP.confirmed = div.confirmed（跟随背驰确认态）。
+    翻转条件：若走势完成与背驰不等价，需引入独立的 move_completed 状态。
+    """
+
+    def test_type1_buy_confirmed_true(self):
+        """div.confirmed=True → BSP.confirmed=True。"""
+        segs, zss, mvs, divs = _make_downtrend_with_divergence()
+
+        # 替换 divergence 为 confirmed=True 版本
+        div_confirmed = Divergence(
+            kind="trend", direction="bottom", level_id=1,
+            seg_a_start=3, seg_a_end=6, seg_c_start=10, seg_c_end=10,
+            center_idx=1, force_a=500.0, force_c=50.0, confirmed=True,
+        )
+
+        bsps = buysellpoints_from_level(segs, zss, mvs, [div_confirmed], level_id=1)
+        t1_buys = [bp for bp in bsps if bp.kind == "type1" and bp.side == "buy"]
+        assert len(t1_buys) == 1
+        assert t1_buys[0].confirmed is True
+
+    def test_type1_buy_confirmed_false(self):
+        """div.confirmed=False → BSP.confirmed=False。"""
+        segs, zss, mvs, divs = _make_downtrend_with_divergence()
+        # 原始数据中 div.confirmed=False
+        bsps = buysellpoints_from_level(segs, zss, mvs, divs, level_id=1)
+        t1_buys = [bp for bp in bsps if bp.kind == "type1" and bp.side == "buy"]
+        assert len(t1_buys) == 1
+        assert t1_buys[0].confirmed is False
+
+
+class TestTBD3Type2ConfirmedIndependence:
+    """[TBD-3] Type2 的 confirmed 跟随回调段而非 Type1。
+
+    当前决策：type2.confirmed = callback_seg.confirmed。
+    翻转条件：若确认时机需要后续走势验证，需引入额外状态机。
+    """
+
+    def test_type2_confirmed_follows_callback_not_type1(self):
+        """Type1.confirmed=True，但回调段 confirmed=False → Type2.confirmed=False。
+
+        这验证了 Type2 的确认是独立路径，不从 Type1 继承。
+        """
+        segs, zss, mvs, divs = _make_downtrend_with_divergence()
+
+        # 让 divergence confirmed=True → Type1 将是 confirmed
+        div_confirmed = Divergence(
+            kind="trend", direction="bottom", level_id=1,
+            seg_a_start=3, seg_a_end=6, seg_c_start=10, seg_c_end=10,
+            center_idx=1, force_a=500.0, force_c=50.0, confirmed=True,
+        )
+
+        # 添加后续段用于 Type2 检测（默认 confirmed=True）
+        segs_ext = list(segs) + [
+            _seg(11, 11, 110, 130, "up", 60, 46, confirmed=True),     # 反弹段
+            _seg(12, 12, 130, 140, "down", 55, 48, confirmed=False),  # 回调段: confirmed=False
+        ]
+
+        bsps = buysellpoints_from_level(segs_ext, zss, mvs, [div_confirmed], level_id=1)
+        t1_buys = [bp for bp in bsps if bp.kind == "type1" and bp.side == "buy"]
+        t2_buys = [bp for bp in bsps if bp.kind == "type2" and bp.side == "buy"]
+
+        assert len(t1_buys) == 1
+        assert t1_buys[0].confirmed is True   # Type1 跟随 div
+
+        assert len(t2_buys) == 1
+        assert t2_buys[0].confirmed is False   # Type2 跟随回调段，非 Type1
+
+
+class TestTBD1StrictCriterion:
+    """[TBD-1] 严格口径：盘整 Move 不产生 Type 1 买卖点。
+
+    当前决策：assoc_move.kind != "trend" → 跳过。
+    翻转条件：若宽松口径（盘整背驰也算），需删除此守卫。
+    """
+
+    def test_consolidation_move_with_trend_div_no_type1(self):
+        """即使 Divergence.kind=="trend"，若关联 Move 是盘整，也不产生 Type1。
+
+        这是防御测试：验证 TBD-1 的严格口径守卫工作。
+        """
+        segments = [
+            _seg(0, 0, 0, 10, "down", 95, 80),
+            _seg(1, 1, 10, 20, "up", 90, 82),
+            _seg(2, 2, 20, 30, "down", 88, 80),
+            _seg(3, 3, 30, 40, "up", 82, 75),
+            _seg(4, 4, 40, 50, "down", 75, 55),
+            _seg(5, 5, 50, 60, "up", 60, 50),
+            _seg(6, 6, 60, 70, "down", 60, 50),
+            _seg(7, 7, 70, 80, "up", 55, 48),
+            _seg(8, 8, 80, 90, "down", 55, 45),
+        ]
+
+        zhongshus = [
+            Zhongshu(zd=80.0, zg=90.0, seg_start=0, seg_end=2, seg_count=3,
+                     settled=True, break_seg=3, break_direction="down",
+                     first_seg_s0=0, last_seg_s1=2, gg=95.0, dd=80.0),
+            Zhongshu(zd=50.0, zg=60.0, seg_start=5, seg_end=7, seg_count=3,
+                     settled=True, break_seg=8, break_direction="down",
+                     first_seg_s0=5, last_seg_s1=7, gg=60.0, dd=48.0),
+        ]
+
+        # Move 标记为 consolidation（而非 trend）
+        moves = [
+            Move(kind="consolidation", direction="down", seg_start=0, seg_end=8,
+                 zs_start=0, zs_end=1, zs_count=2, settled=False,
+                 high=90.0, low=50.0, first_seg_s0=0, last_seg_s1=8),
+        ]
+
+        # 手工构造趋势背驰（绕过 _detect_trend_divergence 的 move.kind 检查）
+        divergences = [
+            Divergence(kind="trend", direction="bottom", level_id=1,
+                       seg_a_start=3, seg_a_end=4, seg_c_start=8, seg_c_end=8,
+                       center_idx=1, force_a=400.0, force_c=50.0, confirmed=False),
+        ]
+
+        bsps = buysellpoints_from_level(segments, zhongshus, moves, divergences, level_id=1)
+        t1_points = [bp for bp in bsps if bp.kind == "type1"]
+        # 严格口径：consolidation Move → 无 Type1
+        assert len(t1_points) == 0
