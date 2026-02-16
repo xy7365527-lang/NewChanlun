@@ -6,6 +6,7 @@
 - 中枢 = 至少 3 段连续已确认线段的价格区间重叠
 - ZD = max(seg_i.low)，ZG = min(seg_i.high)，ZG > ZD 严格成立
 - 固定区间：初始 3 段确定 [ZD, ZG] 后，延伸段只判重叠不改区间
+- 波动区间：GG = max(所有段 high)，DD = min(所有段 low)
 - 续进：突破后从 break_seg_idx - 2 开始扫描下一个中枢
 """
 
@@ -43,6 +44,10 @@ class Zhongshu:
         第一段的 stroke s0（用于前端时间定位）。
     last_seg_s1 : int
         最后包含段的 stroke s1。
+    gg : float
+        波动区间上界 GG = max(所有构成段的 high)。
+    dd : float
+        波动区间下界 DD = min(所有构成段的 low)。
     """
 
     zd: float
@@ -55,6 +60,8 @@ class Zhongshu:
     break_direction: str = ""
     first_seg_s0: int = 0
     last_seg_s1: int = 0
+    gg: float = 0.0   # max(所有段的 high)，波动区间上界
+    dd: float = 0.0   # min(所有段的 low)，波动区间下界
 
 
 def zhongshu_from_segments(segments: list[Segment]) -> list[Zhongshu]:
@@ -66,7 +73,7 @@ def zhongshu_from_segments(segments: list[Segment]) -> list[Zhongshu]:
     1. 过滤已确认段
     2. 滑窗扫描连续三段：ZD=max(lows), ZG=min(highs)
     3. ZG > ZD → 中枢成立
-    4. 延伸：后续段与 [ZD, ZG] 有交集（seg.high > zd AND seg.low < zg）
+    4. 延伸：后续段与 [ZD, ZG] 有交集，同时更新 GG/DD
     5. 突破：不重叠的段终结中枢，settled=True
     6. 续进：从 break_seg_idx - 2 开始扫描下一个中枢
 
@@ -100,16 +107,20 @@ def zhongshu_from_segments(segments: list[Segment]) -> list[Zhongshu]:
             i += 1
             continue
 
-        # 中枢成立：[ZD, ZG] 固定
+        # 中枢成立：[ZD, ZG] 固定；波动区间初始化
+        gg = max(s1.high, s2.high, s3.high)
+        dd = min(s1.low, s2.low, s3.low)
         seg_end_idx = i + 2
 
         # 尝试延伸
         j = i + 3
         while j < n:
             sj = confirmed[j]
-            # 延伸判定：与 [ZD, ZG] 有交集
-            if sj.high > zd and sj.low < zg:
+            # 延伸判定：与 [ZD, ZG] 有交集（中心定理一，弱不等式）
+            if sj.high >= zd and sj.low <= zg:
                 seg_end_idx = j
+                gg = max(gg, sj.high)
+                dd = min(dd, sj.low)
                 j += 1
             else:
                 break
@@ -122,12 +133,12 @@ def zhongshu_from_segments(segments: list[Segment]) -> list[Zhongshu]:
         break_dir = ""
         if settled:
             breaker = confirmed[j]
-            if breaker.low >= zg:
+            if breaker.low > zg:
                 break_dir = "up"
-            elif breaker.high <= zd:
+            elif breaker.high < zd:
                 break_dir = "down"
             else:
-                # 理论上不应出现（既然不重叠），但做防御
+                # 理论上不应出现（延伸用弱不等式后突破必为严格不等），做防御
                 break_dir = "up" if breaker.high > zg else "down"
 
         result.append(Zhongshu(
@@ -141,6 +152,8 @@ def zhongshu_from_segments(segments: list[Segment]) -> list[Zhongshu]:
             break_direction=break_dir,
             first_seg_s0=confirmed[i].s0,
             last_seg_s1=confirmed[seg_end_idx].s1,
+            gg=gg,
+            dd=dd,
         ))
 
         # 续进策略：从 break_seg_idx - 2 开始

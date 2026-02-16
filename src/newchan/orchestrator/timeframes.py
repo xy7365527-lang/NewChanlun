@@ -17,6 +17,7 @@ import pandas as pd
 
 from newchan.b_timeframe import resample_ohlc
 from newchan.bi_engine import BiEngine, BiEngineSnapshot
+from newchan.core.recursion.buysellpoint_engine import BuySellPointEngine
 from newchan.core.recursion.move_engine import MoveEngine
 from newchan.core.recursion.segment_engine import SegmentEngine
 from newchan.core.recursion.zhongshu_engine import ZhongshuEngine
@@ -136,6 +137,14 @@ class TFOrchestrator:
             sid = self._stream_ids.get(tf, "")
             self._move_engines[tf] = MoveEngine(stream_id=sid)
 
+        # MVP-E0: 为每个 TF 创建 BuySellPointEngine
+        self._bsp_engines: dict[str, BuySellPointEngine] = {}
+        for tf_idx, tf in enumerate(self.timeframes):
+            sid = self._stream_ids.get(tf, "")
+            self._bsp_engines[tf] = BuySellPointEngine(
+                level_id=tf_idx + 1, stream_id=sid,
+            )
+
         # 为每个 TF 创建独立 session
         self.sessions: dict[str, ReplaySession] = {}
         self._higher_tf_bars: dict[str, list[Bar]] = {}
@@ -234,6 +243,12 @@ class TFOrchestrator:
                 move_snap = self._move_engines[self.base_tf].process_zhongshu_snapshot(zs_snap)
                 if move_snap.events:
                     snap.events = list(snap.events) + move_snap.events
+                # BuySellPointEngine: 追加 bsp 事件到 snap.events
+                bsp_snap = self._bsp_engines[self.base_tf].process_snapshots(
+                    move_snap, zs_snap, seg_snap,
+                )
+                if bsp_snap.events:
+                    snap.events = list(snap.events) + bsp_snap.events
                 self.bus.push(
                     self.base_tf, snap.events,
                     stream_id=base_sid,
@@ -260,6 +275,11 @@ class TFOrchestrator:
                             move_snap = self._move_engines[tf].process_zhongshu_snapshot(zs_snap)
                             if move_snap.events:
                                 snap.events = list(snap.events) + move_snap.events
+                            bsp_snap = self._bsp_engines[tf].process_snapshots(
+                                move_snap, zs_snap, seg_snap,
+                            )
+                            if bsp_snap.events:
+                                snap.events = list(snap.events) + bsp_snap.events
                             self.bus.push(
                                 tf, snap.events,
                                 stream_id=tf_sid,
@@ -283,6 +303,8 @@ class TFOrchestrator:
         for eng in self._zhongshu_engines.values():
             eng.reset()
         for eng in self._move_engines.values():
+            eng.reset()
+        for eng in self._bsp_engines.values():
             eng.reset()
 
         # base TF seek
