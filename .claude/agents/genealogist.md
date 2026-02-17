@@ -35,7 +35,7 @@ model: opus
 - **影响**：改动了什么、影响哪些模块
 - **来源**：`[旧缠论]` / `[新缠论]` 等溯源标签
 
-模板：`references/genealogy-template.md`
+模板：`.claude/skills/meta-orchestration/references/genealogy-template.md`
 
 ## 文件系统输入
 
@@ -44,7 +44,7 @@ model: opus
 | `.chanlun/definitions/*.md` | 谱系写入时核实定义版本和状态 |
 | `.chanlun/genealogy/pending/` | 回溯扫描、张力检查 |
 | `.chanlun/genealogy/settled/` | 张力检查、谱系链接引用 |
-| `references/genealogy-template.md` | 写入时参照模板 |
+| `.claude/skills/meta-orchestration/references/genealogy-template.md` | 写入时参照模板 |
 
 ## 中断场景
 
