@@ -1,0 +1,25 @@
+# 概念层路径注册表
+#
+# 每行一个路径前缀。变更匹配这些前缀的文件时，
+# pre-commit hook 要求同时提交谱系条目。
+#
+# 新增概念层路径时在此注册，hook 脚本本身不需要改动。
+# 空行和 # 开头的行被忽略。
+
+# 定义
+.chanlun/definitions/
+
+# 编排指令
+.claude/agents/
+.claude/skills/meta-orchestration/SKILL.md
+.claude/commands/
+
+# 部署镜像
+deploy/agents/
+deploy/skills/meta-orchestration/SKILL.md
+deploy/commands/
+deploy/hooks/
+
+# 规范与参考
+docs/spec/
+references/
