@@ -840,3 +840,49 @@ deploy/ 包含完整的元编排可移植部署包：
 - **maimai /ritual 结算**: 全5问题已结算，但代码覆盖率需提升后才可 /ritual
 - **level_recursion**: #4 TF映射低优先级，其余已结算
 - **编排者提出的未来议题**: 无新增
+
+---
+
+## R27: beichi + zoushi /ritual 结算仪式 (2026-02-17)
+
+**热启动**: L2（新对话 ceremony 从 session 文件恢复）
+**执行者**: Claude Agent（3工位并行蜂群）
+**依据**: 元编排核心原则 #6（推论自动结算）
+**新增原则**: CLAUDE.md 核心原则 #6「推论自动结算」（区分决策 vs 定理，仪式门控只适用于前者）
+
+### 工位表
+
+| 工位 | 任务 | 产出 | 状态 |
+|------|------|------|------|
+| A | beichi /ritual 结算 | v1.0→v1.1, 生成态→已结算, 交叉引用×5文件 | ✅ |
+| B | zoushi /ritual 结算 | v1.5→v1.6, 生成态→已结算, 交叉引用×3文件 | ✅ |
+| C | maimai 代码覆盖率评估 | 待结果 | ⏳ |
+
+### 变更摘要
+
+| 文件 | 变更 |
+|------|------|
+| .chanlun/definitions/beichi.md | v1.0→v1.1, 生成态→已结算 |
+| .chanlun/definitions/zoushi.md | v1.5→v1.6, 生成态→已结算 |
+| .chanlun/definitions/maimai.md | beichi/zoushi 引用版本更新 |
+| .chanlun/definitions/level_recursion.md | beichi 阻塞标记→已解除 |
+| .chanlun/genealogy/pending/006-level-recursion.md | beichi 阻塞→已解除 |
+| CLAUDE.md | 核心原则 #6 推论自动结算（原9条→10条，后续编号顺移） |
+
+### 已结算定义汇总（R27后）
+
+| 定义 | 版本 | 状态 |
+|------|------|------|
+| baohan | v1.3 | ✅ 已结算 |
+| fenxing | v1.0 | ✅ 已结算 |
+| bi | v1.4 | ✅ 已结算 |
+| xianduan | v1.3 | ✅ 已结算 |
+| zhongshu | v1.3 | ✅ 已结算 |
+| beichi | v1.1 | ✅ 已结算 |
+| zoushi | v1.6 | ✅ 已结算 |
+| maimai | v0.6 | 生成态（全5问题已结算，代码覆盖率待评估） |
+| level_recursion | v0.7 | 生成态（#1/#2/#3/#5已结算，#4低优先级） |
+
+**已结算率**: 7/9 (77.8%)
+**可结算**: maimai（全问题已结算，代码覆盖待评估）
+
