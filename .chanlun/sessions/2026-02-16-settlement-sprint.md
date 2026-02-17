@@ -866,7 +866,7 @@ deploy/ 包含完整的元编排可移植部署包：
 | .chanlun/definitions/zoushi.md | v1.5→v1.6, 生成态→已结算 |
 | .chanlun/definitions/maimai.md | v0.6→v0.7, 生成态→已结算 + beichi/zoushi 引用更新 |
 | .chanlun/definitions/level_recursion.md | beichi 阻塞标记→已解除 |
-| .chanlun/genealogy/pending/006-level-recursion.md | beichi 阻塞→已解除 |
+| .chanlun/genealogy/settled/006-level-recursion.md | beichi 阻塞→已解除 |
 | CLAUDE.md | 核心原则 #6 推论自动结算（原9条→10条，后续编号顺移） |
 
 ### 已结算定义汇总（R27后）
@@ -887,9 +887,76 @@ deploy/ 包含完整的元编排可移植部署包：
 
 ---
 
+## R28 — 收官结算轮（2026-02-17）
+
+**目标**: level_recursion 结算 + 谱系 004/005/006 结算
+
+### 工位表
+
+| 工位 | 任务 | 产出 | 状态 |
+|------|------|------|------|
+| A | level_recursion #4 评估 + /ritual 结算 | #4=工程债非概念阻塞，v0.7→v1.0 已结算，106测试全GREEN | ✅ |
+| B | 谱系 004（溯源框架）结算 | CLAUDE.md引入+33处使用，pending→settled | ✅ |
+| C | 谱系 005（对象否定对象）结算评估 | **不能结算**——发现真实矛盾：三锚体系 DEAD_TIMEOUT 违反原则 | ⚠️ /escalate |
+| + | 谱系 006（级别递归vs多周期）顺带结算 | 所有"需要实现"和"需要明确"全部完成，pending→settled | ✅ |
+
+### 变更摘要
+
+| 文件 | 变更 |
+|------|------|
+| .chanlun/definitions/level_recursion.md | v0.7→v1.0, 生成态→已结算, #4标记为工程债 |
+| .chanlun/genealogy/pending/004→settled/004 | 生成态→已结算 |
+| .chanlun/genealogy/pending/006→settled/006 | 生成态→已结算 |
+| CLAUDE.md, zoushi.md, maimai.md, beichi.md, maimai_rules_v1.md | 004路径更新 pending→settled |
+
+### 已结算定义汇总（R28后）
+
+| 定义 | 版本 | 状态 |
+|------|------|------|
+| baohan | v1.3 | ✅ 已结算 |
+| fenxing | v1.0 | ✅ 已结算 |
+| bi | v1.4 | ✅ 已结算 |
+| xianduan | v1.3 | ✅ 已结算 |
+| zhongshu | v1.3 | ✅ 已结算 |
+| beichi | v1.1 | ✅ 已结算 |
+| zoushi | v1.6 | ✅ 已结算 |
+| maimai | v0.7 | ✅ 已结算 |
+| level_recursion | v1.0 | ✅ 已结算 |
+
+**定义已结算率**: 9/9 (100%) 🎉
+
+### 谱系汇总（R28后）
+
+| 谱系 | 标题 | 状态 |
+|------|------|------|
+| 001 | 退化段假说 | ✅ settled |
+| 002 | 原文不完整 | ✅ settled |
+| 003 | 线段口径分离 | ✅ settled |
+| 004 | 溯源框架 | ✅ settled |
+| 005 | 对象否定对象 | ⚠️ pending — 三锚 DEAD_TIMEOUT 矛盾 |
+| 006 | 级别递归vs多周期 | ✅ settled |
+
+**谱系已结算率**: 5/6 (83.3%)
+
+### /escalate：谱系 005 矛盾报告
+
+**矛盾**：CLAUDE.md 核心原则 #8 禁止"超时、阈值、或非对象来源的否定"，但 `src/newchan/a_level_fsm_newchan.py` L210-223 的三锚体系使用 `DEAD_TIMEOUT`（`max_post_exit_segments=6`）做超时否定。
+
+**性质**：两个 [新缠论] 概念间的内部矛盾。主管线完全符合原则，L* 裁决层违反。
+
+**编排者选项**：
+- A: 修复三锚——用对象生成替代超时否定
+- B: 调整原则边界——L* 裁决层为实盘口径例外
+- C: 降级三锚——标记为实验性/非正式
+- D: 保持 005 为 pending——承认尚不成熟
+
+**等待编排者决断。**
+
+---
+
 ## 下次中断点
 
-- **level_recursion**: 唯一剩余生成态定义，#4 TF映射为低优先级工程问题（非概念矛盾）
-- **谱系 004/005/006**: 仍为 pending，但 004（溯源框架）和 005（对象否定对象）已广泛应用于实践，可考虑结算
-- **编排者提出的未来议题**: 无新增
+- **定义**: 全部 9/9 已结算 (100%)
+- **谱系 005**: 等待编排者对三锚 DEAD_TIMEOUT 矛盾的决断
+- **核心定义链完整闭合**: K线→包含→分型→笔→线段→中枢→走势→背驰→买卖点
 

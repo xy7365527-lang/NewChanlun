@@ -362,7 +362,7 @@ BSP.confirmed = underlying_Move.settled
    - 影响：退化线段可能导致次级别走势判定异常，进而影响买卖点识别
 2. **`.chanlun/genealogy/settled/002-source-incompleteness.md`** — 原文不完整性（已结算）
    - 影响：编纂版定义表述可能与原始博文有差异
-3. **`.chanlun/genealogy/pending/004-provenance-framework.md`** — 概念溯源框架
+3. **`.chanlun/genealogy/settled/004-provenance-framework.md`** — 概念溯源框架
    - 影响：买卖点定义中ZG/ZD来自第20课原文定义
 4. **`.chanlun/genealogy/pending/005-object-negation-principle.md`** — 对象否定对象原则
    - 影响：走势完成（第一类买卖点的前提）必须由走势内部机制否定，不允许外部条件

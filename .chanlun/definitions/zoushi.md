@@ -353,7 +353,7 @@ class Move:
    - 结算：真实数据退化段率=0%，新笔从根源解决
 2. **`.chanlun/genealogy/settled/002-source-incompleteness.md`** — 原文不完整性（已结算）
    - 影响：编纂版缺失第67、71、77、78课，已补录原始博文
-3. **`.chanlun/genealogy/pending/004-provenance-framework.md`** — 概念溯源框架
+3. **`.chanlun/genealogy/settled/004-provenance-framework.md`** — 概念溯源框架
    - 影响：走势类型中的趋势定义使用 GG/DD → 溯源标签 `[旧缠论]`（原文第20课明确）
 4. **`.chanlun/genealogy/pending/005-object-negation-principle.md`** — 对象否定对象原则 `[新缠论]`
    - 影响：走势完成必须由同级别内部机制否定，不允许超时/阈值等外部否定

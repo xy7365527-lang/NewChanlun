@@ -467,7 +467,7 @@ def nested_divergence_search(
 1. **`.chanlun/genealogy/pending/005-object-negation-principle.md`** — 对象否定对象原则
    - 背驰是走势内部的自我否定机制，符合"对象否定对象"
    - 力度衰竭=走势内部动力的自然耗尽，不是外部否定
-2. **`.chanlun/genealogy/pending/004-provenance-framework.md`** — 概念溯源框架
+2. **`.chanlun/genealogy/settled/004-provenance-framework.md`** — 概念溯源框架
    - 背驰概念溯源标签：`[旧缠论]`（第24课首次定义）
    - MACD辅助方法溯源标签：`[旧缠论]`（第24-25课）
    - 中枢角度释义溯源标签：`[旧缠论]`（第33课）

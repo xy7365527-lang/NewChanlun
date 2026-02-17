@@ -1,6 +1,8 @@
 # 概念分离 006：级别递归 vs 多周期下钻
 
-**状态**: 生成态
+**状态**: 已结算
+**结算时间**: 2026-02-17
+**结算依据**: level_recursion.md v1.0 已结算，编排者决断（递归级别为唯一路径）已全面实现（P1-P9，106测试全GREEN）
 **创建时间**: 2026-02-16
 **类型**: 概念分离 + 架构决断
 **域**: 级别（Level）、中枢（Zhongshu）、走势类型（Move）
@@ -24,18 +26,18 @@ TFOrchestrator 降级为工程参考/调试工具，不作为核心引擎路径�
 
 ## 分离后的影响
 
-### 需要实现的
+### 需要实现的 → ✅ 全部完成
 
-1. **Center[k≥2] 的构造函数**：`zhongshu_from_moves(moves: list[Move])` — 输入为已完成的次级别走势类型
-2. **Move 统一接口**：Segment 和 TrendTypeInstance 实现共同协议
-3. **递归调度引擎**（事件驱动版）：逐 bar 触发，低级别事件传递到高级别
-4. **Move 完成判定**：背驰/第三类买卖点终结 → settled
+1. ✅ **Center[k≥2] 的构造函数**：`zhongshu_from_components()`（P2）
+2. ✅ **Move 统一接口**：`MoveProtocol` + `SegmentMoveAdapter`（P1/P3）
+3. ✅ **递归调度引擎**：`RecursiveLevelEngine`（P4）+ `RecursiveOrchestrator`（P8）
+4. ✅ **Move 完成判定**：`settled` 标记驱动（P4/level_recursion #2）
 
-### 需要明确的
+### 需要明确的 → ✅ 全部已结算
 
-1. Move[k-1] 完成判定的时机（背驰检测 vs settled 标记 vs 第三类买卖点）
-2. 递归深度限制（实际数据能支撑几级？）
-3. "真中枢"在未完成递归链时的暂态处理
+1. ✅ Move[k-1] 完成判定：`settled=True` 时触发上层构造（level_recursion #2）
+2. ✅ 递归深度限制：`max_levels` 可配参数 + 自然终止（level_recursion #3）
+3. ✅ "真中枢"暂态处理：中枢 `settled` 标记分离结构层与动力学层
 
 ## 谱系链接
 

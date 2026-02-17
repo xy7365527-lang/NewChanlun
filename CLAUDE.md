@@ -58,7 +58,7 @@ Always respond in Chinese-simplified (简体中文).
 - **[旧缠论:选择]**：原文有多种解读，编排者选择了其中一种
 - **[新缠论]**：编排者在旧缠论基础上提出的扩展或新增原则
 
-> 溯源框架详见 `.chanlun/genealogy/pending/004-provenance-framework.md`
+> 溯源框架详见 `.chanlun/genealogy/settled/004-provenance-framework.md`
 
 ## 元编排规则
 
