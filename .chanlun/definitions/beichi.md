@@ -464,7 +464,7 @@ def nested_divergence_search(
 ## 谱系引用
 
 ### 相关谱系记录
-1. **`.chanlun/genealogy/pending/005-object-negation-principle.md`** — 对象否定对象原则
+1. **`.chanlun/genealogy/settled/005b-object-negates-object-grammar.md`** — 对象否定对象语法规则
    - 背驰是走势内部的自我否定机制，符合"对象否定对象"
    - 力度衰竭=走势内部动力的自然耗尽，不是外部否定
 2. **`.chanlun/genealogy/settled/004-provenance-framework.md`** — 概念溯源框架

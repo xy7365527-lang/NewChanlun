@@ -59,5 +59,5 @@
 
 ## 谱系链接
 
-- 后续：005-object-negation-principle.md（第一个显式标注为新缠论的概念）
+- 后续：005b-object-negates-object-grammar.md（第一个显式标注为新缠论的语法规则）
 - 关联：003-segment-concept-separation.md（线段两口径的分离也涉及溯源选择）

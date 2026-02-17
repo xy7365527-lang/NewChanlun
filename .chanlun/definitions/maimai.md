@@ -364,7 +364,7 @@ BSP.confirmed = underlying_Move.settled
    - 影响：编纂版定义表述可能与原始博文有差异
 3. **`.chanlun/genealogy/settled/004-provenance-framework.md`** — 概念溯源框架
    - 影响：买卖点定义中ZG/ZD来自第20课原文定义
-4. **`.chanlun/genealogy/pending/005-object-negation-principle.md`** — 对象否定对象原则
+4. **`.chanlun/genealogy/settled/005b-object-negates-object-grammar.md`** — 对象否定对象语法规则
    - 影响：走势完成（第一类买卖点的前提）必须由走势内部机制否定，不允许外部条件
 5. **不确定是否有其他相关谱系** — 买卖点作为新创建的定义，尚无直接对应的谱系条目
 

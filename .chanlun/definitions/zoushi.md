@@ -324,7 +324,7 @@ class Move:
 
 **结论**：当前实现符合对象否定对象原则。✅ 编排者确认结算。
 
-**谱系引用**：`.chanlun/genealogy/pending/005-object-negation-principle.md`
+**谱系引用**：`.chanlun/genealogy/settled/005b-object-negates-object-grammar.md`
 
 ---
 
@@ -355,7 +355,7 @@ class Move:
    - 影响：编纂版缺失第67、71、77、78课，已补录原始博文
 3. **`.chanlun/genealogy/settled/004-provenance-framework.md`** — 概念溯源框架
    - 影响：走势类型中的趋势定义使用 GG/DD → 溯源标签 `[旧缠论]`（原文第20课明确）
-4. **`.chanlun/genealogy/pending/005-object-negation-principle.md`** — 对象否定对象原则 `[新缠论]`
+4. **`.chanlun/genealogy/settled/005b-object-negates-object-grammar.md`** — 对象否定对象语法规则 `[新缠论]`
    - 影响：走势完成必须由同级别内部机制否定，不允许超时/阈值等外部否定
 
 ---
