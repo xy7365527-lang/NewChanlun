@@ -1,8 +1,9 @@
 #!/bin/bash
-# PreCompact Hook — L1 热启动状态快照
+# PreCompact Hook — 统一 session 快照
 #
-# 当 Claude Code 上下文即将被压缩时，自动保存蜂群状态到 session 文件。
-# 用于 L1 级别恢复：compact 后从 session 文件重建工作上下文。
+# 当 Claude Code 上下文即将被压缩时，自动保存蜂群状态。
+# session = 指针，不是叙事。内容活在文件系统里，session 只存引用。
+# 50行封顶。
 #
 # 输入：JSON (stdin) — session_id, transcript_path, cwd 等
 # 输出：JSON (stdout) — continue=true, systemMessage=状态摘要
@@ -20,7 +21,7 @@ cd "$cwd" 2>/dev/null || cd /home/user/NewChanlun
 mkdir -p .chanlun/sessions
 
 TIMESTAMP=$(date +"%Y-%m-%d-%H%M")
-SNAPSHOT_FILE=".chanlun/sessions/${TIMESTAMP}-precompact.md"
+SESSION_FILE=".chanlun/sessions/${TIMESTAMP}-session.md"
 
 # 采集定义状态
 DEFINITIONS=""
@@ -43,7 +44,7 @@ if [ -d ".chanlun/genealogy/pending" ]; then
         [ -f "$f" ] || continue
         PENDING_COUNT=$((PENDING_COUNT + 1))
         id=$(basename "$f" .md)
-        PENDING_LIST="${PENDING_LIST}\n- ${id}"
+        PENDING_LIST="${PENDING_LIST}\n  - ${id}"
     done
 fi
 if [ -d ".chanlun/genealogy/settled" ]; then
@@ -56,18 +57,19 @@ GIT_COMMIT=$(git log --oneline -1 2>/dev/null || echo "unknown")
 GIT_DIRTY=$(git diff --stat 2>/dev/null | tail -1)
 [ -z "$GIT_DIRTY" ] && GIT_DIRTY="clean"
 
-# 查找最近的 session 文件（非 precompact 类型）
-LATEST_SESSION=""
-for f in $(ls -t .chanlun/sessions/*.md 2>/dev/null | head -5); do
-    case "$f" in
-        *precompact*) continue ;;
-        *) LATEST_SESSION="$f"; break ;;
-    esac
+# 采集中断点：从最近 session 继承（如果有的话）
+PREV_SESSION=""
+PREV_INTERRUPTS=""
+for f in $(ls -t .chanlun/sessions/*-session.md 2>/dev/null | head -1); do
+    [ -f "$f" ] || continue
+    PREV_SESSION="$f"
+    # 提取中断点章节（从 ## 中断点 到下一个 ## 或文件结束）
+    PREV_INTERRUPTS=$(sed -n '/^## 中断点/,/^## [^中]/p' "$f" 2>/dev/null | head -20 || true)
 done
 
-# 写入快照
-cat > "$SNAPSHOT_FILE" << SNAPSHOT_EOF
-# PreCompact 状态快照
+# 写入 session（统一格式，不再区分 precompact/手动）
+cat > "$SESSION_FILE" << SESSION_EOF
+# Session
 
 **时间**: ${TIMESTAMP}
 **分支**: ${GIT_BRANCH}
@@ -77,22 +79,25 @@ cat > "$SNAPSHOT_FILE" << SNAPSHOT_EOF
 ## 定义基底
 | 名称 | 版本 | 状态 |
 |------|------|------|$(echo -e "$DEFINITIONS")
+→ 来源: .chanlun/definitions/*.md
 
 ## 谱系状态
 - 生成态: ${PENDING_COUNT} 个${PENDING_LIST:+$(echo -e "$PENDING_LIST")}
 - 已结算: ${SETTLED_COUNT} 个
+→ 来源: .chanlun/genealogy/{pending,settled}/
 
-## 上次手动 session
-${LATEST_SESSION:-"无"}
+## 中断点
+${PREV_INTERRUPTS:-"（自动快照，中断点待 CC 下次写入）"}
 
 ## 恢复指引
-1. 读取此文件获取状态快照
-2. 读取上次手动 session 获取详细中断点
-3. 按蜂群循环运作原则（CLAUDE.md 原则9）启动下一轮工位
-SNAPSHOT_EOF
+1. 读取此文件获取状态指针
+2. 扫描 definitions/ 和 genealogy/ 获取当前状态
+3. 按中断点评估可并行工位，直接进入蜂群循环
+SESSION_EOF
 
 # 生成系统消息
-MSG="[PreCompact] 状态已保存: ${SNAPSHOT_FILE} | 定义$(echo -e "$DEFINITIONS" | grep -c '|')条 | 谱系${PENDING_COUNT}生成态/${SETTLED_COUNT}已结算"
+DEF_COUNT=$(echo -e "$DEFINITIONS" | grep -c '|' || echo 0)
+MSG="[Session] 状态已保存: ${SESSION_FILE} | 定义${DEF_COUNT}条 | 谱系${PENDING_COUNT}生成态/${SETTLED_COUNT}已结算"
 
 # 输出 JSON 响应
 echo "{\"continue\": true, \"suppressOutput\": false, \"systemMessage\": \"${MSG}\"}"
