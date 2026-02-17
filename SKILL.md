@@ -80,7 +80,7 @@
 
 谱系记录什么：矛盾是什么、怎么发现的、否定了什么方案、为什么否定、当前结论是什么。谱系记录的是否定史，不只是当前定义——定义是最新快照，谱系是完整的生成过程。
 
-完整模板见`references/genealogy-template.md`。
+完整模板见`.claude/skills/meta-orchestration/references/genealogy-template.md`。
 
 ---
 
