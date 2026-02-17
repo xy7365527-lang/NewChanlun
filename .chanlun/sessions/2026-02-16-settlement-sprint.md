@@ -856,7 +856,7 @@ deploy/ 包含完整的元编排可移植部署包：
 |------|------|------|------|
 | A | beichi /ritual 结算 | v1.0→v1.1, 生成态→已结算, 交叉引用×5文件 | ✅ |
 | B | zoushi /ritual 结算 | v1.5→v1.6, 生成态→已结算, 交叉引用×3文件 | ✅ |
-| C | maimai 代码覆盖率评估 | 待结果 | ⏳ |
+| C | maimai 代码覆盖率评估 → /ritual 结算 | 语句98%/分支93%，v0.6→v0.7 已结算 | ✅ |
 
 ### 变更摘要
 
@@ -864,7 +864,7 @@ deploy/ 包含完整的元编排可移植部署包：
 |------|------|
 | .chanlun/definitions/beichi.md | v1.0→v1.1, 生成态→已结算 |
 | .chanlun/definitions/zoushi.md | v1.5→v1.6, 生成态→已结算 |
-| .chanlun/definitions/maimai.md | beichi/zoushi 引用版本更新 |
+| .chanlun/definitions/maimai.md | v0.6→v0.7, 生成态→已结算 + beichi/zoushi 引用更新 |
 | .chanlun/definitions/level_recursion.md | beichi 阻塞标记→已解除 |
 | .chanlun/genealogy/pending/006-level-recursion.md | beichi 阻塞→已解除 |
 | CLAUDE.md | 核心原则 #6 推论自动结算（原9条→10条，后续编号顺移） |
@@ -880,9 +880,16 @@ deploy/ 包含完整的元编排可移植部署包：
 | zhongshu | v1.3 | ✅ 已结算 |
 | beichi | v1.1 | ✅ 已结算 |
 | zoushi | v1.6 | ✅ 已结算 |
-| maimai | v0.6 | 生成态（全5问题已结算，代码覆盖率待评估） |
+| maimai | v0.7 | ✅ 已结算 |
 | level_recursion | v0.7 | 生成态（#1/#2/#3/#5已结算，#4低优先级） |
 
-**已结算率**: 7/9 (77.8%)
-**可结算**: maimai（全问题已结算，代码覆盖待评估）
+**已结算率**: 8/9 (88.9%)
+
+---
+
+## 下次中断点
+
+- **level_recursion**: 唯一剩余生成态定义，#4 TF映射为低优先级工程问题（非概念矛盾）
+- **谱系 004/005/006**: 仍为 pending，但 004（溯源框架）和 005（对象否定对象）已广泛应用于实践，可考虑结算
+- **编排者提出的未来议题**: 无新增
 
