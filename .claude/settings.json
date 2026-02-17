@@ -4,6 +4,17 @@
     "ENABLE_TOOL_SEARCH": "true"
   },
   "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/session-start-ceremony.sh"
+          }
+        ]
+      }
+    ],
     "PreCompact": [
       {
         "matcher": "",
