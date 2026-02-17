@@ -16,7 +16,7 @@
   13. I17 反例：invalidate 后出现同身份 settle → 违规
 """
 
-from __future__ import annotations
+from typing import Literal
 
 from newchan.audit.invariants import (
     I11_ZHONGSHU_OVERLAP,
@@ -87,7 +87,7 @@ def _make_settle(
     seg_end: int = 2,
     seg_count: int = 3,
     break_seg_id: int = 3,
-    break_direction: str = "up",
+    break_direction: Literal["up", "down"] = "up",
     level_id: int = 1,
 ) -> ZhongshuSettleV1:
     """构造 ZhongshuSettleV1 事件。"""
