@@ -625,8 +625,8 @@ class BuySellPointDetector:
 |---------|------|------|
 | `.chanlun/genealogy/settled/001-degenerate-segment.md` | 退化线段问题（✅ 已结算） | type2/type3 的段识别风险已消除（真实数据退化段率=0%） |
 | `.chanlun/genealogy/settled/002-source-incompleteness.md` | 编纂版与原文差异 | 买卖点定义优先参考原始博文 |
-| `.chanlun/genealogy/pending/004-provenance-framework.md` | 概念溯源标签 | 本规范所有决策均已标注溯源 |
-| `.chanlun/genealogy/pending/005-object-negation-principle.md` | 对象否定对象 | 走势完成（type1 前提）必须由走势内部机制否定 |
+| `.chanlun/genealogy/settled/004-provenance-framework.md` | 概念溯源标签 | 本规范所有决策均已标注溯源 |
+| `.chanlun/genealogy/settled/005b-object-negates-object-grammar.md` | 对象否定对象语法规则 | 走势完成（type1 前提）必须由走势内部机制否定 |
 | 不确定是否存在的谱系 | 买卖点作为新增模块，尚无直接对应的谱系条目 | — |
 
 ---

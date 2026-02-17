@@ -1032,3 +1032,211 @@ class TestT7HistogramPeakForRange:
         df = _make_df_macd_full([0.0] * 5, hist_vals)
         result = histogram_peak_for_range(df, 0, 4, "up")
         assert result == 1.2
+
+
+# =====================================================================
+# 三维度 OR 集成测试（beichi.md #2 结算验证）
+# =====================================================================
+
+import numpy as np  # noqa: E402 — 追加导入
+
+
+def _make_macd_df_for_uptrend(
+    *,
+    a_dif_peak: float = 2.0,
+    c_dif_peak: float = 1.0,
+    a_hist_peak: float = 0.1,
+    c_hist_peak: float = 0.3,
+    a_hist_area_per_bar: float = 0.1,
+    c_hist_area_per_bar: float = 0.3,
+    b_has_cross: bool = True,
+):
+    """构造 111 bar 的 MACD DataFrame，可精确控制 A/C 段的 DIF 峰值和 HIST 面积。
+
+    Bar layout (对应 _make_uptrend_v1 的 merged bar 索引):
+      0-29:   zs0 区 (DIF 中等正)
+      30-69:  A 段 (DIF 峰值可控, HIST 面积可控)
+      70-99:  B 段 = zs1 (黄白线穿越 0 轴)
+      100-110: C 段 (DIF 峰值可控, HIST 面积可控)
+    """
+    n = 111
+    dif = np.zeros(n)
+    hist = np.zeros(n)
+
+    # zs0: 温和正值
+    dif[0:30] = 0.5
+    hist[0:30] = 0.05
+
+    # A 段: DIF 有尖峰, HIST 面积可控
+    dif[30:70] = 0.3
+    dif[50] = a_dif_peak  # 峰值
+    hist[30:70] = a_hist_area_per_bar
+    hist[50] = a_hist_peak  # 单 bar 峰值
+
+    # B 段 (zs1): 穿越 0 轴
+    if b_has_cross:
+        dif[70:85] = 0.5
+        dif[85:100] = -0.5
+    else:
+        dif[70:100] = 0.5
+    hist[70:100] = 0.01
+
+    # C 段: DIF 峰值和 HIST 面积可控
+    dif[100:111] = 0.2
+    dif[105] = c_dif_peak
+    hist[100:111] = c_hist_area_per_bar
+    hist[105] = c_hist_peak
+
+    return pd.DataFrame({
+        "macd": dif.tolist(),
+        "signal": [0.0] * n,
+        "hist": hist.tolist(),
+    })
+
+
+class TestThreeDimensionOR:
+    """三维度 OR 集成测试 — beichi.md #2 结算验证。
+
+    验证 T2(面积) / T6(DIF峰值) / T7(HIST峰值) 任一满足即判定背驰。
+    原文依据: 第25课 L38-43 "或者" 连接。 [旧缠论:选择]
+    """
+
+    def _run_trend(self, *, a_dif_peak=2.0, c_dif_peak=1.0,
+                   a_hist_peak=0.1, c_hist_peak=0.3,
+                   a_hist_area=0.1, c_hist_area=0.3):
+        """运行趋势背驰检测，返回 divergence 或 None。"""
+        segs, zss, mvs = _make_uptrend_v1()
+        df = _make_macd_df_for_uptrend(
+            a_dif_peak=a_dif_peak, c_dif_peak=c_dif_peak,
+            a_hist_peak=a_hist_peak, c_hist_peak=c_hist_peak,
+            a_hist_area_per_bar=a_hist_area, c_hist_area_per_bar=c_hist_area,
+        )
+        m2r = _make_merged_to_raw_identity(111)
+        divs = divergences_from_moves_v1(
+            segs, zss, mvs, level_id=1, df_macd=df, merged_to_raw=m2r,
+        )
+        trend_divs = [d for d in divs if d.kind == "trend"]
+        return trend_divs[0] if trend_divs else None
+
+    def test_t6_only_triggers_divergence(self):
+        """T2 不触发, T7 不触发, 仅 T6(DIF峰值) 触发 → 背驰。
+
+        A: DIF peak=2.0, HIST area=0.1*40=4.0, HIST peak=0.1
+        C: DIF peak=0.5, HIST area=0.5*11=5.5, HIST peak=0.5
+        T2: area_c(5.5) > area_a(4.0) → NO
+        T6: dif_c(0.5) < dif_a(2.0) → YES
+        T7: hist_c(0.5) > hist_a(0.1) → NO
+        """
+        d = self._run_trend(
+            a_dif_peak=2.0, c_dif_peak=0.5,
+            a_hist_peak=0.1, c_hist_peak=0.5,
+            a_hist_area=0.1, c_hist_area=0.5,
+        )
+        assert d is not None, "T6 单独触发应检出背驰"
+        assert d.dif_peak_a > d.dif_peak_c  # T6 维度确认
+        assert d.force_c >= d.force_a  # T2 未触发确认
+
+    def test_t7_only_triggers_divergence(self):
+        """T2 不触发, T6 不触发, 仅 T7(HIST峰值) 触发 → 背驰。
+
+        A: DIF peak=1.0, HIST area=0.5*40=20, HIST peak=2.0
+        C: DIF peak=1.5, HIST area=0.6*11=6.6, HIST peak=0.5
+        T2: area_c(6.6) < area_a(20) → YES? ... 需仔细控制
+        """
+        # 让 T2 和 T6 都不触发, 仅 T7 触发
+        # A: HIST 有一个高峰(2.0) 但面积小(每bar 0.01 → area≈0.4 + peak=2.0 共 ~2.4)
+        # C: HIST 峰低(0.5) 但面积大(每bar 0.5 → area≈5.5)
+        # 要让 T2 不触发: C area > A area
+        # 要让 T6 不触发: C DIF peak >= A DIF peak
+        # 要让 T7 触发: C HIST peak < A HIST peak
+        d = self._run_trend(
+            a_dif_peak=1.0, c_dif_peak=1.5,    # T6: 1.5 >= 1.0 → NO
+            a_hist_peak=2.0, c_hist_peak=0.5,   # T7: 0.5 < 2.0 → YES
+            a_hist_area=0.01, c_hist_area=0.5,   # T2: c_area > a_area → NO
+        )
+        assert d is not None, "T7 单独触发应检出背驰"
+        assert d.hist_peak_a > d.hist_peak_c  # T7 维度确认
+        assert d.dif_peak_c >= d.dif_peak_a  # T6 未触发确认
+
+    def test_all_three_trigger(self):
+        """T2 + T6 + T7 全部触发 → 背驰，新字段全部填充。"""
+        d = self._run_trend(
+            a_dif_peak=3.0, c_dif_peak=1.0,     # T6 触发
+            a_hist_peak=2.0, c_hist_peak=0.5,    # T7 触发
+            a_hist_area=0.5, c_hist_area=0.1,    # T2 触发(A area大, C area小)
+        )
+        assert d is not None
+        assert d.force_c < d.force_a       # T2
+        assert d.dif_peak_c < d.dif_peak_a   # T6
+        assert d.hist_peak_c < d.hist_peak_a  # T7
+        # 所有新字段非零
+        assert d.dif_peak_a > 0
+        assert d.hist_peak_a > 0
+
+    def test_none_trigger_no_divergence(self):
+        """T2, T6, T7 全不触发 → 无背驰。"""
+        d = self._run_trend(
+            a_dif_peak=1.0, c_dif_peak=2.0,     # T6: c > a → NO
+            a_hist_peak=0.5, c_hist_peak=1.0,    # T7: c > a → NO
+            a_hist_area=0.1, c_hist_area=0.5,    # T2: c_area > a_area → NO
+        )
+        assert d is None, "三维度全不触发不应检出背驰"
+
+    def test_no_macd_t6_t7_zero(self):
+        """无 MACD 数据时, T6/T7 字段为 0.0, 仅 T2 fallback 工作。"""
+        segs, zss, mvs = _make_uptrend_v1()
+        divs = divergences_from_moves_v1(segs, zss, mvs, level_id=1)
+        trend_divs = [d for d in divs if d.kind == "trend"]
+        assert len(trend_divs) >= 1
+        d = trend_divs[0]
+        assert d.dif_peak_a == 0.0
+        assert d.dif_peak_c == 0.0
+        assert d.hist_peak_a == 0.0
+        assert d.hist_peak_c == 0.0
+        assert d.force_c < d.force_a  # T2 fallback 仍工作
+
+    def test_consolidation_t6_only(self):
+        """盘整背驰也支持三维度 OR — T6 单独触发。"""
+        segs, zss, mvs = _make_consolidation_v1()
+        # 盘整: seg3(i0=30,i1=50,down) 第一次离开, seg5(i0=60,i1=70,down) 第二次离开
+        # down 方向: area=|area_neg|, DIF峰=|min(DIF)|, HIST峰=|min(HIST)|
+        n = 71
+        dif = np.zeros(n)
+        hist = np.zeros(n)
+
+        # seg3 (A, bars 30-50): 高 DIF 峰(负值), 低 HIST 面积(负值)
+        dif[30:51] = -0.3
+        dif[40] = -3.0  # |min|=3.0 → 高 DIF 峰
+        hist[30:51] = -0.01  # 面积小 → |area_neg|≈0.21
+
+        # seg5 (C, bars 60-70): 低 DIF 峰(负值), 高 HIST 面积(负值)
+        dif[60:71] = -0.2
+        dif[65] = -1.0  # |min|=1.0 < 3.0 → T6 触发
+        hist[60:71] = -0.5  # 面积大 → |area_neg|≈5.5 → T2 不触发
+
+        df = pd.DataFrame({
+            "macd": dif.tolist(),
+            "signal": [0.0] * n,
+            "hist": hist.tolist(),
+        })
+        m2r = _make_merged_to_raw_identity(n)
+
+        divs = divergences_from_moves_v1(
+            segs, zss, mvs, level_id=1, df_macd=df, merged_to_raw=m2r,
+        )
+        cons_divs = [d for d in divs if d.kind == "consolidation"]
+        assert len(cons_divs) >= 1, "盘整背驰应由 T6 触发"
+        d = cons_divs[0]
+        assert d.dif_peak_a > d.dif_peak_c
+
+    def test_divergence_fields_backward_compatible(self):
+        """Divergence 新字段有默认值，现有代码不传新字段时仍可构造。"""
+        d = Divergence(
+            kind="trend", direction="top", level_id=1,
+            seg_a_start=0, seg_a_end=2, seg_c_start=4, seg_c_end=5,
+            center_idx=1, force_a=10.0, force_c=5.0, confirmed=True,
+        )
+        assert d.dif_peak_a == 0.0
+        assert d.dif_peak_c == 0.0
+        assert d.hist_peak_a == 0.0
+        assert d.hist_peak_c == 0.0

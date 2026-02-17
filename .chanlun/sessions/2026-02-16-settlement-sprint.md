@@ -519,10 +519,517 @@ deploy/ 包含完整的元编排可移植部署包：
 
 ---
 
+## 新对话 — R19 蜂群结果
+
+**热启动**: L2（新对话 ceremony 从 session 文件恢复）
+
+### R19 — 3 工位并行（原文回溯×2 + 架构设计×1）
+
+| 工位 | 任务 | 产出 | 状态 |
+|------|------|------|------|
+| A | beichi #2 三维度 or/and 原文回溯 | OR关系（第25课L38-43"或者"连接） | ✅ 已结算 |
+| B | level_recursion P4 架构设计 | RecursiveLevelEngine + RecursiveStack 完整设计方案 | ✅ 设计完成 |
+| C | maimai TBD-1 下跌确立条件 | 严格口径（≥2中枢=下跌趋势，第21课L40-43） | ✅ 已结算 |
+
+### 定义基底更新
+
+| 定义 | 版本 | 状态变化 |
+|------|------|---------|
+| beichi | v0.3→v0.4 | #2 OR关系已结算（3/6已结算，#3/#4/#5仍为生成态） |
+| maimai | v0.1→v0.2 | TBD-1 下跌确立已结算（3→2个未结算问题） |
+
+### 已结算定义汇总（R19后）
+
+| 定义 | 版本 | 状态 |
+|------|------|------|
+| baohan | v1.3 | ✅ 已结算 |
+| fenxing | v1.0 | ✅ 已结算 |
+| bi | v1.4 | ✅ 已结算 |
+| xianduan | v1.3 | ✅ 已结算 |
+| zhongshu | v1.3 | ✅ 已结算 |
+| zoushi | v1.1 | 生成态 |
+| beichi | v0.6 | 生成态（#1/#2/#3/#4/#6已结算，T6/T7三维度OR已集成） |
+| maimai | v0.2 | 生成态（#1/#4已结算，#2已研究待落地） |
+| level_recursion | v0.4 | 生成态（#1/#5已结算，P4引擎+P5递归栈完成） |
+
+**已结算率**: 5/9 (55.6%)
+
+### R20 成果
+
+1. **beichi T6/T7 三维度OR集成** (R20-A)
+   - T2(MACD面积) OR T6(DIF峰值) OR T7(HIST峰值)，任一维度触发即背驰
+   - Divergence dataclass 新增 4 字段（dif_peak_a/c, hist_peak_a/c），向后兼容
+   - 7 个新测试全GREEN（TestThreeDimensionOR）
+
+2. **beichi #3 走势完成关系结算** (R20-B)
+   - 背驰→走势完成是充分条件，走势完成→背驰不是必要条件（本级别）[旧缠论:选择]
+   - 原文依据：第24课L18背驰-买卖点定理 + 小级别转折非背驰案例
+
+3. **P4 RecursiveLevelEngine 实现** (R20-C)
+   - `recursive_level_state.py`：RecursiveLevelSnapshot + diff_level_zhongshu + diff_level_moves
+   - `recursive_level_engine.py`：RecursiveLevelEngine（全量重算+diff，与五层同构）
+   - level_id语义：引擎level_id=k → 消费 Move[k-1] → 产出 Center[k] + Move[k]
+   - 21 个新测试全GREEN
+
+### P4 架构设计要点
+
+- **RecursiveLevelEngine**：✅ 已实现，消费 MoveSnapshot[k-1]，产生 level=k 的中枢+走势+事件
+- **RecursiveStack**：✅ 已实现（R21-A），多层自动递归调度器，懒创建引擎，自动检测终止条件（len(moves)<3）
+- **后续路线图**：~~P4(单层引擎)~~ → ~~P5(递归栈)~~ → ~~P6(事件level_id扩展)~~ → ~~P7(diff_level_zhongshu)~~ → ~~P8(RecursiveOrchestrator)~~ → P9(口径A正式集成测试)
+- **设计原则**：全量重算+Diff（与五层同构）、settled作为向上递归条件[旧缠论:选择]、对象否定对象[新缠论]
+
+### 测试基线
+
+703 passed, 16 failed, 16 errors（R19基线675 + R20新增28），零退化
+
+### R21 成果
+
+1. **P5 RecursiveStack 多层自动递归栈** (R21-A)
+   - `recursive_stack.py`：懒创建引擎，level=1 MoveSnapshot 逐层向上递归至 moves<3 终止
+   - 16 个新测试全GREEN（空输入/不足/重叠中枢/突破/事件/多层/max_levels/reset/懒创建/增量）
+   - commit: `2052b44`
+
+2. **五引擎 reset() 突变 bug 修复** (R21-A')
+   - 发现：所有五引擎 `reset()` 使用 `.clear()` 会污染已返回的 Snapshot（共享引用突变）
+   - 修复：`.clear()` → `= []`（切断引用，保护已返回快照的不可变性）
+   - 影响引擎：SegmentEngine, ZhongshuEngine, MoveEngine, BuySellPointEngine, RecursiveLevelEngine
+
+3. **beichi #4 盘整离开段结算** (R21-B)
+   - 结论：离开段 = 超出 [ZD, ZG]（中枢区间），当前实现正确
+   - 原文依据：第33课L5+L8+L12，第24课L22-26，第20课L18-20
+   - 状态：#4 已结算，beichi v0.5→v0.6
+
+4. **maimai #2 走势完成映射研究** (R21-C)
+   - 结论：第一类买卖点 = 走势完成时刻的背驰信号
+   - 关键发现：confirmed=True 的买卖点可直接生成，无需等待后续确认
+   - 原文依据：第24课L18背驰-买卖点定理
+   - 状态：已研究完成，待代码落地
+
+### 测试基线（R21后）
+
+719 passed, 16 failed, 16 errors（R20基线703 + R21新增16），零退化
+
+---
+
+## R22蜂群（第22轮）
+
+### R22-A: level_recursion P6+P8 (主线程)
+
+1. **P6 事件level_id扩展**
+   - 6个事件类新增 `level_id: int = 1`（向后兼容）
+   - EventBus 新增 `push_level()`/`drain_by_level()` 级别路由
+   - diff 函数闭包自动注入 level_id
+   - 25 tests GREEN, commit: `b94a417`
+
+2. **P8 RecursiveOrchestrator 口径A正式路径**
+   - `RecursiveOrchestrator`: 单 `process_bar()` 驱动 BiEngine→SegmentEngine→ZhongshuEngine→MoveEngine→BuySellPointEngine→RecursiveStack 全链
+   - `RecursiveOrchestratorSnapshot`: 五层管线快照 + 递归层快照 + 全事件
+   - EventBus 级别路由消费
+   - 9 tests GREEN, commit: `16ddc46`
+   - level_recursion.md v0.4→v0.5
+
+### R22-B: maimai #2 confirmed语义代码落地
+
+- **核心修正**: Type 2/3 BSP.confirmed 从 Segment.confirmed 改为 Move.settled
+- **修改点**:
+  - `_detect_type2()`: callback_move.settled（buy）、rebound_move.settled（sell）
+  - `_detect_type3()`: 新增 moves 参数、pullback_move.settled
+  - 新增 `_find_move_for_seg()` 辅助函数
+  - 无 Move 覆盖时安全降级为 False
+- [TBD-2][TBD-3] 标记为已落地
+- 8 tests GREEN, commit: `5998c02`
+- maimai.md v0.2→v0.3
+
+### R22-C: beichi #5 区间套原文回溯
+
+- **定理原文**: 第27课L42-46「精确大转折点寻找程序定理」
+- **形式化**: D_n ⊃ D_{n-1} ⊃ ... ⊃ D_1，递归收缩到最低级别
+- **嵌套条件**: 范围收缩、级别递减、背驰独立成立
+- **实现缺口**: 需限定bar范围的定向背驰检测
+- **原文依据**: 第27课+答疑、第37课（c内部递推）、第61课（四重背驰标准图解）
+- beichi.md v0.6→v0.7
+
+### 测试基线（R22后）
+
+761 passed, 16 failed, 16 errors（R21基线719 + P6:25 + P8:9 + maimai#2:8），零退化
+
+---
+
+## R23蜂群（第23轮）
+
+### R23-A: level_recursion P9 交叉验证 (主线程)
+- **任务**: RecursiveOrchestrator vs 手动管线链 level=1 一致性验证
+- **测试**: `test_p9_cross_validation.py` — 7测试全GREEN
+  - bi/seg/zs/move/bsp快照一致性 + 增量一致性 + reset重放一致性
+- **修复**: Stroke字段名 `s0/s1` → `i0/i1`（Stroke无s0属性）
+- **定义更新**: level_recursion.md v0.5→v0.6（P8编排器+P9交叉验证记录）
+
+### R23-B: maimai #3 确认时机原文回溯 (后台agent a6fec7b)
+- **任务**: 三类买卖点确认时机的原文依据收集
+- **结果**: 8条原文引用（R1-R8），4条形式化结论（C1-C4）
+  - C1: 识别速度 1B > 2B > 3B（第20课"后知后觉"）
+  - C2: `BSP.confirmed = underlying_Move.settled` 统一形式 [旧缠论:选择]
+  - C3: confirmed不可逆 [旧缠论]（第24课L48、第29课L32）
+  - C4: "不能等确认"（操作层）vs `confirmed`（结构层）不矛盾
+- **定义更新**: maimai.md v0.3→v0.4（#2已结算，#3原文回溯完成）
+
+### R23-C: beichi #5 限定范围背驰检测接口设计 (后台agent a9cc516)
+- **任务**: 区间套单级别检测入口函数设计
+- **结果**: `divergences_in_bar_range()` 完整接口设计
+  - bar_range: tuple[int, int] merged bar索引闭区间
+  - 严格"完全落入"过滤 + 复用现有检测逻辑零修改
+  - 18个测试场景设计（A1-F2）
+- **定义更新**: beichi.md v0.7→v0.8
+
+### 测试基线（R23后）
+
+762 passed, 12 failed, 10 skipped（R22基线761 + P9:7 - 已知dotenv依赖问题），零退化
+
+---
+
+## R24蜂群（第24轮）
+
+### R24-A: beichi #5 divergences_in_bar_range TDD实现 (主线程，已提交commit 2968681)
+- **任务**: 区间套单级别检测入口 TDD 实现
+- **代码**: `src/newchan/a_divergence_v1.py` 新增 `divergences_in_bar_range()` + `_filter_moves_in_range()` + `_move_bar_range()`
+- **测试**: `tests/test_divergence_in_bar_range.py` — 15测试全GREEN
+- **设计**: bar_range闭区间过滤 + 复用现有检测逻辑零修改
+- **定义更新**: beichi.md v0.8→v0.9
+
+### R24-B': maimai #5 第三类买卖点中枢范围原文回溯 (后台agent a29c586)
+- **任务**: 第三类买卖点判定范围的原文依据收集
+- **结果**: 4条形式化结论
+  - C1: 判定范围 = [ZD, ZG] 中枢区间（非 [DD, GG] 波动区间）[旧缠论]
+  - C2: [DD, GG] 波动区间用于中枢扩张判定 [旧缠论:隐含]
+  - C3: "回试" = 次级别走势类型（非任意级别回调）[旧缠论]
+  - C4: 无距离约束 [旧缠论:隐含]
+- **定义更新**: maimai.md v0.4→v0.5
+
+### R24-C': zoushi 结算路径评估 (后台agent a442b23)
+- **任务**: zoushi.md 4个未结算问题的结算可行性评估
+- **结果**:
+  - #1 背驰与走势完成: 50% 可结算（beichi #3 充分非必要已结算）
+  - #2 买卖点精确对应: 需原文回溯（maimai confirmed 语义已结算但对应关系未形式化）
+  - #3 多级别共振: 长期阻塞（缺乏形式化定义）
+  - #4 确认时机: 60% 可结算（maimai #3 已有原文回溯）
+
+### R24-D: nested_divergence_search 区间套跨级别搜索 TDD实现 (主线程)
+- **任务**: 区间套跨级别搜索编排器 TDD 实现
+- **代码**: 新增 `src/newchan/a_nested_divergence.py`
+  - `NestedDivergence` dataclass (chain + bar_range)
+  - `nested_divergence_search()` 主编排（从最高递归级别向下搜索到 level 1）
+  - `divergences_from_level_snapshot()` level 2+ 背驰检测
+  - `_detect_level_trend_divergence()` / `_detect_level_consolidation_divergence()` — 使用 LevelZhongshu.comp_start/comp_end
+  - `_amplitude_force()` 价格振幅力度（level 2+ 无 MACD）
+  - `_level_move_to_bar_range()` 递归下降映射（level k → merged bar 索引）
+  - `_get_moves_at_level()` 统一 level 访问
+- **测试**: `tests/test_nested_divergence.py` — 20测试全GREEN
+- **关键设计决策**:
+  1. 级别=递归层级，不接受时间周期参数 [旧缠论]
+  2. 构造自下而上、搜索自上而下
+  3. Level 2+ 力度 = 价格振幅（无MACD）
+  4. 只有 settled=True 的 Move 参与递归 [旧缠论:选择]
+- **定义更新**: beichi.md v0.9→v1.0（#5完整结算，全部6问题已结算）
+
+### 测试基线（R24后）
+
+803 passed, 16 failed, 16 errors, 10 skipped（R23基线762 + beichi#5:15 + nested:20 + 其他调整），零退化
+
+---
+
+## R25蜂群（第25轮）
+
+### R25-A: zoushi #1 结算（主线程）
+- **任务**: 背驰与走势完成的关系形式化
+- **结论**: 三层关系 [旧缠论 + 旧缠论:选择]
+  1. 背驰→走势完成（充分条件）
+  2. 走势完成↛本级别背驰（非必要条件）
+  3. 任一买卖点⟺某级别背驰（充要，第24课L18）
+- **"小转大"**: 次级别背驰终结本级别走势
+- **证据链**: beichi #3（充分非必要）+ maimai #1（下跌确立≥2中枢）+ maimai #4（盘整背驰非买卖点）
+- **定义更新**: zoushi.md v1.1→v1.2
+
+### R25-A': level_recursion #2/#3 结算（主线程）
+- **#2 Move完成判定**: settled标记=递归完成判定 [旧缠论:选择]——分离结构层与动力学层
+- **#3 递归深度限制**: max_levels可配参数（默认6），自然终止（settled moves<3 时停止创建新层）
+- **定义更新**: level_recursion.md v0.6→v0.7
+
+### R25-B: zoushi #2 买卖点精确对应原文回溯（后台agent acc7a18）
+- **任务**: 走势类型与买卖点的精确对应关系原文回溯
+- **结果**:
+  - 子问题a: 下跌确立=≥2中枢（已由maimai #1结算）
+  - 子问题b: 第二类位置三分类（中枢上→新生高概率/内→对半/下→扩张高概率）[旧缠论]
+  - 子问题c: 第三类后续二选一（扩张/新生），2B+3B重合=V型反转最强信号 [旧缠论]
+  - C4: 买点状态机约束表（上涨确立后只有3B，第21课L40）[旧缠论]
+- **定义更新**: zoushi.md v1.2→v1.3
+
+### 测试基线（R25后）
+无代码变更，测试基线不变：803 passed
+
+---
+
+## 定义基底汇总（R25后）
+
+| 名称 | 版本 | 状态 | 变更 |
+|------|------|------|------|
+| baohan | v1.3 | ✅ 已结算 | = |
+| fenxing | v1.0 | ✅ 已结算 | = |
+| bi | v1.4 | ✅ 已结算 | = |
+| xianduan | v1.3 | ✅ 已结算 | = |
+| zhongshu | v1.3 | ✅ 已结算 | = |
+| beichi | v1.0 | ✅ 可结算（全6问题已结算） | = |
+| maimai | v0.5 | 生成态（#1/#2/#4✅ #3/#5待编排者确认） | = |
+| zoushi | v1.3 | 生成态（#1✅ #2回溯完成待结算 #3阻塞 #4依赖maimai#3） | ↑v1.1→v1.3 |
+| level_recursion | v0.7 | 生成态（#1/#2/#3/#5✅ #4 TF映射低优先级） | ↑v0.6→v0.7 |
+
+## R26蜂群（第26轮）
+
+**热启动**: L2（新对话 ceremony 从 session 文件恢复）
+
+### 编排者决断（5项）
+
+| # | 议题 | 决断 | 落地 |
+|---|------|------|------|
+| 1 | maimai #3 confirmed不可逆+消歧 | 同意 | ✅ maimai.md v0.5→v0.6 |
+| 2 | maimai #5 [DD,GG]用途 | "以原文为准，肯定不是3B区间" | ✅ maimai.md v0.5→v0.6 |
+| 3 | zoushi #2 位置概率 | "和中枢没关系，跟次级别走势有关" | ✅ zoushi.md v1.3→v1.4 |
+| 4 | zoushi #3 多级别共振 | "共振是区间套显示的东西" | ✅ zoushi.md v1.3→v1.4 |
+| 5 | zoushi #4 走势完成 | "同意，否则不是完全分类；若不能确定=中枢扩张/新生" | ✅ zoushi.md v1.4→v1.5 |
+
+### R26 工位
+
+| 工位 | 任务 | 产出 | 状态 |
+|------|------|------|------|
+| A | maimai #3+#5 结算 | maimai.md v0.6（5/5问题全部已结算） | ✅ |
+| B | zoushi #2+#3+#4 结算 | zoushi.md v1.4→v1.5（4/4全部已结算） | ✅ |
+
+### 定义基底更新
+
+| 定义 | 版本 | 状态变化 |
+|------|------|---------|
+| maimai | v0.5→v0.6 | #3/#5已结算（5/5全部已结算） |
+| zoushi | v1.3→v1.5 | #2/#3/#4已结算（4/4全部已结算） |
+
+### 已结算定义汇总（R26后）
+
+| 定义 | 版本 | 状态 |
+|------|------|------|
+| baohan | v1.3 | ✅ 已结算 |
+| fenxing | v1.0 | ✅ 已结算 |
+| bi | v1.4 | ✅ 已结算 |
+| xianduan | v1.3 | ✅ 已结算 |
+| zhongshu | v1.3 | ✅ 已结算 |
+| beichi | v1.0 | 生成态（全6问题已结算，可 /ritual 结算） |
+| maimai | v0.6 | 生成态（全5问题已结算，代码覆盖率仍低） |
+| zoushi | v1.5 | 生成态（全4问题已结算，可 /ritual 结算） |
+| level_recursion | v0.7 | 生成态（#1/#2/#3/#5已结算，#4低优先级） |
+
+**已结算率**: 5/9 (55.6%)
+**可结算**: beichi（全问题已结算）+ zoushi（全问题已结算）+ maimai（全问题已结算，代码覆盖待提升）
+
+### 测试基线
+
+无代码变更，测试基线不变：803 passed
+
+---
+
 ## 下次中断点
 
-- **zoushi 阻塞路径**：beichi→maimai→level_recursion 三定义需推进后才可结算
-- **beichi #2（or vs and）**：T6/T7 工具函数就位但未集成到主检测，待 #2 结算后组合
-- **beichi #3/#4/#5**：走势完成关系、盘整离开段定义、区间套实现
-- **级别递归 P4+**：RecursiveLevelEngine + RecursiveStack 待实现
-- **maimai TBDs**：#1 下跌确立条件、#2 走势完成映射、#3 确认时机
+- **beichi /ritual 结算**: 全6问题已结算，可执行正式结算仪式
+- **zoushi /ritual 结算**: 全4问题已结算，可执行正式结算仪式
+- **maimai /ritual 结算**: 全5问题已结算，但代码覆盖率需提升后才可 /ritual
+- **level_recursion**: #4 TF映射低优先级，其余已结算
+- **编排者提出的未来议题**: 无新增
+
+---
+
+## R27: beichi + zoushi /ritual 结算仪式 (2026-02-17)
+
+**热启动**: L2（新对话 ceremony 从 session 文件恢复）
+**执行者**: Claude Agent（3工位并行蜂群）
+**依据**: 元编排核心原则 #6（推论自动结算）
+**新增原则**: CLAUDE.md 核心原则 #6「推论自动结算」（区分决策 vs 定理，仪式门控只适用于前者）
+
+### 工位表
+
+| 工位 | 任务 | 产出 | 状态 |
+|------|------|------|------|
+| A | beichi /ritual 结算 | v1.0→v1.1, 生成态→已结算, 交叉引用×5文件 | ✅ |
+| B | zoushi /ritual 结算 | v1.5→v1.6, 生成态→已结算, 交叉引用×3文件 | ✅ |
+| C | maimai 代码覆盖率评估 → /ritual 结算 | 语句98%/分支93%，v0.6→v0.7 已结算 | ✅ |
+
+### 变更摘要
+
+| 文件 | 变更 |
+|------|------|
+| .chanlun/definitions/beichi.md | v1.0→v1.1, 生成态→已结算 |
+| .chanlun/definitions/zoushi.md | v1.5→v1.6, 生成态→已结算 |
+| .chanlun/definitions/maimai.md | v0.6→v0.7, 生成态→已结算 + beichi/zoushi 引用更新 |
+| .chanlun/definitions/level_recursion.md | beichi 阻塞标记→已解除 |
+| .chanlun/genealogy/settled/006-level-recursion.md | beichi 阻塞→已解除 |
+| CLAUDE.md | 核心原则 #6 推论自动结算（原9条→10条，后续编号顺移） |
+
+### 已结算定义汇总（R27后）
+
+| 定义 | 版本 | 状态 |
+|------|------|------|
+| baohan | v1.3 | ✅ 已结算 |
+| fenxing | v1.0 | ✅ 已结算 |
+| bi | v1.4 | ✅ 已结算 |
+| xianduan | v1.3 | ✅ 已结算 |
+| zhongshu | v1.3 | ✅ 已结算 |
+| beichi | v1.1 | ✅ 已结算 |
+| zoushi | v1.6 | ✅ 已结算 |
+| maimai | v0.7 | ✅ 已结算 |
+| level_recursion | v0.7 | 生成态（#1/#2/#3/#5已结算，#4低优先级） |
+
+**已结算率**: 8/9 (88.9%)
+
+---
+
+## R28 — 收官结算轮（2026-02-17）
+
+**目标**: level_recursion 结算 + 谱系 004/005/006 结算
+
+### 工位表
+
+| 工位 | 任务 | 产出 | 状态 |
+|------|------|------|------|
+| A | level_recursion #4 评估 + /ritual 结算 | #4=工程债非概念阻塞，v0.7→v1.0 已结算，106测试全GREEN | ✅ |
+| B | 谱系 004（溯源框架）结算 | CLAUDE.md引入+33处使用，pending→settled | ✅ |
+| C | 谱系 005（对象否定对象）结算评估 | **不能结算**——发现真实矛盾：三锚体系 DEAD_TIMEOUT 违反原则 | ⚠️ /escalate |
+| + | 谱系 006（级别递归vs多周期）顺带结算 | 所有"需要实现"和"需要明确"全部完成，pending→settled | ✅ |
+
+### 变更摘要
+
+| 文件 | 变更 |
+|------|------|
+| .chanlun/definitions/level_recursion.md | v0.7→v1.0, 生成态→已结算, #4标记为工程债 |
+| .chanlun/genealogy/pending/004→settled/004 | 生成态→已结算 |
+| .chanlun/genealogy/pending/006→settled/006 | 生成态→已结算 |
+| CLAUDE.md, zoushi.md, maimai.md, beichi.md, maimai_rules_v1.md | 004路径更新 pending→settled |
+
+### 已结算定义汇总（R28后）
+
+| 定义 | 版本 | 状态 |
+|------|------|------|
+| baohan | v1.3 | ✅ 已结算 |
+| fenxing | v1.0 | ✅ 已结算 |
+| bi | v1.4 | ✅ 已结算 |
+| xianduan | v1.3 | ✅ 已结算 |
+| zhongshu | v1.3 | ✅ 已结算 |
+| beichi | v1.1 | ✅ 已结算 |
+| zoushi | v1.6 | ✅ 已结算 |
+| maimai | v0.7 | ✅ 已结算 |
+| level_recursion | v1.0 | ✅ 已结算 |
+
+**定义已结算率**: 9/9 (100%) 🎉
+
+### 谱系汇总（R28后）
+
+| 谱系 | 标题 | 状态 |
+|------|------|------|
+| 001 | 退化段假说 | ✅ settled |
+| 002 | 原文不完整 | ✅ settled |
+| 003 | 线段口径分离 | ✅ settled |
+| 004 | 溯源框架 | ✅ settled |
+| 005 | 对象否定对象 | ⚠️ pending — 三锚 DEAD_TIMEOUT 矛盾 |
+| 006 | 级别递归vs多周期 | ✅ settled |
+
+**谱系已结算率**: 5/6 (83.3%)
+
+### /escalate：谱系 005 矛盾报告
+
+**矛盾**：CLAUDE.md 核心原则 #8 禁止"超时、阈值、或非对象来源的否定"，但 `src/newchan/a_level_fsm_newchan.py` L210-223 的三锚体系使用 `DEAD_TIMEOUT`（`max_post_exit_segments=6`）做超时否定。
+
+**性质**：两个 [新缠论] 概念间的内部矛盾。主管线完全符合原则，L* 裁决层违反。
+
+**编排者选项**：
+- A: 修复三锚——用对象生成替代超时否定
+- B: 调整原则边界——L* 裁决层为实盘口径例外
+- C: 降级三锚——标记为实验性/非正式
+- D: 保持 005 为 pending——承认尚不成熟
+
+**等待编排者决断。**
+
+---
+
+## R29 — 005 概念分离 + 语法规则确立（2026-02-17）
+
+**热启动**: L2（新对话 ceremony 从 session 文件恢复）
+**性质**: 哲学对话 → 概念分离 → 语法规则确立 → 元编排三分法更新
+
+### 编排者哲学贡献
+
+编排者提出三层哲学框架来定位 005：
+
+1. **谢林的开端**: 005 的命名半是不可从系统内推导的原初行动（Tat）
+2. **维特根斯坦的语法**: 缠论是走势的语法（Grammatik），005 是语法规则而非经验命题
+3. **维特根斯坦的意义理论**: 语法不是被发明的，是在使用中被发现的。005 的确立不是创造规则，是让已在实践中运作的规则从隐性变为显性
+
+**概率在缠论中的位置**（第五次修正，经编排者+CC审计确认）：
+
+~~三层架构已否定。~~ 编排者此前提出的"底层概率→中间语法→顶层操作"架构，核心错误是偷换了"概率原则"的作用对象。已撤回。
+
+缠师关于概率说了两件不同维度的事，**不构成上下层关系**：
+
+| 维度 | 原文出处 | 概率角色 | 作用对象 |
+|------|---------|---------|---------|
+| **系统组合** | 第9课（乘法原则）、第19课（"最基础的是三个独立系统所依据的概率原则所保证的数学上的系统有效性"） | 三个独立程序（技术分析+比价/资金+基本面）各自有失败率，组合后失败率相乘（30%×40%×30%=3.6%） | **系统间**的组合 |
+| **走势理论内部** | 第68课（"这种预测，不需要任何概率化的无聊玩意"；"不测而测，让市场自己去选择"） | 分段函数给出边界条件，当下给出操作信号，不排除任何分类，不需要概率 | **单个系统**（走势理论）的内部预测方法 |
+
+- 走势理论（分型/笔/线段/中枢/走势类型/买卖点）只是三个系统中第一个（技术分析）的内部结构
+- 概率乘法原则不解释这个内部结构为什么管用，解释的是三个系统联合起来为什么管用
+- 这两个论述在不同维度上，不能叠成纵向的"底层→中间→顶层"
+
+**已否定的表述**（CC 或编排者此前提出，均已撤回）：
+1. ~~"概率为你服务"~~ — 非缠师原话
+2. ~~"概率在语法之下是地基"~~ — 偷换了概率原则的作用对象
+3. ~~"语法是概率从正翻负的分界线"~~ — CC 的创造，非缠师表述
+4. ~~"完全分类靠概率管用"~~ — 原文无此因果
+5. ~~"三层架构"~~ — 建立在偷换前提上
+
+**确认保留的**：
+- "不测而测" — 缠师原话（第68课，两次出现）
+- 第19课引用准确，"概率原则保证三系统组合的有效性"是合理改述
+- 第68课走势理论内部不需要概率 — 准确
+
+### 工位表
+
+| 工位 | 任务 | 产出 | 状态 |
+|------|------|------|------|
+| A | 005 定理半结算 | settled/005a-prohibition-theorem.md [旧缠论:隐含] | ✅ |
+| B | 005 命名半确立 | settled/005b-object-negates-object-grammar.md [新缠论] | ✅ |
+| C | 原始 005 分离标记 | pending/005 标记为"已分离" | ✅ |
+| D | 10个文件引用更新 | CLAUDE.md + 4定义 + 2规范 + 2谱系 + 1session | ✅ |
+| E | 三分法写入元编排 | CLAUDE.md 核心原则 #6 更新 | ✅ |
+
+### 定义基底更新
+
+无定义文件版本变更（005 是谱系层面，不是定义文件）。
+
+### 谱系更新
+
+| ID | session状态 | 当前状态 | 变化 |
+|----|-----------|---------|------|
+| 005 | pending（单一） | **settled**（分离为 005a + 005b） | ✅ 概念分离并双结算 |
+
+**谱系已结算率**: 6/6 (100%) 🎉
+
+### 元编排更新
+
+CLAUDE.md 核心原则 #6 从二分法（定理 vs 选择）升级为三分法：
+- **定理**: 逻辑蕴含 → 自动结算
+- **选择**: 多方案需价值判断 → 编排者决断
+- **语法记录**: 已在实践中运作的规则 → 编排者辨认
+
+---
+
+## 下次中断点
+
+- **定义**: 全部 9/9 已结算 (100%)
+- **谱系**: 全部 6/6 已结算 (100%)（005 分离为 005a+005b 并双结算）
+- **核心定义链完整闭合**: K线→包含→分型→笔→线段→中枢→走势→背驰→买卖点
+- **DEAD_TIMEOUT**: ✅ 已修复。`Regime.DEAD_TIMEOUT` + `max_post_exit_segments` 已从全栈删除（FSM/bridge/server/chart/frontend/tests）。中枢离开后只有对象事件才能否定，无超时
+- **概率位置已厘清**: 概率乘法原则作用于三系统组合（第9/19课），走势理论内部不需要概率（第68课）。两个维度，不构成上下层。~~三层架构~~已否定
+

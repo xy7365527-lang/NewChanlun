@@ -56,7 +56,7 @@ class MoveEngine:
 
     def reset(self) -> None:
         """重置引擎到初始状态（用于回放 seek）。"""
-        self._prev_moves.clear()
+        self._prev_moves = []
         self._event_seq = 0
 
     def process_zhongshu_snapshot(self, zs_snap: ZhongshuSnapshot) -> MoveSnapshot:

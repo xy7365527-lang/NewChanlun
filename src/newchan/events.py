@@ -167,6 +167,7 @@ class ZhongshuCandidateV1(DomainEvent):
     seg_start: int = 0
     seg_end: int = 0
     seg_count: int = 3
+    level_id: int = 1
 
 
 @dataclass(frozen=True, slots=True)
@@ -185,6 +186,7 @@ class ZhongshuSettleV1(DomainEvent):
     seg_count: int = 3
     break_seg_id: int = 0
     break_direction: Literal["up", "down"] = "up"
+    level_id: int = 1
 
 
 @dataclass(frozen=True, slots=True)
@@ -197,6 +199,7 @@ class ZhongshuInvalidateV1(DomainEvent):
     zg: float = 0.0
     seg_start: int = 0
     seg_end: int = 0
+    level_id: int = 1
 
 
 # ── 走势类型相关事件（MVP-D0）──
@@ -218,6 +221,7 @@ class MoveCandidateV1(DomainEvent):
     zs_start: int = 0
     zs_end: int = 0
     zs_count: int = 1
+    level_id: int = 1
 
 
 @dataclass(frozen=True, slots=True)
@@ -233,6 +237,7 @@ class MoveSettleV1(DomainEvent):
     zs_start: int = 0
     zs_end: int = 0
     zs_count: int = 1
+    level_id: int = 1
 
 
 @dataclass(frozen=True, slots=True)
@@ -245,6 +250,7 @@ class MoveInvalidateV1(DomainEvent):
     direction: str = "up"
     seg_start: int = 0
     seg_end: int = 0
+    level_id: int = 1
 
 
 # ── 买卖点相关事件（MVP-E0）──

@@ -101,7 +101,6 @@ def build_overlay_newchan(
     stroke_mode: str = "wide",
     min_strict_sep: int = 5,
     center_sustain_m: int = 2,
-    max_post_exit_segments: int = 6,
     macd_fast: int = 12,
     macd_slow: int = 26,
     macd_signal: int = 9,
@@ -160,9 +159,7 @@ def build_overlay_newchan(
     level_views = levels_to_level_views(rec_levels)
     if not level_views:
         level_views = [LevelView(level=1, segments=list(segments), centers=list(centers))]
-    lstar_obj = select_lstar_newchan(
-        level_views, last_price, max_post_exit_segments=max_post_exit_segments,
-    )
+    lstar_obj = select_lstar_newchan(level_views, last_price)
 
     # ── 规格断言（可选，用于“锁语义”） ─────────────────────────────
     # 通过 .env / 环境变量控制：NEWCHAN_ASSERT=1/true/yes/on
@@ -192,8 +189,7 @@ def build_overlay_newchan(
     out_segments = _build_segments(segments, strokes, merged_to_raw, raw_index, df_macd, df_merged)
     out_centers = _build_centers(centers, segments, merged_to_raw, raw_index, df_macd)
     out_trends = _build_trends(trends, segments, strokes, merged_to_raw, raw_index, df_macd, df_merged)
-    out_lstar = _build_lstar(lstar_obj, centers, segments, last_price,
-                             max_post_exit_segments, detail)
+    out_lstar = _build_lstar(lstar_obj, centers, segments, last_price, detail)
     out_macd = _build_macd_series(df_macd, raw_index, macd_fast, macd_slow, macd_signal)
 
     # ── 多级别数据 ──
@@ -448,8 +444,7 @@ def _build_trends(trends, segments, strokes, m2r, raw_index, df_macd, df_merged)
     return result
 
 
-def _build_lstar(lstar_obj, centers, segments, last_price,
-                 max_post_exit, detail):
+def _build_lstar(lstar_obj, centers, segments, last_price, detail):
     if lstar_obj is None:
         return None
 
@@ -457,7 +452,6 @@ def _build_lstar(lstar_obj, centers, segments, last_price,
     ac = classify_center_practical_newchan(
         center=center, center_idx=lstar_obj.center_idx,
         segments=segments, last_price=last_price,
-        max_post_exit_segments=max_post_exit,
     )
 
     out = {

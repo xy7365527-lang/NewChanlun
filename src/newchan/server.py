@@ -404,7 +404,6 @@ def api_newchan_overlay():
     stroke_mode = request.query.get("stroke_mode", "wide")
     min_strict_sep = int(request.query.get("min_strict_sep", "5"))
     center_sustain_m = int(request.query.get("center_sustain_m", "2"))
-    max_post_exit = int(request.query.get("max_post_exit_segments", "6"))
     limit = request.query.get("limit", "")
 
     if not symbol:
@@ -436,7 +435,6 @@ def api_newchan_overlay():
             stroke_mode=stroke_mode,
             min_strict_sep=min_strict_sep,
             center_sustain_m=center_sustain_m,
-            max_post_exit_segments=max_post_exit,
         )
     except Exception as e:
         import traceback
