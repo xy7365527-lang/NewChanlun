@@ -91,6 +91,23 @@ Always respond in Chinese-simplified (简体中文).
 - `.chanlun/genealogy/pending/` — 生成态矛盾
 - `.chanlun/genealogy/settled/` — 已结算记录
 
+### 分布式指令架构（谱系014）
+
+元编排指令不再是单一 SKILL.md 单体，而是分布式指令卡组：
+
+| 文件 | 加载者 | 内容 |
+|------|--------|------|
+| `SKILL.md`（核心卡） | 所有 agent | 概念分离、决策分层、质询序列、生成态/结算态 |
+| `.claude/agents/meta-lead.md` | Lead | 薄路由层：收信→判断类型→转发工位 |
+| `.claude/agents/genealogist.md` | 谱系工位 | 谱系写入、张力检查、回溯扫描 |
+| `.claude/agents/source-auditor.md` | 源头审计 | 三级权威链、溯源标签、原文考古 |
+| `.claude/agents/meta-observer.md` | 元规则观测 | 二阶反馈回路、元编排进化 |
+| `.claude/agents/quality-guard.md` | 质量守卫 | 结果包检查、代码违规扫描 |
+| `.claude/agents/topology-manager.md` | 拓扑管理 | 工位扩张/收缩建议 |
+| `references/methodology-v3.3.md` | 参考文档 | 完整方法论（不直接加载） |
+
+**设计原则**：一个 agent 一件事。Lead 只路由不认知。复杂度通过 agent 数量扩展。
+
 ### 可用命令
 - `/ceremony` — 创世仪式（会话开始时执行）
 - `/inquire` — 四步质询序列
