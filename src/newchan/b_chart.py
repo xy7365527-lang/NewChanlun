@@ -380,7 +380,6 @@ class ChartPanel {
       tf:String(tf), detail:detail,
       segment_algo:'v1', stroke_mode:'wide',
       min_strict_sep:'5', center_sustain_m:'2',
-      max_post_exit_segments:'6',
     });
     const r=await fetch(`/api/newchan/overlay?${qs.toString()}`,{method:'GET'});
     if(!r.ok) throw new Error(`HTTP ${r.status}`);

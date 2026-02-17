@@ -64,11 +64,13 @@
 | 中枢 | 被突破段否定（settled=True） | 外部对象生成 | ✅ 语法合法 |
 | 走势类型 | 被新中枢否定当前走势的延续性 | 外部对象生成 | ✅ 语法合法 |
 
-### 语法违规实例
+### 语法违规实例（已修复）
 
-| 位置 | 违规描述 | 严重性 |
-|------|----------|--------|
-| `a_level_fsm_newchan.py` L210-223 | 三锚体系 `DEAD_TIMEOUT` (`max_post_exit_segments=6`) | **语法非法** — 使用非对象来源（超时）否定对象（anchor） |
+| 位置 | 违规描述 | 严重性 | 状态 |
+|------|----------|--------|------|
+| `a_level_fsm_newchan.py` 原 L210-223 | 三锚体系 `DEAD_TIMEOUT` (`max_post_exit_segments=6`) | **语法非法** — 使用非对象来源（超时）否定对象（anchor） | ✅ 已删除 (2026-02-17) |
+
+**修复方式**：彻底删除 `Regime.DEAD_TIMEOUT` 及 `max_post_exit_segments` 参数。中枢离开后无对象否定事件时保持 alive（`RUN_ANCHOR_POST_EXIT` 或 `EVENT_ANCHOR_FIRST_PULLBACK`），只有对象事件（回抽+再确认=`DEAD_NEGATION_SETTLED`）才能杀死中枢。
 
 ## 交易理性的语法基础
 
@@ -97,4 +99,4 @@
 - 父记录: 005-object-negation-principle.md（已分离，原文件保留为历史参考）
 - 兄弟记录: 005a-prohibition-theorem.md（定理半）
 - 前提谱系: 004-provenance-framework.md（溯源框架，标注本记录为 [新缠论]）
-- 触发审查: DEAD_TIMEOUT 语法违规需重写
+- 触发审查: DEAD_TIMEOUT 语法违规 → 已修复 (2026-02-17)
