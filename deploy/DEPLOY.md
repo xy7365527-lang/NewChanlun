@@ -113,6 +113,8 @@ deploy/
 │   ├── source-auditor.md               # 源头审计工位
 │   ├── meta-observer.md                # 元规则观测工位
 │   └── topology-manager.md             # 拓扑管理工位
+├── hooks/                              # runtime 强制层（谱系014 种子）
+│   └── pre-commit-genealogy-check.sh   # 概念层变更→谱系检查
 └── skills/
     └── meta-orchestration/
         ├── SKILL.md                    # 核心卡（~109行，质询+概念分离+生成态）
