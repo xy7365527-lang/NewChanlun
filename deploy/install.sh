@@ -59,6 +59,23 @@ cp "$SCRIPT_DIR/agents/meta-observer.md" ~/.claude/agents/
 cp "$SCRIPT_DIR/agents/topology-manager.md" ~/.claude/agents/
 echo "  已安装: meta-lead, genealogist, quality-guard, source-auditor, meta-observer, topology-manager"
 
+# 安装 git hook（runtime 强制层）
+echo ""
+echo "[可选] 安装 git pre-commit hook（概念层变更→谱系检查）..."
+if [ -d .git ]; then
+    if [ -f .git/hooks/pre-commit ]; then
+        echo "  ⚠ .git/hooks/pre-commit 已存在，跳过。"
+        echo "  手动安装: cp $SCRIPT_DIR/hooks/pre-commit-genealogy-check.sh .git/hooks/pre-commit"
+    else
+        cp "$SCRIPT_DIR/hooks/pre-commit-genealogy-check.sh" .git/hooks/pre-commit
+        chmod +x .git/hooks/pre-commit
+        echo "  已安装: pre-commit hook（概念层变更时强制检查谱系条目）"
+    fi
+else
+    echo "  未检测到 .git/ 目录，请在项目 git init 后手动安装:"
+    echo "  cp $SCRIPT_DIR/hooks/pre-commit-genealogy-check.sh .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit"
+fi
+
 echo ""
 echo "验证安装..."
 echo ""
