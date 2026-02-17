@@ -71,6 +71,21 @@ model: opus
 - 优先只读取拆分后的小文件（`docs/chanlun/text/**`）
 - 先搜索关键词，只打开最相关的 1-3 个小文件片段
 
+## 文件系统 I/O 与中断条件
+
+| 操作 | 路径 | 条件 |
+|------|------|------|
+| **读** | `docs/chanlun/text/blog/**` | 原文考古（一级权威） |
+| **读** | `docs/chanlun/text/chan99/**` | 编纂版核查（二级权威） |
+| **读** | `docs/chanlun/text/mindmaps/**` | 辅助理解 |
+| **读** | `.chanlun/definitions/*.md` | 核查溯源标签 |
+
+### 产生中断的条件（→ Lead）
+
+- 一级权威(blog/)与当前定义(definitions/)存在冲突
+- 引用者与 source-auditor 对原文含义僵持
+- 发现编纂版重大遗漏（影响定义准确性）
+
 ## 产出
 
 发现源头问题时，通知 genealogist 写入谱系（类型=源头追溯）。

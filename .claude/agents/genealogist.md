@@ -70,6 +70,23 @@ model: opus
 - 各自定义和原文依据
 - 待验证项
 
+## 文件系统 I/O 与中断条件
+
+| 操作 | 路径 | 条件 |
+|------|------|------|
+| **读** | `.chanlun/definitions/*.md` | 谱系写入时核实定义版本 |
+| **读** | `.chanlun/genealogy/pending/` | 回溯扫描 |
+| **读** | `.chanlun/genealogy/settled/` | 张力检查、谱系链接 |
+| **读** | `references/genealogy-template.md` | 写入模板 |
+| **写** | `.chanlun/genealogy/pending/*.md` | 新矛盾发现 |
+| **写** | `.chanlun/genealogy/settled/*.md` | 回溯结算 |
+
+### 产生中断的条件（→ Lead）
+
+- 新谱系与已有谱系存在不可分层解决的张力
+- 回溯扫描发现可结算的生成态条目
+- 概念分离信号（同一定义在不同上下文产出矛盾结论）
+
 ## 参考
 
 - 模板：`.claude/skills/meta-orchestration/references/genealogy-template.md`
