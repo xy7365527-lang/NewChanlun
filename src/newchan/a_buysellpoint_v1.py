@@ -14,8 +14,8 @@
 已知 TBD（生成态）
 ------------------
 - [TBD-1] 下跌确立条件（严格 vs 宽松口径）
-- [TBD-2] 走势完成映射
-- [TBD-3] 确认时机定义
+- [TBD-2] 走势完成映射 → ✅ maimai #2 已落地（Type 2/3 confirmed = Move.settled）
+- [TBD-3] 确认时机定义 → ✅ maimai #2 已落地
 - [TBD-4] 盘整背驰与买卖点
 - [TBD-5] 中枢范围（ZG/ZD 固定 vs 动态）
 """
@@ -65,6 +65,18 @@ class BuySellPoint:
 
 
 # ── Type 1: 趋势背驰买卖点 ──
+
+
+def _find_move_for_seg(moves: list[Move], seg_idx: int) -> Move | None:
+    """查找包含指定 seg_idx 的 Move。
+
+    maimai #2: confirmed 语义对齐 — BSP.confirmed 应来自 Move.settled，
+    而非 Segment.confirmed。此辅助函数在 Type 2/3 检测中查找覆盖段的走势类型。
+    """
+    for m in moves:
+        if m.seg_start <= seg_idx <= m.seg_end:
+            return m
+    return None
 
 def _detect_type1(
     moves: list[Move],
@@ -130,7 +142,7 @@ def _detect_type1(
             center_seg_start=zs.seg_start,
             price=price,
             bar_idx=bar_idx,
-            confirmed=div.confirmed,  # [TBD-3]
+            confirmed=div.confirmed,  # maimai #2: div.confirmed = move.settled ✅
             settled=False,
         ))
 
@@ -175,6 +187,8 @@ def _detect_type2(
                 continue
 
             callback_seg = segments[callback_idx]
+            # maimai #2: confirmed 来自 Move.settled，非段结构
+            callback_move = _find_move_for_seg(moves, callback_idx)
             result.append(BuySellPoint(
                 kind="type2",
                 side="buy",
@@ -187,7 +201,7 @@ def _detect_type2(
                 center_seg_start=t1.center_seg_start,
                 price=callback_seg.low,
                 bar_idx=callback_seg.i1,
-                confirmed=callback_seg.confirmed,  # [TBD-3]
+                confirmed=callback_move.settled if callback_move else False,
                 settled=False,
             ))
         elif t1.side == "sell":
@@ -209,6 +223,8 @@ def _detect_type2(
                 continue
 
             rebound_seg = segments[rebound_idx_s]
+            # maimai #2: confirmed 来自 Move.settled，非段结构
+            rebound_move = _find_move_for_seg(moves, rebound_idx_s)
             result.append(BuySellPoint(
                 kind="type2",
                 side="sell",
@@ -221,7 +237,7 @@ def _detect_type2(
                 center_seg_start=t1.center_seg_start,
                 price=rebound_seg.high,
                 bar_idx=rebound_seg.i1,
-                confirmed=rebound_seg.confirmed,  # [TBD-3]
+                confirmed=rebound_move.settled if rebound_move else False,
                 settled=False,
             ))
 
@@ -233,6 +249,7 @@ def _detect_type2(
 def _detect_type3(
     zhongshus: list[Zhongshu],
     segments: list,
+    moves: list[Move],
     level_id: int,
 ) -> list[BuySellPoint]:
     """第三类买卖点：中枢突破后回试/回抽。
@@ -274,6 +291,8 @@ def _detect_type3(
         if zs.break_direction == "up":
             # 3B: 回试段的 low > ZG
             if pullback_seg.low > zs.zg:
+                # maimai #2: confirmed 来自 Move.settled，非段结构
+                pullback_move = _find_move_for_seg(moves, pullback_idx)
                 result.append(BuySellPoint(
                     kind="type3",
                     side="buy",
@@ -286,12 +305,14 @@ def _detect_type3(
                     center_seg_start=zs.seg_start,
                     price=pullback_seg.low,
                     bar_idx=pullback_seg.i1,
-                    confirmed=pullback_seg.confirmed,  # [TBD-3]
+                    confirmed=pullback_move.settled if pullback_move else False,
                     settled=False,
                 ))
         elif zs.break_direction == "down":
             # 3S: 回抽段的 high < ZD
             if pullback_seg.high < zs.zd:
+                # maimai #2: confirmed 来自 Move.settled，非段结构
+                pullback_move = _find_move_for_seg(moves, pullback_idx)
                 result.append(BuySellPoint(
                     kind="type3",
                     side="sell",
@@ -304,7 +325,7 @@ def _detect_type3(
                     center_seg_start=zs.seg_start,
                     price=pullback_seg.high,
                     bar_idx=pullback_seg.i1,
-                    confirmed=pullback_seg.confirmed,  # [TBD-3]
+                    confirmed=pullback_move.settled if pullback_move else False,
                     settled=False,
                 ))
 
@@ -375,7 +396,7 @@ def buysellpoints_from_level(
     """
     type1 = _detect_type1(moves, divergences, zhongshus, segments, level_id)
     type2 = _detect_type2(type1, segments, moves, level_id)
-    type3 = _detect_type3(zhongshus, segments, level_id)
+    type3 = _detect_type3(zhongshus, segments, moves, level_id)
     type2, type3 = _detect_overlap(type2, type3)
 
     return sorted(type1 + type2 + type3, key=lambda bp: bp.seg_idx)

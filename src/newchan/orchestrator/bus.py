@@ -59,6 +59,19 @@ class EventBus:
         self._events = remaining
         return matched
 
+    def push_level(
+        self, level_id: int, events: list[DomainEvent], stream_id: str = "",
+    ) -> None:
+        """按递归级别推送事件。tf 编码为 'L{level_id}'。"""
+        for ev in events:
+            self._events.append(TaggedEvent(
+                tf=f"L{level_id}", event=ev, stream_id=stream_id,
+            ))
+
+    def drain_by_level(self, level_id: int) -> list[DomainEvent]:
+        """取出指定递归级别的事件，保留其它事件。"""
+        return self.drain_by_tf(f"L{level_id}")
+
     def drain_by_stream(self, stream_id: str) -> list[DomainEvent]:
         """取出指定 stream_id 的事件，保留其它事件。"""
         matched: list[DomainEvent] = []

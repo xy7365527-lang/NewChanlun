@@ -42,3 +42,4 @@ deploy/
 
 # Data files
 data/
+.coverage

@@ -875,7 +875,7 @@ identity_key(move, level) = (move.seg_start, level)
 - **前置**：level_recursion.md v0.1（级别递归定义）
 - **前置**：move_rules_v1.md（Move 数据类和 diff 规则）
 - **前置**：zhongshu_rules_v1.md（中枢构造规则）
-- **前置**：005-object-negation-principle.md（否定传播符合对象否定对象）
+- **前置**：005b-object-negates-object-grammar.md（否定传播符合对象否定对象语法规则）
 - **前置**：diff_identity_rules.md（身份/状态分离原则）
 - **阻塞**：beichi.md #5 区间套（依赖多级别递归）
 - **影响**：events.py（需新增 level_id 字段）

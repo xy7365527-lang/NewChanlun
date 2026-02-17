@@ -512,7 +512,7 @@ def assert_single_lstar(*args: Any, enable: bool = False) -> AssertResult:
     """Spec: docs/chan_spec.md §9.2
     There MUST be only one active decision level L* at any time.
 
-    Usage: assert_single_lstar(level_views, last_price, max_post_exit_segments=6)
+    Usage: assert_single_lstar(level_views, last_price)
     Checks:
     - select_lstar_newchan returns at most one L*
     - no duplicate alive centers with identical (seg0, seg1) on any level
@@ -522,7 +522,6 @@ def assert_single_lstar(*args: Any, enable: bool = False) -> AssertResult:
         return _ok(name)
 
     level_views, last_price = args[0], args[1]
-    max_post = args[2] if len(args) > 2 else 6
 
     try:
         from newchan.a_level_fsm_newchan import (
@@ -539,7 +538,6 @@ def assert_single_lstar(*args: Any, enable: bool = False) -> AssertResult:
             ac = classify_center_practical_newchan(
                 center=center, center_idx=ci,
                 segments=view.segments, last_price=last_price,
-                max_post_exit_segments=max_post,
             )
             if ac.is_alive:
                 key = (center.seg0, center.seg1)

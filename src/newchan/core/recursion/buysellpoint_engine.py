@@ -64,7 +64,7 @@ class BuySellPointEngine:
 
     def reset(self) -> None:
         """重置引擎到初始状态（用于回放 seek）。"""
-        self._prev_bsps.clear()
+        self._prev_bsps = []
         self._event_seq = 0
 
     def process_snapshots(

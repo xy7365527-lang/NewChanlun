@@ -222,7 +222,12 @@ def _detect_trend_divergence(
     2. 取 move 范围内最后两个 settled 中枢
     3. A 段 = 前中枢结束到后中枢开始
     4. C 段 = 后中枢结束到 move 终点
-    5. force_c < force_a → 背驰
+    5. T4 前提：B 段黄白线穿越 0 轴（仅有 MACD 时）
+    6. 三维度 OR 判定（beichi.md #2 已结算）：
+       - T2: force_c < force_a（面积）
+       - T6: dif_peak_c < dif_peak_a（DIF 峰值）
+       - T7: hist_peak_c < hist_peak_a（HIST 峰值）
+       任一满足 → 背驰 [旧缠论:选择]
     """
     if move.kind != "trend" or move.zs_count < 2:
         return None
@@ -269,6 +274,7 @@ def _detect_trend_divergence(
             )
             return None
 
+    # T2: 面积维度
     force_a = _compute_force(segments, a_start, a_end, move.direction,
                              df_macd, merged_to_raw)
     force_c = _compute_force(segments, c_start, c_end, move.direction,
@@ -277,7 +283,32 @@ def _detect_trend_divergence(
     if force_a <= 0:
         return None
 
-    if force_c < force_a:
+    # T6/T7: DIF 峰值 + HIST 峰值维度（仅有 MACD 时）
+    dif_peak_a = 0.0
+    dif_peak_c = 0.0
+    hist_peak_a = 0.0
+    hist_peak_c = 0.0
+
+    if df_macd is not None and merged_to_raw is not None:
+        a_i0, a_i1 = _seg_merged_range(segments, a_start, a_end)
+        raw_a_i0 = merged_to_raw[a_i0][0] if a_i0 < len(merged_to_raw) else 0
+        raw_a_i1 = merged_to_raw[a_i1][1] if a_i1 < len(merged_to_raw) else 0
+
+        c_i0, c_i1 = _seg_merged_range(segments, c_start, c_end)
+        raw_c_i0 = merged_to_raw[c_i0][0] if c_i0 < len(merged_to_raw) else 0
+        raw_c_i1 = merged_to_raw[c_i1][1] if c_i1 < len(merged_to_raw) else 0
+
+        dif_peak_a = dif_peak_for_range(df_macd, raw_a_i0, raw_a_i1, move.direction)
+        dif_peak_c = dif_peak_for_range(df_macd, raw_c_i0, raw_c_i1, move.direction)
+        hist_peak_a = histogram_peak_for_range(df_macd, raw_a_i0, raw_a_i1, move.direction)
+        hist_peak_c = histogram_peak_for_range(df_macd, raw_c_i0, raw_c_i1, move.direction)
+
+    # 三维度 OR 判定（beichi.md #2 结算：任一满足即背驰）[旧缠论:选择]
+    t2_diverged = force_c < force_a
+    t6_diverged = dif_peak_a > 0 and dif_peak_c < dif_peak_a
+    t7_diverged = hist_peak_a > 0 and hist_peak_c < hist_peak_a
+
+    if t2_diverged or t6_diverged or t7_diverged:
         div_dir: Literal["top", "bottom"] = (
             "top" if move.direction == "up" else "bottom"
         )
@@ -293,6 +324,10 @@ def _detect_trend_divergence(
             force_a=force_a,
             force_c=force_c,
             confirmed=move.settled,
+            dif_peak_a=dif_peak_a,
+            dif_peak_c=dif_peak_c,
+            hist_peak_a=hist_peak_a,
+            hist_peak_c=hist_peak_c,
         )
 
     return None
@@ -315,7 +350,11 @@ def _detect_consolidation_divergence(
     2. 取中枢
     3. 收集离开中枢的段（按方向分组）
     4. 对每个方向，比较最后两次离开力度
-    5. force_c < force_a → 盘整背驰
+    5. 三维度 OR 判定（beichi.md #2 已结算）：
+       - T2: force_c < force_a（面积）
+       - T6: dif_peak_c < dif_peak_a（DIF 峰值）
+       - T7: hist_peak_c < hist_peak_a（HIST 峰值）
+       任一满足 → 盘整背驰 [旧缠论:选择]
     """
     if move.kind != "consolidation" or move.zs_count < 1:
         return None
@@ -351,6 +390,7 @@ def _detect_consolidation_divergence(
         a_idx = exits[-2]
         c_idx = exits[-1]
 
+        # T2: 面积维度
         force_a = _compute_force(segments, a_idx, a_idx, direction,
                                  df_macd, merged_to_raw)
         force_c = _compute_force(segments, c_idx, c_idx, direction,
@@ -359,7 +399,32 @@ def _detect_consolidation_divergence(
         if force_a <= 0:
             continue
 
-        if force_c < force_a:
+        # T6/T7: DIF 峰值 + HIST 峰值维度
+        dif_peak_a = 0.0
+        dif_peak_c = 0.0
+        hist_peak_a = 0.0
+        hist_peak_c = 0.0
+
+        if df_macd is not None and merged_to_raw is not None:
+            a_i0, a_i1 = _seg_merged_range(segments, a_idx, a_idx)
+            raw_a_i0 = merged_to_raw[a_i0][0] if a_i0 < len(merged_to_raw) else 0
+            raw_a_i1 = merged_to_raw[a_i1][1] if a_i1 < len(merged_to_raw) else 0
+
+            c_i0, c_i1 = _seg_merged_range(segments, c_idx, c_idx)
+            raw_c_i0 = merged_to_raw[c_i0][0] if c_i0 < len(merged_to_raw) else 0
+            raw_c_i1 = merged_to_raw[c_i1][1] if c_i1 < len(merged_to_raw) else 0
+
+            dif_peak_a = dif_peak_for_range(df_macd, raw_a_i0, raw_a_i1, direction)
+            dif_peak_c = dif_peak_for_range(df_macd, raw_c_i0, raw_c_i1, direction)
+            hist_peak_a = histogram_peak_for_range(df_macd, raw_a_i0, raw_a_i1, direction)
+            hist_peak_c = histogram_peak_for_range(df_macd, raw_c_i0, raw_c_i1, direction)
+
+        # 三维度 OR 判定 [旧缠论:选择]
+        t2_diverged = force_c < force_a
+        t6_diverged = dif_peak_a > 0 and dif_peak_c < dif_peak_a
+        t7_diverged = hist_peak_a > 0 and hist_peak_c < hist_peak_a
+
+        if t2_diverged or t6_diverged or t7_diverged:
             div_dir: Literal["top", "bottom"] = (
                 "top" if direction == "up" else "bottom"
             )
@@ -375,6 +440,10 @@ def _detect_consolidation_divergence(
                 force_a=force_a,
                 force_c=force_c,
                 confirmed=move.settled,
+                dif_peak_a=dif_peak_a,
+                dif_peak_c=dif_peak_c,
+                hist_peak_a=hist_peak_a,
+                hist_peak_c=hist_peak_c,
             )
 
     return None
@@ -432,3 +501,83 @@ def divergences_from_moves_v1(
             result.append(div)
 
     return result
+
+
+# ── 区间套：限定 bar 范围的背驰检测 ──────────────────
+
+
+def _move_bar_range(segments: list, move: Move) -> tuple[int, int]:
+    """获取 Move 覆盖的 merged bar 索引范围 [i0, i1]。
+
+    概念溯源：[旧缠论] 第27课 — 区间套需要跨级别 bar 坐标映射。
+    """
+    return _seg_merged_range(segments, move.seg_start, move.seg_end)
+
+
+def _filter_moves_in_range(
+    segments: list,
+    moves: list[Move],
+    bar_range: tuple[int, int],
+) -> list[Move]:
+    """过滤出完全落入 bar_range 的 Move 列表。
+
+    "完全落入" = move_bar_start >= bar_range[0] AND move_bar_end <= bar_range[1]
+
+    概念溯源：[旧缠论] 第27课 — 低级别背驰段时间范围 ⊂ 高级别背驰段。
+    """
+    if bar_range[0] > bar_range[1]:
+        return []
+
+    result: list[Move] = []
+    for move in moves:
+        m_start, m_end = _move_bar_range(segments, move)
+        if m_start >= bar_range[0] and m_end <= bar_range[1]:
+            result.append(move)
+    return result
+
+
+def divergences_in_bar_range(
+    segments: list,
+    zhongshus: list[Zhongshu],
+    moves: list[Move],
+    level_id: int,
+    bar_range: tuple[int, int],
+    *,
+    df_macd: pd.DataFrame | None = None,
+    merged_to_raw: list[tuple[int, int]] | None = None,
+) -> list[Divergence]:
+    """在指定 bar 范围内检测背驰（区间套的单级别检测入口）。
+
+    与 divergences_from_moves_v1() 的区别：
+    只处理 **完全落入** bar_range 内的 Move，其余逻辑完全复用。
+
+    Parameters
+    ----------
+    segments : list
+        线段列表（需有 i0, i1, high, low, direction 属性）。
+    zhongshus : list[Zhongshu]
+        v1 中枢列表。
+    moves : list[Move]
+        v1 走势类型列表。
+    level_id : int
+        递归层级。
+    bar_range : tuple[int, int]
+        (bar_start, bar_end) — 限定检测的 merged bar 索引范围（闭区间）。
+        对应区间套中"高级别背驰段 D_n 在本级别的 bar 映射"。
+    df_macd : pd.DataFrame | None
+        MACD 数据。None 则用价格振幅 fallback。
+    merged_to_raw : list[tuple[int, int]] | None
+        merged → raw 索引映射。
+
+    Returns
+    -------
+    list[Divergence]
+        在 bar_range 范围内检测到的背驰列表。
+
+    概念溯源: [旧缠论] 第27课 区间套（精确大转折点寻找程序定理）
+    """
+    filtered = _filter_moves_in_range(segments, moves, bar_range)
+    return divergences_from_moves_v1(
+        segments, zhongshus, filtered, level_id,
+        df_macd=df_macd, merged_to_raw=merged_to_raw,
+    )

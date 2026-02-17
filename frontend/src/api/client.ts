@@ -67,7 +67,6 @@ export async function getOverlay(p: GetOverlayParams): Promise<OverlayResponse> 
   qs.set("stroke_mode", p.stroke_mode ?? "wide");
   qs.set("min_strict_sep", "5");
   qs.set("center_sustain_m", "2");
-  qs.set("max_post_exit_segments", "6");
   return fetchJson<OverlayResponse>(`${BASE}/api/newchan/overlay?${qs}`);
 }
 

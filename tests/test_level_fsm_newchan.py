@@ -6,7 +6,7 @@
   C) RUN_ANCHOR_POST_EXIT：离开段后未见回抽
   D) EVENT_ANCHOR_FIRST_PULLBACK：出现反向段/触碰核，未再确认
   E) DEAD_NEGATION_SETTLED：回抽后再确认创新高/新低
-  F) DEAD_TIMEOUT：离开后超时
+  F) 对象驱动：无超时，离开后多段无对象否定仍保持alive
   G) DEAD_NOT_SETTLED：candidate center
   H) select_lstar_newchan：双 level / 无 alive
   I) assert_single_lstar 集成
@@ -227,23 +227,34 @@ class TestDeadNegationSettled:
 
 
 # =====================================================================
-# F) DEAD_TIMEOUT
+# F) 对象驱动：无超时，离开后多段无对象否定仍保持alive
 # =====================================================================
 
-class TestDeadTimeout:
+class TestNoTimeout:
+    """005a/005b: 对象否定对象——不允许超时否定，只有对象事件能杀死中枢。"""
 
-    def test_timeout_after_exit(self):
-        """离开后超过 max_post_exit_segments → 超时死亡。"""
-        # 构造足够多的段使得 cur_idx - exit_idx > 2
-        segs = _make_segments(10)
-        c = _make_center_settled(seg1=4)
-        # exit_idx=5, cur_idx=9, diff=4 > max=2
-        ac = classify_center_practical_newchan(
-            c, 0, segs, last_price=26.0, max_post_exit_segments=2,
-        )
-        assert ac.is_alive is False
-        assert ac.regime == Regime.DEAD_TIMEOUT
-        assert ac.anchors.death_reason == "timeout_after_exit"
+    def test_many_segments_no_object_negation_stays_alive(self):
+        """离开后经过多段，但无回抽+再确认 → 中枢仍活。"""
+        # 构造离开后多段同向、无回抽的场景
+        segs_no_negation = [
+            _seg(0, 2, 0, 10, "up",   20.0, 10.0),    # seg0
+            _seg(2, 4, 10, 20, "down", 18.0, 12.0),    # seg1
+            _seg(4, 6, 20, 30, "up",   22.0, 11.0),    # seg2
+            _seg(6, 8, 30, 40, "down", 19.0, 13.0),    # seg3
+            _seg(8, 10, 40, 50, "up",  17.0, 14.0),    # seg4
+            _seg(10, 12, 50, 60, "up", 25.0, 20.0),    # seg5 exit ABOVE
+            # seg6..seg9: 全部同向 up，无回抽，无创新高
+            _seg(12, 14, 60, 70, "up", 24.0, 21.0),    # seg6 同向，h=24<25
+            _seg(14, 16, 70, 80, "up", 23.0, 20.0),    # seg7 同向
+            _seg(16, 18, 80, 90, "up", 24.5, 19.0),    # seg8 同向
+            _seg(18, 20, 90, 100, "up", 24.8, 20.0),   # seg9 同向
+        ]
+        c2 = _make_center_settled(seg1=4)
+        ac = classify_center_practical_newchan(c2, 0, segs_no_negation, last_price=24.0)
+        # 无反向段 → 无回抽 → 仍在 RUN_ANCHOR_POST_EXIT
+        assert ac.is_alive is True
+        assert ac.regime == Regime.RUN_ANCHOR_POST_EXIT
+        assert ac.anchors.death_reason is None
 
 
 # =====================================================================

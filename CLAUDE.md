@@ -58,7 +58,7 @@ Always respond in Chinese-simplified (简体中文).
 - **[旧缠论:选择]**：原文有多种解读，编排者选择了其中一种
 - **[新缠论]**：编排者在旧缠论基础上提出的扩展或新增原则
 
-> 溯源框架详见 `.chanlun/genealogy/pending/004-provenance-framework.md`
+> 溯源框架详见 `.chanlun/genealogy/settled/004-provenance-framework.md`
 
 ## 元编排规则
 
@@ -68,12 +68,17 @@ Always respond in Chinese-simplified (简体中文).
 1. **概念优先于代码。** 定义不清楚时不写代码。
 2. **不绕过矛盾。** 见 `~/.claude/rules/no-workaround.md`。
 3. **所有产出必须可质询。** 见 `~/.claude/rules/result-package.md`。
-4. **谱系必须维护。** 每次矛盾处理后写入 `.chanlun/genealogy/`。
+4. **谱系必须维护，且谱系优先于汇总。** 每次矛盾处理后写入 `.chanlun/genealogy/`。蜂群工位完成后，**先写谱系再汇总**——谱系的强制字段（推导链、谱系链接、前置/关联）构成思考框架，写谱系的过程本身是概念发现的来源。多条谱系之间的张力碰撞往往产生最重要的洞察（如007/008/009的张力产生了010号构造-分类二层架构）。见 `.chanlun/genealogy/settled/012-genealogy-is-discovery-engine.md`。
 5. **定义变更必须通过仪式。** 使用 `/ritual`，不直接编辑定义文件。
-6. **ceremony 是持续执行授权，不是一次性启动。** ceremony 建立目标后自主推进所有可推进工作，commit/push 不是断点，不要停下来等编排者确认下一步。只在概念矛盾（`/escalate`）、缺外部数据、或不可逆定义变更时才停。
-7. **对象否定对象。** [新缠论] 体系中一个对象被否定的唯一来源是内在否定或外部对象生成。不允许超时、阈值、或非对象来源的否定。见 `.chanlun/genealogy/pending/005-object-negation-principle.md`。
-8. **热启动保障蜂群持续自动化。** 当上下文压缩（compact）发生时，通过 session 记录和 ceremony 恢复蜂群状态，确保自动化不因上下文截断而中断。蜂群是持续运行的，不是单次启动。
-9. **蜂群是默认工作模式，不是可选优化。** 每个工作节点必须先评估可并行的独立工位数（≥2 即拉蜂群）。蜂群在整个会话中持续运作：完成一轮并行后，汇总结果，再评估下一轮可并行工位，循环至任务完成。单线程顺序执行只在任务间有严格依赖时才允许。
+6. **推论自动结算（三分法）。** 系统产出分为三类，处理方式不同：
+   - **定理**：已结算原则的逻辑必然推论 → 自动结算，标注推导链，无需编排者确认。
+   - **选择**：多种合理方案，需价值判断 → 上浮给编排者**决断**（面对开放的未来）。
+   - **语法记录**：已在实践中运作但尚未显式化的规则 → 上浮给编排者**辨认**（面对已在运作的现在）。编排者做的不是在多条路之间选，而是把暗处运作的规则写进语法书。语法记录不创造规则，语法记录让规则从隐性变为可质询。
+   仪式门控适用于选择和语法记录，不适用于定理。
+7. **ceremony 是持续执行授权，不是一次性启动。** ceremony 建立目标后自主推进所有可推进工作，commit/push 不是断点，不要停下来等编排者确认下一步。只在概念矛盾（`/escalate`）、缺外部数据、或不可逆定义变更时才停。
+8. **对象否定对象。** [新缠论] 体系中一个对象被否定的唯一来源是内在否定或外部对象生成。不允许超时、阈值、或非对象来源的否定。这是走势描述语言的**语法规则**——"anchor因超时消失"不是为假的走势描述，是语法上不合法的走势描述。见 `.chanlun/genealogy/settled/005a-prohibition-theorem.md`（定理半）和 `.chanlun/genealogy/settled/005b-object-negates-object-grammar.md`（语法规则）。
+9. **热启动保障蜂群持续自动化。** 当上下文压缩（compact）发生时，通过 session 记录和 ceremony 恢复蜂群状态，确保自动化不因上下文截断而中断。蜂群是持续运行的，不是单次启动。
+10. **蜂群是默认工作模式，不是可选优化。** 每个工作节点必须先评估可并行的独立工位数（≥2 即拉蜂群）。蜂群在整个会话中持续运作：完成一轮并行后，汇总结果，再评估下一轮可并行工位，循环至任务完成。单线程顺序执行只在任务间有严格依赖时才允许。
 
 ### 知识仓库映射
 元编排中的 `knowledge/` 在本项目中对应：
@@ -85,6 +90,23 @@ Always respond in Chinese-simplified (简体中文).
 ### 谱系目录
 - `.chanlun/genealogy/pending/` — 生成态矛盾
 - `.chanlun/genealogy/settled/` — 已结算记录
+
+### 分布式指令架构（谱系014）
+
+元编排指令不再是单一 SKILL.md 单体，而是分布式指令卡组：
+
+| 文件 | 加载者 | 内容 |
+|------|--------|------|
+| `SKILL.md`（核心卡） | 所有 agent | 概念分离、决策分层、质询序列、生成态/结算态 |
+| `.claude/agents/meta-lead.md` | Lead | 薄路由层：收信→判断类型→转发工位 |
+| `.claude/agents/genealogist.md` | 谱系工位 | 谱系写入、张力检查、回溯扫描 |
+| `.claude/agents/source-auditor.md` | 源头审计 | 三级权威链、溯源标签、原文考古 |
+| `.claude/agents/meta-observer.md` | 元规则观测 | 二阶反馈回路、元编排进化 |
+| `.claude/agents/quality-guard.md` | 质量守卫 | 结果包检查、代码违规扫描 |
+| `.claude/agents/topology-manager.md` | 拓扑管理 | 工位扩张/收缩建议 |
+| `references/methodology-v3.3.md` | 参考文档 | 完整方法论（不直接加载） |
+
+**设计原则**：一个 agent 一件事。Lead 只路由不认知。复杂度通过 agent 数量扩展。
 
 ### 可用命令
 - `/ceremony` — 创世仪式（会话开始时执行）

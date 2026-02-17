@@ -56,7 +56,7 @@ class SegmentEngine:
 
     def reset(self) -> None:
         """重置引擎到初始状态（用于回放 seek）。"""
-        self._prev_segments.clear()
+        self._prev_segments = []
         self._event_seq = 0
 
     def process_snapshot(self, snap: BiEngineSnapshot) -> SegmentSnapshot:

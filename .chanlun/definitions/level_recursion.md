@@ -1,8 +1,9 @@
 # 级别递归（Level Recursion / 走势级别的递归构造）
 
-**版本**: v0.2
-**状态**: 生成态（#1统一接口已实现，#2-5仍为生成态）
+**版本**: v1.0
+**状态**: 已结算
 **创建日期**: 2026-02-16
+**结算日期**: 2026-02-17
 **溯源**: [旧缠论] 第12课、第17课、第20课
 
 ---
@@ -186,7 +187,11 @@ Move[2] = 2级走势类型（❌ 未实现：需要 moves_from_zhongshus 接受 
 | Move[k≥2] | ✅ 泛化接口已实现 | a_zhongshu_level.py | `moves_from_level_zhongshus(LevelZhongshu列表)` |
 | MoveProtocol | ✅ 已实现 | a_level_protocol.py | Protocol + SegmentAsComponent + MoveAsComponent |
 | 递归调度（批处理） | ⚠️ 有雏形 | a_recursive_engine.py | 类型混用（duck typing） |
-| 递归调度（事件驱动） | ❌ 未实现 | — | 需要 RecursiveLevelEngine（设计见 level_recursion_interface_v1.md §4） |
+| 递归调度（事件驱动） | ✅ P4完成 | recursive_level_engine.py + recursive_level_state.py | RecursiveLevelEngine（全量重算+diff，21个测试全GREEN） |
+| 递归栈（多层自动调度） | ✅ P5完成 | recursive_stack.py | RecursiveStack（懒创建引擎，max_levels=6，终止条件=moves<3，16测试全GREEN） |
+| 事件level_id扩展 | ✅ P6完成 | events.py + bus.py + recursive_level_state.py | 6事件类+level_id:int=1，EventBus push_level/drain_by_level，25测试全GREEN |
+| 口径A编排器 | ✅ P8完成 | orchestrator/recursive.py | RecursiveOrchestrator.process_bar() 五引擎链+RecursiveStack，9测试全GREEN |
+| 口径A交叉验证 | ✅ P9完成 | test_p9_cross_validation.py | 编排器 vs 手动管线链 level=1 一致性，7测试全GREEN |
 
 ---
 
@@ -199,31 +204,42 @@ Move[2] = 2级走势类型（❌ 未实现：需要 moves_from_zhongshus 接受 
 - **测试**：22个测试全GREEN（10 protocol + 12 zhongshu_level），含 zhongshu_from_components 与 zhongshu_from_segments 交叉验证
 - **设计规范**：`docs/spec/level_recursion_interface_v1.md`
 
-### 2. Move[k-1] 完成判定
+### ~~2. Move[k-1] 完成判定~~ → ✅ 已结算（Option B: settled 标记）
 
-- **问题**：递归构造要求组件是"已完成的"次级别走势类型，但"完成"如何判定？
-- **选项 A**：背驰或第三类买卖点终结 → 完成（原文严格定义）
-- **选项 B**：`Move.settled = True`（当前实现的标记）
-- **影响**：若 A，则递归链需要等待背驰检测完成才能向上传递——延迟大
+**结算结论** [旧缠论:选择]：采用 Option B — `Move.settled = True` 作为递归构造的组件完成判定。
 
-### 3. 递归深度的实际限制
+**理由**：
+1. beichi #3 已结算：背驰→走势完成是充分非必要条件，走势可由第三类买卖点或"小转大"终结而无本级背驰
+2. Option A（要求背驰才完成）会将结构层与动力学层紧耦合，且与"小转大"终结机制矛盾
+3. 分离关注点：`Move.settled` 是结构标记（新实例产生时前一个自动结算），背驰检测是独立管道
+4. P9 交叉验证已确认 `RecursiveOrchestrator` 使用 settled 过滤后与手动管线一致
+5. `nested_divergence_search` 的递归下降映射也基于 settled 过滤，20测试GREEN
 
-- **问题**：理论上可无限递归，实际受数据长度限制
-- **观察**：1分钟 K 线约 240 根/天，一般股票历史数据 10 年 ≈ 600,000 根
-- **估算**：每级别约消耗 5-10x 的 Move（粗略），6 级递归 ≈ 10^6 → 可能到 4-5 级
-- **建议**：`max_recursive_level = 6`（可配置）
+**边界条件**：settled=False 的最后一个 Move 不参与高级别递归构造。这意味着实时数据中最高级别总是不完整的（正确行为：未完成的走势不应影响更高级别判断）
 
-### 4. 递归级别与 TF 级别的映射
+### ~~3. 递归深度的实际限制~~ → ✅ 已结算（可配参数）
+
+**结算结论**：`RecursiveStack.max_levels`（默认6）作为可配置参数已实现。
+
+- **代码**：`recursive_stack.py :: RecursiveStack.__init__(max_levels=6)`
+- **终止条件**：`RecursiveStack` 在 settled moves < 3 时自动停止创建新层级（自然终止）
+- **估算验证**：1分钟 K 线 240根/天，10年 ≈ 600K 根 → 实际递归深度 4-5 层符合预期
+- **设计原则**：`max_levels` 是安全上限，实际深度由数据自然决定（对象否定对象，非人为截断）[新缠论]
+
+### ~~4. 递归级别与 TF 级别的映射~~ → ✅ 已结算（工程债，非概念阻塞）
 
 - **问题**：用户习惯用 TF 描述级别（"30分钟级别的中枢"），但严格定义下级别 ≠ TF
 - **方案**：维护近似映射表（如 L1≈5min, L2≈30min），仅用于展示，不用于计算
 - **原文依据**："级别在本ID的理论中有着严格的定义，是不能随意僭越的"
+- **结算结论**：TF-level 映射是纯展示层需求，核心引擎（`RecursiveLevelEngine`）仅接受 `level_id: int`，不使用 TF 参数。当且仅当 UI 展示层需要"用户友好的级别描述"时实现。不构成定义结算阻塞。
 
-### 5. 事件驱动递归引擎的设计
+### ~~5. 事件驱动递归引擎的设计~~ → ✅ 已实现（P4）
 
-- **问题**：当前 RecursiveEngine 是批处理，不支持逐 bar 增量
-- **影响**：无法用于实时回放或在线交易
-- **方案**：设计 `RecursiveLevelEngine`，每层维护状态机，低级别事件触发高级别重算
+- **解决方案**：`RecursiveLevelEngine`（事件驱动，全量重算+diff）
+- **代码**：`recursive_level_engine.py`（引擎）+ `recursive_level_state.py`（快照+diff）
+- **核心流程**：settled Move → adapt_moves → zhongshu_from_components → diff → moves_from_level_zhongshus → diff
+- **测试**：21个测试全GREEN（引擎基本、中枢形成、走势形成、增量处理、diff直接测试、settled过滤、reset）
+- **level_id语义**：引擎level_id=k → 消费 Move[k-1] → 产出 Center[k] + Move[k]
 
 ---
 
@@ -231,8 +247,8 @@ Move[2] = 2级走势类型（❌ 未实现：需要 moves_from_zhongshus 接受 
 
 - **前置**：zhongshu.md v1.2（中枢定义，组件="至少三个连续次级别走势类型"）
 - **前置**：zoushi.md v1.1（走势类型定义，盘整/趋势分类）
-- **前置**：005-object-negation-principle.md（对象否定对象——递归是对象产生对象的核心机制）
-- **阻塞**：beichi.md #5 区间套（依赖多级别递归）
+- **前置**：005b-object-negates-object-grammar.md（对象否定对象——递归是对象产生对象的核心机制）
+- **已解除**：~~beichi.md v1.1 #5 区间套（已结算）~~ → ✅ beichi v1.1 已结算（nested_divergence_search 使用 RecursiveStack 递归结构）
 - **相关**：003-segment-concept-separation.md（Move[0] = Segment v1 为唯一口径）
 
 ---
@@ -240,4 +256,11 @@ Move[2] = 2级走势类型（❌ 未实现：需要 moves_from_zhongshus 接受 
 ## 变更历史
 
 - 2026-02-16: v0.1 初始版本，基于原文第12/17/20课 + 现有代码研究 + 编排者启动信号
+- 2026-02-16: v0.2 P1-P3 泛化接口实现，P4设计规范
+- 2026-02-16: v0.3 P4 RecursiveLevelEngine 事件驱动引擎实现（#1/#5已结算）
+- 2026-02-16: v0.4 P5 RecursiveStack 多层自动递归栈实现 + 五引擎 reset() 突变 bug 修复
+- 2026-02-16: v0.5 P6 事件level_id扩展（6事件类+level_id，EventBus级别路由，25测试全GREEN）
+- 2026-02-16: v0.6 P8 RecursiveOrchestrator口径A编排器 + P9交叉验证（编排器vs手动链level=1一致性，7测试全GREEN）
 - 2026-02-16: v0.2 P1-P3已实现：MoveProtocol + 适配器 + zhongshu_from_components + moves_from_level_zhongshus，22测试全GREEN
+- 2026-02-16: v0.7 #2 已结算（settled标记=递归完成判定，分离结构层与动力学层）；#3 已结算（max_levels可配参数+自然终止）；beichi阻塞已解除
+- 2026-02-17: v1.0 /ritual 结算仪式——生成态→已结算。#4 TF映射标记为工程债（纯展示层需求，核心引擎不依赖）。5/5问题全部已结算。106测试全GREEN，递归引擎核心覆盖率100%。依据元编排原则#6自动结算

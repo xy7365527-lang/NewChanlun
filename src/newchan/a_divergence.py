@@ -56,6 +56,14 @@ class Divergence:
         C 段力度。
     confirmed : bool
         背驰是否已确认（C 段完成后确认）。
+    dif_peak_a : float
+        A 段 DIF 峰值（T6 维度）。无 MACD 时为 0.0。
+    dif_peak_c : float
+        C 段 DIF 峰值（T6 维度）。
+    hist_peak_a : float
+        A 段 HIST 峰值（T7 维度）。无 MACD 时为 0.0。
+    hist_peak_c : float
+        C 段 HIST 峰值（T7 维度）。
     """
 
     kind: Literal["trend", "consolidation"]
@@ -69,6 +77,10 @@ class Divergence:
     force_a: float
     force_c: float
     confirmed: bool
+    dif_peak_a: float = 0.0
+    dif_peak_c: float = 0.0
+    hist_peak_a: float = 0.0
+    hist_peak_c: float = 0.0
 
 
 # ====================================================================

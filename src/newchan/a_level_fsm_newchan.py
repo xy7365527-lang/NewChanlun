@@ -29,7 +29,6 @@ class Regime(str, Enum):
     RUN_ANCHOR_POST_EXIT = "运行锚·离开段"
     EVENT_ANCHOR_FIRST_PULLBACK = "事件锚·第一次回抽"
     DEAD_NEGATION_SETTLED = "死亡·否定性已结算"
-    DEAD_TIMEOUT = "死亡·超时否定"
     DEAD_NOT_SETTLED = "死亡·未结算中枢"
 
 
@@ -101,7 +100,6 @@ def classify_center_practical_newchan(
     center_idx: int,
     segments: list[Segment],
     last_price: float,
-    max_post_exit_segments: int = 6,
 ) -> AliveCenter:
     """对单个中枢做三锚存活判定。
 
@@ -113,8 +111,6 @@ def classify_center_practical_newchan(
     segments : list[Segment]
     last_price : float
         最新价格。
-    max_post_exit_segments : int
-        离开后最大允许 segment 数，超出则超时死亡。
 
     Returns
     -------
@@ -207,22 +203,7 @@ def classify_center_practical_newchan(
     else:
         return _dead(Regime.DEAD_NEGATION_SETTLED, "invalid_exit_side")
 
-    # timeout
-    if cur_idx - exit_idx > max_post_exit_segments:
-        return AliveCenter(
-            center_idx=center_idx, center=center,
-            is_alive=False, regime=Regime.DEAD_TIMEOUT,
-            anchors=AnchorSet(
-                settle_core_low=low, settle_core_high=high,
-                run_exit_idx=exit_idx, run_exit_side=exit_side,
-                run_exit_extreme=exit_extreme,
-                event_seen_pullback=False,
-                event_pullback_settled=False,
-                death_reason="timeout_after_exit",
-            ),
-        )
-
-    # 扫描 exit_idx+1 .. cur_idx
+    # 扫描 exit_idx+1 .. cur_idx（对象事件驱动，无超时）
     seen_pullback = False
     pullback_settled = False
 
@@ -286,7 +267,6 @@ def classify_center_practical_newchan(
 def select_lstar_newchan(
     level_views: list[LevelView],
     last_price: float,
-    max_post_exit_segments: int = 6,
 ) -> LStar | None:
     """选择唯一裁决级别 L*。
 
@@ -309,7 +289,6 @@ def select_lstar_newchan(
                 center_idx=ci,
                 segments=view.segments,
                 last_price=last_price,
-                max_post_exit_segments=max_post_exit_segments,
             )
             if ac.is_alive:
                 alive_list.append(ac)
