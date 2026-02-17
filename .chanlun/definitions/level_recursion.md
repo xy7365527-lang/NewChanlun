@@ -246,7 +246,7 @@ Move[2] = 2级走势类型（❌ 未实现：需要 moves_from_zhongshus 接受 
 - **前置**：zhongshu.md v1.2（中枢定义，组件="至少三个连续次级别走势类型"）
 - **前置**：zoushi.md v1.1（走势类型定义，盘整/趋势分类）
 - **前置**：005-object-negation-principle.md（对象否定对象——递归是对象产生对象的核心机制）
-- **已解除**：~~beichi.md #5 区间套~~ → ✅ beichi v1.0 已结算（nested_divergence_search 使用 RecursiveStack 递归结构）
+- **已解除**：~~beichi.md v1.1 #5 区间套（已结算）~~ → ✅ beichi v1.1 已结算（nested_divergence_search 使用 RecursiveStack 递归结构）
 - **相关**：003-segment-concept-separation.md（Move[0] = Segment v1 为唯一口径）
 
 ---

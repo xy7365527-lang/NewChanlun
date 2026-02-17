@@ -343,7 +343,7 @@ BSP.confirmed = underlying_Move.settled
    - 第一类买卖点需要中枢的最后一个中枢判定
    - 第三类买卖点需要中枢的ZG/ZD边缘
    - 中枢延伸/新生/扩张决定第三类买卖点后的走势
-3. **背驰（`.chanlun/definitions/beichi.md` v1.0 已结算，代码实现于 `src/newchan/a_divergence_v1.py`）** — 核心依赖
+3. **背驰（`.chanlun/definitions/beichi.md` v1.1 已结算，代码实现于 `src/newchan/a_divergence_v1.py`）** — 核心依赖
    - 第一类买卖点的触发条件 = 趋势背驰
    - 背驰的力度判断（MACD面积 / 价格振幅）
 
@@ -387,7 +387,7 @@ BSP.confirmed = underlying_Move.settled
 ### 影响的定义
 1. **走势类型定义 zoushi.md** — 买卖点定义填补了其未结算问题 #2（买卖点与走势类型的精确对应）
 2. **中枢定义 zhongshu.md** — 中枢破坏条件（定理三）与第三类买卖点的关系需要交叉引用
-3. **背驰定义 beichi.md v0.1** — 背驰与第一类买卖点的触发关系需要在两个定义文件中保持一致
+3. **背驰定义 beichi.md v1.1 已结算** — 背驰与第一类买卖点的触发关系需要在两个定义文件中保持一致
 
 ### 下游推论
 1. **操作策略**：
@@ -416,12 +416,12 @@ BSP.confirmed = underlying_Move.settled
 - **实现**：代码 0% 覆盖，是走势类型审计发现的最严重缺口
 - **状态**：**生成态** — 原因：
   1. ✅ 5个未结算问题全部已结算（#1/#2/#3/#4/#5）
-  2. ✅ beichi.md v1.0 已结算
+  2. ✅ beichi.md v1.1 已结算
   3. 需要与 zoushi.md、zhongshu.md 的未结算问题交叉结算
   4. 代码 0% 覆盖，尚未实现买卖点识别器
 
 **下一步**：
-1. ~~创建背驰定义文件~~ → ✅ 已完成（beichi.md v0.1）
+1. ~~创建背驰定义文件~~ → ✅ 已完成（beichi.md v1.1 已结算）
 2. ~~解决未结算问题 #1（下跌确立条件）~~ → ✅ 已结算（严格口径：≥2中枢）
 3. 设计买卖点数据结构和识别算法（`docs/spec/maimai_rules_v1.md`）
 4. 实现买卖点识别器（TDD流程）

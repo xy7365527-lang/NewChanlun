@@ -42,4 +42,4 @@ TFOrchestrator 降级为工程参考/调试工具，不作为核心引擎路径�
 - 前置：003-segment-concept-separation.md（Move[0] = v1 Segment 为唯一口径）
 - 前置：005-object-negation-principle.md（递归是对象产生对象的机制）
 - 定义文件：`.chanlun/definitions/level_recursion.md` v0.1
-- 阻塞：beichi.md #5 区间套
+- ~~阻塞：beichi.md #5 区间套~~ → ✅ 已解除（beichi.md v1.1 已结算）
