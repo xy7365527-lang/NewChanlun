@@ -1,7 +1,6 @@
 # MaiMai Rules v1 — 买卖点识别规范（草案）
 
-> **状态**：草案（DRAFT）— 依赖的 maimai.md v0.1 仍处于**生成态**，5 个未结算问题尚未解决。
-> 本规范中标注 `[TBD-N]` 的部分对应 maimai.md 的未结算问题 #N，待定义结算后更新。
+> 本规范基于 maimai.md v0.7（已结算）。原 5 个 TBD 问题已在定义中全部结算。
 
 ---
 
@@ -195,11 +194,11 @@ def buysellpoints_from_level(
 3. 返回所有第一类买卖点
 ```
 
-**`[TBD-1]` 下跌确立条件**：当前设计采用严格口径（Move.kind == "trend"），即必须有 ≥2 个同向中枢才算趋势确立。原文线索指向"走势转化"而非仅"趋势确立"，宽松口径下盘整后的下跌背驰也可能算某种形式的 1B。
+**`[TBD-1]` 下跌确立条件** [v0.7 RESOLVED]：当前设计采用严格口径（Move.kind == "trend"），即必须有 ≥2 个同向中枢才算趋势确立。原文线索指向"走势转化"而非仅"趋势确立"，宽松口径下盘整后的下跌背驰也可能算某种形式的 1B。
 
-**`[TBD-2]` 走势完成映射**：背驰点出现时走势是否已"完成"？当前设计将 `confirmed` 跟随 `Divergence.confirmed`，而 `Divergence.confirmed` 跟随 `TrendTypeInstance.confirmed`。走势完成的精确定义待 zoushi.md 结算。
+**`[TBD-2]` 走势完成映射** [v0.7 RESOLVED]：背驰点出现时走势是否已"完成"？当前设计将 `confirmed` 跟随 `Divergence.confirmed`，而 `Divergence.confirmed` 跟随 `TrendTypeInstance.confirmed`。走势完成的精确定义待 zoushi.md 结算。
 
-**`[TBD-4]` 盘整背驰与买卖点**：当前设计中 `_detect_type1()` 只处理 `Divergence(kind="trend")`。盘整背驰（`kind="consolidation"`）不产生标准三类买卖点中的任何一类，对应的是中枢震荡操作，不纳入本规范。如果后续需要支持，可扩展一个独立的 `_detect_consolidation_signal()` 函数，但其产出不是 `BuySellPoint`。
+**`[TBD-4]` 盘整背驰与买卖点** [v0.7 RESOLVED]：当前设计中 `_detect_type1()` 只处理 `Divergence(kind="trend")`。盘整背驰（`kind="consolidation"`）不产生标准三类买卖点中的任何一类，对应的是中枢震荡操作，不纳入本规范。如果后续需要支持，可扩展一个独立的 `_detect_consolidation_signal()` 函数，但其产出不是 `BuySellPoint`。
 
 ### 4.3 第二类买卖点识别 — `_detect_type2()`
 
@@ -253,9 +252,9 @@ def buysellpoints_from_level(
 3. 返回所有第三类买卖点
 ```
 
-**`[TBD-5]` 中枢范围**：当前设计使用 Zhongshu 数据类中的 `zg`/`zd`（初始三段确定，延伸不改变）。这与 zhongshu_rules_v1.md 的"固定区间策略 (D2)"一致：`[旧缠论:选择]`。
+**`[TBD-5]` 中枢范围** [v0.7 RESOLVED]：当前设计使用 Zhongshu 数据类中的 `zg`/`zd`（初始三段确定，延伸不改变）。这与 zhongshu_rules_v1.md 的"固定区间策略 (D2)"一致：`[旧缠论:选择]`。
 
-**`[TBD-3]` 确认时机**：第三类买卖点的确认需要回试段"完成"。当前段引擎中，段的"完成"通过 `SegmentSettleV1` 事件确认。但回试段本身可能尚未结算。设计选择：`confirmed = True` 当且仅当回试段已被下一个段的出现所结算。
+**`[TBD-3]` 确认时机** [v0.7 RESOLVED]：第三类买卖点的确认需要回试段"完成"。当前段引擎中，段的"完成"通过 `SegmentSettleV1` 事件确认。但回试段本身可能尚未结算。设计选择：`confirmed = True` 当且仅当回试段已被下一个段的出现所结算。
 
 ### 4.5 2B+3B 重合检测 — `_detect_overlap()`
 
@@ -416,11 +415,11 @@ BSP_MUTUAL_EXCLUSION（源自第21课）:
 
 | TBD | maimai.md 问题 | 影响范围 | 当前临时决策 | 翻转条件 |
 |-----|---------------|---------|------------|---------|
-| `[TBD-1]` | #1 下跌确立条件 | `_detect_type1()` 前提判定 | 严格口径：Move.kind == "trend" | 若采纳宽松口径（盘整后下跌也算），需扩展 type1 识别逻辑，允许 Move.kind == "consolidation" 的背驰也产生 1B |
-| `[TBD-2]` | #2 走势完成映射 | `confirmed` 语义 | 跟随 Divergence.confirmed | 若走势完成与背驰不等价，需引入独立的 `move_completed` 状态 |
-| `[TBD-3]` | #3 确认时机 | 所有类型的 `confirmed` 字段 | type1: 跟随 Divergence.confirmed；type2/type3: 跟随回调/回试段结算 | 若原文要求更严格的确认（如次级别走势类型完成），需修改确认逻辑 |
-| `[TBD-4]` | #4 盘整背驰与买卖点 | 是否扩展 BuySellPoint 覆盖 | 不纳入：盘整背驰 ≠ 三类买卖点中的任何一类 | 若决定纳入中枢震荡操作信号，需新增信号类型（非 BuySellPoint） |
-| `[TBD-5]` | #5 第三类买卖点的中枢范围 | `_detect_type3()` 中 ZG/ZD 取值 | 使用 Zhongshu.zg/zd（初始三段固定区间） | 若改用波动区间 GG/DD 或延伸后的区间，type3 判定标准改变 |
+| `[TBD-1]` | #1 下跌确立条件 | `_detect_type1()` 前提判定 | 严格口径：Move.kind == "trend" | 若采纳宽松口径（盘整后下跌也算），需扩展 type1 识别逻辑，允许 Move.kind == "consolidation" 的背驰也产生 1B  [v0.7 RESOLVED] |
+| `[TBD-2]` | #2 走势完成映射 | `confirmed` 语义 | 跟随 Divergence.confirmed | 若走势完成与背驰不等价，需引入独立的 `move_completed` 状态  [v0.7 RESOLVED] |
+| `[TBD-3]` | #3 确认时机 | 所有类型的 `confirmed` 字段 | type1: 跟随 Divergence.confirmed；type2/type3: 跟随回调/回试段结算 | 若原文要求更严格的确认（如次级别走势类型完成），需修改确认逻辑  [v0.7 RESOLVED] |
+| `[TBD-4]` | #4 盘整背驰与买卖点 | 是否扩展 BuySellPoint 覆盖 | 不纳入：盘整背驰 ≠ 三类买卖点中的任何一类 | 若决定纳入中枢震荡操作信号，需新增信号类型（非 BuySellPoint）  [v0.7 RESOLVED] |
+| `[TBD-5]` | #5 第三类买卖点的中枢范围 | `_detect_type3()` 中 ZG/ZD 取值 | 使用 Zhongshu.zg/zd（初始三段固定区间） | 若改用波动区间 GG/DD 或延伸后的区间，type3 判定标准改变  [v0.7 RESOLVED] |
 
 ---
 
