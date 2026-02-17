@@ -1,4 +1,4 @@
-# 元编排 v2 + Everything Claude Code 部署指南
+# 元编排 v3 + Everything Claude Code 部署指南
 
 ## 前提
 
@@ -77,16 +77,16 @@ deploy/
 │   ├── result-package.md               # 结果包格式强制
 │   └── testing-override.md             # 测试规则（加生成态例外）
 ├── commands/
-│   ├── ceremony.md                     # /ceremony 创世仪式
+│   ├── ceremony.md                     # /ceremony 开端（创世仪式）
 │   ├── inquire.md                      # /inquire 质询序列
-│   ├── escalate.md                     # /escalate 矛盾上浮
-│   └── ritual.md                       # /ritual 定义广播仪式
+│   ├── escalate.md                     # /escalate 矛盾上浮（含lead建议方案）
+│   └── ritual.md                       # /ritual 仪式（概念层收缩的顶点）
 └── skills/
     └── meta-orchestration/
         ├── SKILL.md                    # 元编排主指令
         ├── README.md
         └── references/
-            ├── methodology-v2.md       # 完整方法论
+            ├── methodology-v2.md       # 完整方法论（v2历史参考，v3变更见SKILL.md末尾）
             ├── genealogy-template.md   # 谱系记录模板
             └── result-package-template.md  # 结果包模板
 ```
@@ -133,10 +133,10 @@ deploy/
 
 1. `claude` 启动 → `/ceremony` 创世仪式
 2. 用缠论术语描述任务，让lead分配给teammates
-3. Teammates并行工作，互相质询（定义回溯、反例构造、推论检验）
-4. Lead监控质询循环，执行谱系比对
-5. 概念矛盾 → lead上浮 → 你用缠论语言做决断 → `/ritual`
-6. 谱系自动写入 `.chanlun/genealogy/`
+3. **系统自转：** Teammates并行工作、互相质询、解决实现层分歧；lead监控、做谱系比对、自主处理工程层矛盾
+4. **你不需要全程在线。** 系统在两个概念层转折点之间自主运行
+5. 概念层矛盾 → lead附带建议方案上浮 → 你用缠论语言做决断（或确认lead建议）→ `/ritual`
+6. 谱系自动写入 `.chanlun/genealogy/`（lead自主结算和编排者决断都会写入）
 7. 定义稳定的模块 → `/plan` → `/tdd` → `/code-review` 正常工程流
 
 ## 注意事项
@@ -146,3 +146,4 @@ deploy/
 - 元编排的 commands 和 rules 会占用一些上下文空间，但量不大
 - 谱系文件增长后，/ceremony 可能需要较多上下文加载，这时只加载摘要
 - Teammates 自动加载 rules 和 skills，不需要额外配置
+- **v3自转原则：** 如果你不确定是否该介入，让系统继续跑。真正需要你的时候矛盾报告会清晰地告诉你
