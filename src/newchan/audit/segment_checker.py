@@ -41,6 +41,8 @@ class SegmentInvariantChecker:
         self._pending_ids: set[int] = set()
         # (s0, s1, direction) → 已 settle 且未被 invalidate 的段
         self._settled_keys: set[tuple[int, int, str]] = set()
+        # I9: (s0, s1, direction) → 已被 invalidate 且未重新 settle 的段
+        self._invalidated_keys: set[tuple[int, int, str]] = set()
         # I17: (s0, direction) → 已 invalidate 的身份键（终态）
         self._terminal_identities: set[tuple[int, str]] = set()
         self._violation_seq: int = 0
@@ -49,6 +51,7 @@ class SegmentInvariantChecker:
         """重置（回放 seek 时调用）。"""
         self._pending_ids.clear()
         self._settled_keys.clear()
+        self._invalidated_keys.clear()
         self._terminal_identities.clear()
         self._violation_seq = 0
 
@@ -127,6 +130,8 @@ class SegmentInvariantChecker:
                 self._pending_ids.discard(ev.segment_id)
                 key = (ev.s0, ev.s1, ev.direction)
                 self._settled_keys.add(key)
+                # I9: settle 重新激活后清除 invalidated 标记
+                self._invalidated_keys.discard(key)
 
             elif isinstance(ev, SegmentInvalidateV1):
                 # I17: 记录身份键为终态
@@ -135,9 +140,17 @@ class SegmentInvariantChecker:
 
                 # I9: 同一段不能被 invalidate 两次而中间无 settle
                 key = (ev.s0, ev.s1, ev.direction)
-                if key not in self._settled_keys:
-                    # 未 settle 过就被 invalidate → 允许（pending 被撤销）
-                    pass
+                if key in self._invalidated_keys:
+                    violations.append(self._make_violation(
+                        bar_idx=bar_idx,
+                        bar_ts=bar_ts,
+                        code=I9_INVALIDATE_IDEMPOTENT,
+                        reason=(
+                            f"segment ({ev.s0}, {ev.s1}, {ev.direction}): "
+                            f"duplicate invalidate without intervening settle"
+                        ),
+                    ))
+                self._invalidated_keys.add(key)
                 self._settled_keys.discard(key)
 
         return violations
