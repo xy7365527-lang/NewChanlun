@@ -439,3 +439,103 @@ entities:
       - 级别
       - 买卖点
     agent_assignment: C买卖点
+
+  # ----------------------------------------------------------
+  # 12. 比价关系 (RatioRelation) — 跨标的维度
+  # ----------------------------------------------------------
+  - name: 比价关系
+    english_name: RatioRelation
+    code_class: make_ratio_kline
+    file: src/newchan/equivalence.py
+    implementation_status: implemented
+    necessary_conditions:
+      - "两个标的A、B有对齐的同周期OHLCV序列"
+      - "B的价格序列不为零"
+    sufficient_conditions:
+      - "ratio_OHLC = A.OHLC / B.OHLC, volume取主标的A"
+    boundary_conditions:
+      - "B价格为0时比价无意义(需过滤)"
+      - "A/B为常数时退化(无走势结构)"
+      - "数据频率由两标的中较低者决定"
+    counterexamples:
+      - "A/A = 1(常数, 退化, 不满足非退化条件)"
+    labels:
+      spec_section: ["docs/spec/ratio_relation_v1.md §1"]
+      kind: [ratio, cross_instrument]
+    testable_assertions:
+      - "IR-1: A/B上涨 ⟺ B/A下跌(对称性)"
+      - "IR-2: 比价走势独立于A或B各自走势(独立性)"
+      - "IR-3: 比价K线满足走势必完美(完备性, 继承已有管线)"
+    dependencies:
+      - K线
+      - 等价关系
+    agent_assignment: C比价
+
+  # ----------------------------------------------------------
+  # 13. 等价关系 (EquivalenceRelation) — 跨标的维度
+  # ----------------------------------------------------------
+  - name: 等价关系
+    english_name: EquivalenceRelation
+    code_class: EquivalencePair
+    file: src/newchan/equivalence.py
+    implementation_status: implemented
+    necessary_conditions:
+      - "可比性: 两个标的有重叠的交易时间窗口"
+      - "非退化: A/B比价不是常数（三层退化连锁检测）"
+      - "流动性: A和B都有充足市场深度"
+    sufficient_conditions:
+      - "满足三个必要条件即通过筛选, 可进行比价分析"
+    boundary_conditions:
+      - "A/A退化(自反性无意义)"
+      - "低流动性标的比价反映噪音而非资本流转"
+      - "不传递: A/B有意义 + B/C有意义 ≠ A/C有意义"
+      - "本体论降格(025号谱系): C-1/C-2/C-3是筛选条件, 非本体关系"
+    counterexamples:
+      - "A/A = 1(常数, 自反但退化)"
+      - "黄金/玉米(传递性不成立)"
+      - "A股/美股同一交易日无重叠(可比性不满足)"
+      - "GLD/IAU(CV=0.00048, 三层退化连锁)"
+    labels:
+      spec_section: ["docs/spec/equivalence_relation_v1.md"]
+      kind: [screening, cross_instrument]
+    testable_assertions:
+      - "validate_pair 对零价格/无重叠/常数比价返回 valid=False"
+      - "validate_pair 对GLD/SLV等有效对返回 valid=True"
+      - "对称性: validate_pair(A,B) == validate_pair(B,A)"
+    dependencies: []
+    agent_assignment: C比价
+
+  # ----------------------------------------------------------
+  # 14. 流转关系 (FlowRelation) — 跨标的维度·拓扑层
+  # ----------------------------------------------------------
+  - name: 流转关系
+    english_name: FlowRelation
+    code_class: "EdgeFlowInput, VertexFlowState, ResonanceStrength"
+    file: src/newchan/flow_relation.py
+    implementation_status: implemented
+    necessary_conditions:
+      - "四矩阵拓扑: 4顶点(动产/不动产/商品/现金)构成K₄完全图, 6条边"
+      - "边方向: 每条边上比价走势当前笔的FlowDirection"
+      - "顶点聚合: net(V) = Σflow(eᵢ,V), i=1..3"
+      - "共振判定: |net(V)| ≥ 2 → V处于共振状态"
+    sufficient_conditions:
+      - "源顶点net(V)≤-2且汇顶点net(W)≥+2时, 存在Flow(V→{W₁,W₂,...})"
+    boundary_conditions:
+      - "守恒约束: Σnet(V)=0, 破缺=跨区域流动信号"
+      - "结构性同步: 不同边走势各自有级别和节奏, 共振是结构同步非时钟同步"
+      - "强共振|net|=3(极端/危机) vs 弱共振|net|=2(主方向不一边倒)"
+      - "边均衡态: 中枢内flow=0, 不参与共振判定"
+    counterexamples:
+      - "|net|≤1: 无明确流转方向(噪音)"
+      - "四矩阵外流动: 守恒破缺检测"
+    labels:
+      spec_section: ["待建: docs/spec/flow_relation_v1.md"]
+      kind: [flow, topology, cross_instrument]
+    testable_assertions:
+      - "4顶点net_flow之和=0(守恒)"
+      - "强共振: 3条边全同向 → |net|=3"
+      - "弱共振: 2条边同向 → |net|=2"
+    dependencies:
+      - 比价关系
+      - 等价关系
+    agent_assignment: C比价

@@ -272,6 +272,13 @@ def api_synthetic():
 
     from newchan.synthetic import make_ratio, make_spread
 
+    validation = None
+    if op == "ratio":
+        from newchan.equivalence import validate_pair
+
+        vr = validate_pair(df_a, df_b)
+        validation = {"valid": vr.valid, "reason": vr.reason}
+
     if op == "spread":
         df_synth = make_spread(df_a, df_b)
     elif op == "ratio":
@@ -282,7 +289,10 @@ def api_synthetic():
     synth_name = f"{sym_a}_{sym_b}_{op}"
     cache_name = f"{synth_name}_{interval}_raw"
     save_df(cache_name, df_synth)
-    return _json_resp({"name": synth_name, "cache": cache_name, "count": len(df_synth)})
+    resp = {"name": synth_name, "cache": cache_name, "count": len(df_synth)}
+    if validation is not None:
+        resp["validation"] = validation
+    return _json_resp(resp)
 
 
 # ------------------------------------------------------------------
