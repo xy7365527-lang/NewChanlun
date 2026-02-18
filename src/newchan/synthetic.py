@@ -41,6 +41,7 @@ def make_ratio(df_a: pd.DataFrame, df_b: pd.DataFrame) -> pd.DataFrame:
     """计算比值：A / B。
 
     对 OHLC 四列分别做除法，volume 取 A 的成交量。
+    委托给 equivalence.make_ratio_kline 实现。
 
     Parameters
     ----------
@@ -52,12 +53,6 @@ def make_ratio(df_a: pd.DataFrame, df_b: pd.DataFrame) -> pd.DataFrame:
     pd.DataFrame
         比值 OHLCV DataFrame，可直接作为蜡烛图数据源。
     """
-    a, b = _align(df_a, df_b)
-    result = pd.DataFrame(index=a.index)
-    result["open"] = a["open"] / b["open"]
-    result["high"] = a["high"] / b["high"]
-    result["low"] = a["low"] / b["low"]
-    result["close"] = a["close"] / b["close"]
-    if "volume" in a.columns:
-        result["volume"] = a["volume"]
-    return result
+    from newchan.equivalence import make_ratio_kline
+
+    return make_ratio_kline(df_a, df_b)

@@ -301,6 +301,14 @@ def _cmd_synthetic(args: argparse.Namespace) -> None:
     df_a = _load_cache_or_exit(f"{sym_a}_{interval}_raw", sym_a, interval)
     df_b = _load_cache_or_exit(f"{sym_b}_{interval}_raw", sym_b, interval)
 
+    if op == "ratio":
+        from newchan.equivalence import validate_pair
+
+        vr = validate_pair(df_a, df_b)
+        if not vr.valid:
+            print(f"⚠ 等价对验证未通过: {vr.reason}")
+            print("  继续生成比价K线，但分析结果可能不可靠。")
+
     print(f"正在计算 {sym_a} {op} {sym_b} …")
     if op == "spread":
         df_synth = make_spread(df_a, df_b)
