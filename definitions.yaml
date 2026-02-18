@@ -439,3 +439,42 @@ entities:
       - 级别
       - 买卖点
     agent_assignment: C买卖点
+
+  # ----------------------------------------------------------
+  # 12. 比价关系 (RatioRelation) — 跨标的维度
+  # ----------------------------------------------------------
+  - name: 比价关系
+    english_name: RatioRelation
+    code_class: EquivalencePair
+    file: src/newchan/equivalence.py
+    implementation_status: implemented
+    necessary_conditions:
+      - "两个标的有重叠的交易时间窗口(可比性)"
+      - "A/B比价不是常数(非退化)"
+      - "A和B都有充足市场深度(流动性)"
+    sufficient_conditions:
+      - "满足三个必要条件即可构成等价对, 比价K线 = A.OHLC / B.OHLC"
+    boundary_conditions:
+      - "B价格为0时比价无意义(需过滤)"
+      - "A/B为常数时退化(无走势结构)"
+      - "低流动性标的比价反映噪音而非资本流转"
+    counterexamples:
+      - "A/A = 1(常数, 退化, 不满足非退化条件)"
+      - "黄金/玉米(A/B有意义+B/C有意义 ≠ A/C有意义, 不传递)"
+    labels:
+      spec_section: ["docs/spec/ratio_relation_v1.md"]
+      kind: [ratio, equivalence, cross_instrument]
+    testable_assertions:
+      - "IR-1: A/B上涨 ⟺ B/A下跌(对称性)"
+      - "IR-2: 比价走势独立于A或B各自走势(独立性)"
+      - "IR-3: 比价K线满足走势必完美(完备性)"
+      - "validate_pair 对零价格/无重叠/常数比价返回 valid=False"
+    dependencies:
+      - K线
+      - 包含关系
+      - 分型
+      - 笔
+      - 线段
+      - 中枢
+      - 走势类型
+    agent_assignment: C比价
