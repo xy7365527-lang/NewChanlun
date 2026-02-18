@@ -12,6 +12,17 @@ Types: feat, fix, refactor, docs, test, chore, perf, ci
 
 Note: Attribution disabled globally via ~/.claude/settings.json.
 
+## Merge Strategy（谱系012推论）
+
+PR 合入策略取决于 commit 是否携带谱系意义：
+
+| commit 性质 | 合入方式 | 理由 |
+|------------|---------|------|
+| 谱系推进（概念发现序列） | **rebase** | 保留生成史，每步可追溯 |
+| 中间碎片（typo/格式） | **squash** | 不携带信息差 |
+
+谱系优先于汇总（012号）→ 压扁有谱系意义的 commit = 压扁谱系。
+
 ## Pull Request Workflow
 
 When creating PRs:
