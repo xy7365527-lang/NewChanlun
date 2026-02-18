@@ -4,7 +4,7 @@
 > 日期：2026-02-18（v1.1 更新）
 > 前置：ontology-v1.md 命题5, ratio_relation_v1.md
 > 溯源：[旧缠论] 比价关系前置条件（第9课隐含）；[新缠论] 等价关系纯结构定义 + 实体不变量原则
-> genealogy_source: 023-equivalence-relation-formalization, 024-c2-dual-layer-detection, 025-equivalence-demotion-to-screening
+> genealogy_source: 023-equivalence-relation-formalization, 024-c2-three-layer-degeneracy, 025-equivalence-demotion-to-screening
 
 ---
 
@@ -305,7 +305,7 @@ validate_pair(df_a, df_b) → ValidationResult(valid, reason)
 
 ---
 
-## 7. 概念张力：等价关系的本体论地位
+## 7. 概念张力：等价关系的本体论地位（已决断 — 025号谱系）
 
 ### 7.1 缠师的三独立系统
 
@@ -332,7 +332,7 @@ validate_pair(df_a, df_b) → ValidationResult(valid, reason)
 - **有方向**：A/B 上升 = 资本从 B 流向 A，流转是有方向的
 - **共振涌现**：多条比价走势同方向运动 = 资本从一个角同时向多个角流出
 
-**当前状态**：本规范的 C-1/C-2/C-3 作为比价系统的**筛选条件**是有效的。但"等价关系"这个名称和框架可能需要在 L2 阶段重构为**流转关系**（保留方向、允许一对多、在四矩阵拓扑上展开）。本规范在 L1 阶段继续使用"等价"术语（缠师原文术语），但标注这个张力。
+**已决断（025号谱系）**：编排者确认 C-1/C-2/C-3 是**筛选条件**，不是本体关系。L2 的资本流转形式化由**流转关系**（定义 #14, `liuzhuan.md`）独立承担——四矩阵上的有向流场，从每条边的比价走势方向聚合涌现。本规范继续使用"等价"术语（缠师原文术语），但其性质已明确为筛选。
 
 ---
 
@@ -348,4 +348,4 @@ validate_pair(df_a, df_b) → ValidationResult(valid, reason)
 | 不传递性 | [新缠论] | ratio_relation_v1.md §2.1 首次指出 |
 | C-2 三层退化连锁检测 | [新缠论] | CV 预筛 + 结构层（笔力度）+ 动力层（MACD面积/背驰可判定性） |
 | 筛选条件 vs 本体关系 | [新缠论] | 三条件是筛选而非等价判定 |
-| 流转关系（L2） | [新缠论:生成态] | 一对多、有方向、共振涌现 |
+| 流转关系（L2） | [新缠论] | 已结算为独立定义 #14（liuzhuan.md）：四矩阵有向流场 |
