@@ -1,7 +1,7 @@
 # 等价关系 v1 — 形式化规范
 
-> 状态：设计稿 v1.1（§1 阈值从数据中确定）
-> 日期：2026-02-18（v1.1 更新）
+> 状态：正式规范 v1.1
+> 日期：2026-02-18（v1.1 /ritual 结算）
 > 前置：ontology-v1.md 命题5, ratio_relation_v1.md
 > 溯源：[旧缠论] 比价关系前置条件（第9课隐含）；[新缠论] 等价关系纯结构定义 + 实体不变量原则
 > genealogy_source: 023-equivalence-relation-formalization, 024-c2-three-layer-degeneracy, 025-equivalence-demotion-to-screening
