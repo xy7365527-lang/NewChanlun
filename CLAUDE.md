@@ -89,8 +89,9 @@ Always respond in Chinese-simplified (简体中文).
 - 原文参考：`docs/chanlun/text/chan99/`（编纂版，已知不完整；完整原文见三级权威链）
 
 ### 谱系目录
-- `.chanlun/genealogy/pending/` — 生成态矛盾
+- `.chanlun/genealogy/pending/` — 生成态矛盾（含 `tension-` 前缀的深度张力待审）
 - `.chanlun/genealogy/settled/` — 已结算记录
+- 谱系三种状态：`生成态` / `已结算` / `深度张力待审`（019d）
 
 ### 分布式指令架构（谱系014）
 
@@ -113,7 +114,7 @@ Always respond in Chinese-simplified (简体中文).
 - `/ceremony` — 创世仪式（会话开始时执行）
 - `/inquire` — 四步质询序列
 - `/escalate` — 矛盾上浮
-- `/ritual` — 定义广播仪式
+- `/ritual` — 定义广播仪式（覆盖域层+元层，019c）
 - `/plan` — 实现规划（ECC，受元编排约束）
 - `/tdd` — 测试驱动开发（ECC，受元编排约束）
 - `/code-review` — 代码审查（ECC，受元编排约束）

@@ -74,6 +74,13 @@ meta-observer 识别到"暗规则" → 编排者口头认可 → agent 直接修
 - `.claude/agents/meta-observer.md`：补充"元层修改的正确路径"
 - `CLAUDE.md`："可用命令"章节补充 /ritual 覆盖元层的说明
 
+## 实施记录
+
+- **日期**: 2026-02-18
+- **文件**: `.claude/commands/ritual.md`（元层覆盖章节）、`.claude/agents/meta-observer.md`（元层修改正确路径）、`CLAUDE.md`（/ritual 说明更新）
+- **定性修正（020号）**: 仪式不是外加的制动，是系统通过编排者完成的收缩相位
+- **设计选择**: 扩展 /ritual 覆盖元层，而非创建独立 /meta-ritual（DRY原则 + 016防跳过）
+
 ## 来源
 
 - [新缠论] — 系统性审计中发现的自指性缺口

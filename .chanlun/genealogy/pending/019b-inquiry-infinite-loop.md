@@ -80,6 +80,13 @@
 - `.claude/agents/genealogist.md`：响应中断增加退回循环触发
 - `.claude/agents/meta-lead.md`：路由规则增加退回计数判定
 
+## 实施记录
+
+- **日期**: 2026-02-18
+- **文件**: `.claude/commands/inquire.md`（退回循环管理章节）、`.claude/agents/quality-guard.md`（inquiry_round检查）
+- **定性修正（020号）**: 阈值=3 不是外部施加的限制，是系统的质询运动在第3次时自然产出的收缩相位
+- **新增**: 锚定条件要求——无锚定退回=语法不合法（005a同构）
+
 ## 来源
 
 - [新缠论] — 系统性审计中的循环控制分析
