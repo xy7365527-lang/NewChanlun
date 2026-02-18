@@ -196,7 +196,7 @@ class BspInvariantChecker:
 
         if ev.kind == "type3":
             # type3 不应关联趋势背驰（center_seg_start 必须有值）
-            if ev.center_seg_start == 0 and ev.seg_idx != 0:
+            if ev.center_seg_start is None:
                 violations.append(self._make_violation(
                     bar_idx=bar_idx,
                     bar_ts=bar_ts,
