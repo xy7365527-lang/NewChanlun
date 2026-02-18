@@ -12,10 +12,10 @@
 
 ontology-v1 命题5 声明"区间套从时间级别扩展到空间级别"，并给出形式化路径：A/B 比价直接除 → K线 → 走势 → 缠论结构。但这条路径缺少严格定义：
 
-1. **比价K线的构造规则**未形式化（make_ratio 只是工程实现，缺概念层规范）
-2. **等价关系未定义**：什么条件下两个标的可以构成比价对
-3. **比价走势语义未规范化**：比价一笔向上 = 资本从 B 流向 A，但这个语义映射没有被写入定义体系
-4. **四矩阵拓扑未落地**：引用了卢麒元框架但未给出具体边的定义
+1. **比价K线的构造规则**未形式化 → ✅ equivalence.py + ratio_relation_v1.md §1
+2. **等价关系未定义** → ✅ equivalence.py (validate_pair) + ratio_relation_v1.md §2
+3. **比价走势语义未规范化** → ✅ capital_flow.py + ratio_relation_v1.md §1.2
+4. **四矩阵拓扑未落地** → ✅ matrix_topology.py + ratio_relation_v1.md §3
 
 ## 发现过程
 
@@ -23,8 +23,8 @@ ontology-v1 命题5 声明"区间套从时间级别扩展到空间级别"，并�
 
 ## 当前产出
 
+### 规范层
 `docs/spec/ratio_relation_v1.md`（设计稿 v1.0）：
-
 - 比价K线构造规则（§1）
 - 比价走势语义映射（§1.2）
 - 三个不变量 IR-1/IR-2/IR-3（§1.3）
@@ -33,6 +33,17 @@ ontology-v1 命题5 声明"区间套从时间级别扩展到空间级别"，并�
 - 四矩阵拓扑框架（§3）
 - 与已有管线的集成路径（§4）
 
+### 实现层
+| 模块 | 功能 | 测试 |
+|------|------|------|
+| `equivalence.py` | 等价对验证 + 比价K线构造 | 17 |
+| `ratio_engine.py` | 多对比价并行分析调度 | 15 |
+| `capital_flow.py` | 比价走势→资本流转语义映射 | 18 |
+| `matrix_topology.py` | 四矩阵拓扑管理 | 28 |
+| `test_ratio_pipeline.py` | 比价K线E2E管线验证 | 4 |
+
+总计：82 测试，全量套件 1218 passed
+
 ## 推导链
 
 1. ontology-v1 命题1：缠论 = 资本运动的形式语法
@@ -40,6 +51,7 @@ ontology-v1 命题5 声明"区间套从时间级别扩展到空间级别"，并�
 3. 第一阶段管线已完备 → 比价K线可直接输入已有管线
 4. 但管线只处理数据结构，缺概念层的语义定义
 5. ∴ 需要形式化比价关系和等价关系，才能使管线输出携带资本流转含义
+6. 四个缺口（构造规则+等价关系+语义映射+四矩阵）均已有规范+实现+测试
 
 ## 谱系链接
 
@@ -50,8 +62,11 @@ ontology-v1 命题5 声明"区间套从时间级别扩展到空间级别"，并�
 ## 影响
 
 - `docs/spec/ratio_relation_v1.md` — 新建
+- `src/newchan/equivalence.py` — 新建
+- `src/newchan/ratio_engine.py` — 新建
+- `src/newchan/capital_flow.py` — 新建
+- `src/newchan/matrix_topology.py` — 新建
 - 后续将影响 `.chanlun/definitions/` — 需要新增比价关系和等价关系的定义文件
-- `src/newchan/` — 新增 equivalence.py 等模块
 
 ## 来源
 
