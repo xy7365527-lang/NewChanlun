@@ -12,6 +12,7 @@ Diff 规则（身份键映射 diff，非位置对位）：
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 
 from newchan.a_buysellpoint_v1 import BuySellPoint
@@ -37,8 +38,10 @@ class BuySellPointSnapshot:
 
 
 def _stable_bsp_id(key: tuple[int, str, str, int]) -> int:
-    """身份键 → 稳定的正整数 bsp_id。"""
-    return hash(key) & 0x7FFFFFFF
+    """身份键 → 稳定的正整数 bsp_id（跨运行确定性）。"""
+    raw = f"{key[0]}|{key[1]}|{key[2]}|{key[3]}"
+    digest = hashlib.sha256(raw.encode("utf-8")).digest()
+    return int.from_bytes(digest[:4], "big") & 0x7FFFFFFF
 
 
 def diff_buysellpoints(

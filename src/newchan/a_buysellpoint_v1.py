@@ -52,7 +52,7 @@ class BuySellPoint:
     divergence_key: tuple[int, int, int] | None
     center_zd: float
     center_zg: float
-    center_seg_start: int
+    center_seg_start: int | None
 
     # 状态字段
     price: float

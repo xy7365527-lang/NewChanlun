@@ -268,7 +268,7 @@ class BuySellPointCandidateV1(DomainEvent):
     seg_idx: int = 0
     price: float = 0.0
     move_seg_start: int = 0
-    center_seg_start: int = 0
+    center_seg_start: int | None = None
     overlaps_with: str = ""  # "" / "type2" / "type3"
 
 
