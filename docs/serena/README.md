@@ -8,36 +8,31 @@
 
 ### 前置依赖（Windows）
 
-本仓库的 `.mcp.json` 使用 `uvx --from git+https://...` 启动 Serena，因此需要：
+本仓库通过 **Serena 官方插件** (`serena@claude-plugins-official`) 加载 Serena，无需额外依赖。
 
-- `uv`（会自带 `uvx`）
-- `git`（用于拉取 `git+https://github.com/oraios/serena`）
+> **注意**：本仓库不再使用 `.mcp.json` 配置 Serena。之前同时存在 `.mcp.json` 和插件会导致工具名冲突（API 400 错误）。如果你的环境中仍有 `.mcp.json` 里的 serena 配置，请删除它。
 
-可用 winget 安装：
+### 插件方式（当前使用，推荐）
 
-```powershell
-winget install --id astral-sh.uv -e
-winget install --id Git.Git -e
+Serena 已在 `.claude/settings.json` 的 `enabledPlugins` 中启用：
+```json
+"serena@claude-plugins-official": true
 ```
+Claude Code 启动时自动加载，无需手动配置。
 
-### 方式一：按项目配置（仅当前仓库生效）
+### 手动配置方式（备选）
 
-在仓库根目录打开 PowerShell，执行：
+如果不使用插件，也可以手动添加：
 
 ```powershell
+# 方式一：按项目配置
 claude mcp add serena -- uvx --from git+https://github.com/oraios/serena serena start-mcp-server --context claude-code --project "$($PWD.Path)"
-```
 
-### 方式二：全局配置（所有项目通用）
-
-```powershell
+# 方式二：全局配置
 claude mcp add --scope user serena -- uvx --from git+https://github.com/oraios/serena serena start-mcp-server --context=claude-code --project-from-cwd
 ```
 
-说明：
-
-- `--context claude-code`：关闭一些在 Claude Code 里重复的工具描述，减少冗余。
-- `--project-from-cwd`：Serena 会从当前目录向上寻找 `.serena/project.yml` 或 `.git`，自动把包含它们的目录当作项目根。
+手动方式需要 `uv`（含 `uvx`）和 `git`。**不要同时启用插件和手动配置，否则会导致工具名冲突。**
 
 ---
 
@@ -101,17 +96,20 @@ set ENABLE_TOOL_SEARCH=true && claude
 
 ### `/mcp` 里 `serena` 显示 `failed`
 
-这表示你项目里的 `C:\Users\hanju\NewChanlun\.mcp.json` 里配置的 Serena 进程**没启动成功**（最常见原因：`uvx` 或 `git` 不在 PATH）。
+如果使用插件方式，检查 `/mcp` 中 `plugin:serena:serena` 的状态。如果显示 `connected` 则正常工作。
 
-在 PowerShell 里检查：
+如果使用手动配置方式，常见原因是 `uvx` 或 `git` 不在 PATH：
 
 ```powershell
 where uvx
 where git
 ```
 
-- 如果找不到：先按上面的 winget 命令安装依赖，然后**重启 Claude Code**（或至少重开终端让 PATH 生效）。
-- 如果你已经在 `/mcp` 里看到 `plugin:serena:serena` 是 `connected`：通常说明你已经有可用的 Serena 插件，此时可以选择**删除/移除**项目里的 `.mcp.json` 这条 `serena` 配置，避免重复与误报。
+如果找不到：安装依赖后**重启 Claude Code**。
+
+### 工具名冲突（API 400 错误）
+
+如果同时存在 `.mcp.json` 中的 serena 配置和 `serena@claude-plugins-official` 插件，会导致工具名重复注册，API 返回 400 错误。解决方法：只保留一种配置方式，删除另一种。
 
 ### Claude Code 提示词（不想记路径时）
 
