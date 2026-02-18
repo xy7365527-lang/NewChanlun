@@ -3,15 +3,11 @@
 BuySellPointSnapshot: 一次 BSP 计算后的完整快照。
 diff_buysellpoints: 比较前后两次 BSP 列表，产生域事件。
 
-Diff 规则（与 diff_moves 同构，新增 confirm 状态转换）：
-1. 找公共前缀（_bsp_equal 严格比较身份键 + 状态字段）
-2. prev 后缀：同身份 → 跳过 invalidate；否则 → BuySellPointInvalidateV1
-3. curr 后缀：
-   - 全新 BSP + confirmed=True → Candidate + Confirm（保证 I24）
-   - 全新 BSP + confirmed=False → Candidate
-   - 同身份 + confirmed 升级(F→T) → Confirm
-   - 同身份 + settled 升级(F→T) → Settle
-   - 同身份 + price/overlaps_with 变化 → Candidate（更新）
+Diff 规则（身份键映射 diff，非位置对位）：
+1. 构建 prev/curr 的身份键映射 {(seg_idx, kind, side, level_id) → BuySellPoint}
+2. prev_only → BuySellPointInvalidateV1
+3. curr_only → BuySellPointCandidateV1 (+ ConfirmV1 if confirmed，保证 I24)
+4. both → 检查状态变化（confirmed/settled/price/overlaps_with）
 """
 
 from __future__ import annotations
@@ -19,7 +15,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from newchan.a_buysellpoint_v1 import BuySellPoint
-from newchan.core.diff.identity import same_bsp_identity
+from newchan.core.diff.identity import bsp_identity_key
 from newchan.events import (
     BuySellPointCandidateV1,
     BuySellPointConfirmV1,
@@ -40,18 +36,9 @@ class BuySellPointSnapshot:
     events: list[DomainEvent]
 
 
-def _bsp_equal(a: BuySellPoint, b: BuySellPoint) -> bool:
-    """严格比较两个 BSP（身份键 + 所有状态字段）。"""
-    return (
-        a.seg_idx == b.seg_idx
-        and a.kind == b.kind
-        and a.side == b.side
-        and a.level_id == b.level_id
-        and a.confirmed == b.confirmed
-        and a.settled == b.settled
-        and a.price == b.price
-        and a.overlaps_with == b.overlaps_with
-    )
+def _stable_bsp_id(key: tuple[int, str, str, int]) -> int:
+    """身份键 → 稳定的正整数 bsp_id。"""
+    return hash(key) & 0x7FFFFFFF
 
 
 def diff_buysellpoints(
@@ -63,6 +50,8 @@ def diff_buysellpoints(
     seq_start: int = 0,
 ) -> list[DomainEvent]:
     """比较前后两次 BSP 列表，产生域事件。
+
+    使用身份键映射 diff（非位置对位），正确处理中间删除/插入。
 
     Parameters
     ----------
@@ -78,18 +67,19 @@ def diff_buysellpoints(
     list[DomainEvent]
         按因果顺序：先 invalidate，再 candidate/confirm/settle。
     """
-    events: list[DomainEvent] = []
+    invalidate_events: list[DomainEvent] = []
+    update_events: list[DomainEvent] = []
     seq = seq_start
 
-    # ── 找公共前缀 ──
-    common_len = 0
-    for i in range(min(len(prev), len(curr))):
-        if _bsp_equal(prev[i], curr[i]):
-            common_len = i + 1
-        else:
-            break
+    # ── 构建身份键映射 ──
+    prev_map: dict[tuple[int, str, str, int], BuySellPoint] = {
+        bsp_identity_key(bp): bp for bp in prev
+    }
+    curr_map: dict[tuple[int, str, str, int], BuySellPoint] = {
+        bsp_identity_key(bp): bp for bp in curr
+    }
 
-    def _append(cls: type, **kwargs: object) -> None:
+    def _append_inv(cls: type, **kwargs: object) -> None:
         nonlocal seq
         eid = compute_event_id(
             bar_idx=bar_idx,
@@ -98,69 +88,51 @@ def diff_buysellpoints(
             seq=seq,
             payload=dict(kwargs),
         )
-        events.append(cls(bar_idx=bar_idx, bar_ts=bar_ts, seq=seq, event_id=eid, **kwargs))
+        invalidate_events.append(
+            cls(bar_idx=bar_idx, bar_ts=bar_ts, seq=seq, event_id=eid, **kwargs)
+        )
         seq += 1
 
-    # ── prev 后缀 → invalidated（跳过同身份升级项）──
-    for i in range(common_len, len(prev)):
-        bp = prev[i]
-        curr_bp = curr[i] if i < len(curr) else None
-        if curr_bp is not None and same_bsp_identity(bp, curr_bp):
-            continue  # 同身份 → 状态变化，不 invalidate
-        _append(
+    def _append_upd(cls: type, **kwargs: object) -> None:
+        nonlocal seq
+        eid = compute_event_id(
+            bar_idx=bar_idx,
+            bar_ts=bar_ts,
+            event_type=cls.__dataclass_fields__["event_type"].default,
+            seq=seq,
+            payload=dict(kwargs),
+        )
+        update_events.append(
+            cls(bar_idx=bar_idx, bar_ts=bar_ts, seq=seq, event_id=eid, **kwargs)
+        )
+        seq += 1
+
+    prev_keys = set(prev_map.keys())
+    curr_keys = set(curr_map.keys())
+
+    # ── 消失的 BSP → Invalidate（按 key 排序确保确定性）──
+    for key in sorted(prev_keys - curr_keys):
+        bp = prev_map[key]
+        _append_inv(
             BuySellPointInvalidateV1,
-            bsp_id=i,
+            bsp_id=_stable_bsp_id(key),
             kind=bp.kind,
             side=bp.side,
             level_id=bp.level_id,
             seg_idx=bp.seg_idx,
         )
 
-    # ── curr 后缀 ──
-    for i in range(common_len, len(curr)):
-        bp = curr[i]
-        prev_bp = prev[i] if i < len(prev) else None
+    # ── 新增或状态变化的 BSP（按 key 排序确保确定性）──
+    for key in sorted(curr_keys):
+        bp = curr_map[key]
+        bid = _stable_bsp_id(key)
+        old = prev_map.get(key)
 
-        if prev_bp is not None and same_bsp_identity(prev_bp, bp):
-            # 同身份但状态变了
-            if not prev_bp.confirmed and bp.confirmed:
-                _append(
-                    BuySellPointConfirmV1,
-                    bsp_id=i,
-                    kind=bp.kind,
-                    side=bp.side,
-                    level_id=bp.level_id,
-                    seg_idx=bp.seg_idx,
-                    price=bp.price,
-                )
-            elif not prev_bp.settled and bp.settled:
-                _append(
-                    BuySellPointSettleV1,
-                    bsp_id=i,
-                    kind=bp.kind,
-                    side=bp.side,
-                    level_id=bp.level_id,
-                    seg_idx=bp.seg_idx,
-                    price=bp.price,
-                )
-            elif prev_bp.price != bp.price or prev_bp.overlaps_with != bp.overlaps_with:
-                _append(
-                    BuySellPointCandidateV1,
-                    bsp_id=i,
-                    kind=bp.kind,
-                    side=bp.side,
-                    level_id=bp.level_id,
-                    seg_idx=bp.seg_idx,
-                    price=bp.price,
-                    move_seg_start=bp.move_seg_start,
-                    center_seg_start=bp.center_seg_start,
-                    overlaps_with=bp.overlaps_with or "",
-                )
-        else:
+        if old is None:
             # 全新 BSP
-            _append(
+            _append_upd(
                 BuySellPointCandidateV1,
-                bsp_id=i,
+                bsp_id=bid,
                 kind=bp.kind,
                 side=bp.side,
                 level_id=bp.level_id,
@@ -172,14 +144,50 @@ def diff_buysellpoints(
             )
             if bp.confirmed:
                 # 首次出现即已 confirmed → Candidate + Confirm（保证 I24）
-                _append(
+                _append_upd(
                     BuySellPointConfirmV1,
-                    bsp_id=i,
+                    bsp_id=bid,
                     kind=bp.kind,
                     side=bp.side,
                     level_id=bp.level_id,
                     seg_idx=bp.seg_idx,
                     price=bp.price,
                 )
+        else:
+            # 同身份 BSP — 检查状态变化
+            if not old.confirmed and bp.confirmed:
+                _append_upd(
+                    BuySellPointConfirmV1,
+                    bsp_id=bid,
+                    kind=bp.kind,
+                    side=bp.side,
+                    level_id=bp.level_id,
+                    seg_idx=bp.seg_idx,
+                    price=bp.price,
+                )
+            elif not old.settled and bp.settled:
+                _append_upd(
+                    BuySellPointSettleV1,
+                    bsp_id=bid,
+                    kind=bp.kind,
+                    side=bp.side,
+                    level_id=bp.level_id,
+                    seg_idx=bp.seg_idx,
+                    price=bp.price,
+                )
+            elif old.price != bp.price or old.overlaps_with != bp.overlaps_with:
+                _append_upd(
+                    BuySellPointCandidateV1,
+                    bsp_id=bid,
+                    kind=bp.kind,
+                    side=bp.side,
+                    level_id=bp.level_id,
+                    seg_idx=bp.seg_idx,
+                    price=bp.price,
+                    move_seg_start=bp.move_seg_start,
+                    center_seg_start=bp.center_seg_start,
+                    overlaps_with=bp.overlaps_with or "",
+                )
 
-    return events
+    # 因果序：invalidate 在前，candidate/confirm/settle 在后
+    return invalidate_events + update_events
