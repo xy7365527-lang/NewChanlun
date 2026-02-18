@@ -445,36 +445,60 @@ entities:
   # ----------------------------------------------------------
   - name: 比价关系
     english_name: RatioRelation
+    code_class: make_ratio_kline
+    file: src/newchan/equivalence.py
+    implementation_status: implemented
+    necessary_conditions:
+      - "两个标的A、B有对齐的同周期OHLCV序列"
+      - "B的价格序列不为零"
+    sufficient_conditions:
+      - "ratio_OHLC = A.OHLC / B.OHLC, volume取主标的A"
+    boundary_conditions:
+      - "B价格为0时比价无意义(需过滤)"
+      - "A/B为常数时退化(无走势结构)"
+      - "数据频率由两标的中较低者决定"
+    counterexamples:
+      - "A/A = 1(常数, 退化, 不满足非退化条件)"
+    labels:
+      spec_section: ["docs/spec/ratio_relation_v1.md §1"]
+      kind: [ratio, cross_instrument]
+    testable_assertions:
+      - "IR-1: A/B上涨 ⟺ B/A下跌(对称性)"
+      - "IR-2: 比价走势独立于A或B各自走势(独立性)"
+      - "IR-3: 比价K线满足走势必完美(完备性, 继承已有管线)"
+    dependencies:
+      - K线
+      - 等价关系
+    agent_assignment: C比价
+
+  # ----------------------------------------------------------
+  # 13. 等价关系 (EquivalenceRelation) — 跨标的维度
+  # ----------------------------------------------------------
+  - name: 等价关系
+    english_name: EquivalenceRelation
     code_class: EquivalencePair
     file: src/newchan/equivalence.py
     implementation_status: implemented
     necessary_conditions:
-      - "两个标的有重叠的交易时间窗口(可比性)"
-      - "A/B比价不是常数(非退化)"
-      - "A和B都有充足市场深度(流动性)"
+      - "可比性: 两个标的有重叠的交易时间窗口"
+      - "非退化: A/B比价不是常数"
+      - "流动性: A和B都有充足市场深度"
     sufficient_conditions:
-      - "满足三个必要条件即可构成等价对, 比价K线 = A.OHLC / B.OHLC"
+      - "满足三个必要条件即构成等价对, 可进行比价分析"
     boundary_conditions:
-      - "B价格为0时比价无意义(需过滤)"
-      - "A/B为常数时退化(无走势结构)"
+      - "A/A退化(自反性无意义)"
       - "低流动性标的比价反映噪音而非资本流转"
+      - "不传递: A/B有意义 + B/C有意义 ≠ A/C有意义"
     counterexamples:
-      - "A/A = 1(常数, 退化, 不满足非退化条件)"
-      - "黄金/玉米(A/B有意义+B/C有意义 ≠ A/C有意义, 不传递)"
+      - "A/A = 1(常数, 自反但退化)"
+      - "黄金/玉米(传递性不成立)"
+      - "A股/美股同一交易日无重叠(可比性不满足)"
     labels:
-      spec_section: ["docs/spec/ratio_relation_v1.md"]
-      kind: [ratio, equivalence, cross_instrument]
+      spec_section: ["docs/spec/ratio_relation_v1.md §2"]
+      kind: [equivalence, cross_instrument]
     testable_assertions:
-      - "IR-1: A/B上涨 ⟺ B/A下跌(对称性)"
-      - "IR-2: 比价走势独立于A或B各自走势(独立性)"
-      - "IR-3: 比价K线满足走势必完美(完备性)"
       - "validate_pair 对零价格/无重叠/常数比价返回 valid=False"
-    dependencies:
-      - K线
-      - 包含关系
-      - 分型
-      - 笔
-      - 线段
-      - 中枢
-      - 走势类型
+      - "validate_pair 对GLD/SLV等有效对返回 valid=True"
+      - "对称性: validate_pair(A,B) == validate_pair(B,A)"
+    dependencies: []
     agent_assignment: C比价
