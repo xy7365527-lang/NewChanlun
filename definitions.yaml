@@ -358,9 +358,9 @@ entities:
   # ----------------------------------------------------------
   - name: 买卖点
     english_name: BuySellPoint
-    code_class: "(缺失 -- 需实现)"
-    file: "(缺失)"
-    implementation_status: missing
+    code_class: BuySellPoint
+    file: src/newchan/a_buysellpoint_v1.py
+    implementation_status: complete
     necessary_conditions:
       - "所有买卖点都必然对应着与该级别最靠近的一个走势中枢的关系(原文§操作四.二)"
       - "第一类买点(原文§操作四.一): 某级别下跌趋势中, 一个次级别走势类型向下跌破最后一个走势中枢后形成的背驰点"
@@ -409,9 +409,9 @@ entities:
   # ----------------------------------------------------------
   - name: 区间套
     english_name: IntervalNesting
-    code_class: "(缺失 -- 需实现)"
-    file: "(缺失)"
-    implementation_status: missing
+    code_class: NestedDivergence
+    file: src/newchan/a_nested_divergence.py
+    implementation_status: complete
     necessary_conditions:
       - "根据背驰段从高级别向低级别逐级寻找背驰点的方法(原文§操作六.一)"
       - "精确大转折点寻找程序定理: 某大级别的转折点, 可以通过不同级别背驰段的逐级收缩范围而确定(原文§操作六.一)"
