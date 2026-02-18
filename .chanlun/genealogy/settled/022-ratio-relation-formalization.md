@@ -1,8 +1,10 @@
 # 022 — 比价关系与等价关系的形式化
 
-**状态**: 生成态
+**状态**: 已结算
 **类型**: domain
 **日期**: 2026-02-18
+**结算日期**: 2026-02-18
+**结算方式**: /ritual（编排者决断 — 选择类）
 **溯源**: [旧缠论] 第9课（比价变动构成独立买卖系统）+ [旧缠论:隐含] + [新缠论]
 **域**: 比价关系（第二阶段入口）
 
@@ -17,21 +19,26 @@ ontology-v1 命题5 声明"区间套从时间级别扩展到空间级别"，并�
 3. **比价走势语义未规范化** → ✅ capital_flow.py + ratio_relation_v1.md §1.2
 4. **四矩阵拓扑未落地** → ✅ matrix_topology.py + ratio_relation_v1.md §3
 
+## 结算理由
+
+四个矛盾点全部有：规范（ratio_relation_v1.md）+ 实现（4个模块）+ 测试（82个）+ E2E 验证（IR-3 完备性）。
+
+编排者决断：
+1. 比价和等价是跨标的维度的基础概念，需要独立定义文件（与笔、线段同级）
+2. 规范升级需走 /ritual（结晶必须经过谱系记录已结算）
+
 ## 发现过程
 
 第一阶段完成度评估触发。1140 测试全过，9 个定义全结算，区间套（时间维度）已实现。自然进入第二阶段入口：命题5 的空间维度扩展。
 
-## 当前产出
+## 产出
+
+### 定义层（/ritual 结算）
+- `.chanlun/definitions/bijia.md` v1.0 — 比价关系定义（跨标的维度基础概念）
+- `.chanlun/definitions/dengjia.md` v1.0 — 等价关系定义（跨标的维度基础概念）
 
 ### 规范层
-`docs/spec/ratio_relation_v1.md`（设计稿 v1.0）：
-- 比价K线构造规则（§1）
-- 比价走势语义映射（§1.2）
-- 三个不变量 IR-1/IR-2/IR-3（§1.3）
-- 等价关系定义（§2.1）— 可比性 + 非退化 + 流动性
-- 等价对分类（§2.2）
-- 四矩阵拓扑框架（§3）
-- 与已有管线的集成路径（§4）
+- `docs/spec/ratio_relation_v1.md` — 正式规范 v1.0（从设计稿升级）
 
 ### 实现层
 | 模块 | 功能 | 测试 |
@@ -48,25 +55,29 @@ ontology-v1 命题5 声明"区间套从时间级别扩展到空间级别"，并�
 
 1. ontology-v1 命题1：缠论 = 资本运动的形式语法
 2. ontology-v1 命题5：同一语法适用于比价K线
-3. 第一阶段管线已完备 → 比价K线可直接输入已有管线
-4. 但管线只处理数据结构，缺概念层的语义定义
-5. ∴ 需要形式化比价关系和等价关系，才能使管线输出携带资本流转含义
-6. 四个缺口（构造规则+等价关系+语义映射+四矩阵）均已有规范+实现+测试
+3. 第9课：比价变动构成独立买卖系统，与资金流向相关
+4. 第一阶段管线已完备 → 比价K线可直接输入已有管线
+5. 但管线只处理数据结构，缺概念层的语义定义
+6. ∴ 需要形式化比价关系和等价关系，才能使管线输出携带资本流转含义
+7. 四个缺口（构造规则+等价关系+语义映射+四矩阵）均已有规范+实现+测试
+8. 编排者决断：加定义文件 + 走 /ritual → 结算
 
 ## 谱系链接
 
 - **前置**: 020-constitutive-contradiction（ontology-v1 命题5 是本条的起点）
-- **前置**: 已有管线的所有定义（fenxing, bi, xianduan, zhongshu, zoushi, beichi, maimai, level_recursion）
-- **关联**: 已有实现 src/newchan/synthetic.py::make_ratio()
+- **前置**: 已有管线的所有定义（fenxing, bi, xianduan, zhongshu, zoushi, beichi, maimai, level_recursion, baohan）
+- **关联**: 已有实现 src/newchan/synthetic.py::make_ratio()（已整合为委托）
 
 ## 影响
 
-- `docs/spec/ratio_relation_v1.md` — 新建
+- `.chanlun/definitions/bijia.md` — 新建
+- `.chanlun/definitions/dengjia.md` — 新建
+- `docs/spec/ratio_relation_v1.md` — 从设计稿升级为正式规范
 - `src/newchan/equivalence.py` — 新建
 - `src/newchan/ratio_engine.py` — 新建
 - `src/newchan/capital_flow.py` — 新建
 - `src/newchan/matrix_topology.py` — 新建
-- 后续将影响 `.chanlun/definitions/` — 需要新增比价关系和等价关系的定义文件
+- `src/newchan/synthetic.py` — make_ratio 重构为委托
 
 ## 来源
 
