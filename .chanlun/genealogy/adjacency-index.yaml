@@ -1,0 +1,722 @@
+# 谱系邻接索引 — 自动生成
+# 最后更新: 2026-02-18
+# 总节点数: 26
+# 总有向边数: 80（每条边在两个节点各列一次，共160条链接条目）
+# Hub节点（度>=4）: 见 hub_nodes 章节（21个）
+# 度数计算方法: degree = 节点参与的链接条目数（出向+入向），对称关系两端各计一次
+
+relation_types:
+  - derives_from    # 前置/前提谱系/推导自
+  - relates_to      # 关联
+  - followed_by     # 后续
+  - child_of        # 子→父（"父记录"声明的反向）
+  - parent_of       # 父→子（隐含，从child_of推导）
+  - sibling_of      # 兄弟记录
+  - tension_with    # 张力
+  - tension_source  # 矛盾双源
+  - triggers        # 触发
+  - isomorphic_to   # 同构
+
+hub_nodes:
+  - 005b-object-negates-object-grammar    # degree: 14 — 跨域桥接王
+  - 010-construction-vs-classification    # degree: 9  — 域概念↔元编排桥
+  - 012-genealogy-is-discovery-engine     # degree: 9  — 元编排↔循环审计桥
+  - 013-swarm-structural-stations         # degree: 9  — 元编排核心
+  - 016-runtime-enforcement-layer         # degree: 9  — 元编排核心
+  - 019-loop-breakpoint-coverage          # degree: 9  — 循环审计核心
+  - 015-method-is-content                 # degree: 8
+  - 006-level-recursion                   # degree: 7
+  - 007-trend-is-entity                   # degree: 7
+  - 008-trend-level-independence          # degree: 7
+  - 017-session-as-pointer                # degree: 7
+  - 019d-tension-check-limits             # degree: 7
+  - 003-segment-concept-separation        # degree: 6
+  - 009-consolidation-identity            # degree: 6
+  - 014-skill-card-deck-decomposition     # degree: 6
+  - 020-constitutive-contradiction        # degree: 6
+  - 019c-meta-ritual-gap                  # degree: 5
+  - 001-degenerate-segment                # degree: 4
+  - 004-provenance-framework              # degree: 4
+  - 019a-round-and-progress-loss          # degree: 4
+  - 019b-inquiry-infinite-loop            # degree: 4
+
+nodes:
+  001-degenerate-segment:
+    status: settled
+    links:
+      - target: 002-source-incompleteness
+        type: followed_by
+        direction: outgoing
+      - target: 003-segment-concept-separation
+        type: followed_by
+        direction: outgoing
+      - target: 002-source-incompleteness
+        type: derives_from
+        direction: incoming
+      - target: 003-segment-concept-separation
+        type: derives_from
+        direction: incoming
+    degree: 4
+    hub: true
+
+  002-source-incompleteness:
+    status: settled
+    links:
+      - target: 001-degenerate-segment
+        type: derives_from
+        direction: outgoing
+      - target: 001-degenerate-segment
+        type: followed_by
+        direction: incoming
+      - target: 003-segment-concept-separation
+        type: derives_from
+        direction: incoming
+    degree: 3
+    hub: false
+
+  003-segment-concept-separation:
+    status: settled
+    links:
+      - target: 001-degenerate-segment
+        type: derives_from
+        direction: outgoing
+      - target: 002-source-incompleteness
+        type: derives_from
+        direction: outgoing
+      - target: 001-degenerate-segment
+        type: followed_by
+        direction: incoming
+      - target: 004-provenance-framework
+        type: relates_to
+        direction: incoming
+      - target: 006-level-recursion
+        type: derives_from
+        direction: incoming
+      - target: 007-trend-is-entity
+        type: derives_from
+        direction: incoming
+    degree: 6
+    hub: true
+
+  004-provenance-framework:
+    status: settled
+    links:
+      - target: 005b-object-negates-object-grammar
+        type: followed_by
+        direction: outgoing
+      - target: 003-segment-concept-separation
+        type: relates_to
+        direction: outgoing
+      - target: 005b-object-negates-object-grammar
+        type: derives_from
+        direction: incoming
+      - target: 013-swarm-structural-stations
+        type: relates_to
+        direction: incoming
+    degree: 4
+    hub: true
+
+  005-object-negation-principle:
+    status: settled
+    links:
+      - target: 005a-prohibition-theorem
+        type: parent_of
+        direction: outgoing
+      - target: 005b-object-negates-object-grammar
+        type: parent_of
+        direction: outgoing
+    degree: 2
+    hub: false
+
+  005a-prohibition-theorem:
+    status: settled
+    links:
+      - target: 005-object-negation-principle
+        type: child_of
+        direction: outgoing
+      - target: 005b-object-negates-object-grammar
+        type: sibling_of
+        direction: outgoing
+      - target: 005b-object-negates-object-grammar
+        type: sibling_of
+        direction: incoming
+    degree: 3
+    hub: false
+
+  005b-object-negates-object-grammar:
+    status: settled
+    links:
+      # 声明的出向关系
+      - target: 005-object-negation-principle
+        type: child_of
+        direction: outgoing
+      - target: 005a-prohibition-theorem
+        type: sibling_of
+        direction: outgoing
+      - target: 004-provenance-framework
+        type: derives_from
+        direction: outgoing
+      # 被引用的入向关系
+      - target: 004-provenance-framework
+        type: followed_by
+        direction: incoming
+      - target: 006-level-recursion
+        type: derives_from
+        direction: incoming
+      - target: 010-construction-vs-classification
+        type: relates_to
+        direction: incoming
+      - target: 012-genealogy-is-discovery-engine
+        type: relates_to
+        direction: incoming
+      - target: 015-method-is-content
+        type: relates_to
+        direction: incoming
+      - target: 016-runtime-enforcement-layer
+        type: relates_to
+        direction: incoming
+      - target: 019a-round-and-progress-loss
+        type: relates_to
+        direction: incoming
+      - target: 019c-meta-ritual-gap
+        type: relates_to
+        direction: incoming
+      - target: 020-constitutive-contradiction
+        type: isomorphic_to
+        direction: incoming
+      - target: 005-object-negation-principle
+        type: parent_of
+        direction: incoming
+      - target: 005a-prohibition-theorem
+        type: sibling_of
+        direction: incoming
+    degree: 14
+    hub: true
+
+  006-level-recursion:
+    status: settled
+    links:
+      - target: 003-segment-concept-separation
+        type: derives_from
+        direction: outgoing
+      - target: 005b-object-negates-object-grammar
+        type: derives_from
+        direction: outgoing
+      # 入向
+      - target: 007-trend-is-entity
+        type: derives_from
+        direction: incoming
+      - target: 008-trend-level-independence
+        type: derives_from
+        direction: incoming
+      - target: 009-consolidation-identity
+        type: derives_from
+        direction: incoming
+      - target: 010-construction-vs-classification
+        type: relates_to
+        direction: incoming
+      - target: 011-level-determination-direction
+        type: derives_from
+        direction: incoming
+    degree: 7
+    hub: true
+
+  007-trend-is-entity:
+    status: settled
+    links:
+      - target: 003-segment-concept-separation
+        type: derives_from
+        direction: outgoing
+      - target: 006-level-recursion
+        type: derives_from
+        direction: outgoing
+      - target: 008-trend-level-independence
+        type: relates_to
+        direction: outgoing
+      - target: 009-consolidation-identity
+        type: relates_to
+        direction: outgoing
+      # 入向
+      - target: 008-trend-level-independence
+        type: relates_to
+        direction: incoming
+      - target: 009-consolidation-identity
+        type: relates_to
+        direction: incoming
+      - target: 010-construction-vs-classification
+        type: derives_from
+        direction: incoming
+    degree: 7
+    hub: true
+
+  008-trend-level-independence:
+    status: settled
+    links:
+      - target: 006-level-recursion
+        type: derives_from
+        direction: outgoing
+      - target: 007-trend-is-entity
+        type: relates_to
+        direction: outgoing
+      - target: 009-consolidation-identity
+        type: relates_to
+        direction: outgoing
+      # 入向
+      - target: 007-trend-is-entity
+        type: relates_to
+        direction: incoming
+      - target: 009-consolidation-identity
+        type: relates_to
+        direction: incoming
+      - target: 010-construction-vs-classification
+        type: derives_from
+        direction: incoming
+      - target: 011-level-determination-direction
+        type: derives_from
+        direction: incoming
+    degree: 7
+    hub: true
+
+  009-consolidation-identity:
+    status: settled
+    links:
+      - target: 007-trend-is-entity
+        type: relates_to
+        direction: outgoing
+      - target: 008-trend-level-independence
+        type: relates_to
+        direction: outgoing
+      - target: 006-level-recursion
+        type: derives_from
+        direction: outgoing
+      # 入向
+      - target: 007-trend-is-entity
+        type: relates_to
+        direction: incoming
+      - target: 008-trend-level-independence
+        type: relates_to
+        direction: incoming
+      - target: 010-construction-vs-classification
+        type: derives_from
+        direction: incoming
+    degree: 6
+    hub: true
+
+  010-construction-vs-classification:
+    status: settled
+    links:
+      - target: 007-trend-is-entity
+        type: derives_from
+        direction: outgoing
+      - target: 008-trend-level-independence
+        type: derives_from
+        direction: outgoing
+      - target: 009-consolidation-identity
+        type: derives_from
+        direction: outgoing
+      - target: 006-level-recursion
+        type: relates_to
+        direction: outgoing
+      - target: 005b-object-negates-object-grammar
+        type: relates_to
+        direction: outgoing
+      # 入向
+      - target: 011-level-determination-direction
+        type: derives_from
+        direction: incoming
+      - target: 012-genealogy-is-discovery-engine
+        type: relates_to
+        direction: incoming
+      - target: 013-swarm-structural-stations
+        type: relates_to
+        direction: incoming
+      - target: 014-skill-card-deck-decomposition
+        type: relates_to
+        direction: incoming
+    degree: 9
+    hub: true
+
+  011-level-determination-direction:
+    status: settled
+    links:
+      - target: 006-level-recursion
+        type: derives_from
+        direction: outgoing
+      - target: 008-trend-level-independence
+        type: derives_from
+        direction: outgoing
+      - target: 010-construction-vs-classification
+        type: derives_from
+        direction: outgoing
+    degree: 3
+    hub: false
+
+  012-genealogy-is-discovery-engine:
+    status: settled
+    links:
+      - target: 010-construction-vs-classification
+        type: relates_to
+        direction: outgoing
+      - target: 005b-object-negates-object-grammar
+        type: relates_to
+        direction: outgoing
+      # 入向
+      - target: 013-swarm-structural-stations
+        type: derives_from
+        direction: incoming
+      - target: 014-skill-card-deck-decomposition
+        type: derives_from
+        direction: incoming
+      - target: 015-method-is-content
+        type: derives_from
+        direction: incoming
+      - target: 016-runtime-enforcement-layer
+        type: derives_from
+        direction: incoming
+      - target: 019-loop-breakpoint-coverage
+        type: relates_to
+        direction: incoming
+      - target: 019d-tension-check-limits
+        type: derives_from
+        direction: incoming
+      - target: 020-constitutive-contradiction
+        type: tension_source
+        direction: incoming
+    degree: 9
+    hub: true
+
+  013-swarm-structural-stations:
+    status: settled
+    links:
+      - target: 012-genealogy-is-discovery-engine
+        type: derives_from
+        direction: outgoing
+      - target: 010-construction-vs-classification
+        type: relates_to
+        direction: outgoing
+      - target: 004-provenance-framework
+        type: relates_to
+        direction: outgoing
+      # 入向
+      - target: 014-skill-card-deck-decomposition
+        type: derives_from
+        direction: incoming
+      - target: 019-loop-breakpoint-coverage
+        type: derives_from
+        direction: incoming
+      - target: 019a-round-and-progress-loss
+        type: derives_from
+        direction: incoming
+      - target: 019b-inquiry-infinite-loop
+        type: relates_to
+        direction: incoming
+      - target: 019d-tension-check-limits
+        type: tension_with
+        direction: incoming
+      - target: 020-constitutive-contradiction
+        type: tension_source
+        direction: incoming
+    degree: 9
+    hub: true
+
+  014-skill-card-deck-decomposition:
+    status: settled
+    links:
+      - target: 013-swarm-structural-stations
+        type: derives_from
+        direction: outgoing
+      - target: 012-genealogy-is-discovery-engine
+        type: derives_from
+        direction: outgoing
+      - target: 010-construction-vs-classification
+        type: relates_to
+        direction: outgoing
+      # 入向
+      - target: 015-method-is-content
+        type: derives_from
+        direction: incoming
+      - target: 016-runtime-enforcement-layer
+        type: derives_from
+        direction: incoming
+      - target: 017-session-as-pointer
+        type: derives_from
+        direction: incoming
+    degree: 6
+    hub: true
+
+  015-method-is-content:
+    status: settled
+    links:
+      - target: 014-skill-card-deck-decomposition
+        type: derives_from
+        direction: outgoing
+      - target: 012-genealogy-is-discovery-engine
+        type: derives_from
+        direction: outgoing
+      - target: 005b-object-negates-object-grammar
+        type: relates_to
+        direction: outgoing
+      # 入向
+      - target: 016-runtime-enforcement-layer
+        type: derives_from
+        direction: incoming
+      - target: 017-session-as-pointer
+        type: relates_to
+        direction: incoming
+      - target: 019-loop-breakpoint-coverage
+        type: relates_to
+        direction: incoming
+      - target: 019c-meta-ritual-gap
+        type: derives_from
+        direction: incoming
+      - target: 020-constitutive-contradiction
+        type: derives_from
+        direction: incoming
+    degree: 8
+    hub: true
+
+  016-runtime-enforcement-layer:
+    status: settled
+    links:
+      - target: 014-skill-card-deck-decomposition
+        type: derives_from
+        direction: outgoing
+      - target: 015-method-is-content
+        type: derives_from
+        direction: outgoing
+      - target: 012-genealogy-is-discovery-engine
+        type: derives_from
+        direction: outgoing
+      - target: 005b-object-negates-object-grammar
+        type: relates_to
+        direction: outgoing
+      # 入向
+      - target: 017-session-as-pointer
+        type: derives_from
+        direction: incoming
+      - target: 019-loop-breakpoint-coverage
+        type: derives_from
+        direction: incoming
+      - target: 019b-inquiry-infinite-loop
+        type: derives_from
+        direction: incoming
+      - target: 019c-meta-ritual-gap
+        type: derives_from
+        direction: incoming
+      - target: 019d-tension-check-limits
+        type: derives_from
+        direction: incoming
+    degree: 9
+    hub: true
+
+  017-session-as-pointer:
+    status: settled
+    links:
+      - target: 014-skill-card-deck-decomposition
+        type: derives_from
+        direction: outgoing
+      - target: 016-runtime-enforcement-layer
+        type: derives_from
+        direction: outgoing
+      - target: 015-method-is-content
+        type: relates_to
+        direction: outgoing
+      # 入向
+      - target: 018-four-way-classification
+        type: relates_to
+        direction: incoming
+      - target: 019-loop-breakpoint-coverage
+        type: derives_from
+        direction: incoming
+      - target: 019a-round-and-progress-loss
+        type: derives_from
+        direction: incoming
+      - target: 019d-tension-check-limits
+        type: derives_from
+        direction: incoming
+    degree: 7
+    hub: true
+
+  018-four-way-classification:
+    status: settled
+    links:
+      - target: 017-session-as-pointer
+        type: relates_to
+        direction: outgoing
+      # 入向
+      - target: 019b-inquiry-infinite-loop
+        type: derives_from
+        direction: incoming
+      - target: 019c-meta-ritual-gap
+        type: derives_from
+        direction: incoming
+    degree: 3
+    hub: false
+
+  019-loop-breakpoint-coverage:
+    status: pending
+    links:
+      - target: 017-session-as-pointer
+        type: derives_from
+        direction: outgoing
+      - target: 016-runtime-enforcement-layer
+        type: derives_from
+        direction: outgoing
+      - target: 013-swarm-structural-stations
+        type: derives_from
+        direction: outgoing
+      - target: 012-genealogy-is-discovery-engine
+        type: relates_to
+        direction: outgoing
+      - target: 015-method-is-content
+        type: relates_to
+        direction: outgoing
+      # 入向（子谱系）
+      - target: 019a-round-and-progress-loss
+        type: parent_of
+        direction: outgoing
+      - target: 019b-inquiry-infinite-loop
+        type: parent_of
+        direction: outgoing
+      - target: 019c-meta-ritual-gap
+        type: parent_of
+        direction: outgoing
+      - target: 019d-tension-check-limits
+        type: parent_of
+        direction: outgoing
+    degree: 9
+    hub: true
+
+  019a-round-and-progress-loss:
+    status: pending
+    links:
+      - target: 019-loop-breakpoint-coverage
+        type: child_of
+        direction: outgoing
+      - target: 017-session-as-pointer
+        type: derives_from
+        direction: outgoing
+      - target: 013-swarm-structural-stations
+        type: derives_from
+        direction: outgoing
+      - target: 005b-object-negates-object-grammar
+        type: relates_to
+        direction: outgoing
+    degree: 4
+    hub: true
+
+  019b-inquiry-infinite-loop:
+    status: pending
+    links:
+      - target: 019-loop-breakpoint-coverage
+        type: child_of
+        direction: outgoing
+      - target: 016-runtime-enforcement-layer
+        type: derives_from
+        direction: outgoing
+      - target: 018-four-way-classification
+        type: derives_from
+        direction: outgoing
+      - target: 013-swarm-structural-stations
+        type: relates_to
+        direction: outgoing
+    degree: 4
+    hub: true
+
+  019c-meta-ritual-gap:
+    status: pending
+    links:
+      - target: 019-loop-breakpoint-coverage
+        type: child_of
+        direction: outgoing
+      - target: 015-method-is-content
+        type: derives_from
+        direction: outgoing
+      - target: 016-runtime-enforcement-layer
+        type: derives_from
+        direction: outgoing
+      - target: 018-four-way-classification
+        type: derives_from
+        direction: outgoing
+      - target: 005b-object-negates-object-grammar
+        type: relates_to
+        direction: outgoing
+    degree: 5
+    hub: true
+
+  019d-tension-check-limits:
+    status: pending
+    links:
+      - target: 019-loop-breakpoint-coverage
+        type: child_of
+        direction: outgoing
+      - target: 012-genealogy-is-discovery-engine
+        type: derives_from
+        direction: outgoing
+      - target: 013-swarm-structural-stations
+        type: tension_with
+        direction: outgoing
+      - target: 020-constitutive-contradiction
+        type: followed_by
+        direction: outgoing
+      - target: 016-runtime-enforcement-layer
+        type: derives_from
+        direction: outgoing
+      - target: 017-session-as-pointer
+        type: derives_from
+        direction: outgoing
+    degree: 6
+    hub: true
+
+  020-constitutive-contradiction:
+    status: pending
+    links:
+      - target: 012-genealogy-is-discovery-engine
+        type: tension_source
+        direction: outgoing
+      - target: 013-swarm-structural-stations
+        type: tension_source
+        direction: outgoing
+      - target: 019d-tension-check-limits
+        type: triggers
+        direction: outgoing
+      - target: 005b-object-negates-object-grammar
+        type: isomorphic_to
+        direction: outgoing
+      - target: 015-method-is-content
+        type: derives_from
+        direction: outgoing
+      # 入向
+      - target: 019d-tension-check-limits
+        type: followed_by
+        direction: incoming
+    degree: 6
+    hub: true
+
+# 统计摘要
+statistics:
+  total_nodes: 26
+  total_directed_edges: 80   # 每条边在源和目标节点各出现一次
+  hub_count: 21       # 度>=4的节点数
+  non_hub_count: 5    # 002(3), 005(2), 005a(3), 011(3), 018(3)
+  max_degree_node: 005b-object-negates-object-grammar
+  max_degree: 14
+  avg_degree: 6.2
+  edge_type_distribution:
+    derives_from: 40     # 50.0% — 主导关系类型
+    relates_to: 23       # 28.8%
+    child_of: 6          # 7.5%
+    followed_by: 4       # 5.0%
+    sibling_of: 2        # 2.5%
+    tension_source: 2    # 2.5%
+    tension_with: 1      # 1.3%
+    triggers: 1          # 1.3%
+    isomorphic_to: 1     # 1.3%
+  clusters:
+    domain_concepts: [001, 002, 003, 004, 005, 005a, 005b, 006, 007, 008, 009, 010, 011]
+    meta_orchestration: [012, 013, 014, 015, 016, 017, 018]
+    loop_audit: [019, 019a, 019b, 019c, 019d, 020]
+  bridge_nodes:
+    - 005b-object-negates-object-grammar   # 域概念 ↔ 元编排桥（被6个元编排/审计节点引用）
+    - 010-construction-vs-classification   # 域概念 ↔ 元编排桥（被3个元编排节点引用）
+    - 012-genealogy-is-discovery-engine    # 元编排 ↔ 循环审计桥（被3个审计节点引用）

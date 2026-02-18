@@ -57,7 +57,7 @@ GIT_COMMIT=$(git log --oneline -1 2>/dev/null || echo "unknown")
 GIT_DIRTY=$(git diff --stat 2>/dev/null | tail -1)
 [ -z "$GIT_DIRTY" ] && GIT_DIRTY="clean"
 
-# 采集中断点：从最近 session 继承（如果有的话）
+# 采集中断点：从最近 session 继承 + 过时检测
 PREV_SESSION=""
 PREV_INTERRUPTS=""
 for f in $(ls -t .chanlun/sessions/*-session.md 2>/dev/null | head -1); do
@@ -66,6 +66,21 @@ for f in $(ls -t .chanlun/sessions/*-session.md 2>/dev/null | head -1); do
     # 提取中断点章节（从 ## 中断点 到下一个 ## 或文件结束）
     PREV_INTERRUPTS=$(sed -n '/^## 中断点/,/^## [^中]/p' "$f" 2>/dev/null | head -20 || true)
 done
+
+# G1修复：检测中断点是否过时（session写入后有新提交 = 进度未持久化）
+if [ -n "$PREV_SESSION" ]; then
+    SESSION_MTIME=$(stat -c %Y "$PREV_SESSION" 2>/dev/null || echo 0)
+    LATEST_COMMIT_TIME=$(git log -1 --format=%ct 2>/dev/null || echo 0)
+    if [ "$LATEST_COMMIT_TIME" -gt "$SESSION_MTIME" ]; then
+        RECENT=$(git log --oneline -5 --after="@${SESSION_MTIME}" 2>/dev/null || true)
+        if [ -n "$RECENT" ]; then
+            STALE_SUPPLEMENT="$(echo "$RECENT" | sed 's/^/  - /')"
+            PREV_INTERRUPTS="${PREV_INTERRUPTS}
+- ⚠ session后新增提交（中断点可能过时）:
+${STALE_SUPPLEMENT}"
+        fi
+    fi
+fi
 
 # 写入 session（统一格式，不再区分 precompact/手动）
 cat > "$SESSION_FILE" << SESSION_EOF
