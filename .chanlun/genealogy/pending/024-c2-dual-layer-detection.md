@@ -50,9 +50,10 @@ C-2（非退化条件）最初设计为固定 CV 阈值（CV ≥ 0.01）。编�
 
 ## 当前产出
 
-- `docs/spec/equivalence_relation_v1.md` §1.2 C-2 双层定义（待更新为三层）
-- `docs/spec/equivalence_relation_v1.md` §6.2 实证数据
-- MACD 动力层验证：✅ 已执行
+- `docs/spec/equivalence_relation_v1.md` §1.2 C-2 三层定义 ✅
+- `docs/spec/equivalence_relation_v1.md` §6.2 实证数据（含MACD动力层）✅
+- `src/newchan/equivalence.py` validate_pair 三层判定实现 ✅
+- `tests/test_equivalence.py` 5个新测试（18/18 pass，1223全套零回归）✅
 
 ## MACD 动力层实证
 
@@ -77,7 +78,7 @@ C-2（非退化条件）最初设计为固定 CV 阈值（CV ≥ 0.01）。编�
 
 ## 结算条件
 
-1. 笔力度阈值（T_stroke_pct = 0.5%）经更多正例/反例压力测试
+1. 笔力度阈值（T_stroke_pct = 0.5%）经更多正例/反例压力测试 — 不阻塞，增量经验积累
 2. ✅ MACD 动力层经实证验证（183x差距，零轴穿越21vs60，面积段std 3.0vs36.0）
 3. ✅ 实现代码同步更新（validate_pair 三层判定，18测试全过，1223全套零回归）
-4. 确认这是定理（从005a推导）还是需要经 /ritual 结算
+4. ✅ **定理级自动结算**：三层退化连锁是005a/005b的逻辑必然推论 — 退化=非对象，检测退化=检测"是否存在对象"，三层在三个独立投影面上做同一件事（CV→统计投影，笔力度→语法投影，MACD→动力学投影）
