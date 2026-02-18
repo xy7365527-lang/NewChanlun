@@ -3,6 +3,7 @@ name: knowledge-crystallization
 description: >
   知识结晶的生成规则。当知识单元在上下文中出现稳定信号（背驰+分型）时触发。
   任何 agent 在检测到知识稳定时都执行此流程，不需要特定角色或中央授权。
+genealogy_source: "020a"
 ---
 
 # 知识结晶
@@ -43,44 +44,41 @@ Agent 不"拥有"知识然后"备份"到 skill 里。Agent 是 skill 的当前�
 
 ## 结晶流程
 
-结晶是两步操作。第一步的输出是第二步的必需输入。跳过第一步不是"忘了"，是接口不满足。
+结晶不是两步操作加一个守门人。结晶物的模板里有一个必填字段 `genealogy_source`，这个字段的内容只能从谱系条目里提取。不是有人检查你填了没有，是你不从谱系里提取就没有东西可填——模板物理上不完整。
 
-### 步骤1：写谱系 → 获得 `genealogy_id`
+就像笔不能不从分型开始。不是有个规则说"笔必须从分型开始"，是没有分型你就没有笔的起点，笔的定义本身就包含了分型。
 
-按四分法分类（定理/选择/语法记录/行动），写入对应谱系条目。写入完成后获得谱系 ID。
+### 流程
 
-这不是建议。`genealogy_id` 是步骤2的 required parameter。没有它，步骤2不执行。
+1. **写谱系条目** — 按四分法分类，写入 `.chanlun/genealogy/`，获得谱系 ID
+2. **填模板** — 用谱系 ID 填充 `genealogy_source` 字段，完成结晶物
+3. **释放** — 写完即可"忘记"。知识已在结构中
 
-### 步骤2：写结晶物（需要 `genealogy_id`）
-
-结晶物必须包含对谱系条目的引用。确定存在位置：
-- 可复用的流程/方法 → skill 文件（`.claude/skills/[name]/SKILL.md`）
-- 域概念定义 → 通过 `/ritual` 写入定义文件
-- 工位职责调整 → agent 定义文件（`.claude/agents/*.md`）
-- 元编排规则 → 通过 `/ritual` 走仪式门控
-
-创建文件时，在文件头部或元数据中引用 `genealogy_id`。
-
-### 释放
-
-写完即可"忘记"。知识已在结构中，不需要任何 agent 持有它。
-
-### 为什么是硬依赖不是建议
-
-过程依赖编码在接口里，不编码在意识里。靠"记住先写谱系"来保证执行顺序会反复失败——每次失败都产出一个精确的事后诊断，但底层模式不变。函数签名里的 required parameter 不靠调用者记住要传，是不传就报错。
+不需要 hook，不需要守门人。约束是模板的形状。
 
 ## Skill 文件结构
 
 ```
 .claude/skills/
   [skill-name]/
-    SKILL.md              # 必需。frontmatter(name, description) + 内容
+    SKILL.md              # 必需。frontmatter + 内容
     [supporting-files]    # 可选。重型参考或可复用工具
 ```
 
-Frontmatter 要求：
+Frontmatter 必填字段：
+
+```yaml
+---
+name: skill-name
+description: >
+  触发条件描述（不描述流程）
+genealogy_source: "GEN-XXX"   # 谱系条目 ID。没有这个字段，skill 不完整。
+---
+```
+
 - `name`：字母、数字、连字符
 - `description`：以触发条件开头，不描述流程（避免 Claude 走描述捷径跳过正文）
+- `genealogy_source`：**必填**。指向产出此 skill 的谱系条目。没有谱系就没有东西可填，模板物理上不完整
 
 ## 不做的事
 
