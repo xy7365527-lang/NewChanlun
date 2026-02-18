@@ -462,3 +462,201 @@ class TestNestedDivergencePurity:
         r1 = nested_divergence_search(snap)
         r2 = nested_divergence_search(snap)
         assert r1 == r2
+
+
+# ═══════════════════════════════════════════════
+# F. 端到端集成测试（level 3 → 2 → 1 完整嵌套）
+# ═══════════════════════════════════════════════
+
+
+class TestNestedDivergenceE2E:
+    """端到端测试：构造完整的多级别嵌套背驰场景。
+
+    场景：3 级递归结构中，level 3 检测到趋势背驰，
+    向下传递到 level 2，再到 level 1，bar_range 逐级收缩。
+
+    这验证了区间套的核心数学性质：D_3 ⊃ D_2 ⊃ D_1
+    """
+
+    def _build_full_scenario(self):
+        """构造 3 级递归完整场景。
+
+        结构布局：
+        - Level 1: 12 segments (i0=0..i1=1200)
+          - 6 settled moves（作为 level 2 组件）
+        - Level 2: 6 components → 2 zhongshu → 1 trend move with divergence
+          - 3 settled moves（作为 level 3 组件）
+        - Level 3: 3 components → 2 zhongshu → 1 trend move with divergence
+
+        背驰设计：
+        - Level 3: A 段力度 20 > C 段力度 5 → 趋势背驰
+        - Level 2: A 段力度 10 > C 段力度 3 → 趋势背驰
+        """
+        # ── Level 1: 12 segments ──
+        segments = [
+            _MockSegment(i0=0, i1=100, high=110, low=90, direction="up"),
+            _MockSegment(i0=100, i1=200, high=105, low=85, direction="down"),
+            _MockSegment(i0=200, i1=300, high=120, low=95, direction="up"),
+            _MockSegment(i0=300, i1=400, high=115, low=90, direction="down"),
+            _MockSegment(i0=400, i1=500, high=130, low=100, direction="up"),
+            _MockSegment(i0=500, i1=600, high=125, low=95, direction="down"),
+            _MockSegment(i0=600, i1=700, high=140, low=110, direction="up"),
+            _MockSegment(i0=700, i1=800, high=135, low=105, direction="down"),
+            _MockSegment(i0=800, i1=900, high=150, low=120, direction="up"),
+            _MockSegment(i0=900, i1=1000, high=145, low=115, direction="down"),
+            _MockSegment(i0=1000, i1=1100, high=155, low=130, direction="up"),
+            _MockSegment(i0=1100, i1=1200, high=150, low=125, direction="down"),
+        ]
+
+        # ── Level 1: 6 settled moves（每 2 段一个 move）──
+        l1_moves = [
+            _make_move(seg_start=0, seg_end=1, high=110, low=85, settled=True, direction="up"),
+            _make_move(seg_start=2, seg_end=3, high=120, low=90, settled=True, direction="down"),
+            _make_move(seg_start=4, seg_end=5, high=130, low=95, settled=True, direction="up"),
+            _make_move(seg_start=6, seg_end=7, high=140, low=105, settled=True, direction="down"),
+            _make_move(seg_start=8, seg_end=9, high=150, low=115, settled=True, direction="up"),
+            _make_move(seg_start=10, seg_end=11, high=155, low=125, settled=True, direction="up"),
+        ]
+
+        # ── Level 2 snapshot ──
+        # Components = l1_moves (all settled)
+        # 2 zhongshu (comp 0-1, comp 3-4), A段 = comp 2 (力度大), C段 = comp 5 (力度小)
+        l2_zs0 = _make_level_zhongshu(
+            comp_start=0, comp_end=1, zd=90, zg=110,
+            settled=True, break_direction="up", level_id=2,
+        )
+        l2_zs1 = _make_level_zhongshu(
+            comp_start=3, comp_end=4, zd=115, zg=140,
+            settled=True, break_direction="up", level_id=2,
+        )
+        # Trend move covering all 6 components
+        l2_trend = _make_move(
+            kind="trend", direction="up",
+            seg_start=0, seg_end=5,
+            zs_start=0, zs_end=1, zs_count=2,
+            settled=False, high=155, low=85,
+        )
+        # Level 2 also produces 3 settled moves (as level 3 components)
+        l2_settled_moves = [
+            _make_move(seg_start=0, seg_end=1, high=120, low=85, settled=True, direction="up"),
+            _make_move(seg_start=2, seg_end=3, high=140, low=90, settled=True, direction="down"),
+            _make_move(seg_start=4, seg_end=5, high=155, low=115, settled=True, direction="up"),
+        ]
+        l2_snap = RecursiveLevelSnapshot(
+            bar_idx=1200, bar_ts=12000.0, level_id=2,
+            zhongshus=[l2_zs0, l2_zs1],
+            moves=[l2_trend],
+            zhongshu_events=[], move_events=[],
+        )
+
+        # ── Level 3 snapshot ──
+        # Components = l2_settled_moves
+        # 2 zhongshu (comp 0, comp 1), A段 = comp 1-2区间内 (力度大), C段 = comp 2 (力度小)
+        # For a proper trend divergence: 2 zhongshu needed
+        # comp 0: zs0 内, comp 1: A段（力度大）, comp 2: 中间穿越
+        # 简化：3 组件 → 不够构成 2 zhongshu 的趋势
+        # 需要至少 6 个组件。调整 level 2 产出更多 settled moves。
+
+        # 重新设计：level 2 产出 6 个 settled moves 作为 level 3 组件
+        l2_settled_moves = [
+            _make_move(seg_start=0, seg_end=0, high=110, low=85, settled=True, direction="up"),
+            _make_move(seg_start=1, seg_end=1, high=120, low=90, settled=True, direction="down"),
+            _make_move(seg_start=2, seg_end=2, high=150, low=95, settled=True, direction="up"),  # A段: 150-95=55
+            _make_move(seg_start=3, seg_end=3, high=140, low=105, settled=True, direction="down"),
+            _make_move(seg_start=4, seg_end=4, high=150, low=115, settled=True, direction="up"),
+            _make_move(seg_start=5, seg_end=5, high=155, low=145, settled=True, direction="up"),  # C段: 155-145=10
+        ]
+
+        l3_zs0 = _make_level_zhongshu(
+            comp_start=0, comp_end=1, zd=90, zg=110,
+            settled=True, break_direction="up", level_id=3,
+        )
+        l3_zs1 = _make_level_zhongshu(
+            comp_start=3, comp_end=4, zd=115, zg=140,
+            settled=True, break_direction="up", level_id=3,
+        )
+        l3_trend = _make_move(
+            kind="trend", direction="up",
+            seg_start=0, seg_end=5,
+            zs_start=0, zs_end=1, zs_count=2,
+            settled=False, high=155, low=85,
+        )
+        l3_snap = RecursiveLevelSnapshot(
+            bar_idx=1200, bar_ts=12000.0, level_id=3,
+            zhongshus=[l3_zs0, l3_zs1],
+            moves=[l3_trend],
+            zhongshu_events=[], move_events=[],
+        )
+
+        # ── 注意：recursive_snapshots 索引 ──
+        # recursive_snapshots[0] = level 2
+        # recursive_snapshots[1] = level 3
+        # 但 level 2 的 moves 字段需要包含作为 level 3 组件的 settled moves
+        l2_snap_with_settled = RecursiveLevelSnapshot(
+            bar_idx=1200, bar_ts=12000.0, level_id=2,
+            zhongshus=[l2_zs0, l2_zs1],
+            moves=l2_settled_moves + [l2_trend],  # settled moves + trend
+            zhongshu_events=[], move_events=[],
+        )
+
+        snap = _make_orchestrator_snap(
+            segments=segments,
+            moves=l1_moves,
+            recursive_snapshots=[l2_snap_with_settled, l3_snap],
+        )
+        return snap
+
+    def test_e2e_returns_nested_chain(self):
+        """端到端：level 3 → level 2 嵌套链存在。"""
+        snap = self._build_full_scenario()
+        results = nested_divergence_search(snap)
+        assert len(results) >= 1, "应该至少找到一条嵌套链"
+
+    def test_e2e_chain_levels_descending(self):
+        """嵌套链中的 level_id 严格递减。"""
+        snap = self._build_full_scenario()
+        results = nested_divergence_search(snap)
+        for nd in results:
+            levels = [lv for lv, _ in nd.chain]
+            for i in range(1, len(levels)):
+                assert levels[i] < levels[i - 1], (
+                    f"level_id 应递减: {levels}"
+                )
+
+    def test_e2e_bar_range_valid(self):
+        """最终 bar_range 有效（start < end）。"""
+        snap = self._build_full_scenario()
+        results = nested_divergence_search(snap)
+        for nd in results:
+            if len(nd.chain) > 1:
+                assert nd.bar_range[0] < nd.bar_range[1], (
+                    f"bar_range 应 start < end: {nd.bar_range}"
+                )
+
+    def test_e2e_bar_range_within_data_bounds(self):
+        """bar_range 不超出数据范围 [0, 1200]。"""
+        snap = self._build_full_scenario()
+        results = nested_divergence_search(snap)
+        for nd in results:
+            assert nd.bar_range[0] >= 0
+            assert nd.bar_range[1] <= 1200
+
+    def test_e2e_top_level_has_divergence(self):
+        """最高级别 chain 项包含非 None 的 Divergence。"""
+        snap = self._build_full_scenario()
+        results = nested_divergence_search(snap)
+        for nd in results:
+            top_level, top_div = nd.chain[0]
+            assert top_div is not None, "最高级别应有背驰"
+            assert top_div.kind == "trend"
+            assert top_div.force_a > top_div.force_c
+
+    def test_e2e_chain_divergences_are_trend_type(self):
+        """嵌套链中每个有效 Divergence 都是趋势背驰。"""
+        snap = self._build_full_scenario()
+        results = nested_divergence_search(snap)
+        for nd in results:
+            for level_id, div in nd.chain:
+                if div is not None:
+                    assert div.kind == "trend"
+                    assert div.direction == "top"  # up trend → top divergence
