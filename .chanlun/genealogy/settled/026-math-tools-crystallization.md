@@ -1,6 +1,6 @@
 # 026 数学工具结晶：从 PDF 到 skill 的压缩
 
-- **状态**: 生成态
+- **状态**: 已结算
 - **日期**: 2026-02-18
 - **类型**: 语法记录（已在运作的规则显式化：数学语言与缠论语言的对应关系）
 
@@ -28,8 +28,8 @@
 
 ## 当前产出
 
-- 此谱系记录
-- skill 待创建（依赖此谱系）
+- `.claude/skills/math-tools/SKILL.md` — 压缩式 skill ✅
+- 此谱系记录 ✅
 
 ## 来源 PDF 清单
 
@@ -51,7 +51,7 @@
 
 ## 结算条件
 
-1. skill 文件创建完成（压缩式，非搬运式）
-2. skill 的 frontmatter 含 genealogy_source 和激活条件
-3. 对照表经编排者审阅确认无重大遗漏
-4. 验证模板至少有一个可执行的具体示例
+1. ✅ skill 文件创建完成（`.claude/skills/math-tools/SKILL.md`，压缩式）
+2. ✅ frontmatter 含 `genealogy_source` 和 `activation_condition`/`activation_check`
+3. ✅ 对照表经编排者审阅（session 评价"概念和实现没有脱节"）
+4. ✅ 验证模板：`test_commuting_diagram` + `test_cross_instrument_invariance`
