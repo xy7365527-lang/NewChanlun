@@ -46,7 +46,7 @@ def _make_candidate(
     seg_idx: int = 5,
     price: float = 99.0,
     move_seg_start: int = 0,
-    center_seg_start: int = 3,
+    center_seg_start: int | None = 3,
 ) -> BuySellPointCandidateV1:
     payload = {
         "bsp_id": bsp_id, "kind": kind, "side": side,
@@ -230,10 +230,10 @@ def test_i27_fail_candidate_after_invalidate():
 # ── I23: type constraint ──
 
 def test_i23_fail_type3_missing_center():
-    """I23 反例：type3 的 center_seg_start=0（非零 seg_idx）→ 违规。"""
+    """I23 反例：type3 缺 center_seg_start（None）→ 违规。"""
     checker = BspInvariantChecker()
     cand = _make_candidate(
-        seq=0, bsp_id=1, kind="type3", seg_idx=5, center_seg_start=0,
+        seq=0, bsp_id=1, kind="type3", seg_idx=5, center_seg_start=None,
     )
     violations = checker.check([cand], bar_idx=10, bar_ts=100.0)
     assert any(v.code == I23_BSP_TYPE_CONSTRAINT for v in violations)
