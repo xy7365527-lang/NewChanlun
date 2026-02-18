@@ -26,7 +26,11 @@ No user prompt needed:
 
 ## Parallel Task Execution
 
-ALWAYS use parallel Task execution for independent operations:
+**并行是默认模式，串行需要理由。**
+
+评估任务时先数可并行的独立单元。≥2 即并行分派。只有存在严格数据依赖（后一步的输入是前一步的输出）时才允许串行。
+
+"方便"、"简单"、"就几个文件"不是串行的理由。9 个独立文件修改 = 9 个并行 agent，不是 1 个 agent 做 9 次。
 
 ```markdown
 # GOOD: Parallel execution
@@ -38,6 +42,8 @@ Launch 3 agents in parallel:
 # BAD: Sequential when unnecessary
 First agent 1, then agent 2, then agent 3
 ```
+
+**自检**：如果你正在顺序执行多个独立操作，停下来问——这些之间有数据依赖吗？没有就拆成并行。
 
 ## Multi-Perspective Analysis
 
