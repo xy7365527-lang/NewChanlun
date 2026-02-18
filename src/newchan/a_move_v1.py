@@ -74,19 +74,26 @@ def _is_descending(c1: Zhongshu, c2: Zhongshu) -> bool:
     return c2.gg < c1.dd
 
 
-def moves_from_zhongshus(zhongshus: list[Zhongshu]) -> list[Move]:
+def moves_from_zhongshus(
+    zhongshus: list[Zhongshu],
+    num_segments: int | None = None,
+) -> list[Move]:
     """从中枢列表构造 Move（贪心分组，只处理 settled 中枢）。
 
     算法：
     1. 过滤 settled=True 的中枢
     2. 贪心向右扫描，同向中枢归入同一 group
     3. 每个 group → 一个 Move
-    4. 最后一个 move 强制 settled=False
+    4. seg_end 扩展覆盖 C段（中枢后的离开段）
+    5. 最后一个 move 强制 settled=False
 
     Parameters
     ----------
     zhongshus : list[Zhongshu]
         中枢列表（含 settled 和 unsettled）。
+    num_segments : int | None
+        总线段数。提供时，末组 Move 的 seg_end 扩展到 num_segments - 1，
+        覆盖最后中枢之后的所有段（C段）。不提供时保持旧行为。
 
     Returns
     -------
@@ -127,15 +134,24 @@ def moves_from_zhongshus(zhongshus: list[Zhongshu]) -> list[Move]:
 
     groups.append((current_offsets, current_dir))
 
-    # 转换 groups → Moves
+    # 转换 groups → Moves（扩展 seg_end 覆盖 C段）
     result: list[Move] = []
-    for offsets, direction in groups:
+    for g_idx, (offsets, direction) in enumerate(groups):
         first_zs = settled_zs[offsets[0]]
         last_zs = settled_zs[offsets[-1]]
         zs_count = len(offsets)
 
         zs_start = settled_indices[offsets[0]]
         zs_end = settled_indices[offsets[-1]]
+
+        # seg_end 扩展：覆盖最后中枢之后的段（C段/连接段）
+        base_seg_end = last_zs.seg_end
+        if g_idx < len(groups) - 1:
+            next_first_offset = groups[g_idx + 1][0][0]
+            next_first_zs = settled_zs[next_first_offset]
+            base_seg_end = next_first_zs.seg_start - 1
+        elif num_segments is not None and num_segments > 0:
+            base_seg_end = num_segments - 1
 
         if zs_count >= 2:
             kind: Literal["consolidation", "trend"] = "trend"
@@ -149,7 +165,7 @@ def moves_from_zhongshus(zhongshus: list[Zhongshu]) -> list[Move]:
             kind=kind,
             direction=move_dir,
             seg_start=first_zs.seg_start,
-            seg_end=last_zs.seg_end,
+            seg_end=base_seg_end,
             zs_start=zs_start,
             zs_end=zs_end,
             zs_count=zs_count,

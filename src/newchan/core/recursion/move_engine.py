@@ -59,21 +59,27 @@ class MoveEngine:
         self._prev_moves = []
         self._event_seq = 0
 
-    def process_zhongshu_snapshot(self, zs_snap: ZhongshuSnapshot) -> MoveSnapshot:
+    def process_zhongshu_snapshot(
+        self,
+        zs_snap: ZhongshuSnapshot,
+        num_segments: int | None = None,
+    ) -> MoveSnapshot:
         """处理一个 ZhongshuSnapshot，产生 move 事件。
 
         Parameters
         ----------
         zs_snap : ZhongshuSnapshot
             包含当前中枢列表和中枢事件的快照。
+        num_segments : int | None
+            当前线段总数。提供时，末组 Move 的 seg_end 扩展覆盖 C段。
 
         Returns
         -------
         MoveSnapshot
             包含当前 Move 列表和本轮产生的 move 事件。
         """
-        # 1. 全量计算 Move
-        curr_moves = moves_from_zhongshus(zs_snap.zhongshus)
+        # 1. 全量计算 Move（传递 num_segments 扩展 C段覆盖）
+        curr_moves = moves_from_zhongshus(zs_snap.zhongshus, num_segments=num_segments)
 
         # 2. diff 产生事件
         events = diff_moves(
