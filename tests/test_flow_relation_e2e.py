@@ -11,8 +11,8 @@
   4. 共振检测结果结构正确
 
 数据依赖：
-  .cache/ 中需要 SPY/GLD/TLT 三个 ETF 的日线缓存。
-  缺少 REAL_ESTATE 代表 (IYR/VNQ)，用 SLV 替代测试拓扑完整性。
+  .cache/ 中需要 SPY/GLD/TLT/IYR 四个 ETF 的日线缓存。
+  IYR (iShares U.S. Real Estate ETF) 代表 REAL_ESTATE 顶点。
 
 概念溯源：
   [新缠论] 流转关系端到端管线验证（#14 liuzhuan.md）
@@ -45,13 +45,12 @@ from newchan.a_stroke import Stroke, strokes_from_fractals
 
 # ── 标的→顶点 映射 ─────────────────────────────────────────
 # 真实 ETF 到四矩阵顶点的映射。
-# REAL_ESTATE 缺数据，用 SLV（白银）暂时占位以测试拓扑完整性。
 
 SYMBOL_TO_VERTEX: dict[str, AssetVertex] = {
     "SPY": AssetVertex.EQUITY,
     "GLD": AssetVertex.COMMODITY,
     "TLT": AssetVertex.CASH,
-    "SLV": AssetVertex.REAL_ESTATE,  # 代用
+    "IYR": AssetVertex.REAL_ESTATE,
 }
 
 # 所有可用标的

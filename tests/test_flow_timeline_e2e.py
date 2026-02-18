@@ -15,7 +15,7 @@
   6. 打印头尾快照供人工审查
 
 数据依赖：
-  .cache/ 中需要 SPY/GLD/TLT/SLV 四个 ETF 的日线缓存。
+  .cache/ 中需要 SPY/GLD/TLT/IYR 四个 ETF 的日线缓存。
 
 概念溯源：
   [新缠论] 流转状态时间序列端到端管线验证
@@ -45,13 +45,12 @@ from newchan.a_stroke import Stroke, strokes_from_fractals
 
 # ── 标的→顶点 映射 ─────────────────────────────────────────
 # 复用 test_flow_relation_e2e.py 的映射方案。
-# REAL_ESTATE 缺数据，用 SLV（白银）暂时占位以测试拓扑完整性。
 
 SYMBOL_TO_VERTEX: dict[str, AssetVertex] = {
     "SPY": AssetVertex.EQUITY,
     "GLD": AssetVertex.COMMODITY,
     "TLT": AssetVertex.CASH,
-    "SLV": AssetVertex.REAL_ESTATE,  # 代用
+    "IYR": AssetVertex.REAL_ESTATE,
 }
 
 ALL_SYMBOLS = list(SYMBOL_TO_VERTEX.keys())
