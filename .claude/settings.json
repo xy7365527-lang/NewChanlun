@@ -72,7 +72,6 @@
       "Bash(cp *)",
       "Bash(ls *)",
       "Bash(cd *)",
-      "mcp__serena__*",
       "mcp__plugin_serena_serena__*"
     ],
     "deny": [
