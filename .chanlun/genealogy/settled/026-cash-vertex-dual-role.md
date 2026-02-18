@@ -1,7 +1,8 @@
 # 026 — 现金角双重身份：度量基准与流转顶点
 
-**状态**: 生成态
+**状态**: 已结算
 **日期**: 2026-02-18
+**结算日期**: 2026-02-18
 **来源**: 编排者观察 + 四矩阵拓扑分析
 **溯源**: [新缠论]
 
@@ -42,17 +43,22 @@
 ## 对当前实现的影响
 
 - `check_conservation`: 不影响（拓扑性质，不依赖语义）
-- `ResonanceStrength`: 需要分层解读（加消歧层）
+- `ResonanceStrength`: 保持不变（拓扑度量层），消歧由独立的 `CashSignalAnalysis` 提供
 - `flow_timeline`: 不影响（正确计算六条边的演化）
-- **新增需求**: 消歧函数——用纯资产子图状态校验现金边信号
 
 ## 前置谱系
 
 - 025: 流转关系四矩阵
 - 023: 等价关系
 
-## 结算条件
+## 结算条件（全部满足）
 
-1. 实现消歧函数（输入: 6 边状态，输出: 现金边信号可信度）
-2. 在真实数据上验证：找到度量变动 vs 真实流转的实际案例
-3. 决定是否将 ResonanceStrength 拆分为 "raw" 和 "calibrated" 两层
+1. ✅ 实现消歧函数（输入: 6 边状态，输出: 现金边信号可信度）
+   - `flow_relation.py::disambiguate_cash_signal`, 17 单测通过
+2. ✅ 在真实数据上验证：找到度量变动 vs 真实流转的实际案例
+   - `tests/test_026_real_data_validation.py`, 7 测试, 100 交易日 SPY/GLD/IYR
+   - genuine_flow: 76 天 (76.8%), metric_shift: 23 天 (23.2%)
+   - metric_shift 特征: variance=0, 三类资产同向 → 度量基准变动
+3. ✅ ResonanceStrength 不需要拆分（定理，非选择）
+   - **推导**：ResonanceStrength 是拓扑度量（|net_flow| 阈值分类），CashSignalAnalysis 是语义消歧层（纯资产子图方差校验）。两者是不同抽象层级，已作为独立类型存在。合并违反 SRP；拆分不必要——它们已经分离。API 层组合即可。
+   - 四分法分类：定理（从 SRP + 已有结构推导的唯一答案）
