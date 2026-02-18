@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+from typing import Literal
 
 from newchan.capital_flow import FlowDirection
 from newchan.matrix_topology import AssetVertex
@@ -172,3 +173,148 @@ def check_conservation(states: list[VertexFlowState]) -> bool:
     返回 False 意味着输入或计算有误。
     """
     return sum(s.net_flow for s in states) == 0
+
+
+# ====================================================================
+# 现金边信号消歧（026号谱系）
+# ====================================================================
+
+# 纯资产边方向值最大方差（3 个值取自 {-1, 0, +1} 的总体方差上界）。
+# 极端分化组合如 [+1, +1, -1]：均值 = 1/3，方差 = 8/9。
+_MAX_ASSET_VARIANCE: float = 8.0 / 9.0
+
+# 分化比率阈值：超过此值判定为 genuine_flow，低于（且 > 0）为 mixed。
+_DIVERGENCE_THRESHOLD: float = 0.5
+
+
+@dataclass(frozen=True, slots=True)
+class CashSignalAnalysis:
+    """现金边信号消歧分析结果。
+
+    概念溯源：[新缠论] 026号谱系——现金角双重身份
+    用纯资产子图（3 条无货币因子的边）校验现金边信号的可信度。
+
+    Attributes
+    ----------
+    cash_net_flow : int
+        CASH 顶点的 net_flow（正=汇，负=源）。
+    asset_subgraph_variance : float
+        纯资产子图 3 条边方向值的总体方差（0=全均衡或全同向，高=有分化）。
+    signal_type : Literal["genuine_flow", "metric_shift", "mixed", "neutral"]
+        消歧后的信号类型。
+    confidence : float
+        置信度（0.0 ~ 1.0）。
+    """
+
+    cash_net_flow: int
+    asset_subgraph_variance: float
+    signal_type: Literal["genuine_flow", "metric_shift", "mixed", "neutral"]
+    confidence: float
+
+
+def _direction_value(direction: FlowDirection) -> int:
+    """将 FlowDirection 映射为数值：A_TO_B → +1, B_TO_A → -1, EQUILIBRIUM → 0。"""
+    if direction == FlowDirection.A_TO_B:
+        return 1
+    if direction == FlowDirection.B_TO_A:
+        return -1
+    return 0
+
+
+def _population_variance(values: list[int]) -> float:
+    """计算总体方差（除以 N，非 N-1）。"""
+    n = len(values)
+    if n == 0:
+        return 0.0
+    mean = sum(values) / n
+    return sum((v - mean) ** 2 for v in values) / n
+
+
+def _is_cash_edge(edge: EdgeFlowInput) -> bool:
+    """判断边是否为现金边（至少有一个端点是 CASH）。"""
+    return edge.vertex_a == AssetVertex.CASH or edge.vertex_b == AssetVertex.CASH
+
+
+def disambiguate_cash_signal(
+    edge_inputs: list[EdgeFlowInput],
+) -> CashSignalAnalysis:
+    """现金边信号消歧：用纯资产子图校验现金边信号的可信度。
+
+    概念溯源：[新缠论] 026号谱系
+    推导链：
+      1. 现金边信号 = 资产运动 + 货币运动（混合）
+      2. 纯资产边消去了货币因子（纯信号）
+      3. 对比两者可消歧：分化 → 真实流转，均衡 → 度量变动
+
+    Parameters
+    ----------
+    edge_inputs : list[EdgeFlowInput]
+        恰好 6 条边的流转方向输入。
+
+    Returns
+    -------
+    CashSignalAnalysis
+        消歧分析结果。
+
+    Raises
+    ------
+    ValueError
+        边数不等于 6，或存在重复边（由 aggregate_vertex_flows 抛出）。
+    """
+    # 委托给 aggregate_vertex_flows 做输入验证和顶点聚合
+    states = aggregate_vertex_flows(edge_inputs)
+
+    # 1. 提取 CASH 的 net_flow
+    cash_net = 0
+    for s in states:
+        if s.vertex == AssetVertex.CASH:
+            cash_net = s.net_flow
+            break
+
+    # 2. 如果 CASH 无信号 → neutral
+    if cash_net == 0:
+        return CashSignalAnalysis(
+            cash_net_flow=0,
+            asset_subgraph_variance=0.0,
+            signal_type="neutral",
+            confidence=1.0,
+        )
+
+    # 3. 提取纯资产边的方向值
+    asset_directions: list[int] = [
+        _direction_value(e.direction)
+        for e in edge_inputs
+        if not _is_cash_edge(e)
+    ]
+
+    # 4. 计算纯资产子图方差
+    variance = _population_variance(asset_directions)
+
+    # 5. 分类
+    if variance == 0.0:
+        # 纯资产边无分化 → 度量基准变动
+        return CashSignalAnalysis(
+            cash_net_flow=cash_net,
+            asset_subgraph_variance=0.0,
+            signal_type="metric_shift",
+            confidence=1.0,
+        )
+
+    ratio = min(variance / _MAX_ASSET_VARIANCE, 1.0)
+
+    if ratio > _DIVERGENCE_THRESHOLD:
+        # 纯资产边有明显分化 → 真实流转
+        return CashSignalAnalysis(
+            cash_net_flow=cash_net,
+            asset_subgraph_variance=variance,
+            signal_type="genuine_flow",
+            confidence=ratio,
+        )
+
+    # 中间情况
+    return CashSignalAnalysis(
+        cash_net_flow=cash_net,
+        asset_subgraph_variance=variance,
+        signal_type="mixed",
+        confidence=0.5,
+    )
