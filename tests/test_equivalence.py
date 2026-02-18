@@ -6,6 +6,8 @@
 
 from __future__ import annotations
 
+import math
+
 import pandas as pd
 import pytest
 
@@ -91,6 +93,71 @@ class TestValidatePair:
         df_b = _ohlcv([50, 51])
         result = validate_pair(df_a, df_b)
         assert result.valid is False
+
+
+# ── 三层退化连锁检测（024号谱系）──────────────────────────
+
+
+def _oscillating(base: float, amp: float, n: int, freq: float = 0.3,
+                 start: str = "2024-01-01") -> pd.DataFrame:
+    """生成振荡价格序列的 OHLCV。"""
+    prices = [base + amp * math.sin(i * freq) for i in range(n)]
+    return _ohlcv(prices, start=start)
+
+
+class TestValidatePairThreeLayer:
+    """C-2 三层退化连锁检测（024号谱系）。"""
+
+    def test_valid_pair_all_layers(self):
+        """正例：有足够波动和足够数据的 pair 通过三层检测。"""
+        df_a = _oscillating(100, 20, 60, freq=0.3)
+        df_b = _oscillating(60, 5, 60, freq=0.5)
+        result = validate_pair(df_a, df_b)
+        assert result.valid is True
+        assert result.cv is not None and result.cv > 0.01
+
+    def test_cv_prescreen_rejection(self):
+        """比价 CV 极低 → Layer 1 拒绝，不跑管线。"""
+        # A 和 B 几乎同步变动 → ratio ≈ 常数
+        df_a = _oscillating(100, 0.001, 60, freq=0.3)
+        df_b = _oscillating(100, 0.001, 60, freq=0.3)
+        result = validate_pair(df_a, df_b)
+        assert result.valid is False
+        assert result.cv is not None and result.cv < 0.01
+        # Layer 2/3 不运行
+        assert result.stroke_mean_pct is None
+
+    def test_short_data_cv_only(self):
+        """数据不足 30 bars 时只检查 CV，不跑管线。"""
+        df_a = _ohlcv([100, 102, 101, 105, 103])
+        df_b = _ohlcv([50, 51, 49, 52, 50])
+        result = validate_pair(df_a, df_b)
+        assert result.valid is True
+        assert result.cv is not None and result.cv > 0.01
+        # Layer 2/3 不运行
+        assert result.stroke_mean_pct is None
+        assert result.macd_norm_hist is None
+
+    def test_diagnostics_populated_on_valid(self):
+        """通过三层的 pair 应有完整诊断信息。"""
+        df_a = _oscillating(100, 20, 60, freq=0.3)
+        df_b = _oscillating(60, 5, 60, freq=0.5)
+        result = validate_pair(df_a, df_b)
+        assert result.valid is True
+        assert result.cv is not None
+        # 有足够数据时应运行 Layer 2/3
+        if result.n_strokes is not None and result.n_strokes > 0:
+            assert result.stroke_mean_pct is not None
+            assert result.stroke_mean_pct > 0.005  # > T_stroke_pct
+
+    def test_backward_compat_constant_ratio(self):
+        """向后兼容：常数比价仍被拒绝（CV=0 → Layer 1 拒绝）。"""
+        df_a = _ohlcv([100, 200, 300, 400, 500])
+        df_b = _ohlcv([50, 100, 150, 200, 250])
+        result = validate_pair(df_a, df_b)
+        assert result.valid is False
+        # 新实现用 "degenerate" 描述退化
+        assert "degenerate" in result.reason.lower()
 
 
 # ── 比价K线构造 ──────────────────────────────────────────
