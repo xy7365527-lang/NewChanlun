@@ -510,9 +510,9 @@ entities:
   # ----------------------------------------------------------
   - name: 流转关系
     english_name: FlowRelation
-    code_class: "(待实现: flow_relation.py)"
+    code_class: "EdgeFlowInput, VertexFlowState, ResonanceStrength"
     file: src/newchan/flow_relation.py
-    implementation_status: definition_only
+    implementation_status: implemented
     necessary_conditions:
       - "四矩阵拓扑: 4顶点(动产/不动产/商品/现金)构成K₄完全图, 6条边"
       - "边方向: 每条边上比价走势当前笔的FlowDirection"
