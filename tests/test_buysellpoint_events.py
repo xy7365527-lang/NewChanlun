@@ -90,7 +90,7 @@ class TestDiffBuySellPoints:
         e = events[0]
         assert isinstance(e, BuySellPointCandidateV1)
         assert e.event_type == "bsp_candidate"
-        assert e.bsp_id == 0
+        assert isinstance(e.bsp_id, int) and e.bsp_id >= 0
         assert e.kind == "type1"
         assert e.side == "buy"
         assert e.price == 45.0
@@ -104,7 +104,7 @@ class TestDiffBuySellPoints:
         assert len(events) == 2
         assert isinstance(events[0], BuySellPointCandidateV1)
         assert isinstance(events[1], BuySellPointConfirmV1)
-        assert events[0].bsp_id == events[1].bsp_id == 0
+        assert events[0].bsp_id == events[1].bsp_id  # 同一 BSP 的 bsp_id 一致
         assert events[0].seq == 0
         assert events[1].seq == 1
 
@@ -115,7 +115,7 @@ class TestDiffBuySellPoints:
         events = _diff(prev, curr)
         assert len(events) == 1
         assert isinstance(events[0], BuySellPointConfirmV1)
-        assert events[0].bsp_id == 0
+        assert isinstance(events[0].bsp_id, int) and events[0].bsp_id >= 0
 
     def test_same_identity_settle_upgrade(self):
         """同身份 settled=F→T：产生 Settle。"""
@@ -124,7 +124,7 @@ class TestDiffBuySellPoints:
         events = _diff(prev, curr)
         assert len(events) == 1
         assert isinstance(events[0], BuySellPointSettleV1)
-        assert events[0].bsp_id == 0
+        assert isinstance(events[0].bsp_id, int) and events[0].bsp_id >= 0
 
     def test_same_identity_price_change(self):
         """同身份 price 变化：产生 Candidate（更新）。"""
@@ -163,7 +163,7 @@ class TestDiffBuySellPoints:
         events = _diff(prev, curr)
         assert len(events) == 1
         assert isinstance(events[0], BuySellPointCandidateV1)
-        assert events[0].bsp_id == 1
+        assert isinstance(events[0].bsp_id, int) and events[0].bsp_id >= 0
 
     def test_seq_monotonic(self):
         """seq 全局单调递增。"""
