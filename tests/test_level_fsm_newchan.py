@@ -256,6 +256,52 @@ class TestNoTimeout:
         assert ac.regime == Regime.RUN_ANCHOR_POST_EXIT
         assert ac.anchors.death_reason is None
 
+    def test_exit_extreme_tracks_pre_pullback_high_water_mark(self):
+        """离开 ABOVE 后同向段推高极值 → 回抽 → 再同向但未超推高极值 → 仍活。
+
+        场景：exit seg h=25, 同向推进 h=28, 回抽, 再同向 h=27。
+        27>25（离开段极值）但 27<28（推进后极值）。
+        正确行为：未创新高，中枢仍活（EVENT_ANCHOR_FIRST_PULLBACK）。
+        Bug 行为：用离开段极值 25 判断，27>25 → 误判死亡。
+        """
+        segs = [
+            _seg(0, 2, 0, 10, "up",   20.0, 10.0),    # seg0
+            _seg(2, 4, 10, 20, "down", 18.0, 12.0),    # seg1
+            _seg(4, 6, 20, 30, "up",   22.0, 11.0),    # seg2
+            _seg(6, 8, 30, 40, "down", 19.0, 13.0),    # seg3
+            _seg(8, 10, 40, 50, "up",  17.0, 14.0),    # seg4
+            _seg(10, 12, 50, 60, "up", 25.0, 20.0),    # seg5 exit ABOVE h=25
+            _seg(12, 14, 60, 70, "up", 28.0, 22.0),    # seg6 同向推进 h=28
+            _seg(14, 16, 70, 80, "down", 24.0, 19.0),  # seg7 回抽（反向）
+            _seg(16, 18, 80, 90, "up", 27.0, 21.0),    # seg8 再同向 h=27<28
+        ]
+        c = _make_center_settled(seg1=4)
+        ac = classify_center_practical_newchan(c, 0, segs, last_price=26.0)
+        # 27 < 28（推进后极值），未创新高 → 仍活
+        assert ac.is_alive is True
+        assert ac.regime == Regime.EVENT_ANCHOR_FIRST_PULLBACK
+        assert ac.anchors.run_exit_extreme == 28.0
+
+    def test_exit_extreme_tracks_pre_pullback_low_water_mark(self):
+        """离开 BELOW 后同向段推低极值 → 回抽 → 再同向但未破推低极值 → 仍活。"""
+        segs = [
+            _seg(0, 2, 0, 10, "up",   20.0, 10.0),    # seg0
+            _seg(2, 4, 10, 20, "down", 18.0, 12.0),    # seg1
+            _seg(4, 6, 20, 30, "up",   22.0, 11.0),    # seg2
+            _seg(6, 8, 30, 40, "down", 19.0, 13.0),    # seg3
+            _seg(8, 10, 40, 50, "up",  17.0, 14.0),    # seg4
+            _seg(10, 12, 50, 60, "down", 10.0, 5.0),   # seg5 exit BELOW l=5
+            _seg(12, 14, 60, 70, "down", 8.0, 3.0),    # seg6 同向推低 l=3
+            _seg(14, 16, 70, 80, "up", 15.0, 7.0),     # seg7 回抽（反向）
+            _seg(16, 18, 80, 90, "down", 9.0, 4.0),    # seg8 再同向 l=4>3
+        ]
+        c = _make_center_settled(seg1=4)
+        ac = classify_center_practical_newchan(c, 0, segs, last_price=4.5)
+        # 4 > 3（推进后极值），未创新低 → 仍活
+        assert ac.is_alive is True
+        assert ac.regime == Regime.EVENT_ANCHOR_FIRST_PULLBACK
+        assert ac.anchors.run_exit_extreme == 3.0
+
 
 # =====================================================================
 # G) DEAD_NOT_SETTLED — candidate center
