@@ -210,6 +210,14 @@ def classify_center_practical_newchan(
     for j in range(exit_idx + 1, cur_idx + 1):
         seg_j = segments[j]
 
+        # 回抽前：同向段推进极值 → 更新高水位
+        if not seen_pullback:
+            if seg_j.direction == exit_seg.direction:
+                if exit_side == ExitSide.ABOVE:
+                    exit_extreme = max(exit_extreme, seg_j.high)
+                else:
+                    exit_extreme = min(exit_extreme, seg_j.low)
+
         # 事件锚触发：反向段 或 触碰核
         if not seen_pullback:
             if seg_j.direction != exit_seg.direction:
