@@ -195,3 +195,34 @@ Lead 物理上无法修改文件或执行命令。所有执行工作必须通过
 - 016：知道规则 ≠ 执行规则 → runtime 强制
 - 020：无特权编排者 → 但 Lead 实际是特权位置
 - 032：自我限制 = 施密特悖论的谢林式消解
+
+---
+
+## 声明式工位分派（033号谱系）
+
+ceremony 的工位 spawn 行为由 `.chanlun/dispatch-spec.yaml` 正面定义。Lead 不决定 spawn 什么——spec 决定。
+
+### 设计原则
+
+从**约束**（prohibition）转向**规范**（specification）：
+- 约束思路（016→032）：每次堵一个自由度，问题转移到相邻自由度（无限打地鼠）
+- 规范思路（033）：正面定义行为空间，偏差变成可判定的实现错误
+
+### dispatch-spec.yaml 结构
+
+| 区块 | 内容 | Lead 自由度 |
+|------|------|------------|
+| structural_stations | 必须 spawn 的结构工位列表 | 零（mandatory=true, can_be_skipped=false） |
+| task_stations | 任务工位派生规则 | 受规则约束（从中断点派生） |
+| ceremony_sequence | 冷启动/热启动的完整步骤链 | 零（按序执行） |
+| validation | post-ceremony 检查条件 | 零（不通过则阻塞） |
+
+### 修改路径
+
+dispatch-spec.yaml 与 definitions 同级，修改走 /ritual 仪式门控。修改提案由 meta-observer 产出。
+
+### 谱系依据
+
+- 033：声明式工位分派规范（约束→规范的范式转换）
+- 032：Lead 自我权限剥夺（约束执行自由度）
+- 016：runtime enforcement layer（知道规则 ≠ 执行规则）
