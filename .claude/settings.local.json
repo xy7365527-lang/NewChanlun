@@ -1,24 +1,15 @@
 {
   "permissions": {
     "allow": [
-      "Bash(dir:*)",
-      "Bash(.venv\\\\Scripts\\\\pip install:*)",
-      "Bash(.venv\\\\Scripts\\\\pip.exe install:*)",
-      "Bash(git add:*)",
-      "Bash(git commit:*)",
-      "Bash(test:*)",
-      "Bash(git clone:*)",
-      "Bash(bash install.sh python)",
-      "Bash(gh repo view:*)",
-      "WebFetch(domain:github.com)",
-      "Bash(where:*)",
-      "Bash(pip show:*)",
-      "Bash(pip install:*)",
-      "Bash(ssh:*)",
-      "Bash(unzip:*)",
-      "mcp__plugin_playwright_playwright__browser_navigate",
-      "mcp__plugin_playwright_playwright__browser_install",
-      "mcp__plugin_playwright_playwright__browser_run_code"
+      "Bash(*)",
+      "WebFetch(*)",
+      "WebSearch",
+      "mcp__plugin_playwright_playwright__*",
+      "mcp__plugin_serena_serena__*",
+      "mcp__plugin_context7_context7__*",
+      "mcp__plugin_figma_figma__*",
+      "mcp__plugin_greptile_greptile__*",
+      "mcp__ide__*"
     ]
   }
 }

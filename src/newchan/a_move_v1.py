@@ -41,9 +41,9 @@ class Move:
     settled : bool
         是否已被后续 move 确认（最后一个=False）。
     high : float
-        max(center.zg) — 中枢区间上界。
+        max(center.gg) — 波动区间上界（含离开段极值）。
     low : float
-        min(center.zd) — 中枢区间下界。
+        min(center.dd) — 波动区间下界（含离开段极值）。
     first_seg_s0 : int
         前端定位用：第一段的 stroke s0。
     last_seg_s1 : int
@@ -170,8 +170,8 @@ def moves_from_zhongshus(
             zs_end=zs_end,
             zs_count=zs_count,
             settled=True,
-            high=max(zs.zg for zs in group_centers),
-            low=min(zs.zd for zs in group_centers),
+            high=max(zs.gg for zs in group_centers),
+            low=min(zs.dd for zs in group_centers),
             first_seg_s0=first_zs.first_seg_s0,
             last_seg_s1=last_zs.last_seg_s1,
         ))

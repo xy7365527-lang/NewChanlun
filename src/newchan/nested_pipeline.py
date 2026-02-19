@@ -73,18 +73,14 @@ def run_nested_search(
         return [], None
 
     # ── MACD 数据准备 ──
-    bar_index = pd.DatetimeIndex([b.ts for b in bars])
     if df_macd is None:
         df_raw = pd.DataFrame(
             [{"close": b.close} for b in bars],
-            index=bar_index,
+            index=pd.DatetimeIndex([b.ts for b in bars]),
         )
         df_macd = compute_macd(
             df_raw, fast=macd_fast, slow=macd_slow, signal=macd_signal,
         )
-    else:
-        # 外部 MACD 对齐到 bars 时间戳（下游使用 .iloc 位置索引）
-        df_macd = df_macd.reindex(bar_index)
 
     # ── merged_to_raw 映射 ──
     df_raw = pd.DataFrame({
@@ -92,7 +88,7 @@ def run_nested_search(
         "high": [b.high for b in bars],
         "low": [b.low for b in bars],
         "close": [b.close for b in bars],
-    }, index=bar_index)
+    }, index=pd.DatetimeIndex([b.ts for b in bars]))
     _, merged_to_raw = merge_inclusion(df_raw)
 
     # ── 区间套搜索 ──
