@@ -73,14 +73,19 @@ def run_nested_search(
         return [], None
 
     # ── MACD 数据准备 ──
+    bar_index = pd.DatetimeIndex([b.ts for b in bars])
     if df_macd is None:
         df_raw = pd.DataFrame(
             [{"close": b.close} for b in bars],
-            index=pd.DatetimeIndex([b.ts for b in bars]),
+            index=bar_index,
         )
         df_macd = compute_macd(
             df_raw, fast=macd_fast, slow=macd_slow, signal=macd_signal,
         )
+    else:
+        # 外部 MACD 必须和 bars 在时间轴上对齐；
+        # 下游使用 iloc（位置索引），这里统一成 bars 顺序并按缺失补 NaN。
+        df_macd = df_macd.reindex(bar_index)
 
     # ── merged_to_raw 映射 ──
     df_raw = pd.DataFrame({
