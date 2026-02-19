@@ -158,8 +158,8 @@ class Move:
     zs_end: int
     zs_count: int       # >= 1
     settled: bool       # 最后一个 = False
-    high: float         # max(center.zg)
-    low: float          # min(center.zd)
+    high: float         # max(center.gg) — 波动极值（031号谱系：恢复自同构性）
+    low: float          # min(center.dd) — 波动极值（031号谱系：恢复自同构性）
     first_seg_s0: int   # 前端定位
     last_seg_s1: int    # 前端定位
 ```

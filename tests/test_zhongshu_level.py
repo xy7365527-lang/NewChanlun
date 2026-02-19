@@ -323,8 +323,8 @@ class TestMovesFromLevelZhongshus:
         assert m.kind == "trend"
         assert m.direction == "up"
         assert m.zs_count == 2
-        assert m.high == 30.0  # max(zg: 15, 30)
-        assert m.low == 10.0  # min(zd: 10, 25)
+        assert m.high == 35.0  # max(gg: 18, 35)
+        assert m.low == 5.0   # min(dd: 5, 20)
 
     def test_moves_from_level_zhongshus_last_unsettled(self) -> None:
         """最后一个 move 的 settled 必须为 False。"""

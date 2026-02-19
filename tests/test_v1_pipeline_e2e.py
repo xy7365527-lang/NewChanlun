@@ -252,10 +252,10 @@ class TestV1PipelineE2E:
         assert m.seg_end == 11
 
     def test_move_high_low(self, moves: list[Move]):
-        """走势高低点来自中枢区间：high=max(zg), low=min(zd)。"""
+        """走势高低点来自波动极值：high=max(gg), low=min(dd)。"""
         m = moves[0]
-        assert m.high == pytest.approx(93.0)  # max(93, 68)
-        assert m.low == pytest.approx(55.0)   # min(84, 55)
+        assert m.high == pytest.approx(100.0)  # max(gg1, gg2)
+        assert m.low == pytest.approx(48.0)    # min(dd1, dd2)
 
     def test_move_last_unsettled(self, moves: list[Move]):
         """最后一个走势 settled=False（moves_from_zhongshus 强制规则）。"""

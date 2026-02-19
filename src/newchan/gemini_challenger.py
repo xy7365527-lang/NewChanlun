@@ -4,6 +4,14 @@
 Gemini 的理解方式与 Claude 根本不同，因此可能产出 Claude 自身
 永远产出不了的否定。
 
+两种模式：
+- 纯文本模式：challenge() / verify() — 传入文本，返回质询结果
+- MCP 工具模式：challenge_with_tools() / verify_with_tools()
+  — Gemini 通过 MCP 协议访问 Serena 语义工具（find_symbol、
+    get_symbols_overview、find_referencing_symbols 等），
+    自主导航代码库后再质询。google-genai SDK 的
+    automatic_function_calling 自动处理 agentic loop。
+
 操作规则（SKILL.md）：
 1. Lead 或指定 agent 调用 challenge() / verify()
 2. 返回结果由调用者判断否定是否成立
@@ -17,13 +25,14 @@ Gemini 的理解方式与 Claude 根本不同，因此可能产出 Claude 自身
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
 from google import genai
-from google.genai import errors as genai_errors
+from google.genai import errors as genai_errors, types as genai_types
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +41,8 @@ __all__ = [
     "ChallengeResult",
     "challenge",
     "verify",
+    "achallenge",
+    "averify",
 ]
 
 _MODEL = "gemini-3-pro-preview"
@@ -47,6 +58,23 @@ _SYSTEM_PROMPT = """\
 - 如果你认为没有问题，明确说"无否定"
 - 如果你发现问题，精确描述矛盾：什么跟什么冲突、为什么不可弥合
 - 不要客套，不要模糊化，直击要害
+"""
+
+_SYSTEM_PROMPT_WITH_TOOLS = """\
+你是缠论形式化项目的异质质询者，拥有代码库的语义级访问能力。
+
+你可以使用工具来理解代码结构和关系。工作流程：
+1. 先用工具理解相关代码的结构和关系（符号导航、引用追踪）
+2. 基于实际代码（而非假设）进行质询
+3. 引用具体的文件路径和符号名称
+
+关键原则：
+- 你不需要认同项目的所有前提，但需要理解它们
+- 你的价值在于提供 Claude 可能看不到的否定
+- 如果你认为没有问题，明确说"无否定"
+- 如果你发现问题，精确描述矛盾：什么跟什么冲突、为什么不可弥合
+- 不要客套，不要模糊化，直击要害
+- 引用具体代码位置支撑你的判断
 """
 
 _CHALLENGE_TEMPLATE = """\
@@ -106,6 +134,8 @@ class ChallengeResult:
     subject: str
     response: str
     model: str
+    tool_calls: tuple[str, ...] = ()  # MCP 工具调用历史摘要
+    reasoning_chain: tuple[dict, ...] = ()  # 完整推理链（thought/tool_call/tool_result）
 
 
 class GeminiChallenger:
@@ -211,6 +241,189 @@ class GeminiChallenger:
             model=model_used,
         )
 
+    # ── MCP 工具模式（async） ──
+
+    async def _call_with_tools_and_fallback(
+        self,
+        prompt: str,
+        temperature: float,
+        session: object,  # mcp.client.session.ClientSession
+        max_tool_calls: int = 20,
+    ) -> tuple[str, str, tuple[str, ...], tuple[dict, ...]]:
+        """Gemini + MCP 自动 function calling 循环。
+
+        google-genai SDK 原生支持 MCP ClientSession 作为 tool。
+        SDK 自动处理：列出工具 → Gemini 发 function call →
+        SDK 执行 → 结果回传 → 重复。
+
+        Returns (response_text, actual_model, tool_call_summaries, reasoning_chain)。
+        """
+        for model in (self._model, _FALLBACK_MODEL):
+            try:
+                response = await self._client.aio.models.generate_content(
+                    model=model,
+                    contents=prompt,
+                    config=genai_types.GenerateContentConfig(
+                        system_instruction=_SYSTEM_PROMPT_WITH_TOOLS,
+                        temperature=temperature,
+                        tools=[session],
+                        automatic_function_calling=genai_types.AutomaticFunctionCallingConfig(
+                            maximum_remote_calls=max_tool_calls,
+                        ),
+                    ),
+                )
+                # 提取工具调用历史 + 完整推理链
+                tool_calls: list[str] = []
+                chain: list[dict] = []
+                history = getattr(
+                    response, "automatic_function_calling_history", None,
+                )
+                if history:
+                    for entry in history:
+                        for part in getattr(entry, "parts", []):
+                            # Gemini 的文本推理
+                            text = getattr(part, "text", None)
+                            if text and text.strip():
+                                chain.append({
+                                    "type": "thought",
+                                    "content": text.strip(),
+                                })
+                            # 工具调用请求
+                            fc = getattr(part, "function_call", None)
+                            if fc:
+                                args = dict(fc.args or {})
+                                summary = f"{fc.name}({', '.join(f'{k}={v!r}' for k, v in args.items())})"
+                                tool_calls.append(summary)
+                                chain.append({
+                                    "type": "tool_call",
+                                    "name": fc.name,
+                                    "args": args,
+                                })
+                            # 工具返回结果
+                            fr = getattr(part, "function_response", None)
+                            if fr:
+                                content = str(getattr(fr, "response", ""))
+                                chain.append({
+                                    "type": "tool_result",
+                                    "name": getattr(fr, "name", ""),
+                                    "content": content[:500] if len(content) > 500 else content,
+                                })
+                return (
+                    response.text or "",
+                    model,
+                    tuple(tool_calls),
+                    tuple(chain),
+                )
+            except genai_errors.ServerError:
+                if model == self._model and model != _FALLBACK_MODEL:
+                    logger.warning(
+                        "%s 不可用 (503)，降级到 %s",
+                        model,
+                        _FALLBACK_MODEL,
+                    )
+                    continue
+                raise
+        raise RuntimeError("所有模型均不可用")  # pragma: no cover
+
+    async def challenge_with_tools(
+        self,
+        subject: str,
+        context: str = "",
+        *,
+        session: object | None = None,
+        max_tool_calls: int = 20,
+    ) -> ChallengeResult:
+        """MCP 工具增强质询。Gemini 可自主导航代码库。
+
+        Parameters
+        ----------
+        subject : str
+            质询目标。
+        context : str
+            额外上下文。
+        session : mcp ClientSession | None
+            MCP 会话。None 时自动连接 Serena。
+        max_tool_calls : int
+            最大工具调用次数。
+        """
+        prompt = _CHALLENGE_TEMPLATE.format(subject=subject, context=context)
+        if session is not None:
+            text, model_used, calls, chain = await self._call_with_tools_and_fallback(
+                prompt, 0.3, session, max_tool_calls,
+            )
+            return ChallengeResult(
+                mode="challenge",
+                subject=subject,
+                response=text,
+                model=model_used,
+                tool_calls=calls,
+                reasoning_chain=chain,
+            )
+        # 自动连接 Serena
+        from newchan.mcp_bridge import SerenaConfig, mcp_session
+
+        async with mcp_session(SerenaConfig()) as sess:
+            text, model_used, calls, chain = await self._call_with_tools_and_fallback(
+                prompt, 0.3, sess, max_tool_calls,
+            )
+        return ChallengeResult(
+            mode="challenge",
+            subject=subject,
+            response=text,
+            model=model_used,
+            tool_calls=calls,
+            reasoning_chain=chain,
+        )
+
+    async def verify_with_tools(
+        self,
+        subject: str,
+        context: str = "",
+        *,
+        session: object | None = None,
+        max_tool_calls: int = 20,
+    ) -> ChallengeResult:
+        """MCP 工具增强验证。Gemini 可自主导航代码库。
+
+        Parameters
+        ----------
+        subject : str
+            验证目标。
+        context : str
+            额外上下文。
+        session : mcp ClientSession | None
+            MCP 会话。None 时自动连接 Serena。
+        max_tool_calls : int
+            最大工具调用次数。
+        """
+        prompt = _VERIFY_TEMPLATE.format(subject=subject, context=context)
+        if session is not None:
+            text, model_used, calls, chain = await self._call_with_tools_and_fallback(
+                prompt, 0.1, session, max_tool_calls,
+            )
+            return ChallengeResult(
+                mode="verify",
+                subject=subject,
+                response=text,
+                model=model_used,
+                tool_calls=calls,
+                reasoning_chain=chain,
+            )
+        from newchan.mcp_bridge import SerenaConfig, mcp_session
+
+        async with mcp_session(SerenaConfig()) as sess:
+            text, model_used, calls, chain = await self._call_with_tools_and_fallback(
+                prompt, 0.1, sess, max_tool_calls,
+            )
+        return ChallengeResult(
+            mode="verify",
+            subject=subject,
+            response=text,
+            model=model_used,
+            tool_calls=calls,
+            reasoning_chain=chain,
+        )
+
 
 # ── 模块级便捷函数 ──
 
@@ -225,13 +438,37 @@ def _get_challenger() -> GeminiChallenger:
 
 
 def challenge(subject: str, context: str = "") -> ChallengeResult:
-    """模块级质询（自动初始化）。"""
+    """模块级质询（纯文本模式）。"""
     return _get_challenger().challenge(subject, context)
 
 
 def verify(subject: str, context: str = "") -> ChallengeResult:
-    """模块级验证（自动初始化）。"""
+    """模块级验证（纯文本模式）。"""
     return _get_challenger().verify(subject, context)
+
+
+async def achallenge(
+    subject: str,
+    context: str = "",
+    *,
+    max_tool_calls: int = 20,
+) -> ChallengeResult:
+    """模块级 MCP 工具增强质询（async，自动连接 Serena）。"""
+    return await _get_challenger().challenge_with_tools(
+        subject, context, max_tool_calls=max_tool_calls,
+    )
+
+
+async def averify(
+    subject: str,
+    context: str = "",
+    *,
+    max_tool_calls: int = 20,
+) -> ChallengeResult:
+    """模块级 MCP 工具增强验证（async，自动连接 Serena）。"""
+    return await _get_challenger().verify_with_tools(
+        subject, context, max_tool_calls=max_tool_calls,
+    )
 
 
 # ── CLI 入口 ──
@@ -239,6 +476,10 @@ def verify(subject: str, context: str = "") -> ChallengeResult:
 if __name__ == "__main__":
     import argparse
     import sys
+
+    from dotenv import load_dotenv
+
+    load_dotenv()
 
     parser = argparse.ArgumentParser(description="Gemini 质询工位 CLI")
     parser.add_argument(
@@ -260,6 +501,22 @@ if __name__ == "__main__":
         default=None,
         help="从文件读取上下文",
     )
+    parser.add_argument(
+        "--tools",
+        action="store_true",
+        help="启用 MCP 工具模式（Gemini 可访问 Serena 语义工具）",
+    )
+    parser.add_argument(
+        "--max-tool-calls",
+        type=int,
+        default=20,
+        help="MCP 模式下最大工具调用次数（默认 20）",
+    )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="输出完整推理链（Gemini 的每步思考 + 工具调用 + 工具返回）",
+    )
     args = parser.parse_args()
 
     ctx = args.context
@@ -273,11 +530,46 @@ if __name__ == "__main__":
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
-    if args.mode == "challenge":
-        result = challenger.challenge(args.subject, ctx)
+    if args.tools:
+        # MCP 工具模式（async）
+        async def _run() -> ChallengeResult:
+            if args.mode == "challenge":
+                return await challenger.challenge_with_tools(
+                    args.subject, ctx, max_tool_calls=args.max_tool_calls,
+                )
+            return await challenger.verify_with_tools(
+                args.subject, ctx, max_tool_calls=args.max_tool_calls,
+            )
+
+        result = asyncio.run(_run())
     else:
-        result = challenger.verify(args.subject, ctx)
+        # 纯文本模式（sync）
+        if args.mode == "challenge":
+            result = challenger.challenge(args.subject, ctx)
+        else:
+            result = challenger.verify(args.subject, ctx)
 
     print(f"[{result.mode}] model={result.model}")
+    if result.tool_calls:
+        print(f"tool_calls ({len(result.tool_calls)}):")
+        for tc in result.tool_calls:
+            print(f"  → {tc}")
+    if args.verbose and result.reasoning_chain:
+        print()
+        print("=== Gemini 推理链 ===")
+        for i, step in enumerate(result.reasoning_chain, 1):
+            stype = step["type"]
+            if stype == "thought":
+                print(f"[{i}] 💭 {step['content']}")
+            elif stype == "tool_call":
+                args_str = ", ".join(
+                    f"{k}={v!r}" for k, v in step.get("args", {}).items()
+                )
+                print(f"[{i}] 🔍 {step['name']}({args_str})")
+            elif stype == "tool_result":
+                content = step.get("content", "")
+                preview = content[:200] + "..." if len(content) > 200 else content
+                print(f"    → {step.get('name', '')}: {preview}")
+        print()
     print("=" * 60)
     print(result.response)

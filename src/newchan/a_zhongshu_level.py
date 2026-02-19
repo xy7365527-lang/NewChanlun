@@ -261,8 +261,8 @@ def moves_from_level_zhongshus(zhongshus: list[LevelZhongshu]) -> list[Move]:
             zs_end=zs_end,
             zs_count=zs_count,
             settled=True,
-            high=max(zs.zg for zs in group_centers),
-            low=min(zs.zd for zs in group_centers),
+            high=max(zs.gg for zs in group_centers),
+            low=min(zs.dd for zs in group_centers),
             first_seg_s0=first_zs.comp_start,
             last_seg_s1=last_zs.comp_end,
         ))

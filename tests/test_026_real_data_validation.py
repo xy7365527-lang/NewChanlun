@@ -104,7 +104,6 @@ def _build_edge_inputs_for_day(
     ]
 
 
-@pytest.mark.slow
 @skip_no_av_key
 class TestCashDisambiguationRealData:
     """026 谱系结算条件 #2: 真实数据验证。"""
