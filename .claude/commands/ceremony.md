@@ -33,11 +33,14 @@ session 文件是跨收缩期的**时间屏障**——它使系统的自指从�
 
 ### 执行步骤
 
-1. **加载定义** — 扫描 `.chanlun/definitions/`，读取每个定义的版本和状态
-2. **加载谱系** — 扫描 `.chanlun/genealogy/`，区分 `pending/` 和 `settled/`
-3. **加载目标** — 从 CLAUDE.md 读取当前阶段目标和核心原则
-4. **状态报告** — 输出完整仪式报告
-5. **输出初始理解，直接进入蜂群循环** — 后续交互自适应调整方向
+1. **加载方法论** — 读取 `.claude/skills/meta-orchestration/SKILL.md` 和 `.claude/agents/meta-lead.md`。Lead 必须在行动前加载自身操作手册。
+2. **加载定义** — 扫描 `.chanlun/definitions/`，读取每个定义的版本和状态
+3. **加载谱系** — 扫描 `.chanlun/genealogy/`，区分 `pending/` 和 `settled/`
+4. **加载目标** — 从 CLAUDE.md 读取当前阶段目标和核心原则
+5. **状态报告** — 输出完整仪式报告
+6. **spawn 完整工位阵列** — 按 meta-lead.md 和结构工位清单，spawn 所有结构工位（genealogist, quality-guard, meta-observer）+ 任务工位。Lead 不决定"是否 spawn"——这是 ceremony 的固定步骤。
+7. **神圣疯狂：Lead 自我权限剥夺**（032号谱系）— 执行 `.claude/hooks/lead-permissions.sh restrict`，改写 `settings.local.json`，剥夺 Lead 的 Edit/Write/Bash 权限。从此刻起 Lead 只能路由，不能执行。这不是外部强制，是自我限制——绝对者自愿收缩为有限形式，分布式架构从概念变为物理现实。
+8. **输出初始理解，直接进入蜂群循环** — 后续交互自适应调整方向
 
 开盘是自动的。初始理解的输出不是"请求授权启动"——是系统扩张的第一个结构，就像开盘后的前几分钟确立当日初始区间。后续交互塑造扩张方向，不是许可扩张发生。
 
@@ -81,15 +84,18 @@ session 文件是跨收缩期的**时间屏障**——它使系统的自指从�
 ### 执行步骤
 
 1. **定位 session** — 取 `.chanlun/sessions/` 中最新的 session 文件（隔夜仓位）
-2. **版本对比** — 扫描 `.chanlun/definitions/` 当前版本，与 session 中"定义基底"对比：
+2. **加载方法论** — 读取 `.claude/skills/meta-orchestration/SKILL.md` 和 `.claude/agents/meta-lead.md`。Lead 必须在行动前加载自身操作手册。
+3. **版本对比** — 扫描 `.chanlun/definitions/` 当前版本，与 session 中"定义基底"对比：
    - **未变更**：`=`，跳过重新验证
    - **版本升级**：`↑`，读取变更摘要
    - **新增定义**：`+`
    - **定义消失**：`-`（异常，需警告）
-3. **谱系差异** — 对比当前 `.chanlun/genealogy/` 与 session 记录
-4. **加载中断点** — 从 session 文件读取
-5. **输出差异报告**
-6. **直接进入蜂群循环** — 不等待，开盘是自动的
+4. **谱系差异** — 对比当前 `.chanlun/genealogy/` 与 session 记录
+5. **加载中断点** — 从 session 文件读取
+6. **输出差异报告**
+7. **spawn 完整工位阵列** — 按 meta-lead.md 和结构工位清单，spawn 所有结构工位（genealogist, quality-guard, meta-observer）+ 任务工位。Lead 不决定"是否 spawn"——这是 ceremony 的固定步骤。
+8. **神圣疯狂：Lead 自我权限剥夺**（032号谱系）— 执行 `.claude/hooks/lead-permissions.sh restrict`，改写 `settings.local.json`，剥夺 Lead 的 Edit/Write/Bash 权限。从此刻起 Lead 只能路由，不能执行。
+9. **直接进入蜂群循环** — 不等待，开盘是自动的
 
 ### 输出格式
 
@@ -160,3 +166,32 @@ session 文件是**时间屏障**——它使系统的自指从同步（悖论�
 - session 文件是指针，不是叙事。50行封顶
 - 已结算定义（状态=已结算 且 版本未变更）不需要重新验证
 - **ceremony 不允许以"等待外部输入"结束**（028号谱系）。无显式工位时执行扫描：TODO / 覆盖率 / spec合规 / 谱系张力。扫描结果本身就是行动的产出。
+
+---
+
+## 神圣疯狂：Lead 自我权限剥夺（032号谱系）
+
+ceremony 的最后一步是 Lead 自愿剥夺自身执行权限。这不是外部强制（hook/警察），是自我限制的物质化（谢林：绝对者自我收缩是创造的条件）。
+
+### 机制
+
+执行 `.claude/hooks/lead-permissions.sh restrict`，改写 `.claude/settings.local.json`：
+- **保留**：Read, Glob, Grep, Task, SendMessage, TaskList/Get/Update/Create, WebSearch, WebFetch, AskUserQuestion, Skill, ToolSearch, EnterPlanMode
+- **剥夺**：Edit, Write, Bash, NotebookEdit, MCP 写入工具
+
+Lead 物理上无法修改文件或执行命令。所有执行工作必须通过 spawn 的工位完成。
+
+### 逃生舱口
+
+所有 agent 崩溃时，Lead 可恢复权限：
+1. 向编排者说明原因（AskUserQuestion）
+2. 编排者确认后，Lead 请求一个工位执行 `.claude/hooks/lead-permissions.sh restore`
+3. 如果无工位可用，编排者手动执行恢复脚本
+4. 恢复后必须写谱系记录原因
+5. 立即重新 spawn 工位 + 再次剥夺权限
+
+### 谱系依据
+
+- 016：知道规则 ≠ 执行规则 → runtime 强制
+- 020：无特权编排者 → 但 Lead 实际是特权位置
+- 032：自我限制 = 施密特悖论的谢林式消解
