@@ -14,6 +14,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from google.genai.errors import ServerError
+
 from newchan.gemini_challenger import (
     ChallengeResult,
     GeminiChallenger,
@@ -149,3 +151,54 @@ class TestModuleLevelFunctions:
             assert result.response == "b"
 
         mod._default_challenger = None
+
+
+class TestFallback:
+    """主模型 503 时降级到 fallback。"""
+
+    def test_fallback_on_503(self) -> None:
+        with patch("newchan.gemini_challenger.genai") as mock_genai:
+            mock_client = mock_genai.Client.return_value
+
+            # 第一次调用（主模型）抛 503
+            mock_503 = ServerError(503, {"error": {"message": "unavailable"}})
+            # 第二次调用（fallback）成功
+            mock_ok = MagicMock()
+            mock_ok.text = "fallback response"
+            mock_client.models.generate_content.side_effect = [
+                mock_503,
+                mock_ok,
+            ]
+
+            c = GeminiChallenger(api_key="test")
+            result = c.challenge("test subject")
+
+            assert result.model == "gemini-2.5-pro"
+            assert result.response == "fallback response"
+            assert mock_client.models.generate_content.call_count == 2
+
+    def test_no_fallback_when_primary_works(self) -> None:
+        with patch("newchan.gemini_challenger.genai") as mock_genai:
+            mock_response = MagicMock()
+            mock_response.text = "primary ok"
+            mock_genai.Client.return_value.models.generate_content.return_value = (
+                mock_response
+            )
+
+            c = GeminiChallenger(api_key="test")
+            result = c.challenge("test")
+
+            assert result.model == "gemini-3-pro-preview"
+            assert result.response == "primary ok"
+
+    def test_both_fail_raises(self) -> None:
+        with patch("newchan.gemini_challenger.genai") as mock_genai:
+            mock_503 = ServerError(503, {"error": {"message": "unavailable"}})
+            mock_genai.Client.return_value.models.generate_content.side_effect = [
+                mock_503,
+                mock_503,
+            ]
+
+            c = GeminiChallenger(api_key="test")
+            with pytest.raises(ServerError):
+                c.challenge("test")
