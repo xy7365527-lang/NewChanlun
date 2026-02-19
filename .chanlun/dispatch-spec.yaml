@@ -1,0 +1,102 @@
+# dispatch-spec.yaml
+# 声明式工位分派规范
+#
+# 设计原则（033号谱系）：
+#   Lead 的路由自由度通过正面规范消除，而非通过约束堵漏。
+#   Lead 是 spec 解释器，不是决策者。
+#   偏离 spec = 实现错误（可判定），不是设计缺陷（不可判定）。
+#
+# 修改路径：/ritual 仪式门控（与 definitions 同级）
+# 修改提案者：meta-observer
+# 版本：v1.0
+
+version: "1.0"
+provenance: "[新缠论]"
+genealogy_ref: "033-declarative-dispatch-spec"
+
+structural_stations:
+  - name: genealogist
+    agent: ".claude/agents/genealogist.md"
+    purpose: "谱系写入、张力检查、回溯扫描"
+    spawn_phase: "post-definition-load"
+    mandatory: true
+    can_be_skipped: false
+
+  - name: quality-guard
+    agent: ".claude/agents/quality-guard.md"
+    purpose: "结果包检查、代码违规扫描"
+    spawn_phase: "post-definition-load"
+    mandatory: true
+    can_be_skipped: false
+
+  - name: meta-observer
+    agent: ".claude/agents/meta-observer.md"
+    purpose: "二阶反馈回路、元编排进化、dispatch-spec 修改提案"
+    spawn_phase: "post-definition-load"
+    mandatory: true
+    can_be_skipped: false
+
+task_stations:
+  derivation: "session.interruption_points + CLAUDE.md.objectives"
+  spawn_phase: "post-structural-spawn"
+  rules:
+    - "每个独立中断点 = 一个工位（并行默认）"
+    - "有数据依赖的中断点 = 串行链"
+    - "Lead 不自行执行任务，只分派和汇总"
+
+ceremony_sequence:
+  cold_start:
+    - step: "load-methodology"
+      action: "读取 SKILL.md + meta-lead.md"
+    - step: "load-definitions"
+      action: "扫描 .chanlun/definitions/*.md"
+    - step: "load-genealogy"
+      action: "扫描 .chanlun/genealogy/{pending,settled}/"
+    - step: "load-objectives"
+      action: "读取 CLAUDE.md 当前阶段目标"
+    - step: "status-report"
+      action: "输出定义基底、谱系状态、目标"
+    - step: "spawn-structural"
+      action: "按 structural_stations 列表 spawn 全部结构工位"
+      validation: "spawn 数量 == structural_stations.length"
+    - step: "spawn-task"
+      action: "按 task_stations.rules 从中断点派生任务工位"
+    - step: "divine-madness"
+      action: "Lead 自我权限剥夺（032号谱系）"
+    - step: "enter-swarm-loop"
+      action: "直接进入蜂群循环，不等待确认"
+
+  warm_start:
+    - step: "locate-session"
+      action: "定位最新 .chanlun/sessions/*.md"
+    - step: "load-methodology"
+      action: "读取 SKILL.md + meta-lead.md"
+    - step: "version-diff"
+      action: "对比 session 记录 vs 当前 definitions/ 版本"
+    - step: "genealogy-diff"
+      action: "对比 session 记录 vs 当前 genealogy/ 状态"
+    - step: "load-interruption-points"
+      action: "从 session 读取中断点"
+    - step: "diff-report"
+      action: "输出差异报告（= ↑ + -）"
+    - step: "spawn-structural"
+      action: "按 structural_stations 列表 spawn 全部结构工位"
+      validation: "spawn 数量 == structural_stations.length"
+    - step: "spawn-task"
+      action: "按 task_stations.rules 从中断点派生任务工位"
+    - step: "divine-madness"
+      action: "Lead 自我权限剥夺（032号谱系）"
+    - step: "enter-swarm-loop"
+      action: "直接进入蜂群循环，不等待确认"
+
+validation:
+  post_ceremony:
+    - check: "all_structural_spawned"
+      condition: "所有 structural_stations 中 mandatory=true 的工位均已 spawn"
+      on_fail: "阻塞——不允许进入蜂群循环"
+    - check: "lead_permissions_restricted"
+      condition: "settings.local.json 中 Lead 只保留 Read/Glob/Grep/Task/SendMessage/TaskList/TaskGet/TaskUpdate"
+      on_fail: "阻塞——032号谱系要求"
+    - check: "task_stations_derived"
+      condition: "至少从中断点派生了一个任务工位（除非中断点为空）"
+      on_fail: "警告——可能遗漏工作"
