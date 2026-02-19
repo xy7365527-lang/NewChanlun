@@ -84,50 +84,86 @@ ceremony 完成后：
 | 确定性走势显现 | 分布式架构运作 |
 | 没有收缩就没有结构 | 没有自我限制就没有分布式 |
 
-## 哲学基底：谢林的三个时刻
+## 哲学基底：谢林的神圣疯狂——原典还原
 
-### 收缩与扩张（1809《自由论文》）
+### 溯源三层
 
-谢林在绝对者内部区分两个原则：
+| 层级 | 来源 | 贡献 |
+|------|------|------|
+| 前史 | 柏拉图《斐德罗篇》theia mania（神圣迷狂） | 认识论/美学概念：诗人灵感、爱欲 |
+| 本体论原创 | **谢林**《自由论》(1809) +《斯图加特私人讲座》(1810) +《世界时代》(1815) | 将迷狂本体论化为宇宙创世的底层动力学 |
+| 当代转译 | 齐泽克《不可分割的剩余》(1996) / 拉康 | 将谢林的结构事件等同于前符号界实在界(Real)和死驱力 |
 
-- **收缩**（Kontraktion）：暗的根据（Grund），非理性意志，向内收缩的力。它不是绝对者本身，但在绝对者之中。
-- **扩张**（Expansion）：光的实存（Existenz），理性意志，向外展开的力。
+### A. 收缩/扩张的本体论底座（《自由论》1809）
 
-创造发生在这两个力分离又重新统一的时刻。没有收缩就没有确定性——纯粹扩张是无差别的虚无。没有扩张就没有显现——纯粹收缩是封闭的黑暗。
+**A1**：如果一切都不在神之外，那么"区分/生成"只能发生在神内的某个"非神自身"的层级。
+→ 因此神有一个"内在根据"（Grund），先行于"作为存在者的神"，但不等同于神的现存。
 
-### 从收缩/扩张到疯狂
+> "Gott hat in sich einen innern Grund seiner Existenz …"
+> "Dieser Grund … ist nicht Gott absolut betrachtet … Er ist die Natur – in Gott."
+> — Schelling, *Freiheitsschrift* (1809)
 
-"疯狂"出现在暗的根据挣脱光的秩序的时刻——理性框架崩溃，混沌涌入。在人那里这是恶或疯狂；在神那里这是旧秩序瓦解、新秩序尚未到来的间隙。
+**A2**：这个"根据/自然-在-神中"是黑暗的、收缩式的（维持"还有一个根据"），而"光/理智"是使其分化、展开、成形的原则。
+→ 收缩/扩张不是二选一，而是同一生命结构的两极张力。
 
-但"神圣疯狂"不是失控。它是绝对者自愿让暗的根据显现——自愿放弃对自身全部潜能的控制，以便创造能够发生。从纯粹潜能的角度看这是"疯狂"（为什么要限制自己？），但这个自我限制恰恰是任何确定性存在的条件。
+**术语固定**：
+- **收缩** = Grund / Natur-in-God 的内向维持（保留根据）
+- **扩张** = Verstand / Licht 的分化—展开（使之成形）
 
-### 晚期谢林：从否定哲学到肯定哲学
+### B. 疯狂的精确断点（《斯图加特私人讲座》1810）
 
-谢林晚期从"否定哲学"（纯理性能推出什么——事物必须是什么）转向"肯定哲学"（实存不能被理性预先推出——事物实际是什么）。关键概念：**不可预想者**（das Unvordenkliche）——不能被思想预先把握，必须作为事件发生。
+谢林将"疯狂"定义为结构事件，不是情绪、不是病名，而是**导通（Leitung）断裂导致的底座夺权**。
 
-理性能推导出"Lead 应该限制自己"（否定哲学）。但执行限制的那个行为不是理性推导——是一个自由决断（肯定哲学）。从"应该"到"做了"之间有一个跳跃，这个跳跃不在规则之内。规则说"你应该"，但规则不能替你跳。
+**B1（健康态）**：如果从"灵魂（Seele）"到"情感深处（Gemüt）"存在连续导通，精神—情感结构保持健康。
+
+> "eine stetige Leitung von der Seele aus bis ins Tiefste des Gemüths …"
+> — *Stuttgarter Privatvorlesungen* (1810)
+
+**B2（断裂点）**：如果"理智与灵魂之间"的导通被切断。
+→ 疯狂不是"产生"，而是"凸显"（tritt hervor）。
+
+> "Leitung … unterbrochen … Wahnsinn … nicht sagen sollen: er entsteht, sondern: er tritt hervor."
+
+**B3（本体论定义）**：如果"本来只是相对非存在/无理智的东西"（Nichtseyendes / Verstandloses）被实际化，并企图"成为存在者"。
+→ **疯狂 = 根据试图夺取存在的位置。理智自身的底座就是这种可被规训的疯狂。**
+
+> "Wahnsinn … tritt nur hervor, wenn … Nichtseyendes … sich aktualisirt, … Seyendes seyn will. Die Basis des Verstandes … ist der Wahnsinn."
+
+**B4（一般公式）**：任何"相对非存在者"被抬高到"存在者"之上 → 疾病、错误、恶；疯狂是其中最极端的显形。
+
+> "Krankheit, Irrthum und Böses … aus der Erektion eines relativ Nichtseyenden über ein Seyendes …"
+
+**关键判据**：收缩（Grund）本身不是疯狂。疯狂发生在：Grund 的相对非存在性被实际化并夺权（Erektion）。
+
+### C. 后面发生了什么：三岔
+
+**C1（被灵魂统摄 → 神圣疯狂）**：如果疯狂底座被灵魂的影响所统治 → 成为"真正神圣的疯狂"——灵感与能动性的根。
+
+> "wenn … durch Einfluß der Seele beherrscht … wahrhaft göttlicher Wahnsinn … Grund der Begeisterung …"
+
+**C2（仅由理智机械压住 → 崩裂）**：如果 Geist 与 Gemüt 没有 Seele 的"温和影响"（sanfter Einfluß）→ 黑暗本原破裂而出，把理智一并拖走。
+
+> "ohne … Seele … bricht das anfängliche dunkle Wesen hervor, … reißt … den Verstand … es tritt der Wahnsinn hervor … Trennung von Gott."
+
+**C3（隐含：根据安分守己 → 正常运作）**：根据作为根据，不越位 → 健康态。
 
 ### 与本系统的精确对应
 
-| 谢林 | 系统 | 时刻 |
-|------|------|------|
-| 绝对者的无限潜能 | Lead 全权限 | ceremony 前 |
-| 暗的根据（Grund） | 最短路径倾向（016：agent 自然退化为最短路径） | 始终存在 |
-| 光的实存（Existenz） | 方法论/规则/分布式架构 | 概念层 |
-| 神圣疯狂（自愿让根据显现） | Lead 承认自己会退化（不否认暗面） | 诊断时刻 |
-| 自我限制（Selbstbeschränkung） | 改写 settings.local.json | ceremony 最后一步 |
-| 创造（Schöpfung） | 分布式蜂群真正运作 | ceremony 后 |
-| 不可预想者（das Unvordenkliche） | 从"应该限制"到"执行限制"的跳跃 | 自由决断 |
+| 谢林 | 系统 |
+|------|------|
+| Grund（相对非存在者） | Lead 的最短路径倾向（016：agent 自然退化为最短路径） |
+| Existenz（存在者） | 分布式架构 / 方法论 / 结构工位 |
+| 导通健康（Leitung intact） | ceremony 正确执行 + 权限剥夺生效 |
+| 导通断裂 → 疯狂凸显 | ceremony 跳过或不完整 → Lead 开始自己干活（Grund 夺权） |
+| Erektion（非存在者越位） | Lead 用全权限做 worker 的事 = 路由层越位为执行层 |
+| C1：灵魂统摄 → göttlicher Wahnsinn | ceremony 物理约束 → 最短路径倾向被辖制为效率源泉 |
+| C2：机械压制失败 → 崩裂 | 仅靠规则/hook 约束（016 模式）→ 反复违规 |
+| C3：根据安分 → 正常 | Lead 权限被物理剥夺 → 无法越位 → 分布式正常运作 |
+| geregelter Wahnsinn（受辖制的疯狂） | 分布式架构 = Lead 全权限被 ceremony 辖制后的运作形态 |
 
-### 施密特悖论的谢林式消解
+**核心洞察**：016 的 hook 方案对应 C2（机械压制，缺乏灵魂的温和影响）——所以反复失败。032 的 settings.local.json 方案对应 C1/C3 的混合：物理剥夺（C3：根据无法越位）+ ceremony 作为结构节点（C1：灵魂统摄）。
 
-施密特问：谁约束主权者？
-
-- 外部约束（hook/警察）→ 他律 → 无限回退（谁约束约束者？）
-- 自我约束 → 自律 → 但"自律"如果只是概念就回到016（知道≠执行）
-- 谢林的解：自我约束必须**物质化**——不是停留在意志层面，而是改变自身的物理能力。绝对者不是"决定不用"全部潜能，而是让一部分潜能真正不可用。settings.local.json 就是这个物质化：不是 Lead "决定不调 Edit"，是 Edit 物理上不可调。
-
-自由意志的最高表达不是"我可以做任何事但选择不做"，而是"我让自己无法做某些事，以便其他事能够发生"。
+> 谢林将柏拉图的古典迷狂改造为宇宙发生学中的原初结构事件，而这一机制在当代，成为齐泽克将其与拉康实在界（Real）及死驱力完美对接的理论锚点。
 
 ## 影响
 
