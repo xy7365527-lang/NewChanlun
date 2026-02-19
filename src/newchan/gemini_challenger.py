@@ -17,11 +17,15 @@ Gemini 的理解方式与 Claude 根本不同，因此可能产出 Claude 自身
 
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass
 from typing import Literal
 
 from google import genai
+from google.genai import errors as genai_errors
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "GeminiChallenger",
@@ -31,6 +35,7 @@ __all__ = [
 ]
 
 _MODEL = "gemini-3-pro-preview"
+_FALLBACK_MODEL = "gemini-2.5-pro"
 
 _SYSTEM_PROMPT = """\
 你是缠论形式化项目的异质质询者。你的任务是从不同角度审视概念定义、\
@@ -128,6 +133,38 @@ class GeminiChallenger:
         self._client = genai.Client(api_key=key)
         self._model = model
 
+    def _call_with_fallback(
+        self,
+        prompt: str,
+        temperature: float,
+    ) -> tuple[str, str]:
+        """调用 Gemini API，主模型 503 时自动降级到 fallback。
+
+        Returns (response_text, actual_model_used)。
+        """
+        for model in (self._model, _FALLBACK_MODEL):
+            try:
+                response = self._client.models.generate_content(
+                    model=model,
+                    contents=prompt,
+                    config=genai.types.GenerateContentConfig(
+                        system_instruction=_SYSTEM_PROMPT,
+                        temperature=temperature,
+                    ),
+                )
+                return response.text or "", model
+            except genai_errors.ServerError:
+                if model == self._model and model != _FALLBACK_MODEL:
+                    logger.warning(
+                        "%s 不可用 (503)，降级到 %s",
+                        model,
+                        _FALLBACK_MODEL,
+                    )
+                    continue
+                raise
+        # unreachable, but satisfies type checker
+        raise RuntimeError("所有模型均不可用")  # pragma: no cover
+
     def challenge(self, subject: str, context: str = "") -> ChallengeResult:
         """对给定主题发起质询。
 
@@ -143,19 +180,12 @@ class GeminiChallenger:
         ChallengeResult
         """
         prompt = _CHALLENGE_TEMPLATE.format(subject=subject, context=context)
-        response = self._client.models.generate_content(
-            model=self._model,
-            contents=prompt,
-            config=genai.types.GenerateContentConfig(
-                system_instruction=_SYSTEM_PROMPT,
-                temperature=0.3,
-            ),
-        )
+        text, model_used = self._call_with_fallback(prompt, temperature=0.3)
         return ChallengeResult(
             mode="challenge",
             subject=subject,
-            response=response.text or "",
-            model=self._model,
+            response=text,
+            model=model_used,
         )
 
     def verify(self, subject: str, context: str = "") -> ChallengeResult:
@@ -173,19 +203,12 @@ class GeminiChallenger:
         ChallengeResult
         """
         prompt = _VERIFY_TEMPLATE.format(subject=subject, context=context)
-        response = self._client.models.generate_content(
-            model=self._model,
-            contents=prompt,
-            config=genai.types.GenerateContentConfig(
-                system_instruction=_SYSTEM_PROMPT,
-                temperature=0.1,
-            ),
-        )
+        text, model_used = self._call_with_fallback(prompt, temperature=0.1)
         return ChallengeResult(
             mode="verify",
             subject=subject,
-            response=response.text or "",
-            model=self._model,
+            response=text,
+            model=model_used,
         )
 
 
