@@ -104,6 +104,23 @@ BiEngineSnapshot(strokes)
 | I8 | GAP_NEEDS_SEQ2 | gap_class="gap" 必须经历第二序列分型确认 |
 | I9 | INVALIDATE_IDEMPOTENT | 同 (s0, s1, direction) 不能被 invalidate 两次而中间无 settle |
 | I10 | SEGMENT_REPLAY_DETERMINISM | 同输入 → 同 event_id + payload + 顺序 |
+| I11 | DEGENERATE_SEGMENT_PROHIBITION | 向上段 ep1_price ≥ ep0_price；向下段 ep1_price ≤ ep0_price |
+
+### I11 古怪线段硬约束（"顶高于底"）
+
+**原文依据**：第78课 L20
+
+> "同一线段中，两端的一顶一底，顶肯定要高于底，如果你划出一个不符合这基本要求的线段，那肯定是划错了。"
+
+**形式化**：
+- **向上段**：`ep1_price ≥ ep0_price`（终点顶 ≥ 起点底）
+- **向下段**：`ep1_price ≤ ep0_price`（终点底 ≤ 起点顶）
+
+违反此条件的段称为"退化段"（degenerate segment），表示笔序列产出了不合理的分型组合。
+
+**根因与解决方案**（谱系 001 已结算）：退化段的根本原因是旧笔定义过严（merged gap ≥ 4），新笔定义（《忽闻台风可休市》）从源头消除退化段。因此 I11 在 `mode="new"` 下由笔层保证，段层仅提供断言检测（`a_assertions.py::assert_segment_theorem_v1`）。
+
+**概念溯源**：[旧缠论] 第78课
 
 ---
 

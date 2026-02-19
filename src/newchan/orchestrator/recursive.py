@@ -119,7 +119,9 @@ class RecursiveOrchestrator:
         bi_snap = self._bi_engine.process_bar(bar)
         seg_snap = self._seg_engine.process_snapshot(bi_snap)
         zs_snap = self._zs_engine.process_segment_snapshot(seg_snap)
-        move_snap = self._move_engine.process_zhongshu_snapshot(zs_snap)
+        move_snap = self._move_engine.process_zhongshu_snapshot(
+            zs_snap, num_segments=len(seg_snap.segments),
+        )
         bsp_snap = self._bsp_engine.process_snapshots(
             move_snap, zs_snap, seg_snap,
         )
