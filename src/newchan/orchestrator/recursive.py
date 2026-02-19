@@ -26,6 +26,7 @@ from newchan.core.recursion.segment_engine import SegmentEngine
 from newchan.core.recursion.segment_state import SegmentSnapshot
 from newchan.core.recursion.zhongshu_engine import ZhongshuEngine
 from newchan.core.recursion.zhongshu_state import ZhongshuSnapshot
+from newchan.a_level_fsm_newchan import LStar
 from newchan.events import DomainEvent
 from newchan.orchestrator.bus import EventBus
 from newchan.types import Bar
@@ -47,6 +48,7 @@ class RecursiveOrchestratorSnapshot:
     bsp_snapshot: BuySellPointSnapshot
     recursive_snapshots: list[RecursiveLevelSnapshot] = field(default_factory=list)
     all_events: list[DomainEvent] = field(default_factory=list)
+    lstar: LStar | None = None
 
 
 class RecursiveOrchestrator:
@@ -154,7 +156,7 @@ class RecursiveOrchestrator:
                     rs.level_id, level_events, stream_id=self._stream_id,
                 )
 
-        return RecursiveOrchestratorSnapshot(
+        snap = RecursiveOrchestratorSnapshot(
             bar_idx=bi_snap.bar_idx,
             bar_ts=bi_snap.bar_ts,
             bi_snapshot=bi_snap,
@@ -164,4 +166,10 @@ class RecursiveOrchestrator:
             bsp_snapshot=bsp_snap,
             recursive_snapshots=recursive_snaps,
             all_events=all_events,
+            lstar=None,
         )
+        # 延迟导入避免循环依赖（adapter → recursive → adapter）
+        from newchan.a_level_fsm_adapter import select_lstar_from_recursive_snapshot  # noqa: E402
+
+        snap.lstar = select_lstar_from_recursive_snapshot(snap, bar.close)
+        return snap
