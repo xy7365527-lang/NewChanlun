@@ -1,3 +1,15 @@
+---
+id: "032"
+title: "神圣疯狂：Lead 自我权限剥夺"
+status: "已结算"
+type: "meta-rule"
+date: "2026-02-20"
+depends_on: ["016", "020", "030a"]
+related: ["013", "014"]
+negated_by: []
+negates: []
+---
+
 # 032 — 神圣疯狂：Lead 自我权限剥夺
 
 - **状态**: 已结算（语法记录）

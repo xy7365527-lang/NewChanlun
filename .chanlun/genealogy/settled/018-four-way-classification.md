@@ -1,3 +1,15 @@
+---
+id: "018"
+title: "四分法扩展：行动类（l'acte）"
+status: "已结算"
+type: "矛盾记录"
+date: "2026-02-17"
+depends_on: []
+related: ["017"]
+negated_by: []
+negates: []
+---
+
 # 018 — 四分法扩展：行动类（l'acte）
 
 **状态**: 已结算

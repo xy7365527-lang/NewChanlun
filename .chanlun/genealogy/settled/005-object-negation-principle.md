@@ -1,3 +1,15 @@
+---
+id: "005"
+title: "对象否定对象原则 005（已分离）"
+status: "已结算"
+type: "原始记录（已被概念分离取代）"
+date: "2026-02-16"
+depends_on: []
+related: []
+negated_by: []
+negates: []
+---
+
 # 对象否定对象原则 005（已分离）
 
 **状态**: 已分离 → 见 settled/005a + settled/005b

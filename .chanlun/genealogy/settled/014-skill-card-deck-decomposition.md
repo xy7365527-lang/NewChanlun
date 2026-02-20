@@ -1,3 +1,15 @@
+---
+id: "014"
+title: "SKILL.md 指令卡组拆分"
+status: "已结算"
+type: "元编排进化"
+date: "2026-02-17"
+depends_on: []
+related: ["010", "012", "013"]
+negated_by: []
+negates: []
+---
+
 # 014 — SKILL.md 指令卡组拆分
 
 - **状态**: 已结算（定理：架构前提变更的逻辑必然推论）

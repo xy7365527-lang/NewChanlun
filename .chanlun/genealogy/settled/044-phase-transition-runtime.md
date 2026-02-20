@@ -1,3 +1,15 @@
+---
+id: "044"
+title: "相位切换点的 runtime 强制"
+status: "已结算"
+type: "语法记录"
+date: "2026-02-20"
+depends_on: ["016", "028", "042"]
+related: ["005b", "020", "027", "043"]
+negated_by: []
+negates: []
+---
+
 # 044 — 相位切换点的 runtime 强制
 
 **类型**: 语法记录

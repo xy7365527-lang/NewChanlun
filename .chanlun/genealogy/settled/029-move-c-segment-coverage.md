@@ -1,3 +1,15 @@
+---
+id: "029"
+title: "Move C段覆盖修复"
+status: "已结算"
+type: "Bug Fix（行动）"
+date: "2026-02-18"
+depends_on: []
+related: ["028"]
+negated_by: []
+negates: []
+---
+
 # 029 — Move C段覆盖修复
 
 **状态**: 已结算

@@ -1,3 +1,15 @@
+---
+id: "048"
+title: "通用停机阻断（Universal Stop-Guard）"
+status: "已结算"
+type: "语法记录"
+date: "2026-02-20"
+depends_on: ["016", "028", "044"]
+related: ["027", "045", "046"]
+negated_by: []
+negates: []
+---
+
 # 048 — 通用停机阻断（Universal Stop-Guard）
 
 **类型**: 语法记录

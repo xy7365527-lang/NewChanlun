@@ -1,3 +1,15 @@
+---
+id: "022"
+title: "比价关系与等价关系的形式化"
+status: "已结算"
+type: "domain"
+date: "2026-02-18"
+depends_on: ["020"]
+related: []
+negated_by: []
+negates: []
+---
+
 # 022 — 比价关系与等价关系的形式化
 
 **状态**: 已结算

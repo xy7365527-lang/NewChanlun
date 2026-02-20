@@ -1,3 +1,15 @@
+---
+id: "019b"
+title: "质询退回-修正无限循环"
+status: "已结算"
+type: "meta-rule"
+date: "2026-02-18"
+depends_on: ["016"]
+related: ["013", "018", "019"]
+negated_by: []
+negates: []
+---
+
 # 019b — 质询退回-修正无限循环
 
 **状态**: 已结算

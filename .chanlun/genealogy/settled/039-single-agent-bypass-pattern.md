@@ -1,3 +1,15 @@
+---
+id: "039"
+title: "单 agent 绕过模式与 dispatch-spec 偏差分析"
+status: "已结算"
+type: "矛盾记录"
+date: "2026-02-17"
+depends_on: []
+related: ["013", "016", "020", "027", "032", "033", "034"]
+negated_by: []
+negates: []
+---
+
 # 039 — 单 agent 绕过模式与 dispatch-spec 偏差分析
 
 status: 已结算

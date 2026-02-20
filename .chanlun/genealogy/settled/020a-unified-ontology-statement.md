@@ -1,14 +1,21 @@
 ---
 id: "020a"
-type: domain
-status: 已结算
-classification: 定理
-parent: "020"
-derivation: "020#1 + 020#2 + 020#3 + 020#4 + 020#5 → 统一表述"
-date: 2026-02-18
+title: "同一存在论——统摄"
+status: "已结算"
+type: "定理"
+date: "2026-02-18"
+depends_on: ["020"]
+related: []
+negated_by: []
+negates: []
 ---
 
 # 020a: 同一存在论——统摄
+
+**类型**: 定理
+**状态**: 已结算
+**日期**: 2026-02-18
+**前置**: 020
 
 ## 推导链
 

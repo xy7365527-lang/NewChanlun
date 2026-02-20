@@ -5,7 +5,18 @@ type: meta-rule
 status: 已结算
 created: 2026-02-18
 settled: 2026-02-18
+depends_on: ["020"]
+related: ["018", "019d"]
+negated_by: []
+negates: []
 ---
+
+# 021 — 元编排去中央化审计
+
+**类型**: meta-rule
+**状态**: 已结算
+**日期**: 2026-02-18
+**前置**: 020-constitutive-contradiction
 
 ## 矛盾
 

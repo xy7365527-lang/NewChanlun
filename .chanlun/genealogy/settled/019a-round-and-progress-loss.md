@@ -1,3 +1,15 @@
+---
+id: "019a"
+title: "蜂群轮次汇总与形式化进度的丢失窗口"
+status: "已结算"
+type: "meta-rule"
+date: "2026-02-18"
+depends_on: ["017"]
+related: ["013", "019"]
+negated_by: []
+negates: []
+---
+
 # 019a — 蜂群轮次汇总与形式化进度的丢失窗口
 
 **状态**: 已结算

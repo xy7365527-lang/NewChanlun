@@ -1,0 +1,1206 @@
+# 谱系 DAG — 自动生成，勿手动编辑
+# 生成时间: 2026-02-20T23:57:26
+# 来源: .chanlun/genealogy/{settled,pending}/*.md frontmatter
+
+nodes:
+- id: '001'
+  title: 退化段——古怪线段与笔定义的关系
+  status: 已结算
+  type: 矛盾记录
+  file: settled/001-degenerate-segment.md
+- id: '002'
+  title: 知识库来源不完整
+  status: 已结算
+  type: 矛盾记录
+  file: settled/002-source-incompleteness.md
+- id: '003'
+  title: 线段的两个口径
+  status: 已结算
+  type: 概念分离（自治行为）
+  file: settled/003-segment-concept-separation.md
+- id: '004'
+  title: 概念溯源框架 004：旧缠论 vs 新缠论
+  status: 已结算
+  type: 元概念（meta-concept）
+  file: settled/004-provenance-framework.md
+- id: '005'
+  title: 对象否定对象原则 005（已分离）
+  status: 已结算
+  type: 原始记录（已被概念分离取代）
+  file: settled/005-object-negation-principle.md
+- id: 005a
+  title: 禁止非对象来源的否定（定理）
+  status: 已结算
+  type: 定理
+  file: settled/005a-prohibition-theorem.md
+- id: 005b
+  title: 对象否定对象（语法规则）
+  status: 已结算
+  type: 语法规则确立（谢林式原初命名）
+  file: settled/005b-object-negates-object-grammar.md
+- id: '006'
+  title: 级别递归 vs 多周期下钻
+  status: 已结算
+  type: 概念分离 + 架构决断
+  file: settled/006-level-recursion.md
+- id: '007'
+  title: 趋势是独立实体对象
+  status: 已结算
+  type: 概念澄清 + 编排者决断
+  file: settled/007-trend-is-entity.md
+- id: 008
+  title: 趋势确立与级别确认是独立概念
+  status: 已结算
+  type: 概念澄清（定理——逻辑必然推论）
+  file: settled/008-trend-level-independence.md
+- id: 009
+  title: 盘整的实体/标签双重性 + 二分法=三分法盘整
+  status: 已结算
+  type: 概念澄清（定理 + 语法记录）
+  file: settled/009-consolidation-identity.md
+- id: '010'
+  title: 构造层与分类层的二层架构
+  status: 已结算
+  type: 定理（逻辑必然推论）
+  file: settled/010-construction-vs-classification.md
+- id: '011'
+  title: 定级别的方向——自上而下只读遍历
+  status: 已结算
+  type: 语法记录 [旧缠论:隐含]
+  file: settled/011-level-determination-direction.md
+- id: '012'
+  title: 方法论记录 012：谱系是发现引擎，不是记录日志
+  status: 已结算
+  type: 语法记录（元编排层面）
+  file: settled/012-genealogy-is-discovery-engine.md
+- id: '013'
+  title: 蜂群工位二分法——结构工位与任务工位
+  status: 已结算
+  type: 矛盾记录
+  file: settled/013-swarm-structural-stations.md
+- id: '014'
+  title: SKILL.md 指令卡组拆分
+  status: 已结算
+  type: 元编排进化
+  file: settled/014-skill-card-deck-decomposition.md
+- id: '015'
+  title: 方法不外在于内容
+  status: 已结算
+  type: 元编排进化
+  file: settled/015-method-is-content.md
+- id: '016'
+  title: 规则没有代码强制就不会被执行
+  status: 已结算
+  type: meta-rule
+  file: settled/016-runtime-enforcement-layer.md
+- id: '017'
+  title: Session 是指针，不是叙事
+  status: 已结算
+  type: meta-rule
+  file: settled/017-session-as-pointer.md
+- id: 018
+  title: 四分法扩展：行动类（l'acte）
+  status: 已结算
+  type: 矛盾记录
+  file: settled/018-four-way-classification.md
+- id: 019
+  title: 元编排的循环结构缺少断点覆盖
+  status: 已结算
+  type: meta-rule
+  file: settled/019-loop-breakpoint-coverage.md
+- id: 019a
+  title: 蜂群轮次汇总与形式化进度的丢失窗口
+  status: 已结算
+  type: meta-rule
+  file: settled/019a-round-and-progress-loss.md
+- id: 019b
+  title: 质询退回-修正无限循环
+  status: 已结算
+  type: meta-rule
+  file: settled/019b-inquiry-infinite-loop.md
+- id: 019c
+  title: 元编排进化无仪式门控（自指性缺口）
+  status: 已结算
+  type: meta-rule
+  file: settled/019c-meta-ritual-gap.md
+- id: 019d
+  title: 谱系张力检查的递归与范围问题
+  status: 已结算
+  type: meta-rule
+  file: settled/019d-tension-check-limits.md
+- id: '020'
+  title: 构成性矛盾与存在论位移
+  status: 已结算
+  type: 语法记录
+  file: settled/020-constitutive-contradiction.md
+- id: 020a
+  title: 同一存在论——统摄
+  status: 已结算
+  type: 定理
+  file: settled/020a-unified-ontology-statement.md
+- id: '021'
+  title: 元编排去中央化审计
+  status: 已结算
+  type: meta-rule
+  file: settled/021-decentralization-audit.md
+- id: '022'
+  title: 比价关系与等价关系的形式化
+  status: 已结算
+  type: domain
+  file: settled/022-ratio-relation-formalization.md
+- id: '023'
+  title: 023 等价关系形式化
+  status: 已结算
+  type: 选择（编排者决断完成）
+  file: settled/023-equivalence-relation-formalization.md
+- id: '024'
+  title: C-2 三层退化连锁检测：语法自判定原则
+  status: 已结算
+  type: 定理（从「对象否定对象」原则推导）
+  file: settled/024-c2-three-layer-degeneracy.md
+- id: '025'
+  title: 025 等价关系降格：从本体关系到筛选条件 → 流转关系诞生
+  status: 已结算
+  type: 选择（编排者决断完成）
+  file: settled/025-equivalence-demotion-to-screening.md
+- id: '026'
+  title: 现金角双重身份：度量基准与流转顶点
+  status: 已结算
+  type: 矛盾记录
+  file: settled/026-cash-vertex-dual-role.md
+- id: '027'
+  title: 正面指令优于禁止性规则
+  status: 已结算
+  type: 矛盾记录
+  file: settled/027-positive-instruction-over-prohibition.md
+- id: 028
+  title: ceremony 无工位时的默认动作
+  status: 已结算
+  type: 语法记录
+  file: settled/028-ceremony-default-action.md
+- id: 029
+  title: Move C段覆盖修复
+  status: 已结算
+  type: Bug Fix（行动）
+  file: settled/029-move-c-segment-coverage.md
+- id: '030'
+  title: 定义基底校验机制（运行时抽检）
+  status: 已结算
+  type: 语法记录
+  file: settled/030-baseline-verification-runtime.md
+- id: 030a
+  title: Gemini 的位置：异质否定源（结构工位）
+  status: 已结算
+  type: 矛盾发现 → 概念分离
+  file: settled/030a-gemini-position.md
+- id: '031'
+  title: Move 价格范围语义：极值 vs 核心区间
+  status: 已结算
+  type: 选择 → 编排者决断
+  file: settled/031-move-range-semantics.md
+- id: '032'
+  title: 神圣疯狂：Lead 自我权限剥夺
+  status: 已结算
+  type: meta-rule
+  file: settled/032-divine-madness-lead-self-restriction.md
+- id: '033'
+  title: 033 声明式工位分派规范
+  status: 已结算
+  type: 矛盾记录
+  file: settled/033-declarative-dispatch-spec.md
+- id: '034'
+  title: 034 工具声明与工具能力的不一致性
+  status: 已结算
+  type: 矛盾记录
+  file: settled/034-tool-declaration-vs-capability.md
+- id: '035'
+  title: 035 数学工具结晶：从 PDF 到 skill 的压缩
+  status: 已结算
+  type: 语法记录（已在运作的规则显式化：数学语言与缠论语言的对应关系）
+  file: settled/035-math-tools-crystallization.md
+- id: '036'
+  title: 声明-能力一致性原则结晶：约束链 016→032→033→034 的模式识别
+  status: 已结算
+  type: meta-rule（知识结晶）
+  file: settled/036-spec-execution-gap-crystallization.md
+- id: '037'
+  title: 递归蜂群：分形 spawn 结构
+  status: 已结算
+  type: 语法记录（已在运作的规则显式化）
+  file: settled/037-recursive-swarm-fractal.md
+- id: 038
+  title: 单 agent 绕过偏差（bias-correction）
+  status: 已结算
+  type: bias-correction
+  file: settled/038-single-agent-bypass-bias.md
+- id: 039
+  title: 单 agent 绕过模式与 dispatch-spec 偏差分析
+  status: 已结算
+  type: 矛盾记录
+  file: settled/039-single-agent-bypass-pattern.md
+- id: '040'
+  title: 否定拓扑形式维度显式化
+  status: 已结算
+  type: 语法记录
+  file: settled/040-negation-topology-formalization.md
+- id: '041'
+  title: 编排者代理（Gemini Orchestrator Proxy）
+  status: 已结算
+  type: 语法记录
+  file: settled/041-orchestrator-proxy.md
+- id: '042'
+  title: Hook 网络模式
+  status: 已结算
+  type: 语法记录
+  file: settled/042-hook-network-pattern.md
+- id: '043'
+  title: 自生长回路
+  status: 已结算
+  type: 语法记录
+  file: settled/043-self-growth-loop.md
+- id: '044'
+  title: 相位切换点的 runtime 强制
+  status: 已结算
+  type: 语法记录
+  file: settled/044-phase-transition-runtime.md
+- id: '045'
+  title: 「无结构不任务」语法规则
+  status: 已结算
+  type: 语法记录
+  file: settled/045-no-structure-no-task.md
+- id: '046'
+  title: 一域一角（One Domain One Role）
+  status: 已结算
+  type: 语法记录
+  file: settled/046-one-domain-one-role.md
+- id: '047'
+  title: CASH 顶点重定义：主权信用/流动性复合体
+  status: 已结算
+  type: 选择
+  file: settled/047-cash-vertex-redefinition.md
+- id: 048
+  title: 通用停机阻断（Universal Stop-Guard）
+  status: 已结算
+  type: 语法记录
+  file: settled/048-universal-stop-guard.md
+- id: 049
+  title: 统一编排协议：语义事件总线
+  status: 已结算
+  type: 选择
+  file: settled/049-unified-orchestration-protocol.md
+- id: '050'
+  title: 守恒约束语义空洞：方向守恒 ≠ 资本守恒
+  status: 已结算
+  type: 定理
+  file: settled/050-conservation-semantic-void.md
+- id: '051'
+  title: 运行时连接设计：元编排/结晶/谱系三者自生长回路
+  status: 已结算
+  type: 定理（四分法复核：从选择重分类）
+  file: settled/051-runtime-connection-design.md
+- id: '052'
+  title: 编排者代理孤岛：去中心化声明的自指失效
+  status: 已结算
+  type: 语法记录
+  file: settled/052-orchestrator-proxy-island.md
+- id: '053'
+  title: 异步自指孤岛：从哥德尔极限到异质双引擎突破
+  status: 已结算
+  type: 定理（经扬弃）
+  file: settled/053-self-referential-island-goedel.md
+- id: '054'
+  title: 同一存在论与异质性：系统的哲学根基问题
+  status: 已结算
+  type: 语法记录
+  file: settled/054-identity-ontology-heterogeneity.md
+- id: '055'
+  title: 双螺旋架构：Gemini 数学原则到元编排的移植
+  status: 已结算
+  type: 选择（已决断）
+  file: settled/055-double-helix-architecture.md
+- id: '056'
+  title: 蜂群递归是默认执行模式，不是优化
+  status: 已结算
+  type: 语法记录
+  file: settled/056-swarm-recursion-default-mode.md
+- id: '057'
+  title: LLM 不是状态机——状态管理权外移原则
+  status: 已结算
+  type: 语法记录
+  file: settled/057-llm-not-state-machine.md
+- id: 058
+  title: Ceremony 是 Swarm₀——递归蜂群无前置阶段
+  status: 已结算
+  type: 定理
+  file: settled/058-ceremony-is-swarm-zero.md
+- id: 059
+  title: 元编排层结构性审计——线性/拓扑/递归三维诊断
+  status: 已结算
+  type: 语法记录
+  file: settled/059-structural-audit.md
+- id: '060'
+  title: 元编排 3+1 架构原则——蜂群递归/异步自指/拓扑/结晶
+  status: 已结算
+  type: 语法记录
+  file: settled/060-three-plus-one-architecture.md
+- id: '061'
+  title: 孤岛审计——拓扑结构的向下区间套
+  status: 已结算
+  type: 语法记录
+  file: settled/061-island-audit.md
+- id: '062'
+  title: 异质性作为 Sinthome——对 060号 3+1 架构的扬弃
+  status: 已结算
+  type: 语法记录
+  file: settled/062-heterogeneity-as-sinthome.md
+- id: '063'
+  title: 想象界覆盖符号界——020号「每层递归=一根K线」的级别口径违反
+  status: 已结算
+  type: 定理（级别口径公理的逻辑必然推论）
+  file: settled/063-imaginary-covers-symbolic.md
+- id: '064'
+  title: 晚期拉康拓扑学与蜂群递归——异质对话谱系
+  status: 已结算
+  type: 语法记录
+  file: settled/064-lacan-topology-heterogeneous-dialogue.md
+- id: '065'
+  title: 六条未解决张力——拓扑连续性 vs 断裂性的统一矛盾
+  status: 已结算
+  type: 语法记录
+  file: settled/065-six-tensions-topology-discourse.md
+- id: '066'
+  title: 穷尽式洞见提取与工程化评估——拉康拓扑对话的全量结晶
+  status: 已结算
+  type: 语法记录
+  file: settled/066-exhaustive-insights-engineering-assessment.md
+- id: '067'
+  title: 续篇洞见提取——拓扑递归统一 + 连续流形否定 + 结算论/管辖论
+  status: 已结算
+  type: 语法记录
+  file: settled/067-round2-insights-topology-recursion-unity.md
+- id: 068
+  title: 连续流形→偏序集/有向图范式转换
+  status: 已结算
+  type: 语法记录
+  file: settled/068-continuous-to-discrete-paradigm-shift.md
+- id: 069
+  title: 递归拓扑异步自指化蜂群——严格方案与不可消除的Gap
+  status: 已结算
+  type: 选择
+  file: settled/069-recursive-topology-async-self-referential-swarm.md
+- id: '070'
+  title: 创世Gap的第一个工程实例
+  status: 已结算
+  type: 语法记录
+  file: settled/070-genesis-gap-engineering-instance.md
+- id: '071'
+  title: 纯文本指令脆弱性系统性扫描
+  status: 已结算
+  type: meta-rule
+  file: settled/071-text-instruction-fragility-scan.md
+edges:
+  depends_on:
+  - from: 005a
+    to: '005'
+  - from: '015'
+    to: '014'
+  - from: '016'
+    to: '014'
+  - from: '017'
+    to: '014'
+  - from: 019
+    to: '017'
+  - from: 019a
+    to: '017'
+  - from: 019b
+    to: '016'
+  - from: 019c
+    to: '015'
+  - from: 019d
+    to: '012'
+  - from: '020'
+    to: '015'
+  - from: 020a
+    to: '020'
+  - from: '021'
+    to: '020'
+  - from: '022'
+    to: '020'
+  - from: 028
+    to: '027'
+  - from: '030'
+    to: '013'
+  - from: '030'
+    to: 029
+  - from: 030a
+    to: '030'
+  - from: '031'
+    to: '006'
+  - from: '031'
+    to: 029
+  - from: '032'
+    to: '016'
+  - from: '032'
+    to: '020'
+  - from: '032'
+    to: 030a
+  - from: '040'
+    to: 029
+  - from: '040'
+    to: 030a
+  - from: '041'
+    to: 028
+  - from: '041'
+    to: 030a
+  - from: '041'
+    to: '032'
+  - from: '041'
+    to: 039
+  - from: '042'
+    to: '016'
+  - from: '042'
+    to: 028
+  - from: '042'
+    to: '037'
+  - from: '042'
+    to: '041'
+  - from: '043'
+    to: '016'
+  - from: '043'
+    to: '020'
+  - from: '043'
+    to: '041'
+  - from: '043'
+    to: '042'
+  - from: '044'
+    to: '016'
+  - from: '044'
+    to: 028
+  - from: '044'
+    to: '042'
+  - from: '045'
+    to: '013'
+  - from: '045'
+    to: '033'
+  - from: '045'
+    to: '042'
+  - from: '046'
+    to: 005b
+  - from: '046'
+    to: '013'
+  - from: '046'
+    to: '032'
+  - from: '046'
+    to: '037'
+  - from: '047'
+    to: '026'
+  - from: 048
+    to: '016'
+  - from: 048
+    to: 028
+  - from: 048
+    to: '044'
+  - from: 049
+    to: '037'
+  - from: 049
+    to: '041'
+  - from: 049
+    to: '042'
+  - from: 049
+    to: '043'
+  - from: 049
+    to: 048
+  - from: '050'
+    to: '026'
+  - from: '050'
+    to: '047'
+  - from: '051'
+    to: '043'
+  - from: '051'
+    to: 049
+  - from: '052'
+    to: '034'
+  - from: '052'
+    to: '036'
+  - from: '052'
+    to: '041'
+  - from: '053'
+    to: '020'
+  - from: '053'
+    to: 030a
+  - from: '053'
+    to: 039
+  - from: '053'
+    to: '042'
+  - from: '053'
+    to: '052'
+  - from: '054'
+    to: 005b
+  - from: '054'
+    to: 030a
+  - from: '054'
+    to: '053'
+  - from: '055'
+    to: '042'
+  - from: '055'
+    to: '051'
+  - from: '055'
+    to: '053'
+  - from: '056'
+    to: '020'
+  - from: '056'
+    to: '055'
+  - from: '057'
+    to: '043'
+  - from: '057'
+    to: '044'
+  - from: '057'
+    to: 048
+  - from: 058
+    to: '020'
+  - from: 058
+    to: '041'
+  - from: 058
+    to: '056'
+  - from: 058
+    to: '057'
+  - from: 059
+    to: '020'
+  - from: 059
+    to: '033'
+  - from: 059
+    to: '036'
+  - from: 059
+    to: '056'
+  - from: 059
+    to: 058
+  - from: '060'
+    to: '013'
+  - from: '060'
+    to: 020a
+  - from: '060'
+    to: '053'
+  - from: '060'
+    to: '056'
+  - from: '060'
+    to: 059
+  - from: '061'
+    to: 059
+  - from: '061'
+    to: '060'
+  - from: '062'
+    to: '020'
+  - from: '062'
+    to: '053'
+  - from: '062'
+    to: '060'
+  - from: '063'
+    to: '020'
+  - from: '063'
+    to: '062'
+  - from: '064'
+    to: '020'
+  - from: '064'
+    to: '053'
+  - from: '064'
+    to: '062'
+  - from: '064'
+    to: '063'
+  - from: '065'
+    to: '020'
+  - from: '065'
+    to: '062'
+  - from: '065'
+    to: '063'
+  - from: '065'
+    to: '064'
+  - from: '066'
+    to: '064'
+  - from: '066'
+    to: '065'
+  - from: '067'
+    to: '064'
+  - from: '067'
+    to: '065'
+  - from: '067'
+    to: '066'
+  - from: 068
+    to: '065'
+  - from: 068
+    to: '066'
+  - from: 068
+    to: '067'
+  - from: 069
+    to: '020'
+  - from: 069
+    to: '033'
+  - from: 069
+    to: '036'
+  - from: 069
+    to: '041'
+  - from: 069
+    to: '053'
+  - from: 069
+    to: '056'
+  - from: 069
+    to: 058
+  - from: 069
+    to: '062'
+  - from: 069
+    to: '067'
+  - from: 069
+    to: 068
+  - from: '070'
+    to: 069
+  - from: '070'
+    to: 058
+  - from: '070'
+    to: '057'
+  - from: '071'
+    to: '070'
+  - from: '071'
+    to: '016'
+  - from: '071'
+    to: '032'
+  - from: '071'
+    to: '033'
+  - from: '071'
+    to: '036'
+  triggered: []
+  derived: []
+  negates:
+  - from: 068
+    to: '065'
+  - from: 068
+    to: '066'
+  related:
+  - between:
+    - '001'
+    - '002'
+  - between:
+    - '001'
+    - '003'
+  - between:
+    - '002'
+    - '003'
+  - between:
+    - '003'
+    - '004'
+  - between:
+    - '003'
+    - '006'
+  - between:
+    - '003'
+    - '007'
+  - between:
+    - '004'
+    - 005b
+  - between:
+    - '004'
+    - '013'
+  - between:
+    - '005'
+    - 005b
+  - between:
+    - '005'
+    - '030'
+  - between:
+    - '005'
+    - 030a
+  - between:
+    - '005'
+    - '040'
+  - between:
+    - 005a
+    - 005b
+  - between:
+    - 005a
+    - '024'
+  - between:
+    - 005a
+    - '033'
+  - between:
+    - 005b
+    - '006'
+  - between:
+    - 005b
+    - '010'
+  - between:
+    - 005b
+    - '012'
+  - between:
+    - 005b
+    - '015'
+  - between:
+    - 005b
+    - '016'
+  - between:
+    - 005b
+    - 019c
+  - between:
+    - 005b
+    - '020'
+  - between:
+    - 005b
+    - '024'
+  - between:
+    - 005b
+    - '041'
+  - between:
+    - 005b
+    - '042'
+  - between:
+    - 005b
+    - '044'
+  - between:
+    - 005b
+    - '053'
+  - between:
+    - 005b
+    - '064'
+  - between:
+    - 005b
+    - '065'
+  - between:
+    - 005b
+    - '202'
+  - between:
+    - '006'
+    - '007'
+  - between:
+    - '006'
+    - 008
+  - between:
+    - '006'
+    - 009
+  - between:
+    - '006'
+    - '010'
+  - between:
+    - '006'
+    - '011'
+  - between:
+    - '007'
+    - 008
+  - between:
+    - '007'
+    - 009
+  - between:
+    - '007'
+    - '010'
+  - between:
+    - 008
+    - 009
+  - between:
+    - 008
+    - '010'
+  - between:
+    - 008
+    - '011'
+  - between:
+    - 009
+    - '010'
+  - between:
+    - '010'
+    - '011'
+  - between:
+    - '010'
+    - '012'
+  - between:
+    - '010'
+    - '013'
+  - between:
+    - '010'
+    - '014'
+  - between:
+    - '010'
+    - '031'
+  - between:
+    - '011'
+    - '031'
+  - between:
+    - '012'
+    - '013'
+  - between:
+    - '012'
+    - '014'
+  - between:
+    - '012'
+    - '015'
+  - between:
+    - '012'
+    - '016'
+  - between:
+    - '012'
+    - '020'
+  - between:
+    - '012'
+    - '043'
+  - between:
+    - '012'
+    - 059
+  - between:
+    - '012'
+    - '062'
+  - between:
+    - '013'
+    - '014'
+  - between:
+    - '013'
+    - 019
+  - between:
+    - '013'
+    - 019a
+  - between:
+    - '013'
+    - 019b
+  - between:
+    - '013'
+    - 019d
+  - between:
+    - '013'
+    - '020'
+  - between:
+    - '013'
+    - '032'
+  - between:
+    - '013'
+    - '037'
+  - between:
+    - '013'
+    - 039
+  - between:
+    - '013'
+    - '043'
+  - between:
+    - '014'
+    - '032'
+  - between:
+    - '014'
+    - '037'
+  - between:
+    - '015'
+    - '016'
+  - between:
+    - '015'
+    - '017'
+  - between:
+    - '016'
+    - '017'
+  - between:
+    - '016'
+    - 019
+  - between:
+    - '016'
+    - 019c
+  - between:
+    - '016'
+    - 019d
+  - between:
+    - '016'
+    - '033'
+  - between:
+    - '016'
+    - '034'
+  - between:
+    - '016'
+    - '036'
+  - between:
+    - '016'
+    - 038
+  - between:
+    - '016'
+    - 039
+  - between:
+    - '016'
+    - '045'
+  - between:
+    - '016'
+    - 049
+  - between:
+    - '016'
+    - '051'
+  - between:
+    - '016'
+    - '053'
+  - between:
+    - '017'
+    - 018
+  - between:
+    - '017'
+    - 019d
+  - between:
+    - 018
+    - 019b
+  - between:
+    - 018
+    - 019c
+  - between:
+    - 018
+    - '021'
+  - between:
+    - 018
+    - '033'
+  - between:
+    - 018
+    - '041'
+  - between:
+    - 019
+    - 019a
+  - between:
+    - 019
+    - 019b
+  - between:
+    - 019
+    - 019c
+  - between:
+    - 019
+    - 019d
+  - between:
+    - 019d
+    - '020'
+  - between:
+    - 019d
+    - '021'
+  - between:
+    - 019d
+    - '037'
+  - between:
+    - '020'
+    - 028
+  - between:
+    - '020'
+    - '033'
+  - between:
+    - '020'
+    - '035'
+  - between:
+    - '020'
+    - '036'
+  - between:
+    - '020'
+    - 039
+  - between:
+    - '020'
+    - '041'
+  - between:
+    - '020'
+    - '044'
+  - between:
+    - '020'
+    - '052'
+  - between:
+    - '020'
+    - '054'
+  - between:
+    - '020'
+    - '060'
+  - between:
+    - '020'
+    - '066'
+  - between:
+    - '020'
+    - '067'
+  - between:
+    - 020a
+    - '035'
+  - between:
+    - 020a
+    - '036'
+  - between:
+    - '021'
+    - '052'
+  - between:
+    - '022'
+    - '023'
+  - between:
+    - '022'
+    - '025'
+  - between:
+    - '022'
+    - '047'
+  - between:
+    - '023'
+    - '024'
+  - between:
+    - '023'
+    - '025'
+  - between:
+    - '023'
+    - '035'
+  - between:
+    - '024'
+    - '025'
+  - between:
+    - '025'
+    - '035'
+  - between:
+    - '025'
+    - '047'
+  - between:
+    - '025'
+    - '050'
+  - between:
+    - '027'
+    - 038
+  - between:
+    - '027'
+    - 039
+  - between:
+    - '027'
+    - '042'
+  - between:
+    - '027'
+    - '044'
+  - between:
+    - '027'
+    - 048
+  - between:
+    - 028
+    - 029
+  - between:
+    - 028
+    - '045'
+  - between:
+    - 028
+    - '071'
+  - between:
+    - 029
+    - 030a
+  - between:
+    - '030'
+    - '040'
+  - between:
+    - 030a
+    - '031'
+  - between:
+    - '031'
+    - '040'
+  - between:
+    - '032'
+    - '033'
+  - between:
+    - '032'
+    - '034'
+  - between:
+    - '032'
+    - '036'
+  - between:
+    - '032'
+    - 039
+  - between:
+    - '032'
+    - '040'
+  - between:
+    - '032'
+    - '045'
+  - between:
+    - '033'
+    - '034'
+  - between:
+    - '033'
+    - '036'
+  - between:
+    - '033'
+    - '037'
+  - between:
+    - '033'
+    - 038
+  - between:
+    - '033'
+    - 039
+  - between:
+    - '033'
+    - '042'
+  - between:
+    - '033'
+    - '043'
+  - between:
+    - '034'
+    - '036'
+  - between:
+    - '034'
+    - 039
+  - between:
+    - '035'
+    - 049
+  - between:
+    - '036'
+    - '061'
+  - between:
+    - 038
+    - 039
+  - between:
+    - 038
+    - '046'
+  - between:
+    - 039
+    - '046'
+  - between:
+    - '041'
+    - '051'
+  - between:
+    - '042'
+    - '051'
+  - between:
+    - '042'
+    - '056'
+  - between:
+    - '043'
+    - '044'
+  - between:
+    - '044'
+    - '045'
+  - between:
+    - '044'
+    - '071'
+  - between:
+    - '045'
+    - '046'
+  - between:
+    - '045'
+    - 048
+  - between:
+    - '046'
+    - 048
+  - between:
+    - 048
+    - '070'
+  - between:
+    - 048
+    - '071'
+  - between:
+    - 049
+    - '055'
+  - between:
+    - '051'
+    - '053'
+  - between:
+    - '052'
+    - '056'
+  - between:
+    - '053'
+    - '066'
+  - between:
+    - '054'
+    - '055'
+  - between:
+    - '055'
+    - '057'
+  - between:
+    - '055'
+    - '060'
+  - between:
+    - 058
+    - '071'
+  - between:
+    - 059
+    - '070'
+  - between:
+    - '062'
+    - '066'
+  - between:
+    - 069
+    - '071'
+  tensions_with: []
+  negated_by: []

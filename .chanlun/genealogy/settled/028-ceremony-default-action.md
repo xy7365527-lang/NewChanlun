@@ -1,3 +1,15 @@
+---
+id: "028"
+title: "ceremony 无工位时的默认动作"
+status: "已结算"
+type: "语法记录"
+date: "2026-02-19"
+depends_on: ["027"]
+related: ["020"]
+negated_by: []
+negates: []
+---
+
 # 028 — ceremony 无工位时的默认动作
 
 **类型**: 语法记录

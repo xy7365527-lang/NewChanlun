@@ -1,3 +1,15 @@
+---
+id: "034"
+title: "034 工具声明与工具能力的不一致性"
+status: "已结算"
+type: "矛盾记录"
+date: "2026-02-17"
+depends_on: []
+related: ["016", "032", "033"]
+negated_by: []
+negates: []
+---
+
 # 034 工具声明与工具能力的不一致性
 
 status: 已结算

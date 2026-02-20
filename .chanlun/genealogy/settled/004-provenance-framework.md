@@ -1,3 +1,15 @@
+---
+id: "004"
+title: "概念溯源框架 004：旧缠论 vs 新缠论"
+status: "已结算"
+type: "元概念（meta-concept）"
+date: "2026-02-16"
+depends_on: []
+related: ["003", "005b"]
+negated_by: []
+negates: []
+---
+
 # 概念溯源框架 004：旧缠论 vs 新缠论
 
 **状态**: 已结算
