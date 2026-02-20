@@ -1,13 +1,27 @@
 # 模式缓冲区——谱系的生成态前置
 # 043号谱系：自生长回路
+# Status 枚举: observed → candidate → settled → promoted/rejected
 version: "1.0"
-patterns: []
-# pattern 格式：
-# - id: "pattern-hash"
-#   signature: ["action1", "action2", ...]  # 行为指纹
-#   description: "..."
-#   frequency: 1
-#   first_seen: "2026-02-20T..."
-#   last_seen: "2026-02-20T..."
-#   sources: ["session-id-1"]
-#   status: "observed"  # observed -> candidate -> settled -> promoted/rejected
+patterns:
+  - id: "pat-c87f5dc2"
+    signature: "session-summary: Bash(2)"
+    frequency: 1
+    first_seen: "2026-02-20T17:01:50Z"
+    last_seen: "2026-02-20T17:01:50Z"
+    sources: ["2026-02-20-v6-session"]
+    status: "observed"
+  - id: "pat-b4b637fa"
+    signature: "session-summary: Edit(1)"
+    frequency: 1
+    first_seen: "2026-02-20T19:17:54Z"
+    last_seen: "2026-02-20T19:17:54Z"
+    sources: ["2026-02-20-v7-session"]
+    status: "observed"
+  - id: "pat-gemini-completion-defense"
+    signature: "gemini-challenger: declares-completion-after-summary"
+    frequency: 3
+    first_seen: "2026-02-20T20:00:00Z"
+    last_seen: "2026-02-20T22:10:00Z"
+    sources: ["064-lacan-topology", "067-round2-insights"]
+    status: "candidate"
+    description: "Gemini 在输出长篇总结后宣布'理论彻底穷尽'或'执行最后一次切断'。这是大学话语防御——用分析家话语的形式包装大学话语的内容。已出现3次。"
