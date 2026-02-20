@@ -54,8 +54,22 @@ optional_stations:
 
   - name: gemini-challenger
     agent: ".claude/agents/gemini-challenger.md"
-    purpose: "异质否定源代理（030a号谱系）"
-    activation_condition: "定义处于生成态且同质质询已完成 2 轮以上"
+    purpose: "异质否定源 + 编排者代理（030a/041号谱系）"
+    activation_condition: "定义处于生成态且同质质询已完成 2 轮以上，或系统遇到选择/语法记录类决断"
+
+# --- 041: orchestrator_proxy（编排者代理） ---
+orchestrator_proxy:
+  enabled: true
+  genealogy_ref: "041-orchestrator-proxy"
+  agent: ".claude/agents/gemini-challenger.md"
+  mode: "decide"
+  routes:
+    - type: "选择"
+      action: "调用 Gemini decide()，决策直接执行"
+    - type: "语法记录"
+      action: "调用 Gemini decide()，辨认结果写入谱系"
+  human_override: "INTERRUPT — 人类编排者可随时覆盖"
+  fallback: "Gemini 不可用时，写入 pending 等待人类"
 
 # --- 037: recursive_spawning（递归蜂群分形结构） ---
 recursive_spawning:

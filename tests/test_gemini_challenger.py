@@ -4,8 +4,9 @@
 1. GeminiChallenger 初始化（key 缺失报错）
 2. challenge() 调用链和返回结构
 3. verify() 调用链和返回结构
-4. 模块级便捷函数
-5. CLI 入口参数解析
+4. decide() 调用链和返回结构
+5. 模块级便捷函数
+6. CLI 入口参数解析
 """
 
 from __future__ import annotations
@@ -112,8 +113,75 @@ class TestVerify:
             assert result.response == "成立。推理链有效。"
 
 
+class TestDecide:
+    """decide() 方法。"""
+
+    def test_returns_decide_result(self) -> None:
+        with patch("newchan.gemini_challenger.genai") as mock_genai:
+            mock_response = MagicMock()
+            mock_response.text = "选择方案A。推理：一致性更高。"
+            mock_genai.Client.return_value.models.generate_content.return_value = (
+                mock_response
+            )
+
+            c = GeminiChallenger(api_key="test")
+            result = c.decide("是否采用递归级别", context="当前有两种方案")
+
+            assert isinstance(result, ChallengeResult)
+            assert result.mode == "decide"
+            assert result.subject == "是否采用递归级别"
+            assert result.response == "选择方案A。推理：一致性更高。"
+            assert result.model == "gemini-3-pro-preview"
+
+    def test_uses_orchestrator_system_prompt(self) -> None:
+        with patch("newchan.gemini_challenger.genai") as mock_genai:
+            mock_response = MagicMock()
+            mock_response.text = "决策结果"
+            mock_genai.Client.return_value.models.generate_content.return_value = (
+                mock_response
+            )
+
+            c = GeminiChallenger(api_key="test")
+            c.decide("test subject")
+
+            # 验证 GenerateContentConfig 被调用时传入了正确的 temperature
+            config_call = mock_genai.types.GenerateContentConfig.call_args
+            assert config_call.kwargs["temperature"] == 0.2
+
+    def test_empty_response_text(self) -> None:
+        with patch("newchan.gemini_challenger.genai") as mock_genai:
+            mock_response = MagicMock()
+            mock_response.text = None
+            mock_genai.Client.return_value.models.generate_content.return_value = (
+                mock_response
+            )
+
+            c = GeminiChallenger(api_key="test")
+            result = c.decide("test")
+            assert result.response == ""
+
+    def test_fallback_on_503(self) -> None:
+        with patch("newchan.gemini_challenger.genai") as mock_genai:
+            mock_client = mock_genai.Client.return_value
+
+            mock_503 = ServerError(503, {"error": {"message": "unavailable"}})
+            mock_ok = MagicMock()
+            mock_ok.text = "fallback decide"
+            mock_client.models.generate_content.side_effect = [
+                mock_503,
+                mock_ok,
+            ]
+
+            c = GeminiChallenger(api_key="test")
+            result = c.decide("test subject")
+
+            assert result.model == "gemini-2.5-pro"
+            assert result.response == "fallback decide"
+            assert result.mode == "decide"
+
+
 class TestModuleLevelFunctions:
-    """模块级 challenge()/verify() 便捷函数。"""
+    """模块级 challenge()/verify()/decide() 便捷函数。"""
 
     def test_challenge_auto_init(self) -> None:
         import newchan.gemini_challenger as mod
@@ -149,6 +217,25 @@ class TestModuleLevelFunctions:
             result = mod.verify("a", "ctx")
             mock_instance.verify.assert_called_once_with("a", "ctx")
             assert result.response == "b"
+
+        mod._default_challenger = None
+
+    def test_decide_auto_init(self) -> None:
+        import newchan.gemini_challenger as mod
+
+        mod._default_challenger = None
+
+        with patch.object(mod, "GeminiChallenger") as MockClass:
+            mock_instance = MagicMock()
+            mock_instance.decide.return_value = ChallengeResult(
+                mode="decide", subject="q", response="r", model="m",
+            )
+            MockClass.return_value = mock_instance
+
+            result = mod.decide("q", "ctx")
+            mock_instance.decide.assert_called_once_with("q", "ctx")
+            assert result.mode == "decide"
+            assert result.response == "r"
 
         mod._default_challenger = None
 
