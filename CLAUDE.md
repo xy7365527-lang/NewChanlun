@@ -102,6 +102,19 @@ Always respond in Chinese-simplified (简体中文).
     Gemini 不可用时，写入 pending 等待人类（降级，不阻塞）。
     见 `.chanlun/genealogy/settled/041-orchestrator-proxy.md`。
 
+### 3+1 架构原则（060号谱系）
+
+元编排的所有结构性需求归约为四个独立支柱：
+
+| 支柱 | 维度 | 功能 | 守护机制 |
+|------|------|------|----------|
+| 蜂群递归 | 执行动力 | 向下展开 | topology-manager 收敛信号 |
+| 异步自指 | 时间屏障 | 现在读过去 | session / ceremony |
+| 拓扑 | 空间结构 | 谁连接谁 | dispatch-spec |
+| 结晶 | 状态沉淀 | 向上收敛 | crystallization-guard |
+
+每个组件都应能回答"它在哪个支柱上？"——不能归因到任何支柱的组件是冗余的。
+
 ### 递归节点默认行为（058号谱系）
 
 当前执行节点基于 Spec 立即执行，编排者事后审计 + 运行时中断（INTERRUPT）。
