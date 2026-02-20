@@ -18,7 +18,7 @@ genealogy_ref: "033-declarative-dispatch-spec"
 structural_stations:
   - name: genealogist
     agent: ".claude/agents/genealogist.md"
-    purpose: "谱系写入、张力检查、回溯扫描、结晶检测与执行"  # G5: 增加结晶职责
+    purpose: "谱系写入、张力检查、回溯扫描、结晶检测与执行、pattern-buffer 扫描（051号 Pull 模型）"
     spawn_phase: "post-definition-load"
     mandatory: true
     can_be_skipped: false
@@ -106,6 +106,10 @@ ceremony_sequence:
       action: "读取 SKILL.md + meta-lead.md"
     - step: "load-definitions"
       action: "扫描 .chanlun/definitions/*.md"
+    - step: "scan-new-skills"
+      action: "扫描 .chanlun/manifest.yaml 的 skill 时间戳，加载上次 session 后新增的 skill"
+      depends_on: "load-definitions"
+      genealogy_ref: "051-runtime-connection-design"
     - step: "load-genealogy"
       action: "扫描 .chanlun/genealogy/{pending,settled}/"
     - step: "load-objectives"
