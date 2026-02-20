@@ -4,7 +4,7 @@
 **状态**: 已结算
 **日期**: 2026-02-19
 **negation_type**: expansion（"同模型保证一致"这个假设被自身实践违反——六次 escalation 违规）
-**前置**: 029-negation-formal-types, 013-swarm-structural-stations
+**前置**: 029-move-c-segment-coverage, 013-swarm-structural-stations
 **关联**: 005-object-negation-principle
 
 ## 矛盾现象

@@ -5,7 +5,7 @@ description: >
   不默认加载——只在等价关系封闭后、不变量读出前激活。
 activation_condition: "等价关系（dengjia 定义）已封闭（v1.x 已结算）且不变量尚未被读出（无 invariant 定义）"
 activation_check: "definitions/dengjia.md 状态=已结算 AND definitions/invariant.md 不存在"
-genealogy_source: "026-math-tools-crystallization"
+genealogy_source: "035-math-tools-crystallization"
 source_pdfs:
   - docs/pdfs/等价关系与不变量 - 数学工具应用分析.pdf
   - docs/pdfs/等价关系与不变量 - 新颖点：保持尺度态射而非仅等价.pdf
