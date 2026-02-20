@@ -76,73 +76,55 @@ def build_feature_sequence(
 # 特征序列包含处理 → 标准特征序列
 # ====================================================================
 
+def _merge_feature_bar(
+    buf: list[list[float | int]], last: list[float | int],
+    curr_h: float, curr_l: float, i: int, seq_idx: int,
+    dir_state: str | None,
+) -> str | None:
+    """处理单个特征序列元素的包含/非包含。返回更新后的 dir_state。"""
+    last_h, last_l = last[0], last[1]
+    left_inc = last_h >= curr_h and last_l <= curr_l
+    right_inc = curr_h >= last_h and curr_l <= last_l
+
+    if left_inc or right_inc:
+        effective_up = dir_state != "DOWN"
+        if effective_up:
+            last[0] = max(last_h, curr_h)
+            last[1] = max(last_l, curr_l)
+        else:
+            last[0] = min(last_h, curr_h)
+            last[1] = min(last_l, curr_l)
+        last[3] = i
+        last[4] = seq_idx
+    else:
+        if curr_h > last_h and curr_l > last_l:
+            dir_state = "UP"
+        elif curr_h < last_h and curr_l < last_l:
+            dir_state = "DOWN"
+        buf.append([curr_h, curr_l, i, i, seq_idx])
+
+    return dir_state
+
+
 def merge_inclusion_feature(
     seq: list[FeatureBar],
 ) -> tuple[list[FeatureBar], list[tuple[int, int]]]:
-    """对特征序列做包含处理，产出标准特征序列。
-
-    Parameters
-    ----------
-    seq : list[FeatureBar]
-        原始特征序列。
-
-    Returns
-    -------
-    merged_seq : list[FeatureBar]
-        标准特征序列（无相邻包含）。
-    merged_to_raw : list[tuple[int, int]]
-        merged_seq[i] 对应原始 seq 的索引范围 [start, end]（闭区间）。
-
-    Notes
-    -----
-    标准包含处理（与K线包含处理规则一致）：
-    - 方向由局部走势决定（§2.3 双条件）：
-      high 和 low 同时上升 → UP，同时下降 → DOWN
-    - UP 方向：取 max(high), max(low)
-    - DOWN 方向：取 min(high), min(low)
-    - 方向未确定时默认 UP
-    """
+    """对特征序列做包含处理，产出标准特征序列。"""
     n = len(seq)
     if n == 0:
         return [], []
     if n == 1:
         return [seq[0]], [(0, 0)]
 
-    # buf: [high, low, raw_start, raw_end, last_stroke_idx]
     buf: list[list[float | int]] = [
         [seq[0].high, seq[0].low, 0, 0, seq[0].idx]
     ]
     dir_state: str | None = None
 
     for i in range(1, n):
-        curr_h, curr_l = seq[i].high, seq[i].low
-        last = buf[-1]
-        last_h, last_l = last[0], last[1]
-
-        # 包含判定
-        left_inc = last_h >= curr_h and last_l <= curr_l
-        right_inc = curr_h >= last_h and curr_l <= last_l
-        has_inclusion = left_inc or right_inc
-
-        if has_inclusion:
-            effective_up = dir_state != "DOWN"
-            if effective_up:
-                new_h = max(last_h, curr_h)
-                new_l = max(last_l, curr_l)
-            else:
-                new_h = min(last_h, curr_h)
-                new_l = min(last_l, curr_l)
-            last[0] = new_h
-            last[1] = new_l
-            last[3] = i          # extend raw_end
-            last[4] = seq[i].idx  # keep last stroke idx
-        else:
-            # 双条件更新 dir
-            if curr_h > last_h and curr_l > last_l:
-                dir_state = "UP"
-            elif curr_h < last_h and curr_l < last_l:
-                dir_state = "DOWN"
-            buf.append([curr_h, curr_l, i, i, seq[i].idx])
+        dir_state = _merge_feature_bar(
+            buf, buf[-1], seq[i].high, seq[i].low, i, seq[i].idx, dir_state,
+        )
 
     merged_seq = [
         FeatureBar(idx=int(row[4]), high=row[0], low=row[1])

@@ -103,6 +103,43 @@ class BiEngine:
         self._event_seq = 0
         self._checker.reset()
 
+    def _run_pipeline(self, bar: Bar) -> tuple[list[Stroke], list[Fractal], int]:
+        """执行全量纯函数管线：inclusion → fractals → strokes。
+
+        Returns (strokes, fractals, n_merged)。
+        """
+        df = _build_df(self._bar_ohlc, self._bar_timestamps)
+        df_merged, _merged_to_raw = merge_inclusion(df)
+        fractals = fractals_from_merged(df_merged)
+        strokes = strokes_from_fractals(
+            df_merged,
+            fractals,
+            mode=self._stroke_mode,
+            min_strict_sep=self._min_strict_sep,
+            merged_to_raw=_merged_to_raw,
+        )
+        return strokes, fractals, len(df_merged)
+
+    def _diff_and_check(
+        self, strokes: list[Stroke], bar_idx: int, bar_ts: float,
+    ) -> list[DomainEvent]:
+        """差分前后 Stroke 快照并执行不变量检查，返回事件列表。"""
+        events = diff_strokes(
+            self._prev_strokes,
+            strokes,
+            bar_idx=bar_idx,
+            bar_ts=bar_ts,
+            seq_start=self._event_seq,
+        )
+        self._event_seq += len(events)
+
+        violations = self._checker.check(events, bar_idx, bar_ts)
+        if violations:
+            events = list(events) + violations
+            self._event_seq += len(violations)
+
+        return events
+
     def process_bar(self, bar: Bar) -> BiEngineSnapshot:
         """处理一根新 K 线，返回快照（含本 bar 产生的事件）。
 
@@ -115,40 +152,10 @@ class BiEngine:
         self._bar_ohlc.append([bar.open, bar.high, bar.low, bar.close])
         self._bar_timestamps.append(bar.ts)
 
-        # 计算当前 bar 的 epoch 秒
         bar_ts = _dt_to_epoch(bar.ts)
+        strokes, fractals, n_merged = self._run_pipeline(bar)
+        events = self._diff_and_check(strokes, self._bar_idx, bar_ts)
 
-        # 构造 DataFrame
-        df = _build_df(self._bar_ohlc, self._bar_timestamps)
-
-        # 调用现有管线
-        df_merged, _merged_to_raw = merge_inclusion(df)
-        fractals = fractals_from_merged(df_merged)
-        strokes = strokes_from_fractals(
-            df_merged,
-            fractals,
-            mode=self._stroke_mode,
-            min_strict_sep=self._min_strict_sep,
-            merged_to_raw=_merged_to_raw,
-        )
-
-        # 差分
-        events = diff_strokes(
-            self._prev_strokes,
-            strokes,
-            bar_idx=self._bar_idx,
-            bar_ts=bar_ts,
-            seq_start=self._event_seq,
-        )
-        self._event_seq += len(events)
-
-        # 运行时不变量检查（I1-I4）
-        violations = self._checker.check(events, self._bar_idx, bar_ts)
-        if violations:
-            events = list(events) + violations
-            self._event_seq += len(violations)
-
-        # 更新状态
         self._prev_strokes = strokes
 
         return BiEngineSnapshot(
@@ -156,7 +163,7 @@ class BiEngine:
             bar_ts=bar_ts,
             strokes=strokes,
             events=events,
-            n_merged=len(df_merged),
+            n_merged=n_merged,
             n_fractals=len(fractals),
         )
 

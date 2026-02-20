@@ -80,54 +80,58 @@ class InvariantChecker:
         list[InvariantViolation]
             违规事件列表（可能为空）。
         """
-        violations: list[InvariantViolation] = []
         snap_hash = _snapshot_hash(events)
-
-        # I2: bar_ts 单调非递减
-        if bar_ts < self._last_bar_ts:
-            violations.append(self._make_violation(
-                bar_idx=bar_idx,
-                bar_ts=bar_ts,
-                code=I2_TIME_BACKWARD,
-                reason=f"bar_ts {bar_ts} < last {self._last_bar_ts}",
-                snapshot_hash=snap_hash,
-            ))
+        violations = self._check_time_monotonic(bar_idx, bar_ts, snap_hash)
         self._last_bar_ts = bar_ts
 
         for ev in events:
-            # I1 + I3: settled stroke 不可覆盖
-            if ev.event_type == "stroke_settled":
-                key = self._stroke_key(ev)
-                if key in self._settled_keys:
-                    violations.append(self._make_violation(
-                        bar_idx=bar_idx,
-                        bar_ts=bar_ts,
-                        code=I1_SETTLED_OVERWRITE,
-                        reason=f"stroke {key} already settled without invalidate",
-                        snapshot_hash=snap_hash,
-                    ))
-                self._settled_keys.add(key)
+            violations.extend(self._check_event(ev, bar_idx, bar_ts, snap_hash))
 
-            # 从 settled 集合中移除被 invalidate 的笔
-            elif ev.event_type == "stroke_invalidated":
-                key = self._stroke_key(ev)
-                self._settled_keys.discard(key)
+        return violations
 
-            # I4: confirmed 状态与事件类型匹配
-            # candidate 事件不应带 confirmed=True 的语义
-            # settled 事件不应带 confirmed=False 的语义
-            # 注意：事件 payload 不直接含 confirmed 字段，
-            # 而是通过 event_type 隐含表达，由 bi_differ 逻辑保证。
-            # 这里做 seq 单调性检查作为 I4 的替代验证。
-            if ev.seq <= self._last_seq and self._last_seq >= 0:
+    def _check_time_monotonic(
+        self, bar_idx: int, bar_ts: float, snap_hash: str,
+    ) -> list[InvariantViolation]:
+        """I2: bar_ts 单调非递减。"""
+        if bar_ts < self._last_bar_ts:
+            return [self._make_violation(
+                bar_idx=bar_idx, bar_ts=bar_ts,
+                code=I2_TIME_BACKWARD,
+                reason=f"bar_ts {bar_ts} < last {self._last_bar_ts}",
+                snapshot_hash=snap_hash,
+            )]
+        return []
+
+    def _check_event(
+        self, ev: DomainEvent, bar_idx: int, bar_ts: float, snap_hash: str,
+    ) -> list[InvariantViolation]:
+        """I1/I3 settled 覆盖 + I4 seq 单调性。"""
+        violations: list[InvariantViolation] = []
+
+        # I1 + I3: settled stroke 不可覆盖
+        if ev.event_type == "stroke_settled":
+            key = self._stroke_key(ev)
+            if key in self._settled_keys:
                 violations.append(self._make_violation(
-                    bar_idx=bar_idx,
-                    bar_ts=bar_ts,
-                    code=I4_TYPE_MISMATCH,
-                    reason=f"seq {ev.seq} <= last_seq {self._last_seq} (non-monotonic)",
+                    bar_idx=bar_idx, bar_ts=bar_ts,
+                    code=I1_SETTLED_OVERWRITE,
+                    reason=f"stroke {key} already settled without invalidate",
                     snapshot_hash=snap_hash,
                 ))
-            self._last_seq = ev.seq
+            self._settled_keys.add(key)
+        elif ev.event_type == "stroke_invalidated":
+            key = self._stroke_key(ev)
+            self._settled_keys.discard(key)
+
+        # I4: seq 单调性检查
+        if ev.seq <= self._last_seq and self._last_seq >= 0:
+            violations.append(self._make_violation(
+                bar_idx=bar_idx, bar_ts=bar_ts,
+                code=I4_TYPE_MISMATCH,
+                reason=f"seq {ev.seq} <= last_seq {self._last_seq} (non-monotonic)",
+                snapshot_hash=snap_hash,
+            ))
+        self._last_seq = ev.seq
 
         return violations
 

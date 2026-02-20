@@ -96,29 +96,28 @@ def _current_state_to_edges(
     return edges
 
 
+def _resolve_direction(
+    event: EdgeEvent,
+    stored_va: AssetVertex,
+) -> FlowDirection:
+    """解析事件方向，考虑顶点顺序翻转。"""
+    if event.vertex_a == stored_va:
+        return event.direction
+    if event.direction == FlowDirection.A_TO_B:
+        return FlowDirection.B_TO_A
+    if event.direction == FlowDirection.B_TO_A:
+        return FlowDirection.A_TO_B
+    return event.direction
+
+
 def build_flow_timeline(events: list[EdgeEvent]) -> list[FlowSnapshot]:
-    """从笔事件序列构建流转状态时间序列。
-
-    Parameters
-    ----------
-    events : list[EdgeEvent]
-        所有边的笔方向变化事件（无需预排序）。
-
-    Returns
-    -------
-    list[FlowSnapshot]
-        按时间排序的流转状态快照序列。
-        每个快照反映该时刻所有边的累积方向状态。
-    """
+    """从笔事件序列构建流转状态时间序列。"""
     if not events:
         return []
 
-    # 按时间排序（保持稳定排序以处理同时事件）
     sorted_events = sorted(events, key=lambda e: e.timestamp)
 
-    # 初始化所有 6 条边为均衡（使用 combinations 枚举）
     from itertools import combinations
-
     current: dict[frozenset[AssetVertex], tuple[AssetVertex, AssetVertex, FlowDirection]] = {}
     for va, vb in combinations(AssetVertex, 2):
         current[frozenset([va, vb])] = (va, vb, FlowDirection.EQUILIBRIUM)
@@ -127,26 +126,12 @@ def build_flow_timeline(events: list[EdgeEvent]) -> list[FlowSnapshot]:
     for event in sorted_events:
         key = _make_edge_key(event.vertex_a, event.vertex_b)
 
-        # 保持 vertex_a/vertex_b 的规范顺序（与初始化一致）
         if key in current:
             stored_va, stored_vb, _ = current[key]
-            # 如果事件的顶点顺序与存储的不同，需要翻转方向
-            if event.vertex_a == stored_va:
-                direction = event.direction
-            else:
-                # 顶点顺序翻转了
-                if event.direction == FlowDirection.A_TO_B:
-                    direction = FlowDirection.B_TO_A
-                elif event.direction == FlowDirection.B_TO_A:
-                    direction = FlowDirection.A_TO_B
-                else:
-                    direction = event.direction
+            direction = _resolve_direction(event, stored_va)
             current[key] = (stored_va, stored_vb, direction)
 
-        # 构建当前所有边的 EdgeFlowInput
         edge_inputs = _current_state_to_edges(current)
-
-        # 聚合
         vertex_states = aggregate_vertex_flows(edge_inputs)
 
         snapshots.append(

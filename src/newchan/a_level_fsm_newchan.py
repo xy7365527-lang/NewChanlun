@@ -167,36 +167,14 @@ def _scan_event_anchor(
 # 1.4 结算锚存活判定
 # ====================================================================
 
-def classify_center_practical_newchan(
-    center: Center,
-    center_idx: int,
-    segments: list[Segment],
-    last_price: float,
-) -> AliveCenter:
-    """对单个中枢做三锚存活判定。
-
-    Parameters
-    ----------
-    center : Center
-    center_idx : int
-        center 在 centers 列表中的位置。
-    segments : list[Segment]
-    last_price : float
-        最新价格。
-
-    Returns
-    -------
-    AliveCenter
-    """
+def _classify_settle_anchor(
+    center: Center, center_idx: int, segments: list[Segment],
+    last_price: float, n_seg: int,
+) -> AliveCenter | None:
+    """结算锚·中枢内判定。返回 AliveCenter 或 None（需继续判定）。"""
     low, high = center.low, center.high
-    n_seg = len(segments)
     mk = lambda alive, regime, **kw: _make_result(center_idx, center, alive, regime, **kw)
 
-    # ── A) candidate 直接死亡 ──
-    if center.kind != "settled":
-        return mk(False, Regime.DEAD_NOT_SETTLED, death_reason="not_settled")
-
-    # ── B) 结算锚·中枢内 ──
     if low <= last_price <= high:
         return mk(True, Regime.SETTLE_ANCHOR_IN_CORE)
 
@@ -206,52 +184,105 @@ def classify_center_practical_newchan(
         if overlap(cur_seg.low, cur_seg.high, low, high):
             return mk(True, Regime.SETTLE_ANCHOR_IN_CORE)
 
-    # ── C) 运行锚判定 ──
+    return None
+
+
+def _classify_run_anchor(
+    center: Center, center_idx: int, segments: list[Segment],
+    n_seg: int,
+) -> AliveCenter | None:
+    """运行锚判定。返回 AliveCenter 或 None（需继续到事件锚）。"""
+    low, high = center.low, center.high
+    mk = lambda alive, regime, **kw: _make_result(center_idx, center, alive, regime, **kw)
+
     exit_idx = center.seg1 + 1
     if exit_idx >= n_seg:
         return mk(False, Regime.DEAD_NEGATION_SETTLED, death_reason="no_exit_segment")
 
     exit_seg = segments[exit_idx]
-
-    # guard: 离开段仍与核重叠 → 回退到中枢内
     if overlap(exit_seg.low, exit_seg.high, low, high):
         return mk(True, Regime.SETTLE_ANCHOR_IN_CORE, run_exit_idx=exit_idx)
 
-    # exit_side 判定
-    if exit_seg.low >= high:
-        exit_side = ExitSide.ABOVE
-        exit_extreme = exit_seg.high
-    elif exit_seg.high <= low:
-        exit_side = ExitSide.BELOW
-        exit_extreme = exit_seg.low
-    else:
-        return mk(False, Regime.DEAD_NEGATION_SETTLED, death_reason="invalid_exit_side")
+    return None
 
-    # ── D) 事件锚扫描 ──
+
+def _determine_exit_side(
+    exit_seg: Segment, low: float, high: float,
+) -> tuple[ExitSide, float] | None:
+    """判定离开方向和初始极值。返回 None 表示无效离开。"""
+    if exit_seg.low >= high:
+        return ExitSide.ABOVE, exit_seg.high
+    if exit_seg.high <= low:
+        return ExitSide.BELOW, exit_seg.low
+    return None
+
+
+def _build_event_anchor_result(
+    center_idx: int,
+    center: Center,
+    exit_idx: int,
+    exit_seg: Segment,
+    exit_side: ExitSide,
+    exit_extreme: float,
+    segments: list[Segment],
+    n_seg: int,
+) -> AliveCenter:
+    """执行事件锚扫描并构造最终 AliveCenter。"""
+    mk = lambda alive, regime, **kw: _make_result(center_idx, center, alive, regime, **kw)
+    cur_idx = n_seg - 1 if n_seg > 0 else -1
+
     seen_pullback, pullback_settled, exit_extreme = _scan_event_anchor(
-        segments, exit_idx, cur_idx, exit_seg, exit_side, exit_extreme, low, high,
+        segments, exit_idx, cur_idx, exit_seg, exit_side, exit_extreme,
+        center.low, center.high,
     )
 
     if pullback_settled:
-        regime = Regime.DEAD_NEGATION_SETTLED
-        death_reason: str | None = "pullback_settled"
-        is_alive = False
-    elif seen_pullback:
-        regime = Regime.EVENT_ANCHOR_FIRST_PULLBACK
-        death_reason = None
-        is_alive = True
-    else:
-        regime = Regime.RUN_ANCHOR_POST_EXIT
-        death_reason = None
-        is_alive = True
+        return mk(False, Regime.DEAD_NEGATION_SETTLED,
+                  run_exit_idx=exit_idx, run_exit_side=exit_side,
+                  run_exit_extreme=exit_extreme,
+                  event_seen_pullback=seen_pullback,
+                  event_pullback_settled=pullback_settled,
+                  death_reason="pullback_settled")
 
-    return mk(
-        is_alive, regime,
-        run_exit_idx=exit_idx, run_exit_side=exit_side,
-        run_exit_extreme=exit_extreme,
-        event_seen_pullback=seen_pullback,
-        event_pullback_settled=pullback_settled,
-        death_reason=death_reason,
+    regime = Regime.EVENT_ANCHOR_FIRST_PULLBACK if seen_pullback else Regime.RUN_ANCHOR_POST_EXIT
+    return mk(True, regime,
+              run_exit_idx=exit_idx, run_exit_side=exit_side,
+              run_exit_extreme=exit_extreme,
+              event_seen_pullback=seen_pullback,
+              event_pullback_settled=pullback_settled)
+
+
+def classify_center_practical_newchan(
+    center: Center,
+    center_idx: int,
+    segments: list[Segment],
+    last_price: float,
+) -> AliveCenter:
+    """对单个中枢做三锚存活判定。"""
+    n_seg = len(segments)
+    mk = lambda alive, regime, **kw: _make_result(center_idx, center, alive, regime, **kw)
+
+    if center.kind != "settled":
+        return mk(False, Regime.DEAD_NOT_SETTLED, death_reason="not_settled")
+
+    result = _classify_settle_anchor(center, center_idx, segments, last_price, n_seg)
+    if result is not None:
+        return result
+
+    result = _classify_run_anchor(center, center_idx, segments, n_seg)
+    if result is not None:
+        return result
+
+    exit_idx = center.seg1 + 1
+    exit_seg = segments[exit_idx]
+    exit_info = _determine_exit_side(exit_seg, center.low, center.high)
+    if exit_info is None:
+        return mk(False, Regime.DEAD_NEGATION_SETTLED, death_reason="invalid_exit_side")
+
+    exit_side, exit_extreme = exit_info
+    return _build_event_anchor_result(
+        center_idx, center, exit_idx, exit_seg,
+        exit_side, exit_extreme, segments, n_seg,
     )
 
 

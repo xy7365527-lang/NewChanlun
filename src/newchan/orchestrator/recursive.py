@@ -110,6 +110,38 @@ class RecursiveOrchestrator:
         self._bsp_engine.reset()
         self._recursive_stack.reset()
 
+    def _collect_events(
+        self,
+        bi_snap: BiEngineSnapshot,
+        seg_snap: SegmentSnapshot,
+        zs_snap: ZhongshuSnapshot,
+        move_snap: MoveSnapshot,
+        bsp_snap: BuySellPointSnapshot,
+        recursive_snaps: list[RecursiveLevelSnapshot],
+    ) -> list[DomainEvent]:
+        """收集所有层级的域事件并推入事件总线。"""
+        all_events: list[DomainEvent] = list(bi_snap.events)
+        if seg_snap.events:
+            all_events.extend(seg_snap.events)
+        if zs_snap.events:
+            all_events.extend(zs_snap.events)
+        if move_snap.events:
+            all_events.extend(move_snap.events)
+        if bsp_snap.events:
+            all_events.extend(bsp_snap.events)
+        for rs in recursive_snaps:
+            all_events.extend(rs.zhongshu_events)
+            all_events.extend(rs.move_events)
+
+        self.bus.push("L1", all_events, stream_id=self._stream_id)
+        for rs in recursive_snaps:
+            level_events = list(rs.zhongshu_events) + list(rs.move_events)
+            if level_events:
+                self.bus.push_level(
+                    rs.level_id, level_events, stream_id=self._stream_id,
+                )
+        return all_events
+
     def process_bar(self, bar: Bar) -> RecursiveOrchestratorSnapshot:
         """逐 bar 驱动全链，返回完整快照。
 
@@ -133,28 +165,9 @@ class RecursiveOrchestrator:
             move_snap,
         )
 
-        # 收集所有事件
-        all_events: list[DomainEvent] = list(bi_snap.events)
-        if seg_snap.events:
-            all_events.extend(seg_snap.events)
-        if zs_snap.events:
-            all_events.extend(zs_snap.events)
-        if move_snap.events:
-            all_events.extend(move_snap.events)
-        if bsp_snap.events:
-            all_events.extend(bsp_snap.events)
-        for rs in recursive_snaps:
-            all_events.extend(rs.zhongshu_events)
-            all_events.extend(rs.move_events)
-
-        # 推入事件总线
-        self.bus.push("L1", all_events, stream_id=self._stream_id)
-        for rs in recursive_snaps:
-            level_events = list(rs.zhongshu_events) + list(rs.move_events)
-            if level_events:
-                self.bus.push_level(
-                    rs.level_id, level_events, stream_id=self._stream_id,
-                )
+        all_events = self._collect_events(
+            bi_snap, seg_snap, zs_snap, move_snap, bsp_snap, recursive_snaps,
+        )
 
         snap = RecursiveOrchestratorSnapshot(
             bar_idx=bi_snap.bar_idx,

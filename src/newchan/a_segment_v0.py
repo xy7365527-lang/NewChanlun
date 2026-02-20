@@ -109,32 +109,44 @@ def _stroke_endpoint_by_type(
 # v0 主函数
 # ====================================================================
 
+def _build_segment_from_strokes(
+    strokes: list[Stroke], j: int,
+) -> Segment:
+    """从三笔构造一个 Segment。"""
+    s1, s2, s3 = strokes[j], strokes[j + 1], strokes[j + 2]
+    seg_high = max(s1.high, s2.high, s3.high)
+    seg_low = min(s1.low, s2.low, s3.low)
+    start_type: Literal["top", "bottom"] = (
+        "bottom" if s1.direction == "up" else "top"
+    )
+    end_type: Literal["top", "bottom"] = (
+        "top" if s1.direction == "up" else "bottom"
+    )
+    ep0_i, ep0_price = _stroke_endpoint_by_type(s1, start_type)
+    ep1_i, ep1_price = _stroke_endpoint_by_type(s3, end_type)
+
+    return Segment(
+        s0=j,
+        s1=j + 2,
+        i0=s1.i0,
+        i1=s3.i1,
+        direction=s1.direction,
+        high=seg_high,
+        low=seg_low,
+        confirmed=True,
+        ep0_i=ep0_i,
+        ep0_price=ep0_price,
+        ep0_type=start_type,
+        ep1_i=ep1_i,
+        ep1_price=ep1_price,
+        ep1_type=end_type,
+        p0=ep0_price,
+        p1=ep1_price,
+    )
+
+
 def segments_from_strokes_v0(strokes: list[Stroke]) -> list[Segment]:
-    """v0 线段构造：三笔交集重叠 → 生成线段。
-
-    Parameters
-    ----------
-    strokes : list[Stroke]
-        由 ``strokes_from_fractals`` 返回的笔列表。
-
-    Returns
-    -------
-    list[Segment]
-        按 ``s0`` 递增排序。最后一段 ``confirmed=False``，其余 ``True``。
-
-    Notes
-    -----
-    算法（docs/chan_spec.md §5.1 + §5.4 v0）：
-
-    1. 最小窗口：连续三笔 strokes[j], strokes[j+1], strokes[j+2]
-    2. 三笔交集重叠判定：
-       - overlap_low  = max(s1.low, s2.low, s3.low)
-       - overlap_high = min(s1.high, s2.high, s3.high)
-       - 成立条件：overlap_low < overlap_high
-    3. 成立则生成 Segment（方向 = 第一笔方向）
-    4. 贪心推进：生成一段后 j 跳到 j+2（从第三笔继续尝试下一段）
-    5. confirmed：最后一段 False，其余 True
-    """
+    """v0 线段构造：三笔交集重叠 -> 生成线段。"""
     n = len(strokes)
     if n < 3:
         return []
@@ -144,46 +156,15 @@ def segments_from_strokes_v0(strokes: list[Stroke]) -> list[Segment]:
 
     while j <= n - 3:
         s1, s2, s3 = strokes[j], strokes[j + 1], strokes[j + 2]
-
-        # §5.1 三笔交集重叠
         overlap_low = max(s1.low, s2.low, s3.low)
         overlap_high = min(s1.high, s2.high, s3.high)
 
         if overlap_low < overlap_high:
-            seg_high = max(s1.high, s2.high, s3.high)
-            seg_low = min(s1.low, s2.low, s3.low)
-            start_type: Literal["top", "bottom"] = (
-                "bottom" if s1.direction == "up" else "top"
-            )
-            end_type: Literal["top", "bottom"] = (
-                "top" if s1.direction == "up" else "bottom"
-            )
-            ep0_i, ep0_price = _stroke_endpoint_by_type(s1, start_type)
-            ep1_i, ep1_price = _stroke_endpoint_by_type(s3, end_type)
-
-            segments.append(Segment(
-                s0=j,
-                s1=j + 2,
-                i0=s1.i0,
-                i1=s3.i1,
-                direction=s1.direction,   # §5.2 v0: 第一笔方向
-                high=seg_high,
-                low=seg_low,
-                confirmed=True,
-                ep0_i=ep0_i,
-                ep0_price=ep0_price,
-                ep0_type=start_type,
-                ep1_i=ep1_i,
-                ep1_price=ep1_price,
-                ep1_type=end_type,
-                p0=ep0_price,
-                p1=ep1_price,
-            ))
-            j += 2  # 贪心：从第三笔继续
+            segments.append(_build_segment_from_strokes(strokes, j))
+            j += 2
         else:
             j += 1
 
-    # §5.3 最后一段标记为未确认
     if segments:
         last = segments[-1]
         segments[-1] = Segment(

@@ -94,4 +94,4 @@ model: opus
 - 不判断引用准不准（source-auditor 的事）
 - 不决定方法论变更（通过 `/escalate` + `/ritual` 门控）
 - 不直接修改 SKILL.md 或 CLAUDE.md（走 `/ritual` 仪式门控）
-- 不发 SendMessage（所有产出走文件系统）
+- 优先通过文件系统产出，必要时使用 SendMessage 与 Lead 通信

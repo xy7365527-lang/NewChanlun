@@ -82,6 +82,44 @@ class RecursiveLevelEngine:
         self._prev_moves = []
         self._event_seq = 0
 
+    def _compute_zhongshus(
+        self, move_snap: MoveSnapshot,
+    ) -> tuple[list[LevelZhongshu], list]:
+        """过滤 settled 走势 → 适配 → 计算中枢。返回 (zhongshus, components)。"""
+        settled_moves = [m for m in move_snap.moves if m.settled]
+        components = adapt_moves(settled_moves, level_id=self._level_id - 1)
+        return zhongshu_from_components(components), components
+
+    def _diff_zhongshus(
+        self, curr_zhongshus: list[LevelZhongshu], move_snap: MoveSnapshot,
+    ) -> list:
+        """差分中枢列表，产生中枢事件。"""
+        zs_events = diff_level_zhongshu(
+            self._prev_zhongshus,
+            curr_zhongshus,
+            bar_idx=move_snap.bar_idx,
+            bar_ts=move_snap.bar_ts,
+            seq_start=self._event_seq,
+            level_id=self._level_id,
+        )
+        self._event_seq += len(zs_events)
+        return zs_events
+
+    def _diff_moves(
+        self, curr_moves: list[Move], move_snap: MoveSnapshot,
+    ) -> list:
+        """差分走势列表，产生走势事件。"""
+        move_events = diff_level_moves(
+            self._prev_moves,
+            curr_moves,
+            bar_idx=move_snap.bar_idx,
+            bar_ts=move_snap.bar_ts,
+            seq_start=self._event_seq,
+            level_id=self._level_id,
+        )
+        self._event_seq += len(move_events)
+        return move_events
+
     def process_move_snapshot(self, move_snap: MoveSnapshot) -> RecursiveLevelSnapshot:
         """处理一个 MoveSnapshot，产生递归级别中枢和走势事件。
 
@@ -92,53 +130,13 @@ class RecursiveLevelEngine:
         4. diff → 中枢事件
         5. moves_from_level_zhongshus → Move 列表
         6. diff → 走势事件
-
-        Parameters
-        ----------
-        move_snap : MoveSnapshot
-            下级引擎产生的走势类型快照。
-
-        Returns
-        -------
-        RecursiveLevelSnapshot
-            包含本级别中枢、走势和两组域事件。
         """
-        # 1. 过滤 settled 走势类型 — 只有结算的 Move 才参与递归
-        settled_moves = [m for m in move_snap.moves if m.settled]
+        curr_zhongshus, _ = self._compute_zhongshus(move_snap)
+        zs_events = self._diff_zhongshus(curr_zhongshus, move_snap)
 
-        # 2. 适配为 MoveAsComponent（带 level_id + component_idx）
-        # 输入走势的 level = self._level_id - 1，输出中枢的 level = level_id
-        components = adapt_moves(settled_moves, level_id=self._level_id - 1)
-
-        # 3. 全量计算中枢
-        curr_zhongshus = zhongshu_from_components(components)
-
-        # 4. diff 产生中枢事件（P6: 注入 level_id）
-        zs_events = diff_level_zhongshu(
-            self._prev_zhongshus,
-            curr_zhongshus,
-            bar_idx=move_snap.bar_idx,
-            bar_ts=move_snap.bar_ts,
-            seq_start=self._event_seq,
-            level_id=self._level_id,
-        )
-        self._event_seq += len(zs_events)
-
-        # 5. 从中枢列表计算走势类型
         curr_moves = moves_from_level_zhongshus(curr_zhongshus)
+        move_events = self._diff_moves(curr_moves, move_snap)
 
-        # 6. diff 产生走势事件（P6: 注入 level_id）
-        move_events = diff_level_moves(
-            self._prev_moves,
-            curr_moves,
-            bar_idx=move_snap.bar_idx,
-            bar_ts=move_snap.bar_ts,
-            seq_start=self._event_seq,
-            level_id=self._level_id,
-        )
-        self._event_seq += len(move_events)
-
-        # 7. 更新内部状态
         self._prev_zhongshus = curr_zhongshus
         self._prev_moves = curr_moves
 

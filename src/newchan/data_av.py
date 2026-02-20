@@ -198,20 +198,8 @@ class AlphaVantageProvider:
             "datatype": "json",
         })
         analysis = raw.get("Technical Analysis: MACD", {})
-        records: list[dict] = []
-        for ts_str, values in sorted(analysis.items()):
-            records.append({
-                "ts": ts_str,
-                "macd": float(values["MACD"]),
-                "signal": float(values["MACD_Signal"]),
-                "hist": float(values["MACD_Hist"]),
-            })
-        df = pd.DataFrame(records)
-        if df.empty:
-            return pd.DataFrame(columns=["macd", "signal", "hist"])
-        df["ts"] = pd.to_datetime(df["ts"])
-        df = df.set_index("ts").sort_index()
-        return df[["macd", "signal", "hist"]]
+        records = _parse_macd_records(analysis)
+        return _build_macd_df(records)
 
     def fetch_brent_daily(self) -> list[Bar]:
         """获取 Brent 原油日线数据，返回 Bar 列表。"""
@@ -233,3 +221,26 @@ class AlphaVantageProvider:
                 )
             )
         return bars
+
+
+def _parse_macd_records(analysis: dict) -> list[dict]:
+    """将 AV MACD 原始 JSON 转为记录列表。"""
+    records: list[dict] = []
+    for ts_str, values in sorted(analysis.items()):
+        records.append({
+            "ts": ts_str,
+            "macd": float(values["MACD"]),
+            "signal": float(values["MACD_Signal"]),
+            "hist": float(values["MACD_Hist"]),
+        })
+    return records
+
+
+def _build_macd_df(records: list[dict]) -> pd.DataFrame:
+    """从记录列表构建 MACD DataFrame。"""
+    df = pd.DataFrame(records)
+    if df.empty:
+        return pd.DataFrame(columns=["macd", "signal", "hist"])
+    df["ts"] = pd.to_datetime(df["ts"])
+    df = df.set_index("ts").sort_index()
+    return df[["macd", "signal", "hist"]]

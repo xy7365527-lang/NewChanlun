@@ -57,6 +57,11 @@ optional_stations:
     purpose: "异质否定源 + 编排者代理（030a/041号谱系）"
     activation_condition: "定义处于生成态且同质质询已完成 2 轮以上，或系统遇到选择/语法记录类决断"
 
+  - name: skill-crystallizer
+    agent: ".claude/agents/skill-crystallizer.md"
+    purpose: "pattern-buffer 达标模式结晶为 skill（043号谱系）"
+    activation_condition: "pattern-buffer 中存在 status=candidate 且 frequency >= promotion_threshold 的模式"
+
 # --- 041: orchestrator_proxy（编排者代理） ---
 orchestrator_proxy:
   enabled: true
@@ -207,5 +212,62 @@ automation:
     auto_trigger: true
     require_genealogy_settlement: true
   manifest:
-    path: "src/newchan/skills/manifest.yaml"
+    path: ".chanlun/manifest.yaml"
     auto_register: true
+
+# --- 049: orchestration_protocol（事件路由表） ---
+orchestration_protocol:
+  version: "1.0"
+  genealogy_ref: "049-orchestration-routing-table"
+  routes:
+    - event: file_change
+      pattern: "spec/theorems/*"
+      target: gemini_math_verify
+      action: "gemini_challenger verify --context-file {file}"
+      priority: high
+
+    - event: file_change
+      pattern: "docs/chan_spec.md"
+      target: genealogist
+      action: "lineage_consistency_check"
+      priority: high
+
+    - event: file_create
+      pattern: "**/*"
+      target: manifest_guard
+      action: "check_manifest_registration"
+      priority: high
+
+    - event: annotation
+      pattern: "@proof-required"
+      target: gemini_math_prove
+      action: "gemini_challenger challenge --math"
+      priority: low_async
+
+    - event: task_queue
+      condition: "independent_tasks >= 2"
+      target: swarm_manager
+      action: "spawn_recursive_swarm"
+      priority: high
+
+    - event: session_start
+      target: meta_lead
+      action: "ceremony"
+      priority: critical
+
+    - event: session_end
+      target: pattern_detector
+      action: "post_session_pattern_detect"
+      priority: low_async
+
+    - event: tool_error
+      pattern: "gemini_api_*"
+      target: system
+      action: "fallback_local_rules"
+      priority: critical
+
+    - event: build_failure
+      condition: "consecutive_failures >= 3"
+      target: build_resolver
+      action: "auto_fix_build"
+      priority: medium

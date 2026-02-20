@@ -60,13 +60,11 @@ cd "$CWD" 2>/dev/null || true
 
 DEBT_FILE=".chanlun/.crystallization-debt.json"
 
-# 如果债务文件不存在，无债务，放行
-if [ ! -f "$DEBT_FILE" ]; then
-    exit 0
-fi
-
-# 检查是否有 pending 债务（排除 [Ad-hoc] 标记的）
-PENDING_DEBTS=$(python -c "
+# 检查债务文件
+PENDING_DEBTS=""
+if [ -f "$DEBT_FILE" ]; then
+    # 检查是否有 pending 债务（排除 [Ad-hoc] 标记的）
+    PENDING_DEBTS=$(python -c "
 import json, sys
 
 with open('$DEBT_FILE', 'r', encoding='utf-8') as f:
@@ -92,6 +90,7 @@ else:
         lines.append(f\"  - [{p.get('id','?')}] {p.get('desc','(no desc)')}\")
     print('\n'.join(lines))
 " 2>/dev/null || echo "")
+fi
 
 # 无 pending 债务，继续检查 pattern-buffer
 if [ -z "$PENDING_DEBTS" ]; then
@@ -104,13 +103,14 @@ import sys, re
 with open('$PATTERN_BUFFER', 'r', encoding='utf-8') as f:
     content = f.read()
 
-# 简单 YAML 解析：提取 frequency >= 3 且 status == pending 的模式
+# 简单 YAML 解析：提取 frequency >= 3 且 status 为 settled 或 candidate 的模式
+# M1 统一：status 枚举为 observed → candidate → settled → promoted/rejected
 patterns = []
 current = {}
 for line in content.split('\n'):
     stripped = line.strip()
     if stripped.startswith('- id:'):
-        if current.get('frequency', 0) >= 3 and current.get('status') == 'pending':
+        if current.get('frequency', 0) >= 3 and current.get('status') in ('settled', 'candidate'):
             patterns.append(current)
         current = {'id': stripped.split(':', 1)[1].strip().strip('\"').strip(\"'\")}
     elif stripped.startswith('frequency:'):
@@ -124,7 +124,7 @@ for line in content.split('\n'):
         current['description'] = stripped.split(':', 1)[1].strip().strip('\"').strip(\"'\")
 
 # 最后一个
-if current.get('frequency', 0) >= 3 and current.get('status') == 'pending':
+if current.get('frequency', 0) >= 3 and current.get('status') in ('settled', 'candidate'):
     patterns.append(current)
 
 if not patterns:

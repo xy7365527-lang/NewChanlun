@@ -21,6 +21,24 @@ from newchan.orchestrator.recursive import RecursiveOrchestrator, RecursiveOrche
 from newchan.types import Bar
 
 
+def _prepare_macd(
+    bars: list[Bar],
+    df_macd: pd.DataFrame | None,
+    macd_fast: int,
+    macd_slow: int,
+    macd_signal: int,
+) -> pd.DataFrame:
+    """准备 MACD 数据：本地计算或对齐外部数据。"""
+    bar_index = pd.DatetimeIndex([b.ts for b in bars])
+    if df_macd is None:
+        df_raw = pd.DataFrame(
+            [{"close": b.close} for b in bars],
+            index=bar_index,
+        )
+        return compute_macd(df_raw, fast=macd_fast, slow=macd_slow, signal=macd_signal)
+    return df_macd.reindex(bar_index)
+
+
 def run_nested_search(
     bars: list[Bar],
     *,
@@ -32,33 +50,10 @@ def run_nested_search(
     min_strict_sep: int = 5,
     max_levels: int = 6,
 ) -> tuple[list[NestedDivergence], RecursiveOrchestratorSnapshot | None]:
-    """从 K 线序列出发，执行区间套跨级别背驰搜索。
-
-    Parameters
-    ----------
-    bars : list[Bar]
-        K 线序列（按时间正序）。
-    df_macd : pd.DataFrame | None
-        外部 MACD 数据（如 Alpha Vantage fetch_macd 返回值）。
-        列必须包含 ``macd``, ``signal``, ``hist``。
-        如果为 None，则从 bars 的 close 价格本地计算。
-    macd_fast, macd_slow, macd_signal : int
-        本地 MACD 计算参数（仅在 df_macd=None 时使用）。
-    stroke_mode, min_strict_sep : ...
-        透传到 BiEngine。
-    max_levels : int
-        最大递归深度。
-
-    Returns
-    -------
-    tuple[list[NestedDivergence], RecursiveOrchestratorSnapshot | None]
-        (嵌套背驰列表, 最后一个 bar 的完整快照)。
-        bars 不足时返回 ([], None)。
-    """
+    """从 K 线序列出发，执行区间套跨级别背驰搜索。"""
     if len(bars) < 3:
         return [], None
 
-    # ── 驱动 RecursiveOrchestrator ──
     orch = RecursiveOrchestrator(
         stream_id="nested_pipeline",
         max_levels=max_levels,
@@ -72,22 +67,8 @@ def run_nested_search(
     if snap is None:
         return [], None
 
-    # ── MACD 数据准备 ──
-    bar_index = pd.DatetimeIndex([b.ts for b in bars])
-    if df_macd is None:
-        df_raw = pd.DataFrame(
-            [{"close": b.close} for b in bars],
-            index=bar_index,
-        )
-        df_macd = compute_macd(
-            df_raw, fast=macd_fast, slow=macd_slow, signal=macd_signal,
-        )
-    else:
-        # 外部 MACD 必须和 bars 在时间轴上对齐；
-        # 下游使用 iloc（位置索引），这里统一成 bars 顺序并按缺失补 NaN。
-        df_macd = df_macd.reindex(bar_index)
+    df_macd_final = _prepare_macd(bars, df_macd, macd_fast, macd_slow, macd_signal)
 
-    # ── merged_to_raw 映射 ──
     df_raw = pd.DataFrame({
         "open": [b.open for b in bars],
         "high": [b.high for b in bars],
@@ -96,9 +77,8 @@ def run_nested_search(
     }, index=pd.DatetimeIndex([b.ts for b in bars]))
     _, merged_to_raw = merge_inclusion(df_raw)
 
-    # ── 区间套搜索 ──
     results = nested_divergence_search(
-        snap, df_macd=df_macd, merged_to_raw=merged_to_raw,
+        snap, df_macd=df_macd_final, merged_to_raw=merged_to_raw,
     )
 
     return results, snap

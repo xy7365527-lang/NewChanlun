@@ -81,75 +81,72 @@ class LevelZhongshu:
 # ====================================================================
 
 
+def _try_extend_zhongshu(
+    completed: list, start: int, n: int, zd: float, zg: float,
+) -> tuple[int, float, float]:
+    """尝试延伸中枢，返回 (end_offset, gg, dd)。"""
+    gg = max(completed[start - 2].high, completed[start - 1].high, completed[start].high)
+    dd = min(completed[start - 2].low, completed[start - 1].low, completed[start].low)
+    end_offset = start
+
+    j = start + 1
+    while j < n:
+        cj = completed[j]
+        if cj.high >= zd and cj.low <= zg:
+            end_offset = j
+            gg = max(gg, cj.high)
+            dd = min(dd, cj.low)
+            j += 1
+        else:
+            break
+    return end_offset, gg, dd
+
+
+def _determine_break_direction(
+    completed: list, j: int, n: int, zg: float, zd: float,
+) -> tuple[bool, int, str]:
+    """判断中枢是否被突破及方向。返回 (settled, break_comp_idx, break_dir)。"""
+    settled = j < n
+    break_comp_idx = completed[j].component_idx if settled else -1
+    break_dir = ""
+    if settled:
+        breaker = completed[j]
+        if breaker.low > zg:
+            break_dir = "up"
+        elif breaker.high < zd:
+            break_dir = "down"
+        else:
+            break_dir = "up" if breaker.high > zg else "down"
+    return settled, break_comp_idx, break_dir
+
+
 def zhongshu_from_components(
     components: Sequence[MoveProtocol],
 ) -> list[LevelZhongshu]:
-    """从 MoveProtocol 组件序列计算中枢。
-
-    算法与 zhongshu_from_segments() 完全相同：
-    1. 过滤 completed=True 的组件
-    2. 滑窗三组件：ZD=max(lows), ZG=min(highs)
-    3. ZG > ZD → 中枢成立
-    4. 延伸：后续组件与 [ZD, ZG] 有交集，同时更新 GG/DD
-    5. 突破：不重叠组件终结中枢
-    6. 续进：从 break 组件在 completed 列表中的位置 - 2 开始
-    """
+    """从 MoveProtocol 组件序列计算中枢。"""
     completed = [c for c in components if c.completed]
     n = len(completed)
     if n < 3:
         return []
 
-    # 推断 level_id：取第一个 completed 组件的 level_id + 1
     level_id = completed[0].level_id + 1
-
     result: list[LevelZhongshu] = []
     i = 0
 
     while i + 2 < n:
         c1, c2, c3 = completed[i], completed[i + 1], completed[i + 2]
-
-        # 三组件重叠检测
         zd = max(c1.low, c2.low, c3.low)
         zg = min(c1.high, c2.high, c3.high)
 
         if zg <= zd:
-            # 无重叠，前进一步
             i += 1
             continue
 
-        # 中枢成立：[ZD, ZG] 固定；波动区间初始化
-        gg = max(c1.high, c2.high, c3.high)
-        dd = min(c1.low, c2.low, c3.low)
-        end_offset = i + 2
-
-        # 尝试延伸
-        j = i + 3
-        while j < n:
-            cj = completed[j]
-            # 延伸判定：与 [ZD, ZG] 有交集（弱不等式）
-            if cj.high >= zd and cj.low <= zg:
-                end_offset = j
-                gg = max(gg, cj.high)
-                dd = min(dd, cj.low)
-                j += 1
-            else:
-                break
-
-        # 判断是否已被突破
-        settled = j < n
-        break_comp_idx = completed[j].component_idx if settled else -1
-
-        # 突破方向
-        break_dir = ""
-        if settled:
-            breaker = completed[j]
-            if breaker.low > zg:
-                break_dir = "up"
-            elif breaker.high < zd:
-                break_dir = "down"
-            else:
-                # 防御性分支（理论上弱不等式后突破必为严格不等）
-                break_dir = "up" if breaker.high > zg else "down"
+        end_offset, gg, dd = _try_extend_zhongshu(completed, i + 2, n, zd, zg)
+        j = end_offset + 1
+        settled, break_comp_idx, break_dir = _determine_break_direction(
+            completed, j, n, zg, zd,
+        )
 
         result.append(LevelZhongshu(
             zd=zd,
@@ -165,11 +162,10 @@ def zhongshu_from_components(
             level_id=level_id,
         ))
 
-        # 续进策略：从 break 在 completed 中的位置 - 2 开始
         if settled:
             i = max(j - 2, end_offset)
         else:
-            break  # 最后一个中枢未闭合，结束
+            break
 
     return result
 
@@ -189,30 +185,10 @@ def _is_descending(c1: LevelZhongshu, c2: LevelZhongshu) -> bool:
     return c2.gg < c1.dd
 
 
-def moves_from_level_zhongshus(zhongshus: list[LevelZhongshu]) -> list[Move]:
-    """从 LevelZhongshu 列表构造 Move。
-
-    算法与 moves_from_zhongshus() 完全相同：
-    1. 过滤 settled=True 的中枢
-    2. 贪心分组：同向中枢归入同一 group
-    3. >=2 同向中枢 → trend；1 中枢 → consolidation
-    4. 最后一个 move → settled=False
-
-    注意：返回的 Move 中 seg_start/seg_end 指向 comp_start/comp_end，
-    zs_start/zs_end 指向中枢在 zhongshus 列表中的索引。
-    """
-    # 过滤 settled 中枢并记录原始索引
-    settled_indices: list[int] = []
-    settled_zs: list[LevelZhongshu] = []
-    for idx, zs in enumerate(zhongshus):
-        if zs.settled:
-            settled_indices.append(idx)
-            settled_zs.append(zs)
-
-    if not settled_zs:
-        return []
-
-    # 贪心分组
+def _greedy_group_zhongshus(
+    settled_zs: list[LevelZhongshu],
+) -> list[tuple[list[int], str]]:
+    """贪心分组：同向中枢归入同一 group。返回 [(offsets, direction), ...]。"""
     groups: list[tuple[list[int], str]] = []
     current_offsets: list[int] = [0]
     current_dir: str = ""
@@ -233,41 +209,64 @@ def moves_from_level_zhongshus(zhongshus: list[LevelZhongshu]) -> list[Move]:
             current_dir = ""
 
     groups.append((current_offsets, current_dir))
+    return groups
 
-    # 转换 groups → Moves
-    result: list[Move] = []
-    for offsets, direction in groups:
-        first_zs = settled_zs[offsets[0]]
-        last_zs = settled_zs[offsets[-1]]
-        zs_count = len(offsets)
 
-        zs_start = settled_indices[offsets[0]]
-        zs_end = settled_indices[offsets[-1]]
+def _group_to_move(
+    offsets: list[int],
+    direction: str,
+    settled_zs: list[LevelZhongshu],
+    settled_indices: list[int],
+) -> Move:
+    """将一个 group 转换为 Move。"""
+    first_zs = settled_zs[offsets[0]]
+    last_zs = settled_zs[offsets[-1]]
+    zs_count = len(offsets)
+    zs_start = settled_indices[offsets[0]]
+    zs_end = settled_indices[offsets[-1]]
 
-        if zs_count >= 2:
-            kind: Literal["consolidation", "trend"] = "trend"
-            move_dir: Literal["up", "down"] = direction  # type: ignore[assignment]
-        else:
-            kind = "consolidation"
-            move_dir = first_zs.break_direction  # type: ignore[assignment]
+    if zs_count >= 2:
+        kind: Literal["consolidation", "trend"] = "trend"
+        move_dir: Literal["up", "down"] = direction  # type: ignore[assignment]
+    else:
+        kind = "consolidation"
+        move_dir = first_zs.break_direction  # type: ignore[assignment]
 
-        group_centers = [settled_zs[o] for o in offsets]
-        result.append(Move(
-            kind=kind,
-            direction=move_dir,
-            seg_start=first_zs.comp_start,
-            seg_end=last_zs.comp_end,
-            zs_start=zs_start,
-            zs_end=zs_end,
-            zs_count=zs_count,
-            settled=True,
-            high=max(zs.gg for zs in group_centers),
-            low=min(zs.dd for zs in group_centers),
-            first_seg_s0=first_zs.comp_start,
-            last_seg_s1=last_zs.comp_end,
-        ))
+    group_centers = [settled_zs[o] for o in offsets]
+    return Move(
+        kind=kind,
+        direction=move_dir,
+        seg_start=first_zs.comp_start,
+        seg_end=last_zs.comp_end,
+        zs_start=zs_start,
+        zs_end=zs_end,
+        zs_count=zs_count,
+        settled=True,
+        high=max(zs.gg for zs in group_centers),
+        low=min(zs.dd for zs in group_centers),
+        first_seg_s0=first_zs.comp_start,
+        last_seg_s1=last_zs.comp_end,
+    )
 
-    # 最后一个 move → unsettled
+
+def moves_from_level_zhongshus(zhongshus: list[LevelZhongshu]) -> list[Move]:
+    """从 LevelZhongshu 列表构造 Move。"""
+    settled_indices: list[int] = []
+    settled_zs: list[LevelZhongshu] = []
+    for idx, zs in enumerate(zhongshus):
+        if zs.settled:
+            settled_indices.append(idx)
+            settled_zs.append(zs)
+
+    if not settled_zs:
+        return []
+
+    groups = _greedy_group_zhongshus(settled_zs)
+    result = [
+        _group_to_move(offsets, direction, settled_zs, settled_indices)
+        for offsets, direction in groups
+    ]
+
     if result:
         result[-1] = replace(result[-1], settled=False)
 

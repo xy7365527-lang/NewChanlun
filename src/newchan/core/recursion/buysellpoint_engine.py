@@ -73,50 +73,9 @@ class BuySellPointEngine:
         zs_snap: ZhongshuSnapshot,
         seg_snap: SegmentSnapshot,
     ) -> BuySellPointSnapshot:
-        """处理一组上游快照，产生买卖点事件。
-
-        Parameters
-        ----------
-        move_snap : MoveSnapshot
-            走势类型快照（含 moves 列表）。
-        zs_snap : ZhongshuSnapshot
-            中枢快照（含 zhongshus 列表）。
-        seg_snap : SegmentSnapshot
-            线段快照（含 segments 列表）。
-
-        Returns
-        -------
-        BuySellPointSnapshot
-            包含当前买卖点列表和本轮产生的 BSP 事件。
-        """
-        # 1. 计算背驰（无 MACD 时用价格振幅 fallback）
-        divergences = divergences_from_moves_v1(
-            seg_snap.segments,
-            zs_snap.zhongshus,
-            move_snap.moves,
-            self._level_id,
-        )
-
-        # 2. 全量计算买卖点
-        curr_bsps = buysellpoints_from_level(
-            seg_snap.segments,
-            zs_snap.zhongshus,
-            move_snap.moves,
-            divergences,
-            self._level_id,
-        )
-
-        # 3. diff 产生事件
-        events = diff_buysellpoints(
-            self._prev_bsps,
-            curr_bsps,
-            bar_idx=move_snap.bar_idx,
-            bar_ts=move_snap.bar_ts,
-            seq_start=self._event_seq,
-        )
-        self._event_seq += len(events)
-
-        # 4. 更新状态
+        """处理一组上游快照，产生买卖点事件。"""
+        curr_bsps = self._compute_buysellpoints(move_snap, zs_snap, seg_snap)
+        events = self._diff_and_advance(curr_bsps, move_snap)
         self._prev_bsps = curr_bsps
 
         return BuySellPointSnapshot(
@@ -125,3 +84,38 @@ class BuySellPointEngine:
             buysellpoints=curr_bsps,
             events=events,
         )
+
+    def _compute_buysellpoints(
+        self,
+        move_snap: MoveSnapshot,
+        zs_snap: ZhongshuSnapshot,
+        seg_snap: SegmentSnapshot,
+    ) -> list[BuySellPoint]:
+        """计算背驰 + 全量买卖点。"""
+        divergences = divergences_from_moves_v1(
+            seg_snap.segments,
+            zs_snap.zhongshus,
+            move_snap.moves,
+            self._level_id,
+        )
+        return buysellpoints_from_level(
+            seg_snap.segments,
+            zs_snap.zhongshus,
+            move_snap.moves,
+            divergences,
+            self._level_id,
+        )
+
+    def _diff_and_advance(
+        self, curr_bsps: list[BuySellPoint], move_snap: MoveSnapshot,
+    ) -> list:
+        """diff 产生事件并推进 seq。"""
+        events = diff_buysellpoints(
+            self._prev_bsps,
+            curr_bsps,
+            bar_idx=move_snap.bar_idx,
+            bar_ts=move_snap.bar_ts,
+            seq_start=self._event_seq,
+        )
+        self._event_seq += len(events)
+        return events

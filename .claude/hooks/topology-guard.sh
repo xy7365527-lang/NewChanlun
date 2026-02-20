@@ -189,3 +189,89 @@ else:
         'reason': msg
     }, ensure_ascii=False))
 " 2>/dev/null || true
+
+# ── manifest 注册检查 ──────────────────────────────────────────────
+# 检查 staged 中新创建的文件是否已注册到 manifest.yaml
+python -c "
+import subprocess, os, json, sys
+
+MANIFEST_PATH = '.chanlun/manifest.yaml'
+
+# 需要检查注册的路径模式
+MONITORED = {
+    'src/newchan/': '.py',
+    '.claude/commands/': '.md',
+    '.claude/agents/': '.md',
+    '.claude/hooks/': '.sh',
+}
+
+# 排除的目录和文件
+EXCLUDE_DIRS = {'tests/', 'tmp/', '__pycache__/'}
+EXCLUDE_FILES = {'__init__.py'}
+
+def get_new_staged_files():
+    \"\"\"获取 staged 中新增的文件（git status A）\"\"\"
+    try:
+        result = subprocess.run(
+            ['git', 'diff', '--cached', '--name-status', '--diff-filter=A'],
+            capture_output=True, text=True, timeout=10
+        )
+        if result.returncode != 0:
+            return []
+        files = []
+        for line in result.stdout.strip().split('\n'):
+            if not line.strip():
+                continue
+            parts = line.split('\t', 1)
+            if len(parts) == 2:
+                files.append(parts[1].strip())
+        return files
+    except Exception:
+        return []
+
+def should_check(filepath):
+    \"\"\"判断文件是否在监控范围内\"\"\"
+    basename = os.path.basename(filepath)
+    if basename in EXCLUDE_FILES:
+        return False
+    for exc in EXCLUDE_DIRS:
+        if exc in filepath:
+            return False
+    for prefix, ext in MONITORED.items():
+        if filepath.startswith(prefix) and filepath.endswith(ext):
+            return True
+    return False
+
+def load_manifest():
+    \"\"\"加载 manifest.yaml 内容为文本（简单字符串匹配）\"\"\"
+    try:
+        with open(MANIFEST_PATH, 'r', encoding='utf-8') as f:
+            return f.read()
+    except (IOError, FileNotFoundError):
+        return ''
+
+def check_registration(filepath, manifest_content):
+    \"\"\"检查文件是否在 manifest 中有对应条目\"\"\"
+    return ('file: ' + filepath) in manifest_content
+
+new_files = get_new_staged_files()
+manifest_content = load_manifest()
+unregistered = []
+
+for f in new_files:
+    if should_check(f) and not check_registration(f, manifest_content):
+        unregistered.append(f)
+
+if unregistered:
+    file_list = '\n'.join(['  - ' + f for f in unregistered])
+    msg = (
+        f'[topology-guard/manifest] 警告：{len(unregistered)} 个新文件未注册到 manifest.yaml\n'
+        f'{file_list}\n'
+        '请使用 DynamicRegistry 注册，或确认该文件不需要注册（测试/临时文件）。'
+    )
+    # 只警告，不阻断
+    print(json.dumps({
+        'decision': 'warn',
+        'reason': msg
+    }, ensure_ascii=False))
+" 2>/dev/null || true

@@ -262,59 +262,46 @@ async def replay_start(req: ReplayStartRequest):
     )
 
 
-@app.post("/api/replay/step", response_model=ReplayStepResponse)
-async def replay_step(req: ReplayStepRequest):
-    """步进指定数量的 bar。"""
-    try:
-        session = _get_session(req.session_id)
-    except ValueError as e:
-        return WsError(message=str(e), code="session_not_found").model_dump()
+async def _step_multi_tf(req, session, orch):
+    """多 TF 步进，返回 ReplayStepResponse。"""
+    tf_snapshots = orch.step(req.count)
+    base_snaps = tf_snapshots.get(orch.base_tf, [])
+    if not base_snaps:
+        return ReplayStepResponse(bar_idx=session.current_idx - 1)
 
-    orch = _orchestrators.get(req.session_id)
+    events_ws = []
+    for tf, snaps in tf_snapshots.items():
+        sid = orch._stream_ids.get(tf, "")
+        for snap in snaps:
+            for ev in snap.events:
+                events_ws.append(WsEvent(**_event_to_ws(ev, tf=tf, stream_id=sid)))
 
-    if orch is not None:
-        # 多 TF：通过 orchestrator 步进
-        tf_snapshots = orch.step(req.count)
-        base_snaps = tf_snapshots.get(orch.base_tf, [])
-        if not base_snaps:
-            return ReplayStepResponse(bar_idx=session.current_idx - 1)
+    for tf, snaps in tf_snapshots.items():
+        tf_session = orch.sessions[tf]
+        sid = orch._stream_ids.get(tf, "")
+        for snap in snaps:
+            bar_idx = snap.bar_idx
+            if bar_idx < tf_session.total_bars:
+                await _broadcast(req.session_id, _bar_to_ws(tf_session.bars[bar_idx], bar_idx, tf=tf, stream_id=sid))
+            for ev in snap.events:
+                await _broadcast(req.session_id, _event_to_ws(ev, tf=tf, stream_id=sid))
+    await _broadcast(req.session_id, _status_to_ws(session))
 
-        # 收集所有 TF 的事件用于 REST 返回
-        events_ws = []
-        for tf, snaps in tf_snapshots.items():
-            sid = orch._stream_ids.get(tf, "")
-            for snap in snaps:
-                for ev in snap.events:
-                    events_ws.append(WsEvent(**_event_to_ws(ev, tf=tf, stream_id=sid)))
+    last_snap = base_snaps[-1]
+    last_bar_idx = session.current_idx - 1
+    bar = session.bars[last_bar_idx] if last_bar_idx < session.total_bars else None
+    ws_bar = WsBar(**_bar_to_ws(bar, last_bar_idx)) if bar else None
+    return ReplayStepResponse(bar_idx=last_snap.bar_idx, bar=ws_bar, events=events_ws)
 
-        # WS 广播（带 tf / stream_id 标签）
-        for tf, snaps in tf_snapshots.items():
-            tf_session = orch.sessions[tf]
-            sid = orch._stream_ids.get(tf, "")
-            for snap in snaps:
-                bar_idx = snap.bar_idx
-                if bar_idx < tf_session.total_bars:
-                    await _broadcast(req.session_id, _bar_to_ws(tf_session.bars[bar_idx], bar_idx, tf=tf, stream_id=sid))
-                for ev in snap.events:
-                    await _broadcast(req.session_id, _event_to_ws(ev, tf=tf, stream_id=sid))
-        await _broadcast(req.session_id, _status_to_ws(session))
 
-        last_snap = base_snaps[-1]
-        last_bar_idx = session.current_idx - 1
-        bar = session.bars[last_bar_idx] if last_bar_idx < session.total_bars else None
-        ws_bar = WsBar(**_bar_to_ws(bar, last_bar_idx)) if bar else None
-        return ReplayStepResponse(bar_idx=last_snap.bar_idx, bar=ws_bar, events=events_ws)
-
-    # 单 TF：走原有路径
+async def _step_single_tf(req, session):
+    """单 TF 步进，返回 ReplayStepResponse。"""
     snapshots = session.step(req.count)
     if not snapshots:
         return ReplayStepResponse(bar_idx=session.current_idx - 1)
 
     last_snap = snapshots[-1]
-    events_ws = []
-    for snap in snapshots:
-        for ev in snap.events:
-            events_ws.append(WsEvent(**_event_to_ws(ev)))
+    events_ws = [WsEvent(**_event_to_ws(ev)) for snap in snapshots for ev in snap.events]
 
     last_bar_idx = session.current_idx - 1
     bar = session.bars[last_bar_idx] if last_bar_idx < session.total_bars else None
@@ -329,6 +316,20 @@ async def replay_step(req: ReplayStepRequest):
     await _broadcast(session.session_id, _status_to_ws(session))
 
     return ReplayStepResponse(bar_idx=last_snap.bar_idx, bar=ws_bar, events=events_ws)
+
+
+@app.post("/api/replay/step", response_model=ReplayStepResponse)
+async def replay_step(req: ReplayStepRequest):
+    """步进指定数量的 bar。"""
+    try:
+        session = _get_session(req.session_id)
+    except ValueError as e:
+        return WsError(message=str(e), code="session_not_found").model_dump()
+
+    orch = _orchestrators.get(req.session_id)
+    if orch is not None:
+        return await _step_multi_tf(req, session, orch)
+    return await _step_single_tf(req, session)
 
 
 @app.post("/api/replay/seek", response_model=ReplaySeekResponse)
@@ -424,6 +425,38 @@ def _cancel_play_task(session_id: str) -> None:
         task.cancel()
 
 
+async def _play_multi_tf(session_id: str, session, orch) -> bool:
+    """多 TF 播放一步。返回 False 表示应停止。"""
+    tf_snapshots = orch.step(1)
+    if not tf_snapshots.get(orch.base_tf):
+        return False
+    for tf, snaps in tf_snapshots.items():
+        tf_session = orch.sessions[tf]
+        sid = orch._stream_ids.get(tf, "")
+        for snap in snaps:
+            bi = snap.bar_idx
+            if bi < tf_session.total_bars:
+                await _broadcast(session_id, _bar_to_ws(tf_session.bars[bi], bi, tf=tf, stream_id=sid))
+            for ev in snap.events:
+                await _broadcast(session_id, _event_to_ws(ev, tf=tf, stream_id=sid))
+    return True
+
+
+async def _play_single_tf(session_id: str, session) -> bool:
+    """单 TF 播放一步。返回 False 表示应停止。"""
+    bar_idx = session.current_idx
+    snapshots = session.step(1)
+    if not snapshots:
+        return False
+    snap = snapshots[0]
+    bar = session.bars[bar_idx] if bar_idx < session.total_bars else None
+    if bar is not None:
+        await _broadcast(session_id, _bar_to_ws(bar, bar_idx))
+    for ev in snap.events:
+        await _broadcast(session_id, _event_to_ws(ev))
+    return True
+
+
 async def _play_loop(session_id: str) -> None:
     """自动播放后台循环，按 speed 控制推送间隔。"""
     try:
@@ -441,36 +474,12 @@ async def _play_loop(session_id: str) -> None:
                 break
 
             if orch is not None:
-                # 多 TF 播放
-                bar_idx = session.current_idx
-                tf_snapshots = orch.step(1)
-
-                if not tf_snapshots.get(orch.base_tf):
-                    break
-
-                for tf, snaps in tf_snapshots.items():
-                    tf_session = orch.sessions[tf]
-                    sid = orch._stream_ids.get(tf, "")
-                    for snap in snaps:
-                        bi = snap.bar_idx
-                        if bi < tf_session.total_bars:
-                            await _broadcast(session_id, _bar_to_ws(tf_session.bars[bi], bi, tf=tf, stream_id=sid))
-                        for ev in snap.events:
-                            await _broadcast(session_id, _event_to_ws(ev, tf=tf, stream_id=sid))
+                ok = await _play_multi_tf(session_id, session, orch)
             else:
-                # 单 TF 播放
-                bar_idx = session.current_idx
-                snapshots = session.step(1)
+                ok = await _play_single_tf(session_id, session)
 
-                if not snapshots:
-                    break
-
-                snap = snapshots[0]
-                bar = session.bars[bar_idx] if bar_idx < session.total_bars else None
-                if bar is not None:
-                    await _broadcast(session_id, _bar_to_ws(bar, bar_idx))
-                for ev in snap.events:
-                    await _broadcast(session_id, _event_to_ws(ev))
+            if not ok:
+                break
 
             await _broadcast(session_id, _status_to_ws(session))
 
@@ -528,88 +537,113 @@ async def ws_feed(ws: WebSocket):
             _ws_clients[bound_session_id].discard(ws)
 
 
+async def _ws_require_session(ws: WebSocket, bound_session_id: str | None) -> str | None:
+    """检查 WS 是否绑定了会话，未绑定则发送错误。返回 session_id 或 None。"""
+    if bound_session_id is None:
+        await ws.send_json(WsError(message="未绑定会话", code="no_session").model_dump())
+        return None
+    return bound_session_id
+
+
+async def _handle_ws_replay_start(ws: WebSocket, cmd: WsCommand) -> str | None:
+    """处理 replay_start 命令，返回新 session_id。"""
+    try:
+        bars = _load_bars(cmd.symbol.upper(), "1min", cmd.tf)
+    except ValueError as e:
+        await ws.send_json(WsError(message=str(e), code="data_error").model_dump())
+        return None
+
+    if not bars:
+        await ws.send_json(WsError(message="数据为空", code="data_error").model_dump())
+        return None
+
+    session_id = str(uuid.uuid4())
+    engine = BiEngine()
+    session = ReplaySession(session_id=session_id, bars=bars, engine=engine)
+    _sessions[session_id] = session
+
+    _ws_clients.setdefault(session_id, set()).add(ws)
+
+    await ws.send_json({
+        "type": "replay_started",
+        "session_id": session_id,
+        "total_bars": session.total_bars,
+    })
+    await ws.send_json(_status_to_ws(session))
+    return session_id
+
+
+async def _handle_ws_replay_step(ws: WebSocket, bound_session_id: str | None) -> None:
+    """处理 replay_step 命令：步进并广播 bar/event/status。"""
+    sid = await _ws_require_session(ws, bound_session_id)
+    if sid is None:
+        return
+    session = _get_session(sid)
+    snapshots = session.step(1)
+    for snap in snapshots:
+        bar_idx = snap.bar_idx
+        if bar_idx < session.total_bars:
+            await _broadcast(sid, _bar_to_ws(session.bars[bar_idx], bar_idx))
+        for ev in snap.events:
+            await _broadcast(sid, _event_to_ws(ev))
+    await _broadcast(sid, _status_to_ws(session))
+
+
+async def _handle_ws_replay_seek(ws: WebSocket, cmd: WsCommand, bound_session_id: str | None) -> None:
+    """处理 replay_seek 命令：跳转并广播 snapshot/status。"""
+    sid = await _ws_require_session(ws, bound_session_id)
+    if sid is None:
+        return
+    session = _get_session(sid)
+    _cancel_play_task(sid)
+    snap = session.seek(cmd.seek_idx)
+    if snap:
+        await _broadcast(sid, _snapshot_to_ws(snap))
+    await _broadcast(sid, _status_to_ws(session))
+
+
+async def _handle_ws_replay_play(ws: WebSocket, cmd: WsCommand, bound_session_id: str | None) -> None:
+    """处理 replay_play 命令：启动自动播放。"""
+    sid = await _ws_require_session(ws, bound_session_id)
+    if sid is None:
+        return
+    session = _get_session(sid)
+    _cancel_play_task(sid)
+    session.speed = cmd.speed
+    session.mode = "playing"
+    task = asyncio.create_task(_play_loop(sid))
+    _play_tasks[sid] = task
+    await _broadcast(sid, _status_to_ws(session))
+
+
+async def _handle_ws_replay_pause(ws: WebSocket, bound_session_id: str | None) -> None:
+    """处理 replay_pause 命令：暂停播放。"""
+    sid = await _ws_require_session(ws, bound_session_id)
+    if sid is None:
+        return
+    session = _get_session(sid)
+    _cancel_play_task(sid)
+    if session.mode == "playing":
+        session.mode = "paused"
+    await _broadcast(sid, _status_to_ws(session))
+
+
 async def _handle_ws_command(ws: WebSocket, cmd: WsCommand, bound_session_id: str | None) -> None:
-    """处理 WS 客户端命令。"""
+    """处理 WS 客户端命令（分派到具体 handler）。"""
 
     if cmd.action == "replay_start":
-        # 创建新会话
-        try:
-            bars = _load_bars(cmd.symbol.upper(), "1min", cmd.tf)
-        except ValueError as e:
-            await ws.send_json(WsError(message=str(e), code="data_error").model_dump())
-            return
-
-        if not bars:
-            await ws.send_json(WsError(message="数据为空", code="data_error").model_dump())
-            return
-
-        session_id = str(uuid.uuid4())
-        engine = BiEngine()
-        session = ReplaySession(session_id=session_id, bars=bars, engine=engine)
-        _sessions[session_id] = session
-
-        # 注册 WS 客户端
-        _ws_clients.setdefault(session_id, set()).add(ws)
-
-        await ws.send_json({
-            "type": "replay_started",
-            "session_id": session_id,
-            "total_bars": session.total_bars,
-        })
-        await ws.send_json(_status_to_ws(session))
-
+        await _handle_ws_replay_start(ws, cmd)
     elif cmd.action == "subscribe":
-        # 订阅已有会话的推送
         if bound_session_id:
             _ws_clients.setdefault(bound_session_id, set()).add(ws)
-
     elif cmd.action == "replay_step":
-        if bound_session_id is None:
-            await ws.send_json(WsError(message="未绑定会话", code="no_session").model_dump())
-            return
-        session = _get_session(bound_session_id)
-        snapshots = session.step(cmd.step_count)
-        for snap in snapshots:
-            bar_idx = snap.bar_idx
-            if bar_idx < session.total_bars:
-                await _broadcast(bound_session_id, _bar_to_ws(session.bars[bar_idx], bar_idx))
-            for ev in snap.events:
-                await _broadcast(bound_session_id, _event_to_ws(ev))
-        await _broadcast(bound_session_id, _status_to_ws(session))
-
+        await _handle_ws_replay_step(ws, bound_session_id)
     elif cmd.action == "replay_seek":
-        if bound_session_id is None:
-            await ws.send_json(WsError(message="未绑定会话", code="no_session").model_dump())
-            return
-        session = _get_session(bound_session_id)
-        _cancel_play_task(bound_session_id)
-        snap = session.seek(cmd.seek_idx)
-        if snap:
-            await _broadcast(bound_session_id, _snapshot_to_ws(snap))
-        await _broadcast(bound_session_id, _status_to_ws(session))
-
+        await _handle_ws_replay_seek(ws, cmd, bound_session_id)
     elif cmd.action == "replay_play":
-        if bound_session_id is None:
-            await ws.send_json(WsError(message="未绑定会话", code="no_session").model_dump())
-            return
-        session = _get_session(bound_session_id)
-        _cancel_play_task(bound_session_id)
-        session.speed = cmd.speed
-        session.mode = "playing"
-        task = asyncio.create_task(_play_loop(bound_session_id))
-        _play_tasks[bound_session_id] = task
-        await _broadcast(bound_session_id, _status_to_ws(session))
-
+        await _handle_ws_replay_play(ws, cmd, bound_session_id)
     elif cmd.action == "replay_pause":
-        if bound_session_id is None:
-            await ws.send_json(WsError(message="未绑定会话", code="no_session").model_dump())
-            return
-        session = _get_session(bound_session_id)
-        _cancel_play_task(bound_session_id)
-        if session.mode == "playing":
-            session.mode = "paused"
-        await _broadcast(bound_session_id, _status_to_ws(session))
-
+        await _handle_ws_replay_pause(ws, bound_session_id)
     elif cmd.action == "unsubscribe":
         if bound_session_id and bound_session_id in _ws_clients:
             _ws_clients[bound_session_id].discard(ws)

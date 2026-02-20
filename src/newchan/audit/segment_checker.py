@@ -114,6 +114,19 @@ class SegmentInvariantChecker:
     ) -> list[InvariantViolation]:
         """I17 终态 + I6 前置 pending + I7 结算锚。"""
         violations: list[InvariantViolation] = []
+        violations.extend(self._check_settle_invariants(ev, bar_idx, bar_ts, batch_pending_ids))
+        self._update_settle_state(ev)
+        return violations
+
+    def _check_settle_invariants(
+        self,
+        ev: SegmentSettleV1,
+        bar_idx: int,
+        bar_ts: float,
+        batch_pending_ids: set[int],
+    ) -> list[InvariantViolation]:
+        """I17/I6/I7 settle 不变量检查（不修改状态）。"""
+        violations: list[InvariantViolation] = []
         identity = (ev.s0, ev.direction)
 
         # I17: invalidate 后不得出现同身份 settle
@@ -152,13 +165,14 @@ class SegmentInvariantChecker:
                 ),
             ))
 
-        # 更新状态
+        return violations
+
+    def _update_settle_state(self, ev: SegmentSettleV1) -> None:
+        """settle 后更新累积状态。"""
         self._pending_ids.discard(ev.segment_id)
         key = (ev.s0, ev.s1, ev.direction)
         self._settled_keys.add(key)
         self._invalidated_keys.discard(key)
-
-        return violations
 
     def _check_invalidate(
         self,

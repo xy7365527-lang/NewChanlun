@@ -10,4 +10,4 @@ patterns: []
 #   first_seen: "2026-02-20T..."
 #   last_seen: "2026-02-20T..."
 #   sources: ["session-id-1"]
-#   status: "pending"  # pending -> promoted -> rejected
+#   status: "observed"  # observed -> candidate -> settled -> promoted/rejected

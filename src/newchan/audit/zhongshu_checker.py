@@ -137,6 +137,19 @@ class ZhongshuInvariantChecker:
     ) -> list[InvariantViolation]:
         """I17 终态 + I12 前置 candidate + I11 重叠。"""
         violations: list[InvariantViolation] = []
+        violations.extend(self._check_settle_invariants(ev, bar_idx, bar_ts, batch_candidate_ids))
+        self._candidate_ids.discard(ev.zhongshu_id)
+        return violations
+
+    def _check_settle_invariants(
+        self,
+        ev: ZhongshuSettleV1,
+        bar_idx: int,
+        bar_ts: float,
+        batch_candidate_ids: set[int],
+    ) -> list[InvariantViolation]:
+        """I17/I12/I11 settle 不变量检查（不修改状态）。"""
+        violations: list[InvariantViolation] = []
         identity = (ev.zd, ev.zg, ev.seg_start)
 
         # I17: invalidate 后不得出现同身份 settle
@@ -174,9 +187,6 @@ class ZhongshuInvariantChecker:
                     f"zg={ev.zg} <= zd={ev.zd} in settle event"
                 ),
             ))
-
-        # 更新状态
-        self._candidate_ids.discard(ev.zhongshu_id)
 
         return violations
 
