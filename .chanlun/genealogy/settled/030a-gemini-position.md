@@ -4,7 +4,8 @@
 **状态**: 已结算
 **日期**: 2026-02-19
 **结算日期**: 2026-02-19
-**negation_type**: heterogeneous
+**negation_source**: heterogeneous
+**negation_form**: separation（成员/工具二分法内部暴露不兼容的异质性）
 **前置**: 030-baseline-verification-runtime
 **关联**: 005-object-negation-principle, 029-move-c-segment-coverage, 031-move-range-semantics
 
@@ -41,7 +42,7 @@ Gemini 通过 MCP tool call 调用，不在 Agent Teams 形式内部（不被 le
 2. `.claude/agents/gemini-challenger.md`：代理工位定义（Claude agent 作为 Gemini 的代理）
 3. `.claude/commands/challenge.md`：`/challenge` slash command
 4. `gemini_challenger.py`：`ChallengeResult.reasoning_chain` + `--verbose` CLI
-5. `genealogy-template.md`：增加 `negation_type` / `negation_source` 字段
+5. `genealogy-template.md`：重命名 `negation_type` → `negation_source`（来源维度），新增 `negation_form`（形式维度）
 6. `knowledge-crystallization/SKILL.md`：谱系触发者含异质否定源
 
 **代理工位模式**：外部模型不能直接参与蜂群协议。解决方案是 Claude agent 作为代理，负责调用外部模型、提取完整推理链、以结果包格式向团队汇报。代理工位是结构工位的一种——能力常驻，按需激活。
@@ -55,10 +56,10 @@ Gemini 通过 MCP tool call 调用，不在 Agent Teams 形式内部（不被 le
 ## 影响
 
 - 元编排方法论从"Claude-only"泛化为"多模型异质否定"
-- 谱系模板增加 `negation_type` 字段，区分同质/异质否定
+- 谱系模板增加 `negation_source`（来源）+ `negation_form`（形式）双维度字段，区分同质/异质否定及否定结构类型
 - 蜂群结构工位清单增加异质质询工位
 - 为未来接入更多异质否定源（其他模型、人类审查）提供了架构基础
 
-## negation_type 备注
+## negation_source 备注
 
-030a 自身从 `unclassified` 结算为 `heterogeneous`。029 的敞开性原则得到验证——"成员/工具"二分法被撑破后，产出了新的否定结构类型（异质否定）。
+030a 自身从 `unclassified` 结算为 `heterogeneous`（来源维度）/ `separation`（形式维度）。029 的敞开性原则得到验证——"成员/工具"二分法被撑破后，产出了新的否定结构类型（异质否定）。040号谱系进一步将来源维度与形式维度显式分离。

@@ -96,9 +96,13 @@ ceremony_sequence:
     - step: "spawn-structural"
       action: "按 structural_stations 列表 spawn 全部结构工位"
       validation: "spawn 数量 == structural_stations.length"
+    - step: "definition-base-check"
+      action: "每个 structural station spawn 后，复述本次任务涉及的关键定义，Lead 对照 definitions/ 检查"
+      depends_on: "spawn-structural"
+      genealogy_ref: "040-negation-topology-formalization"
     - step: "spawn-task"
       action: "按 task_stations.rules 从中断点派生任务工位"
-      depends_on: "spawn-structural"  # G7/G9: 显式前置条件
+      depends_on: "definition-base-check"  # G7/G9: 显式前置条件
     - step: "divine-madness"
       action: "Lead 自我权限剥夺（032号谱系）"
       depends_on: "spawn-structural, spawn-task"  # G7/G9: 依赖所有 spawn 完成
@@ -122,9 +126,13 @@ ceremony_sequence:
     - step: "spawn-structural"
       action: "按 structural_stations 列表 spawn 全部结构工位"
       validation: "spawn 数量 == structural_stations.length"
+    - step: "definition-base-check"
+      action: "每个 structural station spawn 后，复述本次任务涉及的关键定义，Lead 对照 definitions/ 检查"
+      depends_on: "spawn-structural"
+      genealogy_ref: "040-negation-topology-formalization"
     - step: "spawn-task"
       action: "按 task_stations.rules 从中断点派生任务工位"
-      depends_on: "spawn-structural"  # G7/G9
+      depends_on: "definition-base-check"  # G7/G9
     - step: "divine-madness"
       action: "Lead 自我权限剥夺（032号谱系）"
       depends_on: "spawn-structural, spawn-task"  # G7/G9

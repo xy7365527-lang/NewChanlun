@@ -3,7 +3,8 @@
 - **状态**: 已结算（语法记录）
 - **类型**: meta-rule
 - **日期**: 2026-02-20
-- **negation_type**: heterogeneous（Gemini 质询触发）+ 编排者哲学洞察
+- **negation_source**: heterogeneous（Gemini 质询触发）+ 编排者哲学洞察
+- **negation_form**: expansion（Lead 的权限规定被 Lead 自身实践违反）
 - **negation_source**: gemini + orchestrator
 - **前置**: 016-runtime-enforcement-layer, 020-constitutive-contradiction, 030a-gemini-position
 - **关联**: 013-swarm-structural-stations, 014-skill-card-deck-decomposition
