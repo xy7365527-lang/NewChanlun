@@ -14,6 +14,42 @@ version: "1.3"
 provenance: "[新缠论]"
 genealogy_ref: "033-declarative-dispatch-spec, 059-structural-audit"
 
+# --- 062推论2: genealogical_coordinates（每个工位的谱系坐标） ---
+# 每个工位在谱系空间中的位置，用于追溯产出的概念来源链。
+genealogical_coordinates:
+  genealogist:
+    origin: "012-genealogy-is-discovery-engine"
+    domain: "谱系维护"
+    negation_source: "张力碰撞（内在否定）"
+  quality-guard:
+    origin: "033-declarative-dispatch-spec"
+    domain: "质量守卫"
+    negation_source: "结果包不合格（内在否定）"
+  meta-observer:
+    origin: "033-declarative-dispatch-spec"
+    domain: "二阶反馈"
+    negation_source: "元规则自身矛盾（内在否定）"
+  source-auditor:
+    origin: "004-provenance-framework"
+    domain: "溯源审计"
+    negation_source: "权威链断裂（内在否定）"
+  topology-manager:
+    origin: "019d-tension-depth-limit"
+    domain: "拓扑分析"
+    negation_source: "背驰+分型信号（内在否定）"
+  gemini-challenger:
+    origin: "030a-heterogeneous-negation, 041-orchestrator-proxy"
+    domain: "异质否定"
+    negation_source: "异质质询产出（外部对象否定）"
+  claude-challenger:
+    origin: "062-gemini-re-challenge"
+    domain: "反向质询（癔症话语）"
+    negation_source: "不可消化点（外部对象否定）"
+  skill-crystallizer:
+    origin: "043-self-growing-loop"
+    domain: "知识结晶"
+    negation_source: "模式达标（内在否定——候选态→结晶态）"
+
 # --- G10: structural_stations 增加 tools_required 字段 ---
 structural_stations:
   - name: genealogist
@@ -71,6 +107,15 @@ optional_stations:
       - trigger: "manual"
         condition: "定义处于生成态且同质质询已完成 2 轮以上，由 lead 手动指定质询目标"
         mode: "challenge"
+
+  - name: claude-challenger
+    agent: ".claude/agents/claude-challenger.md"
+    purpose: "反向质询（癔症话语位置）——对 Gemini 产出进行再质询，指出不可消化点"
+    activation_condition:
+      - trigger: "re-challenge"
+        condition: "Gemini challenger 产出需要被再质询时（由 Lead 分派）"
+      - trigger: "stale-generative"
+        condition: "同质质询已完成 2 轮以上但定义仍处于生成态"
 
   - name: skill-crystallizer
     agent: ".claude/agents/skill-crystallizer.md"
