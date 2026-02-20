@@ -13,132 +13,66 @@ from newchan import __version__
 # ------------------------------------------------------------------
 
 
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        prog="newchan",
-        description="缠论量化分析工具",
-    )
-    parser.add_argument(
-        "-V", "--version",
-        action="version",
-        version=f"%(prog)s {__version__}",
-    )
-
-    sub = parser.add_subparsers(dest="command")
-
-    # ---- fetch 子命令 ------------------------------------------------
+def _add_fetch_subcommand(sub: argparse._SubParsersAction) -> None:
     fetch_p = sub.add_parser("fetch", help="拉取行情数据")
-    fetch_p.add_argument(
-        "--source",
-        choices=["ibkr", "av"],
-        default="ibkr",
-        help="数据源: ibkr (Interactive Brokers) 或 av (Alpha Vantage)，默认 ibkr",
-    )
-    fetch_p.add_argument(
-        "--symbol",
-        required=True,
-        help="品种代码（ibkr: CL/GC/ES/NQ/… | av: BRENT）",
-    )
-    fetch_p.add_argument(
-        "--interval",
-        default="1min",
-        help="K 线周期，如 1min/5min/15min/1hour/1day，默认 1min",
-    )
-    fetch_p.add_argument(
-        "--duration",
-        default="2 D",
-        help='拉取时长（仅 ibkr），IB 格式，如 "2 D"、"1 W"，默认 "2 D"',
-    )
-    fetch_p.add_argument(
-        "--refresh",
-        action="store_true",
-        default=False,
-        help="强制刷新（忽略本地缓存）",
-    )
+    fetch_p.add_argument("--source", choices=["ibkr", "av"], default="ibkr",
+                         help="数据源: ibkr (Interactive Brokers) 或 av (Alpha Vantage)，默认 ibkr")
+    fetch_p.add_argument("--symbol", required=True,
+                         help="品种代码（ibkr: CL/GC/ES/NQ/… | av: BRENT）")
+    fetch_p.add_argument("--interval", default="1min",
+                         help="K 线周期，如 1min/5min/15min/1hour/1day，默认 1min")
+    fetch_p.add_argument("--duration", default="2 D",
+                         help='拉取时长（仅 ibkr），IB 格式，如 "2 D"、"1 W"，默认 "2 D"')
+    fetch_p.add_argument("--refresh", action="store_true", default=False,
+                         help="强制刷新（忽略本地缓存）")
 
-    # ---- plot 子命令 ------------------------------------------------
+
+def _add_plot_subcommand(sub: argparse._SubParsersAction) -> None:
     plot_p = sub.add_parser("plot", help="交互式蜡烛图（TradingView 风格）")
-    plot_p.add_argument(
-        "--symbol",
-        required=True,
-        help="品种代码（需先 fetch 过）",
-    )
-    plot_p.add_argument(
-        "--interval",
-        default="1min",
-        help="原始数据的 K 线周期（对应 fetch 时的 --interval），默认 1min",
-    )
-    plot_p.add_argument(
-        "--display-tf",
-        default="1m",
-        help="初始显示周期: 1m/5m/15m/30m/1h/4h/1d/1w，默认 1m",
-    )
-    plot_p.add_argument(
-        "--compare",
-        default=None,
-        help="合成标的缓存名（如 CL_GC_spread），启用上下分屏对比模式",
-    )
+    plot_p.add_argument("--symbol", required=True, help="品种代码（需先 fetch 过）")
+    plot_p.add_argument("--interval", default="1min",
+                        help="原始数据的 K 线周期（对应 fetch 时的 --interval），默认 1min")
+    plot_p.add_argument("--display-tf", default="1m",
+                        help="初始显示周期: 1m/5m/15m/30m/1h/4h/1d/1w，默认 1m")
+    plot_p.add_argument("--compare", default=None,
+                        help="合成标的缓存名（如 CL_GC_spread），启用上下分屏对比模式")
 
-    # ---- chart 子命令 ------------------------------------------------
+
+def _add_chart_subcommand(sub: argparse._SubParsersAction) -> None:
     chart_p = sub.add_parser("chart", help="启动交互式图表服务（TradingView 风格）")
-    chart_p.add_argument(
-        "--port",
-        type=int,
-        default=8765,
-        help="HTTP 服务端口，默认 8765",
-    )
+    chart_p.add_argument("--port", type=int, default=8765, help="HTTP 服务端口，默认 8765")
 
-    # ---- synthetic 子命令 --------------------------------------------
+
+def _add_synthetic_subcommand(sub: argparse._SubParsersAction) -> None:
     synth_p = sub.add_parser("synthetic", help="生成合成标的（价差/比值）")
-    synth_p.add_argument(
-        "--a",
-        required=True,
-        dest="sym_a",
-        help="品种 A（如 CL）",
-    )
-    synth_p.add_argument(
-        "--b",
-        required=True,
-        dest="sym_b",
-        help="品种 B（如 GC）",
-    )
-    synth_p.add_argument(
-        "--op",
-        choices=["spread", "ratio"],
-        default="spread",
-        help="运算方式: spread (A-B) 或 ratio (A/B)，默认 spread",
-    )
-    synth_p.add_argument(
-        "--interval",
-        default="1min",
-        help="原始数据的 K 线周期，默认 1min",
-    )
+    synth_p.add_argument("--a", required=True, dest="sym_a", help="品种 A（如 CL）")
+    synth_p.add_argument("--b", required=True, dest="sym_b", help="品种 B（如 GC）")
+    synth_p.add_argument("--op", choices=["spread", "ratio"], default="spread",
+                         help="运算方式: spread (A-B) 或 ratio (A/B)，默认 spread")
+    synth_p.add_argument("--interval", default="1min", help="原始数据的 K 线周期，默认 1min")
 
-    # ---- fetch-db 子命令（Databento 批量拉取）----------------------------
+
+def _add_fetchdb_subcommand(sub: argparse._SubParsersAction) -> None:
     fetchdb_p = sub.add_parser("fetch-db", help="从 Databento 拉取完整历史数据")
-    fetchdb_p.add_argument(
-        "--symbol",
-        default=None,
-        help="品种代码（如 CL, AMD）；不指定时用 --all",
-    )
-    fetchdb_p.add_argument(
-        "--all",
-        action="store_true",
-        default=False,
-        dest="fetch_all",
-        help="拉取所有默认标的（CL,GC,ES,NQ,SI,AMD,NVDA）",
-    )
-    fetchdb_p.add_argument(
-        "--intervals",
-        default="1min,1day",
-        help="逗号分隔的周期列表，默认 1min,1day",
-    )
-    fetchdb_p.add_argument(
-        "--start",
-        default="2010-01-01",
-        help="起始日期 YYYY-MM-DD，默认 2010-01-01",
-    )
+    fetchdb_p.add_argument("--symbol", default=None,
+                           help="品种代码（如 CL, AMD）；不指定时用 --all")
+    fetchdb_p.add_argument("--all", action="store_true", default=False, dest="fetch_all",
+                           help="拉取所有默认标的（CL,GC,ES,NQ,SI,AMD,NVDA）")
+    fetchdb_p.add_argument("--intervals", default="1min,1day",
+                           help="逗号分隔的周期列表，默认 1min,1day")
+    fetchdb_p.add_argument("--start", default="2010-01-01",
+                           help="起始日期 YYYY-MM-DD，默认 2010-01-01")
 
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="newchan", description="缠论量化分析工具")
+    parser.add_argument("-V", "--version", action="version", version=f"%(prog)s {__version__}")
+    sub = parser.add_subparsers(dest="command")
+    _add_fetch_subcommand(sub)
+    _add_plot_subcommand(sub)
+    _add_chart_subcommand(sub)
+    _add_synthetic_subcommand(sub)
+    _add_fetchdb_subcommand(sub)
     return parser
 
 

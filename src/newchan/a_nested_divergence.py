@@ -306,6 +306,120 @@ def divergences_from_level_snapshot(
     return result
 
 
+# ── 主搜索辅助 ───────────────────────────────
+
+
+def _top_level_divs_with_components(
+    top_level: int,
+    snap: RecursiveOrchestratorSnapshot,
+) -> tuple[list[Divergence], list[Move]]:
+    """获取指定级别的背驰列表和组件。无背驰时返回空列表。"""
+    top_idx = top_level - 2
+    if top_idx >= len(snap.recursive_snapshots):
+        return [], []
+    level_snap = snap.recursive_snapshots[top_idx]
+    parent_moves = _get_moves_at_level(top_level - 1, snap)
+    components = [m for m in parent_moves if m.settled]
+    top_divs = divergences_from_level_snapshot(level_snap, components)
+    return top_divs, components
+
+
+def _initial_bar_range(
+    top_div: Divergence,
+    components: list[Move],
+    top_level: int,
+    snap: RecursiveOrchestratorSnapshot,
+) -> tuple[int, int] | None:
+    """将高级别背驰的 C 段映射到 bar 范围。无效时返回 None。"""
+    c_move_idx = top_div.seg_c_end
+    if c_move_idx >= len(components):
+        return None
+    c_move = components[c_move_idx]
+    bar_range = _level_move_to_bar_range(c_move, top_level - 1, snap)
+    if bar_range[0] >= bar_range[1]:
+        return None
+    return bar_range
+
+
+def _drill_down_mid_levels(
+    top_level: int,
+    snap: RecursiveOrchestratorSnapshot,
+    current_range: tuple[int, int],
+) -> tuple[list[tuple[int, Divergence | None]], tuple[int, int]]:
+    """逐级向下搜索中间级别，返回 (chain_entries, narrowed_range)。"""
+    chain: list[tuple[int, Divergence | None]] = []
+    for mid_level in range(top_level - 1, 1, -1):
+        mid_idx = mid_level - 2
+        if mid_idx >= len(snap.recursive_snapshots):
+            break
+        mid_snap = snap.recursive_snapshots[mid_idx]
+        mid_parent = _get_moves_at_level(mid_level - 1, snap)
+        mid_components = [m for m in mid_parent if m.settled]
+        mid_divs = divergences_from_level_snapshot(mid_snap, mid_components)
+        matched = _filter_divs_in_range(
+            mid_divs, mid_components, mid_level, snap, current_range,
+        )
+        if not matched:
+            break
+        mid_div = matched[-1]  # 取最后一个（最新的）
+        chain.append((mid_level, mid_div))
+        if mid_div.seg_c_end < len(mid_components):
+            c_comp = mid_components[mid_div.seg_c_end]
+            current_range = _level_move_to_bar_range(c_comp, mid_level - 1, snap)
+            if current_range[0] >= current_range[1]:
+                break
+    return chain, current_range
+
+
+def _finalize_with_level1(
+    snap: RecursiveOrchestratorSnapshot,
+    current_range: tuple[int, int],
+    df_macd: pd.DataFrame | None,
+    merged_to_raw: list[tuple[int, int]] | None,
+) -> tuple[tuple[int, Divergence] | None, tuple[int, int]]:
+    """level=1 最终检测（完整 MACD 支持），返回 (chain_entry, final_range)。"""
+    l1_divs = divergences_in_bar_range(
+        snap.seg_snapshot.segments,
+        snap.zs_snapshot.zhongshus,
+        snap.move_snapshot.moves,
+        level_id=1,
+        bar_range=current_range,
+        df_macd=df_macd,
+        merged_to_raw=merged_to_raw,
+    )
+    if l1_divs:
+        final_range = _div_to_bar_range(l1_divs[-1], 1, snap)
+        return (1, l1_divs[-1]), final_range
+    return None, current_range
+
+
+def _build_nested_chain(
+    top_level: int,
+    top_div: Divergence,
+    components: list[Move],
+    snap: RecursiveOrchestratorSnapshot,
+    df_macd: pd.DataFrame | None,
+    merged_to_raw: list[tuple[int, int]] | None,
+) -> NestedDivergence | None:
+    """从单个高级别背驰出发，向下构建完整嵌套链。"""
+    bar_range = _initial_bar_range(top_div, components, top_level, snap)
+    if bar_range is None:
+        return None
+
+    chain: list[tuple[int, Divergence | None]] = [(top_level, top_div)]
+    mid_chain, current_range = _drill_down_mid_levels(top_level, snap, bar_range)
+    chain.extend(mid_chain)
+
+    l1_entry, final_range = _finalize_with_level1(
+        snap, current_range, df_macd, merged_to_raw,
+    )
+    if l1_entry is not None:
+        chain.append(l1_entry)
+        current_range = final_range
+
+    return NestedDivergence(chain=chain, bar_range=current_range)
+
+
 # ── 主搜索 ────────────────────────────────────
 
 
@@ -317,118 +431,25 @@ def nested_divergence_search(
 ) -> list[NestedDivergence]:
     """区间套跨级别背驰搜索。
 
-    从 RecursiveStack 产出的最高递归级别开始：
-    1. 在当前级别检测背驰
-    2. 将背驰的 C 段映射到 merged bar 范围
-    3. 在下一级别的该范围内继续检测
-    4. 重复直到 level=1
-
-    级别由递归构造决定，不接受时间周期参数。
-
-    Parameters
-    ----------
-    snap : RecursiveOrchestratorSnapshot
-        RecursiveOrchestrator.process_bar() 的完整快照。
-    df_macd : pd.DataFrame | None
-        MACD 数据（仅 level=1 使用）。
-    merged_to_raw : list[tuple[int, int]] | None
-        merged → raw 索引映射（仅 level=1 使用）。
-
-    Returns
-    -------
-    list[NestedDivergence]
-        找到的区间套嵌套链。空列表 = 无嵌套背驰。
+    从最高递归级别开始，逐级向下检测背驰并收缩 bar 范围，
+    直到 level=1。级别由递归构造决定，不接受时间周期参数。
 
     概念溯源: [旧缠论] 第27课 区间套（精确大转折点寻找程序定理）
     """
     if not snap.recursive_snapshots:
         return []
 
-    max_level = len(snap.recursive_snapshots) + 1  # +1 因为 level=1 不在 recursive_snapshots
+    max_level = len(snap.recursive_snapshots) + 1
     results: list[NestedDivergence] = []
 
-    # 从最高级别向下搜索
     for top_level in range(max_level, 1, -1):
-        top_idx = top_level - 2
-        if top_idx >= len(snap.recursive_snapshots):
-            continue
-
-        level_snap = snap.recursive_snapshots[top_idx]
-
-        # 获取该级别的组件（settled level k-1 moves）
-        parent_moves = _get_moves_at_level(top_level - 1, snap)
-        components = [m for m in parent_moves if m.settled]
-
-        # 检测该级别的背驰
-        top_divs = divergences_from_level_snapshot(level_snap, components)
-        if not top_divs:
-            continue
-
-        # 对每个高级别背驰，尝试向下嵌套
+        top_divs, components = _top_level_divs_with_components(top_level, snap)
         for top_div in top_divs:
-            chain: list[tuple[int, Divergence | None]] = [(top_level, top_div)]
-
-            # 获取 C 段对应的 Move
-            c_move_idx = top_div.seg_c_end
-            if c_move_idx >= len(components):
-                continue
-
-            # C 段映射到 bar 范围
-            c_move = components[c_move_idx]
-            bar_range = _level_move_to_bar_range(c_move, top_level - 1, snap)
-            if bar_range[0] >= bar_range[1]:
-                continue
-
-            # 逐级向下搜索
-            current_range = bar_range
-            for mid_level in range(top_level - 1, 1, -1):
-                mid_idx = mid_level - 2
-                if mid_idx >= len(snap.recursive_snapshots):
-                    break
-
-                mid_snap = snap.recursive_snapshots[mid_idx]
-                mid_parent = _get_moves_at_level(mid_level - 1, snap)
-                mid_components = [m for m in mid_parent if m.settled]
-
-                mid_divs = divergences_from_level_snapshot(mid_snap, mid_components)
-
-                # 过滤在 current_range 内的背驰
-                matched = _filter_divs_in_range(
-                    mid_divs, mid_components, mid_level, snap, current_range,
-                )
-                if not matched:
-                    break
-
-                mid_div = matched[-1]  # 取最后一个（最新的）
-                chain.append((mid_level, mid_div))
-
-                # 收缩范围
-                if mid_div.seg_c_end < len(mid_components):
-                    c_comp = mid_components[mid_div.seg_c_end]
-                    current_range = _level_move_to_bar_range(
-                        c_comp, mid_level - 1, snap,
-                    )
-                    if current_range[0] >= current_range[1]:
-                        break
-
-            # 最后一级：level=1 使用 divergences_in_bar_range（完整 MACD 支持）
-            l1_divs = divergences_in_bar_range(
-                snap.seg_snapshot.segments,
-                snap.zs_snapshot.zhongshus,
-                snap.move_snapshot.moves,
-                level_id=1,
-                bar_range=current_range,
-                df_macd=df_macd,
-                merged_to_raw=merged_to_raw,
+            nested = _build_nested_chain(
+                top_level, top_div, components, snap, df_macd, merged_to_raw,
             )
-            if l1_divs:
-                chain.append((1, l1_divs[-1]))
-                current_range = _div_to_bar_range(l1_divs[-1], 1, snap)
-
-            results.append(NestedDivergence(
-                chain=chain,
-                bar_range=current_range,
-            ))
+            if nested is not None:
+                results.append(nested)
 
     return results
 

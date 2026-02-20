@@ -39,6 +39,59 @@ def _same_origin(a: Stroke, b: Stroke) -> bool:
     return a.i0 == b.i0 and a.direction == b.direction
 
 
+def _find_common_prefix_len(prev: list[Stroke], curr: list[Stroke]) -> int:
+    """找 prev 和 curr 的公共前缀长度（confirmed 且字段完全相同）。"""
+    common_len = 0
+    for i in range(min(len(prev), len(curr))):
+        if _strokes_equal(prev[i], curr[i]):
+            common_len = i + 1
+        else:
+            break
+    return common_len
+
+
+class _EventEmitter:
+    """封装事件创建的序号管理和 event_id 计算。"""
+
+    def __init__(self, bar_idx: int, bar_ts: float, seq_start: int) -> None:
+        self.bar_idx = bar_idx
+        self.bar_ts = bar_ts
+        self.seq = seq_start
+        self.events: list[DomainEvent] = []
+
+    def emit(self, cls: type, **kwargs: object) -> None:
+        eid = compute_event_id(
+            bar_idx=self.bar_idx, bar_ts=self.bar_ts,
+            event_type=cls.__dataclass_fields__["event_type"].default,
+            seq=self.seq, payload=dict(kwargs),
+        )
+        self.events.append(cls(
+            bar_idx=self.bar_idx, bar_ts=self.bar_ts,
+            seq=self.seq, event_id=eid, **kwargs,
+        ))
+        self.seq += 1
+
+
+def _classify_curr_stroke(
+    emitter: _EventEmitter, s: Stroke, i: int, prev: list[Stroke],
+) -> None:
+    """将 curr 后缀中的一笔分类为 settled / extended / candidate 并发射事件。"""
+    if s.confirmed:
+        emitter.emit(StrokeSettled, stroke_id=i, direction=s.direction,
+                     i0=s.i0, i1=s.i1, p0=s.p0, p1=s.p1)
+        return
+
+    if i < len(prev) and _same_origin(prev[i], s) and not prev[i].confirmed:
+        if prev[i].i1 != s.i1 or abs(prev[i].p1 - s.p1) > 1e-9:
+            emitter.emit(StrokeExtended, stroke_id=i, direction=s.direction,
+                         old_i1=prev[i].i1, new_i1=s.i1,
+                         old_p1=prev[i].p1, new_p1=s.p1)
+        return
+
+    emitter.emit(StrokeCandidate, stroke_id=i, direction=s.direction,
+                 i0=s.i0, i1=s.i1, p0=s.p0, p1=s.p1)
+
+
 def diff_strokes(
     prev: list[Stroke],
     curr: list[Stroke],
@@ -49,101 +102,17 @@ def diff_strokes(
 ) -> list[DomainEvent]:
     """比较前后两次 Stroke 快照，产生域事件列表。
 
-    Parameters
-    ----------
-    prev : list[Stroke]
-        上一次 process_bar 后的笔列表。
-    curr : list[Stroke]
-        本次 process_bar 后的笔列表。
-    bar_idx : int
-        当前 bar 的序列索引。
-    bar_ts : float
-        当前 bar 的时间戳（epoch 秒）。
-    seq_start : int
-        本批事件的起始序号。
-
-    Returns
-    -------
-    list[DomainEvent]
-        按因果顺序排列：先 invalidate 旧笔，再 settle/candidate/extend 新笔。
+    按因果顺序：先 invalidate 旧笔，再 settle/candidate/extend 新笔。
     """
-    events: list[DomainEvent] = []
-    seq = seq_start
+    common_len = _find_common_prefix_len(prev, curr)
+    emitter = _EventEmitter(bar_idx, bar_ts, seq_start)
 
-    # ── 找公共前缀长度 ──
-    common_len = 0
-    for i in range(min(len(prev), len(curr))):
-        if _strokes_equal(prev[i], curr[i]):
-            common_len = i + 1
-        else:
-            break
-
-    def _append(cls: type, **kwargs: object) -> None:
-        nonlocal seq
-        eid = compute_event_id(
-            bar_idx=bar_idx,
-            bar_ts=bar_ts,
-            event_type=cls.__dataclass_fields__["event_type"].default,
-            seq=seq,
-            payload=dict(kwargs),
-        )
-        events.append(cls(bar_idx=bar_idx, bar_ts=bar_ts, seq=seq, event_id=eid, **kwargs))
-        seq += 1
-
-    # ── prev 后缀 → invalidated ──
     for i in range(common_len, len(prev)):
         s = prev[i]
-        _append(
-            StrokeInvalidated,
-            stroke_id=i,
-            direction=s.direction,
-            i0=s.i0,
-            i1=s.i1,
-            p0=s.p0,
-            p1=s.p1,
-        )
+        emitter.emit(StrokeInvalidated, stroke_id=i, direction=s.direction,
+                     i0=s.i0, i1=s.i1, p0=s.p0, p1=s.p1)
 
-    # ── curr 后缀 ──
     for i in range(common_len, len(curr)):
-        s = curr[i]
+        _classify_curr_stroke(emitter, curr[i], i, prev)
 
-        if s.confirmed:
-            # 已确认 → settled
-            _append(
-                StrokeSettled,
-                stroke_id=i,
-                direction=s.direction,
-                i0=s.i0,
-                i1=s.i1,
-                p0=s.p0,
-                p1=s.p1,
-            )
-        else:
-            # 未确认 → 检查是否是延伸
-            if i < len(prev) and _same_origin(prev[i], s) and not prev[i].confirmed:
-                # 同起点、同方向、都是未确认 → 检查终点是否变化
-                if prev[i].i1 != s.i1 or abs(prev[i].p1 - s.p1) > 1e-9:
-                    _append(
-                        StrokeExtended,
-                        stroke_id=i,
-                        direction=s.direction,
-                        old_i1=prev[i].i1,
-                        new_i1=s.i1,
-                        old_p1=prev[i].p1,
-                        new_p1=s.p1,
-                    )
-                # 如果终点没变 → 无事件（公共前缀应该已经覆盖这种情况，
-                # 但这里作为防御处理）
-            else:
-                # 新笔候选
-                _append(
-                    StrokeCandidate,
-                    stroke_id=i,
-                    direction=s.direction,
-                    i0=s.i0,
-                    i1=s.i1,
-                    p0=s.p0,
-                    p1=s.p1,
-                )
-
-    return events
+    return emitter.events

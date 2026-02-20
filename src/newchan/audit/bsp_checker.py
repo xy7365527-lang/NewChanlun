@@ -64,126 +64,160 @@ class BspInvariantChecker:
     ) -> list[InvariantViolation]:
         """检查一组 BSP 事件的不变量。"""
         violations: list[InvariantViolation] = []
-
         batch_candidate_ids: set[int] = set()
         batch_confirmed_ids: set[int] = set()
 
         for ev in events:
             if isinstance(ev, BuySellPointCandidateV1):
-                identity = (ev.seg_idx, ev.kind, ev.side, ev.level_id)
-
-                # I27: invalidate 后不得出现同身份 candidate
-                if identity in self._terminal_identities:
-                    violations.append(self._make_violation(
-                        bar_idx=bar_idx,
-                        bar_ts=bar_ts,
-                        code=I27_BSP_INVALIDATE_TERMINAL,
-                        reason=(
-                            f"bsp {ev.bsp_id}: candidate after "
-                            f"invalidate for identity {identity}"
-                        ),
-                    ))
-
-                # I23: 类型约束
                 violations.extend(
-                    self._check_type_constraint(ev, bar_idx, bar_ts)
+                    self._check_candidate(ev, bar_idx, bar_ts),
                 )
-
-                # I26: 互斥检查（注册活跃状态）
-                seg_key = (ev.seg_idx, ev.level_id)
-                if seg_key not in self._active_by_seg:
-                    self._active_by_seg[seg_key] = set()
-                self._active_by_seg[seg_key].add(ev.kind)
-                violations.extend(
-                    self._check_mutual_exclusion(
-                        seg_key, ev.bsp_id, bar_idx, bar_ts,
-                    )
-                )
-
                 self._candidate_ids.add(ev.bsp_id)
                 batch_candidate_ids.add(ev.bsp_id)
 
             elif isinstance(ev, BuySellPointConfirmV1):
-                identity = (ev.seg_idx, ev.kind, ev.side, ev.level_id)
-
-                # I27: invalidate 后不得出现同身份 confirm
-                if identity in self._terminal_identities:
-                    violations.append(self._make_violation(
-                        bar_idx=bar_idx,
-                        bar_ts=bar_ts,
-                        code=I27_BSP_INVALIDATE_TERMINAL,
-                        reason=(
-                            f"bsp {ev.bsp_id}: confirm after "
-                            f"invalidate for identity {identity}"
-                        ),
-                    ))
-
-                # I24: confirm 前必有 candidate
-                if (
-                    ev.bsp_id not in self._candidate_ids
-                    and ev.bsp_id not in batch_candidate_ids
-                ):
-                    violations.append(self._make_violation(
-                        bar_idx=bar_idx,
-                        bar_ts=bar_ts,
-                        code=I24_BSP_CANDIDATE_BEFORE_CONFIRM,
-                        reason=(
-                            f"bsp {ev.bsp_id} confirmed without "
-                            f"prior candidate"
-                        ),
-                    ))
-
+                violations.extend(
+                    self._check_confirm(ev, bar_idx, bar_ts, batch_candidate_ids),
+                )
                 self._confirmed_ids.add(ev.bsp_id)
                 batch_confirmed_ids.add(ev.bsp_id)
 
             elif isinstance(ev, BuySellPointSettleV1):
-                identity = (ev.seg_idx, ev.kind, ev.side, ev.level_id)
-
-                # I27: invalidate 后不得出现同身份 settle
-                if identity in self._terminal_identities:
-                    violations.append(self._make_violation(
-                        bar_idx=bar_idx,
-                        bar_ts=bar_ts,
-                        code=I27_BSP_INVALIDATE_TERMINAL,
-                        reason=(
-                            f"bsp {ev.bsp_id}: settle after "
-                            f"invalidate for identity {identity}"
-                        ),
-                    ))
-
-                # I25: settle 前必有 confirm
-                if (
-                    ev.bsp_id not in self._confirmed_ids
-                    and ev.bsp_id not in batch_confirmed_ids
-                ):
-                    violations.append(self._make_violation(
-                        bar_idx=bar_idx,
-                        bar_ts=bar_ts,
-                        code=I25_BSP_CONFIRM_BEFORE_SETTLE,
-                        reason=(
-                            f"bsp {ev.bsp_id} settled without "
-                            f"prior confirm"
-                        ),
-                    ))
-
-                self._candidate_ids.discard(ev.bsp_id)
-                self._confirmed_ids.discard(ev.bsp_id)
+                violations.extend(
+                    self._check_settle(ev, bar_idx, bar_ts, batch_confirmed_ids),
+                )
 
             elif isinstance(ev, BuySellPointInvalidateV1):
-                # I27: 记录身份键为终态
-                identity = (ev.seg_idx, ev.kind, ev.side, ev.level_id)
-                self._terminal_identities.add(identity)
-                self._candidate_ids.discard(ev.bsp_id)
-                self._confirmed_ids.discard(ev.bsp_id)
-
-                # 从活跃跟踪中移除
-                seg_key = (ev.seg_idx, ev.level_id)
-                if seg_key in self._active_by_seg:
-                    self._active_by_seg[seg_key].discard(ev.kind)
-                    if not self._active_by_seg[seg_key]:
-                        del self._active_by_seg[seg_key]
+                self._handle_invalidate(ev)
 
         return violations
+
+    def _check_candidate(
+        self,
+        ev: BuySellPointCandidateV1,
+        bar_idx: int,
+        bar_ts: float,
+    ) -> list[InvariantViolation]:
+        """I27 终态 + I23 类型约束 + I26 互斥。"""
+        violations: list[InvariantViolation] = []
+        identity = (ev.seg_idx, ev.kind, ev.side, ev.level_id)
+
+        # I27: invalidate 后不得出现同身份 candidate
+        if identity in self._terminal_identities:
+            violations.append(self._make_violation(
+                bar_idx=bar_idx, bar_ts=bar_ts,
+                code=I27_BSP_INVALIDATE_TERMINAL,
+                reason=(
+                    f"bsp {ev.bsp_id}: candidate after "
+                    f"invalidate for identity {identity}"
+                ),
+            ))
+
+        # I23: 类型约束
+        violations.extend(self._check_type_constraint(ev, bar_idx, bar_ts))
+
+        # I26: 互斥检查（注册活跃状态）
+        seg_key = (ev.seg_idx, ev.level_id)
+        if seg_key not in self._active_by_seg:
+            self._active_by_seg[seg_key] = set()
+        self._active_by_seg[seg_key].add(ev.kind)
+        violations.extend(
+            self._check_mutual_exclusion(seg_key, ev.bsp_id, bar_idx, bar_ts),
+        )
+
+        return violations
+
+    def _check_confirm(
+        self,
+        ev: BuySellPointConfirmV1,
+        bar_idx: int,
+        bar_ts: float,
+        batch_candidate_ids: set[int],
+    ) -> list[InvariantViolation]:
+        """I27 终态 + I24 前置 candidate。"""
+        violations: list[InvariantViolation] = []
+        identity = (ev.seg_idx, ev.kind, ev.side, ev.level_id)
+
+        # I27: invalidate 后不得出现同身份 confirm
+        if identity in self._terminal_identities:
+            violations.append(self._make_violation(
+                bar_idx=bar_idx, bar_ts=bar_ts,
+                code=I27_BSP_INVALIDATE_TERMINAL,
+                reason=(
+                    f"bsp {ev.bsp_id}: confirm after "
+                    f"invalidate for identity {identity}"
+                ),
+            ))
+
+        # I24: confirm 前必有 candidate
+        if (
+            ev.bsp_id not in self._candidate_ids
+            and ev.bsp_id not in batch_candidate_ids
+        ):
+            violations.append(self._make_violation(
+                bar_idx=bar_idx, bar_ts=bar_ts,
+                code=I24_BSP_CANDIDATE_BEFORE_CONFIRM,
+                reason=(
+                    f"bsp {ev.bsp_id} confirmed without "
+                    f"prior candidate"
+                ),
+            ))
+
+        return violations
+
+    def _check_settle(
+        self,
+        ev: BuySellPointSettleV1,
+        bar_idx: int,
+        bar_ts: float,
+        batch_confirmed_ids: set[int],
+    ) -> list[InvariantViolation]:
+        """I27 终态 + I25 前置 confirm。"""
+        violations: list[InvariantViolation] = []
+        identity = (ev.seg_idx, ev.kind, ev.side, ev.level_id)
+
+        # I27: invalidate 后不得出现同身份 settle
+        if identity in self._terminal_identities:
+            violations.append(self._make_violation(
+                bar_idx=bar_idx, bar_ts=bar_ts,
+                code=I27_BSP_INVALIDATE_TERMINAL,
+                reason=(
+                    f"bsp {ev.bsp_id}: settle after "
+                    f"invalidate for identity {identity}"
+                ),
+            ))
+
+        # I25: settle 前必有 confirm
+        if (
+            ev.bsp_id not in self._confirmed_ids
+            and ev.bsp_id not in batch_confirmed_ids
+        ):
+            violations.append(self._make_violation(
+                bar_idx=bar_idx, bar_ts=bar_ts,
+                code=I25_BSP_CONFIRM_BEFORE_SETTLE,
+                reason=(
+                    f"bsp {ev.bsp_id} settled without "
+                    f"prior confirm"
+                ),
+            ))
+
+        self._candidate_ids.discard(ev.bsp_id)
+        self._confirmed_ids.discard(ev.bsp_id)
+
+        return violations
+
+    def _handle_invalidate(self, ev: BuySellPointInvalidateV1) -> None:
+        """I27: 记录身份键为终态，清理活跃跟踪。"""
+        identity = (ev.seg_idx, ev.kind, ev.side, ev.level_id)
+        self._terminal_identities.add(identity)
+        self._candidate_ids.discard(ev.bsp_id)
+        self._confirmed_ids.discard(ev.bsp_id)
+
+        seg_key = (ev.seg_idx, ev.level_id)
+        if seg_key in self._active_by_seg:
+            self._active_by_seg[seg_key].discard(ev.kind)
+            if not self._active_by_seg[seg_key]:
+                del self._active_by_seg[seg_key]
 
     def _check_type_constraint(
         self,

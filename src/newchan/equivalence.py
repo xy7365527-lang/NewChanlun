@@ -67,6 +67,68 @@ _T_STROKE_PCT = 0.005  # 0.5%
 _T_DYNAMICS_PCT = 0.0001  # 0.01%
 
 
+def _align_pair(
+    df_a: pd.DataFrame, df_b: pd.DataFrame, min_overlap: int,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.Index] | ValidationResult:
+    """对齐两个标的并做前置检查。返回对齐后的 (a, b, overlap) 或失败 ValidationResult。"""
+    if (df_b["close"] == 0).any() or (df_b["open"] == 0).any():
+        return ValidationResult(valid=False, reason="Zero price in B — division undefined")
+    overlap = df_a.index.intersection(df_b.index)
+    if len(overlap) < min_overlap:
+        return ValidationResult(
+            valid=False,
+            reason=f"Insufficient overlap: {len(overlap)} bars (need {min_overlap})",
+        )
+    return df_a.loc[overlap], df_b.loc[overlap], overlap
+
+
+def _layer1_cv(a_aligned: pd.DataFrame, b_aligned: pd.DataFrame, t_cv: float,
+               ) -> tuple[float, float, ValidationResult | None]:
+    """Layer 1: CV 预筛。返回 (cv, ratio_mean, 失败结果或None)。"""
+    ratio = a_aligned["close"] / b_aligned["close"]
+    ratio_mean = float(np.mean(ratio))
+    ratio_std = float(np.std(ratio))
+    cv = ratio_std / ratio_mean if ratio_mean != 0 else 0.0
+    if cv < t_cv:
+        return cv, ratio_mean, ValidationResult(
+            valid=False,
+            reason=f"Degenerate ratio — CV prescreen failed (cv={cv:.2e} < {t_cv})",
+            cv=cv,
+        )
+    return cv, ratio_mean, None
+
+
+def _layer2_and_3(
+    a_aligned: pd.DataFrame, b_aligned: pd.DataFrame,
+    cv: float, ratio_mean: float,
+    t_stroke_pct: float, t_dynamics_pct: float,
+) -> ValidationResult:
+    """Layer 2 (结构退化) + Layer 3 (动力退化) 检测。"""
+    ratio_kline = make_ratio_kline(a_aligned, b_aligned)
+    stroke_mean_pct, n_strokes = _compute_stroke_intensity(ratio_kline)
+
+    if n_strokes == 0:
+        return ValidationResult(valid=True, cv=cv, n_strokes=0)
+    if stroke_mean_pct < t_stroke_pct:
+        return ValidationResult(
+            valid=False, cv=cv, stroke_mean_pct=stroke_mean_pct, n_strokes=n_strokes,
+            reason=f"Structure degenerate — stroke intensity too low "
+                   f"(mean_pct={stroke_mean_pct:.4%} < {t_stroke_pct:.1%})",
+        )
+
+    macd_norm_hist = _compute_macd_dynamics(ratio_kline, ratio_mean)
+    if macd_norm_hist < t_dynamics_pct:
+        return ValidationResult(
+            valid=False, cv=cv, stroke_mean_pct=stroke_mean_pct,
+            macd_norm_hist=macd_norm_hist, n_strokes=n_strokes,
+            reason=f"Dynamics degenerate — MACD area too low "
+                   f"(norm_hist={macd_norm_hist:.2e} < {t_dynamics_pct:.2e})",
+        )
+
+    return ValidationResult(valid=True, cv=cv, stroke_mean_pct=stroke_mean_pct,
+                            macd_norm_hist=macd_norm_hist, n_strokes=n_strokes)
+
+
 def validate_pair(
     df_a: pd.DataFrame,
     df_b: pd.DataFrame,
@@ -76,91 +138,20 @@ def validate_pair(
     t_stroke_pct: float = _T_STROKE_PCT,
     t_dynamics_pct: float = _T_DYNAMICS_PCT,
 ) -> ValidationResult:
-    """验证两个标的是否满足等价对条件（C-2 三层退化连锁检测）。
+    """验证两个标的是否满足等价对条件（C-2 三层退化连锁检测）。"""
+    aligned = _align_pair(df_a, df_b, min_overlap)
+    if isinstance(aligned, ValidationResult):
+        return aligned
+    a_aligned, b_aligned, overlap = aligned
 
-    三层检测（024号谱系）：
-      Layer 1: CV 预筛 — 比价 CV ≥ t_cv
-      Layer 2: 结构层 — 笔力度均值 ≥ t_stroke_pct
-      Layer 3: 动力层 — 归一化 MACD |hist| 均值 ≥ t_dynamics_pct
+    cv, ratio_mean, fail = _layer1_cv(a_aligned, b_aligned, t_cv)
+    if fail is not None:
+        return fail
 
-    数据不足 30 bars 时只跑 Layer 1。
-    """
-    # 条件0：B 不能有零价格
-    if (df_b["close"] == 0).any() or (df_b["open"] == 0).any():
-        return ValidationResult(valid=False, reason="Zero price in B — division undefined")
-
-    # 条件1：可比性 — 重叠时间窗口
-    overlap = df_a.index.intersection(df_b.index)
-    if len(overlap) < min_overlap:
-        return ValidationResult(
-            valid=False,
-            reason=f"Insufficient overlap: {len(overlap)} bars (need {min_overlap})",
-        )
-
-    # 对齐
-    a_aligned = df_a.loc[overlap]
-    b_aligned = df_b.loc[overlap]
-
-    # ── Layer 1: CV 预筛 ──────────────────────────────────
-    ratio = a_aligned["close"] / b_aligned["close"]
-    ratio_mean = float(np.mean(ratio))
-    ratio_std = float(np.std(ratio))
-    cv = ratio_std / ratio_mean if ratio_mean != 0 else 0.0
-
-    if cv < t_cv:
-        return ValidationResult(
-            valid=False,
-            reason=f"Degenerate ratio — CV prescreen failed (cv={cv:.2e} < {t_cv})",
-            cv=cv,
-        )
-
-    # 数据不足时到此为止
     if len(overlap) < _MIN_BARS_FOR_PIPELINE:
         return ValidationResult(valid=True, cv=cv)
 
-    # ── Layer 2: 结构退化检测（笔力度）─────────────────────
-    ratio_kline = make_ratio_kline(a_aligned, b_aligned)
-    stroke_mean_pct, n_strokes = _compute_stroke_intensity(ratio_kline)
-
-    if n_strokes == 0:
-        # 管线未产出笔 — 无法评估结构层，但 CV 已通过
-        return ValidationResult(valid=True, cv=cv, n_strokes=0)
-
-    if stroke_mean_pct < t_stroke_pct:
-        return ValidationResult(
-            valid=False,
-            reason=(
-                f"Structure degenerate — stroke intensity too low "
-                f"(mean_pct={stroke_mean_pct:.4%} < {t_stroke_pct:.1%})"
-            ),
-            cv=cv,
-            stroke_mean_pct=stroke_mean_pct,
-            n_strokes=n_strokes,
-        )
-
-    # ── Layer 3: 动力退化检测（MACD 面积）──────────────────
-    macd_norm_hist = _compute_macd_dynamics(ratio_kline, ratio_mean)
-
-    if macd_norm_hist < t_dynamics_pct:
-        return ValidationResult(
-            valid=False,
-            reason=(
-                f"Dynamics degenerate — MACD area too low "
-                f"(norm_hist={macd_norm_hist:.2e} < {t_dynamics_pct:.2e})"
-            ),
-            cv=cv,
-            stroke_mean_pct=stroke_mean_pct,
-            macd_norm_hist=macd_norm_hist,
-            n_strokes=n_strokes,
-        )
-
-    return ValidationResult(
-        valid=True,
-        cv=cv,
-        stroke_mean_pct=stroke_mean_pct,
-        macd_norm_hist=macd_norm_hist,
-        n_strokes=n_strokes,
-    )
+    return _layer2_and_3(a_aligned, b_aligned, cv, ratio_mean, t_stroke_pct, t_dynamics_pct)
 
 
 def _compute_stroke_intensity(ratio_kline: pd.DataFrame) -> tuple[float, int]:

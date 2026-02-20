@@ -55,6 +55,15 @@
             "command": ".claude/hooks/flow-continuity-guard.sh"
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/crystallization-guard.sh"
+          }
+        ]
       }
     ]
   },

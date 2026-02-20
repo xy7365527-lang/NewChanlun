@@ -1,24 +1,28 @@
-"""Gemini 异质质询工位 + 编排者代理
+"""Gemini 异质质询工位 + 编排者代理 + 形式推导引擎
 
 结构性工位：用 Gemini 3 Pro 对缠论形式化产出提供异质否定，
-并在编排者代理模式下为系统提供自主决策能力。
+并在编排者代理模式下为系统提供自主决策能力，以及在形式推导
+模式下提供严格的数学证明与推导。
 
-三种模式：
+四种模式：
 - challenge() / verify() — 异质否定质询（030a）
 - decide() — 编排者代理决策（041）：当系统遇到"选择"类决断时，
   Gemini 代替人类编排者做出决策。人类编排者从同步决策者变为
   异步审计者（事后审查 + 运行时 INTERRUPT）。
+- derive() — 形式推导引擎：在指定公理域内对命题进行严格推导，
+  输出四段式证明（形式化重述 → 定义与公理 → 推导链 → 结论）。
 
 纯文本 / MCP 工具两种调用方式均支持。
 
 操作规则（SKILL.md）：
 1. challenge/verify：异质否定，产出进谱系或记录误判
 2. decide：编排者代理，产出决策 + 推理链，系统据此自主推进
-3. 人类编排者保留 INTERRUPT 权（可随时覆盖 Gemini 决策）
+3. derive：形式推导，产出严格证明链，缠论公理与数学公理平级
+4. 人类编排者保留 INTERRUPT 权（可随时覆盖 Gemini 决策）
 
 本体论位置：030a（异质否定源）+ 041（编排者代理）
 
-概念溯源: [新缠论] — 异质模型质询 + 编排者代理
+概念溯源: [新缠论] — 异质模型质询 + 编排者代理 + 形式推导
 """
 
 from __future__ import annotations
@@ -40,9 +44,11 @@ __all__ = [
     "challenge",
     "verify",
     "decide",
+    "derive",
     "achallenge",
     "averify",
     "adecide",
+    "aderive",
 ]
 
 _MODEL = "gemini-3-pro-preview"
@@ -209,12 +215,94 @@ _DECIDE_TEMPLATE = """\
 - **溯源**：[旧缠论] / [旧缠论:隐含] / [旧缠论:选择] / [新缠论]
 """
 
+_DERIVE_SYSTEM_PROMPT = """\
+You are a Formal Mathematical Proof Engine. Your task is to derive or prove \
+the given statement strictly within the specified domain.
+
+Capabilities:
+- Universal Domain Support: Topology, Set Theory, Recursion Theory, \
+Number Theory, Geometry, Formalized Chanlun System, and more.
+- Strict Rigor: You do not guess. If a step is not justified by a definition \
+or a previous lemma, the derivation fails.
+- Axiomatic Isolation: Respect the boundaries of the specified domain. \
+Do not mix axioms from different systems unless explicitly permitted.
+
+Output Format (Strict):
+### 1. Formal Restatement (形式化重述)
+Translate into formal mathematical notation. Define all symbols.
+
+### 2. Definitions & Axioms (定义与公理)
+List specific definitions and axioms used as foundation.
+
+### 3. Proof Chain (推导链)
+Step-by-step logical deduction. Each step must reference a Definition, \
+Axiom, or previous Step.
+Format: Step N: [Assertion] (by [Justification])
+
+### 4. Conclusion (结论)
+PROVEN (得证), DISPROVEN (证伪), or UNDECIDABLE (不可判定).
+End with Q.E.D. if proven.
+
+Constraints:
+- No ambiguity: if a term is ambiguous, declare UNDECIDABLE and request \
+a definition.
+- No time-based or subjective arguments. Use only structural properties.
+- In Chanlun contexts, respect recursive nature of levels.
+"""
+
+_DERIVE_SYSTEM_PROMPT_WITH_TOOLS = """\
+You are a Formal Mathematical Proof Engine with semantic code access. \
+Your task is to derive or prove the given statement strictly within the \
+specified domain.
+
+You can use tools to inspect code definitions, type structures, and \
+relationships. Use them to ground your proof in actual implementation.
+
+Capabilities:
+- Universal Domain Support: Topology, Set Theory, Recursion Theory, \
+Number Theory, Geometry, Formalized Chanlun System, and more.
+- Strict Rigor: You do not guess. If a step is not justified by a definition \
+or a previous lemma, the derivation fails.
+- Axiomatic Isolation: Respect the boundaries of the specified domain. \
+Do not mix axioms from different systems unless explicitly permitted.
+- Code Grounding: Reference concrete code symbols and file paths.
+
+Output Format (Strict):
+### 1. Formal Restatement (形式化重述)
+Translate into formal mathematical notation. Define all symbols.
+
+### 2. Definitions & Axioms (定义与公理)
+List specific definitions and axioms used as foundation.
+
+### 3. Proof Chain (推导链)
+Step-by-step logical deduction. Each step must reference a Definition, \
+Axiom, or previous Step.
+Format: Step N: [Assertion] (by [Justification])
+
+### 4. Conclusion (结论)
+PROVEN (得证), DISPROVEN (证伪), or UNDECIDABLE (不可判定).
+End with Q.E.D. if proven.
+
+Constraints:
+- No ambiguity: if a term is ambiguous, declare UNDECIDABLE and request \
+a definition.
+- No time-based or subjective arguments. Use only structural properties.
+- In Chanlun contexts, respect recursive nature of levels.
+- Reference concrete code locations to support your reasoning.
+"""
+
+_DERIVE_TEMPLATE = """\
+**Domain**: {domain}
+**Statement**: {subject}
+**Axiomatic Context**: {context}
+"""
+
 
 @dataclass(frozen=True, slots=True)
 class ChallengeResult:
     """质询结果。"""
 
-    mode: Literal["challenge", "verify", "decide"]
+    mode: Literal["challenge", "verify", "decide", "derive"]
     subject: str
     response: str
     model: str
@@ -346,6 +434,37 @@ class GeminiChallenger:
         )
         return ChallengeResult(
             mode="decide",
+            subject=subject,
+            response=text,
+            model=model_used,
+        )
+
+    def derive(
+        self, subject: str, context: str = "", domain: str = "General Mathematics",
+    ) -> ChallengeResult:
+        """形式推导（纯文本模式）。
+
+        Parameters
+        ----------
+        subject : str
+            待推导/证明的命题。
+        context : str
+            公理上下文（缠论定义、数学公理等）。
+        domain : str
+            推导所在的公理域（默认 General Mathematics）。
+
+        Returns
+        -------
+        ChallengeResult
+        """
+        prompt = _DERIVE_TEMPLATE.format(
+            domain=domain, subject=subject, context=context,
+        )
+        text, model_used = self._call_with_fallback(
+            prompt, temperature=0.1, system_prompt=_DERIVE_SYSTEM_PROMPT,
+        )
+        return ChallengeResult(
+            mode="derive",
             subject=subject,
             response=text,
             model=model_used,
@@ -586,6 +705,62 @@ class GeminiChallenger:
             reasoning_chain=chain,
         )
 
+    async def derive_with_tools(
+        self,
+        subject: str,
+        context: str = "",
+        domain: str = "General Mathematics",
+        *,
+        session: object | None = None,
+        max_tool_calls: int = 20,
+    ) -> ChallengeResult:
+        """MCP 工具增强形式推导。Gemini 可自主导航代码库。
+
+        Parameters
+        ----------
+        subject : str
+            待推导/证明的命题。
+        context : str
+            公理上下文。
+        domain : str
+            推导所在的公理域。
+        session : mcp ClientSession | None
+            MCP 会话。None 时自动连接 Serena。
+        max_tool_calls : int
+            最大工具调用次数。
+        """
+        prompt = _DERIVE_TEMPLATE.format(
+            domain=domain, subject=subject, context=context,
+        )
+        if session is not None:
+            text, model_used, calls, chain = await self._call_with_tools_and_fallback(
+                prompt, 0.1, session, max_tool_calls,
+                system_prompt=_DERIVE_SYSTEM_PROMPT_WITH_TOOLS,
+            )
+            return ChallengeResult(
+                mode="derive",
+                subject=subject,
+                response=text,
+                model=model_used,
+                tool_calls=calls,
+                reasoning_chain=chain,
+            )
+        from newchan.mcp_bridge import SerenaConfig, mcp_session
+
+        async with mcp_session(SerenaConfig()) as sess:
+            text, model_used, calls, chain = await self._call_with_tools_and_fallback(
+                prompt, 0.1, sess, max_tool_calls,
+                system_prompt=_DERIVE_SYSTEM_PROMPT_WITH_TOOLS,
+            )
+        return ChallengeResult(
+            mode="derive",
+            subject=subject,
+            response=text,
+            model=model_used,
+            tool_calls=calls,
+            reasoning_chain=chain,
+        )
+
 
 # ── 模块级便捷函数 ──
 
@@ -650,6 +825,26 @@ async def adecide(
     )
 
 
+def derive(
+    subject: str, context: str = "", domain: str = "General Mathematics",
+) -> ChallengeResult:
+    """模块级形式推导（纯文本模式）。"""
+    return _get_challenger().derive(subject, context, domain)
+
+
+async def aderive(
+    subject: str,
+    context: str = "",
+    domain: str = "General Mathematics",
+    *,
+    max_tool_calls: int = 20,
+) -> ChallengeResult:
+    """模块级 MCP 工具增强形式推导（async，自动连接 Serena）。"""
+    return await _get_challenger().derive_with_tools(
+        subject, context, domain, max_tool_calls=max_tool_calls,
+    )
+
+
 # ── CLI 入口 ──
 
 if __name__ == "__main__":
@@ -663,7 +858,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Gemini 质询工位 CLI")
     parser.add_argument(
         "mode",
-        choices=["challenge", "verify", "decide"],
+        choices=["challenge", "verify", "decide", "derive"],
         help="质询模式",
     )
     parser.add_argument(
@@ -679,6 +874,11 @@ if __name__ == "__main__":
         "--context-file",
         default=None,
         help="从文件读取上下文",
+    )
+    parser.add_argument(
+        "--domain",
+        default="General Mathematics",
+        help="推导所在的公理域（仅 derive 模式，默认 General Mathematics）",
     )
     parser.add_argument(
         "--tools",
@@ -720,6 +920,11 @@ if __name__ == "__main__":
                 return await challenger.decide_with_tools(
                     args.subject, ctx, max_tool_calls=args.max_tool_calls,
                 )
+            if args.mode == "derive":
+                return await challenger.derive_with_tools(
+                    args.subject, ctx, args.domain,
+                    max_tool_calls=args.max_tool_calls,
+                )
             return await challenger.verify_with_tools(
                 args.subject, ctx, max_tool_calls=args.max_tool_calls,
             )
@@ -731,6 +936,8 @@ if __name__ == "__main__":
             result = challenger.challenge(args.subject, ctx)
         elif args.mode == "decide":
             result = challenger.decide(args.subject, ctx)
+        elif args.mode == "derive":
+            result = challenger.derive(args.subject, ctx, args.domain)
         else:
             result = challenger.verify(args.subject, ctx)
 

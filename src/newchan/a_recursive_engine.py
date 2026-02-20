@@ -63,6 +63,68 @@ class RecursiveLevel:
 # 主函数
 # ====================================================================
 
+def _stamp_centers(centers: list[Center], level_id: int) -> list[Center]:
+    """为中枢列表标注 level_id 并计算 development。"""
+    stamped = [
+        Center(
+            seg0=c.seg0, seg1=c.seg1, low=c.low, high=c.high,
+            kind=c.kind, confirmed=c.confirmed, sustain=c.sustain,
+            direction=c.direction,
+            gg=c.gg, dd=c.dd, g=c.g, d=c.d,
+            zg_dynamic=c.zg_dynamic, zd_dynamic=c.zd_dynamic,
+            development=c.development,
+            level_id=level_id,
+            terminated=c.terminated,
+            termination_side=c.termination_side,
+        )
+        for c in centers
+    ]
+    return label_centers_development(stamped)
+
+
+def _stamp_trends(trends: list[TrendTypeInstance], level_id: int) -> list[TrendTypeInstance]:
+    """为走势类型实例列表标注 level_id。"""
+    return [
+        TrendTypeInstance(
+            kind=t.kind, direction=t.direction,
+            seg0=t.seg0, seg1=t.seg1,
+            i0=t.i0, i1=t.i1,
+            high=t.high, low=t.low,
+            center_indices=t.center_indices,
+            confirmed=t.confirmed,
+            level_id=level_id,
+        )
+        for t in trends
+    ]
+
+
+def _build_single_level(
+    moves: list, k: int, sustain_m: int,
+    df_macd: pd.DataFrame | None, merged_to_raw: list[tuple[int, int]] | None,
+) -> RecursiveLevel | None:
+    """构建单层递归数据。返回 None 表示该层无法形成。"""
+    centers = centers_from_segments_v0(moves, sustain_m=sustain_m)
+    if not centers:
+        logger.debug("Level %d: no centers formed, recursion stops", k)
+        return None
+    trends = trend_instances_from_centers(moves, centers)
+    if not trends:
+        logger.debug("Level %d: no trend instances formed, recursion stops", k)
+        return None
+
+    centers = _stamp_centers(centers, k)
+    trends = _stamp_trends(trends, k)
+    divs = divergences_from_level(
+        moves, centers, trends, level_id=k,
+        df_macd=df_macd, merged_to_raw=merged_to_raw,
+    )
+    logger.info("Level %d: %d centers (%d settled), %d trend instances",
+                k, len(centers), sum(1 for c in centers if c.kind == "settled"),
+                len(trends))
+    return RecursiveLevel(level=k, moves=moves, centers=centers,
+                          trends=trends, divergences=divs)
+
+
 def build_recursive_levels(
     segments: list[Segment],
     *,
@@ -73,115 +135,28 @@ def build_recursive_levels(
 ) -> list[RecursiveLevel]:
     """自下而上递归构造全部结构层级。
 
-    Parameters
-    ----------
-    segments : list[Segment]
-        Move[0] = 已构造的线段列表。
-    sustain_m : int
-        center 从 candidate 升级为 settled 的延伸次数条件。
-    max_levels : int
-        最大递归层数（安全阀，防止异常数据导致无限递归）。
-
-    Returns
-    -------
-    list[RecursiveLevel]
-        从 level=1 开始的所有层级数据。
-        空列表表示数据不足以形成任何中枢。
-
-    Notes
-    -----
-    递归规则（docs/chan_spec.md §6 归纳递归）：
-
-    1. Move[0] = Segment（线段，归纳基底，不依赖中枢）
-    2. 对每一层 k = 1, 2, ...：
-       a) Center[k] = centers_from_moves(Move[k-1], sustain_m)
-       b) TrendTypeInstance[k] = trend_instances(Move[k-1], Center[k])
-       c) Move[k] = 已确认的 TrendTypeInstance[k]
-    3. 若 Move[k] 不足 3 个，递归终止
-
-    **关键约束**：只有 confirmed 的走势类型实例才能作为 Move[k]
-    向上递归，防止级别抖动。
+    递归规则（docs/chan_spec.md §6）：Move[0]=Segment，
+    每层构建 Center[k] → TrendTypeInstance[k] → Move[k]，
+    直到 confirmed trends < 3 为止。
     """
     levels: list[RecursiveLevel] = []
-    moves: list = list(segments)  # Move[0]
+    moves: list = list(segments)
 
     for k in range(1, max_levels + 1):
         if len(moves) < 3:
             logger.debug("Level %d: only %d moves, recursion stops", k, len(moves))
             break
 
-        # ── Center[k]: 三个连续 Move[k-1] 重叠 ──
-        centers = centers_from_segments_v0(moves, sustain_m=sustain_m)
-        if not centers:
-            logger.debug("Level %d: no centers formed, recursion stops", k)
+        level = _build_single_level(moves, k, sustain_m, df_macd, merged_to_raw)
+        if level is None:
             break
+        levels.append(level)
 
-        # ── TrendTypeInstance[k]: 包含 Center[k] 的走势类型实例 ──
-        trends = trend_instances_from_centers(moves, centers)
-        if not trends:
-            logger.debug("Level %d: no trend instances formed, recursion stops", k)
-            break
-
-        # ── 标注 level_id + development ──
-        centers = [
-            Center(
-                seg0=c.seg0, seg1=c.seg1, low=c.low, high=c.high,
-                kind=c.kind, confirmed=c.confirmed, sustain=c.sustain,
-                direction=c.direction,
-                gg=c.gg, dd=c.dd, g=c.g, d=c.d,
-                zg_dynamic=c.zg_dynamic, zd_dynamic=c.zd_dynamic,
-                development=c.development,
-                level_id=k,
-                terminated=c.terminated,
-                termination_side=c.termination_side,
-            )
-            for c in centers
-        ]
-        centers = label_centers_development(centers)
-
-        trends = [
-            TrendTypeInstance(
-                kind=t.kind, direction=t.direction,
-                seg0=t.seg0, seg1=t.seg1,
-                i0=t.i0, i1=t.i1,
-                high=t.high, low=t.low,
-                center_indices=t.center_indices,
-                confirmed=t.confirmed,
-                level_id=k,
-            )
-            for t in trends
-        ]
-
-        # ── 背驰检测 ──
-        divs = divergences_from_level(
-            moves, centers, trends, level_id=k,
-            df_macd=df_macd, merged_to_raw=merged_to_raw,
-        )
-
-        levels.append(RecursiveLevel(
-            level=k,
-            moves=moves,
-            centers=centers,
-            trends=trends,
-            divergences=divs,
-        ))
-
-        logger.info(
-            "Level %d: %d centers (%d settled), %d trend instances",
-            k, len(centers),
-            sum(1 for c in centers if c.kind == "settled"),
-            len(trends),
-        )
-
-        # ── Move[k] = 已确认的走势类型实例，作为下一层的输入 ──
-        confirmed_trends = [t for t in trends if t.confirmed]
+        confirmed_trends = [t for t in level.trends if t.confirmed]
         if len(confirmed_trends) < 3:
-            logger.debug(
-                "Level %d: only %d confirmed trends, recursion stops",
-                k, len(confirmed_trends),
-            )
+            logger.debug("Level %d: only %d confirmed trends, recursion stops",
+                        k, len(confirmed_trends))
             break
-
         moves = confirmed_trends
 
     return levels

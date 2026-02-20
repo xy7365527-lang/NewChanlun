@@ -5,8 +5,9 @@
 2. challenge() 调用链和返回结构
 3. verify() 调用链和返回结构
 4. decide() 调用链和返回结构
-5. 模块级便捷函数
-6. CLI 入口参数解析
+5. derive() 调用链和返回结构
+6. 模块级便捷函数
+7. CLI 入口参数解析
 """
 
 from __future__ import annotations
@@ -180,8 +181,93 @@ class TestDecide:
             assert result.mode == "decide"
 
 
+class TestDerive:
+    """derive() 方法。"""
+
+    def test_returns_derive_result(self) -> None:
+        with patch("newchan.gemini_challenger.genai") as mock_genai:
+            mock_response = MagicMock()
+            mock_response.text = "### 4. Conclusion\nPROVEN. Q.E.D."
+            mock_genai.Client.return_value.models.generate_content.return_value = (
+                mock_response
+            )
+
+            c = GeminiChallenger(api_key="test")
+            result = c.derive(
+                "笔的递归完备性", context="缠论公理集", domain="Formalized Chanlun System",
+            )
+
+            assert isinstance(result, ChallengeResult)
+            assert result.mode == "derive"
+            assert result.subject == "笔的递归完备性"
+            assert result.response == "### 4. Conclusion\nPROVEN. Q.E.D."
+            assert result.model == "gemini-3-pro-preview"
+
+    def test_uses_derive_system_prompt(self) -> None:
+        with patch("newchan.gemini_challenger.genai") as mock_genai:
+            mock_response = MagicMock()
+            mock_response.text = "推导结果"
+            mock_genai.Client.return_value.models.generate_content.return_value = (
+                mock_response
+            )
+
+            c = GeminiChallenger(api_key="test")
+            c.derive("test statement", domain="Topology")
+
+            # 验证 temperature=0.1（极低，保证严谨）
+            config_call = mock_genai.types.GenerateContentConfig.call_args
+            assert config_call.kwargs["temperature"] == 0.1
+
+    def test_empty_response(self) -> None:
+        with patch("newchan.gemini_challenger.genai") as mock_genai:
+            mock_response = MagicMock()
+            mock_response.text = None
+            mock_genai.Client.return_value.models.generate_content.return_value = (
+                mock_response
+            )
+
+            c = GeminiChallenger(api_key="test")
+            result = c.derive("test")
+            assert result.response == ""
+
+    def test_fallback_on_503(self) -> None:
+        with patch("newchan.gemini_challenger.genai") as mock_genai:
+            mock_client = mock_genai.Client.return_value
+
+            mock_503 = ServerError(503, {"error": {"message": "unavailable"}})
+            mock_ok = MagicMock()
+            mock_ok.text = "fallback derive"
+            mock_client.models.generate_content.side_effect = [
+                mock_503,
+                mock_ok,
+            ]
+
+            c = GeminiChallenger(api_key="test")
+            result = c.derive("test statement")
+
+            assert result.model == "gemini-2.5-pro"
+            assert result.response == "fallback derive"
+            assert result.mode == "derive"
+
+    def test_default_domain(self) -> None:
+        with patch("newchan.gemini_challenger.genai") as mock_genai:
+            mock_response = MagicMock()
+            mock_response.text = "result"
+            mock_genai.Client.return_value.models.generate_content.return_value = (
+                mock_response
+            )
+
+            c = GeminiChallenger(api_key="test")
+            c.derive("1+1=2")
+
+            # 验证 prompt 中包含默认 domain
+            call_args = mock_genai.Client.return_value.models.generate_content.call_args
+            prompt = call_args.kwargs["contents"]
+            assert "General Mathematics" in prompt
+
+
 class TestModuleLevelFunctions:
-    """模块级 challenge()/verify()/decide() 便捷函数。"""
+    """模块级 challenge()/verify()/decide()/derive() 便捷函数。"""
 
     def test_challenge_auto_init(self) -> None:
         import newchan.gemini_challenger as mod
@@ -236,6 +322,25 @@ class TestModuleLevelFunctions:
             mock_instance.decide.assert_called_once_with("q", "ctx")
             assert result.mode == "decide"
             assert result.response == "r"
+
+        mod._default_challenger = None
+
+    def test_derive_auto_init(self) -> None:
+        import newchan.gemini_challenger as mod
+
+        mod._default_challenger = None
+
+        with patch.object(mod, "GeminiChallenger") as MockClass:
+            mock_instance = MagicMock()
+            mock_instance.derive.return_value = ChallengeResult(
+                mode="derive", subject="s", response="proof", model="m",
+            )
+            MockClass.return_value = mock_instance
+
+            result = mod.derive("s", "axioms", "Topology")
+            mock_instance.derive.assert_called_once_with("s", "axioms", "Topology")
+            assert result.mode == "derive"
+            assert result.response == "proof"
 
         mod._default_challenger = None
 

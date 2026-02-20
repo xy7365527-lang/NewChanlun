@@ -63,95 +63,126 @@ class SegmentInvariantChecker:
     ) -> list[InvariantViolation]:
         """检查一组线段事件的不变量。"""
         violations: list[InvariantViolation] = []
-
-        # 收集本批次中的 pending segment_ids（用于 I6 批次内检查）
         batch_pending_ids: set[int] = set()
 
         for ev in events:
             if isinstance(ev, SegmentBreakPendingV1):
-                # I17: invalidate 后不得出现同身份 pending
-                identity = (ev.s0, ev.direction)
-                if identity in self._terminal_identities:
-                    violations.append(self._make_violation(
-                        bar_idx=bar_idx,
-                        bar_ts=bar_ts,
-                        code=I17_INVALIDATE_IS_TERMINAL,
-                        reason=(
-                            f"segment {ev.segment_id}: pending after "
-                            f"invalidate for identity {identity}"
-                        ),
-                    ))
-
+                violations.extend(
+                    self._check_pending(ev, bar_idx, bar_ts),
+                )
                 self._pending_ids.add(ev.segment_id)
                 batch_pending_ids.add(ev.segment_id)
 
             elif isinstance(ev, SegmentSettleV1):
-                # I17: invalidate 后不得出现同身份 settle
-                identity = (ev.s0, ev.direction)
-                if identity in self._terminal_identities:
-                    violations.append(self._make_violation(
-                        bar_idx=bar_idx,
-                        bar_ts=bar_ts,
-                        code=I17_INVALIDATE_IS_TERMINAL,
-                        reason=(
-                            f"segment {ev.segment_id}: settle after "
-                            f"invalidate for identity {identity}"
-                        ),
-                    ))
-
-                # I6: settle 前必须有 pending
-                if (
-                    ev.segment_id not in self._pending_ids
-                    and ev.segment_id not in batch_pending_ids
-                ):
-                    violations.append(self._make_violation(
-                        bar_idx=bar_idx,
-                        bar_ts=bar_ts,
-                        code=I6_PENDING_DIRECT_SETTLE,
-                        reason=(
-                            f"segment {ev.segment_id} settled without "
-                            f"prior pending_break"
-                        ),
-                    ))
-
-                # I7: 结算锚 s1 == new_segment_s0 - 1
-                if ev.s1 != ev.new_segment_s0 - 1:
-                    violations.append(self._make_violation(
-                        bar_idx=bar_idx,
-                        bar_ts=bar_ts,
-                        code=I7_SETTLE_ANCHOR,
-                        reason=(
-                            f"segment {ev.segment_id}: "
-                            f"s1={ev.s1} != new_segment_s0-1={ev.new_segment_s0 - 1}"
-                        ),
-                    ))
-
-                # 更新状态
-                self._pending_ids.discard(ev.segment_id)
-                key = (ev.s0, ev.s1, ev.direction)
-                self._settled_keys.add(key)
-                # I9: settle 重新激活后清除 invalidated 标记
-                self._invalidated_keys.discard(key)
+                violations.extend(
+                    self._check_settle(ev, bar_idx, bar_ts, batch_pending_ids),
+                )
 
             elif isinstance(ev, SegmentInvalidateV1):
-                # I17: 记录身份键为终态
-                identity = (ev.s0, ev.direction)
-                self._terminal_identities.add(identity)
+                violations.extend(
+                    self._check_invalidate(ev, bar_idx, bar_ts),
+                )
 
-                # I9: 同一段不能被 invalidate 两次而中间无 settle
-                key = (ev.s0, ev.s1, ev.direction)
-                if key in self._invalidated_keys:
-                    violations.append(self._make_violation(
-                        bar_idx=bar_idx,
-                        bar_ts=bar_ts,
-                        code=I9_INVALIDATE_IDEMPOTENT,
-                        reason=(
-                            f"segment ({ev.s0}, {ev.s1}, {ev.direction}): "
-                            f"duplicate invalidate without intervening settle"
-                        ),
-                    ))
-                self._invalidated_keys.add(key)
-                self._settled_keys.discard(key)
+        return violations
+
+    def _check_pending(
+        self,
+        ev: SegmentBreakPendingV1,
+        bar_idx: int,
+        bar_ts: float,
+    ) -> list[InvariantViolation]:
+        """I17: invalidate 后不得出现同身份 pending。"""
+        identity = (ev.s0, ev.direction)
+        if identity in self._terminal_identities:
+            return [self._make_violation(
+                bar_idx=bar_idx,
+                bar_ts=bar_ts,
+                code=I17_INVALIDATE_IS_TERMINAL,
+                reason=(
+                    f"segment {ev.segment_id}: pending after "
+                    f"invalidate for identity {identity}"
+                ),
+            )]
+        return []
+
+    def _check_settle(
+        self,
+        ev: SegmentSettleV1,
+        bar_idx: int,
+        bar_ts: float,
+        batch_pending_ids: set[int],
+    ) -> list[InvariantViolation]:
+        """I17 终态 + I6 前置 pending + I7 结算锚。"""
+        violations: list[InvariantViolation] = []
+        identity = (ev.s0, ev.direction)
+
+        # I17: invalidate 后不得出现同身份 settle
+        if identity in self._terminal_identities:
+            violations.append(self._make_violation(
+                bar_idx=bar_idx, bar_ts=bar_ts,
+                code=I17_INVALIDATE_IS_TERMINAL,
+                reason=(
+                    f"segment {ev.segment_id}: settle after "
+                    f"invalidate for identity {identity}"
+                ),
+            ))
+
+        # I6: settle 前必须有 pending
+        if (
+            ev.segment_id not in self._pending_ids
+            and ev.segment_id not in batch_pending_ids
+        ):
+            violations.append(self._make_violation(
+                bar_idx=bar_idx, bar_ts=bar_ts,
+                code=I6_PENDING_DIRECT_SETTLE,
+                reason=(
+                    f"segment {ev.segment_id} settled without "
+                    f"prior pending_break"
+                ),
+            ))
+
+        # I7: 结算锚 s1 == new_segment_s0 - 1
+        if ev.s1 != ev.new_segment_s0 - 1:
+            violations.append(self._make_violation(
+                bar_idx=bar_idx, bar_ts=bar_ts,
+                code=I7_SETTLE_ANCHOR,
+                reason=(
+                    f"segment {ev.segment_id}: "
+                    f"s1={ev.s1} != new_segment_s0-1={ev.new_segment_s0 - 1}"
+                ),
+            ))
+
+        # 更新状态
+        self._pending_ids.discard(ev.segment_id)
+        key = (ev.s0, ev.s1, ev.direction)
+        self._settled_keys.add(key)
+        self._invalidated_keys.discard(key)
+
+        return violations
+
+    def _check_invalidate(
+        self,
+        ev: SegmentInvalidateV1,
+        bar_idx: int,
+        bar_ts: float,
+    ) -> list[InvariantViolation]:
+        """I17 终态记录 + I9 幂等检查。"""
+        violations: list[InvariantViolation] = []
+        identity = (ev.s0, ev.direction)
+        self._terminal_identities.add(identity)
+
+        key = (ev.s0, ev.s1, ev.direction)
+        if key in self._invalidated_keys:
+            violations.append(self._make_violation(
+                bar_idx=bar_idx, bar_ts=bar_ts,
+                code=I9_INVALIDATE_IDEMPOTENT,
+                reason=(
+                    f"segment ({ev.s0}, {ev.s1}, {ev.direction}): "
+                    f"duplicate invalidate without intervening settle"
+                ),
+            ))
+        self._invalidated_keys.add(key)
+        self._settled_keys.discard(key)
 
         return violations
 
