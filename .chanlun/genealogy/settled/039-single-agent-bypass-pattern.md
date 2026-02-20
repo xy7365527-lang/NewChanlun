@@ -1,6 +1,8 @@
 # 039 — 单 agent 绕过模式与 dispatch-spec 偏差分析
 
-status: 待决（G6 选择未结算）
+status: 已结算
+settlement_date: 2026-02-20
+settlement_method: v6 session 四分法复核 + hook 网络验证
 type: meta-rule
 provenance: "[新缠论]"
 date: 2026-02-20
@@ -168,9 +170,22 @@ G6 揭示了一个结构性困境：
 2. 如果 G6 被判定为构成性矛盾（020 号谱系），则需要接受"spec 执行率 < 100%"并设计容错机制
 3. Kiro 偏差和本次偏差的同构性意味着：这不是偶发事件，是 LLM agent 编排的系统性特征
 
-## 影响声明
+## 结算记录（v6 session 四分法复核）
 
-- 新增谱系：本条（039）
-- 需更新：dispatch-spec.yaml（G6-G10 缺口修复，走 /ritual）
-- 需上浮：G6 的解法选择（四分法：选择类，需编排者决断）
-- 需上浮：Kiro 偏差与本次偏差的同构性确认（需编排者辨认是否为语法记录）
+### G6-G10 缺口解决状态
+
+| 缺口 | 解决机制 | 状态 |
+|------|----------|------|
+| G6 spec 执行强制 | session-start-ceremony.sh（提醒）+ ceremony-completion-guard.sh（阻断停止）+ ceremony-guard.sh（阻断 ceremony 期间 Task） | 部分解决，残余缺口被 020号构成性矛盾吸收 |
+| G7 divine-madness 时序 | ceremony-guard.sh 确保 ceremony 完成前不能 spawn Task | 已解决 |
+| G8 简单任务豁免 | CLAUDE.md 显式写入"无简单任务豁免" | 已解决 |
+| G9 步骤前置条件 | dispatch-spec 文档待补充（行动类） | 待执行 |
+| G10 tools_required | dispatch-spec 文档待补充（行动类） | 待执行 |
+
+### 已结算原则
+
+**016 模式在 spec 层的复现通过环境层（hook 网络）而非 spec 层解决。** 这验证了 042号谱系的设计：hook 网络是 runtime enforcement 的正确载体。G6 的残余缺口（Lead 可忽略 SessionStart 提醒）是 020号构成性矛盾的实例——接受 spec 执行率 < 100%，通过 stop-guard 的多层检查提供容错。
+
+## 溯源
+
+[新缠论]（meta-observer 分析 + v6 session hook 网络验证）
