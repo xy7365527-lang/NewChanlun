@@ -28,6 +28,18 @@ def _fail(name: str, message: str) -> AssertResult:
     return AssertResult(False, name, message)
 
 
+def _check(name: str, condition: bool, msg: str, enable: bool) -> AssertResult | None:
+    """Return a fail result if *condition* is False, else None (= pass).
+
+    When *enable* is True, raises ``AssertionError`` on failure.
+    """
+    if condition:
+        return None
+    if enable:
+        raise AssertionError(f"[{name}] {msg}")
+    return _fail(name, msg)
+
+
 def assert_inclusion_no_residual(*args: Any, enable: bool = False) -> AssertResult:
     """Spec: docs/chan_spec.md §2.4
     After merge_inclusion, there must be no adjacent inclusion pairs.
@@ -671,6 +683,86 @@ def run_a_system_assertions(
     return results
 
 
+def _seg_check_min_strokes(seg, i: int, name: str, enable: bool) -> AssertResult | None:
+    span = seg.s1 - seg.s0
+    if span >= 2:
+        return None
+    return _check(name, False,
+                  f"Segment[{i}] s1-s0={span} < 2 (need >=3 strokes)", enable)
+
+
+def _seg_check_adjacent_stitching(seg, prev, i: int, name: str, enable: bool) -> AssertResult | None:
+    if seg.s0 == prev.s1 + 1 or seg.s0 == prev.s1:
+        return None
+    return _check(name, False,
+                  f"Segment[{i}].s0={seg.s0} not adjacent to "
+                  f"Segment[{i-1}].s1={prev.s1}", enable)
+
+
+def _seg_check_direction_alternation(seg, prev, i: int, name: str, enable: bool) -> AssertResult | None:
+    if seg.direction != prev.direction:
+        return None
+    return _check(name, False,
+                  f"Segment[{i}].direction={seg.direction} same as "
+                  f"Segment[{i-1}].direction={prev.direction}", enable)
+
+
+def _seg_check_degenerate(seg, i: int, name: str, enable: bool) -> AssertResult | None:
+    if seg.ep0_price == 0.0 or seg.ep1_price == 0.0:
+        return None
+    if seg.direction == "up" and seg.ep1_price < seg.ep0_price - 1e-9:
+        return _check(name, False,
+                      f"Segment[{i}] degenerate: direction=up but "
+                      f"ep1_price={seg.ep1_price} < ep0_price={seg.ep0_price}", enable)
+    if seg.direction == "down" and seg.ep1_price > seg.ep0_price + 1e-9:
+        return _check(name, False,
+                      f"Segment[{i}] degenerate: direction=down but "
+                      f"ep1_price={seg.ep1_price} > ep0_price={seg.ep0_price}", enable)
+    return None
+
+
+def _seg_check_settlement_anchor(seg, strokes, i: int, name: str, enable: bool) -> AssertResult | None:
+    if not (seg.confirmed and seg.break_evidence is not None and strokes):
+        return None
+    k = seg.break_evidence.trigger_stroke_k
+    if k + 2 >= len(strokes):
+        return None
+    s1 = strokes[k]
+    s2 = strokes[k + 1]
+    s3 = strokes[k + 2]
+    overlap_low = max(s1.low, s2.low, s3.low)
+    overlap_high = min(s1.high, s2.high, s3.high)
+    if overlap_low < overlap_high:
+        return None
+    return _check(name, False,
+                  f"Segment[{i}] settlement anchor violated: "
+                  f"new seg strokes[{k},{k+1},{k+2}] no overlap", enable)
+
+
+def _seg_check_kind_constraints(seg, i: int, is_last: bool, name: str, enable: bool) -> AssertResult | None:
+    seg_kind = getattr(seg, "kind", "settled")
+    if seg_kind == "candidate" and not is_last:
+        return _check(name, False,
+                      f"Segment[{i}] kind='candidate' but is not the last segment "
+                      f"(only the last segment may be candidate)", enable)
+    if seg_kind == "settled" and seg.confirmed:
+        if getattr(seg, "break_evidence", None) is None:
+            return _check(name, False,
+                          f"Segment[{i}] kind='settled' and confirmed=True "
+                          f"but has no break_evidence", enable)
+    return None
+
+
+def _seg_check_confirmed_rule(seg, i: int, is_last: bool, name: str, enable: bool) -> AssertResult | None:
+    if is_last and seg.confirmed:
+        return _check(name, False,
+                      f"Last segment [{i}] should be confirmed=False", enable)
+    if not is_last and not seg.confirmed:
+        return _check(name, False,
+                      f"Segment[{i}] (not last) should be confirmed=True", enable)
+    return None
+
+
 def assert_segment_theorem_v1(*args: Any, enable: bool = False) -> AssertResult:
     """Spec: docs/chan_spec.md §5.3-§5.4 (v1 characteristic sequence method)
 
@@ -691,110 +783,25 @@ def assert_segment_theorem_v1(*args: Any, enable: bool = False) -> AssertResult:
         return _ok(name)
 
     for i, seg in enumerate(segments):
-        # ── at least 3 strokes ──
-        span = seg.s1 - seg.s0
-        if span < 2:
-            msg = f"Segment[{i}] s1-s0={span} < 2 (need >=3 strokes)"
-            if enable:
-                raise AssertionError(f"[{name}] {msg}")
-            return _fail(name, msg)
-
-        # ── adjacent stitching: s1+1 == s0 (不共享边界笔) ──
-        if i > 0:
-            prev = segments[i - 1]
-            if seg.s0 != prev.s1 + 1 and seg.s0 != prev.s1:
-                msg = (
-                    f"Segment[{i}].s0={seg.s0} not adjacent to "
-                    f"Segment[{i-1}].s1={prev.s1}"
-                )
-                if enable:
-                    raise AssertionError(f"[{name}] {msg}")
-                return _fail(name, msg)
-
-        # ── direction alternation ──
-        if i > 0:
-            prev = segments[i - 1]
-            if seg.direction == prev.direction:
-                msg = (
-                    f"Segment[{i}].direction={seg.direction} same as "
-                    f"Segment[{i-1}].direction={prev.direction}"
-                )
-                if enable:
-                    raise AssertionError(f"[{name}] {msg}")
-                return _fail(name, msg)
-
-        # ── degenerate segment check (direction vs price) ──
-        if seg.ep0_price != 0.0 and seg.ep1_price != 0.0:
-            if seg.direction == "up" and seg.ep1_price < seg.ep0_price - 1e-9:
-                msg = (
-                    f"Segment[{i}] degenerate: direction=up but "
-                    f"ep1_price={seg.ep1_price} < ep0_price={seg.ep0_price}"
-                )
-                if enable:
-                    raise AssertionError(f"[{name}] {msg}")
-                return _fail(name, msg)
-            if seg.direction == "down" and seg.ep1_price > seg.ep0_price + 1e-9:
-                msg = (
-                    f"Segment[{i}] degenerate: direction=down but "
-                    f"ep1_price={seg.ep1_price} > ep0_price={seg.ep0_price}"
-                )
-                if enable:
-                    raise AssertionError(f"[{name}] {msg}")
-                return _fail(name, msg)
-
-        # ── settlement anchor: confirmed seg's successor must have overlap ──
-        if seg.confirmed and seg.break_evidence is not None and strokes:
-            k = seg.break_evidence.trigger_stroke_k
-            if k + 2 < len(strokes):
-                s1 = strokes[k]
-                s2 = strokes[k + 1]
-                s3 = strokes[k + 2]
-                overlap_low = max(s1.low, s2.low, s3.low)
-                overlap_high = min(s1.high, s2.high, s3.high)
-                if not (overlap_low < overlap_high):
-                    msg = (
-                        f"Segment[{i}] settlement anchor violated: "
-                        f"new seg strokes[{k},{k+1},{k+2}] no overlap"
-                    )
-                    if enable:
-                        raise AssertionError(f"[{name}] {msg}")
-                    return _fail(name, msg)
-
-        # ── kind constraints ──
-        seg_kind = getattr(seg, "kind", "settled")
         is_last = i == len(segments) - 1
 
-        # candidate 段只允许出现在列表末尾
-        if seg_kind == "candidate" and not is_last:
-            msg = (
-                f"Segment[{i}] kind='candidate' but is not the last segment "
-                f"(only the last segment may be candidate)"
-            )
-            if enable:
-                raise AssertionError(f"[{name}] {msg}")
-            return _fail(name, msg)
+        for r in (
+            _seg_check_min_strokes(seg, i, name, enable),
+            _seg_check_degenerate(seg, i, name, enable),
+            _seg_check_settlement_anchor(seg, strokes, i, name, enable),
+            _seg_check_kind_constraints(seg, i, is_last, name, enable),
+            _seg_check_confirmed_rule(seg, i, is_last, name, enable),
+        ):
+            if r is not None:
+                return r
 
-        # settled + confirmed=True 的段必须有 break_evidence
-        if seg_kind == "settled" and seg.confirmed:
-            if getattr(seg, "break_evidence", None) is None:
-                msg = (
-                    f"Segment[{i}] kind='settled' and confirmed=True "
-                    f"but has no break_evidence"
-                )
-                if enable:
-                    raise AssertionError(f"[{name}] {msg}")
-                return _fail(name, msg)
-
-        # ── confirmed rule ──
-        if is_last and seg.confirmed:
-            msg = f"Last segment [{i}] should be confirmed=False"
-            if enable:
-                raise AssertionError(f"[{name}] {msg}")
-            return _fail(name, msg)
-        if not is_last and not seg.confirmed:
-            msg = f"Segment[{i}] (not last) should be confirmed=True"
-            if enable:
-                raise AssertionError(f"[{name}] {msg}")
-            return _fail(name, msg)
+        if i > 0:
+            prev = segments[i - 1]
+            for r in (
+                _seg_check_adjacent_stitching(seg, prev, i, name, enable),
+                _seg_check_direction_alternation(seg, prev, i, name, enable),
+            ):
+                if r is not None:
+                    return r
 
     return _ok(name)
