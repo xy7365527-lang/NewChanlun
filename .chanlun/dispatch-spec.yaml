@@ -194,3 +194,18 @@ axis_report:
   frequency: "每蜂群循环结束"
   producer: "Lead"
   consumers: "所有工位（通过 broadcast 或 session 文件）"
+
+# --- 043: automation（自生长回路基础设施） ---
+automation:
+  pattern_detection:
+    enabled: true
+    trigger: "session_end"
+    buffer_path: ".chanlun/pattern-buffer.yaml"
+    min_sequence_length: 2
+    promotion_threshold: 3  # 频次达标阈值
+  crystallization:
+    auto_trigger: true
+    require_genealogy_settlement: true
+  manifest:
+    path: "src/newchan/skills/manifest.yaml"
+    auto_register: true

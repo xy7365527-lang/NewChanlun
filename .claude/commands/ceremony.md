@@ -10,6 +10,13 @@ Source of truth: `.chanlun/dispatch-spec.yaml`
 
 你必须读取 `.chanlun/dispatch-spec.yaml`，将其内容作为本次 ceremony 的执行蓝图。
 
+同时加载 `automation` 配置块（043号谱系：自生长回路）：
+- `pattern_detection`: 模式检测配置（trigger, buffer_path, min_sequence_length, promotion_threshold）
+- `crystallization`: 结晶配置（auto_trigger, require_genealogy_settlement）
+- `manifest`: skill manifest 路径和自动注册开关
+
+如果 `automation.pattern_detection.enabled == true`，在 ceremony 结束时（session_end 触发点）扫描 pattern-buffer。
+
 然后判定启动模式：
 
 ```
@@ -18,7 +25,7 @@ Source of truth: `.chanlun/dispatch-spec.yaml`
   不存在 → cold_start
 ```
 
-输出：`✓ load-dispatch-spec 完成 — 模式: [cold_start|warm_start]`
+输出：`✓ load-dispatch-spec 完成 — 模式: [cold_start|warm_start], automation: [enabled|disabled]`
 
 ---
 
@@ -232,6 +239,7 @@ ceremony 完成后，你必须自检以下条件（来自 dispatch-spec.yaml `va
 | lead_permissions_restricted | Lead 只保留 Read/Glob/Grep/Task/SendMessage/TaskList/TaskGet/TaskUpdate 等 | **阻塞** — 032号谱系要求 |
 | task_stations_derived | 至少从中断点派生了一个任务工位（除非中断点为空） | 警告 — 可能遗漏工作 |
 | crystallization_check | genealogist 的结晶检测已执行 | 警告 — 可能遗漏结晶时机 |
+| pattern_buffer_check | `.chanlun/pattern-buffer.yaml` 中无 frequency >= promotion_threshold 且 status=pending 的模式 | 警告 — 有达标模式未结晶（043号谱系） |
 
 全部阻塞项通过后，ceremony 完成。
 
