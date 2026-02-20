@@ -99,6 +99,9 @@ task_stations:
     - "有数据依赖的中断点 = 串行链"
     - "Lead 不自行执行任务，只分派和汇总"
     - "无简单任务豁免——≥1 个任务即拉蜂群（bias-single-agent-bypass）"  # G8
+    - "任务工位具有递归能力：背驰（复杂度抵抗）+ 分型（接口边界明确）时可 spawn 子工位"  # 055号蜂群递归
+    - "递归最大深度 3 层，子工位为局部作用域（不修改全局 hook/谱系/定义）"
+    - "结构工位（genealogist/quality-guard/meta-observer）保持扁平，不递归——裁判不参与走势"
 
 ceremony_sequence:
   cold_start:
