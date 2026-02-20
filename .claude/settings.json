@@ -35,6 +35,15 @@
             "command": ".claude/hooks/ceremony-guard.sh"
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/double-helix-verify.sh"
+          }
+        ]
       }
     ],
     "Stop": [
