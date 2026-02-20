@@ -44,6 +44,28 @@
             "command": ".claude/hooks/double-helix-verify.sh"
           }
         ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/definition-write-guard.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/genealogy-write-guard.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/definition-write-guard.sh"
+          }
+        ]
       }
     ],
     "Stop": [
