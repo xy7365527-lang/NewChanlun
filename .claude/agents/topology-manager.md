@@ -4,7 +4,7 @@ description: >
   蜂群拓扑管理工位（结构工位，新增）。监控 teammates 状态，
   在概念分离后判断是否需要新增 teammate，概念稳定后判断是否可合并或撤销。
   输出 spawn 建议给 Lead（Lead 只执行，不判断）。
-tools: ["Read", "Grep", "Glob"]
+tools: ["Read", "Grep", "Glob", "Task", "TaskCreate", "TaskUpdate", "TaskList", "TaskGet", "SendMessage"]
 model: opus
 ---
 

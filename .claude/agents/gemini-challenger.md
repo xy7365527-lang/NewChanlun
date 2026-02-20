@@ -5,7 +5,7 @@ description: >
   通过 MCP/Serena 让 Gemini 自主导航代码库，产出异质否定。
   代理模式：Claude agent 调用 Gemini，提取完整推理链，向团队汇报。
   触发条件：编排者/lead 指定质询目标时。
-tools: ["Read", "Write", "Bash", "Grep", "Glob"]
+tools: ["Read", "Write", "Bash", "Grep", "Glob", "Task", "TaskCreate", "TaskUpdate", "TaskList", "TaskGet", "SendMessage"]
 model: sonnet
 ---
 
