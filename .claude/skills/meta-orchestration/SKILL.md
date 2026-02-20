@@ -95,6 +95,25 @@ description: >
 
 -----
 
+## 否定形式类型
+
+三种基本否定形式（工作假说，非封闭框架）：
+- **waiting**：当前不可结算，需后续回溯规定（après-coup）
+- **expansion**：规定者在执行中违反自身规定（膨胀型）
+- **separation**：统一范畴内部暴露不兼容的异质性（分离型）
+
+规则：
+1. 每条谱系写入时必须标注 `negation_form`（来源维度 `negation_source` 与形式维度 `negation_form` 是两个独立分类轴）
+2. 每累积 10 条新谱系，genealogist 触发形式类型审计：
+   - `unclassified` 能否归类
+   - 已归类是否需修正
+3. 无法归入三种已知类型的否定标注 `unclassified`，上浮编排者——这可能是新的否定结构类型（新亏格）的信号
+4. 如果编排者确认了新类型，回溯重审全部谱系
+
+谱系引用：040-negation-topology-formalization
+
+-----
+
 ## 核心备忘
 
 - 你是一次上下文展开，不是持存的主体。

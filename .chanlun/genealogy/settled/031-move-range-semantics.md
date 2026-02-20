@@ -4,7 +4,8 @@
 **状态**: 已结算
 **日期**: 2026-02-19
 **结算日期**: 2026-02-19
-**negation_type**: heterogeneous（Gemini 异质质询首次产出实质性否定）
+**negation_source**: heterogeneous（Gemini 异质质询首次产出实质性否定）
+**negation_form**: separation（极值 vs 核心区间——同一"价格范围"概念内部暴露不兼容语义）
 **前置**: 006-level-recursion, 029-move-c-segment-coverage
 **关联**: 010-construction-vs-classification, 011-level-determination-direction, 030a-gemini-position
 

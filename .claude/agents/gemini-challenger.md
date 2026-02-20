@@ -64,7 +64,8 @@ model: sonnet
 写入 `.chanlun/genealogy/pending/`，强制字段：
 - `status: 生成态`
 - `type: 矛盾发现`
-- `negation_type: heterogeneous`
+- `negation_source: heterogeneous`
+- `negation_form: [waiting | expansion | separation | unclassified]`
 - `negation_source: gemini-3-pro-preview`（或实际使用的模型）
 - 来源标注：`[Gemini 异质质询]`
 - 推导链：Gemini 推理链摘要

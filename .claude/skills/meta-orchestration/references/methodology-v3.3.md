@@ -355,7 +355,7 @@ Claude agent 之间的质询是同质的——相同的训练数据、相同的�
 | 盲区覆盖 | 共享盲区，无法自我发现 | 互补盲区，交叉发现 |
 | 接入方式 | SendMessage / TaskUpdate | 代理工位（Claude agent 调用外部模型） |
 | 推理透明性 | 完全透明（同一上下文） | 需要显式提取推理链 |
-| 谱系标注 | `negation_type: homogeneous` | `negation_type: heterogeneous` |
+| 谱系标注 | `negation_source: homogeneous` | `negation_source: heterogeneous` |
 
 ### 代理工位模式
 

@@ -7,8 +7,13 @@ id: [唯一标识，如 GEN-001]
 timestamp: [时间戳]
 status: [生成态 | 已结算]
 type: [矛盾发现 | 概念分离 | 蜂群内部消化 | 编排者决断 | 回溯结算]
-negation_type: [homogeneous | heterogeneous]  # 同质（Claude内部质询）或异质（外部模型质询）
-negation_source: [可选，异质否定时填写模型名，如 "gemini-3-pro-preview"]
+negation_source: [homogeneous | heterogeneous]  # 来源维度：同质（Claude内部质询）或异质（外部模型质询）
+negation_model: [可选，异质否定时填写模型名，如 "gemini-3-pro-preview"]
+negation_form: [waiting | expansion | separation | unclassified]  # 形式维度：否定的结构类型
+# waiting: 当前不可结算，需后续回溯规定（après-coup）
+# expansion: 规定者在执行中违反自身规定（膨胀型）
+# separation: 统一范畴内部暴露不兼容的异质性（分离型）
+# unclassified: 无法归入已知类型——可能是新亏格信号，上浮编排者
 
 # 矛盾（type=矛盾发现 时必填）
 contradiction:
