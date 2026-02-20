@@ -3,10 +3,12 @@
 #
 # 触发：PostToolUse on "Bash" tool
 # 逻辑：
-#   1. 检查 Bash 命令是否为 git commit（session/chore 类型）
-#   2. 读取 .chanlun/.crystallization-debt.json
-#   3. 如果有 status=pending 的债务记录，阻断 commit
-#   4. [Ad-hoc] 标记的模式跳过
+#   1. 检查 Bash 命令是否为 git commit
+#   2. 判断严格程度：session/chore → strict（阻断），其他 → light（警告）
+#   3. 读取 .chanlun/.crystallization-debt.json
+#   4. strict: 有 pending 债务或未结晶模式 → 阻断 commit
+#      light:  有未结晶模式 → 输出警告，不阻断
+#   5. [Ad-hoc] 标记的模式跳过
 #
 # Gemini 审计结论：断裂在"显存→持久化"写入阀门。
 # 结晶靠自觉所以不发生。需要运行时强制。
@@ -38,17 +40,15 @@ if ! echo "$COMMAND" | grep -q "git commit"; then
     exit 0
 fi
 
-# 只拦截 session 或 chore 类型的 commit
-IS_SESSION_OR_CHORE=$(echo "$COMMAND" | python -c "
+# 判断 commit 类型 → 决定检查严格程度
+# strict: session/chore commit → 阻断（当前行为）
+# light:  feat/fix/refactor 等 → 仅警告，不阻断
+SEVERITY=$(echo "$COMMAND" | python -c "
 import sys
 cmd = sys.stdin.read().lower()
-keywords = ['session', 'chore:']
-print('yes' if any(kw in cmd for kw in keywords) else 'no')
-" 2>/dev/null || echo "no")
-
-if [ "$IS_SESSION_OR_CHORE" != "yes" ]; then
-    exit 0
-fi
+strict_keywords = ['session', 'chore:']
+print('strict' if any(kw in cmd for kw in strict_keywords) else 'light')
+" 2>/dev/null || echo "light")
 
 # 提取 cwd
 CWD=$(echo "$INPUT" | python -c "
@@ -137,7 +137,9 @@ else:
 " 2>/dev/null || echo "")
 
         if [ -n "$UNPROCESSED_PATTERNS" ]; then
-            python -c "
+            PATTERN_COUNT=$(echo "$UNPROCESSED_PATTERNS" | wc -l | tr -d ' ')
+            if [ "$SEVERITY" = "strict" ]; then
+                python -c "
 import json, sys
 
 patterns = sys.argv[1]
@@ -156,14 +158,29 @@ print(json.dumps({
     'reason': msg
 }, ensure_ascii=False))
 " "$UNPROCESSED_PATTERNS"
-            exit 0
+                exit 0
+            else
+                # light 模式：警告但不阻断
+                python -c "
+import json, sys
+count = sys.argv[1]
+msg = '[crystallization-guard] 警告：pattern-buffer 中有 ' + count + ' 个候选模式未结晶。建议在下次 session/chore commit 前处理。'
+print(json.dumps({
+    'decision': 'allow',
+    'reason': msg
+}, ensure_ascii=False))
+" "$PATTERN_COUNT"
+                exit 0
+            fi
         fi
     fi
     exit 0
 fi
 
-# 有未结晶的债务，阻断 commit
-python -c "
+# 有未结晶的债务
+if [ "$SEVERITY" = "strict" ]; then
+    # strict 模式：阻断
+    python -c "
 import json, sys
 
 debts = sys.argv[1]
@@ -182,3 +199,16 @@ print(json.dumps({
     'reason': msg
 }, ensure_ascii=False))
 " "$PENDING_DEBTS"
+else
+    # light 模式：警告但不阻断
+    DEBT_COUNT=$(echo "$PENDING_DEBTS" | wc -l | tr -d ' ')
+    python -c "
+import json, sys
+count = sys.argv[1]
+msg = '[crystallization-guard] 警告：有 ' + count + ' 条未结晶债务。建议在下次 session/chore commit 前处理。'
+print(json.dumps({
+    'decision': 'allow',
+    'reason': msg
+}, ensure_ascii=False))
+" "$DEBT_COUNT"
+fi
