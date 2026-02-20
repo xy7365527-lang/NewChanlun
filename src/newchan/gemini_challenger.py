@@ -183,10 +183,10 @@ class GeminiChallenger:
                     ),
                 )
                 return response.text or "", model
-            except genai_errors.ServerError:
+            except (genai_errors.ServerError, genai_errors.ClientError):
                 if model == self._model and model != _FALLBACK_MODEL:
                     logger.warning(
-                        "%s 不可用 (503)，降级到 %s",
+                        "%s 不可用，降级到 %s",
                         model,
                         _FALLBACK_MODEL,
                     )
@@ -314,10 +314,10 @@ class GeminiChallenger:
                     tuple(tool_calls),
                     tuple(chain),
                 )
-            except genai_errors.ServerError:
+            except (genai_errors.ServerError, genai_errors.ClientError):
                 if model == self._model and model != _FALLBACK_MODEL:
                     logger.warning(
-                        "%s 不可用 (503)，降级到 %s",
+                        "%s 不可用，降级到 %s",
                         model,
                         _FALLBACK_MODEL,
                     )

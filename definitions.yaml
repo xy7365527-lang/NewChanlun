@@ -1,7 +1,9 @@
 # ============================================================
 # definitions.yaml -- 缠论核心实体"条件-结论"条款
 # 生成时间: 2026-02-13
+# 最后同步: 2026-02-20
 # 权威来源: docs/chanlun/text/chan99/ 原文
+# 定义文件: .chanlun/definitions/*.md
 # ============================================================
 
 entities:
@@ -13,6 +15,10 @@ entities:
     english_name: Bar
     code_class: Bar
     file: src/newchan/types.py
+    definition_md: null  # 无独立定义文件
+    version: null
+    status: null
+    last_updated: null
     implementation_status: complete
     necessary_conditions:
       - 具有时间戳 ts、开盘价 open、最高价 high、最低价 low、收盘价 close
@@ -42,6 +48,10 @@ entities:
     english_name: Inclusion
     code_class: "(函数 merge_inclusion)"
     file: src/newchan/a_inclusion.py
+    definition_md: .chanlun/definitions/baohan.md
+    version: v1.3
+    status: 已结算
+    last_updated: 2026-02-16
     implementation_status: complete
     necessary_conditions:
       - "包含判定(原文§四.一): 一K线的高低点全在另一K线的范围里"
@@ -76,6 +86,10 @@ entities:
     english_name: Fractal
     code_class: Fractal
     file: src/newchan/a_fractal.py
+    definition_md: .chanlun/definitions/fenxing.md
+    version: v1.0
+    status: 已结算
+    last_updated: 2026-02-15
     implementation_status: complete
     necessary_conditions:
       - "输入必须是包含处理后的 MergedBar 序列"
@@ -110,6 +124,10 @@ entities:
     english_name: Stroke
     code_class: Stroke
     file: src/newchan/a_stroke.py
+    definition_md: .chanlun/definitions/bi.md
+    version: v1.4
+    status: 已结算
+    last_updated: 2026-02-16
     implementation_status: complete
     necessary_conditions:
       - "两个相邻的顶和底之间构成一笔(原文§六.一)"
@@ -150,8 +168,12 @@ entities:
   - name: 线段
     english_name: Segment
     code_class: Segment
-    file: src/newchan/a_segment_v0.py
-    implementation_status: partial
+    file: src/newchan/a_segment_v1.py  # v1 特征序列法为唯一正式口径; v0 降级为参考实现
+    definition_md: .chanlun/definitions/xianduan.md
+    version: v1.3
+    status: 已结算
+    last_updated: 2026-02-16
+    implementation_status: complete
     necessary_conditions:
       - "至少由三笔组成(原文§七.一)"
       - "前三笔必须有重叠部分(原文§七.一)"
@@ -195,7 +217,11 @@ entities:
   - name: 中枢
     english_name: Center
     code_class: Center
-    file: src/newchan/a_center_v0.py
+    file: src/newchan/a_zhongshu_v1.py  # v1 固定区间法; a_center_v0.py 为旧版
+    definition_md: .chanlun/definitions/zhongshu.md
+    version: v1.3
+    status: 已结算
+    last_updated: 2026-02-16
     implementation_status: complete
     necessary_conditions:
       - "某级别走势类型中, 被至少三个连续次级别走势类型所重叠的部分(原文§八.一)"
@@ -239,7 +265,11 @@ entities:
   - name: 走势类型
     english_name: TrendType
     code_class: TrendTypeInstance
-    file: src/newchan/a_trendtype_v0.py
+    file: src/newchan/a_trendtype_v0.py  # v0 实现; v1 规范见 docs/spec/move_rules_v1.md
+    definition_md: .chanlun/definitions/zoushi.md
+    version: v1.6
+    status: 已结算
+    last_updated: 2026-02-17
     implementation_status: complete
     necessary_conditions:
       - "盘整(原文§九.一): 某完成的走势类型只包含一个走势中枢"
@@ -282,6 +312,10 @@ entities:
     english_name: Level
     code_class: "LevelView / LStar"
     file: src/newchan/a_level_fsm_newchan.py
+    definition_md: .chanlun/definitions/level_recursion.md
+    version: v1.0
+    status: 已结算
+    last_updated: 2026-02-17
     implementation_status: partial
     necessary_conditions:
       - "级别 = 递归层级 (level_id), 从1分钟K线为底座无限向上递归构造(原文§三.一)"
@@ -320,6 +354,10 @@ entities:
     english_name: Divergence
     code_class: Divergence
     file: src/newchan/a_divergence.py
+    definition_md: .chanlun/definitions/beichi.md
+    version: v1.1
+    status: 已结算
+    last_updated: 2026-02-17
     implementation_status: complete
     necessary_conditions:
       - "趋势背驰(原文§动力学四.一): 趋势力度比上一次趋势力度弱(力竭)"
@@ -360,7 +398,11 @@ entities:
     english_name: BuySellPoint
     code_class: BuySellPoint
     file: src/newchan/a_buysellpoint_v1.py
-    implementation_status: complete
+    definition_md: .chanlun/definitions/maimai.md
+    version: v1.0
+    status: 已结算
+    last_updated: 2026-02-17
+    implementation_status: stub  # maimai.md 明确记录: 买卖点模块尚未实现(0%代码覆盖)
     necessary_conditions:
       - "所有买卖点都必然对应着与该级别最靠近的一个走势中枢的关系(原文§操作四.二)"
       - "第一类买点(原文§操作四.一): 某级别下跌趋势中, 一个次级别走势类型向下跌破最后一个走势中枢后形成的背驰点"
@@ -411,6 +453,10 @@ entities:
     english_name: IntervalNesting
     code_class: NestedDivergence
     file: src/newchan/a_nested_divergence.py
+    definition_md: null  # 无独立定义文件; 区间套作为 beichi.md #5 子节实现
+    version: null
+    status: null
+    last_updated: null
     implementation_status: complete
     necessary_conditions:
       - "根据背驰段从高级别向低级别逐级寻找背驰点的方法(原文§操作六.一)"
@@ -447,6 +493,10 @@ entities:
     english_name: RatioRelation
     code_class: make_ratio_kline
     file: src/newchan/equivalence.py
+    definition_md: .chanlun/definitions/bijia.md
+    version: v1.0
+    status: 已结算
+    last_updated: 2026-02-18
     implementation_status: implemented
     necessary_conditions:
       - "两个标的A、B有对齐的同周期OHLCV序列"
@@ -476,8 +526,13 @@ entities:
   # ----------------------------------------------------------
   - name: 等价关系
     english_name: EquivalenceRelation
+    definition_number: 13
     code_class: EquivalencePair
     file: src/newchan/equivalence.py
+    definition_md: .chanlun/definitions/dengjia.md
+    version: v1.1
+    status: 已结算
+    last_updated: 2026-02-18
     implementation_status: implemented
     necessary_conditions:
       - "可比性: 两个标的有重叠的交易时间窗口"
@@ -510,9 +565,14 @@ entities:
   # ----------------------------------------------------------
   - name: 流转关系
     english_name: FlowRelation
+    definition_number: 14
     code_class: "EdgeFlowInput, VertexFlowState, ResonanceStrength"
-    file: src/newchan/flow_relation.py
-    implementation_status: implemented
+    file: src/newchan/flow_relation.py  # 基础设施在 capital_flow.py; 顶点聚合+共振在此文件
+    definition_md: .chanlun/definitions/liuzhuan.md
+    version: v1.0
+    status: 已结算
+    last_updated: 2026-02-18
+    implementation_status: partial  # 基础设施(FlowDirection/StrokeFlow)已有, 顶点聚合+共振检测待完善
     necessary_conditions:
       - "四矩阵拓扑: 4顶点(动产/不动产/商品/现金)构成K₄完全图, 6条边"
       - "边方向: 每条边上比价走势当前笔的FlowDirection"
