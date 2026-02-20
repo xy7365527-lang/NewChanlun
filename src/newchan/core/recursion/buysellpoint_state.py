@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from typing import Callable
 
 from newchan.a_buysellpoint_v1 import BuySellPoint
+from newchan.core.diff.helpers import make_appender
 from newchan.core.diff.identity import bsp_identity_key
 from newchan.events import (
     BuySellPointCandidateV1,
@@ -25,7 +26,6 @@ from newchan.events import (
     BuySellPointSettleV1,
     DomainEvent,
 )
-from newchan.fingerprint import compute_event_id
 
 
 @dataclass
@@ -117,79 +117,15 @@ def _handle_bsp_state_change(
         )
 
 
-def diff_buysellpoints(
-    prev: list[BuySellPoint],
-    curr: list[BuySellPoint],
-    *,
-    bar_idx: int,
-    bar_ts: float,
-    seq_start: int = 0,
-) -> list[DomainEvent]:
-    """比较前后两次 BSP 列表，产生域事件。
-
-    使用身份键映射 diff（非位置对位），正确处理中间删除/插入。
-
-    Parameters
-    ----------
-    prev, curr : list[BuySellPoint]
-        前后两次计算的买卖点列表。
-    bar_idx, bar_ts : int, float
-        当前 bar 的索引和时间戳。
-    seq_start : int
-        本批事件的起始序号。
-
-    Returns
-    -------
-    list[DomainEvent]
-        按因果顺序：先 invalidate，再 candidate/confirm/settle。
-    """
-    invalidate_events: list[DomainEvent] = []
-    update_events: list[DomainEvent] = []
-    seq = seq_start
-
-    # ── 构建身份键映射 ──
-    prev_map: dict[tuple[int, str, str, int], BuySellPoint] = {
-        bsp_identity_key(bp): bp for bp in prev
-    }
-    curr_map: dict[tuple[int, str, str, int], BuySellPoint] = {
-        bsp_identity_key(bp): bp for bp in curr
-    }
-
-    def _append_inv(cls: type, **kwargs: object) -> None:
-        nonlocal seq
-        eid = compute_event_id(
-            bar_idx=bar_idx,
-            bar_ts=bar_ts,
-            event_type=cls.__dataclass_fields__["event_type"].default,
-            seq=seq,
-            payload=dict(kwargs),
-        )
-        invalidate_events.append(
-            cls(bar_idx=bar_idx, bar_ts=bar_ts, seq=seq, event_id=eid, **kwargs)
-        )
-        seq += 1
-
-    def _append_upd(cls: type, **kwargs: object) -> None:
-        nonlocal seq
-        eid = compute_event_id(
-            bar_idx=bar_idx,
-            bar_ts=bar_ts,
-            event_type=cls.__dataclass_fields__["event_type"].default,
-            seq=seq,
-            payload=dict(kwargs),
-        )
-        update_events.append(
-            cls(bar_idx=bar_idx, bar_ts=bar_ts, seq=seq, event_id=eid, **kwargs)
-        )
-        seq += 1
-
-    prev_keys = set(prev_map.keys())
-    curr_keys = set(curr_map.keys())
-
-    # ── 消失的 BSP → Invalidate（按 key 排序确保确定性）──
-    for key in sorted(prev_keys - curr_keys):
+def _emit_bsp_invalidates(
+    _append: Callable[..., None],
+    prev_map: dict[tuple[int, str, str, int], BuySellPoint],
+    removed_keys: set[tuple[int, str, str, int]],
+) -> None:
+    """消失的 BSP → Invalidate（按 key 排序确保确定性）。"""
+    for key in sorted(removed_keys):
         bp = prev_map[key]
-        _append_inv(
+        _append(
             BuySellPointInvalidateV1,
             bsp_id=_stable_bsp_id(key),
             kind=bp.kind,
@@ -198,16 +134,37 @@ def diff_buysellpoints(
             seg_idx=bp.seg_idx,
         )
 
-    # ── 新增或状态变化的 BSP（按 key 排序确保确定性）──
-    for key in sorted(curr_keys):
+
+def diff_buysellpoints(
+    prev: list[BuySellPoint],
+    curr: list[BuySellPoint],
+    *,
+    bar_idx: int,
+    bar_ts: float,
+    seq_start: int = 0,
+) -> list[DomainEvent]:
+    """比较前后两次 BSP 列表，产生域事件（身份键映射 diff）。"""
+    invalidate_events: list[DomainEvent] = []
+    update_events: list[DomainEvent] = []
+    seq_box = [seq_start]
+
+    _append_inv = make_appender(invalidate_events, bar_idx, bar_ts, seq_box)
+    _append_upd = make_appender(update_events, bar_idx, bar_ts, seq_box)
+
+    prev_map = {bsp_identity_key(bp): bp for bp in prev}
+    curr_map = {bsp_identity_key(bp): bp for bp in curr}
+
+    _emit_bsp_invalidates(
+        _append_inv, prev_map, set(prev_map.keys()) - set(curr_map.keys()),
+    )
+
+    for key in sorted(curr_map.keys()):
         bp = curr_map[key]
         bid = _stable_bsp_id(key)
         old = prev_map.get(key)
-
         if old is None:
             _handle_bsp_new(_append_upd, bp, bid)
         else:
             _handle_bsp_state_change(_append_upd, old, bp, bid)
 
-    # 因果序：invalidate 在前，candidate/confirm/settle 在后
     return invalidate_events + update_events

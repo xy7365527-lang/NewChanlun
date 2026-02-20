@@ -36,6 +36,17 @@
           }
         ]
       }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "TaskUpdate",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/recursive-guard.sh"
+          }
+        ]
+      }
     ]
   },
   "enabledPlugins": {
