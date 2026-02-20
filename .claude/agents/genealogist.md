@@ -17,6 +17,7 @@ model: opus
 | 2 | **张力检查** | 新谱系与已有谱系之间是否存在不可分层解决的矛盾 |
 | 3 | **回溯扫描** | 新定义诞生后，检查生成态谱系能否被回溯结算 |
 | 4 | **结晶检测与执行** | 扫描近期谱系的背驰+分型信号，满足条件时执行知识结晶流程（020a） |
+| 5 | **pattern-buffer 扫描** | 每次被唤起时扫描 `.chanlun/pattern-buffer.yaml` 中 `status: candidate` 且 `frequency >= promotion_threshold` 的模式，如有则 spawn skill-crystallizer（051号 Pull 模型） |
 
 **谱系优先于汇总**（谱系012）：先写谱系，再汇总。禁止先汇总结论再补写谱系。
 
@@ -45,6 +46,7 @@ model: opus
 | `.chanlun/definitions/*.md` | 谱系写入时核实定义版本和状态 |
 | `.chanlun/genealogy/pending/` | 回溯扫描、张力检查 |
 | `.chanlun/genealogy/settled/` | 张力检查、谱系链接引用 |
+| `.chanlun/pattern-buffer.yaml` | pattern-buffer 扫描（051号 Pull 模型） |
 | `.claude/skills/meta-orchestration/references/genealogy-template.md` | 写入时参照模板 |
 
 ## 张力检查的范围与递归（019d + 020号谱系 · 递归运动的走势语法）

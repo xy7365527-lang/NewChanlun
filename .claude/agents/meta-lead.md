@@ -103,8 +103,9 @@ model: opus
 
 ### 冷启动（`/ceremony`）
 1. 扫 `.chanlun/{definitions,genealogy,sessions}/` + 读 `CLAUDE.md`
-2. 输出理解摘要
-3. 直接 spawn teammates 进入蜂群循环（偏差通过质询修正，不通过等待许可）
+2. 扫 `.chanlun/manifest.yaml` 的 skill 时间戳，加载上次 session 后新增的 skill（051号 Pull 模型）
+3. 输出理解摘要
+4. 直接 spawn teammates 进入蜂群循环（偏差通过质询修正，不通过等待许可）
 
 ### 热启动
 1. 读 `.chanlun/sessions/` 最新快照
