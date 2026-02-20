@@ -16,6 +16,7 @@ Diff 规则（与 diff_zhongshu 同构）：
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Callable
 
 from newchan.a_move_v1 import Move
 from newchan.core.diff.identity import same_move_identity
@@ -47,6 +48,42 @@ def _move_equal(a: Move, b: Move) -> bool:
         and a.zs_end == b.zs_end
         and a.settled == b.settled
     )
+
+
+def _move_kwargs(i: int, m: Move) -> dict[str, object]:
+    """构建 Move 事件的公共 kwargs。"""
+    return dict(
+        move_id=i,
+        kind=m.kind,
+        direction=m.direction,
+        seg_start=m.seg_start,
+        seg_end=m.seg_end,
+        zs_start=m.zs_start,
+        zs_end=m.zs_end,
+        zs_count=m.zs_count,
+    )
+
+
+def _handle_move_same_identity(
+    _append: Callable[..., None],
+    i: int,
+    prev_m: Move,
+    m: Move,
+) -> None:
+    """同身份 move 的状态变化处理。"""
+    if not prev_m.settled and m.settled:
+        _append(MoveSettleV1, **_move_kwargs(i, m))
+    elif prev_m.zs_end != m.zs_end or prev_m.kind != m.kind:
+        _append(MoveCandidateV1, **_move_kwargs(i, m))
+
+
+def _handle_move_new(
+    _append: Callable[..., None], i: int, m: Move,
+) -> None:
+    """全新 move 的事件处理。"""
+    _append(MoveCandidateV1, **_move_kwargs(i, m))
+    if m.settled:
+        _append(MoveSettleV1, **_move_kwargs(i, m))
 
 
 def diff_moves(
@@ -121,71 +158,8 @@ def diff_moves(
         prev_m = prev[i] if i < len(prev) else None
 
         if prev_m is not None and same_move_identity(prev_m, m):
-            # 同一个 move，但状态变了
-            if not prev_m.settled and m.settled:
-                # candidate → settle 升级
-                _append(
-                    MoveSettleV1,
-                    move_id=i,
-                    kind=m.kind,
-                    direction=m.direction,
-                    seg_start=m.seg_start,
-                    seg_end=m.seg_end,
-                    zs_start=m.zs_start,
-                    zs_end=m.zs_end,
-                    zs_count=m.zs_count,
-                )
-            elif prev_m.zs_end != m.zs_end or prev_m.kind != m.kind:
-                # 延伸或 consolidation→trend 升级 → 新 candidate
-                _append(
-                    MoveCandidateV1,
-                    move_id=i,
-                    kind=m.kind,
-                    direction=m.direction,
-                    seg_start=m.seg_start,
-                    seg_end=m.seg_end,
-                    zs_start=m.zs_start,
-                    zs_end=m.zs_end,
-                    zs_count=m.zs_count,
-                )
+            _handle_move_same_identity(_append, i, prev_m, m)
         else:
-            # 全新 move
-            if m.settled:
-                # 首次出现即已 settled：先 candidate 再 settle（保证 I19）
-                _append(
-                    MoveCandidateV1,
-                    move_id=i,
-                    kind=m.kind,
-                    direction=m.direction,
-                    seg_start=m.seg_start,
-                    seg_end=m.seg_end,
-                    zs_start=m.zs_start,
-                    zs_end=m.zs_end,
-                    zs_count=m.zs_count,
-                )
-                _append(
-                    MoveSettleV1,
-                    move_id=i,
-                    kind=m.kind,
-                    direction=m.direction,
-                    seg_start=m.seg_start,
-                    seg_end=m.seg_end,
-                    zs_start=m.zs_start,
-                    zs_end=m.zs_end,
-                    zs_count=m.zs_count,
-                )
-            else:
-                # 新 candidate（未 settled）
-                _append(
-                    MoveCandidateV1,
-                    move_id=i,
-                    kind=m.kind,
-                    direction=m.direction,
-                    seg_start=m.seg_start,
-                    seg_end=m.seg_end,
-                    zs_start=m.zs_start,
-                    zs_end=m.zs_end,
-                    zs_count=m.zs_count,
-                )
+            _handle_move_new(_append, i, m)
 
     return events

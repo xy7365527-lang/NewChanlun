@@ -9,6 +9,7 @@ diff 函数复用 LevelZhongshu 的身份规则产生域事件。
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Callable
 
 from newchan.a_move_v1 import Move
 from newchan.a_zhongshu_level import LevelZhongshu
@@ -62,6 +63,61 @@ def _same_level_zhongshu_identity(a: LevelZhongshu, b: LevelZhongshu) -> bool:
     )
 
 
+# ── LevelZhongshu 辅助 ──
+
+
+def _emit_lzs_candidate(
+    _append: Callable[..., None], i: int, zs: LevelZhongshu,
+) -> None:
+    _append(
+        ZhongshuCandidateV1,
+        zhongshu_id=i,
+        zd=zs.zd,
+        zg=zs.zg,
+        seg_start=zs.comp_start,
+        seg_end=zs.comp_end,
+        seg_count=zs.comp_count,
+    )
+
+
+def _emit_lzs_settle(
+    _append: Callable[..., None], i: int, zs: LevelZhongshu,
+) -> None:
+    _append(
+        ZhongshuSettleV1,
+        zhongshu_id=i,
+        zd=zs.zd,
+        zg=zs.zg,
+        seg_start=zs.comp_start,
+        seg_end=zs.comp_end,
+        seg_count=zs.comp_count,
+        break_seg_id=zs.break_comp,
+        break_direction=zs.break_direction,
+    )
+
+
+def _handle_lzs_same_identity(
+    _append: Callable[..., None],
+    i: int,
+    prev_zs: LevelZhongshu,
+    zs: LevelZhongshu,
+) -> None:
+    """同身份 LevelZhongshu 的状态变化处理。"""
+    if not prev_zs.settled and zs.settled:
+        _emit_lzs_settle(_append, i, zs)
+    elif prev_zs.comp_end != zs.comp_end:
+        _emit_lzs_candidate(_append, i, zs)
+
+
+def _handle_lzs_new(
+    _append: Callable[..., None], i: int, zs: LevelZhongshu,
+) -> None:
+    """全新 LevelZhongshu 的事件处理。"""
+    _emit_lzs_candidate(_append, i, zs)
+    if zs.settled:
+        _emit_lzs_settle(_append, i, zs)
+
+
 # ── diff_level_zhongshu ──
 
 
@@ -91,7 +147,6 @@ def diff_level_zhongshu(
     events: list[DomainEvent] = []
     seq = seq_start
 
-    # 找公共前缀长度
     common_len = 0
     for i in range(min(len(prev), len(curr))):
         if _level_zhongshu_equal(prev[i], curr[i]):
@@ -133,62 +188,63 @@ def diff_level_zhongshu(
         prev_zs = prev[i] if i < len(prev) else None
 
         if prev_zs is not None and _same_level_zhongshu_identity(prev_zs, zs):
-            if not prev_zs.settled and zs.settled:
-                _append(
-                    ZhongshuSettleV1,
-                    zhongshu_id=i,
-                    zd=zs.zd,
-                    zg=zs.zg,
-                    seg_start=zs.comp_start,
-                    seg_end=zs.comp_end,
-                    seg_count=zs.comp_count,
-                    break_seg_id=zs.break_comp,
-                    break_direction=zs.break_direction,
-                )
-            elif prev_zs.comp_end != zs.comp_end:
-                _append(
-                    ZhongshuCandidateV1,
-                    zhongshu_id=i,
-                    zd=zs.zd,
-                    zg=zs.zg,
-                    seg_start=zs.comp_start,
-                    seg_end=zs.comp_end,
-                    seg_count=zs.comp_count,
-                )
+            _handle_lzs_same_identity(_append, i, prev_zs, zs)
         else:
-            if zs.settled:
-                _append(
-                    ZhongshuCandidateV1,
-                    zhongshu_id=i,
-                    zd=zs.zd,
-                    zg=zs.zg,
-                    seg_start=zs.comp_start,
-                    seg_end=zs.comp_end,
-                    seg_count=zs.comp_count,
-                )
-                _append(
-                    ZhongshuSettleV1,
-                    zhongshu_id=i,
-                    zd=zs.zd,
-                    zg=zs.zg,
-                    seg_start=zs.comp_start,
-                    seg_end=zs.comp_end,
-                    seg_count=zs.comp_count,
-                    break_seg_id=zs.break_comp,
-                    break_direction=zs.break_direction,
-                )
-            else:
-                _append(
-                    ZhongshuCandidateV1,
-                    zhongshu_id=i,
-                    zd=zs.zd,
-                    zg=zs.zg,
-                    seg_start=zs.comp_start,
-                    seg_end=zs.comp_end,
-                    seg_count=zs.comp_count,
-                )
+            _handle_lzs_new(_append, i, zs)
 
     return events
+
+
+# ── Level Move 辅助 ──
+
+
+def _level_move_equal(a: Move, b: Move) -> bool:
+    return (
+        a.kind == b.kind
+        and a.direction == b.direction
+        and a.seg_start == b.seg_start
+        and a.zs_end == b.zs_end
+        and a.settled == b.settled
+    )
+
+
+def _same_level_move_identity(a: Move, b: Move) -> bool:
+    return a.seg_start == b.seg_start
+
+
+def _level_move_kwargs(i: int, m: Move) -> dict[str, object]:
+    return dict(
+        move_id=i,
+        kind=m.kind,
+        direction=m.direction,
+        seg_start=m.seg_start,
+        seg_end=m.seg_end,
+        zs_start=m.zs_start,
+        zs_end=m.zs_end,
+        zs_count=m.zs_count,
+    )
+
+
+def _handle_level_move_same_identity(
+    _append: Callable[..., None],
+    i: int,
+    prev_m: Move,
+    m: Move,
+) -> None:
+    """同身份 level move 的状态变化处理。"""
+    if not prev_m.settled and m.settled:
+        _append(MoveSettleV1, **_level_move_kwargs(i, m))
+    elif prev_m.zs_end != m.zs_end or prev_m.kind != m.kind:
+        _append(MoveCandidateV1, **_level_move_kwargs(i, m))
+
+
+def _handle_level_move_new(
+    _append: Callable[..., None], i: int, m: Move,
+) -> None:
+    """全新 level move 的事件处理。"""
+    _append(MoveCandidateV1, **_level_move_kwargs(i, m))
+    if m.settled:
+        _append(MoveSettleV1, **_level_move_kwargs(i, m))
 
 
 # ── diff_level_moves ──
@@ -220,21 +276,9 @@ def diff_level_moves(
     events: list[DomainEvent] = []
     seq = seq_start
 
-    def _move_equal(a: Move, b: Move) -> bool:
-        return (
-            a.kind == b.kind
-            and a.direction == b.direction
-            and a.seg_start == b.seg_start
-            and a.zs_end == b.zs_end
-            and a.settled == b.settled
-        )
-
-    def _same_identity(a: Move, b: Move) -> bool:
-        return a.seg_start == b.seg_start
-
     common_len = 0
     for i in range(min(len(prev), len(curr))):
-        if _move_equal(prev[i], curr[i]):
+        if _level_move_equal(prev[i], curr[i]):
             common_len = i + 1
         else:
             break
@@ -256,7 +300,7 @@ def diff_level_moves(
     for i in range(common_len, len(prev)):
         m = prev[i]
         curr_m = curr[i] if i < len(curr) else None
-        if curr_m is not None and _same_identity(m, curr_m):
+        if curr_m is not None and _same_level_move_identity(m, curr_m):
             continue
         _append(
             MoveInvalidateV1,
@@ -272,66 +316,9 @@ def diff_level_moves(
         m = curr[i]
         prev_m = prev[i] if i < len(prev) else None
 
-        if prev_m is not None and _same_identity(prev_m, m):
-            if not prev_m.settled and m.settled:
-                _append(
-                    MoveSettleV1,
-                    move_id=i,
-                    kind=m.kind,
-                    direction=m.direction,
-                    seg_start=m.seg_start,
-                    seg_end=m.seg_end,
-                    zs_start=m.zs_start,
-                    zs_end=m.zs_end,
-                    zs_count=m.zs_count,
-                )
-            elif prev_m.zs_end != m.zs_end or prev_m.kind != m.kind:
-                _append(
-                    MoveCandidateV1,
-                    move_id=i,
-                    kind=m.kind,
-                    direction=m.direction,
-                    seg_start=m.seg_start,
-                    seg_end=m.seg_end,
-                    zs_start=m.zs_start,
-                    zs_end=m.zs_end,
-                    zs_count=m.zs_count,
-                )
+        if prev_m is not None and _same_level_move_identity(prev_m, m):
+            _handle_level_move_same_identity(_append, i, prev_m, m)
         else:
-            if m.settled:
-                _append(
-                    MoveCandidateV1,
-                    move_id=i,
-                    kind=m.kind,
-                    direction=m.direction,
-                    seg_start=m.seg_start,
-                    seg_end=m.seg_end,
-                    zs_start=m.zs_start,
-                    zs_end=m.zs_end,
-                    zs_count=m.zs_count,
-                )
-                _append(
-                    MoveSettleV1,
-                    move_id=i,
-                    kind=m.kind,
-                    direction=m.direction,
-                    seg_start=m.seg_start,
-                    seg_end=m.seg_end,
-                    zs_start=m.zs_start,
-                    zs_end=m.zs_end,
-                    zs_count=m.zs_count,
-                )
-            else:
-                _append(
-                    MoveCandidateV1,
-                    move_id=i,
-                    kind=m.kind,
-                    direction=m.direction,
-                    seg_start=m.seg_start,
-                    seg_end=m.seg_end,
-                    zs_start=m.zs_start,
-                    zs_end=m.zs_end,
-                    zs_count=m.zs_count,
-                )
+            _handle_level_move_new(_append, i, m)
 
     return events

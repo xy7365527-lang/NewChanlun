@@ -228,6 +228,80 @@ def _merge_adjacent_same_direction_trends(
     return merged
 
 
+def _resolve_kind_and_direction(
+    center_idxs: list[int],
+    group_dir: "Literal['up', 'down'] | None",
+    centers: list[Center],
+    segments: list,
+    n_seg: int,
+) -> tuple["Literal['trend', 'consolidation']", "Literal['up', 'down']"]:
+    """确定走势类型实例的 kind 和 direction。"""
+    kind: Literal["trend", "consolidation"] = (
+        "trend" if len(center_idxs) >= 2 else "consolidation"
+    )
+    if group_dir is not None:
+        return kind, group_dir
+    # 单中枢盘整：取第一段 segment 的方向
+    first_center = centers[center_idxs[0]]
+    if first_center.seg0 < n_seg:
+        return kind, segments[first_center.seg0].direction
+    return kind, "up"  # fallback
+
+
+def _compute_seg_boundaries(
+    gi: int,
+    center_idxs: list[int],
+    centers: list[Center],
+    groups: list,
+    n_seg: int,
+) -> tuple[int, int]:
+    """确定 segment 边界 (seg0, seg1)，保证连续性。"""
+    seg0 = 0 if gi == 0 else centers[center_idxs[0]].seg0
+    if gi == len(groups) - 1:
+        seg1 = n_seg - 1
+    else:
+        next_first_ci = groups[gi + 1][0][0]
+        seg1 = centers[next_first_ci].seg0
+    seg0 = max(0, min(seg0, n_seg - 1))
+    seg1 = max(seg0, min(seg1, n_seg - 1))
+    return seg0, seg1
+
+
+def _compute_instance_metrics(
+    segments: list, seg0: int, seg1: int, n_seg: int,
+) -> tuple[int, int, float, float, int]:
+    """计算 i0, i1, high, low；不足 3 段时扩展 seg1。返回 (i0, i1, high, low, seg1)。"""
+    if seg1 - seg0 < 2:
+        seg1 = min(seg0 + 2, n_seg - 1)
+    i0 = segments[seg0].i0
+    i1 = segments[seg1].i1
+    seg_slice = segments[seg0 : seg1 + 1]
+    high = max(s.high for s in seg_slice) if seg_slice else 0.0
+    low = min(s.low for s in seg_slice) if seg_slice else 0.0
+    return i0, i1, high, low, seg1
+
+
+def _mark_last_instance_unconfirmed(
+    instances: list[TrendTypeInstance],
+) -> list[TrendTypeInstance]:
+    """最后一个实例标记为未确认（返回新列表）。"""
+    if not instances:
+        return instances
+    last = instances[-1]
+    return instances[:-1] + [TrendTypeInstance(
+        kind=last.kind,
+        direction=last.direction,
+        seg0=last.seg0,
+        seg1=last.seg1,
+        i0=last.i0,
+        i1=last.i1,
+        high=last.high,
+        low=last.low,
+        center_indices=last.center_indices,
+        confirmed=False,
+    )]
+
+
 # ====================================================================
 # 主函数
 # ====================================================================
@@ -248,20 +322,6 @@ def trend_instances_from_centers(
     list[TrendTypeInstance]
         按 seg0 递增排序。最后一个 confirmed=False，其余 True。
         **连续性保证**: instances[i].seg1 == instances[i+1].seg0
-
-    Notes
-    -----
-    算法：
-
-    1. 将 settled 中枢按方向分组（连续同向 → 同一组）
-    2. 每组构建一个走势类型实例：
-       - ≥2 同向中枢 → 趋势对象（kind="trend"）
-       - 1 个中枢 → 盘整对象（kind="consolidation"）
-    3. 分配 segment 边界（首尾相连，完全覆盖）：
-       - 第一个实例：seg0 = 0
-       - 实例之间：边界 = 下一组第一个中枢的 seg0
-       - 最后一个实例：seg1 = len(segments) - 1
-    4. confirmed：最后一个 False，其余 True
     """
     if not segments or not centers:
         return []
@@ -274,93 +334,26 @@ def trend_instances_from_centers(
     instances: list[TrendTypeInstance] = []
 
     for gi, (center_idxs, group_dir) in enumerate(groups):
-        # ── 确定 kind ──
-        if len(center_idxs) >= 2:
-            kind: Literal["trend", "consolidation"] = "trend"
-        else:
-            kind = "consolidation"
-
-        # ── 确定 direction ──
-        if group_dir is not None:
-            direction: Literal["up", "down"] = group_dir
-        else:
-            # 单中枢盘整：取第一段 segment 的方向
-            first_center = centers[center_idxs[0]]
-            if first_center.seg0 < n_seg:
-                direction = segments[first_center.seg0].direction
-            else:
-                direction = "up"  # fallback
-
-        # ── 确定 segment 边界（保证连续性） ──
-        if gi == 0:
-            seg0 = 0
-        else:
-            # 从上一个实例的边界开始 = 本组第一个中枢的 seg0
-            first_center = centers[center_idxs[0]]
-            seg0 = first_center.seg0
-
-        if gi == len(groups) - 1:
-            seg1 = n_seg - 1
-        else:
-            # 到下一组第一个中枢的 seg0（共享边界点）
-            next_first_ci = groups[gi + 1][0][0]
-            seg1 = centers[next_first_ci].seg0
-
-        # 安全边界
-        seg0 = max(0, min(seg0, n_seg - 1))
-        seg1 = max(seg0, min(seg1, n_seg - 1))
-
-        # ── 计算 i0, i1, high, low ──
-        i0 = segments[seg0].i0
-        i1 = segments[seg1].i1
-        seg_slice = segments[seg0 : seg1 + 1]
-        high = max(s.high for s in seg_slice) if seg_slice else 0.0
-        low = min(s.low for s in seg_slice) if seg_slice else 0.0
-
-        # T1: 走势类型至少由三段以上次级别走势类型构成（原文 L173）
-        # 不足 3 段时尝试扩展边界
-        if seg1 - seg0 < 2:
-            # 向右扩展到至少 3 段（如果有空间）
-            seg1 = min(seg0 + 2, n_seg - 1)
-            # 重新计算
-            i1 = segments[seg1].i1
-            seg_slice = segments[seg0 : seg1 + 1]
-            high = max(s.high for s in seg_slice) if seg_slice else 0.0
-            low = min(s.low for s in seg_slice) if seg_slice else 0.0
-
+        kind, direction = _resolve_kind_and_direction(
+            center_idxs, group_dir, centers, segments, n_seg,
+        )
+        seg0, seg1 = _compute_seg_boundaries(
+            gi, center_idxs, centers, groups, n_seg,
+        )
+        i0, i1, high, low, seg1 = _compute_instance_metrics(
+            segments, seg0, seg1, n_seg,
+        )
         instances.append(TrendTypeInstance(
-            kind=kind,
-            direction=direction,
-            seg0=seg0,
-            seg1=seg1,
-            i0=i0,
-            i1=i1,
-            high=high,
-            low=low,
+            kind=kind, direction=direction,
+            seg0=seg0, seg1=seg1,
+            i0=i0, i1=i1,
+            high=high, low=low,
             center_indices=tuple(center_idxs),
             confirmed=True,
         ))
 
-    # 相邻同向趋势对象合并为极大实例，避免 trend(up)+trend(up) 碎片。
     instances = _merge_adjacent_same_direction_trends(instances)
-
-    # ── 最后一个实例 confirmed=False ──
-    if instances:
-        last = instances[-1]
-        instances[-1] = TrendTypeInstance(
-            kind=last.kind,
-            direction=last.direction,
-            seg0=last.seg0,
-            seg1=last.seg1,
-            i0=last.i0,
-            i1=last.i1,
-            high=last.high,
-            low=last.low,
-            center_indices=last.center_indices,
-            confirmed=False,
-        )
-
-    return instances
+    return _mark_last_instance_unconfirmed(instances)
 
 
 # ====================================================================

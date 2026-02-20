@@ -119,28 +119,16 @@ class TFOrchestrator:
                 sid = tf_to_stream_id(symbol=symbol, tf=tf)
                 self._stream_ids[tf] = sid.value
 
-        # MVP-B1: 为每个 TF 创建 SegmentEngine
+        # 为每个 TF 创建四层引擎（Segment → Zhongshu → Move → BSP）
         self._segment_engines: dict[str, SegmentEngine] = {}
-        for tf in self.timeframes:
-            sid = self._stream_ids.get(tf, "")
-            self._segment_engines[tf] = SegmentEngine(stream_id=sid)
-
-        # MVP-C0: 为每个 TF 创建 ZhongshuEngine
         self._zhongshu_engines: dict[str, ZhongshuEngine] = {}
-        for tf in self.timeframes:
-            sid = self._stream_ids.get(tf, "")
-            self._zhongshu_engines[tf] = ZhongshuEngine(stream_id=sid)
-
-        # MVP-D0: 为每个 TF 创建 MoveEngine
         self._move_engines: dict[str, MoveEngine] = {}
-        for tf in self.timeframes:
-            sid = self._stream_ids.get(tf, "")
-            self._move_engines[tf] = MoveEngine(stream_id=sid)
-
-        # MVP-E0: 为每个 TF 创建 BuySellPointEngine
         self._bsp_engines: dict[str, BuySellPointEngine] = {}
         for tf_idx, tf in enumerate(self.timeframes):
             sid = self._stream_ids.get(tf, "")
+            self._segment_engines[tf] = SegmentEngine(stream_id=sid)
+            self._zhongshu_engines[tf] = ZhongshuEngine(stream_id=sid)
+            self._move_engines[tf] = MoveEngine(stream_id=sid)
             self._bsp_engines[tf] = BuySellPointEngine(
                 level_id=tf_idx + 1, stream_id=sid,
             )
@@ -208,6 +196,23 @@ class TFOrchestrator:
         """base TF 的 bar 列表。"""
         return self.base_session.bars
 
+    def _run_pipeline(self, tf: str, snap: BiEngineSnapshot) -> None:
+        """运行四层引擎管线，聚合事件到 snap 并推入 bus。"""
+        seg_snap = self._segment_engines[tf].process_snapshot(snap)
+        zs_snap = self._zhongshu_engines[tf].process_segment_snapshot(seg_snap)
+        move_snap = self._move_engines[tf].process_zhongshu_snapshot(zs_snap)
+        bsp_snap = self._bsp_engines[tf].process_snapshots(
+            move_snap, zs_snap, seg_snap,
+        )
+        # 聚合所有层事件（创建新列表，不修改原始 snap.events 引用）
+        extra = seg_snap.events + zs_snap.events + move_snap.events + bsp_snap.events
+        if extra:
+            snap.events = list(snap.events) + extra
+        self.bus.push(
+            tf, snap.events,
+            stream_id=self._stream_ids.get(tf, ""),
+        )
+
     def step(self, count: int = 1) -> dict[str, list[BiEngineSnapshot]]:
         """步进 base TF count 根 bar。
 
@@ -222,68 +227,25 @@ class TFOrchestrator:
                 break
 
             # 获取当前 base bar 的时间戳（步进前）
-            base_bar_idx = self.base_session.current_idx
-            base_bar = self.base_session.bars[base_bar_idx]
+            base_bar = self.base_session.bars[self.base_session.current_idx]
             base_ts = _dt_to_epoch(base_bar.ts)
 
             # 步进 base TF
             base_snaps = self.base_session.step(1)
             result[self.base_tf].extend(base_snaps)
-            base_sid = self._stream_ids.get(self.base_tf, "")
             for snap in base_snaps:
-                # SegmentEngine: 追加 segment 事件到 snap.events
-                seg_snap = self._segment_engines[self.base_tf].process_snapshot(snap)
-                if seg_snap.events:
-                    snap.events = list(snap.events) + seg_snap.events
-                # ZhongshuEngine: 追加 zhongshu 事件到 snap.events
-                zs_snap = self._zhongshu_engines[self.base_tf].process_segment_snapshot(seg_snap)
-                if zs_snap.events:
-                    snap.events = list(snap.events) + zs_snap.events
-                # MoveEngine: 追加 move 事件到 snap.events
-                move_snap = self._move_engines[self.base_tf].process_zhongshu_snapshot(zs_snap)
-                if move_snap.events:
-                    snap.events = list(snap.events) + move_snap.events
-                # BuySellPointEngine: 追加 bsp 事件到 snap.events
-                bsp_snap = self._bsp_engines[self.base_tf].process_snapshots(
-                    move_snap, zs_snap, seg_snap,
-                )
-                if bsp_snap.events:
-                    snap.events = list(snap.events) + bsp_snap.events
-                self.bus.push(
-                    self.base_tf, snap.events,
-                    stream_id=base_sid,
-                )
+                self._run_pipeline(self.base_tf, snap)
 
             # 检查高 TF 是否需要步进
             for tf in self.timeframes[1:]:
                 sess = self.sessions[tf]
-                tf_sid = self._stream_ids.get(tf, "")
-                # 步进所有 close time ≤ base_ts 的高 TF bar
                 while sess.current_idx < sess.total_bars:
                     next_bar = sess.bars[sess.current_idx]
-                    next_ts = _dt_to_epoch(next_bar.ts)
-                    if next_ts <= base_ts:
+                    if _dt_to_epoch(next_bar.ts) <= base_ts:
                         tf_snaps = sess.step(1)
                         result[tf].extend(tf_snaps)
                         for snap in tf_snaps:
-                            seg_snap = self._segment_engines[tf].process_snapshot(snap)
-                            if seg_snap.events:
-                                snap.events = list(snap.events) + seg_snap.events
-                            zs_snap = self._zhongshu_engines[tf].process_segment_snapshot(seg_snap)
-                            if zs_snap.events:
-                                snap.events = list(snap.events) + zs_snap.events
-                            move_snap = self._move_engines[tf].process_zhongshu_snapshot(zs_snap)
-                            if move_snap.events:
-                                snap.events = list(snap.events) + move_snap.events
-                            bsp_snap = self._bsp_engines[tf].process_snapshots(
-                                move_snap, zs_snap, seg_snap,
-                            )
-                            if bsp_snap.events:
-                                snap.events = list(snap.events) + bsp_snap.events
-                            self.bus.push(
-                                tf, snap.events,
-                                stream_id=tf_sid,
-                            )
+                            self._run_pipeline(tf, snap)
                     else:
                         break
 
@@ -297,15 +259,12 @@ class TFOrchestrator:
         """
         result: dict[str, BiEngineSnapshot | None] = {}
 
-        # 重置所有 SegmentEngine / ZhongshuEngine / MoveEngine（seek 会重置 BiEngine，需同步）
-        for eng in self._segment_engines.values():
-            eng.reset()
-        for eng in self._zhongshu_engines.values():
-            eng.reset()
-        for eng in self._move_engines.values():
-            eng.reset()
-        for eng in self._bsp_engines.values():
-            eng.reset()
+        # 重置所有四层引擎（seek 会重置 BiEngine，需同步）
+        for tf in self.timeframes:
+            self._segment_engines[tf].reset()
+            self._zhongshu_engines[tf].reset()
+            self._move_engines[tf].reset()
+            self._bsp_engines[tf].reset()
 
         # base TF seek
         base_snap = self.base_session.seek(target_idx)

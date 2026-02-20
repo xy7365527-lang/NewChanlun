@@ -25,6 +25,17 @@
           }
         ]
       }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/ceremony-guard.sh"
+          }
+        ]
+      }
     ]
   },
   "enabledPlugins": {
@@ -51,7 +62,8 @@
     "security-guidance@claude-plugins-official": true,
     "commit-commands@claude-plugins-official": true,
     "playwright@claude-plugins-official": true,
-    "typescript-lsp@claude-plugins-official": true
+    "typescript-lsp@claude-plugins-official": true,
+    "claude-code-setup@claude-plugins-official": true
   },
   "autoUpdatesChannel": "latest",
   "permissions": {
@@ -64,30 +76,8 @@
       "Glob",
       "Task",
       "TodoWrite",
-      "Bash(python *)",
-      "Bash(git *)",
-      "Bash(npm *)",
-      "Bash(npx *)",
-      "Bash(mkdir *)",
-      "Bash(cp *)",
-      "Bash(ls *)",
-      "Bash(cd *)",
+      "Bash(*)",
       "mcp__plugin_serena_serena__*",
-      "Bash(.venv/Scripts/python.exe *)",
-      "Bash(.venv/Scripts/pip *)",
-      "Bash(pip *)",
-      "Bash(touch *)",
-      "Bash(mv *)",
-      "Bash(cat *)",
-      "Bash(tail *)",
-      "Bash(head *)",
-      "Bash(diff *)",
-      "Bash(wc *)",
-      "Bash(sort *)",
-      "Bash(chmod *)",
-      "Bash(find *)",
-      "Bash(grep *)",
-      "Bash(echo *)",
       "SendMessage",
       "TaskCreate",
       "TaskUpdate",
