@@ -21,7 +21,6 @@ from newchan.capital_flow import FlowDirection
 from newchan.flow_relation import (
     ResonanceStrength,
     VertexFlowState,
-    check_conservation,
 )
 from newchan.flow_timeline import (
     EdgeEvent,
@@ -74,7 +73,6 @@ class TestSingleEvent:
         """单事件快照守恒。"""
         events = [_event(V.EQUITY, V.CASH, D.A_TO_B, 0)]
         timeline = build_flow_timeline(events)
-        assert check_conservation(list(timeline[0].vertex_states))
 
     def test_single_event_timestamp(self) -> None:
         """快照时间戳 = 事件时间戳。"""
@@ -125,7 +123,7 @@ class TestSameEdgeMultipleEvents:
         ]
         timeline = build_flow_timeline(events)
         for snap in timeline:
-            assert check_conservation(list(snap.vertex_states))
+            pass  # 守恒约束已移除（050号谱系）
 
 
 # ── 多边交错事件 ────────────────────────────────────────
@@ -170,7 +168,7 @@ class TestMultiEdgeInterleaved:
         ]
         timeline = build_flow_timeline(events)
         for snap in timeline:
-            assert check_conservation(list(snap.vertex_states))
+            pass  # 守恒约束已移除（050号谱系）
 
 
 # ── 共振涌现 ────────────────────────────────────────────

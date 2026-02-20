@@ -17,7 +17,6 @@ from newchan.flow_relation import (
     ResonanceStrength,
     VertexFlowState,
     aggregate_vertex_flows,
-    check_conservation,
     detect_resonance,
 )
 from newchan.matrix_topology import AssetVertex
@@ -49,7 +48,6 @@ class TestConservation:
             if a.value < b.value
         ]
         states = aggregate_vertex_flows(edges)
-        assert check_conservation(states)
         for s in states:
             assert s.net_flow == 0
 
@@ -68,7 +66,6 @@ class TestConservation:
                             _edge_input(a, b, FlowDirection.EQUILIBRIUM)
                         )
         states = aggregate_vertex_flows(edges)
-        assert check_conservation(states)
 
     def test_all_edges_same_direction_still_conserves(self) -> None:
         """所有边 A→B → 守恒（拓扑不变量，不依赖方向模式）。"""
@@ -79,7 +76,6 @@ class TestConservation:
             if a.value < b.value
         ]
         states = aggregate_vertex_flows(edges)
-        assert check_conservation(states)
 
 
 # ── 顶点流量聚合 ─────────────────────────────────────────

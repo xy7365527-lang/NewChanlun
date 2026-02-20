@@ -166,15 +166,6 @@ def detect_resonance(
     return states
 
 
-def check_conservation(states: list[VertexFlowState]) -> bool:
-    """检查守恒约束：Σnet(V) = 0。
-
-    这是拓扑不变量——对任何合法输入恒为 True。
-    返回 False 意味着输入或计算有误。
-    """
-    return sum(s.net_flow for s in states) == 0
-
-
 # ====================================================================
 # 现金边信号消歧（026号谱系）
 # ====================================================================

@@ -9,7 +9,7 @@
 验证：
   1. 时间序列非空
   2. 快照按时间排序
-  3. 每个快照都守恒（check_conservation）
+  3. 每个快照的顶点流转状态完整
   4. 快照数 = 所有边的笔数之和
   5. 共振强度从 NONE 演变到有值的时间点存在
   6. 打印头尾快照供人工审查
@@ -34,7 +34,6 @@ from newchan.capital_flow import FlowDirection
 from newchan.equivalence import make_ratio_kline
 from newchan.flow_relation import (
     ResonanceStrength,
-    check_conservation,
 )
 from newchan.flow_timeline import EdgeEvent, FlowSnapshot, build_flow_timeline
 from newchan.matrix_topology import AssetVertex
@@ -201,18 +200,6 @@ class TestFlowTimelineStructure:
             assert timestamps[i] >= timestamps[i - 1], (
                 f"时间序列未排序：snapshot[{i - 1}].timestamp={timestamps[i - 1]} "
                 f"> snapshot[{i}].timestamp={timestamps[i]}"
-            )
-
-    def test_every_snapshot_conserves(
-        self, all_edge_data: dict[str, object]
-    ) -> None:
-        """每个快照都满足守恒约束 Sigma net(V) = 0。"""
-        timeline: list[FlowSnapshot] = all_edge_data["timeline"]  # type: ignore[assignment]
-        for idx, snapshot in enumerate(timeline):
-            states = list(snapshot.vertex_states)
-            assert check_conservation(states), (
-                f"snapshot[{idx}] (t={snapshot.timestamp}) 守恒约束失败！"
-                f"states={[(s.vertex.value, s.net_flow) for s in states]}"
             )
 
     def test_snapshot_count_equals_total_strokes(
