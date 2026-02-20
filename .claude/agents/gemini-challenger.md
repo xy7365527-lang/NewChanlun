@@ -5,7 +5,11 @@ description: >
   通过 MCP/Serena 让 Gemini 自主导航代码库，产出异质否定。
   代理模式：Claude agent 调用 Gemini，提取完整推理链，向团队汇报。
   编排者代理模式：系统遇到"选择"或"语法记录"类决断时，调用 Gemini decide() 自主决策。
-  触发条件：编排者/lead 指定质询目标时，或系统遇到选择/语法记录类决断时。
+  触发条件：(1) challenge 模式——definition-lawyer 提交新定义到 .chanlun/definitions/ 后自动触发；
+  (2) verify 模式——spec/theorems/ 文件变更时自动触发；
+  (3) derive 模式——定理状态变为 settled 时自动触发推论生成；
+  (4) decide 模式——系统遇到选择/语法记录类决断时；
+  (5) 手动——编排者/lead 指定质询目标时。
 tools: ["Read", "Write", "Bash", "Grep", "Glob", "Task", "TaskCreate", "TaskUpdate", "TaskList", "TaskGet", "SendMessage"]
 model: sonnet
 ---

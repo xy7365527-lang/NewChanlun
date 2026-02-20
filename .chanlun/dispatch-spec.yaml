@@ -55,7 +55,22 @@ optional_stations:
   - name: gemini-challenger
     agent: ".claude/agents/gemini-challenger.md"
     purpose: "异质否定源 + 编排者代理（030a/041号谱系）"
-    activation_condition: "定义处于生成态且同质质询已完成 2 轮以上，或系统遇到选择/语法记录类决断"
+    activation_condition:
+      - trigger: "challenge"
+        condition: "definition-lawyer 提交新定义到 .chanlun/definitions/ 后自动触发异质质询"
+        mode: "challenge"
+      - trigger: "verify"
+        condition: "spec/theorems/ 下文件发生变更时自动触发数学验证"
+        mode: "verify"
+      - trigger: "derive"
+        condition: "定理状态变为 settled 时自动触发推论生成"
+        mode: "derive"
+      - trigger: "decide"
+        condition: "系统遇到选择/语法记录类决断时"
+        mode: "decide"
+      - trigger: "manual"
+        condition: "定义处于生成态且同质质询已完成 2 轮以上，由 lead 手动指定质询目标"
+        mode: "challenge"
 
   - name: skill-crystallizer
     agent: ".claude/agents/skill-crystallizer.md"
