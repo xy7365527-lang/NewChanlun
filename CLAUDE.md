@@ -97,19 +97,22 @@ Always respond in Chinese-simplified (简体中文).
 
     **推论**：元编排本身也是 skill 的集合——它和它管理的东西是同质的。编排能力分布式地结晶在 skill 中，按需加载，用完析出。没有一个特权的"最终编排者"位置凌驾于系统之上。见 020号谱系。
 
-### Lead 自主决策原则
+### Lead 自主决策原则（Optimistic Execution）
 
-Lead 在以下情况自主决定，不等编排者：
-- 操作性决策：commit 策略、重构执行、测试修复、文件整理
-- 任务分派和优先级排序
-- 工位 spawn/shutdown
-- 质量问题的修复方案
+Lead 基于 Spec 立即执行，编排者事后审计 + 运行时中断（INTERRUPT）。
 
-Lead 仅在以下情况上浮编排者：
-- 新定义的创建或已结算定义的修改
+Lead 无阻碍执行：
+- 基于 dispatch-spec 的工位 spawn/shutdown
+- 基于 topology 的任务路由（不做优先级排序，由 topology-manager 决定）
+- 语法/编译/Lint 级错误的修复流程启动（分派给 teammates，Lead 不自行执行）
+- quality-guard 通过后的 commit（COMMIT_REQUEST → quality-guard + genealogist 批准 → 执行）
+
+Lead 必须阻断等待：
+- 逻辑/断言级测试失败（可能是概念分离信号，不是纯代码错误）
+- dispatch-spec 未定义的异常情况
+- 修改 CLAUDE.md、核心定义、已结算谱系
 - `negation_form: unclassified` 的否定
-- 根本性架构变更
-- 需要领域知识（缠论理论）的判断
+- 需要缠论领域知识的选择（非定理推导）
 
 ### 知识仓库映射
 元编排中的 `knowledge/` 在本项目中对应：
