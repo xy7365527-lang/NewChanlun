@@ -17,7 +17,7 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Literal
 
 from newchan.a_segment_v0 import Segment
@@ -119,6 +119,91 @@ def _zseg_interval(s1, s3) -> tuple[float, float]:
     return max(s1.low, s3.low), min(s1.high, s3.high)
 
 
+def _update_zseg_stats(
+    gg: float, dd: float, g: float, d: float,
+    seg, direction: str,
+) -> tuple[float, float, float, float]:
+    """若 seg 是 Z走势段（方向一致），更新 GG/DD/G/D 统计量。"""
+    if getattr(seg, "direction", "") != direction:
+        return gg, dd, g, d
+    return (
+        max(gg, seg.high),
+        min(dd, seg.low),
+        min(g, seg.high),
+        max(d, seg.low),
+    )
+
+
+def _build_center(
+    seg0: int, seg1: int, zd: float, zg: float,
+    sustain: int, sustain_m: int, direction: str,
+    gg: float, dd: float, g: float, d: float,
+    segments: list, terminated: bool,
+    term_side: Literal["above", "below", ""],
+) -> Center:
+    """构造 Center，含动态 ZG/ZD 计算。"""
+    all_segs = segments[seg0 : seg1 + 1]
+    return Center(
+        seg0=seg0, seg1=seg1, low=zd, high=zg,
+        kind="settled" if sustain >= sustain_m else "candidate",
+        confirmed=True,
+        sustain=sustain,
+        direction=direction,
+        gg=gg, dd=dd, g=g, d=d,
+        zg_dynamic=min(s.high for s in all_segs),
+        zd_dynamic=max(s.low for s in all_segs),
+        terminated=terminated,
+        termination_side=term_side,
+    )
+
+
+def _extend_center(
+    segments: list, start_j: int, n: int,
+    zd: float, zg: float, direction: str,
+    gg: float, dd: float, g: float, d: float,
+) -> tuple[int, int, float, float, float, float, bool, Literal["above", "below", ""]]:
+    """延伸 + 回抽确认循环。
+
+    Returns (seg1, sustain, gg, dd, g, d, terminated, term_side)。
+    """
+    seg1 = start_j - 1  # 初始 seg1 = i + 2
+    sustain = 0
+    terminated = False
+    term_side: Literal["above", "below", ""] = ""
+
+    j = start_j
+    while j < n:
+        seg_j = segments[j]
+
+        if _has_overlap(zd, zg, seg_j):
+            seg1 = j
+            sustain += 1
+            gg, dd, g, d = _update_zseg_stats(gg, dd, g, d, seg_j, direction)
+            j += 1
+            continue
+
+        # 该段"离开中枢" → 检查回抽
+        if j + 1 < n and _has_overlap(zd, zg, segments[j + 1]):
+            pullback = segments[j + 1]
+            seg1 = j + 1
+            sustain += 2
+            for seg_k in (seg_j, pullback):
+                gg, dd, g, d = _update_zseg_stats(gg, dd, g, d, seg_k, direction)
+            j += 2
+            continue
+
+        # 回抽失败或无后续段 → 中枢破坏
+        if j + 1 < n:
+            terminated = True
+            if seg_j.low >= zg:
+                term_side = "above"
+            elif seg_j.high <= zd:
+                term_side = "below"
+        break
+
+    return seg1, sustain, gg, dd, g, d, terminated, term_side
+
+
 # ====================================================================
 # v0 主函数
 # ====================================================================
@@ -177,8 +262,7 @@ def centers_from_segments_v0(
             i += 1
             continue
 
-        # ── C1: Z走势段方向一致性验证 ──
-        # s1 和 s3 必须方向相同（段交替下自然成立），否则跳过
+        # ── Z走势段方向一致性验证 ──
         s1_dir = getattr(s1, "direction", "")
         s3_dir = getattr(s3, "direction", "")
         if s1_dir and s3_dir and s1_dir != s3_dir:
@@ -188,118 +272,27 @@ def centers_from_segments_v0(
             i += 1
             continue
 
-        # ── ZG/ZD 取 Z走势段（s1 与 s3，方向一致） ──
         zd, zg = _zseg_interval(s1, s3)
-
-        # ── 中枢方向 = Z走势段方向 ──
         direction = getattr(s1, "direction", "")
-
-        # ── 初始 GG/DD/G/D（来自前两个 Z走势段） ──
         gg = max(s1.high, s3.high)
         dd = min(s1.low, s3.low)
-        g = min(s1.high, s3.high)   # 初始时 G == ZG
-        d = max(s1.low, s3.low)     # 初始时 D == ZD
-
-        seg0 = i
-        seg1 = i + 2
-        sustain = 0
-        _terminated = False
-        _term_side: Literal["above", "below", ""] = ""
+        g = min(s1.high, s3.high)
+        d = max(s1.low, s3.low)
 
         # ── B) 延伸 + 回抽确认 ──
-        j = i + 3
-        while j < n:
-            seg_j = segments[j]
-
-            if _has_overlap(zd, zg, seg_j):
-                # 段与 [ZD, ZG] 重叠 → 延伸
-                seg1 = j
-                sustain += 1
-                # 若该段是 Z走势段（与中枢方向一致），更新统计量
-                if getattr(seg_j, "direction", "") == direction:
-                    gg = max(gg, seg_j.high)
-                    dd = min(dd, seg_j.low)
-                    g = min(g, seg_j.high)
-                    d = max(d, seg_j.low)
-                j += 1
-            else:
-                # 该段"离开中枢" → 检查回抽
-                # 理论："一个次级别走势离开走势中枢，
-                #        其后的次级别回抽走势不重新回到该走势中枢内"
-                #        → 中枢才算破坏。
-                if j + 1 < n and _has_overlap(zd, zg, segments[j + 1]):
-                    # 回抽成功 → 中枢未破坏，继续延伸
-                    pullback = segments[j + 1]
-                    seg1 = j + 1
-                    sustain += 2  # exit + pullback 两段都计入中枢生命期
-                    # 更新 Z走势段 统计量
-                    for seg_k in (seg_j, pullback):
-                        if getattr(seg_k, "direction", "") == direction:
-                            gg = max(gg, seg_k.high)
-                            dd = min(dd, seg_k.low)
-                            g = min(g, seg_k.high)
-                            d = max(d, seg_k.low)
-                    j = j + 2
-                    continue
-                else:
-                    # 回抽失败或无后续段 → 中枢破坏
-                    # 判定终结方向
-                    if j + 1 < n:
-                        # 有回抽段但未重返 → 确认终结
-                        _terminated = True
-                        if seg_j.low >= zg:
-                            _term_side = "above"
-                        elif seg_j.high <= zd:
-                            _term_side = "below"
-                    # j + 1 >= n: 无后续数据，不能确认终结
-                    break
-
-        kind: Literal["candidate", "settled"] = (
-            "settled" if sustain >= sustain_m else "candidate"
+        seg1, sustain, gg, dd, g, d, terminated, term_side = _extend_center(
+            segments, i + 3, n, zd, zg, direction, gg, dd, g, d,
         )
+        seg1 = max(seg1, i + 2)  # 至少包含初始三段
 
-        # C2: 动态 ZG/ZD = 所有构筑中枢的段的重叠部分
-        all_segs = segments[seg0 : seg1 + 1]
-        zg_dyn = min(s.high for s in all_segs)
-        zd_dyn = max(s.low for s in all_segs)
-
-        centers.append(Center(
-            seg0=seg0,
-            seg1=seg1,
-            low=zd,
-            high=zg,
-            kind=kind,
-            confirmed=True,
-            sustain=sustain,
-            direction=direction,
-            gg=gg,
-            dd=dd,
-            g=g,
-            d=d,
-            zg_dynamic=zg_dyn,
-            zd_dynamic=zd_dyn,
-            terminated=_terminated,
-            termination_side=_term_side,
+        centers.append(_build_center(
+            i, seg1, zd, zg, sustain, sustain_m, direction,
+            gg, dd, g, d, segments, terminated, term_side,
         ))
-
-        # 推进到中枢终点之后
         i = seg1 + 1
 
     # ── C) 最后一个中枢 confirmed=False ──
     if centers:
-        last = centers[-1]
-        centers[-1] = Center(
-            seg0=last.seg0, seg1=last.seg1,
-            low=last.low, high=last.high,
-            kind=last.kind, confirmed=False,
-            sustain=last.sustain,
-            direction=last.direction,
-            gg=last.gg, dd=last.dd,
-            g=last.g, d=last.d,
-            zg_dynamic=last.zg_dynamic,
-            zd_dynamic=last.zd_dynamic,
-            terminated=last.terminated,
-            termination_side=last.termination_side,
-        )
+        centers[-1] = replace(centers[-1], confirmed=False)
 
     return centers
