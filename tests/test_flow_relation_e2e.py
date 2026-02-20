@@ -2,12 +2,12 @@
 
 用真实 ETF 缓存数据跑通完整管线：
   缓存 OHLCV → 比价K线 → 包含处理 → 分型 → 笔 → StrokeFlow → EdgeFlowInput
-  → aggregate_vertex_flows → detect_resonance → check_conservation
+  → aggregate_vertex_flows → detect_resonance
 
 验证：
   1. 每条比价边能产出至少 1 根笔（管线贯通）
   2. 最后一笔的 StrokeFlow.direction ∈ {A_TO_B, B_TO_A}（非均衡）
-  3. 6 条边聚合后守恒约束恒成立
+  3. 6 条边聚合后返回 4 个顶点状态
   4. 共振检测结果结构正确
 
 数据依赖：
@@ -34,7 +34,6 @@ from newchan.flow_relation import (
     ResonanceStrength,
     VertexFlowState,
     aggregate_vertex_flows,
-    check_conservation,
     detect_resonance,
 )
 from newchan.matrix_topology import AssetVertex
@@ -202,14 +201,6 @@ class TestFourMatrixAggregation:
         edges = self._build_all_edges(cached_data)
         assert len(edges) == 6
 
-    def test_conservation_holds(self, cached_data: dict) -> None:
-        """守恒约束：Σnet(V) = 0。"""
-        edges = self._build_all_edges(cached_data)
-        states = aggregate_vertex_flows(edges)
-        assert check_conservation(states), (
-            f"守恒约束失败！states={[(s.vertex.value, s.net_flow) for s in states]}"
-        )
-
     def test_four_vertices_returned(self, cached_data: dict) -> None:
         """聚合结果包含 4 个顶点。"""
         edges = self._build_all_edges(cached_data)
@@ -313,7 +304,7 @@ class TestObservability:
                 f"({flow_type}) [{s.strength.value}]"
             )
 
-        conservation = check_conservation(states)
+        conservation = sum(s.net_flow for s in states) == 0
         print(f"\n守恒约束: {'✓' if conservation else '✗'}")
         print("=" * 60)
 

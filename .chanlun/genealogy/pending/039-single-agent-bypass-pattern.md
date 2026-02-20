@@ -1,6 +1,6 @@
 # 039 — 单 agent 绕过模式与 dispatch-spec 偏差分析
 
-status: 生成态
+status: 待决（G6 选择未结算）
 type: meta-rule
 provenance: "[新缠论]"
 date: 2026-02-20
