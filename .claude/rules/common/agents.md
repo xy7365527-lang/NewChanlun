@@ -12,7 +12,7 @@ Located in `~/.claude/agents/`:
 | code-reviewer | Code review | After writing code |
 | security-reviewer | Security analysis | Before commits |
 | build-error-resolver | Fix build errors | When build fails |
-| e2e-runner | E2E testing | Critical user flows |
+| python-reviewer | Python code review | After writing Python code |
 | refactor-cleaner | Dead code cleanup | Code maintenance |
 | doc-updater | Documentation | Updating docs |
 
@@ -20,7 +20,7 @@ Located in `~/.claude/agents/`:
 
 No user prompt needed:
 1. Complex feature requests - Use **planner** agent
-2. Code just written/modified - Use **code-reviewer** agent
+2. Code just written/modified - Use **code-reviewer** + **python-reviewer** agents
 3. Bug fix or new feature - Use **tdd-guide** agent
 4. Architectural decision - Use **architect** agent
 
