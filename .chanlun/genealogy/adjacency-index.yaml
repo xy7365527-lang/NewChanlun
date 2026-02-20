@@ -1,6 +1,6 @@
 # 谱系邻接索引 — 紧凑格式
 # 最后更新: 2026-02-20
-# 总节点数: 48 (settled: 44, pending: 3, scan-report: 1)
+# 总节点数: 49 (settled: 45, pending: 3, scan-report: 1)
 # 格式: 每个节点列出 derives_from(D) 和 relates_to(R) 的目标编号
 # Hub节点（入度+出度 >= 5）标记 [hub]
 
@@ -132,7 +132,7 @@ nodes:
     sibling: 005a
     out_D: [005a, 003, 006, 010]
     in_D: [013, 016, 019b, 019d, 020, 023, 024]
-    in_R: [015]
+    in_R: [015, 041]
 
   "006":
     name: level-recursion
@@ -223,7 +223,7 @@ nodes:
     status: settled
     out_D: [010, 005b, 012]
     in_D: [021]
-    in_R: [027, 033]
+    in_R: [027, 033, 041]
 
   "019":
     name: loop-breakpoint-coverage
@@ -270,7 +270,7 @@ nodes:
     status: settled
     out_D: [012, 013, 019d, 005b, 015]
     in_D: [020a, 021, 022, 032]
-    in_R: [033, 035, 036]
+    in_R: [033, 035, 036, 041]
 
   "020a":
     name: unified-ontology-statement
@@ -333,7 +333,7 @@ nodes:
     name: ceremony-default-action
     status: settled
     out_D: [016, 027, 019c]
-    in_D: []
+    in_D: [041]
     in_R: [029]
 
   "029":
@@ -354,7 +354,7 @@ nodes:
     name: gemini-position
     status: settled
     out_D: [030, 005, 031]
-    in_D: []
+    in_D: [041]
     in_R: [029, 031]
 
   "031":
@@ -368,7 +368,7 @@ nodes:
     name: divine-madness-lead-self-restriction
     status: settled
     out_D: [016, 020, 030a, 013]
-    in_D: [033, 036]
+    in_D: [033, 036, 041]
     in_R: [034]
 
   "033":
@@ -421,7 +421,7 @@ nodes:
     negation_form: expansion
     negation_source: meta-observer
     out_D: []
-    in_D: []
+    in_D: [041]
     in_R: [016, 033, 038]
     in_I: []
     note: "038 的详细分析输入，meta-observer 产出。缺口清单 G6-G10 待结算。"
@@ -435,6 +435,16 @@ nodes:
     in_D: []
     in_R: [005, 030, 031, 032]
     note: "ritual-writer 产出。negation_type 分裂为 negation_source + negation_form。"
+
+  "041":
+    name: orchestrator-proxy
+    status: settled
+    negation_form: expansion
+    negation_source: heterogeneous
+    out_D: [030a, 032, 028, 039]
+    out_R: [018, 005b, 020]
+    in_D: []
+    in_R: []
 
 # ── 无效引用记录（来自 scan-report-2026-02-20）──
 # 全部 4 处已在上一轮 /ritual 中修正，此段保留作为历史记录

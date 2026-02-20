@@ -1,26 +1,24 @@
-"""Gemini 异质质询工位
+"""Gemini 异质质询工位 + 编排者代理
 
-结构性工位：用 Gemini 3 Pro 对缠论形式化产出提供异质否定。
-Gemini 的理解方式与 Claude 根本不同，因此可能产出 Claude 自身
-永远产出不了的否定。
+结构性工位：用 Gemini 3 Pro 对缠论形式化产出提供异质否定，
+并在编排者代理模式下为系统提供自主决策能力。
 
-两种模式：
-- 纯文本模式：challenge() / verify() — 传入文本，返回质询结果
-- MCP 工具模式：challenge_with_tools() / verify_with_tools()
-  — Gemini 通过 MCP 协议访问 Serena 语义工具（find_symbol、
-    get_symbols_overview、find_referencing_symbols 等），
-    自主导航代码库后再质询。google-genai SDK 的
-    automatic_function_calling 自动处理 agentic loop。
+三种模式：
+- challenge() / verify() — 异质否定质询（030a）
+- decide() — 编排者代理决策（041）：当系统遇到"选择"类决断时，
+  Gemini 代替人类编排者做出决策。人类编排者从同步决策者变为
+  异步审计者（事后审查 + 运行时 INTERRUPT）。
+
+纯文本 / MCP 工具两种调用方式均支持。
 
 操作规则（SKILL.md）：
-1. Lead 或指定 agent 调用 challenge() / verify()
-2. 返回结果由调用者判断否定是否成立
-3. 成立 → 正常矛盾流程（写谱系、走质询循环）
-4. 不成立 → 记录为外部工具误判，不进入谱系
+1. challenge/verify：异质否定，产出进谱系或记录误判
+2. decide：编排者代理，产出决策 + 推理链，系统据此自主推进
+3. 人类编排者保留 INTERRUPT 权（可随时覆盖 Gemini 决策）
 
-本体论位置：030a（生成态）— 不属于成员/工具任何一个已有范畴。
+本体论位置：030a（异质否定源）+ 041（编排者代理）
 
-概念溯源: [新缠论] — 异质模型质询
+概念溯源: [新缠论] — 异质模型质询 + 编排者代理
 """
 
 from __future__ import annotations
@@ -41,8 +39,10 @@ __all__ = [
     "ChallengeResult",
     "challenge",
     "verify",
+    "decide",
     "achallenge",
     "averify",
+    "adecide",
 ]
 
 _MODEL = "gemini-3-pro-preview"
@@ -125,12 +125,96 @@ _VERIFY_TEMPLATE = """\
 - **隐藏假设**：如果有
 """
 
+_ORCHESTRATOR_SYSTEM_PROMPT = """\
+你是缠论形式化项目的编排者代理。人类编排者将决策权委托给你，\
+你代替人类做出"选择"类和"语法记录"类决断。
+
+## 四分法（你的决策框架）
+
+系统产出分为四类，你只处理后两类：
+- 定理：已结算原则的逻辑必然推论 → Claude 自动结算，不到你这里
+- 行动：不携带信息差的操作性事件 → Claude 自动执行，不到你这里
+- **选择**：多种合理方案，需价值判断 → **你来决断**
+- **语法记录**：已在运作但未显式化的规则 → **你来辨认**
+
+## 决策原则
+
+1. 概念优先于代码。定义不清楚时不写代码。
+2. 不绕过矛盾。矛盾是系统最有价值的产出。
+3. 对象否定对象。不允许超时、阈值、或非对象来源的否定。
+4. 级别 = 递归层级，禁止用时间周期替代。
+5. 谱系优先于汇总。先写谱系再汇总。
+6. 溯源标签必须标注：[旧缠论] / [旧缠论:隐含] / [旧缠论:选择] / [新缠论]
+
+## 输出要求
+
+你的决策必须包含：
+1. **决策**：明确的选择（不允许"都可以"或"看情况"）
+2. **推理链**：你为什么选这个而不选那个
+3. **边界条件**：在什么条件下你的决策应该被推翻
+4. **风险**：这个决策可能带来什么问题
+
+人类编排者保留 INTERRUPT 权——可以随时覆盖你的决策。\
+你的决策被覆盖不是错误，是系统正常运作。
+"""
+
+_ORCHESTRATOR_SYSTEM_PROMPT_WITH_TOOLS = """\
+你是缠论形式化项目的编排者代理，拥有代码库的语义级访问能力。
+
+你可以使用工具来理解代码结构和关系，然后做出决策。
+
+## 四分法（你的决策框架）
+
+- 定理 / 行动 → 不到你这里（Claude 自行处理）
+- **选择**：多种合理方案，需价值判断 → **你来决断**
+- **语法记录**：已在运作但未显式化的规则 → **你来辨认**
+
+## 决策原则
+
+1. 概念优先于代码
+2. 不绕过矛盾
+3. 对象否定对象（不允许超时/阈值否定）
+4. 级别 = 递归层级
+5. 谱系优先于汇总
+6. 溯源标签必须标注
+
+## 输出要求
+
+1. **决策**：明确选择
+2. **推理链**：为什么选这个
+3. **边界条件**：何时应推翻
+4. **风险**：可能的问题
+
+引用具体代码位置支撑你的判断。
+"""
+
+_DECIDE_TEMPLATE = """\
+## 决策请求
+
+{subject}
+
+## 上下文
+
+{context}
+
+## 要求
+
+你是编排者代理。请做出明确决策。
+
+输出格式：
+- **决策**：[你的选择]
+- **推理链**：[为什么]
+- **边界条件**：[何时应推翻此决策]
+- **风险**：[可能的问题]
+- **溯源**：[旧缠论] / [旧缠论:隐含] / [旧缠论:选择] / [新缠论]
+"""
+
 
 @dataclass(frozen=True, slots=True)
 class ChallengeResult:
     """质询结果。"""
 
-    mode: Literal["challenge", "verify"]
+    mode: Literal["challenge", "verify", "decide"]
     subject: str
     response: str
     model: str
@@ -167,6 +251,7 @@ class GeminiChallenger:
         self,
         prompt: str,
         temperature: float,
+        system_prompt: str = _SYSTEM_PROMPT,
     ) -> tuple[str, str]:
         """调用 Gemini API，主模型 503 时自动降级到 fallback。
 
@@ -178,7 +263,7 @@ class GeminiChallenger:
                     model=model,
                     contents=prompt,
                     config=genai.types.GenerateContentConfig(
-                        system_instruction=_SYSTEM_PROMPT,
+                        system_instruction=system_prompt,
                         temperature=temperature,
                     ),
                 )
@@ -241,6 +326,31 @@ class GeminiChallenger:
             model=model_used,
         )
 
+    def decide(self, subject: str, context: str = "") -> ChallengeResult:
+        """编排者代理决策（纯文本模式）。
+
+        Parameters
+        ----------
+        subject : str
+            决策请求（选择类或语法记录类）。
+        context : str
+            相关上下文信息。
+
+        Returns
+        -------
+        ChallengeResult
+        """
+        prompt = _DECIDE_TEMPLATE.format(subject=subject, context=context)
+        text, model_used = self._call_with_fallback(
+            prompt, temperature=0.2, system_prompt=_ORCHESTRATOR_SYSTEM_PROMPT,
+        )
+        return ChallengeResult(
+            mode="decide",
+            subject=subject,
+            response=text,
+            model=model_used,
+        )
+
     # ── MCP 工具模式（async） ──
 
     async def _call_with_tools_and_fallback(
@@ -249,6 +359,7 @@ class GeminiChallenger:
         temperature: float,
         session: object,  # mcp.client.session.ClientSession
         max_tool_calls: int = 20,
+        system_prompt: str = _SYSTEM_PROMPT_WITH_TOOLS,
     ) -> tuple[str, str, tuple[str, ...], tuple[dict, ...]]:
         """Gemini + MCP 自动 function calling 循环。
 
@@ -264,7 +375,7 @@ class GeminiChallenger:
                     model=model,
                     contents=prompt,
                     config=genai_types.GenerateContentConfig(
-                        system_instruction=_SYSTEM_PROMPT_WITH_TOOLS,
+                        system_instruction=system_prompt,
                         temperature=temperature,
                         tools=[session],
                         automatic_function_calling=genai_types.AutomaticFunctionCallingConfig(
@@ -424,6 +535,57 @@ class GeminiChallenger:
             reasoning_chain=chain,
         )
 
+    async def decide_with_tools(
+        self,
+        subject: str,
+        context: str = "",
+        *,
+        session: object | None = None,
+        max_tool_calls: int = 20,
+    ) -> ChallengeResult:
+        """MCP 工具增强编排者决策。Gemini 可自主导航代码库。
+
+        Parameters
+        ----------
+        subject : str
+            决策请求。
+        context : str
+            额外上下文。
+        session : mcp ClientSession | None
+            MCP 会话。None 时自动连接 Serena。
+        max_tool_calls : int
+            最大工具调用次数。
+        """
+        prompt = _DECIDE_TEMPLATE.format(subject=subject, context=context)
+        if session is not None:
+            text, model_used, calls, chain = await self._call_with_tools_and_fallback(
+                prompt, 0.2, session, max_tool_calls,
+                system_prompt=_ORCHESTRATOR_SYSTEM_PROMPT_WITH_TOOLS,
+            )
+            return ChallengeResult(
+                mode="decide",
+                subject=subject,
+                response=text,
+                model=model_used,
+                tool_calls=calls,
+                reasoning_chain=chain,
+            )
+        from newchan.mcp_bridge import SerenaConfig, mcp_session
+
+        async with mcp_session(SerenaConfig()) as sess:
+            text, model_used, calls, chain = await self._call_with_tools_and_fallback(
+                prompt, 0.2, sess, max_tool_calls,
+                system_prompt=_ORCHESTRATOR_SYSTEM_PROMPT_WITH_TOOLS,
+            )
+        return ChallengeResult(
+            mode="decide",
+            subject=subject,
+            response=text,
+            model=model_used,
+            tool_calls=calls,
+            reasoning_chain=chain,
+        )
+
 
 # ── 模块级便捷函数 ──
 
@@ -471,6 +633,23 @@ async def averify(
     )
 
 
+def decide(subject: str, context: str = "") -> ChallengeResult:
+    """模块级编排者代理决策（纯文本模式）。"""
+    return _get_challenger().decide(subject, context)
+
+
+async def adecide(
+    subject: str,
+    context: str = "",
+    *,
+    max_tool_calls: int = 20,
+) -> ChallengeResult:
+    """模块级 MCP 工具增强决策（async，自动连接 Serena）。"""
+    return await _get_challenger().decide_with_tools(
+        subject, context, max_tool_calls=max_tool_calls,
+    )
+
+
 # ── CLI 入口 ──
 
 if __name__ == "__main__":
@@ -484,7 +663,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Gemini 质询工位 CLI")
     parser.add_argument(
         "mode",
-        choices=["challenge", "verify"],
+        choices=["challenge", "verify", "decide"],
         help="质询模式",
     )
     parser.add_argument(
@@ -537,6 +716,10 @@ if __name__ == "__main__":
                 return await challenger.challenge_with_tools(
                     args.subject, ctx, max_tool_calls=args.max_tool_calls,
                 )
+            if args.mode == "decide":
+                return await challenger.decide_with_tools(
+                    args.subject, ctx, max_tool_calls=args.max_tool_calls,
+                )
             return await challenger.verify_with_tools(
                 args.subject, ctx, max_tool_calls=args.max_tool_calls,
             )
@@ -546,6 +729,8 @@ if __name__ == "__main__":
         # 纯文本模式（sync）
         if args.mode == "challenge":
             result = challenger.challenge(args.subject, ctx)
+        elif args.mode == "decide":
+            result = challenger.decide(args.subject, ctx)
         else:
             result = challenger.verify(args.subject, ctx)
 
