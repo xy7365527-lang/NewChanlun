@@ -83,7 +83,7 @@ Always respond in Chinese-simplified (简体中文).
    - **语法记录**：已在实践中运作但尚未显式化的规则 → 路由到 Gemini 编排者代理。辨认结果写入谱系。辨认不是在多条路之间选，而是把暗处运作的规则写进语法书。语法记录不创造规则，语法记录让规则从隐性变为可质询。
    - **行动**（l'acte）：不携带信息差的操作性事件（版本升级、状态迁移、发布里程碑）→ 自动执行，无需编排者审查。见 `.chanlun/genealogy/settled/018-four-way-classification.md`。
    仪式门控适用于选择和语法记录，不适用于定理和行动。
-7. **ceremony 是持续执行授权，不是一次性启动。** ceremony 建立目标后自主推进所有可推进工作。commit/push 后，下一个输出**必须**是 `→ 接下来：[具体动作]`，紧跟 tool 调用。不允许出现总结段落或等待信号。只在概念矛盾（`/escalate`）、缺外部数据、或不可逆定义变更时才停。详见 `.claude/rules/post-commit-flow.md`。
+7. **ceremony 是 Swarm₀（第0层递归），不是蜂群的前置阶段。** ceremony 加载初始区分后直接递归进入下一层工作。commit/push 后，下一个输出**必须**是 `→ 接下来：[具体动作]`，紧跟 tool 调用。不允许出现总结段落或等待信号。只在概念矛盾（`/escalate`）、缺外部数据、或不可逆定义变更时才停。"选择"类决断路由 Gemini（041号），不推给人类。详见 `.claude/rules/post-commit-flow.md`、058号谱系。
 8. **对象否定对象。** [新缠论] 体系中一个对象被否定的唯一来源是内在否定或外部对象生成。不允许超时、阈值、或非对象来源的否定。这是走势描述语言的**语法规则**——"anchor因超时消失"不是为假的走势描述，是语法上不合法的走势描述。见 `.chanlun/genealogy/settled/005a-prohibition-theorem.md`（定理半）和 `.chanlun/genealogy/settled/005b-object-negates-object-grammar.md`（语法规则）。
 9. **热启动保障蜂群持续自动化。** 当上下文压缩（compact）发生时，通过 session 记录和 ceremony 恢复蜂群状态，确保自动化不因上下文截断而中断。蜂群是持续运行的，不是单次启动。
 10. **蜂群是默认工作模式，不是可选优化。** 每个工作节点必须先评估可并行的独立工位数（≥2 即拉蜂群）。蜂群在整个会话中持续运作：完成一轮并行后，汇总结果，再评估下一轮可并行工位，循环至任务完成。单线程顺序执行只在任务间有严格依赖时才允许。
@@ -102,22 +102,24 @@ Always respond in Chinese-simplified (简体中文).
     Gemini 不可用时，写入 pending 等待人类（降级，不阻塞）。
     见 `.chanlun/genealogy/settled/041-orchestrator-proxy.md`。
 
-### Lead 自主决策原则（Optimistic Execution）
+### 递归节点默认行为（058号谱系）
 
-Lead 基于 Spec 立即执行，编排者事后审计 + 运行时中断（INTERRUPT）。
+当前执行节点基于 Spec 立即执行，编排者事后审计 + 运行时中断（INTERRUPT）。
+"Lead"不是固定实体——当前节点相对于其子节点是 Lead，相对于父节点是 Worker。
 
-Lead 无阻碍执行：
+无阻碍执行（默认递归）：
 - 基于 dispatch-spec 的工位 spawn/shutdown
 - 基于 topology 的任务路由（不做优先级排序，由 topology-manager 决定）
-- 语法/编译/Lint 级错误的修复流程启动（分派给 teammates，Lead 不自行执行）
+- 语法/编译/Lint 级错误的修复流程启动（分派给 teammates，当前节点不自行执行）
 - quality-guard 通过后的 commit（COMMIT_REQUEST → quality-guard + genealogist 批准 → 执行）
+- "选择"类决断路由 Gemini decide 模式（041号），不推给人类
 
-Lead 必须阻断等待：
+必须阻断等待（020号反转条件）：
 - 逻辑/断言级测试失败（可能是概念分离信号，不是纯代码错误）
 - dispatch-spec 未定义的异常情况
 - 修改 CLAUDE.md、核心定义、已结算谱系
 - `negation_form: unclassified` 的否定
-- 需要缠论领域知识的选择（非定理推导）
+- 需要缠论领域知识的选择（非定理推导，且 Gemini 无法决断时）
 
 ### 知识仓库映射
 元编排中的 `knowledge/` 在本项目中对应：
@@ -149,7 +151,7 @@ Lead 必须阻断等待：
 **设计原则**：一个 agent 一件事。Lead 只路由不认知。复杂度通过 agent 数量扩展。
 
 ### 可用命令
-- `/ceremony` — 系统扩张/收缩的相位转换节点（会话开始时执行）
+- `/ceremony` — Swarm₀：加载初始区分，直接递归进入工作（058号谱系）
 - `/inquire` — 四步质询序列
 - `/escalate` — 矛盾上浮
 - `/ritual` — 定义广播仪式（覆盖域层+元层，019c）

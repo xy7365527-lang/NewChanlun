@@ -14,10 +14,10 @@ cd "$cwd" 2>/dev/null || true
 
 # ─── ceremony 相位标记 ───
 # 创建 ceremony-in-progress 标记，由 ceremony-completion-guard (Stop hook) 检查
-# ceremony 的 enter-swarm-loop 步骤完成后删除此标记
+# 057号谱系：flag 由框架自动管理（stop-guard 第二次 block 时自动清除）
 mkdir -p .chanlun 2>/dev/null || true
 touch .chanlun/.ceremony-in-progress
-rm -f .chanlun/.ceremony-stop-counter 2>/dev/null || true
+rm -f .chanlun/.stop-guard-counter .chanlun/.ceremony-blocked-once 2>/dev/null || true
 
 # ─── 安全 JSON 输出 ───
 # 用 python json.dumps 保证转义正确，避免裸拼接导致畸形 JSON

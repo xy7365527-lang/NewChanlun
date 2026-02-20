@@ -19,7 +19,6 @@ entities:
     version: null
     status: null
     last_updated: null
-    implementation_status: complete
     necessary_conditions:
       - 具有时间戳 ts、开盘价 open、最高价 high、最低价 low、收盘价 close
       - high >= low
@@ -52,7 +51,6 @@ entities:
     version: v1.3
     status: 已结算
     last_updated: 2026-02-16
-    implementation_status: complete
     necessary_conditions:
       - "包含判定(原文§四.一): 一K线的高低点全在另一K线的范围里"
       - "即 (h1 >= h2 AND l1 <= l2) OR (h2 >= h1 AND l2 <= l1)"
@@ -90,7 +88,6 @@ entities:
     version: v1.0
     status: 已结算
     last_updated: 2026-02-15
-    implementation_status: complete
     necessary_conditions:
       - "输入必须是包含处理后的 MergedBar 序列"
       - "顶分型(原文§五.一): K[i].high > K[i-1].high AND K[i].high > K[i+1].high AND K[i].low > K[i-1].low AND K[i].low > K[i+1].low"
@@ -128,7 +125,6 @@ entities:
     version: v1.4
     status: 已结算
     last_updated: 2026-02-16
-    implementation_status: complete
     necessary_conditions:
       - "两个相邻的顶和底之间构成一笔(原文§六.一)"
       - "上升笔: 底分型 + 上升K线 + 顶分型"
@@ -173,7 +169,6 @@ entities:
     version: v1.3
     status: 已结算
     last_updated: 2026-02-16
-    implementation_status: complete
     necessary_conditions:
       - "至少由三笔组成(原文§七.一)"
       - "前三笔必须有重叠部分(原文§七.一)"
@@ -222,7 +217,6 @@ entities:
     version: v1.3
     status: 已结算
     last_updated: 2026-02-16
-    implementation_status: complete
     necessary_conditions:
       - "某级别走势类型中, 被至少三个连续次级别走势类型所重叠的部分(原文§八.一)"
       - "三段全部重叠: max(s1.low, s2.low, s3.low) < min(s1.high, s2.high, s3.high)"
@@ -270,7 +264,6 @@ entities:
     version: v1.6
     status: 已结算
     last_updated: 2026-02-17
-    implementation_status: complete
     necessary_conditions:
       - "盘整(原文§九.一): 某完成的走势类型只包含一个走势中枢"
       - "趋势(原文§九.一): 某完成的走势类型至少包含两个以上依次同向的走势中枢"
@@ -316,7 +309,6 @@ entities:
     version: v1.0
     status: 已结算
     last_updated: 2026-02-17
-    implementation_status: partial
     necessary_conditions:
       - "级别 = 递归层级 (level_id), 从1分钟K线为底座无限向上递归构造(原文§三.一)"
       - "级别的自组性: 自同构性结构自组出级别(原文§三.一)"
@@ -358,7 +350,6 @@ entities:
     version: v1.1
     status: 已结算
     last_updated: 2026-02-17
-    implementation_status: complete
     necessary_conditions:
       - "趋势背驰(原文§动力学四.一): 趋势力度比上一次趋势力度弱(力竭)"
       - "趋势中至少两个同级别走势中枢, 背驰不会发生在第一个走势中枢之后"
@@ -402,7 +393,6 @@ entities:
     version: v1.0
     status: 已结算
     last_updated: 2026-02-17
-    implementation_status: stub  # maimai.md 明确记录: 买卖点模块尚未实现(0%代码覆盖)
     necessary_conditions:
       - "所有买卖点都必然对应着与该级别最靠近的一个走势中枢的关系(原文§操作四.二)"
       - "第一类买点(原文§操作四.一): 某级别下跌趋势中, 一个次级别走势类型向下跌破最后一个走势中枢后形成的背驰点"
@@ -457,7 +447,6 @@ entities:
     version: null
     status: null
     last_updated: null
-    implementation_status: complete
     necessary_conditions:
       - "根据背驰段从高级别向低级别逐级寻找背驰点的方法(原文§操作六.一)"
       - "精确大转折点寻找程序定理: 某大级别的转折点, 可以通过不同级别背驰段的逐级收缩范围而确定(原文§操作六.一)"
@@ -497,7 +486,6 @@ entities:
     version: v1.0
     status: 已结算
     last_updated: 2026-02-18
-    implementation_status: implemented
     necessary_conditions:
       - "两个标的A、B有对齐的同周期OHLCV序列"
       - "B的价格序列不为零"
@@ -533,7 +521,6 @@ entities:
     version: v1.1
     status: 已结算
     last_updated: 2026-02-18
-    implementation_status: implemented
     necessary_conditions:
       - "可比性: 两个标的有重叠的交易时间窗口"
       - "非退化: A/B比价不是常数（三层退化连锁检测）"
@@ -572,7 +559,6 @@ entities:
     version: v1.0
     status: 已结算
     last_updated: 2026-02-18
-    implementation_status: partial  # 基础设施(FlowDirection/StrokeFlow)已有, 顶点聚合+共振检测待完善
     necessary_conditions:
       - "四矩阵拓扑: 4顶点(动产/不动产/商品/现金)构成K₄完全图, 6条边"
       - "边方向: 每条边上比价走势当前笔的FlowDirection"
