@@ -6,7 +6,7 @@
 **结算日期**: 2026-02-19
 **negation_type**: heterogeneous
 **前置**: 030-baseline-verification-runtime
-**关联**: 005-object-negation-principle, 029-negation-formal-types, 031-move-range-semantics
+**关联**: 005-object-negation-principle, 029-move-c-segment-coverage, 031-move-range-semantics
 
 ## 矛盾描述
 

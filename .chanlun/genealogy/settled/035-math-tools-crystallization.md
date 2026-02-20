@@ -1,4 +1,4 @@
-# 026 数学工具结晶：从 PDF 到 skill 的压缩
+# 035 数学工具结晶：从 PDF 到 skill 的压缩
 
 - **状态**: 已结算
 - **日期**: 2026-02-18
@@ -46,8 +46,8 @@
 
 - 前置: 023-equivalence-relation-formalization（等价关系是数学工具的锚点）
 - 前置: 025-equivalence-demotion-to-screening（L2流转关系需要数学工具支撑）
-- 关联: 011-knowledge-crystallization（结晶原则的具体实例）
-- 关联: 020-system-pulsation（skill 是知识维度的结晶）
+- 关联: 020a-unified-ontology-statement（结晶原则的具体实例）
+- 关联: 020-constitutive-contradiction（skill 是知识维度的结晶）
 
 ## 结算条件
 
