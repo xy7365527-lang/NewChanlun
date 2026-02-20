@@ -6,6 +6,8 @@ provenance: "[新缠论]"
 date: 2026-02-20
 version: v1.0
 observer: meta-observer
+negation_form: expansion
+negation_source: meta-observer（016 模式在 spec 层的膨胀：规则→执行→路由→spec 执行，每层约束一个维度后问题转移到下一维度）
 
 ## 触发事件
 
