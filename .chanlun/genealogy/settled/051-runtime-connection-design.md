@@ -1,7 +1,9 @@
 # 051 — 运行时连接设计：元编排/结晶/谱系三者自生长回路
 
-**类型**: 选择
-**状态**: 生成态
+**类型**: 定理（四分法复核：从选择重分类）
+**状态**: 已结算
+**结算日期**: 2026-02-20
+**结算方式**: 四分法复核——A/C 被已结算原则消除，B 是逻辑唯一解
 **日期**: 2026-02-20
 **提案者**: architect 工位
 **前置**: 043-self-growth-loop, 049-unified-orchestration-protocol
@@ -254,17 +256,35 @@ skill-crystallizer 完成
 
 ---
 
-## 四、结论（待编排者决策）
+## 四、结算记录（v6 session 四分法复核）
 
-这是**选择**类产出。三个方案各有取舍，需要编排者价值判断：
+原分类为"选择"，四分法复核重分类为"定理"：
 
-- 如果优先**最小侵入 + 与现有文件系统总线风格一致** → 方案 B
-- 如果优先**可观测性 + 明确的执行路径** → 方案 A
-- 如果优先**完整性 + 路由表作为单一 truth source** → 方案 C
+### 消除推导
 
-**架构工位倾向**：方案 B 与 meta-lead.md 中已有的"文件系统作为消息总线"模式完全一致，
-引入最少新概念，且 genealogist 已是结构工位（扩展职责比新增执行层更符合现有架构）。
-但最终决策权在编排者。
+| 方案 | 消除依据 | 已结算原则 |
+|------|----------|-----------|
+| C | 修改所有 agent 定义 = spec 层强制 | 039号："016 模式在 spec 层的复现通过环境层（hook 网络）而非 spec 层解决" |
+| A | 引入 event_bus.py 轮询 = 第二套运行时 | 042号：hook 网络是运行时层，不应引入竞争性运行时机制 |
+| B | 唯一剩余 | 042号（文件系统通信模式）+ 039号（环境层优先）均支持 |
+
+### 断裂 A 的重新评估
+
+断裂 A（router.py 不执行）不是真正的断裂。042号确立 hook 是运行时层，router.py 作为纯函数参考工具库是 by-design。路由表的价值在于声明性文档和 match_event() 查询，不在于自动执行。
+
+### 边界条件验证
+
+方案 B 的前提"genealogist 在 session 中被唤起"已由 dispatch-spec 保证：genealogist 是 mandatory structural station（can_be_skipped: false）。
+
+### 已结算原则
+
+**方案 B（Pull 模型）是唯一符合已结算原则的运行时连接方案。** 实现路径：修改 genealogist.md + meta-lead.md + dispatch-spec.yaml。
+
+### 下游行动（行动类，可直接执行）
+
+1. 修改 genealogist.md：增加 pattern-buffer 扫描职责
+2. 修改 meta-lead.md：ceremony 增加 scan-new-skills 步骤
+3. 修改 dispatch-spec.yaml：更新 genealogist purpose + ceremony sequence
 
 ---
 
