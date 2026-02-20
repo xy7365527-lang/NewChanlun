@@ -1,6 +1,6 @@
 # 谱系邻接索引 — 紧凑格式
 # 最后更新: 2026-02-20
-# 总节点数: 50 (settled: 46, pending: 3, scan-report: 1)
+# 总节点数: 51 (settled: 47, pending: 3, scan-report: 1)
 # 格式: 每个节点列出 derives_from(D) 和 relates_to(R) 的目标编号
 # Hub节点（入度+出度 >= 5）标记 [hub]
 
@@ -21,24 +21,28 @@ hub_nodes:
     role: 域概念簇与元编排簇的桥接器
   - id: 016
     name: runtime-enforcement-layer
-    degree: 16
+    degree: 17
     role: 编排约束链起点
   - id: 013
     name: swarm-structural-stations
-    degree: 12
+    degree: 13
     role: 蜂群结构框架
+  - id: 020
+    name: constitutive-contradiction
+    degree: 13
+    role: 元编排本体论
   - id: 010
     name: construction-vs-classification
     degree: 11
     role: 域概念簇核心
-  - id: 020
-    name: constitutive-contradiction
-    degree: 11
-    role: 元编排本体论
   - id: 012
     name: genealogy-is-discovery-engine
-    degree: 10
+    degree: 11
     role: 元编排簇核心
+  - id: 033
+    name: declarative-dispatch-spec
+    degree: 10
+    role: 约束链范式转换点
   - id: 006
     name: level-recursion
     degree: 9
@@ -47,10 +51,6 @@ hub_nodes:
     name: equivalence-relation-formalization
     degree: 8
     role: 形式化簇中心
-  - id: 033
-    name: declarative-dispatch-spec
-    degree: 9
-    role: 约束链范式转换点
   - id: 032
     name: divine-madness-lead-self-restriction
     degree: 8
@@ -79,9 +79,9 @@ clusters:
     hubs: []
     description: 结晶与偏差修正
   runtime_convergence:
-    range: "039-042"
+    range: "039-043"
     hubs: []
-    description: 运行时强制收敛（绕过修复→编排者代理→hook网络）
+    description: 运行时强制收敛（绕过修复→编排者代理→hook网络→自生长回路）
 
 # ── 节点邻接表 ──
 nodes:
@@ -185,14 +185,14 @@ nodes:
     status: settled
     out_D: [007, 008, 009, 010]
     in_D: [013, 014, 015, 017, 018, 019, 019b, 019c, 020]
-    in_R: []
+    in_R: [043]
 
   "013":
     name: swarm-structural-stations
     status: settled
     out_D: [012, 005b]
     in_D: [014, 016, 017, 019, 020, 021, 030, 032]
-    in_R: [037]
+    in_R: [037, 043]
 
   "014":
     name: skill-card-deck-decomposition
@@ -212,7 +212,7 @@ nodes:
     name: runtime-enforcement-layer
     status: settled
     out_D: [005b, 015, 013]
-    in_D: [017, 019, 019c, 021, 028, 032, 033, 034, 036, 042]
+    in_D: [017, 019, 019c, 021, 028, 032, 033, 034, 036, 042, 043]
     in_R: [038]
 
   "017":
@@ -273,7 +273,7 @@ nodes:
     name: constitutive-contradiction
     status: settled
     out_D: [012, 013, 019d, 005b, 015]
-    in_D: [020a, 021, 022, 032]
+    in_D: [020a, 021, 022, 032, 043]
     in_R: [033, 035, 036, 041]
 
   "020a":
@@ -380,7 +380,7 @@ nodes:
     status: settled
     out_D: [032, 016, 005a, 020, 018]
     in_D: [034, 036, 037]
-    in_R: [038, 042]
+    in_R: [038, 042, 043]
 
   "034":
     name: tool-declaration-vs-capability
@@ -447,7 +447,7 @@ nodes:
     negation_source: heterogeneous
     out_D: [030a, 032, 028, 039]
     out_R: [018, 005b, 020]
-    in_D: [042]
+    in_D: [042, 043]
     in_R: []
 
   "042":
@@ -457,6 +457,16 @@ nodes:
     negation_source: heterogeneous
     out_D: [016, 028, 037, 041]
     out_R: [033, 027, 005b]
+    in_D: [043]
+    in_R: []
+
+  "043":
+    name: self-growth-loop
+    status: settled
+    negation_form: expansion
+    negation_source: heterogeneous
+    out_D: [020, 042, 041, 016]
+    out_R: [012, 013, 033]
     in_D: []
     in_R: []
 

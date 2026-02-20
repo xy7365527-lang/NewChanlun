@@ -1,0 +1,13 @@
+# 模式缓冲区——谱系的生成态前置
+# 043号谱系：自生长回路
+version: "1.0"
+patterns: []
+# pattern 格式：
+# - id: "pattern-hash"
+#   signature: ["action1", "action2", ...]  # 行为指纹
+#   description: "..."
+#   frequency: 1
+#   first_seen: "2026-02-20T..."
+#   last_seen: "2026-02-20T..."
+#   sources: ["session-id-1"]
+#   status: "pending"  # pending -> promoted -> rejected
