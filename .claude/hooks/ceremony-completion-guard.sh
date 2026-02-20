@@ -228,4 +228,11 @@ fi
 
 # ─── 全部检查通过：允许停止 ───
 rm -f "$COUNTER" 2>/dev/null || true
+python -c "
+import json
+print(json.dumps({
+    'decision': 'allow',
+    'reason': ''
+}, ensure_ascii=False))
+"
 exit 0
