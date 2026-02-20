@@ -1,11 +1,12 @@
 #!/bin/bash
 # Stop Hook — 通用停机阻断（Universal Stop-Guard）
 # 048号谱系：从 044号（ceremony 专用）泛化为全场景覆盖
+# 069号更新：废弃 ceremony 计数器状态机，改用显式状态检测
 #
 # 触发：Stop 事件（agent 即将结束 turn）
 # 逻辑：
-#   1. ceremony 进行中 → 阻止 + 注入"继续 ceremony 剩余步骤"
-#   2. 蜂群任务队列非空 → 阻止 + 注入具体路由（idle 工位/全运行中/待分配）
+#   1. 检测"有活干但没人在干"的死寂状态 → 注入强指令启动蜂群
+#   2. 蜂群任务队列非空 → 阻止 + 注入具体路由
 #   3. 谱系有生成态矛盾 → 阻止 + 注入具体文件名和四分法指令
 #   4. @proof-required 标签未验证 → 阻止 + 路由到 Gemini 数学验证
 #   5. 以上均无 → 放行
@@ -13,14 +14,6 @@
 # 熔断机制：
 #   - 连续阻止 >= 5 次且无状态变更 → 允许停止
 #   - 用户 INTERRUPT → 允许停止
-#
-# 扫描优先级（注入指令时使用）：
-#   1. ceremony 剩余步骤
-#   2. 未完成的蜂群任务（idle 工位分配/全运行中同步处理/待分配启动）
-#   3. 生成态谱系矛盾（具体文件 + 四分法路由）
-#   4. @proof-required 标签（路由 Gemini 数学验证）
-#   5. 失败的测试
-#   6. 代码质量扫描（大函数、TODO）
 
 set -euo pipefail
 
@@ -29,7 +22,6 @@ cwd=$(echo "$input" | python -c "import sys,json; print(json.loads(sys.stdin.rea
 cd "$cwd" 2>/dev/null || true
 
 COUNTER=".chanlun/.stop-guard-counter"
-CEREMONY_MARKER=".chanlun/.ceremony-in-progress"
 
 # ─── 熔断检查 ───
 COUNT=0
@@ -39,7 +31,7 @@ if [ -f "$COUNTER" ]; then
 fi
 
 if [ "$COUNT" -ge 5 ]; then
-    rm -f "$COUNTER" "$CEREMONY_MARKER" ".chanlun/.ceremony-blocked-once" 2>/dev/null || true
+    rm -f "$COUNTER" 2>/dev/null || true
     python -c "
 import json
 print(json.dumps({
@@ -50,29 +42,54 @@ print(json.dumps({
     exit 0
 fi
 
-# ─── 检查 1：ceremony 进行中 ───
-# 057号谱系：LLM 不是状态机。flag 由框架自动管理，agent 不执行 rm。
-# 第一次 block → 设 blocked-once 标记（ceremony 报告已输出）
-# 第二次 → agent 已继续工作至少一轮 → 自动清除 flag，继续检查 2-4
-CEREMONY_BLOCKED=".chanlun/.ceremony-blocked-once"
-if [ -f "$CEREMONY_MARKER" ]; then
-    if [ -f "$CEREMONY_BLOCKED" ]; then
-        # 第二次到达：agent 已做过至少一轮工作，自动清除 ceremony 状态
-        rm -f "$CEREMONY_MARKER" "$CEREMONY_BLOCKED" 2>/dev/null || true
-        # 不 exit，继续检查 2-4（蜂群任务/谱系/proof）
-    else
-        # 第一次到达：ceremony 报告刚输出，阻止并标记
-        touch "$CEREMONY_BLOCKED"
-        echo $((COUNT + 1)) > "$COUNTER"
-        python -c "
-import json
+# ─── 检查 1：069号下游推论或 session 中断点有未执行的工作 ───
+# 检测"有活干但没人在干"：session 记录有下一轮方向，但没有活跃蜂群
+HAS_PENDING_WORK=0
+WORK_DESCRIPTION=""
+
+# 检查最新 session 的下一轮方向
+LATEST_SESSION=$(ls -t .chanlun/sessions/20*-session.md 2>/dev/null | head -1)
+if [ -n "$LATEST_SESSION" ]; then
+    # 检查是否有"下一轮方向"或"下一轮 Blocker"章节
+    if grep -q "## 下一轮" "$LATEST_SESSION" 2>/dev/null; then
+        # 检查是否有活跃的蜂群（team 目录存在）
+        ACTIVE_TEAMS=$(ls -d "$HOME/.claude/teams"/*/ 2>/dev/null | wc -l)
+        if [ "$ACTIVE_TEAMS" -eq 0 ]; then
+            # 有工作但没有蜂群在跑
+            WORK_DESCRIPTION=$(python -c "
+import sys
+with open(sys.argv[1], 'r', encoding='utf-8') as f:
+    lines = f.readlines()
+in_next = False
+items = []
+for line in lines:
+    if line.startswith('## 下一轮'):
+        in_next = True
+        continue
+    if in_next and line.startswith('## '):
+        break
+    if in_next and line.strip().startswith(('-', '*', '1', '2', '3', '4', '5')):
+        items.append(line.strip().lstrip('-*0123456789. '))
+print(' | '.join(items[:5]))
+" "$LATEST_SESSION" 2>/dev/null || echo "")
+            if [ -n "$WORK_DESCRIPTION" ]; then
+                HAS_PENDING_WORK=1
+            fi
+        fi
+    fi
+fi
+
+if [ "$HAS_PENDING_WORK" -gt 0 ]; then
+    echo $((COUNT + 1)) > "$COUNTER"
+    python -c "
+import json, sys
+work = sys.argv[1]
 print(json.dumps({
     'decision': 'block',
-    'reason': '[Stop-Guard] ceremony 进行中，不允许停止。继续执行 ceremony 剩余步骤并启动蜂群循环。'
+    'reason': f'[Stop-Guard] 检测到死寂状态：有待推进工作但无活跃蜂群。立即评估并行工位数，拉取递归拓扑蜂群。待推进: {work}'
 }, ensure_ascii=False))
-"
-        exit 0
-    fi
+" "$WORK_DESCRIPTION"
+    exit 0
 fi
 
 # ─── 检查 2：蜂群任务队列 ───
