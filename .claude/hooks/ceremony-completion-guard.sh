@@ -39,7 +39,7 @@ if [ -f "$COUNTER" ]; then
 fi
 
 if [ "$COUNT" -ge 5 ]; then
-    rm -f "$COUNTER" "$CEREMONY_MARKER" 2>/dev/null || true
+    rm -f "$COUNTER" "$CEREMONY_MARKER" ".chanlun/.ceremony-blocked-once" 2>/dev/null || true
     python -c "
 import json
 print(json.dumps({
@@ -51,16 +51,28 @@ print(json.dumps({
 fi
 
 # ─── 检查 1：ceremony 进行中 ───
+# 057号谱系：LLM 不是状态机。flag 由框架自动管理，agent 不执行 rm。
+# 第一次 block → 设 blocked-once 标记（ceremony 报告已输出）
+# 第二次 → agent 已继续工作至少一轮 → 自动清除 flag，继续检查 2-4
+CEREMONY_BLOCKED=".chanlun/.ceremony-blocked-once"
 if [ -f "$CEREMONY_MARKER" ]; then
-    echo $((COUNT + 1)) > "$COUNTER"
-    python -c "
+    if [ -f "$CEREMONY_BLOCKED" ]; then
+        # 第二次到达：agent 已做过至少一轮工作，自动清除 ceremony 状态
+        rm -f "$CEREMONY_MARKER" "$CEREMONY_BLOCKED" 2>/dev/null || true
+        # 不 exit，继续检查 2-4（蜂群任务/谱系/proof）
+    else
+        # 第一次到达：ceremony 报告刚输出，阻止并标记
+        touch "$CEREMONY_BLOCKED"
+        echo $((COUNT + 1)) > "$COUNTER"
+        python -c "
 import json
 print(json.dumps({
     'decision': 'block',
-    'reason': '[Stop-Guard] ceremony 进行中，不允许停止。继续执行 ceremony 剩余步骤。完成后执行: rm .chanlun/.ceremony-in-progress'
+    'reason': '[Stop-Guard] ceremony 进行中，不允许停止。继续执行 ceremony 剩余步骤并启动蜂群循环。'
 }, ensure_ascii=False))
 "
-    exit 0
+        exit 0
+    fi
 fi
 
 # ─── 检查 2：蜂群任务队列 ───
