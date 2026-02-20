@@ -8,19 +8,21 @@
 #
 # 修改路径：/ritual 仪式门控（与 definitions 同级）
 # 修改提案者：meta-observer
-# 版本：v1.0
+# 版本：v1.2
 
-version: "1.0"
+version: "1.2"
 provenance: "[新缠论]"
 genealogy_ref: "033-declarative-dispatch-spec"
 
+# --- G10: structural_stations 增加 tools_required 字段 ---
 structural_stations:
   - name: genealogist
     agent: ".claude/agents/genealogist.md"
-    purpose: "谱系写入、张力检查、回溯扫描"
+    purpose: "谱系写入、张力检查、回溯扫描、结晶检测与执行"  # G5: 增加结晶职责
     spawn_phase: "post-definition-load"
     mandatory: true
     can_be_skipped: false
+    tools_required: ["Read", "Write", "Grep", "Glob", "Task", "TaskCreate", "TaskUpdate", "TaskList", "TaskGet", "SendMessage"]
 
   - name: quality-guard
     agent: ".claude/agents/quality-guard.md"
@@ -28,6 +30,7 @@ structural_stations:
     spawn_phase: "post-definition-load"
     mandatory: true
     can_be_skipped: false
+    tools_required: ["Read", "Write", "Grep", "Glob", "Task", "TaskCreate", "TaskUpdate", "TaskList", "TaskGet", "SendMessage"]
 
   - name: meta-observer
     agent: ".claude/agents/meta-observer.md"
@@ -35,6 +38,39 @@ structural_stations:
     spawn_phase: "post-definition-load"
     mandatory: true
     can_be_skipped: false
+    tools_required: ["Read", "Write", "Grep", "Glob", "Task", "TaskCreate", "TaskUpdate", "TaskList", "TaskGet", "SendMessage"]
+
+# --- G1: optional_stations（按需激活的结构工位） ---
+optional_stations:
+  - name: source-auditor
+    agent: ".claude/agents/source-auditor.md"
+    purpose: "溯源标签验证、引用准确性检查"
+    activation_condition: "session 涉及外部文献引用或 PDF 加载"
+
+  - name: topology-manager
+    agent: ".claude/agents/topology-manager.md"
+    purpose: "谱系拓扑分析、hub 节点监控、链路健康检查"
+    activation_condition: "谱系总数 > 30 或 pending 谱系 > 5"
+
+  - name: gemini-challenger
+    agent: ".claude/agents/gemini-challenger.md"
+    purpose: "异质否定源代理（030a号谱系）"
+    activation_condition: "定义处于生成态且同质质询已完成 2 轮以上"
+
+# --- 037: recursive_spawning（递归蜂群分形结构） ---
+recursive_spawning:
+  enabled: true
+  genealogy_ref: "037-recursive-swarm-fractal"
+  rules:
+    - "任何 teammate 面对 ≥1 个可分解子任务时，可 spawn 子 teammates"
+    - "子 teammates 加入同一 team（team_name 参数）"
+    - "子 teammates 使用 bypassPermissions 模式"
+    - "子 teammates 继承完整的 spawn 能力——可以继续 spawn 子子 teammates（无限递归）"
+    - "递归深度无人为限制，由 topology-manager 的背驰+分型信号自然终止"
+    - "G8 递归适用：任何层级的子任务都不豁免蜂群"
+    - "父 teammate 对子 teammates 负路由责任（收汇报、汇总结果）"
+  visibility: "所有 teammates（含任意深度的子 teammates）在同一 task list 中可见"
+  cost_control: "topology-manager 监控总 teammate 数量，通过背驰+分型信号判断收缩时机（非固定阈值）"
 
 task_stations:
   derivation: "session.interruption_points + CLAUDE.md.objectives"
@@ -43,6 +79,7 @@ task_stations:
     - "每个独立中断点 = 一个工位（并行默认）"
     - "有数据依赖的中断点 = 串行链"
     - "Lead 不自行执行任务，只分派和汇总"
+    - "无简单任务豁免——≥1 个任务即拉蜂群（bias-single-agent-bypass）"  # G8
 
 ceremony_sequence:
   cold_start:
@@ -61,10 +98,13 @@ ceremony_sequence:
       validation: "spawn 数量 == structural_stations.length"
     - step: "spawn-task"
       action: "按 task_stations.rules 从中断点派生任务工位"
+      depends_on: "spawn-structural"  # G7/G9: 显式前置条件
     - step: "divine-madness"
       action: "Lead 自我权限剥夺（032号谱系）"
+      depends_on: "spawn-structural, spawn-task"  # G7/G9: 依赖所有 spawn 完成
     - step: "enter-swarm-loop"
       action: "直接进入蜂群循环，不等待确认"
+      depends_on: "divine-madness"
 
   warm_start:
     - step: "locate-session"
@@ -84,10 +124,13 @@ ceremony_sequence:
       validation: "spawn 数量 == structural_stations.length"
     - step: "spawn-task"
       action: "按 task_stations.rules 从中断点派生任务工位"
+      depends_on: "spawn-structural"  # G7/G9
     - step: "divine-madness"
       action: "Lead 自我权限剥夺（032号谱系）"
+      depends_on: "spawn-structural, spawn-task"  # G7/G9
     - step: "enter-swarm-loop"
       action: "直接进入蜂群循环，不等待确认"
+      depends_on: "divine-madness"
 
 validation:
   post_ceremony:
@@ -100,3 +143,32 @@ validation:
     - check: "task_stations_derived"
       condition: "至少从中断点派生了一个任务工位（除非中断点为空）"
       on_fail: "警告——可能遗漏工作"
+    # G2: crystallization_check
+    - check: "crystallization_check"
+      condition: "genealogist 的结晶检测已执行（扫描近期谱系的背驰+分型信号）"
+      on_fail: "警告——可能遗漏结晶时机"
+    # G6: 构成性矛盾记录（不修 spec，注释记录）
+    # 注意：meta-observer 自身是 dispatch-spec 的修改提案者，同时也是 dispatch-spec 的执行监控者。
+    # 这是构成性矛盾（020号谱系）：观察者与被观察系统不可分离。
+    # 处置：接受为系统的构成性特征，meta-observer 持续监控此矛盾的表现。
+
+  # G4: post_commit_flow 引用
+  post_commit:
+    ref: ".claude/skills/meta-orchestration/references/post-commit-flow.md"
+    description: "commit 后执行的标准流程（session 写入、谱系更新检查）"
+
+# G3: axis_report 模板定义
+axis_report:
+  template:
+    sections:
+      - "定义基底状态（新增/修改/删除）"
+      - "谱系状态（pending 数量、近期结算、结晶信号）"
+      - "蜂群工位状态（各工位进度摘要）"
+      - "中断点消化进度"
+      - "下一步行动建议"
+    constraints:
+      - "每个 section 不超过 3 行"
+      - "只报告变化，不重复已知信息"
+  frequency: "每蜂群循环结束"
+  producer: "Lead"
+  consumers: "所有工位（通过 broadcast 或 session 文件）"

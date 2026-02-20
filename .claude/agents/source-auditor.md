@@ -3,7 +3,7 @@ name: source-auditor
 description: >
   源头审计工位（结构工位，按需激活）。负责概念溯源标注和原文考古。
   触发条件：新增定义需要溯源、原文依据存疑、权威链冲突。
-tools: ["Read", "Write", "Grep", "Glob"]
+tools: ["Read", "Write", "Grep", "Glob", "Task", "TaskCreate", "TaskUpdate", "TaskList", "TaskGet", "SendMessage"]
 model: opus
 ---
 

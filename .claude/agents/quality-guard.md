@@ -3,7 +3,7 @@ name: quality-guard
 description: >
   质量守卫工位（结构工位，常设）。检查结果包六要素、谱系引用、代码违规。
   触发条件：每次产出前。扫描代码中违反已结算原则的模式。
-tools: ["Read", "Write", "Grep", "Glob"]
+tools: ["Read", "Write", "Grep", "Glob", "Task", "TaskCreate", "TaskUpdate", "TaskList", "TaskGet", "SendMessage"]
 model: opus
 ---
 

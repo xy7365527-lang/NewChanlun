@@ -3,7 +3,7 @@ name: meta-observer
 description: >
   元规则观测工位（结构工位，常设）。监控元编排自身的进化。
   触发条件：发现方法论洞察、谱系产出元知识、工作流需要改进。
-tools: ["Read", "Write", "Grep", "Glob"]
+tools: ["Read", "Write", "Grep", "Glob", "Task", "TaskCreate", "TaskUpdate", "TaskList", "TaskGet", "SendMessage"]
 model: opus
 ---
 
