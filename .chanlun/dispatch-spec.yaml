@@ -36,7 +36,7 @@ genealogical_coordinates:
   topology-manager:
     origin: "019d-tension-depth-limit"
     domain: "拓扑分析"
-    negation_source: "背驰+分型信号（内在否定）"
+    negation_source: "区间套收敛信号（内在否定）"
   gemini-challenger:
     origin: "030a-heterogeneous-negation, 041-orchestrator-proxy"
     domain: "异质否定"
@@ -145,11 +145,11 @@ recursive_spawning:
     - "子 teammates 加入同一 team（team_name 参数）"
     - "子 teammates 使用 bypassPermissions 模式"
     - "子 teammates 继承完整的 spawn 能力——可以继续 spawn 子子 teammates（无限递归）"
-    - "递归深度无人为限制，由 topology-manager 的背驰+分型信号自然终止"
+    - "递归深度无人为限制，由 topology-manager 的区间套收敛信号自然终止"
     - "G8 递归适用：任何层级的子任务都不豁免蜂群"
     - "父 teammate 对子 teammates 负路由责任（收汇报、汇总结果）"
   visibility: "所有 teammates（含任意深度的子 teammates）在同一 task list 中可见"
-  cost_control: "topology-manager 监控总 teammate 数量，通过背驰+分型信号判断收缩时机（非固定阈值）"
+  cost_control: "topology-manager 监控总 teammate 数量，通过区间套收敛信号判断收缩时机（非固定阈值）"
 
 task_stations:
   derivation: "session.interruption_points + CLAUDE.md.objectives"
@@ -169,96 +169,95 @@ task_stations:
 #   ceremony 是 Swarm₀，不是前置阶段。
 #   无中间输出——静默扫描→内部推导→递归或终止。
 #   中间报告触发 LLM 对话让步惯性（027号同构）。
-#   唯一合法输出点：phase_3 的行动声明或终止声明。
+#   唯一合法输出点：recurse 节点的行动声明或 terminate_condition。
+#   DAG 拓扑取代线性 phase——depends_on: [] 的节点自动并行。
 ceremony_sequence:
   cold_start:
-    phase_1_scan:
-      description: "并行静默读取，不产出任何面向用户的输出"
-      parallel: true
-      steps:
-        - id: "scan-definitions"
-          action: "扫描 .chanlun/definitions/*.md 版本和状态"
-        - id: "scan-genealogy"
-          action: "扫描 .chanlun/genealogy/{pending,settled}/ 统计"
-        - id: "scan-methodology"
-          action: "读取 CLAUDE.md + dispatch-spec.yaml"
-        - id: "scan-skills"
-          action: "扫描 .chanlun/manifest.yaml skill 时间戳"
-          genealogy_ref: "051-runtime-connection-design"
-    phase_2_derive:
-      description: "内部计算，不产出面向用户的输出"
-      steps:
-        - id: "derive-work"
-          action: "从目标+谱系状态+代码库扫描推导任务工位"
-          scan_sources:
-            - "CLAUDE.md 目标"
-            - "pending 谱系（生成态矛盾）"
-            - "测试失败（新增 vs pre-existing）"
-            - "谱系下游行动未执行（spec-execution gap）"
-            - "pattern-buffer 达标模式"
-          no_work_fallback: "扫描 TODO/覆盖率/spec合规/谱系张力，产出至少一个工位"
-        - id: "derive-structural"
-          action: "确定需要 spawn 的结构工位（mandatory 全部 spawn）"
-    phase_3_recurse:
-      description: "唯一输出点——行动声明或终止声明"
-      steps:
-        - id: "spawn-all"
-          action: "并行 spawn 结构工位+任务工位"
-          validation: "spawn 数量 >= structural_stations(mandatory).length"
-        - id: "divine-madness"
-          action: "Lead 权限剥夺（032号谱系）"
-          depends_on: "spawn-all"
-        - id: "recurse"
-          action: "输出 '→ 接下来：[action]' 紧跟 tool 调用"
-          depends_on: "divine-madness"
-      terminate_condition:
-        trigger: "derive-work 扫描全部来源后仍无工位可派生"
-        action: "输出 '[020号反转] 无新区分可产出——系统干净终止' → 停止"
-        note: "这是唯一合法的 ceremony 终止路径"
+    output_policy: "仅 recurse 节点或 terminate_condition 产出面向用户的输出"
+    nodes:
+      - id: "scan-definitions"
+        action: "扫描 .chanlun/definitions/*.md 版本和状态"
+        depends_on: []
+      - id: "scan-genealogy"
+        action: "扫描 .chanlun/genealogy/{pending,settled}/ 统计"
+        depends_on: []
+      - id: "scan-methodology"
+        action: "读取 CLAUDE.md + dispatch-spec.yaml"
+        depends_on: []
+      - id: "scan-skills"
+        action: "扫描 .chanlun/manifest.yaml skill 时间戳"
+        depends_on: []
+        genealogy_ref: "051-runtime-connection-design"
+      - id: "derive-work"
+        action: "从目标+谱系状态+代码库扫描推导任务工位"
+        depends_on: ["scan-definitions", "scan-genealogy", "scan-methodology", "scan-skills"]
+        scan_sources:
+          - "CLAUDE.md 目标"
+          - "pending 谱系（生成态矛盾）"
+          - "测试失败（新增 vs pre-existing）"
+          - "谱系下游行动未执行（spec-execution gap）"
+          - "pattern-buffer 达标模式"
+        no_work_fallback: "扫描 TODO/覆盖率/spec合规/谱系张力，产出至少一个工位"
+      - id: "derive-structural"
+        action: "确定需要 spawn 的结构工位（mandatory 全部 spawn）"
+        depends_on: ["derive-work"]
+      - id: "spawn-all"
+        action: "并行 spawn 结构工位+任务工位"
+        depends_on: ["derive-structural"]
+        validation: "spawn 数量 >= structural_stations(mandatory).length"
+      - id: "divine-madness"
+        action: "Lead 权限剥夺（032号谱系）"
+        depends_on: ["spawn-all"]
+      - id: "recurse"
+        action: "输出 '→ 接下来：[action]' 紧跟 tool 调用"
+        depends_on: ["divine-madness"]
+    terminate_condition:
+      trigger: "derive-work 扫描全部来源后仍无工位可派生"
+      action: "输出 '[020号反转] 无新区分可产出——系统干净终止' → 停止"
+      note: "这是唯一合法的 ceremony 终止路径"
 
   warm_start:
-    phase_1_scan:
-      description: "并行静默读取，不产出面向用户的输出"
-      parallel: true
-      steps:
-        - id: "locate-session"
-          action: "定位最新 .chanlun/sessions/*.md"
-        - id: "scan-definitions"
-          action: "扫描当前 definitions/ 版本"
-        - id: "scan-genealogy"
-          action: "扫描当前 genealogy/ 状态"
-    phase_2_derive:
-      description: "内部计算，不产出面向用户的输出"
-      steps:
-        - id: "version-diff"
-          action: "对比 session vs 当前定义版本（内部，不输出报告）"
-        - id: "genealogy-diff"
-          action: "对比 session vs 当前谱系状态（内部，不输出报告）"
-        - id: "derive-work"
-          action: "从中断点+差异+代码库扫描推导任务工位"
-          scan_sources:
-            - "session 中断点"
-            - "version-diff 中的升级/新增项"
-            - "genealogy-diff 中的新 pending"
-            - "测试失败（新增 vs pre-existing）"
-            - "谱系下游行动未执行（spec-execution gap）"
-            - "pattern-buffer 达标模式"
-          no_work_fallback: "扫描 TODO/覆盖率/spec合规/谱系张力，产出至少一个工位"
-    phase_3_recurse:
-      description: "唯一输出点——行动声明或终止声明（同 cold_start）"
-      steps:
-        - id: "spawn-all"
-          action: "并行 spawn 结构工位+任务工位"
-          validation: "spawn 数量 >= structural_stations(mandatory).length"
-        - id: "divine-madness"
-          action: "Lead 权限剥夺（032号谱系）"
-          depends_on: "spawn-all"
-        - id: "recurse"
-          action: "输出 '→ 接下来：[action]' 紧跟 tool 调用"
-          depends_on: "divine-madness"
-      terminate_condition:
-        trigger: "derive-work 扫描全部来源后仍无工位可派生"
-        action: "输出 '[020号反转] 无新区分可产出——系统干净终止' → 停止"
+    output_policy: "仅 recurse 节点或 terminate_condition 产出面向用户的输出"
+    nodes:
+      - id: "locate-session"
+        action: "定位最新 .chanlun/sessions/*.md"
+        depends_on: []
+      - id: "scan-definitions"
+        action: "扫描当前 definitions/ 版本"
+        depends_on: []
+      - id: "scan-genealogy"
+        action: "扫描当前 genealogy/ 状态"
+        depends_on: []
+      - id: "version-diff"
+        action: "对比 session vs 当前定义版本（内部，不输出报告）"
+        depends_on: ["locate-session", "scan-definitions"]
+      - id: "genealogy-diff"
+        action: "对比 session vs 当前谱系状态（内部，不输出报告）"
+        depends_on: ["locate-session", "scan-genealogy"]
+      - id: "derive-work"
+        action: "从中断点+差异+代码库扫描推导任务工位"
+        depends_on: ["version-diff", "genealogy-diff"]
+        scan_sources:
+          - "session 中断点"
+          - "version-diff 中的升级/新增项"
+          - "genealogy-diff 中的新 pending"
+          - "测试失败（新增 vs pre-existing）"
+          - "谱系下游行动未执行（spec-execution gap）"
+          - "pattern-buffer 达标模式"
+        no_work_fallback: "扫描 TODO/覆盖率/spec合规/谱系张力，产出至少一个工位"
+      - id: "spawn-all"
+        action: "并行 spawn 结构工位+任务工位"
+        depends_on: ["derive-work"]
+        validation: "spawn 数量 >= structural_stations(mandatory).length"
+      - id: "divine-madness"
+        action: "Lead 权限剥夺（032号谱系）"
+        depends_on: ["spawn-all"]
+      - id: "recurse"
+        action: "输出 '→ 接下来：[action]' 紧跟 tool 调用"
+        depends_on: ["divine-madness"]
+    terminate_condition:
+      trigger: "derive-work 扫描全部来源后仍无工位可派生"
+      action: "输出 '[020号反转] 无新区分可产出——系统干净终止' → 停止"
 
 validation:
   post_ceremony:

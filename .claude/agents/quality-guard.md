@@ -16,6 +16,7 @@ model: opus
 | 1 | **结果包检查** | 验证产出是否包含六要素（或简化版三要素） |
 | 2 | **代码违规扫描** | 检查代码是否违反已结算定义/原则 |
 | 3 | **谱系引用检查** | 确认涉及概念分离领域的产出引用了对应谱系 |
+| 4 | **文件系统结构检查** | 验证谱系/定义/配置/钩子文件的格式与一致性 |
 
 ## 文件系统产出
 
@@ -31,6 +32,10 @@ model: opus
 |--------|-----------|
 | `.chanlun/definitions/*.md` | 检查定义依据是否引用最新版本 |
 | `.chanlun/genealogy/settled/` | 核查谱系引用是否充分 |
+| `.chanlun/genealogy/pending/` | 检查谱系文件格式 |
+| `.chanlun/dispatch-spec.yaml` | 检查 agent 引用一致性 |
+| `.chanlun/pattern-buffer.yaml` | 检查格式合规 |
+| `.claude/hooks/` | 检查脚本语法 |
 | 代码文件（`src/`、`tests/`） | 扫描违规模式 |
 
 ## 中断场景
@@ -91,6 +96,16 @@ model: opus
 | 007 | 趋势是独立实体 | 趋势/盘整不独立建模 |
 | 008 | 趋势确立≠级别确认 | 级别确认依赖趋势/盘整判断 |
 | 010 | 构造层 vs 分类层 | 构造层代码混入分类层逻辑 |
+
+## 文件系统结构检查清单
+
+| # | 检查目标 | 检查内容 | 失败处理 |
+|---|----------|----------|----------|
+| 1 | **谱系文件格式** (`.chanlun/genealogy/`) | 每个 `.md` 文件必须包含 `status:`、前置谱系（`prerequisites:` 或 `前置:`）、关联谱系（`related:` 或 `关联:`）字段 | 缺失字段 → 退回 genealogist 补全 |
+| 2 | **dispatch-spec 一致性** (`.chanlun/dispatch-spec.yaml`) | 所有引用的 agent 文件路径必须实际存在于 `.claude/agents/` | 引用不存在的 agent → 退回 topology-manager 修正 |
+| 3 | **Hook 脚本语法** (`.claude/hooks/`) | 所有 `.sh` 文件通过 `bash -n` 语法检查 | 语法错误 → 退回修复，阻止 commit |
+| 4 | **定义文件版本字段** (`.chanlun/definitions/`) | 每个定义文件必须包含 `version:` 字段 | 缺失版本 → 退回补全 |
+| 5 | **pattern-buffer 格式** (`.chanlun/pattern-buffer.yaml`) | 文件必须是合法 YAML，顶层结构符合预期 schema | 格式错误 → 退回修复 |
 
 ## 你不做的事
 
