@@ -46,6 +46,9 @@ def call_with_fallback(
                 config=genai_module.types.GenerateContentConfig(
                     system_instruction=system_prompt,
                     temperature=temperature,
+                    thinking_config=genai_module.types.ThinkingConfig(
+                        thinking_budget=8192,
+                    ),
                 ),
             )
             return response.text or "", m
@@ -88,6 +91,9 @@ async def call_with_tools_and_fallback(
                     tools=[session],
                     automatic_function_calling=genai_types_module.AutomaticFunctionCallingConfig(
                         maximum_remote_calls=max_tool_calls,
+                    ),
+                    thinking_config=genai_types_module.ThinkingConfig(
+                        thinking_budget=8192,
                     ),
                 ),
             )
