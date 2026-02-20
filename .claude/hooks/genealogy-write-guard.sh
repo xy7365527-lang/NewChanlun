@@ -23,8 +23,8 @@ data = json.loads(sys.stdin.read())
 print(data.get('tool_name', ''))
 " 2>/dev/null || echo "")
 
-# 只拦截 Write 工具
-if [ "$TOOL_NAME" != "Write" ]; then
+# 只拦截 Write 和 Edit 工具
+if [ "$TOOL_NAME" != "Write" ] && [ "$TOOL_NAME" != "Edit" ]; then
     exit 0
 fi
 
@@ -89,7 +89,20 @@ VALIDATION_RESULT=$(echo "$INPUT" | python -c "
 import sys, json, re, os, glob
 
 data = json.loads(sys.stdin.read())
-content = data.get('tool_input', {}).get('content', '')
+tool_name = data.get('tool_name', '')
+tool_input = data.get('tool_input', {})
+if tool_name == 'Edit':
+    file_path = tool_input.get('file_path', '')
+    old_str = tool_input.get('old_string', '')
+    new_str = tool_input.get('new_string', '')
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        content = content.replace(old_str, new_str, 1)
+    except:
+        content = ''
+else:
+    content = tool_input.get('content', '')
 rel_path = '$REL_PATH'
 
 # 强制字段检查（支持 **字段**: 和 字段: 两种格式）
