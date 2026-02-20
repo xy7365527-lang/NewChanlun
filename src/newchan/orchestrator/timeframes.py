@@ -111,15 +111,26 @@ class TFOrchestrator:
         self.symbol = symbol
         self.bus = EventBus()
 
-        # MVP-B0: 为每个 TF 计算 stream_id
-        self._stream_ids: dict[str, str] = {}
-        if symbol:
-            from newchan.core.adapters import tf_to_stream_id
-            for tf in self.timeframes:
-                sid = tf_to_stream_id(symbol=symbol, tf=tf)
-                self._stream_ids[tf] = sid.value
+        self._stream_ids = self._build_stream_ids(symbol)
+        self._init_pipeline_engines()
+        self._init_sessions(session_id, base_bars, timeframes, stroke_mode, min_strict_sep)
 
-        # 为每个 TF 创建四层引擎（Segment → Zhongshu → Move → BSP）
+    # ------------------------------------------------------------------
+    # __init__ helpers
+    # ------------------------------------------------------------------
+
+    def _build_stream_ids(self, symbol: str) -> dict[str, str]:
+        """MVP-B0: 为每个 TF 计算 stream_id。"""
+        if not symbol:
+            return {}
+        from newchan.core.adapters import tf_to_stream_id
+        return {
+            tf: tf_to_stream_id(symbol=symbol, tf=tf).value
+            for tf in self.timeframes
+        }
+
+    def _init_pipeline_engines(self) -> None:
+        """为每个 TF 创建四层引擎（Segment -> Zhongshu -> Move -> BSP）。"""
         self._segment_engines: dict[str, SegmentEngine] = {}
         self._zhongshu_engines: dict[str, ZhongshuEngine] = {}
         self._move_engines: dict[str, MoveEngine] = {}
@@ -133,7 +144,15 @@ class TFOrchestrator:
                 level_id=tf_idx + 1, stream_id=sid,
             )
 
-        # 为每个 TF 创建独立 session
+    def _init_sessions(
+        self,
+        session_id: str,
+        base_bars: list[Bar],
+        timeframes: list[str],
+        stroke_mode: str,
+        min_strict_sep: int,
+    ) -> None:
+        """为每个 TF 创建独立 ReplaySession。"""
         self.sessions: dict[str, ReplaySession] = {}
         self._higher_tf_bars: dict[str, list[Bar]] = {}
 
@@ -146,18 +165,19 @@ class TFOrchestrator:
         )
 
         # 高 TF sessions：预重采样
-        if len(timeframes) > 1:
-            df_base = _bars_to_df(base_bars)
-            for tf in timeframes[1:]:
-                df_resampled = resample_ohlc(df_base, tf)
-                tf_bars = _df_to_bars(df_resampled)
-                engine = BiEngine(stroke_mode=stroke_mode, min_strict_sep=min_strict_sep)
-                self.sessions[tf] = ReplaySession(
-                    session_id=f"{session_id}_{tf}",
-                    bars=tf_bars,
-                    engine=engine,
-                )
-                self._higher_tf_bars[tf] = tf_bars
+        if len(timeframes) <= 1:
+            return
+        df_base = _bars_to_df(base_bars)
+        for tf in timeframes[1:]:
+            df_resampled = resample_ohlc(df_base, tf)
+            tf_bars = _df_to_bars(df_resampled)
+            engine = BiEngine(stroke_mode=stroke_mode, min_strict_sep=min_strict_sep)
+            self.sessions[tf] = ReplaySession(
+                session_id=f"{session_id}_{tf}",
+                bars=tf_bars,
+                engine=engine,
+            )
+            self._higher_tf_bars[tf] = tf_bars
 
     @property
     def base_session(self) -> ReplaySession:
@@ -238,18 +258,26 @@ class TFOrchestrator:
 
             # 检查高 TF 是否需要步进
             for tf in self.timeframes[1:]:
-                sess = self.sessions[tf]
-                while sess.current_idx < sess.total_bars:
-                    next_bar = sess.bars[sess.current_idx]
-                    if _dt_to_epoch(next_bar.ts) <= base_ts:
-                        tf_snaps = sess.step(1)
-                        result[tf].extend(tf_snaps)
-                        for snap in tf_snaps:
-                            self._run_pipeline(tf, snap)
-                    else:
-                        break
+                self._step_higher_tf(tf, base_ts, result)
 
         return result
+
+    def _step_higher_tf(
+        self,
+        tf: str,
+        base_ts: float,
+        result: dict[str, list[BiEngineSnapshot]],
+    ) -> None:
+        """步进单个高 TF 直到其下一根 bar 超过 base_ts。"""
+        sess = self.sessions[tf]
+        while sess.current_idx < sess.total_bars:
+            next_bar = sess.bars[sess.current_idx]
+            if _dt_to_epoch(next_bar.ts) > base_ts:
+                break
+            tf_snaps = sess.step(1)
+            result[tf].extend(tf_snaps)
+            for snap in tf_snaps:
+                self._run_pipeline(tf, snap)
 
     def seek(self, target_idx: int) -> dict[str, BiEngineSnapshot | None]:
         """Seek base TF 到 target_idx。

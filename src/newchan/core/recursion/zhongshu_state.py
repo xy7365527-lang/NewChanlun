@@ -26,7 +26,7 @@ from newchan.events import (
     ZhongshuInvalidateV1,
     ZhongshuSettleV1,
 )
-from newchan.fingerprint import compute_event_id
+from newchan.core.diff.helpers import diff_by_prefix
 
 
 @dataclass
@@ -104,6 +104,20 @@ def _handle_zhongshu_new(
         _emit_zhongshu_settle(_append, i, zs)
 
 
+def _emit_zhongshu_invalidate(
+    _append: Callable[..., None], i: int, zs: Zhongshu,
+) -> None:
+    """发射 ZhongshuInvalidateV1 事件。"""
+    _append(
+        ZhongshuInvalidateV1,
+        zhongshu_id=i,
+        zd=zs.zd,
+        zg=zs.zg,
+        seg_start=zs.seg_start,
+        seg_end=zs.seg_end,
+    )
+
+
 def diff_zhongshu(
     prev: list[Zhongshu],
     curr: list[Zhongshu],
@@ -114,70 +128,20 @@ def diff_zhongshu(
 ) -> list[DomainEvent]:
     """比较前后两次 Zhongshu 列表，产生域事件。
 
-    Parameters
-    ----------
-    prev : list[Zhongshu]
-        上一次计算的中枢列表。
-    curr : list[Zhongshu]
-        本次计算的中枢列表。
-    bar_idx : int
-        当前 bar 索引。
-    bar_ts : float
-        当前 bar 时间戳（epoch 秒）。
-    seq_start : int
-        本批事件的起始序号。
-
     Returns
     -------
     list[DomainEvent]
         按因果顺序：先 invalidate 旧中枢，再 candidate/settle 新中枢。
     """
-    events: list[DomainEvent] = []
-    seq = seq_start
-
-    # ── 找公共前缀长度 ──
-    common_len = 0
-    for i in range(min(len(prev), len(curr))):
-        if _zhongshu_equal(prev[i], curr[i]):
-            common_len = i + 1
-        else:
-            break
-
-    def _append(cls: type, **kwargs: object) -> None:
-        nonlocal seq
-        eid = compute_event_id(
-            bar_idx=bar_idx,
-            bar_ts=bar_ts,
-            event_type=cls.__dataclass_fields__["event_type"].default,
-            seq=seq,
-            payload=dict(kwargs),
-        )
-        events.append(cls(bar_idx=bar_idx, bar_ts=bar_ts, seq=seq, event_id=eid, **kwargs))
-        seq += 1
-
-    # ── prev 后缀 → invalidated（跳过同身份升级项） ──
-    for i in range(common_len, len(prev)):
-        zs = prev[i]
-        curr_zs = curr[i] if i < len(curr) else None
-        if curr_zs is not None and same_zhongshu_identity(zs, curr_zs):
-            continue
-        _append(
-            ZhongshuInvalidateV1,
-            zhongshu_id=i,
-            zd=zs.zd,
-            zg=zs.zg,
-            seg_start=zs.seg_start,
-            seg_end=zs.seg_end,
-        )
-
-    # ── curr 后缀 ──
-    for i in range(common_len, len(curr)):
-        zs = curr[i]
-        prev_zs = prev[i] if i < len(prev) else None
-
-        if prev_zs is not None and same_zhongshu_identity(prev_zs, zs):
-            _handle_zhongshu_same_identity(_append, i, prev_zs, zs)
-        else:
-            _handle_zhongshu_new(_append, i, zs)
-
-    return events
+    return diff_by_prefix(
+        prev,
+        curr,
+        bar_idx=bar_idx,
+        bar_ts=bar_ts,
+        seq_start=seq_start,
+        equal_fn=_zhongshu_equal,
+        same_identity_fn=same_zhongshu_identity,
+        emit_invalidate=_emit_zhongshu_invalidate,
+        handle_same_identity=_handle_zhongshu_same_identity,
+        handle_new=_handle_zhongshu_new,
+    )

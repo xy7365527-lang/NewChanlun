@@ -77,62 +77,49 @@ class TrendTypeInstance:
 # 内部工具
 # ====================================================================
 
+def _centers_relation_by_gg_dd(
+    c_prev: Center, c_next: Center,
+) -> str:
+    """GG/DD 完备时的严格理论判定（思维导图 #32-35）。"""
+    prev_gg, prev_dd = c_prev.gg, c_prev.dd
+    next_gg, next_dd = c_next.gg, c_next.dd
+
+    if next_gg < prev_dd:
+        return "down"
+    if next_dd > prev_gg:
+        return "up"
+    if c_next.high < c_prev.low and next_gg >= prev_dd:
+        return "higher_center"
+    if c_next.low > c_prev.high and next_dd <= prev_gg:
+        return "higher_center"
+    return "none"
+
+
+def _centers_relation_by_zg_zd(
+    c_prev: Center, c_next: Center,
+) -> str:
+    """GG/DD 缺失时用 ZG/ZD 的兼容路径（§8.2 弱化版本）。"""
+    if c_next.high > c_prev.high and c_next.low > c_prev.low:
+        return "up"
+    if c_next.high < c_prev.high and c_next.low < c_prev.low:
+        return "down"
+    return "none"
+
+
 def _centers_relation(
     c_prev: Center, c_next: Center,
 ) -> str:
     """判断前后同级别两个中枢的关系。
 
-    严格按缠论定理思维导图 #32-35 使用 GG/DD：
-
-    - 后GG < 前DD → ``"down"`` （下跌及其延续）
-    - 后DD > 前GG → ``"up"``   （上涨及其延续）
-    - 后ZG < 前ZD 且 后GG >= 前DD → ``"higher_center"`` （形成高级别中枢）
-    - 后ZD > 前ZG 且 后DD <= 前GG → ``"higher_center"`` （形成高级别中枢）
-    - 其余情况 → ``"none"``
-
-    Parameters
-    ----------
-    c_prev, c_next : Center
-        前后两个 settled 中枢。需有 gg/dd/high(ZG)/low(ZD) 字段。
-
-    Returns
-    -------
-    ``"up"`` | ``"down"`` | ``"higher_center"`` | ``"none"``
+    Returns ``"up"`` | ``"down"`` | ``"higher_center"`` | ``"none"``。
     """
     has_gg_dd = (
         c_prev.gg != 0.0 and c_prev.dd != 0.0
         and c_next.gg != 0.0 and c_next.dd != 0.0
     )
-
     if has_gg_dd:
-        # ── 严格理论判定（思维导图 #32-35） ──
-        prev_gg, prev_dd = c_prev.gg, c_prev.dd
-        next_gg, next_dd = c_next.gg, c_next.dd
-
-        # 下跌及其延续：后GG < 前DD
-        if next_gg < prev_dd:
-            return "down"
-
-        # 上涨及其延续：后DD > 前GG
-        if next_dd > prev_gg:
-            return "up"
-
-        # 形成高级别中枢：
-        #   后ZG < 前ZD 且 后GG >= 前DD
-        #   或 后ZD > 前ZG 且 后DD <= 前GG
-        if c_next.high < c_prev.low and next_gg >= prev_dd:
-            return "higher_center"
-        if c_next.low > c_prev.high and next_dd <= prev_gg:
-            return "higher_center"
-
-        return "none"
-    else:
-        # ── 兼容路径：GG/DD 缺失时用 ZG/ZD（§8.2 弱化版本） ──
-        if c_next.high > c_prev.high and c_next.low > c_prev.low:
-            return "up"
-        if c_next.high < c_prev.high and c_next.low < c_prev.low:
-            return "down"
-        return "none"
+        return _centers_relation_by_gg_dd(c_prev, c_next)
+    return _centers_relation_by_zg_zd(c_prev, c_next)
 
 
 def _centers_same_direction(
@@ -360,64 +347,61 @@ def trend_instances_from_centers(
 # 中枢发展标签
 # ====================================================================
 
+def _resolve_development(
+    centers: list[Center],
+    settled_indices: list[int],
+    pos: int,
+) -> str:
+    """为第 pos 个 settled 中枢确定 development 标签。"""
+    si = settled_indices[pos]
+    if pos < len(settled_indices) - 1:
+        next_si = settled_indices[pos + 1]
+        rel = _centers_relation(centers[si], centers[next_si])
+        if rel in ("up", "down"):
+            return "newborn"
+        if rel == "higher_center":
+            return "expansion"
+        return "extension"
+
+    c = centers[si]
+    if c.terminated:
+        return "newborn"
+    if c.sustain > 0:
+        return "extension"
+    return ""
+
+
+def _center_with_development(c: Center, dev: str) -> Center:
+    """返回带 development 标签的新 Center（frozen dataclass）。"""
+    return Center(
+        seg0=c.seg0, seg1=c.seg1, low=c.low, high=c.high,
+        kind=c.kind, confirmed=c.confirmed, sustain=c.sustain,
+        direction=c.direction,
+        gg=c.gg, dd=c.dd, g=c.g, d=c.d,
+        zg_dynamic=c.zg_dynamic, zd_dynamic=c.zd_dynamic,
+        development=dev,
+        level_id=c.level_id,
+        terminated=c.terminated,
+        termination_side=c.termination_side,
+    )
+
+
 def label_centers_development(
     centers: list[Center],
 ) -> list[Center]:
     """根据相邻中枢关系，为每个 settled 中枢打上 development 标签。
 
-    规则（§8 中枢中心定理二）：
-    - 与后续中枢关系为 "up"/"down" → 本中枢 development = "newborn"（新生：形成趋势）
-    - 与后续中枢关系为 "higher_center" → 本中枢 development = "expansion"（扩展）
-    - 无后续 settled 中枢且中枢延伸中 → "extension"（延伸）
-    - candidate 中枢不标注
-
-    Parameters
-    ----------
-    centers : list[Center]
-
-    Returns
-    -------
-    list[Center]
-        带 development 标签的新 Center 列表（frozen，返回新对象）。
+    Returns list[Center] — 带 development 标签的新列表（frozen，返回新对象）。
     """
     if not centers:
         return []
 
     settled_indices = [i for i, c in enumerate(centers) if c.kind == "settled"]
-    result = list(centers)  # shallow copy
+    result = list(centers)
 
     for pos, si in enumerate(settled_indices):
-        dev = ""
-        if pos < len(settled_indices) - 1:
-            # 有后续 settled 中枢 → 用关系判定
-            next_si = settled_indices[pos + 1]
-            rel = _centers_relation(centers[si], centers[next_si])
-            if rel in ("up", "down"):
-                dev = "newborn"
-            elif rel == "higher_center":
-                dev = "expansion"
-            else:
-                dev = "extension"
-        else:
-            # 最后一个 settled 中枢
-            c = centers[si]
-            if c.terminated:
-                dev = "newborn"  # 已终结，意味着走势离开形成新结构
-            elif c.sustain > 0:
-                dev = "extension"
-
+        dev = _resolve_development(centers, settled_indices, pos)
         if dev:
-            c = result[si]
-            result[si] = Center(
-                seg0=c.seg0, seg1=c.seg1, low=c.low, high=c.high,
-                kind=c.kind, confirmed=c.confirmed, sustain=c.sustain,
-                direction=c.direction,
-                gg=c.gg, dd=c.dd, g=c.g, d=c.d,
-                zg_dynamic=c.zg_dynamic, zd_dynamic=c.zd_dynamic,
-                development=dev,
-                level_id=c.level_id,
-                terminated=c.terminated,
-                termination_side=c.termination_side,
-            )
+            result[si] = _center_with_development(result[si], dev)
 
     return result
