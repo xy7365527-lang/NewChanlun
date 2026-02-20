@@ -37,6 +37,26 @@
         ]
       }
     ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/ceremony-completion-guard.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/post-session-pattern-detect.sh"
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "TaskUpdate",

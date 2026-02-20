@@ -57,92 +57,114 @@ class MoveInvariantChecker:
     ) -> list[InvariantViolation]:
         """检查一组 Move 事件的不变量。"""
         violations: list[InvariantViolation] = []
-
-        # 收集本批次中的 candidate move_ids（用于 I19 批次内检查）
         batch_candidate_ids: set[int] = set()
 
         for ev in events:
             if isinstance(ev, MoveCandidateV1):
-                # I21: invalidate 后不得出现同身份 candidate
-                identity = (ev.seg_start,)
-                if identity in self._terminal_identities:
-                    violations.append(self._make_violation(
-                        bar_idx=bar_idx,
-                        bar_ts=bar_ts,
-                        code=I21_MOVE_INVALIDATE_TERMINAL,
-                        reason=(
-                            f"move {ev.move_id}: candidate after "
-                            f"invalidate for identity {identity}"
-                        ),
-                    ))
-
-                # I18: zs_count >= 1
-                if ev.zs_count < 1:
-                    violations.append(self._make_violation(
-                        bar_idx=bar_idx,
-                        bar_ts=bar_ts,
-                        code=I18_MOVE_MIN_CENTER,
-                        reason=(
-                            f"move {ev.move_id}: "
-                            f"zs_count={ev.zs_count} < 1"
-                        ),
-                    ))
-
-                # I20: zs_end >= zs_start 且 zs_count >= 1
-                if ev.zs_end < ev.zs_start or ev.zs_count < 1:
-                    violations.append(self._make_violation(
-                        bar_idx=bar_idx,
-                        bar_ts=bar_ts,
-                        code=I20_MOVE_PARENTS_TRACEABLE,
-                        reason=(
-                            f"move {ev.move_id}: "
-                            f"zs_start={ev.zs_start}, zs_end={ev.zs_end}, "
-                            f"zs_count={ev.zs_count} invalid"
-                        ),
-                    ))
-
+                violations.extend(
+                    self._check_candidate(ev, bar_idx, bar_ts),
+                )
                 self._candidate_ids.add(ev.move_id)
                 batch_candidate_ids.add(ev.move_id)
 
             elif isinstance(ev, MoveSettleV1):
-                # I21: invalidate 后不得出现同身份 settle
-                identity = (ev.seg_start,)
-                if identity in self._terminal_identities:
-                    violations.append(self._make_violation(
-                        bar_idx=bar_idx,
-                        bar_ts=bar_ts,
-                        code=I21_MOVE_INVALIDATE_TERMINAL,
-                        reason=(
-                            f"move {ev.move_id}: settle after "
-                            f"invalidate for identity {identity}"
-                        ),
-                    ))
-
-                # I19: settle 前必须有 candidate
-                if (
-                    ev.move_id not in self._candidate_ids
-                    and ev.move_id not in batch_candidate_ids
-                ):
-                    violations.append(self._make_violation(
-                        bar_idx=bar_idx,
-                        bar_ts=bar_ts,
-                        code=I19_MOVE_CANDIDATE_BEFORE_SETTLE,
-                        reason=(
-                            f"move {ev.move_id} settled without "
-                            f"prior candidate"
-                        ),
-                    ))
-
-                # 更新状态
-                self._candidate_ids.discard(ev.move_id)
+                violations.extend(
+                    self._check_settle(ev, bar_idx, bar_ts, batch_candidate_ids),
+                )
 
             elif isinstance(ev, MoveInvalidateV1):
-                # I21: 记录身份键为终态
-                identity = (ev.seg_start,)
-                self._terminal_identities.add(identity)
-                self._candidate_ids.discard(ev.move_id)
+                self._check_invalidate(ev)
 
         return violations
+
+    def _check_candidate(
+        self,
+        ev: MoveCandidateV1,
+        bar_idx: int,
+        bar_ts: float,
+    ) -> list[InvariantViolation]:
+        """I21 终态 + I18 最小中枢 + I20 可追溯。"""
+        violations: list[InvariantViolation] = []
+        identity = (ev.seg_start,)
+
+        # I21: invalidate 后不得出现同身份 candidate
+        if identity in self._terminal_identities:
+            violations.append(self._make_violation(
+                bar_idx=bar_idx, bar_ts=bar_ts,
+                code=I21_MOVE_INVALIDATE_TERMINAL,
+                reason=(
+                    f"move {ev.move_id}: candidate after "
+                    f"invalidate for identity {identity}"
+                ),
+            ))
+
+        # I18: zs_count >= 1
+        if ev.zs_count < 1:
+            violations.append(self._make_violation(
+                bar_idx=bar_idx, bar_ts=bar_ts,
+                code=I18_MOVE_MIN_CENTER,
+                reason=f"move {ev.move_id}: zs_count={ev.zs_count} < 1",
+            ))
+
+        # I20: zs_end >= zs_start 且 zs_count >= 1
+        if ev.zs_end < ev.zs_start or ev.zs_count < 1:
+            violations.append(self._make_violation(
+                bar_idx=bar_idx, bar_ts=bar_ts,
+                code=I20_MOVE_PARENTS_TRACEABLE,
+                reason=(
+                    f"move {ev.move_id}: "
+                    f"zs_start={ev.zs_start}, zs_end={ev.zs_end}, "
+                    f"zs_count={ev.zs_count} invalid"
+                ),
+            ))
+
+        return violations
+
+    def _check_settle(
+        self,
+        ev: MoveSettleV1,
+        bar_idx: int,
+        bar_ts: float,
+        batch_candidate_ids: set[int],
+    ) -> list[InvariantViolation]:
+        """I21 终态 + I19 前置 candidate。"""
+        violations: list[InvariantViolation] = []
+        identity = (ev.seg_start,)
+
+        # I21: invalidate 后不得出现同身份 settle
+        if identity in self._terminal_identities:
+            violations.append(self._make_violation(
+                bar_idx=bar_idx, bar_ts=bar_ts,
+                code=I21_MOVE_INVALIDATE_TERMINAL,
+                reason=(
+                    f"move {ev.move_id}: settle after "
+                    f"invalidate for identity {identity}"
+                ),
+            ))
+
+        # I19: settle 前必须有 candidate
+        if (
+            ev.move_id not in self._candidate_ids
+            and ev.move_id not in batch_candidate_ids
+        ):
+            violations.append(self._make_violation(
+                bar_idx=bar_idx, bar_ts=bar_ts,
+                code=I19_MOVE_CANDIDATE_BEFORE_SETTLE,
+                reason=(
+                    f"move {ev.move_id} settled without "
+                    f"prior candidate"
+                ),
+            ))
+
+        # 更新状态
+        self._candidate_ids.discard(ev.move_id)
+        return violations
+
+    def _check_invalidate(self, ev: MoveInvalidateV1) -> None:
+        """I21: 记录身份键为终态。"""
+        identity = (ev.seg_start,)
+        self._terminal_identities.add(identity)
+        self._candidate_ids.discard(ev.move_id)
 
     def _make_violation(
         self,

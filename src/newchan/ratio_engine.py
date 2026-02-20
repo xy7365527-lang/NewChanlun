@@ -44,6 +44,17 @@ class RatioAnalysisError:
     reason: str
 
 
+def _run_pipeline(
+    ratio_kline: pd.DataFrame,
+) -> tuple[list[Fractal], list[Stroke], list[Segment]]:
+    """标准管线：包含处理 → 分型 → 笔 → 线段。"""
+    df_merged, _m2r = merge_inclusion(ratio_kline)
+    fractals = fractals_from_merged(df_merged)
+    strokes = strokes_from_fractals(df_merged, fractals)
+    segments = segments_from_strokes_v1(strokes)
+    return fractals, strokes, segments
+
+
 def analyze_pair(
     pair: EquivalencePair,
     df_a: pd.DataFrame,
@@ -51,25 +62,7 @@ def analyze_pair(
 ) -> RatioAnalysis | RatioAnalysisError:
     """分析单个比价对。
 
-    流程：
-      1. validate_pair — 验证等价对条件
-      2. make_ratio_kline — 构造比价K线
-      3. merge_inclusion — 包含处理
-      4. fractals_from_merged — 分型识别
-      5. strokes_from_fractals — 笔构造
-      6. segments_from_strokes_v1 — 线段构造
-
-    Parameters
-    ----------
-    pair : EquivalencePair
-        等价对描述。
-    df_a, df_b : pd.DataFrame
-        两个标的的 OHLCV 数据。
-
-    Returns
-    -------
-    RatioAnalysis | RatioAnalysisError
-        成功返回完整管线产物，失败返回错误原因。
+    流程：validate → make_ratio_kline → 标准管线（包含处理→分型→笔→线段）。
     """
     # Step 1: 验证
     validation = validate_pair(df_a, df_b)
@@ -87,10 +80,7 @@ def analyze_pair(
 
     # Step 3-6: 标准管线
     try:
-        df_merged, _m2r = merge_inclusion(ratio_kline)
-        fractals = fractals_from_merged(df_merged)
-        strokes = strokes_from_fractals(df_merged, fractals)
-        segments = segments_from_strokes_v1(strokes)
+        fractals, strokes, segments = _run_pipeline(ratio_kline)
     except Exception as exc:
         return RatioAnalysisError(pair=pair, reason=f"Pipeline failed: {exc}")
 

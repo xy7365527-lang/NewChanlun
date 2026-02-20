@@ -46,8 +46,9 @@ Source of truth: `.chanlun/dispatch-spec.yaml`
 
 #### step 2: load-definitions **MANDATORY**
 - action: 扫描 `.chanlun/definitions/*.md`，读取每条定义的名称、版本、状态
+- action: 读取 `.chanlun/manifest.yaml` 获取当前能力拓扑（skill/agent/hook 数量与状态）
 - depends_on: 无
-- 完成后输出: `✓ load-definitions 完成 — [N] 条定义`
+- 完成后输出: `✓ load-definitions 完成 — [N] 条定义, manifest: [S] skills / [A] agents / [H] hooks`
 
 #### step 3: load-genealogy **MANDATORY**
 - action: 扫描 `.chanlun/genealogy/pending/` 和 `.chanlun/genealogy/settled/`，统计数量和状态
@@ -120,8 +121,9 @@ Source of truth: `.chanlun/dispatch-spec.yaml`
 
 #### step 2: load-methodology **MANDATORY**
 - action: 读取 `.claude/skills/meta-orchestration/SKILL.md` + `.claude/agents/meta-lead.md`
+- action: 读取 `.chanlun/manifest.yaml` 获取当前能力拓扑（skill/agent/hook 数量与状态）
 - depends_on: 无
-- 完成后输出: `✓ load-methodology 完成`
+- 完成后输出: `✓ load-methodology 完成, manifest: [S] skills / [A] agents / [H] hooks`
 
 #### step 3: version-diff **MANDATORY**
 - action: 扫描 `.chanlun/definitions/` 当前版本，与 session 中"定义基底"对比
@@ -190,6 +192,10 @@ Source of truth: `.chanlun/dispatch-spec.yaml`
 - 生成态定义：[M] 条
 - [列出每条定义的名称、版本和状态]
 
+### 能力拓扑（manifest）
+- Skills: [S] | Agents: [A] | Hooks: [H]
+- [列出 active 条目的名称和描述]
+
 ### 谱系状态
 - 生成态矛盾：[N] 个
 - 已结算记录：[M] 个
@@ -239,7 +245,20 @@ ceremony 完成后，你必须自检以下条件（来自 dispatch-spec.yaml `va
 | lead_permissions_restricted | Lead 只保留 Read/Glob/Grep/Task/SendMessage/TaskList/TaskGet/TaskUpdate 等 | **阻塞** — 032号谱系要求 |
 | task_stations_derived | 至少从中断点派生了一个任务工位（除非中断点为空） | 警告 — 可能遗漏工作 |
 | crystallization_check | genealogist 的结晶检测已执行 | 警告 — 可能遗漏结晶时机 |
-| pattern_buffer_check | `.chanlun/pattern-buffer.yaml` 中无 frequency >= promotion_threshold 且 status=pending 的模式 | 警告 — 有达标模式未结晶（043号谱系） |
+| pattern_buffer_check | `.chanlun/pattern-buffer.yaml` 中无 frequency >= promotion_threshold 且 status=candidate 的模式 | 警告 — 有达标模式未结晶（043号谱系） |
+
+### pattern_buffer_check 失败时：自动结晶触发（043号谱系）
+
+如果 `pattern_buffer_check` 检测到达标的 candidate 模式（frequency >= promotion_threshold 且 status=candidate）：
+
+1. **spawn skill-crystallizer 工位**：
+   - agent: `.claude/agents/skill-crystallizer.md`
+   - 传入达标 pattern 的 ID 列表
+   - skill-crystallizer 负责：分析 pattern → 生成 skill 草案 → 提交 MutationRequest → Gemini decide() → 注册到 manifest
+
+2. **不阻塞 ceremony**：结晶是异步的，ceremony 继续进入蜂群循环。skill-crystallizer 作为任务工位并行执行。
+
+3. **结晶完成后**：skill-crystallizer 向 team-lead 汇报结果，genealogist 记录结晶事件到谱系。
 
 全部阻塞项通过后，ceremony 完成。
 

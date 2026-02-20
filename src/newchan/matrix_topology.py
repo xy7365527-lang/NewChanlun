@@ -28,6 +28,10 @@ class AssetVertex(Enum):
     EQUITY = "动产"  # 股票、基金
     REAL_ESTATE = "不动产"  # 房地产
     COMMODITY = "商品"  # 大宗、黄金
+    # CASH: 主权信用/流动性复合体（Sovereign Credit / Liquidity Complex）
+    # 包含现金(M0/M1)和固定收益/国债。货币即主权债务，区别仅在久期。
+    # CASH 内部的现金/债券轮动属于 Level 2（内部结构），不在拓扑层处理。
+    # 参见 047号谱系。
     CASH = "现金"
 
 
@@ -108,6 +112,23 @@ def make_default_matrix(region: str = "") -> FourMatrix:
     return FourMatrix(edges=edges, region=region)
 
 
+def _update_edge(
+    edge: MatrixEdge,
+    target: frozenset[AssetVertex],
+    pair: EquivalencePair,
+) -> tuple[MatrixEdge, bool]:
+    """如果 edge 匹配 target，返回更新后的边和 True；否则原样返回和 False。"""
+    if frozenset([edge.vertex_a, edge.vertex_b]) == target:
+        new_edge = MatrixEdge(
+            vertex_a=edge.vertex_a,
+            vertex_b=edge.vertex_b,
+            representative_pair=pair,
+            description=edge.description,
+        )
+        return new_edge, True
+    return edge, False
+
+
 def with_representative(
     matrix: FourMatrix,
     vertex_a: AssetVertex,
@@ -116,24 +137,7 @@ def with_representative(
 ) -> FourMatrix:
     """不可变更新：为指定边设置代表性等价对。返回新 FourMatrix。
 
-    Parameters
-    ----------
-    matrix : FourMatrix
-        原矩阵（不会被修改）。
-    vertex_a, vertex_b : AssetVertex
-        目标边的两个顶点（顺序无关）。
-    pair : EquivalencePair
-        要绑定的代表性等价对。
-
-    Returns
-    -------
-    FourMatrix
-        新矩阵，目标边更新了 representative_pair，其余不变。
-
-    Raises
-    ------
-    ValueError
-        如果 vertex_a == vertex_b（自环），或矩阵中找不到对应边。
+    Raises ValueError 当 vertex_a == vertex_b 或找不到对应边。
     """
     if vertex_a == vertex_b:
         raise ValueError(
@@ -145,18 +149,10 @@ def with_representative(
     new_edges: list[MatrixEdge] = []
 
     for edge in matrix.edges:
-        if frozenset([edge.vertex_a, edge.vertex_b]) == target:
+        new_edge, matched = _update_edge(edge, target, pair)
+        if matched:
             found = True
-            new_edges.append(
-                MatrixEdge(
-                    vertex_a=edge.vertex_a,
-                    vertex_b=edge.vertex_b,
-                    representative_pair=pair,
-                    description=edge.description,
-                )
-            )
-        else:
-            new_edges.append(edge)
+        new_edges.append(new_edge)
 
     if not found:
         raise ValueError(

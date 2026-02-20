@@ -23,5 +23,12 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[test]"
 
-      - name: Run tests
-        run: pytest -m "not slow" --tb=short -q
+      - name: Run tests with coverage
+        run: pytest -m "not slow" --tb=short -q --cov=newchan --cov-report=term-missing --cov-report=xml:coverage.xml
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.xml

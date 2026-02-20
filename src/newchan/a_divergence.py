@@ -135,6 +135,34 @@ def _compute_force(
 # 趋势背驰
 # ====================================================================
 
+def _trend_ac_segments(
+    centers: list[Center],
+    trend: TrendTypeInstance,
+    moves: list,
+) -> tuple[int, int, int, int] | None:
+    """计算趋势背驰的 A 段和 C 段范围。返回 None 表示无法计算。"""
+    ci_prev = trend.center_indices[-2]
+    ci_last = trend.center_indices[-1]
+    c_prev = centers[ci_prev]
+    c_last = centers[ci_last]
+
+    a_start = c_prev.seg1 + 1
+    a_end = c_last.seg0 - 1
+    if a_start > a_end:
+        a_start = c_prev.seg1
+        a_end = c_prev.seg1
+
+    c_start = c_last.seg1 + 1
+    c_end = trend.seg1
+    if c_start > c_end:
+        return None
+
+    if a_start >= len(moves) or c_end >= len(moves):
+        return None
+
+    return a_start, a_end, c_start, c_end
+
+
 def _detect_trend_divergence(
     moves: list,
     centers: list[Center],
@@ -144,41 +172,14 @@ def _detect_trend_divergence(
     df_macd: pd.DataFrame | None,
     merged_to_raw: list[tuple[int, int]] | None,
 ) -> Divergence | None:
-    """检测单个趋势实例中的背驰。
-
-    算法（§9.3 MACD 辅助）：
-    1. 趋势至少含 2 个中枢
-    2. 取最后两个中枢 ci_prev, ci_last
-    3. A 段 = ci_prev 出口到 ci_last 入口（中枢间的趋势腿）
-    4. C 段 = ci_last 出口到趋势终点（最后的趋势腿）
-    5. force_c < force_a → 背驰
-    """
+    """检测单个趋势实例中的背驰。"""
     if trend.kind != "trend" or len(trend.center_indices) < 2:
         return None
 
-    ci_prev = trend.center_indices[-2]
-    ci_last = trend.center_indices[-1]
-    c_prev = centers[ci_prev]
-    c_last = centers[ci_last]
-
-    # A 段：从 c_prev 结束到 c_last 开始（中枢间的连接段）
-    a_start = c_prev.seg1 + 1
-    a_end = c_last.seg0 - 1
-    if a_start > a_end:
-        # 两个中枢紧邻，A 段不存在，退化为比较中枢两侧的单段
-        a_start = c_prev.seg1
-        a_end = c_prev.seg1
-
-    # C 段：从 c_last 结束到趋势终点
-    c_start = c_last.seg1 + 1
-    c_end = trend.seg1
-    if c_start > c_end:
-        # C 段尚未形成（最后中枢刚结束）
+    ac = _trend_ac_segments(centers, trend, moves)
+    if ac is None:
         return None
-
-    # 边界检查
-    if a_start >= len(moves) or c_end >= len(moves):
-        return None
+    a_start, a_end, c_start, c_end = ac
 
     force_a = _compute_force(moves, a_start, a_end, trend.direction,
                              df_macd, merged_to_raw)
@@ -186,9 +187,10 @@ def _detect_trend_divergence(
                              df_macd, merged_to_raw)
 
     if force_a <= 0:
-        return None  # A 段无有效力度，无法比较
+        return None
 
     if force_c < force_a:
+        ci_last = trend.center_indices[-1]
         div_dir: Literal["top", "bottom"] = (
             "top" if trend.direction == "up" else "bottom"
         )
@@ -213,6 +215,31 @@ def _detect_trend_divergence(
 # 盘整背驰
 # ====================================================================
 
+def _collect_exit_moves(
+    moves: list,
+    centers: list[Center],
+    trend: TrendTypeInstance,
+) -> dict[str, list[int]]:
+    """收集中枢内和中枢后的离开段索引，按方向分组。"""
+    ci = trend.center_indices[0]
+    c = centers[ci]
+    exit_moves_by_dir: dict[str, list[int]] = {"up": [], "down": []}
+
+    for k in range(c.seg0, min(c.seg1 + 1, len(moves))):
+        m = moves[k]
+        direction = getattr(m, "direction", "")
+        if (m.high > c.high or m.low < c.low) and direction in exit_moves_by_dir:
+            exit_moves_by_dir[direction].append(k)
+
+    for k in range(c.seg1 + 1, min(trend.seg1 + 1, len(moves))):
+        m = moves[k]
+        direction = getattr(m, "direction", "")
+        if direction in exit_moves_by_dir:
+            exit_moves_by_dir[direction].append(k)
+
+    return exit_moves_by_dir
+
+
 def _detect_consolidation_divergence(
     moves: list,
     centers: list[Center],
@@ -222,39 +249,13 @@ def _detect_consolidation_divergence(
     df_macd: pd.DataFrame | None,
     merged_to_raw: list[tuple[int, int]] | None,
 ) -> Divergence | None:
-    """检测单个盘整实例中的盘整背驰。
-
-    算法：
-    1. 盘整只含 1 个中枢
-    2. 找中枢内最后两次同向离开段
-    3. 后者力度 < 前者 → 盘整背驰
-    """
+    """检测单个盘整实例中的盘整背驰。"""
     if trend.kind != "consolidation" or len(trend.center_indices) < 1:
         return None
 
     ci = trend.center_indices[0]
-    c = centers[ci]
+    exit_moves_by_dir = _collect_exit_moves(moves, centers, trend)
 
-    # 收集中枢内离开段的索引（按方向分组）
-    # 中枢范围 = moves[c.seg0 : c.seg1+1]，离开段 = 超出 [ZD, ZG] 的段
-    exit_moves_by_dir: dict[str, list[int]] = {"up": [], "down": []}
-
-    for k in range(c.seg0, min(c.seg1 + 1, len(moves))):
-        m = moves[k]
-        direction = getattr(m, "direction", "")
-        # 判定是否离开中枢
-        if m.high > c.high or m.low < c.low:
-            if direction in exit_moves_by_dir:
-                exit_moves_by_dir[direction].append(k)
-
-    # 也检查中枢之后的段（到趋势终点）
-    for k in range(c.seg1 + 1, min(trend.seg1 + 1, len(moves))):
-        m = moves[k]
-        direction = getattr(m, "direction", "")
-        if direction in exit_moves_by_dir:
-            exit_moves_by_dir[direction].append(k)
-
-    # 对每个方向，比较最后两次离开
     for direction, exits in exit_moves_by_dir.items():
         if len(exits) < 2:
             continue

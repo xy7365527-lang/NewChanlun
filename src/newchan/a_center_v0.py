@@ -208,44 +208,38 @@ def _extend_center(
 # v0 主函数
 # ====================================================================
 
+def _try_init_center(
+    segments: list, i: int, n: int,
+) -> tuple[float, float, float, float, str, float, float, float, float] | None:
+    """尝试在 i 处初始化中枢。返回 None 表示不成立。"""
+    s1, s2, s3 = segments[i], segments[i + 1], segments[i + 2]
+
+    zd_all, zg_all = _three_seg_overlap_all(s1, s2, s3)
+    if zg_all <= zd_all:
+        return None
+
+    s1_dir = getattr(s1, "direction", "")
+    s3_dir = getattr(s3, "direction", "")
+    if s1_dir and s3_dir and s1_dir != s3_dir:
+        logger.warning(
+            "Center skip: s1.dir=%s != s3.dir=%s at i=%d", s1_dir, s3_dir, i,
+        )
+        return None
+
+    zd, zg = _zseg_interval(s1, s3)
+    direction = getattr(s1, "direction", "")
+    gg = max(s1.high, s3.high)
+    dd = min(s1.low, s3.low)
+    g = min(s1.high, s3.high)
+    d = max(s1.low, s3.low)
+    return zd, zg, gg, dd, direction, g, d, zd_all, zg_all
+
+
 def centers_from_segments_v0(
     segments: list,
     sustain_m: int = 2,
 ) -> list[Center]:
-    """v0 中枢构造，严格遵循缠论原文。
-
-    Parameters
-    ----------
-    segments : list
-        Move 对象列表（level=1 时为 Segment，level>=2 时为 TrendTypeInstance）。
-        每个元素需有 ``.high``, ``.low``, ``.direction`` 属性。
-    sustain_m : int
-        candidate 升级为 settled 所需的延伸次数（默认 2）。
-
-    Returns
-    -------
-    list[Center]
-        按 ``seg0`` 递增排序。最后一个 ``confirmed=False``，其余 ``True``。
-
-    Notes
-    -----
-    算法（严格对标缠论定理思维导图）：
-
-    A) 初始候选：
-       连续三段全部存在重叠（max(lows) < min(highs)）→ 中枢成立。
-       ZG/ZD 取 Z走势段（s1 与 s3，方向一致的那两段）定义。
-
-    B) 延伸 + 回抽确认（中枢中心定理 + 中枢破坏定理）：
-       后续段与 [ZD, ZG] 有交集 → 延伸。
-       无交集 → 该段"离开中枢"：
-         - 若下一段（回抽）重返 [ZD, ZG] → 中枢未破坏，继续延伸。
-         - 若下一段仍不重返 → 中枢破坏，终止。
-
-    C) confirmed：最后一个 False，其余 True。
-
-    硬约束（§7.1）：
-       输入必须是 Move[k-1]（Segment 或已确认的 TrendTypeInstance），禁止 Stroke。
-    """
+    """v0 中枢构造，严格遵循缠论原文。"""
     n = len(segments)
     if n < 3:
         return []
@@ -254,36 +248,17 @@ def centers_from_segments_v0(
     i = 0
 
     while i <= n - 3:
-        s1, s2, s3 = segments[i], segments[i + 1], segments[i + 2]
-
-        # ── A) 三段全部重叠才成立 ──
-        zd_all, zg_all = _three_seg_overlap_all(s1, s2, s3)
-        if zg_all <= zd_all:
+        init = _try_init_center(segments, i, n)
+        if init is None:
             i += 1
             continue
 
-        # ── Z走势段方向一致性验证 ──
-        s1_dir = getattr(s1, "direction", "")
-        s3_dir = getattr(s3, "direction", "")
-        if s1_dir and s3_dir and s1_dir != s3_dir:
-            logger.warning(
-                "Center skip: s1.dir=%s != s3.dir=%s at i=%d", s1_dir, s3_dir, i,
-            )
-            i += 1
-            continue
+        zd, zg, gg, dd, direction, g, d, _zd_all, _zg_all = init
 
-        zd, zg = _zseg_interval(s1, s3)
-        direction = getattr(s1, "direction", "")
-        gg = max(s1.high, s3.high)
-        dd = min(s1.low, s3.low)
-        g = min(s1.high, s3.high)
-        d = max(s1.low, s3.low)
-
-        # ── B) 延伸 + 回抽确认 ──
         seg1, sustain, gg, dd, g, d, terminated, term_side = _extend_center(
             segments, i + 3, n, zd, zg, direction, gg, dd, g, d,
         )
-        seg1 = max(seg1, i + 2)  # 至少包含初始三段
+        seg1 = max(seg1, i + 2)
 
         centers.append(_build_center(
             i, seg1, zd, zg, sustain, sustain_m, direction,
@@ -291,7 +266,6 @@ def centers_from_segments_v0(
         ))
         i = seg1 + 1
 
-    # ── C) 最后一个中枢 confirmed=False ──
     if centers:
         centers[-1] = replace(centers[-1], confirmed=False)
 

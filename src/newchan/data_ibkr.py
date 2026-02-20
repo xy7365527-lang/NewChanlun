@@ -173,13 +173,7 @@ class IBKRProvider:
                 f"{', '.join(sorted(_BAR_SIZE_MAP.keys()))}"
             )
 
-        contract = self.make_contract(symbol)
-
-        # 让 IB 解析连续合约
-        qualified = self._ib.qualifyContracts(contract)
-        if not qualified:
-            raise RuntimeError(f"无法解析合约: {contract}")
-
+        contract = self._qualify_contract(symbol)
         ib_bars = self._ib.reqHistoricalData(
             contract,
             endDateTime="",
@@ -190,23 +184,33 @@ class IBKRProvider:
             formatDate=1,
         )
 
-        if not ib_bars:
-            return []
+        return _ib_bars_to_bars(ib_bars)
 
-        bars: list[Bar] = []
-        for b in ib_bars:
-            ts = b.date if isinstance(b.date, datetime) else util.parseIBDatetime(str(b.date))
-            bars.append(
-                Bar(
-                    ts=ts,
-                    open=b.open,
-                    high=b.high,
-                    low=b.low,
-                    close=b.close,
-                    volume=b.volume if b.volume > 0 else None,
-                )
-            )
-        return bars
+    def _qualify_contract(self, symbol: str) -> Contract:
+        """构造并解析合约。"""
+        contract = self.make_contract(symbol)
+        qualified = self._ib.qualifyContracts(contract)
+        if not qualified:
+            raise RuntimeError(f"无法解析合约: {contract}")
+        return contract
+
+
+def _ib_bars_to_bars(ib_bars) -> list[Bar]:
+    """将 ib_insync BarData 列表转换为 Bar 列表。"""
+    if not ib_bars:
+        return []
+    bars: list[Bar] = []
+    for b in ib_bars:
+        ts = b.date if isinstance(b.date, datetime) else util.parseIBDatetime(str(b.date))
+        bars.append(Bar(
+            ts=ts,
+            open=b.open,
+            high=b.high,
+            low=b.low,
+            close=b.close,
+            volume=b.volume if b.volume > 0 else None,
+        ))
+    return bars
 
 
 # ======================================================================
@@ -358,11 +362,22 @@ class IBKRConnection:
         if bar_size is None:
             return None
 
+        ib_bars = self._fetch_ib_bars(symbol, bar_size, duration, what_to_show)
+        if not ib_bars:
+            return None
+
+        bars = _ib_bars_to_bars(ib_bars)
+        return self._cache_bars(bars, symbol, interval)
+
+    def _fetch_ib_bars(
+        self, symbol: str, bar_size: str, duration: str, what_to_show: str,
+    ):
+        """通过长连接拉取 IB 原始 bar 数据。"""
         try:
             self._ensure_loop()
             contract = IBKRProvider.make_contract(symbol)
             self._ib.qualifyContracts(contract)
-            ib_bars = self._ib.reqHistoricalData(
+            return self._ib.reqHistoricalData(
                 contract,
                 endDateTime="",
                 durationStr=duration,
@@ -375,23 +390,11 @@ class IBKRConnection:
             print(f"[fetch_and_cache] {symbol} 失败: {e}", flush=True)
             return None
 
-        if not ib_bars:
-            return None
-
+    @staticmethod
+    def _cache_bars(bars: list[Bar], symbol: str, interval: str) -> "pd.DataFrame":
+        """将 Bar 列表转为 DataFrame 并写入缓存。"""
         from newchan.convert import bars_to_df
         from newchan.cache import save_df
-
-        bars: list[Bar] = []
-        for b in ib_bars:
-            ts = b.date if isinstance(b.date, datetime) else util.parseIBDatetime(str(b.date))
-            bars.append(Bar(
-                ts=ts,
-                open=b.open,
-                high=b.high,
-                low=b.low,
-                close=b.close,
-                volume=b.volume if b.volume > 0 else None,
-            ))
 
         df = bars_to_df(bars)
         cache_name = f"{symbol.upper()}_{interval}_raw"

@@ -75,51 +75,32 @@ class StrokeFlow:
 # ====================================================================
 
 
+def _resolve_flow_direction(
+    pair: EquivalencePair,
+    stroke_direction: str,
+) -> tuple[FlowDirection, str, str]:
+    """根据笔方向解析资本流转方向和来源/去向标的。"""
+    if stroke_direction == "up":
+        return FlowDirection.B_TO_A, pair.sym_b, pair.sym_a
+    return FlowDirection.A_TO_B, pair.sym_a, pair.sym_b
+
+
 def _map_stroke(
     pair: EquivalencePair,
     stroke: Stroke,
     index: int,
 ) -> StrokeFlow:
-    """将单根比价笔映射为资本流转语义。
-
-    映射规则（ratio_relation_v1.md §1.2）：
-      - stroke.direction == "up"   → 比价上涨 → 资本从 B 流向 A
-      - stroke.direction == "down" → 比价下跌 → 资本从 A 流向 B
-
-    Parameters
-    ----------
-    pair : EquivalencePair
-        等价对，提供 sym_a / sym_b 标的名。
-    stroke : Stroke
-        比价K线上构造的一笔。
-    index : int
-        笔在序列中的位置索引。
-
-    Returns
-    -------
-    StrokeFlow
-
-    Raises
-    ------
-    ValueError
-        当 stroke.p0 == 0 时（magnitude 除零）。
-    """
+    """将单根比价笔映射为资本流转语义。"""
     if stroke.p0 == 0.0:
         raise ValueError(
             f"stroke[{index}].p0 is zero — magnitude undefined "
             f"(division by zero)"
         )
 
-    if stroke.direction == "up":
-        direction = FlowDirection.B_TO_A
-        sym_from = pair.sym_b
-        sym_to = pair.sym_a
-    else:  # "down"
-        direction = FlowDirection.A_TO_B
-        sym_from = pair.sym_a
-        sym_to = pair.sym_b
-
-    magnitude = abs(stroke.p1 - stroke.p0) / stroke.p0
+    direction, sym_from, sym_to = _resolve_flow_direction(
+        pair, stroke.direction,
+    )
+    magnitude = abs(stroke.p1 - stroke.p0) / abs(stroke.p0)
 
     return StrokeFlow(
         stroke_index=index,

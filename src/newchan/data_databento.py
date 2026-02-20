@@ -174,22 +174,43 @@ def fetch_ohlcv(
     """
     dataset, db_symbol, stype_in = _resolve(symbol)
     schema = _SCHEMA_MAP.get(interval, "ohlcv-1m")
-
     need_resample = interval in ("5min", "15min", "30min")
     if need_resample:
         schema = "ohlcv-1m"
 
-    # 免费/历史层不能访问当天数据，默认 T-1
-    if end is None:
-        end_str = (datetime.utcnow() - timedelta(days=1)).strftime("%Y-%m-%d")
-    else:
-        end_str = end
+    end_str = _resolve_end_date(end)
 
     logger.info(
         "Databento: %s (%s/%s stype=%s) schema=%s [%s → %s]",
         symbol, dataset, db_symbol, stype_in, schema, start, end_str,
     )
 
+    df = _fetch_raw_df(dataset, db_symbol, stype_in, schema, start, end_str)
+    if df.empty:
+        logger.warning("Databento 返回空数据: %s %s", symbol, interval)
+        return pd.DataFrame(columns=["open", "high", "low", "close", "volume"])
+
+    df = _normalize_ohlcv(df)
+
+    if need_resample:
+        df = _resample_ohlcv(df, interval)
+
+    logger.info("Databento 返回 %d 条 %s %s", len(df), symbol, interval)
+    return df
+
+
+def _resolve_end_date(end: str | None) -> str:
+    """免费/历史层不能访问当天数据，默认 T-1。"""
+    if end is None:
+        return (datetime.utcnow() - timedelta(days=1)).strftime("%Y-%m-%d")
+    return end
+
+
+def _fetch_raw_df(
+    dataset: str, db_symbol: str, stype_in: str, schema: str,
+    start: str, end_str: str,
+) -> pd.DataFrame:
+    """调用 Databento API 获取原始 DataFrame。"""
     client = _get_client()
     data = client.timeseries.get_range(
         dataset=dataset,
@@ -199,30 +220,17 @@ def fetch_ohlcv(
         start=start,
         end=end_str,
     )
+    return data.to_df()
 
-    df = data.to_df()
 
-    if df.empty:
-        logger.warning("Databento 返回空数据: %s %s", symbol, interval)
-        return pd.DataFrame(columns=["open", "high", "low", "close", "volume"])
-
-    # to_df() 输出: index=ts_event(datetime64[ns, UTC]),
-    # 列包含 open/high/low/close/volume + rtype/publisher_id/instrument_id/symbol
-    # 只保留 OHLCV 列
+def _normalize_ohlcv(df: pd.DataFrame) -> pd.DataFrame:
+    """只保留 OHLCV 列，去时区，去重，排序。"""
     keep = [c for c in ["open", "high", "low", "close", "volume"] if c in df.columns]
     df = df[keep]
-
-    # 去除 UTC 时区（与项目其他缓存数据一致，全部用 tz-naive）
     if hasattr(df.index, "tz") and df.index.tz is not None:
         df.index = df.index.tz_localize(None)
-
     df = df.sort_index()
     df = df[~df.index.duplicated(keep="last")]
-
-    if need_resample:
-        df = _resample_ohlcv(df, interval)
-
-    logger.info("Databento 返回 %d 条 %s %s", len(df), symbol, interval)
     return df
 
 

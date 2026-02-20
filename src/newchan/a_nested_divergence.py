@@ -133,48 +133,51 @@ def _amplitude_force(
     return (high - low) * duration
 
 
+def _level_trend_ac_segments(
+    zhongshus: list[LevelZhongshu],
+    move: Move,
+    components: list[Move],
+) -> tuple[int, int, int, int] | None:
+    """计算递归层级趋势背驰的 A/C 段范围。"""
+    move_zs_indices: list[int] = [
+        i for i in range(move.zs_start, min(move.zs_end + 1, len(zhongshus)))
+        if zhongshus[i].settled
+    ]
+    if len(move_zs_indices) < 2:
+        return None
+
+    zs_prev = zhongshus[move_zs_indices[-2]]
+    zs_last = zhongshus[move_zs_indices[-1]]
+
+    a_start = zs_prev.comp_end + 1
+    a_end = zs_last.comp_start - 1
+    if a_start > a_end:
+        a_start = a_end = zs_prev.comp_end
+
+    c_start = zs_last.comp_end + 1
+    c_end = move.seg_end
+    if c_start > c_end:
+        return None
+    if a_start >= len(components) or c_end >= len(components):
+        return None
+
+    return a_start, a_end, c_start, c_end
+
+
 def _detect_level_trend_divergence(
     zhongshus: list[LevelZhongshu],
     move: Move,
     components: list[Move],
     level_id: int,
 ) -> Divergence | None:
-    """检测递归层级的趋势背驰（价格振幅力度）。
-
-    算法与 v1 _detect_trend_divergence 相同，
-    但使用 LevelZhongshu (comp_start/comp_end) 替代 Zhongshu (seg_start/seg_end)。
-    """
+    """检测递归层级的趋势背驰（价格振幅力度）。"""
     if move.kind != "trend" or move.zs_count < 2:
         return None
 
-    # 收集此 Move 范围内的 settled 中枢
-    move_zs_indices: list[int] = []
-    for i in range(move.zs_start, min(move.zs_end + 1, len(zhongshus))):
-        if zhongshus[i].settled:
-            move_zs_indices.append(i)
-
-    if len(move_zs_indices) < 2:
+    ac = _level_trend_ac_segments(zhongshus, move, components)
+    if ac is None:
         return None
-
-    idx_prev = move_zs_indices[-2]
-    idx_last = move_zs_indices[-1]
-    zs_prev = zhongshus[idx_prev]
-    zs_last = zhongshus[idx_last]
-
-    # A 段: 前中枢结束到后中枢开始
-    a_start = zs_prev.comp_end + 1
-    a_end = zs_last.comp_start - 1
-    if a_start > a_end:
-        a_start = a_end = zs_prev.comp_end
-
-    # C 段: 后中枢结束到 Move 终点
-    c_start = zs_last.comp_end + 1
-    c_end = move.seg_end
-    if c_start > c_end:
-        return None
-
-    if a_start >= len(components) or c_end >= len(components):
-        return None
+    a_start, a_end, c_start, c_end = ac
 
     force_a = _amplitude_force(components, a_start, a_end)
     force_c = _amplitude_force(components, c_start, c_end)
@@ -183,6 +186,10 @@ def _detect_level_trend_divergence(
         return None
 
     if force_c < force_a:
+        idx_last = [
+            i for i in range(move.zs_start, min(move.zs_end + 1, len(zhongshus)))
+            if zhongshus[i].settled
+        ][-1]
         div_dir: Literal["top", "bottom"] = (
             "top" if move.direction == "up" else "bottom"
         )
@@ -203,6 +210,30 @@ def _detect_level_trend_divergence(
     return None
 
 
+def _collect_level_exit_comps(
+    zs: LevelZhongshu,
+    move: Move,
+    components: list[Move],
+) -> dict[str, list[int]]:
+    """收集递归层级中枢的离开组件索引，按方向分组。"""
+    exit_comps_by_dir: dict[str, list[int]] = {"up": [], "down": []}
+
+    for k in range(zs.comp_start, min(zs.comp_end + 1, len(components))):
+        comp = components[k]
+        if comp.high > zs.zg or comp.low < zs.zd:
+            d = comp.direction
+            if d in exit_comps_by_dir:
+                exit_comps_by_dir[d].append(k)
+
+    for k in range(zs.comp_end + 1, min(move.seg_end + 1, len(components))):
+        comp = components[k]
+        d = comp.direction
+        if d in exit_comps_by_dir:
+            exit_comps_by_dir[d].append(k)
+
+    return exit_comps_by_dir
+
+
 def _detect_level_consolidation_divergence(
     zhongshus: list[LevelZhongshu],
     move: Move,
@@ -212,36 +243,17 @@ def _detect_level_consolidation_divergence(
     """检测递归层级的盘整背驰（价格振幅力度）。"""
     if move.kind != "consolidation" or move.zs_count < 1:
         return None
-
     if move.zs_start >= len(zhongshus):
         return None
+
     zs = zhongshus[move.zs_start]
-
-    # 收集离开段（超出 [ZD, ZG]）
-    exit_comps_by_dir: dict[str, list[int]] = {"up": [], "down": []}
-
-    # 中枢内
-    for k in range(zs.comp_start, min(zs.comp_end + 1, len(components))):
-        comp = components[k]
-        if comp.high > zs.zg or comp.low < zs.zd:
-            d = comp.direction
-            if d in exit_comps_by_dir:
-                exit_comps_by_dir[d].append(k)
-
-    # 中枢之后到 Move 终点
-    for k in range(zs.comp_end + 1, min(move.seg_end + 1, len(components))):
-        comp = components[k]
-        d = comp.direction
-        if d in exit_comps_by_dir:
-            exit_comps_by_dir[d].append(k)
+    exit_comps_by_dir = _collect_level_exit_comps(zs, move, components)
 
     for direction, exits in exit_comps_by_dir.items():
         if len(exits) < 2:
             continue
 
-        a_idx = exits[-2]
-        c_idx = exits[-1]
-
+        a_idx, c_idx = exits[-2], exits[-1]
         force_a = _amplitude_force(components, a_idx, a_idx)
         force_c = _amplitude_force(components, c_idx, c_idx)
 

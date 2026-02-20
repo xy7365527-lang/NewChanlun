@@ -1,0 +1,369 @@
+# USM — Unified Skill Manifest
+# 自动生成，勿手动编辑。重新生成：扫描 .claude/ 下的 commands/agents/hooks
+version: "1.0"
+generated: "2026-02-20"
+
+skills:
+  - name: build-fix
+    type: command
+    file: .claude/commands/build-fix.md
+    description: "Incrementally fix build and type errors with minimal, safe changes"
+    status: active
+
+  - name: ceremony
+    type: command
+    file: .claude/commands/ceremony.md
+    description: "可执行仪式清单 — 蜂群启动/扩张/收缩的相位转换节点"
+    status: active
+
+  - name: challenge
+    type: command
+    file: .claude/commands/challenge.md
+    description: "异质否定质询 — 调用外部模型对指定目标进行异质否定"
+    status: active
+
+  - name: checkpoint
+    type: command
+    file: .claude/commands/checkpoint.md
+    description: "Create or verify a checkpoint in your workflow"
+    status: active
+
+  - name: code-review
+    type: command
+    file: .claude/commands/code-review.md
+    description: "Comprehensive security and quality review of uncommitted changes"
+    status: active
+
+  - name: escalate
+    type: command
+    file: .claude/commands/escalate.md
+    description: "矛盾上浮 — 生成标准格式的矛盾报告呈交编排者"
+    status: active
+
+  - name: inquire
+    type: command
+    file: .claude/commands/inquire.md
+    description: "质询序列 — 对一个结果包执行四步质询"
+    status: active
+
+  - name: plan
+    type: command
+    file: .claude/commands/plan.md
+    description: "Restate requirements, assess risks, and create step-by-step implementation plan"
+    status: active
+
+  - name: refactor-clean
+    type: command
+    file: .claude/commands/refactor-clean.md
+    description: "Safely identify and remove dead code with test verification at every step"
+    status: active
+
+  - name: ritual
+    type: command
+    file: .claude/commands/ritual.md
+    description: "定义广播仪式 — 分离是自治的，结算是仪式"
+    status: active
+
+  - name: tdd
+    type: command
+    file: .claude/commands/tdd.md
+    description: "Enforce test-driven development workflow with 80%+ coverage"
+    status: active
+
+  - name: update-docs
+    type: command
+    file: .claude/commands/update-docs.md
+    description: "Sync documentation with the codebase from source-of-truth files"
+    status: active
+
+  - name: verify
+    type: command
+    file: .claude/commands/verify.md
+    description: "Run comprehensive verification on current codebase state"
+    status: active
+
+agents:
+  - name: architect
+    type: agent
+    file: .claude/agents/architect.md
+    description: "System design with definition settlement awareness"
+    status: active
+
+  - name: build-error-resolver
+    type: agent
+    file: .claude/agents/build-error-resolver.md
+    description: "Build and TypeScript error resolution specialist"
+    status: active
+
+  - name: code-reviewer
+    type: agent
+    file: .claude/agents/code-reviewer.md
+    description: "Code review with concept-layer interrogation"
+    status: active
+
+  - name: database-reviewer
+    type: agent
+    file: .claude/agents/database-reviewer.md
+    description: "PostgreSQL database specialist for query optimization, schema design, security"
+    status: active
+
+  - name: doc-updater
+    type: agent
+    file: .claude/agents/doc-updater.md
+    description: "Documentation and codemap specialist"
+    status: active
+
+  - name: e2e-runner
+    type: agent
+    file: .claude/agents/e2e-runner.md
+    description: "End-to-end testing specialist using Vercel Agent Browser with Playwright fallback"
+    status: active
+
+  - name: gemini-challenger
+    type: agent
+    file: .claude/agents/gemini-challenger.md
+    description: "Gemini 异质质询代理工位 + 编排者代理"
+    status: active
+
+  - name: genealogist
+    type: agent
+    file: .claude/agents/genealogist.md
+    description: "谱系维护工位 — 谱系写入、张力检查、回溯扫描"
+    status: active
+
+  - name: go-build-resolver
+    type: agent
+    file: .claude/agents/go-build-resolver.md
+    description: "Go build, vet, and compilation error resolution specialist"
+    status: active
+
+  - name: go-reviewer
+    type: agent
+    file: .claude/agents/go-reviewer.md
+    description: "Expert Go code reviewer specializing in idiomatic Go"
+    status: active
+
+  - name: meta-lead
+    type: agent
+    file: .claude/agents/meta-lead.md
+    description: "蜂群中断路由器 — 收中断、扫文件系统、出轴线汇报"
+    status: active
+
+  - name: meta-observer
+    type: agent
+    file: .claude/agents/meta-observer.md
+    description: "元规则观测工位 — 监控元编排自身的进化"
+    status: active
+
+  - name: planner
+    type: agent
+    file: .claude/agents/planner.md
+    description: "Feature implementation planning with definition settlement awareness"
+    status: active
+
+  - name: python-reviewer
+    type: agent
+    file: .claude/agents/python-reviewer.md
+    description: "Expert Python code reviewer specializing in PEP 8 compliance"
+    status: active
+
+  - name: quality-guard
+    type: agent
+    file: .claude/agents/quality-guard.md
+    description: "质量守卫工位 — 结果包六要素、谱系引用、代码违规检查"
+    status: active
+
+  - name: refactor-cleaner
+    type: agent
+    file: .claude/agents/refactor-cleaner.md
+    description: "Dead code cleanup and consolidation specialist"
+    status: active
+
+  - name: security-reviewer
+    type: agent
+    file: .claude/agents/security-reviewer.md
+    description: "Security vulnerability detection and remediation specialist"
+    status: active
+
+  - name: skill-crystallizer
+    type: agent
+    file: .claude/agents/skill-crystallizer.md
+    description: "结晶工位 — pattern-buffer 达标模式结晶为 skill 文件"
+    status: active
+
+  - name: source-auditor
+    type: agent
+    file: .claude/agents/source-auditor.md
+    description: "源头审计工位 — 概念溯源标注和原文考古"
+    status: active
+
+  - name: tdd-guide
+    type: agent
+    file: .claude/agents/tdd-guide.md
+    description: "Test-driven development with contradiction awareness"
+    status: active
+
+  - name: topology-manager
+    type: agent
+    file: .claude/agents/topology-manager.md
+    description: "蜂群拓扑管理工位 — 监控 teammates 状态，判断扩张/收缩"
+    status: active
+
+hooks:
+  - name: ceremony-completion-guard
+    type: hook
+    file: .claude/hooks/ceremony-completion-guard.sh
+    event: Stop
+    matcher: ""
+    description: "ceremony 完成守卫 — 相位切换点的 runtime 强制"
+    status: active
+
+  - name: ceremony-guard
+    type: hook
+    file: .claude/hooks/ceremony-guard.sh
+    event: PreToolUse
+    matcher: Task
+    description: "ceremony 守卫 — 结构工位前置检查"
+    status: active
+
+  - name: crystallization-guard
+    type: hook
+    file: .claude/hooks/crystallization-guard.sh
+    event: PostToolUse
+    matcher: Bash
+    description: "结晶守卫 — 知识结晶点检测"
+    status: active
+
+  - name: flow-continuity-guard
+    type: hook
+    file: .claude/hooks/flow-continuity-guard.sh
+    event: PostToolUse
+    matcher: Bash
+    description: "flow-continuity-guard — post-commit-flow 的运行时强制层"
+    status: active
+
+  - name: lead-permissions
+    type: hook
+    file: .claude/hooks/lead-permissions.sh
+    event: manual
+    matcher: ""
+    description: "Lead 权限切换 — 神圣疯狂的物质化"
+    status: active
+
+  - name: precompact-save
+    type: hook
+    file: .claude/hooks/precompact-save.sh
+    event: PreCompact
+    matcher: ""
+    description: "统一 session 快照 — 上下文压缩前自动保存蜂群状态"
+    status: active
+
+  - name: recursive-guard
+    type: hook
+    file: .claude/hooks/recursive-guard.sh
+    event: PostToolUse
+    matcher: TaskUpdate
+    description: "递归守卫 — 递归蜂群分形结构检测"
+    status: active
+
+  - name: session-start-ceremony
+    type: hook
+    file: .claude/hooks/session-start-ceremony.sh
+    event: SessionStart
+    matcher: ""
+    description: "自动 ceremony — 热启动 bootstrap"
+    status: active
+
+  - name: topology-guard
+    type: hook
+    file: .claude/hooks/topology-guard.sh
+    event: PostToolUse
+    matcher: Bash
+    description: "孤岛检测守卫 — 从根节点 BFS 扫描引用图，警告不可达文件"
+    status: active
+
+  - name: post-session-pattern-detect
+    type: hook
+    file: .claude/hooks/post-session-pattern-detect.sh
+    event: Stop
+    matcher: ""
+    description: "043号谱系入口 — session 结束时提取操作序列重复模式"
+    status: active
+
+theorems:
+  directory: spec/theorems/
+  description: "缠论形式化定理和证明 — 文件变更自动触发 Gemini 数学验证（049号路由表）"
+  validation_trigger: "049-gemini-math-verification"
+  tags: ["@proof-required", "verified", "unverified"]
+  entries:
+    - id: "001"
+      file: spec/theorems/001-segment-decomposition.md
+      name: "线段分解定理"
+      status: verified
+      source: xianduan.md
+
+    - id: "002"
+      file: spec/theorems/002-divergence-buysellpoint.md
+      name: "背驰-买卖点定理"
+      status: verified
+      source: beichi.md
+
+    - id: "003"
+      file: spec/theorems/003-interval-nesting.md
+      name: "区间套定理"
+      status: verified
+      source: beichi.md
+
+    - id: "004"
+      file: spec/theorems/004-trend-completion.md
+      name: "走势终完美原理"
+      status: verified
+      source: zoushi.md
+
+    - id: "005"
+      file: spec/theorems/005-trend-decomposition-1.md
+      name: "走势分解定理一"
+      status: verified
+      source: zoushi.md
+
+    - id: "006"
+      file: spec/theorems/006-trend-decomposition-2.md
+      name: "走势分解定理二"
+      status: verified
+      source: zoushi.md
+
+    - id: "007"
+      file: spec/theorems/007-center-theorem-1.md
+      name: "中心定理一"
+      status: verified
+      source: zhongshu.md
+
+    - id: "008"
+      file: spec/theorems/008-center-theorem-2.md
+      name: "中心定理二"
+      status: verified
+      source: zhongshu.md
+
+    - id: "009"
+      file: spec/theorems/009-buysellpoint-completeness.md
+      name: "买卖点完备性定理"
+      status: verified
+      source: maimai.md
+
+    - id: "010"
+      file: spec/theorems/010-updown-completeness.md
+      name: "升跌完备性定理"
+      status: verified
+      source: maimai.md
+
+    - id: "011"
+      file: spec/theorems/011-prohibition-theorem.md
+      name: "禁止非对象来源否定定理"
+      status: verified
+      source: "谱系 005a"
+
+    - id: "012"
+      file: spec/theorems/012-conservation-constraint.md
+      name: "守恒约束"
+      status: "@proof-required"
+      source: liuzhuan.md

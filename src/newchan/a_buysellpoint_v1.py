@@ -78,6 +78,18 @@ def _find_move_for_seg(moves: list[Move], seg_idx: int) -> Move | None:
             return m
     return None
 
+def _find_assoc_trend_move(
+    moves: list[Move], div, zhongshus: list[Zhongshu],
+) -> Move | None:
+    """找包含背驰中枢的趋势 Move。"""
+    if div.center_idx >= len(zhongshus):
+        return None
+    for m in moves:
+        if m.zs_start <= div.center_idx <= m.zs_end and m.kind == "trend":
+            return m
+    return None
+
+
 def _detect_type1(
     moves: list[Move],
     divergences: list[Divergence],
@@ -85,44 +97,23 @@ def _detect_type1(
     segments: list,
     level_id: int,
 ) -> list[BuySellPoint]:
-    """第一类买卖点：趋势背驰点。
-
-    - 遍历 kind="trend" 的 Divergence
-    - direction="bottom" → buy, direction="top" → sell
-    - seg_idx = div.seg_c_end（背驰段终段）
-    - [TBD-4] 盘整背驰不产生 Type 1
-    """
+    """第一类买卖点：趋势背驰点。"""
     result: list[BuySellPoint] = []
 
     for div in divergences:
         if div.kind != "trend":
-            continue  # [TBD-4] 盘整背驰跳过
-
-        # 反查关联 Move（通过 center_idx → Zhongshu → Move）
-        if div.center_idx >= len(zhongshus):
             continue
-        zs = zhongshus[div.center_idx]
 
-        # 找包含此中枢的 Move
-        assoc_move: Move | None = None
-        for m in moves:
-            if m.zs_start <= div.center_idx <= m.zs_end:
-                assoc_move = m
-                break
-
+        assoc_move = _find_assoc_trend_move(moves, div, zhongshus)
         if assoc_move is None:
             continue
 
-        # [TBD-1] 严格口径：必须是趋势
-        if assoc_move.kind != "trend":
-            continue
-
+        zs = zhongshus[div.center_idx]
         side: Literal["buy", "sell"] = (
             "buy" if div.direction == "bottom" else "sell"
         )
         seg_idx = div.seg_c_end
 
-        # 价格：背驰段终点的分型价
         price = 0.0
         bar_idx = 0
         if seg_idx < len(segments):
@@ -142,7 +133,7 @@ def _detect_type1(
             center_seg_start=zs.seg_start,
             price=price,
             bar_idx=bar_idx,
-            confirmed=div.confirmed,  # maimai #2: div.confirmed = move.settled ✅
+            confirmed=div.confirmed,
             settled=False,
         ))
 
@@ -151,94 +142,68 @@ def _detect_type1(
 
 # ── Type 2: 回调/反弹买卖点 ──
 
+def _find_next_seg_by_direction(
+    segments: list, start: int, direction: str,
+) -> int | None:
+    """从 start 开始找第一个指定方向的段索引。"""
+    for k in range(start, len(segments)):
+        if segments[k].direction == direction:
+            return k
+    return None
+
+
+def _make_type2_point(
+    t1: BuySellPoint, seg_idx: int, seg, side: str,
+    moves: list[Move], level_id: int,
+) -> BuySellPoint:
+    """构造 Type2 买卖点。"""
+    assoc_move = _find_move_for_seg(moves, seg_idx)
+    return BuySellPoint(
+        kind="type2",
+        side=side,
+        level_id=level_id,
+        seg_idx=seg_idx,
+        move_seg_start=t1.move_seg_start,
+        divergence_key=t1.divergence_key,
+        center_zd=t1.center_zd,
+        center_zg=t1.center_zg,
+        center_seg_start=t1.center_seg_start,
+        price=seg.low if side == "buy" else seg.high,
+        bar_idx=seg.i1,
+        confirmed=assoc_move.settled if assoc_move else False,
+        settled=False,
+    )
+
+
 def _detect_type2(
     type1_points: list[BuySellPoint],
     segments: list,
     moves: list[Move],
     level_id: int,
 ) -> list[BuySellPoint]:
-    """第二类买卖点：Type 1 之后的第一次回调/反弹。
-
-    [旧缠论] 第17课、第21课：
-    - 2B = 1B 出现后，第一个向上段（反弹）之后的第一个向下段（回调）的结束点
-    - 2S = 1S 出现后，第一个向下段（回调）之后的第一个向上段（反弹）的结束点
-
-    [旧缠论:选择] 在本级别段粒度上近似识别，而非严格下钻次级别。
-    """
+    """第二类买卖点：Type 1 之后的第一次回调/反弹。"""
     result: list[BuySellPoint] = []
 
     for t1 in type1_points:
         if t1.side == "buy":
-            # 1B → 找反弹(up) → 找回调(down) → 2B
-            rebound_idx: int | None = None
-            for k in range(t1.seg_idx + 1, len(segments)):
-                if segments[k].direction == "up":
-                    rebound_idx = k
-                    break
+            rebound_idx = _find_next_seg_by_direction(segments, t1.seg_idx + 1, "up")
             if rebound_idx is None:
                 continue
-
-            callback_idx: int | None = None
-            for k in range(rebound_idx + 1, len(segments)):
-                if segments[k].direction == "down":
-                    callback_idx = k
-                    break
+            callback_idx = _find_next_seg_by_direction(segments, rebound_idx + 1, "down")
             if callback_idx is None:
                 continue
-
-            callback_seg = segments[callback_idx]
-            # maimai #2: confirmed 来自 Move.settled，非段结构
-            callback_move = _find_move_for_seg(moves, callback_idx)
-            result.append(BuySellPoint(
-                kind="type2",
-                side="buy",
-                level_id=level_id,
-                seg_idx=callback_idx,
-                move_seg_start=t1.move_seg_start,
-                divergence_key=t1.divergence_key,
-                center_zd=t1.center_zd,
-                center_zg=t1.center_zg,
-                center_seg_start=t1.center_seg_start,
-                price=callback_seg.low,
-                bar_idx=callback_seg.i1,
-                confirmed=callback_move.settled if callback_move else False,
-                settled=False,
+            result.append(_make_type2_point(
+                t1, callback_idx, segments[callback_idx], "buy", moves, level_id,
             ))
         elif t1.side == "sell":
-            # 1S → 找回调(down) → 找反弹(up) → 2S
-            pullback_idx: int | None = None
-            for k in range(t1.seg_idx + 1, len(segments)):
-                if segments[k].direction == "down":
-                    pullback_idx = k
-                    break
+            pullback_idx = _find_next_seg_by_direction(segments, t1.seg_idx + 1, "down")
             if pullback_idx is None:
                 continue
-
-            rebound_idx_s: int | None = None
-            for k in range(pullback_idx + 1, len(segments)):
-                if segments[k].direction == "up":
-                    rebound_idx_s = k
-                    break
+            rebound_idx_s = _find_next_seg_by_direction(segments, pullback_idx + 1, "up")
             if rebound_idx_s is None:
                 continue
-
-            rebound_seg = segments[rebound_idx_s]
-            # maimai #2: confirmed 来自 Move.settled，非段结构
-            rebound_move = _find_move_for_seg(moves, rebound_idx_s)
-            result.append(BuySellPoint(
-                kind="type2",
-                side="sell",
-                level_id=level_id,
-                seg_idx=rebound_idx_s,
-                move_seg_start=t1.move_seg_start,
-                divergence_key=t1.divergence_key,
-                center_zd=t1.center_zd,
-                center_zg=t1.center_zg,
-                center_seg_start=t1.center_seg_start,
-                price=rebound_seg.high,
-                bar_idx=rebound_seg.i1,
-                confirmed=rebound_move.settled if rebound_move else False,
-                settled=False,
+            result.append(_make_type2_point(
+                t1, rebound_idx_s, segments[rebound_idx_s], "sell", moves, level_id,
             ))
 
     return result
@@ -246,18 +211,36 @@ def _detect_type2(
 
 # ── Type 3: 中枢突破回试买卖点 ──
 
+def _make_type3_point(
+    zs, seg_idx: int, seg, side: str,
+    moves: list[Move], level_id: int,
+) -> BuySellPoint:
+    """构造 Type3 买卖点。"""
+    assoc_move = _find_move_for_seg(moves, seg_idx)
+    return BuySellPoint(
+        kind="type3",
+        side=side,
+        level_id=level_id,
+        seg_idx=seg_idx,
+        move_seg_start=zs.seg_start,
+        divergence_key=None,
+        center_zd=zs.zd,
+        center_zg=zs.zg,
+        center_seg_start=zs.seg_start,
+        price=seg.low if side == "buy" else seg.high,
+        bar_idx=seg.i1,
+        confirmed=assoc_move.settled if assoc_move else False,
+        settled=False,
+    )
+
+
 def _detect_type3(
     zhongshus: list[Zhongshu],
     segments: list,
     moves: list[Move],
     level_id: int,
 ) -> list[BuySellPoint]:
-    """第三类买卖点：中枢突破后回试/回抽。
-
-    - 遍历 settled 中枢
-    - break_direction="up" → 找回试段（下跌段），low > ZG → 3B
-    - break_direction="down" → 找回抽段（上涨段），high < ZD → 3S
-    """
+    """第三类买卖点：中枢突破后回试/回抽。"""
     result: list[BuySellPoint] = []
 
     for zs in zhongshus:
@@ -268,66 +251,17 @@ def _detect_type3(
         if break_seg_idx < 0 or break_seg_idx >= len(segments):
             continue
 
-        # 找离开段之后的第一个反方向段
-        pullback_idx: int | None = None
-        if zs.break_direction == "up":
-            # 找第一个向下段
-            for k in range(break_seg_idx + 1, len(segments)):
-                if segments[k].direction == "down":
-                    pullback_idx = k
-                    break
-        elif zs.break_direction == "down":
-            # 找第一个向上段
-            for k in range(break_seg_idx + 1, len(segments)):
-                if segments[k].direction == "up":
-                    pullback_idx = k
-                    break
-
+        opposite_dir = "down" if zs.break_direction == "up" else "up"
+        pullback_idx = _find_next_seg_by_direction(segments, break_seg_idx + 1, opposite_dir)
         if pullback_idx is None:
             continue
 
         pullback_seg = segments[pullback_idx]
 
-        if zs.break_direction == "up":
-            # 3B: 回试段的 low > ZG
-            if pullback_seg.low > zs.zg:
-                # maimai #2: confirmed 来自 Move.settled，非段结构
-                pullback_move = _find_move_for_seg(moves, pullback_idx)
-                result.append(BuySellPoint(
-                    kind="type3",
-                    side="buy",
-                    level_id=level_id,
-                    seg_idx=pullback_idx,
-                    move_seg_start=zs.seg_start,
-                    divergence_key=None,
-                    center_zd=zs.zd,
-                    center_zg=zs.zg,
-                    center_seg_start=zs.seg_start,
-                    price=pullback_seg.low,
-                    bar_idx=pullback_seg.i1,
-                    confirmed=pullback_move.settled if pullback_move else False,
-                    settled=False,
-                ))
-        elif zs.break_direction == "down":
-            # 3S: 回抽段的 high < ZD
-            if pullback_seg.high < zs.zd:
-                # maimai #2: confirmed 来自 Move.settled，非段结构
-                pullback_move = _find_move_for_seg(moves, pullback_idx)
-                result.append(BuySellPoint(
-                    kind="type3",
-                    side="sell",
-                    level_id=level_id,
-                    seg_idx=pullback_idx,
-                    move_seg_start=zs.seg_start,
-                    divergence_key=None,
-                    center_zd=zs.zd,
-                    center_zg=zs.zg,
-                    center_seg_start=zs.seg_start,
-                    price=pullback_seg.high,
-                    bar_idx=pullback_seg.i1,
-                    confirmed=pullback_move.settled if pullback_move else False,
-                    settled=False,
-                ))
+        if zs.break_direction == "up" and pullback_seg.low > zs.zg:
+            result.append(_make_type3_point(zs, pullback_idx, pullback_seg, "buy", moves, level_id))
+        elif zs.break_direction == "down" and pullback_seg.high < zs.zd:
+            result.append(_make_type3_point(zs, pullback_idx, pullback_seg, "sell", moves, level_id))
 
     return result
 

@@ -9,8 +9,26 @@
 set -euo pipefail
 
 input=$(cat)
-cwd=$(echo "$input" | python3 -c "import sys,json; print(json.loads(sys.stdin.read()).get('cwd', '.'))" 2>/dev/null || echo ".")
-cd "$cwd" 2>/dev/null || cd /home/user/NewChanlun
+cwd=$(echo "$input" | python -c "import sys,json; print(json.loads(sys.stdin.read()).get('cwd', '.'))" 2>/dev/null || echo ".")
+cd "$cwd" 2>/dev/null || true
+
+# ─── ceremony 相位标记 ───
+# 创建 ceremony-in-progress 标记，由 ceremony-completion-guard (Stop hook) 检查
+# ceremony 的 enter-swarm-loop 步骤完成后删除此标记
+mkdir -p .chanlun 2>/dev/null || true
+touch .chanlun/.ceremony-in-progress
+rm -f .chanlun/.ceremony-stop-counter 2>/dev/null || true
+
+# ─── 安全 JSON 输出 ───
+# 用 python json.dumps 保证转义正确，避免裸拼接导致畸形 JSON
+emit_json() {
+    local msg="$1"
+    python -c "
+import json, sys
+msg = sys.argv[1]
+print(json.dumps({'continue': True, 'suppressOutput': False, 'systemMessage': msg}, ensure_ascii=False))
+" "$msg"
+}
 
 # ─── 检测模式 ───
 SESSION_FILE=""
@@ -28,7 +46,7 @@ if [ -z "$SESSION_FILE" ]; then
     [ -d ".chanlun/genealogy/pending" ] && PENDING=$(ls .chanlun/genealogy/pending/*.md 2>/dev/null | wc -l)
 
     MSG="[Ceremony/冷启动] 定义${DEF_COUNT}条 | 谱系${SETTLED}已结算/${PENDING}生成态 | 请执行完整 /ceremony 确认定义基底"
-    echo "{\"continue\": true, \"suppressOutput\": false, \"systemMessage\": \"${MSG}\"}"
+    emit_json "$MSG"
     exit 0
 fi
 
@@ -49,7 +67,7 @@ if [ -d ".chanlun/definitions" ]; then
         name=$(basename "$f" .md)
         cur_ver=$(grep -m1 '^\*\*版本\*\*' "$f" 2>/dev/null | sed 's/.*: *//; s/\*\*//g' || echo "?")
         # 从 session 表格提取该定义的版本（第2列）
-        ses_ver=$(grep "| ${name} |" "$SESSION_FILE" 2>/dev/null | awk -F'|' '{gsub(/^ *| *$/,"",$3); print $3}' | head -1)
+        ses_ver=$(grep "| ${name} |" "$SESSION_FILE" 2>/dev/null | awk -F'|' '{gsub(/^ *| *$/,"",$3); print $3}' | head -1 || true)
         [ -z "$ses_ver" ] && ses_ver="?"
         if [ "$cur_ver" = "$ses_ver" ]; then
             mark="="
@@ -80,4 +98,4 @@ INTERRUPTS=$(sed -n '/^## 中断点$/,/^## /{ /^## 中断点$/d; /^## /d; p; }' 
 # 构建消息
 MSG="[Ceremony/热启动L2] 恢复自:${SESSION_FILE} (${SESSION_TIME}) | 分支:${GIT_BRANCH} | session提交:${SESSION_COMMIT} | 当前:${CURRENT_COMMIT} | 定义变更:${CHANGED}条 | 谱系:${SETTLED}settled/${PENDING}pending | 中断点:${INTERRUPTS} | ⚡自动进入蜂群循环：先评估可并行工位数(≥2即拉蜂群)，扫描代码/规范/谱系状态确定本轮工作目标"
 
-echo "{\"continue\": true, \"suppressOutput\": false, \"systemMessage\": \"${MSG}\"}"
+emit_json "$MSG"

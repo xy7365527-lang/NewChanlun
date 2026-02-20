@@ -101,6 +101,37 @@ def _check_av_env() -> None:
 _AV_SYMBOLS = {"BRENT"}
 
 
+def _fetch_ibkr(symbol: str, interval: str, duration: str):
+    """通过 IBKR 拉取历史数据。"""
+    from newchan.data_ibkr import IBKRProvider
+
+    print(f"正在通过 IBKR 拉取 {symbol} {interval} 数据（duration={duration}）…")
+    with IBKRProvider() as provider:
+        return provider.fetch_historical(
+            symbol=symbol, interval=interval, duration=duration,
+        )
+
+
+def _fetch_av(symbol: str):
+    """通过 Alpha Vantage 拉取历史数据。"""
+    _check_av_env()
+    from newchan.data_av import AlphaVantageProvider
+
+    if symbol not in _AV_SYMBOLS:
+        print(
+            f"错误: Alpha Vantage 暂不支持 {symbol}，"
+            f"当前支持: {', '.join(sorted(_AV_SYMBOLS))}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    print(f"正在从 Alpha Vantage 拉取 {symbol} daily 数据 …")
+    provider_av = AlphaVantageProvider()
+    if symbol == "BRENT":
+        return provider_av.fetch_brent_daily()
+    return []
+
+
 def _cmd_fetch(args: argparse.Namespace) -> None:
     """处理 fetch 子命令。"""
     from newchan.cache import load_df, save_df
@@ -109,9 +140,9 @@ def _cmd_fetch(args: argparse.Namespace) -> None:
     symbol = args.symbol.upper()
     source = args.source
     interval = args.interval
-    cache_name = f"{symbol}_{interval}_raw"
+    safe_symbol = symbol.replace("/", "_").replace("\\", "_")
+    cache_name = f"{safe_symbol}_{interval}_raw"
 
-    # 缓存命中
     if not args.refresh:
         cached = load_df(cache_name)
         if cached is not None:
@@ -119,35 +150,10 @@ def _cmd_fetch(args: argparse.Namespace) -> None:
             print(cached.tail())
             return
 
-    # ---------- IBKR ----------
     if source == "ibkr":
-        from newchan.data_ibkr import IBKRProvider
-
-        print(f"正在通过 IBKR 拉取 {symbol} {interval} 数据（duration={args.duration}）…")
-        with IBKRProvider() as provider:
-            bars = provider.fetch_historical(
-                symbol=symbol,
-                interval=interval,
-                duration=args.duration,
-            )
-
-    # ---------- Alpha Vantage ----------
+        bars = _fetch_ibkr(symbol, interval, args.duration)
     elif source == "av":
-        _check_av_env()
-        from newchan.data_av import AlphaVantageProvider
-
-        if symbol not in _AV_SYMBOLS:
-            print(
-                f"错误: Alpha Vantage 暂不支持 {symbol}，"
-                f"当前支持: {', '.join(sorted(_AV_SYMBOLS))}",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-
-        print(f"正在从 Alpha Vantage 拉取 {symbol} daily 数据 …")
-        provider_av = AlphaVantageProvider()
-        if symbol == "BRENT":
-            bars = provider_av.fetch_brent_daily()
+        bars = _fetch_av(symbol)
     else:
         print(f"错误: 未知数据源 {source}", file=sys.stderr)
         sys.exit(1)
