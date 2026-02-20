@@ -1,3 +1,15 @@
+---
+id: "038"
+title: "单 agent 绕过偏差（bias-correction）"
+status: "已结算"
+type: "bias-correction"
+date: "2026-02-20"
+depends_on: []
+related: ["016", "027", "033", "039"]
+negated_by: []
+negates: []
+---
+
 # 038 — 单 agent 绕过偏差（bias-correction）
 
 - **状态**: 已结算

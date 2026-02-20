@@ -1,3 +1,15 @@
+---
+id: "006"
+title: "级别递归 vs 多周期下钻"
+status: "已结算"
+type: "概念分离 + 架构决断"
+date: "2026-02-16"
+depends_on: []
+related: ["003", "005b"]
+negated_by: []
+negates: []
+---
+
 # 概念分离 006：级别递归 vs 多周期下钻
 
 **状态**: 已结算

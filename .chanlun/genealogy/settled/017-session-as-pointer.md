@@ -1,3 +1,15 @@
+---
+id: "017"
+title: "Session 是指针，不是叙事"
+status: "已结算"
+type: "meta-rule"
+date: "2026-02-17"
+depends_on: ["014"]
+related: ["015", "016"]
+negated_by: []
+negates: []
+---
+
 # 017 — Session 是指针，不是叙事
 
 - **状态**: 已结算（定理，016的推论）

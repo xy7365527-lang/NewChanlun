@@ -1,3 +1,15 @@
+---
+id: "046"
+title: "一域一角（One Domain One Role）"
+status: "已结算"
+type: "语法记录"
+date: "2026-02-20"
+depends_on: ["005b", "013", "032", "037"]
+related: ["038", "039", "045"]
+negated_by: []
+negates: []
+---
+
 # 046 — 一域一角（One Domain One Role）
 
 **类型**: 语法记录

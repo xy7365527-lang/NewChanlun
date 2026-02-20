@@ -1,3 +1,15 @@
+---
+id: "033"
+title: "033 声明式工位分派规范"
+status: "已结算"
+type: "矛盾记录"
+date: "2026-02-17"
+depends_on: []
+related: ["005a", "016", "018", "020", "032"]
+negated_by: []
+negates: []
+---
+
 # 033 声明式工位分派规范
 
 status: 已结算

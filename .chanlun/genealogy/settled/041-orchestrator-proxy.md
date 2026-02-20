@@ -1,3 +1,15 @@
+---
+id: "041"
+title: "编排者代理（Gemini Orchestrator Proxy）"
+status: "已结算"
+type: "语法记录"
+date: "2026-02-20"
+depends_on: ["028", "030a", "032", "039"]
+related: ["005b", "018", "020"]
+negated_by: []
+negates: []
+---
+
 # 041 — 编排者代理（Gemini Orchestrator Proxy）
 
 **类型**: 语法记录

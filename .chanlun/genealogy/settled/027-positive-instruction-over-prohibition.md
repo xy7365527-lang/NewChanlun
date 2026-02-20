@@ -1,3 +1,15 @@
+---
+id: "027"
+title: "正面指令优于禁止性规则"
+status: "已结算"
+type: "矛盾记录"
+date: "2026-02-18"
+depends_on: []
+related: []
+negated_by: []
+negates: []
+---
+
 # 027 — 正面指令优于禁止性规则
 
 **状态**: 已结算
