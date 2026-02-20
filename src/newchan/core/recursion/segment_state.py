@@ -20,6 +20,7 @@ Diff 规则（类比 zhongshu_state 的 diff_zhongshu，三层同构）：
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Callable
 
 from newchan.a_segment_v0 import Segment
 from newchan.core.diff.identity import same_segment_identity
@@ -51,6 +52,81 @@ def _segments_equal(a: Segment, b: Segment) -> bool:
         and a.confirmed == b.confirmed
         and a.kind == b.kind
     )
+
+
+def _emit_break_pending(
+    _append: Callable[..., None], i: int, seg: Segment,
+) -> None:
+    """发射 SegmentBreakPendingV1 事件。"""
+    be = seg.break_evidence
+    gap_cls = "gap" if be.gap_type == "second" else "none"
+    _append(
+        SegmentBreakPendingV1,
+        segment_id=i,
+        direction=seg.direction,
+        break_at_stroke=be.trigger_stroke_k,
+        gap_class=gap_cls,
+        fractal_type="top" if seg.direction == "up" else "bottom",
+        s0=seg.s0,
+        s1=seg.s1,
+    )
+
+
+def _emit_settle(
+    _append: Callable[..., None], i: int, seg: Segment,
+) -> None:
+    """发射 SegmentSettleV1 事件。"""
+    be = seg.break_evidence
+    gap_cls = "gap" if be.gap_type == "second" else "none"
+    opposite = "down" if seg.direction == "up" else "up"
+    _append(
+        SegmentSettleV1,
+        segment_id=i,
+        direction=seg.direction,
+        s0=seg.s0,
+        s1=seg.s1,
+        ep0_price=seg.ep0_price,
+        ep1_price=seg.ep1_price,
+        gap_class=gap_cls,
+        new_segment_s0=be.trigger_stroke_k,
+        new_segment_direction=opposite,
+    )
+
+
+def _handle_seg_same_identity(
+    _append: Callable[..., None],
+    i: int,
+    prev_seg: Segment,
+    seg: Segment,
+) -> None:
+    """同身份段：状态变化产生升级事件。"""
+    if (
+        not prev_seg.confirmed
+        and seg.confirmed
+        and seg.kind == "settled"
+        and seg.break_evidence is not None
+    ):
+        _emit_break_pending(_append, i, seg)
+        _emit_settle(_append, i, seg)
+    elif not seg.confirmed and seg.break_evidence is not None:
+        prev_be = prev_seg.break_evidence
+        if (
+            prev_be is None
+            or prev_be.trigger_stroke_k != seg.break_evidence.trigger_stroke_k
+            or prev_seg.s1 != seg.s1
+        ):
+            _emit_break_pending(_append, i, seg)
+
+
+def _handle_seg_new(
+    _append: Callable[..., None], i: int, seg: Segment,
+) -> None:
+    """全新段（或身份不同的替换段）的事件处理。"""
+    if seg.confirmed and seg.kind == "settled" and seg.break_evidence is not None:
+        _emit_break_pending(_append, i, seg)
+        _emit_settle(_append, i, seg)
+    elif not seg.confirmed and seg.break_evidence is not None:
+        _emit_break_pending(_append, i, seg)
 
 
 def diff_segments(
@@ -107,10 +183,8 @@ def diff_segments(
     # ── prev 后缀 → invalidated（跳过同身份升级项） ──
     for i in range(common_len, len(prev)):
         seg = prev[i]
-        # 检查 curr 中同位是否有"同身份"段（延伸或升级）
         curr_seg = curr[i] if i < len(curr) else None
         if curr_seg is not None and same_segment_identity(seg, curr_seg):
-            # 同一段的状态更新（延伸、break_evidence 变化、结算升级），不发 invalidate
             continue
         _append(
             SegmentInvalidateV1,
@@ -123,119 +197,11 @@ def diff_segments(
     # ── curr 后缀 ──
     for i in range(common_len, len(curr)):
         seg = curr[i]
-
-        # 检查 prev 中是否有"同位同身份"段（可能是延伸或升级）
         prev_seg = prev[i] if i < len(prev) else None
 
         if prev_seg is not None and same_segment_identity(prev_seg, seg):
-            # ── 同身份段：状态变化产生升级事件 ──
-
-            if (
-                not prev_seg.confirmed
-                and seg.confirmed
-                and seg.kind == "settled"
-                and seg.break_evidence is not None
-            ):
-                # 升级路径：unconfirmed → confirmed+settled（结算升级）
-                be = seg.break_evidence
-                gap_cls = "gap" if be.gap_type == "second" else "none"
-                opposite = "down" if seg.direction == "up" else "up"
-
-                _append(
-                    SegmentBreakPendingV1,
-                    segment_id=i,
-                    direction=seg.direction,
-                    break_at_stroke=be.trigger_stroke_k,
-                    gap_class=gap_cls,
-                    fractal_type="top" if seg.direction == "up" else "bottom",
-                    s0=seg.s0,
-                    s1=seg.s1,
-                )
-
-                _append(
-                    SegmentSettleV1,
-                    segment_id=i,
-                    direction=seg.direction,
-                    s0=seg.s0,
-                    s1=seg.s1,
-                    ep0_price=seg.ep0_price,
-                    ep1_price=seg.ep1_price,
-                    gap_class=gap_cls,
-                    new_segment_s0=be.trigger_stroke_k,
-                    new_segment_direction=opposite,
-                )
-
-            elif not seg.confirmed and seg.break_evidence is not None:
-                # break_evidence 变化/新增 + s1 可能延伸
-                prev_be = prev_seg.break_evidence
-                if (
-                    prev_be is None
-                    or prev_be.trigger_stroke_k != seg.break_evidence.trigger_stroke_k
-                    or prev_seg.s1 != seg.s1
-                ):
-                    be = seg.break_evidence
-                    gap_cls = "gap" if be.gap_type == "second" else "none"
-                    _append(
-                        SegmentBreakPendingV1,
-                        segment_id=i,
-                        direction=seg.direction,
-                        break_at_stroke=be.trigger_stroke_k,
-                        gap_class=gap_cls,
-                        fractal_type="top" if seg.direction == "up" else "bottom",
-                        s0=seg.s0,
-                        s1=seg.s1,
-                    )
-
-            # else: 纯延伸（s1 变但无 break_evidence）或状态未变 → 不产生事件
-
+            _handle_seg_same_identity(_append, i, prev_seg, seg)
         else:
-            # ── 全新段（或身份不同的替换段） ──
-
-            if seg.confirmed and seg.kind == "settled" and seg.break_evidence is not None:
-                # 旧段被结算：先发 pending，再发 settle
-                be = seg.break_evidence
-                gap_cls = "gap" if be.gap_type == "second" else "none"
-                opposite = "down" if seg.direction == "up" else "up"
-
-                _append(
-                    SegmentBreakPendingV1,
-                    segment_id=i,
-                    direction=seg.direction,
-                    break_at_stroke=be.trigger_stroke_k,
-                    gap_class=gap_cls,
-                    fractal_type="top" if seg.direction == "up" else "bottom",
-                    s0=seg.s0,
-                    s1=seg.s1,
-                )
-
-                _append(
-                    SegmentSettleV1,
-                    segment_id=i,
-                    direction=seg.direction,
-                    s0=seg.s0,
-                    s1=seg.s1,
-                    ep0_price=seg.ep0_price,
-                    ep1_price=seg.ep1_price,
-                    gap_class=gap_cls,
-                    new_segment_s0=be.trigger_stroke_k,
-                    new_segment_direction=opposite,
-                )
-
-            elif not seg.confirmed:
-                # 未确认的最后一段 → SegmentBreakPendingV1
-                if seg.break_evidence is not None:
-                    be = seg.break_evidence
-                    gap_cls = "gap" if be.gap_type == "second" else "none"
-                    _append(
-                        SegmentBreakPendingV1,
-                        segment_id=i,
-                        direction=seg.direction,
-                        break_at_stroke=be.trigger_stroke_k,
-                        gap_class=gap_cls,
-                        fractal_type="top" if seg.direction == "up" else "bottom",
-                        s0=seg.s0,
-                        s1=seg.s1,
-                    )
-                # 无 break_evidence 的新段（纯延伸）→ 不产生事件
+            _handle_seg_new(_append, i, seg)
 
     return events

@@ -16,6 +16,7 @@ Diff 规则（与 diff_segments 同构）：
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Callable
 
 from newchan.a_zhongshu_v1 import Zhongshu
 from newchan.core.diff.identity import same_zhongshu_identity
@@ -47,6 +48,60 @@ def _zhongshu_equal(a: Zhongshu, b: Zhongshu) -> bool:
         and a.seg_end == b.seg_end
         and a.settled == b.settled
     )
+
+
+def _emit_zhongshu_candidate(
+    _append: Callable[..., None], i: int, zs: Zhongshu,
+) -> None:
+    """发射 ZhongshuCandidateV1 事件。"""
+    _append(
+        ZhongshuCandidateV1,
+        zhongshu_id=i,
+        zd=zs.zd,
+        zg=zs.zg,
+        seg_start=zs.seg_start,
+        seg_end=zs.seg_end,
+        seg_count=zs.seg_count,
+    )
+
+
+def _emit_zhongshu_settle(
+    _append: Callable[..., None], i: int, zs: Zhongshu,
+) -> None:
+    """发射 ZhongshuSettleV1 事件。"""
+    _append(
+        ZhongshuSettleV1,
+        zhongshu_id=i,
+        zd=zs.zd,
+        zg=zs.zg,
+        seg_start=zs.seg_start,
+        seg_end=zs.seg_end,
+        seg_count=zs.seg_count,
+        break_seg_id=zs.break_seg,
+        break_direction=zs.break_direction,
+    )
+
+
+def _handle_zhongshu_same_identity(
+    _append: Callable[..., None],
+    i: int,
+    prev_zs: Zhongshu,
+    zs: Zhongshu,
+) -> None:
+    """同身份中枢的状态变化处理。"""
+    if not prev_zs.settled and zs.settled:
+        _emit_zhongshu_settle(_append, i, zs)
+    elif prev_zs.seg_end != zs.seg_end:
+        _emit_zhongshu_candidate(_append, i, zs)
+
+
+def _handle_zhongshu_new(
+    _append: Callable[..., None], i: int, zs: Zhongshu,
+) -> None:
+    """全新中枢的事件处理。"""
+    _emit_zhongshu_candidate(_append, i, zs)
+    if zs.settled:
+        _emit_zhongshu_settle(_append, i, zs)
 
 
 def diff_zhongshu(
@@ -103,10 +158,8 @@ def diff_zhongshu(
     # ── prev 后缀 → invalidated（跳过同身份升级项） ──
     for i in range(common_len, len(prev)):
         zs = prev[i]
-        # 检查 curr 中同位是否有"同身份"中枢（candidate→settle 升级或延伸）
         curr_zs = curr[i] if i < len(curr) else None
         if curr_zs is not None and same_zhongshu_identity(zs, curr_zs):
-            # 同一个中枢的状态更新（闭合升级或延伸），不发 invalidate
             continue
         _append(
             ZhongshuInvalidateV1,
@@ -120,70 +173,11 @@ def diff_zhongshu(
     # ── curr 后缀 ──
     for i in range(common_len, len(curr)):
         zs = curr[i]
-
-        # 检查 prev 中是否有"同位"但不完全相同的中枢（可能是延伸或闭合升级）
         prev_zs = prev[i] if i < len(prev) else None
 
         if prev_zs is not None and same_zhongshu_identity(prev_zs, zs):
-            # 同一个中枢，但 seg_end 或 settled 状态变了
-            if not prev_zs.settled and zs.settled:
-                # candidate → settle 升级
-                _append(
-                    ZhongshuSettleV1,
-                    zhongshu_id=i,
-                    zd=zs.zd,
-                    zg=zs.zg,
-                    seg_start=zs.seg_start,
-                    seg_end=zs.seg_end,
-                    seg_count=zs.seg_count,
-                    break_seg_id=zs.break_seg,
-                    break_direction=zs.break_direction,
-                )
-            elif prev_zs.seg_end != zs.seg_end:
-                # 延伸：seg_end 变化 → 新 candidate（旧的已在 prev 后缀 invalidated）
-                _append(
-                    ZhongshuCandidateV1,
-                    zhongshu_id=i,
-                    zd=zs.zd,
-                    zg=zs.zg,
-                    seg_start=zs.seg_start,
-                    seg_end=zs.seg_end,
-                    seg_count=zs.seg_count,
-                )
+            _handle_zhongshu_same_identity(_append, i, prev_zs, zs)
         else:
-            # 全新中枢
-            if zs.settled:
-                # 首次出现即已闭合：先 candidate 再 settle（保证 I12）
-                _append(
-                    ZhongshuCandidateV1,
-                    zhongshu_id=i,
-                    zd=zs.zd,
-                    zg=zs.zg,
-                    seg_start=zs.seg_start,
-                    seg_end=zs.seg_end,
-                    seg_count=zs.seg_count,
-                )
-                _append(
-                    ZhongshuSettleV1,
-                    zhongshu_id=i,
-                    zd=zs.zd,
-                    zg=zs.zg,
-                    seg_start=zs.seg_start,
-                    seg_end=zs.seg_end,
-                    seg_count=zs.seg_count,
-                    break_seg_id=zs.break_seg,
-                    break_direction=zs.break_direction,
-                )
-            else:
-                # 新 candidate（未闭合）
-                _append(
-                    ZhongshuCandidateV1,
-                    zhongshu_id=i,
-                    zd=zs.zd,
-                    zg=zs.zg,
-                    seg_start=zs.seg_start,
-                    seg_end=zs.seg_end,
-                    seg_count=zs.seg_count,
-                )
+            _handle_zhongshu_new(_append, i, zs)
 
     return events

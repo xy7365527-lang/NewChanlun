@@ -321,129 +321,81 @@ class _FeatureSeqState:
 # v1 主函数
 # ====================================================================
 
-def segments_from_strokes_v1(
+def _try_trigger_segment(
+    feat: "_FeatureSeqState",
+    seg_dir: "Literal['up', 'down']",
     strokes: list[Stroke],
-    min_seg_strokes: int = 3,
-) -> list[Segment]:
-    """v1 线段构造：增量特征序列法。
+    seg_start: int,
+    min_seg_strokes: int,
+    n: int,
+) -> tuple[int, BreakEvidence] | None:
+    """尝试从特征序列触发断段。返回 (k, break_evidence) 或 None。"""
+    trig = feat.scan_trigger(seg_dir, strokes)
+    if trig is None:
+        return None
 
-    严格按缠论原文定义：
-    - 逐笔推进，每新增一根反向笔就检查特征序列分型
-    - 分型触发 = 旧段终结 + 新段生成
-    - 旧段 [seg_start, k-1]，新段从 k 开始（k = 分型中心的反向笔）
-    - 段终点由分型中心 b 决定，不做全局极值回退
-    """
-    n = len(strokes)
-    if n < 3:
-        return []
+    k, fractal_abc, gap_type = trig
+    end_stroke = k - 1
 
-    segments: list[Segment] = []
+    # 保证至少 min_seg_strokes 笔
+    if end_stroke - seg_start < min_seg_strokes - 1:
+        feat.skip_trigger(k)
+        return None
 
-    seg_start = _find_overlap_start(strokes, 0)
-    if seg_start is None:
-        return []
+    # 结算锚验证：新段前三笔必须有重叠
+    if k + 2 >= n or not _three_stroke_overlap(
+        strokes[k], strokes[k + 1], strokes[k + 2]
+    ):
+        feat.skip_trigger(k)
+        return None
 
-    seg_dir: Literal["up", "down"] = strokes[seg_start].direction
-    feat = _FeatureSeqState(seg_dir)
+    break_ev = BreakEvidence(
+        trigger_stroke_k=k,
+        fractal_abc=fractal_abc,
+        gap_type=gap_type,
+    )
+    return k, break_ev
 
-    cursor = seg_start
-    while cursor < n:
-        sk = strokes[cursor]
-        opposite: Literal["up", "down"] = "down" if seg_dir == "up" else "up"
 
-        # 只有反向笔进入特征序列
-        if sk.direction != opposite:
-            cursor += 1
-            continue
+def _finalize_last_segment(
+    segments: list[Segment],
+    strokes: list[Stroke],
+    seg_start: int,
+    seg_dir: "Literal['up', 'down']",
+    min_seg_strokes: int,
+    n: int,
+) -> None:
+    """处理最后一段（未确认）并追加到 segments。"""
+    if seg_start >= n:
+        return
 
-        # 增量添加到特征序列并做包含处理
-        feat.append(cursor, sk.high, sk.low)
-
-        # 检测分型触发
-        trig = feat.scan_trigger(seg_dir, strokes)
-        if trig is None:
-            cursor += 1
-            continue
-
-        # ── 分型触发：旧段终结，新段生成 ──
-        k, fractal_abc, gap_type = trig
-        end_stroke = k - 1  # 旧段终点 = b 之前的同向笔
-
-        # 保证至少3笔
-        if end_stroke - seg_start < min_seg_strokes - 1:
-            # 分型太早，段不够3笔 → 标记跳过此触发，继续找下一个
-            feat.skip_trigger(k)
-            cursor += 1
-            continue
-
-        # ── 结算锚验证：新段前三笔必须有重叠 ──
-        # 原文："线段终结的充要条件就是新线段生成"
-        # 新段从 k 开始，需要 strokes[k], [k+1], [k+2] 三笔交集重叠
-        if k + 2 >= n or not _three_stroke_overlap(
-            strokes[k], strokes[k + 1], strokes[k + 2]
+    last_end = n - 1
+    if last_end - seg_start >= min_seg_strokes - 1:
+        if seg_start + 2 < n and _three_stroke_overlap(
+            strokes[seg_start], strokes[seg_start + 1], strokes[seg_start + 2]
         ):
-            # 新段无法形成 → 旧段延续（事件锚不结算）
-            feat.skip_trigger(k)
-            cursor += 1
-            continue
-
-        # 构造断段证据
-        break_ev = BreakEvidence(
-            trigger_stroke_k=k,
-            fractal_abc=fractal_abc,
-            gap_type=gap_type,
-        )
-
-        # 发射旧段
-        segments.append(
-            _make_segment(strokes, seg_start, end_stroke, seg_dir, True,
-                          break_evidence=break_ev, kind="settled")
-        )
-
-        logger.debug(
-            "segment break: dir=%s, s0=%d, s1=%d, trigger_k=%d, gap=%s",
-            seg_dir, seg_start, end_stroke, k, gap_type,
-        )
-
-        # 新段从 k 开始，方向翻转
-        seg_start = k
-        seg_dir = opposite
-        feat.reset(seg_dir)
-        cursor = k  # 从新段起点重新开始扫描
-        continue
-
-    # (cursor 只在非触发路径时 += 1)
-
-    # 最后一段（未确认）
-    if seg_start < n:
-        last_end = n - 1
-        if last_end - seg_start >= min_seg_strokes - 1:
-            # 判断最后一段 kind：首三笔有重叠 → settled，否则 → candidate
-            if seg_start + 2 < n and _three_stroke_overlap(
-                strokes[seg_start], strokes[seg_start + 1], strokes[seg_start + 2]
-            ):
-                last_kind: Literal["candidate", "settled"] = "settled"
-            else:
-                last_kind = "candidate"
-            segments.append(
-                _make_segment(strokes, seg_start, last_end, seg_dir, False,
-                              kind=last_kind)
-            )
-        elif segments:
-            # 剩余笔不够3笔 → 并入前一段（保持前段 kind）
-            prev = segments[-1]
-            segments[-1] = _make_segment(
-                strokes, prev.s0, last_end, prev.direction, False,
-                kind=prev.kind,
-            )
+            last_kind: Literal["candidate", "settled"] = "settled"
         else:
-            # 全部笔不够形成任何段
-            segments.append(
-                _make_segment(strokes, seg_start, last_end, seg_dir, False,
-                              kind="candidate")
-            )
+            last_kind = "candidate"
+        segments.append(
+            _make_segment(strokes, seg_start, last_end, seg_dir, False,
+                          kind=last_kind)
+        )
+    elif segments:
+        prev = segments[-1]
+        segments[-1] = _make_segment(
+            strokes, prev.s0, last_end, prev.direction, False,
+            kind=prev.kind,
+        )
+    else:
+        segments.append(
+            _make_segment(strokes, seg_start, last_end, seg_dir, False,
+                          kind="candidate")
+        )
 
-    # ── 确保最后一段 confirmed=False ──
+
+def _ensure_last_unconfirmed(segments: list[Segment], strokes: list[Stroke]) -> None:
+    """确保最后一段 confirmed=False（原地修改列表尾元素）。"""
     if segments and segments[-1].confirmed:
         last = segments[-1]
         segments[-1] = _make_segment(
@@ -451,4 +403,66 @@ def segments_from_strokes_v1(
             kind=last.kind,
         )
 
+
+def _emit_segment(
+    segments: list[Segment],
+    strokes: list[Stroke],
+    seg_start: int,
+    seg_dir: "Literal['up', 'down']",
+    k: int,
+    break_ev: BreakEvidence,
+) -> None:
+    """发射旧段并记录日志。"""
+    end_stroke = k - 1
+    segments.append(
+        _make_segment(strokes, seg_start, end_stroke, seg_dir, True,
+                      break_evidence=break_ev, kind="settled")
+    )
+    logger.debug(
+        "segment break: dir=%s, s0=%d, s1=%d, trigger_k=%d, gap=%s",
+        seg_dir, seg_start, end_stroke, k, break_ev.gap_type,
+    )
+
+
+def segments_from_strokes_v1(
+    strokes: list[Stroke],
+    min_seg_strokes: int = 3,
+) -> list[Segment]:
+    """v1 线段构造：增量特征序列法，逐笔推进检查特征序列分型触发断段。"""
+    n = len(strokes)
+    if n < 3:
+        return []
+
+    segments: list[Segment] = []
+    seg_start = _find_overlap_start(strokes, 0)
+    if seg_start is None:
+        return []
+
+    seg_dir: Literal["up", "down"] = strokes[seg_start].direction
+    feat = _FeatureSeqState(seg_dir)
+    cursor = seg_start
+
+    while cursor < n:
+        sk = strokes[cursor]
+        opposite: Literal["up", "down"] = "down" if seg_dir == "up" else "up"
+        if sk.direction != opposite:
+            cursor += 1
+            continue
+
+        feat.append(cursor, sk.high, sk.low)
+        result = _try_trigger_segment(
+            feat, seg_dir, strokes, seg_start, min_seg_strokes, n,
+        )
+        if result is None:
+            cursor += 1
+            continue
+
+        k, break_ev = result
+        _emit_segment(segments, strokes, seg_start, seg_dir, k, break_ev)
+        seg_start, seg_dir = k, opposite
+        feat.reset(seg_dir)
+        cursor = k
+
+    _finalize_last_segment(segments, strokes, seg_start, seg_dir, min_seg_strokes, n)
+    _ensure_last_unconfirmed(segments, strokes)
     return segments
