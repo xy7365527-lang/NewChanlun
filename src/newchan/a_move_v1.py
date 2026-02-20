@@ -74,47 +74,22 @@ def _is_descending(c1: Zhongshu, c2: Zhongshu) -> bool:
     return c2.gg < c1.dd
 
 
-def moves_from_zhongshus(
-    zhongshus: list[Zhongshu],
-    num_segments: int | None = None,
-) -> list[Move]:
-    """从中枢列表构造 Move（贪心分组，只处理 settled 中枢）。
-
-    算法：
-    1. 过滤 settled=True 的中枢
-    2. 贪心向右扫描，同向中枢归入同一 group
-    3. 每个 group → 一个 Move
-    4. seg_end 扩展覆盖 C段（中枢后的离开段）
-    5. 最后一个 move 强制 settled=False
-
-    Parameters
-    ----------
-    zhongshus : list[Zhongshu]
-        中枢列表（含 settled 和 unsettled）。
-    num_segments : int | None
-        总线段数。提供时，末组 Move 的 seg_end 扩展到 num_segments - 1，
-        覆盖最后中枢之后的所有段（C段）。不提供时保持旧行为。
-
-    Returns
-    -------
-    list[Move]
-        按 seg_start 递增排序的走势类型实例列表。
-    """
-    # 过滤 settled 中枢并记录原始索引
-    settled_indices: list[int] = []
-    settled_zs: list[Zhongshu] = []
+def _filter_settled(zhongshus: list[Zhongshu]) -> tuple[list[int], list[Zhongshu]]:
+    """过滤 settled 中枢，返回 (原始索引列表, settled中枢列表)。"""
+    indices: list[int] = []
+    settled: list[Zhongshu] = []
     for i, zs in enumerate(zhongshus):
         if zs.settled:
-            settled_indices.append(i)
-            settled_zs.append(zs)
+            indices.append(i)
+            settled.append(zs)
+    return indices, settled
 
-    if not settled_zs:
-        return []
 
-    # 贪心分组：(group_centers, trend_direction)
-    groups: list[tuple[list[int], str]] = []  # [(settled_zs 中的索引列表, "up"/"down"/"")]
-    current_offsets: list[int] = [0]  # 在 settled_zs 中的偏移
-    current_dir: str = ""  # "" = 单中枢, "up"/"down" = 趋势方向
+def _greedy_group(settled_zs: list[Zhongshu]) -> list[tuple[list[int], str]]:
+    """贪心分组：同向中枢归入同一 group。返回 [(offsets, direction)]。"""
+    groups: list[tuple[list[int], str]] = []
+    current_offsets: list[int] = [0]
+    current_dir: str = ""
 
     for k in range(1, len(settled_zs)):
         prev_zs = settled_zs[k - 1]
@@ -127,56 +102,73 @@ def moves_from_zhongshus(
             current_offsets.append(k)
             current_dir = "down"
         else:
-            # 不兼容 → 截断当前 group，开始新 group
             groups.append((current_offsets, current_dir))
             current_offsets = [k]
             current_dir = ""
 
     groups.append((current_offsets, current_dir))
+    return groups
 
-    # 转换 groups → Moves（扩展 seg_end 覆盖 C段）
+
+def _group_to_move(
+    offsets: list[int], direction: str,
+    settled_zs: list[Zhongshu], settled_indices: list[int],
+    next_seg_start: int | None, num_segments: int | None,
+) -> Move:
+    """将一个 group 转换为 Move。"""
+    first_zs = settled_zs[offsets[0]]
+    last_zs = settled_zs[offsets[-1]]
+    zs_count = len(offsets)
+
+    base_seg_end = last_zs.seg_end
+    if next_seg_start is not None:
+        base_seg_end = next_seg_start - 1
+    elif num_segments is not None and num_segments > 0:
+        base_seg_end = num_segments - 1
+
+    if zs_count >= 2:
+        kind: Literal["consolidation", "trend"] = "trend"
+        move_dir: Literal["up", "down"] = direction  # type: ignore[assignment]
+    else:
+        kind = "consolidation"
+        move_dir = first_zs.break_direction  # type: ignore[assignment]
+
+    group_centers = [settled_zs[o] for o in offsets]
+    return Move(
+        kind=kind, direction=move_dir,
+        seg_start=first_zs.seg_start, seg_end=base_seg_end,
+        zs_start=settled_indices[offsets[0]], zs_end=settled_indices[offsets[-1]],
+        zs_count=zs_count, settled=True,
+        high=max(zs.gg for zs in group_centers),
+        low=min(zs.dd for zs in group_centers),
+        first_seg_s0=first_zs.first_seg_s0, last_seg_s1=last_zs.last_seg_s1,
+    )
+
+
+def moves_from_zhongshus(
+    zhongshus: list[Zhongshu],
+    num_segments: int | None = None,
+) -> list[Move]:
+    """从中枢列表构造 Move（贪心分组，只处理 settled 中枢）。"""
+    settled_indices, settled_zs = _filter_settled(zhongshus)
+    if not settled_zs:
+        return []
+
+    groups = _greedy_group(settled_zs)
+
     result: list[Move] = []
     for g_idx, (offsets, direction) in enumerate(groups):
-        first_zs = settled_zs[offsets[0]]
-        last_zs = settled_zs[offsets[-1]]
-        zs_count = len(offsets)
-
-        zs_start = settled_indices[offsets[0]]
-        zs_end = settled_indices[offsets[-1]]
-
-        # seg_end 扩展：覆盖最后中枢之后的段（C段/连接段）
-        base_seg_end = last_zs.seg_end
         if g_idx < len(groups) - 1:
             next_first_offset = groups[g_idx + 1][0][0]
-            next_first_zs = settled_zs[next_first_offset]
-            base_seg_end = next_first_zs.seg_start - 1
-        elif num_segments is not None and num_segments > 0:
-            base_seg_end = num_segments - 1
-
-        if zs_count >= 2:
-            kind: Literal["consolidation", "trend"] = "trend"
-            move_dir: Literal["up", "down"] = direction  # type: ignore[assignment]
+            next_seg_start: int | None = settled_zs[next_first_offset].seg_start
         else:
-            kind = "consolidation"
-            move_dir = first_zs.break_direction  # type: ignore[assignment]
+            next_seg_start = None
 
-        group_centers = [settled_zs[o] for o in offsets]
-        result.append(Move(
-            kind=kind,
-            direction=move_dir,
-            seg_start=first_zs.seg_start,
-            seg_end=base_seg_end,
-            zs_start=zs_start,
-            zs_end=zs_end,
-            zs_count=zs_count,
-            settled=True,
-            high=max(zs.gg for zs in group_centers),
-            low=min(zs.dd for zs in group_centers),
-            first_seg_s0=first_zs.first_seg_s0,
-            last_seg_s1=last_zs.last_seg_s1,
+        result.append(_group_to_move(
+            offsets, direction, settled_zs, settled_indices,
+            next_seg_start, num_segments,
         ))
 
-    # 最后一个 move → unsettled
     if result:
         result[-1] = replace(result[-1], settled=False)
 

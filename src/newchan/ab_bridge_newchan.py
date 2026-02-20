@@ -91,6 +91,50 @@ def _epoch_pair(
 # 主函数
 # ====================================================================
 
+def _run_a_pipeline(df_raw, segment_algo, stroke_mode, min_strict_sep, center_sustain_m):
+    """执行 A 系统全管线：包含→分型→笔→段→递归层级。"""
+    df_merged, merged_to_raw = merge_inclusion(df_raw)
+    fractals = fractals_from_merged(df_merged)
+    strokes = strokes_from_fractals(
+        df_merged, fractals, mode=stroke_mode, min_strict_sep=min_strict_sep,
+    )
+    if segment_algo == "v1":
+        segments = segments_from_strokes_v1(strokes)
+    else:
+        segments = segments_from_strokes_v0(strokes)
+    rec_levels = build_recursive_levels(segments, sustain_m=center_sustain_m)
+    return df_merged, merged_to_raw, fractals, strokes, segments, rec_levels
+
+
+def _resolve_level1(rec_levels, segments, center_sustain_m):
+    """取 Level-1 centers/trends（向后兼容）。"""
+    if rec_levels:
+        return rec_levels[0].centers, rec_levels[0].trends
+    centers = centers_from_segments_v0(segments, sustain_m=center_sustain_m)
+    trends = trend_instances_from_centers(segments, centers)
+    return centers, trends
+
+
+def _maybe_run_assertions(
+    df_raw, df_merged, merged_to_raw, fractals, strokes, segments,
+    centers, rec_levels, level_views, last_price,
+    segment_algo, stroke_mode, min_strict_sep, center_sustain_m,
+):
+    """条件性运行规格断言（NEWCHAN_ASSERT=1 时启用）。"""
+    from newchan import config
+    if not config.env_flag("NEWCHAN_ASSERT", False):
+        return
+    from newchan.a_assertions import run_a_system_assertions
+    run_a_system_assertions(
+        df_raw=df_raw, df_merged=df_merged, merged_to_raw=merged_to_raw,
+        fractals=fractals, strokes=strokes, segments=segments,
+        centers=centers, rec_levels=rec_levels, level_views=level_views,
+        last_price=last_price, segment_algo=segment_algo,
+        stroke_mode=stroke_mode, min_strict_sep=min_strict_sep,
+        center_sustain_m=center_sustain_m, enable=True,
+    )
+
+
 def build_overlay_newchan(
     df_raw: pd.DataFrame,
     *,
@@ -105,108 +149,39 @@ def build_overlay_newchan(
     macd_slow: int = 26,
     macd_signal: int = 9,
 ) -> dict:
-    """构建新缠论 overlay 完整输出。
-
-    Parameters
-    ----------
-    df_raw : pd.DataFrame
-        原始 OHLC 数据（DateTimeIndex）。
-    detail : ``"min"`` | ``"full"``
-        min → anchors=null；full → 输出完整 AnchorSet。
-    segment_algo : ``"v0"`` | ``"v1"``
-    其余参数见各模块文档。
-
-    Returns
-    -------
-    dict
-        schema_version="newchan_overlay_v1" 的完整 overlay JSON。
-    """
+    """构建新缠论 overlay 完整输出（schema_version="newchan_overlay_v2"）。"""
     if len(df_raw) < 3:
         return _empty_overlay(symbol, tf, detail, macd_fast, macd_slow, macd_signal)
 
     raw_index = df_raw.index
-
-    # ── A 管线 ──
-    df_merged, merged_to_raw = merge_inclusion(df_raw)
-    fractals = fractals_from_merged(df_merged)
-    strokes = strokes_from_fractals(
-        df_merged, fractals, mode=stroke_mode, min_strict_sep=min_strict_sep,
+    df_merged, merged_to_raw, fractals, strokes, segments, rec_levels = _run_a_pipeline(
+        df_raw, segment_algo, stroke_mode, min_strict_sep, center_sustain_m,
     )
-
-    if segment_algo == "v1":
-        segments = segments_from_strokes_v1(strokes)
-    else:
-        segments = segments_from_strokes_v0(strokes)
-
-    # ── 自下而上递归构造全部层级 ──
-    rec_levels = build_recursive_levels(
-        segments, sustain_m=center_sustain_m,
-    )
-
-    # Level-1 数据（向后兼容：顶层 centers/trends 取第一层）
-    if rec_levels:
-        centers = rec_levels[0].centers
-        trends = rec_levels[0].trends
-    else:
-        centers = centers_from_segments_v0(segments, sustain_m=center_sustain_m)
-        trends = trend_instances_from_centers(segments, centers)
-
-    # ── MACD ──
+    centers, trends = _resolve_level1(rec_levels, segments, center_sustain_m)
     df_macd = compute_macd(df_raw, fast=macd_fast, slow=macd_slow, signal=macd_signal)
 
-    # ── 自上而下裁决 L*（扫描全部层级，取最高存活层） ──
     last_price = float(df_raw["close"].iloc[-1])
     level_views = levels_to_level_views(rec_levels)
     if not level_views:
         level_views = [LevelView(level=1, segments=list(segments), centers=list(centers))]
     lstar_obj = select_lstar_newchan(level_views, last_price)
 
-    # ── 规格断言（可选，用于“锁语义”） ─────────────────────────────
-    # 通过 .env / 环境变量控制：NEWCHAN_ASSERT=1/true/yes/on
-    from newchan import config
-    if config.env_flag("NEWCHAN_ASSERT", False):
-        from newchan.a_assertions import run_a_system_assertions
-        run_a_system_assertions(
-            df_raw=df_raw,
-            df_merged=df_merged,
-            merged_to_raw=merged_to_raw,
-            fractals=fractals,
-            strokes=strokes,
-            segments=segments,
-            centers=centers,
-            rec_levels=rec_levels,
-            level_views=level_views,
-            last_price=last_price,
-            segment_algo=segment_algo,
-            stroke_mode=stroke_mode,
-            min_strict_sep=min_strict_sep,
-            center_sustain_m=center_sustain_m,
-            enable=True,
-        )
-
-    # ── 构建输出 ──
-    out_strokes = _build_strokes(strokes, merged_to_raw, raw_index, df_macd, df_merged)
-    out_segments = _build_segments(segments, strokes, merged_to_raw, raw_index, df_macd, df_merged)
-    out_centers = _build_centers(centers, segments, merged_to_raw, raw_index, df_macd)
-    out_trends = _build_trends(trends, segments, strokes, merged_to_raw, raw_index, df_macd, df_merged)
-    out_lstar = _build_lstar(lstar_obj, centers, segments, last_price, detail)
-    out_macd = _build_macd_series(df_macd, raw_index, macd_fast, macd_slow, macd_signal)
-
-    # ── 多级别数据 ──
-    out_levels = _build_levels(rec_levels, segments, strokes, merged_to_raw, raw_index, df_macd, df_merged)
+    _maybe_run_assertions(
+        df_raw, df_merged, merged_to_raw, fractals, strokes, segments,
+        centers, rec_levels, level_views, last_price,
+        segment_algo, stroke_mode, min_strict_sep, center_sustain_m,
+    )
 
     return {
         "schema_version": "newchan_overlay_v2",
-        "symbol": symbol,
-        "tf": tf,
-        "detail": detail,
-        "lstar": out_lstar,
-        "strokes": out_strokes,
-        "segments": out_segments,
-        "centers": out_centers,
-        "trends": out_trends,
-        "levels": out_levels,
-        "macd": out_macd,
+        "symbol": symbol, "tf": tf, "detail": detail,
+        "lstar": _build_lstar(lstar_obj, centers, segments, last_price, detail),
+        "strokes": _build_strokes(strokes, merged_to_raw, raw_index, df_macd, df_merged),
+        "segments": _build_segments(segments, strokes, merged_to_raw, raw_index, df_macd, df_merged),
+        "centers": _build_centers(centers, segments, merged_to_raw, raw_index, df_macd),
+        "trends": _build_trends(trends, segments, strokes, merged_to_raw, raw_index, df_macd, df_merged),
+        "levels": _build_levels(rec_levels, segments, strokes, merged_to_raw, raw_index, df_macd, df_merged),
+        "macd": _build_macd_series(df_macd, raw_index, macd_fast, macd_slow, macd_signal),
     }
 
 
@@ -253,132 +228,76 @@ def _build_strokes(strokes, m2r, raw_index, df_macd, df_merged):
     return result
 
 
+def _resolve_seg_endpoints(seg):
+    """解析线段端点字段（兼容历史字段）。返回 (ep0_i, ep1_i, ep0_price, ep1_price, ep0_type, ep1_type, legacy_p0, legacy_p1)。"""
+    legacy_p0 = float(getattr(seg, "p0", seg.low))
+    legacy_p1 = float(getattr(seg, "p1", seg.high))
+    ep0_i = int(getattr(seg, "ep0_i", -1))
+    ep1_i = int(getattr(seg, "ep1_i", -1))
+    ep0_price = float(getattr(seg, "ep0_price", legacy_p0))
+    ep1_price = float(getattr(seg, "ep1_price", legacy_p1))
+    ep0_type = getattr(seg, "ep0_type", "bottom" if seg.direction == "up" else "top")
+    ep1_type = getattr(seg, "ep1_type", "top" if seg.direction == "up" else "bottom")
+    if ep0_i < 0:
+        ep0_i = int(seg.i0)
+    if ep1_i < 0:
+        ep1_i = int(seg.i1)
+    return ep0_i, ep1_i, ep0_price, ep1_price, ep0_type, ep1_type, legacy_p0, legacy_p1
+
+
+def _build_stroke_points(seg, strokes, merged_highs, merged_lows, m2r, raw_index):
+    """构建线段内笔端点列表（调试/教学用）。"""
+    stroke_pts = []
+    for si in range(seg.s0, min(seg.s1 + 1, len(strokes))):
+        sk = strokes[si]
+        sk_p0, sk_p1 = _stroke_p0p1(sk, merged_highs, merged_lows)
+        _ri0, _ri1 = _obj_raw_range(sk.i0, sk.i1, m2r)
+        _t0, _t1 = _epoch_pair(_ri0, _ri1, raw_index)
+        stroke_pts.append({"time": int(_t0), "value": float(sk_p0)})
+        if si == seg.s1:
+            stroke_pts.append({"time": int(_t1), "value": float(sk_p1)})
+    return stroke_pts
+
+
+def _build_single_segment(i, seg, strokes, merged_highs, merged_lows, m2r, raw_index, df_macd):
+    """构建单个线段的前端 JSON dict。"""
+    raw_i0, raw_i1 = _obj_raw_range(seg.i0, seg.i1, m2r)
+    area = macd_area_for_range(df_macd, raw_i0, raw_i1)
+    ep0_i, ep1_i, ep0_price, ep1_price, ep0_type, ep1_type, _, _ = _resolve_seg_endpoints(seg)
+
+    t0_render = int(_merged_idx_to_epoch(ep0_i, m2r, raw_index))
+    t1_render = int(_merged_idx_to_epoch(ep1_i, m2r, raw_index))
+    p0_render = float(ep0_price)
+    p1_render = float(ep1_price)
+
+    stroke_pts = _build_stroke_points(seg, strokes, merged_highs, merged_lows, m2r, raw_index)
+
+    return {
+        "id": i,
+        "t0": int(t0_render), "t1": int(t1_render),
+        "s0": seg.s0, "s1": seg.s1,
+        "dir": seg.direction, "confirmed": seg.confirmed,
+        "kind": getattr(seg, "kind", "settled"),
+        "high": float(max(seg.high, p0_render, p1_render)),
+        "low": float(min(seg.low, p0_render, p1_render)),
+        "p0": float(p0_render), "p1": float(p1_render),
+        "ep0": {"merged_i": int(ep0_i), "time": int(t0_render),
+                "price": float(p0_render), "type": ep0_type},
+        "ep1": {"merged_i": int(ep1_i), "time": int(t1_render),
+                "price": float(p1_render), "type": ep1_type},
+        "stroke_points": stroke_pts,
+        **{f"macd_{k}": v for k, v in area.items()},
+    }
+
+
 def _build_segments(segments, strokes, m2r, raw_index, df_macd, df_merged):
     """Map Segment 到前端 JSON：桥接层只做映射，不重算端点。"""
     merged_highs = df_merged["high"].values
     merged_lows = df_merged["low"].values
-    result = []
-    start_miss = 0
-    end_miss = 0
-    endpoint_time_reversed_count = 0
-    endpoint_override_count = 0
-    endpoint_override_samples = []
-    miss_samples = []
-    for i, seg in enumerate(segments):
-        raw_i0, raw_i1 = _obj_raw_range(seg.i0, seg.i1, m2r)
-        area = macd_area_for_range(df_macd, raw_i0, raw_i1)
-
-        # 兼容历史字段：若缺失 ep*，退回旧字段。
-        legacy_p0 = float(getattr(seg, "p0", seg.low))
-        legacy_p1 = float(getattr(seg, "p1", seg.high))
-        ep0_i = int(getattr(seg, "ep0_i", -1))
-        ep1_i = int(getattr(seg, "ep1_i", -1))
-        ep0_price = float(getattr(seg, "ep0_price", legacy_p0))
-        ep1_price = float(getattr(seg, "ep1_price", legacy_p1))
-        ep0_type = getattr(seg, "ep0_type", "bottom" if seg.direction == "up" else "top")
-        ep1_type = getattr(seg, "ep1_type", "top" if seg.direction == "up" else "bottom")
-        if ep0_i < 0:
-            ep0_i = int(seg.i0)
-        if ep1_i < 0:
-            ep1_i = int(seg.i1)
-
-        t0_render = int(_merged_idx_to_epoch(ep0_i, m2r, raw_index))
-        t1_render = int(_merged_idx_to_epoch(ep1_i, m2r, raw_index))
-        p0_render = float(ep0_price)
-        p1_render = float(ep1_price)
-        if t1_render < t0_render:
-            endpoint_time_reversed_count += 1
-
-        # stroke_points 仅用于调试/教学层，不参与端点语义计算。
-        stroke_pts = []
-        seg_strokes_range = range(seg.s0, min(seg.s1 + 1, len(strokes)))
-        for si in seg_strokes_range:
-            sk = strokes[si]
-            sk_p0, sk_p1 = _stroke_p0p1(sk, merged_highs, merged_lows)
-            _ri0, _ri1 = _obj_raw_range(sk.i0, sk.i1, m2r)
-            _t0, _t1 = _epoch_pair(_ri0, _ri1, raw_index)
-            stroke_pts.append({"time": int(_t0), "value": float(sk_p0)})
-            if si == seg.s1:
-                stroke_pts.append({"time": int(_t1), "value": float(sk_p1)})
-
-        start_match = any(
-            int(pt["time"]) == int(t0_render) and abs(float(pt["value"]) - p0_render) < 1e-9
-            for pt in stroke_pts
-        )
-        end_match = any(
-            int(pt["time"]) == int(t1_render) and abs(float(pt["value"]) - p1_render) < 1e-9
-            for pt in stroke_pts
-        )
-        if not start_match:
-            start_miss += 1
-        if not end_match:
-            end_miss += 1
-        if (not start_match or not end_match) and len(miss_samples) < 3:
-            miss_samples.append({
-                "id": i,
-                "s0": int(seg.s0),
-                "s1": int(seg.s1),
-                "t0": int(t0_render),
-                "p0": float(p0_render),
-                "t1": int(t1_render),
-                "p1": float(p1_render),
-                "orig_p0": float(legacy_p0),
-                "orig_p1": float(legacy_p1),
-                "stroke_points_len": len(stroke_pts),
-                "first_pt": stroke_pts[0] if stroke_pts else None,
-                "last_pt": stroke_pts[-1] if stroke_pts else None,
-                "start_match": start_match,
-                "end_match": end_match,
-            })
-
-        endpoint_overridden = (
-            abs(float(p0_render) - float(legacy_p0)) > 1e-9
-            or abs(float(p1_render) - float(legacy_p1)) > 1e-9
-        )
-        if endpoint_overridden:
-            endpoint_override_count += 1
-            if len(endpoint_override_samples) < 5:
-                endpoint_override_samples.append({
-                    "id": i,
-                    "dir": seg.direction,
-                    "s0": int(seg.s0),
-                    "s1": int(seg.s1),
-                    "legacy_p0": float(legacy_p0),
-                    "legacy_p1": float(legacy_p1),
-                    "render_p0": float(p0_render),
-                    "render_p1": float(p1_render),
-                })
-
-        result.append({
-            "id": i,
-            "t0": int(t0_render),
-            "t1": int(t1_render),
-            "s0": seg.s0,
-            "s1": seg.s1,
-            "dir": seg.direction,
-            "confirmed": seg.confirmed,
-            "kind": getattr(seg, "kind", "settled"),
-            "high": float(max(seg.high, p0_render, p1_render)),
-            "low": float(min(seg.low, p0_render, p1_render)),
-            "p0": float(p0_render),  # backward-compatible alias of ep0.price
-            "p1": float(p1_render),  # backward-compatible alias of ep1.price
-            "ep0": {
-                "merged_i": int(ep0_i),
-                "time": int(t0_render),
-                "price": float(p0_render),
-                "type": ep0_type,
-            },
-            "ep1": {
-                "merged_i": int(ep1_i),
-                "time": int(t1_render),
-                "price": float(p1_render),
-                "type": ep1_type,
-            },
-            "stroke_points": stroke_pts,
-            **{f"macd_{k}": v for k, v in area.items()},
-        })
-
-    return result
+    return [
+        _build_single_segment(i, seg, strokes, merged_highs, merged_lows, m2r, raw_index, df_macd)
+        for i, seg in enumerate(segments)
+    ]
 
 
 def _build_centers(centers, segments, m2r, raw_index, df_macd):

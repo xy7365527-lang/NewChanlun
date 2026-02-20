@@ -60,117 +60,150 @@ class ZhongshuInvariantChecker:
     ) -> list[InvariantViolation]:
         """检查一组中枢事件的不变量。"""
         violations: list[InvariantViolation] = []
-
-        # 收集本批次中的 candidate zhongshu_ids（用于 I12 批次内检查）
         batch_candidate_ids: set[int] = set()
 
         for ev in events:
             if isinstance(ev, ZhongshuCandidateV1):
-                # I17: invalidate 后不得出现同身份 candidate
-                identity = (ev.zd, ev.zg, ev.seg_start)
-                if identity in self._terminal_identities:
-                    violations.append(self._make_violation(
-                        bar_idx=bar_idx,
-                        bar_ts=bar_ts,
-                        code=I17_INVALIDATE_IS_TERMINAL,
-                        reason=(
-                            f"zhongshu {ev.zhongshu_id}: candidate after "
-                            f"invalidate for identity {identity}"
-                        ),
-                    ))
-
-                # I11: candidate 的 zg > zd（三段重叠成立条件）
-                if ev.zg <= ev.zd:
-                    violations.append(self._make_violation(
-                        bar_idx=bar_idx,
-                        bar_ts=bar_ts,
-                        code=I11_ZHONGSHU_OVERLAP,
-                        reason=(
-                            f"zhongshu {ev.zhongshu_id}: "
-                            f"zg={ev.zg} <= zd={ev.zd}, overlap not satisfied"
-                        ),
-                    ))
-
-                # I13: seg_start < seg_end 且 seg_count >= 3
-                if ev.seg_end < ev.seg_start or ev.seg_count < 3:
-                    violations.append(self._make_violation(
-                        bar_idx=bar_idx,
-                        bar_ts=bar_ts,
-                        code=I13_PARENTS_TRACEABLE,
-                        reason=(
-                            f"zhongshu {ev.zhongshu_id}: "
-                            f"seg_start={ev.seg_start}, seg_end={ev.seg_end}, "
-                            f"seg_count={ev.seg_count} invalid"
-                        ),
-                    ))
-
+                violations.extend(
+                    self._check_candidate(ev, bar_idx, bar_ts),
+                )
                 self._candidate_ids.add(ev.zhongshu_id)
                 batch_candidate_ids.add(ev.zhongshu_id)
 
             elif isinstance(ev, ZhongshuSettleV1):
-                # I17: invalidate 后不得出现同身份 settle
-                identity = (ev.zd, ev.zg, ev.seg_start)
-                if identity in self._terminal_identities:
-                    violations.append(self._make_violation(
-                        bar_idx=bar_idx,
-                        bar_ts=bar_ts,
-                        code=I17_INVALIDATE_IS_TERMINAL,
-                        reason=(
-                            f"zhongshu {ev.zhongshu_id}: settle after "
-                            f"invalidate for identity {identity}"
-                        ),
-                    ))
-
-                # I12: settle 前必须有 candidate
-                if (
-                    ev.zhongshu_id not in self._candidate_ids
-                    and ev.zhongshu_id not in batch_candidate_ids
-                ):
-                    violations.append(self._make_violation(
-                        bar_idx=bar_idx,
-                        bar_ts=bar_ts,
-                        code=I12_CANDIDATE_BEFORE_SETTLE,
-                        reason=(
-                            f"zhongshu {ev.zhongshu_id} settled without "
-                            f"prior candidate"
-                        ),
-                    ))
-
-                # I11: settle 的 zg > zd 同样成立
-                if ev.zg <= ev.zd:
-                    violations.append(self._make_violation(
-                        bar_idx=bar_idx,
-                        bar_ts=bar_ts,
-                        code=I11_ZHONGSHU_OVERLAP,
-                        reason=(
-                            f"zhongshu {ev.zhongshu_id}: "
-                            f"zg={ev.zg} <= zd={ev.zd} in settle event"
-                        ),
-                    ))
-
-                # 更新状态
-                self._candidate_ids.discard(ev.zhongshu_id)
+                violations.extend(
+                    self._check_settle(ev, bar_idx, bar_ts, batch_candidate_ids),
+                )
 
             elif isinstance(ev, ZhongshuInvalidateV1):
-                # I17: 记录身份键为终态
-                identity = (ev.zd, ev.zg, ev.seg_start)
-                self._terminal_identities.add(identity)
+                violations.extend(
+                    self._check_invalidate(ev, bar_idx, bar_ts),
+                )
 
-                # I14: 同一中枢不重复 invalidate
-                key = (ev.zd, ev.zg, ev.seg_start, ev.seg_end)
-                if key in self._invalidated_keys:
-                    violations.append(self._make_violation(
-                        bar_idx=bar_idx,
-                        bar_ts=bar_ts,
-                        code=I14_ZHONGSHU_INVALIDATE_IDEMPOTENT,
-                        reason=(
-                            f"zhongshu (zd={ev.zd}, zg={ev.zg}, "
-                            f"seg_start={ev.seg_start}, seg_end={ev.seg_end}) "
-                            f"already invalidated"
-                        ),
-                    ))
-                self._invalidated_keys.add(key)
-                self._candidate_ids.discard(ev.zhongshu_id)
+        return violations
+
+    def _check_candidate(
+        self,
+        ev: ZhongshuCandidateV1,
+        bar_idx: int,
+        bar_ts: float,
+    ) -> list[InvariantViolation]:
+        """I17 终态 + I11 重叠 + I13 可追溯。"""
+        violations: list[InvariantViolation] = []
+        identity = (ev.zd, ev.zg, ev.seg_start)
+
+        # I17: invalidate 后不得出现同身份 candidate
+        if identity in self._terminal_identities:
+            violations.append(self._make_violation(
+                bar_idx=bar_idx, bar_ts=bar_ts,
+                code=I17_INVALIDATE_IS_TERMINAL,
+                reason=(
+                    f"zhongshu {ev.zhongshu_id}: candidate after "
+                    f"invalidate for identity {identity}"
+                ),
+            ))
+
+        # I11: candidate 的 zg > zd（三段重叠成立条件）
+        if ev.zg <= ev.zd:
+            violations.append(self._make_violation(
+                bar_idx=bar_idx, bar_ts=bar_ts,
+                code=I11_ZHONGSHU_OVERLAP,
+                reason=(
+                    f"zhongshu {ev.zhongshu_id}: "
+                    f"zg={ev.zg} <= zd={ev.zd}, overlap not satisfied"
+                ),
+            ))
+
+        # I13: seg_start < seg_end 且 seg_count >= 3
+        if ev.seg_end < ev.seg_start or ev.seg_count < 3:
+            violations.append(self._make_violation(
+                bar_idx=bar_idx, bar_ts=bar_ts,
+                code=I13_PARENTS_TRACEABLE,
+                reason=(
+                    f"zhongshu {ev.zhongshu_id}: "
+                    f"seg_start={ev.seg_start}, seg_end={ev.seg_end}, "
+                    f"seg_count={ev.seg_count} invalid"
+                ),
+            ))
+
+        return violations
+
+    def _check_settle(
+        self,
+        ev: ZhongshuSettleV1,
+        bar_idx: int,
+        bar_ts: float,
+        batch_candidate_ids: set[int],
+    ) -> list[InvariantViolation]:
+        """I17 终态 + I12 前置 candidate + I11 重叠。"""
+        violations: list[InvariantViolation] = []
+        identity = (ev.zd, ev.zg, ev.seg_start)
+
+        # I17: invalidate 后不得出现同身份 settle
+        if identity in self._terminal_identities:
+            violations.append(self._make_violation(
+                bar_idx=bar_idx, bar_ts=bar_ts,
+                code=I17_INVALIDATE_IS_TERMINAL,
+                reason=(
+                    f"zhongshu {ev.zhongshu_id}: settle after "
+                    f"invalidate for identity {identity}"
+                ),
+            ))
+
+        # I12: settle 前必须有 candidate
+        if (
+            ev.zhongshu_id not in self._candidate_ids
+            and ev.zhongshu_id not in batch_candidate_ids
+        ):
+            violations.append(self._make_violation(
+                bar_idx=bar_idx, bar_ts=bar_ts,
+                code=I12_CANDIDATE_BEFORE_SETTLE,
+                reason=(
+                    f"zhongshu {ev.zhongshu_id} settled without "
+                    f"prior candidate"
+                ),
+            ))
+
+        # I11: settle 的 zg > zd 同样成立
+        if ev.zg <= ev.zd:
+            violations.append(self._make_violation(
+                bar_idx=bar_idx, bar_ts=bar_ts,
+                code=I11_ZHONGSHU_OVERLAP,
+                reason=(
+                    f"zhongshu {ev.zhongshu_id}: "
+                    f"zg={ev.zg} <= zd={ev.zd} in settle event"
+                ),
+            ))
+
+        # 更新状态
+        self._candidate_ids.discard(ev.zhongshu_id)
+
+        return violations
+
+    def _check_invalidate(
+        self,
+        ev: ZhongshuInvalidateV1,
+        bar_idx: int,
+        bar_ts: float,
+    ) -> list[InvariantViolation]:
+        """I17 终态记录 + I14 幂等检查。"""
+        violations: list[InvariantViolation] = []
+        identity = (ev.zd, ev.zg, ev.seg_start)
+        self._terminal_identities.add(identity)
+
+        key = (ev.zd, ev.zg, ev.seg_start, ev.seg_end)
+        if key in self._invalidated_keys:
+            violations.append(self._make_violation(
+                bar_idx=bar_idx, bar_ts=bar_ts,
+                code=I14_ZHONGSHU_INVALIDATE_IDEMPOTENT,
+                reason=(
+                    f"zhongshu (zd={ev.zd}, zg={ev.zg}, "
+                    f"seg_start={ev.seg_start}, seg_end={ev.seg_end}) "
+                    f"already invalidated"
+                ),
+            ))
+        self._invalidated_keys.add(key)
+        self._candidate_ids.discard(ev.zhongshu_id)
 
         return violations
 

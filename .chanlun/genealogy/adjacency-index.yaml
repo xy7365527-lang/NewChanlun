@@ -1,6 +1,6 @@
 # 谱系邻接索引 — 紧凑格式
 # 最后更新: 2026-02-20
-# 总节点数: 49 (settled: 45, pending: 3, scan-report: 1)
+# 总节点数: 50 (settled: 46, pending: 3, scan-report: 1)
 # 格式: 每个节点列出 derives_from(D) 和 relates_to(R) 的目标编号
 # Hub节点（入度+出度 >= 5）标记 [hub]
 
@@ -17,11 +17,11 @@
 hub_nodes:
   - id: 005b
     name: object-negates-object-grammar
-    degree: 16
+    degree: 17
     role: 域概念簇与元编排簇的桥接器
   - id: 016
     name: runtime-enforcement-layer
-    degree: 15
+    degree: 16
     role: 编排约束链起点
   - id: 013
     name: swarm-structural-stations
@@ -49,7 +49,7 @@ hub_nodes:
     role: 形式化簇中心
   - id: 033
     name: declarative-dispatch-spec
-    degree: 8
+    degree: 9
     role: 约束链范式转换点
   - id: 032
     name: divine-madness-lead-self-restriction
@@ -78,6 +78,10 @@ clusters:
     range: "035-038"
     hubs: []
     description: 结晶与偏差修正
+  runtime_convergence:
+    range: "039-042"
+    hubs: []
+    description: 运行时强制收敛（绕过修复→编排者代理→hook网络）
 
 # ── 节点邻接表 ──
 nodes:
@@ -132,7 +136,7 @@ nodes:
     sibling: 005a
     out_D: [005a, 003, 006, 010]
     in_D: [013, 016, 019b, 019d, 020, 023, 024]
-    in_R: [015, 041]
+    in_R: [015, 041, 042]
 
   "006":
     name: level-recursion
@@ -208,7 +212,7 @@ nodes:
     name: runtime-enforcement-layer
     status: settled
     out_D: [005b, 015, 013]
-    in_D: [017, 019, 019c, 021, 028, 032, 033, 034, 036]
+    in_D: [017, 019, 019c, 021, 028, 032, 033, 034, 036, 042]
     in_R: [038]
 
   "017":
@@ -327,13 +331,13 @@ nodes:
     status: settled
     out_D: [005a, 005b]
     in_D: [028]
-    in_R: [018, 038]
+    in_R: [018, 038, 042]
 
   "028":
     name: ceremony-default-action
     status: settled
     out_D: [016, 027, 019c]
-    in_D: [041]
+    in_D: [041, 042]
     in_R: [029]
 
   "029":
@@ -376,7 +380,7 @@ nodes:
     status: settled
     out_D: [032, 016, 005a, 020, 018]
     in_D: [034, 036, 037]
-    in_R: [038]
+    in_R: [038, 042]
 
   "034":
     name: tool-declaration-vs-capability
@@ -404,7 +408,7 @@ nodes:
     name: recursive-swarm-fractal
     status: settled
     out_D: [014]
-    in_D: []
+    in_D: [042]
     in_R: [013, 033, 019d]
 
   "038":
@@ -443,6 +447,16 @@ nodes:
     negation_source: heterogeneous
     out_D: [030a, 032, 028, 039]
     out_R: [018, 005b, 020]
+    in_D: [042]
+    in_R: []
+
+  "042":
+    name: hook-network-pattern
+    status: settled
+    negation_form: expansion
+    negation_source: heterogeneous
+    out_D: [016, 028, 037, 041]
+    out_R: [033, 027, 005b]
     in_D: []
     in_R: []
 
