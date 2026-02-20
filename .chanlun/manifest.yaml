@@ -365,5 +365,5 @@ theorems:
     - id: "012"
       file: spec/theorems/012-conservation-constraint.md
       name: "守恒约束"
-      status: "@proof-required"
+      status: "verified-with-caveats"
       source: liuzhuan.md
