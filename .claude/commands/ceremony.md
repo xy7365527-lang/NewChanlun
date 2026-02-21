@@ -16,15 +16,21 @@
 
 ## 执行协议（三阶段）
 
-### Phase 1: 扫描（并行）
+### Phase 1: 扫描（并行，最小化 I/O）
 
 并行执行以下读取，输出简要状态摘要：
 
-1. 检测 `.chanlun/sessions/` 是否有 session 记录 → 决定 cold_start 或 warm_start
-2. 扫描 `.chanlun/definitions/*.md` 版本和状态
-3. 扫描 `.chanlun/genealogy/{pending,settled}/` 统计
-4. 读取 `CLAUDE.md` + `.chanlun/dispatch-dag.yaml`
-5. （warm_start）定位最新 session，对比版本差异
+1. 检测 `.chanlun/sessions/` 最新 session → 决定 cold_start 或 warm_start
+2. 读取 `definitions.yaml`（汇总文件，不逐个扫描 definitions/*.md）
+3. 读取 `.chanlun/genealogy/dag.yaml`（汇总文件，不逐个扫描 settled/*.md）
+4. 扫描 `.chanlun/genealogy/pending/`（只扫描生成态，通常为空或极少）
+5. （warm_start）读取最新 session 的中断点和遗留项
+
+**不扫描的内容**（按需检索，不在启动时加载）：
+- settled/ 下的 82+ 个已结算谱系（已固化，通过 dag.yaml 索引）
+- definitions/*.md 逐个文件（已通过 definitions.yaml 汇总）
+- CLAUDE.md 全文（已在系统 prompt 中加载）
+- dispatch-dag.yaml 全文（按需读取具体节）
 
 输出格式：
 ```
