@@ -24,6 +24,9 @@ def validate(dag):
 
     # 1. Reference integrity + collect directed edges for cycle check
     UNDIRECTED = {"related", "tensions_with"}
+    # triggered 是因果关系（A triggered B = A 导致 B 产生），与 depends_on 方向相反
+    # 两者共存时会形成伪环（005 triggered 005a + 005a depends_on 005），排除出环检测
+    CYCLE_EXEMPT = {"triggered"}
     directed_edges = []
     total_edge_count = 0
     for edge_type, edge_list in edges_section.items():
@@ -41,7 +44,7 @@ def validate(dag):
                     errors.append(f"edge ({edge_type}) references unknown node: {src}")
                 if dst not in node_ids:
                     errors.append(f"edge ({edge_type}) references unknown node: {dst}")
-                if edge_type not in UNDIRECTED:
+                if edge_type not in UNDIRECTED and edge_type not in CYCLE_EXEMPT:
                     directed_edges.append((src, dst))
 
     # 2. Acyclicity (topological sort on directed edges only)
