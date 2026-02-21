@@ -41,7 +41,7 @@ from collections import deque
 ROOT_NODES = [
     '.chanlun/dispatch-dag.yaml',
     'CLAUDE.md',
-    'src/newchan/skills/manifest.yaml',
+    '.chanlun/manifest.yaml',
 ]
 
 # 白名单模式（跳过这些文件/目录）
