@@ -246,55 +246,54 @@ print(json.dumps({
     exit 0
 fi
 
-# ─── 检查 4：蜂群 Dominator Node 强制（dispatch-dag mandatory=true） ───
-# 活跃蜂群必须包含 quality-guard teammate，否则不允许停止
+# ─── 检查 4：蜂群 Dominator Node 强制（从 dispatch-dag 动态读取） ───
 TEAM_DIR="$HOME/.claude/teams"
-if [ -d "$TEAM_DIR" ]; then
+DAG_FILE=".chanlun/dispatch-dag.yaml"
+if [ -d "$TEAM_DIR" ] && [ -f "$DAG_FILE" ]; then
     for team_config in "$TEAM_DIR"/*/config.json; do
         [ -f "$team_config" ] || continue
-        TEAM_NAME=$(python -c "
-import json, sys
-with open('$team_config', encoding='utf-8') as f:
-    d = json.load(f)
-print(d.get('team_name', ''))
-" 2>/dev/null || true)
-        [ -z "$TEAM_NAME" ] && continue
 
-        # 检查 team 是否有 members（活跃蜂群）
-        HAS_MEMBERS=$(python -c "
-import json
+        MISSING_DOMINATORS=$(python -c "
+import json, yaml
+
+# 从 dispatch-dag 动态读取 mandatory structural nodes
+with open('$DAG_FILE', encoding='utf-8') as f:
+    dag = yaml.safe_load(f)
+structural = dag.get('nodes', {}).get('structural', [])
+required = [n['id'] for n in structural if n.get('mandatory', False)]
+
+if not required:
+    print(''); exit()
+
+# 读取 team config
 with open('$team_config', encoding='utf-8') as f:
-    d = json.load(f)
-members = d.get('members', [])
-# 排除只有 team-lead 的情况（Lead 不算 teammate）
+    tc = json.load(f)
+team_name = tc.get('team_name', '')
+members = tc.get('members', [])
 non_lead = [m for m in members if m.get('name', '') != 'team-lead']
-print(len(non_lead))
-" 2>/dev/null || echo "0")
 
-        if [ "$HAS_MEMBERS" -gt 0 ] 2>/dev/null; then
-            # 活跃蜂群存在，检查是否有全部 dominator 节点
-            MISSING_DOMINATORS=$(python -c "
-import json
-REQUIRED = ['quality-guard', 'genealogist', 'meta-observer']
-with open('$team_config', encoding='utf-8') as f:
-    d = json.load(f)
-members = d.get('members', [])
+if not non_lead:
+    print(''); exit()  # 无 teammate，跳过
+
 names = [m.get('name', '') for m in members]
-missing = [r for r in REQUIRED if not any(r in n for n in names)]
-print(','.join(missing) if missing else '')
-" 2>/dev/null || echo "quality-guard,genealogist")
+missing = [r for r in required if not any(r in n for n in names)]
+if missing:
+    print(f'{team_name}:{','.join(missing)}')
+else:
+    print('')
+" 2>/dev/null || echo "")
 
-            if [ -n "$MISSING_DOMINATORS" ]; then
-                python -c "
+        if [ -n "$MISSING_DOMINATORS" ]; then
+            TEAM_NAME=$(echo "$MISSING_DOMINATORS" | cut -d: -f1)
+            MISSING=$(echo "$MISSING_DOMINATORS" | cut -d: -f2)
+            python -c "
 import json
-missing = '$MISSING_DOMINATORS'
 print(json.dumps({
     'decision': 'block',
-    'reason': f'[Stop-Guard] 活跃蜂群 $TEAM_NAME 缺少 Dominator Node: [{missing}]（mandatory=true）。不允许停止。路由指令: 立即 spawn 缺失的结构工位到蜂群 $TEAM_NAME，或关闭蜂群后再停止。055号：无简单任务豁免。'
+    'reason': f'[Stop-Guard] 活跃蜂群 $TEAM_NAME 缺少 Dominator Node: [$MISSING]（dispatch-dag mandatory=true）。不允许停止。路由指令: 立即 spawn 缺失的结构工位到蜂群 $TEAM_NAME，或关闭蜂群后再停止。'
 }, ensure_ascii=False))
 "
-                exit 0
-            fi
+            exit 0
         fi
     done
 fi

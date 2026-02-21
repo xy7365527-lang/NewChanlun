@@ -162,6 +162,15 @@
             "command": ".claude/hooks/result-package-guard.sh"
           }
         ]
+      },
+      {
+        "matcher": "TeamCreate",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/team-structural-inject.sh"
+          }
+        ]
       }
     ]
   },
