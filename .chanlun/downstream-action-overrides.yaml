@@ -1,6 +1,6 @@
 # 下游行动手动覆盖
 # 格式: genealogy_id-action_index: status [reason]
-# status: resolved | superseded | long_term
+# status: resolved | superseded | long_term | background_noise
 # 由 Lead 在缺口清理中逐项审查后标注
 
 # === 039号 ===
