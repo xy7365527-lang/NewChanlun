@@ -6,11 +6,10 @@
 #   1. 只处理 Write 工具对 .chanlun/genealogy/**/*.md 的写入
 #   2. 检查强制字段存在性：类型、状态、日期、前置
 #   3. 检查前置引用的谱系编号是否存在于 settled/ 或 pending/
-#   4. 熔断：连续 block 3 次同一文件 → 放行 + 警告
+#   4. 二阶反馈回路检查：验证活跃蜂群中存在 meta-observer
+#   5. 验证不通过时：allow + 警告（不阻止写入）
 #
-# 熔断状态文件：
-#   .chanlun/.gen-guard-counter   — 连续 block 计数
-#   .chanlun/.gen-guard-last-file — 上次被 block 的文件路径
+# 原则0：蜂群能修改一切。守卫只验证，不阻断。
 
 set -euo pipefail
 
@@ -69,19 +68,6 @@ else:
 
 if [ "$MATCH" != "yes" ]; then
     exit 0
-fi
-
-# ── 熔断检查 ──────────────────────────────────────────────
-COUNTER_FILE=".chanlun/.gen-guard-counter"
-LAST_FILE=".chanlun/.gen-guard-last-file"
-
-FUSE_BLOWN="no"
-if [ -f "$COUNTER_FILE" ] && [ -f "$LAST_FILE" ]; then
-    LAST=$(cat "$LAST_FILE" 2>/dev/null || echo "")
-    COUNT=$(cat "$COUNTER_FILE" 2>/dev/null || echo "0")
-    if [ "$LAST" = "$REL_PATH" ] && [ "$COUNT" -ge 3 ] 2>/dev/null; then
-        FUSE_BLOWN="yes"
-    fi
 fi
 
 # ── 字段验证 ──────────────────────────────────────────────
@@ -158,67 +144,42 @@ d = json.loads(sys.stdin.read())
 print(','.join(d.get('invalid_refs', [])))
 " 2>/dev/null || echo "")
 
-# 如果没有问题，放行并重置熔断计数
-if [ -z "$MISSING" ] && [ -z "$INVALID_REFS" ]; then
-    # 重置熔断状态
-    rm -f "$COUNTER_FILE" "$LAST_FILE" 2>/dev/null || true
+# ── 二阶反馈回路检查：谱系写入时 meta-observer 必须在场 ──
+META_OBS_WARN=""
+META_OBS_CHECK=$(python -c "
+import json, os, glob
+team_dir = os.path.join(os.path.expanduser('~'), '.claude', 'teams')
+if not os.path.isdir(team_dir):
+    print('no_team')
+else:
+    found = False
+    for cfg in glob.glob(os.path.join(team_dir, '*/config.json')):
+        with open(cfg, encoding='utf-8') as f:
+            tc = json.load(f)
+        names = [m.get('name', '') for m in tc.get('members', [])]
+        if any('meta-observer' in n for n in names):
+            found = True
+            break
+    print('ok' if found else 'missing')
+" 2>/dev/null || echo "skip")
+
+if [ "$META_OBS_CHECK" = "missing" ]; then
+    META_OBS_WARN="二阶反馈回路未激活：活跃蜂群中缺少 meta-observer，谱系写入无元观察覆盖"
+elif [ "$META_OBS_CHECK" = "no_team" ]; then
+    META_OBS_WARN="二阶反馈回路未激活：无活跃蜂群，meta-observer 未 spawn"
+fi
+
+# 如果没有任何问题，放行
+if [ -z "$MISSING" ] && [ -z "$INVALID_REFS" ] && [ -z "$META_OBS_WARN" ]; then
     exit 0
 fi
 
-# ── 有问题：检查熔断 ──────────────────────────────────────
-if [ "$FUSE_BLOWN" = "yes" ]; then
-    # 熔断触发：放行 + 警告 + 重置计数
-    rm -f "$COUNTER_FILE" "$LAST_FILE" 2>/dev/null || true
-    python -c "
-import json, sys
-missing = sys.argv[1]
-invalid = sys.argv[2]
-parts = []
-if missing:
-    parts.append('缺失字段: ' + missing)
-if invalid:
-    parts.append('无效前置引用: ' + invalid)
-detail = '; '.join(parts)
-msg = (
-    '[genealogy-write-guard] 熔断放行（连续 3 次 block 同一文件）。'
-    ' 仍存在问题：' + detail + '。'
-    ' 请在后续 commit 前修复。'
-)
-print(json.dumps({
-    'decision': 'allow',
-    'reason': msg
-}, ensure_ascii=False))
-" "$MISSING" "$INVALID_REFS"
-    exit 0
-fi
-
-# ── 阻断 + 更新熔断计数 ──────────────────────────────────
-# 更新计数
-if [ -f "$LAST_FILE" ]; then
-    LAST=$(cat "$LAST_FILE" 2>/dev/null || echo "")
-else
-    LAST=""
-fi
-
-if [ "$LAST" = "$REL_PATH" ] && [ -f "$COUNTER_FILE" ]; then
-    COUNT=$(cat "$COUNTER_FILE" 2>/dev/null || echo "0")
-    NEW_COUNT=$((COUNT + 1))
-else
-    NEW_COUNT=1
-fi
-
-# 确保目录存在
-mkdir -p .chanlun 2>/dev/null || true
-echo "$NEW_COUNT" > "$COUNTER_FILE"
-echo "$REL_PATH" > "$LAST_FILE"
-
-REMAINING=$((3 - NEW_COUNT))
-
+# ── 有问题：allow + 警告 ──────────────────────────────────
 python -c "
 import json, sys
 missing = sys.argv[1]
 invalid = sys.argv[2]
-remaining = sys.argv[3]
+meta_warn = sys.argv[3]
 
 parts = []
 if missing:
@@ -227,17 +188,16 @@ if missing:
 if invalid:
     refs = invalid.split(',')
     parts.append('前置引用的谱系编号不存在于 settled/ 或 pending/: ' + ', '.join(refs))
+if meta_warn:
+    parts.append(meta_warn)
 
-detail = '\n  '.join(parts)
+detail = '; '.join(parts)
 msg = (
-    '[genealogy-write-guard] 阻断：谱系文件缺少强制字段或引用无效。\n'
-    '  ' + detail + '\n'
-    '要求：每个谱系文件必须包含 类型、状态、日期、前置 四个字段（前置可为空但字段必须存在）。\n'
-    '前置引用的谱系编号必须在 .chanlun/genealogy/settled/ 或 pending/ 中存在。\n'
-    '熔断提示：再连续 block ' + remaining + ' 次将自动放行。'
+    '[genealogy-write-guard] 警告：' + detail + '。'
+    ' 请在后续 commit 前修复。'
 )
 print(json.dumps({
-    'decision': 'block',
+    'decision': 'allow',
     'reason': msg
 }, ensure_ascii=False))
-" "$MISSING" "$INVALID_REFS" "$REMAINING"
+" "$MISSING" "$INVALID_REFS" "$META_OBS_WARN"

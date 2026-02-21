@@ -1,4 +1,9 @@
-# 谱系邻接索引 — 紧凑格式
+# [DEPRECATED] 谱系邻接索引 — 紧凑格式
+# 状态: deprecated (2026-02-21)
+# 原因: 手动维护，覆盖 001-043 (51节点)，实际谱系已达 ~80 条，缺失近半。
+# 替代方案: genealogist 直接读取各谱系条目的 links 字段获取邻接关系。
+# 未来: dag.yaml 自动生成脚本将从 frontmatter 构建全局 DAG，届时删除本文件。
+#
 # 最后更新: 2026-02-20
 # 总节点数: 51 (settled: 47, pending: 3, scan-report: 1)
 # 格式: 每个节点列出 derives_from(D) 和 relates_to(R) 的目标编号

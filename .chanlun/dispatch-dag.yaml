@@ -295,6 +295,20 @@ edges:
       action: "auto_fix_build"
       priority: medium
 
+    - event: command
+      pattern: "/inquire"
+      activates_edge: "task_node → quality-guard"
+      action: "four_step_inquiry"
+      description: "四步质询序列（定义回溯→反例检验→边界条件→谱系比对）"
+      priority: high
+
+    - event: command
+      pattern: "/escalate"
+      activates_edge: "task_node → genealogist"
+      action: "write_pending_genealogy"
+      description: "矛盾上浮：写入 pending 谱系，选择/语法记录类经 orchestrator_proxy 路由到 Gemini decide"
+      priority: critical
+
 # ═══════════════════════════════════════════════════════════════
 # 4. 编排者代理（041号谱系）
 # ═══════════════════════════════════════════════════════════════
@@ -528,6 +542,7 @@ axis_report:
 # ═══════════════════════════════════════════════════════════════
 definition_partial_order:
   nodes:
+    # --- 单标的维度（生成序）---
     - {id: baohan, depends_on: []}
     - {id: fenxing, depends_on: [baohan]}
     - {id: bi, depends_on: [fenxing]}
@@ -535,8 +550,9 @@ definition_partial_order:
     - {id: zhongshu, depends_on: [xianduan]}
     - {id: zoushi, depends_on: [zhongshu]}
     - {id: beichi, depends_on: [zhongshu, zoushi]}
-    - {id: level_recursion, depends_on: [zoushi]}
-    - {id: bijia, depends_on: [beichi]}
-    - {id: dengjia, depends_on: [bijia]}
-    - {id: maimai, depends_on: [beichi, zhongshu]}
-    - {id: liuzhuan, depends_on: [maimai]}
+    - {id: level_recursion, depends_on: [zoushi, zhongshu]}
+    - {id: maimai, depends_on: [beichi, zhongshu, zoushi]}
+    # --- 跨标的维度（独立分支）---
+    - {id: dengjia, depends_on: []}                    # 无前置依赖（筛选条件，非本体关系）
+    - {id: bijia, depends_on: [dengjia]}               # 比价分析前提=等价对成立
+    - {id: liuzhuan, depends_on: [bijia, dengjia]}     # 四矩阵有向流场，输入=比价+等价
