@@ -45,7 +45,7 @@
 075-5: resolved    # ceremony-completion-guard.sh 移除 dominator 检查
 
 # === 076号 ===
-076-1: long_term   # dispatch-spec 幽灵引用全局清理——需逐个 hook 检查
+076-1: resolved    # hook 幽灵引用已清理：hub-node-impact-guard(dispatch-spec→dag) + recursive-guard(注释修正)
 076-2: resolved    # dispatch-dag code-verifier 已是 structural skill
 076-3: long_term   # "下游推论靠主动认领"语法记录——待 Gemini decide
 
