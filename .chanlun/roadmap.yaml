@@ -88,7 +88,11 @@ tasks:
   - id: xiaozhuan_da
     title: "小转大机制实现（跨级别联动）"
     priority: P1
-    status: active
+    status: completed
+    completed_date: "2026-02-21"
+    completion_note: |
+      a_xiaozhuan_da.py 已实现，11个测试全GREEN。
+      beichi.md 小转大标记从 ❌ → ✅。
     source: "定义偏序派生：beichi.md 中'小转大❌未实现'，RecursiveStack就绪后可实现"
     description: |
       实现缠论"小转大"机制：
@@ -106,7 +110,10 @@ tasks:
   - id: definition_status_sync
     title: "定义文件实现状态同步"
     priority: P2
-    status: active
+    status: completed
+    completed_date: "2026-02-21"
+    completion_note: |
+      def-sync 工位完成：beichi/maimai/zoushi 过期标记全部修正。
     source: "多处定义文件中的'尚未实现'标记已过期，需批量更新"
     description: |
       批量更新定义文件中过期的实现状态标记：
