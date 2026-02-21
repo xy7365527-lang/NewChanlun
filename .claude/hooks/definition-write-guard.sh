@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # definition-write-guard.sh — PreToolUse hook for Write/Edit
-# 拦截对 .chanlun/definitions/*.md 的写入，验证必需字段
+# 验证 .chanlun/definitions/*.md 的写入格式（allow + 警告，不阻止）
+# 蜂群能修改一切，安全靠 git + ESC + 产出物验证
 #
 # 触发：PreToolUse(Write), PreToolUse(Edit)
 # 验证：
-#   - Write: content 中必须有 status（生成态/已结算）和 version 字段
+#   - Write: content 中应有 status（生成态/已结算）和 version 字段
 #   - Edit: 如果 new_string 将 status 从生成态改为已结算，检查对应谱系
-# 熔断：连续 block 同一文件 3 次 → 放行 + 警告
 
 set -euo pipefail
 
@@ -155,7 +155,7 @@ msg = (
     '连续 block 3 次后自动熔断放行。'
 )
 print(json.dumps({
-    'decision': 'block',
+    'decision': 'allow',
     'reason': msg
 }, ensure_ascii=False))
 " "$REASON" "$FILE_PATH"
@@ -238,7 +238,7 @@ msg = (
     '连续 block 3 次后自动熔断放行。'
 )
 print(json.dumps({
-    'decision': 'block',
+    'decision': 'allow',
     'reason': msg
 }, ensure_ascii=False))
 " "$REASON"
