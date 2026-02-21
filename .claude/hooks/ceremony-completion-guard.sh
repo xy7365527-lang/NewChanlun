@@ -141,7 +141,59 @@ print(json.dumps({
     exit 0
 fi
 
-# ─── 检查 2：蜂群任务队列 ───
+# ─── 检查 2：蜂群 Dominator Node 强制（从 dispatch-dag 动态读取，优先于任务队列检查） ───
+TEAM_DIR="$HOME/.claude/teams"
+DAG_FILE=".chanlun/dispatch-dag.yaml"
+if [ -d "$TEAM_DIR" ] && [ -f "$DAG_FILE" ]; then
+    for team_config in "$TEAM_DIR"/*/config.json; do
+        [ -f "$team_config" ] || continue
+
+        MISSING_DOMINATORS=$(python -c "
+import json, yaml
+
+# 从 dispatch-dag 动态读取 mandatory structural nodes
+with open('$DAG_FILE', encoding='utf-8') as f:
+    dag = yaml.safe_load(f)
+structural = dag.get('nodes', {}).get('structural', [])
+required = [n['id'] for n in structural if n.get('mandatory', False)]
+
+if not required:
+    print(''); exit()
+
+# 读取 team config
+with open('$team_config', encoding='utf-8') as f:
+    tc = json.load(f)
+team_name = tc.get('team_name', '')
+members = tc.get('members', [])
+non_lead = [m for m in members if m.get('name', '') != 'team-lead']
+
+if not non_lead:
+    print(''); exit()  # 无 teammate，跳过
+
+names = [m.get('name', '') for m in members]
+missing = [r for r in required if not any(r in n for n in names)]
+if missing:
+    print(f'{team_name}:{','.join(missing)}')
+else:
+    print('')
+" 2>/dev/null || echo "")
+
+        if [ -n "$MISSING_DOMINATORS" ]; then
+            TEAM_NAME=$(echo "$MISSING_DOMINATORS" | cut -d: -f1)
+            MISSING=$(echo "$MISSING_DOMINATORS" | cut -d: -f2)
+            python -c "
+import json
+print(json.dumps({
+    'decision': 'block',
+    'reason': f'[Stop-Guard] 活跃蜂群 $TEAM_NAME 缺少 Dominator Node: [$MISSING]（dispatch-dag mandatory=true）。不允许停止。路由指令: 立即 spawn 缺失的结构工位到蜂群 $TEAM_NAME，或关闭蜂群后再停止。'
+}, ensure_ascii=False))
+"
+            exit 0
+        fi
+    done
+fi
+
+# ─── 检查 3：蜂群任务队列 ───
 # 扫描活跃任务状态，生成具体路由指令
 ACTIVE_TASKS=0
 PENDING_TASKS=""
@@ -246,59 +298,7 @@ print(json.dumps({
     exit 0
 fi
 
-# ─── 检查 4：蜂群 Dominator Node 强制（从 dispatch-dag 动态读取） ───
-TEAM_DIR="$HOME/.claude/teams"
-DAG_FILE=".chanlun/dispatch-dag.yaml"
-if [ -d "$TEAM_DIR" ] && [ -f "$DAG_FILE" ]; then
-    for team_config in "$TEAM_DIR"/*/config.json; do
-        [ -f "$team_config" ] || continue
-
-        MISSING_DOMINATORS=$(python -c "
-import json, yaml
-
-# 从 dispatch-dag 动态读取 mandatory structural nodes
-with open('$DAG_FILE', encoding='utf-8') as f:
-    dag = yaml.safe_load(f)
-structural = dag.get('nodes', {}).get('structural', [])
-required = [n['id'] for n in structural if n.get('mandatory', False)]
-
-if not required:
-    print(''); exit()
-
-# 读取 team config
-with open('$team_config', encoding='utf-8') as f:
-    tc = json.load(f)
-team_name = tc.get('team_name', '')
-members = tc.get('members', [])
-non_lead = [m for m in members if m.get('name', '') != 'team-lead']
-
-if not non_lead:
-    print(''); exit()  # 无 teammate，跳过
-
-names = [m.get('name', '') for m in members]
-missing = [r for r in required if not any(r in n for n in names)]
-if missing:
-    print(f'{team_name}:{','.join(missing)}')
-else:
-    print('')
-" 2>/dev/null || echo "")
-
-        if [ -n "$MISSING_DOMINATORS" ]; then
-            TEAM_NAME=$(echo "$MISSING_DOMINATORS" | cut -d: -f1)
-            MISSING=$(echo "$MISSING_DOMINATORS" | cut -d: -f2)
-            python -c "
-import json
-print(json.dumps({
-    'decision': 'block',
-    'reason': f'[Stop-Guard] 活跃蜂群 $TEAM_NAME 缺少 Dominator Node: [$MISSING]（dispatch-dag mandatory=true）。不允许停止。路由指令: 立即 spawn 缺失的结构工位到蜂群 $TEAM_NAME，或关闭蜂群后再停止。'
-}, ensure_ascii=False))
-"
-            exit 0
-        fi
-    done
-fi
-
-# ─── 检查 5（原4）：@proof-required 标签扫描 ───
+# ─── 检查 5：@proof-required 标签扫描 ───
 PROOF_REQUIRED=0
 PROOF_LOCATIONS=""
 if [ -d "spec" ] || [ -d "src" ] || [ -d ".chanlun" ]; then
