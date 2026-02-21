@@ -53,9 +53,9 @@ Center[1]（已有：a_zhongshu_v1.py，输入为 Segment）
   ↓ 中枢组合
 Move[1] = 1级走势类型（已有：a_move_v1.py，输入为 Zhongshu）
   ↓ 三个 Move[1] 重叠
-Center[2] = 2级中枢（❌ 未实现：需要 zhongshu_from_moves）
+Center[2] = 2级中枢（✅ 已实现：zhongshu_from_components + RecursiveLevelEngine）
   ↓ 中枢组合
-Move[2] = 2级走势类型（❌ 未实现：需要 moves_from_zhongshus 接受 Move[1]）
+Move[2] = 2级走势类型（✅ 已实现：moves_from_level_zhongshus + RecursiveLevelEngine）
   ↓ ...
 ```
 
@@ -81,7 +81,7 @@ Move[2] = 2级走势类型（❌ 未实现：需要 moves_from_zhongshus 接受 
 
 **当前实现状态**：
 - 1级中枢（Center[1]）：组件是 Segment = Move[0] ✅ 正确
-- 2级及以上中枢：**未实现**，需要 Move[k-1] 完成判定 + 三段重叠
+- 2级及以上中枢：✅ **已实现**（zhongshu_from_components + RecursiveLevelEngine + RecursiveStack）
 
 ---
 
@@ -172,7 +172,7 @@ Move[2] = 2级走势类型（❌ 未实现：需要 moves_from_zhongshus 接受 
 在最低级别找到精确转折点
 ```
 
-区间套依赖**多级别同时存在**的递归构造结果。当前实现（beichi #5）被阻塞在级别递归未实现。
+区间套依赖**多级别同时存在**的递归构造结果。✅ 已实现：RecursiveStack + nested_divergence_search。
 
 ---
 
