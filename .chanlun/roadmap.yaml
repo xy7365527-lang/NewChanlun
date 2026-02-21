@@ -15,7 +15,7 @@
 #
 # 来源：078号 D 策略 + Gemini decide + 人类编排者确认
 
-version: "1.1"
+version: "1.2"
 genealogy_ref: "081-swarm-continuity-strategy-d"
 
 tasks:
@@ -57,4 +57,26 @@ tasks:
       - "使用口径 A（纯递归），不使用 TF 口径"
       - "数据来源：databento 或本地缓存"
     added_by: "v19-swarm lead（level_recursion完成后自动派生）"
+    added_date: "2026-02-21"
+
+  - id: buysellpoint_module
+    title: "三类买卖点模块实现"
+    priority: P1
+    status: active
+    source: "定义偏序自然派生：maimai.md 定义已结算但代码 0% 覆盖"
+    description: |
+      实现缠论三类买卖点识别模块（maimai.md 的代码化）：
+      1. 第一类买卖点：趋势背驰 → 走势终结点（复用 Divergence(kind="trend")）
+      2. 第二类买卖点：第一类后首个次级别回调/反弹结束点
+      3. 第三类买卖点：中枢离开段 + 回试段 + ZG/ZD比较
+      前置依赖全部就绪：背驰(beichi)、走势类型(zoushi)、中枢(zhongshu)、级别递归(level_recursion)
+    constraints:
+      - "严格遵循 maimai.md 定义（已结算）"
+      - "买卖点判定基于递归级别（口径A），不使用时间周期"
+      - "第一类买卖点 = 趋势背驰确认点（不含盘整背驰）"
+      - "第三类买卖点仅限第一次离开-回试"
+    definition_ref: ".chanlun/definitions/maimai.md"
+    genealogy_refs:
+      - "定义偏序: maimai depends_on [beichi]"
+    added_by: "v19-swarm lead（real_data_validation完成后自动派生）"
     added_date: "2026-02-21"
