@@ -488,6 +488,11 @@ nodes:
   status: 已结算
   type: 选择
   file: settled/087-island-repair-honest-decisions.md
+- id: '088'
+  title: 032号权限死锁与拓扑异常对象化重设计
+  status: 已结算
+  type: 选择
+  file: settled/088-permission-deadlock-topology-anomaly-redesign.md
 edges:
   depends_on:
   - from: 005a
@@ -920,6 +925,23 @@ edges:
     to: '041'
   - from: '087'
     to: 018
+  # 088 depends
+  - from: '088'
+    to: '032'
+  - from: '088'
+    to: '016'
+  - from: '088'
+    to: '020'
+  - from: '088'
+    to: 069
+  - from: '088'
+    to: 005b
+  - from: '088'
+    to: '043'
+  - from: '088'
+    to: '073'
+  - from: '088'
+    to: '087'
   triggered:
   - from: '005'
     to: 005a
@@ -971,6 +993,8 @@ edges:
     to: '066'
   - from: 073a
     to: '073'
+  - from: '088'
+    to: '032'
   related:
   - between:
     - '001'
@@ -1552,3 +1576,5 @@ edges:
     by: 073a
   - target: '086'
     by: '087'
+  - target: '032'
+    by: '088'

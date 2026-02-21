@@ -419,7 +419,7 @@ ceremony_sequence:
         action: "并行 spawn 业务工位（skill 由事件自动触发，无需 spawn）"
         depends_on: ["load-skills"]
       - id: "divine-madness"
-        action: "Lead 权限剥夺（032号谱系）"
+        action: "Lead 拓扑异常审计注册（088号谱系：032号重设计——从 deny 列表改为异常对象化审计）"
         depends_on: ["spawn-tasks"]
       - id: "recurse"
         action: "输出 '→ 接下来：[action]' 紧跟 tool 调用"
@@ -464,7 +464,7 @@ ceremony_sequence:
         action: "并行 spawn 业务工位（skill 由事件自动触发，无需 spawn）"
         depends_on: ["derive-work"]
       - id: "divine-madness"
-        action: "Lead 权限剥夺（032号谱系）"
+        action: "Lead 拓扑异常审计注册（088号谱系：032号重设计——从 deny 列表改为异常对象化审计）"
         depends_on: ["spawn-tasks"]
       - id: "recurse"
         action: "输出 '→ 接下来：[action]' 紧跟 tool 调用"
@@ -501,9 +501,9 @@ validation:
       condition: "event_skill_map 中所有 structural skill 的 agent 文件存在"
       on_fail: "警告——skill agent 文件缺失"
 
-    - check: "lead_permissions_restricted"
-      condition: "settings.local.json 中 Lead 只保留 Read/Glob/Grep/Task/SendMessage/TaskList/TaskGet/TaskUpdate"
-      on_fail: "阻塞——032号谱系要求"
+    - check: "lead_audit_registered"
+      condition: "lead-audit hook 已注册为 PostToolUse hook（088号谱系：032号重设计）"
+      on_fail: "警告——Lead 拓扑异常审计未激活"
 
     - check: "task_stations_derived"
       condition: "至少从中断点派生了一个任务工位（除非中断点为空）"
