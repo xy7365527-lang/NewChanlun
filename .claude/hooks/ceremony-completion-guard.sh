@@ -41,12 +41,12 @@ HAS_PENDING_WORK=0
 WORK_DESCRIPTION=""
 
 # 检查最新 session 的下一轮方向
-LATEST_SESSION=$(ls -t .chanlun/sessions/20*-session.md 2>/dev/null | head -1)
+LATEST_SESSION=$(ls -t .chanlun/sessions/20*-session.md 2>/dev/null | head -1) || true
 if [ -n "$LATEST_SESSION" ]; then
     # 检查是否有"下一轮方向"或"下一轮 Blocker"章节
     if grep -q "## 下一轮" "$LATEST_SESSION" 2>/dev/null; then
         # 检查是否有活跃的蜂群（team 目录存在）
-        ACTIVE_TEAMS=$(ls -d "$HOME/.claude/teams"/*/ 2>/dev/null | wc -l)
+        ACTIVE_TEAMS=$(ls -d "$HOME/.claude/teams"/*/ 2>/dev/null | wc -l) || ACTIVE_TEAMS=0
         if [ "$ACTIVE_TEAMS" -eq 0 ]; then
             # 有工作但没有蜂群在跑
             WORK_DESCRIPTION=$(python -c "
