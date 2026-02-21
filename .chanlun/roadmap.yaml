@@ -15,29 +15,41 @@
 #
 # 来源：078号 D 策略 + Gemini decide + 人类编排者确认
 
-version: "1.0"
+version: "1.1"
 genealogy_ref: "081-swarm-continuity-strategy-d"
 
 tasks:
   - id: level_recursion
     title: "级别递归概念设计 + 业务验证"
     priority: P2
-    status: active
+    status: completed
+    completed_date: "2026-02-21"
+    completion_note: |
+      P1-P9 全部完成，定义 v1.0 已结算。
+      RecursiveLevelEngine + RecursiveStack + RecursiveOrchestrator 全部实现。
+      106 测试全 GREEN。
     source: "078号D策略（第三步）：元编排v2阶段完成，转向 level_recursion"
     description: |
       设计"级别 = 递归层级（level_id）"的概念形式化。
       从 1分钟K线为底座无限向上递归构造走势类型/中枢。
       禁止用"日线/30分/5分"等时间周期替代级别定义。
-      需要：
-      1. level_recursion 的定义（.chanlun/definitions/）
-      2. 递归层级构造算法（src/）
-      3. 业务验证测试
-    constraints:
-      - "级别 = 递归层级（CLAUDE.md 关键约束）"
-      - "禁止用时间周期替代级别定义"
-      - "013号偏序集原则：走势是DAG不是连续流形"
-    genealogy_refs:
-      - "068-continuous-to-discrete-paradigm-shift"
-      - "069-recursive-topology-async-self-referential-swarm"
     added_by: "078号Gemini decide D策略 + 081号谱系"
+    added_date: "2026-02-21"
+
+  - id: real_data_validation
+    title: "真实数据端到端验证"
+    priority: P1
+    status: active
+    source: "level_recursion 完成后的自然下游——算法需要在真实市场数据上验证"
+    description: |
+      用真实 1 分钟 K 线数据端到端验证递归引擎：
+      1. 选取代表性品种（如 ES/NQ 期货或 A 股标的）
+      2. 全链路运行：K线 → 包含 → 分型 → 笔 → 线段 → 中枢 → 走势 → 递归
+      3. 验证递归层级是否合理（预期 4-5 层）
+      4. 检查买卖点信号质量
+      5. 可视化输出（b_chart / b_plot）
+    constraints:
+      - "使用口径 A（纯递归），不使用 TF 口径"
+      - "数据来源：databento 或本地缓存"
+    added_by: "v19-swarm lead（level_recursion完成后自动派生）"
     added_date: "2026-02-21"
