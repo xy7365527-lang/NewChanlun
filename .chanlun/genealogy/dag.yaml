@@ -513,6 +513,11 @@ nodes:
   status: 已结算
   type: 审计修复
   file: settled/092-rtas-strict-audit.md
+- id: '093'
+  title: 五约束有向依赖图——从系统物理限制推导蜂群结构约束，扬弃 R.S.I
+  status: 已结算
+  type: 概念扬弃
+  file: settled/093-five-constraints-topology.md
 edges:
   depends_on:
   - from: 005a
@@ -1001,6 +1006,12 @@ edges:
     to: '090'
   - from: '092'
     to: '091'
+  - from: '093'
+    to: '062'
+  - from: '093'
+    to: '069'
+  - from: '093'
+    to: '092'
   triggered:
   - from: '005'
     to: 005a
@@ -1621,6 +1632,15 @@ edges:
     - '068'
   - between:
     - '092'
+    - '075'
+  - between:
+    - '093'
+    - '012'
+  - between:
+    - '093'
+    - '068'
+  - between:
+    - '093'
     - '075'
   tensions_with:
   - between:
