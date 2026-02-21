@@ -39,7 +39,7 @@ from collections import deque
 
 # 根节点集合
 ROOT_NODES = [
-    '.chanlun/dispatch-spec.yaml',
+    '.chanlun/dispatch-dag.yaml',
     'CLAUDE.md',
     'src/newchan/skills/manifest.yaml',
 ]
@@ -114,7 +114,7 @@ def extract_references(filepath):
             refs.add(candidate)
 
     # 直接文件名引用（无路径前缀但在已知目录下）
-    for m in re.finditer(r'(?:dispatch-spec|pattern-buffer|definitions|adjacency-index|manifest)\\.yaml', content):
+    for m in re.finditer(r'(?:dispatch-dag|pattern-buffer|definitions|adjacency-index|manifest)\\.yaml', content):
         refs.add(m.group(0))
 
     return refs

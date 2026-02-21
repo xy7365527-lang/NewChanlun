@@ -106,6 +106,15 @@
             "command": ".claude/hooks/post-session-pattern-detect.sh"
           }
         ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/meta-observer-guard.sh"
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -151,6 +160,10 @@
           {
             "type": "command",
             "command": ".claude/hooks/result-package-guard.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/downstream-action-guard.sh"
           }
         ]
       },
@@ -160,6 +173,10 @@
           {
             "type": "command",
             "command": ".claude/hooks/result-package-guard.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/downstream-action-guard.sh"
           }
         ]
       },

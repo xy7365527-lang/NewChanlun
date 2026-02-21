@@ -128,6 +128,15 @@
 
 ---
 
+## 075号架构变更
+
+自 075号谱系起，结构能力（genealogist/quality-guard/meta-observer/code-verifier）不再作为 teammate spawn，
+而是由 `dispatch-dag.yaml` 的 `event_skill_map` 定义为事件驱动 skill。
+
+- ceremony 只 spawn 业务工位，不再 spawn 结构工位
+- skill 在对应事件发生时自动触发（task_complete、file_write、session_end 等）
+- 子蜂群自动继承所有 skill，无需 spawn 结构 teammates
+
 ## 注意
 
 - 冷启动：编排者确认后质询循环才正式启动

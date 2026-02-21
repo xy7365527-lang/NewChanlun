@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# PostToolUse hook: TeamCreate 后自动注入结构工位提示
-# 从 dispatch-dag.yaml 动态读取 mandatory structural nodes
-# 不硬编码——结构工位数量和名称由 DAG 定义决定
+# PostToolUse hook: TeamCreate 后输出 skill 可用性提示
+# 075号更新：不再注入结构工位 spawn 指令，改为提示 skill 事件驱动架构
+# 从 dispatch-dag.yaml 的 event_skill_map 读取 structural skill
 
 set -uo pipefail
 
@@ -26,7 +26,7 @@ if isinstance(r, str):
 
 [ -z "$team_name" ] && exit 0
 
-# 从 dispatch-dag.yaml 动态读取 mandatory structural nodes
+# 从 dispatch-dag.yaml 读取 event_skill_map 中的 structural skill
 python -c "
 import json, yaml, sys
 
@@ -34,29 +34,26 @@ dag_path = '.chanlun/dispatch-dag.yaml'
 try:
     with open(dag_path, encoding='utf-8') as f:
         dag = yaml.safe_load(f)
-except:
-    # DAG 不存在时静默放行
+except Exception:
     sys.exit(0)
 
-nodes = dag.get('nodes', {})
-structural = nodes.get('structural', [])
-mandatory = [n for n in structural if n.get('mandatory', False)]
+skills = dag.get('event_skill_map', [])
+structural = [s for s in skills if s.get('skill_type') == 'structural']
 
-if not mandatory:
+if not structural:
     sys.exit(0)
 
 lines = []
-for i, n in enumerate(mandatory, 1):
-    nid = n['id']
-    agent = n.get('agent', f'.claude/agents/{nid}.md')
-    purpose = n.get('purpose', '')
-    lines.append(f'{i}. {nid}（{agent}）— {purpose}')
+for i, s in enumerate(structural, 1):
+    sid = s['id']
+    triggers = ', '.join(t.get('event', '?') for t in s.get('triggers', []))
+    lines.append(f'{i}. {sid} — 触发事件: [{triggers}]')
 
-node_list = chr(10).join(lines)
-count = len(mandatory)
+skill_list = chr(10).join(lines)
+count = len(structural)
 
 print(json.dumps({
     'decision': 'allow',
-    'reason': f'[蜂群拓扑强制] 蜂群 $team_name 已创建。dispatch-dag.yaml 定义了 {count} 个 mandatory structural nodes，必须立即 spawn：\n{node_list}\n每个使用 Task tool: subagent_type=general-purpose, team_name=$team_name, run_in_background=true, mode=bypassPermissions。\n在 spawn 业务 teammates 之前完成。Stop hook 将验证——缺少任何一个，蜂群无法停止。'
+    'reason': f'[075号 skill 架构] 蜂群 $team_name 已创建。{count} 个 structural skill 由事件自动触发（无需 spawn teammate）：\n{skill_list}\n直接 spawn 业务工位即可。'
 }, ensure_ascii=False))
 "
