@@ -1,5 +1,5 @@
 # 谱系 DAG — 自动生成，勿手动编辑
-# 生成时间: 2026-02-21T01:29:05
+# 生成时间: 2026-02-21T01:43:56
 # 来源: .chanlun/genealogy/{settled,pending}/*.md frontmatter
 
 nodes:
@@ -693,6 +693,10 @@ edges:
     to: 069
   - from: '073'
     to: '072'
+  - from: 073a
+    to: '056'
+  - from: 073a
+    to: 069
   triggered:
   - from: '005'
     to: 005a
@@ -1291,6 +1295,9 @@ edges:
   - between:
     - '070'
     - '072'
+  - between:
+    - '072'
+    - 073a
   tensions_with:
   - between:
     - '007'
@@ -1313,4 +1320,10 @@ edges:
   - between:
     - '064'
     - '065'
-  negated_by: []
+  negated_by:
+  - target: '065'
+    by: 068
+  - target: '066'
+    by: 068
+  - target: '073'
+    by: 073a

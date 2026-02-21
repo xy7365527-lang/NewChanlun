@@ -6,7 +6,7 @@ type: "语法记录"
 date: "2026-02-21"
 depends_on: ["056", "069", "072"]
 related: ["033", "037", "058", "068"]
-negated_by: []
+negated_by: ["073a"]
 negates: []
 ---
 
