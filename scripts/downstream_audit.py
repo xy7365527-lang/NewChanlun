@@ -10,6 +10,8 @@
 """
 import json, os, re, glob, sys, argparse
 
+OVERRIDE_STATUSES = {"resolved", "superseded", "long_term", "background_noise"}
+
 
 def extract_downstream_actions(filepath):
     """从谱系文件提取下游推论编号条目。"""
@@ -93,12 +95,13 @@ def load_overrides(root):
     overrides = {}
     if not os.path.isfile(override_path):
         return overrides
+    status_pattern = "|".join(sorted(OVERRIDE_STATUSES, key=len, reverse=True))
     with open(override_path, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if not line or line.startswith("#"):
                 continue
-            m = re.match(r'^(\d{3})-(\d+):\s*(resolved|superseded|long_term)', line)
+            m = re.match(rf'^(\d{{3}})-(\d+):\s*({status_pattern})\b', line)
             if m:
                 key = f"{m.group(1)}-{m.group(2)}"
                 overrides[key] = m.group(3)
@@ -131,6 +134,7 @@ def audit(root=None):
     unresolved = 0
     superseded = 0
     long_term = 0
+    background_noise = 0
 
     for fp in files:
         gid, actions = extract_downstream_actions(fp)
@@ -148,6 +152,8 @@ def audit(root=None):
                 superseded += 1
             elif status == "long_term":
                 long_term += 1
+            elif status == "background_noise":
+                background_noise += 1
             elif status == "unresolved":
                 unresolved += 1
             items.append({
@@ -157,12 +163,13 @@ def audit(root=None):
                 "status": status,
             })
 
-    resolved = total - unresolved - superseded - long_term
+    resolved = total - unresolved - superseded - long_term - background_noise
     return {
         "total_actions": total,
         "unresolved": unresolved,
         "superseded": superseded,
         "long_term": long_term,
+        "background_noise": background_noise,
         "resolved": resolved,
         "execution_rate": f"{resolved / total * 100:.0f}%" if total else "N/A",
         "items": [i for i in items if i["status"] not in ("resolved",)],
@@ -182,6 +189,7 @@ def main():
               f"{report['resolved']} 已解决, "
               f"{report['superseded']} superseded, "
               f"{report.get('long_term', 0)} 长期, "
+              f"{report.get('background_noise', 0)} 背景噪音, "
               f"{report['unresolved']} 未解决, "
               f"执行率 {report['execution_rate']}")
     else:
