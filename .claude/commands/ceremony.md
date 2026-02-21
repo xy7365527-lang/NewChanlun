@@ -67,6 +67,20 @@ Task(name="{workstation.name 简写}", subagent_type="general-purpose", team_nam
 → 接下来：监控 N 个工位运行
 ```
 
+## 步骤 7：汇报循环
+
+蜂群运行期间，Lead 持续向编排者汇报：
+- 收到 teammate 消息时：汇总该工位的产出/问题/状态变更
+- 所有工位完成时：输出完整状态快照（每个工位的结果、新增谱系、遗留项）
+- 发现矛盾时：立即汇报并走 `/escalate`
+
+汇报格式：
+```
+[蜂群名] 工位 {name}: {状态}
+  产出: {简述}
+  问题: {如有}
+```
+
 ## 绝对禁止
 
 - **除步骤 1 外不运行任何 Bash**（不运行 pytest、git、cat、grep）
