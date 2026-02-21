@@ -1,5 +1,5 @@
 ---
-id: "073"
+id: "073b"
 title: "Trampoline 模式——平台约束下的递归近似"
 status: "已结算"
 type: "语法记录"
