@@ -6,7 +6,7 @@
 #   - 边界条件 / boundary
 #   - 下游推论 / downstream
 #   - 影响声明 / impact
-# 缺失 → block + 缺失字段列表
+# 缺失 → allow + 缺失字段警告（validate但不阻止，原则0）
 # 全部存在 → 静默放行
 
 set -uo pipefail
@@ -81,8 +81,8 @@ if not missing:
     sys.exit(0)
 
 print(json.dumps({
-    'decision': 'block',
-    'reason': '[result-package-guard] 谱系文件缺少结果包必要字段: ' + ', '.join(missing)
-        + '。要求：每个谱系文件必须包含 边界条件、下游推论、影响声明（## 标题或 **粗体** 格式）。'
+    'decision': 'allow',
+    'reason': '[result-package-guard] ⚠ 谱系文件缺少结果包字段: ' + ', '.join(missing)
+        + '。建议补全：边界条件、下游推论、影响声明（## 标题或 **粗体** 格式）。'
 }, ensure_ascii=False))
 " "$FILE_PATH"
