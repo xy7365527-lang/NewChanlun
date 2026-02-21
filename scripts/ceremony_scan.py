@@ -8,6 +8,7 @@
 
 075号更新：structural_nodes → required_skills（事件驱动 skill 架构）
 079号更新：background_noise 降级 + 业务层任务发现（no_work_fallback）
+081号更新：roadmap.yaml 扫描（最高优先级任务来源）+ 终止逻辑修正
 """
 import json, os, glob, yaml, sys, argparse, subprocess
 
@@ -31,6 +32,40 @@ def get_required_skills(root):
                     "triggers": [t.get("event", "") for t in skill.get("triggers", [])]
                 })
     return skills
+
+
+def get_roadmap_workstations(root):
+    """从 .chanlun/roadmap.yaml 读取待执行的业务目标（最高优先级任务来源）。
+
+    081号谱系：roadmap 是结构化业务目标载体，ceremony_scan 的最高优先级来源。
+    只返回 status=active 的任务。
+    """
+    roadmap_path = os.path.join(root, ".chanlun/roadmap.yaml")
+    tasks = []
+    if not os.path.isfile(roadmap_path):
+        return tasks
+    try:
+        with open(roadmap_path, encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+        for task in data.get("tasks", []):
+            if task.get("status") == "active":
+                tasks.append({
+                    "priority": task.get("priority", "P2"),
+                    "name": task.get("id", task.get("title", "未命名")),
+                    "status": "roadmap:active",
+                    "source": "roadmap",
+                    "description": task.get("description", ""),
+                    "title": task.get("title", ""),
+                })
+    except Exception as exc:
+        # roadmap 格式错误时不阻塞扫描，但记录错误
+        tasks.append({
+            "priority": "P0",
+            "name": "roadmap.yaml 解析错误",
+            "status": f"error: {exc}",
+            "source": "roadmap_error",
+        })
+    return tasks
 
 
 def get_session_workstations(root):
@@ -139,16 +174,39 @@ def main():
         return
 
     # 根 ceremony 模式：全量扫描
+    # 扫描顺序（优先级递减）：
+    # 1. roadmap.yaml（最高优先级，结构化业务目标）
+    # 2. session 遗留项 + pending 谱系
+    # 3. no_work_fallback（测试失败等）
+    # 081号：只有 roadmap 为空 AND session 遗留为空 AND fallback 为空，才是真阴性干净终止
+
     session_name, workstations = get_session_workstations(root)
     result["mode"] = "warm_start" if session_name else "cold_start"
     result["session"] = session_name
 
-    # 079号：如果 session 遗留工位为空或全部是背景噪音，执行 no_work_fallback
+    # 1. 最高优先级：roadmap.yaml 中的 active 任务
+    roadmap_tasks = get_roadmap_workstations(root)
+    if roadmap_tasks:
+        # roadmap 任务插入到 workstations 最前（P2 优先级，高于 P3 long_term）
+        workstations = roadmap_tasks + workstations
+        result["roadmap_tasks_found"] = len(roadmap_tasks)
+
+    # 2. 079号：如果 session 遗留工位为空或全部是背景噪音，执行 no_work_fallback
+    # 081号修正：no_work_fallback 仅在 roadmap 也为空时才触发（roadmap 是主工作来源）
     if not workstations:
         workstations = discover_business_tasks(root)
         result["fallback_triggered"] = True
 
     result["workstations"] = workstations
+
+    # 081号：清晰报告干净终止条件
+    # 真阴性干净终止 = roadmap 为空 AND session 遗留为空 AND fallback 为空 AND pending 谱系为空
+    pending_count = len(glob.glob(os.path.join(root, ".chanlun/genealogy/pending/*.md")))
+    result["clean_terminate"] = (
+        len(roadmap_tasks) == 0
+        and len(workstations) == 0
+        and pending_count == 0
+    )
 
     # 定义/谱系计数
     defs_path = os.path.join(root, "definitions.yaml")
@@ -158,7 +216,7 @@ def main():
         if isinstance(defs, dict):
             entities = defs.get("entities", defs.get("definitions", []))
             result["definitions"] = len(entities) if isinstance(entities, list) else 0
-    result["pending"] = len(glob.glob(os.path.join(root, ".chanlun/genealogy/pending/*.md")))
+    result["pending"] = pending_count
     result["settled"] = len(glob.glob(os.path.join(root, ".chanlun/genealogy/settled/*.md")))
 
     # 二阶反馈：下游推论执行审计
