@@ -1,0 +1,55 @@
+# 下游行动手动覆盖
+# 格式: genealogy_id-action_index: status [reason]
+# status: resolved | superseded | long_term
+# 由 Lead 在缺口清理中逐项审查后标注
+
+# === 039号 ===
+039-1: superseded  # dispatch-spec → dispatch-dag (069号), G6 问题在新架构下不适用
+039-2: superseded  # 074号已结算 downstream-action-execution-gap, 执行率有系统性度量
+039-3: superseded  # 070号已独立结算 text-instruction-fragility
+
+# === 060号 ===
+060-1: superseded  # 062/069号否定 3+1→三维度+异质碰撞, dispatch-dag genealogical_coordinates 已实现
+060-2: resolved    # dispatch-dag event_skill_map 已实现守护机制
+060-3: resolved    # CLAUDE.md 已更新为"三维度+异质碰撞"章节 (069号)
+
+# === 062号 ===
+062-1: resolved    # CLAUDE.md 已更新 (069号降级异步自指)
+062-2: resolved    # dispatch-dag.yaml genealogical_coordinates 节已存在
+062-3: long_term   # Guard 结晶为统一异质审计协议——长期工程项
+062-4: resolved    # 060号文件在 settled/ 中保留
+
+# === 064号 ===
+064-1: long_term   # 062号 NegationObject 定义修正——概念层，需 Gemini decide
+064-2: resolved    # claude-challenger.md 已创建 + dispatch-dag 有 claude-challenger skill
+064-3: long_term   # 四种话语映射工程化——长期工程项
+064-4: long_term   # 卢麒元四矩阵降级——概念层，长期
+
+# === 069号 ===
+069-1: resolved    # dispatch-dag.yaml v3.0 已实现
+069-2: resolved    # event_skill_map quality-guard 触发 pattern 包含 .chanlun/
+069-3: resolved    # .chanlun/proposals/ 目录已存在
+069-4: resolved    # dispatch-dag recursion_rules 写"区间套收敛信号"
+069-5: resolved    # .chanlun/genealogy/dag.yaml 存在
+
+# === 070号 ===
+070-1: long_term   # 创世 Gap "工程绕过"稳定性观察——长期观察项
+070-2: long_term   # 文本指令脆弱性系统性问题——长期观察项 (071号已结算)
+070-3: long_term   # post-commit-flow 有效性统计验证——长期观察项
+
+# === 075号 ===
+075-1: resolved    # ceremony.md 已更新不 spawn 结构工位
+075-2: resolved    # dispatch-dag event_skill_map 已实现
+075-3: resolved    # ceremony_scan.py 输出 required_skills
+075-4: resolved    # dispatch-dag fractal_template inherited_skills: "all"
+075-5: resolved    # ceremony-completion-guard.sh 移除 dominator 检查
+
+# === 076号 ===
+076-1: long_term   # dispatch-spec 幽灵引用全局清理——需逐个 hook 检查
+076-2: resolved    # dispatch-dag code-verifier 已是 structural skill
+076-3: long_term   # "下游推论靠主动认领"语法记录——待 Gemini decide
+
+# === 077号 ===
+077-1: resolved    # ceremony.md TaskOutput→SendMessage 修正 (v16b session)
+077-2: resolved    # Gemini decide A → downstream_audit.py 实现 (v16b session)
+077-3: resolved    # Gemini decide B → 白名单例外模式 (v16b session)
