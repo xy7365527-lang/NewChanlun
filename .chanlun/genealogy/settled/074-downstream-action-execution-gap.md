@@ -1,7 +1,7 @@
 ---
 id: "074"
 title: "谱系下游行动执行缺口——系统性观测"
-status: "生成态"
+status: "已结算"
 type: "meta-rule"
 date: "2026-02-21"
 depends_on: ["036", "071", "072", "073"]
@@ -13,7 +13,7 @@ negates: []
 # 074 — 谱系下游行动执行缺口——系统性观测
 
 **类型**: meta-rule
-**状态**: 生成态
+**状态**: 已结算
 **日期**: 2026-02-21
 **前置**: 036-spec-execution-gap-crystallization, 071-text-instruction-fragility-scan, 072-hook-enforcement-dual-prerequisite, 073-swarm-full-mutability
 
