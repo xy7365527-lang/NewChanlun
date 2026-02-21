@@ -246,7 +246,58 @@ print(json.dumps({
     exit 0
 fi
 
-# ─── 检查 4：@proof-required 标签扫描 ───
+# ─── 检查 4：蜂群 Dominator Node 强制（dispatch-dag mandatory=true） ───
+# 活跃蜂群必须包含 quality-guard teammate，否则不允许停止
+TEAM_DIR="$HOME/.claude/teams"
+if [ -d "$TEAM_DIR" ]; then
+    for team_config in "$TEAM_DIR"/*/config.json; do
+        [ -f "$team_config" ] || continue
+        TEAM_NAME=$(python -c "
+import json, sys
+with open('$team_config', encoding='utf-8') as f:
+    d = json.load(f)
+print(d.get('team_name', ''))
+" 2>/dev/null || true)
+        [ -z "$TEAM_NAME" ] && continue
+
+        # 检查 team 是否有 members（活跃蜂群）
+        HAS_MEMBERS=$(python -c "
+import json
+with open('$team_config', encoding='utf-8') as f:
+    d = json.load(f)
+members = d.get('members', [])
+# 排除只有 team-lead 的情况（Lead 不算 teammate）
+non_lead = [m for m in members if m.get('name', '') != 'team-lead']
+print(len(non_lead))
+" 2>/dev/null || echo "0")
+
+        if [ "$HAS_MEMBERS" -gt 0 ] 2>/dev/null; then
+            # 活跃蜂群存在，检查是否有 quality-guard
+            HAS_QG=$(python -c "
+import json
+with open('$team_config', encoding='utf-8') as f:
+    d = json.load(f)
+members = d.get('members', [])
+names = [m.get('name', '') for m in members]
+has_qg = any('quality-guard' in n for n in names)
+print('yes' if has_qg else 'no')
+" 2>/dev/null || echo "no")
+
+            if [ "$HAS_QG" = "no" ]; then
+                python -c "
+import json
+print(json.dumps({
+    'decision': 'block',
+    'reason': '[Stop-Guard] 活跃蜂群 $TEAM_NAME 缺少 quality-guard（Dominator Node, mandatory=true）。不允许停止。路由指令: 立即 spawn quality-guard teammate 到蜂群 $TEAM_NAME，或关闭蜂群后再停止。055号：无简单任务豁免。'
+}, ensure_ascii=False))
+"
+                exit 0
+            fi
+        fi
+    done
+fi
+
+# ─── 检查 5（原4）：@proof-required 标签扫描 ───
 PROOF_REQUIRED=0
 PROOF_LOCATIONS=""
 if [ -d "spec" ] || [ -d "src" ] || [ -d ".chanlun" ]; then
@@ -275,7 +326,7 @@ print(json.dumps({
     exit 0
 fi
 
-# ─── 检查 5：ceremony 确认请求检测（058号谱系） ───
+# ─── 检查 6（原5）：ceremony 确认请求检测（058号谱系） ───
 if [ -f ".chanlun/.ceremony-in-progress" ]; then
     CONFIRM_PATTERNS='待确认|以上理解是否正确|如有偏差请指出|是否现在处理|是否有新的|请确认|等待.*确认'
     STOP_CONTENT=$(echo "$input" | python -c "
