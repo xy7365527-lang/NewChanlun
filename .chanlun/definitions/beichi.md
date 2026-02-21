@@ -455,9 +455,9 @@ def nested_divergence_search(
 5. **分型/包含关系** — 底层基础
 
 ### 被以下定义引用
-1. **买卖点（尚未创建）** — 背驰-买卖点定理是买卖点定义的核心
+1. **买卖点** — ✅ 已实现（maimai.md v1.0 已结算）
 2. **走势类型（`.chanlun/definitions/zoushi.md`）** — 未结算问题 #1 依赖背驰定义
-3. **区间套（尚未创建）** — 多级别背驰段嵌套
+3. **区间套** — ✅ 已实现（`src/newchan/a_nested_divergence.py` + `RecursiveStack`）
 
 ---
 
