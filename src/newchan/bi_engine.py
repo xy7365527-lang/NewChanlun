@@ -54,14 +54,15 @@ class BiEngine:
     Parameters
     ----------
     stroke_mode : str
-        笔模式，``"wide"``（宽笔，gap>=4）或 ``"strict"``（严笔）。
+        笔模式，``"new"``（新笔，raw K线计数）、``"wide"``（旧笔宽，gap>=4 merged）
+        或 ``"strict"``（旧笔严）。
     min_strict_sep : int
         严笔模式下两分型最小间距。
     """
 
     def __init__(
         self,
-        stroke_mode: str = "wide",
+        stroke_mode: str = "new",
         min_strict_sep: int = 5,
     ) -> None:
         self._stroke_mode = stroke_mode

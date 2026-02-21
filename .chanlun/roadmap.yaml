@@ -15,7 +15,7 @@
 #
 # 来源：078号 D 策略 + Gemini decide + 人类编排者确认
 
-version: "1.3"
+version: "1.4"
 genealogy_ref: "081-swarm-continuity-strategy-d"
 
 # 里程碑：定义偏序链全节点实现完毕（2026-02-21）
@@ -126,4 +126,66 @@ tasks:
       - beichi.md 行458/460: "买卖点/区间套（尚未创建）" → 已创建
       - zoushi.md 行347/348: "级别/区间套（尚未创建）" → 已创建
     added_by: "v20-swarm lead（定义文件扫描发现）"
+    added_date: "2026-02-21"
+
+  # ─── 第二阶段任务（Gemini decide，083号谱系，2026-02-21）─────────────────
+  # 来源：系统达到里程碑后，Gemini 编排者代理基于"对象矛盾驱动"原则派生
+  # 选择理由：不是阈值驱动（拒绝覆盖率/代码行数），而是已存在的概念矛盾和状态跃迁
+
+  - id: bi_mode_new_default
+    title: "笔引擎 mode='new' 切换为默认值"
+    priority: P1
+    status: completed
+    completed_date: "2026-02-21"
+    completion_note: |
+      a_stroke.py + bi_engine.py 默认 mode 从 "wide" → "new"。
+      bi.md #4 状态更新。全量测试 1435 passed, 0 failed。
+    source: "bi.md #4：mode='new' 已可用但尚未设为默认（前置条件 real_data_validation 已满足）"
+    description: |
+      bi.md 第158行记录：mode="new" 已可用但尚未设为默认。
+      前置条件（真实数据端到端验证）已满足（real_data_validation: completed）。
+
+      执行步骤：
+      1. 确认 BiEngine mode="new" 在 AAPL 真实数据上的表现（引用 real_data_validation 结果）
+      2. 将 BiEngine 的 default mode 从 "legacy" 改为 "new"
+      3. 运行全量测试（1435个），确认无回归
+      4. 如有测试失败，分析是否揭示核心定义缺陷（not workaround）
+      5. 更新 bi.md 状态标记
+    constraints:
+      - "如测试出现大面积失败且无法在不修改定义的前提下修复，停下来走矛盾上浮"
+      - "不降低测试覆盖率来回避定义冲突"
+    definition_ref: ".chanlun/definitions/bi.md"
+    genealogy_refs:
+      - "001-degenerate-segment（新旧笔对退化段的影响）"
+    added_by: "083号Gemini decide（异质质询代理执行）"
+    added_date: "2026-02-21"
+
+  - id: recursion_termination_consistency
+    title: "递归终止条件表述统一（dispatch-dag 内部矛盾修正）"
+    priority: P1
+    status: completed
+    completed_date: "2026-02-21"
+    completion_note: |
+      recursion-term 工位完成。两种表述指不同层面（元编排递归 vs 代码递归），已澄清。
+    source: "069号谱系 unresolved 项4：dispatch-dag 混用'区间套收敛'（第377行）和'背驰+分型'（第197-198行）"
+    description: |
+      dispatch-dag.yaml 中存在同一概念的两种表述：
+      - 第197-198行（task_template）：递归终止使用"020号背驰+分型"
+      - 第377行（swarm_topology）：递归终止使用"区间套收敛信号"
+
+      这两种表述是否等价？还是指不同的终止机制？
+
+      执行步骤：
+      1. 读取 020号谱系，确认"背驰+分型"的精确定义
+      2. 读取 069号谱系，确认"区间套收敛"的精确定义
+      3. 判断：等价（统一表述）还是矛盾（走矛盾上浮）
+      4. 如等价：选择更准确的表述，统一 dispatch-dag.yaml
+      5. 如矛盾：生成谱系，上浮给编排者
+      6. 更新 069号谱系 unresolved 项4 状态
+    constraints:
+      - "不绕过矛盾——如两种表述不可调和，必须走矛盾上浮"
+      - "修改 dispatch-dag.yaml 是行动类（不携带信息差的操作），但分析表述等价性是概念类（需要质询）"
+    genealogy_refs:
+      - "069-recursive-topology-async-self-referential-swarm（unresolved #4）"
+    added_by: "083号Gemini decide（异质质询代理执行）"
     added_date: "2026-02-21"
