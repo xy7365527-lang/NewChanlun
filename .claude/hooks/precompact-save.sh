@@ -69,7 +69,7 @@ done
 
 # G1修复：检测中断点是否过时（session写入后有新提交 = 进度未持久化）
 if [ -n "$PREV_SESSION" ]; then
-    SESSION_MTIME=$(python -c "import os; print(int(os.path.getmtime('$PREV_SESSION')))" 2>/dev/null || echo 0)
+    SESSION_MTIME=$(python -c "import os,sys; print(int(os.path.getmtime(sys.argv[1])))" "$PREV_SESSION" 2>/dev/null || echo 0)
     LATEST_COMMIT_TIME=$(git log -1 --format=%ct 2>/dev/null || echo 0)
     if [ "$LATEST_COMMIT_TIME" -gt "$SESSION_MTIME" ]; then
         RECENT=$(git log --oneline -5 --after="@${SESSION_MTIME}" 2>/dev/null || true)
