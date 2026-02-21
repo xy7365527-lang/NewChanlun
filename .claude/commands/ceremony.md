@@ -52,6 +52,12 @@ Task(name="{workstation.name 简写}", subagent_type="general-purpose", team_nam
 
 如果 `workstations` 为空：输出 `[020号反转] 无新区分可产出——系统干净终止`，不执行步骤 3-4。
 
+如果 `workstations` 非空但全部状态含"待 Gemini decide"或"长期"：
+1. 输出 `[阻塞] N 个工位全部需要外部决断（Gemini/人类），无可自主推进的工位`
+2. 列出每个工位及其阻塞原因
+3. 不 spawn 蜂群，不执行步骤 3-4
+4. 这不是"干净终止"——是显式阻塞，下次 ceremony 会再次检测到这些工位
+
 **注意：不再 spawn 结构工位。** genealogist/quality-guard/meta-observer/code-verifier 等结构能力
 由 event_skill_map 定义，在对应事件发生时自动触发（075号谱系）。
 
