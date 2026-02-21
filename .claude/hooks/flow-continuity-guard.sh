@@ -8,6 +8,12 @@
 #
 # Gemini 编排者代理决策：方案A（PostToolUse hook 注入）
 # 边界条件：commit message 含 [FINAL] 时允许停顿
+#
+# 输出格式：PostToolUse 支持 top-level {"decision":"block","reason":"..."}
+# 对于 PostToolUse，"block" 不会阻止工具执行（commit 已完成），
+# 而是将 reason 作为反馈注入给 Claude，正好符合本 hook 的意图：
+# commit 成功后注入"必须继续"的指令。
+# 参考：https://code.claude.com/docs/en/hooks#posttooluse-decision-control
 
 set -euo pipefail
 
