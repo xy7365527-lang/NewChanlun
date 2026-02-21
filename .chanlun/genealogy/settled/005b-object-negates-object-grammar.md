@@ -5,7 +5,7 @@ status: "已结算"
 type: "语法规则确立（谢林式原初命名）"
 date: "2026-02-17"
 depends_on: []
-related: ["004", "005", "005a", "202"]
+related: ["004", "005", "005a", "020"]
 negated_by: []
 negates: []
 ---
