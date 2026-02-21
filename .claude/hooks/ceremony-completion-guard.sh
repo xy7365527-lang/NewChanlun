@@ -275,7 +275,7 @@ print(len(non_lead))
             # 活跃蜂群存在，检查是否有全部 dominator 节点
             MISSING_DOMINATORS=$(python -c "
 import json
-REQUIRED = ['quality-guard', 'genealogist']
+REQUIRED = ['quality-guard', 'genealogist', 'meta-observer']
 with open('$team_config', encoding='utf-8') as f:
     d = json.load(f)
 members = d.get('members', [])
