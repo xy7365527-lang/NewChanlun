@@ -342,10 +342,10 @@ class Move:
 4. **包含关系（`.chanlun/definitions/baohan.md`）** — 底层基础
 
 ### 被以下定义引用
-1. **买卖点（`.chanlun/definitions/maimai.md`）v0.5 生成态** — 三类买卖点的定义完全依赖走势类型
+1. **买卖点（`.chanlun/definitions/maimai.md`）v1.0 已结算** — 三类买卖点的定义完全依赖走势类型
 2. **背驰（`.chanlun/definitions/beichi.md`）v1.1 已结算** — 背驰判断需要明确的趋势走势类型
-3. **级别（尚未创建）** — 级别递归的形式化定义
-4. **区间套（尚未创建）** — 多级别走势类型的嵌套关系
+3. **级别** — ✅ 已实现（`level_recursion.md` v1.0 已结算）
+4. **区间套** — ✅ 已实现（`src/newchan/a_nested_divergence.py` + `RecursiveStack`）
 
 ### 相关谱系记录
 1. **`.chanlun/genealogy/settled/001-degenerate-segment.md`** — 退化线段问题（✅ 已结算）

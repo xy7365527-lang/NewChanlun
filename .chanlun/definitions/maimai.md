@@ -370,7 +370,7 @@ BSP.confirmed = underlying_Move.settled
 ## 影响声明
 
 ### 影响的模块
-1. **买卖点模块（尚未实现）** — 本定义文件的直接下游
+1. **买卖点模块** — ✅ 已实现（`src/newchan/a_buysellpoint_v1.py`）
 2. **`src/newchan/a_divergence.py`** — 背驰判断（第一类买卖点的触发条件）
    - 当前已实现 `Divergence` 数据类和检测函数
    - 买卖点模块需复用其输出
