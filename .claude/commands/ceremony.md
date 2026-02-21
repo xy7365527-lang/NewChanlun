@@ -72,10 +72,12 @@ Task(name="{workstation.name 简写}", subagent_type="general-purpose", team_nam
 spawn 完成后，**立即调用 `TaskList`** 查看任务状态。然后进入循环：
 
 1. 调用 `TaskList` 查看所有任务状态
-2. 对每个 `completed` 的任务：汇报结果给编排者，然后 `shutdown_request` 该工位
-3. 对每个 `idle` 的工位：检查是否有新任务可分配，没有则 `shutdown_request`
-4. 如果仍有 `in_progress` 任务：调用 `TaskOutput(task_id=..., block=true, timeout=30000)` 等待下一个完成
-5. 重复直到所有工位完成
+2. 对每个完成的**业务**工位：汇报结果给编排者，然后 `shutdown_request`
+3. 对每个空闲的**业务**工位：检查是否有新任务可分配，没有则 `shutdown_request`
+4. **结构工位（mandatory dominator nodes）永远不 shutdown**——它们是蜂群的拓扑前提，必须存活到蜂群关闭
+5. 如果仍有 `in_progress` 任务：调用 `TaskOutput(task_id=..., block=true, timeout=30000)` 等待下一个完成
+6. 所有**业务**工位完成后：先 shutdown 所有结构工位，再 `TeamDelete`
+7. 重复直到所有工位完成
 
 汇报格式：
 ```
