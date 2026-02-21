@@ -32,13 +32,6 @@ fi
 
 if [ "$COUNT" -ge 5 ]; then
     rm -f "$COUNTER" 2>/dev/null || true
-    python -c "
-import json
-print(json.dumps({
-    'decision': 'allow',
-    'reason': '[Stop-Guard 熔断] 连续阻止 5 次无状态变更。允许停止。'
-}, ensure_ascii=False))
-"
     exit 0
 fi
 
@@ -226,13 +219,6 @@ print(json.dumps({
     exit 0
 fi
 
-# ─── 全部检查通过：允许停止 ───
+# ─── 全部检查通过：允许停止（静默退出） ───
 rm -f "$COUNTER" 2>/dev/null || true
-python -c "
-import json
-print(json.dumps({
-    'decision': 'allow',
-    'reason': ''
-}, ensure_ascii=False))
-"
 exit 0
