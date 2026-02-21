@@ -190,20 +190,17 @@
 ## 当前实现
 
 ### 代码现状
-- **买卖点模块**：⚠️ **尚未实现**（0%代码覆盖）
+- **买卖点模块**：✅ **已实现**（`src/newchan/a_buysellpoint_v1.py`，336行，79个测试全GREEN）
+  - `BuySellPoint` 数据类：`kind`（type1/type2/type3）、`side`（buy/sell）、`level_id`、`seg_idx`
+  - 第一类买卖点：趋势背驰 → 走势终结
+  - 第二类买卖点：第一类后首个次级别回调/反弹结束
+  - 第三类买卖点：中枢离开段 + 回试段 + ZG/ZD比较
+  - 审计：`src/newchan/audit/bsp_checker.py`
 - **相关已实现模块**：
   - `src/newchan/a_divergence.py` — 背驰判断（第一类买卖点的触发条件）
-    - `Divergence` 数据类：`kind`（trend/consolidation）、`direction`（top/bottom）、`force_a/force_c`
-    - `divergences_from_level()` — 检测某递归层级的所有背驰
-    - `_detect_trend_divergence()` — 趋势背驰检测
-    - `_detect_consolidation_divergence()` — 盘整背驰检测
+  - `src/newchan/a_divergence_v1.py` — 背驰 v1（含区间套集成）
   - `src/newchan/a_move_v1.py` — 走势类型实例（`Move`数据类）
   - `src/newchan/a_zhongshu_v1.py` — 中枢（`Center`/`Zhongshu`数据类）
-
-### 实现路径建议
-1. **第一类买卖点**：复用 `Divergence(kind="trend")` + 走势类型完成判定
-2. **第二类买卖点**：在第一类买卖点后，定位第一个次级别回调/反弹的结束点
-3. **第三类买卖点**：中枢离开段 + 回试段 + ZG/ZD比较
 
 ---
 

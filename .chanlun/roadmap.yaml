@@ -62,7 +62,11 @@ tasks:
   - id: buysellpoint_module
     title: "三类买卖点模块实现"
     priority: P1
-    status: active
+    status: completed
+    completed_date: "2026-02-21"
+    completion_note: |
+      a_buysellpoint_v1.py 已实现（336行），79个测试全GREEN。
+      三类买卖点全部覆盖。maimai.md 中"0%覆盖"是过期信息，已修正。
     source: "定义偏序自然派生：maimai.md 定义已结算但代码 0% 覆盖"
     description: |
       实现缠论三类买卖点识别模块（maimai.md 的代码化）：
@@ -79,4 +83,35 @@ tasks:
     genealogy_refs:
       - "定义偏序: maimai depends_on [beichi]"
     added_by: "v19-swarm lead（real_data_validation完成后自动派生）"
+    added_date: "2026-02-21"
+
+  - id: xiaozhuan_da
+    title: "小转大机制实现（跨级别联动）"
+    priority: P1
+    status: active
+    source: "定义偏序派生：beichi.md 中'小转大❌未实现'，RecursiveStack就绪后可实现"
+    description: |
+      实现缠论"小转大"机制：
+      - 小级别趋势背驰未触及大级别买卖点时，次级别回调/反弹终结走势
+      - 需要 RecursiveStack 提供多级别同时在线的中枢和走势数据
+      - 与第二类买卖点紧密相关（小转大 = 2B 的一种来源）
+      前置依赖：RecursiveStack(✅) + BuySellPoint(✅) + Divergence(✅)
+    constraints:
+      - "跨级别联动必须通过 RecursiveStack，不可硬编码级别映射"
+      - "小转大是走势完成的充分非必要条件（beichi #3 已结算）"
+    definition_ref: ".chanlun/definitions/beichi.md"
+    added_by: "v20-swarm lead（定义偏序扫描自动派生）"
+    added_date: "2026-02-21"
+
+  - id: definition_status_sync
+    title: "定义文件实现状态同步"
+    priority: P2
+    status: active
+    source: "多处定义文件中的'尚未实现'标记已过期，需批量更新"
+    description: |
+      批量更新定义文件中过期的实现状态标记：
+      - maimai.md 行373: "买卖点模块（尚未实现）" → 已实现
+      - beichi.md 行458/460: "买卖点/区间套（尚未创建）" → 已创建
+      - zoushi.md 行347/348: "级别/区间套（尚未创建）" → 已创建
+    added_by: "v20-swarm lead（定义文件扫描发现）"
     added_date: "2026-02-21"

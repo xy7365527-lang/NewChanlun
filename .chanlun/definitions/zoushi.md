@@ -369,8 +369,8 @@ class Move:
 4. **`src/newchan/a_divergence.py`** — 背驰判断（已实现，但可能需要调整）
 5. **`src/newchan/core/recursion/move_engine.py`** — 走势类型增量引擎
 6. **`src/newchan/core/recursion/move_state.py`** — 走势类型 diff 状态机
-7. **买卖点模块（尚未实现）** — 三类买卖点识别
-8. **区间套模块（尚未实现）** — 多级别嵌套分析
+7. **买卖点模块** — ✅ 已实现（`a_buysellpoint_v1.py`，79个测试全GREEN）
+8. **区间套模块** — ✅ 已实现（`a_nested_divergence.py` + `RecursiveStack`）
 
 ### 影响的定义
 1. **中枢定义** — 走势类型与中枢互为定义（中枢由次级别走势类型重叠定义）
