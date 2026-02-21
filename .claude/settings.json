@@ -171,6 +171,10 @@
           {
             "type": "command",
             "command": ".claude/hooks/dag-validation-guard.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/source-auditor-prompt.sh"
           }
         ]
       },
@@ -188,6 +192,10 @@
           {
             "type": "command",
             "command": ".claude/hooks/dag-validation-guard.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/source-auditor-prompt.sh"
           }
         ]
       },

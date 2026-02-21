@@ -138,11 +138,11 @@ event_skill_map:
     skill_type: conditional
     agent: ".claude/agents/claude-challenger.md"
     purpose: "反向质询——对 Gemini 产出进行再质询，指出不可消化点"
+    # 087号谱系修复（B选项）：删除虚假事件声明（re_challenge/stale_generative 从未有 hook 产生）
+    # 触发方式改为手动认领——与 082号 D策略同构（hooks 提示 + Lead 认领）
     triggers:
-      - event: re_challenge
-        description: "Gemini 产出需要被再质询时"
-      - event: stale_generative
-        condition: "同质质询已完成 2 轮以上但定义仍处于生成态"
+      - event: manual_invocation
+        description: "Lead 发现 Gemini 产出存疑时手动调用——如 Gemini 产出与已结算谱系矛盾、或编排者 INTERRUPT 时"
 
   - id: source-auditor
     skill_type: conditional

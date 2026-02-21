@@ -404,15 +404,90 @@ nodes:
   type: 语法记录
   file: settled/072-hook-enforcement-dual-prerequisite.md
 - id: '073'
-  title: Trampoline 模式——平台约束下的递归近似
+  title: 蜂群能修改一切——全可变性原则与人类本体论锚点
   status: 已结算
   type: 语法记录
-  file: settled/073-trampoline-recursion-approximation.md
+  file: settled/073-swarm-full-mutability.md
 - id: 073a
   title: 控制流与数据流解耦——递归蜂群的执行模式
   status: 已结算
   type: 语法记录
   file: settled/073a-control-data-flow-decoupling.md
+- id: 073b
+  title: Trampoline 模式——平台约束下的递归近似
+  status: 已结算
+  type: 语法记录
+  file: settled/073b-trampoline-recursion-approximation.md
+- id: '074'
+  title: 谱系下游行动执行缺口——系统性观测
+  status: 已结算
+  type: meta-rule
+  file: settled/074-downstream-action-execution-gap.md
+- id: '075'
+  title: 结构工位从 teammate 转为 skill + 事件驱动
+  status: 已结算
+  type: 语法记录
+  file: settled/075-structural-to-skill.md
+- id: '076'
+  title: 下游推论执行缺口的自相似性
+  status: 已结算
+  type: meta-rule
+  file: settled/076-fractal-execution-gap.md
+- id: '077'
+  title: v16b session 二阶观察
+  status: 已结算
+  type: meta-rule
+  file: settled/077-meta-observer-v16b.md
+- id: '078'
+  title: 打破连续阻塞死循环：D策略决断
+  status: 已结算
+  type: 选择
+  file: settled/078-break-blocking-loop-strategy-d.md
+- id: '079'
+  title: 下游推论语义重定义：建议而非强制阻塞节点
+  status: 已结算
+  type: 语法记录
+  file: settled/079-downstream-suggestions-not-blockers.md
+- id: '080'
+  title: NegationObject 本体论修正
+  status: 已结算
+  type: 语法记录
+  file: settled/080-negationobject-lacan-correction.md
+- id: '081'
+  title: 蜂群持续自动化断裂：D策略决断
+  status: 已结算
+  type: 选择
+  file: settled/081-swarm-continuity-strategy-d.md
+- id: '082'
+  title: 结构 skill 事件驱动孤岛：D策略决断
+  status: 已结算
+  type: 选择
+  file: settled/082-structural-skill-event-driven-gap.md
+- id: '083'
+  title: 干净终止过早诊断：D策略决断
+  status: 已结算
+  type: 选择
+  file: settled/083-clean-terminate-d-strategy.md
+- id: '084'
+  title: 全面孤岛审计：体系声明-能力缺口
+  status: 生成态
+  type: 矛盾发现
+  file: settled/084-comprehensive-island-audit.md
+- id: '085'
+  title: 元编排递归拓扑异步自指性全面审计
+  status: 已结算
+  type: 语法记录
+  file: settled/085-meta-orchestration-full-audit.md
+- id: '086'
+  title: 085号审计孤岛修复策略：五问题独立决断
+  status: 已结算
+  type: 选择
+  file: settled/086-island-repair-strategy-decisions.md
+- id: '087'
+  title: 086号全C重新决断：五问题诚实修复（编排者INTERRUPT）
+  status: 已结算
+  type: 选择
+  file: settled/087-island-repair-honest-decisions.md
 edges:
   depends_on:
   - from: 005a
@@ -687,16 +762,164 @@ edges:
     to: '042'
   - from: '072'
     to: '071'
-  - from: '073'
+  - from: 073a
     to: '056'
+  - from: 073a
+    to: 069
+  # 073 depends (swarm-full-mutability)
   - from: '073'
     to: 069
   - from: '073'
+    to: 005a
+  - from: '073'
+    to: 005b
+  - from: '073'
+    to: '057'
+  - from: '073'
+    to: 058
+  # 073b depends (trampoline)
+  - from: 073b
+    to: '056'
+  - from: 073b
+    to: 069
+  - from: 073b
     to: '072'
-  - from: 073a
-    to: '056'
-  - from: 073a
+  # 074 depends
+  - from: '074'
+    to: '036'
+  - from: '074'
+    to: '071'
+  - from: '074'
+    to: '072'
+  - from: '074'
+    to: '073'
+  # 075 depends
+  - from: '075'
+    to: '073'
+  - from: '075'
     to: 069
+  - from: '075'
+    to: '057'
+  - from: '075'
+    to: '062'
+  # 076 depends
+  - from: '076'
+    to: '074'
+  - from: '076'
+    to: '036'
+  - from: '076'
+    to: '012'
+  # 077 depends
+  - from: '077'
+    to: '074'
+  - from: '077'
+    to: '075'
+  # 078 depends
+  - from: '078'
+    to: '041'
+  - from: '078'
+    to: '064'
+  - from: '078'
+    to: '076'
+  - from: '078'
+    to: 018
+  # 079 depends
+  - from: '079'
+    to: '076'
+  - from: '079'
+    to: '074'
+  - from: '079'
+    to: '012'
+  - from: '079'
+    to: '041'
+  - from: '079'
+    to: '078'
+  # 080 depends
+  - from: '080'
+    to: '064'
+  - from: '080'
+    to: 005b
+  - from: '080'
+    to: 005a
+  - from: '080'
+    to: '078'
+  # 081 depends
+  - from: '081'
+    to: '041'
+  - from: '081'
+    to: '078'
+  - from: '081'
+    to: '079'
+  - from: '081'
+    to: 018
+  # 082 depends
+  - from: '082'
+    to: '075'
+  - from: '082'
+    to: '076'
+  - from: '082'
+    to: '078'
+  - from: '082'
+    to: '041'
+  - from: '082'
+    to: 018
+  # 083 depends
+  - from: '083'
+    to: '081'
+  - from: '083'
+    to: '076'
+  - from: '083'
+    to: '079'
+  - from: '083'
+    to: 018
+  - from: '083'
+    to: '041'
+  # 084 depends
+  - from: '084'
+    to: '075'
+  - from: '084'
+    to: '082'
+  - from: '084'
+    to: '083'
+  - from: '084'
+    to: '016'
+  - from: '084'
+    to: '043'
+  # 085 depends
+  - from: '085'
+    to: 069
+  - from: '085'
+    to: '075'
+  - from: '085'
+    to: '082'
+  # 086 depends
+  - from: '086'
+    to: '085'
+  - from: '086'
+    to: '082'
+  - from: '086'
+    to: 073b
+  - from: '086'
+    to: '075'
+  - from: '086'
+    to: '041'
+  - from: '086'
+    to: 018
+  # 087 depends
+  - from: '087'
+    to: '086'
+  - from: '087'
+    to: '085'
+  - from: '087'
+    to: '082'
+  - from: '087'
+    to: 073b
+  - from: '087'
+    to: '075'
+  - from: '087'
+    to: '041'
+  - from: '087'
+    to: 018
   triggered:
   - from: '005'
     to: 005a
@@ -1195,7 +1418,7 @@ edges:
     - '072'
   - between:
     - '033'
-    - '073'
+    - 073b
   - between:
     - '034'
     - '036'
@@ -1210,7 +1433,7 @@ edges:
     - '061'
   - between:
     - '037'
-    - '073'
+    - 073b
   - between:
     - 038
     - 039
@@ -1279,7 +1502,7 @@ edges:
     - '071'
   - between:
     - 058
-    - '073'
+    - 073b
   - between:
     - 059
     - '070'
@@ -1288,7 +1511,7 @@ edges:
     - '066'
   - between:
     - 068
-    - '073'
+    - 073b
   - between:
     - 069
     - '071'
@@ -1325,5 +1548,7 @@ edges:
     by: 068
   - target: '066'
     by: 068
-  - target: '073'
+  - target: 073b
     by: 073a
+  - target: '086'
+    by: '087'
