@@ -1,0 +1,523 @@
+# dispatch-dag.yaml
+# 声明式工位分派规范（DAG 拓扑版）
+#
+# 设计原则：
+#   1. 线性 dispatch-spec → 严格 DAG（068号：偏序集，非连续流形）
+#   2. 结构工位 = 拓扑支配节点（Dominator Nodes）——缺失则图不连通
+#   3. 结晶工位 = 唯一合法汇点（Terminal Sink）
+#   4. 子蜂群分形模板实例化（069号：递归拓扑异步自指化）
+#   5. Lead 是 DAG 解释器，不是决策者（033号）
+#
+# 修改路径：/ritual 仪式门控
+# 修改提案者：meta-observer → gemini-challenger 高阶审查（069号提案模式）
+
+version: "2.0"
+provenance: "[新缠论]"
+genealogy_ref: "072-hook-enforcement-dual-prerequisite, 068-continuous-to-discrete-paradigm-shift, 069-recursive-topology-async-self-referential-swarm"
+
+# ═══════════════════════════════════════════════════════════════
+# 1. 谱系坐标（每个工位在谱系空间中的位置）
+# ═══════════════════════════════════════════════════════════════
+genealogical_coordinates:
+  genealogist:
+    origin: "012-genealogy-is-discovery-engine"
+    domain: "谱系维护"
+    negation_source: "张力碰撞（内在否定）"
+  quality-guard:
+    origin: "033-declarative-dispatch-spec"
+    domain: "质量守卫"
+    negation_source: "结果包不合格（内在否定）"
+  meta-observer:
+    origin: "033-declarative-dispatch-spec"
+    domain: "二阶反馈"
+    negation_source: "元规则自身矛盾（内在否定）"
+  source-auditor:
+    origin: "004-provenance-framework"
+    domain: "溯源审计"
+    negation_source: "权威链断裂（内在否定）"
+  topology-manager:
+    origin: "019d-tension-depth-limit"
+    domain: "拓扑分析"
+    negation_source: "区间套收敛信号（内在否定）"
+  gemini-challenger:
+    origin: "030a-heterogeneous-negation, 041-orchestrator-proxy"
+    domain: "异质否定"
+    negation_source: "异质质询产出（外部对象否定）"
+  claude-challenger:
+    origin: "062-gemini-re-challenge"
+    domain: "反向质询（癔症话语）"
+    negation_source: "不可消化点（外部对象否定）"
+  skill-crystallizer:
+    origin: "043-self-growing-loop"
+    domain: "知识结晶"
+    negation_source: "模式达标（内在否定——候选态→结晶态）"
+
+# ═══════════════════════════════════════════════════════════════
+# 2. 节点声明
+# ═══════════════════════════════════════════════════════════════
+nodes:
+  # --- 支配节点（Dominator Nodes）：必经节点，缺失则图不连通 ---
+  structural:
+    - id: genealogist
+      type: dominator
+      agent: ".claude/agents/genealogist.md"
+      mandatory: true
+      spawn_phase: "post-definition-load"
+      purpose: "谱系写入、张力检查、回溯扫描、结晶检测与执行、pattern-buffer 扫描（051号 Pull 模型）"
+      tools_required: ["Read", "Write", "Grep", "Glob", "Task", "TaskCreate", "TaskUpdate", "TaskList", "TaskGet", "SendMessage"]
+
+    - id: quality-guard
+      type: dominator
+      agent: ".claude/agents/quality-guard.md"
+      mandatory: true
+      spawn_phase: "post-definition-load"
+      purpose: "结果包检查、代码违规扫描"
+      tools_required: ["Read", "Write", "Grep", "Glob", "Task", "TaskCreate", "TaskUpdate", "TaskList", "TaskGet", "SendMessage"]
+
+    - id: meta-observer
+      type: dominator
+      agent: ".claude/agents/meta-observer.md"
+      mandatory: true
+      spawn_phase: "post-definition-load"
+      purpose: "二阶反馈回路、元编排进化、dispatch-dag 修改提案"
+      tools_required: ["Read", "Write", "Grep", "Glob", "Task", "TaskCreate", "TaskUpdate", "TaskList", "TaskGet", "SendMessage"]
+
+    - id: skill-crystallizer
+      type: terminal_sink
+      agent: ".claude/agents/skill-crystallizer.md"
+      mandatory: false  # 按需激活，但一旦激活则为唯一合法汇点
+      purpose: "pattern-buffer 达标模式结晶为 skill（043号谱系）"
+      tools_required: ["Read", "Write", "Grep", "Glob", "Task", "SendMessage"]
+      activation_condition: "pattern-buffer 中存在 status=candidate 且 frequency >= promotion_threshold 的模式"
+      invariant: "所有经过 quality-guard 验证的结晶候选必须且只能流向此节点"
+
+  # --- 按需结构节点（条件激活） ---
+  optional_structural:
+    - id: source-auditor
+      type: conditional
+      agent: ".claude/agents/source-auditor.md"
+      purpose: "溯源标签验证、引用准确性检查"
+      activation_condition: "session 涉及外部文献引用或 PDF 加载"
+
+    - id: topology-manager
+      type: conditional
+      agent: ".claude/agents/topology-manager.md"
+      purpose: "谱系拓扑分析、hub 节点监控、链路健康检查、蜂群收缩信号"
+      activation_condition: "谱系总数 > 30 或 pending 谱系 > 5"
+
+    - id: gemini-challenger
+      type: conditional
+      agent: ".claude/agents/gemini-challenger.md"
+      purpose: "异质否定源 + 编排者代理（030a/041号谱系）"
+      activation_condition:
+        - trigger: "challenge"
+          condition: "definition-lawyer 提交新定义到 .chanlun/definitions/ 后自动触发异质质询"
+          mode: "challenge"
+        - trigger: "verify"
+          condition: "spec/theorems/ 下文件发生变更时自动触发数学验证"
+          mode: "verify"
+        - trigger: "derive"
+          condition: "定理状态变为 settled 时自动触发推论生成"
+          mode: "derive"
+        - trigger: "decide"
+          condition: "系统遇到选择/语法记录类决断时"
+          mode: "decide"
+        - trigger: "manual"
+          condition: "定义处于生成态且同质质询已完成 2 轮以上"
+          mode: "challenge"
+
+    - id: claude-challenger
+      type: conditional
+      agent: ".claude/agents/claude-challenger.md"
+      purpose: "反向质询（癔症话语位置）——对 Gemini 产出进行再质询，指出不可消化点"
+      activation_condition:
+        - trigger: "re-challenge"
+          condition: "Gemini challenger 产出需要被再质询时（由 Lead 分派）"
+        - trigger: "stale-generative"
+          condition: "同质质询已完成 2 轮以上但定义仍处于生成态"
+
+  # --- 任务节点模板（运行时动态实例化） ---
+  task_template:
+    type: worker
+    derivation: "session.interruption_points + CLAUDE.md.objectives"
+    spawn_phase: "post-structural-spawn"
+    # DAG 约束：任务节点的输入/输出边必须连接支配节点
+    input_constraint: "requires_dominator_edge"
+    output_constraint: "requires_dominator_edge"
+    rules:
+      - "每个独立中断点 = 一个工位（并行默认）"
+      - "有数据依赖的中断点 = 串行链"
+      - "Lead 不自行执行任务，只分派和汇总"
+      - "无简单任务豁免——≥1 个任务即拉蜂群"  # G8, 055号
+      - "蜂群递归是默认执行模式，不是复杂度触发的优化——任何多目标任务默认并行 spawn"  # 055号
+      - "子工位为局部作用域（不修改全局 hook/谱系/定义），递归深度由 topology-manager 收敛信号终止（020号背驰+分型），无人为硬限制"
+      - "020号（背驰+分型）是递归的终止/结算条件，不是启动条件"  # 020号
+
+  # --- 系统/虚拟节点（外部系统，不受 DAG 拓扑约束） ---
+  system_nodes:
+    - id: ceremony
+      type: source
+      description: "Swarm₀ 入口点，DAG 的唯一源节点"
+    - id: system
+      type: virtual
+      description: "外部系统事件源（文件变更、注解检测等），不是 agent"
+    - id: manifest_guard
+      type: virtual
+      description: "manifest 注册检查（hook 实现），不是 agent"
+    - id: swarm_manager
+      type: virtual
+      description: "蜂群递归 spawn 管理器（Lead 角色），不是独立 agent"
+    - id: pattern_detector
+      type: virtual
+      description: "模式检测（post-session-pattern-detect hook），不是 agent"
+    - id: build_resolver
+      type: virtual
+      description: "构建错误修复（build-error-resolver agent），按需激活"
+    - id: fallback
+      type: virtual
+      description: "降级路径（Gemini 不可用时的 pending 队列），不是 agent"
+
+# ═══════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════
+edges:
+  # --- 结构工位间的固定边 ---
+  structural_edges:
+    # Swarm₀ spawn 所有必经节点
+    - from: ceremony
+      to: [genealogist, quality-guard, meta-observer]
+      type: spawn
+      description: "ceremony 完成后并行 spawn 三个支配节点"
+
+    # 谱系验证 → 质量守卫（谱系产出需要质量检查）
+    - from: genealogist
+      to: quality-guard
+      type: genealogy_validated
+      description: "谱系写入/更新后提交给 quality-guard 检查结果包"
+
+    # 质量守卫 → 结晶汇点（唯一合法路径）
+    - from: quality-guard
+      to: skill-crystallizer
+      type: validation_pass
+      description: "quality-guard 通过后，结晶候选流向唯一汇点"
+
+    # 元观察者 → 自身（二阶反馈回路）
+    - from: meta-observer
+      to: meta-observer
+      type: self_observation
+      description: "构成性矛盾：观察者与被观察系统不可分离（020号）"
+
+    # 元观察者 → gemini-challenger（提案审查路径，069号）
+    - from: meta-observer
+      to: gemini-challenger
+      type: proposal_review
+      condition: "dispatch-dag/核心定义/已结算谱系修改提案"
+      description: "绕过 quality-guard 保守性死锁——不能用 t 规则审查 t+1 提案"
+
+  # --- 任务工位的边约束（模板，运行时实例化） ---
+  task_edge_constraints:
+    # 硬约束：所有任务产出必须经过支配节点
+    - constraint: "dominator_reachability"
+      rule: "任何 task_node 到 terminal_sink 的路径必须经过 quality-guard"
+      enforcement: "spawn 时验证，违反则阻塞"
+
+    - constraint: "concept_discovery_routing"
+      rule: "任何 task_node 的概念发现（新定义/新谱系）必须经过 genealogist"
+      enforcement: "task_node 不可直接写入 .chanlun/genealogy/ 或 .chanlun/definitions/"
+
+    - constraint: "meta_observation"
+      rule: "meta-observer 可观察所有边的流量（二阶）"
+      enforcement: "meta-observer 有 Read 权限覆盖所有工位产出"
+
+  # --- 事件触发边（从 orchestration_protocol 迁移） ---
+  event_edges:
+    - event: file_change
+      pattern: "spec/theorems/*"
+      activates_edge: "task_node → gemini-challenger"
+      mode: "verify"
+      priority: high
+
+    - event: file_change
+      pattern: "docs/chan_spec.md"
+      activates_edge: "task_node → genealogist"
+      action: "lineage_consistency_check"
+      priority: high
+
+    - event: file_create
+      pattern: "**/*"
+      activates_edge: "system → manifest_guard"
+      action: "check_manifest_registration"
+      priority: high
+
+    - event: annotation
+      pattern: "@proof-required"
+      activates_edge: "task_node → gemini-challenger"
+      mode: "challenge --math"
+      priority: low_async
+
+    - event: task_queue
+      condition: "independent_tasks >= 2"
+      activates_edge: "system → swarm_manager"
+      action: "spawn_recursive_swarm"
+      priority: high
+
+    - event: session_start
+      activates_edge: "system → ceremony"
+      priority: critical
+
+    - event: session_end
+      activates_edge: "system → pattern_detector"
+      action: "post_session_pattern_detect"
+      priority: low_async
+
+    - event: tool_error
+      pattern: "gemini_api_*"
+      activates_edge: "system → fallback"
+      action: "fallback_local_rules"
+      priority: critical
+
+    - event: build_failure
+      condition: "consecutive_failures >= 3"
+      activates_edge: "system → build_resolver"
+      action: "auto_fix_build"
+      priority: medium
+
+# ═══════════════════════════════════════════════════════════════
+# 4. 编排者代理（041号谱系）
+# ═══════════════════════════════════════════════════════════════
+orchestrator_proxy:
+  enabled: true
+  genealogy_ref: "041-orchestrator-proxy"
+  agent: ".claude/agents/gemini-challenger.md"
+  mode: "decide"
+  routes:
+    - type: "选择"
+      action: "调用 Gemini decide()，决策直接执行"
+    - type: "语法记录"
+      action: "调用 Gemini decide()，辨认结果写入谱系"
+  human_override: "INTERRUPT — 人类编排者可随时覆盖"
+  fallback: "Gemini 不可用时，写入 pending 等待人类"
+
+# ═══════════════════════════════════════════════════════════════
+# 5. 子蜂群分形模板（069号谱系）
+# ═══════════════════════════════════════════════════════════════
+fractal_template:
+  genealogy_ref: "037-recursive-swarm-fractal, 069-recursive-topology-async-self-referential-swarm"
+  description: "子蜂群实例化时，基于此模板 spawn 属于该层级的全新结构工位实例"
+
+  # 子蜂群必须有的支配节点（保证图连通性）
+  inherited_nodes:
+    - id: genealogist
+      type: dominator
+      mandatory: true
+    - id: quality-guard
+      type: dominator
+      mandatory: true
+
+  # 子蜂群可选的结构节点
+  optional_nodes:
+    - id: meta-observer
+      activation_condition: "子蜂群任务涉及元规则或定义变更"
+
+  # 父子接口：子蜂群汇点 → 父蜂群支配节点
+  parent_interface:
+    output_edges:
+      - from: "child.quality-guard"
+        to: "parent.quality-guard"
+        type: "validation_pass"
+        description: "子蜂群验证通过的产出上交父蜂群再验证"
+      - from: "child.genealogist"
+        to: "parent.genealogist"
+        type: "concept_discovery"
+        description: "子蜂群的概念发现上交父蜂群谱系管理"
+
+  # 递归规则（从 dispatch-spec 迁移）
+  recursion_rules:
+    - "任何 teammate 面对 ≥1 个可分解子任务时，可 spawn 子 teammates"
+    - "子 teammates 继承完整的 spawn 能力（无限递归）"
+    - "递归深度无人为限制，由 topology-manager 的区间套收敛信号自然终止"
+    - "父 teammate 对子 teammates 负路由责任"
+    - "结构工位默认扁平——裁判不参与走势。例外：结构工位自身任务需分解时允许 spawn 同类型子工位（受限递归），不允许 spawn 任务工位"
+  visibility: "所有 teammates（含任意深度的子 teammates）在同一 task list 中可见"
+  cost_control: "topology-manager 监控总 teammate 数量，通过区间套收敛信号判断收缩时机"
+
+# ═══════════════════════════════════════════════════════════════
+# 6. Ceremony 序列（DAG 格式，从 dispatch-spec 直接迁移）
+# ═══════════════════════════════════════════════════════════════
+ceremony_sequence:
+  cold_start:
+    output_policy: "仅 recurse 节点或 terminate_condition 产出面向用户的输出"
+    nodes:
+      - id: "scan-definitions"
+        action: "扫描 .chanlun/definitions/*.md 版本和状态"
+        depends_on: []
+      - id: "scan-genealogy"
+        action: "扫描 .chanlun/genealogy/{pending,settled}/ 统计"
+        depends_on: []
+      - id: "scan-methodology"
+        action: "读取 CLAUDE.md + dispatch-dag.yaml"  # 更新引用
+        depends_on: []
+      - id: "scan-skills"
+        action: "扫描 .chanlun/manifest.yaml skill 时间戳"
+        depends_on: []
+        genealogy_ref: "051-runtime-connection-design"
+      - id: "derive-work"
+        action: "从目标+谱系状态+代码库扫描推导任务工位"
+        depends_on: ["scan-definitions", "scan-genealogy", "scan-methodology", "scan-skills"]
+        scan_sources:
+          - "CLAUDE.md 目标"
+          - "pending 谱系（生成态矛盾）"
+          - "测试失败（新增 vs pre-existing）"
+          - "谱系下游行动未执行（spec-execution gap）"
+          - "pattern-buffer 达标模式"
+        no_work_fallback: "扫描 TODO/覆盖率/spec合规/谱系张力，产出至少一个工位"
+      - id: "derive-structural"
+        action: "确定需要 spawn 的结构工位（mandatory 全部 spawn）"
+        depends_on: ["derive-work"]
+      - id: "spawn-all"
+        action: "并行 spawn 结构工位+任务工位"
+        depends_on: ["derive-structural"]
+        validation: "spawn 数量 >= structural_nodes(mandatory).count"
+      - id: "divine-madness"
+        action: "Lead 权限剥夺（032号谱系）"
+        depends_on: ["spawn-all"]
+      - id: "recurse"
+        action: "输出 '→ 接下来：[action]' 紧跟 tool 调用"
+        depends_on: ["divine-madness"]
+    terminate_condition:
+      trigger: "derive-work 扫描全部来源后仍无工位可派生"
+      action: "输出 '[020号反转] 无新区分可产出——系统干净终止' → 停止"
+
+  warm_start:
+    output_policy: "仅 recurse 节点或 terminate_condition 产出面向用户的输出"
+    nodes:
+      - id: "locate-session"
+        action: "定位最新 .chanlun/sessions/*.md"
+        depends_on: []
+      - id: "scan-definitions"
+        action: "扫描当前 definitions/ 版本"
+        depends_on: []
+      - id: "scan-genealogy"
+        action: "扫描当前 genealogy/ 状态"
+        depends_on: []
+      - id: "version-diff"
+        action: "对比 session vs 当前定义版本（内部，不输出报告）"
+        depends_on: ["locate-session", "scan-definitions"]
+      - id: "genealogy-diff"
+        action: "对比 session vs 当前谱系状态（内部，不输出报告）"
+        depends_on: ["locate-session", "scan-genealogy"]
+      - id: "derive-work"
+        action: "从中断点+差异+代码库扫描推导任务工位"
+        depends_on: ["version-diff", "genealogy-diff"]
+        scan_sources:
+          - "session 中断点"
+          - "version-diff 中的升级/新增项"
+          - "genealogy-diff 中的新 pending"
+          - "测试失败（新增 vs pre-existing）"
+          - "谱系下游行动未执行（spec-execution gap）"
+          - "pattern-buffer 达标模式"
+        no_work_fallback: "扫描 TODO/覆盖率/spec合规/谱系张力，产出至少一个工位"
+      - id: "spawn-all"
+        action: "并行 spawn 结构工位+任务工位"
+        depends_on: ["derive-work"]
+        validation: "spawn 数量 >= structural_nodes(mandatory).count"
+      - id: "divine-madness"
+        action: "Lead 权限剥夺（032号谱系）"
+        depends_on: ["spawn-all"]
+      - id: "recurse"
+        action: "输出 '→ 接下来：[action]' 紧跟 tool 调用"
+        depends_on: ["divine-madness"]
+    terminate_condition:
+      trigger: "derive-work 扫描全部来源后仍无工位可派生"
+      action: "输出 '[020号反转] 无新区分可产出——系统干净终止' → 停止"
+
+# ═══════════════════════════════════════════════════════════════
+# 7. DAG 验证规则
+# ═══════════════════════════════════════════════════════════════
+validation:
+  # --- DAG 拓扑不变量 ---
+  dag_invariants:
+    - id: "dominator_reachability"
+      check: "所有 task_node 到 terminal_sink 的路径必须经过 quality-guard"
+      enforcement: "spawn 时静态验证"
+      on_fail: "阻塞——不允许 spawn 违反拓扑约束的任务节点"
+
+    - id: "single_terminal_sink"
+      check: "当 skill-crystallizer 激活时，它是唯一 terminal_sink；未激活时，quality-guard 为事实汇点（de facto sink）"
+      on_fail: "阻塞——多汇点违反结晶唯一性（激活态）或缺少事实汇点（非激活态）"
+
+    - id: "no_cycles"
+      check: "除 meta-observer 自环外，DAG 无环"
+      exception: "meta-observer → meta-observer 自环是构成性矛盾（020号），合法"
+      on_fail: "阻塞——环路违反 DAG 定义"
+
+  # --- 从 dispatch-spec 迁移的运行时验证 ---
+  post_ceremony:
+    - check: "all_structural_spawned"
+      condition: "所有 mandatory=true 的 dominator node 均已 spawn"
+      on_fail: "阻塞——不允许进入蜂群循环"
+
+    - check: "lead_permissions_restricted"
+      condition: "settings.local.json 中 Lead 只保留 Read/Glob/Grep/Task/SendMessage/TaskList/TaskGet/TaskUpdate"
+      on_fail: "阻塞——032号谱系要求"
+
+    - check: "task_stations_derived"
+      condition: "至少从中断点派生了一个任务工位（除非中断点为空）"
+      on_fail: "警告——可能遗漏工作"
+
+    - check: "crystallization_check"
+      condition: "genealogist 的结晶检测已执行（扫描近期谱系的背驰+分型信号）"
+      on_fail: "警告——可能遗漏结晶时机"
+
+  post_commit:
+    ref: ".claude/skills/meta-orchestration/references/post-commit-flow.md"
+    description: "commit 后执行的标准流程（session 写入、谱系更新检查）"
+
+# ═══════════════════════════════════════════════════════════════
+# 8. 运行时基础设施（从 dispatch-spec 迁移）
+# ═══════════════════════════════════════════════════════════════
+automation:
+  pattern_detection:
+    enabled: true
+    trigger: "session_end"
+    buffer_path: ".chanlun/pattern-buffer.yaml"
+    min_sequence_length: 2
+    promotion_threshold: 3
+  crystallization:
+    auto_trigger: true
+    require_genealogy_settlement: true
+  manifest:
+    path: ".chanlun/manifest.yaml"
+    auto_register: true
+
+axis_report:
+  template:
+    sections:
+      - "定义基底状态（新增/修改/删除）"
+      - "谱系状态（pending 数量、近期结算、结晶信号）"
+      - "蜂群工位状态（各工位进度摘要）"
+      - "中断点消化进度"
+      - "下一步行动建议"
+    constraints:
+      - "每个 section 不超过 3 行"
+      - "只报告变化，不重复已知信息"
+  frequency: "每蜂群循环结束"
+  producer: "Lead"
+  consumers: "所有工位（通过 broadcast 或 session 文件）"
+
+# ═══════════════════════════════════════════════════════════════
+# 9. 定义偏序（缠论概念间的逻辑依赖链）
+# ═══════════════════════════════════════════════════════════════
+definition_partial_order:
+  nodes:
+    - {id: baohan, depends_on: []}
+    - {id: fenxing, depends_on: [baohan]}
+    - {id: bi, depends_on: [fenxing]}
+    - {id: xianduan, depends_on: [bi]}
+    - {id: zhongshu, depends_on: [xianduan]}
+    - {id: zoushi, depends_on: [zhongshu]}
+    - {id: beichi, depends_on: [zhongshu, zoushi]}
+    - {id: level_recursion, depends_on: [zoushi]}
+    - {id: bijia, depends_on: [beichi]}
+    - {id: dengjia, depends_on: [bijia]}
+    - {id: maimai, depends_on: [beichi, zhongshu]}
+    - {id: liuzhuan, depends_on: [maimai]}
