@@ -1,5 +1,7 @@
 #!/bin/bash
-# PostToolUse Hook — 递归守卫（037号谱系：递归蜂群分形结构）
+# PostToolUse Hook — 函数行数守卫（原名 recursive-guard，092号审计重命名）
+# 实际功能：检查重构任务完成后函数是否仍超过行数阈值
+# 与递归深度检测无关——名称修正以消除声明-能力缺口（084号模式）
 #
 # 触发：PostToolUse on "TaskUpdate" tool
 # 逻辑：

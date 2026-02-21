@@ -508,6 +508,11 @@ nodes:
   status: 已结算
   type: 审计修复
   file: settled/091-post089-full-audit.md
+- id: '092'
+  title: RTAS 四维度严格审计——11 个发现 + 062号 Sinthome 修正
+  status: 已结算
+  type: 审计修复
+  file: settled/092-rtas-strict-audit.md
 edges:
   depends_on:
   - from: 005a
@@ -986,6 +991,16 @@ edges:
     to: '090'
   - from: '091'
     to: '084'
+  - from: '092'
+    to: '062'
+  - from: '092'
+    to: '069'
+  - from: '092'
+    to: '084'
+  - from: '092'
+    to: '090'
+  - from: '092'
+    to: '091'
   triggered:
   - from: '005'
     to: 005a
@@ -1595,6 +1610,18 @@ edges:
   - between:
     - '091'
     - '073'
+  - between:
+    - '092'
+    - '037'
+  - between:
+    - '092'
+    - '064'
+  - between:
+    - '092'
+    - '068'
+  - between:
+    - '092'
+    - '075'
   tensions_with:
   - between:
     - '007'

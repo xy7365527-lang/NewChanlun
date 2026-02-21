@@ -318,12 +318,12 @@ hooks:
     description: "结果包六要素检查"
     status: active
 
-  - name: recursive-guard
+  - name: function-length-guard
     type: hook
-    file: .claude/hooks/recursive-guard.sh
+    file: .claude/hooks/function-length-guard.sh
     event: PostToolUse
     matcher: TaskUpdate
-    description: "递归守卫——递归蜂群分形结构检测"
+    description: "函数行数守卫——重构任务完成时检查函数是否超过阈值行数"
     status: active
 
   - name: team-structural-inject
