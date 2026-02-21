@@ -1,21 +1,40 @@
 #!/usr/bin/env python
-"""ceremony Phase 1-2: 确定性状态推导，输出 JSON 指令。"""
-import json, os, glob, yaml, sys
+"""蜂群 spawn 通用工具。任何节点（ceremony 或 teammate）spawn 蜂群时调用。
 
-def main():
-    root = os.getcwd()
-    result = {"mode": "cold_start", "definitions": 0, "pending": 0, "settled": 0,
-              "head": "", "session": None, "workstations": [], "structural_nodes": []}
+用法:
+  python scripts/ceremony_scan.py                  # 根 ceremony：全量扫描
+  python scripts/ceremony_scan.py --structural     # 子蜂群：只输出 structural nodes
+  python scripts/ceremony_scan.py --workstations "任务A" "任务B"  # 指定业务工位
+"""
+import json, os, glob, yaml, sys, argparse
 
-    # --- 最新 session（按修改时间排序） ---
+
+def get_structural_nodes(root):
+    """从 dispatch-dag 动态读取 mandatory structural nodes。"""
+    dag_path = os.path.join(root, ".chanlun/dispatch-dag.yaml")
+    nodes = []
+    if os.path.isfile(dag_path):
+        with open(dag_path, encoding="utf-8") as f:
+            dag = yaml.safe_load(f)
+        for node in dag.get("nodes", {}).get("structural", []):
+            if node.get("mandatory", False):
+                nodes.append({
+                    "id": node["id"],
+                    "agent": node.get("agent", f".claude/agents/{node['id']}.md")
+                })
+    return nodes
+
+
+def get_session_workstations(root):
+    """从最新 session 提取遗留工位。"""
+    workstations = []
     sessions = glob.glob(os.path.join(root, ".chanlun/sessions/*-session.md"))
+    session_name = None
     if sessions:
         sessions.sort(key=os.path.getmtime)
-        result["mode"] = "warm_start"
-        result["session"] = os.path.basename(sessions[-1])
+        session_name = os.path.basename(sessions[-1])
         with open(sessions[-1], encoding="utf-8") as f:
             content = f.read()
-        # 提取遗留项
         in_legacy = False
         for line in content.split("\n"):
             if "遗留" in line or "中断" in line:
@@ -23,16 +42,43 @@ def main():
                 continue
             if in_legacy and line.startswith("|") and "P" in line:
                 parts = [c.strip() for c in line.split("|") if c.strip()]
-                if len(parts) >= 3:
-                    result["workstations"].append({
-                        "priority": parts[0],
-                        "name": parts[1],
-                        "status": parts[2] if len(parts) > 2 else "pending"
-                    })
+                if len(parts) >= 3 and parts[2] != "已修复" and "✅" not in parts[2]:
+                    workstations.append({"priority": parts[0], "name": parts[1], "status": parts[2]})
             elif in_legacy and line.startswith("#"):
                 in_legacy = False
+    # pending 谱系
+    for p in glob.glob(os.path.join(root, ".chanlun/genealogy/pending/*.md")):
+        workstations.append({"priority": "P0", "name": f"pending:{os.path.basename(p)}", "status": "pending"})
+    return session_name, workstations
 
-    # --- definitions.yaml ---
+
+def main():
+    parser = argparse.ArgumentParser(description="蜂群 spawn 通用工具")
+    parser.add_argument("--structural", action="store_true", help="只输出 structural nodes")
+    parser.add_argument("--workstations", nargs="*", help="指定业务工位名称")
+    args = parser.parse_args()
+
+    root = os.getcwd()
+    result = {"structural_nodes": get_structural_nodes(root)}
+
+    if args.structural:
+        # 子蜂群模式：只输出 structural nodes
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return
+
+    if args.workstations:
+        # 指定工位模式：structural + 指定的业务工位
+        result["workstations"] = [{"name": w, "priority": "P1", "status": "pending"} for w in args.workstations]
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return
+
+    # 根 ceremony 模式：全量扫描
+    session_name, workstations = get_session_workstations(root)
+    result["mode"] = "warm_start" if session_name else "cold_start"
+    result["session"] = session_name
+    result["workstations"] = workstations
+
+    # 定义/谱系计数
     defs_path = os.path.join(root, "definitions.yaml")
     if os.path.isfile(defs_path):
         with open(defs_path, encoding="utf-8") as f:
@@ -40,47 +86,18 @@ def main():
         if isinstance(defs, dict):
             entities = defs.get("entities", defs.get("definitions", []))
             result["definitions"] = len(entities) if isinstance(entities, list) else 0
+    result["pending"] = len(glob.glob(os.path.join(root, ".chanlun/genealogy/pending/*.md")))
+    result["settled"] = len(glob.glob(os.path.join(root, ".chanlun/genealogy/settled/*.md")))
 
-    # --- pending 谱系 ---
-    pending = glob.glob(os.path.join(root, ".chanlun/genealogy/pending/*.md"))
-    result["pending"] = len(pending)
-    for p in pending:
-        result["workstations"].append({
-            "priority": "P0",
-            "name": f"pending:{os.path.basename(p)}",
-            "status": "pending"
-        })
-
-    # --- settled 计数 ---
-    settled = glob.glob(os.path.join(root, ".chanlun/genealogy/settled/*.md"))
-    result["settled"] = len(settled)
-
-    # --- HEAD ---
     try:
         import subprocess
-        head = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"],
-                                       cwd=root, text=True).strip()
-        result["head"] = head
+        result["head"] = subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"], cwd=root, text=True).strip()
     except Exception:
         pass
 
-    # --- dispatch-dag mandatory structural nodes ---
-    dag_path = os.path.join(root, ".chanlun/dispatch-dag.yaml")
-    if os.path.isfile(dag_path):
-        with open(dag_path, encoding="utf-8") as f:
-            dag = yaml.safe_load(f)
-        structural = dag.get("nodes", {}).get("structural", [])
-        for node in structural:
-            if node.get("mandatory", False):
-                result["structural_nodes"].append({
-                    "id": node["id"],
-                    "agent": node.get("agent", f".claude/agents/{node['id']}.md")
-                })
-
-    # --- 过滤已完成的工位 ---
-    result["workstations"] = [w for w in result["workstations"] if w.get("status") != "已修复" and "✅" not in w.get("status", "")]
-
     print(json.dumps(result, ensure_ascii=False, indent=2))
+
 
 if __name__ == "__main__":
     main()
