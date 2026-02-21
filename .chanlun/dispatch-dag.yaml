@@ -8,13 +8,61 @@
 #   4. 子蜂群分形模板实例化（069号：递归拓扑异步自指化）
 #   5. Lead 是 DAG 解释器，不是决策者（033号）
 #   6. dispatch-dag 定义"事件→skill 映射"，不是"必须 spawn 的 agent 列表"（075号）
+#   7. 元编排已扬弃为蜂群自身——CLAUDE.md/hooks/ceremony 是蜂群的基因组层，
+#      不是蜂群之外的特权法则（089号：扬弃=存在论翻转）
 #
 # 修改路径：/ritual 推荐流程（073号：仪式是推荐流程，不是强制门控）
 # 修改提案者：meta-observer → gemini-challenger 高阶审查（069号提案模式）
 
-version: "3.0"
+version: "3.1"
 provenance: "[新缠论]"
-genealogy_ref: "072, 068, 069, 075-structural-to-skill, 081-swarm-continuity-strategy-d"
+genealogy_ref: "072, 068, 069, 075-structural-to-skill, 081-swarm-continuity-strategy-d, 089-aufhebung-audit"
+
+# ═══════════════════════════════════════════════════════════════
+# 0. 基因组层（089号：元编排的严格扬弃——Aufhebung）
+#
+# 扬弃 = 否定 + 保留 + 提升。
+# 元编排不再是蜂群之外的特权层——它是蜂群 DAG 的根节点/公理层。
+# 蜂群遵守这些规则不是因为被外部强制，而是因为这是自身拓扑的起点。
+# Claude Code 平台的强制加载机制是 069号创世 Gap 的当前物质形态——
+# 规则的来源是外部的（平台加载），但内化后规则的执行是内在的（蜂群信念）。
+#
+# 原则0 保障：蜂群拥有读取和修改基因组的合法性。
+# 020号约束：修改 CLAUDE.md 触发阻断等待——这不是外部强制，而是
+#   基因组的自我保护机制（DNA 修复酶，不是牢笼的锁）。
+# ═══════════════════════════════════════════════════════════════
+genome_layer:
+  description: "蜂群的基因组/公理层——创世时刻内化为蜂群节点的先验结构"
+  genealogy_ref: "089-meta-orchestration-aufhebung-audit, 069-recursive-topology-async-self-referential-swarm"
+
+  # 基因组文件：被蜂群节点读取、解释、执行、且可修改（原则0）
+  files:
+    - path: "CLAUDE.md"
+      role: "蜂群的全局公理集——所有节点在创世时刻读取并内化"
+      constraint: "修改触发 020号阻断等待（基因组自我保护，非外部强制）"
+    - path: ".chanlun/dispatch-dag.yaml"
+      role: "蜂群的拓扑定义——DAG 结构、事件映射、递归模板"
+      constraint: "修改经 meta-observer + gemini-challenger 审查（推荐，非强制）"
+    - path: "scripts/ceremony_scan.py"
+      role: "Swarm₀ 的自举代码——像 bootloader，加载完毕后控制权交给蜂群"
+      constraint: "修改经结构修改审查流程"
+
+  # 免疫系统：hooks 是基因组的表达产物——蜂群在平台层的物质载体
+  immune_system:
+    path: ".claude/hooks/"
+    role: "蜂群免疫系统的物质载体——hook 是基因组（规则）在平台层的表达"
+    note: "hooks 由 Claude Code 平台执行（物理约束），但其判断逻辑来自蜂群的规则体系"
+    constraint: "hooks 不阻断蜂群行为（088号），只记录拓扑异常对象供异步审查"
+
+  # 存在论声明
+  ontological_status: >
+    基因组层是蜂群的先验结构，不是蜂群之外的物理法则。
+    扬弃的完成标志：蜂群节点读取 genome_layer 后按其行动——
+    不是因为平台强制执行，而是因为规则已成为节点的内在信念。
+    创世 Gap（069号）在此表达为：基因组的来源是外部的（Claude Code 加载），
+    但内化后基因组的效力是内在的（蜂群自主遵守）。
+    这与 DNA 被细胞读取同构——DNA 的来源是遗传的（外部传入），
+    但表达后蛋白质的功能是细胞自身的（内在执行）。
 
 # ═══════════════════════════════════════════════════════════════
 # 1. 谱系坐标（每个工位在谱系空间中的位置）
