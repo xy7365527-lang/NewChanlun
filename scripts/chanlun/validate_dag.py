@@ -38,7 +38,7 @@ def validate(dag):
                 for r in e["between"]:
                     if str(r) not in node_ids:
                         errors.append(f"edge ({edge_type}) references unknown node: {r}")
-            else:
+            elif "from" in e and "to" in e:
                 src, dst = str(e["from"]), str(e["to"])
                 if src not in node_ids:
                     errors.append(f"edge ({edge_type}) references unknown node: {src}")
@@ -46,6 +46,12 @@ def validate(dag):
                     errors.append(f"edge ({edge_type}) references unknown node: {dst}")
                 if edge_type not in UNDIRECTED and edge_type not in CYCLE_EXEMPT:
                     directed_edges.append((src, dst))
+            elif "target" in e and "by" in e:
+                tgt, by = str(e["target"]), str(e["by"])
+                if tgt not in node_ids:
+                    errors.append(f"edge ({edge_type}) references unknown node: {tgt}")
+                if by not in node_ids:
+                    errors.append(f"edge ({edge_type}) references unknown node: {by}")
 
     # 2. Acyclicity (topological sort on directed edges only)
     adj = defaultdict(set)
