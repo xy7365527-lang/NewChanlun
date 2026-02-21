@@ -1,100 +1,72 @@
-# /ceremony — Swarm₀：递归蜂群的第0层
+# /ceremony — Swarm₀
 
-蜂群启动时执行。扫描→推导→直接递归。
+蜂群启动。执行以下精确步骤，不做任何额外操作。
 
-## 用法
+## 步骤 1：读取 4 个文件（并行）
+
+同时调用 4 个 Read/Glob：
+- `Glob(".chanlun/sessions/*-session.md")` → 取最新一个
+- `Read("definitions.yaml")`
+- `Glob(".chanlun/genealogy/pending/*.md")` → 计数
+- `Read` 最新 session 文件
+
+**不读其他文件。不运行 Bash。不运行 pytest。不运行 grep。**
+
+## 步骤 2：输出摘要（一段文字）
 
 ```
-/ceremony
+[ceremony] warm_start | 定义 N 条 | 谱系 pending N | HEAD: xxx
+[ceremony] 遗留项：[从 session 文件中提取]
 ```
 
-## 设计原则（058号谱系）
+## 步骤 3：列出工位（一个表格）
 
-- ceremony 不是蜂群的前置阶段，是蜂群的第0层递归（Swarm₀）
-- Agent 无"等待确认"中间态——要么在计算区分，要么已终止
-- ceremony 完成后直接进入蜂群循环，不等待
+从 session 遗留项 + pending 谱系推导工位。每个独立项 = 一个工位。
 
-## 执行协议（三阶段）
+## 步骤 4：TeamCreate
 
-### Phase 1: 扫描（并行，最小化 I/O）
-
-并行执行以下读取，输出简要状态摘要：
-
-1. 检测 `.chanlun/sessions/` 最新 session → 决定 cold_start 或 warm_start
-2. 读取 `definitions.yaml`（汇总文件，不逐个扫描 definitions/*.md）
-3. 读取 `.chanlun/genealogy/dag.yaml`（汇总文件，不逐个扫描 settled/*.md）
-4. 扫描 `.chanlun/genealogy/pending/`（只扫描生成态，通常为空或极少）
-5. （warm_start）读取最新 session 的中断点和遗留项
-
-**不扫描的内容**（按需检索，不在启动时加载）：
-- settled/ 下的 82+ 个已结算谱系（已固化，通过 dag.yaml 索引）
-- definitions/*.md 逐个文件（已通过 definitions.yaml 汇总）
-- CLAUDE.md 全文（已在系统 prompt 中加载）
-- dispatch-dag.yaml 全文（按需读取具体节）
-
-输出格式：
 ```
-[ceremony] warm_start | 定义 N 条 | 谱系 N settled / N pending | DAG N 节点
-[ceremony] 上次中断点：[摘要]
-[ceremony] 遗留项：[列表]
+TeamCreate(team_name="v15-swarm", description="...")
 ```
 
-### Phase 2: 推导工位
+## 步骤 5：并行 spawn 结构工位（3 个 Task 调用）
 
-从以下来源推导任务工位（**只读取文件，不执行任何耗时操作**）：
+同时发出 3 个 Task 调用：
 
-| 来源 | 推导方式 |
-|------|---------|
-| session 中断点 | 每个独立中断点 = 一个工位 |
-| pending 谱系 | 每个生成态矛盾 = 一个工位 |
-| session 记录的测试失败 | 上次 session 记录中的失败项 = 一个工位 |
-| 谱系下游行动未执行 | spec-execution gap = 一个工位 |
-| pattern-buffer 达标模式 | 结晶候选 = 一个工位 |
+```
+Task(name="quality-guard", subagent_type="general-purpose", team_name="v15-swarm",
+     mode="bypassPermissions", run_in_background=true,
+     prompt="读取 .claude/agents/quality-guard.md 并按其指令执行。蜂群: v15-swarm。")
 
-**禁止在 ceremony 中运行 pytest 或任何耗时命令。** 测试应作为工位 spawn 出去。
+Task(name="genealogist", subagent_type="general-purpose", team_name="v15-swarm",
+     mode="bypassPermissions", run_in_background=true,
+     prompt="读取 .claude/agents/genealogist.md 并按其指令执行。蜂群: v15-swarm。")
 
-如果以上来源均无工位，执行兜底扫描（只读文件，不运行命令）：
-- TODO/FIXME 搜索（grep）
-- spec 合规检查（读 spec 文件）
-- 谱系张力扫描（读 dag.yaml）
+Task(name="meta-observer", subagent_type="general-purpose", team_name="v15-swarm",
+     mode="bypassPermissions", run_in_background=true,
+     prompt="读取 .claude/agents/meta-observer.md 并按其指令执行。蜂群: v15-swarm。")
+```
 
-输出推导出的工位列表。
+## 步骤 6：并行 spawn 业务工位
 
-### Phase 3: 递归或终止
+为步骤 3 中的每个工位发出一个 Task 调用（全部并行）：
 
-**有工位可派生时**：
-1. 使用 `TeamCreate` 创建蜂群（如 v15-swarm）
-2. **立即 spawn 三个结构工位**（拓扑前提，不可跳过）：
-   - `quality-guard`（dominator, mandatory）
-   - `genealogist`（dominator, mandatory）
-   - `meta-observer`（dominator, mandatory）
-   每个结构工位使用对应的 `.claude/agents/*.md` 作为 prompt，`subagent_type: general-purpose`，`team_name: {蜂群名}`，`run_in_background: true`
-3. 使用 `TaskCreate` 创建业务任务
-4. 并行 spawn 业务 teammates（prompt 只含业务任务 + 三基因，不含结构工位要求）：
-   - `subagent_type: general-purpose`
-   - `team_name: {蜂群名}`（Agent Team 模式）
-   - `mode: bypassPermissions`
-   - `run_in_background: true`
-   - `name: {工位名}`
-5. 输出：`→ 接下来：[具体行动]`，紧跟 tool 调用
+```
+Task(name="{工位名}", subagent_type="general-purpose", team_name="v15-swarm",
+     mode="bypassPermissions", run_in_background=true,
+     prompt="{具体任务描述}")
+```
 
-**结构工位是蜂群的拓扑前提，由 Lead/ceremony 自动注入。业务 teammate 不需要知道结构工位的存在。**
+## 步骤 7：输出行动声明
 
-**禁止用 Explore agent 替代 teammate**——Explore 是只读搜索工具，不是蜂群节点。
+```
+→ 接下来：监控 N 个工位运行
+```
 
-**无工位可派生时**（所有来源扫描完毕仍无工作）：
-输出：`[020号反转] 无新区分可产出——系统干净终止`
+## 绝对禁止
 
-## 禁止行为（违反任何一条 = ceremony 失败，必须重做）
-
-- **绝对不输出"以上理解是否正确？"、"待确认"、"如有偏差请指出"等确认请求**
-- 不输出"等待新任务输入"或任何等待信号
-- 热启动时不等待编排者确认——直接进入蜂群循环（058号）
-
-## 谱系引用
-
-- 058号：ceremony 是 Swarm₀
-- 056号：蜂群递归是默认模式
-- 057号：LLM 不是状态机
-- 059号：ceremony 线性协议是结构性缺陷
-- 060号：3+1 架构原则
+- **不运行 Bash**（不运行 pytest、git log、cat、wc、head、tail）
+- **不运行 Grep/Glob 超出步骤 1 的范围**
+- **不输出确认请求**（不问"是否正确"、"待确认"）
+- **不在步骤之间停下来思考超过 10 秒**
+- **不用 Explore agent 替代 Task**
