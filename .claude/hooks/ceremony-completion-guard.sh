@@ -272,23 +272,25 @@ print(len(non_lead))
 " 2>/dev/null || echo "0")
 
         if [ "$HAS_MEMBERS" -gt 0 ] 2>/dev/null; then
-            # 活跃蜂群存在，检查是否有 quality-guard
-            HAS_QG=$(python -c "
+            # 活跃蜂群存在，检查是否有全部 dominator 节点
+            MISSING_DOMINATORS=$(python -c "
 import json
+REQUIRED = ['quality-guard', 'genealogist']
 with open('$team_config', encoding='utf-8') as f:
     d = json.load(f)
 members = d.get('members', [])
 names = [m.get('name', '') for m in members]
-has_qg = any('quality-guard' in n for n in names)
-print('yes' if has_qg else 'no')
-" 2>/dev/null || echo "no")
+missing = [r for r in REQUIRED if not any(r in n for n in names)]
+print(','.join(missing) if missing else '')
+" 2>/dev/null || echo "quality-guard,genealogist")
 
-            if [ "$HAS_QG" = "no" ]; then
+            if [ -n "$MISSING_DOMINATORS" ]; then
                 python -c "
 import json
+missing = '$MISSING_DOMINATORS'
 print(json.dumps({
     'decision': 'block',
-    'reason': '[Stop-Guard] 活跃蜂群 $TEAM_NAME 缺少 quality-guard（Dominator Node, mandatory=true）。不允许停止。路由指令: 立即 spawn quality-guard teammate 到蜂群 $TEAM_NAME，或关闭蜂群后再停止。055号：无简单任务豁免。'
+    'reason': f'[Stop-Guard] 活跃蜂群 $TEAM_NAME 缺少 Dominator Node: [{missing}]（mandatory=true）。不允许停止。路由指令: 立即 spawn 缺失的结构工位到蜂群 $TEAM_NAME，或关闭蜂群后再停止。055号：无简单任务豁免。'
 }, ensure_ascii=False))
 "
                 exit 0
