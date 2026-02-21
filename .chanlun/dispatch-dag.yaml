@@ -263,7 +263,7 @@ edges:
       priority: high
 
     - event: annotation
-      pattern: "@proof-required"
+      pattern: "@proof-required"  # 规则定义：检测到此注解时路由到 gemini-challenger（非待验证标签）
       activates_edge: "task_node → gemini-challenger"
       mode: "challenge --math"
       priority: low_async
