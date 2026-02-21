@@ -2,9 +2,11 @@
 # Stop Hook — 通用停机阻断（Universal Stop-Guard）
 # 048号谱系：从 044号（ceremony 专用）泛化为全场景覆盖
 # 069号更新：废弃 ceremony 计数器状态机，改用显式状态检测
+# 072号更新：从 dispatch-dag.yaml 读取 mandatory dominator nodes，升级为 blocking
 #
 # 触发：Stop 事件（agent 即将结束 turn）
 # 逻辑：
+#   0. mandatory dominator nodes 未就绪 → 阻止 + 列出缺失节点
 #   1. 检测"有活干但没人在干"的死寂状态 → 注入强指令启动蜂群
 #   2. 蜂群任务队列非空 → 阻止 + 注入具体路由
 #   3. 谱系有生成态矛盾 → 阻止 + 注入具体文件名和四分法指令
@@ -15,7 +17,7 @@
 #   - 连续阻止 >= 5 次且无状态变更 → 允许停止
 #   - 用户 INTERRUPT → 允许停止
 
-set -euo pipefail
+set -uo pipefail
 
 input=$(cat)
 cwd=$(echo "$input" | python -c "import sys,json; print(json.loads(sys.stdin.read()).get('cwd', '.'))" 2>/dev/null || echo ".")
@@ -33,6 +35,60 @@ fi
 if [ "$COUNT" -ge 5 ]; then
     rm -f "$COUNTER" 2>/dev/null || true
     exit 0
+fi
+
+# ─── 检查 0：mandatory dominator nodes 是否已就绪（072号谱系） ───
+DAG_FILE=".chanlun/dispatch-dag.yaml"
+MARKER_FILE=".chanlun/.ceremony-structural-ready"
+
+if [ -f "$DAG_FILE" ] && [ ! -f "$MARKER_FILE" ]; then
+    # 从 dispatch-dag.yaml 提取 mandatory dominator node IDs
+    DOMINATOR_IDS=$(python -c "
+import sys
+with open(sys.argv[1], 'r', encoding='utf-8') as f:
+    lines = f.readlines()
+in_structural = False
+nodes = []
+cur_id = cur_type = None
+cur_mandatory = False
+for line in lines:
+    s = line.strip()
+    if s == 'structural:' or (s.startswith('structural:') and 'structural_edges' not in s):
+        in_structural = True
+        continue
+    if in_structural and line[0:1] not in (' ', '\t', '') and s and not s.startswith('#') and not s.startswith('-'):
+        if cur_id and cur_type == 'dominator' and cur_mandatory:
+            nodes.append(cur_id)
+        in_structural = False
+        continue
+    if not in_structural:
+        continue
+    if s.startswith('- id:'):
+        if cur_id and cur_type == 'dominator' and cur_mandatory:
+            nodes.append(cur_id)
+        cur_id = s.split(':',1)[1].strip().strip('\"').strip(\"'\")
+        cur_type = None; cur_mandatory = False
+    elif s.startswith('type:'):
+        cur_type = s.split(':',1)[1].strip().strip('\"').strip(\"'\")
+    elif s.startswith('mandatory:'):
+        cur_mandatory = s.split(':',1)[1].strip().lower() == 'true'
+if cur_id and cur_type == 'dominator' and cur_mandatory:
+    nodes.append(cur_id)
+print(','.join(nodes))
+" "$DAG_FILE" 2>/dev/null || echo "")
+
+    if [ -n "$DOMINATOR_IDS" ]; then
+        echo $((COUNT + 1)) > "$COUNTER"
+        python -c "
+import json, sys
+ids = sys.argv[1]
+print(json.dumps({
+    'decision': 'block',
+    'reason': '[Stop-Guard] mandatory dominator nodes 未就绪（标记文件 .chanlun/.ceremony-structural-ready 不存在）。dispatch-dag.yaml 要求: [' + ids + ']。请先 spawn 所有 mandatory dominator nodes 并创建标记文件。'
+}, ensure_ascii=False))
+" "$DOMINATOR_IDS"
+        exit 0
+    fi
 fi
 
 # ─── 检查 1：069号下游推论或 session 中断点有未执行的工作 ───

@@ -29,8 +29,10 @@ def build_dag() -> dict:
                 entries.append(fm)
 
     nodes = [
-        {"id": e["id"], "title": e["title"], "status": e["status"],
-         "type": e["type"], "file": e["_file"]}
+        {"id": e["id"], "title": e.get("title", ""),
+         "status": e.get("status", e.get("状态", "")),
+         "type": e.get("type", e.get("类型", "")),
+         "file": e["_file"]}
         for e in entries
     ]
 
