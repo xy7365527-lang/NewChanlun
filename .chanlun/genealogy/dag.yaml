@@ -494,10 +494,15 @@ nodes:
   type: 选择
   file: settled/088-permission-deadlock-topology-anomaly-redesign.md
 - id: '089'
-  title: 元编排递归拓扑异步自指化审计——渐进式扬弃（Aufhebung）
+  title: 元编排递归拓扑异步自指化审计——严格扬弃（Aufhebung）
   status: 已结算
   type: 选择
   file: settled/089-meta-orchestration-aufhebung-audit.md
+- id: '090'
+  title: 严格性是蜂群的语法规则——从个案否定到永久原则
+  status: 已结算
+  type: 语法记录
+  file: settled/090-strictness-grammar-rule.md
 edges:
   depends_on:
   - from: 005a
@@ -962,6 +967,13 @@ edges:
     to: '084'
   - from: '089'
     to: '088'
+  # 090 depends
+  - from: '090'
+    to: '089'
+  - from: '090'
+    to: '087'
+  - from: '090'
+    to: 005b
   triggered:
   - from: '005'
     to: 005a
