@@ -64,15 +64,16 @@
 **有工位可派生时**：
 1. 使用 `TeamCreate` 创建蜂群（如 v15-swarm）
 2. 使用 `TaskCreate` 创建任务
-3. 使用 `Task` tool 并行 spawn 工位，**必须**使用以下参数：
-   - `subagent_type: general-purpose`（不是 Explore——Explore 不能编辑文件）
-   - `team_name: {蜂群名}`
+3. 使用 `Task` tool 并行 spawn teammates，**必须**使用以下参数：
+   - `subagent_type: general-purpose`（不是 Explore——Explore 不能编辑文件，不是 teammate）
+   - `team_name: {蜂群名}`（Agent Team 模式，不是 subagent 模式）
    - `mode: bypassPermissions`
    - `run_in_background: true`
+   - `name: {工位名}`（teammate 名称，用于 SendMessage）
 4. 结构工位（genealogist + quality-guard）在有概念层产出时 spawn
 5. 输出：`→ 接下来：[具体行动]`，紧跟 tool 调用
 
-**禁止用 Explore agent 替代蜂群工位**——Explore 是只读搜索工具，不是蜂群节点。
+**禁止用 Explore agent 替代 teammate**——Explore 是只读搜索工具，不是蜂群节点。蜂群工位必须是 Agent Team 的 teammate。
 
 **无工位可派生时**（所有来源扫描完毕仍无工作）：
 输出：`[020号反转] 无新区分可产出——系统干净终止`
