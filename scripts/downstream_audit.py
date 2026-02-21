@@ -47,22 +47,44 @@ def extract_downstream_actions(filepath):
     return gid, actions
 
 
-def check_action_resolved(action_text, gid, all_settled_content):
+def load_negation_map(settled_dir):
+    """构建谱系否定关系映射：{被否定的gid: [否定它的gid]}。"""
+    neg_map = {}
+    for fp in glob.glob(os.path.join(settled_dir, "*.md")):
+        with open(fp, encoding="utf-8") as f:
+            content = f.read()
+        m = re.search(r'^id:\s*["\']?(\d{3})["\']?', content, re.MULTILINE)
+        if not m:
+            continue
+        gid = m.group(1)
+        # 提取 negates 字段
+        neg_m = re.search(r'^negates:\s*\[([^\]]*)\]', content, re.MULTILINE)
+        if neg_m and neg_m.group(1).strip():
+            for target in re.findall(r'["\']?(\d{3})["\']?', neg_m.group(1)):
+                neg_map.setdefault(target, []).append(gid)
+    return neg_map
+
+
+def check_action_resolved(action_text, gid, all_settled_content, neg_map):
     """启发式判断下游行动是否已被后续谱系/commit 解决。
 
     检查规则：
+    - 如果该谱系被后续谱系否定（negates 字段）→ superseded
     - 如果后续谱系明确引用了该 gid 的下游推论编号 → resolved
-    - 如果 action 提到的文件在后续谱系中被提及为已修改 → resolved
     """
+    # superseded 检测：谱系被否定 → 其下游行动自动失效
+    if gid in neg_map:
+        return "superseded"
+
     # 检查是否有后续谱系引用 "gid号下游推论"
     pattern = rf'{gid}号.*下游推论'
     for other_gid, other_content in all_settled_content:
         if other_gid == gid:
             continue
         if re.search(pattern, other_content):
-            return True
+            return "resolved"
 
-    return False
+    return "unresolved"
 
 
 def audit(root=None):
@@ -70,7 +92,7 @@ def audit(root=None):
     root = root or os.getcwd()
     settled_dir = os.path.join(root, ".chanlun", "genealogy", "settled")
     if not os.path.isdir(settled_dir):
-        return {"total_actions": 0, "unresolved": 0, "items": []}
+        return {"total_actions": 0, "unresolved": 0, "superseded": 0, "items": []}
 
     files = sorted(glob.glob(os.path.join(settled_dir, "*.md")))
 
@@ -78,14 +100,17 @@ def audit(root=None):
     all_content = []
     for fp in files:
         with open(fp, encoding="utf-8") as f:
-            m = re.search(r'^id:\s*["\']?(\d{3})["\']?', f.read(), re.MULTILINE)
+            content = f.read()
+        m = re.search(r'^id:\s*["\']?(\d{3})["\']?', content, re.MULTILINE)
         gid = m.group(1) if m else os.path.basename(fp)[:3]
-        with open(fp, encoding="utf-8") as f:
-            all_content.append((gid, f.read()))
+        all_content.append((gid, content))
+
+    neg_map = load_negation_map(settled_dir)
 
     items = []
     total = 0
     unresolved = 0
+    superseded = 0
 
     for fp in files:
         gid, actions = extract_downstream_actions(fp)
@@ -93,22 +118,26 @@ def audit(root=None):
             continue
         for action in actions:
             total += 1
-            resolved = check_action_resolved(action["text"], gid, all_content)
-            if not resolved:
+            status = check_action_resolved(action["text"], gid, all_content, neg_map)
+            if status == "superseded":
+                superseded += 1
+            elif status == "unresolved":
                 unresolved += 1
-                items.append({
-                    "genealogy_id": gid,
-                    "action_index": action["index"],
-                    "text": action["text"],
-                    "status": "unresolved",
-                })
+            items.append({
+                "genealogy_id": gid,
+                "action_index": action["index"],
+                "text": action["text"],
+                "status": status,
+            })
 
+    resolved = total - unresolved - superseded
     return {
         "total_actions": total,
         "unresolved": unresolved,
-        "resolved": total - unresolved,
-        "execution_rate": f"{(total - unresolved) / total * 100:.0f}%" if total else "N/A",
-        "items": items,
+        "superseded": superseded,
+        "resolved": resolved,
+        "execution_rate": f"{resolved / total * 100:.0f}%" if total else "N/A",
+        "items": [i for i in items if i["status"] != "resolved"],
     }
 
 
@@ -122,6 +151,8 @@ def main():
 
     if args.summary:
         print(f"下游推论: {report['total_actions']} 总计, "
+              f"{report['resolved']} 已解决, "
+              f"{report['superseded']} superseded, "
               f"{report['unresolved']} 未解决, "
               f"执行率 {report['execution_rate']}")
     else:

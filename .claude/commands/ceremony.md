@@ -53,11 +53,11 @@ Task(name="{workstation.name 简写}", subagent_type="general-purpose", team_nam
 如果 `workstations` 为空：输出 `[020号反转] 无新区分可产出——系统干净终止`，不执行步骤 3-4。**但仍必须更新 session + commit**（记录"干净终止"状态）。
 
 如果 `workstations` 非空但全部状态含"待 Gemini decide"或"长期"：
-1. 输出 `[阻塞] N 个工位全部需要外部决断（Gemini/人类），无可自主推进的工位`
-2. 列出每个工位及其阻塞原因
-3. 不 spawn 蜂群，不执行步骤 3-4
-4. **更新 session 文件**（记录阻塞状态 + 时间戳 + HEAD）**→ commit**
-5. 这不是"干净终止"——是显式阻塞，下次 ceremony 会再次检测到这些工位
+1. "待 Gemini decide" 的工位 → **不是阻塞**，直接路由 Gemini（041号：选择/语法记录路由 Gemini，不等待人类）
+2. "长期"工位 → 不 spawn，保留在 session 遗留项
+3. 如果路由 Gemini 后仍有可执行工位 → spawn 蜂群执行
+4. 如果只剩"长期"工位 → 输出 `[阻塞] 仅剩长期工程项，无可自主推进的工位`
+5. **更新 session + commit**（持久化不变量）
 
 **持久化不变量**：ceremony 的每条退出路径（spawn 蜂群 / 干净终止 / 显式阻塞）都必须以 session 更新 + commit 结束。没有例外。
 
@@ -98,11 +98,15 @@ spawn 完成后，**立即调用 `TaskList`** 查看任务状态。然后进入�
 
 ## 绝对禁止
 
-- **除步骤 1 外不运行任何 Bash**（不运行 pytest、git、cat、grep）
+- **全生命周期禁止额外 Bash**，以下白名单例外（077-C，Gemini decide 选项B）：
+  - `python scripts/ceremony_scan.py`（步骤 1）
+  - `git add` / `git commit`（持久化不变量）
+  - session 文件写入（增量持久化）
 - **不运行额外的 Read/Glob**（所有信息已在 JSON 中）
 - **不输出确认请求**（不问"是否正确"、"待确认"）
 - **不输出等待信号**
 - **不用 Explore agent 替代 Task**——Explore 是只读搜索工具，不是蜂群节点
+- 白名单膨胀超过 5 项时需重新审视 ceremony 设计
 
 ## 谱系引用
 
