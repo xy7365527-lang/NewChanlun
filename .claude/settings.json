@@ -126,7 +126,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/recursive-guard.sh"
+            "command": ".claude/hooks/function-length-guard.sh"
           }
         ]
       },

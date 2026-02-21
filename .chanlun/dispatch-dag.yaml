@@ -2,7 +2,8 @@
 # 声明式工位分派规范（DAG 拓扑版 + 事件驱动 skill 架构）
 #
 # 设计原则：
-#   1. 线性 dispatch-spec → 严格 DAG（068号：偏序集，非连续流形）
+#   1. 缠论专用 DAG：event_skill_map + system_nodes 构成严格偏序集（068号）
+#      platform_layer 是 ECC 工程底座，不受缠论 DAG 约束——系统是"核心 DAG + 外围工具层"混合拓扑
 #   2. 结构能力 = skill（事件驱动），不是 teammate（075号）
 #   3. 结晶工位 = 唯一合法汇点（Terminal Sink）
 #   4. 子蜂群分形模板实例化（069号：递归拓扑异步自指化）
@@ -299,6 +300,9 @@ nodes:
   # 这些 agent 不在 event_skill_map 中——它们是通用工程能力，
   # 通过 Claude Code 的 Task tool subagent_type 按需调用，不属于缠论专用 DAG。
   # 在此声明是为消除拓扑外部性（089号：孤岛消除）。
+  # ⚠ 092号审计澄清：platform_layer 不受缠论 DAG 偏序约束，形成"外围工具层"。
+  # 系统拓扑 = 核心 DAG（event_skill_map + system_nodes）+ 外围工具层（platform_layer）。
+  # 这是混合拓扑的设计意图，不是"暗路由"缺口。
   platform_layer:
     - id: architect
       type: platform
