@@ -17,7 +17,7 @@ provenance: "[新缠论]"
 # 084 — 全面孤岛审计：体系声明-能力缺口（Gemini 异质质询）
 
 **类型**: 矛盾发现
-**状态**: 生成态
+**状态**: 已结算
 **日期**: 2026-02-21
 **negation_source**: heterogeneous（Gemini 3.1 Pro Preview 异质质询）
 **negation_form**: expansion（重构后的声明能力向多个维度扩张，但实际连接未跟上）
