@@ -250,7 +250,7 @@ fi
 PROOF_REQUIRED=0
 PROOF_LOCATIONS=""
 if [ -d "spec" ] || [ -d "src" ] || [ -d ".chanlun" ]; then
-    PROOF_SCAN=$(grep -rn "@proof-required" spec/ src/ .chanlun/ 2>/dev/null | grep -v '/genealogy/settled/' | grep -v 'README.md' | grep -v 'dispatch-spec.yaml' | grep -v 'tags:.*@proof-required' | grep -v '/sessions/' || true)
+    PROOF_SCAN=$(grep -rn "@proof-required" spec/ src/ .chanlun/ 2>/dev/null | grep -v '/genealogy/settled/' | grep -v 'README.md' | grep -v 'dispatch-spec.yaml' | grep -v 'dispatch-dag.yaml' | grep -v 'tags:.*@proof-required' | grep -v '/sessions/' || true)
     if [ -n "$PROOF_SCAN" ]; then
         PROOF_REQUIRED=$(echo "$PROOF_SCAN" | wc -l)
         PROOF_LOCATIONS=$(echo "$PROOF_SCAN" | head -5 | while IFS= read -r line; do
