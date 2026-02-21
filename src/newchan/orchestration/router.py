@@ -1,6 +1,6 @@
 """orchestration/router.py — 声明式事件路由匹配器
 
-读取 dispatch-spec.yaml 中的 orchestration_protocol.routes，
+读取 dispatch-dag.yaml 中的 orchestration_protocol.routes，
 提供 match_event() 纯函数进行路由匹配。不执行动作——执行由调用方负责。
 """
 
@@ -40,13 +40,13 @@ class Route:
 
 
 def load_routes(spec_path: Path | str) -> tuple[Route, ...]:
-    """从 dispatch-spec.yaml 加载 orchestration_protocol.routes。
+    """从 dispatch-dag.yaml 加载 orchestration_protocol.routes。
 
     返回按 priority 排序的不可变元组。
     """
     path = Path(spec_path)
     if not path.exists():
-        msg = f"dispatch-spec.yaml not found: {path}"
+        msg = f"dispatch-dag.yaml not found: {path}"
         raise FileNotFoundError(msg)
 
     with path.open(encoding="utf-8") as f:
@@ -54,7 +54,7 @@ def load_routes(spec_path: Path | str) -> tuple[Route, ...]:
 
     protocol = data.get("orchestration_protocol")
     if protocol is None:
-        msg = "orchestration_protocol section not found in dispatch-spec.yaml"
+        msg = "orchestration_protocol section not found in dispatch-dag.yaml"
         raise ValueError(msg)
 
     raw_routes = protocol.get("routes", [])

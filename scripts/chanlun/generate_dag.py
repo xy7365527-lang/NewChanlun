@@ -6,7 +6,7 @@ from pathlib import Path
 
 import yaml
 
-ROOT = Path(__file__).resolve().parent.parent / ".chanlun" / "genealogy"
+ROOT = Path(__file__).resolve().parent.parent.parent / ".chanlun" / "genealogy"
 DIRS = ["settled", "pending"]
 
 

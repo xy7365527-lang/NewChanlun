@@ -41,7 +41,7 @@ print(json.loads(sys.stdin.read()).get('cwd', '.'))
 " 2>/dev/null || echo ".")
 cd "$CWD" 2>/dev/null || true
 
-SCRIPT="tmp/validate_dag.py"
+SCRIPT="scripts/chanlun/validate_dag.py"
 DAG=".chanlun/genealogy/dag.yaml"
 
 # Skip if dag.yaml or validation script doesn't exist yet

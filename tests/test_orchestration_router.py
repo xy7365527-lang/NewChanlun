@@ -70,7 +70,7 @@ MINIMAL_SPEC = textwrap.dedent("""\
 
 @pytest.fixture()
 def spec_file(tmp_path: Path) -> Path:
-    p = tmp_path / "dispatch-spec.yaml"
+    p = tmp_path / "dispatch-dag.yaml"
     p.write_text(MINIMAL_SPEC, encoding="utf-8")
     return p
 
