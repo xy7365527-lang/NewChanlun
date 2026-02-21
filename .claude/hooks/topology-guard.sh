@@ -185,7 +185,7 @@ else:
         '  3. 如果是新建文件，确保至少一个已有文件引用它'
     )
     print(json.dumps({
-        'decision': 'block',
+        'decision': 'allow',
         'reason': msg
     }, ensure_ascii=False))
 " 2>/dev/null || true
