@@ -75,9 +75,9 @@ tensions_with: ["012"]
 - 显式邻接：作者写谱系时已识别的语义关联
 - Hub节点：跨域桥接器，防止遗漏跨域张力
 
-### 邻接图索引
+### 邻接图索引（已废弃）
 
-新增 `.chanlun/genealogy/adjacency-index.yaml`，标准化关系类型枚举（derives_from / resolves / relates_to / sibling_of / supersedes），每次写入后自动更新。
+~~新增 `.chanlun/genealogy/adjacency-index.yaml`~~。手动维护不可持续（覆盖 001-043，实际 80+ 条）。已 deprecated 并删除。替代方案：genealogist 直接读各谱系条目的 links 字段。
 
 ### "深度张力待审"状态
 
@@ -108,7 +108,7 @@ status: [生成态 | 已结算 | 深度张力待审]
 
 - `.claude/agents/genealogist.md`：增加递归深度限制和范围检查逻辑
 - `.claude/skills/meta-orchestration/references/genealogy-template.md`：related_records 从 parent/children 改为标准化 links
-- 新增 `.chanlun/genealogy/adjacency-index.yaml`
+- ~~新增 `.chanlun/genealogy/adjacency-index.yaml`~~（已废弃并删除）
 - `CLAUDE.md`：注册"深度张力待审"状态
 
 ## 实施记录

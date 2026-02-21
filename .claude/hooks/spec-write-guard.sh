@@ -49,7 +49,7 @@ cwd = sys.argv[2]
 core_patterns = [
     (r'(^|/)CLAUDE\.md$', 'CLAUDE.md'),
     (r'(^|/)\.chanlun/dispatch-dag\.yaml$', 'dispatch-dag.yaml'),
-    (r'(^|/)\.chanlun/dispatch-spec\.yaml$', 'dispatch-spec.yaml'),
+    (r'(^|/)\.chanlun/dispatch-dag\.yaml$', 'dispatch-dag.yaml'),
     (r'(^|/)\.chanlun/genealogy/settled/.*\.md$', '已结算谱系'),
     (r'(^|/)\.chanlun/definitions/.*\.md$', '定义文件'),
     (r'(^|/)\.claude/agents/.*\.md$', 'agent定义'),

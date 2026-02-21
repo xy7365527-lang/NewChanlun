@@ -17,7 +17,7 @@ cd "$cwd" 2>/dev/null || true
 # 057号谱系：flag 由框架自动管理（stop-guard 第二次 block 时自动清除）
 mkdir -p .chanlun 2>/dev/null || true
 touch .chanlun/.ceremony-in-progress
-rm -f .chanlun/.stop-guard-counter .chanlun/.ceremony-blocked-once 2>/dev/null || true
+rm -f .chanlun/.stop-guard-counter .chanlun/.ceremony-blocked-once .chanlun/.meta-observer-executed .chanlun/.meta-observer-guard-counter 2>/dev/null || true
 
 # ─── 安全 JSON 输出 ───
 # 用 python json.dumps 保证转义正确，避免裸拼接导致畸形 JSON
