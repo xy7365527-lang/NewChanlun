@@ -8,6 +8,7 @@ depends_on: []
 related: ["006", "007", "008"]
 negated_by: []
 negates: []
+tensions_with: ["007", "008"]
 ---
 
 # 概念结算 009：盘整的实体/标签双重性 + 二分法=三分法盘整

@@ -1,5 +1,5 @@
 # 谱系 DAG — 自动生成，勿手动编辑
-# 生成时间: 2026-02-20T23:57:26
+# 生成时间: 2026-02-21T00:37:50
 # 来源: .chanlun/genealogy/{settled,pending}/*.md frontmatter
 
 nodes:
@@ -666,8 +666,50 @@ edges:
     to: '033'
   - from: '071'
     to: '036'
-  triggered: []
-  derived: []
+  triggered:
+  - from: '005'
+    to: 005a
+  - from: '005'
+    to: 005b
+  - from: 019
+    to: 019a
+  - from: 019
+    to: 019b
+  - from: 019
+    to: 019c
+  - from: 019
+    to: 019d
+  - from: 019d
+    to: '020'
+  - from: '030'
+    to: 030a
+  derived:
+  - from: '010'
+    to: '007'
+  - from: '010'
+    to: 008
+  - from: '010'
+    to: 009
+  - from: '011'
+    to: 008
+  - from: 020a
+    to: '020'
+  - from: '024'
+    to: 005a
+  - from: '024'
+    to: 005b
+  - from: '036'
+    to: '016'
+  - from: '036'
+    to: '032'
+  - from: '036'
+    to: '033'
+  - from: '036'
+    to: '034'
+  - from: '063'
+    to: '020'
+  - from: '063'
+    to: '062'
   negates:
   - from: 068
     to: '065'
@@ -1202,5 +1244,26 @@ edges:
   - between:
     - 069
     - '071'
-  tensions_with: []
+  tensions_with:
+  - between:
+    - '007'
+    - 008
+  - between:
+    - '007'
+    - 009
+  - between:
+    - 008
+    - 009
+  - between:
+    - '012'
+    - '013'
+  - between:
+    - '012'
+    - 019d
+  - between:
+    - '062'
+    - '065'
+  - between:
+    - '064'
+    - '065'
   negated_by: []

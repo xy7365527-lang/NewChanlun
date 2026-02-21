@@ -8,6 +8,7 @@ depends_on: ["020", "053", "060"]
 related: ["012"]
 negated_by: []
 negates: []
+tensions_with: ["065"]
 ---
 
 # 062: 异质性作为 Sinthome——对 060号 3+1 架构的扬弃

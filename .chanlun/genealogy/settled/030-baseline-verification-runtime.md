@@ -8,6 +8,7 @@ depends_on: ["013", "029"]
 related: ["005"]
 negated_by: []
 negates: []
+triggered: ["030a"]
 ---
 
 # 030 — 定义基底校验机制（运行时抽检）

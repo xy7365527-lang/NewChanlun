@@ -8,6 +8,7 @@ depends_on: []
 related: ["005a", "005b", "023"]
 negated_by: []
 negates: []
+derived: ["005a", "005b"]
 ---
 
 # 024 C-2 三层退化连锁检测：语法自判定原则

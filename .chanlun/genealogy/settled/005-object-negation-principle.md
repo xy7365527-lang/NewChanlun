@@ -8,6 +8,7 @@ depends_on: []
 related: []
 negated_by: []
 negates: []
+triggered: ["005a", "005b"]
 ---
 
 # 对象否定对象原则 005（已分离）

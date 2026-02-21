@@ -8,6 +8,8 @@ depends_on: ["012"]
 related: ["013", "016", "017", "019", "020"]
 negated_by: []
 negates: []
+triggered: ["020"]
+tensions_with: ["012"]
 ---
 
 # 019d — 谱系张力检查的递归与范围问题

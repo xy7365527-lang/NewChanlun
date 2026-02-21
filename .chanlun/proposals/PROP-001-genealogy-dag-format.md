@@ -18,7 +18,7 @@ changes: |
 approval_condition: |
   - genealogist 工位确认格式与现有谱系兼容
   - quality-guard 确认不破坏现有谱系读取流程
-status: approved-with-amendments
+status: implemented
 review_date: "2026-02-21"
 reviewer: "workstation-B (genealogist + quality-guard)"
 review_verdict: "核心设计合理，3处必须修正后方可实施"

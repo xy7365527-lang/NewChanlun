@@ -8,6 +8,7 @@ depends_on: []
 related: ["004", "010", "012"]
 negated_by: []
 negates: []
+tensions_with: ["012"]
 ---
 
 # 语法记录 013：蜂群工位二分法——结构工位与任务工位

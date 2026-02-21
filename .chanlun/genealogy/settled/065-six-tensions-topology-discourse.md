@@ -8,6 +8,7 @@ depends_on: ["020", "062", "063", "064"]
 related: ["005b"]
 negated_by: []
 negates: []
+tensions_with: ["062", "064"]
 ---
 
 # 065: 六条未解决张力——拓扑连续性 vs 断裂性的统一矛盾
