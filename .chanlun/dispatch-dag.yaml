@@ -17,7 +17,7 @@
 
 version: "3.1"
 provenance: "[新缠论]"
-genealogy_ref: "072, 068, 069, 075-structural-to-skill, 081-swarm-continuity-strategy-d, 089-aufhebung-audit"
+genealogy_ref: "072, 068, 069, 075-structural-to-skill, 081-swarm-continuity-strategy-d, 089-aufhebung-audit, 093-five-constraints-topology"
 
 # ═══════════════════════════════════════════════════════════════
 # 0. 基因组层（089号：元编排的严格扬弃——Aufhebung）
@@ -121,7 +121,7 @@ genealogical_coordinates:
     negation_source: "异质质询产出（外部对象否定）"
   claude-challenger:
     origin: "062-gemini-re-challenge"
-    domain: "反向质询（癔症话语）"
+    domain: "反向质询（异质验证——约束4，093号）"
     negation_source: "不可消化点（外部对象否定）"
   skill-crystallizer:
     origin: "043-self-growing-loop"
