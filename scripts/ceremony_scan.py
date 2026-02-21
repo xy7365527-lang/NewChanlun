@@ -7,8 +7,13 @@
   python scripts/ceremony_scan.py --workstations "任务A" "任务B"  # 指定业务工位
 
 075号更新：structural_nodes → required_skills（事件驱动 skill 架构）
+079号更新：background_noise 降级 + 业务层任务发现（no_work_fallback）
 """
-import json, os, glob, yaml, sys, argparse
+import json, os, glob, yaml, sys, argparse, subprocess
+
+
+BACKGROUND_NOISE_STATUSES = {"background_noise", "观察项", "背景噪音"}
+TERMINAL_STATUSES = {"已修复", "resolved", "background_noise"}
 
 
 def get_required_skills(root):
@@ -29,7 +34,7 @@ def get_required_skills(root):
 
 
 def get_session_workstations(root):
-    """从最新 session 提取遗留工位。"""
+    """从最新 session 提取遗留工位，过滤 background_noise。"""
     workstations = []
     sessions = glob.glob(os.path.join(root, ".chanlun/sessions/*-session.md"))
     session_name = None
@@ -45,14 +50,72 @@ def get_session_workstations(root):
                 continue
             if in_legacy and line.startswith("|") and "P" in line:
                 parts = [c.strip() for c in line.split("|") if c.strip()]
-                if len(parts) >= 3 and parts[2] != "已修复" and "✅" not in parts[2]:
-                    workstations.append({"priority": parts[0], "name": parts[1], "status": parts[2]})
+                if len(parts) >= 3:
+                    status = parts[2]
+                    # 079号：过滤 background_noise 和已终结状态
+                    if status in TERMINAL_STATUSES or "✅" in status or "—" in parts[0]:
+                        continue
+                    # 过滤含 background_noise 关键词的状态
+                    if any(kw in status.lower() for kw in BACKGROUND_NOISE_STATUSES):
+                        continue
+                    workstations.append({
+                        "priority": parts[0],
+                        "name": parts[1],
+                        "status": status,
+                    })
             elif in_legacy and line.startswith("#"):
                 in_legacy = False
     # pending 谱系
     for p in glob.glob(os.path.join(root, ".chanlun/genealogy/pending/*.md")):
-        workstations.append({"priority": "P0", "name": f"pending:{os.path.basename(p)}", "status": "pending"})
+        workstations.append({
+            "priority": "P0",
+            "name": f"pending:{os.path.basename(p)}",
+            "status": "pending",
+        })
     return session_name, workstations
+
+
+def discover_business_tasks(root):
+    """no_work_fallback：扫描测试失败、spec 合规等业务层任务。
+
+    对应 dispatch-dag ceremony_sequence.no_work_fallback：
+    "扫描 TODO/覆盖率/spec合规/谱系张力，产出至少一个工位"
+    """
+    tasks = []
+
+    # 1. 测试失败扫描
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "pytest",
+             "--ignore=tests/test_cli_gateway_plot.py",
+             "--ignore=tests/test_data_databento.py",
+             "--ignore=tests/test_mcp_bridge.py",
+             "--tb=no", "-q"],
+            cwd=root, capture_output=True, text=True, timeout=120,
+        )
+        output = result.stdout + result.stderr
+        # 解析 "N failed" 行
+        for line in output.split("\n"):
+            if "failed" in line and ("passed" in line or "error" in line):
+                parts = line.split(",")
+                for part in parts:
+                    part = part.strip()
+                    if "failed" in part:
+                        count = part.split()[0]
+                        tasks.append({
+                            "priority": "P1",
+                            "name": f"修复 {count} 个测试失败",
+                            "status": "pytest 发现",
+                            "source": "test_failures",
+                        })
+                        break
+    except Exception:
+        pass
+
+    # 2. 测试覆盖率（如果 pytest-cov 可用）
+    # 暂不实现，避免 scan 耗时过长
+
+    return tasks
 
 
 def main():
@@ -79,6 +142,12 @@ def main():
     session_name, workstations = get_session_workstations(root)
     result["mode"] = "warm_start" if session_name else "cold_start"
     result["session"] = session_name
+
+    # 079号：如果 session 遗留工位为空或全部是背景噪音，执行 no_work_fallback
+    if not workstations:
+        workstations = discover_business_tasks(root)
+        result["fallback_triggered"] = True
+
     result["workstations"] = workstations
 
     # 定义/谱系计数
@@ -102,11 +171,11 @@ def main():
                 "unresolved": da["unresolved"],
                 "execution_rate": da["execution_rate"],
             }
-    except Exception:
-        pass
+    except Exception as exc:
+        # Keep scan resilient, but do not hide failures.
+        result["downstream_actions_error"] = f"{type(exc).__name__}: {exc}"
 
     try:
-        import subprocess
         result["head"] = subprocess.check_output(
             ["git", "rev-parse", "--short", "HEAD"], cwd=root, text=True).strip()
     except Exception:

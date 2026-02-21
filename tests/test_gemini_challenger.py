@@ -64,7 +64,7 @@ class TestChallenge:
             assert result.mode == "challenge"
             assert result.subject == "中枢定义"
             assert result.response == "无否定。检查了定义一致性。"
-            assert result.model == "gemini-3-pro-preview"
+            assert result.model == "gemini-3.1-pro-preview"
 
     def test_calls_api_with_correct_model(self) -> None:
         with patch("newchan.gemini_challenger.genai") as mock_genai:
@@ -132,7 +132,7 @@ class TestDecide:
             assert result.mode == "decide"
             assert result.subject == "是否采用递归级别"
             assert result.response == "选择方案A。推理：一致性更高。"
-            assert result.model == "gemini-3-pro-preview"
+            assert result.model == "gemini-3.1-pro-preview"
 
     def test_uses_orchestrator_system_prompt(self) -> None:
         with patch("newchan.gemini_challenger.genai") as mock_genai:
@@ -176,7 +176,7 @@ class TestDecide:
             c = GeminiChallenger(api_key="test")
             result = c.decide("test subject")
 
-            assert result.model == "gemini-2.5-pro"
+            assert result.model == "gemini-3-pro-preview"
             assert result.response == "fallback decide"
             assert result.mode == "decide"
 
@@ -201,7 +201,7 @@ class TestDerive:
             assert result.mode == "derive"
             assert result.subject == "笔的递归完备性"
             assert result.response == "### 4. Conclusion\nPROVEN. Q.E.D."
-            assert result.model == "gemini-3-pro-preview"
+            assert result.model == "gemini-3.1-pro-preview"
 
     def test_uses_derive_system_prompt(self) -> None:
         with patch("newchan.gemini_challenger.genai") as mock_genai:
@@ -245,7 +245,7 @@ class TestDerive:
             c = GeminiChallenger(api_key="test")
             result = c.derive("test statement")
 
-            assert result.model == "gemini-2.5-pro"
+            assert result.model == "gemini-3-pro-preview"
             assert result.response == "fallback derive"
             assert result.mode == "derive"
 
@@ -365,7 +365,7 @@ class TestFallback:
             c = GeminiChallenger(api_key="test")
             result = c.challenge("test subject")
 
-            assert result.model == "gemini-2.5-pro"
+            assert result.model == "gemini-3-pro-preview"
             assert result.response == "fallback response"
             assert mock_client.models.generate_content.call_count == 2
 
@@ -380,7 +380,7 @@ class TestFallback:
             c = GeminiChallenger(api_key="test")
             result = c.challenge("test")
 
-            assert result.model == "gemini-3-pro-preview"
+            assert result.model == "gemini-3.1-pro-preview"
             assert result.response == "primary ok"
 
     def test_both_fail_raises(self) -> None:

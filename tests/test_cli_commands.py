@@ -20,6 +20,15 @@ if "newchan.data_ibkr" not in sys.modules:
     sys.modules["newchan.data_ibkr"] = _stub_ibkr
     _newchan_pkg.data_ibkr = _stub_ibkr  # type: ignore[attr-defined]
 
+# Pre-inject a stub for newchan.data_databento so that patch() can resolve
+# the dotted path even when databento is not installed.
+if "newchan.data_databento" not in sys.modules:
+    _stub_databento = types.ModuleType("newchan.data_databento")
+    _stub_databento.fetch_and_cache = MagicMock  # type: ignore[attr-defined]
+    _stub_databento.DEFAULT_SYMBOLS = ["CL", "GC", "ES", "NQ", "SI", "AMD", "NVDA"]  # type: ignore[attr-defined]
+    sys.modules["newchan.data_databento"] = _stub_databento
+    _newchan_pkg.data_databento = _stub_databento  # type: ignore[attr-defined]
+
 from newchan.cli import (
     _cmd_fetch,
     _cmd_fetch_db,
