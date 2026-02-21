@@ -16,14 +16,14 @@
 # === 062号 ===
 062-1: resolved    # CLAUDE.md 已更新 (069号降级异步自指)
 062-2: resolved    # dispatch-dag.yaml genealogical_coordinates 节已存在
-062-3: long_term   # Guard 结晶为统一异质审计协议——长期工程项
+062-3: background_noise   # Guard 统一异质审计协议——079号降级为背景噪音
 062-4: resolved    # 060号文件在 settled/ 中保留
 
 # === 064号 ===
-064-1: long_term   # 062号 NegationObject 定义修正——概念层，需 Gemini decide
+064-1: resolved    # 080号谱系执行：NegationObject 从德勒兹式修正为拉康式（078号 Gemini decide）
 064-2: resolved    # claude-challenger.md 已创建 + dispatch-dag 有 claude-challenger skill
-064-3: long_term   # 四种话语映射工程化——长期工程项
-064-4: long_term   # 卢麒元四矩阵降级——概念层，长期
+064-3: background_noise   # 四种话语映射工程化——079号降级为背景噪音
+064-4: background_noise   # 卢麒元四矩阵降级——079号降级为背景噪音
 
 # === 069号 ===
 069-1: resolved    # dispatch-dag.yaml v3.0 已实现
@@ -33,9 +33,9 @@
 069-5: resolved    # .chanlun/genealogy/dag.yaml 存在
 
 # === 070号 ===
-070-1: long_term   # 创世 Gap "工程绕过"稳定性观察——长期观察项
-070-2: long_term   # 文本指令脆弱性系统性问题——长期观察项 (071号已结算)
-070-3: long_term   # post-commit-flow 有效性统计验证——长期观察项
+070-1: background_noise   # 创世 Gap 稳定性观察——079号降级为背景噪音
+070-2: background_noise   # 文本指令脆弱性——071号已结算 + 079号降级为背景噪音
+070-3: background_noise   # post-commit-flow 有效性验证——079号降级为背景噪音
 
 # === 075号 ===
 075-1: resolved    # ceremony.md 已更新不 spawn 结构工位
@@ -47,7 +47,7 @@
 # === 076号 ===
 076-1: resolved    # hook 幽灵引用已清理：hub-node-impact-guard(dispatch-spec→dag) + recursive-guard(注释修正)
 076-2: resolved    # dispatch-dag code-verifier 已是 structural skill
-076-3: long_term   # "下游推论靠主动认领"语法记录——待 Gemini decide
+076-3: resolved    # 079号谱系执行：下游推论=建议语法记录（078号 Gemini decide）
 
 # === 077号 ===
 077-1: resolved    # ceremony.md TaskOutput→SendMessage 修正 (v16b session)
