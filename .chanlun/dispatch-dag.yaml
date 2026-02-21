@@ -14,7 +14,7 @@
 
 version: "3.0"
 provenance: "[新缠论]"
-genealogy_ref: "072, 068, 069, 075-structural-to-skill"
+genealogy_ref: "072, 068, 069, 075-structural-to-skill, 081-swarm-continuity-strategy-d"
 
 # ═══════════════════════════════════════════════════════════════
 # 1. 谱系坐标（每个工位在谱系空间中的位置）
@@ -382,6 +382,7 @@ fractal_template:
 
 # ═══════════════════════════════════════════════════════════════
 # 6. Ceremony 序列（DAG 格式，从 dispatch-spec 直接迁移）
+# 081号更新：加入 roadmap.yaml 扫描（最高优先级来源）+ 精确化 terminate_condition
 # ═══════════════════════════════════════════════════════════════
 ceremony_sequence:
   cold_start:
@@ -404,6 +405,7 @@ ceremony_sequence:
         action: "从目标+谱系状态+代码库扫描推导任务工位"
         depends_on: ["scan-definitions", "scan-genealogy", "scan-methodology", "scan-skills"]
         scan_sources:
+          - ".chanlun/roadmap.yaml（最高优先级：active 任务直接产生工位）"  # 081号新增
           - "CLAUDE.md 目标"
           - "pending 谱系（生成态矛盾）"
           - "测试失败（新增 vs pre-existing）"
@@ -423,8 +425,10 @@ ceremony_sequence:
         action: "输出 '→ 接下来：[action]' 紧跟 tool 调用"
         depends_on: ["divine-madness"]
     terminate_condition:
-      trigger: "derive-work 扫描全部来源后仍无工位可派生"
+      # 081号精确化：必须所有来源都为空，才是真阴性干净终止
+      trigger: "roadmap 为空 AND pending 谱系为空 AND 测试全通过 AND pattern-buffer 无达标 AND 所有其他 scan_sources 为空"
       action: "输出 '[020号反转] 无新区分可产出——系统干净终止' → 停止"
+      note: "ceremony_scan.py 的 clean_terminate 字段反映此条件（081号）"
 
   warm_start:
     output_policy: "仅 recurse 节点或 terminate_condition 产出面向用户的输出"
@@ -448,6 +452,7 @@ ceremony_sequence:
         action: "从中断点+差异+代码库扫描推导任务工位"
         depends_on: ["version-diff", "genealogy-diff"]
         scan_sources:
+          - ".chanlun/roadmap.yaml（最高优先级：active 任务直接产生工位）"  # 081号新增
           - "session 中断点"
           - "version-diff 中的升级/新增项"
           - "genealogy-diff 中的新 pending"
@@ -465,8 +470,10 @@ ceremony_sequence:
         action: "输出 '→ 接下来：[action]' 紧跟 tool 调用"
         depends_on: ["divine-madness"]
     terminate_condition:
-      trigger: "derive-work 扫描全部来源后仍无工位可派生"
+      # 081号精确化：必须所有来源都为空，才是真阴性干净终止
+      trigger: "roadmap 为空 AND pending 谱系为空 AND 测试全通过 AND pattern-buffer 无达标 AND 所有其他 scan_sources 为空"
       action: "输出 '[020号反转] 无新区分可产出——系统干净终止' → 停止"
+      note: "ceremony_scan.py 的 clean_terminate 字段反映此条件（081号）"
 
 # ═══════════════════════════════════════════════════════════════
 # 7. DAG 验证规则
@@ -505,6 +512,10 @@ validation:
     - check: "crystallization_check"
       condition: "genealogist skill 的结晶检测已执行（扫描近期谱系的背驰+分型信号）"
       on_fail: "警告——可能遗漏结晶时机"
+
+    - check: "roadmap_scanned"  # 081号新增
+      condition: ".chanlun/roadmap.yaml 已被 ceremony_scan.py 读取（scan 输出中含 roadmap_tasks_found 或 roadmap 字段）"
+      on_fail: "警告——roadmap 未扫描，可能遗漏业务目标"
 
   post_commit:
     ref: ".claude/skills/meta-orchestration/references/post-commit-flow.md"
