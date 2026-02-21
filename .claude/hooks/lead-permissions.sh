@@ -19,6 +19,18 @@ case "$MODE" in
 {
   "permissions": {
     "allow": [
+      "Read",
+      "Glob",
+      "Grep",
+      "Task",
+      "SendMessage",
+      "TaskCreate",
+      "TaskList",
+      "TaskGet",
+      "TaskUpdate",
+      "TodoWrite",
+      "ToolSearch",
+      "Skill",
       "WebFetch(*)",
       "WebSearch"
     ],
@@ -56,7 +68,8 @@ RESTRICT_EOF
       "mcp__plugin_figma_figma__*",
       "mcp__plugin_greptile_greptile__*",
       "mcp__ide__*"
-    ]
+    ],
+    "deny": []
   }
 }
 RESTORE_EOF

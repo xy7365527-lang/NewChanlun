@@ -24,10 +24,9 @@ if [ -z "$NODE_ID" ]; then
 fi
 
 # Hub 节点影响表（Top 5，来自 061号 DAG 分析）
-# 输出 JSON 格式（Claude Code hooks 框架要求）
 # 使用环境变量传参给 python，避免 shell 注入
 json_allow() {
-  REASON="$1" python -c "import json,os; print(json.dumps({'decision':'allow','reason':os.environ['REASON']}))"
+  MSG="$1" python -c "import json,os; print(json.dumps({'decision':'allow','systemMessage':os.environ['MSG']}))"
 }
 
 case "$NODE_ID" in
