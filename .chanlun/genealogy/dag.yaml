@@ -518,6 +518,11 @@ nodes:
   status: 已结算
   type: 概念扬弃
   file: settled/093-five-constraints-topology.md
+- id: '094'
+  title: 两个 Gap 在五约束框架下的重新定位
+  status: 已结算
+  type: 概念重定位
+  file: settled/094-gap-reposition.md
 edges:
   depends_on:
   - from: 005a
@@ -1012,6 +1017,11 @@ edges:
     to: '069'
   - from: '093'
     to: '092'
+  # 094 depends
+  - from: '094'
+    to: '069'
+  - from: '094'
+    to: '093'
   triggered:
   - from: '005'
     to: 005a
@@ -1065,6 +1075,8 @@ edges:
     to: '073'
   - from: '088'
     to: '032'
+  - from: '093'
+    to: '062'
   related:
   - between:
     - '001'
@@ -1642,6 +1654,12 @@ edges:
   - between:
     - '093'
     - '075'
+  - between:
+    - '094'
+    - '058'
+  - between:
+    - '094'
+    - '062'
   tensions_with:
   - between:
     - '007'
@@ -1675,3 +1693,5 @@ edges:
     by: '087'
   - target: '032'
     by: '088'
+  - target: '062'
+    by: '093'

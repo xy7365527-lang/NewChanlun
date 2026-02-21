@@ -6,7 +6,7 @@ type: "语法记录"
 date: "2026-02-20"
 depends_on: ["020", "053", "060"]
 related: ["012"]
-negated_by: []
+negated_by: ["093"]  # 093号从系统物理限制独立推导出五约束有向依赖图，R.S.I映射不同构，退出活跃术语
 negates: []
 tensions_with: ["065"]
 ---
