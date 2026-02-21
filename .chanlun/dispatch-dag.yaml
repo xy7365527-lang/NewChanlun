@@ -108,23 +108,16 @@ nodes:
     - id: gemini-challenger
       type: conditional
       agent: ".claude/agents/gemini-challenger.md"
-      purpose: "异质否定源 + 编排者代理（030a/041号谱系）"
-      activation_condition:
-        - trigger: "challenge"
-          condition: "definition-lawyer 提交新定义到 .chanlun/definitions/ 后自动触发异质质询"
-          mode: "challenge"
-        - trigger: "verify"
-          condition: "spec/theorems/ 下文件发生变更时自动触发数学验证"
-          mode: "verify"
-        - trigger: "derive"
-          condition: "定理状态变为 settled 时自动触发推论生成"
-          mode: "derive"
-        - trigger: "decide"
-          condition: "系统遇到选择/语法记录类决断时"
-          mode: "decide"
-        - trigger: "manual"
-          condition: "定义处于生成态且同质质询已完成 2 轮以上"
-          mode: "challenge"
+      purpose: "异质否定源 + 编排者代理（030a/041号谱系）——作为skill被任何teammate调用"
+      activation_condition: "按需调用 python -m newchan.gemini（decide/challenge/verify/derive）"
+
+    - id: code-verifier
+      type: dominator
+      agent: ".claude/agents/code-verifier.md"
+      mandatory: true
+      spawn_phase: "post-definition-load"
+      purpose: "代码验证——pytest运行、import检查、构建验证。业务工位改代码后由code-verifier验证。"
+      tools_required: ["Read", "Bash", "Grep", "Glob", "Task", "TaskCreate", "TaskUpdate", "TaskList", "TaskGet", "SendMessage"]
 
     - id: claude-challenger
       type: conditional
