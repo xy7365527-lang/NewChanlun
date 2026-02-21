@@ -8,6 +8,7 @@ depends_on: ["020", "053", "062", "063"]
 related: ["005b"]
 negated_by: []
 negates: []
+tensions_with: ["065"]
 ---
 
 # 064: 晚期拉康拓扑学与蜂群递归——异质对话谱系

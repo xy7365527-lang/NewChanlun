@@ -8,6 +8,7 @@ depends_on: []
 related: ["005b", "010"]
 negated_by: []
 negates: []
+tensions_with: ["013", "019d"]
 ---
 
 # 方法论记录 012：谱系是发现引擎，不是记录日志

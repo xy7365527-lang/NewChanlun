@@ -144,6 +144,24 @@
             "command": ".claude/hooks/topology-guard.sh"
           }
         ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/result-package-guard.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/result-package-guard.sh"
+          }
+        ]
       }
     ]
   },

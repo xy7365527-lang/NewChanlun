@@ -8,6 +8,7 @@ depends_on: []
 related: ["006", "008", "010"]
 negated_by: []
 negates: []
+derived: ["008"]
 ---
 
 # 概念结算 011：定级别的方向——自上而下只读遍历

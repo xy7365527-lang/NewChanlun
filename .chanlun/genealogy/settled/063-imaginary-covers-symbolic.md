@@ -8,6 +8,7 @@ depends_on: ["020", "062"]
 related: []
 negated_by: []
 negates: []
+derived: ["020", "062"]
 ---
 
 # 063: 想象界覆盖符号界——020号"每层递归=一根K线"的级别口径违反

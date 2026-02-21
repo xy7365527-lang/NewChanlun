@@ -8,6 +8,7 @@ depends_on: []
 related: ["006", "007", "009"]
 negated_by: []
 negates: []
+tensions_with: ["007", "009"]
 ---
 
 # 概念结算 008：趋势确立与级别确认是独立概念

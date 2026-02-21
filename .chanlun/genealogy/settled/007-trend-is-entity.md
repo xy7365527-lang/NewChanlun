@@ -8,6 +8,7 @@ depends_on: []
 related: ["003", "006", "008", "009"]
 negated_by: []
 negates: []
+tensions_with: ["008", "009"]
 ---
 
 # 概念结算 007：趋势是独立实体对象

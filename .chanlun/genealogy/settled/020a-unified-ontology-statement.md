@@ -8,6 +8,7 @@ depends_on: ["020"]
 related: []
 negated_by: []
 negates: []
+derived: ["020"]
 ---
 
 # 020a: 同一存在论——统摄
