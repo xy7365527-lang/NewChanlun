@@ -1,7 +1,8 @@
 # USM — Unified Skill Manifest
-# 自动生成，勿手动编辑。重新生成：扫描 .claude/ 下的 commands/agents/hooks
-version: "1.0"
-generated: "2026-02-20"
+# 自动生成，勿手动编辑。重新生成：扫描 .claude/ 下的 commands/agents/hooks/skills
+# 091号审计修复：与实际 19 agents / 21 hooks / 13 commands / 6 skills 严格对齐
+version: "2.0"
+generated: "2026-02-21"
 
 skills:
   - name: build-fix
@@ -13,13 +14,13 @@ skills:
   - name: ceremony
     type: command
     file: .claude/commands/ceremony.md
-    description: "可执行仪式清单 — 蜂群启动/扩张/收缩的相位转换节点"
+    description: "Swarm₀ 启动——递归蜂群的第0层"
     status: active
 
   - name: challenge
     type: command
     file: .claude/commands/challenge.md
-    description: "异质否定质询 — 调用外部模型对指定目标进行异质否定"
+    description: "异质否定质询——调用 Gemini 对指定目标进行异质否定"
     status: active
 
   - name: checkpoint
@@ -37,13 +38,13 @@ skills:
   - name: escalate
     type: command
     file: .claude/commands/escalate.md
-    description: "矛盾上浮 — 生成标准格式的矛盾报告呈交编排者"
+    description: "矛盾上浮——生成标准格式的矛盾报告呈交编排者"
     status: active
 
   - name: inquire
     type: command
     file: .claude/commands/inquire.md
-    description: "质询序列 — 对一个结果包执行四步质询"
+    description: "质询序列——对一个结果包执行四步质询"
     status: active
 
   - name: plan
@@ -61,7 +62,7 @@ skills:
   - name: ritual
     type: command
     file: .claude/commands/ritual.md
-    description: "定义广播仪式 — 分离是自治的，结算是仪式"
+    description: "定义广播仪式——分离是自治的，结算是仪式"
     status: active
 
   - name: tdd
@@ -83,155 +84,206 @@ skills:
     status: active
 
 agents:
-  - name: architect
-    type: agent
-    file: .claude/agents/architect.md
-    description: "System design with definition settlement awareness"
-    status: active
-
-  - name: build-error-resolver
-    type: agent
-    file: .claude/agents/build-error-resolver.md
-    description: "Build and TypeScript error resolution specialist"
-    status: active
-
-  - name: code-reviewer
-    type: agent
-    file: .claude/agents/code-reviewer.md
-    description: "Code review with concept-layer interrogation"
-    status: active
-
-  - name: database-reviewer
-    type: agent
-    file: .claude/agents/database-reviewer.md
-    description: "PostgreSQL database specialist for query optimization, schema design, security"
-    status: active
-
-  - name: doc-updater
-    type: agent
-    file: .claude/agents/doc-updater.md
-    description: "Documentation and codemap specialist"
-    status: active
-
-  - name: e2e-runner
-    type: agent
-    file: .claude/agents/e2e-runner.md
-    description: "End-to-end testing specialist using Vercel Agent Browser with Playwright fallback"
-    status: active
-
-  - name: gemini-challenger
-    type: agent
-    file: .claude/agents/gemini-challenger.md
-    description: "Gemini 异质质询代理工位 + 编排者代理"
-    status: active
-
+  # --- event_skill_map 业务节点（9个） ---
   - name: genealogist
     type: agent
     file: .claude/agents/genealogist.md
-    description: "谱系维护工位 — 谱系写入、张力检查、回溯扫描"
-    status: active
-
-  - name: go-build-resolver
-    type: agent
-    file: .claude/agents/go-build-resolver.md
-    description: "Go build, vet, and compilation error resolution specialist"
-    status: active
-
-  - name: go-reviewer
-    type: agent
-    file: .claude/agents/go-reviewer.md
-    description: "Expert Go code reviewer specializing in idiomatic Go"
-    status: active
-
-  - name: meta-lead
-    type: agent
-    file: .claude/agents/meta-lead.md
-    description: "蜂群中断路由器 — 收中断、扫文件系统、出轴线汇报"
-    status: active
-
-  - name: meta-observer
-    type: agent
-    file: .claude/agents/meta-observer.md
-    description: "元规则观测工位 — 监控元编排自身的进化"
-    status: active
-
-  - name: planner
-    type: agent
-    file: .claude/agents/planner.md
-    description: "Feature implementation planning with definition settlement awareness"
-    status: active
-
-  - name: python-reviewer
-    type: agent
-    file: .claude/agents/python-reviewer.md
-    description: "Expert Python code reviewer specializing in PEP 8 compliance"
+    dag_position: event_skill_map
+    description: "谱系维护工位——谱系写入、张力检查、回溯扫描"
     status: active
 
   - name: quality-guard
     type: agent
     file: .claude/agents/quality-guard.md
-    description: "质量守卫工位 — 结果包六要素、谱系引用、代码违规检查"
+    dag_position: event_skill_map
+    description: "质量守卫工位——结果包六要素、谱系引用、代码违规检查"
     status: active
 
-  - name: refactor-cleaner
+  - name: meta-observer
     type: agent
-    file: .claude/agents/refactor-cleaner.md
-    description: "Dead code cleanup and consolidation specialist"
+    file: .claude/agents/meta-observer.md
+    dag_position: event_skill_map
+    description: "元规则观测工位——监控元编排自身的进化"
     status: active
 
-  - name: security-reviewer
+  - name: code-verifier
     type: agent
-    file: .claude/agents/security-reviewer.md
-    description: "Security vulnerability detection and remediation specialist"
+    file: .claude/agents/code-verifier.md
+    dag_position: event_skill_map
+    description: "代码验证工位——代码变更后测试验证"
     status: active
 
   - name: skill-crystallizer
     type: agent
     file: .claude/agents/skill-crystallizer.md
-    description: "结晶工位 — pattern-buffer 达标模式结晶为 skill 文件"
+    dag_position: event_skill_map
+    description: "结晶工位——pattern-buffer 达标模式结晶为 skill 文件"
+    status: active
+
+  - name: gemini-challenger
+    type: agent
+    file: .claude/agents/gemini-challenger.md
+    dag_position: event_skill_map
+    description: "Gemini 异质质询代理工位 + 编排者代理"
+    status: active
+
+  - name: claude-challenger
+    type: agent
+    file: .claude/agents/claude-challenger.md
+    dag_position: event_skill_map
+    description: "反向质询工位——对 Gemini 产出再质询"
     status: active
 
   - name: source-auditor
     type: agent
     file: .claude/agents/source-auditor.md
-    description: "源头审计工位 — 概念溯源标注和原文考古"
-    status: active
-
-  - name: tdd-guide
-    type: agent
-    file: .claude/agents/tdd-guide.md
-    description: "Test-driven development with contradiction awareness"
+    dag_position: event_skill_map
+    description: "源头审计工位——概念溯源标注和原文考古"
     status: active
 
   - name: topology-manager
     type: agent
     file: .claude/agents/topology-manager.md
-    description: "蜂群拓扑管理工位 — 监控 teammates 状态，判断扩张/收缩"
+    dag_position: event_skill_map
+    description: "蜂群拓扑管理工位——监控 teammates 状态，判断扩张/收缩"
+    status: active
+
+  # --- platform_layer ECC 底座（10个） ---
+  - name: architect
+    type: agent
+    file: .claude/agents/architect.md
+    dag_position: platform_layer
+    description: "系统架构设计（ECC 工程底座）"
+    status: active
+
+  - name: planner
+    type: agent
+    file: .claude/agents/planner.md
+    dag_position: platform_layer
+    description: "实现规划（ECC 工程底座）"
+    status: active
+
+  - name: tdd-guide
+    type: agent
+    file: .claude/agents/tdd-guide.md
+    dag_position: platform_layer
+    description: "测试驱动开发（ECC 工程底座）"
+    status: active
+
+  - name: code-reviewer
+    type: agent
+    file: .claude/agents/code-reviewer.md
+    dag_position: platform_layer
+    description: "代码审查（ECC 工程底座）"
+    status: active
+
+  - name: python-reviewer
+    type: agent
+    file: .claude/agents/python-reviewer.md
+    dag_position: platform_layer
+    description: "Python 代码审查（ECC 工程底座）"
+    status: active
+
+  - name: security-reviewer
+    type: agent
+    file: .claude/agents/security-reviewer.md
+    dag_position: platform_layer
+    description: "安全审查（ECC 工程底座）"
+    status: active
+
+  - name: refactor-cleaner
+    type: agent
+    file: .claude/agents/refactor-cleaner.md
+    dag_position: platform_layer
+    description: "重构与死代码清理（ECC 工程底座）"
+    status: active
+
+  - name: doc-updater
+    type: agent
+    file: .claude/agents/doc-updater.md
+    dag_position: platform_layer
+    description: "文档更新（ECC 工程底座）"
+    status: active
+
+  - name: meta-lead
+    type: agent
+    file: .claude/agents/meta-lead.md
+    dag_position: platform_layer
+    description: "蜂群中断路由器——薄路由层"
+    status: active
+
+  - name: build-error-resolver
+    type: agent
+    file: .claude/agents/build-error-resolver.md
+    dag_position: platform_layer
+    description: "构建错误修复（ECC 工程底座）"
     status: active
 
 hooks:
-  - name: ceremony-completion-guard
-    type: hook
-    file: .claude/hooks/ceremony-completion-guard.sh
-    event: Stop
-    matcher: ""
-    description: "ceremony 完成守卫 — 相位切换点的 runtime 强制"
-    status: active
-
+  # --- PreToolUse hooks ---
   - name: ceremony-guard
     type: hook
     file: .claude/hooks/ceremony-guard.sh
     event: PreToolUse
     matcher: Task
-    description: "ceremony 守卫 — 结构工位前置检查"
+    description: "ceremony 阶段 Task spawn 验证"
     status: active
 
-  - name: crystallization-guard
+  - name: definition-write-guard
     type: hook
-    file: .claude/hooks/crystallization-guard.sh
+    file: .claude/hooks/definition-write-guard.sh
+    event: PreToolUse
+    matcher: Write
+    description: "定义文件修改拦截（必须通过仪式）"
+    status: active
+
+  - name: genealogy-write-guard
+    type: hook
+    file: .claude/hooks/genealogy-write-guard.sh
+    event: PreToolUse
+    matcher: Write
+    description: "谱系文件格式强制（YAML frontmatter + 推导链）"
+    status: active
+
+  - name: spec-write-guard
+    type: hook
+    file: .claude/hooks/spec-write-guard.sh
+    event: PreToolUse
+    matcher: Write
+    description: "规格文件修改拦截"
+    status: active
+
+  - name: hub-node-impact-guard
+    type: hook
+    file: .claude/hooks/hub-node-impact-guard.sh
+    event: PreToolUse
+    matcher: Write
+    description: "Hub 节点影响评估"
+    status: active
+
+  - name: double-helix-verify
+    type: hook
+    file: .claude/hooks/double-helix-verify.sh
+    event: PreToolUse
+    matcher: Write
+    description: "双螺旋验证"
+    status: active
+
+  # --- PostToolUse hooks ---
+  - name: dag-validation-guard
+    type: hook
+    file: .claude/hooks/dag-validation-guard.sh
     event: PostToolUse
-    matcher: Bash
-    description: "结晶守卫 — 知识结晶点检测"
+    matcher: Write
+    description: "DAG 不变量验证（节点/文件一致性）"
+    status: active
+
+  - name: downstream-action-guard
+    type: hook
+    file: .claude/hooks/downstream-action-guard.sh
+    event: PostToolUse
+    matcher: Write
+    description: "下游动作守卫"
     status: active
 
   - name: flow-continuity-guard
@@ -239,39 +291,15 @@ hooks:
     file: .claude/hooks/flow-continuity-guard.sh
     event: PostToolUse
     matcher: Bash
-    description: "flow-continuity-guard — post-commit-flow 的运行时强制层"
+    description: "流程连续性——post-commit-flow 的运行时强制层"
     status: active
 
-  - name: lead-permissions
+  - name: crystallization-guard
     type: hook
-    file: .claude/hooks/lead-permissions.sh
-    event: manual
-    matcher: ""
-    description: "Lead 权限切换 — 神圣疯狂的物质化"
-    status: active
-
-  - name: precompact-save
-    type: hook
-    file: .claude/hooks/precompact-save.sh
-    event: PreCompact
-    matcher: ""
-    description: "统一 session 快照 — 上下文压缩前自动保存蜂群状态"
-    status: active
-
-  - name: recursive-guard
-    type: hook
-    file: .claude/hooks/recursive-guard.sh
+    file: .claude/hooks/crystallization-guard.sh
     event: PostToolUse
-    matcher: TaskUpdate
-    description: "递归守卫 — 递归蜂群分形结构检测"
-    status: active
-
-  - name: session-start-ceremony
-    type: hook
-    file: .claude/hooks/session-start-ceremony.sh
-    event: SessionStart
-    matcher: ""
-    description: "自动 ceremony — 热启动 bootstrap"
+    matcher: Bash
+    description: "结晶守卫——知识结晶点检测"
     status: active
 
   - name: topology-guard
@@ -279,7 +307,64 @@ hooks:
     file: .claude/hooks/topology-guard.sh
     event: PostToolUse
     matcher: Bash
-    description: "孤岛检测守卫 — 从根节点 BFS 扫描引用图，警告不可达文件"
+    description: "孤岛检测守卫——从根节点 BFS 扫描不可达文件"
+    status: active
+
+  - name: result-package-guard
+    type: hook
+    file: .claude/hooks/result-package-guard.sh
+    event: PostToolUse
+    matcher: Write
+    description: "结果包六要素检查"
+    status: active
+
+  - name: recursive-guard
+    type: hook
+    file: .claude/hooks/recursive-guard.sh
+    event: PostToolUse
+    matcher: TaskUpdate
+    description: "递归守卫——递归蜂群分形结构检测"
+    status: active
+
+  - name: team-structural-inject
+    type: hook
+    file: .claude/hooks/team-structural-inject.sh
+    event: PostToolUse
+    matcher: TeamCreate
+    description: "TeamCreate 后动态注入结构工位要求"
+    status: active
+
+  - name: lead-permissions
+    type: hook
+    file: .claude/hooks/lead-permissions.sh
+    event: PostToolUse
+    matcher: Bash
+    description: "Lead 拓扑异常审计（088号：032号重设计）"
+    status: active
+
+  - name: meta-observer-guard
+    type: hook
+    file: .claude/hooks/meta-observer-guard.sh
+    event: PostToolUse
+    matcher: Write
+    description: "meta-observer 元规则变更守卫"
+    status: active
+
+  - name: source-auditor-prompt
+    type: hook
+    file: .claude/hooks/source-auditor-prompt.sh
+    event: PostToolUse
+    matcher: Write
+    description: "源头审计提示——定义写入时触发溯源检查"
+    status: active
+
+  # --- Stop hooks ---
+  - name: ceremony-completion-guard
+    type: hook
+    file: .claude/hooks/ceremony-completion-guard.sh
+    event: Stop
+    matcher: ""
+    description: "ceremony 完成守卫——6 项检查"
     status: active
 
   - name: post-session-pattern-detect
@@ -287,12 +372,68 @@ hooks:
     file: .claude/hooks/post-session-pattern-detect.sh
     event: Stop
     matcher: ""
-    description: "043号谱系入口 — session 结束时提取操作序列重复模式"
+    description: "模式检测——session 结束时提取操作序列重复模式"
+    status: active
+
+  # --- SessionStart hooks ---
+  - name: session-start-ceremony
+    type: hook
+    file: .claude/hooks/session-start-ceremony.sh
+    event: SessionStart
+    matcher: ""
+    description: "自动 ceremony——热启动 bootstrap"
+    status: active
+
+  # --- PreCompact hooks ---
+  - name: precompact-save
+    type: hook
+    file: .claude/hooks/precompact-save.sh
+    event: PreCompact
+    matcher: ""
+    description: "上下文压缩前状态保存"
+    status: active
+
+# --- knowledge skills（genome_layer.knowledge_templates） ---
+knowledge_skills:
+  - name: gemini-math
+    type: skill
+    file: .claude/skills/gemini-math/SKILL.md
+    description: "Gemini 数学验证模式"
+    status: active
+
+  - name: knowledge-crystallization
+    type: skill
+    file: .claude/skills/knowledge-crystallization/SKILL.md
+    description: "知识结晶生成规则"
+    status: active
+
+  - name: math-tools
+    type: skill
+    file: .claude/skills/math-tools/SKILL.md
+    description: "缠论形式化数学工具对照表"
+    status: active
+
+  - name: meta-orchestration
+    type: skill
+    file: .claude/skills/meta-orchestration/SKILL.md
+    description: "蜂群元编排方法论"
+    status: active
+
+  - name: orchestrator-proxy
+    type: skill
+    file: .claude/skills/orchestrator-proxy/SKILL.md
+    description: "Gemini 编排者代理决策协议"
+    status: active
+
+  - name: spec-execution-gap
+    type: skill
+    file: .claude/skills/spec-execution-gap/SKILL.md
+    description: "声明-能力一致性缺口检测"
     status: active
 
 theorems:
   directory: spec/theorems/
-  description: "缠论形式化定理和证明 — 文件变更自动触发 Gemini 数学验证（049号路由表）"
+  description: "缠论形式化定理和证明"
   validation_trigger: "049-gemini-math-verification"
   tags: ["@proof-required", "verified", "unverified"]
   entries:
