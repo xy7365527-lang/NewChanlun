@@ -39,7 +39,12 @@ tasks:
   - id: real_data_validation
     title: "真实数据端到端验证"
     priority: P1
-    status: active
+    status: completed
+    completed_date: "2026-02-21"
+    completion_note: |
+      test_real_data_recursive_e2e.py: 11 passed, 1 skipped。
+      RecursiveOrchestrator 在 AAPL 1分钟真实数据上全链路运行无崩溃。
+      递归层级、中枢价格区间、事件单调性全部验证通过。
     source: "level_recursion 完成后的自然下游——算法需要在真实市场数据上验证"
     description: |
       用真实 1 分钟 K 线数据端到端验证递归引擎：
