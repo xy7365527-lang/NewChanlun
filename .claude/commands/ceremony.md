@@ -9,13 +9,14 @@
 - 结构工位是蜂群的拓扑前提，由 ceremony 自动注入（Gemini decide 方案D：拓扑属于仪式不属于业务）
 - 业务 teammate 不需要知道结构工位的存在，prompt 保持极简
 
-## 步骤 1：读取 4 个文件（并行）
+## 步骤 1：读取 5 个文件（并行）
 
-同时调用 4 个 Read/Glob：
+同时调用 5 个 Read/Glob：
 - `Glob(".chanlun/sessions/*-session.md")` → 取最新一个
 - `Read("definitions.yaml")`
 - `Glob(".chanlun/genealogy/pending/*.md")` → 计数
 - `Read` 最新 session 文件
+- `Read(".chanlun/dispatch-dag.yaml")` → 提取 `nodes.structural` 中 `mandatory: true` 的节点
 
 **不读其他文件。不运行 Bash。不运行 pytest。不运行 grep。**
 
@@ -54,25 +55,19 @@
 TeamCreate(team_name="v{N}-swarm", description="...")
 ```
 
-## 步骤 5：并行 spawn 结构工位（3 个 Task 调用，mandatory dominator nodes）
+## 步骤 5：并行 spawn 结构工位（从 dispatch-dag 动态读取）
 
-同时发出 3 个 Task 调用（dispatch-dag mandatory=true，fractal_template inherited）：
+先读取 `.chanlun/dispatch-dag.yaml` 的 `nodes.structural` 节，提取所有 `mandatory: true` 的节点。
+为每个 mandatory 节点发出一个 Task 调用（全部并行）：
 
 ```
-Task(name="quality-guard", subagent_type="general-purpose", team_name="{蜂群名}",
+Task(name="{node.id}", subagent_type="general-purpose", team_name="{蜂群名}",
      mode="bypassPermissions", run_in_background=true,
-     prompt="读取 .claude/agents/quality-guard.md 并按其指令执行。蜂群: {蜂群名}。")
-
-Task(name="genealogist", subagent_type="general-purpose", team_name="{蜂群名}",
-     mode="bypassPermissions", run_in_background=true,
-     prompt="读取 .claude/agents/genealogist.md 并按其指令执行。蜂群: {蜂群名}。")
-
-Task(name="meta-observer", subagent_type="general-purpose", team_name="{蜂群名}",
-     mode="bypassPermissions", run_in_background=true,
-     prompt="读取 .claude/agents/meta-observer.md 并按其指令执行。蜂群: {蜂群名}。")
+     prompt="读取 {node.agent} 并按其指令执行。蜂群: {蜂群名}。")
 ```
 
-子蜂群递归时同样继承三个结构工位（fractal_template, parent_interface 三条边）。
+不硬编码节点名称或数量。dispatch-dag 加减 mandatory 节点，ceremony 自动适应。
+子蜂群递归时同样继承（fractal_template, parent_interface）。
 
 ## 步骤 6：并行 spawn 业务工位
 
