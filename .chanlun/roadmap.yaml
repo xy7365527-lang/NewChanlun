@@ -15,8 +15,13 @@
 #
 # 来源：078号 D 策略 + Gemini decide + 人类编排者确认
 
-version: "1.2"
+version: "1.3"
 genealogy_ref: "081-swarm-continuity-strategy-d"
+
+# 里程碑：定义偏序链全节点实现完毕（2026-02-21）
+# baohan→fenxing→bi→xianduan→zhongshu→zoushi→beichi→maimai 全部 ✅
+# level_recursion ✅ | 小转大 ✅ | 跨标的(dengjia→bijia→liuzhuan) ✅
+# 1435 测试通过 | 92 谱系已结算 | 14 定义已结算
 
 tasks:
   - id: level_recursion
