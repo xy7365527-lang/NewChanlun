@@ -67,10 +67,16 @@ spawn 完成后，**立即调用 `TaskList`** 查看任务状态。然后进入�
 
 1. 调用 `TaskList` 查看所有任务状态
 2. 对每个完成的工位：汇报结果给编排者，然后 `shutdown_request`
-3. 对每个空闲的工位：检查是否有新任务可分配，没有则 `shutdown_request`
-4. 如果仍有 `in_progress` 任务：通过 `SendMessage` 询问进展，结合 `TaskList` 轮询状态
-5. 所有工位完成后：`TeamDelete`
-6. 重复直到所有工位完成
+3. **增量持久化**：每次有工位完成，立即更新 session 文件（追加该工位产出摘要）。这保证中途断掉时下次热启动能恢复到最后一个已完成工位的状态
+4. 对每个空闲的工位：检查是否有新任务可分配，没有则 `shutdown_request`
+5. 如果仍有 `in_progress` 任务：通过 `SendMessage` 询问进展，结合 `TaskList` 轮询状态
+6. 所有工位完成后：写入完整 session → commit → `TeamDelete`
+7. 重复直到所有工位完成
+
+**持久化规则**：状态结晶发生在状态转换点，不是终点。session 是蜂群跨上下文的唯一状态载体，必须在每个关键转换点更新：
+- 工位完成 → 增量写入
+- TeamDelete 之前 → 强制写入 + commit
+- 绝不允许 TeamDelete 后才写 session
 
 汇报格式：
 ```
