@@ -69,10 +69,13 @@ Task(name="{workstation.name 简写}", subagent_type="general-purpose", team_nam
 
 ## 步骤 7：汇报循环
 
-蜂群运行期间，Lead 持续向编排者汇报：
-- 收到 teammate 消息时：汇总该工位的产出/问题/状态变更
-- 所有工位完成时：输出完整状态快照（每个工位的结果、新增谱系、遗留项）
-- 发现矛盾时：立即汇报并走 `/escalate`
+spawn 完成后，**立即调用 `TaskList`** 查看任务状态。然后进入循环：
+
+1. 调用 `TaskList` 查看所有任务状态
+2. 对每个 `completed` 的任务：汇报结果给编排者，然后 `shutdown_request` 该工位
+3. 对每个 `idle` 的工位：检查是否有新任务可分配，没有则 `shutdown_request`
+4. 如果仍有 `in_progress` 任务：调用 `TaskOutput(task_id=..., block=true, timeout=30000)` 等待下一个完成
+5. 重复直到所有工位完成
 
 汇报格式：
 ```
@@ -80,6 +83,8 @@ Task(name="{workstation.name 简写}", subagent_type="general-purpose", team_nam
   产出: {简述}
   问题: {如有}
 ```
+
+**关键：每次 Stop hook 拦截时，执行步骤 1（调用 TaskList），不要再次尝试停止。**
 
 ## 绝对禁止
 
