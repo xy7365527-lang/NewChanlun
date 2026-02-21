@@ -9,6 +9,11 @@
 075号更新：structural_nodes → required_skills（事件驱动 skill 架构）
 079号更新：background_noise 降级 + 业务层任务发现（no_work_fallback）
 081号更新：roadmap.yaml 扫描（最高优先级任务来源）+ 终止逻辑修正
+089号声明：当前为硬编码优先级扫描，不是 DAG 拓扑排序。
+    dispatch-dag.yaml 的 ceremony_sequence 定义了 DAG 格式的 nodes+depends_on，
+    但本脚本并未实现 DAG 解析器——扫描顺序由代码逻辑决定（roadmap → session → fallback）。
+    DAG 的 ceremony_sequence 由 LLM 解释执行（057号推论：LLM 不是状态机）。
+    未来演化路径：重写为真正读取 ceremony_sequence 的 DAG 拓扑排序（选项 C 边界条件）。
 """
 import json, os, glob, yaml, sys, argparse, subprocess
 

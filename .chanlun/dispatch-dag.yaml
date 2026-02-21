@@ -221,6 +221,48 @@ nodes:
       type: virtual
       description: "降级路径（Gemini 不可用时的 pending 队列），不是 agent"
 
+  # --- 平台层节点（089号审计：ECC 工程底座 agent，属于 Claude Code 平台层） ---
+  # 这些 agent 不在 event_skill_map 中——它们是通用工程能力，
+  # 通过 Claude Code 的 Task tool subagent_type 按需调用，不属于缠论专用 DAG。
+  # 在此声明是为消除拓扑外部性（089号：孤岛消除）。
+  platform_layer:
+    - id: architect
+      type: platform
+      agent: ".claude/agents/architect.md"
+      description: "系统架构设计（ECC 工程底座）"
+    - id: planner
+      type: platform
+      agent: ".claude/agents/planner.md"
+      description: "实现规划（ECC 工程底座）"
+    - id: tdd-guide
+      type: platform
+      agent: ".claude/agents/tdd-guide.md"
+      description: "测试驱动开发（ECC 工程底座）"
+    - id: code-reviewer
+      type: platform
+      agent: ".claude/agents/code-reviewer.md"
+      description: "代码审查（ECC 工程底座）"
+    - id: python-reviewer
+      type: platform
+      agent: ".claude/agents/python-reviewer.md"
+      description: "Python 代码审查（ECC 工程底座）"
+    - id: security-reviewer
+      type: platform
+      agent: ".claude/agents/security-reviewer.md"
+      description: "安全审查（ECC 工程底座）"
+    - id: refactor-cleaner
+      type: platform
+      agent: ".claude/agents/refactor-cleaner.md"
+      description: "重构与死代码清理（ECC 工程底座）"
+    - id: doc-updater
+      type: platform
+      agent: ".claude/agents/doc-updater.md"
+      description: "文档更新（ECC 工程底座）"
+    - id: meta-lead
+      type: platform
+      agent: ".claude/agents/meta-lead.md"
+      description: "蜂群中断路由器——薄路由层（014号分布式指令架构）"
+
 # ═══════════════════════════════════════════════════════════════
 # ═══════════════════════════════════════════════════════════════
 edges:
@@ -371,9 +413,11 @@ fractal_template:
         description: "子蜂群元观察上交父蜂群二阶反馈"
 
   # 递归规则（从 dispatch-spec 迁移）
+  # 089号审计修正：当前实现为 Trampoline 模式（073b号平台限制），声明与实际对齐
   recursion_rules:
     - "任何 teammate 面对 ≥1 个可分解子任务时，可 spawn 子 teammates"
-    - "子 teammates 继承完整的 spawn 能力（无限递归）"
+    - "当前实现：Trampoline 模式——所有 agent 扁平于第一层（Claude Code 不支持 subagent spawn sub-subagent，073b号谱系）"
+    - "设计意图：子 teammates 继承完整的 spawn 能力（无限递归）——平台能力升级后可实现真调用栈递归"
     - "递归深度无人为限制，由 topology-manager 的收敛信号自然终止（020号：背驰+分型 = 区间套收敛判定）"
     - "父 teammate 对子 teammates 负路由责任"
     - "结构工位默认扁平——裁判不参与走势。例外：结构工位自身任务需分解时允许 spawn 同类型子工位（受限递归），不允许 spawn 任务工位"

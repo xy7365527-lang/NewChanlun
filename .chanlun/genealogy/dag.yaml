@@ -493,6 +493,11 @@ nodes:
   status: 已结算
   type: 选择
   file: settled/088-permission-deadlock-topology-anomaly-redesign.md
+- id: '089'
+  title: 元编排递归拓扑异步自指化审计——渐进式扬弃（Aufhebung）
+  status: 已结算
+  type: 选择
+  file: settled/089-meta-orchestration-aufhebung-audit.md
 edges:
   depends_on:
   - from: 005a
@@ -942,6 +947,21 @@ edges:
     to: '073'
   - from: '088'
     to: '087'
+  # 089 depends
+  - from: '089'
+    to: '069'
+  - from: '089'
+    to: '020'
+  - from: '089'
+    to: '073'
+  - from: '089'
+    to: '058'
+  - from: '089'
+    to: '075'
+  - from: '089'
+    to: '084'
+  - from: '089'
+    to: '088'
   triggered:
   - from: '005'
     to: 005a
