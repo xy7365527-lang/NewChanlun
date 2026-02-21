@@ -204,7 +204,7 @@ def _mark_last_unconfirmed(strokes: list[Stroke]) -> list[Stroke]:
 def strokes_from_fractals(
     df_merged: pd.DataFrame,
     fractals: list[Fractal],
-    mode: str = "wide",
+    mode: str = "new",
     min_strict_sep: int = 5,
     merged_to_raw: list[tuple[int, int]] | None = None,
 ) -> list[Stroke]:
