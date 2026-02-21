@@ -318,7 +318,7 @@ fractal_template:
   genealogy_ref: "037-recursive-swarm-fractal, 069-recursive-topology-async-self-referential-swarm"
   description: "子蜂群实例化时，基于此模板 spawn 属于该层级的全新结构工位实例"
 
-  # 子蜂群必须有的支配节点（保证图连通性）
+  # 子蜂群必须有的支配节点（保证图连通性 + 异步自指）
   inherited_nodes:
     - id: genealogist
       type: dominator
@@ -326,11 +326,12 @@ fractal_template:
     - id: quality-guard
       type: dominator
       mandatory: true
+    - id: meta-observer
+      type: dominator
+      mandatory: true
 
   # 子蜂群可选的结构节点
-  optional_nodes:
-    - id: meta-observer
-      activation_condition: "子蜂群任务涉及元规则或定义变更"
+  optional_nodes: []
 
   # 父子接口：子蜂群汇点 → 父蜂群支配节点
   parent_interface:
@@ -343,6 +344,10 @@ fractal_template:
         to: "parent.genealogist"
         type: "concept_discovery"
         description: "子蜂群的概念发现上交父蜂群谱系管理"
+      - from: "child.meta-observer"
+        to: "parent.meta-observer"
+        type: "meta_feedback"
+        description: "子蜂群的元观察上交父蜂群二阶反馈"
 
   # 递归规则（从 dispatch-spec 迁移）
   recursion_rules:
