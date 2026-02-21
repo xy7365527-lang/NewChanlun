@@ -296,7 +296,7 @@ class Divergence:
 | 柱子伸长高度比较 | ✅ 工具函数已实现（T7） | `histogram_peak_for_range()`：计算指定范围hist峰值。未集成到主检测（#2 or/and未结算） |
 | 盘整背驰 | ✅ 已实现 | 同向离开段力度比较 |
 | 区间套（多级别嵌套） | ✅ 已实现 | 单级别 `divergences_in_bar_range` + 跨级别 `nested_divergence_search` |
-| 小转大 | ❌ 未实现 | 需跨级别联动 |
+| 小转大 | ✅ 已实现 | `a_xiaozhuan_da.py`: 跨级别联动检测 |
 | confirmed时机 | ✅ 基本实现 | 跟随trend的confirmed状态 |
 
 ---
