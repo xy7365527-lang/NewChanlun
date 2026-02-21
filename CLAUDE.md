@@ -124,11 +124,11 @@ Always respond in Chinese-simplified (简体中文).
 | 维度 | 功能 | 工程对应 |
 |------|------|----------|
 | 蜂群递归 | 执行动力，向下展开 | spawn 子蜂群，递归分解任务 |
-| 拓扑 | DAG 路由，定义连接模式 | dispatch-spec 的偏序集结构 |
+| 拓扑 | DAG 路由，定义连接模式 | dispatch-dag 的偏序集结构 |
 | 结晶 | 状态沉淀，向上收敛 | 谱系/定义/session/skill 的析出 |
 
 **异质碰撞协议**：异质 agent（Gemini）的受控碰撞，防止系统在自身盲点中同质化坍塌。
-碰撞必须是受控的（dispatch-spec 硬编码交互协议），不是偶遇。
+碰撞必须是受控的（dispatch-dag 硬编码交互协议），不是偶遇。
 
 **降级项**：异步自指从"存在论支柱"降为"历史性技术妥协"（当前 LLM 不能同步读写自身的约束产物）。
 
@@ -144,7 +144,7 @@ Always respond in Chinese-simplified (简体中文).
 "Lead"不是固定实体——当前节点相对于其子节点是 Lead，相对于父节点是 Worker。
 
 无阻碍执行（默认递归）：
-- 基于 dispatch-spec 的工位 spawn/shutdown
+- 基于 dispatch-dag 的工位 spawn/shutdown
 - 基于 topology 的任务路由（不做优先级排序，由 topology-manager 决定）
 - 语法/编译/Lint 级错误的修复流程启动（分派给 teammates，当前节点不自行执行）
 - quality-guard 通过后的 commit（COMMIT_REQUEST → quality-guard + genealogist 批准 → 执行）
@@ -152,7 +152,7 @@ Always respond in Chinese-simplified (简体中文).
 
 必须阻断等待（020号反转条件）：
 - 逻辑/断言级测试失败（可能是概念分离信号，不是纯代码错误）
-- dispatch-spec 未定义的异常情况
+- dispatch-dag 未定义的异常情况
 - 修改 CLAUDE.md、核心定义、已结算谱系
 - `negation_form: unclassified` 的否定
 - 需要缠论领域知识的选择（非定理推导，且 Gemini 无法决断时）
@@ -198,8 +198,8 @@ Always respond in Chinese-simplified (简体中文).
 
 ### 结构修改提案模式（069号谱系）
 
-对核心文件（CLAUDE.md、dispatch-spec、已结算谱系、核心定义）的修改走提案模式：
-1. meta-observer 发现矛盾 → 注入 draft-proposal 任务到队列（不自行 spawn，遵守 dispatch-spec 规则8）
+对核心文件（CLAUDE.md、dispatch-dag、已结算谱系、核心定义）的修改走提案模式：
+1. meta-observer 发现矛盾 → 注入 draft-proposal 任务到队列（不自行 spawn，遵守 dispatch-dag 拓扑约束）
 2. 任务蜂群起草提案 → 提交给 meta-observer
 3. meta-observer 路由给 gemini-challenger 进行高阶审查（绕过 quality-guard 的保守性死锁——不能用 t 时刻规则审查修改规则的 t+1 提案）
 4. 审查通过 → 人类编排者批准（INTERRUPT 权）→ 执行合并
