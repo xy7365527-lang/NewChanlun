@@ -58,7 +58,7 @@ def tf_to_stream_id(
     查找 SYMBOL_CATALOG 获取 inst_type/exchange，
     未知品种使用默认值。
     """
-    from newchan.data_databento import SYMBOL_CATALOG
+    from newchan.core.symbol_catalog import SYMBOL_CATALOG
 
     sym = symbol.upper() if symbol else ""
     inst_type = "STK"
