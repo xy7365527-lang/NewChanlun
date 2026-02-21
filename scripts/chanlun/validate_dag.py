@@ -5,7 +5,7 @@ from collections import defaultdict
 
 import yaml
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parent.parent.parent
 DAG_PATH = ROOT / ".chanlun" / "genealogy" / "dag.yaml"
 GENEALOGY_DIR = ROOT / ".chanlun" / "genealogy"
 

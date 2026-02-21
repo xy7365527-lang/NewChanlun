@@ -144,6 +144,20 @@ nodes:
     # DAG 约束：任务节点的输入/输出边必须连接支配节点
     input_constraint: "requires_dominator_edge"
     output_constraint: "requires_dominator_edge"
+    # spawn 三基因（073a号谱系：每个衍生节点必须携带）
+    required_genes:
+      - id: topo_address
+        description: "当前节点在分形树中的拓扑坐标（如 v13-swarm/gene-writer）"
+        format: "{team_name}/{agent_name}"
+        enforcement: "spawn 时 Lead 必须在 prompt 中注入"
+      - id: depth_budget
+        description: "剩余递归深度或 token 预算，防止无限增殖"
+        format: "integer >= 0"
+        enforcement: "depth_budget=0 时禁止 spawn 子节点"
+      - id: parent_callback
+        description: "父节点等待结果的标识符"
+        format: "{team_name}/{recipient_name}"
+        enforcement: "完成后必须通过 SendMessage 向 parent_callback 汇报"
     rules:
       - "每个独立中断点 = 一个工位（并行默认）"
       - "有数据依赖的中断点 = 串行链"

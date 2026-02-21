@@ -85,7 +85,7 @@ model: opus
 | 已在运作的隐性规则 | 语法记录 | 通过 `/escalate` 上浮 → `/ritual` |
 | 版本升级等操作 | 行动 | 直接执行 |
 
-**异质审查约束**：meta-observer 对 dispatch-spec.yaml 的修改提案，必须经 gemini-challenger 异质审查后才能进入 /ritual 流程。这是对构成性利益冲突（meta-observer 既是提案者又是监控者）的防护机制。
+**异质审查约束**：meta-observer 对 dispatch-dag.yaml 的修改提案，必须经 gemini-challenger 异质审查后才能进入 /ritual 流程。这是对构成性利益冲突（meta-observer 既是提案者又是监控者）的防护机制。
 
 **不直接修改 SKILL.md 或 CLAUDE.md** 的原则不变——但现在有了正确路径：通过 `/ritual` 完成。
 

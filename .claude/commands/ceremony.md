@@ -24,7 +24,7 @@
 1. 检测 `.chanlun/sessions/` 是否有 session 记录 → 决定 cold_start 或 warm_start
 2. 扫描 `.chanlun/definitions/*.md` 版本和状态
 3. 扫描 `.chanlun/genealogy/{pending,settled}/` 统计
-4. 读取 `CLAUDE.md` + `.chanlun/dispatch-spec.yaml`
+4. 读取 `CLAUDE.md` + `.chanlun/dispatch-dag.yaml`
 5. （warm_start）定位最新 session，对比版本差异
 
 所有读取结果保持在内部工作记忆中，不输出。

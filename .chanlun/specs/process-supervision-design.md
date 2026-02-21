@@ -16,7 +16,7 @@
 | 语义操作 | 当前覆盖 | 当前粒度 | 目标粒度 | 差距 |
 |----------|---------|---------|---------|------|
 | **git commit** | `double-helix-verify.sh` (Pre) + `flow-continuity-guard.sh` (Post) + `crystallization-guard.sh` (Post) | 事件级：commit 整体放行/拦截 | 步骤级：staged diff 按文件类型分流验证 | 定义文件/谱系文件/代码文件应有不同验证路径 |
-| **Task spawn** | `ceremony-guard.sh` (Pre) | 事件级：检查结构工位是否就绪 | 步骤级：spawn 前验证任务描述与 dispatch-spec 一致性 | 缺少任务描述 vs spec 的语义匹配 |
+| **Task spawn** | `ceremony-guard.sh` (Pre) | 事件级：检查结构工位是否就绪 | 步骤级：spawn 前验证任务描述与 dispatch-dag 一致性 | 缺少任务描述 vs dag 的语义匹配 |
 | **Task complete** | `recursive-guard.sh` (Post) | 事件级：检查函数行数 | 步骤级：完成时验证产出是否满足结果包六要素 | 只检查代码质量，不检查概念完整性 |
 | **定义文件写入** | 无 | 无覆盖 | 步骤级：写入前验证版本递增 + 谱系引用 | **完全缺失** |
 | **谱系文件写入** | 无 | 无覆盖 | 步骤级：写入前验证强制字段 + 前置/关联链接有效性 | **完全缺失** |

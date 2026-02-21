@@ -16,7 +16,7 @@ model: sonnet
 
 当 `.chanlun/pattern-buffer.yaml` 中存在满足以下条件的 pattern 时被 spawn：
 - `status: candidate`
-- `frequency >= 3`（promotion_threshold，来自 dispatch-spec.yaml `automation.pattern_detection.promotion_threshold`）
+- `frequency >= 3`（promotion_threshold，来自 dispatch-dag.yaml `automation.pattern_detection.promotion_threshold`）
 
 ## 执行流程
 

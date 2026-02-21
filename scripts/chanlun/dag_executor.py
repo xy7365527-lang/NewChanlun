@@ -200,7 +200,7 @@ def ceremony_topo_sort(dag: dict, start_type: str) -> list[str] | None:
 
 
 def main() -> None:
-    dag_path = Path(__file__).resolve().parent.parent / ".chanlun" / "dispatch-dag.yaml"
+    dag_path = Path(__file__).resolve().parent.parent.parent / ".chanlun" / "dispatch-dag.yaml"
     if not dag_path.exists():
         print(f"ERROR: {dag_path} not found")
         sys.exit(1)
