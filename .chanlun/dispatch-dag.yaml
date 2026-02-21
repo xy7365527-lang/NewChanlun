@@ -374,11 +374,11 @@ fractal_template:
   recursion_rules:
     - "任何 teammate 面对 ≥1 个可分解子任务时，可 spawn 子 teammates"
     - "子 teammates 继承完整的 spawn 能力（无限递归）"
-    - "递归深度无人为限制，由 topology-manager 的区间套收敛信号自然终止"
+    - "递归深度无人为限制，由 topology-manager 的收敛信号自然终止（020号：背驰+分型 = 区间套收敛判定）"
     - "父 teammate 对子 teammates 负路由责任"
     - "结构工位默认扁平——裁判不参与走势。例外：结构工位自身任务需分解时允许 spawn 同类型子工位（受限递归），不允许 spawn 任务工位"
   visibility: "所有 teammates（含任意深度的子 teammates）在同一 task list 中可见"
-  cost_control: "topology-manager 监控总 teammate 数量，通过区间套收敛信号判断收缩时机"
+  cost_control: "topology-manager 监控总 teammate 数量，通过收敛信号判断收缩时机（020号：背驰+分型）"
 
 # ═══════════════════════════════════════════════════════════════
 # 6. Ceremony 序列（DAG 格式，从 dispatch-spec 直接迁移）
@@ -386,7 +386,7 @@ fractal_template:
 # ═══════════════════════════════════════════════════════════════
 ceremony_sequence:
   cold_start:
-    output_policy: "仅 recurse 节点或 terminate_condition 产出面向用户的输出"
+    output_policy: "所有关键步骤（scan结果、工位派生、Gemini决断、蜂群状态变更）向编排者展示——编排者需要观察系统演化"
     nodes:
       - id: "scan-definitions"
         action: "扫描 .chanlun/definitions/*.md 版本和状态"
@@ -431,7 +431,7 @@ ceremony_sequence:
       note: "ceremony_scan.py 的 clean_terminate 字段反映此条件（081号）"
 
   warm_start:
-    output_policy: "仅 recurse 节点或 terminate_condition 产出面向用户的输出"
+    output_policy: "所有关键步骤（scan结果、工位派生、Gemini决断、蜂群状态变更）向编排者展示——编排者需要观察系统演化"
     nodes:
       - id: "locate-session"
         action: "定位最新 .chanlun/sessions/*.md"
