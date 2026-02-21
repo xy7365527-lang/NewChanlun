@@ -11,52 +11,80 @@ set -uo pipefail
 
 INPUT=$(cat)
 
-TOOL_NAME=$(python -c "
-import sys, json
-data = json.loads(sys.stdin.read())
-print(data.get('tool_name', ''))
-" << 'EOF'
-PLACEHOLDER
-EOF
-)
-TOOL_NAME=$(echo "$INPUT" | python -c "
-import sys, json
-data = json.loads(sys.stdin.read())
-print(data.get('tool_name', ''))
-" 2>/dev/null || echo "")
-
-if [ "$TOOL_NAME" != "Write" ] && [ "$TOOL_NAME" != "Edit" ]; then
+PYTHON_BIN=""
+if command -v python >/dev/null 2>&1; then
+    PYTHON_BIN="python"
+elif command -v python3 >/dev/null 2>&1; then
+    PYTHON_BIN="python3"
+else
+    # 运行环境无 Python 时保持静默，不阻断主流程。
     exit 0
 fi
 
-FILE_PATH=$(echo "$INPUT" | python -c "
-import sys, json, os
-data = json.loads(sys.stdin.read())
-fp = data.get('tool_input', {}).get('file_path', '')
-cwd = data.get('cwd', '.')
-if not fp:
-    print('')
-else:
-    try:
-        rel = os.path.relpath(fp, cwd)
-    except ValueError:
-        rel = fp
-    print(rel.replace(os.sep, '/'))
-" 2>/dev/null || echo "")
-
-# 检查是否匹配 docs/**
-if ! echo "$FILE_PATH" | grep -qE '^docs/'; then
-    exit 0
-fi
-
-# 匹配：输出提示（advisory，不阻断）
-python -c "
+HOOK_INPUT="$INPUT" "$PYTHON_BIN" - <<'PY' 2>/dev/null || true
 import json
-fp = '$FILE_PATH'
-print(json.dumps({
-    'continue': True,
-    'systemMessage': f'[source-auditor advisory] 检测到 docs/ 变更（{fp}）。Lead 可选择：读取 .claude/agents/source-auditor.md 对本次变更执行溯源标签验证（三级权威链合规性检查）。'
-}, ensure_ascii=False))
-" 2>/dev/null || true
+import os
+
+
+def pick_file_path(tool_input):
+    for key in ("file_path", "path", "target_file"):
+        value = tool_input.get(key)
+        if isinstance(value, str) and value:
+            return value
+    return ""
+
+
+raw = os.environ.get("HOOK_INPUT", "")
+if not raw.strip():
+    raise SystemExit(0)
+
+try:
+    data = json.loads(raw)
+except json.JSONDecodeError:
+    # Hook 输入异常时保持静默，不阻断主流程。
+    raise SystemExit(0)
+
+tool_name = data.get("tool_name", "")
+if tool_name not in {"Write", "Edit"}:
+    raise SystemExit(0)
+
+tool_input = data.get("tool_input", {})
+if not isinstance(tool_input, dict):
+    raise SystemExit(0)
+
+file_path = pick_file_path(tool_input)
+if not file_path:
+    raise SystemExit(0)
+
+cwd = data.get("cwd", ".")
+if not isinstance(cwd, str) or not cwd:
+    cwd = "."
+
+try:
+    rel = os.path.relpath(file_path, cwd)
+except Exception:
+    rel = file_path
+
+rel = rel.replace("\\", "/")
+if rel.startswith("./"):
+    rel = rel[2:]
+
+if rel != "docs" and not rel.startswith("docs/"):
+    raise SystemExit(0)
+
+print(
+    json.dumps(
+        {
+            "continue": True,
+            "systemMessage": (
+                f"[source-auditor advisory] 检测到 docs/ 变更（{rel}）。"
+                "Lead 可选择：读取 .claude/agents/source-auditor.md 对本次变更执行"
+                "溯源标签验证（三级权威链合规性检查）。"
+            ),
+        },
+        ensure_ascii=False,
+    )
+)
+PY
 
 exit 0

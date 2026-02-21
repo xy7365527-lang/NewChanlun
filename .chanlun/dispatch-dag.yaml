@@ -54,6 +54,32 @@ genome_layer:
     note: "hooks 由 Claude Code 平台执行（物理约束），但其判断逻辑来自蜂群的规则体系"
     constraint: "hooks 不阻断蜂群行为（088号），只记录拓扑异常对象供异步审查"
 
+  # 语法规则：Claude Code 平台强制加载的行为规则——蜂群的先验约束
+  grammar_rules:
+    path: ".claude/rules/"
+    role: "蜂群的语法规则集——定义产出合法性的边界（090号：严格性是语法规则）"
+    note: "Claude Code 平台强制加载（物理约束），蜂群内化后自主遵守"
+    files:
+      - "no-workaround.md"
+      - "no-patch-mentality.md"
+      - "result-package.md"
+      - "no-unnecessary-escalation.md"
+      - "post-commit-flow.md"
+      - "testing-override.md"
+
+  # 知识模板：被 Claude Code 按需加载的结晶知识——蜂群的能力基因
+  knowledge_templates:
+    path: ".claude/skills/"
+    role: "蜂群的结晶知识——被 agent 读取后转化为行为能力"
+    note: "skill 是知识维度的结晶产物（原则11），由 Claude Code 按需加载"
+    skills:
+      - "gemini-math"
+      - "knowledge-crystallization"
+      - "math-tools"
+      - "meta-orchestration"
+      - "orchestrator-proxy"
+      - "spec-execution-gap"
+
   # 存在论声明
   ontological_status: >
     基因组层是蜂群的先验结构，不是蜂群之外的物理法则。
@@ -264,7 +290,7 @@ nodes:
       description: "模式检测（post-session-pattern-detect hook），不是 agent"
     - id: build_resolver
       type: virtual
-      description: "构建错误修复（build-error-resolver agent），按需激活"
+      description: "构建错误修复触发点（激活 platform_layer 的 build-error-resolver agent），不是独立 agent"
     - id: fallback
       type: virtual
       description: "降级路径（Gemini 不可用时的 pending 队列），不是 agent"
@@ -310,6 +336,10 @@ nodes:
       type: platform
       agent: ".claude/agents/meta-lead.md"
       description: "蜂群中断路由器——薄路由层（014号分布式指令架构）"
+    - id: build-error-resolver
+      type: platform
+      agent: ".claude/agents/build-error-resolver.md"
+      description: "构建错误修复（ECC 工程底座）"
 
 # ═══════════════════════════════════════════════════════════════
 # ═══════════════════════════════════════════════════════════════

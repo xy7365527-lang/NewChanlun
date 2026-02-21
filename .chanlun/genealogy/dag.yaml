@@ -503,6 +503,11 @@ nodes:
   status: 已结算
   type: 语法记录
   file: settled/090-strictness-grammar-rule.md
+- id: '091'
+  title: 089号后全系统审计——四个拓扑/声明缺口修复
+  status: 已结算
+  type: 审计修复
+  file: settled/091-post089-full-audit.md
 edges:
   depends_on:
   - from: 005a
@@ -974,6 +979,13 @@ edges:
     to: '087'
   - from: '090'
     to: 005b
+  # 091 depends
+  - from: '091'
+    to: '089'
+  - from: '091'
+    to: '090'
+  - from: '091'
+    to: '084'
   triggered:
   - from: '005'
     to: 005a
@@ -1577,6 +1589,12 @@ edges:
   - between:
     - '072'
     - 073a
+  - between:
+    - '091'
+    - '075'
+  - between:
+    - '091'
+    - '073'
   tensions_with:
   - between:
     - '007'

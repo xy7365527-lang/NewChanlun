@@ -81,21 +81,37 @@ with open(pattern_file, 'r', encoding='utf-8') as f:
 if 'patterns: []' in content:
     content = content.replace('patterns: []', 'patterns:')
 
+# 兜底：如果没有 patterns 键，补一个
+if 'patterns:' not in content:
+    if content and not content.endswith('\n'):
+        content += '\n'
+    content += 'patterns:\n'
+
+if content and not content.endswith('\n'):
+    content += '\n'
+
+def yaml_quote(text):
+    return str(text).replace('\\\\', '\\\\\\\\').replace('\"', '\\\\\"').replace('\\n', ' ')
+
+safe_sig = yaml_quote(sig)
+safe_timestamp = yaml_quote(timestamp)
+safe_tool_name = yaml_quote(tool_name)
+
 # 追加异常条目
 entry = (
     f'  - id: \"anomaly-{pat_hash}\"\n'
-    f'    signature: \"{sig}\"\n'
+    f'    signature: \"{safe_sig}\"\n'
     f'    frequency: 1\n'
-    f'    first_seen: \"{timestamp}\"\n'
-    f'    last_seen: \"{timestamp}\"\n'
-    f'    sources: [\"{timestamp}\"]\n'
-    f'    description: \"Lead 直接执行 {tool_name}（应委派工位）——拓扑异常对象\"\n'
+    f'    first_seen: \"{safe_timestamp}\"\n'
+    f'    last_seen: \"{safe_timestamp}\"\n'
+    f'    sources: [\"{safe_timestamp}\"]\n'
+    f'    description: \"Lead 直接执行 {safe_tool_name}（应委派工位）——拓扑异常对象\"\n'
     f'    status: \"candidate\"\n'
     f'    anomaly_type: \"lead_direct_execution\"\n'
 )
 
-with open(pattern_file, 'a', encoding='utf-8') as f:
-    f.write(entry)
+with open(pattern_file, 'w', encoding='utf-8') as f:
+    f.write(content + entry)
 " "$PATTERN_FILE" "$TIMESTAMP" "$TOOL_NAME" "$FILE_PATH" 2>/dev/null || true
 
 # 输出审计警告（不阻断）
