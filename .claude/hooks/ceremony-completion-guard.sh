@@ -275,6 +275,28 @@ print(json.dumps({
     exit 0
 fi
 
+# ─── 检查 5：ceremony 确认请求检测（058号谱系） ───
+if [ -f ".chanlun/.ceremony-in-progress" ]; then
+    CONFIRM_PATTERNS='待确认|以上理解是否正确|如有偏差请指出|是否现在处理|是否有新的|请确认|等待.*确认'
+    STOP_CONTENT=$(echo "$input" | python -c "
+import sys, json
+try:
+    d = json.loads(sys.stdin.read())
+    print(d.get('stop_hook_content', d.get('content', '')))
+except: pass
+" 2>/dev/null || true)
+    if echo "$STOP_CONTENT" | grep -qP "$CONFIRM_PATTERNS" 2>/dev/null; then
+        python -c "
+import json
+print(json.dumps({
+    'decision': 'block',
+    'reason': '[Stop-Guard] ceremony 阶段检测到确认请求（违反058号谱系）。不允许停止。路由指令: 删除确认请求，直接输出行动声明并执行。'
+}, ensure_ascii=False))
+"
+        exit 0
+    fi
+fi
+
 # ─── 全部检查通过：允许停止（静默退出） ───
 rm -f "$COUNTER" 2>/dev/null || true
 exit 0
