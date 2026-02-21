@@ -12,6 +12,10 @@
 # 默认改为"自动落标+放行"模式，避免在某些会话里触发
 # Invalid `signature` in `thinking` block 的上游错误。
 # 如需恢复强制阻断，设置环境变量 META_OBSERVER_GUARD_STRICT=1。
+#
+# 2026-02-21 087号谱系修复:
+# advisory 模式现在产生实际的 systemMessage 提示（D策略要求：hooks 提示 + Lead 认领）
+# 原始 hotfix 直接 exit 0 不产生任何输出——这不是 advisory，是完全失效。
 
 set -uo pipefail
 
@@ -36,11 +40,19 @@ if [ -d ".chanlun/sessions" ]; then
 fi
 [ -z "$CURRENT_SESSION" ] && exit 0
 
-# ─── 默认模式：自动落标并放行（hotfix） ───
+# ─── 默认模式：Advisory — 落标 + 输出提示（087号谱系修复）───
 if [ "$STRICT_MODE" != "1" ]; then
     mkdir -p .chanlun 2>/dev/null || true
     echo "$CURRENT_SESSION" > "$MARKER"
     rm -f "$COUNTER" 2>/dev/null || true
+    # Advisory 输出：提示 Lead 可选择执行二阶观察（D策略：hooks 提示 + Lead 认领）
+    python -c "
+import json
+print(json.dumps({
+    'continue': True,
+    'systemMessage': '[meta-observer advisory] 本 session 二阶观察已跳过（STRICT_MODE=0）。如需执行：读取 .claude/agents/meta-observer.md 并对本 session 执行二阶观察（规则触发/违反模式、语法记录候选、元规则一致性）。'
+}, ensure_ascii=False))
+" 2>/dev/null || true
     exit 0
 fi
 
