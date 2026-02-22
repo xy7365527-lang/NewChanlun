@@ -674,6 +674,26 @@ nodes:
   status: 已结算
   type: 定理
   file: settled/127-005b-hinge-vs-principle0-modifiability.md
+- id: '128'
+  title: DAG孤立节点的边建模完整性——16个孤立节点的related是否应升级为depends_on
+  status: 生成态
+  type: 矛盾发现
+  file: pending/128-isolated-nodes-edge-modeling-gap.md
+- id: '129'
+  title: negates边稀疏性审查——三轮Gemini讨论结论：无矛盾降级证据，方法论建议引入needs_review边
+  status: 已结算
+  type: 定理
+  file: settled/129-negates-edge-sparsity-audit.md
+- id: '130'
+  title: 审计递归性Gap——在平台约束下扁平审计是当前上界还是架构缺陷
+  status: 生成态
+  type: 矛盾发现
+  file: pending/130-audit-recursion-gap.md
+- id: '131'
+  title: 005b L62触发条件（实践崩溃）与020号主动修改路径的张力——127号区分3的下游补充
+  status: 生成态
+  type: 矛盾发现
+  file: pending/131-005b-l62-trigger-condition-vs-020-active-path.md
 edges:
   depends_on:
   - from: 005a
@@ -1309,6 +1329,18 @@ edges:
   - from: '127'
     to: '118'
   - from: '127'
+    to: '020'
+  # 129号: negates稀疏性审查（已结算，定理）
+  - from: '129'
+    to: '127'
+  - from: '129'
+    to: '012'
+  # 131号: 005b L62触发条件 vs 020号主动修改路径（生成态）
+  - from: '131'
+    to: '127'
+  - from: '131'
+    to: 005b
+  - from: '131'
     to: '020'
   triggered:
   - from: '005'
