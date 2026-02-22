@@ -1,10 +1,17 @@
-# 077号：v16b session 二阶观察
+---
+id: "077"
+title: "v16b session 二阶观察"
+type: "meta-rule"
+status: "已结算"
+date: "2026-02-21"
+depends_on: ["074", "075"]
+negation_source: ""
+negation_form: ""
+negates: []
+negated_by: []
+---
 
-- **type**: meta-rule
-- **status**: 已结算
-- **date**: 2026-02-21
-- **session**: 2026-02-21-0430-session.md
-- **前置谱系**: 074号（下游行动执行缺口）、075号（skill迁移）
+# 077号：v16b session 二阶观察
 
 ## 观察
 

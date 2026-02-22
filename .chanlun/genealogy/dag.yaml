@@ -470,7 +470,7 @@ nodes:
   file: settled/083-clean-terminate-d-strategy.md
 - id: 084
   title: 全面孤岛审计：体系声明-能力缺口
-  status: 生成态
+  status: 已结算
   type: 矛盾发现
   file: settled/084-comprehensive-island-audit.md
 - id: 085
@@ -1085,6 +1085,8 @@ edges:
     to: '066'
   - from: 073a
     to: '073'
+  - from: 087
+    to: '086'
   - from: 088
     to: '032'
   - from: 093
@@ -1703,7 +1705,7 @@ edges:
     by: 068
   - target: '066'
     by: 068
-  - target: 073b
+  - target: '073'
     by: 073a
   - target: 086
     by: 087

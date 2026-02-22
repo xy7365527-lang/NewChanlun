@@ -1,9 +1,17 @@
-# 085号谱系：元编排递归拓扑异步自指性全面审计
+---
+id: "085"
+title: "元编排递归拓扑异步自指性全面审计"
+type: "语法记录"
+status: "已结算"
+date: "2026-02-22"
+depends_on: ["069", "075", "082"]
+negation_source: ""
+negation_form: ""
+negates: []
+negated_by: []
+---
 
-**类型**: 语法记录
-**状态**: 已结算
-**日期**: 2026-02-22
-**前置**: 069-recursive-topology-async-self-referential-swarm, 075-structural-to-skill, 082-structural-skill-event-driven-gap
+# 085号谱系：元编排递归拓扑异步自指性全面审计
 
 ## 审计背景
 

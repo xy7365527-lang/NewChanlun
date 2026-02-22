@@ -6,7 +6,7 @@ type: "meta-rule"
 date: "2026-02-20"
 depends_on: ["016", "020", "030a"]
 related: ["013", "014"]
-negated_by: []
+negated_by: ['088']
 negates: []
 ---
 

@@ -9,7 +9,7 @@ negation_model: gemini-3.1-pro-preview
 negation_form: expansion
 depends_on: ["085", "082", "073b", "075", "041", "018"]
 related: ["069", "056", "076", "077", "084"]
-negated_by: []
+negated_by: ['087']
 negates: []
 provenance: "[新缠论]"
 ---
