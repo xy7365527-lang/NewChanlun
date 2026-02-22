@@ -734,6 +734,11 @@ nodes:
   status: 已结算
   type: 语法记录
   file: settled/139-singularity-topology-structural-isomorphism.md
+- id: '140'
+  title: ceremony_scan 闭合下游推论→工位的数据通路（蜂群持久化修复）
+  status: 已结算
+  type: 定理
+  file: settled/140-ceremony-scan-downstream-closure.md
 edges:
   depends_on:
   - from: '136'
@@ -1460,6 +1465,10 @@ edges:
     to: 094
   - from: '139'
     to: 093
+  - from: '140'
+    to: '138'
+  - from: '140'
+    to: '134'
   triggered:
   - from: '005'
     to: 005a
@@ -2625,6 +2634,12 @@ edges:
   - between:
     - 089
     - '139'
+  - between:
+    - '137'
+    - '140'
+  - between:
+    - '139'
+    - '140'
   tensions_with:
   - between:
     - '007'
