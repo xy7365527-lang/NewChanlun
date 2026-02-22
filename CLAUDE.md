@@ -122,7 +122,8 @@ Always respond in Chinese-simplified (简体中文).
 15. **拓扑异步自指蜂群是默认架构。** [新缠论] 不是普通 agent team。
     **真递归拓扑异步自指蜂群是默认模式**（095号谱系，编排者 INTERRUPT 修正）：
     - teammate 通过 TeamCreate 创建子 team → 子 team 内部自治 → 结果向上回传。
-    - **子蜂群同样是递归拓扑异步自指蜂群**——子 team 不是简化版 agent pool，它复制父蜂群的完整结构：拓扑（DAG路由）、异步自指（t时刻审查t-1）、结晶（收缩相凝固）。递归的每一层都是完整蜂群。
+    - **子蜂群同样是递归拓扑异步自指蜂群**——子 team 不是简化版 agent pool，它复制父蜂群的完整结构。递归的每一层都是完整蜂群，必须满足五特征（097号最小 DAG 模板）：拓扑（≥2 并行任务节点）、异步自指（审查节点：t时刻审查t-1）、结晶（结晶节点：产出写入文件）、状态管理（独立 TaskList）、异质验证（异质审计节点：调用 Gemini 或等效异质源，约束4强制）。
+    - **创世 Gap 递归化**（097号）：L(n-1) Teammate 执行 sub-swarm-ceremony skill 时充当 L(n) Swarm₀——每层递归都有自己的创世 Gap（094号），这是结构条件不是 bug。
     - Trampoline 是退化特例——仅当任务不可分解为需要独立治理的子蜂群时才合法（与056号"线性是退化特例"同构）。
     **统一约束（096号谱系，无例外）**：所有 Task 调用必须携带 team_name，无例外（包括 Explore 类型）。需要搜索时：简单搜索用 Glob/Grep/Read 直接工具；多轮自主搜索在 team 内 spawn 搜索 teammate。
     **规则的三层分布式存在形式**（096号谱系；097号 Gemini decide 选项D 精化）：CLAUDE.md（基因组——声明层，含 skill 路径索引）+ hooks（免疫系统——强制层，只做阻断/放行，不提示/不索引）+ skills（可执行知识结晶——知识层）。三层各司其职不越界：CLAUDE.md 声明原则并指向 skill 入口，hooks 只做语法强制，skills 提供可执行流程。
