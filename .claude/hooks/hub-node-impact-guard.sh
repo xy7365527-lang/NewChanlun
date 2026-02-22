@@ -26,7 +26,18 @@ fi
 # Hub 节点影响表（Top 5，来自 061号 DAG 分析）
 # 使用环境变量传参给 python，避免 shell 注入
 json_allow() {
-  MSG="$1" python -c "import json,os; print(json.dumps({'decision':'allow','systemMessage':os.environ['MSG']}))"
+  MSG="$1" python -c "
+import json, os
+msg = os.environ['MSG']
+print(json.dumps({
+    'hookSpecificOutput': {
+        'hookEventName': 'PreToolUse',
+        'permissionDecision': 'allow',
+        'permissionDecisionReason': msg,
+        'additionalContext': msg
+    }
+}))
+"
 }
 
 case "$NODE_ID" in
