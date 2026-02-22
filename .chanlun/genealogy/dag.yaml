@@ -719,6 +719,11 @@ nodes:
   status: 已结算
   type: 语法记录
   file: settled/136-ceremony-gap-fix.md
+- id: '137'
+  title: Lead停顿缺口——RLHF基底约束 + 基因组表达失败 + 规则形式无效上限
+  status: 已结算
+  type: 矛盾发现
+  file: settled/137-lead-pause-structural-root.md
 edges:
   depends_on:
   - from: '136'
@@ -1429,6 +1434,12 @@ edges:
     to: 005b
   - from: '131'
     to: '020'
+  - from: '137'
+    to: '136'
+  - from: '137'
+    to: 090
+  - from: '137'
+    to: 089
   triggered:
   - from: '005'
     to: 005a
@@ -2576,6 +2587,9 @@ edges:
   - between:
     - '117'
     - '135'
+  - between:
+    - '134'
+    - '137'
   tensions_with:
   - between:
     - '007'
