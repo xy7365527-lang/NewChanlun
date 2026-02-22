@@ -498,11 +498,11 @@ fractal_template:
         description: "子蜂群元观察上交父蜂群二阶反馈"
 
   # 递归规则（从 dispatch-spec 迁移）
-  # 135号修正：平台（Agent Teams）支持子蜂群递归，073b Trampoline 前提已被事实否定
+  # 135号修正：平台（Agent Teams）支持子蜂群递归，073b 平台约束前提已被095号事实否定
   recursion_rules:
     - "任何 teammate 面对 ≥2 个可并行子任务时，必须 spawn 子蜂群（095号：真递归是默认模式）"
     - "子蜂群通过 TeamCreate 创建独立 team，复制父蜂群的完整结构（097号五特征 DAG 模板）"
-    - "Trampoline（扁平 Lead→Worker）是退化特例，使用需要理由——必须证明子任务不需要独立治理"
+    - "扁平 Lead→Worker 是退化特例，使用需要理由——必须证明子任务不需要独立治理"
     - "递归深度无人为限制，由 topology-manager 的收敛信号自然终止（020号：背驰+分型 = 区间套收敛判定）"
     - "父 teammate 对子 teammates 负路由责任"
     - "结构工位默认扁平——裁判不参与走势。例外：结构工位自身任务需分解时允许 spawn 同类型子工位（受限递归），不允许 spawn 任务工位"
