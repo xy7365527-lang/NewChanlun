@@ -35,10 +35,6 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/ceremony-guard.sh"
-          },
-          {
-            "type": "command",
             "command": ".claude/hooks/agent-team-enforce.sh"
           }
         ]

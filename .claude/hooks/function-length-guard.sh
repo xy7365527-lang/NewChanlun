@@ -26,7 +26,6 @@ print(data.get('tool_name', ''))
 
 # 只拦截 TaskUpdate
 if [ "$TOOL_NAME" != "TaskUpdate" ]; then
-    echo '{"continue": true}'
     exit 0
 fi
 
@@ -46,7 +45,6 @@ print(data.get('status', ''))
 " 2>/dev/null || echo "")
 
 if [ "$STATUS" != "completed" ]; then
-    echo '{"continue": true}'
     exit 0
 fi
 
@@ -58,7 +56,6 @@ print(data.get('taskId', ''))
 " 2>/dev/null || echo "")
 
 if [ -z "$TASK_ID" ]; then
-    echo '{"continue": true}'
     exit 0
 fi
 
@@ -89,7 +86,6 @@ COMBINED_DESC="${TASK_DESC} ${TASK_INPUT_DESC}"
 
 # 检查 #[atomic] 标记——跳过检查
 if echo "$COMBINED_DESC" | grep -q '#\[atomic\]'; then
-    echo '{"continue": true}'
     exit 0
 fi
 
@@ -104,7 +100,6 @@ print('yes' if found else 'no')
 " 2>/dev/null || echo "no")
 
 if [ "$IS_REFACTOR" != "yes" ]; then
-    echo '{"continue": true}'
     exit 0
 fi
 
@@ -153,7 +148,6 @@ print('\n'.join(result))
 " 2>/dev/null || echo "")
 
 if [ -z "$TARGET_FILES" ]; then
-    echo '{"continue": true}'
     exit 0
 fi
 
@@ -178,9 +172,8 @@ msg = (
     '强制放行。请人工检查代码质量。'
 )
 print(json.dumps({
-    'continue': True,
-    'suppressOutput': False,
-    'systemMessage': msg
+    'decision': 'allow',
+    'reason': msg
 }, ensure_ascii=False))
 "
     exit 0
@@ -239,7 +232,6 @@ done)
 if [ -z "$VIOLATIONS" ]; then
     # 全部达标，清除重试计数，放行
     rm -f "$RETRY_FILE"
-    echo '{"continue": true}'
     exit 0
 fi
 
@@ -265,8 +257,7 @@ msg = (
     ' 如果此任务确实不需要进一步拆分，在 description 中添加 #[atomic] 标记。'
 )
 print(json.dumps({
-    'continue': True,
-    'suppressOutput': False,
-    'systemMessage': msg
+    'decision': 'block',
+    'reason': msg
 }, ensure_ascii=False))
 " "$VIOLATIONS" "$TASK_ID" "$MAX_LINES" "$NEW_COUNT" "$MAX_RETRIES"

@@ -647,7 +647,7 @@ validation:
       on_fail: "警告——roadmap 未扫描，可能遗漏业务目标"
 
   post_commit:
-    ref: ".claude/skills/meta-orchestration/references/post-commit-flow.md"
+    ref: ".claude/rules/post-commit-flow.md"
     description: "commit 后执行的标准流程（session 写入、谱系更新检查）"
 
 # ═══════════════════════════════════════════════════════════════

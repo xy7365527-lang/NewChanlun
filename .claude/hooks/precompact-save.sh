@@ -114,5 +114,5 @@ SESSION_EOF
 DEF_COUNT=$(echo -e "$DEFINITIONS" | grep -c '|' || echo 0)
 MSG="[Session] 状态已保存: ${SESSION_FILE} | 定义${DEF_COUNT}条 | 谱系${PENDING_COUNT}生成态/${SETTLED_COUNT}已结算"
 
-# 输出 JSON 响应
-echo "{\"continue\": true, \"suppressOutput\": false, \"systemMessage\": \"${MSG}\"}"
+# 输出 JSON 响应（使用安全拼接）
+emit_json "$MSG"
