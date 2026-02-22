@@ -438,96 +438,101 @@ nodes:
   status: 已结算
   type: meta-rule
   file: settled/077-meta-observer-v16b.md
-- id: '078'
+- id: 078
   title: 打破连续阻塞死循环：D策略决断
   status: 已结算
   type: 选择
   file: settled/078-break-blocking-loop-strategy-d.md
-- id: '079'
+- id: 079
   title: 下游推论语义重定义：建议而非强制阻塞节点
   status: 已结算
   type: 语法记录
   file: settled/079-downstream-suggestions-not-blockers.md
-- id: '080'
+- id: 080
   title: NegationObject 本体论修正
   status: 已结算
   type: 语法记录
   file: settled/080-negationobject-lacan-correction.md
-- id: '081'
+- id: 081
   title: 蜂群持续自动化断裂：D策略决断
   status: 已结算
   type: 选择
   file: settled/081-swarm-continuity-strategy-d.md
-- id: '082'
+- id: 082
   title: 结构 skill 事件驱动孤岛：D策略决断
   status: 已结算
   type: 选择
   file: settled/082-structural-skill-event-driven-gap.md
-- id: '083'
+- id: 083
   title: 干净终止过早诊断：D策略决断
   status: 已结算
   type: 选择
   file: settled/083-clean-terminate-d-strategy.md
-- id: '084'
+- id: 084
   title: 全面孤岛审计：体系声明-能力缺口
   status: 生成态
   type: 矛盾发现
   file: settled/084-comprehensive-island-audit.md
-- id: '085'
+- id: 085
   title: 元编排递归拓扑异步自指性全面审计
   status: 已结算
   type: 语法记录
   file: settled/085-meta-orchestration-full-audit.md
-- id: '086'
+- id: 086
   title: 085号审计孤岛修复策略：五问题独立决断
   status: 已结算
   type: 选择
   file: settled/086-island-repair-strategy-decisions.md
-- id: '087'
+- id: 087
   title: 086号全C重新决断：五问题诚实修复（编排者INTERRUPT）
   status: 已结算
   type: 选择
   file: settled/087-island-repair-honest-decisions.md
-- id: '088'
+- id: 088
   title: 032号权限死锁与拓扑异常对象化重设计
   status: 已结算
   type: 选择
   file: settled/088-permission-deadlock-topology-anomaly-redesign.md
-- id: '089'
+- id: 089
   title: 元编排递归拓扑异步自指化审计——严格扬弃（Aufhebung）
   status: 已结算
   type: 选择
   file: settled/089-meta-orchestration-aufhebung-audit.md
-- id: '090'
+- id: 090
   title: 严格性是蜂群的语法规则——从个案否定到永久原则
   status: 已结算
   type: 语法记录
   file: settled/090-strictness-grammar-rule.md
-- id: '091'
+- id: 091
   title: 089号后全系统审计——四个拓扑/声明缺口修复
   status: 已结算
   type: 审计修复
   file: settled/091-post089-full-audit.md
-- id: '092'
+- id: 092
   title: RTAS 四维度严格审计——11 个发现 + 062号 Sinthome 修正
   status: 已结算
   type: 审计修复
   file: settled/092-rtas-strict-audit.md
-- id: '093'
+- id: 093
   title: 五约束有向依赖图——从系统物理限制推导蜂群结构约束，扬弃 R.S.I
   status: 已结算
   type: 概念扬弃
   file: settled/093-five-constraints-topology.md
-- id: '094'
+- id: 094
   title: 两个 Gap 在五约束框架下的重新定位
   status: 已结算
   type: 概念重定位
   file: settled/094-gap-reposition.md
-- id: '095'
+- id: 095
   title: Agent Team 子蜂群递归——从 Trampoline 升级为真调用栈递归
   status: 已结算
   type: 选择
   file: settled/095-agent-team-recursive-swarm.md
+- id: 096
+  title: 蜂群规则的分布式存在形式——完全禁用孤立 subagent，无例外
+  status: 已结算
+  type: 选择
+  file: settled/096-distributed-rules-no-exception.md
 edges:
   depends_on:
   - from: 005a
@@ -806,7 +811,6 @@ edges:
     to: '056'
   - from: 073a
     to: 069
-  # 073 depends (swarm-full-mutability)
   - from: '073'
     to: 069
   - from: '073'
@@ -817,14 +821,12 @@ edges:
     to: '057'
   - from: '073'
     to: 058
-  # 073b depends (trampoline)
   - from: 073b
     to: '056'
   - from: 073b
     to: 069
   - from: 073b
     to: '072'
-  # 074 depends
   - from: '074'
     to: '036'
   - from: '074'
@@ -833,7 +835,6 @@ edges:
     to: '072'
   - from: '074'
     to: '073'
-  # 075 depends
   - from: '075'
     to: '073'
   - from: '075'
@@ -842,202 +843,192 @@ edges:
     to: '057'
   - from: '075'
     to: '062'
-  # 076 depends
   - from: '076'
     to: '074'
   - from: '076'
     to: '036'
   - from: '076'
     to: '012'
-  # 077 depends
   - from: '077'
     to: '074'
   - from: '077'
     to: '075'
-  # 078 depends
-  - from: '078'
+  - from: 078
     to: '041'
-  - from: '078'
+  - from: 078
     to: '064'
-  - from: '078'
+  - from: 078
     to: '076'
-  - from: '078'
+  - from: 078
     to: 018
-  # 079 depends
-  - from: '079'
+  - from: 079
     to: '076'
-  - from: '079'
+  - from: 079
     to: '074'
-  - from: '079'
+  - from: 079
     to: '012'
-  - from: '079'
+  - from: 079
     to: '041'
-  - from: '079'
-    to: '078'
-  # 080 depends
-  - from: '080'
+  - from: 079
+    to: 078
+  - from: 080
     to: '064'
-  - from: '080'
+  - from: 080
     to: 005b
-  - from: '080'
+  - from: 080
     to: 005a
-  - from: '080'
-    to: '078'
-  # 081 depends
-  - from: '081'
+  - from: 080
+    to: 078
+  - from: 081
     to: '041'
-  - from: '081'
-    to: '078'
-  - from: '081'
-    to: '079'
-  - from: '081'
+  - from: 081
+    to: 078
+  - from: 081
+    to: 079
+  - from: 081
     to: 018
-  # 082 depends
-  - from: '082'
+  - from: 082
     to: '075'
-  - from: '082'
+  - from: 082
     to: '076'
-  - from: '082'
-    to: '078'
-  - from: '082'
+  - from: 082
+    to: 078
+  - from: 082
     to: '041'
-  - from: '082'
+  - from: 082
     to: 018
-  # 083 depends
-  - from: '083'
-    to: '081'
-  - from: '083'
+  - from: 083
+    to: 081
+  - from: 083
     to: '076'
-  - from: '083'
-    to: '079'
-  - from: '083'
+  - from: 083
+    to: 079
+  - from: 083
     to: 018
-  - from: '083'
+  - from: 083
     to: '041'
-  # 084 depends
-  - from: '084'
+  - from: 084
     to: '075'
-  - from: '084'
-    to: '082'
-  - from: '084'
-    to: '083'
-  - from: '084'
+  - from: 084
+    to: 082
+  - from: 084
+    to: 083
+  - from: 084
     to: '016'
-  - from: '084'
+  - from: 084
     to: '043'
-  # 085 depends
-  - from: '085'
+  - from: 085
     to: 069
-  - from: '085'
+  - from: 085
     to: '075'
-  - from: '085'
-    to: '082'
-  # 086 depends
-  - from: '086'
-    to: '085'
-  - from: '086'
-    to: '082'
-  - from: '086'
+  - from: 085
+    to: 082
+  - from: 086
+    to: 085
+  - from: 086
+    to: 082
+  - from: 086
     to: 073b
-  - from: '086'
+  - from: 086
     to: '075'
-  - from: '086'
+  - from: 086
     to: '041'
-  - from: '086'
+  - from: 086
     to: 018
-  # 087 depends
-  - from: '087'
-    to: '086'
-  - from: '087'
-    to: '085'
-  - from: '087'
-    to: '082'
-  - from: '087'
+  - from: 087
+    to: 086
+  - from: 087
+    to: 085
+  - from: 087
+    to: 082
+  - from: 087
     to: 073b
-  - from: '087'
+  - from: 087
     to: '075'
-  - from: '087'
+  - from: 087
     to: '041'
-  - from: '087'
+  - from: 087
     to: 018
-  # 088 depends
-  - from: '088'
+  - from: 088
     to: '032'
-  - from: '088'
+  - from: 088
     to: '016'
-  - from: '088'
+  - from: 088
     to: '020'
-  - from: '088'
+  - from: 088
     to: 069
-  - from: '088'
+  - from: 088
     to: 005b
-  - from: '088'
+  - from: 088
     to: '043'
-  - from: '088'
+  - from: 088
     to: '073'
-  - from: '088'
-    to: '087'
-  # 089 depends
-  - from: '089'
-    to: '069'
-  - from: '089'
+  - from: 088
+    to: 087
+  - from: 089
+    to: 069
+  - from: 089
     to: '020'
-  - from: '089'
+  - from: 089
     to: '073'
-  - from: '089'
-    to: '058'
-  - from: '089'
+  - from: 089
+    to: 058
+  - from: 089
     to: '075'
-  - from: '089'
-    to: '084'
-  - from: '089'
-    to: '088'
-  # 090 depends
-  - from: '090'
-    to: '089'
-  - from: '090'
-    to: '087'
-  - from: '090'
+  - from: 089
+    to: 084
+  - from: 089
+    to: 088
+  - from: 090
+    to: 089
+  - from: 090
+    to: 087
+  - from: 090
     to: 005b
-  # 091 depends
-  - from: '091'
-    to: '089'
-  - from: '091'
-    to: '090'
-  - from: '091'
-    to: '084'
-  - from: '092'
+  - from: 091
+    to: 089
+  - from: 091
+    to: 090
+  - from: 091
+    to: 084
+  - from: 092
     to: '062'
-  - from: '092'
-    to: '069'
-  - from: '092'
-    to: '084'
-  - from: '092'
-    to: '090'
-  - from: '092'
-    to: '091'
-  - from: '093'
+  - from: 092
+    to: 069
+  - from: 092
+    to: 084
+  - from: 092
+    to: 090
+  - from: 092
+    to: 091
+  - from: 093
     to: '062'
-  - from: '093'
-    to: '069'
-  - from: '093'
-    to: '092'
-  # 094 depends
-  - from: '094'
-    to: '069'
-  - from: '094'
-    to: '093'
-  # 095 depends
-  - from: '095'
+  - from: 093
+    to: 069
+  - from: 093
+    to: 092
+  - from: 094
+    to: 069
+  - from: 094
+    to: 093
+  - from: 095
     to: '056'
-  - from: '095'
-    to: '069'
-  - from: '095'
+  - from: 095
+    to: 069
+  - from: 095
     to: 073b
-  - from: '095'
-    to: '093'
-  - from: '095'
-    to: '094'
+  - from: 095
+    to: 093
+  - from: 095
+    to: 094
+  - from: 096
+    to: 089
+  - from: 096
+    to: 090
+  - from: 096
+    to: 093
+  - from: 096
+    to: 095
   triggered:
   - from: '005'
     to: 005a
@@ -1089,12 +1080,14 @@ edges:
     to: '066'
   - from: 073a
     to: '073'
-  - from: '088'
+  - from: 088
     to: '032'
-  - from: '093'
+  - from: 093
     to: '062'
-  - from: '095'
+  - from: 095
     to: 073b
+  - from: 096
+    to: 095
   related:
   - between:
     - '001'
@@ -1646,37 +1639,37 @@ edges:
     - '072'
     - 073a
   - between:
-    - '091'
+    - 091
     - '075'
   - between:
-    - '091'
+    - 091
     - '073'
   - between:
-    - '092'
+    - 092
     - '037'
   - between:
-    - '092'
+    - 092
     - '064'
   - between:
-    - '092'
-    - '068'
+    - 092
+    - 068
   - between:
-    - '092'
+    - 092
     - '075'
   - between:
-    - '093'
+    - 093
     - '012'
   - between:
-    - '093'
-    - '068'
+    - 093
+    - 068
   - between:
-    - '093'
+    - 093
     - '075'
   - between:
-    - '094'
-    - '058'
+    - 094
+    - 058
   - between:
-    - '094'
+    - 094
     - '062'
   tensions_with:
   - between:
@@ -1707,11 +1700,13 @@ edges:
     by: 068
   - target: 073b
     by: 073a
-  - target: '086'
-    by: '087'
+  - target: 086
+    by: 087
   - target: '032'
-    by: '088'
+    by: 088
   - target: '062'
-    by: '093'
+    by: 093
   - target: 073b
-    by: '095'
+    by: 095
+  - target: 095
+    by: 096
