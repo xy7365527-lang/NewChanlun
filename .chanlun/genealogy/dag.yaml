@@ -695,10 +695,10 @@ nodes:
   type: 定理
   file: settled/131-005b-l62-trigger-resolution.md
 - id: '132'
-  title: historical_tension边类型缺失——活跃张力与历史失效张力的Schema区分
-  status: 生成态
-  type: 矛盾发现
-  file: pending/132-historical-tension-edge-type-proposal.md
+  title: tensions_with边引入valid_until字段——活跃张力与历史失效张力的严格区分
+  status: 已结算
+  type: 选择
+  file: settled/132-historical-tension-valid-until.md
 edges:
   depends_on:
   - from: 005a
@@ -1377,15 +1377,15 @@ edges:
     to: '105'
   - from: '130'
     to: '116'
-  # 132号: historical_tension边类型缺失（生成态）
+  # 132号: tensions_with边引入valid_until字段（已结算，选择）
   - from: '132'
     to: '121'
   - from: '132'
     to: '120'
   - from: '132'
-    to: '062'
+    to: 090
   - from: '132'
-    to: '065'
+    to: 068
   # 129号: negates稀疏性审查（已结算，定理）
   - from: '129'
     to: '127'
@@ -2497,9 +2497,11 @@ edges:
   - between:
     - '062'
     - '065'
+    valid_until: 068    # 068否定065，062被064/093否定——双端失效
   - between:
     - '064'
     - '065'
+    valid_until: 068    # 068否定065
   # === v33审计补建的tensions_with边(T1-T7) ===
   # T1: 069四维度框架在093扬弃后异质验证维度悬空
   - between:
@@ -2533,16 +2535,20 @@ edges:
   - between:
     - '062'
     - 069
+    valid_until: 093    # 093扬弃062
   - between:
     - '062'
     - 094
+    valid_until: 093    # 093扬弃062
   - between:
     - '062'
     - '104'
+    valid_until: 093    # 093扬弃062
   # T6: 068否定065后，065的tensions_with边残留(连续流形→离散图论范式转换后张力存废未决)
   - between:
     - 068
     - '065'
+    valid_until: 068    # 068否定065
   # T7: 020a同一存在论的"脉动"隐喻与068离散DAG范式的本体论张力
   - between:
     - 020a
