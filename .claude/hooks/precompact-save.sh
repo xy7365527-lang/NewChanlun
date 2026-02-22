@@ -3,7 +3,7 @@
 #
 # 当 Claude Code 上下文即将被压缩时，自动保存蜂群状态。
 # session = 指针，不是叙事。内容活在文件系统里，session 只存引用。
-# 50行封顶。
+# 141号修复：增加蜂群状态采集（teams/ + tasks/），闭合 compact 后蜂群追踪丢失的缺口。
 #
 # 输入：JSON (stdin) — session_id, transcript_path, cwd 等
 # 输出：JSON (stdout) — continue=true, systemMessage=状态摘要
@@ -57,14 +57,62 @@ GIT_COMMIT=$(git log --oneline -1 2>/dev/null || echo "unknown")
 GIT_DIRTY=$(git diff --stat 2>/dev/null | tail -1)
 [ -z "$GIT_DIRTY" ] && GIT_DIRTY="clean"
 
+# 采集活跃蜂群状态（~/.claude/teams/ + ~/.claude/tasks/）
+SWARM_STATUS=""
+TEAMS_DIR="$HOME/.claude/teams"
+TASKS_DIR="$HOME/.claude/tasks"
+if [ -d "$TEAMS_DIR" ]; then
+    for team_dir in "$TEAMS_DIR"/*/; do
+        [ -d "$team_dir" ] || continue
+        team_name=$(basename "$team_dir")
+        config="$team_dir/config.json"
+        [ -f "$config" ] || continue
+        # 提取成员列表
+        members=$(python -c "
+import json, sys
+with open(sys.argv[1]) as f:
+    c = json.load(f)
+for m in c.get('members', []):
+    print(f\"  - {m['name']} ({m['agentType']})\")
+" "$config" 2>/dev/null || echo "  - (读取失败)")
+        # 提取任务状态
+        task_summary=""
+        task_dir="$TASKS_DIR/$team_name"
+        if [ -d "$task_dir" ]; then
+            task_summary=$(python -c "
+import json, os, sys
+d = sys.argv[1]
+for f in sorted(os.listdir(d)):
+    if not f.endswith('.json'): continue
+    with open(os.path.join(d, f)) as fh:
+        t = json.load(fh)
+    owner = t.get('owner', '')
+    blocked = t.get('blockedBy', [])
+    s = t.get('status', '?')
+    subj = t.get('subject', '?')
+    line = f\"  - [{s}] {subj}\"
+    if owner: line += f\" (owner:{owner})\"
+    if blocked: line += f\" (blocked:{blocked})\"
+    print(line)
+" "$task_dir" 2>/dev/null || echo "  - (任务读取失败)")
+        fi
+        SWARM_STATUS="${SWARM_STATUS}
+### 蜂群: ${team_name}
+成员:
+${members}
+任务:
+${task_summary:-  - (无任务)}"
+    done
+fi
+
 # 采集中断点：从最近 session 继承 + 过时检测
 PREV_SESSION=""
 PREV_INTERRUPTS=""
 for f in $(ls -t .chanlun/sessions/*-session.md 2>/dev/null | head -1); do
     [ -f "$f" ] || continue
     PREV_SESSION="$f"
-    # 提取中断点章节（从 ## 中断点 到下一个 ## 或文件结束）
-    PREV_INTERRUPTS=$(sed -n '/^## 中断点/,/^## [^中]/p' "$f" 2>/dev/null | head -20 || true)
+    # 提取中断点章节内容（跳过标题行本身）
+    PREV_INTERRUPTS=$(sed -n '/^## 中断点$/,/^## /{/^## /d; p}' "$f" 2>/dev/null | head -20 || true)
 done
 
 # G1修复：检测中断点是否过时（session写入后有新提交 = 进度未持久化）
@@ -101,18 +149,27 @@ cat > "$SESSION_FILE" << SESSION_EOF
 - 已结算: ${SETTLED_COUNT} 个
 → 来源: .chanlun/genealogy/{pending,settled}/
 
+## 活跃蜂群
+${SWARM_STATUS:-"（无活跃蜂群）"}
+
 ## 中断点
 ${PREV_INTERRUPTS:-"（自动快照，中断点待 CC 下次写入）"}
 
 ## 恢复指引
 1. 读取此文件获取状态指针
-2. 扫描 definitions/ 和 genealogy/ 获取当前状态
-3. 按中断点评估可并行工位，直接进入蜂群循环
+2. 如有活跃蜂群：先用 TaskList 恢复工位追踪，继续蜂群循环
+3. 扫描 definitions/ 和 genealogy/ 获取当前状态
+4. 按中断点评估可并行工位，直接进入蜂群循环
 SESSION_EOF
 
 # 生成系统消息
 DEF_COUNT=$(echo -e "$DEFINITIONS" | grep -c '|' || echo 0)
-MSG="[Session] 状态已保存: ${SESSION_FILE} | 定义${DEF_COUNT}条 | 谱系${PENDING_COUNT}生成态/${SETTLED_COUNT}已结算"
+# 计算活跃蜂群数
+SWARM_COUNT=0
+if [ -d "$TEAMS_DIR" ]; then
+    SWARM_COUNT=$(ls -d "$TEAMS_DIR"/*/ 2>/dev/null | wc -l)
+fi
+MSG="[Session] 状态已保存: ${SESSION_FILE} | 定义${DEF_COUNT}条 | 谱系${PENDING_COUNT}生成态/${SETTLED_COUNT}已结算 | 蜂群${SWARM_COUNT}活跃"
 
 # 输出 JSON 响应（使用 python json.dumps 保证转义安全）
 python -c "

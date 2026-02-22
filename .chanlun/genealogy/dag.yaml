@@ -739,6 +739,16 @@ nodes:
   status: 已结算
   type: 定理
   file: settled/140-ceremony-scan-downstream-closure.md
+- id: '141'
+  title: 矛盾→拓扑变化三步方案——双向收敛五结论 + compact蜂群状态缺口修复
+  status: 已结算
+  type: 語法記録
+  file: settled/141-topology-mutation-convergence.md
+- id: '142'
+  title: precompact-save 蜂群状态采集——compact 后蜂群追踪丢失的数据通路闭合
+  status: 已结算
+  type: 定理
+  file: settled/142-precompact-swarm-state-closure.md
 edges:
   depends_on:
   - from: '136'
@@ -1469,6 +1479,16 @@ edges:
     to: '138'
   - from: '140'
     to: '134'
+  - from: '141'
+    to: '139'
+  - from: '141'
+    to: 093
+  - from: '141'
+    to: '040'
+  - from: '142'
+    to: '140'
+  - from: '141'
+    to: '140'
   triggered:
   - from: '005'
     to: 005a
@@ -2640,6 +2660,33 @@ edges:
   - between:
     - '139'
     - '140'
+  - between:
+    - 069
+    - '141'
+  - between:
+    - 068
+    - '141'
+  - between:
+    - '033'
+    - '141'
+  - between:
+    - '075'
+    - '141'
+  - between:
+    - '132'
+    - '141'
+  - between:
+    - '137'
+    - '142'
+  - between:
+    - '040'
+    - '141'
+  - between:
+    - 093
+    - '141'
+  - between:
+    - '134'
+    - '141'
   tensions_with:
   - between:
     - '007'
