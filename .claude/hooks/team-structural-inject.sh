@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # PostToolUse hook: TeamCreate 后输出 skill 可用性提示
 # 075号更新：不再注入结构工位 spawn 指令，改为提示 skill 事件驱动架构
+# 096号更新：删除规则注入（子蜂群行为规则已在 CLAUDE.md 基因组中，无需 prompt 重复传递）
 # 从 dispatch-dag.yaml 的 event_skill_map 读取 structural skill
 
 set -uo pipefail
@@ -52,8 +53,9 @@ for i, s in enumerate(structural, 1):
 skill_list = chr(10).join(lines)
 count = len(structural)
 
+# 096号：仅信息性提示，不注入规则（规则在 CLAUDE.md 基因组中，分布式自动加载）
 print(json.dumps({
     'decision': 'allow',
-    'reason': f'[075号 skill 架构] 蜂群 $team_name 已创建。{count} 个 structural skill 由事件自动触发（无需 spawn teammate）：\n{skill_list}\n直接 spawn 业务工位即可。'
+    'reason': f'[075号 skill 架构] 蜂群 {team_name} 已创建。{count} 个 structural skill 由事件自动触发（无需 spawn teammate）：\n{skill_list}\n直接 spawn 业务工位即可。'
 }, ensure_ascii=False))
 "

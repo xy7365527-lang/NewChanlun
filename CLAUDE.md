@@ -124,10 +124,10 @@ Always respond in Chinese-simplified (简体中文).
     - teammate 通过 TeamCreate 创建子 team → 子 team 内部自治 → 结果向上回传。
     - **子蜂群同样是递归拓扑异步自指蜂群**——子 team 不是简化版 agent pool，它复制父蜂群的完整结构：拓扑（DAG路由）、异步自指（t时刻审查t-1）、结晶（收缩相凝固）。递归的每一层都是完整蜂群。
     - Trampoline 是退化特例——仅当任务不可分解为需要独立治理的子蜂群时才合法（与056号"线性是退化特例"同构）。
-    **统一约束**：所有蜂群节点严格通过 Agent Team（TeamCreate + Task with team_name）管理，不使用孤立 subagent。
+    **统一约束（096号谱系，无例外）**：所有 Task 调用必须携带 team_name，无例外（包括 Explore 类型）。需要搜索时：简单搜索用 Glob/Grep/Read 直接工具；多轮自主搜索在 team 内 spawn 搜索 teammate。规则的分布式存在形式 = CLAUDE.md（基因组）+ hooks（免疫系统），不在 prompt 中。
     递归深度工程上限 ≈ 3-4 层（受并发 agent 数、API 成本、视差 Gap 累积限制）。
     三个不可消除的 Gap：创世Gap（Swarm₀游离于拓扑之外，每层递归独立存在）+ 视差Gap（自审查永远有时间差，随深度累积）+ 审计层断裂Gap（外部审计必须经过持久化中介，随深度放大）。
-    这三个 Gap 是系统的结构条件，不是 bug。见 069号、094号、095号谱系。
+    这三个 Gap 是系统的结构条件，不是 bug。见 069号、094号、095号、096号谱系。
 16. **理论洞见影响设计决策，代码自足表达。** 理论洞见只存在于 `.chanlun/genealogy/` 和 `CLAUDE.md`。
     禁止在 `src/` 中出现哲学/精神分析命名（如 `lacan_router.py`）。
     代码的设计意图必须在工程语言中自足表达，不依赖理论回溯。见 069号谱系。
