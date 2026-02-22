@@ -564,6 +564,26 @@ nodes:
   status: 已结算
   type: 选择
   file: settled/105-recursion-mandatory-architecture.md
+- id: '106'
+  title: 治理偏差链结晶：038-039-046 共同模式
+  status: 已结算
+  type: 结晶
+  file: settled/106-governance-deviation-crystallization.md
+- id: '107'
+  title: 中枢定义到实现的选择谱系
+  status: 已结算
+  type: 语法记录
+  file: settled/107-zhongshu-impl-choices.md
+- id: '108'
+  title: 背驰定义到实现的选择谱系
+  status: 已结算
+  type: 语法记录
+  file: settled/108-beichi-impl-choices.md
+- id: '109'
+  title: 买卖点定义到实现的选择谱系
+  status: 已结算
+  type: 语法记录
+  file: settled/109-maimai-impl-choices.md
 edges:
   depends_on:
   - from: 005a
@@ -1104,6 +1124,12 @@ edges:
     to: 097
   - from: '105'
     to: '104'
+  - from: '106'
+    to: 038
+  - from: '106'
+    to: 039
+  - from: '106'
+    to: '046'
   triggered:
   - from: '005'
     to: 005a
@@ -1987,6 +2013,45 @@ edges:
   - between:
     - '105'
     - 093
+  - between:
+    - '106'
+    - '016'
+  - between:
+    - '106'
+    - '020'
+  - between:
+    - '106'
+    - '027'
+  - between:
+    - '106'
+    - '032'
+  - between:
+    - '106'
+    - '033'
+  - between:
+    - '107'
+    - '001'
+  - between:
+    - '107'
+    - '002'
+  - between:
+    - '107'
+    - '006'
+  - between:
+    - '108'
+    - '004'
+  - between:
+    - '108'
+    - '007'
+  - between:
+    - '108'
+    - 009
+  - between:
+    - '109'
+    - '007'
+  - between:
+    - '109'
+    - 009
   tensions_with:
   - between:
     - '007'

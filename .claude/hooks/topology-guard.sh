@@ -185,7 +185,7 @@ else:
         '  3. 如果是新建文件，确保至少一个已有文件引用它'
     )
     print(json.dumps({
-        'decision': 'allow',
+        'decision': 'block',
         'reason': msg
     }, ensure_ascii=False))
 " 2>/dev/null || true
@@ -269,9 +269,8 @@ if unregistered:
         f'{file_list}\n'
         '请使用 DynamicRegistry 注册，或确认该文件不需要注册（测试/临时文件）。'
     )
-    # 只警告，不阻断
+    # 通过 systemMessage 警告（PostToolUse 不支持 decision:warn）
     print(json.dumps({
-        'decision': 'warn',
-        'reason': msg
+        'systemMessage': msg
     }, ensure_ascii=False))
 " 2>/dev/null || true
