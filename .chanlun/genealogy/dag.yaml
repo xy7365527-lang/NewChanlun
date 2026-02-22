@@ -534,10 +534,35 @@ nodes:
   type: 选择
   file: settled/096-distributed-rules-no-exception.md
 - id: 097
-  title: 真严格递归拓扑异步自指蜂群完整架构——hook 纯化 + 五特征最小 DAG 模板
+  title: 真严格递归拓扑异步自指蜂群完整架构——hook 纯化 + 五特征 DAG 模板
   status: 已结算
   type: 选择
   file: settled/097-strict-rtas-architecture.md
+- id: '098'
+  title: 口径结算结晶——笔/线段退化 -> 源文件不完整 -> 口径统一
+  status: 已结算
+  type: 结晶
+  file: settled/098-caliber-settlement-crystallization.md
+- id: '099'
+  title: 趋势/盘整实体化缺口记录
+  status: 已结算
+  type: 语法记录
+  file: settled/099-trend-consolidation-implementation-gap.md
+- id: '102'
+  title: 编排者角色演化结晶——从同步决策者到异步审计者
+  status: 已结算
+  type: 结晶
+  file: settled/102-orchestrator-evolution-crystallization.md
+- id: '103'
+  title: 系统审计两定律结晶——声明-能力缺口的系统性与消除方式
+  status: 已结算
+  type: 结晶
+  file: settled/103-system-audit-two-laws-crystallization.md
+- id: '104'
+  title: 三框架显式映射——069四维度/093五约束/097五特征的严格关系
+  status: 已结算
+  type: 定理
+  file: settled/104-three-framework-mapping.md
 edges:
   depends_on:
   - from: 005a
@@ -1034,6 +1059,32 @@ edges:
     to: 093
   - from: 096
     to: 095
+  - from: '102'
+    to: '020'
+  - from: '102'
+    to: '021'
+  - from: '102'
+    to: '041'
+  - from: '102'
+    to: '052'
+  - from: '103'
+    to: 084
+  - from: '103'
+    to: 085
+  - from: '103'
+    to: 086
+  - from: '103'
+    to: 087
+  - from: '103'
+    to: 088
+  - from: '103'
+    to: 089
+  - from: '104'
+    to: 069
+  - from: '104'
+    to: 093
+  - from: '104'
+    to: 097
   triggered:
   - from: '005'
     to: 005a
@@ -1678,6 +1729,66 @@ edges:
   - between:
     - 094
     - '062'
+  - between:
+    - '098'
+    - '001'
+  - between:
+    - '098'
+    - '002'
+  - between:
+    - '098'
+    - '003'
+  - between:
+    - '099'
+    - '007'
+  - between:
+    - '099'
+    - 009
+  - between:
+    - '099'
+    - '010'
+  - between:
+    - '099'
+    - 029
+  - between:
+    - '099'
+    - '031'
+  - between:
+    - '102'
+    - 018
+  - between:
+    - '102'
+    - 028
+  - between:
+    - '102'
+    - 030a
+  - between:
+    - '102'
+    - 039
+  - between:
+    - '102'
+    - 088
+  - between:
+    - '103'
+    - '016'
+  - between:
+    - '103'
+    - '036'
+  - between:
+    - '103'
+    - 090
+  - between:
+    - '103'
+    - 093
+  - between:
+    - '104'
+    - '062'
+  - between:
+    - '104'
+    - 089
+  - between:
+    - '104'
+    - 094
   tensions_with:
   - between:
     - '007'
@@ -1701,6 +1812,8 @@ edges:
     - '064'
     - '065'
   negated_by:
+  - target: '037'
+    by: 073b
   - target: '065'
     by: 068
   - target: '066'
@@ -1717,3 +1830,30 @@ edges:
     by: 095
   - target: 095
     by: 096
+  crystallizes:
+  - from: '098'
+    to: '001'
+  - from: '098'
+    to: '002'
+  - from: '098'
+    to: '003'
+  - from: '102'
+    to: '020'
+  - from: '102'
+    to: '021'
+  - from: '102'
+    to: '041'
+  - from: '102'
+    to: '052'
+  - from: '103'
+    to: 084
+  - from: '103'
+    to: 085
+  - from: '103'
+    to: 086
+  - from: '103'
+    to: 087
+  - from: '103'
+    to: 088
+  - from: '103'
+    to: 089
