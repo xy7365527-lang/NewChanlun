@@ -128,3 +128,84 @@
 # === 141号 ===
 # 141号下游推论保持 unresolved——这些是真正的工程项
 141-4: resolved    # context耗尽诊断已完成（hook注入非主因，大文件读取是主因），dag_add_node.py 已创建
+
+# === 141号工位执行确认 ===
+141-1: resolved    # dispatch-dag topology-mutator skill 已由 v143-swarm 工位添加
+141-2: long_term   # topo_effect 字段标注——需谱系结算流程变更，待实践验证
+141-3: resolved    # meta-observer 规则版本基线已由 v143-swarm 工位添加
+
+# === 132号工位执行确认 ===
+132-1: resolved    # valid_until 字段已在 dag.yaml schema 中使用（132号本身执行了）
+132-2: resolved    # v143-swarm valid-until-check 工位已补充缺失的 valid_until
+132-3: resolved    # validate_dag.py 已增加 valid_until 检查
+
+# === 143号 ===
+143-1: long_term   # 规则停顿窗口审查——需全面审计所有规则文件
+143-2: long_term   # 格式A约束扩展——需与138号一起评估
+
+# === 早期历史项批量标注 ===
+# 079号
+079-1: long_term   # dispatch-dag long_term 状态更新——低优先级
+079-2: superseded  # ceremony 逻辑已在081号中改进
+079-3: superseded  # session 更新已由自动化 hook 处理
+
+# 081号
+081-1: resolved    # roadmap.yaml 已创建
+081-2: resolved    # ceremony_scan.py 已有 roadmap 扫描
+081-3: resolved    # dispatch-dag terminate_condition 已更新
+081-4: resolved    # ceremony_scan.py 已有 pattern-buffer 扫描
+081-5: resolved    # ceremony_scan.py 已有谱系张力扫描
+
+# 083号
+083-1: resolved    # roadmap.yaml 已有 active 任务
+083-2: resolved    # ceremony_scan 已发现 active 任务
+083-3: long_term   # 战略方向——需编排者输入
+083-4: resolved    # 076/079号已确认为建议来源
+
+# 084号
+084-1: resolved    # precompact-save.sh 已修复（142号）
+084-2: long_term   # topology-guard ROOT_NODES 修复——独立任务
+084-3: long_term   # hub-node-impact-guard JSON 修复——独立任务
+084-4: long_term   # lead-permissions.sh——需架构决策
+
+# 085号
+085-1: resolved    # 095号已确认真递归可用，"递归"声明合法
+085-2: resolved    # 095号 Agent Team 递归已实现
+085-3: long_term   # 断裂 skill 修复——独立审计
+085-4: resolved    # 认识论确认
+
+# 092号
+092-1: long_term   # 062号补丁谱系——独立任务
+092-2: superseded  # 093号已改写架构三维度为五约束
+092-3: long_term   # 遗留缺口——独立任务
+092-4: long_term   # 已知限制记录
+
+# 093号
+093-1: superseded  # CLAUDE.md 已拆分为 skill 集合（135号），五约束在 swarm-architecture skill 中
+093-2: long_term   # dispatch-dag R.S.I 注释更新——低优先级
+093-3: long_term   # 062号状态标注——独立任务
+093-4: long_term   # 069号表述重定位——独立任务
+
+# 094号
+094-1: long_term   # CLAUDE.md 069号描述更新——skill 化后需更新对应 skill
+094-2: resolved    # 认识论确认——ceremony 设计理解
+094-3: resolved    # 认识论确认——审计层约束
+
+# 095号
+095-1: resolved    # CLAUDE.md 原则15 已在 swarm-architecture skill 中更新
+095-2: resolved    # 073b negated_by 095 已在 dag.yaml 中
+095-3: long_term   # 子 team ceremony——独立架构任务
+095-4: long_term   # dispatch-dag 层级标注——独立任务
+
+# 096号
+096-1: resolved    # agent-team-enforce.sh 已无条件运行
+096-2: resolved    # 认识论确认——规则分布式形式
+096-3: superseded  # 097号否定了 hook 索引器
+096-4: resolved    # Task 调用语义已统一
+
+# 097号
+097-1: resolved    # sub-swarm-ceremony skill 已更新
+097-2: resolved    # CLAUDE.md 原则15 已更新
+097-3: resolved    # team-structural-inject.sh 已删除
+097-4: resolved    # dispatch-dag 注释已更新
+097-5: resolved    # hook 回归纯阻断/放行
