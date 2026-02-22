@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# PostToolUse hook: TeamCreate 后输出 skill 可用性提示
-# 075号更新：不再注入结构工位 spawn 指令，改为提示 skill 事件驱动架构
-# 096号更新：删除规则注入（子蜂群行为规则已在 CLAUDE.md 基因组中，无需 prompt 重复传递）
-# 从 dispatch-dag.yaml 的 event_skill_map 读取 structural skill
+# PostToolUse hook: TeamCreate 后强制导向 sub-swarm-ceremony skill
+# 075号更新：不再注入结构工位 spawn 指令，改为 skill 事件驱动架构
+# 096号（修正版）：三层存在形式——CLAUDE.md（原则）+ hooks（语法/索引）+ skills（流程结晶）
+#   hook 的语义是"Skill 索引器"：强制将 agent 注意力导向 sub-swarm-ceremony skill 文件
+#   不是"信息提示"，是"规则存在形式的第三层——结晶知识的入口"
 
 set -uo pipefail
 
@@ -27,35 +28,16 @@ if isinstance(r, str):
 
 [ -z "$team_name" ] && exit 0
 
-# 从 dispatch-dag.yaml 读取 event_skill_map 中的 structural skill
+# 096号修正（Gemini decide，选项C）：
+# hook = Skill 索引器，不是信息提示
+# 子蜂群行为规则的完整操作流程在 skill 文件中结晶，必须读取
 python -c "
-import json, yaml, sys
+import json, sys
 
-dag_path = '.chanlun/dispatch-dag.yaml'
-try:
-    with open(dag_path, encoding='utf-8') as f:
-        dag = yaml.safe_load(f)
-except Exception:
-    sys.exit(0)
+team = '$team_name'
+skill_path = '.claude/skills/sub-swarm-ceremony/SKILL.md'
 
-skills = dag.get('event_skill_map', [])
-structural = [s for s in skills if s.get('skill_type') == 'structural']
+msg = '[096号修正——三层存在形式] 蜂群 ' + team + ' 已创建。\n\n子蜂群创建规则以 skill 形式结晶（原则11：skill = 知识维度结晶）。\n你必须读取并遵循：' + skill_path + '\n\nskill 包含：\n- 何时触发（子任务可分解时）\n- 完整创建步骤（TeamCreate → TaskList → spawn → 监控 → 清理）\n- 四特征（拓扑 + 异步自指 + 结晶 + 状态管理）\n\n这不是建议，是蜂群规则存在方式的第三层（CLAUDE.md 原则 → hooks 语法守卫 → skill 操作流程）。'
 
-if not structural:
-    sys.exit(0)
-
-lines = []
-for i, s in enumerate(structural, 1):
-    sid = s['id']
-    triggers = ', '.join(t.get('event', '?') for t in s.get('triggers', []))
-    lines.append(f'{i}. {sid} — 触发事件: [{triggers}]')
-
-skill_list = chr(10).join(lines)
-count = len(structural)
-
-# 096号：仅信息性提示，不注入规则（规则在 CLAUDE.md 基因组中，分布式自动加载）
-print(json.dumps({
-    'decision': 'allow',
-    'reason': f'[075号 skill 架构] 蜂群 {team_name} 已创建。{count} 个 structural skill 由事件自动触发（无需 spawn teammate）：\n{skill_list}\n直接 spawn 业务工位即可。'
-}, ensure_ascii=False))
+print(json.dumps({'decision': 'allow', 'reason': msg}, ensure_ascii=False))
 "
