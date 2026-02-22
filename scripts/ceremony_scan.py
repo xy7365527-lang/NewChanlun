@@ -298,6 +298,25 @@ def main():
                 "unresolved": da["unresolved"],
                 "execution_rate": da["execution_rate"],
             }
+            # 将最近谱系的 unresolved 下游行动转化为工位
+            # 只取 genealogy_id >= (最大id - 20) 的，避免被历史项淹没
+            recent_unresolved = [
+                item for item in da.get("items", [])
+                if item.get("status") == "unresolved"
+                and item.get("genealogy_id", "0").isdigit()
+                and int(item["genealogy_id"]) >= max(
+                    (int(i["genealogy_id"]) for i in da.get("items", [])
+                     if i.get("genealogy_id", "0").isdigit()),
+                    default=0,
+                ) - 20
+            ]
+            for item in recent_unresolved:
+                workstations.append({
+                    "priority": "P2",
+                    "name": f"下游推论：{item['genealogy_id']}号-{item['action_index']}",
+                    "status": f"unresolved: {item['text'][:80]}",
+                    "source": "downstream_audit",
+                })
     except Exception as exc:
         # Keep scan resilient, but do not hide failures.
         result["downstream_actions_error"] = f"{type(exc).__name__}: {exc}"
