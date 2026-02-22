@@ -1,20 +1,14 @@
 ---
 id: "075"
 title: "结构工位从teammate转为skill+事件驱动——消除孤岛"
-类型: 语法记录
-状态: 已结算
-日期: 2026-02-21
-前置:
-  - "073"
-  - "069"
-  - "057"
-  - "062"
-related:
-  - "020"
-  - "041"
-provenance: "[新缠论]"
-gemini_decisions:
-  - "skill+事件驱动架构（方案D）：取消所有结构工位teammate，全部转化为skill"
+type: "语法记录"
+status: "已结算"
+date: "2026-02-21"
+depends_on: ["073", "069", "057", "062"]
+negation_source: ""
+negation_form: ""
+negates: []
+negated_by: []
 ---
 
 # 075: 结构工位从 teammate 转为 skill + 事件驱动

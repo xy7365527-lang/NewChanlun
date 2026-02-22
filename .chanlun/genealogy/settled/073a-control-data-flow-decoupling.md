@@ -1,18 +1,14 @@
 ---
 id: "073a"
 title: "控制流与数据流解耦——递归蜂群的执行模式"
-status: "已结算"
 type: "语法记录"
+status: "已结算"
 date: "2026-02-21"
 depends_on: ["056", "069"]
-related: ["072"]
-negated_by: []
+negation_source: "Gemini 3.1 Pro 蜂群递归审计 v2（Agent Team 模式修正）"
+negation_form: ""
 negates: ["073"]
-类型: "语法记录"
-状态: "已结算"
-日期: "2026-02-21"
-前置: ["056", "069"]
-triggered_by: "Gemini 3.1 Pro 蜂群递归审计 v2（Agent Team 模式修正）"
+negated_by: []
 ---
 
 # 073a: 控制流与数据流解耦——递归蜂群的执行模式

@@ -1,26 +1,14 @@
 ---
 id: "073"
-title: 蜂群能修改一切——全可变性原则与人类本体论锚点
-类型: 语法记录
-状态: 已结算
-日期: 2026-02-21
-前置:
-  - "069"
-  - "005a"
-  - "005b"
-  - "057"
-  - "058"
-triggers:
-  - 069号创世Gap不可消除
-  - ceremony_scan.py处于拓扑之外但蜂群需要能修改它
-  - write-guard hooks从block改为allow的架构转变
-related:
-  - "041"
-provenance: "[新缠论]"
-gemini_decisions:
-  - "ceremony_scan.py是创世Gap工程实现，处于拓扑之外（方案A）"
-  - "蜂群应能修改一切，人类ESC是本体论锚点（方案C）"
-  - "拓扑必需节点列表本身也可修改——通过修改dispatch-dag（方案C）"
+title: "蜂群能修改一切——全可变性原则与人类本体论锚点"
+type: "语法记录"
+status: "已结算"
+date: "2026-02-21"
+depends_on: ["069", "005a", "005b", "057", "058"]
+negation_source: ""
+negation_form: ""
+negates: []
+negated_by: ["073a"]
 ---
 
 # 073: 蜂群能修改一切——全可变性原则与人类本体论锚点
