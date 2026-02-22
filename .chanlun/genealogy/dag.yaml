@@ -729,6 +729,11 @@ nodes:
   status: 已结算
   type: 定理
   file: settled/138-forced-output-format.md
+- id: '139'
+  title: 黑洞-蜂群结构同构——三级映射 + 约束型充分性 + ESC/分类权分离提案
+  status: 已结算
+  type: 语法记录
+  file: settled/139-singularity-topology-structural-isomorphism.md
 edges:
   depends_on:
   - from: '136'
@@ -1449,6 +1454,12 @@ edges:
     to: '137'
   - from: '138'
     to: 090
+  - from: '139'
+    to: 069
+  - from: '139'
+    to: 094
+  - from: '139'
+    to: 093
   triggered:
   - from: '005'
     to: 005a
@@ -2605,6 +2616,15 @@ edges:
   - between:
     - 018
     - '138'
+  - between:
+    - 005b
+    - '139'
+  - between:
+    - '020'
+    - '139'
+  - between:
+    - 089
+    - '139'
   tensions_with:
   - between:
     - '007'
