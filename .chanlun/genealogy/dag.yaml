@@ -704,6 +704,11 @@ nodes:
   status: 已结算
   type: 选择
   file: settled/132-historical-tension-valid-until.md
+- id: '134'
+  title: v37全体系声明-能力缺口审计——P0修复批
+  status: 已结算
+  type: 行动
+  file: settled/134-v37-gap-audit-fix.md
 edges:
   depends_on:
   - from: 005a
@@ -1391,6 +1396,15 @@ edges:
     to: 030a
   - from: '133'
     to: 093
+  # 134号: v37全体系声明-能力缺口审计P0修复批（已结算，行动）
+  - from: '134'
+    to: '088'
+  - from: '134'
+    to: '081'
+  - from: '134'
+    to: '132'
+  - from: '134'
+    to: '075'
   # 132号: tensions_with边引入valid_until字段（已结算，选择）
   - from: '132'
     to: '121'

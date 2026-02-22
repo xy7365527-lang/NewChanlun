@@ -252,6 +252,42 @@ def main():
     result["pending"] = pending_count
     result["settled"] = len(glob.glob(os.path.join(root, ".chanlun/genealogy/settled/*.md")))
 
+    # 081号下游推论：pattern-buffer 达标模式扫描
+    pb_path = os.path.join(root, ".chanlun/pattern-buffer.yaml")
+    if os.path.isfile(pb_path):
+        try:
+            with open(pb_path, encoding="utf-8") as f:
+                pb = yaml.safe_load(f)
+            candidates = [p for p in pb.get("patterns", [])
+                          if p.get("status") == "candidate"]
+            if candidates:
+                result["pattern_buffer_candidates"] = len(candidates)
+                # 达标候选产生结晶工位
+                workstations.append({
+                    "priority": "P1",
+                    "name": f"结晶检测：{len(candidates)}个candidate模式",
+                    "status": "pattern-buffer:candidate",
+                    "source": "pattern_buffer",
+                })
+        except Exception:
+            pass
+
+    # 081号下游推论：谱系张力扫描（tensions_with 边检查）
+    tensions_found = []
+    for settled_file in glob.glob(os.path.join(root, ".chanlun/genealogy/settled/*.md")):
+        try:
+            with open(settled_file, encoding="utf-8") as f:
+                first_lines = f.read(2000)
+            # 快速检查 YAML frontmatter 中的 tensions_with
+            if "tensions_with:" in first_lines and "tensions_with: []" not in first_lines:
+                # 提取文件名作为标识
+                fname = os.path.basename(settled_file)
+                tensions_found.append(fname)
+        except Exception:
+            pass
+    if tensions_found:
+        result["tensions_count"] = len(tensions_found)
+
     # 二阶反馈：下游推论执行审计
     try:
         from downstream_audit import audit as downstream_audit
