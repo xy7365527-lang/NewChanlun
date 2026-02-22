@@ -709,6 +709,11 @@ nodes:
   status: 已结算
   type: 行动
   file: settled/134-v37-gap-audit-fix.md
+- id: '135'
+  title: CLAUDE.md 单体→skill 集合结晶 + 073b平台约束前提否定
+  status: 已结算
+  type: 行动
+  file: settled/135-claude-md-skill-crystallization.md
 edges:
   depends_on:
   - from: 005a
@@ -1405,6 +1410,17 @@ edges:
     to: '132'
   - from: '134'
     to: '075'
+  # 135号: CLAUDE.md skill结晶 + 073b否定（已结算，行动）
+  - from: '135'
+    to: '089'
+  - from: '135'
+    to: '095'
+  - from: '135'
+    to: '096'
+  - from: '135'
+    to: '097'
+  - from: '135'
+    to: '134'
   # 132号: tensions_with边引入valid_until字段（已结算，选择）
   - from: '132'
     to: '121'
@@ -1489,6 +1505,9 @@ edges:
   # 116号部分否定105号: "Trampoline永久禁止"→"退化特例需要理由"
   - from: '116'
     to: '105'
+  # 135号否定073b: 编排者确认平台无限制，073b前提为假
+  - from: '135'
+    to: 073b
   related:
   - between:
     - '001'
