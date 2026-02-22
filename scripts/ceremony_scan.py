@@ -83,19 +83,25 @@ def get_session_workstations(root):
         session_name = os.path.basename(sessions[-1])
         with open(sessions[-1], encoding="utf-8") as f:
             content = f.read()
-        in_legacy = False
+        in_section = None
         for line in content.split("\n"):
-            if "遗留" in line or "中断" in line:
-                in_legacy = True
+            # 匹配 "## 待处理" 或 "## 遗留" 或 "## 中断" 等节标题
+            if line.startswith("## ") and any(kw in line for kw in ("待处理", "遗留", "中断")):
+                in_section = line
                 continue
-            if in_legacy and line.startswith("|") and "P" in line:
+            # 新节标题结束当前扫描区
+            if in_section and line.startswith("## "):
+                in_section = None
+                continue
+            if not in_section:
+                continue
+            # 格式A：表格行（旧格式）
+            if line.startswith("|") and "P" in line:
                 parts = [c.strip() for c in line.split("|") if c.strip()]
                 if len(parts) >= 3:
                     status = parts[2]
-                    # 079号：过滤 background_noise 和已终结状态
                     if status in TERMINAL_STATUSES or "✅" in status or "—" in parts[0]:
                         continue
-                    # 过滤含 background_noise 关键词的状态
                     if any(kw in status.lower() for kw in BACKGROUND_NOISE_STATUSES):
                         continue
                     workstations.append({
@@ -103,8 +109,30 @@ def get_session_workstations(root):
                         "name": parts[1],
                         "status": status,
                     })
-            elif in_legacy and line.startswith("#"):
-                in_legacy = False
+            # 格式B：编号列表（当前格式）
+            # 匹配 "1. **xxx**" 或 "- **xxx**"
+            elif (line.strip().startswith(("1.", "2.", "3.", "4.", "5.", "6.", "7.", "8.", "9."))
+                  or line.strip().startswith("- **")):
+                import re
+                m = re.match(r'^\s*(?:\d+\.\s*|\-\s*)\*\*(.+?)\*\*(?:：|:)?\s*(.*)', line)
+                if m:
+                    name = m.group(1).strip()
+                    desc = m.group(2).strip()
+                    # 跳过已完成项
+                    if "✅" in line:
+                        continue
+                    # 跳过长期/观察项
+                    if any(kw in name.lower() or kw in desc.lower()
+                           for kw in BACKGROUND_NOISE_STATUSES):
+                        continue
+                    # 从节标题推断优先级
+                    priority = "P2" if "待处理" in (in_section or "") else "P3"
+                    workstations.append({
+                        "priority": priority,
+                        "name": name,
+                        "status": desc if desc else "session遗留",
+                        "source": "session",
+                    })
     # pending 谱系
     for p in glob.glob(os.path.join(root, ".chanlun/genealogy/pending/*.md")):
         workstations.append({
