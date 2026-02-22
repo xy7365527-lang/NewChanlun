@@ -16,7 +16,7 @@ related:
 negation_source: 编排者决定
 negation_form: expansion（073b号 Trampoline 的边界条件触发——Team 模式提供真调用栈递归的平台基础）
 negates: []
-negated_by: []
+negated_by: ['096']  # Explore 例外条款被 096号否定
 ---
 
 # 095号：Agent Team 子蜂群递归——从 Trampoline 升级为真调用栈递归
