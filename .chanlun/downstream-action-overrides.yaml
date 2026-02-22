@@ -53,3 +53,78 @@
 077-1: resolved    # ceremony.md TaskOutput→SendMessage 修正 (v16b session)
 077-2: resolved    # Gemini decide A → downstream_audit.py 实现 (v16b session)
 077-3: resolved    # Gemini decide B → 白名单例外模式 (v16b session)
+
+# === 121号 ===
+121-1: resolved    # tensions_with 边 068↔065 已在 dag.yaml 中，valid_until:068 已标注（132号）
+121-2: resolved    # 065号 tensions_with 边保留为历时记录——这是设计意图不是待做行动
+
+# === 122号 ===
+122-1: resolved    # 认识论确认——谱系编号语义已由谱系惯例覆盖
+122-2: resolved    # 认识论确认——005a/005b vs 073a/073b 语义区分已在谱系中明确
+
+# === 123号 ===
+123-1: resolved    # 认识论确认——真/假中枢区分是006号推论（实现中已遵循）
+123-2: resolved    # 认识论确认——递归链完整性检查已在代码中实现
+
+# === 124号 ===
+124-1: resolved    # 认识论确认——原则11的交汇推论性质已在谱系中记录
+124-2: superseded  # CLAUDE.md 已拆分为 skill 集合（135号执行），不再是单体文件
+
+# === 125号 ===
+125-1: resolved    # 认识论确认——no-unnecessary-escalation 源头追溯已在谱系中记录
+125-2: resolved    # 认识论确认——认识论声明，非可执行行动
+
+# === 126号 ===
+126-1: resolved    # 认识论确认——停机标准操作化已在 ceremony-completion-guard 中实现
+126-2: resolved    # 认识论确认——TaskUpdate 自报机制已在使用
+126-3: resolved    # 认识论确认——093号视差Gap已在谱系中记录
+
+# === 127号 ===
+127-1: resolved    # 认识论确认——原则0无需修改
+127-2: resolved    # 认识论确认——005b无需修改
+127-3: resolved    # 认识论确认——蜂群修改005b路径已在现有机制中
+127-4: resolved    # 认识论确认——118号消解模式可推广（谱系已记录）
+
+# === 130号 ===
+130-1: resolved    # 认识论确认——069号两Gap维持
+130-2: long_term   # 073b平台约束清单增加审计RTAS受限——需073b文件更新
+130-3: long_term   # 审计蜂群session标注——需session_update流程变更
+
+# === 131号 ===
+131-1: resolved    # 认识论确认——原则0无条件特征维持
+131-2: resolved    # 认识论确认——020号阻断等待合法性
+131-3: resolved    # 认识论确认——005b铰链地位独立于操作论
+
+# === 133号 ===
+133-1: long_term   # 030a号Gemini位置定义扩展——需与Gemini讨论
+133-2: resolved    # 认识论确认——133号协议已在实践中使用（139/141号双向讨论）
+133-3: resolved    # 认识论确认——停机条件3的价值优先已在实践中体现
+
+# === 134号 ===
+134-1: resolved    # lead-audit.sh 已注册并运行
+134-2: resolved    # ceremony_scan.py 已发现 candidate 模式并生成结晶工位（本次scan验证）
+134-3: long_term   # manifest v2.1 与文件系统对齐——独立审计任务
+134-4: superseded  # CLAUDE.md 已拆分为 skill 集合（135号执行）
+
+# === 135号 ===
+135-1: resolved    # skill 集合已实现，CLAUDE.md 已精简
+135-2: long_term   # Trampoline/平台限制文档清理——低优先级
+135-3: resolved    # 认识论确认——子蜂群递归无技术障碍
+
+# === 137号 ===
+137-1: long_term   # 否定性禁令规则重新评估——需全面审计
+137-2: long_term   # knowledge-crystallization skill 增加行为规则结晶路径
+137-3: resolved    # 认识论确认——Lead行为基底是外部约束（137号谱系已记录）
+
+# === 139号 ===
+139-1: long_term   # 亏格术语附注——需全面搜索替换
+139-2: resolved    # 认识论确认——自指结构检查已在 swarm-architecture skill 中实现
+139-3: resolved    # meta-observer 未分类Gap路径已在 v139c-swarm 中实现
+
+# === 140号 ===
+140-1: long_term   # spec-execution gap 完整审计——独立大型审计任务
+140-2: resolved    # 认识论确认——数据流优先检查原则已在142号中体现
+
+# === 141号 ===
+# 141号下游推论保持 unresolved——这些是真正的工程项
+141-4: resolved    # context耗尽诊断已完成（hook注入非主因，大文件读取是主因），dag_add_node.py 已创建
