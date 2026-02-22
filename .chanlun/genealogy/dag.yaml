@@ -584,6 +584,21 @@ nodes:
   status: 已结算
   type: 语法记录
   file: settled/109-maimai-impl-choices.md
+- id: '110'
+  title: 六要素/结果包格式的生成史——从质询需求到结构化产出标准
+  status: 已结算
+  type: 语法记录
+  file: settled/110-result-package-genesis.md
+- id: '111'
+  title: 不允许绕过概念矛盾禁令的生成史——从隐性实践到显式禁令
+  status: 已结算
+  type: 语法记录
+  file: settled/111-no-workaround-genesis.md
+- id: '112'
+  title: 热启动机制的生成史——从 session 膨胀到三级恢复保障
+  status: 已结算
+  type: 语法记录
+  file: settled/112-warm-start-genesis.md
 edges:
   depends_on:
   - from: 005a
@@ -1130,6 +1145,22 @@ edges:
     to: 039
   - from: '106'
     to: '046'
+  - from: '110'
+    to: '012'
+  - from: '110'
+    to: '014'
+  - from: '110'
+    to: '016'
+  - from: '111'
+    to: 005b
+  - from: '111'
+    to: '012'
+  - from: '112'
+    to: '017'
+  - from: '112'
+    to: '057'
+  - from: '112'
+    to: 058
   triggered:
   - from: '005'
     to: 005a
@@ -2052,6 +2083,33 @@ edges:
   - between:
     - '109'
     - 009
+  - between:
+    - '110'
+    - '013'
+  - between:
+    - '110'
+    - '071'
+  - between:
+    - '110'
+    - '073'
+  - between:
+    - '111'
+    - 090
+  - between:
+    - '111'
+    - '071'
+  - between:
+    - '111'
+    - '050'
+  - between:
+    - '112'
+    - 019
+  - between:
+    - '112'
+    - 081
+  - between:
+    - '112'
+    - '044'
   tensions_with:
   - between:
     - '007'
