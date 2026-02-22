@@ -624,6 +624,51 @@ nodes:
   status: 已结算
   type: 定理
   file: settled/117-heterogeneous-verification-position.md
+- id: '118'
+  title: 005b"对象否定对象"的适用域——走势描述层 vs 元层
+  status: 已结算
+  type: 定理
+  file: settled/118-005b-meta-layer-scope.md
+- id: '119'
+  title: 007/009子类型决断与029/031实现修复的层面独立性
+  status: 已结算
+  type: 定理
+  file: settled/119-subtype-vs-implementation-layer-independence.md
+- id: '120'
+  title: 062号被扬弃后的引用分类——活跃依赖 vs 历史参照
+  status: 已结算
+  type: 语法记录
+  file: settled/120-062-reference-classification.md
+- id: '121'
+  title: 065号张力边在068否定后的存废——被否定框架下的张力自动失效
+  status: 已结算
+  type: 定理
+  file: settled/121-065-tensions-under-negation.md
+- id: '122'
+  title: 073a/073b分化谱系——共享否定对象的独立演化路径
+  status: 已结算
+  type: 语法记录
+  file: settled/122-073ab-divergent-evolution.md
+- id: '123'
+  title: 真中枢/假中枢概念的谱系入口——递归链完整性的构造层判据
+  status: 已结算
+  type: 语法记录
+  file: settled/123-authentic-apparent-center-genesis.md
+- id: '124'
+  title: 上下文走势结构（原则11）的生成史——从020号脉动到知识生命周期
+  status: 已结算
+  type: 语法记录
+  file: settled/124-context-trend-structure-genesis.md
+- id: '125'
+  title: 不允许向编排者提可自决问题的生成史——四分法的操作化守则
+  status: 已结算
+  type: 语法记录
+  file: settled/125-no-unnecessary-escalation-genesis.md
+- id: '126'
+  title: 结算停机标准未精确化——069号区间套收敛的操作化缺口
+  status: 生成态
+  type: 矛盾发现
+  file: pending/126-settlement-stopping-criterion-gap.md
 edges:
   depends_on:
   - from: 005a
@@ -1206,6 +1251,51 @@ edges:
     to: 097
   - from: '117'
     to: '104'
+  # 118号: 005b元层适用域
+  - from: '118'
+    to: 005b
+  - from: '118'
+    to: 005a
+  - from: '118'
+    to: 093
+  # 119号: 007/009与029/031层面独立性
+  - from: '119'
+    to: '007'
+  - from: '119'
+    to: 009
+  - from: '119'
+    to: '010'
+  # 120号: 062引用分类
+  - from: '120'
+    to: '062'
+  - from: '120'
+    to: 093
+  # 121号: 065张力边存废
+  - from: '121'
+    to: '065'
+  - from: '121'
+    to: 068
+  # 122号: 073a/073b分化
+  - from: '122'
+    to: '073'
+  - from: '122'
+    to: 073a
+  - from: '122'
+    to: 073b
+  # 123号: 真中枢/假中枢
+  - from: '123'
+    to: '006'
+  # 124号: 上下文走势结构生成史
+  - from: '124'
+    to: '020'
+  # 125号: no-unnecessary-escalation生成史
+  - from: '125'
+    to: 018
+  # 126号: 结算停机标准（生成态）
+  - from: '126'
+    to: 069
+  - from: '126'
+    to: 005b
   triggered:
   - from: '005'
     to: 005a
@@ -2208,6 +2298,84 @@ edges:
   - between:
     - '117'
     - 090
+  # 118号 related
+  - between:
+    - '118'
+    - 087
+  - between:
+    - '118'
+    - 090
+  - between:
+    - '118'
+    - '073'
+  # 119号 related
+  - between:
+    - '119'
+    - 029
+  - between:
+    - '119'
+    - '031'
+  - between:
+    - '119'
+    - 099
+  # 120号 related
+  - between:
+    - '120'
+    - 069
+  - between:
+    - '120'
+    - 094
+  - between:
+    - '120'
+    - '104'
+  # 121号 related
+  - between:
+    - '121'
+    - '062'
+  - between:
+    - '121'
+    - '064'
+  # 122号 related
+  - between:
+    - '122'
+    - 095
+  - between:
+    - '122'
+    - '105'
+  # 123号 related
+  - between:
+    - '123'
+    - '010'
+  - between:
+    - '123'
+    - '107'
+  # 124号 related
+  - between:
+    - '124'
+    - '075'
+  - between:
+    - '124'
+    - '017'
+  - between:
+    - '124'
+    - '012'
+  # 125号 related
+  - between:
+    - '125'
+    - '111'
+  - between:
+    - '125'
+    - '041'
+  - between:
+    - '125'
+    - 058
+  # 126号 related
+  - between:
+    - '126'
+    - 093
+  - between:
+    - '126'
+    - 094
   tensions_with:
   - between:
     - '007'
