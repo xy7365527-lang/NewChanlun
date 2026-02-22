@@ -6,7 +6,7 @@ type: "语法记录"
 date: "2026-02-21"
 depends_on: ["056", "069", "072"]
 related: ["033", "037", "058", "068"]
-negated_by: ["073a", "095"]
+negated_by: ["095"]  # N1修复: 073a只否定073(平台约束前提)，不否定073b(Trampoline模式)
 negates: []
 ---
 

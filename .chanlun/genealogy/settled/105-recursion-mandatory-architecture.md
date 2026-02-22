@@ -6,7 +6,7 @@ status: 已结算
 date: 2026-02-22
 depends_on: ['095', '097', '104']
 related: ['056', '069', '073b', '093']
-negated_by: []
+negated_by: ['116']  # 部分否定：方向意图保留，过强声明修正
 negates: []
 provenance: "[新缠论]"
 ---
