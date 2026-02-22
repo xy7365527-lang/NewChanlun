@@ -714,8 +714,17 @@ nodes:
   status: 已结算
   type: 行动
   file: settled/135-claude-md-skill-crystallization.md
+- id: '136'
+  title: ceremony 持久化缺口修复 + 规则边界退化防护 + 成本收益消解禁止
+  status: 已结算
+  type: 语法记录
+  file: settled/136-ceremony-gap-fix.md
 edges:
   depends_on:
+  - from: '136'
+    to: '130'
+  - from: '136'
+    to: 090
   - from: 005a
     to: '005'
   - from: '015'
@@ -1278,7 +1287,6 @@ edges:
     to: 058
   - from: '115'
     to: '025'
-  # 116号: 105号声明-能力修正
   - from: '116'
     to: 090
   - from: '116'
@@ -1287,7 +1295,6 @@ edges:
     to: '104'
   - from: '116'
     to: '105'
-  # 117号: 异质验证架构位置显式化
   - from: '117'
     to: 069
   - from: '117'
@@ -1296,70 +1303,54 @@ edges:
     to: 097
   - from: '117'
     to: '104'
-  # 118号: 005b元层适用域
   - from: '118'
     to: 005b
   - from: '118'
     to: 005a
   - from: '118'
     to: 093
-  # 119号: 007/009与029/031层面独立性
   - from: '119'
     to: '007'
   - from: '119'
     to: 009
   - from: '119'
     to: '010'
-  # 120号: 062引用分类
   - from: '120'
     to: '062'
   - from: '120'
     to: 093
-  # 121号: 065张力边存废
   - from: '121'
     to: '065'
   - from: '121'
     to: 068
-  # 122号: 073a/073b分化
   - from: '122'
     to: '073'
   - from: '122'
     to: 073a
   - from: '122'
     to: 073b
-  # 123号: 真中枢/假中枢
   - from: '123'
     to: '006'
-  # 124号: 上下文走势结构生成史
   - from: '124'
     to: '020'
-  # 125号: no-unnecessary-escalation生成史
   - from: '125'
     to: 018
-  # 126号: 结算停机标准层面澄清（已结算，定理）
   - from: '126'
     to: 069
   - from: '126'
     to: '118'
   - from: '126'
     to: 093
-  # 127号: 005b铰链命题 vs 原则0可修改性（已结算，定理）
   - from: '127'
     to: 005b
   - from: '127'
     to: '118'
   - from: '127'
     to: '020'
-  # 128号: 孤立节点边建模补全（已结算，定理）
   - from: '128'
     to: '127'
   - from: '128'
     to: '010'
-  # 128号审查发现的孤立节点depends_on补全（13条边——4条经审查排除）
-  # 排除(永久): 008→010（方向冲突：derived有010→008，008不依赖010，010从008推导）
-  # 排除(永久): 011→010（011核心推导来自原文+008，010是关联框架非逻辑前驱，related边已存在）
-  # 排除(永久): 024→005a（derived已有024→005a，冗余）
-  # 排除(永久): 024→005b（derived已有024→005b，冗余）
   - from: '023'
     to: '022'
   - from: '035'
@@ -1386,7 +1377,6 @@ edges:
     to: '001'
   - from: '114'
     to: '113'
-  # 130号: 审计递归性Gap结算（已结算，定理，编排者INTERRUPT修正）
   - from: '130'
     to: 069
   - from: '130'
@@ -1395,7 +1385,6 @@ edges:
     to: '105'
   - from: '130'
     to: '116'
-  # 133号: 异质双向收敛协议（已结算，语法记录）
   - from: '133'
     to: '055'
   - from: '133'
@@ -1404,27 +1393,24 @@ edges:
     to: 030a
   - from: '133'
     to: 093
-  # 134号: v37全体系声明-能力缺口审计P0修复批（已结算，行动）
   - from: '134'
-    to: '088'
+    to: 088
   - from: '134'
-    to: '081'
+    to: 081
   - from: '134'
     to: '132'
   - from: '134'
     to: '075'
-  # 135号: CLAUDE.md skill结晶 + 073b否定（已结算，行动）
   - from: '135'
-    to: '089'
+    to: 089
   - from: '135'
-    to: '095'
+    to: 095
   - from: '135'
-    to: '096'
+    to: 096
   - from: '135'
-    to: '097'
+    to: 097
   - from: '135'
     to: '134'
-  # 132号: tensions_with边引入valid_until字段（已结算，选择）
   - from: '132'
     to: '121'
   - from: '132'
@@ -1433,12 +1419,10 @@ edges:
     to: 090
   - from: '132'
     to: 068
-  # 129号: negates稀疏性审查（已结算，定理）
   - from: '129'
     to: '127'
   - from: '129'
     to: '012'
-  # 131号: 005b L62触发条件 vs 020号主动修改路径（生成态）
   - from: '131'
     to: '127'
   - from: '131'
@@ -1490,7 +1474,6 @@ edges:
   - from: '063'
     to: '062'
   negates:
-  # N3修复: 064部分否定062(NegationObject定义从"被压抑的替代路径"→"结构性死结")
   - from: '064'
     to: '062'
   - from: 068
@@ -1505,10 +1488,8 @@ edges:
     to: '032'
   - from: 095
     to: 073b
-  # 116号部分否定105号: "Trampoline永久禁止"→"退化特例需要理由"
   - from: '116'
     to: '105'
-  # 135号否定073b: 编排者确认平台无限制，073b前提为假
   - from: '135'
     to: 073b
   related:
@@ -2433,7 +2414,6 @@ edges:
   - between:
     - '115'
     - '050'
-  # 116号 related
   - between:
     - '116'
     - 073b
@@ -2443,14 +2423,12 @@ edges:
   - between:
     - '116'
     - 087
-  # 117号 related
   - between:
     - '117'
     - '062'
   - between:
     - '117'
     - 090
-  # 118号 related
   - between:
     - '118'
     - 087
@@ -2460,7 +2438,6 @@ edges:
   - between:
     - '118'
     - '073'
-  # 119号 related
   - between:
     - '119'
     - 029
@@ -2470,7 +2447,6 @@ edges:
   - between:
     - '119'
     - 099
-  # 120号 related
   - between:
     - '120'
     - 069
@@ -2480,28 +2456,24 @@ edges:
   - between:
     - '120'
     - '104'
-  # 121号 related
   - between:
     - '121'
     - '062'
   - between:
     - '121'
     - '064'
-  # 122号 related
   - between:
     - '122'
     - 095
   - between:
     - '122'
     - '105'
-  # 123号 related
   - between:
     - '123'
     - '010'
   - between:
     - '123'
     - '107'
-  # 124号 related
   - between:
     - '124'
     - '075'
@@ -2511,7 +2483,6 @@ edges:
   - between:
     - '124'
     - '012'
-  # 125号 related
   - between:
     - '125'
     - '111'
@@ -2521,13 +2492,90 @@ edges:
   - between:
     - '125'
     - 058
-  # 126号 related
   - between:
     - '126'
     - 005b
   - between:
     - '126'
     - 094
+  - between:
+    - '136'
+    - '134'
+  - between:
+    - '136'
+    - '105'
+  - between:
+    - 069
+    - '127'
+  - between:
+    - 090
+    - '127'
+  - between:
+    - 093
+    - '127'
+  - between:
+    - '128'
+    - '129'
+  - between:
+    - '128'
+    - '131'
+  - between:
+    - '129'
+    - '130'
+  - between:
+    - '056'
+    - '130'
+  - between:
+    - '129'
+    - '131'
+  - between:
+    - 069
+    - '131'
+  - between:
+    - '118'
+    - '131'
+  - between:
+    - '129'
+    - '132'
+  - between:
+    - '012'
+    - '132'
+  - between:
+    - '129'
+    - '133'
+  - between:
+    - 069
+    - '133'
+  - between:
+    - '012'
+    - '133'
+  - between:
+    - 091
+    - '134'
+  - between:
+    - '130'
+    - '134'
+  - between:
+    - 090
+    - '134'
+  - between:
+    - '133'
+    - '134'
+  - between:
+    - '014'
+    - '135'
+  - between:
+    - 073b
+    - '135'
+  - between:
+    - '075'
+    - '135'
+  - between:
+    - '105'
+    - '135'
+  - between:
+    - '117'
+    - '135'
   tensions_with:
   - between:
     - '007'
@@ -2547,28 +2595,23 @@ edges:
   - between:
     - '062'
     - '065'
-    valid_until: 068    # 068否定065，062被064/093否定——双端失效
+    valid_until: 068
   - between:
     - '064'
     - '065'
-    valid_until: 068    # 068否定065
-  # === v33审计补建的tensions_with边(T1-T7) ===
-  # T1: 069四维度框架在093扬弃后异质验证维度悬空
+    valid_until: 068
   - between:
     - 069
     - 093
-  # T2: 020号走势语法自描述与005b对象否定对象的自指性边界未定义
   - between:
     - '020'
     - 005b
-  # T3: 105号递归无条件声明与090号/095号工程现实的声明-能力不一致
   - between:
     - '105'
     - 090
   - between:
     - '105'
     - 095
-  # T4: 007/009子类型决断被029/031事实上静默否定
   - between:
     - '007'
     - 029
@@ -2581,35 +2624,28 @@ edges:
   - between:
     - 009
     - '031'
-  # T5: 062被093扬弃后仍被069/094/104引用(活跃依赖vs历史引用未区分)
   - between:
     - '062'
     - 069
-    valid_until: 093    # 093扬弃062
+    valid_until: 093
   - between:
     - '062'
     - 094
-    valid_until: 093    # 093扬弃062
+    valid_until: 093
   - between:
     - '062'
     - '104'
-    valid_until: 093    # 093扬弃062
-  # T6: 068否定065后，065的tensions_with边残留(连续流形→离散图论范式转换后张力存废未决)
+    valid_until: 093
   - between:
     - 068
     - '065'
-    valid_until: 068    # 068否定065
-  # T7: 020a同一存在论的"脉动"隐喻与068离散DAG范式的本体论张力
+    valid_until: 068
   - between:
     - 020a
     - 068
   negated_by:
   - target: '032'
     by: 088
-  # N2修复: 073b不否定037——073b描述Trampoline机制，037的分形spawn原则仍成立
-  # 037的"无限深度"被095软化为≈3-4层，但095未正式否定037
-  # 原 037 negated_by 073b 为单方面声明(073b.negates=[])，已移除
-  # N3修复: 062有两个否定来源——064(部分:NegationObject定义修正)和093(扬弃:R.S.I不同构)
   - target: '062'
     by: '064'
   - target: '062'
@@ -2620,17 +2656,13 @@ edges:
     by: 068
   - target: '073'
     by: 073a
-  # N1修复: 073a只否定073(平台约束前提)，不否定073b(Trampoline模式)
-  # 073b的否定来源是095(Agent Team真递归)
   - target: 073b
     by: 095
   - target: 086
     by: 087
-  # N4注释: 096只否定095的Explore例外条款，不否定095整体(Agent Team真递归)结论
   - target: 095
     by: 096
-    scope: "partial:Explore例外条款"
-  # 116号部分否定105号: "Trampoline永久禁止"声明修正为"退化特例需要理由"
+    scope: partial:Explore例外条款
   - target: '105'
     by: '116'
-    scope: "partial:过强声明修正，方向意图保留"
+    scope: partial:过强声明修正，方向意图保留
