@@ -724,6 +724,11 @@ nodes:
   status: 已结算
   type: 矛盾发现
   file: settled/137-lead-pause-structural-root.md
+- id: '138'
+  title: 强制输出格式——137号修复执行（否定性禁令→结构化输出模板）
+  status: 已结算
+  type: 定理
+  file: settled/138-forced-output-format.md
 edges:
   depends_on:
   - from: '136'
@@ -1440,6 +1445,10 @@ edges:
     to: 090
   - from: '137'
     to: 089
+  - from: '138'
+    to: '137'
+  - from: '138'
+    to: 090
   triggered:
   - from: '005'
     to: 005a
@@ -2590,6 +2599,12 @@ edges:
   - between:
     - '134'
     - '137'
+  - between:
+    - 058
+    - '138'
+  - between:
+    - 018
+    - '138'
   tensions_with:
   - between:
     - '007'
