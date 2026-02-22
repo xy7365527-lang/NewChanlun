@@ -1,0 +1,108 @@
+# type 字段 controlled vocabulary
+# 谱系条目的 type 字段只允许使用以下值
+#
+# 设计原则：
+#   1. 基于四分法（018号谱系）的核心分类：定理、行动、选择、语法记录
+#   2. 补充谱系特有的概念层类型：矛盾记录、概念分离、结晶
+#   3. 审计/修复作为独立类型保留（与"行动"区分：审计有系统性扫描+修复的双重语义）
+#   4. 括号内注释不属于 type 值本身，应移至 description 或其他字段
+#
+# 生成方法：
+#   扫描 .chanlun/genealogy/settled/ 下 143 个谱系文件的 type 字段，
+#   对 37 种原始值按语义聚类归纳而成。
+
+vocabulary:
+  - name: "语法记录"
+    description: "已在运作但尚未显式化的规则，经识别后写入谱系。四分法中的'语法记录'类。"
+    count: 50
+    absorbs:
+      - "语法记录（元编排层面）"
+      - "语法记录 [旧缠论:隐含]"
+      - "语法记录（已在运作的规则显式化）"
+      - "语法记录（已在运作的规则显式化：数学语言与缠论语言的对应关系）"
+      - "语法规则确立（谢林式原初命名）"
+
+  - name: "定理"
+    description: "从已结算原则推导出的逻辑必然结论。四分法中的'定理'类。"
+    count: 16
+    absorbs:
+      - "定理（逻辑必然推论）"
+      - "定理（从「对象否定对象」原则推导）"
+      - "定理（四分法复核：从选择重分类）"
+      - "定理（经扬弃）"
+      - "定理（级别口径公理的逻辑必然推论）"
+
+  - name: "选择"
+    description: "存在多条合理路径，需要编排者价值判断的决断点。四分法中的'选择'类。"
+    count: 16
+    absorbs:
+      - "选择（编排者决断完成）"
+      - "选择（已决断）"
+      - "选择 → 编排者决断"
+
+  - name: "行动"
+    description: "不携带信息差的操作性事件。四分法中的'行动'类。"
+    count: 2
+    absorbs:
+      - "Bug Fix（行动）"
+
+  - name: "矛盾记录"
+    description: "定义之间的冲突或逻辑不可弥合的矛盾，是谱系最有价值的产出之一。"
+    count: 9
+    absorbs:
+      - "矛盾发现"
+      - "矛盾发现 → 概念分离"
+
+  - name: "概念分离"
+    description: "一个概念内部暴露出不兼容的分类轴或口径，分裂为两个独立概念。"
+    count: 0
+    absorbs:
+      - "概念分离（自治行为）"
+      - "概念分离 + 架构决断"
+
+  - name: "结晶"
+    description: "稳定运作的模式经识别后固化为可复用的知识单元。与语法记录的区别：结晶强调从实践中提炼出可复用结构。"
+    count: 4
+    absorbs:
+      - "meta-rule（知识结晶）"
+
+  - name: "审计"
+    description: "对已有谱系/架构的系统性扫描，发现缺口并修复。"
+    count: 2
+    absorbs:
+      - "审计修复"
+
+  - name: "概念演化"
+    description: "概念的重定位、扬弃、澄清等非分离性的语义变迁。"
+    count: 0
+    absorbs:
+      - "概念扬弃"
+      - "概念重定位"
+      - "概念澄清 + 编排者决断"
+      - "概念澄清（定理——逻辑必然推论）"
+      - "概念澄清（定理 + 语法记录）"
+      - "元编排进化"
+
+  - name: "元规则"
+    description: "元编排层面的规则（meta-rule），约束蜂群自身行为而非域概念。与语法记录的区别：元规则显式约束蜂群运作，语法记录是已在运作的隐性规则的显式化。"
+    count: 13
+    absorbs:
+      - "meta-rule"
+
+# 无法归入上述类别的异常值
+anomalies:
+  - value: "元概念（meta-concept）"
+    file: "004-provenance-framework.md"
+    suggestion: "→ 语法记录（溯源框架是元编排层面的语法规则显式化）"
+
+  - value: "原始记录（已被概念分离取代）"
+    file: "005-object-negation-principle.md"
+    suggestion: "→ 矛盾记录（原始记录后被005a/005b概念分离，但原始条目本身是矛盾记录）"
+
+  - value: "bias-correction"
+    file: "038-single-agent-bypass-bias.md"
+    suggestion: "→ 矛盾记录（偏差矫正本质是发现了认知偏差这一矛盾）"
+
+  - value: "domain"
+    file: "022-ratio-relation-formalization.md"
+    suggestion: "→ 语法记录（比值关系形式化是域层面的语法规则显式化）"
