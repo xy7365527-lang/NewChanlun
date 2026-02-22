@@ -54,6 +54,28 @@ if echo "$OUTPUT" | grep -q "DAG validation passed"; then
   exit 0
 fi
 
+# Auto-fix: run dag_sync.py to resolve node/edge mismatches
+SYNC_SCRIPT="scripts/dag_sync.py"
+if [ -f "$SYNC_SCRIPT" ]; then
+  SYNC_OUTPUT=$(python "$SYNC_SCRIPT" 2>&1) || true
+  # Re-validate after sync
+  OUTPUT2=$(python "$SCRIPT" 2>&1) || true
+  if echo "$OUTPUT2" | grep -q "DAG validation passed"; then
+    exit 0
+  fi
+  # Still failing after auto-fix — block with both outputs
+  python -c "
+import json, sys
+output = sys.argv[1]
+sync = sys.argv[2]
+print(json.dumps({
+    'decision': 'block',
+    'reason': f'[dag-validation-guard] DAG 验证失败（dag_sync 自动修复后仍失败）: {output[:200]} | sync: {sync[:100]}'
+}, ensure_ascii=False))
+" "$OUTPUT2" "$SYNC_OUTPUT"
+  exit 0
+fi
+
 python -c "
 import json, sys
 output = sys.argv[1]
