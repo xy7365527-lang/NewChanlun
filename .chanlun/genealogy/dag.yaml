@@ -744,6 +744,11 @@ nodes:
   status: 已结算
   type: 語法記録
   file: settled/141-topology-mutation-convergence.md
+- id: '143'
+  title: post-commit 停顿第三模式——"总结"步骤是 RLHF 合法停顿窗口
+  status: 已结算
+  type: 語法記録
+  file: settled/143-post-commit-stall-third-mode.md
 edges:
   depends_on:
   - from: '136'
@@ -1481,6 +1486,12 @@ edges:
   - from: '141'
     to: '040'
   - from: '141'
+    to: '140'
+  - from: '143'
+    to: '137'
+  - from: '143'
+    to: '138'
+  - from: '143'
     to: '140'
   triggered:
   - from: '005'
@@ -2677,6 +2688,9 @@ edges:
   - between:
     - '134'
     - '141'
+  - between:
+    - '140'
+    - '143'
   tensions_with:
   - between:
     - '007'
