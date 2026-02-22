@@ -6,7 +6,7 @@ type: "语法记录（已在运作的规则显式化）"
 date: "2026-02-20"
 depends_on: []
 related: ["013", "014", "019d", "033"]
-negated_by: []
+negated_by: ["073b"]
 negates: []
 ---
 

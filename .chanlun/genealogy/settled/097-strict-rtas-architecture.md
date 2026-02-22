@@ -1,6 +1,6 @@
 ---
 id: '097'
-title: 真严格递归拓扑异步自指蜂群的完整架构——hook 纯化 + 五特征最小 DAG 模板
+title: 真严格递归拓扑异步自指蜂群的完整架构——hook 纯化 + 五特征 DAG 模板
 type: 选择
 status: 已结算
 date: 2026-02-22
@@ -17,7 +17,7 @@ negates: []
 negated_by: []
 ---
 
-# 097号：真严格递归拓扑异步自指蜂群的完整架构
+# 097号：真严格递归拓扑异步自指蜂群的完整架构——hook 纯化 + 五特征 DAG 模板
 
 **类型**: 选择
 **状态**: 已结算
@@ -55,15 +55,15 @@ negated_by: []
 2. CLAUDE.md 作为声明层包含 skill 路径索引——类比启动子（Promoter），指引转录过程
 3. 彻底消除"第四层（提示层）"
 
-### Part 2：完整架构——五特征最小 DAG 模板（Gemini 方案 X+Z 综合）
+### Part 2：完整架构——五特征 DAG 模板（Gemini 方案 X+Z 综合）
 
 六个核心问题的回答：
 
 **问题1：规则存在形式是否已达最强？**
-→ **是。** CLAUDE.md（全层级自动加载）+ hooks（全层级自动触发）+ skills（按需加载）三层是分布式环境下的理论极限。禁止通过 prompt 传递结构性规则。
+→ **是。** CLAUDE.md（全层级自动加载）+ hooks（全层级自动触发）+ skills（按需加载）三层是当前平台下的最大覆盖。禁止通过 prompt 传递结构性规则。
 
 **问题2：子蜂群完整性验证**
-→ **通过 skill 内模板解决，不需要新 hook。** sub-swarm-ceremony skill 声明四类节点最小 DAG 模板（任务节点≥2、审查节点、结晶节点、异质审计节点）。agent 读取 CLAUDE.md 和 skill 后自主遵守。不增加验证 hook（避免"自身免疫性疾病"——hook 过严导致子蜂群在创建阶段即死锁）。
+→ **通过 skill 内模板解决，不需要新 hook。** sub-swarm-ceremony skill 声明四类节点 DAG 模板（任务节点≥2、审查节点、结晶节点、异质审计节点）。agent 读取 CLAUDE.md 和 skill 后自主遵守。不增加验证 hook（避免"自身免疫性疾病"——hook 过严导致子蜂群在创建阶段即死锁）。
 
 **问题3：ceremony 在子蜂群中的角色**
 → **sub-swarm-ceremony skill = 子蜂群的 Swarm₀。** L(n-1) Teammate 执行本 skill 时充当 L(n) 的创世者。创世 Gap 在每层递归中独立存在（094号）。
@@ -75,9 +75,9 @@ negated_by: []
 → **强制。** 没有异质审计节点的子蜂群 = 封闭自证循环 = 违反约束4（093号）。最小实现：子蜂群 Lead 在汇总关键产出前调用 Gemini 质询。纯操作性（行动类，018号四分法）产出可免除。
 
 **问题6：最强方案**
-→ **方案 X+Z 综合**：三层存在形式（已实现）+ 子蜂群五特征最小 DAG 模板（在 skill 中声明）+ 异质验证强制化（约束4在每层的最小实现）。不需要新增 hook 或动态生成 YAML。
+→ **方案 X+Z 综合**：三层存在形式（已实现）+ 子蜂群五特征 DAG 模板（在 skill 中声明）+ 异质验证强制化（约束4在每层的最小实现）。不需要新增 hook 或动态生成 YAML。
 
-### 五特征最小 DAG 模板（097号核心增量）
+### 五特征 DAG 模板（097号核心增量）
 
 | 节点类型 | 数量 | 四维度对应 | 五约束对应 |
 |----------|------|-----------|-----------|
@@ -99,7 +99,7 @@ negated_by: []
 
 ## 下游推论
 
-1. sub-swarm-ceremony skill 已更新：新增五特征最小 DAG 模板 + 创世 Gap 递归化 + 异质审计节点强制
+1. sub-swarm-ceremony skill 已更新：新增五特征 DAG 模板 + 创世 Gap 递归化 + 异质审计节点强制
 2. CLAUDE.md 原则15 已更新：子蜂群五特征描述 + 创世 Gap 递归化
 3. team-structural-inject.sh 已删除，settings.json 中已移除注册
 4. dispatch-dag.yaml 注释更新（移除 team-structural-inject.sh 引用）
@@ -110,8 +110,8 @@ negated_by: []
 1. 096号确立三层存在形式（CLAUDE.md + hooks + skills）
 2. 编排者 INTERRUPT："hook 做索引不够优雅"→ Gemini decide 选项D → 删除 hook
 3. 编排者 INTERRUPT："思考完整架构，最强方案"→ Gemini 方案 X+Z
-4. 分析六个核心问题 → 三层已是理论极限 + 缺口在 sub-swarm-ceremony skill
-5. 子蜂群完整性 = skill 内声明五特征最小 DAG 模板（不是新 hook）
+4. 分析六个核心问题 → 三层已是当前平台下最大覆盖 + 缺口在 sub-swarm-ceremony skill
+5. 子蜂群完整性 = skill 内声明五特征 DAG 模板（不是新 hook）
 6. 创世 Gap 递归化 = L(n-1) 执行 skill 时充当 L(n) Swarm₀
 7. 约束4强制化 = 异质审计节点是五特征之一（从隐含到显式）
 8. 异质质询验证（Gemini decide）：推理链成立 ✅
@@ -131,7 +131,7 @@ negated_by: []
 ### 修改
 - `.claude/hooks/team-structural-inject.sh`：**删除**（hook 纯化）
 - `.claude/settings.json`：移除 TeamCreate matcher 中已删除 hook 的注册
-- `.claude/skills/sub-swarm-ceremony/SKILL.md`：新增五特征最小 DAG 模板 + 创世 Gap 递归化 + 异质审计节点
+- `.claude/skills/sub-swarm-ceremony/SKILL.md`：新增五特征 DAG 模板 + 创世 Gap 递归化 + 异质审计节点
 - `CLAUDE.md` 原则15：补充五特征描述 + 创世 Gap 递归化
 - `.chanlun/dispatch-dag.yaml`：移除 team-structural-inject.sh 引用
 - `.chanlun/genealogy/dag.yaml`：新增 097 节点
