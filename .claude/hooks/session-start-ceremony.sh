@@ -95,7 +95,31 @@ fi
 # 中断点
 INTERRUPTS=$(sed -n '/^## 中断点$/,/^## /{ /^## 中断点$/d; /^## /d; p; }' "$SESSION_FILE" 2>/dev/null | head -5 | tr '\n' ' ' || echo "无")
 
+# 活跃蜂群检测
+SWARM_INFO=""
+TEAMS_DIR="$HOME/.claude/teams"
+if [ -d "$TEAMS_DIR" ]; then
+    for team_dir in "$TEAMS_DIR"/*/; do
+        [ -d "$team_dir" ] || continue
+        team_name=$(basename "$team_dir")
+        config="$team_dir/config.json"
+        [ -f "$config" ] || continue
+        member_count=$(python -c "
+import json, sys
+with open(sys.argv[1]) as f:
+    c = json.load(f)
+print(len(c.get('members', [])))
+" "$config" 2>/dev/null || echo "?")
+        SWARM_INFO="${SWARM_INFO} ${team_name}(${member_count}成员)"
+    done
+fi
+
 # 构建消息
-MSG="[Ceremony/热启动L2] 恢复自:${SESSION_FILE} (${SESSION_TIME}) | 分支:${GIT_BRANCH} | session提交:${SESSION_COMMIT} | 当前:${CURRENT_COMMIT} | 定义变更:${CHANGED}条 | 谱系:${SETTLED}settled/${PENDING}pending | 中断点:${INTERRUPTS} | ⚡自动进入蜂群循环：先评估可并行工位数(≥2即拉蜂群)，扫描代码/规范/谱系状态确定本轮工作目标"
+if [ -n "$SWARM_INFO" ]; then
+    SWARM_MSG=" | ⚠活跃蜂群:${SWARM_INFO} → 立即用TaskList恢复工位追踪，继续蜂群循环"
+else
+    SWARM_MSG=""
+fi
+MSG="[Ceremony/热启动L2] 恢复自:${SESSION_FILE} (${SESSION_TIME}) | 分支:${GIT_BRANCH} | session提交:${SESSION_COMMIT} | 当前:${CURRENT_COMMIT} | 定义变更:${CHANGED}条 | 谱系:${SETTLED}settled/${PENDING}pending | 中断点:${INTERRUPTS}${SWARM_MSG} | ⚡自动进入蜂群循环：先评估可并行工位数(≥2即拉蜂群)，扫描代码/规范/谱系状态确定本轮工作目标"
 
 emit_json "$MSG"

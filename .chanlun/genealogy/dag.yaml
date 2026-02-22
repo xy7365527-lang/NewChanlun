@@ -744,11 +744,6 @@ nodes:
   status: 已结算
   type: 語法記録
   file: settled/141-topology-mutation-convergence.md
-- id: '142'
-  title: precompact-save 蜂群状态采集——compact 后蜂群追踪丢失的数据通路闭合
-  status: 已结算
-  type: 定理
-  file: settled/142-precompact-swarm-state-closure.md
 edges:
   depends_on:
   - from: '136'
@@ -1485,8 +1480,6 @@ edges:
     to: 093
   - from: '141'
     to: '040'
-  - from: '142'
-    to: '140'
   - from: '141'
     to: '140'
   triggered:
@@ -2675,9 +2668,6 @@ edges:
   - between:
     - '132'
     - '141'
-  - between:
-    - '137'
-    - '142'
   - between:
     - '040'
     - '141'
