@@ -665,10 +665,10 @@ nodes:
   type: 语法记录
   file: settled/125-no-unnecessary-escalation-genesis.md
 - id: '126'
-  title: 结算停机标准未精确化——069号区间套收敛的操作化缺口
-  status: 生成态
-  type: 矛盾发现
-  file: pending/126-settlement-stopping-criterion-gap.md
+  title: 结算停机标准的层面澄清——005b不约束元层停机判断
+  status: 已结算
+  type: 定理
+  file: settled/126-settlement-stopping-criterion-gap.md
 edges:
   depends_on:
   - from: 005a
@@ -1291,11 +1291,13 @@ edges:
   # 125号: no-unnecessary-escalation生成史
   - from: '125'
     to: 018
-  # 126号: 结算停机标准（生成态）
+  # 126号: 结算停机标准层面澄清（已结算，定理）
   - from: '126'
     to: 069
   - from: '126'
-    to: 005b
+    to: '118'
+  - from: '126'
+    to: 093
   triggered:
   - from: '005'
     to: 005a
@@ -2372,7 +2374,7 @@ edges:
   # 126号 related
   - between:
     - '126'
-    - 093
+    - 005b
   - between:
     - '126'
     - 094
