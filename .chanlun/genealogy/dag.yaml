@@ -675,25 +675,30 @@ nodes:
   type: 定理
   file: settled/127-005b-hinge-vs-principle0-modifiability.md
 - id: '128'
-  title: DAG孤立节点的边建模完整性——16个孤立节点的related是否应升级为depends_on
-  status: 生成态
-  type: 矛盾发现
-  file: pending/128-isolated-nodes-edge-modeling-gap.md
+  title: DAG孤立节点边建模补全——12个节点related升级为depends_on，4个根节点合理孤立，3个新建待连接
+  status: 已结算
+  type: 定理
+  file: settled/128-isolated-nodes-edge-modeling-completion.md
 - id: '129'
   title: negates边稀疏性审查——三轮Gemini讨论结论：无矛盾降级证据，方法论建议引入needs_review边
   status: 已结算
   type: 定理
   file: settled/129-negates-edge-sparsity-audit.md
 - id: '130'
-  title: 审计递归性Gap——在平台约束下扁平审计是当前上界还是架构缺陷
-  status: 生成态
-  type: 矛盾发现
-  file: pending/130-audit-recursion-gap.md
+  title: 审计递归性Gap结算——RTAS是体系存在论要求，扁平审计是声明-能力缺口（编排者INTERRUPT修正）
+  status: 已结算
+  type: 定理
+  file: settled/130-audit-recursion-gap-resolution.md
 - id: '131'
-  title: 005b L62触发条件（实践崩溃）与020号主动修改路径的张力——127号区分3的下游补充
+  title: 005b L62触发条件结算——"动摇"（认识论）≠"修改"（操作论），127号区分1的直接推论
+  status: 已结算
+  type: 定理
+  file: settled/131-005b-l62-trigger-resolution.md
+- id: '132'
+  title: historical_tension边类型缺失——活跃张力与历史失效张力的Schema区分
   status: 生成态
   type: 矛盾发现
-  file: pending/131-005b-l62-trigger-condition-vs-020-active-path.md
+  file: pending/132-historical-tension-edge-type-proposal.md
 edges:
   depends_on:
   - from: 005a
@@ -1330,6 +1335,57 @@ edges:
     to: '118'
   - from: '127'
     to: '020'
+  # 128号: 孤立节点边建模补全（已结算，定理）
+  - from: '128'
+    to: '127'
+  - from: '128'
+    to: '010'
+  # 128号审查发现的孤立节点depends_on补全（13条边——4条与derived区冲突已排除）
+  # 排除: 008→010（derived已有010→008）、011→010（同理）、024→005a/005b（derived已有）
+  - from: '023'
+    to: '022'
+  - from: '035'
+    to: '023'
+  - from: 098
+    to: '001'
+  - from: 098
+    to: '002'
+  - from: 098
+    to: '003'
+  - from: 099
+    to: '007'
+  - from: 099
+    to: 009
+  - from: '107'
+    to: '006'
+  - from: '108'
+    to: '007'
+  - from: '109'
+    to: '007'
+  - from: '109'
+    to: 009
+  - from: '113'
+    to: '001'
+  - from: '114'
+    to: '113'
+  # 130号: 审计递归性Gap结算（已结算，定理，编排者INTERRUPT修正）
+  - from: '130'
+    to: 069
+  - from: '130'
+    to: 073b
+  - from: '130'
+    to: '105'
+  - from: '130'
+    to: '116'
+  # 132号: historical_tension边类型缺失（生成态）
+  - from: '132'
+    to: '121'
+  - from: '132'
+    to: '120'
+  - from: '132'
+    to: '062'
+  - from: '132'
+    to: '065'
   # 129号: negates稀疏性审查（已结算，定理）
   - from: '129'
     to: '127'
