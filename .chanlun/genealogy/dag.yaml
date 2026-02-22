@@ -1,7 +1,3 @@
-# 谱系 DAG — 自动生成，勿手动编辑
-# 生成时间: 2026-02-21T01:43:56
-# 来源: .chanlun/genealogy/{settled,pending}/*.md frontmatter
-
 nodes:
 - id: '001'
   title: 退化段——古怪线段与笔定义的关系
@@ -424,12 +420,12 @@ nodes:
   type: meta-rule
   file: settled/074-downstream-action-execution-gap.md
 - id: '075'
-  title: 结构工位从 teammate 转为 skill + 事件驱动
+  title: 结构工位从teammate转为skill+事件驱动——消除孤岛
   status: 已结算
   type: 语法记录
   file: settled/075-structural-to-skill.md
 - id: '076'
-  title: 下游推论执行缺口的自相似性
+  title: 下游推论执行缺口的自相似性（fractal execution gap）
   status: 已结算
   type: meta-rule
   file: settled/076-fractal-execution-gap.md
@@ -439,37 +435,37 @@ nodes:
   type: meta-rule
   file: settled/077-meta-observer-v16b.md
 - id: 078
-  title: 打破连续阻塞死循环：D策略决断
+  title: 打破连续阻塞死循环：D策略决断 + 064-1/076-3 实质性决断
   status: 已结算
   type: 选择
   file: settled/078-break-blocking-loop-strategy-d.md
 - id: 079
-  title: 下游推论语义重定义：建议而非强制阻塞节点
+  title: 下游推论语义重定义：建议（Suggestion）而非强制阻塞节点
   status: 已结算
   type: 语法记录
   file: settled/079-downstream-suggestions-not-blockers.md
 - id: 080
-  title: NegationObject 本体论修正
+  title: NegationObject 本体论修正：从德勒兹替代路径到拉康结构性死结
   status: 已结算
   type: 语法记录
   file: settled/080-negationobject-lacan-correction.md
 - id: 081
-  title: 蜂群持续自动化断裂：D策略决断
+  title: 蜂群持续自动化断裂：D策略 — roadmap对象化 + scan补全 + 终止逻辑修正
   status: 已结算
   type: 选择
   file: settled/081-swarm-continuity-strategy-d.md
 - id: 082
-  title: 结构 skill 事件驱动孤岛：D策略决断
+  title: 结构 skill 事件驱动孤岛：D策略——半事件驱动 + 诚实降级
   status: 已结算
   type: 选择
   file: settled/082-structural-skill-event-driven-gap.md
 - id: 083
-  title: 干净终止过早诊断：D策略决断
+  title: 干净终止过早诊断：D策略——确认阶段性里程碑，基于对象矛盾派生两个收尾任务
   status: 已结算
   type: 选择
   file: settled/083-clean-terminate-d-strategy.md
 - id: 084
-  title: 全面孤岛审计：体系声明-能力缺口
+  title: 全面孤岛审计：hooks/agents/skills 声明-能力缺口清单
   status: 已结算
   type: 矛盾发现
   file: settled/084-comprehensive-island-audit.md
@@ -534,16 +530,16 @@ nodes:
   type: 选择
   file: settled/096-distributed-rules-no-exception.md
 - id: 097
-  title: 真严格递归拓扑异步自指蜂群完整架构——hook 纯化 + 五特征 DAG 模板
+  title: 真严格递归拓扑异步自指蜂群的完整架构——hook 纯化 + 五特征 DAG 模板
   status: 已结算
   type: 选择
   file: settled/097-strict-rtas-architecture.md
-- id: '098'
+- id: 098
   title: 口径结算结晶——笔/线段退化 -> 源文件不完整 -> 口径统一
   status: 已结算
   type: 结晶
   file: settled/098-caliber-settlement-crystallization.md
-- id: '099'
+- id: 099
   title: 趋势/盘整实体化缺口记录
   status: 已结算
   type: 语法记录
@@ -563,6 +559,11 @@ nodes:
   status: 已结算
   type: 定理
   file: settled/104-three-framework-mapping.md
+- id: '105'
+  title: 递归从功能选择升级为无条件架构要求——编排者INTERRUPT否定Trampoline
+  status: 已结算
+  type: 选择
+  file: settled/105-recursion-mandatory-architecture.md
 edges:
   depends_on:
   - from: 005a
@@ -837,10 +838,6 @@ edges:
     to: '042'
   - from: '072'
     to: '071'
-  - from: 073a
-    to: '056'
-  - from: 073a
-    to: 069
   - from: '073'
     to: 069
   - from: '073'
@@ -851,6 +848,10 @@ edges:
     to: '057'
   - from: '073'
     to: 058
+  - from: 073a
+    to: '056'
+  - from: 073a
+    to: 069
   - from: 073b
     to: '056'
   - from: 073b
@@ -1059,6 +1060,18 @@ edges:
     to: 093
   - from: 096
     to: 095
+  - from: 097
+    to: 069
+  - from: 097
+    to: 089
+  - from: 097
+    to: 093
+  - from: 097
+    to: 094
+  - from: 097
+    to: 095
+  - from: 097
+    to: 096
   - from: '102'
     to: '020'
   - from: '102'
@@ -1085,6 +1098,12 @@ edges:
     to: 093
   - from: '104'
     to: 097
+  - from: '105'
+    to: 095
+  - from: '105'
+    to: 097
+  - from: '105'
+    to: '104'
   triggered:
   - from: '005'
     to: 005a
@@ -1137,15 +1156,11 @@ edges:
   - from: 073a
     to: '073'
   - from: 087
-    to: '086'
+    to: 086
   - from: 088
     to: '032'
-  - from: 093
-    to: '062'
   - from: 095
     to: 073b
-  - from: 096
-    to: 095
   related:
   - between:
     - '001'
@@ -1154,8 +1169,17 @@ edges:
     - '001'
     - '003'
   - between:
+    - '001'
+    - 083
+  - between:
+    - '001'
+    - 098
+  - between:
     - '002'
     - '003'
+  - between:
+    - '002'
+    - 098
   - between:
     - '003'
     - '004'
@@ -1165,6 +1189,9 @@ edges:
   - between:
     - '003'
     - '007'
+  - between:
+    - '003'
+    - 098
   - between:
     - '004'
     - 005b
@@ -1235,6 +1262,9 @@ edges:
     - 005b
     - '065'
   - between:
+    - 005b
+    - 089
+  - between:
     - '006'
     - '007'
   - between:
@@ -1259,6 +1289,9 @@ edges:
     - '007'
     - '010'
   - between:
+    - '007'
+    - 099
+  - between:
     - 008
     - 009
   - between:
@@ -1270,6 +1303,9 @@ edges:
   - between:
     - 009
     - '010'
+  - between:
+    - 009
+    - 099
   - between:
     - '010'
     - '011'
@@ -1285,6 +1321,9 @@ edges:
   - between:
     - '010'
     - '031'
+  - between:
+    - '010'
+    - 099
   - between:
     - '011'
     - '031'
@@ -1312,6 +1351,9 @@ edges:
   - between:
     - '012'
     - '062'
+  - between:
+    - '012'
+    - 093
   - between:
     - '013'
     - '014'
@@ -1348,6 +1390,9 @@ edges:
   - between:
     - '014'
     - '037'
+  - between:
+    - '014'
+    - 089
   - between:
     - '015'
     - '016'
@@ -1397,6 +1442,12 @@ edges:
     - '016'
     - '072'
   - between:
+    - '016'
+    - '074'
+  - between:
+    - '016'
+    - '103'
+  - between:
     - '017'
     - 018
   - between:
@@ -1417,6 +1468,12 @@ edges:
   - between:
     - 018
     - '041'
+  - between:
+    - 018
+    - 079
+  - between:
+    - 018
+    - '102'
   - between:
     - 019
     - 019a
@@ -1538,8 +1595,14 @@ edges:
     - 028
     - '071'
   - between:
+    - 028
+    - '102'
+  - between:
     - 029
     - 030a
+  - between:
+    - 029
+    - 099
   - between:
     - '030'
     - '040'
@@ -1547,8 +1610,20 @@ edges:
     - 030a
     - '031'
   - between:
+    - 030a
+    - 080
+  - between:
+    - 030a
+    - '102'
+  - between:
     - '031'
     - '040'
+  - between:
+    - '031'
+    - 080
+  - between:
+    - '031'
+    - 099
   - between:
     - '032'
     - '033'
@@ -1595,6 +1670,12 @@ edges:
     - '033'
     - 073b
   - between:
+    - '033'
+    - '074'
+  - between:
+    - '033'
+    - 089
+  - between:
     - '034'
     - '036'
   - between:
@@ -1607,9 +1688,21 @@ edges:
     - '036'
     - '061'
   - between:
+    - '036'
+    - 087
+  - between:
+    - '036'
+    - '103'
+  - between:
     - '037'
     - 073b
   - between:
+    - '037'
+    - 092
+  - between:
+    - '037'
+    - 095
+  - between:
     - 038
     - 039
   - between:
@@ -1618,6 +1711,9 @@ edges:
   - between:
     - 039
     - '046'
+  - between:
+    - 039
+    - '102'
   - between:
     - '041'
     - '051'
@@ -1673,122 +1769,224 @@ edges:
     - '055'
     - '060'
   - between:
+    - '055'
+    - 084
+  - between:
+    - '056'
+    - 086
+  - between:
+    - '056'
+    - 087
+  - between:
+    - '056'
+    - '105'
+  - between:
+    - '057'
+    - 082
+  - between:
+    - '057'
+    - 089
+  - between:
     - 058
     - '071'
   - between:
     - 058
     - 073b
+  - between:
+    - 058
+    - '074'
+  - between:
+    - 058
+    - 081
+  - between:
+    - 058
+    - 082
+  - between:
+    - 058
+    - 083
+  - between:
+    - 058
+    - 084
+  - between:
+    - 058
+    - 088
+  - between:
+    - 058
+    - 094
+  - between:
+    - 058
+    - 095
   - between:
     - 059
     - '070'
   - between:
+    - '061'
+    - 084
+  - between:
     - '062'
     - '066'
+  - between:
+    - '062'
+    - 078
+  - between:
+    - '062'
+    - 080
+  - between:
+    - '062'
+    - 094
+  - between:
+    - '062'
+    - '104'
+  - between:
+    - '064'
+    - 092
   - between:
     - 068
     - 073b
   - between:
+    - 068
+    - 092
+  - between:
+    - 068
+    - 093
+  - between:
     - 069
     - '071'
+  - between:
+    - 069
+    - 082
+  - between:
+    - 069
+    - 083
+  - between:
+    - 069
+    - 086
+  - between:
+    - 069
+    - 087
+  - between:
+    - 069
+    - '105'
   - between:
     - '070'
     - '072'
   - between:
+    - '070'
+    - 078
+  - between:
+    - '071'
+    - '076'
+  - between:
     - '072'
-    - 073a
+    - '076'
   - between:
-    - 091
-    - '075'
+    - '072'
+    - 084
   - between:
-    - 091
     - '073'
+    - 091
   - between:
-    - 092
-    - '037'
+    - 073b
+    - '105'
   - between:
-    - 092
-    - '064'
-  - between:
-    - 092
-    - 068
-  - between:
-    - 092
     - '075'
+    - '076'
   - between:
-    - 093
-    - '012'
-  - between:
-    - 093
-    - 068
-  - between:
-    - 093
     - '075'
+    - 078
   - between:
-    - 094
-    - 058
+    - '075'
+    - 081
   - between:
-    - 094
-    - '062'
-  - between:
-    - '098'
-    - '001'
-  - between:
-    - '098'
-    - '002'
-  - between:
-    - '098'
-    - '003'
-  - between:
-    - '099'
-    - '007'
-  - between:
-    - '099'
-    - 009
-  - between:
-    - '099'
-    - '010'
-  - between:
-    - '099'
-    - 029
-  - between:
-    - '099'
-    - '031'
-  - between:
-    - '102'
-    - 018
-  - between:
-    - '102'
-    - 028
-  - between:
-    - '102'
-    - 030a
-  - between:
-    - '102'
-    - 039
-  - between:
-    - '102'
+    - '075'
     - 088
   - between:
-    - '103'
-    - '016'
+    - '075'
+    - 091
   - between:
-    - '103'
-    - '036'
+    - '075'
+    - 092
   - between:
-    - '103'
-    - 090
-  - between:
-    - '103'
+    - '075'
     - 093
   - between:
-    - '104'
-    - '062'
+    - '076'
+    - 081
   - between:
-    - '104'
+    - '076'
+    - 084
+  - between:
+    - '076'
+    - 086
+  - between:
+    - '076'
+    - 087
+  - between:
+    - '077'
+    - 078
+  - between:
+    - '077'
+    - 079
+  - between:
+    - '077'
+    - 086
+  - between:
+    - '077'
+    - 087
+  - between:
+    - 078
+    - 084
+  - between:
+    - 079
+    - 082
+  - between:
+    - 081
+    - 082
+  - between:
+    - 081
+    - 084
+  - between:
+    - 084
+    - 086
+  - between:
+    - 084
+    - 087
+  - between:
+    - 084
+    - 090
+  - between:
+    - 086
+    - 090
+  - between:
+    - 088
+    - '102'
+  - between:
     - 089
-  - between:
     - '104'
+  - between:
+    - 090
+    - '103'
+  - between:
+    - 093
+    - '103'
+  - between:
+    - 093
+    - '105'
+  - between:
     - 094
+    - '104'
+  - between:
+    - '105'
+    - '056'
+  - between:
+    - '105'
+    - 069
+  - between:
+    - '105'
+    - 073b
+  - between:
+    - '105'
+    - 093
   tensions_with:
   - between:
     - '007'
@@ -1812,48 +2010,23 @@ edges:
     - '064'
     - '065'
   negated_by:
+  - target: '032'
+    by: 088
   - target: '037'
     by: 073b
+  - target: '062'
+    by: 093
   - target: '065'
     by: 068
   - target: '066'
     by: 068
   - target: '073'
     by: 073a
-  - target: 086
-    by: 087
-  - target: '032'
-    by: 088
-  - target: '062'
-    by: 093
+  - target: 073b
+    by: 073a
   - target: 073b
     by: 095
+  - target: 086
+    by: 087
   - target: 095
     by: 096
-  crystallizes:
-  - from: '098'
-    to: '001'
-  - from: '098'
-    to: '002'
-  - from: '098'
-    to: '003'
-  - from: '102'
-    to: '020'
-  - from: '102'
-    to: '021'
-  - from: '102'
-    to: '041'
-  - from: '102'
-    to: '052'
-  - from: '103'
-    to: 084
-  - from: '103'
-    to: 085
-  - from: '103'
-    to: 086
-  - from: '103'
-    to: 087
-  - from: '103'
-    to: 088
-  - from: '103'
-    to: 089
