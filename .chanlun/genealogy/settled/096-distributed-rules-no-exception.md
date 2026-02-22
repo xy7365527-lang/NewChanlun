@@ -58,9 +58,11 @@ negated_by: []
 
 089号谱系（已结算）明确：CLAUDE.md 是蜂群基因组，平台自动加载到每个 agent（包括 teammate）。
 因此：
-- 规则的分布式存在形式 = CLAUDE.md（基因组）+ hooks（免疫系统）
+- 规则的分布式存在形式 = CLAUDE.md（基因组）+ hooks（免疫系统）+ skills（可执行知识结晶）
+- 三层各司其职：CLAUDE.md 声明原则、hooks 强制语法、skills 提供可执行流程
 - team-structural-inject.sh 的规则注入部分是**冗余的中心化注入**，违反分布式原则
-- 应降为纯信息性提示（告知可用的 skill 列表），不含规则传递
+- 应修正为 skill 索引器（告知可用的 skill 及其路径），不含规则传递也不是信息提示
+- 原则11推论："元编排本身也是 skill 的集合——编排能力分布式地结晶在 skill 中"
 
 ### hooks 是否已解决强制层？
 
@@ -88,7 +90,10 @@ if subagent_type == 'Explore':
 修改 block 原因说明：移除 Explore 例外的描述。
 
 ### 2. team-structural-inject.sh
-降为纯信息性提示：删除规则传递内容（"095号真递归架构要求"等）。规则已在 CLAUDE.md 中，无需通过 prompt 重复注入。
+修正为 skill 索引器：hook 语义从"信息性提示"提升为"强制导向 sub-swarm-ceremony skill"。
+规则的三层存在形式：CLAUDE.md（原则）+ hooks（语法守卫/Skill索引器）+ skills（操作流程结晶）。
+hook 输出必须明确指向 .claude/skills/sub-swarm-ceremony/SKILL.md，强制 agent 读取。
+（096号修正——Gemini decide，选项C，2026-02-22）
 
 ### 3. CLAUDE.md 原则15
 删除"唯一例外：Explore 类型 agent（只读搜索，不是蜂群节点）"。
@@ -105,8 +110,8 @@ Gemini 识别的翻转条件：如果 Glob/Grep/Read 工具在实际运行中因
 ## 下游推论
 
 1. agent-team-enforce.sh 无例外——hook 变成无条件的语法守卫
-2. 规则分布式存在形式确认：CLAUDE.md（基因组）+ hooks（免疫系统），不在 prompt 中
-3. team-structural-inject.sh 的规则传递功能废弃——只保留信息性提示
+2. 规则分布式存在形式确认：CLAUDE.md（基因组）+ hooks（免疫系统）+ skills（可执行知识结晶），不在 prompt 中
+3. team-structural-inject.sh 从"信息性提示"修正为"skill 索引器"——告知可用 skill 及路径（编排者 INTERRUPT 修正）
 4. 蜂群中不再有"孤立 subagent"的概念——Task 调用语义统一为"spawn teammate into team"
 
 ## 推导链
@@ -117,7 +122,8 @@ Gemini 识别的翻转条件：如果 Glob/Grep/Read 工具在实际运行中因
 4. 分析 hooks 已实现分布式强制
 5. Gemini decide → 选项 D：完全禁用 Task(Explore)
 6. 异质质询验证：定义回溯✅ + 反例构造✅ + 推论检验✅
-7. ∴ 096号结算：无例外，规则分布式存在于 CLAUDE.md + hooks
+7. ∴ 096号结算：无例外，规则分布式存在于 CLAUDE.md + hooks + skills
+8. 编排者 INTERRUPT 修正："蜂群存在的方式是 skill"——096号补充 skills 层为第三维度
 
 ## 谱系链接
 
@@ -130,6 +136,7 @@ Gemini 识别的翻转条件：如果 Glob/Grep/Read 工具在实际运行中因
 
 修改：
 - `.claude/hooks/agent-team-enforce.sh`：删除 Explore 例外
-- `.claude/hooks/team-structural-inject.sh`：删除规则传递，保留信息性提示
+- `.claude/hooks/team-structural-inject.sh`：修正为 skill 索引器（强制导向 sub-swarm-ceremony skill，096号修正）
+- `.chanlun/dispatch-dag.yaml` knowledge_templates：注册 sub-swarm-ceremony skill（096号修正）
 - `CLAUDE.md` 原则15：删除"唯一例外：Explore"
 - 095号谱系：标注 negated_by: 096（Explore 例外条款）

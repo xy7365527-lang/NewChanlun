@@ -69,6 +69,8 @@ genome_layer:
       - "testing-override.md"
 
   # 知识模板：被 Claude Code 按需加载的结晶知识——蜂群的能力基因
+  # 096号修正（Gemini decide，选项C）：蜂群规则三层存在形式
+  #   CLAUDE.md（原则/基因组）+ hooks（语法守卫/Skill索引器）+ skills（操作流程结晶）
   knowledge_templates:
     path: ".claude/skills/"
     role: "蜂群的结晶知识——被 agent 读取后转化为行为能力"
@@ -80,6 +82,7 @@ genome_layer:
       - "meta-orchestration"
       - "orchestrator-proxy"
       - "spec-execution-gap"
+      - "sub-swarm-ceremony"  # 096号修正：子蜂群创建流程结晶（095号谱系），由 team-structural-inject.sh hook 索引
 
   # 存在论声明
   ontological_status: >
