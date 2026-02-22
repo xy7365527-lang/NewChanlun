@@ -357,7 +357,7 @@ edges:
     - from: genealogist
       to: quality-guard
       type: genealogy_validated
-      trigger: "genealogist skill 完成后自动触发 quality-guard skill"
+      trigger: "genealogist skill 完成后 hooks 提示 + Lead 认领 quality-guard skill（D策略，082号）"
 
     # 质量通过 → 结晶汇点（唯一合法路径）
     - from: quality-guard
@@ -376,21 +376,21 @@ edges:
       to: gemini-challenger
       type: proposal_review
       condition: "dispatch-dag/核心定义/已结算谱系修改提案"
-      trigger: "meta-observer 产出提案时触发 gemini-challenger verify"
+      trigger: "meta-observer 产出提案时 hooks 提示 + Lead 认领 gemini-challenger verify（D策略，082号）"
 
   # --- 任务工位的边约束（模板，运行时实例化） ---
   task_edge_constraints:
     # 硬约束：所有任务产出必须经过 quality-guard skill
     - constraint: "quality_gate"
       rule: "任何 task_node 的产出在提交前必须触发 quality-guard skill"
-      enforcement: "file_write hook 自动触发"
+      enforcement: "file_write hook 提示 + Lead 认领执行（D策略，082号）"
 
     - constraint: "concept_discovery_routing"
       rule: "任何 task_node 的概念发现（新定义/新谱系）必须触发 genealogist skill"
       enforcement: "task_node 不可直接写入 .chanlun/genealogy/ 或 .chanlun/definitions/（由 hook 拦截并触发 skill）"
 
     - constraint: "meta_observation"
-      rule: "meta-observer skill 在 session_end 时自动执行二阶观察"
+      rule: "meta-observer skill 在 session_end 时由 hooks 提示 + Lead 认领执行二阶观察（D策略，082号）"
       enforcement: "session_end 事件触发"
 
   # --- 事件触发边（从 orchestration_protocol 迁移） ---
@@ -498,11 +498,11 @@ fractal_template:
         description: "子蜂群元观察上交父蜂群二阶反馈"
 
   # 递归规则（从 dispatch-spec 迁移）
-  # 089号审计修正：当前实现为 Trampoline 模式（073b号平台限制），声明与实际对齐
+  # 135号修正：平台（Agent Teams）支持子蜂群递归，073b Trampoline 前提已被事实否定
   recursion_rules:
-    - "任何 teammate 面对 ≥1 个可分解子任务时，可 spawn 子 teammates"
-    - "当前实现：Trampoline 模式——所有 agent 扁平于第一层（Claude Code 不支持 subagent spawn sub-subagent，073b号谱系）"
-    - "设计意图：子 teammates 继承完整的 spawn 能力（无限递归）——平台能力升级后可实现真调用栈递归"
+    - "任何 teammate 面对 ≥2 个可并行子任务时，必须 spawn 子蜂群（095号：真递归是默认模式）"
+    - "子蜂群通过 TeamCreate 创建独立 team，复制父蜂群的完整结构（097号五特征 DAG 模板）"
+    - "Trampoline（扁平 Lead→Worker）是退化特例，使用需要理由——必须证明子任务不需要独立治理"
     - "递归深度无人为限制，由 topology-manager 的收敛信号自然终止（020号：背驰+分型 = 区间套收敛判定）"
     - "父 teammate 对子 teammates 负路由责任"
     - "结构工位默认扁平——裁判不参与走势。例外：结构工位自身任务需分解时允许 spawn 同类型子工位（受限递归），不允许 spawn 任务工位"
@@ -545,7 +545,7 @@ ceremony_sequence:
         action: "从 event_skill_map 加载可用 skill 列表（不 spawn，仅注册）"
         depends_on: ["derive-work"]
       - id: "spawn-tasks"
-        action: "并行 spawn 业务工位（skill 由事件自动触发，无需 spawn）"
+        action: "并行 spawn 业务工位（skill 由事件 hooks 提示 + Lead 认领，D策略082号，无需 spawn）"
         depends_on: ["load-skills"]
       - id: "divine-madness"
         action: "Lead 拓扑异常审计注册（088号谱系：032号重设计——从 deny 列表改为异常对象化审计）"
@@ -590,7 +590,7 @@ ceremony_sequence:
           - "pattern-buffer 达标模式"
         no_work_fallback: "扫描 TODO/覆盖率/spec合规/谱系张力，产出至少一个工位"
       - id: "spawn-tasks"
-        action: "并行 spawn 业务工位（skill 由事件自动触发，无需 spawn）"
+        action: "并行 spawn 业务工位（skill 由事件 hooks 提示 + Lead 认领，D策略082号，无需 spawn）"
         depends_on: ["derive-work"]
       - id: "divine-madness"
         action: "Lead 拓扑异常审计注册（088号谱系：032号重设计——从 deny 列表改为异常对象化审计）"
@@ -612,7 +612,7 @@ validation:
   dag_invariants:
     - id: "quality_gate_reachability"
       check: "所有 task_node 的产出必须经过 quality-guard skill（通过事件触发）"
-      enforcement: "file_write hook 自动触发 quality-guard"
+      enforcement: "file_write hook 提示 + Lead 认领 quality-guard（D策略，082号）"
       on_fail: "警告——hook 未配置"
 
     - id: "single_terminal_sink"
