@@ -694,6 +694,11 @@ nodes:
   status: 已结算
   type: 定理
   file: settled/131-005b-l62-trigger-resolution.md
+- id: '133'
+  title: 异质双向收敛协议——030a单向否定的对称化扩展，053号异质双引擎的操作化
+  status: 已结算
+  type: 语法记录
+  file: settled/133-heterogeneous-bilateral-convergence-protocol.md
 - id: '132'
   title: tensions_with边引入valid_until字段——活跃张力与历史失效张力的严格区分
   status: 已结算
@@ -1377,6 +1382,15 @@ edges:
     to: '105'
   - from: '130'
     to: '116'
+  # 133号: 异质双向收敛协议（已结算，语法记录）
+  - from: '133'
+    to: '055'
+  - from: '133'
+    to: '053'
+  - from: '133'
+    to: 030a
+  - from: '133'
+    to: 093
   # 132号: tensions_with边引入valid_until字段（已结算，选择）
   - from: '132'
     to: '121'
