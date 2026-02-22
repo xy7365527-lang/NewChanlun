@@ -7,7 +7,7 @@ date: "2026-02-20"
 depends_on: ["020", "053", "062", "063"]
 related: ["005b"]
 negated_by: []
-negates: []
+negates: ["062"]  # N3修复: 064部分否定062(NegationObject从"被压抑的替代路径"→"结构性死结")
 tensions_with: ["065"]
 ---
 

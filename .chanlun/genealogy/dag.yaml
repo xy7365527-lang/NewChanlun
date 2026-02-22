@@ -599,6 +599,31 @@ nodes:
   status: 已结算
   type: 语法记录
   file: settled/112-warm-start-genesis.md
+- id: '113'
+  title: 包含处理工程选择谱系
+  status: 已结算
+  type: 语法记录
+  file: settled/113-baohan-engineering-choices.md
+- id: '114'
+  title: 分型形式化谱系——双条件作为定义本身
+  status: 已结算
+  type: 语法记录
+  file: settled/114-fenxing-formalization.md
+- id: '115'
+  title: 流转关系形式化谱系——从025号决断到独立DAG节点
+  status: 已结算
+  type: 语法记录
+  file: settled/115-liuzhuan-formalization.md
+- id: '116'
+  title: 105号声明-能力修正——Trampoline从"永久禁止"降级为"退化特例需要理由"
+  status: 已结算
+  type: 定理
+  file: settled/116-105-statement-capability-correction.md
+- id: '117'
+  title: 异质验证架构位置显式化——三框架组合表述落实104号定理
+  status: 已结算
+  type: 定理
+  file: settled/117-heterogeneous-verification-position.md
 edges:
   depends_on:
   - from: 005a
@@ -1161,6 +1186,26 @@ edges:
     to: '057'
   - from: '112'
     to: 058
+  - from: '115'
+    to: '025'
+  # 116号: 105号声明-能力修正
+  - from: '116'
+    to: 090
+  - from: '116'
+    to: 095
+  - from: '116'
+    to: '104'
+  - from: '116'
+    to: '105'
+  # 117号: 异质验证架构位置显式化
+  - from: '117'
+    to: 069
+  - from: '117'
+    to: 093
+  - from: '117'
+    to: 097
+  - from: '117'
+    to: '104'
   triggered:
   - from: '005'
     to: 005a
@@ -1206,6 +1251,9 @@ edges:
   - from: '063'
     to: '062'
   negates:
+  # N3修复: 064部分否定062(NegationObject定义从"被压抑的替代路径"→"结构性死结")
+  - from: '064'
+    to: '062'
   - from: 068
     to: '065'
   - from: 068
@@ -1218,6 +1266,9 @@ edges:
     to: '032'
   - from: 095
     to: 073b
+  # 116号部分否定105号: "Trampoline永久禁止"→"退化特例需要理由"
+  - from: '116'
+    to: '105'
   related:
   - between:
     - '001'
@@ -2110,6 +2161,53 @@ edges:
   - between:
     - '112'
     - '044'
+  - between:
+    - '113'
+    - '001'
+  - between:
+    - '113'
+    - '002'
+  - between:
+    - '113'
+    - '114'
+  - between:
+    - '114'
+    - '001'
+  - between:
+    - '114'
+    - '113'
+  - between:
+    - '115'
+    - '022'
+  - between:
+    - '115'
+    - '023'
+  - between:
+    - '115'
+    - '026'
+  - between:
+    - '115'
+    - '047'
+  - between:
+    - '115'
+    - '050'
+  # 116号 related
+  - between:
+    - '116'
+    - 073b
+  - between:
+    - '116'
+    - 084
+  - between:
+    - '116'
+    - 087
+  # 117号 related
+  - between:
+    - '117'
+    - '062'
+  - between:
+    - '117'
+    - 090
   tensions_with:
   - between:
     - '007'
@@ -2132,11 +2230,62 @@ edges:
   - between:
     - '064'
     - '065'
+  # === v33审计补建的tensions_with边(T1-T7) ===
+  # T1: 069四维度框架在093扬弃后异质验证维度悬空
+  - between:
+    - 069
+    - 093
+  # T2: 020号走势语法自描述与005b对象否定对象的自指性边界未定义
+  - between:
+    - '020'
+    - 005b
+  # T3: 105号递归无条件声明与090号/095号工程现实的声明-能力不一致
+  - between:
+    - '105'
+    - 090
+  - between:
+    - '105'
+    - 095
+  # T4: 007/009子类型决断被029/031事实上静默否定
+  - between:
+    - '007'
+    - 029
+  - between:
+    - '007'
+    - '031'
+  - between:
+    - 009
+    - 029
+  - between:
+    - 009
+    - '031'
+  # T5: 062被093扬弃后仍被069/094/104引用(活跃依赖vs历史引用未区分)
+  - between:
+    - '062'
+    - 069
+  - between:
+    - '062'
+    - 094
+  - between:
+    - '062'
+    - '104'
+  # T6: 068否定065后，065的tensions_with边残留(连续流形→离散图论范式转换后张力存废未决)
+  - between:
+    - 068
+    - '065'
+  # T7: 020a同一存在论的"脉动"隐喻与068离散DAG范式的本体论张力
+  - between:
+    - 020a
+    - 068
   negated_by:
   - target: '032'
     by: 088
-  - target: '037'
-    by: 073b
+  # N2修复: 073b不否定037——073b描述Trampoline机制，037的分形spawn原则仍成立
+  # 037的"无限深度"被095软化为≈3-4层，但095未正式否定037
+  # 原 037 negated_by 073b 为单方面声明(073b.negates=[])，已移除
+  # N3修复: 062有两个否定来源——064(部分:NegationObject定义修正)和093(扬弃:R.S.I不同构)
+  - target: '062'
+    by: '064'
   - target: '062'
     by: 093
   - target: '065'
@@ -2145,11 +2294,17 @@ edges:
     by: 068
   - target: '073'
     by: 073a
-  - target: 073b
-    by: 073a
+  # N1修复: 073a只否定073(平台约束前提)，不否定073b(Trampoline模式)
+  # 073b的否定来源是095(Agent Team真递归)
   - target: 073b
     by: 095
   - target: 086
     by: 087
+  # N4注释: 096只否定095的Explore例外条款，不否定095整体(Agent Team真递归)结论
   - target: 095
     by: 096
+    scope: "partial:Explore例外条款"
+  # 116号部分否定105号: "Trampoline永久禁止"声明修正为"退化特例需要理由"
+  - target: '105'
+    by: '116'
+    scope: "partial:过强声明修正，方向意图保留"
