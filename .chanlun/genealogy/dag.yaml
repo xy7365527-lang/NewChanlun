@@ -669,6 +669,11 @@ nodes:
   status: 已结算
   type: 定理
   file: settled/126-settlement-stopping-criterion-gap.md
+- id: '127'
+  title: 005b铰链命题地位与原则0完全可修改性的关系显式化
+  status: 已结算
+  type: 定理
+  file: settled/127-005b-hinge-vs-principle0-modifiability.md
 edges:
   depends_on:
   - from: 005a
@@ -1298,6 +1303,13 @@ edges:
     to: '118'
   - from: '126'
     to: 093
+  # 127号: 005b铰链命题 vs 原则0可修改性（已结算，定理）
+  - from: '127'
+    to: 005b
+  - from: '127'
+    to: '118'
+  - from: '127'
+    to: '020'
   triggered:
   - from: '005'
     to: 005a
