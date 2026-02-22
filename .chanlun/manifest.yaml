@@ -1,8 +1,8 @@
 # USM — Unified Skill Manifest
 # 自动生成，勿手动编辑。重新生成：扫描 .claude/ 下的 commands/agents/hooks/skills
-# 091号审计修复：与实际 19 agents / 21 hooks / 13 commands / 6 skills 严格对齐
-version: "2.0"
-generated: "2026-02-21"
+# 091号审计修复 + v37-swarm GAP-3 修复：幽灵条目清理 + lead-audit/genealogy-gemini-verify 注册对齐
+version: "2.1"
+generated: "2026-02-22"
 
 skills:
   - name: build-fix
@@ -221,12 +221,12 @@ agents:
 
 hooks:
   # --- PreToolUse hooks ---
-  - name: ceremony-guard
+  - name: agent-team-enforce
     type: hook
-    file: .claude/hooks/ceremony-guard.sh
+    file: .claude/hooks/agent-team-enforce.sh
     event: PreToolUse
     matcher: Task
-    description: "ceremony 阶段 Task spawn 验证"
+    description: "蜂群 Task spawn 验证（原 ceremony-guard，088号重设计）"
     status: active
 
   - name: definition-write-guard
@@ -326,28 +326,23 @@ hooks:
     description: "函数行数守卫——重构任务完成时检查函数是否超过阈值行数"
     status: active
 
-  - name: team-structural-inject
-    type: hook
-    file: .claude/hooks/team-structural-inject.sh
-    event: PostToolUse
-    matcher: TeamCreate
-    description: "TeamCreate 后动态注入结构工位要求"
-    status: active
+  # team-structural-inject: 从未创建，075号后结构能力由 skill 事件驱动，不再需要 TeamCreate 后注入
+  # 已移除（v37-swarm GAP-3 审计修复）
 
-  - name: lead-permissions
+  - name: lead-audit
     type: hook
-    file: .claude/hooks/lead-permissions.sh
+    file: .claude/hooks/lead-audit.sh
     event: PostToolUse
-    matcher: Bash
-    description: "Lead 拓扑异常审计（088号：032号重设计）"
+    matcher: Write|Edit|Bash
+    description: "Lead 拓扑异常对象化审计（088号：032号重设计，原 lead-permissions）"
     status: active
 
   - name: meta-observer-guard
     type: hook
     file: .claude/hooks/meta-observer-guard.sh
-    event: PostToolUse
-    matcher: Write
-    description: "meta-observer 元规则变更守卫"
+    event: Stop
+    matcher: ""
+    description: "meta-observer 元规则变更守卫（Stop hook，session 结束时执行）"
     status: active
 
   - name: source-auditor-prompt
@@ -356,6 +351,14 @@ hooks:
     event: PostToolUse
     matcher: Write
     description: "源头审计提示——定义写入时触发溯源检查"
+    status: active
+
+  - name: genealogy-gemini-verify
+    type: hook
+    file: .claude/hooks/genealogy-gemini-verify.sh
+    event: PostToolUse
+    matcher: Write|Edit
+    description: "谱系写入时触发 Gemini 异质验证提示"
     status: active
 
   # --- Stop hooks ---
