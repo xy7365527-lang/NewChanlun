@@ -523,6 +523,11 @@ nodes:
   status: 已结算
   type: 概念重定位
   file: settled/094-gap-reposition.md
+- id: '095'
+  title: Agent Team 子蜂群递归——从 Trampoline 升级为真调用栈递归
+  status: 已结算
+  type: 选择
+  file: settled/095-agent-team-recursive-swarm.md
 edges:
   depends_on:
   - from: 005a
@@ -1022,6 +1027,17 @@ edges:
     to: '069'
   - from: '094'
     to: '093'
+  # 095 depends
+  - from: '095'
+    to: '056'
+  - from: '095'
+    to: '069'
+  - from: '095'
+    to: 073b
+  - from: '095'
+    to: '093'
+  - from: '095'
+    to: '094'
   triggered:
   - from: '005'
     to: 005a
@@ -1077,6 +1093,8 @@ edges:
     to: '032'
   - from: '093'
     to: '062'
+  - from: '095'
+    to: 073b
   related:
   - between:
     - '001'
@@ -1695,3 +1713,5 @@ edges:
     by: '088'
   - target: '062'
     by: '093'
+  - target: 073b
+    by: '095'

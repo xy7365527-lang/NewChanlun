@@ -175,6 +175,10 @@
           {
             "type": "command",
             "command": ".claude/hooks/source-auditor-prompt.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/genealogy-gemini-verify.sh"
           }
         ]
       },
@@ -196,6 +200,10 @@
           {
             "type": "command",
             "command": ".claude/hooks/source-auditor-prompt.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/genealogy-gemini-verify.sh"
           }
         ]
       },

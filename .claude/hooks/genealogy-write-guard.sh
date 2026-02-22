@@ -7,7 +7,9 @@
 #   2. 检查强制字段存在性：类型、状态、日期、前置
 #   3. 检查前置引用的谱系编号是否存在于 settled/ 或 pending/
 #   4. 二阶反馈回路检查：验证活跃蜂群中存在 meta-observer
-#   5. 验证不通过时：allow + 警告（不阻止写入）
+#   5. 语义一致性检查（G2）：negates/negated_by 一致性、状态转换合法性、
+#      结论冲突、下游推论引用（调用 scripts/genealogy_semantic_check.py）
+#   6. 验证不通过时：allow + 警告（不阻止写入）
 #
 # 原则0：蜂群能修改一切。守卫只验证，不阻断。
 
@@ -169,8 +171,63 @@ elif [ "$META_OBS_CHECK" = "no_team" ]; then
     META_OBS_WARN="二阶反馈回路未激活：无活跃蜂群，meta-observer 未 spawn"
 fi
 
+# ── 语义一致性检查（G2） ──────────────────────────────────
+# 调用 scripts/genealogy_semantic_check.py，通过 stdin 传入待写入内容
+# 如果脚本执行失败则静默跳过，不影响现有功能
+SEMANTIC_WARN=""
+SCRIPT_DIR=$(cd "$(dirname "$0")" && cd ../../scripts && pwd)
+SEMANTIC_SCRIPT="$SCRIPT_DIR/genealogy_semantic_check.py"
+if [ -f "$SEMANTIC_SCRIPT" ]; then
+    # 重建待写入的完整内容
+    CONTENT_FOR_CHECK=$(echo "$INPUT" | python -c "
+import sys, json
+data = json.loads(sys.stdin.read())
+tool_name = data.get('tool_name', '')
+tool_input = data.get('tool_input', {})
+if tool_name == 'Edit':
+    file_path = tool_input.get('file_path', '')
+    old_str = tool_input.get('old_string', '')
+    new_str = tool_input.get('new_string', '')
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        content = content.replace(old_str, new_str, 1)
+    except:
+        content = ''
+else:
+    content = tool_input.get('content', '')
+print(content)
+" 2>/dev/null || echo "")
+
+    if [ -n "$CONTENT_FOR_CHECK" ]; then
+        set +e
+        SEMANTIC_RESULT=$(echo "$CONTENT_FOR_CHECK" | python "$SEMANTIC_SCRIPT" "$FILE_PATH" --content-stdin 2>/dev/null)
+        SEMANTIC_EXIT=$?
+        set -e
+        if [ $SEMANTIC_EXIT -eq 0 ] && [ -n "$SEMANTIC_RESULT" ]; then
+            SEMANTIC_WARN=$(echo "$SEMANTIC_RESULT" | python -c "
+import sys, json
+try:
+    data = json.loads(sys.stdin.read())
+    overall = data.get('overall', 'pass')
+    if overall in ('warn', 'fail'):
+        checks = data.get('checks', [])
+        issues = [
+            c['check'] + ': ' + c['detail']
+            for c in checks
+            if c.get('status') in ('warn', 'fail')
+        ]
+        if issues:
+            print('语义检查: ' + '; '.join(issues))
+except:
+    pass
+" 2>/dev/null || echo "")
+        fi
+    fi
+fi
+
 # 如果没有任何问题，放行
-if [ -z "$MISSING" ] && [ -z "$INVALID_REFS" ] && [ -z "$META_OBS_WARN" ]; then
+if [ -z "$MISSING" ] && [ -z "$INVALID_REFS" ] && [ -z "$META_OBS_WARN" ] && [ -z "$SEMANTIC_WARN" ]; then
     exit 0
 fi
 
@@ -180,6 +237,7 @@ import json, sys
 missing = sys.argv[1]
 invalid = sys.argv[2]
 meta_warn = sys.argv[3]
+semantic_warn = sys.argv[4]
 
 parts = []
 if missing:
@@ -190,6 +248,8 @@ if invalid:
     parts.append('前置引用的谱系编号不存在于 settled/ 或 pending/: ' + ', '.join(refs))
 if meta_warn:
     parts.append(meta_warn)
+if semantic_warn:
+    parts.append(semantic_warn)
 
 detail = '; '.join(parts)
 msg = (
@@ -200,4 +260,4 @@ print(json.dumps({
     'decision': 'allow',
     'reason': msg
 }, ensure_ascii=False))
-" "$MISSING" "$INVALID_REFS" "$META_OBS_WARN"
+" "$MISSING" "$INVALID_REFS" "$META_OBS_WARN" "$SEMANTIC_WARN"
