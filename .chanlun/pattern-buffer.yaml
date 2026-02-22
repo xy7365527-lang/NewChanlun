@@ -1055,3 +1055,440 @@ ly_type: "lead_direct_execution"
     description: "Lead 直接执行 Bash（应委派工位）——拓扑异常对象"
     status: "candidate"
     anomaly_type: "lead_direct_execution"
+  - id: "anomaly-3128b679"
+    signature: "lead-direct-Bash:cd /c/Users/hanju/NewChanlun && git add .chanlun/definitions/qushi.md .chanlun/genealogy/settled/106-governance-deviatio"
+    frequency: 1
+    first_seen: "2026-02-22T03:08:36Z"
+    last_seen: "2026-02-22T03:08:36Z"
+    sources: ["2026-02-22T03:08:36Z"]
+    description: "Lead 直接执行 Bash（应委派工位）——拓扑异常对象"
+    status: "candidate"
+    anomaly_type: "lead_direct_execution"
+  - id: "anomaly-11358f8f"
+    signature: "lead-direct-Bash:cd /c/Users/hanju/NewChanlun && git commit -m \"$(cat <<'EOF'
+ feat: v30-swarm——首次真RTAS子蜂群全面推进（qushi定义+核心概念谱系+治理偏差结晶+Hook修"
+    frequency: 1
+    first_seen: "2026-02-22T03:09:02Z"
+    last_seen: "2026-02-22T03:09:02Z"
+    sources: ["2026-02-22T03:09:02Z"]
+    description: "Lead 直接执行 Bash（应委派工位）——拓扑异常对象"
+    status: "candidate"
+    anomaly_type: "lead_direct_execution"
+  - id: "anomaly-42314f00"
+    signature: "lead-direct-Bash:cd /c/Users/hanju/NewChanlun && python scripts/ceremony_scan.py"
+    frequency: 1
+    first_seen: "2026-02-22T03:11:16Z"
+    last_seen: "2026-02-22T03:11:16Z"
+    sources: ["2026-02-22T03:11:16Z"]
+    description: "Lead 直接执行 Bash（应委派工位）——拓扑异常对象"
+    status: "candidate"
+    anomaly_type: "lead_direct_execution"
+  - id: "anomaly-2e0880d5"
+    signature: "lead-direct-Edit:C:\\Users\\hanju\\NewChanlun\\scripts\\ceremony_scan.py"
+    frequency: 1
+    first_seen: "2026-02-22T03:11:57Z"
+    last_seen: "2026-02-22T03:11:57Z"
+    sources: ["2026-02-22T03:11:57Z"]
+    description: "Lead 直接执行 Edit（应委派工位）——拓扑异常对象"
+    status: "candidate"
+    anomaly_type: "lead_direct_execution"
+  - id: "anomaly-584a14eb"
+    signature: "lead-direct-Bash:cd /c/Users/hanju/NewChanlun && python scripts/ceremony_scan.py 2>&1 | python -c \"
+ import sys, json
+ d = json.load(sys.st"
+    frequency: 1
+    first_seen: "2026-02-22T03:12:04Z"
+    last_seen: "2026-02-22T03:12:04Z"
+    sources: ["2026-02-22T03:12:04Z"]
+    description: "Lead 直接执行 Bash（应委派工位）——拓扑异常对象"
+    status: "candidate"
+    anomaly_type: "lead_direct_execution"
+  - id: "anomaly-c9db2d6f"
+    signature: "lead-direct-Bash:cd /c/Users/hanju/NewChanlun && git add scripts/ceremony_scan.py && git commit -m \"$(cat <<'EOF'
+ fix: ceremony_scan.py 修"
+    frequency: 1
+    first_seen: "2026-02-22T03:12:15Z"
+    last_seen: "2026-02-22T03:12:15Z"
+    sources: ["2026-02-22T03:12:15Z"]
+    description: "Lead 直接执行 Bash（应委派工位）——拓扑异常对象"
+    status: "candidate"
+    anomaly_type: "lead_direct_execution"
+  - id: "anomaly-3cb859b8"
+    signature: "lead-direct-Bash:sleep 15 && echo \"done\""
+    frequency: 1
+    first_seen: "2026-02-22T03:13:41Z"
+    last_seen: "2026-02-22T03:13:41Z"
+    sources: ["2026-02-22T03:13:41Z"]
+    description: "Lead 直接执行 Bash（应委派工位）——拓扑异常对象"
+    status: "candidate"
+    anomaly_type: "lead_direct_execution"
+  - id: "anomaly-348e71b8"
+    signature: "lead-direct-Bash:ls -la \"C:/Users/hanju/NewChanlun/.chanlun/dispatch-dag.yaml\" 2>/dev/null && echo \"EXISTS\" || echo \"NOT_FOUND\""
+    frequency: 1
+    first_seen: "2026-02-22T03:13:51Z"
+    last_seen: "2026-02-22T03:13:51Z"
+    sources: ["2026-02-22T03:13:51Z"]
+    description: "Lead 直接执行 Bash（应委派工位）——拓扑异常对象"
+    status: "candidate"
+    anomaly_type: "lead_direct_execution"
+  - id: "anomaly-41a60f8d"
+    signature: "lead-direct-Bash:sleep 30 && echo \"done\""
+    frequency: 1
+    first_seen: "2026-02-22T03:14:24Z"
+    last_seen: "2026-02-22T03:14:24Z"
+    sources: ["2026-02-22T03:14:24Z"]
+    description: "Lead 直接执行 Bash（应委派工位）——拓扑异常对象"
+    status: "candidate"
+    anomaly_type: "lead_direct_execution"
+  - id: "anomaly-7b72c799"
+    signature: "lead-direct-Bash:ls \"C:/Users/hanju/NewChanlun/.chanlun/manifest.yaml\" 2>/dev/null && echo \"EXISTS\" || echo \"NOT_FOUND\""
+    frequency: 1
+    first_seen: "2026-02-22T03:14:38Z"
+    last_seen: "2026-02-22T03:14:38Z"
+    sources: ["2026-02-22T03:14:38Z"]
+    description: "Lead 直接执行 Bash（应委派工位）——拓扑异常对象"
+    status: "candidate"
+    anomaly_type: "lead_direct_execution"
+  - id: "anomaly-93205ae0"
+    signature: "lead-direct-Bash:ls \"C:/Users/hanju/NewChanlun/.chanlun/topology/\" 2>/dev/null && echo \"EXISTS\" || echo \"NOT_FOUND\""
+    frequency: 1
+    first_seen: "2026-02-22T03:14:38Z"
+    last_seen: "2026-02-22T03:14:38Z"
+    sources: ["2026-02-22T03:14:38Z"]
+    description: "Lead 直接执行 Bash（应委派工位）——拓扑异常对象"
+    status: "candidate"
+    anomaly_type: "lead_direct_execution"
+  - id: "anomaly-b8bf51a6"
+    signature: "lead-direct-Bash:ls \"C:/Users/hanju/NewChanlun/.chanlun/roadmap.yaml\" 2>/dev/null && echo \"EXISTS\" || echo \"NOT_FOUND\""
+    frequency: 1
+    first_seen: "2026-02-22T03:14:38Z"
+    last_seen: "2026-02-22T03:14:38Z"
+    sources: ["2026-02-22T03:14:38Z"]
+    description: "Lead 直接执行 Bash（应委派工位）——拓扑异常对象"
+    status: "candidate"
+    anomaly_type: "lead_direct_execution"
+  - id: "anomaly-88127e47"
+    signature: "lead-direct-Bash:ls \"C:/Users/hanju/NewChanlun/.chanlun/pattern-buffer.yaml\" 2>/dev/null && echo \"EXISTS\" || echo \"NOT_FOUND\""
+    frequency: 1
+    first_seen: "2026-02-22T03:14:38Z"
+    last_seen: "2026-02-22T03:14:38Z"
+    sources: ["2026-02-22T03:14:38Z"]
+    description: "Lead 直接执行 Bash（应委派工位）——拓扑异常对象"
+    status: "candidate"
+    anomaly_type: "lead_direct_execution"
+  - id: "anomaly-98fedd25"
+    signature: "lead-direct-Bash:ls \"C:/Users/hanju/NewChanlun/docs/chan_spec.md\" 2>/dev/null && echo \"EXISTS\" || echo \"NOT_FOUND\""
+    frequency: 1
+    first_seen: "2026-02-22T03:14:47Z"
+    last_seen: "2026-02-22T03:14:47Z"
+    sources: ["2026-02-22T03:14:47Z"]
+    description: "Lead 直接执行 Bash（应委派工位）——拓扑异常对象"
+    status: "candidate"
+    anomaly_type: "lead_direct_execution"
+ad_direct_execution"
+  - id: "anomaly-4c8fc601"
+    signature: "lead-direct-Bash:ls \"C:/Users/hanju/NewChanlun/spec/theorems/\" 2>/dev/null && echo \"EXISTS\" || echo \"NOT_FOUND\""
+    frequency: 1
+    first_seen: "2026-02-22T03:14:47Z"
+    last_seen: "2026-02-22T03:14:47Z"
+    sources: ["2026-02-22T03:14:47Z"]
+    description: "Lead 直接执行 Bash（应委派工位）——拓扑异常对象"
+    status: "candidate"
+    anomaly_type: "lead_direct_execution"
+  - id: "anomaly-e0851d02"
+    signature: "lead-direct-Bash:ls -la \"C:/Users/hanju/NewChanlun/scripts/downstream_audit.py\" \"C:/Users/hanju/NewChanlun/scripts/genealogy_semantic_che"
+    frequency: 1
+    first_seen: "2026-02-22T03:15:00Z"
+    last_seen: "2026-02-22T03:15:00Z"
+    sources: ["2026-02-22T03:15:00Z"]
+    description: "Lead 直接执行 Bash（应委派工位）——拓扑异常对象"
+    status: "candidate"
+    anomaly_type: "lead_direct_execution"
+  - id: "anomaly-4542214c"
+    signature: "lead-direct-Bash:ls \"C:/Users/hanju/NewChanlun/.chanlun/definitions/\" 2>/dev/null | head -5"
+    frequency: 1
+    first_seen: "2026-02-22T03:15:02Z"
+    last_seen: "2026-02-22T03:15:02Z"
+    sources: ["2026-02-22T03:15:02Z"]
+    description: "Lead 直接执行 Bash（应委派工位）——拓扑异常对象"
+    status: "candidate"
+    anomaly_type: "lead_direct_execution"
+  - id: "anomaly-910e44cc"
+    signature: "lead-direct-Bash:sleep 30 && echo \"done\""
+    frequency: 1
+    first_seen: "2026-02-22T03:15:05Z"
+    last_seen: "2026-02-22T03:15:05Z"
+    sources: ["2026-02-22T03:15:05Z"]
+    description: "Lead 直接执行 Bash（应委派工位）——拓扑异常对象"
+    status: "candidate"
+    anomaly_type: "lead_direct_execution"
+  - id: "anomaly-8cf5662b"
+    signature: "lead-direct-Bash:for f in \".claude/agents/genealogist.md\" \".claude/agents/quality-guard.md\" \".claude/agents/meta-observer.md\" \".claude/ag"
+    frequency: 1
+    first_seen: "2026-02-22T03:15:08Z"
+    last_seen: "2026-02-22T03:15:08Z"
+    sources: ["2026-02-22T03:15:08Z"]
+    description: "Lead 直接执行 Bash（应委派工位）——拓扑异常对象"
+    status: "candidate"
+    anomaly_type: "lead_direct_execution"
+  - id: "anomaly-87f56ed1"
+    signature: "lead-direct-Bash:ls -la \"C:/Users/hanju/NewChanlun/.claude/skills/\" 2>&1 || echo \"skills dir missing\""
+    frequency: 1
+    first_seen: "2026-02-22T03:15:12Z"
+    last_seen: "2026-02-22T03:15:12Z"
+    sources: ["2026-02-22T03:15:12Z"]
+    description: "Lead 直接执行 Bash（应委派工位）——拓扑异常对象"
+    status: "candidate"
+    anomaly_type: "lead_direct_execution"
+  - id: "anomaly-1c11d383"
+    signature: "lead-direct-Edit:C:/Users/hanju/NewChanlun/scripts/chanlun/dag_executor.py"
+    frequency: 1
+    first_seen: "2026-02-22T03:15:25Z"
+    last_seen: "2026-02-22T03:15:25Z"
+    sources: ["2026-02-22T03:15:25Z"]
+    description: "Lead 直接执行 Edit（应委派工位）——拓扑异常对象"
+    status: "candidate"
+    anomaly_type: "lead_direct_execution"
+  - id: "anomaly-3cb21125"
+    signature: "lead-direct-Bash:mkdir -p \"C:/Users/hanju/NewChanlun/.chanlun/topology\""
+    frequency: 1
+    first_seen: "2026-02-22T03:15:29Z"
+    last_seen: "2026-02-22T03:15:29Z"
+    sources: ["2026-02-22T03:15:29Z"]
+    description: "Lead 直接执行 Bash（应委派工位）——拓扑异常对象"
+    status: "candidate"
+    anomaly_type: "lead_direct_execution"
+  - id: "anomaly-ff8a338a"
+    signature: "lead-direct-Bash:sleep 40 && echo \"done\""
+    frequency: 1
+    first_seen: "2026-02-22T03:15:54Z"
+    last_seen: "2026-02-22T03:15:54Z"
+    sources: ["2026-02-22T03:15:54Z"]
+    description: "Lead 直接执行 Bash（应委派工位）——拓扑异常对象"
+    status: "candidate"
+    anomaly_type: "lead_direct_execution"
+  - id: "anomaly-668908c0"
+    signature: "lead-direct-Bash:cd \"C:/Users/hanju/NewChanlun\" && python scripts/downstream_audit.py --summary 2>&1 || echo \"SCRIPT_ERROR: $?\""
+    frequency: 1
+    first_seen: "2026-02-22T03:16:03Z"
+    last_seen: "2026-02-22T03:16:03Z"
+    sources: ["2026-02-22T03:16:03Z"]
+    description: "Lead 直接执行 Bash（应委派工位）——拓扑异常对象"
+    status: "candidate"
+    anomaly_type: "lead_direct_execution"
+  - id: "anomaly-136f5905"
+    signature: "lead-direct-Edit:C:\\Users\\hanju\\NewChanlun\\.claude\\settings.json"
+    frequency: 1
+    first_seen: "2026-02-22T03:16:12Z"
+    last_seen: "2026-02-22T03:16:12Z"
+    sources: ["2026-02-22T03:16:12Z"]
+    description: "Lead 直接执行 Edit（应委派工位）——拓扑异常对象"
+    status: "candidate"
+    anomaly_type: "lead_direct_execution"
+  - id: "anomaly-ed40f698"
+    signature: "lead-direct-Edit:C:\\Users\\hanju\\NewChanlun\\.claude\\hooks\\hub-node-impact-guard.sh"
+    frequency: 1
+    first_seen: "2026-02-22T03:16:19Z"
+    last_seen: "2026-02-22T03:16:19Z"
+    sources: ["2026-02-22T03:16:19Z"]
+    description: "Lead 直接执行 Edit（应委派工位）——拓扑异常对象"
+    status: "candidate"
+    anomaly_type: "lead_direct_execution"
+  - id: "anomaly-5170b625"
+    signature: "lead-direct-Edit:C:\\Users\\hanju\\NewChanlun\\.claude\\hooks\\lead-audit.sh"
+    frequency: 1
+    first_seen: "2026-02-22T03:16:28Z"
+    last_seen: "2026-02-22T03:16:28Z"
+    sources: ["2026-02-22T03:16:28Z"]
+    description: "Lead 直接执行 Edit（应委派工位）——拓扑异常对象"
+    status: "candidate"
+    anomaly_type: "lead_direct_execution"
+  - id: "anomaly-24cc375d"
+    signature: "lead-direct-Edit:C:\\Users\\hanju\\NewChanlun\\.claude\\hooks\\function-length-guard.sh"
+    frequency: 1
+    first_seen: "2026-02-22T03:16:36Z"
+    last_seen: "2026-02-22T03:16:36Z"
+    sources: ["2026-02-22T03:16:36Z"]
+    description: "Lead 直接执行 Edit（应委派工位）——拓扑异常对象"
+    status: "candidate"
+    anomaly_type: "lead_direct_execution"
+  - id: "anomaly-fcd43913"
+    signature: "lead-direct-Bash:sleep 30 && echo \"done\""
+    frequency: 1
+    first_seen: "2026-02-22T03:16:37Z"
+    last_seen: "2026-02-22T03:16:37Z"
+    sources: ["2026-02-22T03:16:37Z"]
+    description: "Lead 直接执行 Bash（应委派工位）——拓扑异常对象"
+    status: "candidate"
+    anomaly_type: "lead_direct_execution"
+  - id: "anomaly-ad7db889"
+    signature: "lead-direct-Edit:C:\\Users\\hanju\\NewChanlun\\.claude\\hooks\\function-length-guard.sh"
+    frequency: 1
+    first_seen: "2026-02-22T03:16:45Z"
+    last_seen: "2026-02-22T03:16:45Z"
+    sources: ["2026-02-22T03:16:45Z"]
+    description: "Lead 直接执行 Edit（应委派工位）——拓扑异常对象"
+    status: "candidate"
+    anomaly_type: "lead_direct_execution"
+  - id: "anomaly-bc58cb59"
+    signature: "lead-direct-Edit:C:\\Users\\hanju\\NewChanlun\\.claude\\hooks\\function-length-guard.sh"
+    frequency: 1
+    first_seen: "2026-02-22T03:16:53Z"
+    last_seen: "2026-02-22T03:16:53Z"
+    sources: ["2026-02-22T03:16:53Z"]
+    description: "Lead 直接执行 Edit（应委派工位）——拓扑异常对象"
+    status: "candidate"
+    anomaly_type: "lead_direct_execution"
+  - id: "anomaly-7df1348a"
+    signature: "lead-direct-Edit:C:\\Users\\hanju\\NewChanlun\\.claude\\hooks\\precompact-save.sh"
+    frequency: 1
+    first_seen: "2026-02-22T03:16:59Z"
+    last_seen: "2026-02-22T03:16:59Z"
+    sources: ["2026-02-22T03:16:59Z"]
+    description: "Lead 直接执行 Edit（应委派工位）——拓扑异常对象"
+    status: "candidate"
+    anomaly_type: "lead_direct_execution"
+  - id: "anomaly-353118cb"
+    signature: "lead-direct-Edit:C:\\Users\\hanju\\NewChanlun\\.claude\\hooks\\ceremony-guard.sh"
+    frequency: 1
+    first_seen: "2026-02-22T03:17:08Z"
+    last_seen: "2026-02-22T03:17:08Z"
+    sources: ["2026-02-22T03:17:08Z"]
+    description: "Lead 直接执行 Edit（应委派工位）——拓扑异常对象"
+    status: "candidate"
+    anomaly_type: "lead_direct_execution"
+  - id: "anomaly-d83d6460"
+    signature: "lead-direct-Bash:sleep 30 && echo \"done\""
+    frequency: 1
+    first_seen: "2026-02-22T03:17:16Z"
+    last_seen: "2026-02-22T03:17:16Z"
+    sources: ["2026-02-22T03:17:16Z"]
+    description: "Lead 直接执行 Bash（应委派工位）——拓扑异常对象"
+    status: "candidate"
+    anomaly_type: "lead_direct_execution"
+  - id: "anomaly-46286d6b"
+    signature: "lead-direct-Write:C:/Users/hanju/NewChanlun/tmp/audit-scripts-v31-ctx.md"
+    frequency: 1
+    first_seen: "2026-02-22T03:17:20Z"
+    last_seen: "2026-02-22T03:17:20Z"
+    sources: ["2026-02-22T03:17:20Z"]
+    description: "Lead 直接执行 Write（应委派工位）——拓扑异常对象"
+    status: "candidate"
+    anomaly_type: "lead_direct_execution"
+  - id: "anomaly-93430c47"
+    signature: "lead-direct-Bash:ls \"C:/Users/hanju/NewChanlun/.claude/skills/meta-orchestration/references/post-commit-flow.md\" 2>/dev/null && echo \"EXI"
+    frequency: 1
+    first_seen: "2026-02-22T03:17:33Z"
+    last_seen: "2026-02-22T03:17:33Z"
+    sources: ["2026-02-22T03:17:33Z"]
+    description: "Lead 直接执行 Bash（应委派工位）——拓扑异常对象"
+    status: "candidate"
+    anomaly_type: "lead_direct_execution"
+  - id: "anomaly-4bc1db24"
+    signature: "lead-direct-Bash:ls \"C:/Users/hanju/NewChanlun/.claude/rules/post-commit-flow.md\" 2>/dev/null && echo \"EXISTS\" || echo \"NOT_FOUND\""
+    frequency: 1
+    first_seen: "2026-02-22T03:17:42Z"
+    last_seen: "2026-02-22T03:17:42Z"
+    sources: ["2026-02-22T03:17:42Z"]
+    description: "Lead 直接执行 Bash（应委派工位）——拓扑异常对象"
+    status: "candidate"
+    anomaly_type: "lead_direct_execution"
+  - id: "anomaly-490f52e1"
+    signature: "lead-direct-Edit:C:/Users/hanju/NewChanlun/.chanlun/dispatch-dag.yaml"
+    frequency: 1
+    first_seen: "2026-02-22T03:17:48Z"
+    last_seen: "2026-02-22T03:17:48Z"
+    sources: ["2026-02-22T03:17:48Z"]
+    description: "Lead 直接执行 Edit（应委派工位）——拓扑异常对象"
+    status: "candidate"
+    anomaly_type: "lead_direct_execution"
+  - id: "anomaly-c1f8ade7"
+    signature: "lead-direct-Bash:sleep 30 && echo \"done\""
+    frequency: 1
+    first_seen: "2026-02-22T03:17:54Z"
+    last_seen: "2026-02-22T03:17:54Z"
+    sources: ["2026-02-22T03:17:54Z"]
+    description: "Lead 直接执行 Bash（应委派工位）——拓扑异常对象"
+    status: "candidate"
+    anomaly_type: "lead_direct_execution"
+  - id: "anomaly-c2f7fd98"
+    signature: "lead-direct-Edit:C:/Users/hanju/NewChanlun/tmp/audit-scripts-v31-ctx.md"
+    frequency: 1
+    first_seen: "2026-02-22T03:18:00Z"
+    last_seen: "2026-02-22T03:18:00Z"
+    sources: ["2026-02-22T03:18:00Z"]
+    description: "Lead 直接执行 Edit（应委派工位）——拓扑异常对象"
+    status: "candidate"
+    anomaly_type: "lead_direct_execution"
+  - id: "anomaly-4f5843b7"
+    signature: "lead-direct-Edit:C:/Users/hanju/NewChanlun/tmp/audit-scripts-v31-ctx.md"
+    frequency: 1
+    first_seen: "2026-02-22T03:18:06Z"
+    last_seen: "2026-02-22T03:18:06Z"
+    sources: ["2026-02-22T03:18:06Z"]
+    description: "Lead 直接执行 Edit（应委派工位）——拓扑异常对象"
+    status: "candidate"
+    anomaly_type: "lead_direct_execution"
+  - id: "anomaly-f7dcafd1"
+    signature: "lead-direct-Write:C:\\Users\\hanju\\NewChanlun\\tmp\\audit-hooks-v31-ctx.md"
+    frequency: 1
+    first_seen: "2026-02-22T03:18:22Z"
+    last_seen: "2026-02-22T03:18:22Z"
+    sources: ["2026-02-22T03:18:22Z"]
+    description: "Lead 直接执行 Write（应委派工位）——拓扑异常对象"
+    status: "candidate"
+    anomaly_type: "lead_direct_execution"
+  - id: "anomaly-f046eded"
+    signature: "lead-direct-Bash:sleep 20 && echo \"done\""
+    frequency: 1
+    first_seen: "2026-02-22T03:18:24Z"
+    last_seen: "2026-02-22T03:18:24Z"
+    sources: ["2026-02-22T03:18:24Z"]
+    description: "Lead 直接执行 Bash（应委派工位）——拓扑异常对象"
+    status: "candidate"
+    anomaly_type: "lead_direct_execution"
+  - id: "anomaly-0f6d421f"
+    signature: "lead-direct-Bash:cd /c/Users/hanju/NewChanlun && git status --short | grep -v \"^?? tmp/\" | grep -v \"^?? .chanlun/sessions/\" | grep -v \"^?"
+    frequency: 1
+    first_seen: "2026-02-22T03:18:41Z"
+    last_seen: "2026-02-22T03:18:41Z"
+    sources: ["2026-02-22T03:18:41Z"]
+    description: "Lead 直接执行 Bash（应委派工位）——拓扑异常对象"
+    status: "candidate"
+    anomaly_type: "lead_direct_execution"
+  - id: "anomaly-738ed8af"
+    signature: "lead-direct-Bash:cd /c/Users/hanju/NewChanlun && ls tmp/audit-scripts-v31-ctx.md 2>/dev/null && head -80 tmp/audit-scripts-v31-ctx.md || "
+    frequency: 1
+    first_seen: "2026-02-22T03:18:49Z"
+    last_seen: "2026-02-22T03:18:49Z"
+    sources: ["2026-02-22T03:18:49Z"]
+    description: "Lead 直接执行 Bash（应委派工位）——拓扑异常对象"
+    status: "candidate"
+    anomaly_type: "lead_direct_execution"
+  - id: "anomaly-07c46938"
+    signature: "lead-direct-Bash:cd /c/Users/hanju/NewChanlun && git status --short"
+    frequency: 1
+    first_seen: "2026-02-22T03:20:51Z"
+    last_seen: "2026-02-22T03:20:51Z"
+    sources: ["2026-02-22T03:20:51Z"]
+    description: "Lead 直接执行 Bash（应委派工位）——拓扑异常对象"
+    status: "candidate"
+    anomaly_type: "lead_direct_execution"
+  - id: "anomaly-a15b40ac"
+    signature: "lead-direct-Bash:cd /c/Users/hanju/NewChanlun && git diff --stat"
+    frequency: 1
+    first_seen: "2026-02-22T03:21:00Z"
+    last_seen: "2026-02-22T03:21:00Z"
+    sources: ["2026-02-22T03:21:00Z"]
+    description: "Lead 直接执行 Bash（应委派工位）——拓扑异常对象"
+    status: "candidate"
+    anomaly_type: "lead_direct_execution"
+  - id: "anomaly-d3624c82"
+    signature: "lead-direct-Bash:cd /c/Users/hanju/NewChanlun && git log --oneline -5"
+    frequency: 1
+    first_seen: "2026-02-22T03:21:01Z"
+    last_seen: "2026-02-22T03:21:01Z"
+    sources: ["2026-02-22T03:21:01Z"]
+    description: "Lead 直接执行 Bash（应委派工位）——拓扑异常对象"
+    status: "candidate"
+    anomaly_type: "lead_direct_execution"

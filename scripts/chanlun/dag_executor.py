@@ -1,6 +1,9 @@
 """DAG 拓扑排序执行引擎原型。
 
-加载 dispatch-dag.yaml，验证 DAG 不变量，输出执行序列。
+⚠ 已过时：本脚本适配 dispatch-dag.yaml v1.x 的 nodes.structural / edges.structural_edges 格式。
+当前 dispatch-dag.yaml 已升级为 v3.1（event_skill_map + system_nodes + platform_layer + skill_flow_edges），
+本脚本的 extract_graph() 无法解析新格式，运行会产生空图。
+如需验证当前 DAG，请使用 ceremony_sequence 中的 cold_start/warm_start 子 DAG（本脚本的 ceremony_topo_sort 仍可工作）。
 """
 
 from __future__ import annotations

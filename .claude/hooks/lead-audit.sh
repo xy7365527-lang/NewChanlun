@@ -117,10 +117,10 @@ with open(pattern_file, 'w', encoding='utf-8') as f:
 # 输出审计警告（不阻断）
 MSG="[lead-audit/088] Lead 直接执行 ${TOOL_NAME}（应委派工位）。拓扑异常对象已写入 pattern-buffer。meta-observer 将异步审查。"
 
-python -c "
+MSG="$MSG" python -c "
 import json, os
 msg = os.environ['MSG']
-print(json.dumps({'decision': 'allow', 'systemMessage': msg}, ensure_ascii=False))
+print(json.dumps({'decision': 'allow', 'reason': msg}, ensure_ascii=False))
 " 2>/dev/null
 
 exit 0
