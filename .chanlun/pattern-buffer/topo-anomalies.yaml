@@ -1,13 +1,13 @@
-# 模式缓冲区——谱系的生成态前置
-# 043号谱系：自生长回路
-# Status 枚举: observed → candidate → settled → promoted/rejected
+# 模式缓冲区分片——拓扑异常对象（lead-audit 检测）
+# 088号谱系：Lead 拓扑异常对象化审计
+# 分片规则：含 anomaly_type 字段的条目
 version: "1.0"
 patterns:
   - id: "anomaly-437b36fb"
     signature: "lead-direct-Bash"
-    frequency: 61
+    frequency: 67
     first_seen: "2026-02-23T21:07:22Z"
-    last_seen: "2026-02-23T22:14:17Z"
+    last_seen: "2026-02-23T22:17:40Z"
     sources: ["2026-02-23T21:07:22Z"]
     description: "Lead 直接执行 Bash（应委派工位）——拓扑异常对象"
     status: "settled"

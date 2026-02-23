@@ -43,7 +43,7 @@ python() { command "$PYTHON_BIN" "$@"; }
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 SESSIONS_DIR="$PROJECT_ROOT/.chanlun/sessions"
-PATTERN_FILE="$PROJECT_ROOT/.chanlun/pattern-buffer.yaml"
+PATTERN_FILE="$PROJECT_ROOT/.chanlun/pattern-buffer/candidates.yaml"
 
 # --- 找到最新的 session 文件（排除 archive 目录）---
 latest_session=""
@@ -102,11 +102,13 @@ else
   repeated_patterns=""
 fi
 
-# --- 确保 pattern-buffer.yaml 存在 ---
+# --- 确保 pattern-buffer 分片目录和 candidates.yaml 存在 ---
+mkdir -p "$(dirname "$PATTERN_FILE")"
 if [ ! -f "$PATTERN_FILE" ]; then
   cat > "$PATTERN_FILE" << 'INIT'
-# 模式缓冲区——谱系的生成态前置
+# 模式缓冲区分片——候选 pattern（session 检测的重复序列）
 # 043号谱系：自生长回路
+# 分片规则：status 为 observed/candidate/settled 且无 anomaly_type 的条目
 version: "1.0"
 patterns: []
 INIT
@@ -271,9 +273,9 @@ def yaml_escape(text):
     return str(text).replace('\\\\', '\\\\\\\\').replace('\"', '\\\\\"').replace('\\n', ' ')
 
 with open(pattern_file, 'w', encoding='utf-8') as f:
-    f.write('# 模式缓冲区——谱系的生成态前置\\n')
+    f.write('# 模式缓冲区分片——候选 pattern（session 检测的重复序列）\\n')
     f.write('# 043号谱系：自生长回路\\n')
-    f.write('# Status 枚举: observed → candidate → settled → promoted/rejected\\n')
+    f.write('# 分片规则：status 为 observed/candidate/settled 且无 anomaly_type 的条目\\n')
     f.write('version: \"1.0\"\\n')
     if not existing:
         f.write('patterns: []\\n')

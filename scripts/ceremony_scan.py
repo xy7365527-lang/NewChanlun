@@ -417,25 +417,39 @@ def main():
     result["pending"] = pending_count
     result["settled"] = len(glob.glob(os.path.join(root, ".chanlun/genealogy/settled/*.md")))
 
-    # 081号下游推论：pattern-buffer 达标模式扫描
-    pb_path = os.path.join(root, ".chanlun/pattern-buffer.yaml")
-    if os.path.isfile(pb_path):
+    # 081号下游推论：pattern-buffer 达标模式扫描（分片版）
+    pb_dir = os.path.join(root, ".chanlun/pattern-buffer")
+    pb_legacy = os.path.join(root, ".chanlun/pattern-buffer.yaml")
+    pb_shard_files = []
+    if os.path.isdir(pb_dir):
+        for shard_name in ("candidates.yaml", "topo-anomalies.yaml"):
+            shard_path = os.path.join(pb_dir, shard_name)
+            if os.path.isfile(shard_path):
+                pb_shard_files.append(shard_path)
+    # 向后兼容：旧的单文件
+    if os.path.isfile(pb_legacy):
+        pb_shard_files.append(pb_legacy)
+
+    candidates = []
+    for pb_path in pb_shard_files:
         try:
             with open(pb_path, encoding="utf-8") as f:
                 pb = yaml.safe_load(f)
-            candidates = [p for p in pb.get("patterns", [])
-                          if p.get("status") == "candidate"]
-            if candidates:
-                result["pattern_buffer_candidates"] = len(candidates)
-                # 达标候选产生结晶工位
-                workstations.append({
-                    "priority": "P1",
-                    "name": f"结晶检测：{len(candidates)}个candidate模式",
-                    "status": "pattern-buffer:candidate",
-                    "source": "pattern_buffer",
-                })
+            candidates.extend(
+                p for p in pb.get("patterns", [])
+                if p.get("status") == "candidate"
+            )
         except Exception:
             pass
+    if candidates:
+        result["pattern_buffer_candidates"] = len(candidates)
+        # 达标候选产生结晶工位
+        workstations.append({
+            "priority": "P1",
+            "name": f"结晶检测：{len(candidates)}个candidate模式",
+            "status": "pattern-buffer:candidate",
+            "source": "pattern_buffer",
+        })
 
     # 153号下游推论：蜂群持久化断裂检测
     swarm_gaps = detect_swarm_persistence_gaps(root)
