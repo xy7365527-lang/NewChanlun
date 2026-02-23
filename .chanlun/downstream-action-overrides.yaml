@@ -322,3 +322,8 @@
 162-1: resolved    # ceremony.md 步骤6第8条恢复 TeamDelete：无新工位 → 格式B → TeamDelete 清理
 162-2: resolved    # ceremony.md 持久化声明修正：持久化 ≠ 进程存活 = session 结晶 + 热启动 + 谱系 DAG 跨 session 延续
 162-3: resolved    # ceremony.md 持久化不变量修正：RTAS 循环持久化，每次 ceremony 清理后热启动恢复
+
+# === 174号 ===
+174-1: resolved    # 递归总方针.md 已增加"谱系的生成性"章节（ws-genealogy-174 执行）
+174-2: resolved    # ceremony_scan.py 已增强异常检测（ws-fix-renumber 执行，含编号冲突+引用断裂检测）
+174-3: resolved    # 递归总方针.md 已增加"严格=反熵"论证（ws-genealogy-174 执行）
