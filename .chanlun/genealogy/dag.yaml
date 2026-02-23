@@ -1015,7 +1015,7 @@ edges:
   - from: 069
     to: 058
   - from: 069
-    to: '062'
+    to: '062'    # 已被093扬弃，历史参照（120号结算）
   - from: 069
     to: '067'
   - from: 069
@@ -1077,7 +1077,7 @@ edges:
   - from: '075'
     to: '057'
   - from: '075'
-    to: '062'
+    to: '062'    # 已被093扬弃，历史参照（120号规则）
   - from: '076'
     to: '074'
   - from: '076'
@@ -1227,7 +1227,7 @@ edges:
   - from: 091
     to: 084
   - from: 092
-    to: '062'
+    to: '062'    # 已被093扬弃，历史参照（120号规则）
   - from: 092
     to: 069
   - from: 092
@@ -1581,23 +1581,23 @@ edges:
   - from: '063'
     to: '062'
   negates:
-  - from: '064'
+  - from: '064'    # 连续流形否定R.S.I映射（062已扬弃，历史参照）
     to: '062'
-  - from: 068
+  - from: 068    # 偏序集否定六张力（065已扬弃，历史参照）
     to: '065'
-  - from: 068
+  - from: 068    # 偏序集否定穷尽式洞见（066已扬弃，历史参照）
     to: '066'
-  - from: 073a
+  - from: 073a    # 控制流解耦分离全可变性（073已扬弃，历史参照）
     to: '073'
-  - from: 087
+  - from: 087    # 诚实修复否定全C方案（086已扬弃，历史参照）
     to: 086
-  - from: 088
+  - from: 088    # 权限死锁重设计否定原032（032已扬弃，历史参照）
     to: '032'
-  - from: 095
+  - from: 095    # 真递归替代Trampoline（073b已扬弃，历史参照）
     to: 073b
-  - from: '116'
+  - from: '116'    # partial:过强声明修正，方向意图保留
     to: '105'
-  - from: '135'
+  - from: '135'    # skill结晶+平台约束前提否定（073b已扬弃，历史参照）
     to: 073b
   related:
   - between:
@@ -2761,6 +2761,18 @@ edges:
   - between:
     - 069
     - '153'
+  - between:    # 119号结算：T4张力消解，层面独立的平行运作，原tensions_with降级为related
+    - '007'
+    - 029
+  - between:    # 119号结算：T4张力消解，原tensions_with降级为related
+    - '007'
+    - '031'
+  - between:    # 119号结算：T4张力消解，原tensions_with降级为related
+    - 009
+    - 029
+  - between:    # 119号结算：T4张力消解，原tensions_with降级为related
+    - 009
+    - '031'
   tensions_with:
   - between:
     - '007'
@@ -2797,30 +2809,21 @@ edges:
   - between:
     - '105'
     - 095
-  - between:
-    - '007'
-    - 029
-  - between:
-    - '007'
-    - '031'
-  - between:
-    - 009
-    - 029
-  - between:
-    - 009
-    - '031'
-  - between:
+  - between:    # 120号结算：T5张力消解，引用已明确为历史参照
     - '062'
     - 069
     valid_until: 093
-  - between:
+    settled_by: '120'
+  - between:    # 120号结算：T5张力消解，引用已明确为历史参照
     - '062'
     - 094
     valid_until: 093
-  - between:
+    settled_by: '120'
+  - between:    # 120号结算：T5张力消解，引用已明确为历史参照
     - '062'
     - '104'
     valid_until: 093
+    settled_by: '120'
   - between:
     - 068
     - '065'
@@ -2829,21 +2832,21 @@ edges:
     - 020a
     - 068
   negated_by:
-  - target: '032'
+  - target: '032'    # 已扬弃，历史参照——权限死锁重设计（120号注释规则）
     by: 088
-  - target: '062'
+  - target: '062'    # 已扬弃，历史参照——R.S.I映射被连续流形否定（120号注释规则）
     by: '064'
-  - target: '062'
+  - target: '062'    # 已扬弃，历史参照——R.S.I被五约束扬弃（120号注释规则）
     by: 093
-  - target: '065'
+  - target: '065'    # 已扬弃，历史参照——六张力在连续流形否定后失效（120号注释规则）
     by: 068
-  - target: '066'
+  - target: '066'    # 已扬弃，历史参照——穷尽式洞见在连续流形否定后失效（120号注释规则）
     by: 068
-  - target: '073'
+  - target: '073'    # 已扬弃，历史参照——全可变性被控制流解耦分离（120号注释规则）
     by: 073a
-  - target: 073b
+  - target: 073b    # 已扬弃，历史参照——Trampoline被真递归替代（120号注释规则）
     by: 095
-  - target: 086
+  - target: 086    # 已扬弃，历史参照——全C方案被诚实修复替代（120号注释规则）
     by: 087
   - target: 095
     by: 096
