@@ -283,3 +283,7 @@
 # 120号 — T5 tensions_with 结算
 120-1: resolved    # dag.yaml T5 tensions_with 已用 valid_until + settled_by 标注（120号）
 120-2: resolved    # dag.yaml negated_by/negates 边已添加历史参照注释（v154-swarm dag工位）
+
+# === 154号 — ceremony 空蜂群退出路径 ===
+154-1: resolved    # ceremony.md 步骤4已增加定理/行动类直接执行路径 + 持久化不变量 + Read/Glob例外 + 谱系引用（154号本次执行完成）
+154-2: background_noise   # 可选优化（非必须）：ceremony_scan 对 unresolved 工位附加代码层快速检查 hint——当前人工判断已足够（154号谱系原文声明"非必须"）

@@ -29,7 +29,7 @@ genealogy_ref: "072, 068, 069, 075-structural-to-skill, 081-swarm-continuity-str
 #   business        — 业务工位层（§2b task_template + platform_layer）：
 #                     运行时动态实例化的 task_node + ECC 工程底座 agent
 #   conditional     — 条件触发 skill（§2 event_skill_map, skill_type=conditional）：
-#                     gemini-challenger, claude-challenger, source-auditor, topology-manager
+#                     gemini-challenger, claude-challenger, codex-challenger, source-auditor, topology-manager
 #   terminal_sink   — 结晶汇点（§2 event_skill_map, skill_type=terminal_sink）：
 #                     skill-crystallizer（唯一合法汇点）
 # ═══════════════════════════════════════════════════════════════
@@ -141,6 +141,10 @@ genealogical_coordinates:
     origin: "062-gemini-re-challenge"
     domain: "反向质询（异质验证——约束4，093号）"
     negation_source: "不可消化点（外部对象否定）"
+  codex-challenger:
+    origin: "155-codex-heterogeneous-code-review"
+    domain: "代码层异质审查"
+    negation_source: "异质代码审查产出（外部对象否定）"
   skill-crystallizer:
     origin: "043-self-growing-loop"
     domain: "知识结晶"
@@ -230,12 +234,25 @@ event_skill_map:
   - id: claude-challenger
     skill_type: conditional
     agent: ".claude/agents/claude-challenger.md"
-    purpose: "反向质询——对 Gemini 产出进行再质询，指出不可消化点"
+    purpose: "反向质询——对 Gemini 和 Codex 产出进行再质询，指出不可消化点"
     # 087号谱系修复（B选项）：删除虚假事件声明（re_challenge/stale_generative 从未有 hook 产生）
     # 触发方式改为手动认领——与 082号 D策略同构（hooks 提示 + Lead 认领）
     triggers:
       - event: manual_invocation
-        description: "Lead 发现 Gemini 产出存疑时手动调用——如 Gemini 产出与已结算谱系矛盾、或编排者 INTERRUPT 时"
+        description: "Lead 发现 Gemini/Codex 产出存疑时手动调用——如异质质询产出与已结算谱系矛盾、或编排者 INTERRUPT 时"
+
+  - id: codex-challenger
+    skill_type: conditional
+    agent: ".claude/agents/codex-challenger.md"
+    purpose: "代码层异质否定源（OpenAI Codex）——155号谱系"
+    triggers:
+      - event: command
+        pattern: "/code-review"
+        description: "代码审查后触发 Codex 异质审查"
+      - event: test_failure
+        description: "测试失败时自动触发 diagnose（对象否定对象，005b号）"
+      - event: manual_invocation
+        description: "Lead 手动调用"
 
   - id: source-auditor
     skill_type: conditional
@@ -395,6 +412,13 @@ edges:
       type: self_observation
       description: "构成性矛盾：观察者与被观察系统不可分离（020号）"
 
+    # 谱系结算 → 拓扑变更（否定事件携带 topo_effect 时触发拓扑操作，147号）
+    - from: genealogist
+      to: topology-mutator
+      type: genealogy_settlement
+      condition: "结算谱系包含 negates 边或 topo_effect 标注"
+      trigger: "topology-mutator-prompt.sh hook 提示 + Lead 认领执行 dag_add_node.py --topo_effect（D策略，082号）"
+
     # 元观察者 → gemini-challenger（提案审查路径，069号）
     - from: meta-observer
       to: gemini-challenger
@@ -484,6 +508,13 @@ edges:
       description: "矛盾上浮：写入 pending 谱系，选择/语法记录类经 orchestrator_proxy 路由到 Gemini decide"
       priority: critical
 
+    - event: genealogy_settlement
+      condition: "settled 谱系包含 negates 边或 topo_effect 标注"
+      activates_edge: "genealogist → topology-mutator"
+      action: "execute_topo_effect"
+      description: "谱系结算时检测 topo_effect，触发拓扑变更（147号：topology-mutator-prompt.sh hook + dag_add_node.py --topo_effect）"
+      priority: high
+
 # ═══════════════════════════════════════════════════════════════
 # 4. 编排者代理（041号谱系）
 # ═══════════════════════════════════════════════════════════════
@@ -572,7 +603,7 @@ ceremony_sequence:
         action: "并行 spawn 业务工位（skill 由事件 hooks 提示 + Lead 认领，D策略082号，无需 spawn）"
         depends_on: ["load-skills"]
       - id: "divine-madness"
-        action: "Lead 拓扑异常审计注册（088号谱系：032号重设计——从 deny 列表改为异常对象化审计）"
+        action: "Lead 操作拓扑效力注册（147号谱系：修改即否定即拓扑操作——lead-audit.sh 自动记录否定性操作的拓扑效力）"
         depends_on: ["spawn-tasks"]
       - id: "recurse"
         action: "输出 '→ 接下来：[action]' 紧跟 tool 调用"
@@ -617,7 +648,7 @@ ceremony_sequence:
         action: "并行 spawn 业务工位（skill 由事件 hooks 提示 + Lead 认领，D策略082号，无需 spawn）"
         depends_on: ["derive-work"]
       - id: "divine-madness"
-        action: "Lead 拓扑异常审计注册（088号谱系：032号重设计——从 deny 列表改为异常对象化审计）"
+        action: "Lead 操作拓扑效力注册（147号谱系：修改即否定即拓扑操作——lead-audit.sh 自动记录否定性操作的拓扑效力）"
         depends_on: ["spawn-tasks"]
       - id: "recurse"
         action: "输出 '→ 接下来：[action]' 紧跟 tool 调用"
@@ -655,8 +686,8 @@ validation:
       on_fail: "警告——skill agent 文件缺失"
 
     - check: "lead_audit_registered"
-      condition: "lead-audit hook 已注册为 PostToolUse hook（088号谱系：032号重设计）"
-      on_fail: "警告——Lead 拓扑异常审计未激活"
+      condition: "lead-audit hook 已注册为 PostToolUse hook（147号谱系：修改即否定即拓扑操作）"
+      on_fail: "警告——Lead 操作拓扑效力触发器未激活"
 
     - check: "task_stations_derived"
       condition: "至少从中断点派生了一个任务工位（除非中断点为空）"
@@ -681,7 +712,8 @@ automation:
   pattern_detection:
     enabled: true
     trigger: "session_end"
-    buffer_path: ".chanlun/pattern-buffer.yaml"
+    buffer_dir: ".chanlun/pattern-buffer/"
+    index_path: ".chanlun/pattern-buffer/index.yaml"
     min_sequence_length: 2
     promotion_threshold: 3
   crystallization:
