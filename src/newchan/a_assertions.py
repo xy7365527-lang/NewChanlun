@@ -551,6 +551,35 @@ def assert_ledger_separation(*args: Any, enable: bool = False) -> AssertResult:
     return _ok(name)
 
 
+def assert_move_min_three_sub_segments(*args: Any, enable: bool = False) -> AssertResult:
+    """走势分解定理二（Z5）：任何走势类型至少由3段以上次级别走势类型构成。
+
+    对于 settled Move，seg_end - seg_start + 1 >= 3 必须成立。
+    未 settled 的最后一个 Move 可以暂时不满足（数据仍在积累）。
+
+    Usage: assert_move_min_three_sub_segments(moves)
+    """
+    name = "assert_move_min_three_sub_segments"
+    if not args:
+        return _ok(name)
+    moves = args[0]
+    if not moves:
+        return _ok(name)
+
+    for i, m in enumerate(moves):
+        if not getattr(m, "settled", False):
+            continue
+        seg_span = m.seg_end - m.seg_start + 1
+        r = _check(name, seg_span >= 3,
+                   f"Move[{i}] (kind={m.kind}, dir={m.direction}) "
+                   f"seg span={seg_span} < 3 (走势分解定理二: "
+                   f"seg_start={m.seg_start}, seg_end={m.seg_end})", enable)
+        if r is not None:
+            return r
+
+    return _ok(name)
+
+
 def _run_inclusion_assertions(
     results: list[AssertResult],
     df_raw, df_merged, merged_to_raw,
@@ -611,6 +640,7 @@ def run_a_system_assertions(
     strokes: Any | None = None,
     segments: Any | None = None,
     centers: Any | None = None,
+    moves: Any | None = None,
     rec_levels: Any | None = None,
     level_views: Any | None = None,
     last_price: float | None = None,
@@ -628,6 +658,8 @@ def run_a_system_assertions(
     _run_segment_assertions(results, segments, strokes, segment_algo)
     _run_center_assertions(results, segments, centers, rec_levels, center_sustain_m)
 
+    if moves is not None:
+        results.append(assert_move_min_three_sub_segments(moves))
     if rec_levels is not None:
         results.append(assert_ledger_separation(rec_levels))
     if level_views is not None and last_price is not None:
@@ -647,6 +679,23 @@ def _seg_check_min_strokes(seg, i: int, name: str, enable: bool) -> AssertResult
         return None
     return _check(name, False,
                   f"Segment[{i}] s1-s0={span} < 2 (need >=3 strokes)", enable)
+
+
+def _seg_check_odd_stroke_count(seg, i: int, name: str, enable: bool) -> AssertResult | None:
+    """线段笔数奇数性验证。
+
+    线段由交替方向的笔构成，起始笔方向=线段方向，因此笔数必为奇数（3, 5, 7, ...）。
+    stroke_count = s1 - s0 + 1，奇数性等价于 (s1 - s0) % 2 == 0。
+    仅对 confirmed 段强制——未确认段可能还在累积笔。
+    """
+    if not seg.confirmed:
+        return None
+    stroke_count = seg.s1 - seg.s0 + 1
+    if stroke_count % 2 == 1:
+        return None
+    return _check(name, False,
+                  f"Segment[{i}] stroke count={stroke_count} is even, "
+                  f"must be odd (s0={seg.s0}, s1={seg.s1})", enable)
 
 
 def _seg_check_adjacent_stitching(seg, prev, i: int, name: str, enable: bool) -> AssertResult | None:
@@ -740,6 +789,7 @@ def assert_segment_theorem_v1(*args: Any, enable: bool = False) -> AssertResult:
     - adjacent segments stitch: seg[i+1].s0 == seg[i].s1
     - each segment >= 3 strokes (s1 - s0 >= 2)
     - confirmed: last segment False, rest True
+    - confirmed segments have odd stroke count (奇数性)
     """
     name = "assert_segment_theorem_v1"
     if len(args) < 2:
@@ -748,6 +798,7 @@ def assert_segment_theorem_v1(*args: Any, enable: bool = False) -> AssertResult:
     if not segments:
         return _ok(name)
 
+    # Pass 1: 结构性检查（优先级高于派生属性）
     for i, seg in enumerate(segments):
         is_last = i == len(segments) - 1
 
@@ -769,5 +820,11 @@ def assert_segment_theorem_v1(*args: Any, enable: bool = False) -> AssertResult:
             ):
                 if r is not None:
                     return r
+
+    # Pass 2: 派生属性检查（奇数性——依赖结构正确性）
+    for i, seg in enumerate(segments):
+        r = _seg_check_odd_stroke_count(seg, i, name, enable)
+        if r is not None:
+            return r
 
     return _ok(name)
