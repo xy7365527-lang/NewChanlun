@@ -27,7 +27,8 @@ class Move:
     kind : Literal["consolidation", "trend"]
         盘整（1 中枢）/ 趋势（2+ 同向中枢）。
     direction : Literal["up", "down"]
-        走势方向。盘整=break_direction，趋势=ascending/descending。
+        走势方向。趋势=ascending/descending（概念方向）。
+        盘整概念上无方向（第31课），此字段填充 break_direction 作为技术性标识。
     seg_start : int
         第一个中枢的 seg_start（identity key）。
     seg_end : int

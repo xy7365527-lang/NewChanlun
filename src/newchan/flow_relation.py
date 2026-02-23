@@ -55,6 +55,20 @@ class ResonanceStrength(Enum):
     STRONG = "强共振"  # |net| = 3
 
 
+class FlowRole(Enum):
+    """顶点流转角色。
+
+    liuzhuan.md #14 §共振判定：
+      net(V) ≤ -2 → V 是流转源（资本从 V 流出）
+      net(V) ≥ +2 → V 是流转汇（资本流入 V）
+      |net(V)| ≤ 1 → 无明确流转方向
+    """
+
+    SOURCE = "源"   # net ≤ -2
+    SINK = "汇"     # net ≥ +2
+    NEUTRAL = "中性"  # |net| ≤ 1
+
+
 @dataclass(frozen=True, slots=True)
 class VertexFlowState:
     """顶点流转状态。
@@ -67,11 +81,34 @@ class VertexFlowState:
         净流量。正 = 净流入（汇），负 = 净流出（源）。
     strength : ResonanceStrength
         共振强度。
+    role : FlowRole
+        流转角色（源/汇/中性）。
     """
 
     vertex: AssetVertex
     net_flow: int
     strength: ResonanceStrength
+    role: FlowRole
+
+
+@dataclass(frozen=True, slots=True)
+class FlowRelation:
+    """流转关系：有向、一对多。
+
+    liuzhuan.md #14 §流转关系：
+      当顶点 V 为流转源（net(V) ≤ -2），且顶点 W₁, W₂, ... 为流转汇
+      （net(Wᵢ) ≥ +2）时，存在流转关系 Flow(V → {W₁, W₂, ...})。
+
+    Attributes
+    ----------
+    source : AssetVertex
+        流转源顶点。
+    sinks : frozenset[AssetVertex]
+        流转汇顶点集合。可以为空（有源无汇的情况——见边界条件）。
+    """
+
+    source: AssetVertex
+    sinks: frozenset[AssetVertex]
 
 
 # ====================================================================
@@ -109,6 +146,21 @@ def _classify_resonance(net: int) -> ResonanceStrength:
     if abs_net >= 2:
         return ResonanceStrength.WEAK
     return ResonanceStrength.NONE
+
+
+def _classify_role(net: int) -> FlowRole:
+    """从 net flow 判定流转角色。
+
+    liuzhuan.md #14 §共振判定：
+      net ≤ -2 → SOURCE
+      net ≥ +2 → SINK
+      |net| ≤ 1 → NEUTRAL
+    """
+    if net <= -2:
+        return FlowRole.SOURCE
+    if net >= 2:
+        return FlowRole.SINK
+    return FlowRole.NEUTRAL
 
 
 def aggregate_vertex_flows(
@@ -150,6 +202,7 @@ def aggregate_vertex_flows(
                 vertex=vertex,
                 net_flow=net,
                 strength=_classify_resonance(net),
+                role=_classify_role(net),
             )
         )
     return states
@@ -164,6 +217,57 @@ def detect_resonance(
     保留此函数作为公开 API 以匹配定义文件中的接口契约。
     """
     return states
+
+
+def extract_flow_relations(
+    states: list[VertexFlowState],
+) -> list[FlowRelation]:
+    """从顶点流转状态中提取流转关系 Flow(源→汇)。
+
+    liuzhuan.md #14 §流转关系：
+      当顶点 V 为流转源（net(V) ≤ -2），且顶点 W₁, W₂, ... 为流转汇
+      （net(Wᵢ) ≥ +2）时，存在流转关系 Flow(V → {W₁, W₂, ...})。
+
+    Parameters
+    ----------
+    states : list[VertexFlowState]
+        4 个顶点的流转状态（来自 aggregate_vertex_flows）。
+
+    Returns
+    -------
+    list[FlowRelation]
+        所有流转关系。每个源顶点产生一个 FlowRelation。
+        如果没有共振源，返回空列表。
+    """
+    sinks = frozenset(s.vertex for s in states if s.role == FlowRole.SINK)
+    return [
+        FlowRelation(source=s.vertex, sinks=sinks)
+        for s in states
+        if s.role == FlowRole.SOURCE
+    ]
+
+
+def check_conservation(states: list[VertexFlowState]) -> bool:
+    """检查守恒约束：Σnet(V) = 0。
+
+    liuzhuan.md #14 §守恒约束：
+      Σ net(V) = 0，对四矩阵中所有顶点 V 求和。
+      "资本不凭空产生也不凭空消失"的形式表达。
+
+    守恒破缺的信号意义：如果不守恒，说明某条边的走势判读有误，
+    或资本流向了四矩阵之外（跨区域流动）。
+
+    Parameters
+    ----------
+    states : list[VertexFlowState]
+        顶点流转状态。
+
+    Returns
+    -------
+    bool
+        True 表示守恒成立，False 表示守恒破缺。
+    """
+    return sum(s.net_flow for s in states) == 0
 
 
 # ====================================================================

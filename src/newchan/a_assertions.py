@@ -665,17 +665,25 @@ def _seg_check_direction_alternation(seg, prev, i: int, name: str, enable: bool)
                   f"Segment[{i-1}].direction={prev.direction}", enable)
 
 
-def _seg_check_degenerate(seg, i: int, name: str, enable: bool) -> AssertResult | None:
+def _seg_check_top_above_bottom(seg, i: int, name: str, enable: bool) -> AssertResult | None:
+    """第78课硬约束：线段两端的一顶一底，顶肯定要高于底。
+
+    上升线段(ep0=bottom, ep1=top): ep1_price > ep0_price
+    下降线段(ep0=top, ep1=bottom): ep0_price > ep1_price
+    严格不等式，无 epsilon 容差（068号谱系）。
+    """
     if seg.ep0_price == 0.0 or seg.ep1_price == 0.0:
         return None
-    if seg.direction == "up" and seg.ep1_price < seg.ep0_price - 1e-9:
+    if seg.direction == "up" and not (seg.ep1_price > seg.ep0_price):
         return _check(name, False,
-                      f"Segment[{i}] degenerate: direction=up but "
-                      f"ep1_price={seg.ep1_price} < ep0_price={seg.ep0_price}", enable)
-    if seg.direction == "down" and seg.ep1_price > seg.ep0_price + 1e-9:
+                      f"Segment[{i}] top-above-bottom violation (第78课): "
+                      f"direction=up, top(ep1)={seg.ep1_price} must be > "
+                      f"bottom(ep0)={seg.ep0_price}", enable)
+    if seg.direction == "down" and not (seg.ep0_price > seg.ep1_price):
         return _check(name, False,
-                      f"Segment[{i}] degenerate: direction=down but "
-                      f"ep1_price={seg.ep1_price} > ep0_price={seg.ep0_price}", enable)
+                      f"Segment[{i}] top-above-bottom violation (第78课): "
+                      f"direction=down, top(ep0)={seg.ep0_price} must be > "
+                      f"bottom(ep1)={seg.ep1_price}", enable)
     return None
 
 
@@ -745,7 +753,7 @@ def assert_segment_theorem_v1(*args: Any, enable: bool = False) -> AssertResult:
 
         for r in (
             _seg_check_min_strokes(seg, i, name, enable),
-            _seg_check_degenerate(seg, i, name, enable),
+            _seg_check_top_above_bottom(seg, i, name, enable),
             _seg_check_settlement_anchor(seg, strokes, i, name, enable),
             _seg_check_kind_constraints(seg, i, is_last, name, enable),
             _seg_check_confirmed_rule(seg, i, is_last, name, enable),
