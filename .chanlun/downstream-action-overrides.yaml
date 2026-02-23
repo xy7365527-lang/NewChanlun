@@ -220,3 +220,8 @@
 147-2: resolved    # ceremony_scan.py 已增加 frozen 节点扫描 + topo_effect 字段汇总，frozen 下游工位不 spawn
 147-3: resolved    # genealogy-write-guard.sh 已增加 topo_effect advisory：negates 非空但无 topo_effect 时发出警告
 147-4: resolved    # 084-4 从权限问题转化为拓扑问题——认识论确认已在147号谱系中记录
+
+# === 153号 ===
+153-1: resolved    # v35/v37/v38 session 补录完成（retrospective 标记），v137/v144 session 补录完成
+153-2: resolved    # ceremony_scan.py 增加 detect_swarm_persistence_gaps()——有谱系产出但无session的蜂群检测
+153-3: resolved    # pattern-buffer Windows 路径判定为正常跨环境痕迹，不需清理
