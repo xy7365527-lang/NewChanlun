@@ -225,3 +225,61 @@
 153-1: resolved    # v35/v37/v38 session 补录完成（retrospective 标记），v137/v144 session 补录完成
 153-2: resolved    # ceremony_scan.py 增加 detect_swarm_persistence_gaps()——有谱系产出但无session的蜂群检测
 153-3: resolved    # pattern-buffer Windows 路径判定为正常跨环境痕迹，不需清理
+
+# === 102号 — 编排者角色演化（声明性，无工程动作） ===
+102-1: resolved    # 认知确认：编排者角色演化链已稳定
+102-2: resolved    # 规则已内化：否定021→041需走escalate
+102-3: resolved    # 架构确认：异质否定源承担编排者代理已结晶
+
+# === 103号 — 系统审计两定律（声明性 + 自明） ===
+103-1: resolved    # 规则确认：审计缺口必须走A或B路径
+103-2: long_term   # 需要 ceremony_scan 集成定期异质审计触发器（重新激活条件：ceremony_scan 扩展异质审计模块时）
+103-4: resolved    # 认知确认：090号严格性=第二定律同义表述
+
+# === 113号 — 包含关系工程选择（声明性） ===
+113-1: resolved    # 认知确认：包含处理级联影响链
+113-2: resolved    # 认知确认：C1数学等价性=概念正确性基础
+113-3: resolved    # 认知确认：merged_to_raw依赖包含处理正确性
+
+# === 114号 — 分型形式化（声明性） ===
+114-1: resolved    # 认知确认：分型定义稳定性为笔构造提供基础
+114-2: resolved    # 认知确认：双条件保证中心bar=极值bar
+114-3: long_term   # 第82课分型力度分析，需实盘数据验证（重新激活条件：进入实盘阶段）
+
+# === 115号 — 流转关系（已实现 + 声明性） ===
+115-1: resolved    # 已实现：flow_relation.py FlowRelation + extract_flow_relations
+115-2: long_term   # 强/弱共振对应趋势/盘整验证，需实盘数据（重新激活条件：flow 管线完成后）
+115-3: long_term   # 跨经济体流转当前范围外（重新激活条件：多市场数据接入时）
+
+# === 117号 — 异质验证位置（声明性/已落实由其他工位执行） ===
+117-2: resolved    # 认知确认：069号不需要修改
+
+# === 118号 — 005b元层范围（声明性） ===
+118-1: resolved    # 认知确认：原则8的'全局'=走势描述层全局
+118-2: resolved    # 认知确认：元层否定机制与走势层独立
+118-3: resolved    # 认知确认：087/093使用元层否定机制
+
+# === 119号 — 099号实体化 ===
+119-2: long_term   # 099号趋势/盘整实体化依赖029/031修复（重新激活条件：Move基类重构后）
+
+# === v154-swarm 工位执行结果 ===
+
+# 103号 — lead-audit.sh 缺口
+103-3: long_term   # 088号 lead-audit.sh 缺口修复——需要确认 lead-audit.sh 当前状态（重新激活条件：audit 工具链整理时）
+
+# 116号 — 声明层修正
+116-1: resolved    # Trampoline 永久禁止表述已不在 CLAUDE.md/skills 中（自然演化已解决）
+116-2: resolved    # dag.yaml 中 116→105 negates 边已标注（v154-swarm dag工位）
+116-3: resolved    # 声明确认：dispatch-dag.yaml 不需要修改
+
+# 117号 — CLAUDE.md 落实
+117-1: resolved    # project-topology/SKILL.md 已添加异质验证位置声明（v154-swarm CLAUDE.md工位）
+117-3: resolved    # project-topology/SKILL.md 已添加三框架路径指引表（104号定理落实）
+117-4: resolved    # project-topology/SKILL.md 三框架路径指引表覆盖 069/093/097（agent 可读取）
+
+# 119号 — T4 tensions_with 降级
+119-1: resolved    # dag.yaml T4 边已添加 related（119号注释），119号谱系声明层面独立
+
+# 120号 — T5 tensions_with 结算
+120-1: resolved    # dag.yaml T5 tensions_with 已用 valid_until + settled_by 标注（120号）
+120-2: resolved    # dag.yaml negated_by/negates 边已添加历史参照注释（v154-swarm dag工位）

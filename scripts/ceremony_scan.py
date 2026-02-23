@@ -131,15 +131,21 @@ def detect_swarm_persistence_gaps(root):
     """
     import re
     # 1. 从 session 文件提取已记录的蜂群编号
+    #    同时扫描 archive/ 下的归档 session（归档不应导致持久化断裂误报）
     session_swarms = set()
-    for session_file in glob.glob(os.path.join(root, ".chanlun/sessions/*-session.md")):
-        try:
-            with open(session_file, encoding="utf-8") as f:
-                content = f.read(8000)
-            for m in re.finditer(r'v(\d+)-swarm', content):
-                session_swarms.add(int(m.group(1)))
-        except Exception:
-            pass
+    session_globs = [
+        os.path.join(root, ".chanlun/sessions/*-session.md"),
+        os.path.join(root, ".chanlun/sessions/archive/*-session.md"),
+    ]
+    for pattern in session_globs:
+        for session_file in glob.glob(pattern):
+            try:
+                with open(session_file, encoding="utf-8") as f:
+                    content = f.read(8000)
+                for m in re.finditer(r'v(\d+)-swarm', content):
+                    session_swarms.add(int(m.group(1)))
+            except Exception:
+                pass
     # 2. 从谱系文件提取引用的蜂群编号（negation_source / 正文）
     genealogy_swarms = {}  # {swarm_id: [谱系文件名]}
     for settled_file in glob.glob(os.path.join(root, ".chanlun/genealogy/settled/*.md")):
@@ -415,18 +421,21 @@ def main():
                 "unresolved": da["unresolved"],
                 "execution_rate": da["execution_rate"],
             }
-            # 将最近谱系的 unresolved 下游行动转化为工位
-            # 只取 genealogy_id >= (最大id - 20) 的，避免被历史项淹没
-            recent_unresolved = [
+            # 将 unresolved 下游行动转化为工位
+            # 动态窗口：<=10 个 unresolved 时全部纳入，>10 个时只取最近 10 个
+            all_unresolved = [
                 item for item in da.get("items", [])
                 if item.get("status") == "unresolved"
                 and item.get("genealogy_id", "0").isdigit()
-                and int(item["genealogy_id"]) >= max(
-                    (int(i["genealogy_id"]) for i in da.get("items", [])
-                     if i.get("genealogy_id", "0").isdigit()),
-                    default=0,
-                ) - 20
             ]
+            if len(all_unresolved) <= 10:
+                recent_unresolved = all_unresolved
+            else:
+                # 按 genealogy_id 降序取最近 10 个
+                all_unresolved.sort(
+                    key=lambda x: int(x["genealogy_id"]), reverse=True
+                )
+                recent_unresolved = all_unresolved[:10]
             for item in recent_unresolved:
                 workstations.append({
                     "priority": "P2",

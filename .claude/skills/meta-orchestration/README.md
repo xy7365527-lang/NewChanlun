@@ -41,7 +41,6 @@ meta-orchestration/
 └── references/
     ├── ontology-v1.md                    # 系统本体论（020号谱系结晶）
     ├── methodology-v3.3.md               # 完整方法论文档
-    ├── methodology-v2.md                 # 旧版方法论（留档）
     ├── genealogy-template.md             # 谱系记录模板
     └── result-package-template.md        # 结果包模板
 ```
