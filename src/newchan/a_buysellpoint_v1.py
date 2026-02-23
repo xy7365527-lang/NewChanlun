@@ -240,7 +240,13 @@ def _detect_type3(
     moves: list[Move],
     level_id: int,
 ) -> list[BuySellPoint]:
-    """第三类买卖点：中枢突破后回试/回抽。"""
+    """第三类买卖点：中枢突破后回试/回抽。
+
+    "第一次"约束（第20课）：必须是第一次离开后的回试/回抽。
+    隐式保证：zs.break_seg 是中枢延伸结束后的第一个突破段（zhongshu_v1 构造保证），
+    _find_next_seg_by_direction 从 break_seg+1 向后找的是第一个反向段。
+    因此每个中枢最多产生一个第三类买卖点。
+    """
     result: list[BuySellPoint] = []
 
     for zs in zhongshus:
