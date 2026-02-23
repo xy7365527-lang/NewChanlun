@@ -1,13 +1,17 @@
 # 下游推论 verification hints（154号-2 优化）
 #
 # 当 downstream_audit 的启发式判定返回 unresolved 时，
-# 用 hint 检查实际文件内容。所有 hint 的 pattern 都匹配则视为 resolved。
+# 用 hint 检查实际文件内容。所有 hint 的条件都满足则视为 resolved。
 #
 # 格式:
 #   hints:
 #     "GID-INDEX":
 #       - file: "相对于项目根的路径"
-#         pattern: "需要在文件中存在的字符串"
+#         pattern: "需要检查的字符串"
+#         expect: present  # 默认值：pattern 应存在于文件中
+#       - file: "..."
+#         pattern: "..."
+#         expect: absent   # 156号扩展：pattern 不应出现在文件中
 #
 # 注意：pattern 是字符串包含检查（in），不是正则表达式。
 
@@ -21,3 +25,15 @@ hints:
   "155-3":
     - file: ".claude/agents/codex-challenger.md"
       pattern: "review"
+  "156-1":
+    - file: ".claude/commands/ceremony.md"
+      pattern: "定理/行动类"
+      expect: absent
+  "156-2":
+    - file: ".claude/commands/ceremony.md"
+      pattern: "定理/行动类判断"
+      expect: absent
+  "156-3":
+    - file: ".claude/commands/ceremony.md"
+      pattern: "长期/可选"
+      expect: absent

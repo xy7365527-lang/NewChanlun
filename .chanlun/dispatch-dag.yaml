@@ -279,6 +279,19 @@ event_skill_map:
       - event: genealogy_settlement
         condition: "新结算谱系包含 negates 边或 topo_effect 标注"
         description: "谱系结算时检查是否携带否定边或拓扑效果，若有则执行相应拓扑变更"
+    # 否定形式→拓扑操作映射（040号 + 147号谱系）
+    # 输入优先级（141号结论1）：topo_effect（retrospective）> negation_form（prospective）
+    # 执行载体：scripts/topology_operator.py
+    negation_topo_map:
+      - negation_form: waiting
+        topo_operation: freeze
+        semantics: "冻结路径——当前不可结算，冻结该路径上所有依赖下游，直到后续回溯规定解冻"
+      - negation_form: expansion
+        topo_operation: split
+        semantics: "分裂节点——规定者违反自身规定，原节点分裂为两个：原规定 + 违反记录"
+      - negation_form: separation
+        topo_operation: sever
+        semantics: "切断连接——统一范畴内部暴露不兼容异质性，单一连接切断为独立路径"
 
 # ═══════════════════════════════════════════════════════════════
 # 2b. 节点声明（仅保留任务节点模板和系统节点）

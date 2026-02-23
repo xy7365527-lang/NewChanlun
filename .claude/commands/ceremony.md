@@ -40,7 +40,7 @@ python scripts/ceremony_scan.py
 TeamCreate(team_name="v{N}-swarm", description="...")
 ```
 
-**命名一致性约束**：TeamCreate 的 `team_name` 参数就是蜂群的唯一标识。后续所有操作（Task spawn 的 `team_name`、TeamDelete、Stop-Guard 检测）都必须使用同一个名字。系统可能返回自动生成的随机名——忽略随机名，所有引用以 `team_name` 参数值为准。
+**命名一致性约束**：TeamCreate 的 `team_name` 参数就是蜂群的唯一标识。后续所有操作（Task spawn 的 `team_name`、Stop-Guard 检测）都必须使用同一个名字。系统可能返回自动生成的随机名——忽略随机名，所有引用以 `team_name` 参数值为准。
 
 ## 步骤 4：并行 spawn 业务工位
 
@@ -61,7 +61,7 @@ Task(name="{workstation.name 简写}", subagent_type="general-purpose", team_nam
 4. 如果只剩"长期"工位 → 输出 `[阻塞] 仅剩长期工程项，无可自主推进的工位`
 5. **更新 session + commit**（持久化不变量）
 
-**持久化不变量**：ceremony 的每条退出路径（spawn 蜂群 / 干净终止 / 显式阻塞）都必须以 session 更新 + commit + push 结束。没有例外。push 失败（如 non-fast-forward）时，先 rebase 再重推，不允许跳过。
+**持久化不变量**：ceremony 的每条退出路径（spawn 蜂群 / 干净终止 / 显式阻塞）都必须以 session 更新 + commit + push 结束。没有例外。push 失败（如 non-fast-forward）时，先 rebase 再重推，不允许跳过。蜂群是持久的——工位全部完成后回到步骤1继续扫描，不自行终止。
 
 **注意：不再 spawn 结构工位。** genealogist/quality-guard/meta-observer/code-verifier 等结构能力
 由 event_skill_map 定义，在对应事件发生时自动触发（075号谱系）。
@@ -81,13 +81,15 @@ spawn 完成后，**立即调用 `TaskList`** 查看任务状态。然后进入�
 3. **增量持久化**：每次有工位完成，立即更新 session 文件（追加该工位产出摘要）。这保证中途断掉时下次热启动能恢复到最后一个已完成工位的状态
 4. 对每个空闲的工位：检查是否有新任务可分配，没有则 `shutdown_request`
 5. 如果仍有 `in_progress` 任务：通过 `SendMessage` 询问进展，结合 `TaskList` 轮询状态
-6. 所有工位完成后：写入完整 session → commit → push → `TeamDelete`
-7. 重复直到所有工位完成
+6. 所有工位完成后：写入完整 session → commit → push → **重新执行步骤1（ceremony_scan.py）**
+7. 如果步骤1发现新工位 → 回到步骤4 spawn 新工位，继续循环
+8. 如果步骤1无新工位 → 输出格式B（无待做行动），但**不执行 TeamDelete**——蜂群保持存活
+9. 蜂群持续存活，直到编排者显式终止或上下文耗尽
 
 **持久化规则**：状态结晶发生在状态转换点，不是终点。session 是蜂群跨上下文的唯一状态载体，必须在每个关键转换点更新：
 - 工位完成 → 增量写入
-- TeamDelete 之前 → 强制写入 + commit + push
-- 绝不允许 TeamDelete 后才写 session
+- 循环回扫描之前 → 强制写入 + commit + push
+- 蜂群是持久的，不因工位全部完成而终止——只有编排者显式终止或上下文耗尽才结束
 
 汇报格式：
 ```

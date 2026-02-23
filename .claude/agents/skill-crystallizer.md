@@ -14,7 +14,7 @@ model: sonnet
 
 ## 触发条件
 
-当 `.chanlun/pattern-buffer.yaml` 中存在满足以下条件的 pattern 时被 spawn：
+当 `.chanlun/pattern-buffer/` 目录下的分片文件中存在满足以下条件的 pattern 时被 spawn：
 - `status: candidate`
 - `frequency >= 3`（promotion_threshold，来自 dispatch-dag.yaml `automation.pattern_detection.promotion_threshold`）
 
@@ -72,11 +72,11 @@ MutationRequest(
 - **approved**：
   1. 写入 skill 文件到 `.claude/commands/[skill-name].md`
   2. 通过 DynamicRegistry 注册到 manifest.yaml
-  3. 更新 pattern-buffer 中该 pattern 的 `status` 为 `settled`
+  3. 更新 pattern-buffer 对应分片中该 pattern 的 `status` 为 `settled`
   4. 向 genealogist 发送消息，请求记录结晶事件
 
 - **rejected**：
-  1. 更新 pattern-buffer 中该 pattern 的 `status` 为 `rejected`
+  1. 更新 pattern-buffer 对应分片中该 pattern 的 `status` 为 `rejected`
   2. 记录拒绝原因
 
 - **pending**（Gemini 不可用）：

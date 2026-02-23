@@ -376,7 +376,7 @@ src/newchan/
 │   ├── pending/           #     生成态矛盾
 │   └── dag.yaml           #     谱系 DAG
 ├── dispatch-dag.yaml      #   蜂群拓扑 v3.1（9 业务节点 + genome_layer + platform_layer）
-├── pattern-buffer.yaml    #   知识结晶候选
+├── pattern-buffer/            #   知识结晶候选（按主题分片）
 └── sessions/              #   会话状态快照（热启动用）
 
 .claude/                   # 递归拓扑异步自指蜂群基础设施

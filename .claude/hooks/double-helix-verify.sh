@@ -13,22 +13,40 @@ set -euo pipefail
 
 INPUT=$(cat)
 
-# 只处理 Bash 工具
-TOOL_NAME=$(echo "$INPUT" | python -c "import sys,json; print(json.load(sys.stdin).get('tool_name',''))" 2>/dev/null || echo "")
-if [ "$TOOL_NAME" != "Bash" ]; then
+# 快速短路：非 git commit 命令直接放行，避免每次 Bash 都启动 Python
+if ! printf '%s' "$INPUT" | grep -q "git commit"; then
   exit 0
 fi
 
-# 提取命令
-COMMAND=$(echo "$INPUT" | python -c "import sys,json; print(json.load(sys.stdin).get('tool_input',{}).get('command',''))" 2>/dev/null || echo "")
+resolve_python() {
+  local bin
+  for bin in python3 python; do
+    if command -v "$bin" >/dev/null 2>&1 && "$bin" -c "import sys" >/dev/null 2>&1; then
+      echo "$bin"
+      return 0
+    fi
+  done
+  return 1
+}
+
+PYTHON_BIN="$(resolve_python || true)"
+[ -n "$PYTHON_BIN" ] || exit 0
+
+# 提取命令和工作目录（一次解析）
+PARSE_RESULT=$(printf '%s' "$INPUT" | "$PYTHON_BIN" -c "
+import sys, json
+d = json.load(sys.stdin)
+print(d.get('tool_input', {}).get('command', ''))
+print(d.get('cwd', '.'))
+" 2>/dev/null || echo "")
+COMMAND=$(echo "$PARSE_RESULT" | head -1)
+CWD=$(echo "$PARSE_RESULT" | tail -1)
 
 # 只拦截 git commit（不拦截 git add, git push 等）
 if ! echo "$COMMAND" | grep -qE "git commit"; then
   exit 0
 fi
 
-# 获取工作目录
-CWD=$(echo "$INPUT" | python -c "import sys,json; print(json.load(sys.stdin).get('cwd','.'))" 2>/dev/null || echo ".")
 cd "$CWD" 2>/dev/null || exit 0
 
 # ─── 死锁保护 ───
@@ -79,7 +97,7 @@ if [ -d ".chanlun/genealogy/settled" ]; then
 fi
 
 # 调用 Gemini verify
-VERIFY_RESULT=$(PYTHONPATH=src python -c "
+VERIFY_RESULT=$(PYTHONPATH=src "$PYTHON_BIN" -c "
 import os, sys, json
 
 # 检查 API key
@@ -137,8 +155,8 @@ except Exception as e:
 " 2>/dev/null || echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow","permissionDecisionReason":"script-error"}}')
 
 # 解析结果
-DECISION=$(echo "$VERIFY_RESULT" | python -c "import sys,json; d=json.load(sys.stdin); hso=d.get('hookSpecificOutput',{}); print(hso.get('permissionDecision','allow'))" 2>/dev/null || echo "allow")
-REASON=$(echo "$VERIFY_RESULT" | python -c "import sys,json; d=json.load(sys.stdin); hso=d.get('hookSpecificOutput',{}); print(hso.get('permissionDecisionReason',''))" 2>/dev/null || echo "")
+DECISION=$(echo "$VERIFY_RESULT" | "$PYTHON_BIN" -c "import sys,json; d=json.load(sys.stdin); hso=d.get('hookSpecificOutput',{}); print(hso.get('permissionDecision','allow'))" 2>/dev/null || echo "allow")
+REASON=$(echo "$VERIFY_RESULT" | "$PYTHON_BIN" -c "import sys,json; d=json.load(sys.stdin); hso=d.get('hookSpecificOutput',{}); print(hso.get('permissionDecisionReason',''))" 2>/dev/null || echo "")
 
 if [ "$DECISION" = "deny" ]; then
   # 更新死锁计数器
@@ -146,7 +164,7 @@ if [ "$DECISION" = "deny" ]; then
   echo $((BLOCK_COUNT + 1)) > "$HELIX_COUNTER"
 
   # 输出矛盾对象
-  python -c "
+  "$PYTHON_BIN" -c "
 import json
 print(json.dumps({
     'hookSpecificOutput': {

@@ -8,6 +8,23 @@
 
 set -euo pipefail
 
+
+resolve_python() {
+  local bin
+  for bin in python3 python; do
+    if command -v "$bin" >/dev/null 2>&1 && "$bin" -c "import sys" >/dev/null 2>&1; then
+      echo "$bin"
+      return 0
+    fi
+  done
+  return 1
+}
+
+PYTHON_BIN="$(resolve_python || true)"
+[ -n "$PYTHON_BIN" ] || exit 0
+
+python() { command "$PYTHON_BIN" "$@"; }
+
 INPUT=$(cat)
 
 # 只处理 Bash 工具

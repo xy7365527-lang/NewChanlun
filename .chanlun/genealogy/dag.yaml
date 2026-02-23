@@ -764,6 +764,31 @@ nodes:
   status: 已结算
   type: 审计修复
   file: .chanlun/genealogy/settled/153-rtas-swarm-persistence-gap.md
+- id: '154'
+  title: ceremony 定理/行动类直接执行路径
+  status: 已结算（被156号否定）
+  type: 定理
+  file: settled/154-ceremony-empty-swarm-path.md
+- id: '155'
+  title: 引入 Codex 作为代码层异质审查者
+  status: 已结算
+  type: 选择（编排者決断 + Gemini decide 审查收敛）
+  file: settled/155-codex-heterogeneous-code-review.md
+- id: '156'
+  title: 否定 ceremony 定理/行动类直接执行路径
+  status: 已结算
+  type: 语法记录（编排者 INTERRUPT）
+  file: settled/156-negate-ceremony-empty-swarm-path.md
+- id: '157'
+  title: 否定 long_term 排除分类
+  status: 已结算
+  type: 语法记录（编排者 INTERRUPT）
+  file: settled/157-negate-longterm-exclusion.md
+- id: '158'
+  title: 三步战略——让矛盾具有拓扑效力
+  status: 已结算
+  type: 语法记录（编排者方针）
+  file: settled/158-three-step-strategy-topology-effect.md
 edges:
   depends_on:
   - from: '136'
@@ -1536,6 +1561,36 @@ edges:
     to: '134'
   - from: '153'
     to: '135'
+  - from: '155'
+    to: 030a
+  - from: '155'
+    to: 005b
+  - from: '155'
+    to: 093
+  - from: '155'
+    to: '062'
+  - from: '155'
+    to: 089
+  - from: '156'
+    to: '055'
+  - from: '156'
+    to: '154'
+  - from: '157'
+    to: '156'
+  - from: '157'
+    to: '055'
+  - from: '158'
+    to: 069
+  - from: '158'
+    to: 083
+  - from: '158'
+    to: 084
+  - from: '158'
+    to: 089
+  - from: '158'
+    to: '147'
+  - from: '158'
+    to: '156'
   triggered:
   - from: '005'
     to: 005a
@@ -1599,6 +1654,8 @@ edges:
     to: '105'
   - from: '135'    # skill结晶+平台约束前提否定（073b已扬弃，历史参照）
     to: 073b
+  - from: '156'    # 否定 ceremony 定理/行动类直接执行路径
+    to: '154'
   related:
   - between:
     - '001'
@@ -2773,6 +2830,15 @@ edges:
   - between:    # 119号结算：T4张力消解，原tensions_with降级为related
     - 009
     - '031'
+  - between:
+    - '102'
+    - '158'
+  - between:
+    - '139'
+    - '158'
+  - between:
+    - '141'
+    - '158'
   tensions_with:
   - between:
     - '007'
@@ -2854,3 +2920,5 @@ edges:
   - target: '105'
     by: '116'
     scope: partial:过强声明修正，方向意图保留
+  - target: '154'
+    by: '156'

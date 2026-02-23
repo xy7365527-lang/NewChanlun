@@ -1,6 +1,24 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
+resolve_python() {
+  local bin
+  for bin in python3 python; do
+    if command -v "$bin" >/dev/null 2>&1 && "$bin" -c "import sys" >/dev/null 2>&1; then
+      echo "$bin"
+      return 0
+    fi
+  done
+  return 1
+}
+
+PYTHON_BIN="$(resolve_python || true)"
+if [ -z "$PYTHON_BIN" ]; then
+  exit 0
+fi
+
+python() { command "$PYTHON_BIN" "$@"; }
+
 # PostToolUse hook: validate dag.yaml when genealogy files are modified
 # Triggers on Write/Edit to .chanlun/genealogy/
 

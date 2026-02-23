@@ -34,9 +34,9 @@ patterns:
     status: "observed"
   - id: "anomaly-437b36fb"
     signature: "lead-direct-Bash"
-    frequency: 277
+    frequency: 346
     first_seen: "2026-02-22T01:39:16Z"
-    last_seen: "2026-02-23T14:35:33Z"
+    last_seen: "2026-02-23T20:34:47Z"
     sources: ["2026-02-22T01:39:16Z", "2026-02-23T07:42:56Z"]
     description: "Lead 直接执行 Bash（应委派工位）——拓扑异常对象（聚合自 273 条历史记录）"
     status: "settled"
