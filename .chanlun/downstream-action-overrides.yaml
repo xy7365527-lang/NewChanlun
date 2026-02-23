@@ -327,3 +327,16 @@
 174-1: resolved    # 递归总方针.md 已增加"谱系的生成性"章节（ws-genealogy-174 执行）
 174-2: resolved    # ceremony_scan.py 已增强异常检测（ws-fix-renumber 执行，含编号冲突+引用断裂检测）
 174-3: resolved    # 递归总方针.md 已增加"严格=反熵"论证（ws-genealogy-174 执行）
+
+# === 172号 ===
+172-1: resolved    # 源文档（黑洞拓扑）已添加172号注：此处"顺序不可逆"指DAG偏序关系
+172-2: blocked    # 衰变机制跟踪——依赖实现阶段进入（阻塞项：有损记忆/衰变机制设计与实现）
+172-3: resolved    # 172号谱系本身 related 字段已包含068号；源文档偏序集引用已在172号谱系第75行
+
+# === 173号 ===
+173-1: resolved    # lead-audit.sh 白名单→黑名单方法论反转完成（默认放行+黑名单记录）
+173-2: blocked    # pattern-buffer 写入频率优化——依赖 pattern-buffer 分片完成（阻塞项：ws-pattern-buffer task #9），设计方案已写入 tmp/pattern-buffer-frequency-design.md
+173-3: blocked    # hook 统一 dispatcher——工程量大，设计方案已写入 tmp/hook-dispatcher-design.md（阻塞项：hook 架构稳定后再实施）
+
+# === 171号 ===
+171-1: resolved    # 结算态谱系比例统计完成——写入 tmp/iron-generation-maturity.md
