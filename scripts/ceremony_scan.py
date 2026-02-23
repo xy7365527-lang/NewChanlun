@@ -10,6 +10,7 @@
 079号更新：background_noise 降级 + 业务层任务发现（no_work_fallback）
 081号更新：roadmap.yaml 扫描（最高优先级任务来源）+ 终止逻辑修正
 089号声明：当前为硬编码优先级扫描，不是 DAG 拓扑排序。
+147号更新：topo_effect 扫描——frozen 节点的下游工位不 spawn
     dispatch-dag.yaml 的 ceremony_sequence 定义了 DAG 格式的 nodes+depends_on，
     但本脚本并未实现 DAG 解析器——扫描顺序由代码逻辑决定（roadmap → session → fallback）。
     DAG 的 ceremony_sequence 由 LLM 解释执行（057号推论：LLM 不是状态机）。
@@ -37,6 +38,54 @@ def get_required_skills(root):
                     "triggers": [t.get("event", "") for t in skill.get("triggers", [])]
                 })
     return skills
+
+
+def get_frozen_nodes(root):
+    """从 dag.yaml 读取 frozen 节点集合（147号：topo_effect 扫描）。
+
+    frozen 节点由 topology-mutator 标记（dag_add_node.py --topo_effect freeze:target:scope）。
+    返回 frozen 节点 id 集合，供 ceremony 判断是否跳过依赖这些节点的下游工位。
+    """
+    dag_path = os.path.join(root, ".chanlun/genealogy/dag.yaml")
+    frozen_ids = set()
+    if not os.path.isfile(dag_path):
+        return frozen_ids
+    try:
+        with open(dag_path, encoding="utf-8") as f:
+            dag = yaml.safe_load(f)
+        for node in dag.get("nodes", []):
+            if node.get("frozen"):
+                frozen_ids.add(str(node["id"]))
+    except Exception:
+        pass
+    return frozen_ids
+
+
+def get_topo_effects_from_genealogy(root):
+    """扫描已结算谱系文件的 topo_effect 字段（147号：审查结果回到 ceremony_scan）。
+
+    返回 topo_effect 条目列表，供 ceremony 展示和处理。
+    """
+    effects = []
+    for settled_file in glob.glob(os.path.join(root, ".chanlun/genealogy/settled/*.md")):
+        try:
+            with open(settled_file, encoding="utf-8") as f:
+                first_lines = f.read(2000)
+            if "topo_effect:" in first_lines and 'topo_effect: ""' not in first_lines:
+                # 提取 topo_effect 值
+                for line in first_lines.split("\n"):
+                    stripped = line.strip()
+                    if stripped.startswith("topo_effect:"):
+                        val = stripped.split(":", 1)[1].strip().strip('"').strip("'")
+                        if val:
+                            effects.append({
+                                "file": os.path.basename(settled_file),
+                                "topo_effect": val,
+                            })
+                        break
+        except Exception:
+            pass
+    return effects
 
 
 def get_roadmap_workstations(root):
@@ -223,6 +272,25 @@ def main():
         # roadmap 任务插入到 workstations 最前（P2 优先级，高于 P3 long_term）
         workstations = roadmap_tasks + workstations
         result["roadmap_tasks_found"] = len(roadmap_tasks)
+
+    # 147号：扫描 frozen 节点，过滤依赖 frozen 节点的工位
+    frozen_nodes = get_frozen_nodes(root)
+    if frozen_nodes:
+        result["frozen_nodes"] = sorted(frozen_nodes)
+        # 过滤掉名称中包含 frozen 节点 id 的工位（冻结路径下游不 spawn）
+        pre_filter_count = len(workstations)
+        workstations = [
+            w for w in workstations
+            if not any(fid in w.get("name", "") for fid in frozen_nodes)
+        ]
+        filtered_count = pre_filter_count - len(workstations)
+        if filtered_count > 0:
+            result["frozen_filtered_count"] = filtered_count
+
+    # 147号：扫描谱系 topo_effect 字段（审查结果回到 ceremony_scan）
+    topo_effects = get_topo_effects_from_genealogy(root)
+    if topo_effects:
+        result["topo_effects"] = topo_effects
 
     # 2. 079号：如果 session 遗留工位为空或全部是背景噪音，执行 no_work_fallback
     # 081号修正：no_work_fallback 仅在 roadmap 也为空时才触发（roadmap 是主工作来源）

@@ -85,7 +85,7 @@ import os, sys, json
 # 检查 API key
 api_key = os.environ.get('GOOGLE_API_KEY', '')
 if not api_key:
-    print(json.dumps({'decision': 'allow', 'reason': 'no-api-key'}))
+    print(json.dumps({'hookSpecificOutput': {'hookEventName': 'PreToolUse', 'permissionDecision': 'allow', 'permissionDecisionReason': 'no-api-key'}}))
     sys.exit(0)
 
 try:
@@ -122,22 +122,25 @@ Staged diff (前500行):
         # 提取矛盾描述
         contradiction = response
         print(json.dumps({
-            'decision': 'block',
-            'reason': contradiction[:500]
+            'hookSpecificOutput': {
+                'hookEventName': 'PreToolUse',
+                'permissionDecision': 'deny',
+                'permissionDecisionReason': contradiction[:500]
+            }
         }, ensure_ascii=False))
     else:
-        print(json.dumps({'decision': 'allow', 'reason': 'gemini-verified-clean'}))
+        print(json.dumps({'hookSpecificOutput': {'hookEventName': 'PreToolUse', 'permissionDecision': 'allow', 'permissionDecisionReason': 'gemini-verified-clean'}}))
 
 except Exception as e:
     # Gemini 不可达 → 052号相变：降级放行
-    print(json.dumps({'decision': 'allow', 'reason': f'gemini-unreachable: {str(e)[:100]}'}))
-" 2>/dev/null || echo '{"decision":"allow","reason":"script-error"}')
+    print(json.dumps({'hookSpecificOutput': {'hookEventName': 'PreToolUse', 'permissionDecision': 'allow', 'permissionDecisionReason': f'gemini-unreachable: {str(e)[:100]}'}}))
+" 2>/dev/null || echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow","permissionDecisionReason":"script-error"}}')
 
 # 解析结果
-DECISION=$(echo "$VERIFY_RESULT" | python -c "import sys,json; print(json.load(sys.stdin).get('decision','allow'))" 2>/dev/null || echo "allow")
-REASON=$(echo "$VERIFY_RESULT" | python -c "import sys,json; print(json.load(sys.stdin).get('reason',''))" 2>/dev/null || echo "")
+DECISION=$(echo "$VERIFY_RESULT" | python -c "import sys,json; d=json.load(sys.stdin); hso=d.get('hookSpecificOutput',{}); print(hso.get('permissionDecision','allow'))" 2>/dev/null || echo "allow")
+REASON=$(echo "$VERIFY_RESULT" | python -c "import sys,json; d=json.load(sys.stdin); hso=d.get('hookSpecificOutput',{}); print(hso.get('permissionDecisionReason',''))" 2>/dev/null || echo "")
 
-if [ "$DECISION" = "block" ]; then
+if [ "$DECISION" = "deny" ]; then
   # 更新死锁计数器
   echo "$DIFF_HASH" > "$HELIX_LAST_HASH"
   echo $((BLOCK_COUNT + 1)) > "$HELIX_COUNTER"
@@ -146,8 +149,11 @@ if [ "$DECISION" = "block" ]; then
   python -c "
 import json
 print(json.dumps({
-    'decision': 'block',
-    'reason': '''[双螺旋] Gemini 发现矛盾，commit 被拦截。\n\n矛盾对象:\n$REASON\n\n请修正后重新 commit。连续 block 3 次后自动熔断放行。'''
+    'hookSpecificOutput': {
+        'hookEventName': 'PreToolUse',
+        'permissionDecision': 'deny',
+        'permissionDecisionReason': '''[双螺旋] Gemini 发现矛盾，commit 被拦截。\n\n矛盾对象:\n$REASON\n\n请修正后重新 commit。连续 block 3 次后自动熔断放行。'''
+    }
 }, ensure_ascii=False))
 "
   exit 0

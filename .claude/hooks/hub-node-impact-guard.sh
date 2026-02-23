@@ -29,7 +29,7 @@ json_allow() {
   MSG="$1" python -c "
 import json, os
 msg = os.environ['MSG']
-print(json.dumps({'decision': 'allow', 'reason': msg}, ensure_ascii=False))
+print(json.dumps({'hookSpecificOutput': {'hookEventName': 'PreToolUse', 'permissionDecision': 'allow', 'permissionDecisionReason': msg}}, ensure_ascii=False))
 "
 }
 

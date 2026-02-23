@@ -92,5 +92,5 @@ if int(local) > 0:
     parts.append(f'本谱系含 {local} 条下游推论，需后续追踪执行')
 parts.append(f'全局状态: {audit}')
 msg = '[downstream-action-guard] 二阶反馈: ' + '。'.join(parts)
-print(json.dumps({'decision': 'allow', 'reason': msg}, ensure_ascii=False))
+print(json.dumps({'systemMessage': msg}, ensure_ascii=False))
 " "$LOCAL_COUNT" "$AUDIT"

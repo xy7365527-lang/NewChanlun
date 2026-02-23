@@ -130,7 +130,6 @@ print('no')
 
 if [ "$IS_WHITELISTED" = "yes" ]; then
   # 白名单操作：静默通过，不写入 pattern-buffer
-  python -c "import json; print(json.dumps({'decision': 'allow'}))" 2>/dev/null
   exit 0
 fi
 
@@ -211,7 +210,7 @@ MSG="[lead-audit/088] Lead 直接执行 ${TOOL_NAME}（应委派工位）。拓�
 MSG="$MSG" python -c "
 import json, os
 msg = os.environ['MSG']
-print(json.dumps({'decision': 'allow', 'reason': msg}, ensure_ascii=False))
+print(json.dumps({'systemMessage': msg}, ensure_ascii=False))
 " 2>/dev/null
 
 exit 0

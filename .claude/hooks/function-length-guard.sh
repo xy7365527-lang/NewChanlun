@@ -172,8 +172,7 @@ msg = (
     '强制放行。请人工检查代码质量。'
 )
 print(json.dumps({
-    'decision': 'allow',
-    'reason': msg
+    'systemMessage': msg
 }, ensure_ascii=False))
 "
     exit 0

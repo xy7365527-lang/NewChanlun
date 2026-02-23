@@ -50,8 +50,11 @@ if not team_name:
                   '不允许孤立 subagent。请先 TeamCreate 创建 team，然后使用 Task(team_name=xxx) spawn teammate。'
                   '无例外——包括 Explore 类型（096号谱系）。')
     print(json.dumps({
-        'decision': 'block',
-        'reason': reason
+        'hookSpecificOutput': {
+            'hookEventName': 'PreToolUse',
+            'permissionDecision': 'deny',
+            'permissionDecisionReason': reason
+        }
     }, ensure_ascii=False))
 else:
     sys.exit(0)

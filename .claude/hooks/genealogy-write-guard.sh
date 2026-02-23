@@ -226,8 +226,55 @@ except:
     fi
 fi
 
+# ── 147号：topo_effect 标注检查 ──────────────────────────────
+# 如果谱系声明了 negates 但缺少 topo_effect，发出 advisory
+TOPO_WARN=""
+TOPO_CHECK=$(echo "$INPUT" | python -c "
+import sys, json, re
+
+data = json.loads(sys.stdin.read())
+tool_name = data.get('tool_name', '')
+tool_input = data.get('tool_input', {})
+if tool_name == 'Edit':
+    file_path = tool_input.get('file_path', '')
+    old_str = tool_input.get('old_string', '')
+    new_str = tool_input.get('new_string', '')
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        content = content.replace(old_str, new_str, 1)
+    except:
+        content = ''
+else:
+    content = tool_input.get('content', '')
+
+# 检查 negates 字段是否非空
+has_negates = False
+negates_match = re.search(r'negates:\s*\[(.+?)\]', content)
+if negates_match:
+    inner = negates_match.group(1).strip()
+    if inner and inner not in ('\"\"', \"''\"):
+        has_negates = True
+# 多行格式
+if not has_negates:
+    if re.search(r'negates:\s*\n\s+-\s+', content):
+        has_negates = True
+
+# 检查 topo_effect 字段是否存在且非空
+has_topo = bool(re.search(r'topo_effect:\s*\S', content))
+
+if has_negates and not has_topo:
+    print('missing_topo_effect')
+else:
+    print('ok')
+" 2>/dev/null || echo "skip")
+
+if [ "$TOPO_CHECK" = "missing_topo_effect" ]; then
+    TOPO_WARN="147号 advisory: 谱系声明了 negates 但缺少 topo_effect 标注（应标注冻结/分裂/切断之一）"
+fi
+
 # 如果没有任何问题，放行
-if [ -z "$MISSING" ] && [ -z "$INVALID_REFS" ] && [ -z "$META_OBS_WARN" ] && [ -z "$SEMANTIC_WARN" ]; then
+if [ -z "$MISSING" ] && [ -z "$INVALID_REFS" ] && [ -z "$META_OBS_WARN" ] && [ -z "$SEMANTIC_WARN" ] && [ -z "$TOPO_WARN" ]; then
     exit 0
 fi
 
@@ -238,6 +285,7 @@ missing = sys.argv[1]
 invalid = sys.argv[2]
 meta_warn = sys.argv[3]
 semantic_warn = sys.argv[4]
+topo_warn = sys.argv[5]
 
 parts = []
 if missing:
@@ -250,6 +298,8 @@ if meta_warn:
     parts.append(meta_warn)
 if semantic_warn:
     parts.append(semantic_warn)
+if topo_warn:
+    parts.append(topo_warn)
 
 detail = '; '.join(parts)
 msg = (
@@ -257,7 +307,10 @@ msg = (
     ' 请在后续 commit 前修复。'
 )
 print(json.dumps({
-    'decision': 'allow',
-    'reason': msg
+    'hookSpecificOutput': {
+        'hookEventName': 'PreToolUse',
+        'permissionDecision': 'allow',
+        'permissionDecisionReason': msg
+    }
 }, ensure_ascii=False))
-" "$MISSING" "$INVALID_REFS" "$META_OBS_WARN" "$SEMANTIC_WARN"
+" "$MISSING" "$INVALID_REFS" "$META_OBS_WARN" "$SEMANTIC_WARN" "$TOPO_WARN"
