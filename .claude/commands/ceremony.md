@@ -61,7 +61,14 @@ Task(name="{workstation.name 简写}", subagent_type="general-purpose", team_nam
 4. 如果只剩"长期"工位 → 输出 `[阻塞] 仅剩长期工程项，无可自主推进的工位`
 5. **更新 session + commit**（持久化不变量）
 
-**持久化不变量**：ceremony 的每条退出路径（spawn 蜂群 / 干净终止 / 显式阻塞）都必须以 session 更新 + commit + push 结束。没有例外。push 失败（如 non-fast-forward）时，先 rebase 再重推，不允许跳过。
+如果 `workstations` 非空但 Lead 判断全部工位为**定理/行动类**（四分法018号）：
+1. Lead 读取相关代码/文件验证判断（允许 Read/Glob，因为此路径需要代码审查确认）
+2. 全部为定理/行动类 → Lead 直接执行（标记 overrides、修复格式等），**不执行步骤 3（不 TeamCreate）**
+3. 存在选择/语法记录类 → 回退到正常 spawn 路径
+4. **更新 session + commit**（持久化不变量）
+5. 判断依据：工位内容是否携带信息差。"代码已完成、仅需确认性标记" = 行动类；"需要设计决策或价值判断" = 选择类，必须 spawn（154号谱系）
+
+**持久化不变量**：ceremony 的每条退出路径（spawn 蜂群 / 干净终止 / 显式阻塞 / 定理行动类直接执行）都必须以 session 更新 + commit + push 结束。没有例外。push 失败（如 non-fast-forward）时，先 rebase 再重推，不允许跳过。
 
 **注意：不再 spawn 结构工位。** genealogist/quality-guard/meta-observer/code-verifier 等结构能力
 由 event_skill_map 定义，在对应事件发生时自动触发（075号谱系）。
@@ -105,7 +112,7 @@ spawn 完成后，**立即调用 `TaskList`** 查看任务状态。然后进入�
   - `git add` / `git commit` / `git push`（持久化不变量）
   - `git fetch` / `git rebase`（push 失败时的恢复）
   - session 文件写入（增量持久化）
-- **不运行额外的 Read/Glob**（所有信息已在 JSON 中）
+- **不运行额外的 Read/Glob**（所有信息已在 JSON 中），**例外**：定理/行动类判断路径需要读取代码验证（154号）
 - **不输出确认请求**（不问"是否正确"、"待确认"）
 - **不输出等待信号**
 - **不用 Explore agent 替代 Task**——Explore 是只读搜索工具，不是蜂群节点
@@ -118,3 +125,4 @@ spawn 完成后，**立即调用 `TaskList`** 查看任务状态。然后进入�
 - 057号：LLM 不是状态机
 - 056号：蜂群递归是默认模式
 - 069号：递归拓扑异步自指蜂群
+- 154号：定理/行动类直接执行路径（空蜂群反模式消除）
