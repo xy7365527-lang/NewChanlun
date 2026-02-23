@@ -50,9 +50,9 @@ Codex 异质审查从"条件触发"提升为"蜂群写代码标配"：
 
 ## 下游推论
 
-1. **dispatch-dag file_write 触发**：codex-challenger 增加 `event: file_write, pattern: "src/**/*.py"` 触发——蜂群工位写 Python 代码后自动调用 Codex review
+1. **dispatch-dag plan_review 触发**：codex-challenger 的触发从 `file_write`（原始设计）修正为 `plan_review`（160号修正：编排者进一步澄清——重点不是写完代码后审查，而是 Plan 阶段多模型对审，修改循环前移到纯文本阶段）
 2. `.chanlun/review-results/` 成为异质审查的结构化档案（Codex 审查结果的持久化存储）
-3. 蜂群工位写代码后的标准流程：写代码 → Codex review → 根据反馈修改 → 再审查
+3. 蜂群标准工作流：Plan（多模型对审）→ 方案定稿 → Execute → Verify
 
 ## 谱系依据
 
@@ -61,7 +61,7 @@ Codex 异质审查从"条件触发"提升为"蜂群写代码标配"：
 
 ## 影响声明
 
-- 修改 `.chanlun/dispatch-dag.yaml`：codex-challenger 增加 file_write 触发事件（`src/**/*.py`）
+- 修改 `.chanlun/dispatch-dag.yaml`：codex-challenger 触发事件（原 `file_write`，后被 160号修正为 `plan_review`）
 - 修改 `src/newchan/codex/modes.py`：ReviewResult 增加 `context_file` 字段和 `to_markdown()` 方法
 - 修改 `src/newchan/codex/__main__.py`：CLI 执行后自动持久化结果
 - 修改 `.claude/agents/codex-challenger.md`：产出部分增加持久化要求

@@ -104,14 +104,21 @@ model: sonnet
 |------|------|
 | `/code-review` 后 | 自动触发 Codex review |
 | 测试失败 | 自动触发 Codex diagnose（对象否定对象） |
-| 代码写入后 | 蜂群工位写入 .py 文件后自动触发 Codex review（159号：持久化调用） |
+| Plan 阶段 | planner 产出方案后自动触发 Codex 评审（160号：多模型对审） |
 | 手动 | Lead 手动调用 |
 
-### 标配审查模式（159号）
+### 标配审查模式（159号 + 160号修正）
 
-蜂群工位在写代码后，由 dispatch-dag `file_write` 事件驱动自动触发 Codex review。
-review 结果自动写入 `.chanlun/review-results/codex-{mode}-{YYYYMMDD-HHmm}.md`（CLI 自动完成持久化）。
-工位根据 Codex 反馈决定是否修改代码——审查是标配步骤，不是事后可选项。
+蜂群标准工作流：Plan 阶段（Opus 出方案）→ Codex 评审（5-6轮质疑补全）→ 方案定稿 → 执行（几乎一次通过）。
+review 结果自动写入 `.chanlun/review-results/`（CLI 自动完成持久化）。
+修改循环前移到纯文本阶段——不写代码就把方案打磨到位。
+
+## 多模型对审模式（160号）
+
+标准流程：Opus 4.6 plan mode 出方案 → Codex 5.3 High 评审 → 5-6轮质疑补全 → 方案定稿。
+修改循环前移到纯文本阶段——不写代码就把方案打磨到位。
+
+工位在 Plan 阶段调用 Codex 时使用 review 模式，subject 为方案文本。
 
 ## 结果包格式（简化版——纯技术性产出）
 
