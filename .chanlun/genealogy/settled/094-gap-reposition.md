@@ -3,6 +3,7 @@ id: '094'
 title: 两个 Gap 在五约束框架下的重新定位
 type: 概念重定位
 status: 已结算
+date: 2026-02-21
 depends_on:
   - '069'
   - '093'

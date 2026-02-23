@@ -11,6 +11,7 @@
 081号更新：roadmap.yaml 扫描（最高优先级任务来源）+ 终止逻辑修正
 089号声明：当前为硬编码优先级扫描，不是 DAG 拓扑排序。
 147号更新：topo_effect 扫描——frozen 节点的下游工位不 spawn
+176号更新：delta_genealogy 检测——RTAS循环是否产生新谱系
     dispatch-dag.yaml 的 ceremony_sequence 定义了 DAG 格式的 nodes+depends_on，
     但本脚本并未实现 DAG 解析器——扫描顺序由代码逻辑决定（roadmap → session → fallback）。
     DAG 的 ceremony_sequence 由 LLM 解释执行（057号推论：LLM 不是状态机）。
@@ -393,6 +394,47 @@ def detect_genealogy_anomalies(root):
     return anomalies
 
 
+def compute_delta_genealogy(root):
+    """176号下游推论：检测 RTAS 循环是否产生新谱系（Δ谱系>0）。
+
+    从最新 session 文件中提取上次记录的 settled 数，
+    与当前 settled 数比较。如果 session 文件中没有记录，跳过检测。
+
+    返回 dict 或 None（无法检测时）。
+    """
+    current_settled = len(glob.glob(os.path.join(root, ".chanlun/genealogy/settled/*.md")))
+
+    # 从最新 session 文件中提取上次的 settled 数
+    sessions = glob.glob(os.path.join(root, ".chanlun/sessions/*-session.md"))
+    if not sessions:
+        return None
+    sessions.sort(key=os.path.getmtime)
+    latest_session = sessions[-1]
+
+    last_settled_count = None
+    try:
+        with open(latest_session, encoding="utf-8") as f:
+            content = f.read()
+        # 匹配 "已结算: N 个" 或 "- 已结算: N 个"
+        m = re.search(r'已结算:\s*(\d+)\s*个', content)
+        if m:
+            last_settled_count = int(m.group(1))
+    except Exception:
+        pass
+
+    if last_settled_count is None:
+        return None
+
+    delta = current_settled - last_settled_count
+    result = {
+        "last_session_settled_count": last_settled_count,
+        "current_settled_count": current_settled,
+        "delta": delta,
+        "warning": "RTAS循环未产生新谱系" if delta == 0 else None,
+    }
+    return result
+
+
 def main():
     parser = argparse.ArgumentParser(description="蜂群 spawn 通用工具")
     parser.add_argument("--skills", action="store_true", help="只输出 required_skills")
@@ -477,6 +519,11 @@ def main():
             result["definitions"] = len(entities) if isinstance(entities, list) else 0
     result["pending"] = pending_count
     result["settled"] = len(glob.glob(os.path.join(root, ".chanlun/genealogy/settled/*.md")))
+
+    # 176号：Δ谱系>0 检测——RTAS循环是否产生新谱系
+    delta_genealogy = compute_delta_genealogy(root)
+    if delta_genealogy is not None:
+        result["delta_genealogy"] = delta_genealogy
 
     # 081号下游推论：pattern-buffer 达标模式扫描（分片版）
     pb_dir = os.path.join(root, ".chanlun/pattern-buffer")
