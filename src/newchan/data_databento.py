@@ -16,7 +16,6 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timedelta
 
-import databento as db
 import pandas as pd
 
 from newchan.config import DATABENTO_API_KEY
@@ -85,7 +84,8 @@ DEFAULT_SYMBOLS: list[str] = ["CL", "GC", "ES", "NQ", "SI", "AMD", "NVDA"]
 # 内部工具
 # ====================================================================
 
-def _get_client() -> db.Historical:
+def _get_client():
+    import databento as db
     if not DATABENTO_API_KEY:
         raise RuntimeError("DATABENTO_API_KEY 未设置。请在 .env 中配置。")
     return db.Historical(key=DATABENTO_API_KEY)

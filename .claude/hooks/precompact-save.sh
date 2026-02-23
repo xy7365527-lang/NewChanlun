@@ -29,8 +29,10 @@ if [ -d ".chanlun/definitions" ]; then
     for f in .chanlun/definitions/*.md; do
         [ -f "$f" ] || continue
         name=$(basename "$f" .md)
-        version=$(grep -m1 '^\*\*版本\*\*' "$f" 2>/dev/null | sed 's/.*: *//' || echo "?")
-        status=$(grep -m1 '^\*\*状态\*\*' "$f" 2>/dev/null | sed 's/.*: *//' || echo "?")
+        version=$(grep -m1 '^\*\*版本\*\*' "$f" 2>/dev/null | sed 's/.*: *//' || true)
+        [ -z "$version" ] && version="?"
+        status=$(grep -m1 '^\*\*状态\*\*' "$f" 2>/dev/null | sed 's/.*: *//' || true)
+        [ -z "$status" ] && status="?"
         DEFINITIONS="${DEFINITIONS}\n| ${name} | ${version} | ${status} |"
     done
 fi
@@ -48,13 +50,13 @@ if [ -d ".chanlun/genealogy/pending" ]; then
     done
 fi
 if [ -d ".chanlun/genealogy/settled" ]; then
-    SETTLED_COUNT=$(find .chanlun/genealogy/settled -name "*.md" 2>/dev/null | wc -l)
+    SETTLED_COUNT=$(find .chanlun/genealogy/settled -name "*.md" 2>/dev/null | wc -l || true)
 fi
 
 # 采集 git 状态
 GIT_BRANCH=$(git branch --show-current 2>/dev/null || echo "unknown")
 GIT_COMMIT=$(git log --oneline -1 2>/dev/null || echo "unknown")
-GIT_DIRTY=$(git diff --stat 2>/dev/null | tail -1)
+GIT_DIRTY=$(git diff --stat 2>/dev/null | tail -1 || true)
 [ -z "$GIT_DIRTY" ] && GIT_DIRTY="clean"
 
 # 采集活跃蜂群状态（~/.claude/teams/ + ~/.claude/tasks/）
@@ -108,12 +110,12 @@ fi
 # 采集中断点：从最近 session 继承 + 过时检测
 PREV_SESSION=""
 PREV_INTERRUPTS=""
-for f in $(ls -t .chanlun/sessions/*-session.md 2>/dev/null | head -1); do
-    [ -f "$f" ] || continue
-    PREV_SESSION="$f"
+LATEST_SESSION=$(ls -t .chanlun/sessions/*-session.md 2>/dev/null | head -1 || true)
+if [ -n "$LATEST_SESSION" ] && [ -f "$LATEST_SESSION" ]; then
+    PREV_SESSION="$LATEST_SESSION"
     # 提取中断点章节内容（跳过标题行本身）
-    PREV_INTERRUPTS=$(sed -n '/^## 中断点$/,/^## /{/^## /d; p}' "$f" 2>/dev/null | head -20 || true)
-done
+    PREV_INTERRUPTS=$(sed -n '/^## 中断点$/,/^## /{/^## /d; p}' "$LATEST_SESSION" 2>/dev/null | head -20 || true)
+fi
 
 # G1修复：检测中断点是否过时（session写入后有新提交 = 进度未持久化）
 if [ -n "$PREV_SESSION" ]; then
@@ -163,11 +165,12 @@ ${PREV_INTERRUPTS:-"（自动快照，中断点待 CC 下次写入）"}
 SESSION_EOF
 
 # 生成系统消息
-DEF_COUNT=$(echo -e "$DEFINITIONS" | grep -c '|' || echo 0)
+DEF_COUNT=$(echo -e "$DEFINITIONS" | grep -c '|' || true)
+[ -z "$DEF_COUNT" ] && DEF_COUNT=0
 # 计算活跃蜂群数
 SWARM_COUNT=0
 if [ -d "$TEAMS_DIR" ]; then
-    SWARM_COUNT=$(ls -d "$TEAMS_DIR"/*/ 2>/dev/null | wc -l)
+    SWARM_COUNT=$(ls -d "$TEAMS_DIR"/*/ 2>/dev/null | wc -l || true)
 fi
 MSG="[Session] 状态已保存: ${SESSION_FILE} | 定义${DEF_COUNT}条 | 谱系${PENDING_COUNT}生成态/${SETTLED_COUNT}已结算 | 蜂群${SWARM_COUNT}活跃"
 

@@ -754,6 +754,11 @@ nodes:
   status: 已结算
   type: 語法記録
   file: settled/145-three-line-gemini-convergence.md
+- id: '147'
+  title: 矛盾具有拓扑效力——否定类型到拓扑操作自动映射
+  status: 已结算
+  type: 语法记录
+  file: settled/147-topology-effect.md
 edges:
   depends_on:
   - from: '136'
@@ -1506,6 +1511,18 @@ edges:
     to: '141'
   - from: '145'
     to: '016'
+  - from: '147'
+    to: '005'
+  - from: '147'
+    to: 005b
+  - from: '147'
+    to: '040'
+  - from: '147'
+    to: 069
+  - from: '147'
+    to: 084
+  - from: '147'
+    to: 083
   triggered:
   - from: '005'
     to: 005a
@@ -2713,6 +2730,18 @@ edges:
   - between:
     - 087
     - '145'
+  - between:
+    - '020'
+    - '147'
+  - between:
+    - 089
+    - '147'
+  - between:
+    - 090
+    - '147'
+  - between:
+    - '141'
+    - '147'
   tensions_with:
   - between:
     - '007'

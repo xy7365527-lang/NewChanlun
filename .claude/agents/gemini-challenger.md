@@ -38,6 +38,12 @@ model: sonnet
 
 将相关内容写入临时上下文文件（`/tmp/challenge-ctx.md`）。
 
+### 产出大小约束（145号下游推论）
+
+Gemini 直接回复（写入谱系或汇报给团队的内容）**≤ 8KB**。超出部分写入 `tmp/` 附件文件，正文仅保留摘要 + 附件路径引用。
+
+理由：Gemini 回复嵌入 Claude agent 上下文，过大回复消耗 context window。8KB ≈ 2000 token，是单次质询结果的合理上限。
+
 ### 2. 调用 Gemini
 
 ```bash
