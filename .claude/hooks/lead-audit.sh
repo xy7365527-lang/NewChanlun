@@ -22,6 +22,13 @@
 #   - dispatch-dag.yaml 修改
 #   - 读取/检查 pattern-buffer.yaml 自身的 Bash 命令
 #   - 对 scripts/ 目录下脚本的维护操作
+#   - pytest 运行（验证测试状态）
+#   - pip 操作（安装/查看依赖）
+#   - 项目脚本执行（scripts/ 目录下）
+#   - 内联 Python（python -c）
+#   - 目录/文件检查命令（ls, cat, head, tail, mkdir, date, wc, echo, pwd, which, find, sort, uniq）
+#   - team config 文件操作（.claude/teams/, .claude/tasks/）
+#   - .venv 相关操作
 #
 # 触发方式：PostToolUse hook（Lead 层级的 Write/Edit/Bash 调用后）
 # 输出：JSON（allow + systemMessage 审计警告）
@@ -95,6 +102,41 @@ if tool_name == 'Bash':
 
     # dag.yaml 相关读取
     if 'dag.yaml' in cmd and re.search(r'\byaml\.safe_load\b|\byaml\.load\b', cmd):
+        print('yes')
+        sys.exit(0)
+
+    # pytest 运行（验证测试状态）
+    if re.search(r'\bpytest\b', cmd) or '-m pytest' in cmd:
+        print('yes')
+        sys.exit(0)
+
+    # pip 操作
+    if re.search(r'\bpip\b\s+(install|list|show|freeze)', cmd):
+        print('yes')
+        sys.exit(0)
+
+    # 项目脚本执行（scripts/ 目录下）
+    if re.search(r'scripts[\\/][\w_]+\.py', cmd):
+        print('yes')
+        sys.exit(0)
+
+    # 内联 Python（python -c）
+    if re.search(r'\bpython\s+-c\b', cmd):
+        print('yes')
+        sys.exit(0)
+
+    # 目录/文件检查（ls, cat, head, tail, mkdir, date, wc, echo, pwd, which, find, sort, uniq）
+    if re.search(r'^\s*(ls|cat|head|tail|mkdir|date|wc|echo|pwd|which|find|sort|uniq)\b', cmd):
+        print('yes')
+        sys.exit(0)
+
+    # team config 文件操作
+    if '.claude/teams/' in cmd or '.claude/tasks/' in cmd:
+        print('yes')
+        sys.exit(0)
+
+    # .venv 相关操作
+    if '.venv' in cmd:
         print('yes')
         sys.exit(0)
 

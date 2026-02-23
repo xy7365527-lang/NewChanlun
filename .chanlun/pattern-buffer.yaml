@@ -34,12 +34,12 @@ patterns:
     status: "observed"
   - id: "anomaly-437b36fb"
     signature: "lead-direct-Bash"
-    frequency: 346
+    frequency: 352
     first_seen: "2026-02-22T01:39:16Z"
-    last_seen: "2026-02-23T20:34:47Z"
+    last_seen: "2026-02-23T20:51:57Z"
     sources: ["2026-02-22T01:39:16Z", "2026-02-23T07:42:56Z"]
-    description: "Lead 直接执行 Bash（应委派工位）——拓扑异常对象（聚合自 273 条历史记录）"
-    status: "settled"
+    description: "Lead 直接执行 Bash（应委派工位）——拓扑异常对象（聚合自 273 条历史记录）。白名单扩展后判定为误报。"
+    status: "rejected"
     anomaly_type: "lead_direct_execution"
   - id: "anomaly-067727e6"
     signature: "lead-direct-Edit"

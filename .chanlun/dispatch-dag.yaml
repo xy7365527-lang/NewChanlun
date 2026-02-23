@@ -251,6 +251,9 @@ event_skill_map:
         description: "代码审查后触发 Codex 异质审查"
       - event: test_failure
         description: "测试失败时自动触发 diagnose（对象否定对象，005b号）"
+      - event: file_write
+        pattern: "src/**/*.py"
+        description: "Python 代码写入后自动触发 Codex review（159号：持久化调用——写代码标配）"
       - event: manual_invocation
         description: "Lead 手动调用"
 

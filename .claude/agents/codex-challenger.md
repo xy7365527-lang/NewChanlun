@@ -70,6 +70,9 @@ model: sonnet
 
 ### 5. 产出
 
+每次 Codex 调用的完整交互（prompt + response）自动写入 `.chanlun/review-results/codex-{mode}-{YYYYMMDD-HHmm}.md`。
+这是双向严格讨论的持久化——不只是结果，而是完整的对话记录。CLI 执行结束后自动完成，无需额外操作。
+
 #### 否定成立（代码层问题）→ 汇报给 Lead
 
 通过 SendMessage 发送审查结果，包含：
@@ -101,7 +104,14 @@ model: sonnet
 |------|------|
 | `/code-review` 后 | 自动触发 Codex review |
 | 测试失败 | 自动触发 Codex diagnose（对象否定对象） |
+| 代码写入后 | 蜂群工位写入 .py 文件后自动触发 Codex review（159号：持久化调用） |
 | 手动 | Lead 手动调用 |
+
+### 标配审查模式（159号）
+
+蜂群工位在写代码后，由 dispatch-dag `file_write` 事件驱动自动触发 Codex review。
+review 结果自动写入 `.chanlun/review-results/codex-{mode}-{YYYYMMDD-HHmm}.md`（CLI 自动完成持久化）。
+工位根据 Codex 反馈决定是否修改代码——审查是标配步骤，不是事后可选项。
 
 ## 结果包格式（简化版——纯技术性产出）
 
