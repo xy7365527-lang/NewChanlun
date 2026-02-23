@@ -27,10 +27,14 @@ class ReviewResult:
     subject: str
     response: str
     model: str
+    prompt: str = ""
     context_file: str | None = None
 
     def to_markdown(self, timestamp: datetime | None = None) -> str:
         """返回格式化的 Markdown 字符串，用于持久化。
+
+        完整交互（prompt + response）都被持久化，
+        不只是结果，而是完整的对话记录。
 
         Parameters
         ----------
@@ -52,6 +56,14 @@ class ReviewResult:
         ]
         if self.context_file:
             lines.append(f"- **context-file**: {self.context_file}")
+
+        if self.prompt:
+            lines.extend([
+                "",
+                "## Prompt",
+                "",
+                self.prompt,
+            ])
 
         lines.extend([
             "",
@@ -119,6 +131,7 @@ class CodexChallenger:
         return ReviewResult(
             mode=mode, subject=subject,
             response=text, model=model_used,
+            prompt=prompt,
         )
 
     def review(self, subject: str, context: str = "") -> ReviewResult:

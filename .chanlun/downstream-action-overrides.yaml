@@ -299,7 +299,7 @@
 157-2: resolved    # 6个 long_term 条目全部迁移为 blocked（103-2/103-3/114-3/115-2/115-3/119-2），附具体阻塞项
 
 # === 158号 — 三步战略：让矛盾具有拓扑效力 ===
-158-1: resolved    # ceremony.md 步骤6第8条：不执行 TeamDelete，蜂群保持存活（全文无 TeamDelete 调用）
+158-1: negated_by_162    # 162号否定：持久化由 RTAS 循环保证，恢复 TeamDelete
 158-2: resolved    # topology_operator.py 已实现 freeze/split/sever 映射 + dispatch-dag topology-mutator skill 已注册
 158-3: resolved    # 编排者异步审计权已在当前规则体系中体现——编排者通过谱系事后审计，不再是拓扑变化 gatekeeper（102号结晶 + 158号第三步）
 
@@ -317,3 +317,8 @@
 # === 161号 — 否定务实 ===
 161-1: resolved    # no-patch-mentality.md 第35行已增加"务实思维"为第8条禁止模式（161号）
 161-2: resolved    # no-patch-mentality.md + 161号谱系 + 递归总方针.md 共同确立：严格是唯一合法行为模式，务实=先验上限=决策层补丁思维
+
+# === 162号 — 否定"不执行 TeamDelete"作为持久化实现 ===
+162-1: resolved    # ceremony.md 步骤6第8条恢复 TeamDelete：无新工位 → 格式B → TeamDelete 清理
+162-2: resolved    # ceremony.md 持久化声明修正：持久化 ≠ 进程存活 = session 结晶 + 热启动 + 谱系 DAG 跨 session 延续
+162-3: resolved    # ceremony.md 持久化不变量修正：RTAS 循环持久化，每次 ceremony 清理后热启动恢复

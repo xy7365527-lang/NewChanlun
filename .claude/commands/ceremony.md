@@ -61,7 +61,7 @@ Task(name="{workstation.name 简写}", subagent_type="general-purpose", team_nam
 4. 如果只剩"长期"工位 → 输出 `[阻塞] 仅剩长期工程项，无可自主推进的工位`
 5. **更新 session + commit**（持久化不变量）
 
-**持久化不变量**：ceremony 的每条退出路径（spawn 蜂群 / 干净终止 / 显式阻塞）都必须以 session 更新 + commit + push 结束。没有例外。push 失败（如 non-fast-forward）时，先 rebase 再重推，不允许跳过。蜂群是持久的——工位全部完成后回到步骤1继续扫描，不自行终止。
+**持久化不变量**：ceremony 的每条退出路径（spawn 蜂群 / 干净终止 / 显式阻塞）都必须以 session 更新 + commit + push 结束。没有例外。push 失败（如 non-fast-forward）时，先 rebase 再重推，不允许跳过。蜂群通过 RTAS 循环持久化——每次 ceremony 清理后，下次 ceremony 从 session 热启动恢复全部状态（162号）。
 
 **注意：不再 spawn 结构工位。** genealogist/quality-guard/meta-observer/code-verifier 等结构能力
 由 event_skill_map 定义，在对应事件发生时自动触发（075号谱系）。
@@ -83,13 +83,13 @@ spawn 完成后，**立即调用 `TaskList`** 查看任务状态。然后进入�
 5. 如果仍有 `in_progress` 任务：通过 `SendMessage` 询问进展，结合 `TaskList` 轮询状态
 6. 所有工位完成后：写入完整 session → commit → push → **重新执行步骤1（ceremony_scan.py）**
 7. 如果步骤1发现新工位 → 回到步骤4 spawn 新工位，继续循环
-8. 如果步骤1无新工位 → 输出格式B（无待做行动），但**不执行 TeamDelete**——蜂群保持存活
-9. 蜂群持续存活，直到编排者显式终止或上下文耗尽
+8. 如果步骤1无新工位 → 输出格式B（无待做行动）→ 执行 TeamDelete 清理蜂群
+9. 持久化由 session 结晶 + 热启动保证——下次 ceremony 从 session 热启动恢复（162号）
 
 **持久化规则**：状态结晶发生在状态转换点，不是终点。session 是蜂群跨上下文的唯一状态载体，必须在每个关键转换点更新：
 - 工位完成 → 增量写入
 - 循环回扫描之前 → 强制写入 + commit + push
-- 蜂群是持久的，不因工位全部完成而终止——只有编排者显式终止或上下文耗尽才结束
+- 持久化 ≠ 进程存活。持久化 = session 结晶 + 热启动 + 谱系 DAG 跨 session 延续（162号）
 
 汇报格式：
 ```
@@ -120,3 +120,4 @@ spawn 完成后，**立即调用 `TaskList`** 查看任务状态。然后进入�
 - 057号：LLM 不是状态机
 - 056号：蜂群递归是默认模式
 - 069号：递归拓扑异步自指蜂群
+- 162号：否定"不执行 TeamDelete"——持久化由 RTAS 循环保证

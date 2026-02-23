@@ -279,6 +279,59 @@ def discover_business_tasks(root):
     return tasks
 
 
+def detect_genealogy_anomalies(root):
+    """检测谱系编号异常：重复编号、文件名编号与内部 id 不一致。
+
+    返回异常列表，每个元素包含 type、files、detail 字段。
+    空列表 = 无异常。
+    """
+    settled_dir = os.path.join(root, ".chanlun/genealogy/settled/")
+    if not os.path.isdir(settled_dir):
+        return []
+
+    anomalies = []
+    # {number: [filename, ...]}
+    num_to_files = {}
+
+    for filepath in glob.glob(os.path.join(settled_dir, "*.md")):
+        basename = os.path.basename(filepath)
+        m = re.match(r'^(\d+)-(.+)\.md$', basename)
+        if not m:
+            continue
+        file_num = int(m.group(1))
+
+        # Track duplicate numbers
+        num_to_files.setdefault(file_num, []).append(basename)
+
+        # Check internal id consistency
+        try:
+            with open(filepath, encoding="utf-8") as f:
+                head = f.read(1500)
+            id_match = re.search(r'(?:^|\n)\s*id:\s*["\']?(\d+)["\']?', head)
+            if id_match:
+                internal_id = int(id_match.group(1))
+                if internal_id != file_num:
+                    anomalies.append({
+                        "type": "id_mismatch",
+                        "file": basename,
+                        "detail": f"filename={file_num}, internal_id={internal_id}",
+                    })
+        except Exception:
+            pass
+
+    # Report duplicates
+    for num, files in sorted(num_to_files.items()):
+        if len(files) > 1:
+            anomalies.append({
+                "type": "duplicate_number",
+                "number": num,
+                "files": files,
+                "detail": f"编号 {num} 被 {len(files)} 个文件使用",
+            })
+
+    return anomalies
+
+
 def main():
     parser = argparse.ArgumentParser(description="蜂群 spawn 通用工具")
     parser.add_argument("--skills", action="store_true", help="只输出 required_skills")
@@ -392,6 +445,17 @@ def main():
             f"{len(swarm_gaps)} 个蜂群有谱系产出但无 session: "
             + ", ".join(f"v{g['swarm_id']}-swarm" for g in swarm_gaps)
         )
+
+    # 谱系编号异常检测（编号冲突自动发现 + 修复工位生成）
+    genealogy_anomalies = detect_genealogy_anomalies(root)
+    if genealogy_anomalies:
+        result["genealogy_anomalies"] = genealogy_anomalies
+        workstations.append({
+            "priority": "P0",
+            "name": f"谱系编号异常：{len(genealogy_anomalies)}项",
+            "status": "; ".join(a["detail"] for a in genealogy_anomalies),
+            "source": "genealogy_anomaly_detection",
+        })
 
     # 081号下游推论：谱系张力扫描（tensions_with 边检查）
     tensions_found = []
