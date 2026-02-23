@@ -214,3 +214,9 @@
 145-1: resolved    # dag_query.py（6 subcommands: exists/node/edges/edge-exists/stats/recent）+ dag_add_node.py 已实现，Lead CLI 化 DAG 访问声明已在145号谱系中
 145-2: resolved    # gemini-challenger.md + orchestrator-proxy SKILL.md 已增加产出 ≤ 8KB 约束（超出写 tmp/ 附件）
 145-3: resolved    # no-unnecessary-escalation.md 格式B已包含排除理由推导链要求（第32-41行，145号修复内容）
+
+# === 147号 ===
+147-1: resolved    # topology-mutator 已在 dispatch-dag event_skill_map 中完整定义（id/skill_type/triggers/condition），dag_add_node.py 支持 --topo_effect freeze/split/sever
+147-2: resolved    # ceremony_scan.py 已增加 frozen 节点扫描 + topo_effect 字段汇总，frozen 下游工位不 spawn
+147-3: resolved    # genealogy-write-guard.sh 已增加 topo_effect advisory：negates 非空但无 topo_effect 时发出警告
+147-4: resolved    # 084-4 从权限问题转化为拓扑问题——认识论确认已在147号谱系中记录

@@ -166,8 +166,7 @@ import json, sys
 count = sys.argv[1]
 msg = '[crystallization-guard] 警告：pattern-buffer 中有 ' + count + ' 个候选模式未结晶。建议在下次 session/chore commit 前处理。'
 print(json.dumps({
-    'decision': 'allow',
-    'reason': msg
+    'systemMessage': msg
 }, ensure_ascii=False))
 " "$PATTERN_COUNT"
                 exit 0
@@ -207,8 +206,7 @@ import json, sys
 count = sys.argv[1]
 msg = '[crystallization-guard] 警告：有 ' + count + ' 条未结晶债务。建议在下次 session/chore commit 前处理。'
 print(json.dumps({
-    'decision': 'allow',
-    'reason': msg
+    'systemMessage': msg
 }, ensure_ascii=False))
 " "$DEBT_COUNT"
 fi

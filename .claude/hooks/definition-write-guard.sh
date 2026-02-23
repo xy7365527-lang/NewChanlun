@@ -66,8 +66,11 @@ if [ "$FILE_PATH" = "$LAST_FILE" ] && [ "$BLOCK_COUNT" -ge 3 ]; then
   python -c "
 import json
 print(json.dumps({
-    'decision': 'allow',
-    'reason': '[definition-write-guard] 熔断放行：同一文件已连续被 block 3 次。请事后检查该定义文件的完整性。'
+    'hookSpecificOutput': {
+        'hookEventName': 'PreToolUse',
+        'permissionDecision': 'allow',
+        'permissionDecisionReason': '[definition-write-guard] 熔断放行：同一文件已连续被 block 3 次。请事后检查该定义文件的完整性。'
+    }
 }, ensure_ascii=False))
 "
   exit 0
@@ -155,8 +158,11 @@ msg = (
     '连续 block 3 次后自动熔断放行。'
 )
 print(json.dumps({
-    'decision': 'allow',
-    'reason': msg
+    'hookSpecificOutput': {
+        'hookEventName': 'PreToolUse',
+        'permissionDecision': 'allow',
+        'permissionDecisionReason': msg
+    }
 }, ensure_ascii=False))
 " "$REASON" "$FILE_PATH"
     exit 0
@@ -238,8 +244,11 @@ msg = (
     '连续 block 3 次后自动熔断放行。'
 )
 print(json.dumps({
-    'decision': 'allow',
-    'reason': msg
+    'hookSpecificOutput': {
+        'hookEventName': 'PreToolUse',
+        'permissionDecision': 'allow',
+        'permissionDecisionReason': msg
+    }
 }, ensure_ascii=False))
 " "$REASON"
     exit 0

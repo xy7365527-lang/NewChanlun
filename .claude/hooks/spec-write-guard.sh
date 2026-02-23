@@ -62,8 +62,11 @@ for pat, label in core_patterns:
         full = os.path.join(cwd, path) if not os.path.isabs(path) else path
         if os.path.exists(full):
             print(json.dumps({
-                'decision': 'allow',
-                'reason': f'[spec-write-guard] 核心文件修改: {path} ({label})。异步自指：t时刻修改，t+1时刻生效。git追踪，ESC可中断。'
+                'hookSpecificOutput': {
+                    'hookEventName': 'PreToolUse',
+                    'permissionDecision': 'allow',
+                    'permissionDecisionReason': f'[spec-write-guard] 核心文件修改: {path} ({label})。异步自指：t时刻修改，t+1时刻生效。git追踪，ESC可中断。'
+                }
             }, ensure_ascii=False))
             sys.exit(0)
 " "$REL_PATH" "$CWD"

@@ -81,8 +81,7 @@ if not missing:
     sys.exit(0)
 
 print(json.dumps({
-    'decision': 'allow',
-    'reason': '[result-package-guard] ⚠ 谱系文件缺少结果包字段: ' + ', '.join(missing)
+    'systemMessage': '[result-package-guard] 谱系文件缺少结果包字段: ' + ', '.join(missing)
         + '。建议补全：边界条件、下游推论、影响声明（## 标题或 **粗体** 格式）。'
 }, ensure_ascii=False))
 " "$FILE_PATH"

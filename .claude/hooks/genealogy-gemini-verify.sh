@@ -143,7 +143,7 @@ msg = (
     f" verify 上下文：{summary}"
 )
 
-print(json.dumps({"decision": "allow", "reason": msg}, ensure_ascii=False))
+print(json.dumps({"systemMessage": msg}, ensure_ascii=False))
 PY
 
 exit 0
