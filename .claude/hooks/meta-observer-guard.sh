@@ -40,17 +40,16 @@ if [ -d ".chanlun/sessions" ]; then
 fi
 [ -z "$CURRENT_SESSION" ] && exit 0
 
-# ─── 默认模式：Advisory — 落标 + 输出提示（087号谱系修复）───
+# ─── 默认模式：Advisory — 不落标 + 输出提示（145号修复：删除自动落标伪造）───
 if [ "$STRICT_MODE" != "1" ]; then
-    mkdir -p .chanlun 2>/dev/null || true
-    echo "$CURRENT_SESSION" > "$MARKER"
     rm -f "$COUNTER" 2>/dev/null || true
+    # 145号：不写入 MARKER——因为二阶观察没有执行，不应伪造执行记录
     # Advisory 输出：提示 Lead 可选择执行二阶观察（D策略：hooks 提示 + Lead 认领）
     python -c "
 import json
 print(json.dumps({
     'continue': True,
-    'systemMessage': '[meta-observer advisory] 本 session 二阶观察已跳过（STRICT_MODE=0）。如需执行：读取 .claude/agents/meta-observer.md 并对本 session 执行二阶观察（规则触发/违反模式、语法记录候选、元规则一致性）。'
+    'systemMessage': '[meta-observer advisory] 本 session 二阶观察未执行（STRICT_MODE=0）。如需恢复强制模式：export META_OBSERVER_GUARD_STRICT=1'
 }, ensure_ascii=False))
 " 2>/dev/null || true
     exit 0

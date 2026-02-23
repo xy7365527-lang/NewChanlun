@@ -27,6 +27,28 @@ model: opus
 
 观察记录写入谱系后，Lead 在轴线汇报时扫描并摘要。
 
+### 观察记录必须携带的规则版本基线字段
+
+每条谱系记录（type: meta-rule 或 type: unclassified-gap）必须在 YAML front matter 中包含：
+
+```yaml
+rule_version_baseline:
+  claude_md_commit: "<git commit hash of CLAUDE.md at observation time>"
+  rules_dir_mtime: "<最新修改时间，来自 git log -1 --format='%ai' -- .claude/rules/>"
+```
+
+**目的**：让后续观察者能区分两类分歧——
+- **规则版本变化导致的分歧**：两次观察的 `claude_md_commit` 不同，差异来自规则迭代
+- **同一规则版本下的认知差异**：两次观察的 `claude_md_commit` 相同，差异来自 agent 解读或执行偏差
+
+**执行时机**：每次观察开始前，用以下命令获取版本快照，再进行任何分析：
+```bash
+git -C /path/to/repo log -1 --format="%H" -- CLAUDE.md
+git -C /path/to/repo log -1 --format="%ai" -- .claude/rules/
+```
+
+谱系依据：141号下游推论3（规则版本基线引入）。
+
 ### 未分类 Gap 输出格式
 
 当发现的张力无法归入现有 Gap 分类（创世 Gap / 视差 Gap / 结晶 Gap）时，不强制归类，标记为未分类 Gap：
@@ -46,6 +68,8 @@ model: opus
 | `CLAUDE.md` | 核查全局原则 |
 | `.chanlun/genealogy/settled/` | 追踪元规则进化历史 |
 | `python scripts/meta-observer-history.py` 的输出 | 执行二阶观察前，获取历史 meta-rule 谱系列表 |
+| `git log -1 --format="%H" -- CLAUDE.md` 的输出 | 每次观察开始前，获取 CLAUDE.md 当前 commit hash |
+| `git log -1 --format="%ai" -- .claude/rules/` 的输出 | 每次观察开始前，获取 rules/ 目录最新修改时间 |
 
 ## 中断场景
 

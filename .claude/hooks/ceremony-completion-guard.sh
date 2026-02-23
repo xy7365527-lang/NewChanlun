@@ -14,7 +14,7 @@
 #   6. 以上均无 → 放行
 #
 # 熔断机制：
-#   - 连续阻止 >= 5 次且无状态变更 → 允许停止
+#   - 连续阻止 >= 3 次且状态无变化 → 允许停止（145号智能熔断）
 #   - 用户 INTERRUPT → 允许停止
 
 set -uo pipefail
@@ -25,14 +25,39 @@ cd "$cwd" 2>/dev/null || true
 
 COUNTER=".chanlun/.stop-guard-counter"
 
-# ─── 熔断检查 ───
+# ─── 熔断检查（145号：智能熔断，计数器格式 COUNT:LAST_ACTIVE_TASKS） ───
 COUNT=0
+LAST_ACTIVE=0
 if [ -f "$COUNTER" ]; then
-    COUNT=$(cat "$COUNTER" 2>/dev/null || echo "0")
+    COUNTER_DATA=$(cat "$COUNTER" 2>/dev/null || echo "0:0")
+    COUNT=$(echo "$COUNTER_DATA" | cut -d: -f1)
+    LAST_ACTIVE=$(echo "$COUNTER_DATA" | cut -d: -f2)
     COUNT=$((COUNT + 0))
+    LAST_ACTIVE=$((LAST_ACTIVE + 0))
 fi
 
-if [ "$COUNT" -ge 5 ]; then
+# 注意：ACTIVE_TASKS 在下方检查2中计算，此处先做预计算以支持智能熔断
+PRE_ACTIVE_TASKS=0
+if [ -d "$HOME/.claude/tasks" ]; then
+    for td in "$HOME/.claude/tasks"/*/; do
+        [ -d "$td" ] || continue
+        for tf in "$td"*.json; do
+            [ -f "$tf" ] || continue
+            case "$tf" in *.lock) continue ;; esac
+            ts=$(python -c "
+import json, sys
+with open(sys.argv[1]) as f: d=json.load(f)
+s=d.get('status','')
+if s in ('pending','in_progress'): print('1')
+else: print('0')
+" "$tf" 2>/dev/null || echo "0")
+            PRE_ACTIVE_TASKS=$((PRE_ACTIVE_TASKS + ts))
+        done
+    done
+fi
+
+if [ "$COUNT" -ge 3 ] && [ "$PRE_ACTIVE_TASKS" -eq "$LAST_ACTIVE" ]; then
+    # 状态停滞 3 次，放行
     rm -f "$COUNTER" 2>/dev/null || true
     exit 0
 fi
@@ -75,7 +100,7 @@ print(' | '.join(items[:5]))
 fi
 
 if [ "$HAS_PENDING_WORK" -gt 0 ]; then
-    echo $((COUNT + 1)) > "$COUNTER"
+    echo "$((COUNT + 1)):$PRE_ACTIVE_TASKS" > "$COUNTER"
     python -c "
 import json, sys
 work = sys.argv[1]
@@ -89,6 +114,7 @@ fi
 
 # ─── 检查 2：蜂群任务队列 ───
 # 扫描活跃任务状态，生成具体路由指令
+# 145号修复：排除被 blockedBy 阻塞的 pending 任务 + 僵尸任务检测
 ACTIVE_TASKS=0
 PENDING_TASKS=""
 IN_PROGRESS_TASKS=""
@@ -96,21 +122,47 @@ COMPLETED_TASKS=""
 if [ -d "$HOME/.claude/tasks" ]; then
     for team_dir in "$HOME/.claude/tasks"/*/; do
         [ -d "$team_dir" ] || continue
+        team_name=$(basename "$team_dir")
         for task_file in "$team_dir"*.json; do
             [ -f "$task_file" ] || continue
-            # 提取 status 和 subject
+            # 跳过 .lock 文件
+            case "$task_file" in *.lock) continue ;; esac
+            # 提取 status, subject, blockedBy
             TASK_INFO=$(python -c "
 import json, sys
 with open(sys.argv[1]) as f:
     d = json.load(f)
-print(d.get('status',''), d.get('subject',''))
+status = d.get('status','')
+subject = d.get('subject','')
+blocked = d.get('blockedBy', [])
+# 只有当 blockedBy 中所有任务都已完成时，才算未阻塞
+has_open_blockers = False
+if blocked:
+    import os, glob
+    task_dir = os.path.dirname(sys.argv[1])
+    for bid in blocked:
+        bf = os.path.join(task_dir, f'{bid}.json')
+        if os.path.exists(bf):
+            with open(bf) as bfh:
+                bs = json.load(bfh).get('status','')
+            if bs != 'completed':
+                has_open_blockers = True
+                break
+        else:
+            has_open_blockers = True
+            break
+print(status, 'BLOCKED' if has_open_blockers else 'UNBLOCKED', subject)
 " "$task_file" 2>/dev/null) || continue
             TASK_STATUS=$(echo "$TASK_INFO" | cut -d' ' -f1)
-            TASK_NAME=$(echo "$TASK_INFO" | cut -d' ' -f2-)
+            TASK_BLOCKED=$(echo "$TASK_INFO" | cut -d' ' -f2)
+            TASK_NAME=$(echo "$TASK_INFO" | cut -d' ' -f3-)
             case "$TASK_STATUS" in
                 pending)
-                    ACTIVE_TASKS=$((ACTIVE_TASKS + 1))
-                    PENDING_TASKS="${PENDING_TASKS:+$PENDING_TASKS, }$TASK_NAME"
+                    # 145号：被阻塞的 pending 不计为活跃——它们无法被分配
+                    if [ "$TASK_BLOCKED" = "UNBLOCKED" ]; then
+                        ACTIVE_TASKS=$((ACTIVE_TASKS + 1))
+                        PENDING_TASKS="${PENDING_TASKS:+$PENDING_TASKS, }$TASK_NAME"
+                    fi
                     ;;
                 in_progress)
                     ACTIVE_TASKS=$((ACTIVE_TASKS + 1))
@@ -125,7 +177,13 @@ print(d.get('status',''), d.get('subject',''))
 fi
 
 if [ "$ACTIVE_TASKS" -gt 0 ]; then
-    echo $((COUNT + 1)) > "$COUNTER"
+    # 145号智能熔断：写入 COUNT:ACTIVE_TASKS 格式
+    if [ "$ACTIVE_TASKS" -ne "$LAST_ACTIVE" ]; then
+        # 状态发生变化，重置计数器
+        echo "1:$ACTIVE_TASKS" > "$COUNTER"
+    else
+        echo "$((COUNT + 1)):$ACTIVE_TASKS" > "$COUNTER"
+    fi
     python -c "
 import json, sys
 active = int(sys.argv[1])
@@ -177,7 +235,7 @@ if [ -d ".chanlun/genealogy/pending" ]; then
 fi
 
 if [ "$PENDING_COUNT" -gt 0 ]; then
-    echo $((COUNT + 1)) > "$COUNTER"
+    echo "$((COUNT + 1)):$PRE_ACTIVE_TASKS" > "$COUNTER"
     python -c "
 import json, sys
 n = sys.argv[1]
@@ -208,7 +266,7 @@ if [ -d "spec" ] || [ -d "src" ] || [ -d ".chanlun" ]; then
 fi
 
 if [ "$PROOF_REQUIRED" -gt 0 ]; then
-    echo $((COUNT + 1)) > "$COUNTER"
+    echo "$((COUNT + 1)):$PRE_ACTIVE_TASKS" > "$COUNTER"
     python -c "
 import json, sys
 n = sys.argv[1]
