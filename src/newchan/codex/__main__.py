@@ -10,10 +10,15 @@ from __future__ import annotations
 
 import argparse
 import sys
+from dataclasses import replace
+from datetime import datetime, timezone
+from pathlib import Path
 
 from dotenv import load_dotenv
 
 from newchan.codex.modes import CodexChallenger, ReviewResult
+
+_RESULTS_DIR = Path(".chanlun/review-results")
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -35,6 +40,16 @@ def _print_result(result: ReviewResult) -> None:
     print(f"[{result.mode}] model={result.model}")
     print("=" * 60)
     print(result.response)
+
+
+def _save_result(result: ReviewResult, timestamp: datetime) -> Path:
+    """将审查结果持久化到 .chanlun/review-results/。"""
+    _RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    ts_tag = timestamp.strftime("%Y%m%d-%H%M")
+    filename = f"codex-{result.mode}-{ts_tag}.md"
+    path = _RESULTS_DIR / filename
+    path.write_text(result.to_markdown(timestamp), encoding="utf-8")
+    return path
 
 
 def main() -> None:
@@ -59,7 +74,14 @@ def main() -> None:
     else:
         result = challenger.decide(args.subject, ctx)
 
+    if args.context_file:
+        result = replace(result, context_file=args.context_file)
+
     _print_result(result)
+
+    now = datetime.now(tz=timezone.utc)
+    saved = _save_result(result, now)
+    print(f"\n[持久化] {saved}")
 
 
 if __name__ == "__main__":

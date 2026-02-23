@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Literal
 
 import openai
@@ -26,6 +27,40 @@ class ReviewResult:
     subject: str
     response: str
     model: str
+    context_file: str | None = None
+
+    def to_markdown(self, timestamp: datetime | None = None) -> str:
+        """返回格式化的 Markdown 字符串，用于持久化。
+
+        Parameters
+        ----------
+        timestamp : datetime | None
+            时间戳。None 时使用当前 UTC 时间。
+        """
+        ts = timestamp or datetime.now(tz=timezone.utc)
+        ts_str = ts.strftime("%Y-%m-%d %H:%M:%S UTC")
+
+        lines = [
+            f"# Codex {self.mode} — {ts_str}",
+            "",
+            "## 元数据",
+            "",
+            f"- **mode**: {self.mode}",
+            f"- **subject**: {self.subject}",
+            f"- **model**: {self.model}",
+            f"- **timestamp**: {ts_str}",
+        ]
+        if self.context_file:
+            lines.append(f"- **context-file**: {self.context_file}")
+
+        lines.extend([
+            "",
+            "## Response",
+            "",
+            self.response,
+            "",
+        ])
+        return "\n".join(lines)
 
 
 def _create_client(api_key: str | None = None) -> openai.OpenAI:

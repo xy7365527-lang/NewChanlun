@@ -9,10 +9,14 @@
 6. CLI 参数解析
 7. 模块级便捷函数
 8. missing key raises ValueError
+9. ReviewResult.to_markdown() 格式
+10. CLI 持久化文件写入
 """
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -112,7 +116,7 @@ class TestReview:
             result = c.review("test")
             assert result.response == ""
 
-    def test_reasoning_effort_extra_high(self) -> None:
+    def test_reasoning_effort_high(self) -> None:
         with patch("newchan.codex.modes.openai") as mock_openai:
             mock_openai.OpenAI.return_value.responses.create.return_value = (
                 _make_mock_response("result")
@@ -122,7 +126,7 @@ class TestReview:
             c.review("test")
 
             call_args = mock_openai.OpenAI.return_value.responses.create.call_args
-            assert call_args.kwargs["reasoning"] == {"effort": "extra_high"}
+            assert call_args.kwargs["reasoning"] == {"effort": "high"}
 
 
 class TestDiagnose:
@@ -365,3 +369,145 @@ class TestBackwardsCompatShim:
             assert result.response == "y"
 
         shim._default_challenger = None
+
+
+class TestReviewResultToMarkdown:
+    """ReviewResult.to_markdown() 格式验证。"""
+
+    def test_basic_format(self) -> None:
+        ts = datetime(2026, 2, 23, 12, 30, 0, tzinfo=timezone.utc)
+        result = ReviewResult(
+            mode="review",
+            subject="中枢实现代码",
+            response="无否定。代码逻辑自洽。",
+            model="codex-5.3",
+        )
+        md = result.to_markdown(ts)
+
+        assert "# Codex review — 2026-02-23 12:30:00 UTC" in md
+        assert "- **mode**: review" in md
+        assert "- **subject**: 中枢实现代码" in md
+        assert "- **model**: codex-5.3" in md
+        assert "- **timestamp**: 2026-02-23 12:30:00 UTC" in md
+        assert "## Response" in md
+        assert "无否定。代码逻辑自洽。" in md
+
+    def test_context_file_included(self) -> None:
+        ts = datetime(2026, 2, 23, 12, 30, 0, tzinfo=timezone.utc)
+        result = ReviewResult(
+            mode="diagnose",
+            subject="test failure",
+            response="根因：边界缺失",
+            model="codex-5.3",
+            context_file="/tmp/ctx.md",
+        )
+        md = result.to_markdown(ts)
+
+        assert "- **context-file**: /tmp/ctx.md" in md
+
+    def test_no_context_file_omitted(self) -> None:
+        ts = datetime(2026, 2, 23, 12, 30, 0, tzinfo=timezone.utc)
+        result = ReviewResult(
+            mode="decide",
+            subject="data structure",
+            response="use frozenset",
+            model="codex-5.3",
+        )
+        md = result.to_markdown(ts)
+
+        assert "context-file" not in md
+
+    def test_default_timestamp(self) -> None:
+        result = ReviewResult(
+            mode="review", subject="x", response="y", model="m",
+        )
+        md = result.to_markdown()
+
+        assert "# Codex review —" in md
+        assert "UTC" in md
+
+    def test_immutability_preserved(self) -> None:
+        """to_markdown 不修改 ReviewResult 对象。"""
+        result = ReviewResult(
+            mode="review", subject="x", response="y", model="m",
+        )
+        md1 = result.to_markdown()
+        md2 = result.to_markdown()
+
+        assert md1 is not md2
+        assert result.mode == "review"
+        assert result.subject == "x"
+
+
+class TestCLISavesResult:
+    """CLI 执行后自动持久化到 .chanlun/review-results/。"""
+
+    def test_saves_review_result(self, tmp_path: Path) -> None:
+        from newchan.codex.__main__ import _save_result
+
+        result = ReviewResult(
+            mode="review",
+            subject="test subject",
+            response="审查通过",
+            model="codex-5.3",
+        )
+        ts = datetime(2026, 2, 23, 14, 5, 0, tzinfo=timezone.utc)
+
+        with patch("newchan.codex.__main__._RESULTS_DIR", tmp_path):
+            saved = _save_result(result, ts)
+
+        assert saved.name == "codex-review-20260223-1405.md"
+        assert saved.exists()
+
+        content = saved.read_text(encoding="utf-8")
+        assert "# Codex review — 2026-02-23 14:05:00 UTC" in content
+        assert "审查通过" in content
+
+    def test_saves_diagnose_result(self, tmp_path: Path) -> None:
+        from newchan.codex.__main__ import _save_result
+
+        result = ReviewResult(
+            mode="diagnose",
+            subject="failure",
+            response="根因：X",
+            model="codex-5.3",
+            context_file="/tmp/ctx.md",
+        )
+        ts = datetime(2026, 1, 15, 9, 30, 0, tzinfo=timezone.utc)
+
+        with patch("newchan.codex.__main__._RESULTS_DIR", tmp_path):
+            saved = _save_result(result, ts)
+
+        assert saved.name == "codex-diagnose-20260115-0930.md"
+        content = saved.read_text(encoding="utf-8")
+        assert "- **context-file**: /tmp/ctx.md" in content
+
+    def test_main_persists_result(self, tmp_path: Path) -> None:
+        """main() 完整调用链验证——结果文件被写入。"""
+        with (
+            patch("newchan.codex.__main__._RESULTS_DIR", tmp_path),
+            patch("newchan.codex.__main__.CodexChallenger") as MockClass,
+            patch("newchan.codex.__main__.load_dotenv"),
+            patch(
+                "sys.argv",
+                ["codex", "review", "test subject", "--context", "ctx"],
+            ),
+        ):
+            mock_instance = MagicMock()
+            mock_instance.review.return_value = ReviewResult(
+                mode="review",
+                subject="test subject",
+                response="ok",
+                model="codex-5.3",
+            )
+            MockClass.return_value = mock_instance
+
+            from newchan.codex.__main__ import main
+
+            main()
+
+        files = list(tmp_path.glob("codex-review-*.md"))
+        assert len(files) == 1
+        content = files[0].read_text(encoding="utf-8")
+        assert "test subject" in content
+        assert "ok" in content
