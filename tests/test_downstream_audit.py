@@ -161,9 +161,9 @@ class TestAuditWithHints:
         settled_dir = tmp_project / ".chanlun" / "genealogy" / "settled"
         _write_genealogy(settled_dir, "201", ["Do something"])
 
-        # Create override marking it as long_term
+        # Create override marking it as blocked (157号: long_term→blocked)
         overrides_path = tmp_project / ".chanlun" / "downstream-action-overrides.yaml"
-        overrides_path.write_text("201-1: long_term\n", encoding="utf-8")
+        overrides_path.write_text("201-1: blocked\n", encoding="utf-8")
 
         # Create hint that would resolve it
         (tmp_project / "target.txt").write_text("match", encoding="utf-8")
@@ -176,8 +176,8 @@ class TestAuditWithHints:
         )
 
         report = audit(str(tmp_project))
-        # Override wins: status should be long_term, not resolved
-        assert report["long_term"] == 1
+        # Override wins: status should be blocked, not resolved
+        assert report["blocked"] == 1
         assert report["resolved"] == 0
 
     def test_no_hints_file_backward_compatible(self, tmp_project):

@@ -37,3 +37,16 @@ hints:
     - file: ".claude/commands/ceremony.md"
       pattern: "长期/可选"
       expect: absent
+  "157-1":
+    - file: ".claude/rules/no-unnecessary-escalation.md"
+      pattern: "long_term"
+      expect: absent
+  "158-1":
+    - file: ".claude/commands/ceremony.md"
+      pattern: "TeamDelete"
+      expect: absent
+  "158-2":
+    - file: "scripts/topology_operator.py"
+      pattern: "freeze"
+    - file: ".chanlun/dispatch-dag.yaml"
+      pattern: "topology-mutator"

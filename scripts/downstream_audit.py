@@ -14,7 +14,8 @@
 """
 import json, os, re, glob, sys, argparse, yaml
 
-OVERRIDE_STATUSES = {"resolved", "superseded", "long_term", "background_noise"}
+OVERRIDE_STATUSES = {"resolved", "superseded", "blocked", "background_noise"}
+# 157号：long_term 已被否定，所有原 long_term 迁移为 blocked
 
 
 def extract_downstream_actions(filepath):
@@ -216,7 +217,8 @@ def audit(root=None):
     total = 0
     unresolved = 0
     superseded = 0
-    long_term = 0
+    long_term = 0  # deprecated by 157号, kept for backward compat
+    blocked = 0
     background_noise = 0
 
     for fp in files:
@@ -240,6 +242,8 @@ def audit(root=None):
                 superseded += 1
             elif status == "long_term":
                 long_term += 1
+            elif status == "blocked":
+                blocked += 1
             elif status == "background_noise":
                 background_noise += 1
             elif status == "unresolved":
@@ -251,12 +255,13 @@ def audit(root=None):
                 "status": status,
             })
 
-    resolved = total - unresolved - superseded - long_term - background_noise
+    resolved = total - unresolved - superseded - long_term - blocked - background_noise
     return {
         "total_actions": total,
         "unresolved": unresolved,
         "superseded": superseded,
-        "long_term": long_term,
+        "blocked": blocked,
+        "long_term": long_term,  # deprecated by 157号
         "background_noise": background_noise,
         "resolved": resolved,
         "execution_rate": f"{resolved / total * 100:.0f}%" if total else "N/A",
@@ -276,7 +281,8 @@ def main():
         print(f"下游推论: {report['total_actions']} 总计, "
               f"{report['resolved']} 已解决, "
               f"{report['superseded']} superseded, "
-              f"{report.get('long_term', 0)} 长期, "
+              f"{report.get('blocked', 0)} 阻塞, "
+              f"{report.get('long_term', 0)} 长期(deprecated), "
               f"{report.get('background_noise', 0)} 背景噪音, "
               f"{report['unresolved']} 未解决, "
               f"执行率 {report['execution_rate']}")
