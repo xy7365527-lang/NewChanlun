@@ -88,6 +88,14 @@ def validate(dag):
     if len(nodes) != len(md_files):
         errors.append(f"node count mismatch: dag has {len(nodes)} nodes, filesystem has {len(md_files)} .md files")
 
+    # 5. valid_until reference integrity (132号下游推论3)
+    # tensions_with 边中 valid_until 字段引用的节点必须存在
+    tensions = edges_section.get("tensions_with", [])
+    for t in tensions:
+        vu = t.get("valid_until")
+        if vu is not None and str(vu) not in node_ids:
+            errors.append(f"tensions_with edge {t.get('between')}: valid_until references unknown node: {vu}")
+
     return errors, len(nodes), total_edge_count
 
 

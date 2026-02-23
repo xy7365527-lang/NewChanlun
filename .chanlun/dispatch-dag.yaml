@@ -239,6 +239,15 @@ event_skill_map:
       - event: genealogy_count_threshold
         condition: "谱系总数 > 30 或 pending 谱系 > 5"
 
+  - id: topology-mutator
+    skill_type: structural
+    agent: ".claude/agents/topology-manager.md"
+    purpose: "检测到否定事件时执行拓扑操作"
+    triggers:
+      - event: genealogy_settlement
+        condition: "新结算谱系包含 negates 边或 topo_effect 标注"
+        description: "谱系结算时检查是否携带否定边或拓扑效果，若有则执行相应拓扑变更"
+
 # ═══════════════════════════════════════════════════════════════
 # 2b. 节点声明（仅保留任务节点模板和系统节点）
 # ═══════════════════════════════════════════════════════════════

@@ -12,6 +12,17 @@
 # 前身：lead-permissions.sh（032号"神圣疯狂"deny 列表——已证明导致项目级死锁）
 # 谱系：032→088号
 #
+# 白名单（Lead 在 ceremony/编排中的合法直接操作，不写入 pattern-buffer）：
+#   - git 操作（git add/commit/push/fetch/rebase/show/diff/log/status 等）
+#   - dag.yaml 修改（.chanlun/genealogy/dag.yaml）
+#   - 谱系文件写入（.chanlun/genealogy/ 目录下任意文件）
+#   - downstream-action-overrides.yaml 修改
+#   - session 文件写入（.chanlun/sessions/）
+#   - ceremony_scan.py 运行
+#   - dispatch-dag.yaml 修改
+#   - 读取/检查 pattern-buffer.yaml 自身的 Bash 命令
+#   - 对 scripts/ 目录下脚本的维护操作
+#
 # 触发方式：PostToolUse hook（Lead 层级的 Write/Edit/Bash 调用后）
 # 输出：JSON（allow + systemMessage 审计警告）
 
@@ -35,21 +46,101 @@ if [ -n "${CLAUDE_AGENT_NAME:-}" ]; then
   exit 0
 fi
 
-# --- Lead 直接执行 Write/Edit/Bash：生成拓扑异常对象 ---
+# 提取操作目标文件/命令
+FILE_PATH=$(echo "$INPUT" | python -c "
+import sys,json
+d = json.load(sys.stdin)
+ti = d.get('tool_input', {})
+print(ti.get('file_path', ti.get('command', ''))[:200])
+" 2>/dev/null || echo "unknown")
+
+# --- 白名单检查 ---
+# 如果操作匹配白名单，静默通过（不写入 pattern-buffer）
+IS_WHITELISTED=$(python -c "
+import sys, re
+
+tool_name = sys.argv[1]
+file_path = sys.argv[2]
+
+fp = file_path.replace('\\\\', '/').replace('\\\\\\\\', '/')
+
+# ---- Bash 白名单 ----
+if tool_name == 'Bash':
+    cmd = fp  # file_path 字段存的是命令
+
+    # git 操作（git add/commit/push/fetch/rebase/show/diff/log/status/stash 等）
+    if re.search(r'\bgit\s+(add|commit|push|fetch|rebase|show|diff|log|status|stash|pull|checkout|branch|merge|tag|remote|reset|clean|describe|rev-parse|ls-files|shortlog|blame)\b', cmd):
+        print('yes')
+        sys.exit(0)
+
+    # ceremony_scan.py 运行
+    if 'ceremony_scan.py' in cmd:
+        print('yes')
+        sys.exit(0)
+
+    # dag_add_node.py 脚本（维护 dag 的合法工具）
+    if 'dag_add_node.py' in cmd or 'dag_add_edge.py' in cmd:
+        print('yes')
+        sys.exit(0)
+
+    # 读取/检查 pattern-buffer.yaml 自身
+    if 'pattern-buffer.yaml' in cmd:
+        print('yes')
+        sys.exit(0)
+
+    # downstream_audit 脚本
+    if 'downstream_audit' in cmd:
+        print('yes')
+        sys.exit(0)
+
+    # dag.yaml 相关读取
+    if 'dag.yaml' in cmd and re.search(r'\byaml\.safe_load\b|\byaml\.load\b', cmd):
+        print('yes')
+        sys.exit(0)
+
+# ---- Write/Edit 白名单 ----
+if tool_name in ('Write', 'Edit'):
+    # dag.yaml
+    if re.search(r'[\\\\/]genealogy[\\\\/]dag\.yaml', fp, re.IGNORECASE):
+        print('yes')
+        sys.exit(0)
+
+    # 谱系文件（.chanlun/genealogy/ 目录下任意文件）
+    if re.search(r'[\\\\/]\.chanlun[\\\\/]genealogy[\\\\/]', fp, re.IGNORECASE):
+        print('yes')
+        sys.exit(0)
+
+    # downstream-action-overrides.yaml
+    if 'downstream-action-overrides.yaml' in fp:
+        print('yes')
+        sys.exit(0)
+
+    # session 文件（.chanlun/sessions/）
+    if re.search(r'[\\\\/]\.chanlun[\\\\/]sessions[\\\\/]', fp, re.IGNORECASE):
+        print('yes')
+        sys.exit(0)
+
+    # dispatch-dag.yaml
+    if 'dispatch-dag.yaml' in fp:
+        print('yes')
+        sys.exit(0)
+
+print('no')
+" "$TOOL_NAME" "$FILE_PATH" 2>/dev/null || echo "no")
+
+if [ "$IS_WHITELISTED" = "yes" ]; then
+  # 白名单操作：静默通过，不写入 pattern-buffer
+  python -c "import json; print(json.dumps({'decision': 'allow'}))" 2>/dev/null
+  exit 0
+fi
+
+# --- Lead 直接执行 Write/Edit/Bash（非白名单）：生成拓扑异常对象 ---
 
 CWD=$(echo "$INPUT" | python -c "import sys,json; print(json.load(sys.stdin).get('cwd','.'))" 2>/dev/null || echo ".")
 cd "$CWD" 2>/dev/null || true
 
 PATTERN_FILE=".chanlun/pattern-buffer.yaml"
 TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date +"%Y-%m-%dT%H:%M:%S")
-
-# 提取操作目标文件
-FILE_PATH=$(echo "$INPUT" | python -c "
-import sys,json
-d = json.load(sys.stdin)
-ti = d.get('tool_input', {})
-print(ti.get('file_path', ti.get('command', ''))[:120])
-" 2>/dev/null || echo "unknown")
 
 # 写入拓扑异常对象到 pattern-buffer
 python -c "
@@ -91,7 +182,7 @@ if content and not content.endswith('\n'):
     content += '\n'
 
 def yaml_quote(text):
-    return str(text).replace('\\\\', '\\\\\\\\').replace('\"', '\\\\\"').replace('\\n', ' ')
+    return str(text).replace('\\\\', '\\\\\\\\').replace('\"', '\\\\\"').replace('\n', ' ')
 
 safe_sig = yaml_quote(sig)
 safe_timestamp = yaml_quote(timestamp)
