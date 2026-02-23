@@ -166,7 +166,7 @@
 084-1: resolved    # precompact-save.sh 已修复（142号）
 084-2: resolved    # topology-guard检查——hook已在正常工作（146号hook-fixes验证）
 084-3: resolved    # hub-node-impact-guard JSON已修复（146号v146-swarm执行）
-084-4: resolved    # 编排者第四种模式——修改即否定即拓扑操作（147号谱系落地）
+084-4: resolved    # 编排者第四种模式——修改即否定即拓扑操作（147号谱系落地）——lead-audit.sh 实现：基因组修改自动触发拓扑效力记录→pattern-buffer→ceremony_scan异步审查
 
 # 085号
 085-1: resolved    # 095号已确认真递归可用，"递归"声明合法
@@ -216,7 +216,12 @@
 145-3: resolved    # no-unnecessary-escalation.md 格式B已包含排除理由推导链要求（第32-41行，145号修复内容）
 
 # === 147号 ===
-147-1: resolved    # topology-mutator 已在 dispatch-dag event_skill_map 中完整定义（id/skill_type/triggers/condition），dag_add_node.py 支持 --topo_effect freeze/split/sever
-147-2: resolved    # ceremony_scan.py 已增加 frozen 节点扫描 + topo_effect 字段汇总，frozen 下游工位不 spawn
-147-3: resolved    # genealogy-write-guard.sh 已增加 topo_effect advisory：negates 非空但无 topo_effect 时发出警告
-147-4: resolved    # 084-4 从权限问题转化为拓扑问题——认识论确认已在147号谱系中记录
+147-2: resolved    # ceremony_scan.py get_review_results() 已实现：扫描 review-results/*.yaml 中 status:pending 的审查结果，conflict→P1工位/warning→P2工位，消费后标记 status:consumed
+147-3: resolved    # genealogist.md + genealogy-template.md 已增加 topo_effect 条件必填字段+标注规则（147号映射表：waiting→freeze/expansion→split/separation→sever）
+147-1: resolved    # topology-mutator-prompt.sh hook 已实现（D策略提示）+ post-write-edit-dispatcher.sh Guard 4 已合并该逻辑 + dispatch-dag event_skill_map 已声明 topology-mutator skill
+147-4: resolved    # lead-audit.sh 已实现 153号黑名单模型：权限问题→拓扑效力问题（修改基因组文件→systemMessage 提示拓扑事件），084-4 从权限架构彻底转化为拓扑效力
+
+# === 153号 ===
+153-1: resolved    # lead-audit.sh 已实现黑名单反转（文件头注释明确标注153号修复）：默认放行，仅基因组文件修改记录拓扑效力。post-write-edit-dispatcher.sh Guard 5 同步实现
+153-2: resolved    # hook 级写入已消除：lead-audit.sh 改为 systemMessage（不写 pattern-buffer）；post-session-pattern-detect.sh 在 Stop hook 中执行 = session 级汇总（session 结束时才写 pattern-buffer.yaml），符合要求
+153-3: resolved    # pre-write-edit-dispatcher.sh 合并 4 个 PreToolUse hook（definition/genealogy/spec/hub-node），post-write-edit-dispatcher.sh 合并 5 个 PostToolUse hook（result-package/downstream/dag-validation/topology-mutator/lead-audit）。Bash/Task/Stop 等 hook 按 matcher 隔离，已是最优架构
