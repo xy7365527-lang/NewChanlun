@@ -359,6 +359,19 @@ def _try_trigger_segment(
         feat.skip_trigger(k)
         return None
 
+    # L78 硬约束前置验证：若产生的段违反顶高于底，则触发无效
+    start_type, end_type = _segment_endpoint_types(seg_dir)
+    _, ep0_price = _stroke_endpoint_by_type(strokes[seg_start], start_type)
+    _, ep1_price = _stroke_endpoint_by_type(strokes[end_stroke], end_type)
+    if not _top_above_bottom(seg_dir, ep0_price, ep1_price):
+        logger.debug(
+            "skip trigger: L78 violation seg_dir=%s, s0=%d, s1=%d, "
+            "ep0=%.4f, ep1=%.4f",
+            seg_dir, seg_start, end_stroke, ep0_price, ep1_price,
+        )
+        feat.skip_trigger(k)
+        return None
+
     # 结算锚验证：新段前三笔必须有重叠
     if k + 2 >= n or not _three_stroke_overlap(
         strokes[k], strokes[k + 1], strokes[k + 2]
