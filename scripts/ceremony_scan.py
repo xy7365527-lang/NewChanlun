@@ -16,7 +16,7 @@
     DAG 的 ceremony_sequence 由 LLM 解释执行（057号推论：LLM 不是状态机）。
     未来演化路径：重写为真正读取 ceremony_sequence 的 DAG 拓扑排序（选项 C 边界条件）。
 """
-import json, os, glob, yaml, sys, argparse, subprocess
+import json, os, glob, yaml, sys, argparse, subprocess, re
 
 
 BACKGROUND_NOISE_STATUSES = {"background_noise", "观察项", "背景噪音"}
@@ -129,7 +129,6 @@ def detect_swarm_persistence_gaps(root):
     与 session 中出现的蜂群编号交叉比对。
     有谱系产出但无 session = 持久化断裂。
     """
-    import re
     # 1. 从 session 文件提取已记录的蜂群编号
     #    同时扫描 archive/ 下的归档 session（归档不应导致持久化断裂误报）
     session_swarms = set()
@@ -190,10 +189,10 @@ def get_session_workstations(root):
                 continue
             if not in_section:
                 continue
-            # 格式A：表格行（旧格式）
-            if line.startswith("|") and "P" in line:
+            # 格式A：表格行（旧格式）——优先级列必须是 P\d+ 格式
+            if line.startswith("|"):
                 parts = [c.strip() for c in line.split("|") if c.strip()]
-                if len(parts) >= 3:
+                if len(parts) >= 3 and re.match(r'^P\d+$', parts[0]):
                     status = parts[2]
                     if status in TERMINAL_STATUSES or "✅" in status or "—" in parts[0]:
                         continue
@@ -208,7 +207,6 @@ def get_session_workstations(root):
             # 匹配 "1. **xxx**" 或 "- **xxx**"
             elif (line.strip().startswith(("1.", "2.", "3.", "4.", "5.", "6.", "7.", "8.", "9."))
                   or line.strip().startswith("- **")):
-                import re
                 m = re.match(r'^\s*(?:\d+\.\s*|\-\s*)\*\*(.+?)\*\*(?:：|:)?\s*(.*)', line)
                 if m:
                     name = m.group(1).strip()
