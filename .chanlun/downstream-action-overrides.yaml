@@ -87,7 +87,7 @@
 
 # === 130号 ===
 130-1: resolved    # 认识论确认——069号两Gap维持
-130-2: long_term   # 073b平台约束清单增加审计RTAS受限——需073b文件更新
+130-2: resolved    # 073b平台约束清单已增加审计RTAS受限（146号v146-swarm执行）
 130-3: long_term   # 审计蜂群session标注——需session_update流程变更
 
 # === 131号 ===
@@ -108,12 +108,12 @@
 
 # === 135号 ===
 135-1: resolved    # skill 集合已实现，CLAUDE.md 已精简
-135-2: long_term   # Trampoline/平台限制文档清理——低优先级
+135-2: resolved    # Trampoline/平台限制——073b已有平台约束清单（146号覆盖）
 135-3: resolved    # 认识论确认——子蜂群递归无技术障碍
 
 # === 137号 ===
 137-1: superseded  # 145号已实施格式B推导链+Stop-Guard强化，覆盖了否定性禁令重评估
-137-2: long_term   # knowledge-crystallization skill 增加行为规则结晶路径
+137-2: resolved    # knowledge-crystallization skill 已增加行为规则结晶路径（146号v146-swarm执行）
 137-3: resolved    # 认识论确认——Lead行为基底是外部约束（137号谱系已记录）
 
 # === 139号 ===
@@ -131,7 +131,7 @@
 
 # === 141号工位执行确认 ===
 141-1: resolved    # dispatch-dag topology-mutator skill 已由 v143-swarm 工位添加
-141-2: long_term   # topo_effect 字段标注——需谱系结算流程变更，待实践验证
+141-2: resolved    # topo_effect字段已在141号谱系文件中标注（146号v146-swarm执行）
 141-3: resolved    # meta-observer 规则版本基线已由 v143-swarm 工位添加
 
 # === 132号工位执行确认 ===
@@ -145,7 +145,7 @@
 
 # === 早期历史项批量标注 ===
 # 079号
-079-1: long_term   # dispatch-dag long_term 状态更新——低优先级
+079-1: resolved    # dispatch-dag状态已通过146号层级索引更新覆盖
 079-2: superseded  # ceremony 逻辑已在081号中改进
 079-3: superseded  # session 更新已由自动化 hook 处理
 
@@ -164,8 +164,8 @@
 
 # 084号
 084-1: resolved    # precompact-save.sh 已修复（142号）
-084-2: long_term   # topology-guard ROOT_NODES 修复——独立任务
-084-3: long_term   # hub-node-impact-guard JSON 修复——独立任务
+084-2: resolved    # topology-guard检查——hook已在正常工作（146号hook-fixes验证）
+084-3: resolved    # hub-node-impact-guard JSON已修复（146号v146-swarm执行）
 084-4: long_term   # lead-permissions.sh——需架构决策
 
 # 085号
@@ -175,19 +175,19 @@
 085-4: resolved    # 认识论确认
 
 # 092号
-092-1: long_term   # 062号补丁谱系——独立任务
+092-1: resolved    # 062号已有negates边（064→062），补丁谱系不需要（146号评估）
 092-2: superseded  # 093号已改写架构三维度为五约束
-092-3: long_term   # 遗留缺口——独立任务
-092-4: long_term   # 已知限制记录
+092-3: resolved    # 092号遗留缺口已被后续谱系覆盖（146号评估）
+092-4: resolved    # 已知限制已在073b平台约束清单中记录（146号评估）
 
 # 093号
 093-1: superseded  # CLAUDE.md 已拆分为 skill 集合（135号），五约束在 swarm-architecture skill 中
-093-2: long_term   # dispatch-dag R.S.I 注释更新——低优先级
-093-3: long_term   # 062号状态标注——独立任务
-093-4: long_term   # 069号表述重定位——独立任务
+093-2: resolved    # dispatch-dag R.S.I注释已通过146号层级索引覆盖
+093-3: resolved    # 062号状态已在dag.yaml中标注（146号v146-swarm执行）
+093-4: resolved    # 069号表述已通过089号扬弃+CLAUDE.md更新（146号执行）
 
 # 094号
-094-1: long_term   # CLAUDE.md 069号描述更新——skill 化后需更新对应 skill
+094-1: resolved    # CLAUDE.md 069号描述已更新为创世Gap+扬弃（146号v146-swarm执行）
 094-2: resolved    # 认识论确认——ceremony 设计理解
 094-3: resolved    # 认识论确认——审计层约束
 
@@ -195,7 +195,7 @@
 095-1: resolved    # CLAUDE.md 原则15 已在 swarm-architecture skill 中更新
 095-2: resolved    # 073b negated_by 095 已在 dag.yaml 中
 095-3: long_term   # 子 team ceremony——独立架构任务
-095-4: long_term   # dispatch-dag 层级标注——独立任务
+095-4: resolved    # dispatch-dag层级索引已添加（146号v146-swarm执行）
 
 # 096号
 096-1: resolved    # agent-team-enforce.sh 已无条件运行
