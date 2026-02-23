@@ -1,6 +1,7 @@
 # 下游行动手动覆盖
 # 格式: genealogy_id-action_index: status [reason]
-# status: resolved | superseded | long_term | background_noise
+# status: resolved | superseded | blocked | background_noise
+# 注：157号否定 long_term 分类——所有原 long_term 已迁移为 blocked（附具体阻塞项）
 # 由 Lead 在缺口清理中逐项审查后标注
 
 # === 039号 ===
@@ -233,7 +234,7 @@
 
 # === 103号 — 系统审计两定律（声明性 + 自明） ===
 103-1: resolved    # 规则确认：审计缺口必须走A或B路径
-103-2: long_term   # 需要 ceremony_scan 集成定期异质审计触发器（重新激活条件：ceremony_scan 扩展异质审计模块时）
+103-2: blocked    # 需要 ceremony_scan 集成定期异质审计触发器（阻塞项：ceremony_scan 异质审计模块扩展）（157号：long_term→blocked）
 103-4: resolved    # 认知确认：090号严格性=第二定律同义表述
 
 # === 113号 — 包含关系工程选择（声明性） ===
@@ -244,12 +245,12 @@
 # === 114号 — 分型形式化（声明性） ===
 114-1: resolved    # 认知确认：分型定义稳定性为笔构造提供基础
 114-2: resolved    # 认知确认：双条件保证中心bar=极值bar
-114-3: long_term   # 第82课分型力度分析，需实盘数据验证（重新激活条件：进入实盘阶段）
+114-3: blocked    # 第82课分型力度分析，需实盘数据验证（阻塞项：实盘数据接入）（157号：long_term→blocked）
 
 # === 115号 — 流转关系（已实现 + 声明性） ===
 115-1: resolved    # 已实现：flow_relation.py FlowRelation + extract_flow_relations
-115-2: long_term   # 强/弱共振对应趋势/盘整验证，需实盘数据（重新激活条件：flow 管线完成后）
-115-3: long_term   # 跨经济体流转当前范围外（重新激活条件：多市场数据接入时）
+115-2: blocked    # 强/弱共振对应趋势/盘整验证（阻塞项：flow 管线完成 + 实盘数据接入）（157号：long_term→blocked）
+115-3: blocked    # 跨经济体流转当前范围外（阻塞项：多市场数据接入）（157号：long_term→blocked）
 
 # === 117号 — 异质验证位置（声明性/已落实由其他工位执行） ===
 117-2: resolved    # 认知确认：069号不需要修改
@@ -260,12 +261,12 @@
 118-3: resolved    # 认知确认：087/093使用元层否定机制
 
 # === 119号 — 099号实体化 ===
-119-2: long_term   # 099号趋势/盘整实体化依赖029/031修复（重新激活条件：Move基类重构后）
+119-2: blocked    # 099号趋势/盘整实体化依赖029/031修复（阻塞项：Move基类重构完成）（157号：long_term→blocked）
 
 # === v154-swarm 工位执行结果 ===
 
 # 103号 — lead-audit.sh 缺口
-103-3: long_term   # 088号 lead-audit.sh 缺口修复——需要确认 lead-audit.sh 当前状态（重新激活条件：audit 工具链整理时）
+103-3: blocked    # 088号 lead-audit.sh 缺口修复（阻塞项：audit 工具链整理完成）（157号：long_term→blocked）
 
 # 116号 — 声明层修正
 116-1: resolved    # Trampoline 永久禁止表述已不在 CLAUDE.md/skills 中（自然演化已解决）
@@ -292,3 +293,12 @@
 156-1: resolved    # ceremony.md 已删除定理/行动类直接执行路径（156号否定154号）
 156-2: resolved    # ceremony.md Read/Glob行已删除"定理/行动类判断"例外（156号否定154号）
 156-3: resolved    # ceremony.md 已删除"长期/可选"退出路径（156号否定154号）
+
+# === 157号 — 否定 long_term 排除分类 ===
+157-1: resolved    # no-unnecessary-escalation.md 第40行：排除分类仅接受 resolved/blocked，long_term 已删除
+157-2: resolved    # 6个 long_term 条目全部迁移为 blocked（103-2/103-3/114-3/115-2/115-3/119-2），附具体阻塞项
+
+# === 158号 — 三步战略：让矛盾具有拓扑效力 ===
+158-1: resolved    # ceremony.md 步骤6第8条：不执行 TeamDelete，蜂群保持存活（全文无 TeamDelete 调用）
+158-2: resolved    # topology_operator.py 已实现 freeze/split/sever 映射 + dispatch-dag topology-mutator skill 已注册
+158-3: resolved    # 编排者异步审计权已在当前规则体系中体现——编排者通过谱系事后审计，不再是拓扑变化 gatekeeper（102号结晶 + 158号第三步）
