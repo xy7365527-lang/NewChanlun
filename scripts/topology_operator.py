@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import datetime
 import re
 import sys
 from pathlib import Path
@@ -376,6 +377,125 @@ def execute_topo_effect(
     if operator is None:
         return [f"错误: 未知拓扑操作类型 '{effect_type}'"]
     return operator(dag, source_id, target_id, scope)
+
+
+def auto_execute_from_file(
+    genealogy_path: str, dag_path: str = ".chanlun/genealogy/dag.yaml"
+) -> dict:
+    """RTAS 循环调用入口：从谱系文件提取 topo_effect 并执行。
+
+    流程：
+    1. 读取谱系文件，提取 frontmatter
+    2. 检查 topo_executed_at 是否已存在（已执行则跳过）
+    3. 提取 topo_effect，验证是结构化格式（type:target:scope）
+    4. 无 topo_effect 或非结构化 → 返回 executed=False
+    5. 检查目标节点承重性（compute_load_bearing_score）
+    6. 承重点 → 返回 executed=False, load_bearing=True, warning
+    7. 非承重点 → 执行拓扑操作（修改 dag.yaml）
+    8. 执行后在谱系文件 frontmatter 追加 topo_executed_at
+
+    Returns:
+        {"executed": bool, "effect": str|None, "log": list[str],
+         "load_bearing": bool, "source_id": str}
+    """
+    gpath = Path(genealogy_path)
+    dpath = Path(dag_path)
+
+    result: dict[str, Any] = {
+        "executed": False,
+        "effect": None,
+        "log": [],
+        "load_bearing": False,
+        "source_id": "unknown",
+    }
+
+    # 1. 读取谱系文件
+    if not gpath.exists():
+        result["log"].append(f"谱系文件不存在: {genealogy_path}")
+        return result
+
+    content = gpath.read_text(encoding="utf-8")
+    fields = extract_genealogy_fields(content)
+    source_id = str(fields.get("id", "unknown"))
+    result["source_id"] = source_id
+
+    # 2. 检查是否已执行
+    if fields.get("topo_executed_at"):
+        result["log"].append(f"谱系 {source_id}: 已执行（topo_executed_at={fields['topo_executed_at']}），跳过")
+        return result
+
+    # 3. 提取结构化 topo_effect
+    te_str = str(fields.get("topo_effect", "")).strip()
+    parsed = parse_topo_effect(te_str)
+    if parsed is None:
+        result["log"].append(f"谱系 {source_id}: 无结构化 topo_effect（'{te_str}'），跳过")
+        return result
+
+    effect_type, target_id, scope = parsed
+    result["effect"] = f"{effect_type}:{target_id}:{scope}"
+
+    # 4. 加载 DAG
+    if not dpath.exists():
+        result["log"].append(f"dag.yaml 不存在: {dag_path}")
+        return result
+
+    dag = load_dag(dpath)
+
+    # 5. 检查承重性
+    lb = compute_load_bearing_score(dag, target_id)
+    result["load_bearing"] = lb["is_load_bearing"]
+
+    if lb["is_load_bearing"]:
+        result["log"].append(
+            f"谱系 {source_id}: 目标 {target_id} 是承重点"
+            f"（score={lb['score']}, threshold={lb['threshold']}），"
+            f"拒绝自动执行 {effect_type}"
+        )
+        return result
+
+    # 6. 执行拓扑操作
+    op_log = execute_topo_effect(dag, source_id, effect_type, target_id, scope)
+    result["log"].extend(op_log)
+
+    # 7. 保存 dag.yaml
+    save_dag(dag, dpath)
+    result["log"].append(f"dag.yaml 已更新")
+
+    # 8. 回写 topo_executed_at 到谱系文件 frontmatter
+    today = datetime.date.today().isoformat()
+    _write_topo_executed_at(gpath, today)
+    result["log"].append(f"谱系文件 {source_id}: 写入 topo_executed_at: \"{today}\"")
+
+    result["executed"] = True
+    return result
+
+
+def _write_topo_executed_at(genealogy_path: Path, date_str: str) -> None:
+    """在谱系文件的 YAML frontmatter 中追加 topo_executed_at 字段。
+
+    在第二个 '---' 行之前插入新字段行。
+    """
+    content = genealogy_path.read_text(encoding="utf-8")
+    lines = content.split("\n")
+
+    # 找到 frontmatter 的结束位置（第二个 '---'）
+    fm_end_idx = None
+    dash_count = 0
+    for i, line in enumerate(lines):
+        if line.strip() == "---":
+            dash_count += 1
+            if dash_count == 2:
+                fm_end_idx = i
+                break
+
+    if fm_end_idx is None:
+        return
+
+    # 在第二个 '---' 之前插入
+    new_line = f'topo_executed_at: "{date_str}"'
+    lines.insert(fm_end_idx, new_line)
+
+    genealogy_path.write_text("\n".join(lines), encoding="utf-8")
 
 
 def main() -> int:

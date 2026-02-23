@@ -22,6 +22,7 @@ import json, os, glob, yaml, sys, argparse, subprocess, re
 
 BACKGROUND_NOISE_STATUSES = {"background_noise", "观察项", "背景噪音"}
 TERMINAL_STATUSES = {"已修复", "resolved", "background_noise"}
+VALID_TOPO_TYPES = frozenset({"freeze", "split", "sever"})
 
 
 def get_required_skills(root):
@@ -87,6 +88,47 @@ def get_topo_effects_from_genealogy(root):
         except Exception:
             pass
     return effects
+
+
+def detect_pending_topo_effects(root):
+    """177号：扫描含结构化 topo_effect 但未执行的谱系文件。
+
+    结构化格式：type:target:scope（如 freeze:062:downstream）。
+    已有 topo_executed_at 的文件跳过（已执行）。
+    非结构化的描述性 topo_effect 不纳入（不是可执行的拓扑操作）。
+
+    返回 pending topo_effect 列表，供 RTAS 循环执行。
+    """
+    pending = []
+    for settled_file in glob.glob(os.path.join(root, ".chanlun/genealogy/settled/*.md")):
+        try:
+            with open(settled_file, encoding="utf-8") as f:
+                head = f.read(2000)
+            # 解析 frontmatter
+            fm_match = re.match(r"^---\s*\n(.+?)\n---", head, re.DOTALL)
+            if not fm_match:
+                continue
+            fm = yaml.safe_load(fm_match.group(1))
+            if not isinstance(fm, dict):
+                continue
+            # 已执行则跳过
+            if fm.get("topo_executed_at"):
+                continue
+            # 检查结构化 topo_effect
+            te = str(fm.get("topo_effect", "")).strip().strip('"').strip("'")
+            if not te:
+                continue
+            parts = te.split(":")
+            if len(parts) != 3 or parts[0] not in VALID_TOPO_TYPES:
+                continue
+            pending.append({
+                "file": os.path.basename(settled_file),
+                "topo_effect": te,
+                "id": str(fm.get("id", "unknown")),
+            })
+        except Exception:
+            pass
+    return pending
 
 
 def get_roadmap_workstations(root):
@@ -491,6 +533,18 @@ def main():
     topo_effects = get_topo_effects_from_genealogy(root)
     if topo_effects:
         result["topo_effects"] = topo_effects
+
+    # 177号：检测未执行的结构化 topo_effect（RTAS 循环待执行项）
+    pending_topo = detect_pending_topo_effects(root)
+    if pending_topo:
+        result["pending_topo_effects"] = pending_topo
+        for pt in pending_topo:
+            workstations.append({
+                "priority": "P0",
+                "name": f"topo_effect待执行：{pt['id']}号-{pt['topo_effect']}",
+                "status": f"pending_topo: {pt['topo_effect']}",
+                "source": "pending_topo_effect",
+            })
 
     # 2. 079号：如果 session 遗留工位为空或全部是背景噪音，执行 no_work_fallback
     # 081号修正：no_work_fallback 仅在 roadmap 也为空时才触发（roadmap 是主工作来源）

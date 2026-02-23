@@ -1,19 +1,22 @@
 """tests for scripts/topology_operator.py — 矛盾→拓扑操作自动映射。
 
-覆盖三种否定类型的基本场景 + 边界条件。
+覆盖三种否定类型的基本场景 + 边界条件 + auto_execute_from_file（177号）。
 """
 from __future__ import annotations
 
 import copy
+import os
 import textwrap
 
 import pytest
+import yaml
 
 from scripts.topology_operator import (
     NEGATION_FORM_TO_TOPO,
     apply_freeze,
     apply_sever,
     apply_split,
+    auto_execute_from_file,
     execute_topo_effect,
     extract_genealogy_fields,
     infer_topo_type_from_negation_form,
@@ -341,3 +344,240 @@ class TestExecuteTopoEffect:
                 n for n in sample_dag["nodes"] if n["id"] == node_id
             )
             assert orig_node == new_node
+
+
+# ═══════════════════════════════════════════════════════════════
+# auto_execute_from_file — 177号 RTAS 循环入口
+# ═══════════════════════════════════════════════════════════════
+
+
+def _make_dag_file(tmp_path, dag_data: dict) -> str:
+    """创建临时 dag.yaml 并返回路径。"""
+    dag_path = os.path.join(tmp_path, "dag.yaml")
+    with open(dag_path, "w", encoding="utf-8") as f:
+        yaml.dump(dag_data, f, allow_unicode=True, default_flow_style=False)
+    return dag_path
+
+
+def _make_genealogy_file(tmp_path, filename: str, content: str) -> str:
+    """创建临时谱系文件并返回路径。"""
+    path = os.path.join(tmp_path, filename)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(content)
+    return path
+
+
+SMALL_DAG = {
+    "nodes": [
+        {"id": "001", "title": "节点1", "status": "已结算", "type": "矛盾记录"},
+        {"id": "062", "title": "节点62", "status": "已结算", "type": "定理"},
+        {"id": "005", "title": "节点5", "status": "已结算", "type": "概念分离"},
+    ],
+    "edges": {
+        "depends_on": [
+            {"from": "062", "to": "001"},
+        ],
+        "related": [],
+        "negates": [],
+        "tensions_with": [],
+    },
+}
+
+
+class TestAutoExecuteFromFile:
+    def test_normal_execution(self, tmp_path) -> None:
+        """正常执行：结构化 topo_effect + 非承重点 → executed=True。"""
+        genealogy = _make_genealogy_file(
+            tmp_path,
+            "147-topo.md",
+            textwrap.dedent("""\
+                ---
+                id: '147'
+                title: 矛盾具有拓扑效力
+                topo_effect: "freeze:062:local"
+                ---
+
+                # 147
+            """),
+        )
+        dag_path = _make_dag_file(tmp_path, SMALL_DAG)
+        result = auto_execute_from_file(genealogy, dag_path)
+        assert result["executed"] is True
+        assert result["effect"] == "freeze:062:local"
+        assert result["source_id"] == "147"
+        assert result["load_bearing"] is False
+        assert any("冻结" in entry for entry in result["log"])
+        assert any("dag.yaml 已更新" in entry for entry in result["log"])
+
+    def test_topo_executed_at_written(self, tmp_path) -> None:
+        """执行后谱系文件应有 topo_executed_at 字段。"""
+        genealogy = _make_genealogy_file(
+            tmp_path,
+            "147-topo.md",
+            textwrap.dedent("""\
+                ---
+                id: '147'
+                title: 矛盾具有拓扑效力
+                topo_effect: "freeze:062:local"
+                ---
+
+                # 147
+            """),
+        )
+        dag_path = _make_dag_file(tmp_path, SMALL_DAG)
+        auto_execute_from_file(genealogy, dag_path)
+        # 读取文件确认 topo_executed_at 已写入
+        with open(genealogy, encoding="utf-8") as f:
+            content = f.read()
+        assert "topo_executed_at:" in content
+
+    def test_already_executed_skipped(self, tmp_path) -> None:
+        """已有 topo_executed_at → 不执行。"""
+        genealogy = _make_genealogy_file(
+            tmp_path,
+            "148-done.md",
+            textwrap.dedent("""\
+                ---
+                id: '148'
+                topo_effect: "sever:040:local"
+                topo_executed_at: "2026-02-22"
+                ---
+
+                # 148
+            """),
+        )
+        dag_path = _make_dag_file(tmp_path, SMALL_DAG)
+        result = auto_execute_from_file(genealogy, dag_path)
+        assert result["executed"] is False
+        assert any("已执行" in entry for entry in result["log"])
+
+    def test_no_topo_effect(self, tmp_path) -> None:
+        """无 topo_effect → 不执行。"""
+        genealogy = _make_genealogy_file(
+            tmp_path,
+            "153-empty.md",
+            textwrap.dedent("""\
+                ---
+                id: '153'
+                topo_effect: ""
+                ---
+
+                # 153
+            """),
+        )
+        dag_path = _make_dag_file(tmp_path, SMALL_DAG)
+        result = auto_execute_from_file(genealogy, dag_path)
+        assert result["executed"] is False
+        assert result["effect"] is None
+
+    def test_descriptive_topo_effect_skipped(self, tmp_path) -> None:
+        """非结构化描述性 topo_effect → 不执行。"""
+        genealogy = _make_genealogy_file(
+            tmp_path,
+            "141-desc.md",
+            textwrap.dedent("""\
+                ---
+                id: '141'
+                topo_effect: "引入 topo_effect retrospective 标注方案"
+                ---
+
+                # 141
+            """),
+        )
+        dag_path = _make_dag_file(tmp_path, SMALL_DAG)
+        result = auto_execute_from_file(genealogy, dag_path)
+        assert result["executed"] is False
+        assert result["effect"] is None
+
+    def test_load_bearing_warning(self, tmp_path) -> None:
+        """承重点 → 不执行，返回 load_bearing=True。"""
+        # 构造一个 DAG 使 001 成为承重点（很多后代依赖它）
+        heavy_dag = {
+            "nodes": [
+                {"id": "001", "title": "根节点", "status": "已结算"},
+            ]
+            + [
+                {"id": f"{i:03d}", "title": f"节点{i}", "status": "已结算"}
+                for i in range(10, 22)
+            ],
+            "edges": {
+                "depends_on": [
+                    {"from": f"{i:03d}", "to": "001"} for i in range(10, 22)
+                ],
+                "related": [],
+                "negates": [],
+                "tensions_with": [],
+            },
+        }
+        genealogy = _make_genealogy_file(
+            tmp_path,
+            "099-lb.md",
+            textwrap.dedent("""\
+                ---
+                id: '099'
+                topo_effect: "freeze:001:local"
+                ---
+
+                # 099
+            """),
+        )
+        dag_path = _make_dag_file(tmp_path, heavy_dag)
+        result = auto_execute_from_file(genealogy, dag_path)
+        assert result["executed"] is False
+        assert result["load_bearing"] is True
+        assert any("承重点" in entry for entry in result["log"])
+
+    def test_nonexistent_genealogy(self, tmp_path) -> None:
+        """谱系文件不存在 → 不执行。"""
+        result = auto_execute_from_file(
+            os.path.join(tmp_path, "nonexistent.md"),
+            os.path.join(tmp_path, "dag.yaml"),
+        )
+        assert result["executed"] is False
+        assert any("不存在" in entry for entry in result["log"])
+
+    def test_dag_updated_after_execution(self, tmp_path) -> None:
+        """执行后 dag.yaml 中目标节点应被冻结。"""
+        import copy as _copy
+
+        dag_data = _copy.deepcopy(SMALL_DAG)
+        genealogy = _make_genealogy_file(
+            tmp_path,
+            "147-freeze.md",
+            textwrap.dedent("""\
+                ---
+                id: '147'
+                topo_effect: "freeze:062:local"
+                ---
+
+                # 147
+            """),
+        )
+        dag_path = _make_dag_file(tmp_path, dag_data)
+        auto_execute_from_file(genealogy, dag_path)
+        # 验证 dag.yaml 中 062 被冻结
+        with open(dag_path, encoding="utf-8") as f:
+            updated_dag = yaml.safe_load(f)
+        node_062 = next(n for n in updated_dag["nodes"] if str(n["id"]) == "062")
+        assert node_062.get("frozen") is True
+
+    def test_idempotent_double_call(self, tmp_path) -> None:
+        """第二次调用应跳过（topo_executed_at 已写入）。"""
+        genealogy = _make_genealogy_file(
+            tmp_path,
+            "147-idem.md",
+            textwrap.dedent("""\
+                ---
+                id: '147'
+                topo_effect: "freeze:062:local"
+                ---
+
+                # 147
+            """),
+        )
+        dag_path = _make_dag_file(tmp_path, SMALL_DAG)
+        r1 = auto_execute_from_file(genealogy, dag_path)
+        assert r1["executed"] is True
+        r2 = auto_execute_from_file(genealogy, dag_path)
+        assert r2["executed"] is False
+        assert any("已执行" in entry for entry in r2["log"])

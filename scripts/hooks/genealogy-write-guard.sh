@@ -58,6 +58,25 @@ while IFS= read -r line; do
 done < <(head -30 "$FILE")
 
 if [[ -z "$NEGATES" ]]; then
+    # Guard 4（177号）：topo_effect advisory 检测
+    # 检查新写入的谱系文件是否含结构化 topo_effect（type:target:scope）
+    # 仅 advisory 输出，不执行任何副作用——拓扑操作在 RTAS 循环中由 ceremony_scan 驱动
+    TOPO_EFFECT=""
+    while IFS= read -r line; do
+        if echo "$line" | grep -qE '^\s*topo_effect:\s*"?(freeze|split|sever):[^:]+:[^:"]+'; then
+            TOPO_EFFECT=$(echo "$line" | sed 's/.*topo_effect:\s*//;s/"//g' | tr -d "'" | xargs)
+            break
+        fi
+    done < <(head -30 "$FILE")
+
+    if [[ -n "$TOPO_EFFECT" ]]; then
+        # 检查是否已有 topo_executed_at（已执行则不提示）
+        HAS_EXECUTED=$(head -30 "$FILE" | grep -c 'topo_executed_at:' || true)
+        if [[ "$HAS_EXECUTED" -eq 0 ]]; then
+            FILE_ID=$(head -30 "$FILE" | grep -oE 'id:\s*["\x27]?[0-9]+' | grep -oE '[0-9]+' | head -1)
+            echo "[topology-advisory/${FILE_ID:-unknown}] 谱系含未执行的 topo_effect: ${TOPO_EFFECT}。将在下次 RTAS 循环（ceremony_scan）中自动执行。"
+        fi
+    fi
     exit 0
 fi
 
