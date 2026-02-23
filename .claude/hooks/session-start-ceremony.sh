@@ -114,11 +114,19 @@ print(len(c.get('members', [])))
     done
 fi
 
+# team 拓扑持久化检测
+TOPOLOGY_FILE=".claude/team-topology.json"
+TEAM_BOOTSTRAP_MSG=""
+if [ -f "$TOPOLOGY_FILE" ] && [ -z "$SWARM_INFO" ]; then
+    # 有拓扑定义但无活跃 team → bootstrap 指令由 agent-team-bootstrap.sh 注入
+    TEAM_BOOTSTRAP_MSG=" | [Team Bootstrap 待执行] 蜂群拓扑已持久化，ceremony 后自动重建 Agent Team"
+fi
+
 # 构建消息
 if [ -n "$SWARM_INFO" ]; then
-    SWARM_MSG=" | ⚠活跃蜂群:${SWARM_INFO} → 立即用TaskList恢复工位追踪，继续蜂群循环"
+    SWARM_MSG=" | 活跃蜂群:${SWARM_INFO} → 立即用TaskList恢复工位追踪，继续蜂群循环"
 else
-    SWARM_MSG=""
+    SWARM_MSG="${TEAM_BOOTSTRAP_MSG}"
 fi
 MSG="[Ceremony/热启动L2] 恢复自:${SESSION_FILE} (${SESSION_TIME}) | 分支:${GIT_BRANCH} | session提交:${SESSION_COMMIT} | 当前:${CURRENT_COMMIT} | 定义变更:${CHANGED}条 | 谱系:${SETTLED}settled/${PENDING}pending | 中断点:${INTERRUPTS}${SWARM_MSG} | ⚡自动进入蜂群循环：先评估可并行工位数(≥2即拉蜂群)，扫描代码/规范/谱系状态确定本轮工作目标"
 

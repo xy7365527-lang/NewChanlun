@@ -16,6 +16,15 @@
             "command": ".claude/hooks/session-start-ceremony.sh"
           }
         ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/agent-team-bootstrap.sh"
+          }
+        ]
       }
     ],
     "PreCompact": [

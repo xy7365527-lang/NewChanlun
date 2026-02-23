@@ -134,6 +134,9 @@ if [ "$IS_WHITELISTED" = "yes" ]; then
 fi
 
 # --- Lead 直接执行 Write/Edit/Bash（非白名单）：生成拓扑异常对象 ---
+# 聚合策略：同一 tool_name 类型的 anomaly 聚合为一条记录（按 tool_name 分桶）。
+# 不再为每次调用生成独立条目。frequency 递增反映实际触发次数。
+# ID 基于 signature hash（不含 timestamp），确保可合并。
 
 CWD=$(echo "$INPUT" | python -c "import sys,json; print(json.load(sys.stdin).get('cwd','.'))" 2>/dev/null || echo ".")
 cd "$CWD" 2>/dev/null || true
@@ -141,18 +144,19 @@ cd "$CWD" 2>/dev/null || true
 PATTERN_FILE=".chanlun/pattern-buffer.yaml"
 TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date +"%Y-%m-%dT%H:%M:%S")
 
-# 写入拓扑异常对象到 pattern-buffer
+# 聚合写入拓扑异常对象到 pattern-buffer
 python -c "
-import sys, os, hashlib
+import sys, os, hashlib, re
 
 pattern_file = sys.argv[1]
 timestamp = sys.argv[2]
 tool_name = sys.argv[3]
 file_path = sys.argv[4]
 
-# 生成异常对象 ID
-sig = f'lead-direct-{tool_name}:{file_path}'
-pat_hash = hashlib.md5(f'{timestamp}-{sig}'.encode()).hexdigest()[:8]
+# 聚合签名：按 tool_name 分桶（不包含具体路径/命令，避免无限膨胀）
+sig = f'lead-direct-{tool_name}'
+pat_hash = hashlib.md5(sig.encode()).hexdigest()[:8]
+pat_id = f'anomaly-{pat_hash}'
 
 # 确保 pattern-buffer 存在
 if not os.path.isfile(pattern_file):
@@ -163,45 +167,97 @@ if not os.path.isfile(pattern_file):
         f.write('version: \"1.0\"\n')
         f.write('patterns: []\n')
 
-# 追加拓扑异常对象
+# 解析现有条目
 with open(pattern_file, 'r', encoding='utf-8') as f:
     content = f.read()
 
-# 检查是否已有 patterns: [] 占位
-if 'patterns: []' in content:
-    content = content.replace('patterns: []', 'patterns:')
+existing = []
+current = None
+for line in content.split('\n'):
+    stripped = line.strip()
+    if stripped.startswith('- id:'):
+        if current:
+            existing.append(current)
+        current = {'id': stripped.split(':', 1)[1].strip().strip('\"').strip(\"'\")}
+    elif current:
+        if stripped.startswith('signature:'):
+            current['signature'] = stripped.split(':', 1)[1].strip().strip('\"').strip(\"'\")
+        elif stripped.startswith('frequency:'):
+            try:
+                current['frequency'] = int(stripped.split(':', 1)[1].strip())
+            except ValueError:
+                current['frequency'] = 0
+        elif stripped.startswith('first_seen:'):
+            current['first_seen'] = stripped.split(':', 1)[1].strip().strip('\"').strip(\"'\")
+        elif stripped.startswith('last_seen:'):
+            current['last_seen'] = stripped.split(':', 1)[1].strip().strip('\"').strip(\"'\")
+        elif stripped.startswith('sources:'):
+            val = stripped.split(':', 1)[1].strip()
+            current['sources'] = [s.strip().strip('\"').strip(\"'\") for s in val.strip('[]').split(',') if s.strip()]
+        elif stripped.startswith('status:'):
+            current['status'] = stripped.split(':', 1)[1].strip().strip('\"').strip(\"'\")
+        elif stripped.startswith('description:'):
+            current['description'] = stripped.split(':', 1)[1].strip().strip('\"').strip(\"'\")
+        elif stripped.startswith('anomaly_type:'):
+            current['anomaly_type'] = stripped.split(':', 1)[1].strip().strip('\"').strip(\"'\")
+if current:
+    existing.append(current)
 
-# 兜底：如果没有 patterns 键，补一个
-if 'patterns:' not in content:
-    if content and not content.endswith('\n'):
-        content += '\n'
-    content += 'patterns:\n'
+# 查找是否已有同签名的 anomaly
+found = False
+promotion_threshold = 3
+for p in existing:
+    if p.get('signature') == sig:
+        p['frequency'] = p.get('frequency', 0) + 1
+        p['last_seen'] = timestamp
+        # status 升级：frequency >= threshold 时从 observed/candidate → settled
+        if p['frequency'] >= promotion_threshold and p.get('status') in ('observed', 'candidate'):
+            p['status'] = 'settled'
+        found = True
+        break
 
-if content and not content.endswith('\n'):
-    content += '\n'
+if not found:
+    existing.append({
+        'id': pat_id,
+        'signature': sig,
+        'frequency': 1,
+        'first_seen': timestamp,
+        'last_seen': timestamp,
+        'sources': [timestamp],
+        'description': f'Lead 直接执行 {tool_name}（应委派工位）——拓扑异常对象',
+        'status': 'observed',
+        'anomaly_type': 'lead_direct_execution',
+    })
 
-def yaml_quote(text):
+# 写回
+def yaml_escape(text):
     return str(text).replace('\\\\', '\\\\\\\\').replace('\"', '\\\\\"').replace('\n', ' ')
 
-safe_sig = yaml_quote(sig)
-safe_timestamp = yaml_quote(timestamp)
-safe_tool_name = yaml_quote(tool_name)
-
-# 追加异常条目
-entry = (
-    f'  - id: \"anomaly-{pat_hash}\"\n'
-    f'    signature: \"{safe_sig}\"\n'
-    f'    frequency: 1\n'
-    f'    first_seen: \"{safe_timestamp}\"\n'
-    f'    last_seen: \"{safe_timestamp}\"\n'
-    f'    sources: [\"{safe_timestamp}\"]\n'
-    f'    description: \"Lead 直接执行 {safe_tool_name}（应委派工位）——拓扑异常对象\"\n'
-    f'    status: \"candidate\"\n'
-    f'    anomaly_type: \"lead_direct_execution\"\n'
-)
-
 with open(pattern_file, 'w', encoding='utf-8') as f:
-    f.write(content + entry)
+    f.write('# 模式缓冲区——谱系的生成态前置\n')
+    f.write('# 043号谱系：自生长回路\n')
+    f.write('# Status 枚举: observed → candidate → settled → promoted/rejected\n')
+    f.write('version: \"1.0\"\n')
+    if not existing:
+        f.write('patterns: []\n')
+    else:
+        f.write('patterns:\n')
+        for p in existing:
+            f.write(f'  - id: \"{yaml_escape(p.get(\"id\", \"?\"))}\"\n')
+            f.write(f'    signature: \"{yaml_escape(p.get(\"signature\", \"\"))}\"\n')
+            f.write(f'    frequency: {p.get(\"frequency\", 0)}\n')
+            f.write(f'    first_seen: \"{yaml_escape(p.get(\"first_seen\", \"\"))}\"\n')
+            f.write(f'    last_seen: \"{yaml_escape(p.get(\"last_seen\", \"\"))}\"\n')
+            sources = p.get('sources', [])
+            sources_str = ', '.join(f'\"{yaml_escape(s)}\"' for s in sources)
+            f.write(f'    sources: [{sources_str}]\n')
+            desc = p.get('description', '')
+            if desc:
+                f.write(f'    description: \"{yaml_escape(desc)}\"\n')
+            f.write(f'    status: \"{yaml_escape(p.get(\"status\", \"observed\"))}\"\n')
+            at = p.get('anomaly_type', '')
+            if at:
+                f.write(f'    anomaly_type: \"{yaml_escape(at)}\"\n')
 " "$PATTERN_FILE" "$TIMESTAMP" "$TOOL_NAME" "$FILE_PATH" 2>/dev/null || true
 
 # 输出审计警告（不阻断）

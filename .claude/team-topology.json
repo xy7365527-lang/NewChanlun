@@ -1,0 +1,132 @@
+{
+  "version": 1,
+  "description": "蜂群 Agent Team 持久化拓扑。每次 session 启动时由 ceremony 自动重建。",
+  "team_name_prefix": "swarm",
+  "genealogy_ref": "095-agent-team-recursive-swarm, 096-distributed-rules-no-exception",
+
+  "structural_agents": {
+    "description": "结构工位（常设）— ceremony 时立即 spawn",
+    "agents": [
+      {
+        "name": "meta-lead",
+        "role": "中断路由器 + 轴线汇报",
+        "agent_file": ".claude/agents/meta-lead.md",
+        "auto_spawn": true
+      },
+      {
+        "name": "genealogist",
+        "role": "谱系维护 + 张力检查 + 结晶检测",
+        "agent_file": ".claude/agents/genealogist.md",
+        "auto_spawn": true
+      },
+      {
+        "name": "quality-guard",
+        "role": "结果包六要素 + 代码违规扫描",
+        "agent_file": ".claude/agents/quality-guard.md",
+        "auto_spawn": true
+      },
+      {
+        "name": "code-verifier",
+        "role": "代码变更后测试验证",
+        "agent_file": ".claude/agents/code-verifier.md",
+        "auto_spawn": true
+      },
+      {
+        "name": "meta-observer",
+        "role": "元规则观测 + 方法论进化监控",
+        "agent_file": ".claude/agents/meta-observer.md",
+        "auto_spawn": true
+      },
+      {
+        "name": "topology-manager",
+        "role": "蜂群拓扑监控 + spawn/merge 建议",
+        "agent_file": ".claude/agents/topology-manager.md",
+        "auto_spawn": true
+      }
+    ]
+  },
+
+  "on_demand_agents": {
+    "description": "按需工位 — 由 Lead 或事件驱动 spawn",
+    "agents": [
+      {
+        "name": "architect",
+        "role": "系统设计 + 架构决策",
+        "agent_file": ".claude/agents/architect.md",
+        "trigger": "架构决策需求"
+      },
+      {
+        "name": "planner",
+        "role": "实现规划",
+        "agent_file": ".claude/agents/planner.md",
+        "trigger": "复杂功能实现"
+      },
+      {
+        "name": "tdd-guide",
+        "role": "测试驱动开发",
+        "agent_file": ".claude/agents/tdd-guide.md",
+        "trigger": "新功能/bug修复"
+      },
+      {
+        "name": "code-reviewer",
+        "role": "代码审查",
+        "agent_file": ".claude/agents/code-reviewer.md",
+        "trigger": "代码变更后"
+      },
+      {
+        "name": "python-reviewer",
+        "role": "Python 代码审查",
+        "agent_file": ".claude/agents/python-reviewer.md",
+        "trigger": "Python 代码变更后"
+      },
+      {
+        "name": "security-reviewer",
+        "role": "安全漏洞检测",
+        "agent_file": ".claude/agents/security-reviewer.md",
+        "trigger": "涉及用户输入/认证/API"
+      },
+      {
+        "name": "build-error-resolver",
+        "role": "构建错误修复",
+        "agent_file": ".claude/agents/build-error-resolver.md",
+        "trigger": "构建失败"
+      },
+      {
+        "name": "refactor-cleaner",
+        "role": "死代码清理",
+        "agent_file": ".claude/agents/refactor-cleaner.md",
+        "trigger": "代码维护需求"
+      },
+      {
+        "name": "doc-updater",
+        "role": "文档更新",
+        "agent_file": ".claude/agents/doc-updater.md",
+        "trigger": "文档需要更新"
+      },
+      {
+        "name": "gemini-challenger",
+        "role": "Gemini 异质质询 + 编排者代理",
+        "agent_file": ".claude/agents/gemini-challenger.md",
+        "trigger": "定义提交/选择决断/验证/推导"
+      },
+      {
+        "name": "claude-challenger",
+        "role": "反向质询（对 Gemini 产出再质询）",
+        "agent_file": ".claude/agents/claude-challenger.md",
+        "trigger": "Gemini 产出需要再质询"
+      },
+      {
+        "name": "source-auditor",
+        "role": "概念溯源 + 原文考古",
+        "agent_file": ".claude/agents/source-auditor.md",
+        "trigger": "新增定义/原文依据存疑"
+      },
+      {
+        "name": "skill-crystallizer",
+        "role": "pattern → skill 结晶",
+        "agent_file": ".claude/agents/skill-crystallizer.md",
+        "trigger": "pattern-buffer 达标"
+      }
+    ]
+  }
+}

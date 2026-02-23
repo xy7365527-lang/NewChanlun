@@ -6,9 +6,11 @@
 #        写入 .chanlun/pattern-buffer.yaml
 #
 # 设计原则：
-#   - 只追加/更新，不删除已有 pattern
+#   - 追加/更新/GC三操作：新增、合并同签名、淘汰过期 observed
+#   - GC 规则：status=observed + frequency<=1 + last_seen 超过 7 天 → 淘汰
 #   - 幂等：同一 session 重复执行不产生重复条目
 #   - 跨 session 合并：同签名 pattern 累加 frequency，追加 source
+#   - 保留 anomaly_type 字段（与 lead-audit.sh 写入的 anomaly 条目兼容）
 #   - 无外部依赖（纯 bash + python）
 #
 # Status 枚举（M1 统一）：
@@ -173,6 +175,8 @@ if os.path.isfile(pattern_file):
                 current['status'] = stripped.split(':', 1)[1].strip().strip('\"').strip(\"'\")
             elif stripped.startswith('description:'):
                 current['description'] = stripped.split(':', 1)[1].strip().strip('\"').strip(\"'\")
+            elif stripped.startswith('anomaly_type:'):
+                current['anomaly_type'] = stripped.split(':', 1)[1].strip().strip('\"').strip(\"'\")
     if current:
         existing.append(current)
 
@@ -231,7 +235,22 @@ if not session_pats and top_tools.strip():
             'status': 'observed'
         })
 
+# --- GC: 淘汰过期的 observed 条目（frequency=1 且超过 7 天未更新） ---
+from datetime import datetime, timedelta
+gc_cutoff = (datetime.utcnow() - timedelta(days=7)).strftime('%Y-%m-%dT%H:%M:%SZ')
+existing = [
+    p for p in existing
+    if not (
+        p.get('status') == 'observed'
+        and p.get('frequency', 0) <= 1
+        and p.get('last_seen', '') < gc_cutoff
+    )
+]
+
 # 写回 pattern-buffer.yaml
+def yaml_escape(text):
+    return str(text).replace('\\\\', '\\\\\\\\').replace('\"', '\\\\\"').replace('\\n', ' ')
+
 with open(pattern_file, 'w', encoding='utf-8') as f:
     f.write('# 模式缓冲区——谱系的生成态前置\\n')
     f.write('# 043号谱系：自生长回路\\n')
@@ -242,18 +261,21 @@ with open(pattern_file, 'w', encoding='utf-8') as f:
     else:
         f.write('patterns:\\n')
         for p in existing:
-            f.write(f'  - id: \"{p.get(\"id\", \"?\")}\"\\n')
-            f.write(f'    signature: \"{p.get(\"signature\", \"\")}\"\\n')
+            f.write(f'  - id: \"{yaml_escape(p.get(\"id\", \"?\"))}\"\\n')
+            f.write(f'    signature: \"{yaml_escape(p.get(\"signature\", \"\"))}\"\\n')
             f.write(f'    frequency: {p.get(\"frequency\", 0)}\\n')
-            f.write(f'    first_seen: \"{p.get(\"first_seen\", \"\")}\"\\n')
-            f.write(f'    last_seen: \"{p.get(\"last_seen\", \"\")}\"\\n')
+            f.write(f'    first_seen: \"{yaml_escape(p.get(\"first_seen\", \"\"))}\"\\n')
+            f.write(f'    last_seen: \"{yaml_escape(p.get(\"last_seen\", \"\"))}\"\\n')
             sources = p.get('sources', [])
-            sources_str = ', '.join(f'\"{s}\"' for s in sources)
+            sources_str = ', '.join(f'\"{yaml_escape(s)}\"' for s in sources)
             f.write(f'    sources: [{sources_str}]\\n')
             desc = p.get('description', '')
             if desc:
-                f.write(f'    description: \"{desc}\"\\n')
-            f.write(f'    status: \"{p.get(\"status\", \"observed\")}\"\\n')
+                f.write(f'    description: \"{yaml_escape(desc)}\"\\n')
+            f.write(f'    status: \"{yaml_escape(p.get(\"status\", \"observed\"))}\"\\n')
+            at = p.get('anomaly_type', '')
+            if at:
+                f.write(f'    anomaly_type: \"{yaml_escape(at)}\"\\n')
 " "$PATTERN_FILE" "$session_id" "$timestamp" "$PROMOTION_THRESHOLD" "$top_tools" "$(echo -e "$repeated_patterns")"
 
 exit 0
