@@ -1,7 +1,7 @@
 #!/bin/bash
 # lead-audit.sh — Lead 拓扑异常对象化审计（088号谱系：032号重设计）
 #
-# 设计原则（Gemini decide 选项D）：
+# 设计原则（Gemini decide 选项D + 173号-1 方法论反转）：
 #   1. Lead 保留全权限——不再使用 settings.local.json deny 列表
 #   2. Lead 违规直接执行 Write/Edit/Bash 时，不阻断，
 #      而是将行为实体化为"拓扑异常对象"写入 pattern-buffer
@@ -10,28 +10,22 @@
 #   5. 视差 Gap 由 git + ESC 兜底（069号结构条件）
 #
 # 前身：lead-permissions.sh（032号"神圣疯狂"deny 列表——已证明导致项目级死锁）
-# 谱系：032→088号
+# 谱系：032→088号→173号-1（白名单→黑名单方法论反转）
 #
-# 白名单（Lead 在 ceremony/编排中的合法直接操作，不写入 pattern-buffer）：
-#   - git 操作（git add/commit/push/fetch/rebase/show/diff/log/status 等）
-#   - dag.yaml 修改（.chanlun/genealogy/dag.yaml）
-#   - 谱系文件写入（.chanlun/genealogy/ 目录下任意文件）
-#   - downstream-action-overrides.yaml 修改
-#   - session 文件写入（.chanlun/sessions/）
-#   - ceremony_scan.py 运行
-#   - dispatch-dag.yaml 修改
-#   - 读取/检查 pattern-buffer 自身（单文件或分片目录）的 Bash 命令
-#   - 对 scripts/ 目录下脚本的维护操作
-#   - pytest 运行（验证测试状态）
-#   - pip 操作（安装/查看依赖）
-#   - 项目脚本执行（scripts/ 目录下）
-#   - 内联 Python（python -c）
-#   - 目录/文件检查命令（ls, cat, head, tail, mkdir, date, wc, echo, pwd, which, find, sort, uniq）
-#   - team config 文件操作（.claude/teams/, .claude/tasks/）
-#   - .venv 相关操作
+# 173号-1 方法论反转：
+#   旧逻辑："默认否定，白名单放行"——Lead 大部分操作都是合法的，白名单不断膨胀
+#   新逻辑："默认放行，黑名单记录"——只有少数操作需要记录为拓扑异常
+#
+# 黑名单（Lead 直接执行时记录为拓扑异常的操作）：
+#   - 直接修改源代码文件（src/ 目录）
+#   - 直接修改定义文件（.chanlun/definitions/）
+#   - 直接修改测试文件（tests/）
+#   - 直接修改 hook 脚本（.claude/hooks/）
+#   - 直接修改 agent 配置（.claude/agents/）
+#   - 执行破坏性 shell 命令（rm -rf 等）
 #
 # 触发方式：PostToolUse hook（Lead 层级的 Write/Edit/Bash 调用后）
-# 输出：JSON（allow + systemMessage 审计警告）
+# 输出：JSON（allow + systemMessage 审计警告）——仅黑名单命中时
 
 set -euo pipefail
 
@@ -47,8 +41,6 @@ case "$TOOL_NAME" in
 esac
 
 # 检测是否为蜂群内的子工位调用（子工位调用不审计——它们就是执行者）
-# 方法：检查环境变量 CLAUDE_AGENT_NAME（子工位有此变量，Lead 没有）
-# 如果存在且非空，说明是子工位，静默通过
 if [ -n "${CLAUDE_AGENT_NAME:-}" ]; then
   exit 0
 fi
@@ -61,9 +53,9 @@ ti = d.get('tool_input', {})
 print(ti.get('file_path', ti.get('command', ''))[:200])
 " 2>/dev/null || echo "unknown")
 
-# --- 白名单检查 ---
-# 如果操作匹配白名单，静默通过（不写入 pattern-buffer）
-IS_WHITELISTED=$(python -c "
+# --- 黑名单检查（173号-1 方法论反转）---
+# 默认放行。只有命中黑名单时才记录拓扑异常。
+IS_BLACKLISTED=$(python -c "
 import sys, re
 
 tool_name = sys.argv[1]
@@ -71,111 +63,56 @@ file_path = sys.argv[2]
 
 fp = file_path.replace('\\\\', '/').replace('\\\\\\\\', '/')
 
-# ---- Bash 白名单 ----
+# ---- Bash 黑名单 ----
 if tool_name == 'Bash':
     cmd = fp  # file_path 字段存的是命令
 
-    # git 操作（git add/commit/push/fetch/rebase/show/diff/log/status/stash 等）
-    if re.search(r'\bgit\s+(add|commit|push|fetch|rebase|show|diff|log|status|stash|pull|checkout|branch|merge|tag|remote|reset|clean|describe|rev-parse|ls-files|shortlog|blame)\b', cmd):
+    # 破坏性命令（rm -rf, rm -r 非 .venv/.git 目标）
+    if re.search(r'\brm\s+-(rf|fr)\s+(?!.*\.(venv|git))', cmd):
         print('yes')
         sys.exit(0)
 
-    # ceremony_scan.py 运行
-    if 'ceremony_scan.py' in cmd:
-        print('yes')
-        sys.exit(0)
+    # 不匹配黑名单：默认放行
+    print('no')
+    sys.exit(0)
 
-    # dag_add_node.py 脚本（维护 dag 的合法工具）
-    if 'dag_add_node.py' in cmd or 'dag_add_edge.py' in cmd:
-        print('yes')
-        sys.exit(0)
-
-    # 读取/检查 pattern-buffer 自身（单文件或分片目录）
-    if 'pattern-buffer.yaml' in cmd or 'pattern-buffer/' in cmd:
-        print('yes')
-        sys.exit(0)
-
-    # downstream_audit 脚本
-    if 'downstream_audit' in cmd:
-        print('yes')
-        sys.exit(0)
-
-    # dag.yaml 相关读取
-    if 'dag.yaml' in cmd and re.search(r'\byaml\.safe_load\b|\byaml\.load\b', cmd):
-        print('yes')
-        sys.exit(0)
-
-    # pytest 运行（验证测试状态）
-    if re.search(r'\bpytest\b', cmd) or '-m pytest' in cmd:
-        print('yes')
-        sys.exit(0)
-
-    # pip 操作
-    if re.search(r'\bpip\b\s+(install|list|show|freeze)', cmd):
-        print('yes')
-        sys.exit(0)
-
-    # 项目脚本执行（scripts/ 目录下）
-    if re.search(r'scripts[\\/][\w_]+\.py', cmd):
-        print('yes')
-        sys.exit(0)
-
-    # 内联 Python（python -c）
-    if re.search(r'\bpython\s+-c\b', cmd):
-        print('yes')
-        sys.exit(0)
-
-    # 目录/文件检查（ls, cat, head, tail, mkdir, date, wc, echo, pwd, which, find, sort, uniq）
-    if re.search(r'^\s*(ls|cat|head|tail|mkdir|date|wc|echo|pwd|which|find|sort|uniq)\b', cmd):
-        print('yes')
-        sys.exit(0)
-
-    # team config 文件操作
-    if '.claude/teams/' in cmd or '.claude/tasks/' in cmd:
-        print('yes')
-        sys.exit(0)
-
-    # .venv 相关操作
-    if '.venv' in cmd:
-        print('yes')
-        sys.exit(0)
-
-# ---- Write/Edit 白名单 ----
+# ---- Write/Edit 黑名单 ----
 if tool_name in ('Write', 'Edit'):
-    # dag.yaml
-    if re.search(r'[\\\\/]genealogy[\\\\/]dag\.yaml', fp, re.IGNORECASE):
+    # 源代码文件（src/ 目录）
+    if re.search(r'[\\\\/]src[\\\\/]', fp):
         print('yes')
         sys.exit(0)
 
-    # 谱系文件（.chanlun/genealogy/ 目录下任意文件）
-    if re.search(r'[\\\\/]\.chanlun[\\\\/]genealogy[\\\\/]', fp, re.IGNORECASE):
+    # 定义文件（.chanlun/definitions/）
+    if re.search(r'[\\\\/]\.chanlun[\\\\/]definitions[\\\\/]', fp, re.IGNORECASE):
         print('yes')
         sys.exit(0)
 
-    # downstream-action-overrides.yaml
-    if 'downstream-action-overrides.yaml' in fp:
+    # 测试文件（tests/ 目录）
+    if re.search(r'[\\\\/]tests[\\\\/]', fp):
         print('yes')
         sys.exit(0)
 
-    # session 文件（.chanlun/sessions/）
-    if re.search(r'[\\\\/]\.chanlun[\\\\/]sessions[\\\\/]', fp, re.IGNORECASE):
+    # hook 脚本（.claude/hooks/）
+    if re.search(r'[\\\\/]\.claude[\\\\/]hooks[\\\\/]', fp, re.IGNORECASE):
         print('yes')
         sys.exit(0)
 
-    # dispatch-dag.yaml
-    if 'dispatch-dag.yaml' in fp:
+    # agent 配置（.claude/agents/）
+    if re.search(r'[\\\\/]\.claude[\\\\/]agents[\\\\/]', fp, re.IGNORECASE):
         print('yes')
         sys.exit(0)
 
+# 默认放行
 print('no')
 " "$TOOL_NAME" "$FILE_PATH" 2>/dev/null || echo "no")
 
-if [ "$IS_WHITELISTED" = "yes" ]; then
-  # 白名单操作：静默通过，不写入 pattern-buffer
+# 未命中黑名单：静默通过
+if [ "$IS_BLACKLISTED" = "no" ]; then
   exit 0
 fi
 
-# --- Lead 直接执行 Write/Edit/Bash（非白名单）：生成拓扑异常对象 ---
+# --- 命中黑名单：生成拓扑异常对象（严重性降低——记录而非警报） ---
 # 聚合策略：同一 tool_name 类型的 anomaly 聚合为一条记录（按 tool_name 分桶）。
 # 不再为每次调用生成独立条目。frequency 递增反映实际触发次数。
 # ID 基于 signature hash（不含 timestamp），确保可合并。
@@ -303,8 +240,8 @@ with open(pattern_file, 'w', encoding='utf-8') as f:
                 f.write(f'    anomaly_type: \"{yaml_escape(at)}\"\n')
 " "$PATTERN_FILE" "$TIMESTAMP" "$TOOL_NAME" "$FILE_PATH" 2>/dev/null || true
 
-# 输出审计警告（不阻断）
-MSG="[lead-audit/088] Lead 直接执行 ${TOOL_NAME}（应委派工位）。拓扑异常对象已写入 pattern-buffer。meta-observer 将异步审查。"
+# 输出审计记录（不阻断，降低严重性——从警报改为记录）
+MSG="[lead-audit/088+173] Lead 直接执行 ${TOOL_NAME}（黑名单命中）。拓扑异常已记录至 pattern-buffer。"
 
 MSG="$MSG" python -c "
 import json, os
