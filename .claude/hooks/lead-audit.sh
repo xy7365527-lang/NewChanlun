@@ -20,7 +20,7 @@
 #   - session 文件写入（.chanlun/sessions/）
 #   - ceremony_scan.py 运行
 #   - dispatch-dag.yaml 修改
-#   - 读取/检查 pattern-buffer.yaml 自身的 Bash 命令
+#   - 读取/检查 pattern-buffer 自身（单文件或分片目录）的 Bash 命令
 #   - 对 scripts/ 目录下脚本的维护操作
 #   - pytest 运行（验证测试状态）
 #   - pip 操作（安装/查看依赖）
@@ -90,8 +90,8 @@ if tool_name == 'Bash':
         print('yes')
         sys.exit(0)
 
-    # 读取/检查 pattern-buffer.yaml 自身
-    if 'pattern-buffer.yaml' in cmd:
+    # 读取/检查 pattern-buffer 自身（单文件或分片目录）
+    if 'pattern-buffer.yaml' in cmd or 'pattern-buffer/' in cmd:
         print('yes')
         sys.exit(0)
 
@@ -183,7 +183,7 @@ fi
 CWD=$(echo "$INPUT" | python -c "import sys,json; print(json.load(sys.stdin).get('cwd','.'))" 2>/dev/null || echo ".")
 cd "$CWD" 2>/dev/null || true
 
-PATTERN_FILE=".chanlun/pattern-buffer.yaml"
+PATTERN_FILE=".chanlun/pattern-buffer/topo-anomalies.yaml"
 TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date +"%Y-%m-%dT%H:%M:%S")
 
 # 聚合写入拓扑异常对象到 pattern-buffer
@@ -200,12 +200,13 @@ sig = f'lead-direct-{tool_name}'
 pat_hash = hashlib.md5(sig.encode()).hexdigest()[:8]
 pat_id = f'anomaly-{pat_hash}'
 
-# 确保 pattern-buffer 存在
+# 确保 pattern-buffer 分片目录和文件存在
+os.makedirs(os.path.dirname(pattern_file), exist_ok=True)
 if not os.path.isfile(pattern_file):
     with open(pattern_file, 'w', encoding='utf-8') as f:
-        f.write('# 模式缓冲区——谱系的生成态前置\n')
-        f.write('# 043号谱系：自生长回路\n')
-        f.write('# Status 枚举: observed → candidate → settled → promoted/rejected\n')
+        f.write('# 模式缓冲区分片——拓扑异常对象（lead-audit 检测）\n')
+        f.write('# 088号谱系：Lead 拓扑异常对象化审计\n')
+        f.write('# 分片规则：含 anomaly_type 字段的条目\n')
         f.write('version: \"1.0\"\n')
         f.write('patterns: []\n')
 
@@ -276,9 +277,9 @@ def yaml_escape(text):
     return str(text).replace('\\\\', '\\\\\\\\').replace('\"', '\\\\\"').replace('\n', ' ')
 
 with open(pattern_file, 'w', encoding='utf-8') as f:
-    f.write('# 模式缓冲区——谱系的生成态前置\n')
-    f.write('# 043号谱系：自生长回路\n')
-    f.write('# Status 枚举: observed → candidate → settled → promoted/rejected\n')
+    f.write('# 模式缓冲区分片——拓扑异常对象（lead-audit 检测）\n')
+    f.write('# 088号谱系：Lead 拓扑异常对象化审计\n')
+    f.write('# 分片规则：含 anomaly_type 字段的条目\n')
     f.write('version: \"1.0\"\n')
     if not existing:
         f.write('patterns: []\n')

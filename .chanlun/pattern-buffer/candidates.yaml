@@ -1,0 +1,6 @@
+# 模式缓冲区分片——候选 pattern（session 检测的重复序列）
+# 043号谱系：自生长回路
+# Status 枚举: observed → candidate → settled → promoted/rejected
+# 分片规则：status 为 observed/candidate/settled 且无 anomaly_type 的条目
+version: "1.0"
+patterns: []

@@ -1,0 +1,5 @@
+# 模式缓冲区分片——已处理/归档记录
+# 043号谱系：自生长回路
+# 分片规则：status 为 promoted/rejected 的条目（已完成生命周期）
+version: "1.0"
+patterns: []

@@ -1,0 +1,7 @@
+# 模式缓冲区分片——Lead audit 记录
+# 088号谱系：Lead 拓扑异常对象化审计
+# 分片规则：lead-audit.sh 写入的审计聚合记录
+# 注：当前 lead-audit 条目同时写入 topo-anomalies.yaml（因为含 anomaly_type）
+# 本文件用于未来扩展更细粒度的 Lead 审计记录
+version: "1.0"
+patterns: []

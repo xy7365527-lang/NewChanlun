@@ -111,21 +111,38 @@ fi
 
 # 无 pending 债务，继续检查 pattern-buffer
 if [ -z "$PENDING_DEBTS" ]; then
-    # 检查 pattern-buffer 中是否有 frequency >= 3 的未处理模式（043号谱系：自生长回路）
-    PATTERN_BUFFER=".chanlun/pattern-buffer.yaml"
-    if [ -f "$PATTERN_BUFFER" ]; then
+    # 检查 pattern-buffer 分片中是否有 frequency >= 3 的未处理模式（043号谱系：自生长回路）
+    PATTERN_BUFFER_DIR=".chanlun/pattern-buffer"
+    # 扫描所有分片文件（candidates + topo-anomalies），合并结果
+    PATTERN_BUFFER_FILES=""
+    for shard in "$PATTERN_BUFFER_DIR"/candidates.yaml "$PATTERN_BUFFER_DIR"/topo-anomalies.yaml; do
+        if [ -f "$shard" ]; then
+            PATTERN_BUFFER_FILES="$PATTERN_BUFFER_FILES $shard"
+        fi
+    done
+    # 向后兼容：如果旧的单文件还存在也扫描
+    if [ -f ".chanlun/pattern-buffer.yaml" ]; then
+        PATTERN_BUFFER_FILES="$PATTERN_BUFFER_FILES .chanlun/pattern-buffer.yaml"
+    fi
+    if [ -n "$PATTERN_BUFFER_FILES" ]; then
         UNPROCESSED_PATTERNS=$(python -c "
-import sys, re
+import sys, re, os
 
-with open('$PATTERN_BUFFER', 'r', encoding='utf-8') as f:
-    content = f.read()
+# 读取所有分片文件
+shard_files = sys.argv[1:]
+all_content = ''
+for sf in shard_files:
+    sf = sf.strip()
+    if sf and os.path.isfile(sf):
+        with open(sf, 'r', encoding='utf-8') as f:
+            all_content += f.read() + '\n'
 
 # 简单 YAML 解析：提取 frequency >= 3 且 status 为 settled 或 candidate 的模式
 # M1 统一：status 枚举为 observed → candidate → settled → promoted/rejected
 # 排除 anomaly_type 条目（lead-audit 异常，不是结晶候选）
 patterns = []
 current = {}
-for line in content.split('\n'):
+for line in all_content.split('\n'):
     stripped = line.strip()
     if stripped.startswith('- id:'):
         if (current.get('frequency', 0) >= 3
@@ -158,7 +175,7 @@ else:
     for p in patterns:
         lines.append(f\"  - [{p.get('id','?')}] freq={p.get('frequency',0)} {p.get('description','(no desc)')}\")
     print('\n'.join(lines))
-" 2>/dev/null || echo "")
+" $PATTERN_BUFFER_FILES 2>/dev/null || echo "")
 
         if [ -n "$UNPROCESSED_PATTERNS" ]; then
             PATTERN_COUNT=$(echo "$UNPROCESSED_PATTERNS" | wc -l | tr -d ' ')
@@ -175,7 +192,7 @@ msg = (
     '处理方式：\n'
     '  1. 为达标模式创建对应的 skill 文件，将 status 改为 promoted\n'
     '  2. 如果模式不值得结晶，将 status 改为 rejected\n'
-    '  3. pattern-buffer 文件: .chanlun/pattern-buffer.yaml'
+    '  3. pattern-buffer 目录: .chanlun/pattern-buffer/'
 )
 print(json.dumps({
     'decision': 'block',
