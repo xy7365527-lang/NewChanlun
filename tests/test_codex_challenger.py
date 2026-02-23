@@ -92,6 +92,8 @@ class TestReview:
             assert result.subject == "中枢实现代码"
             assert result.response == "无否定。代码逻辑自洽。"
             assert result.model == "codex-5.3"
+            assert "中枢实现代码" in result.prompt
+            assert "src/newchan/core/zhongshu.py" in result.prompt
 
     def test_calls_api_with_correct_model(self) -> None:
         with patch("newchan.codex.modes.openai") as mock_openai:
@@ -381,6 +383,7 @@ class TestReviewResultToMarkdown:
             subject="中枢实现代码",
             response="无否定。代码逻辑自洽。",
             model="codex-5.3",
+            prompt="## 审查目标\n\n中枢实现代码",
         )
         md = result.to_markdown(ts)
 
@@ -389,6 +392,8 @@ class TestReviewResultToMarkdown:
         assert "- **subject**: 中枢实现代码" in md
         assert "- **model**: codex-5.3" in md
         assert "- **timestamp**: 2026-02-23 12:30:00 UTC" in md
+        assert "## Prompt" in md
+        assert "## 审查目标" in md
         assert "## Response" in md
         assert "无否定。代码逻辑自洽。" in md
 
@@ -416,6 +421,20 @@ class TestReviewResultToMarkdown:
         md = result.to_markdown(ts)
 
         assert "context-file" not in md
+
+    def test_empty_prompt_omitted(self) -> None:
+        ts = datetime(2026, 2, 23, 12, 30, 0, tzinfo=timezone.utc)
+        result = ReviewResult(
+            mode="review",
+            subject="test",
+            response="ok",
+            model="codex-5.3",
+            prompt="",
+        )
+        md = result.to_markdown(ts)
+
+        assert "## Prompt" not in md
+        assert "## Response" in md
 
     def test_default_timestamp(self) -> None:
         result = ReviewResult(
