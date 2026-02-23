@@ -159,14 +159,14 @@
 # 083号
 083-1: resolved    # roadmap.yaml 已有 active 任务
 083-2: resolved    # ceremony_scan 已发现 active 任务
-083-3: long_term   # 战略方向——需编排者输入
+083-3: resolved    # 编排者选D——矛盾具有拓扑效力（147号谱系落地）
 083-4: resolved    # 076/079号已确认为建议来源
 
 # 084号
 084-1: resolved    # precompact-save.sh 已修复（142号）
 084-2: resolved    # topology-guard检查——hook已在正常工作（146号hook-fixes验证）
 084-3: resolved    # hub-node-impact-guard JSON已修复（146号v146-swarm执行）
-084-4: long_term   # lead-permissions.sh——需架构决策
+084-4: resolved    # 编排者第四种模式——修改即否定即拓扑操作（147号谱系落地）
 
 # 085号
 085-1: resolved    # 095号已确认真递归可用，"递归"声明合法
@@ -209,3 +209,8 @@
 097-3: resolved    # team-structural-inject.sh 已删除
 097-4: resolved    # dispatch-dag 注释已更新
 097-5: resolved    # hook 回归纯阻断/放行
+
+# === 145号 ===
+145-1: resolved    # dag_query.py（6 subcommands: exists/node/edges/edge-exists/stats/recent）+ dag_add_node.py 已实现，Lead CLI 化 DAG 访问声明已在145号谱系中
+145-2: resolved    # gemini-challenger.md + orchestrator-proxy SKILL.md 已增加产出 ≤ 8KB 约束（超出写 tmp/ 附件）
+145-3: resolved    # no-unnecessary-escalation.md 格式B已包含排除理由推导链要求（第32-41行，145号修复内容）
