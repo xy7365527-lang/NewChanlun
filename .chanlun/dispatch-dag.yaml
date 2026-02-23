@@ -98,6 +98,7 @@ genome_layer:
       - "orchestrator-proxy"
       - "spec-execution-gap"
       - "sub-swarm-ceremony"  # 096号修正 + 097号纯化：子蜂群创建流程结晶（095号谱系），由 CLAUDE.md 原则15声明 skill 路径
+      - "plan-review"  # 160号：Plan 阶段多模型对审协议
 
   # 存在论声明
   ontological_status: >
@@ -251,9 +252,8 @@ event_skill_map:
         description: "代码审查后触发 Codex 异质审查"
       - event: test_failure
         description: "测试失败时自动触发 diagnose（对象否定对象，005b号）"
-      - event: file_write
-        pattern: "src/**/*.py"
-        description: "Python 代码写入后自动触发 Codex review（159号：持久化调用——写代码标配）"
+      - event: plan_review
+        description: "Plan 阶段多模型对审——Opus 出方案后 Codex 评审（160号：修改循环前移）"
       - event: manual_invocation
         description: "Lead 手动调用"
 
