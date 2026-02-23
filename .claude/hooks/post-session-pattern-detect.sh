@@ -22,6 +22,25 @@
 
 set -euo pipefail
 
+resolve_python() {
+  for candidate in python3 python; do
+    if command -v "$candidate" >/dev/null 2>&1; then
+      if "$candidate" -c "import sys" >/dev/null 2>&1; then
+        echo "$candidate"
+        return 0
+      fi
+    fi
+  done
+  return 1
+}
+
+PYTHON_BIN="$(resolve_python || true)"
+if [ -z "$PYTHON_BIN" ]; then
+  exit 0
+fi
+
+python() { command "$PYTHON_BIN" "$@"; }
+
 PROJECT_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 SESSIONS_DIR="$PROJECT_ROOT/.chanlun/sessions"
 PATTERN_FILE="$PROJECT_ROOT/.chanlun/pattern-buffer.yaml"

@@ -11,12 +11,19 @@ set -uo pipefail
 
 INPUT=$(cat)
 
-PYTHON_BIN=""
-if command -v python >/dev/null 2>&1; then
-    PYTHON_BIN="python"
-elif command -v python3 >/dev/null 2>&1; then
-    PYTHON_BIN="python3"
-else
+resolve_python() {
+    local bin
+    for bin in python3 python; do
+        if command -v "$bin" >/dev/null 2>&1 && "$bin" -c "import sys" >/dev/null 2>&1; then
+            echo "$bin"
+            return 0
+        fi
+    done
+    return 1
+}
+
+PYTHON_BIN="$(resolve_python || true)"
+if [ -z "$PYTHON_BIN" ]; then
     # 运行环境无 Python 时保持静默，不阻断主流程。
     exit 0
 fi

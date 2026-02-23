@@ -204,3 +204,94 @@ class TestAuditWithHints:
 
         report = audit(str(tmp_project))
         assert report["unresolved"] == 1
+
+
+class TestVerifyByHintAbsent:
+    """Tests for expect: absent support (156号扩展)."""
+
+    def test_absent_pattern_not_in_file(self, tmp_project):
+        """Pattern absent from file → hint satisfied."""
+        (tmp_project / "target.txt").write_text("clean content", encoding="utf-8")
+        hints = [{"file": "target.txt", "pattern": "forbidden", "expect": "absent"}]
+        assert verify_by_hint(str(tmp_project), hints) is True
+
+    def test_absent_pattern_in_file(self, tmp_project):
+        """Pattern present in file but expect absent → hint fails."""
+        (tmp_project / "target.txt").write_text("has forbidden word", encoding="utf-8")
+        hints = [{"file": "target.txt", "pattern": "forbidden", "expect": "absent"}]
+        assert verify_by_hint(str(tmp_project), hints) is False
+
+    def test_absent_file_not_exists(self, tmp_project):
+        """File doesn't exist → pattern can't be present → absent satisfied."""
+        hints = [{"file": "nonexistent.txt", "pattern": "anything", "expect": "absent"}]
+        assert verify_by_hint(str(tmp_project), hints) is True
+
+    def test_mixed_present_and_absent(self, tmp_project):
+        """Mix of present and absent hints all satisfied."""
+        (tmp_project / "a.txt").write_text("has keyword", encoding="utf-8")
+        (tmp_project / "b.txt").write_text("clean content", encoding="utf-8")
+        hints = [
+            {"file": "a.txt", "pattern": "keyword", "expect": "present"},
+            {"file": "b.txt", "pattern": "forbidden", "expect": "absent"},
+        ]
+        assert verify_by_hint(str(tmp_project), hints) is True
+
+    def test_mixed_present_and_absent_fails(self, tmp_project):
+        """Present hint ok but absent hint fails → overall fails."""
+        (tmp_project / "a.txt").write_text("has keyword", encoding="utf-8")
+        (tmp_project / "b.txt").write_text("has forbidden too", encoding="utf-8")
+        hints = [
+            {"file": "a.txt", "pattern": "keyword", "expect": "present"},
+            {"file": "b.txt", "pattern": "forbidden", "expect": "absent"},
+        ]
+        assert verify_by_hint(str(tmp_project), hints) is False
+
+    def test_absent_default_is_present(self, tmp_project):
+        """No expect field → defaults to present behavior."""
+        (tmp_project / "target.txt").write_text("has content", encoding="utf-8")
+        hints = [{"file": "target.txt", "pattern": "content"}]
+        assert verify_by_hint(str(tmp_project), hints) is True
+
+
+class TestAuditWithAbsentHints:
+    """Integration test: absent hints resolve false positives (156号)."""
+
+    def test_absent_hint_resolves_deletion_verification(self, tmp_project):
+        """Core 156号 scenario: verify content was deleted from a file."""
+        settled_dir = tmp_project / ".chanlun" / "genealogy" / "settled"
+        _write_genealogy(settled_dir, "300", ["Remove forbidden pattern from config"])
+
+        # Create the target file WITHOUT the forbidden pattern
+        (tmp_project / "config.md").write_text("clean config", encoding="utf-8")
+
+        # Add absent hint
+        hints_path = tmp_project / ".chanlun" / "downstream-verification-hints.yaml"
+        hints_path.write_text(
+            yaml.dump({"hints": {
+                "300-1": [{"file": "config.md", "pattern": "forbidden", "expect": "absent"}],
+            }}),
+            encoding="utf-8",
+        )
+
+        report = audit(str(tmp_project))
+        assert report["unresolved"] == 0
+        assert report["resolved"] == 1
+
+    def test_absent_hint_fails_when_pattern_still_present(self, tmp_project):
+        """Pattern still in file → absent hint does NOT resolve."""
+        settled_dir = tmp_project / ".chanlun" / "genealogy" / "settled"
+        _write_genealogy(settled_dir, "301", ["Remove forbidden from config"])
+
+        # File still contains the forbidden pattern
+        (tmp_project / "config.md").write_text("still has forbidden", encoding="utf-8")
+
+        hints_path = tmp_project / ".chanlun" / "downstream-verification-hints.yaml"
+        hints_path.write_text(
+            yaml.dump({"hints": {
+                "301-1": [{"file": "config.md", "pattern": "forbidden", "expect": "absent"}],
+            }}),
+            encoding="utf-8",
+        )
+
+        report = audit(str(tmp_project))
+        assert report["unresolved"] == 1

@@ -305,7 +305,8 @@ automation:
   pattern_detection:
     enabled: true
     trigger: "session_end"
-    buffer_path: ".chanlun/pattern-buffer.yaml"
+    buffer_dir: ".chanlun/pattern-buffer/"
+    index_path: ".chanlun/pattern-buffer/index.yaml"
     min_sequence_length: 2
     promotion_threshold: 3  # 频次达标阈值
   crystallization:

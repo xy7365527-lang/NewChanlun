@@ -117,7 +117,7 @@ agents:
     type: agent
     file: .claude/agents/skill-crystallizer.md
     dag_position: event_skill_map
-    description: "结晶工位——pattern-buffer 达标模式结晶为 skill 文件"
+    description: "结晶工位——pattern-buffer 达标模式结晶为 skill 文件（分片存储于 .chanlun/pattern-buffer/）"
     status: active
 
   - name: gemini-challenger
@@ -334,7 +334,7 @@ hooks:
     file: .claude/hooks/lead-audit.sh
     event: PostToolUse
     matcher: Write|Edit|Bash
-    description: "Lead 拓扑异常对象化审计（088号：032号重设计，原 lead-permissions）"
+    description: "Lead 操作拓扑效力触发器（147号谱系：修改即否定即拓扑操作，084-4 权限→拓扑转化）"
     status: active
 
   - name: meta-observer-guard

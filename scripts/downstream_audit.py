@@ -6,6 +6,7 @@
 
 154号-2 优化：verification_hint 机制——在报告 unresolved 前先用 hint
 检查实际文件内容，减少假阳性。
+156号扩展：支持 expect: absent（pattern 不应出现在文件中）。
 
 用法:
   python scripts/downstream_audit.py              # 输出 JSON 报告
@@ -74,17 +75,20 @@ def load_verification_hints(root):
     """加载 verification hints 文件 .chanlun/downstream-verification-hints.yaml。
 
     154号-2 优化：为下游推论提供轻量级内容验证，减少假阳性。
+    156号扩展：支持 expect: absent（pattern 不应出现在文件中）。
 
     格式:
       hints:
         "155-1":
           - file: ".claude/agents/claude-challenger.md"
             pattern: "Codex"
-        "155-2":
-          - file: ".chanlun/dispatch-dag.yaml"
-            pattern: "codex-challenger"
+        "156-1":
+          - file: ".claude/commands/ceremony.md"
+            pattern: "定理/行动类"
+            expect: absent  # pattern 不应出现在文件中
 
-    每个 hint 条目包含 file（相对于 root 的路径）和 pattern（grep 关键字串）。
+    每个 hint 条目包含 file（相对于 root 的路径）、pattern（grep 关键字串）、
+    可选的 expect（"present" 或 "absent"，默认 "present"）。
     所有 hint 条目都匹配时视为 resolved。
     """
     hints_path = os.path.join(root, ".chanlun", "downstream-verification-hints.yaml")
@@ -101,24 +105,47 @@ def load_verification_hints(root):
 def verify_by_hint(root, hints_for_key):
     """对一组 verification hints 逐个检查文件内容。
 
-    返回 True 当且仅当所有 hint 的 pattern 都在对应文件中找到。
-    任一文件不存在或 pattern 未匹配则返回 False。
+    返回 True 当且仅当所有 hint 条件都满足。
+
+    每个 hint 支持 expect 字段：
+    - expect: "present"（默认）— pattern 必须在文件中存在
+    - expect: "absent" — pattern 必须不在文件中出现（156号：否定性验证）
+
+    对于 expect: "present"：文件不存在或 pattern 未匹配 → False。
+    对于 expect: "absent"：文件不存在视为满足（pattern 确实不在）；
+                          文件存在且 pattern 出现 → False。
     """
     for hint in hints_for_key:
         target_file = hint.get("file", "")
         pattern = hint.get("pattern", "")
         if not target_file or not pattern:
             continue
+        expect = hint.get("expect", "present")
         filepath = os.path.join(root, target_file)
-        if not os.path.isfile(filepath):
-            return False
-        try:
-            with open(filepath, encoding="utf-8") as f:
-                content = f.read()
-            if pattern not in content:
+        file_exists = os.path.isfile(filepath)
+
+        if expect == "absent":
+            # 文件不存在 → pattern 不可能出现 → 满足 absent 条件
+            if not file_exists:
+                continue
+            try:
+                with open(filepath, encoding="utf-8") as f:
+                    content = f.read()
+                if pattern in content:
+                    return False  # pattern 不应出现但出现了
+            except Exception:
+                continue  # 读取失败视为 pattern 不可观测 → 满足 absent
+        else:
+            # expect: "present"（默认）
+            if not file_exists:
                 return False
-        except Exception:
-            return False
+            try:
+                with open(filepath, encoding="utf-8") as f:
+                    content = f.read()
+                if pattern not in content:
+                    return False
+            except Exception:
+                return False
     return True
 
 

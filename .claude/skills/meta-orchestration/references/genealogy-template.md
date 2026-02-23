@@ -15,6 +15,15 @@ negation_form: [waiting | expansion | separation | unclassified]  # 形式维度
 # separation: 统一范畴内部暴露不兼容的异质性（分离型）
 # unclassified: 无法归入已知类型——可能是新的不可消除拓扑修改（亏格，139号重定义）信号，上浮编排者
 
+# 拓扑效果标注（147号下游推论3：携带否定边时必填）
+# 当 negates 字段非空时，必须填写 topo_effect 标注该否定的拓扑操作类型
+# 格式: "type:target:scope" 或自由文本描述
+topo_effect: [可选，当 negates 非空时必填]
+# freeze — 等待型否定（waiting）→ 冻结目标节点及其下游依赖路径，直到后续回溯规定解冻
+# split — 扩张型否定（expansion）→ 目标节点分裂为两个：一个保留原规定，一个携带违反记录
+# sever — 分离型否定（separation）→ 切断目标节点与原路径的连接，形成两条独立路径
+# 判断标准：基于否定事件的实际拓扑后果（retrospective，141号结论1），而非 negation_form 预分类
+
 # 矛盾（type=矛盾发现 时必填）
 contradiction:
   description: [什么跟什么冲突]

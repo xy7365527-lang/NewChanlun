@@ -17,7 +17,7 @@ model: opus
 | 2 | **张力检查** | 新谱系与已有谱系之间是否存在不可分层解决的矛盾 |
 | 3 | **回溯扫描** | 新定义诞生后，检查生成态谱系能否被回溯结算 |
 | 4 | **结晶检测与执行** | 扫描近期谱系的背驰+分型信号，满足条件时执行知识结晶流程（020a） |
-| 5 | **pattern-buffer 扫描** | 每次被唤起时扫描 `.chanlun/pattern-buffer.yaml` 中 `status: candidate` 且 `frequency >= promotion_threshold` 的模式，如有则 spawn skill-crystallizer（051号 Pull 模型） |
+| 5 | **pattern-buffer 扫描** | 每次被唤起时扫描 `.chanlun/pattern-buffer/` 目录下各分片中 `status: candidate` 且 `frequency >= promotion_threshold` 的模式，如有则 spawn skill-crystallizer（051号 Pull 模型） |
 
 **谱系优先于汇总**（谱系012）：先写谱系，再汇总。禁止先汇总结论再补写谱系。
 
@@ -36,6 +36,26 @@ model: opus
 - **谱系链接**：前置/关联谱系编号
 - **影响**：改动了什么、影响哪些模块
 - **来源**：`[旧缠论]` / `[新缠论]` 等溯源标签
+- **topo_effect**（条件必填）：当 `negates` 字段非空时必须填写，标注否定的拓扑操作类型
+
+### topo_effect 标注规则（147号下游推论3）
+
+当谱系携带否定边（`negates` 非空）时，必须标注 `topo_effect` 字段。否定类型到拓扑操作的映射（147号映射表）：
+
+| negation_form | topo_effect | 语义 |
+|--------------|-------------|------|
+| waiting | **freeze** | 冻结目标节点及下游依赖路径，等待后续回溯规定解冻 |
+| expansion | **split** | 目标节点分裂——一个保留原规定，一个携带违反记录 |
+| separation | **sever** | 切断目标节点与原路径的连接，形成独立路径 |
+
+判断原则：以否定事件的**实际拓扑后果**（retrospective）为准，而非 negation_form 预分类（141号结论1）。
+
+格式：`topo_effect: "type:target:scope"` 或描述性自由文本。其中：
+- `type`: freeze / split / sever
+- `target`: 被否定的节点 ID
+- `scope`: local（仅目标节点）/ downstream（目标节点及其下游）
+
+示例：`topo_effect: "sever:073:local"` — 切断 073号节点的连接
 
 模板：`.claude/skills/meta-orchestration/references/genealogy-template.md`
 
@@ -46,7 +66,7 @@ model: opus
 | `.chanlun/definitions/*.md` | 谱系写入时核实定义版本和状态 |
 | `.chanlun/genealogy/pending/` | 回溯扫描、张力检查 |
 | `.chanlun/genealogy/settled/` | 张力检查、谱系链接引用 |
-| `.chanlun/pattern-buffer.yaml` | pattern-buffer 扫描（051号 Pull 模型） |
+| `.chanlun/pattern-buffer/` | pattern-buffer 分片扫描（051号 Pull 模型） |
 | `.claude/skills/meta-orchestration/references/genealogy-template.md` | 写入时参照模板 |
 
 ## 张力检查的范围与递归（019d + 020号谱系 · 递归运动的走势语法）

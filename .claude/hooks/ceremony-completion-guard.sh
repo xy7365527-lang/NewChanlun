@@ -3,6 +3,7 @@
 # 048号谱系：从 044号（ceremony 专用）泛化为全场景覆盖
 # 069号更新：废弃 ceremony 计数器状态机，改用显式状态检测
 # 075号更新：移除 dominator node 检查（结构能力由 skill 事件驱动，不再是 teammate）
+# 155号修复：僵尸工位检测——使用 owner 而非 subject 标识工位；completed 不再报告为空闲
 #
 # 触发：Stop 事件（agent 即将结束 turn）
 # 逻辑：
@@ -18,6 +19,25 @@
 #   - 用户 INTERRUPT → 允许停止
 
 set -uo pipefail
+
+resolve_python() {
+    for candidate in python3 python; do
+        if command -v "$candidate" >/dev/null 2>&1; then
+            if "$candidate" -c "import sys" >/dev/null 2>&1; then
+                echo "$candidate"
+                return 0
+            fi
+        fi
+    done
+    return 1
+}
+
+PYTHON_BIN="$(resolve_python || true)"
+if [ -z "$PYTHON_BIN" ]; then
+    exit 0
+fi
+
+python() { command "$PYTHON_BIN" "$@"; }
 
 input=$(cat)
 cwd=$(echo "$input" | python -c "import sys,json; print(json.loads(sys.stdin.read()).get('cwd', '.'))" 2>/dev/null || echo ".")
@@ -118,7 +138,6 @@ fi
 ACTIVE_TASKS=0
 PENDING_TASKS=""
 IN_PROGRESS_TASKS=""
-COMPLETED_TASKS=""
 if [ -d "$HOME/.claude/tasks" ]; then
     for team_dir in "$HOME/.claude/tasks"/*/; do
         [ -d "$team_dir" ] || continue
@@ -127,18 +146,20 @@ if [ -d "$HOME/.claude/tasks" ]; then
             [ -f "$task_file" ] || continue
             # 跳过 .lock 文件
             case "$task_file" in *.lock) continue ;; esac
-            # 提取 status, subject, blockedBy
+            # 提取 status, owner, subject, blockedBy
+            # 155号修复：使用 owner（agent name）而非 subject 作为工位标识
             TASK_INFO=$(python -c "
 import json, sys
 with open(sys.argv[1]) as f:
     d = json.load(f)
 status = d.get('status','')
+owner = d.get('owner','')
 subject = d.get('subject','')
 blocked = d.get('blockedBy', [])
 # 只有当 blockedBy 中所有任务都已完成时，才算未阻塞
 has_open_blockers = False
 if blocked:
-    import os, glob
+    import os
     task_dir = os.path.dirname(sys.argv[1])
     for bid in blocked:
         bf = os.path.join(task_dir, f'{bid}.json')
@@ -151,25 +172,32 @@ if blocked:
         else:
             has_open_blockers = True
             break
-print(status, 'BLOCKED' if has_open_blockers else 'UNBLOCKED', subject)
+# 输出格式: status<TAB>blocked<TAB>owner<TAB>subject
+# 使用 TAB 分隔避免 subject 中含空格导致 cut 错位
+print(f'{status}\t{\"BLOCKED\" if has_open_blockers else \"UNBLOCKED\"}\t{owner}\t{subject}')
 " "$task_file" 2>/dev/null) || continue
-            TASK_STATUS=$(echo "$TASK_INFO" | cut -d' ' -f1)
-            TASK_BLOCKED=$(echo "$TASK_INFO" | cut -d' ' -f2)
-            TASK_NAME=$(echo "$TASK_INFO" | cut -d' ' -f3-)
+            TASK_STATUS=$(echo "$TASK_INFO" | cut -f1)
+            TASK_BLOCKED=$(echo "$TASK_INFO" | cut -f2)
+            TASK_OWNER=$(echo "$TASK_INFO" | cut -f3)
+            TASK_SUBJECT=$(echo "$TASK_INFO" | cut -f4-)
+            # 155号修复：用 owner 标识工位，subject 仅作描述
+            # completed 任务不再报告为"空闲工位"——工位退出后不应被追踪
+            DISPLAY_NAME="${TASK_OWNER:-未分配}"
             case "$TASK_STATUS" in
                 pending)
                     # 145号：被阻塞的 pending 不计为活跃——它们无法被分配
                     if [ "$TASK_BLOCKED" = "UNBLOCKED" ]; then
                         ACTIVE_TASKS=$((ACTIVE_TASKS + 1))
-                        PENDING_TASKS="${PENDING_TASKS:+$PENDING_TASKS, }$TASK_NAME"
+                        PENDING_TASKS="${PENDING_TASKS:+$PENDING_TASKS, }${TASK_SUBJECT}(→${DISPLAY_NAME})"
                     fi
                     ;;
                 in_progress)
                     ACTIVE_TASKS=$((ACTIVE_TASKS + 1))
-                    IN_PROGRESS_TASKS="${IN_PROGRESS_TASKS:+$IN_PROGRESS_TASKS, }$TASK_NAME"
+                    IN_PROGRESS_TASKS="${IN_PROGRESS_TASKS:+$IN_PROGRESS_TASKS, }${DISPLAY_NAME}:${TASK_SUBJECT}"
                     ;;
                 completed)
-                    COMPLETED_TASKS="${COMPLETED_TASKS:+$COMPLETED_TASKS, }$TASK_NAME"
+                    # 155号修复：completed 任务不计入活跃，不报告为空闲
+                    # 已完成 = 工位已交付，不需要路由指令
                     ;;
             esac
         done
@@ -184,32 +212,26 @@ if [ "$ACTIVE_TASKS" -gt 0 ]; then
     else
         echo "$((COUNT + 1)):$ACTIVE_TASKS" > "$COUNTER"
     fi
+    # 155号修复：移除僵尸工位报告（completed 不再参与路由）
     python -c "
 import json, sys
 active = int(sys.argv[1])
 pending = sys.argv[2]
 in_progress = sys.argv[3]
-completed = sys.argv[4]
 
 # 构建具体路由指令
 instructions = []
-
-# 已完成的工位 = idle，可以分配新任务或关闭
-if completed:
-    idle_names = completed.split(', ')
-    for name in idle_names:
-        instructions.append(f'工位 {name} 空闲，分配下一个任务或发送 shutdown_request 关闭')
 
 # 有 pending 任务但没有对应工位在运行
 if pending:
     instructions.append(f'待分配任务: [{pending}]，启动工位或分配给空闲工位')
 
-# 所有活跃任务都在运行中（无 pending、无 completed idle）
-if in_progress and not pending and not completed:
+# 所有活跃任务都在运行中（无 pending）
+if in_progress and not pending:
     instructions.append(f'所有工位运行中 [{in_progress}]。检查是否有概念层问题可以同步处理（Gemini 质询、谱系检查）')
 
-# 有运行中的工位，列出以便跟踪
-if in_progress and (pending or completed):
+# 有运行中的工位且有 pending
+if in_progress and pending:
     instructions.append(f'运行中: [{in_progress}]，等待汇报')
 
 route = ' | '.join(instructions) if instructions else '请检查 TaskList 并推进未完成任务'
@@ -218,7 +240,7 @@ print(json.dumps({
     'decision': 'block',
     'reason': f'[Stop-Guard] 蜂群任务队列有 {active} 个活跃任务。不允许停止。路由指令: {route}'
 }, ensure_ascii=False))
-" "$ACTIVE_TASKS" "$PENDING_TASKS" "$IN_PROGRESS_TASKS" "$COMPLETED_TASKS"
+" "$ACTIVE_TASKS" "$PENDING_TASKS" "$IN_PROGRESS_TASKS"
     exit 0
 fi
 

@@ -287,3 +287,8 @@
 # === 154号 — ceremony 空蜂群退出路径 ===
 154-1: resolved    # ceremony.md 步骤4已增加定理/行动类直接执行路径 + 持久化不变量 + Read/Glob例外 + 谱系引用（154号本次执行完成）
 154-2: background_noise   # 可选优化（非必须）：ceremony_scan 对 unresolved 工位附加代码层快速检查 hint——当前人工判断已足够（154号谱系原文声明"非必须"）
+
+# === 156号 — 否定154号（ceremony 不允许 Lead 直接执行） ===
+156-1: resolved    # ceremony.md 已删除定理/行动类直接执行路径（156号否定154号）
+156-2: resolved    # ceremony.md Read/Glob行已删除"定理/行动类判断"例外（156号否定154号）
+156-3: resolved    # ceremony.md 已删除"长期/可选"退出路径（156号否定154号）

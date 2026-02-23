@@ -1,53 +1,59 @@
 #!/usr/bin/env bash
 # flow-continuity-guard.sh — PostToolUse hook for Bash (git commit)
-# 028号谱系 + post-commit-flow 的运行时强制层（016号）
-#
-# 触发条件：Bash 工具调用完成后
-# 检查：是否是 git commit 且成功
-# 动作：注入 systemMessage 强制 Lead 输出下一步行动
-#
-# Gemini 编排者代理决策：方案A（PostToolUse hook 注入）
-# 边界条件：commit message 含 [FINAL] 时允许停顿
-#
-# 输出格式：PostToolUse 支持 top-level {"decision":"block","reason":"..."}
-# 对于 PostToolUse，"block" 不会阻止工具执行（commit 已完成），
-# 而是将 reason 作为反馈注入给 Claude，正好符合本 hook 的意图：
-# commit 成功后注入"必须继续"的指令。
-# 参考：https://code.claude.com/docs/en/hooks#posttooluse-decision-control
+# 触发：Bash 执行成功的 git commit 后，注入继续执行提示。
 
 set -euo pipefail
 
-# 读取 tool input
 INPUT=$(cat)
 
-# 只处理 Bash 工具
-TOOL_NAME=$(echo "$INPUT" | python -c "import sys,json; print(json.load(sys.stdin).get('tool_name',''))" 2>/dev/null || echo "")
-if [ "$TOOL_NAME" != "Bash" ]; then
-  exit 0
-fi
-
-# 获取命令内容和退出码
-COMMAND=$(echo "$INPUT" | python -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('command',''))" 2>/dev/null || echo "")
-EXIT_CODE=$(echo "$INPUT" | python -c "import sys,json; print(json.load(sys.stdin).get('tool_result',{}).get('exit_code',1))" 2>/dev/null || echo "1")
-
-# 只处理 git commit 成功的情况
-if ! echo "$COMMAND" | grep -q "git commit"; then
-  exit 0
-fi
-
-if [ "$EXIT_CODE" != "0" ]; then
-  exit 0
-fi
-
-# 边界条件：[FINAL] 标记允许停顿
-if echo "$COMMAND" | grep -qi "\[FINAL\]"; then
-  exit 0
-fi
-
-# 注入 systemMessage 强制继续
-cat <<'HOOK_OUTPUT'
-{
-  "decision": "block",
-  "reason": "[028号谱系 · 运行时强制] Commit 成功。不允许停顿或输出总结段落。你必须立即：\n1. 输出 '→ 接下来：[具体动作]'\n2. 紧跟 tool 调用执行该动作\n\n如果确实无事可做，执行扫描（TODO/覆盖率/spec合规/谱系张力）。\n如果所有工作已完成，输出 '→ 接下来：写 session 记录' 并执行。"
+resolve_python() {
+  local bin
+  for bin in python3 python; do
+    if command -v "$bin" >/dev/null 2>&1 && "$bin" -c "import sys" >/dev/null 2>&1; then
+      echo "$bin"
+      return 0
+    fi
+  done
+  return 1
 }
-HOOK_OUTPUT
+
+PYTHON_BIN="$(resolve_python || true)"
+[ -n "$PYTHON_BIN" ] || exit 0
+
+INPUT_JSON="$INPUT" "$PYTHON_BIN" - <<'PY'
+import json
+import os
+import sys
+
+try:
+    data = json.loads(os.environ.get("INPUT_JSON", "{}"))
+except Exception:
+    sys.exit(0)
+
+if data.get("tool_name", "") != "Bash":
+    sys.exit(0)
+
+command = data.get("tool_input", {}).get("command", "") or ""
+exit_code = data.get("tool_result", {}).get("exit_code", 1)
+
+if "git commit" not in command:
+    sys.exit(0)
+
+if str(exit_code) != "0":
+    sys.exit(0)
+
+if "[FINAL]" in command.upper():
+    sys.exit(0)
+
+reason = (
+    "[028号谱系 · 运行时强制] Commit 成功。不允许停顿或输出总结段落。你必须立即：\n"
+    "1. 输出 '→ 接下来：[具体动作]'\n"
+    "2. 紧跟 tool 调用执行该动作\n\n"
+    "如果确实无事可做，执行扫描（TODO/覆盖率/spec合规/谱系张力）。\n"
+    "如果所有工作已完成，输出 '→ 接下来：写 session 记录' 并执行。"
+)
+
+print(json.dumps({"decision": "block", "reason": reason}, ensure_ascii=False))
+PY
+
+exit 0
