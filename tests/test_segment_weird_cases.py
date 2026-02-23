@@ -128,14 +128,14 @@ class TestI11DegenerateSegmentProhibition:
         self._assert_no_degenerate(segs)
 
     def test_assert_catches_degenerate_up(self):
-        """assert_segment_theorem_v1 应能检测到向上退化段。"""
-        # 手工构造一个违反 I11 的假段
+        """assert_segment_theorem_v1 应能检测到向上段违反顶高于底。"""
+        # 手工构造一个违反第78课硬约束的假段
         fake_seg = Segment(
             s0=0, s1=2, i0=0, i1=12, direction="up",
             high=20, low=5, confirmed=True,
             kind="settled",
             ep0_i=0, ep0_price=15.0, ep0_type="bottom",
-            ep1_i=12, ep1_price=10.0, ep1_type="top",  # 10 < 15 → 退化！
+            ep1_i=12, ep1_price=10.0, ep1_type="top",  # 10 < 15 → 顶低于底！
         )
         result = assert_segment_theorem_v1(
             [_s(0, 4, "up", 20, 5), _s(4, 8, "down", 18, 8), _s(8, 12, "up", 15, 7)],
@@ -143,16 +143,16 @@ class TestI11DegenerateSegmentProhibition:
             enable=False,
         )
         assert result.ok is False
-        assert "degenerate" in result.message.lower()
+        assert "top-above-bottom" in result.message.lower()
 
     def test_assert_catches_degenerate_down(self):
-        """assert_segment_theorem_v1 应能检测到向下退化段。"""
+        """assert_segment_theorem_v1 应能检测到向下段违反顶高于底。"""
         fake_seg = Segment(
             s0=0, s1=2, i0=0, i1=12, direction="down",
             high=20, low=5, confirmed=True,
             kind="settled",
             ep0_i=0, ep0_price=10.0, ep0_type="top",
-            ep1_i=12, ep1_price=15.0, ep1_type="bottom",  # 15 > 10 → 退化！
+            ep1_i=12, ep1_price=15.0, ep1_type="bottom",  # 15 > 10 → 底高于顶！
         )
         result = assert_segment_theorem_v1(
             [_s(0, 4, "down", 20, 10), _s(4, 8, "up", 15, 8), _s(8, 12, "down", 14, 5)],
@@ -160,7 +160,7 @@ class TestI11DegenerateSegmentProhibition:
             enable=False,
         )
         assert result.ok is False
-        assert "degenerate" in result.message.lower()
+        assert "top-above-bottom" in result.message.lower()
 
 
 # =====================================================================

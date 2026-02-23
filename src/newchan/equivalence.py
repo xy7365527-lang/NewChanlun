@@ -66,6 +66,38 @@ _T_CV = 0.01
 _T_STROKE_PCT = 0.005  # 0.5%
 _T_DYNAMICS_PCT = 0.0001  # 0.01%
 
+# 流动性阈值（C-3）：零成交量占比超过此值 → 流动性不足
+_T_LIQUIDITY = 0.5  # 50% 的K线零成交量 → 不合格
+
+
+def _check_liquidity(
+    df_a: pd.DataFrame, df_b: pd.DataFrame, t_liquidity: float,
+) -> ValidationResult | None:
+    """C-3 流动性检查：两个标的都必须有充足的市场深度。
+
+    检查 volume 列中零成交量占比是否超过阈值。
+    如果没有 volume 列（如汇率数据），跳过检查。
+
+    Returns None 表示通过，ValidationResult 表示失败。
+    """
+    for label, df in [("A", df_a), ("B", df_b)]:
+        if "volume" not in df.columns:
+            continue
+        vol = df["volume"]
+        n_total = len(vol)
+        if n_total == 0:
+            continue
+        n_zero = int((vol == 0).sum())
+        zero_ratio = n_zero / n_total
+        if zero_ratio > t_liquidity:
+            return ValidationResult(
+                valid=False,
+                reason=f"Insufficient liquidity in {label} — "
+                       f"{zero_ratio:.0%} of bars have zero volume "
+                       f"(threshold: {t_liquidity:.0%})",
+            )
+    return None
+
 
 def _align_pair(
     df_a: pd.DataFrame, df_b: pd.DataFrame, min_overlap: int,
@@ -137,13 +169,27 @@ def validate_pair(
     t_cv: float = _T_CV,
     t_stroke_pct: float = _T_STROKE_PCT,
     t_dynamics_pct: float = _T_DYNAMICS_PCT,
+    t_liquidity: float = _T_LIQUIDITY,
 ) -> ValidationResult:
-    """验证两个标的是否满足等价对条件（C-2 三层退化连锁检测）。"""
+    """验证两个标的是否满足等价对条件。
+
+    三条件：
+      C-1 可比性 — 重叠时间窗口（_align_pair）
+      C-2 非退化 — 三层退化连锁检测（_layer1_cv + _layer2_and_3）
+      C-3 流动性 — 市场深度（_check_liquidity）
+    """
+    # C-3 流动性检查（在对齐前检查原始数据的流动性）
+    liquidity_fail = _check_liquidity(df_a, df_b, t_liquidity)
+    if liquidity_fail is not None:
+        return liquidity_fail
+
+    # C-1 可比性检查
     aligned = _align_pair(df_a, df_b, min_overlap)
     if isinstance(aligned, ValidationResult):
         return aligned
     a_aligned, b_aligned, overlap = aligned
 
+    # C-2 非退化检查
     cv, ratio_mean, fail = _layer1_cv(a_aligned, b_aligned, t_cv)
     if fail is not None:
         return fail
