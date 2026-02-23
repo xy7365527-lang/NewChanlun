@@ -13,7 +13,7 @@ negation_form: [waiting | expansion | separation | unclassified]  # 形式维度
 # waiting: 当前不可结算，需后续回溯规定（après-coup）
 # expansion: 规定者在执行中违反自身规定（膨胀型）
 # separation: 统一范畴内部暴露不兼容的异质性（分离型）
-# unclassified: 无法归入已知类型——可能是新亏格信号，上浮编排者
+# unclassified: 无法归入已知类型——可能是新的不可消除拓扑修改（亏格，139号重定义）信号，上浮编排者
 
 # 矛盾（type=矛盾发现 时必填）
 contradiction:

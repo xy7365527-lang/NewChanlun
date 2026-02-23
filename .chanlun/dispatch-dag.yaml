@@ -20,6 +20,21 @@ provenance: "[新缠论]"
 genealogy_ref: "072, 068, 069, 075-structural-to-skill, 081-swarm-continuity-strategy-d, 089-aufhebung-audit, 093-five-constraints-topology"
 
 # ═══════════════════════════════════════════════════════════════
+# 层级索引（095-4：三层分类——genome / structural / business）
+#
+#   genome_layer    — 基因组/公理层（§0）：CLAUDE.md, dispatch-dag.yaml, ceremony_scan.py,
+#                     hooks, grammar_rules, knowledge_templates(skills)
+#   structural      — 结构 skill 层（§2 event_skill_map, skill_type=structural）：
+#                     genealogist, quality-guard, meta-observer, code-verifier, topology-mutator
+#   business        — 业务工位层（§2b task_template + platform_layer）：
+#                     运行时动态实例化的 task_node + ECC 工程底座 agent
+#   conditional     — 条件触发 skill（§2 event_skill_map, skill_type=conditional）：
+#                     gemini-challenger, claude-challenger, source-auditor, topology-manager
+#   terminal_sink   — 结晶汇点（§2 event_skill_map, skill_type=terminal_sink）：
+#                     skill-crystallizer（唯一合法汇点）
+# ═══════════════════════════════════════════════════════════════
+
+# ═══════════════════════════════════════════════════════════════
 # 0. 基因组层（089号：元编排的严格扬弃——Aufhebung）
 #
 # 扬弃 = 否定 + 保留 + 提升。

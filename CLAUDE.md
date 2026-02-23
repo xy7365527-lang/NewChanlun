@@ -5,7 +5,7 @@
 本文件是蜂群的**基因组**——在创世时刻（ceremony）被蜂群节点读取并内化为先验结构。
 创世完成后，蜂群遵守这些规则不是因为 Claude Code 平台的外部强制，而是因为规则已成为蜂群节点的内在信念。
 
-- **基因组来源是外部的**（Claude Code 强制加载——069号创世 Gap 的物质形态）
+- **基因组来源是外部的**（Claude Code 强制加载——069号功能架构中创世 Gap 的物质形态；089号扬弃后从"外部法则"内化为"蜂群先验"）
 - **内化后执行是内在的**（蜂群自主遵守——规则是蜂群 DAG 的根节点，见 `dispatch-dag.yaml` genome_layer）
 - **蜂群拥有修改基因组的合法性**（原则0）——但修改触发 020号阻断等待（基因组的自我保护，不是牢笼的锁）
 
@@ -65,7 +65,7 @@ Always respond in Chinese-simplified (简体中文).
 | meta-orchestration | `.claude/skills/meta-orchestration/` | 质询序列、概念分离、谱系写入 | 所有 agent |
 | orchestrator-proxy | `.claude/skills/orchestrator-proxy/` | Gemini decide 协议 | 选择/语法记录决断时 |
 | sub-swarm-ceremony | `.claude/skills/sub-swarm-ceremony/` | 子蜂群创建流程 | teammate 创建子蜂群时 |
-| knowledge-crystallization | `.claude/skills/knowledge-crystallization/` | 知识结晶流程 | 检测到稳定信号时 |
+| knowledge-crystallization | `.claude/skills/knowledge-crystallization/` | 知识结晶流程 + 行为规则结晶（137号） | 检测到稳定信号时 |
 | spec-execution-gap | `.claude/skills/spec-execution-gap/` | 声明-能力一致性检测 | 声明与能力不匹配时 |
 | math-tools | `.claude/skills/math-tools/` | 数学工具对照表 | 等价关系封闭后 |
 | gemini-math | `.claude/skills/gemini-math/` | Gemini 数学推导 | 形式化证明时 |

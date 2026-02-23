@@ -346,7 +346,7 @@ nodes:
   file: settled/061-island-audit.md
 - id: '062'
   title: 异质性作为 Sinthome——对 060号 3+1 架构的扬弃
-  status: 已结算
+  status: 已结算（已被093号扬弃，内容保留为历史层）
   type: 语法记录
   file: settled/062-heterogeneity-as-sinthome.md
 - id: '063'
