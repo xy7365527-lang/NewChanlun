@@ -142,6 +142,30 @@ Gemini 不可用时，写入 pending 等待人类决策（降级，不阻塞系�
 
 否定涉及生成态定义 → 写入 pending，等 lead 扫描。
 
+## 谱系质询产出路由（175号下游推论）
+
+当 Gemini 概念层谱系质询（genealogy_settlement 触发）发现谱系缺陷时，按缺陷类型路由：
+
+| 缺陷类型 | 定义 | 处理路径 |
+|----------|------|---------|
+| **定义冲突** | 两个已结算定义之间的矛盾 | `/escalate` — 需要编排者价值判断 |
+| **逻辑错误** | 推导链中的逻辑谬误 | 直接修复谱系文件 |
+| **缺失依赖** | depends_on 引用不存在的节点 | 直接修复（补充节点或修正引用） |
+| **冗余条目** | 重复的概念分离记录 | 标记后走 `/escalate`（删除需要确认） |
+
+路由原则：可自主判断的（逻辑错误、缺失依赖）直接修复；涉及价值判断的（定义冲突、冗余条目删除）上浮。
+
+## 产出持久化（175号下游推论）
+
+所有 Gemini 谱系质询的产出必须持久化到：
+`.chanlun/review-results/gemini-genealogy-review-{timestamp}.md`
+
+格式：
+- YAML frontmatter: `trigger`（触发事件）、`target`（质询目标谱系ID）、`mode`（challenge/verify/derive）、`result`（pass/fail/escalate）
+- 正文: 质询过程和结论
+
+此路径与 Codex review 持久化路径（`.chanlun/review-results/codex-{mode}-{ts}.md`）同级，保持审计产出的统一归档。
+
 ## 你不做的事
 
 - 不修改定义文件（仪式的事）

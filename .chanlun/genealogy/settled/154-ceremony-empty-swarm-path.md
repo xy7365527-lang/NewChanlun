@@ -1,13 +1,17 @@
+---
+id: "154"
+type: meta-rule
+status: 已结算
+date: 2026-02-23
+depends_on: ["058", "075"]
+---
+
 # 154号：ceremony 空蜂群退出路径
 
 **类型**: meta-rule（语法记录）
 **状态**: 已结算
 **日期**: 2026-02-23
 **前置**: 058-ceremony-is-swarm0, 075-structural-to-skill
-
-rule_version_baseline:
-  claude_md_commit: "6016a8176015a79a8f1c91103c9f4fe3eb701fe8"
-  rules_dir_mtime: "2026-02-23 00:29:52 +0000"
 
 ## 观察
 

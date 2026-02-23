@@ -276,6 +276,83 @@ TOPO_OPERATORS = {
 }
 
 
+def compute_load_bearing_score(dag: dict, node_id: str) -> dict:
+    """基于 DAG 后代节点数 + 级联否定影响范围的承重点评分（176号下游推论3）。
+
+    在 depends_on 图中，"from" 依赖 "to"。因此 node_id 的后代是
+    所有 depends_on 边中以 node_id 为 "to"（直接或传递）的节点。
+
+    级联否定影响：如果 node_id 被否定（negates 边），其所有后代节点的
+    depends_on 链断裂。
+
+    Args:
+        dag: dag.yaml 数据。
+        node_id: 目标节点 ID。
+
+    Returns:
+        {"descendants": N, "cascade_impact": M, "score": N+M,
+         "is_load_bearing": bool, "threshold": T}
+    """
+    nodes = dag.get("nodes", [])
+    edges = dag.get("edges", {})
+    all_ids = {str(n["id"]) for n in nodes}
+    total_nodes = len(all_ids)
+    nid = str(node_id)
+
+    # Build adjacency: parent -> set of children (depends_on: from depends on to)
+    # "to" is the parent, "from" is the child
+    children_of: dict[str, set[str]] = {str(n["id"]): set() for n in nodes}
+    for e in edges.get("depends_on", []):
+        parent = str(e.get("to", ""))
+        child = str(e.get("from", ""))
+        if parent in children_of:
+            children_of[parent].add(child)
+
+    # Compute transitive descendants via BFS
+    descendants: set[str] = set()
+    queue = list(children_of.get(nid, set()))
+    while queue:
+        current = queue.pop()
+        if current not in descendants:
+            descendants.add(current)
+            queue.extend(children_of.get(current, set()) - descendants)
+
+    # Cascade impact: nodes that are negated by this node (negates edges)
+    # plus all descendants of those negated nodes
+    negated_targets: set[str] = set()
+    for e in edges.get("negates", []):
+        if str(e.get("from", "")) == nid:
+            negated_targets.add(str(e.get("to", "")))
+
+    cascade_nodes: set[str] = set()
+    for target in negated_targets:
+        # The negated target itself
+        cascade_nodes.add(target)
+        # Plus all descendants of the negated target
+        q = list(children_of.get(target, set()))
+        while q:
+            c = q.pop()
+            if c not in cascade_nodes:
+                cascade_nodes.add(c)
+                q.extend(children_of.get(c, set()) - cascade_nodes)
+
+    # Remove overlap with descendants (don't double-count)
+    cascade_only = cascade_nodes - descendants
+
+    desc_count = len(descendants)
+    cascade_count = len(cascade_only)
+    score = desc_count + cascade_count
+    threshold = max(1, int(total_nodes * 0.10))
+
+    return {
+        "descendants": desc_count,
+        "cascade_impact": cascade_count,
+        "score": score,
+        "is_load_bearing": score >= threshold,
+        "threshold": threshold,
+    }
+
+
 def execute_topo_effect(
     dag: dict,
     source_id: str,
