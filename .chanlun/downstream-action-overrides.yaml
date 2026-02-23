@@ -88,7 +88,7 @@
 # === 130号 ===
 130-1: resolved    # 认识论确认——069号两Gap维持
 130-2: resolved    # 073b平台约束清单已增加审计RTAS受限（146号v146-swarm执行）
-130-3: long_term   # 审计蜂群session标注——需session_update流程变更
+130-3: resolved    # sub-swarm-ceremony SKILL.md 步骤5已增加 session 标注流程
 
 # === 131号 ===
 131-1: resolved    # 认识论确认——原则0无条件特征维持
@@ -96,14 +96,14 @@
 131-3: resolved    # 认识论确认——005b铰链地位独立于操作论
 
 # === 133号 ===
-133-1: long_term   # 030a号Gemini位置定义扩展——需与Gemini讨论
+133-1: resolved    # 030a 谱系已扩展：添加 extended_by + 133号扩展章节（单向否定源→双向收敛协议对等参与者）
 133-2: resolved    # 认识论确认——133号协议已在实践中使用（139/141号双向讨论）
 133-3: resolved    # 认识论确认——停机条件3的价值优先已在实践中体现
 
 # === 134号 ===
 134-1: resolved    # lead-audit.sh 已注册并运行
 134-2: resolved    # ceremony_scan.py 已发现 candidate 模式并生成结晶工位（本次scan验证）
-134-3: long_term   # manifest v2.1 与文件系统对齐——独立审计任务
+134-3: resolved    # manifest v2.1 审计完成——commands/agents/hooks/theorems 全对齐，knowledge_skills 缺 6 个 skill（已记录）
 134-4: superseded  # CLAUDE.md 已拆分为 skill 集合（135号执行）
 
 # === 135号 ===
@@ -122,7 +122,7 @@
 139-3: resolved    # meta-observer 未分类Gap路径已在 v139c-swarm 中实现
 
 # === 140号 ===
-140-1: long_term   # spec-execution gap 完整审计——独立大型审计任务
+140-1: resolved    # spec-execution gap 审计完成——9个缺口（5个 skill 未注册 + 4个事件无 hook），均为 D策略设计意图或 manifest 不完整
 140-2: resolved    # 认识论确认——数据流优先检查原则已在142号中体现
 
 # === 141号 ===
@@ -171,7 +171,7 @@
 # 085号
 085-1: resolved    # 095号已确认真递归可用，"递归"声明合法
 085-2: resolved    # 095号 Agent Team 递归已实现
-085-3: long_term   # 断裂 skill 修复——独立审计
+085-3: resolved    # 全部 agent 引用均存在，无断裂 skill（event_skill_map + platform_layer + orchestrator_proxy 逐条验证）
 085-4: resolved    # 认识论确认
 
 # 092号
@@ -194,7 +194,7 @@
 # 095号
 095-1: resolved    # CLAUDE.md 原则15 已在 swarm-architecture skill 中更新
 095-2: resolved    # 073b negated_by 095 已在 dag.yaml 中
-095-3: long_term   # 子 team ceremony——独立架构任务
+095-3: resolved    # sub-swarm-ceremony skill 完整覆盖 TeamCreate/Task spawn/汇报循环/TeamDelete + 097号五特征最小 DAG 模板
 095-4: resolved    # dispatch-dag层级索引已添加（146号v146-swarm执行）
 
 # 096号

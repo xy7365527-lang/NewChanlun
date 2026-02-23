@@ -85,11 +85,17 @@ Task(name="{工位名}", subagent_type="general-purpose", team_name="{子team名
 
 如果 Gemini 不可用：记录降级状态，向父蜂群 Lead 报告（审计层断裂 Gap 扩大，094号）。
 
-### 5. 清理
+### 5. Session 标注与清理
 
 所有工位完成后：
-- TeamDelete 清理子 team
-- 向父蜂群 Lead 发送最终汇总（含异质审计结论）
+1. **标注 session 文件**：在 `.chanlun/sessions/` 最新 session 文件中追加蜂群完成记录：
+   - 蜂群名称（team_name）
+   - 完成时间
+   - 工位数量与状态摘要
+   - 产出文件列表（谱系/定义/代码变更）
+   - 异质审计结论（通过/降级/不适用）
+2. TeamDelete 清理子 team
+3. 向父蜂群 Lead 发送最终汇总（含异质审计结论）
 
 ## 子蜂群的完整结构（不可省略）
 
