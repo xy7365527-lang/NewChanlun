@@ -105,12 +105,15 @@ with open('$PATTERN_BUFFER', 'r', encoding='utf-8') as f:
 
 # 简单 YAML 解析：提取 frequency >= 3 且 status 为 settled 或 candidate 的模式
 # M1 统一：status 枚举为 observed → candidate → settled → promoted/rejected
+# 排除 anomaly_type 条目（lead-audit 异常，不是结晶候选）
 patterns = []
 current = {}
 for line in content.split('\n'):
     stripped = line.strip()
     if stripped.startswith('- id:'):
-        if current.get('frequency', 0) >= 3 and current.get('status') in ('settled', 'candidate'):
+        if (current.get('frequency', 0) >= 3
+            and current.get('status') in ('settled', 'candidate')
+            and not current.get('anomaly_type')):
             patterns.append(current)
         current = {'id': stripped.split(':', 1)[1].strip().strip('\"').strip(\"'\")}
     elif stripped.startswith('frequency:'):
@@ -122,9 +125,13 @@ for line in content.split('\n'):
         current['status'] = stripped.split(':', 1)[1].strip().strip('\"').strip(\"'\")
     elif stripped.startswith('description:'):
         current['description'] = stripped.split(':', 1)[1].strip().strip('\"').strip(\"'\")
+    elif stripped.startswith('anomaly_type:'):
+        current['anomaly_type'] = stripped.split(':', 1)[1].strip().strip('\"').strip(\"'\")
 
 # 最后一个
-if current.get('frequency', 0) >= 3 and current.get('status') in ('settled', 'candidate'):
+if (current.get('frequency', 0) >= 3
+    and current.get('status') in ('settled', 'candidate')
+    and not current.get('anomaly_type')):
     patterns.append(current)
 
 if not patterns:
