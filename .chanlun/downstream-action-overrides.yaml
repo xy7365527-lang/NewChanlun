@@ -302,3 +302,14 @@
 158-1: resolved    # ceremony.md 步骤6第8条：不执行 TeamDelete，蜂群保持存活（全文无 TeamDelete 调用）
 158-2: resolved    # topology_operator.py 已实现 freeze/split/sever 映射 + dispatch-dag topology-mutator skill 已注册
 158-3: resolved    # 编排者异步审计权已在当前规则体系中体现——编排者通过谱系事后审计，不再是拓扑变化 gatekeeper（102号结晶 + 158号第三步）
+
+# === 159号 — Codex 持久化调用——写代码标配 ===
+159-1: resolved    # dispatch-dag.yaml L255: codex-challenger plan_review 事件已存在（原 file_write，160号修正为 plan_review）
+159-2: resolved    # src/newchan/codex/__main__.py _save_result() 自动写入 .chanlun/review-results/codex-{mode}-{ts}.md
+159-3: resolved    # plan-review SKILL.md 定义完整工作流：Plan（多模型对审）→ 方案定稿 → Execute → Verify
+
+# === 160号 — Plan 阶段多模型对审 ===
+160-1: resolved    # plan-review SKILL.md Phase 2-3：planner 产出方案 → Codex review 模式评审 → 5-6轮质疑补全
+160-2: resolved    # dispatch-dag.yaml L101 skills_catalog 包含 plan-review + L255 event_skill_map 有 plan_review 事件
+160-3: resolved    # plan-review SKILL.md 定义蜂群标准工作流：Plan（多模型对审）→ Execute（一次通过）→ Verify（与 159-3 同构）
+160-4: resolved    # plan-review SKILL.md Phase 3 写入路径 .chanlun/review-results/plan-review-{ts}-round{N}.md + CLI 自动持久化
