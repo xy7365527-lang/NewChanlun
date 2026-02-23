@@ -170,20 +170,19 @@ platform_layer                              ← ECC 工程底座 agent（10个�
 
 genome_layer 是蜂群的先验结构——CLAUDE.md 不是蜂群之外的特权法则，而是蜂群 DAG 的基因组根节点（089号谱系：严格扬弃 Aufhebung）。
 
-### 22 个 Hook：系统的免疫系统
+### 21 个 Hook：系统的免疫系统
 
 Hook 不依赖 agent 的自觉遵守，在运行时物理阻断违规：
 
 | Hook | 类型 | 功能 |
 |------|------|------|
-| ceremony-guard | PreToolUse | ceremony 阶段 Task spawn 验证 |
+| agent-team-enforce | PreToolUse | ceremony 阶段验证 + Agent Team 结构工位强制注入 |
 | definition-write-guard | PreToolUse | 定义文件修改拦截（必须通过仪式） |
 | genealogy-write-guard | PreToolUse | 谱系文件格式强制 |
 | spec-write-guard | PreToolUse | 规格文件修改拦截 |
 | hub-node-impact-guard | PreToolUse | Hub 节点影响评估 |
 | double-helix-verify | PreToolUse | 双螺旋验证 |
-| lead-permissions | PostToolUse | Lead 行为审计（拓扑异常对象化） |
-| team-structural-inject | PostToolUse | TeamCreate 后动态注入结构工位要求 |
+| lead-audit | PostToolUse | Lead 行为审计（拓扑异常对象化） |
 | meta-observer-guard | PostToolUse | 元观察者自环守卫 |
 | flow-continuity-guard | PostToolUse | 流程连续性 |
 | crystallization-guard | PostToolUse | 结晶条件检查 |
@@ -243,7 +242,7 @@ Gemini（异质 agent）的受控碰撞，防止系统在自身盲点中同质�
 
 谱系不是变更日志。谱系记录的是**否定史**——概念如何被矛盾推动而分化、重组、升级。
 
-当前 105 条已结算谱系，0 条生成态。关键谱系节点：
+当前 152 条已结算谱系，0 条生成态。关键谱系节点：
 
 | 谱系 | 内容 |
 |------|------|
@@ -265,6 +264,11 @@ Gemini（异质 agent）的受控碰撞，防止系统在自身盲点中同质�
 | 093 | 五约束有向依赖图（取代 R.S.I 映射） |
 | 094 | 三个 Gap 重新定位（创世/视差/审计层断裂） |
 | 095 | Agent Team 真递归蜂群（073b 平台约束前提否定，扁平执行退化为特例） |
+| 130 | 审计递归缺口修复（RTAS 全 Gap 闭合） |
+| 133 | 异质双向收敛协议（030a 对称化扩展） |
+| 135 | CLAUDE.md 单体→skill 集合结晶 |
+| 137 | Lead 停顿结构根因（RLHF 基底约束 + 强制输出格式） |
+| 145 | 三行 Gemini 收敛（格式B排除理由推导链） |
 
 ### 三级权威链
 
@@ -280,30 +284,30 @@ Gemini（异质 agent）的受控碰撞，防止系统在自身盲点中同质�
 |------|------|
 | 源文件 | 106 个 Python 模块 |
 | 测试文件 | 100 个 |
-| 核心定义 | 14 条（12 已结算 + 2 基础） |
-| 已结算谱系 | 105 条 |
+| 核心定义 | 13 条（已结算） |
+| 已结算谱系 | 152 条 |
 | 规则规范 | 10 份 |
 | Agent 定义 | 19 个 |
-| Hook | 22 个 |
+| Hook | 21 个 |
+| Skill | 12 个 |
 | dispatch-dag | v3.1（9 业务节点 + genome_layer + platform_layer） |
-| 谱系 DAG | 105 节点 |
-| 脚本 | 17 个 |
+| 谱系 DAG | 152 节点 |
+| 脚本 | 23 个 |
 
 ### 定义基底
 
 | 定义 | 版本 | 维度 |
 |------|------|------|
-| K线 | — | 基础 |
 | 包含关系 baohan | v1.3 | 单标的 |
 | 分型 fenxing | v1.0 | 单标的 |
 | 笔 bi | v1.4 | 单标的 |
 | 线段 xianduan | v1.3 | 单标的 |
 | 中枢 zhongshu | v1.3 | 单标的 |
 | 走势类型 zoushi | v1.6 | 单标的 |
+| 趋势 qushi | v1.0 | 单标的 |
 | 背驰 beichi | v1.1 | 单标的 |
 | 级别递归 level_recursion | v1.0 | 单标的 |
 | 买卖点 maimai | v1.0 | 单标的 |
-| 区间套 | — | 单标的 |
 | 比价关系 bijia | v1.0 | 跨标的 |
 | 等价关系 dengjia | v1.1 | 跨标的 |
 | 流转关系 liuzhuan | v1.0 | 跨标的 |
@@ -366,9 +370,9 @@ src/newchan/
 └── cli.py                 # 命令行入口
 
 .chanlun/                  # 概念层基础设施
-├── definitions/           #   14 个核心定义（推荐通过仪式修改）
+├── definitions/           #   13 个核心定义（推荐通过仪式修改）
 ├── genealogy/             #   谱系记录
-│   ├── settled/           #     105 条已结算
+│   ├── settled/           #     152 条已结算
 │   ├── pending/           #     生成态矛盾
 │   └── dag.yaml           #     谱系 DAG
 ├── dispatch-dag.yaml      #   蜂群拓扑 v3.1（9 业务节点 + genome_layer + platform_layer）
@@ -382,9 +386,9 @@ src/newchan/
 │   ├── meta-observer.md   #     元观察者（structural, mandatory，含自环）
 │   ├── gemini-challenger.md #   异质否定源 + 编排者代理
 │   └── ...
-├── hooks/                 #   22 个 hook（系统免疫层）
+├── hooks/                 #   21 个 hook（系统免疫层）
 ├── commands/              #   /ceremony, /inquire, /escalate, /ritual
-├── skills/                #   结晶的知识能力
+├── skills/                #   12 个结晶的知识能力（skill）
 └── settings.json          #   hook 注册 + 权限配置
 
 docs/
