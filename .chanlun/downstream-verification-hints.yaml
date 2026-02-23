@@ -1,0 +1,23 @@
+# 下游推论 verification hints（154号-2 优化）
+#
+# 当 downstream_audit 的启发式判定返回 unresolved 时，
+# 用 hint 检查实际文件内容。所有 hint 的 pattern 都匹配则视为 resolved。
+#
+# 格式:
+#   hints:
+#     "GID-INDEX":
+#       - file: "相对于项目根的路径"
+#         pattern: "需要在文件中存在的字符串"
+#
+# 注意：pattern 是字符串包含检查（in），不是正则表达式。
+
+hints:
+  "155-1":
+    - file: ".claude/agents/claude-challenger.md"
+      pattern: "Codex"
+  "155-2":
+    - file: ".chanlun/dispatch-dag.yaml"
+      pattern: "codex-challenger"
+  "155-3":
+    - file: ".claude/agents/codex-challenger.md"
+      pattern: "review"

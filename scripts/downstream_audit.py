@@ -4,11 +4,14 @@
 扫描 .chanlun/genealogy/settled/*.md，提取每条谱系的"下游推论"章节中的
 编号条目，交叉引用后续谱系和 git diff 判断执行状态。
 
+154号-2 优化：verification_hint 机制——在报告 unresolved 前先用 hint
+检查实际文件内容，减少假阳性。
+
 用法:
   python scripts/downstream_audit.py              # 输出 JSON 报告
   python scripts/downstream_audit.py --summary    # 只输出摘要
 """
-import json, os, re, glob, sys, argparse
+import json, os, re, glob, sys, argparse, yaml
 
 OVERRIDE_STATUSES = {"resolved", "superseded", "long_term", "background_noise"}
 
@@ -67,12 +70,64 @@ def load_negation_map(settled_dir):
     return neg_map
 
 
+def load_verification_hints(root):
+    """加载 verification hints 文件 .chanlun/downstream-verification-hints.yaml。
+
+    154号-2 优化：为下游推论提供轻量级内容验证，减少假阳性。
+
+    格式:
+      hints:
+        "155-1":
+          - file: ".claude/agents/claude-challenger.md"
+            pattern: "Codex"
+        "155-2":
+          - file: ".chanlun/dispatch-dag.yaml"
+            pattern: "codex-challenger"
+
+    每个 hint 条目包含 file（相对于 root 的路径）和 pattern（grep 关键字串）。
+    所有 hint 条目都匹配时视为 resolved。
+    """
+    hints_path = os.path.join(root, ".chanlun", "downstream-verification-hints.yaml")
+    if not os.path.isfile(hints_path):
+        return {}
+    try:
+        with open(hints_path, encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+        return data.get("hints", {}) if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def verify_by_hint(root, hints_for_key):
+    """对一组 verification hints 逐个检查文件内容。
+
+    返回 True 当且仅当所有 hint 的 pattern 都在对应文件中找到。
+    任一文件不存在或 pattern 未匹配则返回 False。
+    """
+    for hint in hints_for_key:
+        target_file = hint.get("file", "")
+        pattern = hint.get("pattern", "")
+        if not target_file or not pattern:
+            continue
+        filepath = os.path.join(root, target_file)
+        if not os.path.isfile(filepath):
+            return False
+        try:
+            with open(filepath, encoding="utf-8") as f:
+                content = f.read()
+            if pattern not in content:
+                return False
+        except Exception:
+            return False
+    return True
+
+
 def check_action_resolved(action_text, gid, all_settled_content, neg_map):
     """启发式判断下游行动是否已被后续谱系/commit 解决。
 
     检查规则：
-    - 如果该谱系被后续谱系否定（negates 字段）→ superseded
-    - 如果后续谱系明确引用了该 gid 的下游推论编号 → resolved
+    1. 如果该谱系被后续谱系否定（negates 字段）→ superseded
+    2. 如果后续谱系明确引用了该 gid 的下游推论编号 → resolved
     """
     # superseded 检测：谱系被否定 → 其下游行动自动失效
     if gid in neg_map:
@@ -116,6 +171,7 @@ def audit(root=None):
         return {"total_actions": 0, "unresolved": 0, "superseded": 0, "items": []}
 
     overrides = load_overrides(root)
+    verification_hints = load_verification_hints(root)
     files = sorted(glob.glob(os.path.join(settled_dir, "*.md")))
 
     # 预加载所有内容用于交叉引用
@@ -148,6 +204,11 @@ def audit(root=None):
                 status = override_status
             else:
                 status = check_action_resolved(action["text"], gid, all_content, neg_map)
+                # 154号-2 优化：heuristic 判定 unresolved 时，
+                # 用 verification hint 检查实际文件内容
+                if status == "unresolved" and override_key in verification_hints:
+                    if verify_by_hint(root, verification_hints[override_key]):
+                        status = "resolved"
             if status == "superseded":
                 superseded += 1
             elif status == "long_term":
