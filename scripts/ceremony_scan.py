@@ -280,7 +280,7 @@ def discover_business_tasks(root):
 
 
 def detect_genealogy_anomalies(root):
-    """检测谱系编号异常：重复编号、文件名编号与内部 id 不一致。
+    """检测谱系编号异常：重复编号、文件名编号与内部 id 不一致、dag.yaml 完整性、frontmatter schema。
 
     返回异常列表，每个元素包含 type、files、detail 字段。
     空列表 = 无异常。
@@ -292,6 +292,8 @@ def detect_genealogy_anomalies(root):
     anomalies = []
     # {number: [filename, ...]}
     num_to_files = {}
+    # 标准 frontmatter 字段（至少应包含这些）
+    required_frontmatter = {"id", "status", "type", "date"}
 
     for filepath in glob.glob(os.path.join(settled_dir, "*.md")):
         basename = os.path.basename(filepath)
@@ -303,11 +305,11 @@ def detect_genealogy_anomalies(root):
         # Track duplicate numbers
         num_to_files.setdefault(file_num, []).append(basename)
 
-        # Check internal id consistency
+        # Check internal id consistency + frontmatter schema
         try:
             with open(filepath, encoding="utf-8") as f:
                 head = f.read(1500)
-            id_match = re.search(r'(?:^|\n)\s*id:\s*["\']?(\d+)["\']?', head)
+            id_match = re.search(r'(?:^|\n)\s*\*?\*?id\*?\*?:\s*["\']?(\d+)["\']?', head)
             if id_match:
                 internal_id = int(id_match.group(1))
                 if internal_id != file_num:
@@ -316,6 +318,21 @@ def detect_genealogy_anomalies(root):
                         "file": basename,
                         "detail": f"filename={file_num}, internal_id={internal_id}",
                     })
+
+            # Frontmatter schema validation
+            found_fields = set()
+            for line in head.split("\n")[:20]:
+                for field in required_frontmatter:
+                    # Match both **field**: value and field: value patterns
+                    if re.match(rf'^\s*\*?\*?{field}\*?\*?\s*:', line, re.IGNORECASE):
+                        found_fields.add(field)
+            missing = required_frontmatter - found_fields
+            if missing:
+                anomalies.append({
+                    "type": "missing_frontmatter",
+                    "file": basename,
+                    "detail": f"缺少字段: {', '.join(sorted(missing))}",
+                })
         except Exception:
             pass
 
@@ -328,6 +345,50 @@ def detect_genealogy_anomalies(root):
                 "files": files,
                 "detail": f"编号 {num} 被 {len(files)} 个文件使用",
             })
+
+    # DAG completeness check: every settled file should have a corresponding dag.yaml node
+    dag_path = os.path.join(root, ".chanlun/genealogy/dag.yaml")
+    if os.path.isfile(dag_path):
+        try:
+            with open(dag_path, encoding="utf-8") as f:
+                dag = yaml.safe_load(f)
+            # Normalize IDs: strip leading zeros for purely numeric IDs
+            def _normalize_id(raw):
+                s = str(raw)
+                # Try to treat as pure integer (strip leading zeros)
+                try:
+                    return str(int(s))
+                except ValueError:
+                    # IDs like '005a', '019b' — strip leading zeros from numeric prefix
+                    m_id = re.match(r'^0*(\d+)(\D.*)$', s)
+                    if m_id:
+                        return m_id.group(1) + m_id.group(2)
+                    return s
+
+            dag_ids = {_normalize_id(node["id"]) for node in dag.get("nodes", [])}
+
+            # Check: settled files without dag node
+            for file_num_str, filenames in num_to_files.items():
+                if str(file_num_str) not in dag_ids:
+                    anomalies.append({
+                        "type": "missing_dag_node",
+                        "file": filenames[0],
+                        "detail": f"编号 {file_num_str} 在 settled/ 中存在但 dag.yaml 无对应节点",
+                    })
+
+            # Check: depends_on edge targets must exist in dag nodes
+            for edge in dag.get("edges", {}).get("depends_on", []):
+                raw_target = str(edge.get("to", ""))
+                raw_source = str(edge.get("from", ""))
+                target = _normalize_id(raw_target) if raw_target else ""
+                source = _normalize_id(raw_source) if raw_source else ""
+                if target and target not in dag_ids:
+                    anomalies.append({
+                        "type": "dangling_depends_on",
+                        "detail": f"depends_on 边 {source}→{target} 的目标 {target} 不存在于 dag nodes",
+                    })
+        except Exception:
+            pass
 
     return anomalies
 

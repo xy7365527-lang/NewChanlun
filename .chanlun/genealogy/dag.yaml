@@ -789,6 +789,26 @@ nodes:
   status: 已结算
   type: 语法记录（编排者方针）
   file: settled/158-three-step-strategy-topology-effect.md
+- id: '159'
+  title: Codex 持久化调用——写代码标配
+  status: 已结算
+  type: 语法记录
+  file: settled/159-codex-discussion-persistence.md
+- id: '160'
+  title: Plan 阶段多模型对审——修改循环前移
+  status: 已结算
+  type: 语法记录
+  file: settled/160-plan-stage-multimodel-review.md
+- id: '161'
+  title: 否定务实——严格是唯一合法行为模式
+  status: 已结算
+  type: 语法记录
+  file: settled/161-negate-pragmatism.md
+- id: '162'
+  title: 否定"不执行 TeamDelete"作为持久化实现
+  status: 已结算
+  type: 语法记录（编排者 INTERRUPT）
+  file: settled/162-negate-no-teamdelete-persistence.md
 - id: '163'
   title: 铁壁垒——递归自身产生的不可通过点
   status: 已结算
@@ -849,6 +869,16 @@ nodes:
   status: 已结算
   type: 语法记录
   file: settled/174-genealogy-as-generative-engine.md
+- id: '175'
+  title: 认识论反转落地——谱系驱动架构 + Codex作为谱系异质否定者
+  status: 已结算
+  type: 语法记录
+  file: settled/175-epistemological-reversal-implementation.md
+- id: '176'
+  title: 程序目的消解——从目的论到必然性
+  status: 已结算
+  type: 语法记录
+  file: settled/176-program-purpose-dissolution.md
 edges:
   depends_on:
   - from: '136'
@@ -1739,7 +1769,6 @@ edges:
     to: '165'
   - from: '169'
     to: '165'
-  # 173号：lead-audit hook 恶性循环
   - from: '173'
     to: 088
   - from: '173'
@@ -1748,13 +1777,36 @@ edges:
     to: '043'
   - from: '173'
     to: '075'
-  # 174号：谱系即生成引擎
   - from: '174'
     to: 069
   - from: '174'
     to: '161'
   - from: '174'
     to: '162'
+  - from: '175'
+    to: '174'
+  - from: '176'
+    to: '158'
+  - from: '176'
+    to: '174'
+  - from: '176'
+    to: 069
+  - from: '176'
+    to: '161'
+  - from: '159'
+    to: '155'
+  - from: '160'
+    to: '159'
+  - from: '160'
+    to: '155'
+  - from: '161'
+    to: 090
+  - from: '161'
+    to: '136'
+  - from: '162'
+    to: '158'
+  - from: '162'
+    to: 069
   triggered:
   - from: '005'
     to: 005a
@@ -1822,6 +1874,9 @@ edges:
     to: '154'
   - from: '173'
     to: 088
+  - from: '162'
+    to: '158'
+    scope: partial:下游推论1被否定，三步战略本身保留
   related:
   - between:
     - '001'
@@ -3198,3 +3253,6 @@ edges:
     by: '156'
   - target: 088
     by: '173'
+  - target: '158'
+    by: '162'
+    scope: partial:下游推论1被否定，三步战略本身保留
