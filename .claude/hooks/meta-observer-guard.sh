@@ -25,7 +25,7 @@ cd "$cwd" 2>/dev/null || true
 
 MARKER=".chanlun/.meta-observer-executed"
 COUNTER=".chanlun/.meta-observer-guard-counter"
-STRICT_MODE="${META_OBSERVER_GUARD_STRICT:-0}"
+STRICT_MODE="${META_OBSERVER_GUARD_STRICT:-1}"
 
 # ─── 熔断：已阻止过 1 次则放行 ───
 if [ -f "$COUNTER" ]; then

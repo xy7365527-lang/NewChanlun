@@ -749,6 +749,11 @@ nodes:
   status: 已结算
   type: 語法記録
   file: settled/143-post-commit-stall-third-mode.md
+- id: '145'
+  title: 三线Gemini诊断收敛——Stop-Guard僵尸任务+meta-observer落标伪造+context limit根因
+  status: 已结算
+  type: 語法記録
+  file: settled/145-three-line-gemini-convergence.md
 edges:
   depends_on:
   - from: '136'
@@ -1493,6 +1498,14 @@ edges:
     to: '138'
   - from: '143'
     to: '140'
+  - from: '145'
+    to: '137'
+  - from: '145'
+    to: '143'
+  - from: '145'
+    to: '141'
+  - from: '145'
+    to: '016'
   triggered:
   - from: '005'
     to: 005a
@@ -2691,6 +2704,15 @@ edges:
   - between:
     - '140'
     - '143'
+  - between:
+    - 069
+    - '145'
+  - between:
+    - '075'
+    - '145'
+  - between:
+    - 087
+    - '145'
   tensions_with:
   - between:
     - '007'
