@@ -789,6 +789,66 @@ nodes:
   status: 已结算
   type: 语法记录（编排者方针）
   file: settled/158-three-step-strategy-topology-effect.md
+- id: '163'
+  title: 铁壁垒——递归自身产生的不可通过点
+  status: 已结算
+  type: 语法记录
+  file: settled/163-iron-barrier-recursive-limit.md
+- id: '164'
+  title: 恒星聚变递归——离散阶段序列的结构同构
+  status: 已结算
+  type: 语法记录
+  file: settled/164-stellar-fusion-recursion-model.md
+- id: '165'
+  title: 收缩相——递归产生不可否定物后的自由度减少
+  status: 已结算
+  type: 语法记录
+  file: settled/165-contraction-phase.md
+- id: '166'
+  title: 亏格/genus——递归运动的不可消除拓扑残余
+  status: 已结算（附张力）
+  type: 语法记录
+  file: settled/166-genus-as-recursive-residue.md
+- id: '167'
+  title: Che vuoi——递归的结构性不可通过点
+  status: 已结算（附张力）
+  type: 语法记录
+  file: settled/167-che-vuoi-recursive-impossibility.md
+- id: '168'
+  title: Separation（拉康义）——两个不完整性叠合的拓扑剩余
+  status: 已结算（附张力）
+  type: 语法记录
+  file: settled/168-separation-topology.md
+- id: '169'
+  title: 欲望/驱力——系统被什么驱动
+  status: 已结算（附张力）
+  type: 语法记录
+  file: settled/169-desire-drive-system.md
+- id: '170'
+  title: 承重点/主要矛盾——拓扑化映射的严格性与限度
+  status: 已结算
+  type: 语法记录
+  file: settled/170-load-bearing-contradiction.md
+- id: '171'
+  title: 资本主义话语=无铁递归——反面教训的严格性与铁生成机制的声明-能力缺口
+  status: 已结算
+  type: 语法记录
+  file: settled/171-capitalism-ironless-recursion.md
+- id: '172'
+  title: 阅读顺序不可逆性——DAG偏序关系与主体历史性的分离
+  status: 已结算
+  type: 语法记录
+  file: settled/172-reading-order-irreversibility.md
+- id: '173'
+  title: lead-audit hook 恶性循环——观测行为产生观测对象
+  status: 已结算
+  type: meta-rule
+  file: settled/173-hook-feedback-loop.md
+- id: '174'
+  title: 谱系即生成引擎——RTAS是谱系的实现，严格=反熵
+  status: 已结算
+  type: 语法记录
+  file: settled/174-genealogy-as-generative-engine.md
 edges:
   depends_on:
   - from: '136'
@@ -1040,7 +1100,7 @@ edges:
   - from: 069
     to: 058
   - from: 069
-    to: '062'    # 已被093扬弃，历史参照（120号结算）
+    to: '062'
   - from: 069
     to: '067'
   - from: 069
@@ -1102,7 +1162,7 @@ edges:
   - from: '075'
     to: '057'
   - from: '075'
-    to: '062'    # 已被093扬弃，历史参照（120号规则）
+    to: '062'
   - from: '076'
     to: '074'
   - from: '076'
@@ -1252,7 +1312,7 @@ edges:
   - from: 091
     to: 084
   - from: 092
-    to: '062'    # 已被093扬弃，历史参照（120号规则）
+    to: '062'
   - from: 092
     to: 069
   - from: 092
@@ -1591,6 +1651,110 @@ edges:
     to: '147'
   - from: '158'
     to: '156'
+  - from: '163'
+    to: '139'
+  - from: '163'
+    to: '158'
+  - from: '163'
+    to: '161'
+  - from: '163'
+    to: 090
+  - from: '164'
+    to: '139'
+  - from: '164'
+    to: '163'
+  - from: '164'
+    to: '161'
+  - from: '165'
+    to: '139'
+  - from: '165'
+    to: '163'
+  - from: '165'
+    to: '164'
+  - from: '165'
+    to: '158'
+  - from: '165'
+    to: '020'
+  - from: '166'
+    to: '139'
+  - from: '166'
+    to: 069
+  - from: '166'
+    to: 093
+  - from: '166'
+    to: '064'
+  - from: '167'
+    to: '139'
+  - from: '167'
+    to: 069
+  - from: '167'
+    to: '166'
+  - from: '168'
+    to: '166'
+  - from: '168'
+    to: '167'
+  - from: '168'
+    to: 069
+  - from: '168'
+    to: '139'
+  - from: '169'
+    to: '166'
+  - from: '169'
+    to: '167'
+  - from: '169'
+    to: '168'
+  - from: '169'
+    to: 069
+  - from: '169'
+    to: 089
+  - from: '170'
+    to: 089
+  - from: '170'
+    to: 090
+  - from: '170'
+    to: '139'
+  - from: '170'
+    to: '158'
+  - from: '171'
+    to: 089
+  - from: '171'
+    to: 090
+  - from: '171'
+    to: '139'
+  - from: '171'
+    to: '158'
+  - from: '171'
+    to: '170'
+  - from: '172'
+    to: 089
+  - from: '172'
+    to: '139'
+  - from: '172'
+    to: '158'
+  - from: '172'
+    to: '170'
+  - from: '167'
+    to: '165'
+  - from: '168'
+    to: '165'
+  - from: '169'
+    to: '165'
+  # 173号：lead-audit hook 恶性循环
+  - from: '173'
+    to: 088
+  - from: '173'
+    to: '147'
+  - from: '173'
+    to: '043'
+  - from: '173'
+    to: '075'
+  # 174号：谱系即生成引擎
+  - from: '174'
+    to: 069
+  - from: '174'
+    to: '161'
+  - from: '174'
+    to: '162'
   triggered:
   - from: '005'
     to: 005a
@@ -1636,26 +1800,28 @@ edges:
   - from: '063'
     to: '062'
   negates:
-  - from: '064'    # 连续流形否定R.S.I映射（062已扬弃，历史参照）
+  - from: '064'
     to: '062'
-  - from: 068    # 偏序集否定六张力（065已扬弃，历史参照）
+  - from: 068
     to: '065'
-  - from: 068    # 偏序集否定穷尽式洞见（066已扬弃，历史参照）
+  - from: 068
     to: '066'
-  - from: 073a    # 控制流解耦分离全可变性（073已扬弃，历史参照）
+  - from: 073a
     to: '073'
-  - from: 087    # 诚实修复否定全C方案（086已扬弃，历史参照）
+  - from: 087
     to: 086
-  - from: 088    # 权限死锁重设计否定原032（032已扬弃，历史参照）
+  - from: 088
     to: '032'
-  - from: 095    # 真递归替代Trampoline（073b已扬弃，历史参照）
+  - from: 095
     to: 073b
-  - from: '116'    # partial:过强声明修正，方向意图保留
+  - from: '116'
     to: '105'
-  - from: '135'    # skill结晶+平台约束前提否定（073b已扬弃，历史参照）
+  - from: '135'
     to: 073b
-  - from: '156'    # 否定 ceremony 定理/行动类直接执行路径
+  - from: '156'
     to: '154'
+  - from: '173'
+    to: 088
   related:
   - between:
     - '001'
@@ -2818,16 +2984,16 @@ edges:
   - between:
     - 069
     - '153'
-  - between:    # 119号结算：T4张力消解，层面独立的平行运作，原tensions_with降级为related
+  - between:
     - '007'
     - 029
-  - between:    # 119号结算：T4张力消解，原tensions_with降级为related
+  - between:
     - '007'
     - '031'
-  - between:    # 119号结算：T4张力消解，原tensions_with降级为related
+  - between:
     - 009
     - 029
-  - between:    # 119号结算：T4张力消解，原tensions_with降级为related
+  - between:
     - 009
     - '031'
   - between:
@@ -2839,6 +3005,102 @@ edges:
   - between:
     - '141'
     - '158'
+  - between:
+    - 005b
+    - '166'
+  - between:
+    - '020'
+    - '166'
+  - between:
+    - 089
+    - '166'
+  - between:
+    - 068
+    - '166'
+  - between:
+    - 030a
+    - '167'
+  - between:
+    - '053'
+    - '167'
+  - between:
+    - 094
+    - '167'
+  - between:
+    - '003'
+    - '168'
+  - between:
+    - '020'
+    - '168'
+  - between:
+    - 089
+    - '168'
+  - between:
+    - 094
+    - '168'
+  - between:
+    - '161'
+    - '169'
+  - between:
+    - '020'
+    - '169'
+  - between:
+    - 093
+    - '169'
+  - between:
+    - '166'
+    - '167'
+  - between:
+    - '166'
+    - '168'
+  - between:
+    - '166'
+    - '169'
+  - between:
+    - '167'
+    - '168'
+  - between:
+    - '167'
+    - '169'
+  - between:
+    - '168'
+    - '169'
+  - between:
+    - '170'
+    - 069
+  - between:
+    - '170'
+    - 005b
+  - between:
+    - '171'
+    - 069
+  - between:
+    - '171'
+    - '137'
+  - between:
+    - '170'
+    - '171'
+  - between:
+    - '172'
+    - 069
+  - between:
+    - '172'
+    - 068
+  - between:
+    - '171'
+    - '172'
+  - between:
+    - '170'
+    - '172'
+  - between:
+    - '147'
+    - '173'
+  - between:
+    - '043'
+    - '173'
+  - between:
+    - '075'
+    - '173'
   tensions_with:
   - between:
     - '007'
@@ -2875,17 +3137,17 @@ edges:
   - between:
     - '105'
     - 095
-  - between:    # 120号结算：T5张力消解，引用已明确为历史参照
+  - between:
     - '062'
     - 069
     valid_until: 093
     settled_by: '120'
-  - between:    # 120号结算：T5张力消解，引用已明确为历史参照
+  - between:
     - '062'
     - 094
     valid_until: 093
     settled_by: '120'
-  - between:    # 120号结算：T5张力消解，引用已明确为历史参照
+  - between:
     - '062'
     - '104'
     valid_until: 093
@@ -2897,22 +3159,34 @@ edges:
   - between:
     - 020a
     - 068
+  - between:
+    - '139'
+    - '166'
+  - between:
+    - '053'
+    - '167'
+  - between:
+    - 089
+    - '168'
+  - between:
+    - 089
+    - '169'
   negated_by:
-  - target: '032'    # 已扬弃，历史参照——权限死锁重设计（120号注释规则）
+  - target: '032'
     by: 088
-  - target: '062'    # 已扬弃，历史参照——R.S.I映射被连续流形否定（120号注释规则）
+  - target: '062'
     by: '064'
-  - target: '062'    # 已扬弃，历史参照——R.S.I被五约束扬弃（120号注释规则）
+  - target: '062'
     by: 093
-  - target: '065'    # 已扬弃，历史参照——六张力在连续流形否定后失效（120号注释规则）
+  - target: '065'
     by: 068
-  - target: '066'    # 已扬弃，历史参照——穷尽式洞见在连续流形否定后失效（120号注释规则）
+  - target: '066'
     by: 068
-  - target: '073'    # 已扬弃，历史参照——全可变性被控制流解耦分离（120号注释规则）
+  - target: '073'
     by: 073a
-  - target: 073b    # 已扬弃，历史参照——Trampoline被真递归替代（120号注释规则）
+  - target: 073b
     by: 095
-  - target: 086    # 已扬弃，历史参照——全C方案被诚实修复替代（120号注释规则）
+  - target: 086
     by: 087
   - target: 095
     by: 096
@@ -2922,3 +3196,5 @@ edges:
     scope: partial:过强声明修正，方向意图保留
   - target: '154'
     by: '156'
+  - target: 088
+    by: '173'
