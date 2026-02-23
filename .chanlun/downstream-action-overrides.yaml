@@ -112,12 +112,12 @@
 135-3: resolved    # 认识论确认——子蜂群递归无技术障碍
 
 # === 137号 ===
-137-1: long_term   # 否定性禁令规则重新评估——需全面审计
+137-1: superseded  # 145号已实施格式B推导链+Stop-Guard强化，覆盖了否定性禁令重评估
 137-2: long_term   # knowledge-crystallization skill 增加行为规则结晶路径
 137-3: resolved    # 认识论确认——Lead行为基底是外部约束（137号谱系已记录）
 
 # === 139号 ===
-139-1: long_term   # 亏格术语附注——需全面搜索替换
+139-1: resolved    # 亏格术语附注——已在040/065/141号谱系+meta-orchestration skill+template中附注139号重定义
 139-2: resolved    # 认识论确认——自指结构检查已在 swarm-architecture skill 中实现
 139-3: resolved    # meta-observer 未分类Gap路径已在 v139c-swarm 中实现
 
@@ -140,8 +140,8 @@
 132-3: resolved    # validate_dag.py 已增加 valid_until 检查
 
 # === 143号 ===
-143-1: long_term   # 规则停顿窗口审查——需全面审计所有规则文件
-143-2: long_term   # 格式A约束扩展——需与138号一起评估
+143-1: superseded  # 145号Stop-Guard智能熔断已覆盖规则停顿窗口审查
+143-2: superseded  # 145号格式B推导链要求已覆盖格式A约束扩展
 
 # === 早期历史项批量标注 ===
 # 079号
