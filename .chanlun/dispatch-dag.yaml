@@ -135,17 +135,17 @@ genealogical_coordinates:
     domain: "拓扑分析"
     negation_source: "区间套收敛信号（内在否定）"
   gemini-challenger:
-    origin: "030a-heterogeneous-negation, 041-orchestrator-proxy"
-    domain: "异质否定"
+    origin: "030a-heterogeneous-negation, 041-orchestrator-proxy, 175-epistemological-reversal-implementation"
+    domain: "异质否定（概念层 + 谱系层）"
     negation_source: "异质质询产出（外部对象否定）"
   claude-challenger:
     origin: "062-gemini-re-challenge"
     domain: "反向质询（异质验证——约束4，093号）"
     negation_source: "不可消化点（外部对象否定）"
   codex-challenger:
-    origin: "155-codex-heterogeneous-code-review, 175-epistemological-reversal-implementation"
-    domain: "异质审查（代码层 + 谱系层）"
-    negation_source: "异质审查产出（外部对象否定）"
+    origin: "155-codex-heterogeneous-code-review"
+    domain: "代码层异质审查"
+    negation_source: "异质代码审查产出（外部对象否定）"
   skill-crystallizer:
     origin: "043-self-growing-loop"
     domain: "知识结晶"
@@ -220,7 +220,7 @@ event_skill_map:
   - id: gemini-challenger
     skill_type: conditional
     agent: ".claude/agents/gemini-challenger.md"
-    purpose: "异质否定源 + 编排者代理（030a/041号谱系）"
+    purpose: "异质否定源 + 编排者代理 + 概念层谱系异质否定（030a/041/175号谱系）"
     triggers:
       - event: command
         pattern: "/challenge"
@@ -231,6 +231,8 @@ event_skill_map:
         description: "定理文件变更时验证"
       - event: escalate_choice
         description: "选择/语法记录类决断路由到 Gemini decide"
+      - event: genealogy_settlement
+        description: "谱系结算时触发 Gemini 概念层异质否定——对新结算谱系条目做概念层质询（175号：谱系驱动架构下谱系质量=蜂群行动质量）"
 
   - id: claude-challenger
     skill_type: conditional
@@ -245,7 +247,7 @@ event_skill_map:
   - id: codex-challenger
     skill_type: conditional
     agent: ".claude/agents/codex-challenger.md"
-    purpose: "异质否定源（代码层 + 谱系层）——155号 + 175号谱系"
+    purpose: "代码层异质否定源（OpenAI Codex）——155号谱系"
     triggers:
       - event: command
         pattern: "/code-review"
@@ -254,8 +256,6 @@ event_skill_map:
         description: "测试失败时自动触发 diagnose（对象否定对象，005b号）"
       - event: plan_review
         description: "Plan 阶段多模型对审——Opus 出方案后 Codex 评审（160号：修改循环前移）"
-      - event: genealogy_settlement
-        description: "谱系结算时触发 Codex 异质审查——对新结算谱系条目做异质否定（175号：谱系驱动架构下谱系质量=蜂群行动质量）"
       - event: manual_invocation
         description: "Lead 手动调用"
 
@@ -437,12 +437,12 @@ edges:
       condition: "结算谱系包含 negates 边或 topo_effect 标注"
       trigger: "topology-mutator-prompt.sh hook 提示 + Lead 认领执行 dag_add_node.py --topo_effect（D策略，082号）"
 
-    # 谱系结算 → Codex 异质审查（175号：谱系驱动架构下谱系质量=蜂群行动质量）
+    # 谱系结算 → Gemini 概念层异质否定（175号：谱系驱动架构下谱系质量=蜂群行动质量）
     - from: genealogist
-      to: codex-challenger
+      to: gemini-challenger
       type: genealogy_settlement
       condition: "新 settled 条目写入"
-      trigger: "genealogy_settlement 事件触发 codex-challenger genealogy-review 模式"
+      trigger: "genealogy_settlement 事件触发 gemini-challenger 概念层谱系质询模式"
 
     # 元观察者 → gemini-challenger（提案审查路径，069号）
     - from: meta-observer
@@ -541,9 +541,9 @@ edges:
       priority: high
 
     - event: genealogy_settlement
-      activates_edge: "genealogist → codex-challenger"
-      action: "genealogy_review"
-      description: "谱系结算时触发 Codex 异质审查——对新结算谱系做异质否定（175号：谱系结晶→异质否定→可能的新矛盾→新谱系）"
+      activates_edge: "genealogist → gemini-challenger"
+      action: "genealogy_conceptual_review"
+      description: "谱系结算时触发 Gemini 概念层异质否定——对新结算谱系做概念层质询（175号：谱系结晶→异质否定→可能的新矛盾→新谱系）"
       priority: medium
 
 # ═══════════════════════════════════════════════════════════════
