@@ -69,6 +69,21 @@ def _stroke_endpoint_by_type(
     return int(stroke.i0), float(stroke.p0)
 
 
+def _top_above_bottom(
+    direction: str,
+    ep0_price: float,
+    ep1_price: float,
+) -> bool:
+    """第78课硬约束：线段两端的一顶一底，顶肯定要高于底。
+
+    上升线段：ep0 = bottom, ep1 = top → ep1_price > ep0_price
+    下降线段：ep0 = top, ep1 = bottom → ep0_price > ep1_price
+    """
+    if direction == "up":
+        return ep1_price > ep0_price
+    return ep0_price > ep1_price
+
+
 def _make_segment(
     strokes: list[Stroke],
     s0: int,
@@ -78,13 +93,43 @@ def _make_segment(
     break_evidence: BreakEvidence | None = None,
     kind: Literal["candidate", "settled"] = "settled",
 ) -> Segment:
-    """创建 Segment：端点从边界笔取，保证相邻段视觉连续。"""
+    """创建 Segment：端点从边界笔取，保证相邻段视觉连续。
+
+    硬约束（第78课）：顶分型价格必须严格高于底分型价格。
+    违反此约束说明线段划分有误。
+    """
     seg_strokes = strokes[s0 : s1 + 1]
     seg_high = max(s.high for s in seg_strokes)
     seg_low = min(s.low for s in seg_strokes)
     start_type, end_type = _segment_endpoint_types(direction)
     ep0_i, ep0_price = _stroke_endpoint_by_type(strokes[s0], start_type)
     ep1_i, ep1_price = _stroke_endpoint_by_type(strokes[s1], end_type)
+
+    if not _top_above_bottom(direction, ep0_price, ep1_price):
+        top_price = ep1_price if direction == "up" else ep0_price
+        bottom_price = ep0_price if direction == "up" else ep1_price
+        if confirmed:
+            # 已确认段违反硬约束 = 线段划分错误，必须 raise
+            logger.error(
+                "segment top-above-bottom violation (L78): "
+                "direction=%s, s0=%d, s1=%d, top_price=%f, bottom_price=%f, "
+                "top_price must be > bottom_price",
+                direction, s0, s1, top_price, bottom_price,
+            )
+            raise ValueError(
+                f"Segment top-above-bottom violation (第78课硬约束): "
+                f"direction={direction}, s0={s0}, s1={s1}, "
+                f"top_price={top_price}, bottom_price={bottom_price}. "
+                f"顶分型价格必须严格高于底分型价格。"
+            )
+        # 未确认段（候选/中间状态）允许暂时违反，等待后续数据重新划分
+        logger.warning(
+            "segment top-above-bottom warning (L78): unconfirmed segment "
+            "direction=%s, s0=%d, s1=%d, top_price=%f, bottom_price=%f — "
+            "will be re-evaluated with incoming data",
+            direction, s0, s1, top_price, bottom_price,
+        )
+
     return Segment(
         s0=s0, s1=s1,
         i0=strokes[s0].i0, i1=strokes[s1].i1,

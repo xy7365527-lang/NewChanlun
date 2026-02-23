@@ -122,6 +122,52 @@ def get_roadmap_workstations(root):
     return tasks
 
 
+def detect_swarm_persistence_gaps(root):
+    """153号下游推论：检测有谱系产出证据但无 session 的蜂群。
+
+    方法：从谱系的 negation_source 字段提取 v{N}-swarm 引用，
+    与 session 中出现的蜂群编号交叉比对。
+    有谱系产出但无 session = 持久化断裂。
+    """
+    import re
+    # 1. 从 session 文件提取已记录的蜂群编号
+    #    同时扫描 archive/ 下的归档 session（归档不应导致持久化断裂误报）
+    session_swarms = set()
+    session_globs = [
+        os.path.join(root, ".chanlun/sessions/*-session.md"),
+        os.path.join(root, ".chanlun/sessions/archive/*-session.md"),
+    ]
+    for pattern in session_globs:
+        for session_file in glob.glob(pattern):
+            try:
+                with open(session_file, encoding="utf-8") as f:
+                    content = f.read(8000)
+                for m in re.finditer(r'v(\d+)-swarm', content):
+                    session_swarms.add(int(m.group(1)))
+            except Exception:
+                pass
+    # 2. 从谱系文件提取引用的蜂群编号（negation_source / 正文）
+    genealogy_swarms = {}  # {swarm_id: [谱系文件名]}
+    for settled_file in glob.glob(os.path.join(root, ".chanlun/genealogy/settled/*.md")):
+        try:
+            with open(settled_file, encoding="utf-8") as f:
+                content = f.read(4000)
+            for m in re.finditer(r'v(\d+)-swarm', content):
+                sid = int(m.group(1))
+                fname = os.path.basename(settled_file)
+                genealogy_swarms.setdefault(sid, [])
+                if fname not in genealogy_swarms[sid]:
+                    genealogy_swarms[sid].append(fname)
+        except Exception:
+            pass
+    # 3. 交叉比对：有谱系引用但无 session = 持久化断裂
+    gaps = []
+    for sid, sources in sorted(genealogy_swarms.items()):
+        if sid not in session_swarms:
+            gaps.append({"swarm_id": sid, "genealogy_refs": sources})
+    return gaps
+
+
 def get_session_workstations(root):
     """从最新 session 提取遗留工位，过滤 background_noise。"""
     workstations = []
@@ -340,6 +386,15 @@ def main():
         except Exception:
             pass
 
+    # 153号下游推论：蜂群持久化断裂检测
+    swarm_gaps = detect_swarm_persistence_gaps(root)
+    if swarm_gaps:
+        result["swarm_persistence_gaps"] = swarm_gaps
+        result["swarm_persistence_warning"] = (
+            f"{len(swarm_gaps)} 个蜂群有谱系产出但无 session: "
+            + ", ".join(f"v{g['swarm_id']}-swarm" for g in swarm_gaps)
+        )
+
     # 081号下游推论：谱系张力扫描（tensions_with 边检查）
     tensions_found = []
     for settled_file in glob.glob(os.path.join(root, ".chanlun/genealogy/settled/*.md")):
@@ -366,18 +421,21 @@ def main():
                 "unresolved": da["unresolved"],
                 "execution_rate": da["execution_rate"],
             }
-            # 将最近谱系的 unresolved 下游行动转化为工位
-            # 只取 genealogy_id >= (最大id - 20) 的，避免被历史项淹没
-            recent_unresolved = [
+            # 将 unresolved 下游行动转化为工位
+            # 动态窗口：<=10 个 unresolved 时全部纳入，>10 个时只取最近 10 个
+            all_unresolved = [
                 item for item in da.get("items", [])
                 if item.get("status") == "unresolved"
                 and item.get("genealogy_id", "0").isdigit()
-                and int(item["genealogy_id"]) >= max(
-                    (int(i["genealogy_id"]) for i in da.get("items", [])
-                     if i.get("genealogy_id", "0").isdigit()),
-                    default=0,
-                ) - 20
             ]
+            if len(all_unresolved) <= 10:
+                recent_unresolved = all_unresolved
+            else:
+                # 按 genealogy_id 降序取最近 10 个
+                all_unresolved.sort(
+                    key=lambda x: int(x["genealogy_id"]), reverse=True
+                )
+                recent_unresolved = all_unresolved[:10]
             for item in recent_unresolved:
                 workstations.append({
                     "priority": "P2",
