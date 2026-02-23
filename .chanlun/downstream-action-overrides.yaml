@@ -313,3 +313,7 @@
 160-2: resolved    # dispatch-dag.yaml L101 skills_catalog 包含 plan-review + L255 event_skill_map 有 plan_review 事件
 160-3: resolved    # plan-review SKILL.md 定义蜂群标准工作流：Plan（多模型对审）→ Execute（一次通过）→ Verify（与 159-3 同构）
 160-4: resolved    # plan-review SKILL.md Phase 3 写入路径 .chanlun/review-results/plan-review-{ts}-round{N}.md + CLI 自动持久化
+
+# === 161号 — 否定务实 ===
+161-1: resolved    # no-patch-mentality.md 第35行已增加"务实思维"为第8条禁止模式（161号）
+161-2: resolved    # no-patch-mentality.md + 161号谱系 + 递归总方针.md 共同确立：严格是唯一合法行为模式，务实=先验上限=决策层补丁思维
