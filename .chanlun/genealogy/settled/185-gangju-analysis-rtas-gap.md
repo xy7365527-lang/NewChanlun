@@ -67,9 +67,9 @@ RTAS 循环当前结构：
 
 ## 下游推论
 
-1. ceremony skill 需要更新——增加步骤7.5
-2. gangju_analysis.py 需要实现——读总方针 + 读区块拓扑统计 + 调 Gemini/Codex + 写 pending 谱系
-3. ceremony skill 白名单需要增加 `python scripts/gangju_analysis.py`
+1. ~~ceremony skill 需要更新——增加步骤7.5~~ **已执行**——ddbe43a 更新 ceremony.md
+2. ~~gangju_analysis.py 需要实现~~ **已执行**——ddbe43a 创建 scripts/gangju_analysis.py（确定性部分；Gemini/Codex API 调用是 187号目E）
+3. ~~ceremony skill 白名单需要增加 `python scripts/gangju_analysis.py`~~ **已执行**——ddbe43a 更新 ceremony.md 白名单
 
 ## 影响声明
 

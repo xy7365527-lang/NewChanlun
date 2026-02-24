@@ -2,7 +2,7 @@
 id: '187'
 title: 架构分离伪诊断——计算/对话过程分离是虚假的（动力学机制缺失导致"对话过程"完全缺席）
 type: 矛盾发现
-status: 生成态
+status: 已结算
 date: 2026-02-24
 negation_source: heterogeneous
 negation_form: expansion
