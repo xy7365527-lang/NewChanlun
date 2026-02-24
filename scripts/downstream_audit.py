@@ -43,13 +43,27 @@ def extract_downstream_actions(filepath):
     )
 
     actions = []
+    # 逐行扫描原始文本，用于检测删除线/已执行标记
+    raw_lines = [
+        line for line in section.split("\n")
+        if re.match(r'^\s*(?:\d+\.\s+|\-\s+)', line)
+    ]
     for i, groups in enumerate(items, 1):
         # 合并匹配组
         title = groups[0] or groups[2] or groups[3] or groups[5] or ""
         detail = groups[1] or groups[4] or ""
         text = f"{title}: {detail}".strip(": ") if detail else title.strip()
         if text:
-            actions.append({"index": i, "text": text})
+            # 检测内联已解决标记（删除线 / 已执行 / 已确认）
+            raw = raw_lines[i - 1].strip() if i - 1 < len(raw_lines) else ""
+            resolved_inline = False
+            if raw.lstrip("0123456789.-) ").startswith("~~"):
+                resolved_inline = True
+            elif "**已执行**" in raw or "**已确认**" in raw:
+                resolved_inline = True
+            elif "已执行——" in raw or "已确认——" in raw:
+                resolved_inline = True
+            actions.append({"index": i, "text": text, "resolved_inline": resolved_inline})
 
     return gid, actions
 
@@ -231,6 +245,8 @@ def audit(root=None):
             override_status = overrides.get(override_key)
             if override_status:
                 status = override_status
+            elif action.get("resolved_inline"):
+                status = "resolved"
             else:
                 status = check_action_resolved(action["text"], gid, all_content, neg_map)
                 # 154号-2 优化：heuristic 判定 unresolved 时，

@@ -10,3 +10,10 @@ patterns:
     last_seen: "2026-02-23T22:41:51Z"
     sources: ["2026-02-23-2240-session"]
     status: "observed"
+  - id: "pat-cab54f9c"
+    signature: "session-summary: TaskList(1)"
+    frequency: 1
+    first_seen: "2026-02-23T23:39:56Z"
+    last_seen: "2026-02-23T23:39:56Z"
+    sources: ["2026-02-23-2309-session"]
+    status: "observed"
