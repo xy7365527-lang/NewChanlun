@@ -308,3 +308,68 @@ class TestDeriveMuResidueStatus:
             block_stats, genealogy_stats, str(tmp_root)
         )
         assert residue_status == "empty_shell"
+
+
+# ---------------------------------------------------------------------------
+# _already_audited_targets 去重（192号修复）
+# ---------------------------------------------------------------------------
+
+class TestAlreadyAuditedDedup:
+    """192号修复：gangju_analysis 不重复检测已审计过的 new_mu。"""
+
+    def test_audited_mu_not_repeated(self, tmp_root):
+        """settled 谱系中包含 audit_targets: ['多轮质询管道'] → derive_mu 不再产出此 mu。"""
+        # 写入一个 settled 谱系，其 audit_targets 包含 "多轮质询管道"
+        settled_dir = tmp_root / ".chanlun" / "genealogy" / "settled"
+        (settled_dir / "191-test.md").write_text(
+            "---\nid: '191'\naudit_targets:\n  - '多轮质询管道'\n---\ntest\n",
+            encoding="utf-8",
+        )
+        # 写入 consensus + empty residue 区块
+        blocks_dir = tmp_root / ".chanlun" / "block-topology" / "blocks"
+        _write_block(blocks_dir, "ccc", "consensus", {"conclusion": "test"})
+        _write_block(
+            blocks_dir, "ddd", "residue",
+            {"gemini_conceded": [], "codex_conceded": [], "reasons": {}},
+        )
+
+        block_stats = {
+            "type_counts": {"consensus": 1, "residue": 1},
+            "delta_blocks": 0,
+            "migration_block_count": 2,
+            "total_blocks": 2,
+            "relation_counts": {},
+        }
+        genealogy_stats = {
+            "recent_type_distribution": {},
+            "pending_count": 0,
+            "settled_count": 1,
+        }
+        _, _, new_mu, _ = derive_mu(block_stats, genealogy_stats, str(tmp_root))
+        mu_names = [m["mu"] for m in new_mu]
+        assert "多轮质询管道" not in mu_names
+
+    def test_unaudited_mu_still_detected(self, tmp_root):
+        """没有 audit_targets 覆盖时，new_mu 仍正常产出。"""
+        blocks_dir = tmp_root / ".chanlun" / "block-topology" / "blocks"
+        _write_block(blocks_dir, "eee", "consensus", {"conclusion": "test"})
+        _write_block(
+            blocks_dir, "fff", "residue",
+            {"gemini_conceded": [], "codex_conceded": [], "reasons": {}},
+        )
+
+        block_stats = {
+            "type_counts": {"consensus": 1, "residue": 1},
+            "delta_blocks": 0,
+            "migration_block_count": 2,
+            "total_blocks": 2,
+            "relation_counts": {},
+        }
+        genealogy_stats = {
+            "recent_type_distribution": {},
+            "pending_count": 0,
+            "settled_count": 0,
+        }
+        _, _, new_mu, _ = derive_mu(block_stats, genealogy_stats, str(tmp_root))
+        mu_names = [m["mu"] for m in new_mu]
+        assert "多轮质询管道" in mu_names
