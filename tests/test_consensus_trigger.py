@@ -1,4 +1,9 @@
-"""Tests for scripts/consensus_trigger.py — 共识仪式触发协议
+"""Tests for scripts/consensus_trigger.py — 立场差分架构
+
+编排者决断：
+- 让步 = 从位置 A 到位置 B 的移动（énonciation），不是陈述"我让步了"（énoncé）
+- 正则匹配只能抓陈述，抓不到言说行为
+- 立场差分架构：每轮质询输出结构化立场声明，让步 = 相邻轮次立场清单的差分
 
 测试设计从总方针的形式要求出发：
 - §21: residue.gemini_conceded = Gemini 放弃的立场，codex_conceded = Codex 放弃的立场
@@ -12,15 +17,17 @@ import pytest
 
 from scripts.block_topology import make_block, write_block
 from scripts.consensus_trigger import (
+    ConcessionTrace,
     InquiryCycleResult,
+    StanceDeclaration,
+    StanceDiff,
+    compute_stance_diff,
+    derive_concession_trace,
     detect_convergence_from_review_file,
     extract_from_gemini_verify,
     extract_from_plan_review,
     find_trigger_block_for_review,
     trigger_ceremony,
-    _extract_cross_round_concessions,
-    _extract_list_items,
-    _extract_section,
 )
 
 TRIGGER_SHA = "a" * 64
@@ -43,188 +50,484 @@ def trigger_block(tmp_base):
     return blk["id"]
 
 
-@pytest.fixture
-def review_dir(tmp_path):
-    """Provide a temporary review-results directory."""
-    d = tmp_path / "review-results"
-    d.mkdir()
-    return d
+# ── StanceDeclaration construction tests ──
 
 
-# ── _extract_section tests ──
+class TestStanceDeclaration:
+    def test_basic_construction(self):
+        sd = StanceDeclaration(
+            verdict="pass",
+            stances={"point_a": "accept", "point_b": "reject"},
+            round_number=1,
+        )
+        assert sd.verdict == "pass"
+        assert sd.stances == {"point_a": "accept", "point_b": "reject"}
+        assert sd.round_number == 1
+        assert sd.self_reported_concessions == []
+
+    def test_frozen(self):
+        sd = StanceDeclaration(verdict="fail", stances={}, round_number=0)
+        with pytest.raises(AttributeError):
+            sd.verdict = "pass"  # type: ignore[misc]
+
+    def test_with_self_reported_concessions(self):
+        sd = StanceDeclaration(
+            verdict="conditional",
+            stances={"arch": "needs_rework"},
+            round_number=2,
+            self_reported_concessions=["I concede point X"],
+        )
+        assert sd.self_reported_concessions == ["I concede point X"]
+
+    def test_defaults(self):
+        sd = StanceDeclaration(verdict="pass", stances={})
+        assert sd.round_number == 0
+        assert sd.self_reported_concessions == []
 
 
-class TestExtractSection:
-    def test_extracts_matching_section(self):
-        text = "## 结论\n\n这是结论内容。\n\n## 下一节\n\n其他内容。"
-        result = _extract_section(text, "结论")
-        assert result == "这是结论内容。"
-
-    def test_returns_empty_when_no_match(self):
-        text = "## 无关标题\n\n内容"
-        result = _extract_section(text, "结论")
-        assert result == ""
-
-    def test_tries_multiple_keywords(self):
-        text = "### 结果\n\n最终结果在这里。"
-        result = _extract_section(text, "结论", "结果")
-        assert result == "最终结果在这里。"
-
-    def test_extracts_until_end_if_no_next_heading(self):
-        text = "## 结论\n\n内容到文件末尾"
-        result = _extract_section(text, "结论")
-        assert result == "内容到文件末尾"
+# ── compute_stance_diff tests ──
 
 
-# ── _extract_list_items tests ──
+class TestComputeStanceDiff:
+    def test_no_change(self):
+        earlier = StanceDeclaration(
+            verdict="fail",
+            stances={"a": "reject", "b": "accept"},
+            round_number=1,
+        )
+        later = StanceDeclaration(
+            verdict="fail",
+            stances={"a": "reject", "b": "accept"},
+            round_number=2,
+        )
+        diff = compute_stance_diff(earlier, later)
+        assert diff.round_from == 1
+        assert diff.round_to == 2
+        assert diff.changed == {}
+        assert diff.added == {}
+        assert diff.removed == {}
+
+    def test_stance_changed(self):
+        earlier = StanceDeclaration(
+            verdict="fail",
+            stances={"arch": "reject", "perf": "accept"},
+            round_number=1,
+        )
+        later = StanceDeclaration(
+            verdict="pass",
+            stances={"arch": "accept", "perf": "accept"},
+            round_number=2,
+        )
+        diff = compute_stance_diff(earlier, later)
+        assert diff.changed == {"arch": ("reject", "accept")}
+        assert diff.added == {}
+        assert diff.removed == {}
+
+    def test_stance_removed(self):
+        """立场消失 = 让步的直接证据"""
+        earlier = StanceDeclaration(
+            verdict="fail",
+            stances={"issue_1": "reject", "issue_2": "needs_work"},
+            round_number=1,
+        )
+        later = StanceDeclaration(
+            verdict="pass",
+            stances={"issue_2": "needs_work"},
+            round_number=2,
+        )
+        diff = compute_stance_diff(earlier, later)
+        assert diff.removed == {"issue_1": "reject"}
+        assert diff.changed == {}
+        assert diff.added == {}
+
+    def test_stance_added(self):
+        earlier = StanceDeclaration(
+            verdict="fail",
+            stances={"a": "reject"},
+            round_number=1,
+        )
+        later = StanceDeclaration(
+            verdict="fail",
+            stances={"a": "reject", "b": "needs_work"},
+            round_number=2,
+        )
+        diff = compute_stance_diff(earlier, later)
+        assert diff.added == {"b": "needs_work"}
+        assert diff.changed == {}
+        assert diff.removed == {}
+
+    def test_mixed_changes(self):
+        earlier = StanceDeclaration(
+            verdict="fail",
+            stances={"a": "reject", "b": "accept", "c": "needs_work"},
+            round_number=1,
+        )
+        later = StanceDeclaration(
+            verdict="conditional",
+            stances={"a": "accept", "d": "new_issue"},
+            round_number=2,
+        )
+        diff = compute_stance_diff(earlier, later)
+        # a changed from reject to accept
+        assert diff.changed == {"a": ("reject", "accept")}
+        # b and c removed
+        assert diff.removed == {"b": "accept", "c": "needs_work"}
+        # d added
+        assert diff.added == {"d": "new_issue"}
 
 
-class TestExtractListItems:
-    def test_extracts_items_under_keyword_heading(self):
-        text = "## 被否定\n\n- 点A\n- 点B\n\n## 其他\n\n- 无关"
-        result = _extract_list_items(text, "被否定")
-        assert result == ["点A", "点B"]
+# ── derive_concession_trace tests ──
 
-    def test_extracts_items_containing_keyword(self):
-        text = "- 这个包含误判信息\n- 无关项\n- 另一个误判"
-        result = _extract_list_items(text, "误判")
-        assert "这个包含误判信息" in result
-        assert "另一个误判" in result
-        assert "无关项" not in result
 
-    def test_returns_empty_when_no_match(self):
-        text = "## 无关\n\n- 项目1"
-        result = _extract_list_items(text, "不存在的关键词")
-        assert result == []
+class TestDeriveConcessionTrace:
+    def test_single_round_empty_trace(self):
+        """单轮无差分可算 -> 空 trace"""
+        seq = [
+            StanceDeclaration(
+                verdict="pass",
+                stances={"a": "accept"},
+                round_number=1,
+            ),
+        ]
+        trace = derive_concession_trace(seq)
+        assert trace.computed_concessions == []
+        assert trace.self_reported_concessions == []
+        assert trace.divergence == []
 
-    def test_handles_star_prefix(self):
-        text = "## CC让步\n\n* 让步点1\n* 让步点2"
-        result = _extract_list_items(text, "CC让步")
-        assert result == ["让步点1", "让步点2"]
+    def test_two_rounds_with_concession(self):
+        """两轮有让步 -> computed_concessions 有值。
+        无自我报告时 divergence 记录差异（computed_not_self_reported）。"""
+        seq = [
+            StanceDeclaration(
+                verdict="fail",
+                stances={"issue_1": "reject", "issue_2": "needs_work"},
+                round_number=1,
+            ),
+            StanceDeclaration(
+                verdict="pass",
+                stances={"issue_2": "needs_work"},
+                round_number=2,
+            ),
+        ]
+        trace = derive_concession_trace(seq)
+        # issue_1 was removed -> computed concession
+        assert "issue_1" in trace.computed_concessions
+        assert trace.self_reported_concessions == []
+        # No self-report but computed concession -> divergence signals this
+        assert len(trace.divergence) == 1
+        assert any("issue_1" in d for d in trace.divergence)
+
+    def test_changed_stance_is_concession(self):
+        """立场从 reject 变为 accept = 让步"""
+        seq = [
+            StanceDeclaration(
+                verdict="fail",
+                stances={"arch": "reject"},
+                round_number=1,
+            ),
+            StanceDeclaration(
+                verdict="pass",
+                stances={"arch": "accept"},
+                round_number=2,
+            ),
+        ]
+        trace = derive_concession_trace(seq)
+        assert "arch" in trace.computed_concessions
+
+    def test_self_reported_matches_computed(self):
+        """自我报告与计算一致 -> divergence 为空"""
+        seq = [
+            StanceDeclaration(
+                verdict="fail",
+                stances={"issue_x": "reject"},
+                round_number=1,
+            ),
+            StanceDeclaration(
+                verdict="pass",
+                stances={},
+                round_number=2,
+                self_reported_concessions=["issue_x"],
+            ),
+        ]
+        trace = derive_concession_trace(seq)
+        assert "issue_x" in trace.computed_concessions
+        assert "issue_x" in trace.self_reported_concessions
+        assert trace.divergence == []
+
+    def test_self_reported_exceeds_computed(self):
+        """自我报告多于计算 -> divergence 记录 agent 声称让步但数据未变"""
+        seq = [
+            StanceDeclaration(
+                verdict="fail",
+                stances={"a": "reject"},
+                round_number=1,
+            ),
+            StanceDeclaration(
+                verdict="fail",
+                stances={"a": "reject"},
+                round_number=2,
+                self_reported_concessions=["a"],
+            ),
+        ]
+        trace = derive_concession_trace(seq)
+        assert trace.computed_concessions == []
+        assert "a" in trace.self_reported_concessions
+        assert len(trace.divergence) >= 1
+        # divergence should mention that agent claimed concession but data unchanged
+        assert any("a" in d for d in trace.divergence)
+
+    def test_computed_exceeds_self_reported(self):
+        """计算多于自我报告 -> divergence 记录数据变化但 agent 未报告"""
+        seq = [
+            StanceDeclaration(
+                verdict="fail",
+                stances={"x": "reject", "y": "needs_work"},
+                round_number=1,
+            ),
+            StanceDeclaration(
+                verdict="pass",
+                stances={},
+                round_number=2,
+                self_reported_concessions=["x"],
+            ),
+        ]
+        trace = derive_concession_trace(seq)
+        assert "x" in trace.computed_concessions
+        assert "y" in trace.computed_concessions
+        assert "x" in trace.self_reported_concessions
+        # y was computed but not self-reported
+        assert len(trace.divergence) >= 1
+        assert any("y" in d for d in trace.divergence)
+
+    def test_three_rounds_cumulative(self):
+        """三轮立场序列——让步在多个差分中累积"""
+        seq = [
+            StanceDeclaration(
+                verdict="fail",
+                stances={"a": "reject", "b": "reject", "c": "reject"},
+                round_number=1,
+            ),
+            StanceDeclaration(
+                verdict="fail",
+                stances={"b": "reject", "c": "accept"},
+                round_number=2,
+            ),
+            StanceDeclaration(
+                verdict="pass",
+                stances={"c": "accept"},
+                round_number=3,
+            ),
+        ]
+        trace = derive_concession_trace(seq)
+        # a removed in round 1->2, b removed in round 2->3, c changed in 1->2
+        assert "a" in trace.computed_concessions
+        assert "b" in trace.computed_concessions
+        assert "c" in trace.computed_concessions
+
+    def test_empty_sequence(self):
+        trace = derive_concession_trace([])
+        assert trace.computed_concessions == []
+        assert trace.self_reported_concessions == []
+        assert trace.divergence == []
 
 
 # ── extract_from_gemini_verify tests ──
 # §17: Gemini 是概念层质询者。§21: gemini_conceded = Gemini 放弃的立场。
-# CC 是被质询的主体，不在 conceded 字段中。
+# 立场差分架构：接收 stance_sequence 而不是 verify_result_text。
 
 
 class TestExtractFromGeminiVerify:
-    def test_negation_stands_gemini_did_not_concede(self):
+    def test_negation_stands_no_concession(self):
         """否定成立时，Gemini 坚持否定——没有让步。codex_conceded=[] 因为 Codex 不参与。"""
-        text = (
-            "## 结论\n\n定义X存在矛盾。\n\n"
-            "## 未解决\n\n- 条件1与条件3的边界"
+        stance_seq = [
+            StanceDeclaration(
+                verdict="fail",
+                stances={"definition_x": "contradictory"},
+                round_number=1,
+            ),
+        ]
+        result = extract_from_gemini_verify(
+            stance_sequence=stance_seq,
+            trigger_block_id=TRIGGER_SHA,
+            negation_stands=True,
+            conclusion="定义X存在矛盾",
         )
-        result = extract_from_gemini_verify(text, TRIGGER_SHA, negation_stands=True)
-
         assert result.scenario == "gemini_verify"
         assert result.trigger_block_id == TRIGGER_SHA
-        assert "矛盾" in result.conclusion
-        # §21: Gemini 坚持否定，没有让步
+        assert result.conclusion == "定义X存在矛盾"
         assert result.gemini_conceded == []
-        # §17: Codex 不参与此场景
         assert result.codex_conceded == []
-        assert len(result.unresolved) == 1
+        assert result.concession_trace is not None
 
     def test_negation_not_stands_gemini_conceded(self):
-        """否定不成立时，Gemini 放弃了否定立场——gemini_conceded 记录这些立场。"""
-        text = (
-            "## 结论\n\n否定不成立，原定义正确。\n\n"
-            "## 误判\n\n- Gemini 误读了上下文\n"
+        """否定不成立时，Gemini 放弃了否定立场——gemini_conceded 来自差分。"""
+        stance_seq = [
+            StanceDeclaration(
+                verdict="fail",
+                stances={"inclusion_def": "incorrect", "context_read": "wrong"},
+                round_number=1,
+            ),
+            StanceDeclaration(
+                verdict="pass",
+                stances={"context_read": "wrong"},
+                round_number=2,
+            ),
+        ]
+        result = extract_from_gemini_verify(
+            stance_sequence=stance_seq,
+            trigger_block_id=TRIGGER_SHA,
+            negation_stands=False,
+            conclusion="否定不成立，原定义正确",
         )
-        result = extract_from_gemini_verify(text, TRIGGER_SHA, negation_stands=False)
-
-        # §21: Gemini 放弃了否定立场
-        assert result.gemini_conceded == ["Gemini 误读了上下文"]
-        # Codex 不参与
+        # inclusion_def was removed -> concession
+        assert "inclusion_def" in result.gemini_conceded
         assert result.codex_conceded == []
-        assert "gemini" in result.concession_reasons
-
-    def test_fallback_conclusion_from_text(self):
-        text = "没有标题结构的纯文本回复"
-        result = extract_from_gemini_verify(text, TRIGGER_SHA, negation_stands=True)
-        assert result.conclusion == "没有标题结构的纯文本回复"
+        assert result.concession_trace is not None
 
     def test_source_is_cc(self):
         """§17: CC 是主体（生产者）——source 始终为 cc。"""
-        text = "## 结论\n\n结论内容"
-        result = extract_from_gemini_verify(text, TRIGGER_SHA, negation_stands=True)
+        stance_seq = [
+            StanceDeclaration(verdict="pass", stances={}, round_number=1),
+        ]
+        result = extract_from_gemini_verify(
+            stance_sequence=stance_seq,
+            trigger_block_id=TRIGGER_SHA,
+            negation_stands=True,
+            conclusion="test",
+        )
         assert result.source == "cc"
+
+    def test_stance_diffs_populated(self):
+        """多轮时 stance_diffs 有值"""
+        stance_seq = [
+            StanceDeclaration(
+                verdict="fail",
+                stances={"a": "reject"},
+                round_number=1,
+            ),
+            StanceDeclaration(
+                verdict="pass",
+                stances={},
+                round_number=2,
+            ),
+        ]
+        result = extract_from_gemini_verify(
+            stance_sequence=stance_seq,
+            trigger_block_id=TRIGGER_SHA,
+            negation_stands=False,
+            conclusion="否定不成立",
+        )
+        assert len(result.stance_diffs) == 1
+        assert result.stance_diffs[0].round_from == 1
+        assert result.stance_diffs[0].round_to == 2
+
+    def test_unresolved_from_last_stance(self):
+        """unresolved 从最后一轮的 stances 中仍持有的非 pass 立场推导"""
+        stance_seq = [
+            StanceDeclaration(
+                verdict="fail",
+                stances={"issue_1": "reject", "issue_2": "needs_work"},
+                round_number=1,
+            ),
+            StanceDeclaration(
+                verdict="conditional",
+                stances={"issue_2": "needs_work"},
+                round_number=2,
+            ),
+        ]
+        result = extract_from_gemini_verify(
+            stance_sequence=stance_seq,
+            trigger_block_id=TRIGGER_SHA,
+            negation_stands=False,
+            conclusion="部分否定不成立",
+            unresolved=["issue_2 待进一步审查"],
+        )
+        assert "issue_2 待进一步审查" in result.unresolved
 
 
 # ── extract_from_plan_review tests ──
-# §18: Codex 从代码层质询。plan-review SKILL.md: Codex 在多轮对审中放弃的质疑。
+# §18: Codex 从代码层质询。plan-review: Codex 在多轮对审中放弃的质疑。
+# 立场差分架构：接收 stance_sequence 而不是从文件系统读取。
 
 
 class TestExtractFromPlanReview:
-    def test_single_round(self, review_dir):
-        (review_dir / "plan-review-20260224-0100-round1.md").write_text(
-            "## 最终方案\n\n采用方案A。\n\n"
-            "## Codex让步\n\n- 撤回对架构的质疑\n\n"
-            "## 未解决\n\n- 性能基准待测\n",
-            encoding="utf-8",
+    def test_single_round_no_concession(self):
+        stance_seq = [
+            StanceDeclaration(
+                verdict="pass",
+                stances={"arch": "acceptable"},
+                round_number=1,
+            ),
+        ]
+        result = extract_from_plan_review(
+            stance_sequence=stance_seq,
+            trigger_block_id=TRIGGER_SHA,
+            conclusion="方案定稿",
         )
-        result = extract_from_plan_review(review_dir, TRIGGER_SHA)
-
-        assert result is not None
         assert result.scenario == "plan_review"
-        assert "方案A" in result.conclusion
-        # §21: Gemini 不参与 plan-review
+        assert result.codex_conceded == []
         assert result.gemini_conceded == []
-        # §21: Codex 在对审中放弃的质疑
-        assert len(result.codex_conceded) >= 1
-        assert len(result.unresolved) >= 1
 
-    def test_multiple_rounds_uses_last(self, review_dir):
-        (review_dir / "plan-review-20260224-0100-round1.md").write_text(
-            "## 结论\n\n初始方案。",
-            encoding="utf-8",
+    def test_multi_round_codex_conceded(self):
+        """Codex 在多轮对审中放弃质疑 -> codex_conceded 来自差分"""
+        stance_seq = [
+            StanceDeclaration(
+                verdict="fail",
+                stances={"hook_design": "reject", "error_handling": "needs_work"},
+                round_number=1,
+            ),
+            StanceDeclaration(
+                verdict="pass",
+                stances={"error_handling": "accept"},
+                round_number=2,
+            ),
+        ]
+        result = extract_from_plan_review(
+            stance_sequence=stance_seq,
+            trigger_block_id=TRIGGER_SHA,
+            conclusion="修正后方案B",
         )
-        (review_dir / "plan-review-20260224-0100-round2.md").write_text(
-            "## 最终方案\n\n修正后方案B。\n\n"
-            "## Codex让步\n\n- 接受重构方案\n",
-            encoding="utf-8",
-        )
-        result = extract_from_plan_review(review_dir, TRIGGER_SHA)
+        # hook_design was removed -> concession
+        assert "hook_design" in result.codex_conceded
+        # error_handling changed from needs_work to accept -> also concession
+        assert "error_handling" in result.codex_conceded
+        assert result.gemini_conceded == []
 
-        assert result is not None
-        assert "方案B" in result.conclusion
-
-    def test_no_files_returns_none(self, review_dir):
-        result = extract_from_plan_review(review_dir, TRIGGER_SHA)
-        assert result is None
-
-    def test_gemini_conceded_always_empty(self, review_dir):
+    def test_gemini_conceded_always_empty(self):
         """§63 当前阶段：plan-review 不涉及 Gemini。"""
-        (review_dir / "plan-review-20260224-0200-round1.md").write_text(
-            "## 结论\n\n方案定稿。",
-            encoding="utf-8",
+        stance_seq = [
+            StanceDeclaration(verdict="pass", stances={}, round_number=1),
+        ]
+        result = extract_from_plan_review(
+            stance_sequence=stance_seq,
+            trigger_block_id=TRIGGER_SHA,
+            conclusion="方案定稿",
         )
-        result = extract_from_plan_review(review_dir, TRIGGER_SHA)
-        assert result is not None
         assert result.gemini_conceded == []
 
-
-# ── _extract_cross_round_concessions tests ──
-# §20: 共识=缝合，缝合必然生产剩余物。跨轮次消失的质疑 = 被缝合排除的内容。
-
-
-class TestExtractCrossRoundConcessions:
-    def test_detects_dropped_issues(self, tmp_path):
-        r1 = tmp_path / "round1.md"
-        r1.write_text("## 质疑\n\n- 架构问题\n- 性能问题\n", encoding="utf-8")
-        r2 = tmp_path / "round2.md"
-        r2.write_text("## 质疑\n\n- 性能问题\n", encoding="utf-8")
-
-        rounds = {1: r1, 2: r2}
-        conceded = _extract_cross_round_concessions(rounds)
-        assert "架构问题" in conceded
-        assert "性能问题" not in conceded
-
-    def test_single_round_returns_empty(self, tmp_path):
-        r1 = tmp_path / "round1.md"
-        r1.write_text("## 质疑\n\n- 问题X\n", encoding="utf-8")
-        assert _extract_cross_round_concessions({1: r1}) == []
+    def test_concession_trace_attached(self):
+        stance_seq = [
+            StanceDeclaration(
+                verdict="fail",
+                stances={"x": "reject"},
+                round_number=1,
+            ),
+            StanceDeclaration(
+                verdict="pass",
+                stances={},
+                round_number=2,
+                self_reported_concessions=["x"],
+            ),
+        ]
+        result = extract_from_plan_review(
+            stance_sequence=stance_seq,
+            trigger_block_id=TRIGGER_SHA,
+            conclusion="完成",
+        )
+        assert result.concession_trace is not None
+        assert "x" in result.concession_trace.computed_concessions
+        assert "x" in result.concession_trace.self_reported_concessions
+        assert result.concession_trace.divergence == []
 
 
 # ── trigger_ceremony tests ──
@@ -251,7 +554,7 @@ class TestTriggerCeremony:
         assert result["tension"]["type"] == "tension"
 
     def test_consensus_refs_trigger(self, tmp_base, trigger_block):
-        """§21: consensus.refs → 触发质询的原始 CC 产出区块 id。"""
+        """§21: consensus.refs -> 触发质询的原始 CC 产出区块 id。"""
         cycle = InquiryCycleResult(
             scenario="plan_review",
             trigger_block_id=trigger_block,
@@ -279,6 +582,35 @@ class TestTriggerCeremony:
         residue_content = result["residue"]["content"]
         assert residue_content["gemini_conceded"] == ["误读上下文"]
         assert residue_content["codex_conceded"] == []
+
+    def test_with_stance_diff_data(self, tmp_base, trigger_block):
+        """InquiryCycleResult 的新字段不影响 trigger_ceremony 的输出"""
+        trace = ConcessionTrace(
+            computed_concessions=["x"],
+            self_reported_concessions=["x"],
+            divergence=[],
+        )
+        diff = StanceDiff(
+            round_from=1,
+            round_to=2,
+            changed={},
+            added={},
+            removed={"x": "reject"},
+        )
+        cycle = InquiryCycleResult(
+            scenario="gemini_verify",
+            trigger_block_id=trigger_block,
+            conclusion="否定不成立",
+            gemini_conceded=["x"],
+            codex_conceded=[],
+            concession_reasons={"gemini": "误判"},
+            unresolved=[],
+            concession_trace=trace,
+            stance_diffs=[diff],
+        )
+        result = trigger_ceremony(cycle, base=tmp_base)
+        # trigger_ceremony still calls write_consensus_ceremony with list[str]
+        assert result["residue"]["content"]["gemini_conceded"] == ["x"]
 
 
 # ── detect_convergence_from_review_file tests ──
@@ -332,54 +664,115 @@ class TestFindTriggerBlock:
         assert find_trigger_block_for_review(f) is None
 
 
-# ── End-to-end: extract + trigger ──
-# 从总方针出发验证完整路径：CC 产出 → 质询 → 共识仪式 → 三区块
+# ── End-to-end: stance_sequence -> InquiryCycleResult -> trigger_ceremony -> 三区块 ──
 
 
 class TestEndToEnd:
     def test_gemini_verify_negation_stands_e2e(self, tmp_base, trigger_block):
         """§19 共识="此处有问题"。Gemini 没有让步。residue 反映这个事实。"""
-        verify_text = (
-            "## 结论\n\n谱系 042 的依赖链存在循环引用。\n\n"
-            "## 未解决\n\n- 038 号本身是否需要重审\n"
+        stance_seq = [
+            StanceDeclaration(
+                verdict="fail",
+                stances={"dep_chain_042": "circular_reference"},
+                round_number=1,
+            ),
+        ]
+        cycle = extract_from_gemini_verify(
+            stance_sequence=stance_seq,
+            trigger_block_id=trigger_block,
+            negation_stands=True,
+            conclusion="谱系 042 的依赖链存在循环引用",
         )
-        cycle = extract_from_gemini_verify(verify_text, trigger_block, negation_stands=True)
         result = trigger_ceremony(cycle, base=tmp_base)
 
         assert "042" in result["consensus"]["content"]["conclusion"]
-        # Gemini 坚持否定，没有让步
         assert result["residue"]["content"]["gemini_conceded"] == []
-        # Codex 不参与
         assert result["residue"]["content"]["codex_conceded"] == []
-        assert len(result["tension"]["content"]["unresolved"]) >= 1
 
     def test_gemini_verify_negation_rejected_e2e(self, tmp_base, trigger_block):
         """§19 共识="原产出成立"。Gemini 放弃否定立场。"""
-        verify_text = (
-            "## 结论\n\n否定不成立，原定义正确。\n\n"
-            "## 误判\n\n- Gemini 误读了包含关系定义\n"
+        stance_seq = [
+            StanceDeclaration(
+                verdict="fail",
+                stances={"inclusion_def": "misread"},
+                round_number=1,
+            ),
+            StanceDeclaration(
+                verdict="pass",
+                stances={},
+                round_number=2,
+            ),
+        ]
+        cycle = extract_from_gemini_verify(
+            stance_sequence=stance_seq,
+            trigger_block_id=trigger_block,
+            negation_stands=False,
+            conclusion="否定不成立，原定义正确",
         )
-        cycle = extract_from_gemini_verify(verify_text, trigger_block, negation_stands=False)
         result = trigger_ceremony(cycle, base=tmp_base)
 
-        assert result["residue"]["content"]["gemini_conceded"] == ["Gemini 误读了包含关系定义"]
+        assert "inclusion_def" in result["residue"]["content"]["gemini_conceded"]
         assert result["residue"]["content"]["codex_conceded"] == []
 
-    def test_plan_review_e2e(self, tmp_base, trigger_block, review_dir):
-        """§18 Codex 代码层质询 → §19 共识 → §21 三区块。"""
-        (review_dir / "plan-review-20260224-0200-round1.md").write_text(
-            "## 最终方案\n\n实现共识仪式触发协议。\n\n"
-            "## Codex让步\n\n- 撤回对 hook 设计的质疑\n\n"
-            "## 遗留\n\n- 需要集成测试\n",
-            encoding="utf-8",
+    def test_plan_review_e2e(self, tmp_base, trigger_block):
+        """§18 Codex 代码层质询 -> §19 共识 -> §21 三区块。"""
+        stance_seq = [
+            StanceDeclaration(
+                verdict="fail",
+                stances={"hook_design": "reject", "api_surface": "too_broad"},
+                round_number=1,
+            ),
+            StanceDeclaration(
+                verdict="conditional",
+                stances={"api_surface": "acceptable"},
+                round_number=2,
+            ),
+            StanceDeclaration(
+                verdict="pass",
+                stances={},
+                round_number=3,
+            ),
+        ]
+        cycle = extract_from_plan_review(
+            stance_sequence=stance_seq,
+            trigger_block_id=trigger_block,
+            conclusion="实现共识仪式触发协议",
         )
-        cycle = extract_from_plan_review(review_dir, trigger_block)
-        assert cycle is not None
 
         result = trigger_ceremony(cycle, base=tmp_base)
         assert result["consensus"]["type"] == "consensus"
         assert trigger_block in result["consensus"]["refs"]
-        # Gemini 不参与 plan-review
         assert result["residue"]["content"]["gemini_conceded"] == []
-        # Codex 的让步被正确记录
         assert len(result["residue"]["content"]["codex_conceded"]) >= 1
+
+    def test_divergence_signal_preserved_e2e(self, tmp_base, trigger_block):
+        """自我报告 vs 计算出的让步之间的差异被保留在 concession_trace 中"""
+        stance_seq = [
+            StanceDeclaration(
+                verdict="fail",
+                stances={"x": "reject", "y": "reject"},
+                round_number=1,
+            ),
+            StanceDeclaration(
+                verdict="pass",
+                stances={},
+                round_number=2,
+                self_reported_concessions=["x"],
+                # y also removed but not self-reported
+            ),
+        ]
+        cycle = extract_from_gemini_verify(
+            stance_sequence=stance_seq,
+            trigger_block_id=trigger_block,
+            negation_stands=False,
+            conclusion="否定不成立",
+        )
+        # Verify divergence is captured
+        assert cycle.concession_trace is not None
+        assert "y" in cycle.concession_trace.computed_concessions
+        assert "y" not in cycle.concession_trace.self_reported_concessions
+        assert len(cycle.concession_trace.divergence) >= 1
+
+        # Still produces valid ceremony
+        result = trigger_ceremony(cycle, base=tmp_base)
+        assert result["consensus"]["type"] == "consensus"

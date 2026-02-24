@@ -11,6 +11,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
+from scripts.stance_parser import STANCE_OUTPUT_PROTOCOL_CODEX
+
 ModeKey = Literal["review", "diagnose", "decide"]
 
 # ── System Prompts ──
@@ -92,7 +94,7 @@ _REVIEW_TEMPLATE = """\
 - **修复建议**：如何解决
 
 如果没有发现问题，输出"无否定"并说明你检查了什么。
-"""
+""" + STANCE_OUTPUT_PROTOCOL_CODEX
 
 _DIAGNOSE_TEMPLATE = """\
 ## 诊断目标
