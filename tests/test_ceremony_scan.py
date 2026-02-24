@@ -584,8 +584,8 @@ class TestAsyncSelfRefIntegration:
 
     def test_genealogy_needed_adds_workstation(self, tmp_path, monkeypatch) -> None:
         """genealogy_needed=true 时追加工位（无 stagnation/anomaly 的 regression 场景）。"""
-        from unittest import mock
         import time
+        import scripts.async_self_reference as asr_mod
 
         fake_asr_result = {
             "t_minus_1_summary": {"session_file": "test.md"},
@@ -599,8 +599,8 @@ class TestAsyncSelfRefIntegration:
         time.sleep(0.05)
         _write_session_file(tmp_path, "b-session.md", 185)
 
-        with mock.patch("scripts.async_self_reference.audit", return_value=fake_asr_result):
-            output = _run_main_in_tmp(tmp_path, monkeypatch)
+        monkeypatch.setattr(asr_mod, "audit", lambda *a, **kw: fake_asr_result)
+        output = _run_main_in_tmp(tmp_path, monkeypatch)
 
         assert "async_self_ref" in output
         asr_ws = [w for w in output["workstations"] if w.get("source") == "async_self_ref"]
