@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import sys
 import textwrap
 
 import pytest
@@ -13,6 +14,7 @@ from scripts.ceremony_scan import (
     detect_genealogy_anomalies,
     detect_pending_topo_effects,
     get_frozen_nodes,
+    main,
 )
 
 
@@ -429,3 +431,68 @@ class TestDetectGenealogyAnomaliesBlockTopology:
         anomalies = detect_genealogy_anomalies(str(tmp_path))
         mapping_anomalies = [a for a in anomalies if a["type"] == "missing_block_mapping"]
         assert len(mapping_anomalies) == 0
+
+
+# ═══════════════════════════════════════════════════════════════
+# clean_terminate 与 workstations 一致性（186号下游推论2）
+# ═══════════════════════════════════════════════════════════════
+
+
+def _run_main_in_tmp(tmp_path, monkeypatch):
+    """在 tmp_path 环境中运行 main()，返回解析后的 JSON 输出。
+
+    mock 策略：
+    - chdir → tmp_path（main 用 os.getcwd() 获取 root）
+    - sys.argv → 无额外参数（根 ceremony 模式）
+    - subprocess.run → 返回空 pytest 输出（无测试失败）
+    - subprocess.check_output → 返回假 git HEAD
+    """
+    import io
+    from unittest import mock
+
+    monkeypatch.chdir(str(tmp_path))
+    monkeypatch.setattr(sys, "argv", ["ceremony_scan.py"])
+
+    fake_proc = mock.MagicMock()
+    fake_proc.stdout = "0 passed in 0.01s\n"
+    fake_proc.stderr = ""
+
+    with mock.patch("scripts.ceremony_scan.subprocess.run", return_value=fake_proc), \
+         mock.patch("scripts.ceremony_scan.subprocess.check_output", return_value="abc1234\n"):
+        buf = io.StringIO()
+        monkeypatch.setattr(sys, "stdout", buf)
+        main()
+        buf.seek(0)
+        return json.loads(buf.read())
+
+
+class TestCleanTerminateConsistency:
+    """186号下游推论2：clean_terminate 与 workstations 的一致性。"""
+
+    def test_clean_terminate_false_when_anomalies_exist(self, tmp_path, monkeypatch) -> None:
+        """settled 文件存在但 block-topology 无 id_mapping → genealogy_anomalies 工位 → clean_terminate=False。"""
+        _write_settled(tmp_path, "001-test.md", textwrap.dedent("""\
+            ---
+            id: "001"
+            status: "已结算"
+            type: "定理"
+            date: "2026-01-01"
+            ---
+        """))
+        # 创建 block-topology 但不映射 001 → 产生 missing_block_mapping anomaly
+        _setup_block_topology(tmp_path, {})
+
+        output = _run_main_in_tmp(tmp_path, monkeypatch)
+
+        assert output["clean_terminate"] is False
+        assert len(output["workstations"]) > 0
+        # 应存在 genealogy_anomalies 驱动的工位
+        anomaly_ws = [w for w in output["workstations"] if w.get("source") == "genealogy_anomaly_detection"]
+        assert len(anomaly_ws) > 0
+
+    def test_clean_terminate_true_when_no_workstations(self, tmp_path, monkeypatch) -> None:
+        """无 settled、无 pending、无 roadmap → workstations 为空 → clean_terminate=True。"""
+        output = _run_main_in_tmp(tmp_path, monkeypatch)
+
+        assert output["clean_terminate"] is True
+        assert output["workstations"] == []

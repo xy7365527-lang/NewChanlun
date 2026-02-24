@@ -72,7 +72,7 @@ Gemini 对"当前系统是否在真正执行递归运动"的 verify 质询得出
 ## 下游推论
 
 1. ~~**ceremony_scan 迁移是必要前置**（不是可选优化）：不迁移则无法以区块拓扑为输入触发真实质询~~ → **已解决**（v45-swarm ceremony-scan-migrate 工位完成，get_frozen_nodes + detect_anomalies 已迁移到 block-topology）
-2. ~~**三层架构从此次执行起才实质激活**：第一个 residue 区块是 Relation/Reflexive layer 活起来的物质证据~~ → **已解决**（v46-swarm first-ceremony 工位完成，产出首批 consensus dc9e4c7f + residue 8ec86cba + tension 45fcaeaa + 3 rewrite 区块）
+2. ~~**三层架构从此次执行起才实质激活**：第一个 residue 区块是 Relation/Reflexive layer 活起来的物质证据~~ → **部分解决——形式激活（首批区块产出）但动力学未启动（183号/184号诊断）**（v46-swarm first-ceremony 工位完成，产出首批 consensus dc9e4c7f + residue 8ec86cba + tension 45fcaeaa + 3 rewrite 区块）
 3. ~~**历史债务需要形式化**：182个区块中的虚假 depends_on 是系统性风险~~ → **已扫描**（v46-swarm history-debt 工位完成扫描，谱系文件中的 negates/tensions_with 字段已识别）
 
 ## 谱系引用

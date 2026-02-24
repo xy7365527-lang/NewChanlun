@@ -909,6 +909,26 @@ nodes:
   status: 生成态
   type: 矛盾发现
   file: pending/182-recursive-motion-null-diagnosis.md
+- id: '183'
+  title: 反思层拓扑空壳——Reflexive layer 激活但动力学机制（异步自指、多轮质询）未执行
+  status: 生成态
+  type: 矛盾发现
+  file: pending/183-reflexive-shell-without-dynamics.md
+- id: '184'
+  title: 反思层拓扑空壳——Reflexive layer 激活但动力学机制（异步自指、多轮质询）未执行
+  status: 生成态
+  type: 矛盾发现
+  file: pending/184-reflexive-shell-without-dynamics.md
+- id: '185'
+  title: 语法记录——纲举目张分析在 RTAS 循环中的缺位（步骤7→步骤1之间的空白）
+  status: settled
+  type: meta-rule
+  file: settled/185-gangju-analysis-rtas-gap.md
+- id: '186'
+  title: clean_terminate 计算时序缺陷——在 workstations 追加完成前计算导致假阳性终止
+  status: settled
+  type: meta-rule
+  file: settled/186-clean-terminate-computation-order.md
 edges:
   depends_on:
   - from: '136'
@@ -1869,6 +1889,22 @@ edges:
     to: '178'
   - from: '182'
     to: '181'
+  - from: '183'
+    to: '178'
+  - from: '183'
+    to: '182'
+  - from: '184'
+    to: '178'
+  - from: '184'
+    to: '182'
+  - from: '185'
+    to: '183'
+  - from: '185'
+    to: '174'
+  - from: '186'
+    to: '185'
+  - from: '186'
+    to: 081
   triggered:
   - from: '005'
     to: 005a
@@ -3254,6 +3290,27 @@ edges:
   - between:
     - '177'
     - '182'
+  - between:
+    - '174'
+    - '183'
+  - between:
+    - '177'
+    - '183'
+  - between:
+    - '174'
+    - '184'
+  - between:
+    - '177'
+    - '184'
+  - between:
+    - 058
+    - '185'
+  - between:
+    - '154'
+    - '186'
+  - between:
+    - '181'
+    - '186'
   tensions_with:
   - between:
     - '007'
