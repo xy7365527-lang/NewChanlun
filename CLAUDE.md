@@ -70,6 +70,7 @@ Always respond in Chinese-simplified (简体中文).
 | math-tools | `.claude/skills/math-tools/` | 数学工具对照表 | 等价关系封闭后 |
 | gemini-math | `.claude/skills/gemini-math/` | Gemini 数学推导 | 形式化证明时 |
 | plan-review | `.claude/skills/plan-review/` | Plan 阶段多模型对审（Opus方案+Codex评审） | Plan 阶段产出方案时 |
+| consensus-ceremony-trigger | `.claude/skills/consensus-ceremony-trigger/` | 质询循环收敛→共识仪式三区块写入（§21/§63） | 质询循环收敛时 |
 
 ### 可用命令
 - `/ceremony` — Swarm₀：加载初始区分，直接递归进入工作（058号谱系）
