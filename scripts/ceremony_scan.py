@@ -13,6 +13,7 @@
 147号更新：topo_effect 扫描——frozen 节点的下游工位不 spawn
 176号更新：delta_genealogy 检测——RTAS循环是否产生新谱系
 178号更新：delta_blocks 检测——block-topology 区块变化
+183号更新：async_self_reference 集成——t审查t-1 异步自指审计
     dispatch-dag.yaml 的 ceremony_sequence 定义了 DAG 格式的 nodes+depends_on，
     但本脚本并未实现 DAG 解析器——扫描顺序由代码逻辑决定（roadmap → session → fallback）。
     DAG 的 ceremony_sequence 由 LLM 解释执行（057号推论：LLM 不是状态机）。
@@ -775,6 +776,36 @@ def main():
     except Exception as exc:
         # Keep scan resilient, but do not hide failures.
         result["downstream_actions_error"] = f"{type(exc).__name__}: {exc}"
+
+    # 183号目B：异步自指审计（t 审查 t-1）
+    try:
+        from scripts.async_self_reference import audit as async_self_ref_audit
+        asr = async_self_ref_audit(root)
+        result["async_self_ref"] = {
+            "t_minus_1_summary": asr.get("t_minus_1_summary"),
+            "findings_count": len(asr.get("self_audit_findings", [])),
+            "genealogy_needed": asr.get("genealogy_needed", False),
+            "findings": asr.get("self_audit_findings", []),
+        }
+        for finding in asr.get("self_audit_findings", []):
+            if finding["type"] in ("stagnation", "anomaly"):
+                workstations.append({
+                    "priority": "P1",
+                    "name": f"异步自指审计：{finding['type']}",
+                    "status": finding["detail"][:120],
+                    "source": "async_self_ref",
+                })
+        if asr.get("genealogy_needed") and not any(
+            w.get("source") == "async_self_ref" for w in workstations
+        ):
+            workstations.append({
+                "priority": "P2",
+                "name": "异步自指审计：需要新谱系",
+                "status": "genealogy_needed=true",
+                "source": "async_self_ref",
+            })
+    except Exception as exc:
+        result["async_self_ref_error"] = f"{type(exc).__name__}: {exc}"
 
     # 081号：清晰报告干净终止条件（必须在所有 workstations 追加完成后计算）
     # 真阴性干净终止 = roadmap 为空 AND workstations 为空 AND pending 谱系为空

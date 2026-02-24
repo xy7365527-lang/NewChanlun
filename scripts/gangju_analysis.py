@@ -158,33 +158,63 @@ def compute_genealogy_stats(root):
 # residue 内容检测
 # ---------------------------------------------------------------------------
 
-def check_residue_empty(root):
-    """检查所有 residue 区块的 content 是否实质为空。
+def _block_has_substantive_concessions(content):
+    """判断一个区块的 content 是否包含实质让步内容。"""
+    if content.get("gemini_conceded"):
+        return True
+    if content.get("codex_conceded"):
+        return True
+    reasons = content.get("reasons", {})
+    if reasons and any(reasons.values()):
+        return True
+    return False
 
-    "实质为空" = gemini_conceded + codex_conceded + reasons 全为空列表/空字典。
+
+def compute_residue_status(root):
+    """计算 residue 状态三态值（183号-3 分界线）。
+
+    返回值：
+      - "no_residue": 无 residue 区块
+      - "empty_shell": residue 区块存在但让步内容全为空
+      - "substantive": 至少一个 residue 区块包含非空让步
+
+    检测范围包括：
+      1. residue 区块自身的 gemini_conceded / codex_conceded / reasons
+      2. consensus 区块中的 gemini_conceded / codex_conceded（如存在）
     """
     blocks_dir = os.path.join(root, ".chanlun", "block-topology", "blocks")
     if not os.path.isdir(blocks_dir):
-        return True  # 无区块目录，视为空
+        return "no_residue"
 
+    found_residue = False
     for fp in glob.glob(os.path.join(blocks_dir, "*.json")):
         try:
             with open(fp, encoding="utf-8") as f:
                 block = json.load(f)
-            if block.get("type") != "residue":
-                continue
-            content = block.get("content", {})
-            # 非空判断：任何一个字段有实质内容就不算空
-            if content.get("gemini_conceded"):
-                return False
-            if content.get("codex_conceded"):
-                return False
-            reasons = content.get("reasons", {})
-            if reasons and any(reasons.values()):
-                return False
         except Exception:
-            pass
-    return True
+            continue
+
+        block_type = block.get("type")
+        content = block.get("content", {})
+
+        if block_type == "residue":
+            found_residue = True
+            if _block_has_substantive_concessions(content):
+                return "substantive"
+
+        elif block_type == "consensus":
+            # consensus 区块也可能携带 conceded 字段
+            if content.get("gemini_conceded") or content.get("codex_conceded"):
+                found_residue = True
+                if _block_has_substantive_concessions(content):
+                    return "substantive"
+
+    return "empty_shell" if found_residue else "no_residue"
+
+
+def check_residue_empty(root):
+    """向后兼容：返回 True 当 residue 内容全为空。"""
+    return compute_residue_status(root) != "substantive"
 
 
 # ---------------------------------------------------------------------------
@@ -242,9 +272,9 @@ def derive_mu(block_stats, genealogy_stats, root):
 
     # 规则1：consensus > 0 但 residue 内容全为空 → 新目"多轮质询管道"
     consensus_count = type_counts.get("consensus", 0)
+    residue_status = compute_residue_status(root)
     if consensus_count > 0:
-        residue_all_empty = check_residue_empty(root)
-        if residue_all_empty:
+        if residue_status != "substantive":
             new_mu.append({
                 "mu": "多轮质询管道",
                 "reason": f"consensus 区块 {consensus_count} 个，但 residue 内容全为空——质询仅走形式未产出实质让步",
@@ -315,7 +345,93 @@ def derive_mu(block_stats, genealogy_stats, root):
             "evidence": f"已结算 {settled_count} 个谱系",
         })
 
-    return filled_mu, empty_mu, new_mu
+    return filled_mu, empty_mu, new_mu, residue_status
+
+
+# ---------------------------------------------------------------------------
+# 谱系 pending 骨架生成（187号目E）
+# ---------------------------------------------------------------------------
+
+def _next_genealogy_id(root):
+    """扫描 settled + pending 目录，返回 max(id) + 1。"""
+    max_id = 0
+    for subdir in ("settled", "pending"):
+        dirpath = os.path.join(root, ".chanlun", "genealogy", subdir)
+        if not os.path.isdir(dirpath):
+            continue
+        for fp in glob.glob(os.path.join(dirpath, "*.md")):
+            m = re.match(r"^(\d+)-", os.path.basename(fp))
+            if m:
+                max_id = max(max_id, int(m.group(1)))
+    return max_id + 1
+
+
+def generate_pending_skeleton(root, new_mu):
+    """当 audit_needed=true 且 new_mu 非空时，生成谱系 pending 骨架。
+
+    返回生成的文件路径，或 None。
+    不调用任何外部 API——只生成 frontmatter + 占位符。
+    """
+    if not new_mu:
+        return None
+
+    from datetime import datetime, timezone
+
+    pending_dir = os.path.join(root, ".chanlun", "genealogy", "pending")
+    os.makedirs(pending_dir, exist_ok=True)
+
+    next_id = _next_genealogy_id(root)
+    now = datetime.now(timezone.utc)
+    timestamp = now.strftime("%Y%m%d-%H%M")
+
+    filename = f"{next_id:03d}-gangju-auto-{timestamp}.md"
+    filepath = os.path.join(pending_dir, filename)
+
+    # 从 new_mu 提取目标摘要
+    mu_summaries = []
+    for item in new_mu:
+        mu_summaries.append(f"  - '{item['mu']}'")
+
+    mu_yaml_list = "\n".join(mu_summaries)
+
+    content = f"""---
+id: '{next_id}'
+title: 纲举目张自动检测——待质询项
+type: 待定
+status: 生成态
+date: {now.strftime("%Y-%m-%d")}
+source: gangju_analysis.py
+audit_targets:
+{mu_yaml_list}
+---
+
+# {next_id}号：纲举目张自动检测——待质询项
+
+## 来源标注
+
+[gangju_analysis.py 自动生成] audit_needed=true, new_mu={len(new_mu)} 项
+
+## 待质询目标
+
+"""
+    for item in new_mu:
+        content += f"### {item['mu']}\n\n"
+        content += f"**触发原因**: {item['reason']}\n\n"
+        content += "**质询结果**: （待多轮质询填充——此骨架由计算过程生成，内容须由对话过程填充）\n\n"
+
+    content += """## 边界条件
+
+（待质询循环填充）
+
+## 下游推论
+
+（待质询循环填充）
+"""
+
+    with open(filepath, "w", encoding="utf-8") as f:
+        f.write(content)
+
+    return filepath
 
 
 # ---------------------------------------------------------------------------
@@ -328,7 +444,16 @@ def main():
     gang = extract_gang(root)
     block_stats = compute_block_stats(root)
     genealogy_stats = compute_genealogy_stats(root)
-    filled_mu, empty_mu, new_mu = derive_mu(block_stats, genealogy_stats, root)
+    filled_mu, empty_mu, new_mu, residue_status = derive_mu(
+        block_stats, genealogy_stats, root
+    )
+
+    audit_needed = len(new_mu) > 0
+
+    # 187号目E：audit_needed 且 new_mu 非空时生成谱系 pending 骨架
+    generated_pending = None
+    if audit_needed:
+        generated_pending = generate_pending_skeleton(root, new_mu)
 
     result = {
         "gang": gang,
@@ -348,7 +473,9 @@ def main():
             "pending": genealogy_stats["pending_count"],
             "recent_types": genealogy_stats["recent_type_distribution"],
         },
-        "audit_needed": len(new_mu) > 0,
+        "residue_status": residue_status,
+        "audit_needed": audit_needed,
+        "generated_pending": generated_pending,
     }
 
     print(json.dumps(result, ensure_ascii=False, indent=2))

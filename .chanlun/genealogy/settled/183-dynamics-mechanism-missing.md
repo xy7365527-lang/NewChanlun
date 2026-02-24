@@ -97,8 +97,8 @@ Codex 指出：空 residue 被当成正常写入是数据污染。
 
 ## 下游推论
 
-1. gangju_analysis.py 脚本化——将本次手动分析固化为 RTAS 循环中的自动步骤
-2. ceremony skill 步骤 7.5 增加纲举目张分析位置
+1. ~~gangju_analysis.py 脚本化~~ **已执行**——ddbe43a 创建 scripts/gangju_analysis.py
+2. ~~ceremony skill 步骤 7.5 增加纲举目张分析位置~~ **已执行**——ddbe43a 更新 ceremony.md
 3. 首次非空 residue 是系统从"拓扑空壳"变为"递归运动"的分界线
 
 ## 谱系引用

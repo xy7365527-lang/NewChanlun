@@ -49,7 +49,7 @@ rule_version_baseline:
 ## 下游推论
 
 1. ~~ceremony_scan.py 修复~~ → **已解决**（本次修复）
-2. 测试覆盖：应增加端到端测试验证 `clean_terminate` 与 `workstations` 的一致性
+2. ~~测试覆盖：端到端测试验证 `clean_terminate` 与 `workstations` 的一致性~~ **已执行**——ddbe43a 添加 TestCleanTerminateConsistency 测试类
 
 ## 影响声明
 

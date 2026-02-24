@@ -496,3 +496,125 @@ class TestCleanTerminateConsistency:
 
         assert output["clean_terminate"] is True
         assert output["workstations"] == []
+
+
+# ═══════════════════════════════════════════════════════════════
+# async_self_ref 集成（183号目B）
+# ═══════════════════════════════════════════════════════════════
+
+
+def _write_session_file(root, filename, settled_count, time_str=None):
+    """在 root/.chanlun/sessions/ 下写入 session 文件。"""
+    sessions_dir = os.path.join(root, ".chanlun", "sessions")
+    os.makedirs(sessions_dir, exist_ok=True)
+    if time_str is None:
+        time_str = filename.replace("-session.md", "")
+    content = textwrap.dedent(f"""\
+        # Session
+
+        **时间**: {time_str}
+        **分支**: main
+
+        ## 谱系状态
+        - 生成态: 0 个
+        - 已结算: {settled_count} 个
+    """)
+    path = os.path.join(sessions_dir, filename)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(content)
+    return path
+
+
+class TestAsyncSelfRefIntegration:
+    """183号目B：async_self_reference 集成到 ceremony_scan。"""
+
+    def test_async_self_ref_field_in_output(self, tmp_path, monkeypatch) -> None:
+        """main() 输出包含 async_self_ref 字段。"""
+        output = _run_main_in_tmp(tmp_path, monkeypatch)
+        # 无 session 或不足 2 个时，async_self_ref 仍然存在（含 error 信息）
+        assert "async_self_ref" in output or "async_self_ref_error" in output
+
+    def test_stagnation_produces_p1_workstation(self, tmp_path, monkeypatch) -> None:
+        """settled 不变（stagnation）→ 产生 P1 工位。"""
+        import time
+        _write_session_file(tmp_path, "a-session.md", 185)
+        time.sleep(0.05)
+        _write_session_file(tmp_path, "b-session.md", 185)
+
+        output = _run_main_in_tmp(tmp_path, monkeypatch)
+
+        assert "async_self_ref" in output
+        asr = output["async_self_ref"]
+        assert asr["findings_count"] > 0
+        # 检查是否产生了 stagnation 工位
+        asr_ws = [w for w in output["workstations"] if w.get("source") == "async_self_ref"]
+        stagnation_ws = [w for w in asr_ws if "stagnation" in w["name"]]
+        assert len(stagnation_ws) > 0
+        assert stagnation_ws[0]["priority"] == "P1"
+
+    def test_anomaly_produces_p1_workstation(self, tmp_path, monkeypatch) -> None:
+        """settled 减少（anomaly）→ 产生 P1 工位。"""
+        import time
+        _write_session_file(tmp_path, "a-session.md", 185)
+        time.sleep(0.05)
+        _write_session_file(tmp_path, "b-session.md", 183)
+
+        output = _run_main_in_tmp(tmp_path, monkeypatch)
+
+        assert "async_self_ref" in output
+        asr_ws = [w for w in output["workstations"] if w.get("source") == "async_self_ref"]
+        anomaly_ws = [w for w in asr_ws if "anomaly" in w["name"]]
+        assert len(anomaly_ws) > 0
+        assert anomaly_ws[0]["priority"] == "P1"
+
+    def test_progression_no_extra_workstation(self, tmp_path, monkeypatch) -> None:
+        """settled 增加（pure progression）→ 不产生额外工位。"""
+        import time
+        _write_session_file(tmp_path, "a-session.md", 180)
+        time.sleep(0.05)
+        _write_session_file(tmp_path, "b-session.md", 185)
+
+        output = _run_main_in_tmp(tmp_path, monkeypatch)
+
+        assert "async_self_ref" in output
+        asr = output["async_self_ref"]
+        assert asr["genealogy_needed"] is False
+        asr_ws = [w for w in output["workstations"] if w.get("source") == "async_self_ref"]
+        assert len(asr_ws) == 0
+
+    def test_genealogy_needed_adds_workstation(self, tmp_path, monkeypatch) -> None:
+        """genealogy_needed=true 时追加工位（无 stagnation/anomaly 的 regression 场景）。"""
+        from unittest import mock
+        import time
+
+        fake_asr_result = {
+            "t_minus_1_summary": {"session_file": "test.md"},
+            "self_audit_findings": [
+                {"type": "regression", "detail": "t-1 下游推论未解决"}
+            ],
+            "genealogy_needed": True,
+        }
+
+        _write_session_file(tmp_path, "a-session.md", 180)
+        time.sleep(0.05)
+        _write_session_file(tmp_path, "b-session.md", 185)
+
+        with mock.patch("scripts.async_self_reference.audit", return_value=fake_asr_result):
+            output = _run_main_in_tmp(tmp_path, monkeypatch)
+
+        assert "async_self_ref" in output
+        asr_ws = [w for w in output["workstations"] if w.get("source") == "async_self_ref"]
+        # regression → genealogy_needed=true → 追加"需要新谱系"工位
+        genealogy_ws = [w for w in asr_ws if "需要新谱系" in w["name"]]
+        assert len(genealogy_ws) > 0
+
+    def test_clean_terminate_false_when_stagnation(self, tmp_path, monkeypatch) -> None:
+        """async_self_ref stagnation 产生工位 → clean_terminate=False。"""
+        import time
+        _write_session_file(tmp_path, "a-session.md", 185)
+        time.sleep(0.05)
+        _write_session_file(tmp_path, "b-session.md", 185)
+
+        output = _run_main_in_tmp(tmp_path, monkeypatch)
+
+        assert output["clean_terminate"] is False
