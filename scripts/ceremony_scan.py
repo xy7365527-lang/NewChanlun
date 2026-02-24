@@ -779,8 +779,11 @@ def main():
 
     # 183号目B：异步自指审计（t 审查 t-1）
     try:
-        from scripts.async_self_reference import audit as async_self_ref_audit
-        asr = async_self_ref_audit(root)
+        try:
+            import scripts.async_self_reference as _asr_mod
+        except ImportError:
+            import async_self_reference as _asr_mod
+        asr = _asr_mod.audit(root)
         result["async_self_ref"] = {
             "t_minus_1_summary": asr.get("t_minus_1_summary"),
             "findings_count": len(asr.get("self_audit_findings", [])),
