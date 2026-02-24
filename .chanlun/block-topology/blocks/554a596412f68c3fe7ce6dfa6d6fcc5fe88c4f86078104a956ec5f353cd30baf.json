@@ -1,0 +1,32 @@
+{
+  "id": "554a596412f68c3fe7ce6dfa6d6fcc5fe88c4f86078104a956ec5f353cd30baf",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.127307+00:00",
+  "source": "migration",
+  "content": {
+    "id": "079",
+    "title": "下游推论语义重定义：建议（Suggestion）而非强制阻塞节点",
+    "status": "已结算",
+    "type": "语法记录",
+    "date": "2026-02-21",
+    "negation_source": "heterogeneous",
+    "negation_form": "separation",
+    "depends_on": [
+      "076",
+      "074",
+      "012",
+      "041",
+      "078"
+    ],
+    "related": [
+      "077",
+      "018"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "provenance": "[新缠论]",
+    "source_file": "settled\\079-downstream-suggestions-not-blockers.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

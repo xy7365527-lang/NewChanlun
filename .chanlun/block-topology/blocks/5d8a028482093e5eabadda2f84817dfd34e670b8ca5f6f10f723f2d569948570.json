@@ -1,0 +1,29 @@
+{
+  "id": "5d8a028482093e5eabadda2f84817dfd34e670b8ca5f6f10f723f2d569948570",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.160522+00:00",
+  "source": "migration",
+  "content": {
+    "id": "110",
+    "title": "六要素/结果包格式的生成史——从质询需求到结构化产出标准",
+    "status": "已结算",
+    "type": "语法记录",
+    "date": "2026-02-22",
+    "depends_on": [
+      "012",
+      "014",
+      "016"
+    ],
+    "related": [
+      "013",
+      "071",
+      "073"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "provenance": "[新缠论]",
+    "source_file": "settled\\110-result-package-genesis.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,20 @@
+{
+  "id": "67aabefac812f8a5afc4a8b4f109d309f03a1825005f85bed78ec897363bc452",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.202524+00:00",
+  "source": "migration",
+  "content": {
+    "id": "165",
+    "status": "已结算",
+    "type": "语法记录",
+    "date": "2026-02-23",
+    "depends_on": [
+      "139-singularity-topology-structural-isomorphism",
+      "163-iron-barrier-recursive-limit",
+      "164-stellar-fusion-recursion-model"
+    ],
+    "source_file": "settled\\165-contraction-phase.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

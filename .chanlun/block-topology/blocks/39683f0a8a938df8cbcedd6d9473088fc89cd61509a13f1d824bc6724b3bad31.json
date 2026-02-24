@@ -1,0 +1,24 @@
+{
+  "id": "39683f0a8a938df8cbcedd6d9473088fc89cd61509a13f1d824bc6724b3bad31",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.077439+00:00",
+  "source": "migration",
+  "content": {
+    "id": "028",
+    "title": "ceremony 无工位时的默认动作",
+    "status": "已结算",
+    "type": "语法记录",
+    "date": "2026-02-19",
+    "depends_on": [
+      "027"
+    ],
+    "related": [
+      "020"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled\\028-ceremony-default-action.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

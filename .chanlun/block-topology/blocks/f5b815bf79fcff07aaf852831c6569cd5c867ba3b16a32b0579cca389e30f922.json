@@ -1,0 +1,29 @@
+{
+  "id": "f5b815bf79fcff07aaf852831c6569cd5c867ba3b16a32b0579cca389e30f922",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.055201+00:00",
+  "source": "migration",
+  "content": {
+    "id": "007",
+    "title": "趋势是独立实体对象",
+    "status": "已结算",
+    "type": "概念澄清 + 编排者决断",
+    "date": "2026-02-17",
+    "depends_on": [],
+    "related": [
+      "003",
+      "006",
+      "008",
+      "009"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "tensions_with": [
+      "008",
+      "009"
+    ],
+    "source_file": "settled\\007-trend-is-entity.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

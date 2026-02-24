@@ -1,0 +1,25 @@
+{
+  "id": "7b52301721c32fd86fc6cb96123e6161c5492831db3551a9d1dca77953295a5f",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.134737+00:00",
+  "source": "migration",
+  "content": {
+    "id": "085",
+    "title": "元编排递归拓扑异步自指性全面审计",
+    "status": "已结算",
+    "type": "语法记录",
+    "date": "2026-02-22",
+    "negation_source": "",
+    "negation_form": "",
+    "depends_on": [
+      "069",
+      "075",
+      "082"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled\\085-meta-orchestration-full-audit.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

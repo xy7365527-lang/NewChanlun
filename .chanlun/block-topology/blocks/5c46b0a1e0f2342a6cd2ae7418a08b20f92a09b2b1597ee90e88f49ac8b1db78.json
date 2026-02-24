@@ -1,0 +1,30 @@
+{
+  "id": "5c46b0a1e0f2342a6cd2ae7418a08b20f92a09b2b1597ee90e88f49ac8b1db78",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.172005+00:00",
+  "source": "migration",
+  "content": {
+    "id": "122",
+    "title": "073a/073b分化谱系——共享否定对象的独立演化路径",
+    "status": "已结算",
+    "type": "语法记录",
+    "date": "2026-02-22",
+    "negation_source": "v32审计发现（T7张力）",
+    "negation_form": "语法记录（分化模式的显式化）",
+    "depends_on": [
+      "073",
+      "073a",
+      "073b"
+    ],
+    "related": [
+      "095",
+      "105"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "provenance": "[新缠论]",
+    "source_file": "settled\\122-073ab-divergent-evolution.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,26 @@
+{
+  "id": "0f19999e932a0d79fea1f89eef7ce0b759c6d22e990f9ec6f0332dc35a0e82db",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.103764+00:00",
+  "source": "migration",
+  "content": {
+    "id": "057",
+    "title": "LLM 不是状态机——状态管理权外移原则",
+    "status": "已结算",
+    "type": "语法记录",
+    "date": "2026-02-20",
+    "depends_on": [
+      "043",
+      "044",
+      "048"
+    ],
+    "related": [
+      "055"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled\\057-llm-not-state-machine.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

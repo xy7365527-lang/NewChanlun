@@ -1,0 +1,29 @@
+{
+  "id": "9c989eeff8bd1e9d1232c40cee82dafb400fc8e43d4b8f9a58b9db1dc9868ab2",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.092251+00:00",
+  "source": "migration",
+  "content": {
+    "id": "044",
+    "title": "相位切换点的 runtime 强制",
+    "status": "已结算",
+    "type": "语法记录",
+    "date": "2026-02-20",
+    "depends_on": [
+      "016",
+      "028",
+      "042"
+    ],
+    "related": [
+      "005b",
+      "020",
+      "027",
+      "043"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled\\044-phase-transition-runtime.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,31 @@
+{
+  "id": "bdf13a80e36fbfc534ae898e6cf7502fc53f03e5c6dac22a9a1ddd3d293ca097",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.168119+00:00",
+  "source": "migration",
+  "content": {
+    "id": "118",
+    "title": "005b\"对象否定对象\"的适用域——走势描述层 vs 元层",
+    "status": "已结算",
+    "type": "定理",
+    "date": "2026-02-22",
+    "negation_source": "v32审计发现（S-03缺口）",
+    "negation_form": "定理（从005b自身的域声明逻辑推导）",
+    "depends_on": [
+      "005b",
+      "005a",
+      "093"
+    ],
+    "related": [
+      "087",
+      "090",
+      "073"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "provenance": "[新缠论]",
+    "source_file": "settled\\118-005b-meta-layer-scope.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

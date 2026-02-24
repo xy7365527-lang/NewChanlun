@@ -1,0 +1,25 @@
+{
+  "id": "87e0582198286e141349621696a468d19f73448a171b4c8100418b06e2ce0594",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.063861+00:00",
+  "source": "migration",
+  "content": {
+    "id": "017",
+    "title": "Session 是指针，不是叙事",
+    "status": "已结算",
+    "type": "meta-rule",
+    "date": "2026-02-17",
+    "depends_on": [
+      "014"
+    ],
+    "related": [
+      "015",
+      "016"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled\\017-session-as-pointer.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

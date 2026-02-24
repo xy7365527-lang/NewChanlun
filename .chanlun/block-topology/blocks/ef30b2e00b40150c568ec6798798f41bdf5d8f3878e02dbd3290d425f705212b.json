@@ -1,0 +1,14 @@
+{
+  "id": "ef30b2e00b40150c568ec6798798f41bdf5d8f3878e02dbd3290d425f705212b",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.215386+00:00",
+  "source": "migration",
+  "content": {
+    "action": "genesis",
+    "migrated_from": "dag.yaml + settled/*.md",
+    "description": "One-time migration from genealogy to block topology",
+    "count": 177
+  },
+  "refs": [],
+  "git_ref": ""
+}

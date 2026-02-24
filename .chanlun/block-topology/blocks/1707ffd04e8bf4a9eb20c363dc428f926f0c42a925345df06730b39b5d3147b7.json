@@ -1,0 +1,27 @@
+{
+  "id": "1707ffd04e8bf4a9eb20c363dc428f926f0c42a925345df06730b39b5d3147b7",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.059759+00:00",
+  "source": "migration",
+  "content": {
+    "id": "012",
+    "title": "方法论记录 012：谱系是发现引擎，不是记录日志",
+    "status": "已结算",
+    "type": "语法记录（元编排层面）",
+    "date": "2026-02-17",
+    "depends_on": [],
+    "related": [
+      "005b",
+      "010"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "tensions_with": [
+      "013",
+      "019d"
+    ],
+    "source_file": "settled\\012-genealogy-is-discovery-engine.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

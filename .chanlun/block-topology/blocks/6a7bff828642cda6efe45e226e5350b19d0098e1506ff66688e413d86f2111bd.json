@@ -1,0 +1,22 @@
+{
+  "id": "6a7bff828642cda6efe45e226e5350b19d0098e1506ff66688e413d86f2111bd",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.201037+00:00",
+  "source": "migration",
+  "content": {
+    "id": "162",
+    "status": "已结算",
+    "type": "语法记录（编排者 INTERRUPT）",
+    "date": "2026-02-23",
+    "depends_on": [
+      "158-three-step-strategy-topology-effect",
+      "069-recursive-topology-async-self-referential-swarm"
+    ],
+    "negates": [
+      "158-downstream-1"
+    ],
+    "source_file": "settled\\162-negate-no-teamdelete-persistence.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,23 @@
+{
+  "id": "5e9eb9e9a6bc35d4facbca6edefc536ec55121e0f898d5161e1dd61f719f4d1b",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.048002+00:00",
+  "source": "migration",
+  "content": {
+    "id": "001",
+    "title": "退化段——古怪线段与笔定义的关系",
+    "status": "已结算",
+    "type": "矛盾记录",
+    "date": "2026-02-15",
+    "depends_on": [],
+    "related": [
+      "002",
+      "003"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled\\001-degenerate-segment.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

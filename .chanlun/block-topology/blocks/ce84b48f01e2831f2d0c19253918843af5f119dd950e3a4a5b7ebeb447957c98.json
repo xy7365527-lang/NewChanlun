@@ -1,0 +1,29 @@
+{
+  "id": "ce84b48f01e2831f2d0c19253918843af5f119dd950e3a4a5b7ebeb447957c98",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.165005+00:00",
+  "source": "migration",
+  "content": {
+    "id": "115",
+    "title": "流转关系形式化谱系——从025号决断到独立DAG节点",
+    "status": "已结算",
+    "type": "语法记录",
+    "date": "2026-02-22",
+    "depends_on": [
+      "025"
+    ],
+    "related": [
+      "022",
+      "023",
+      "026",
+      "047",
+      "050"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "provenance": "[新缠论]",
+    "source_file": "settled\\115-liuzhuan-formalization.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

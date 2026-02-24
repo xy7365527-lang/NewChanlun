@@ -1,0 +1,23 @@
+{
+  "id": "4fd2bf6029b732862d361b0e8ff1d6e1df8475636d5bb4e7a5bbc8c0c2c25dc4",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.108779+00:00",
+  "source": "migration",
+  "content": {
+    "id": "063",
+    "title": "想象界覆盖符号界——020号「每层递归=一根K线」的级别口径违反",
+    "status": "已结算",
+    "type": "定理（级别口径公理的逻辑必然推论）",
+    "date": "2026-02-20",
+    "depends_on": [
+      "020",
+      "062"
+    ],
+    "related": [],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled\\063-imaginary-covers-symbolic.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

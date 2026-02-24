@@ -1,0 +1,27 @@
+{
+  "id": "914e17bbc882c6fd457e06a77a1d63cf31f4ab79412d08d78a6e137592b97407",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.081323+00:00",
+  "source": "migration",
+  "content": {
+    "id": "031",
+    "title": "Move 价格范围语义：极值 vs 核心区间",
+    "status": "已结算",
+    "type": "选择 → 编排者决断",
+    "date": "2026-02-19",
+    "depends_on": [
+      "006",
+      "029"
+    ],
+    "related": [
+      "010",
+      "011",
+      "030a"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled\\031-move-range-semantics.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

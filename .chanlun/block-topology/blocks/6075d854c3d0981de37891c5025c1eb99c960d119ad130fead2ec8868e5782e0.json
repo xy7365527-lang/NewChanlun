@@ -1,0 +1,24 @@
+{
+  "id": "6075d854c3d0981de37891c5025c1eb99c960d119ad130fead2ec8868e5782e0",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.074223+00:00",
+  "source": "migration",
+  "content": {
+    "id": "024",
+    "title": "C-2 三层退化连锁检测：语法自判定原则",
+    "status": "已结算",
+    "type": "定理（从「对象否定对象」原则推导）",
+    "date": "2026-02-18",
+    "depends_on": [],
+    "related": [
+      "005a",
+      "005b",
+      "023"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled\\024-c2-three-layer-degeneracy.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

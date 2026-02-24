@@ -1,0 +1,25 @@
+{
+  "id": "6421460ced764876026e94103931194b4a6f8b3c217349f08315f4a842666f3c",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.078979+00:00",
+  "source": "migration",
+  "content": {
+    "id": "030",
+    "title": "定义基底校验机制（运行时抽检）",
+    "status": "已结算",
+    "type": "语法记录",
+    "date": "2026-02-19",
+    "depends_on": [
+      "013",
+      "029"
+    ],
+    "related": [
+      "005"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled\\030-baseline-verification-runtime.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

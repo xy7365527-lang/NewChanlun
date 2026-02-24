@@ -1,0 +1,34 @@
+{
+  "id": "c2727f2a780826f1c3b0e65182c805de2515869260609d32f4feae2b471a7991",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.137997+00:00",
+  "source": "migration",
+  "content": {
+    "id": "088",
+    "title": "032号权限死锁与拓扑异常对象化重设计",
+    "status": "已结算",
+    "type": "选择",
+    "date": "2026-02-21",
+    "depends_on": [
+      "032",
+      "016",
+      "020",
+      "069",
+      "005b",
+      "043",
+      "073",
+      "087"
+    ],
+    "related": [
+      "058",
+      "075"
+    ],
+    "negates": [
+      "032"
+    ],
+    "negated_by": [],
+    "source_file": "settled\\088-permission-deadlock-topology-anomaly-redesign.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

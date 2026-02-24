@@ -1,0 +1,22 @@
+{
+  "id": "f3880e58a3c164556474e5a536a88e12ddd5e2692b449e5789e32555746a1b6a",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.048897+00:00",
+  "source": "migration",
+  "content": {
+    "id": "002",
+    "title": "知识库来源不完整",
+    "status": "已结算",
+    "type": "矛盾记录",
+    "date": "2026-02-15",
+    "depends_on": [],
+    "related": [
+      "001"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled\\002-source-incompleteness.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,27 @@
+{
+  "id": "5a0cb92f8f60b4facdd642876b57ad76cf5dca0d3eb67d539d760fdb35aae2c1",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.098396+00:00",
+  "source": "migration",
+  "content": {
+    "id": "051",
+    "title": "运行时连接设计：元编排/结晶/谱系三者自生长回路",
+    "status": "已结算",
+    "type": "定理（四分法复核：从选择重分类）",
+    "date": "2026-02-20",
+    "depends_on": [
+      "043",
+      "049"
+    ],
+    "related": [
+      "016",
+      "041",
+      "042"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled\\051-runtime-connection-design.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

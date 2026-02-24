@@ -1,0 +1,31 @@
+{
+  "id": "de2c0d938a344b98871bb38e69319001391db5082e53b79140f0b76a51e21d5f",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.180251+00:00",
+  "source": "migration",
+  "content": {
+    "id": "130",
+    "title": "审计递归性Gap结算——RTAS是体系存在论要求，扁平审计是声明-能力缺口（编排者INTERRUPT修正）",
+    "status": "已结算",
+    "type": "定理",
+    "date": "2026-02-22",
+    "negation_source": "heterogeneous",
+    "negation_form": "定理（编排者INTERRUPT修正初始结算方向）",
+    "depends_on": [
+      "069",
+      "073b",
+      "105",
+      "116"
+    ],
+    "related": [
+      "056",
+      "129"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "provenance": "[新缠论]",
+    "source_file": "settled\\130-audit-recursion-gap-resolution.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

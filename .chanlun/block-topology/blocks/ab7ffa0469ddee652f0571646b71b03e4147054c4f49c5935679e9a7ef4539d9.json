@@ -1,0 +1,25 @@
+{
+  "id": "ab7ffa0469ddee652f0571646b71b03e4147054c4f49c5935679e9a7ef4539d9",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.087387+00:00",
+  "source": "migration",
+  "content": {
+    "id": "038",
+    "title": "单 agent 绕过偏差（bias-correction）",
+    "status": "已结算",
+    "type": "bias-correction",
+    "date": "2026-02-20",
+    "depends_on": [],
+    "related": [
+      "016",
+      "027",
+      "033",
+      "039"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled\\038-single-agent-bypass-bias.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

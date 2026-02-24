@@ -1,0 +1,24 @@
+{
+  "id": "fd68be8a734152eb78f31d3e35f71b0d1de8e1d2d80e721968b1d50fda421b93",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.213710+00:00",
+  "source": "migration",
+  "content": {
+    "id": "176",
+    "title": "程序目的消解——从目的论到必然性",
+    "status": "已结算",
+    "type": "语法记录",
+    "date": "2026-02-23",
+    "depends_on": [
+      "158",
+      "174",
+      "069",
+      "161"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled\\176-program-purpose-dissolution.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}
