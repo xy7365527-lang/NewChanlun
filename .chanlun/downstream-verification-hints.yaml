@@ -64,3 +64,8 @@ hints:
   "179-2":
     - file: ".chanlun/dispatch-dag.yaml"
       pattern: "topology-analyst"
+  "179-3":
+    - file: "scripts/topology_preprocess.py"
+      pattern: "networkx"
+    - file: "scripts/topology_preprocess.py"
+      pattern: "generate_report"
