@@ -1024,7 +1024,7 @@ class TestScanAndTrigger:
 
     def _write_review_file(
         self, review_dir, filename, subject, verdict, stances,
-        concessions=None, converged=True,
+        concessions=None, converged=True, trigger=None,
     ):
         concessions = concessions or []
         converge_text = "方案定稿。" if converged else "Still reviewing."
@@ -1036,7 +1036,13 @@ class TestScanAndTrigger:
             stances_yaml = "\n" + "\n".join(f"  {k}: {v}" for k, v in stances.items())
         else:
             stances_yaml = " {}"
+        # YAML frontmatter with trigger field (191号目3: refs 悬空防护)
+        trigger_field = f"\ntrigger: {trigger}" if trigger else ""
         content = f"""\
+---
+subject: {subject}{trigger_field}
+---
+
 # Codex review
 
 ## 元数据
@@ -1057,17 +1063,22 @@ concessions:{concessions_yaml}
         path.write_text(content, encoding="utf-8")
         return path
 
+    # 64 char hex mock trigger block ID for testing
+    MOCK_TRIGGER_ID = "a" * 64
+
     def _write_multi_round_converged_pair(self, review_dir, subject="共识仪式审查"):
         """Write 2 review files with same subject, simulating multi-round."""
         self._write_review_file(
             review_dir, "codex-review-20260224-0500.md", subject,
             "fail", {"error_handling": "needs_work", "api_surface": "reject"},
+            trigger=self.MOCK_TRIGGER_ID,
         )
         self._write_review_file(
             review_dir, "codex-review-20260224-0600.md", subject,
             "pass", {"api_surface": "accept"},
             concessions=["error_handling"],
             converged=True,
+            trigger=self.MOCK_TRIGGER_ID,
         )
 
     def test_empty_dir_returns_empty(self, review_dir, bt_base):

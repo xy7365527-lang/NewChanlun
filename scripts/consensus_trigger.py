@@ -712,6 +712,17 @@ def scan_and_trigger(
 
         trigger_id = _find_group_trigger(group, base)
 
+        # ── refs 悬空防护（191号目3）──
+        # trigger_id 为 None 时拒绝写入，不用 "unknown" 兜底
+        if trigger_id is None:
+            group_names_early = [f.name for f in group]
+            print(
+                f"[consensus-trigger] 跳过 {group_names_early}: "
+                "trigger_block_id 不可用，拒绝产出悬空 consensus 区块",
+                file=sys.stderr,
+            )
+            continue
+
         # 多轮聚合：从整组文件提取 stance 序列
         stances = extract_multi_round_stances(group)
 
@@ -732,14 +743,14 @@ def scan_and_trigger(
         if scenario == "gemini_verify":
             cycle = extract_from_gemini_verify(
                 stance_sequence=stances,
-                trigger_block_id=trigger_id or "unknown",
+                trigger_block_id=trigger_id,
                 negation_stands=False,
                 conclusion=conclusion,
             )
         else:
             cycle = extract_from_plan_review(
                 stance_sequence=stances,
-                trigger_block_id=trigger_id or "unknown",
+                trigger_block_id=trigger_id,
                 conclusion=conclusion,
             )
 

@@ -61,9 +61,15 @@ consensus 区块 1 个，但 residue 内容全为空——质询仅走形式未�
 
 ## 下游推论
 
-1. 根因调查：确认空三区块的实际写入时间点和当时代码版本
+1. ~~根因调查：确认空三区块的实际写入时间点和当时代码版本~~ **已完成**
+   - 三区块由 commit bc6d1a4（v46-swarm "三层架构首次实质激活"）写入
+   - 该版本的 scan_and_trigger() 无空仪式防护、无 trigger_id 查找逻辑
+   - Gemini R1 解释 B（代码演进时间差）确认——问题1的矛盾消解
 2. 防护逻辑一致性：先回答"零让步共识是否应写入区块"的概念层问题
-3. `refs: ["unknown"]` 修复：补全悬空 consensus 区块的来源引用
+3. ~~`refs: ["unknown"]` 修复：补全悬空 consensus 区块的来源引用~~ **已完成**
+   - consensus dc9e4c7f... 的 refs 已更新为 182号 event block (4f49811c...)
+   - consensus_trigger.py 新增 refs 悬空防护（191号目3）：trigger_id 为 None 时拒绝写入
+   - 同时移除 735/742 行的 `or "unknown"` 兜底
 4. 声明-能力一致性：inquiry_loop.py 仅 mock 通过，完整管道声明待验证
 
 ## 谱系引用
