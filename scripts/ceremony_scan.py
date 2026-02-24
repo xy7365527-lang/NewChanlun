@@ -648,14 +648,8 @@ def main():
 
     result["workstations"] = workstations
 
-    # 081号：清晰报告干净终止条件
-    # 真阴性干净终止 = roadmap 为空 AND session 遗留为空 AND fallback 为空 AND pending 谱系为空
+    # pending 谱系计数（多处使用）
     pending_count = len(glob.glob(os.path.join(root, ".chanlun/genealogy/pending/*.md")))
-    result["clean_terminate"] = (
-        len(roadmap_tasks) == 0
-        and len(workstations) == 0
-        and pending_count == 0
-    )
 
     # 定义/谱系计数
     defs_path = os.path.join(root, "definitions.yaml")
@@ -781,6 +775,14 @@ def main():
     except Exception as exc:
         # Keep scan resilient, but do not hide failures.
         result["downstream_actions_error"] = f"{type(exc).__name__}: {exc}"
+
+    # 081号：清晰报告干净终止条件（必须在所有 workstations 追加完成后计算）
+    # 真阴性干净终止 = roadmap 为空 AND workstations 为空 AND pending 谱系为空
+    result["clean_terminate"] = (
+        len(roadmap_tasks) == 0
+        and len(workstations) == 0
+        and pending_count == 0
+    )
 
     try:
         result["head"] = subprocess.check_output(
