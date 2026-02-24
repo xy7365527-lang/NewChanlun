@@ -1,13 +1,19 @@
-"""tests for scripts/ceremony_scan.py — detect_pending_topo_effects（177号）+ compute_delta_blocks（178号）。"""
+"""tests for scripts/ceremony_scan.py — detect_pending_topo_effects（177号）+ compute_delta_blocks（178号）+ get_frozen_nodes/detect_genealogy_anomalies 迁移。"""
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import textwrap
 
 import pytest
 
-from scripts.ceremony_scan import compute_delta_blocks, detect_pending_topo_effects
+from scripts.ceremony_scan import (
+    compute_delta_blocks,
+    detect_genealogy_anomalies,
+    detect_pending_topo_effects,
+    get_frozen_nodes,
+)
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -220,3 +226,206 @@ class TestComputeDeltaBlocks:
         assert result["current_block_count"] == 0
         assert result["delta"] == 0
         assert result["warning"] is None  # current=0 不触发 warning
+
+
+# ═══════════════════════════════════════════════════════════════
+# Helpers for block-topology tests
+# ═══════════════════════════════════════════════════════════════
+
+
+def _make_sha(label: str) -> str:
+    return hashlib.sha256(label.encode()).hexdigest()
+
+
+def _setup_block_topology(root, id_mapping=None):
+    """创建 block-topology 目录结构 + 可选 meta.json。"""
+    base = os.path.join(root, ".chanlun", "block-topology")
+    blocks_dir = os.path.join(base, "blocks")
+    os.makedirs(blocks_dir, exist_ok=True)
+    if id_mapping is not None:
+        meta_path = os.path.join(base, "meta.json")
+        with open(meta_path, "w", encoding="utf-8") as f:
+            json.dump({"id_mapping": id_mapping}, f)
+    return base
+
+
+def _write_relation(base, rel_dict):
+    """追加一条 relation 到 relations.jsonl。"""
+    jsonl_path = os.path.join(base, "relations.jsonl")
+    with open(jsonl_path, "a", encoding="utf-8") as f:
+        f.write(json.dumps(rel_dict, ensure_ascii=False, separators=(",", ":")) + "\n")
+
+
+def _write_block_file(base, block_id, content_dict):
+    """写入一个 block JSON 文件。"""
+    blocks_dir = os.path.join(base, "blocks")
+    path = os.path.join(blocks_dir, f"{block_id}.json")
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(content_dict, f, ensure_ascii=False, indent=2)
+
+
+# ═══════════════════════════════════════════════════════════════
+# get_frozen_nodes — 从 block-topology 读取（178号-2 迁移）
+# ═══════════════════════════════════════════════════════════════
+
+
+class TestGetFrozenNodes:
+    def test_no_block_topology(self, tmp_path) -> None:
+        """无 block-topology 目录 → 空集合。"""
+        result = get_frozen_nodes(str(tmp_path))
+        assert result == set()
+
+    def test_no_freezes_relations(self, tmp_path) -> None:
+        """有 relations.jsonl 但无 freezes 关系 → 空集合。"""
+        base = _setup_block_topology(tmp_path)
+        _write_relation(base, {
+            "from": _make_sha("A"), "to": _make_sha("B"),
+            "relation": "depends_on", "order": 1,
+            "created_by": _make_sha("creator"),
+        })
+        result = get_frozen_nodes(str(tmp_path))
+        assert result == set()
+
+    def test_local_freeze(self, tmp_path) -> None:
+        """scope=local freeze → 只返回 direct target。"""
+        target_sha = _make_sha("target-062")
+        event_sha = _make_sha("freeze-event")
+        base = _setup_block_topology(tmp_path, {"062": target_sha})
+
+        # 写 freeze event 区块（content.scope=local）
+        _write_block_file(base, event_sha, {
+            "id": event_sha, "type": "event", "source": "cc",
+            "content": {"action": "freeze", "target": target_sha, "scope": "local"},
+        })
+        # 写 freezes 关系
+        _write_relation(base, {
+            "from": event_sha, "to": target_sha,
+            "relation": "freezes", "order": 1,
+            "created_by": event_sha,
+        })
+
+        result = get_frozen_nodes(str(tmp_path))
+        assert "62" in result or "062" in result
+
+    def test_downstream_freeze_expands(self, tmp_path) -> None:
+        """scope=downstream freeze → target + 所有下游 BFS 展开。"""
+        target_sha = _make_sha("target-001")
+        child_sha = _make_sha("child-002")
+        grandchild_sha = _make_sha("grandchild-003")
+        event_sha = _make_sha("freeze-event-ds")
+        base = _setup_block_topology(tmp_path, {
+            "001": target_sha, "002": child_sha, "003": grandchild_sha,
+        })
+
+        # freeze event 区块: scope=downstream
+        _write_block_file(base, event_sha, {
+            "id": event_sha, "type": "event", "source": "cc",
+            "content": {"action": "freeze", "target": target_sha, "scope": "downstream"},
+        })
+        # freezes 关系
+        _write_relation(base, {
+            "from": event_sha, "to": target_sha,
+            "relation": "freezes", "order": 1,
+            "created_by": event_sha,
+        })
+        # depends_on: child depends_on target, grandchild depends_on child
+        creator = _make_sha("creator")
+        _write_relation(base, {
+            "from": child_sha, "to": target_sha,
+            "relation": "depends_on", "order": 1,
+            "created_by": creator,
+        })
+        _write_relation(base, {
+            "from": grandchild_sha, "to": child_sha,
+            "relation": "depends_on", "order": 1,
+            "created_by": creator,
+        })
+
+        result = get_frozen_nodes(str(tmp_path))
+        # target + child + grandchild 全部被冻结
+        assert "1" in result or "001" in result
+        assert "2" in result or "002" in result
+        assert "3" in result or "003" in result
+
+    def test_reverse_mapping_fallback(self, tmp_path) -> None:
+        """新区块（无旧映射）→ 返回 SHA id。"""
+        new_sha = _make_sha("new-block")
+        event_sha = _make_sha("freeze-new")
+        base = _setup_block_topology(tmp_path, {})  # 空 mapping
+
+        _write_block_file(base, event_sha, {
+            "id": event_sha, "type": "event", "source": "cc",
+            "content": {"action": "freeze", "target": new_sha, "scope": "local"},
+        })
+        _write_relation(base, {
+            "from": event_sha, "to": new_sha,
+            "relation": "freezes", "order": 1,
+            "created_by": event_sha,
+        })
+
+        result = get_frozen_nodes(str(tmp_path))
+        assert new_sha in result
+
+
+# ═══════════════════════════════════════════════════════════════
+# detect_genealogy_anomalies — block-topology 完整性检查
+# ═══════════════════════════════════════════════════════════════
+
+
+class TestDetectGenealogyAnomaliesBlockTopology:
+    def test_missing_block_mapping(self, tmp_path) -> None:
+        """settled 文件编号不在 id_mapping → 检出 missing_block_mapping。"""
+        _write_settled(tmp_path, "001-test.md", textwrap.dedent("""\
+            ---
+            id: "001"
+            status: "已结算"
+            type: "定理"
+            date: "2026-01-01"
+            ---
+        """))
+        _write_settled(tmp_path, "002-test.md", textwrap.dedent("""\
+            ---
+            id: "002"
+            status: "已结算"
+            type: "定理"
+            date: "2026-01-01"
+            ---
+        """))
+        # 只映射 001，不映射 002
+        _setup_block_topology(tmp_path, {"001": _make_sha("001")})
+
+        anomalies = detect_genealogy_anomalies(str(tmp_path))
+        mapping_anomalies = [a for a in anomalies if a["type"] == "missing_block_mapping"]
+        assert len(mapping_anomalies) == 1
+        assert "2" in mapping_anomalies[0]["detail"]
+
+    def test_all_mapped_no_anomaly(self, tmp_path) -> None:
+        """所有编号都在 id_mapping → 无 mapping 异常。"""
+        _write_settled(tmp_path, "001-test.md", textwrap.dedent("""\
+            ---
+            id: "001"
+            status: "已结算"
+            type: "定理"
+            date: "2026-01-01"
+            ---
+        """))
+        _setup_block_topology(tmp_path, {"001": _make_sha("001")})
+
+        anomalies = detect_genealogy_anomalies(str(tmp_path))
+        mapping_anomalies = [a for a in anomalies if a["type"] == "missing_block_mapping"]
+        assert len(mapping_anomalies) == 0
+
+    def test_no_meta_json_no_crash(self, tmp_path) -> None:
+        """无 meta.json → 不 crash，只是没有 mapping 检查。"""
+        _write_settled(tmp_path, "001-test.md", textwrap.dedent("""\
+            ---
+            id: "001"
+            status: "已结算"
+            type: "定理"
+            date: "2026-01-01"
+            ---
+        """))
+
+        anomalies = detect_genealogy_anomalies(str(tmp_path))
+        mapping_anomalies = [a for a in anomalies if a["type"] == "missing_block_mapping"]
+        assert len(mapping_anomalies) == 0
