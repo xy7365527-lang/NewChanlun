@@ -357,3 +357,10 @@
 176-1: resolved    # 递归总方针.md 增加"程序目的消解（176号）"章节 + 行为原则第9条
 176-2: resolved    # ceremony_scan.py 增加 compute_delta_genealogy()——从 session 提取上次 settled 数与当前比较，Δ=0 时报 warning
 176-3: resolved    # topology_operator.py 增加 compute_load_bearing_score()——DAG后代数+级联否定影响范围，threshold=10%总节点数
+
+# === 179号 — 四角结构拓扑分析家 ===
+179-1: resolved    # ceremony.md 步骤6增加拓扑分析家调用点（179号：RTAS循环扫描阶段 spawn topology-analyst）
+179-2: resolved    # dispatch-dag.yaml event_skill_map 增加 topology-analyst（skill_type=conditional，触发事件 swarm_cycle_end + manual_invocation）
+
+# === 178号 — 区块拓扑迁移 ===
+178-1: resolved    # ceremony_scan.py 增加 compute_delta_blocks()——检测 block-topology/blocks/ 区块数变化，与 meta.json 迁移时基准比较

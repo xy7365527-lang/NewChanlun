@@ -17,7 +17,7 @@
 
 version: "3.1"
 provenance: "[新缠论]"
-genealogy_ref: "072, 068, 069, 075-structural-to-skill, 081-swarm-continuity-strategy-d, 089-aufhebung-audit, 093-five-constraints-topology, 175-epistemological-reversal-implementation"
+genealogy_ref: "072, 068, 069, 075-structural-to-skill, 081-swarm-continuity-strategy-d, 089-aufhebung-audit, 093-five-constraints-topology, 175-epistemological-reversal-implementation, 179-four-position-topology-analyst"
 
 # ═══════════════════════════════════════════════════════════════
 # 层级索引（095-4：三层分类——genome / structural / business）
@@ -29,7 +29,7 @@ genealogy_ref: "072, 068, 069, 075-structural-to-skill, 081-swarm-continuity-str
 #   business        — 业务工位层（§2b task_template + platform_layer）：
 #                     运行时动态实例化的 task_node + ECC 工程底座 agent
 #   conditional     — 条件触发 skill（§2 event_skill_map, skill_type=conditional）：
-#                     gemini-challenger, claude-challenger, codex-challenger, source-auditor, topology-manager
+#                     gemini-challenger, claude-challenger, codex-challenger, source-auditor, topology-manager, topology-analyst
 #   terminal_sink   — 结晶汇点（§2 event_skill_map, skill_type=terminal_sink）：
 #                     skill-crystallizer（唯一合法汇点）
 # ═══════════════════════════════════════════════════════════════
@@ -150,6 +150,10 @@ genealogical_coordinates:
     origin: "043-self-growing-loop"
     domain: "知识结晶"
     negation_source: "模式达标（内在否定——候选态→结晶态）"
+  topology-analyst:
+    origin: "179-four-position-topology-analyst"
+    domain: "拓扑模式阅读（分析家话语位置）"
+    negation_source: "冷读产出——跨产出的重复/积累/奇点模式标点（外部位置否定）"
 
 # ═══════════════════════════════════════════════════════════════
 # 2. 事件→Skill 映射（075号：结构能力从 teammate 转为事件驱动 skill）
@@ -258,6 +262,17 @@ event_skill_map:
         description: "Plan 阶段多模型对审——Opus 出方案后 Codex 评审（160号：修改循环前移）"
       - event: manual_invocation
         description: "Lead 手动调用"
+
+  - id: topology-analyst
+    skill_type: conditional
+    agent: ".claude/agents/topology-analyst.md"
+    purpose: "拓扑分析家——冷读区块拓扑，标点重复/积累/奇点模式（179号：第四位置）"
+    triggers:
+      - event: swarm_cycle_end
+        condition: "block-topology/blocks/ 存在且区块数 > 0"
+        description: "蜂群循环结束时 spawn 隔离实例冷读拓扑——上下文隔离是结构性要求，不传递 CC 编排上下文"
+      - event: manual_invocation
+        description: "编排者手动调用"
 
   - id: source-auditor
     skill_type: conditional

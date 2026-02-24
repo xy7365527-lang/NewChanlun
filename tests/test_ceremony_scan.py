@@ -1,12 +1,13 @@
-"""tests for scripts/ceremony_scan.py — detect_pending_topo_effects（177号）。"""
+"""tests for scripts/ceremony_scan.py — detect_pending_topo_effects（177号）+ compute_delta_blocks（178号）。"""
 from __future__ import annotations
 
+import json
 import os
 import textwrap
 
 import pytest
 
-from scripts.ceremony_scan import detect_pending_topo_effects
+from scripts.ceremony_scan import compute_delta_blocks, detect_pending_topo_effects
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -152,3 +153,70 @@ class TestDetectPendingTopoEffects:
         result = detect_pending_topo_effects(str(tmp_path))
         types = {r["topo_effect"].split(":")[0] for r in result}
         assert types == {"freeze", "split", "sever"}
+
+
+# ═══════════════════════════════════════════════════════════════
+# Helpers for compute_delta_blocks
+# ═══════════════════════════════════════════════════════════════
+
+
+def _setup_blocks(root, block_count, meta_block_count=None):
+    """在 root/.chanlun/block-topology/ 下创建 block 文件和可选的 meta.json。"""
+    block_dir = os.path.join(root, ".chanlun", "block-topology", "blocks")
+    os.makedirs(block_dir, exist_ok=True)
+    for i in range(block_count):
+        path = os.path.join(block_dir, f"block_{i:03d}.json")
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump({"id": i}, f)
+    if meta_block_count is not None:
+        meta_path = os.path.join(root, ".chanlun", "block-topology", "meta.json")
+        with open(meta_path, "w", encoding="utf-8") as f:
+            json.dump({"block_count": meta_block_count}, f)
+
+
+# ═══════════════════════════════════════════════════════════════
+# compute_delta_blocks（178号）
+# ═══════════════════════════════════════════════════════════════
+
+
+class TestComputeDeltaBlocks:
+    def test_no_block_dir(self, tmp_path) -> None:
+        """block 目录不存在 → current=0, delta=0。"""
+        result = compute_delta_blocks(str(tmp_path))
+        assert result["current_block_count"] == 0
+        assert result["migration_block_count"] == 0
+        assert result["delta"] == 0
+        assert result["warning"] is None
+
+    def test_blocks_with_meta(self, tmp_path) -> None:
+        """block 目录有 N 个文件，meta 有 M → delta=N-M。"""
+        _setup_blocks(tmp_path, block_count=5, meta_block_count=3)
+        result = compute_delta_blocks(str(tmp_path))
+        assert result["current_block_count"] == 5
+        assert result["migration_block_count"] == 3
+        assert result["delta"] == 2
+        assert result["warning"] is None
+
+    def test_no_meta_json(self, tmp_path) -> None:
+        """无 meta.json → migration_count=0。"""
+        _setup_blocks(tmp_path, block_count=4)
+        result = compute_delta_blocks(str(tmp_path))
+        assert result["current_block_count"] == 4
+        assert result["migration_block_count"] == 0
+        assert result["delta"] == 4
+        assert result["warning"] is None
+
+    def test_zero_delta_warning(self, tmp_path) -> None:
+        """delta=0 且有区块 → warning 提示无新区块。"""
+        _setup_blocks(tmp_path, block_count=3, meta_block_count=3)
+        result = compute_delta_blocks(str(tmp_path))
+        assert result["delta"] == 0
+        assert result["warning"] == "区块拓扑无新区块"
+
+    def test_empty_blocks_dir(self, tmp_path) -> None:
+        """blocks 目录存在但为空 → current=0, 无 warning。"""
+        _setup_blocks(tmp_path, block_count=0, meta_block_count=0)
+        result = compute_delta_blocks(str(tmp_path))
+        assert result["current_block_count"] == 0
+        assert result["delta"] == 0
+        assert result["warning"] is None  # current=0 不触发 warning

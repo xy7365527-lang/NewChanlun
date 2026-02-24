@@ -50,3 +50,11 @@ hints:
       pattern: "freeze"
     - file: ".chanlun/dispatch-dag.yaml"
       pattern: "topology-mutator"
+  "179-1":
+    - file: ".claude/commands/ceremony.md"
+      pattern: "topology-analyst"
+    - file: ".claude/commands/ceremony.md"
+      pattern: "block-topology"
+  "179-2":
+    - file: ".chanlun/dispatch-dag.yaml"
+      pattern: "topology-analyst"
