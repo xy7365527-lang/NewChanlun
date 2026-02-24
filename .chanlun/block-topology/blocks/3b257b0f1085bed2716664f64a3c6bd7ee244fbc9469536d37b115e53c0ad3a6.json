@@ -1,0 +1,25 @@
+{
+  "id": "3b257b0f1085bed2716664f64a3c6bd7ee244fbc9469536d37b115e53c0ad3a6",
+  "type": "event",
+  "timestamp": "2026-02-24T08:00:02.000000+00:00",
+  "source": "migration",
+  "content": {
+    "id": "189",
+    "title": "元观察——十五轮质询的方法论洞察",
+    "status": "settled",
+    "type": "meta-rule",
+    "date": "2026-02-24",
+    "negation_source": "meta-observer",
+    "negation_form": "expansion",
+    "depends_on": [],
+    "related": [
+      "137",
+      "175"
+    ],
+    "negates": [],
+    "tensions_with": [],
+    "source_file": "settled\\189-meta-observation-15round-inquiry.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

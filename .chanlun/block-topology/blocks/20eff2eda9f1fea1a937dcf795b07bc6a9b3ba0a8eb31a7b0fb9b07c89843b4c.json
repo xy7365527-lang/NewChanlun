@@ -1,0 +1,26 @@
+{
+  "id": "20eff2eda9f1fea1a937dcf795b07bc6a9b3ba0a8eb31a7b0fb9b07c89843b4c",
+  "type": "event",
+  "timestamp": "2026-02-24T08:00:01.000000+00:00",
+  "source": "migration",
+  "content": {
+    "id": "188",
+    "title": "多轮质询管道收敛算法——十五轮 Gemini 质询结算",
+    "status": "settled",
+    "type": "概念发现",
+    "date": "2026-02-24",
+    "negation_source": "heterogeneous",
+    "negation_form": "expansion",
+    "depends_on": [],
+    "related": [
+      "183",
+      "187",
+      "161"
+    ],
+    "negates": [],
+    "tensions_with": [],
+    "source_file": "settled\\188-inquiry-convergence-algorithm.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}
