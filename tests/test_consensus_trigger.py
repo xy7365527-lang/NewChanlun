@@ -21,12 +21,18 @@ from scripts.consensus_trigger import (
     InquiryCycleResult,
     StanceDeclaration,
     StanceDiff,
+    _extract_response_text,
+    _extract_subject,
+    _extract_timestamp_from_filename,
+    _normalize_subject,
     compute_stance_diff,
     derive_concession_trace,
     detect_convergence_from_review_file,
     extract_from_gemini_verify,
     extract_from_plan_review,
+    extract_multi_round_stances,
     find_trigger_block_for_review,
+    group_reviews_by_subject,
     scan_and_trigger,
     trigger_ceremony,
 )
@@ -779,11 +785,229 @@ class TestEndToEnd:
         assert result["consensus"]["type"] == "consensus"
 
 
-# ── scan_and_trigger tests ──
+# ── Multi-round aggregator tests (183号目A) ──
+
+
+class TestExtractSubject:
+    def test_extracts_subject_from_metadata(self, tmp_path):
+        f = tmp_path / "review.md"
+        f.write_text(
+            "# Review\n\n## 元数据\n\n- **subject**: 共识仪式触发协议\n\n## Response\n\nOK",
+            encoding="utf-8",
+        )
+        assert _extract_subject(f) == "共识仪式触发协议"
+
+    def test_returns_none_when_no_subject(self, tmp_path):
+        f = tmp_path / "review.md"
+        f.write_text("# Review\n\nNo metadata here.", encoding="utf-8")
+        assert _extract_subject(f) is None
+
+    def test_strips_whitespace(self, tmp_path):
+        f = tmp_path / "review.md"
+        f.write_text(
+            "- **subject**:   padded subject   \n",
+            encoding="utf-8",
+        )
+        assert _extract_subject(f) == "padded subject"
+
+
+class TestExtractTimestamp:
+    def test_standard_filename(self):
+        ts = _extract_timestamp_from_filename("codex-review-20260224-0517.md")
+        assert ts is not None
+        assert ts.year == 2026
+        assert ts.month == 2
+        assert ts.day == 24
+        assert ts.hour == 5
+        assert ts.minute == 17
+
+    def test_no_timestamp(self):
+        assert _extract_timestamp_from_filename("codex-review-gangju-v47.md") is None
+
+    def test_diagnose_filename(self):
+        ts = _extract_timestamp_from_filename("codex-diagnose-20260223-2122.md")
+        assert ts is not None
+        assert ts.hour == 21
+
+
+class TestNormalizeSubject:
+    def test_strips_punctuation(self):
+        assert _normalize_subject("共识仪式触发协议") == _normalize_subject(
+            "共识仪式、触发协议"
+        )
+
+    def test_case_insensitive(self):
+        assert _normalize_subject("API Surface") == _normalize_subject("api surface")
+
+
+class TestGroupReviewsBySubject:
+    def _write_review(self, review_dir, filename, subject, converged=True):
+        converge_text = "方案定稿。" if converged else "Still reviewing."
+        content = f"""\
+# Review
+
+## 元数据
+
+- **subject**: {subject}
+
+## Response
+
+{converge_text}
+
+---stance-declaration---
+verdict: {"pass" if converged else "fail"}
+stances:
+  x: accept
+concessions: []
+---end-stance---
+"""
+        path = review_dir / filename
+        path.write_text(content, encoding="utf-8")
+        return path
+
+    def test_same_subject_grouped(self, tmp_path):
+        d = tmp_path / "reviews"
+        d.mkdir()
+        self._write_review(d, "codex-review-20260224-0500.md", "共识仪式")
+        self._write_review(d, "codex-review-20260224-0600.md", "共识仪式")
+        groups = group_reviews_by_subject(d)
+        # Should be 1 group with 2 files
+        assert len(groups) == 1
+        assert len(groups[0]) == 2
+
+    def test_different_subjects_separate_groups(self, tmp_path):
+        d = tmp_path / "reviews"
+        d.mkdir()
+        self._write_review(d, "codex-review-20260224-0500.md", "共识仪式")
+        self._write_review(d, "codex-review-20260224-0600.md", "线段划分")
+        groups = group_reviews_by_subject(d)
+        assert len(groups) == 2
+
+    def test_time_window_splits_groups(self, tmp_path):
+        d = tmp_path / "reviews"
+        d.mkdir()
+        # 48 hours apart → should split
+        self._write_review(d, "codex-review-20260222-0500.md", "同一主题")
+        self._write_review(d, "codex-review-20260224-0600.md", "同一主题")
+        groups = group_reviews_by_subject(d)
+        assert len(groups) == 2
+        assert len(groups[0]) == 1
+        assert len(groups[1]) == 1
+
+    def test_no_subject_files_solo(self, tmp_path):
+        d = tmp_path / "reviews"
+        d.mkdir()
+        # Write a file without subject
+        f = d / "codex-review-20260224-0500.md"
+        f.write_text("# No metadata\n\nJust text.", encoding="utf-8")
+        groups = group_reviews_by_subject(d)
+        assert len(groups) == 1
+        assert len(groups[0]) == 1
+
+    def test_empty_dir(self, tmp_path):
+        d = tmp_path / "reviews"
+        d.mkdir()
+        assert group_reviews_by_subject(d) == []
+
+    def test_nonexistent_dir(self, tmp_path):
+        assert group_reviews_by_subject(tmp_path / "nope") == []
+
+    def test_files_without_timestamp_grouped_with_subject(self, tmp_path):
+        d = tmp_path / "reviews"
+        d.mkdir()
+        self._write_review(d, "codex-review-20260224-0500.md", "共识仪式")
+        self._write_review(d, "codex-review-gangju-v47.md", "共识仪式")
+        groups = group_reviews_by_subject(d)
+        assert len(groups) == 1
+        assert len(groups[0]) == 2
+
+
+class TestExtractMultiRoundStances:
+    def _write_review_with_stance(self, tmp_path, filename, verdict, stances, concessions=None):
+        concessions = concessions or []
+        if concessions:
+            concessions_yaml = "\n" + "\n".join(f"  - {c}" for c in concessions)
+        else:
+            concessions_yaml = " []"
+        if stances:
+            stances_yaml = "\n" + "\n".join(f"  {k}: {v}" for k, v in stances.items())
+        else:
+            stances_yaml = " {}"
+        content = f"""\
+# Review
+
+## Response
+
+Some analysis text.
+
+---stance-declaration---
+verdict: {verdict}
+stances:{stances_yaml}
+concessions:{concessions_yaml}
+---end-stance---
+"""
+        path = tmp_path / filename
+        path.write_text(content, encoding="utf-8")
+        return path
+
+    def test_two_files_two_stances(self, tmp_path):
+        f1 = self._write_review_with_stance(
+            tmp_path, "round1.md", "fail", {"x": "reject", "y": "needs_work"},
+        )
+        f2 = self._write_review_with_stance(
+            tmp_path, "round2.md", "pass", {"y": "accept"}, concessions=["x"],
+        )
+        stances = extract_multi_round_stances([f1, f2])
+        assert len(stances) == 2
+        assert stances[0].round_number == 1
+        assert stances[1].round_number == 2
+        assert stances[0].verdict == "fail"
+        assert stances[1].verdict == "pass"
+
+    def test_file_without_stance_skipped(self, tmp_path):
+        f1 = self._write_review_with_stance(
+            tmp_path, "round1.md", "fail", {"x": "reject"},
+        )
+        f_no_stance = tmp_path / "no-stance.md"
+        f_no_stance.write_text("## Response\n\nNo stance block here.", encoding="utf-8")
+        f3 = self._write_review_with_stance(
+            tmp_path, "round3.md", "pass", {},
+        )
+        stances = extract_multi_round_stances([f1, f_no_stance, f3])
+        # Only 2 stances (file 2 skipped)
+        assert len(stances) == 2
+
+    def test_single_file_single_stance(self, tmp_path):
+        f = self._write_review_with_stance(
+            tmp_path, "single.md", "pass", {"a": "accept"},
+        )
+        stances = extract_multi_round_stances([f])
+        assert len(stances) == 1
+
+    def test_empty_list(self):
+        assert extract_multi_round_stances([]) == []
+
+
+class TestExtractResponseText:
+    def test_extracts_after_response_marker(self, tmp_path):
+        f = tmp_path / "review.md"
+        f.write_text("# Header\n\n## Response\n\nActual response.", encoding="utf-8")
+        text = _extract_response_text(f)
+        assert text.startswith("## Response")
+        assert "Actual response" in text
+
+    def test_returns_full_text_without_marker(self, tmp_path):
+        f = tmp_path / "review.md"
+        f.write_text("No response marker here.", encoding="utf-8")
+        text = _extract_response_text(f)
+        assert text == "No response marker here."
+
+
+# ── scan_and_trigger tests (updated for multi-round aggregator) ──
 
 
 class TestScanAndTrigger:
-    """scan_and_trigger: 管道入口——从 review-results 驱动共识仪式。"""
+    """scan_and_trigger: 多轮聚合管道入口。"""
 
     @pytest.fixture
     def review_dir(self, tmp_path):
@@ -798,72 +1022,119 @@ class TestScanAndTrigger:
         (base / "blocks").mkdir()
         return base
 
-    def _write_converged_codex_review(self, review_dir, filename="codex-review-test.md"):
-        content = """\
+    def _write_review_file(
+        self, review_dir, filename, subject, verdict, stances,
+        concessions=None, converged=True,
+    ):
+        concessions = concessions or []
+        converge_text = "方案定稿。" if converged else "Still reviewing."
+        if concessions:
+            concessions_yaml = "\n" + "\n".join(f"  - {c}" for c in concessions)
+        else:
+            concessions_yaml = " []"
+        if stances:
+            stances_yaml = "\n" + "\n".join(f"  {k}: {v}" for k, v in stances.items())
+        else:
+            stances_yaml = " {}"
+        content = f"""\
 # Codex review
+
+## 元数据
+
+- **subject**: {subject}
 
 ## Response
 
-代码通过审查。方案定稿。
+{converge_text}
 
 ---stance-declaration---
-verdict: pass
-stances: {}
-concessions: []
+verdict: {verdict}
+stances:{stances_yaml}
+concessions:{concessions_yaml}
 ---end-stance---
 """
         path = review_dir / filename
         path.write_text(content, encoding="utf-8")
         return path
 
-    def _write_non_converged_review(self, review_dir, filename="codex-review-nope.md"):
-        content = """\
-# Codex review
-
-## Response
-
-Still reviewing. No conclusion yet.
-"""
-        path = review_dir / filename
-        path.write_text(content, encoding="utf-8")
-        return path
+    def _write_multi_round_converged_pair(self, review_dir, subject="共识仪式审查"):
+        """Write 2 review files with same subject, simulating multi-round."""
+        self._write_review_file(
+            review_dir, "codex-review-20260224-0500.md", subject,
+            "fail", {"error_handling": "needs_work", "api_surface": "reject"},
+        )
+        self._write_review_file(
+            review_dir, "codex-review-20260224-0600.md", subject,
+            "pass", {"api_surface": "accept"},
+            concessions=["error_handling"],
+            converged=True,
+        )
 
     def test_empty_dir_returns_empty(self, review_dir, bt_base):
         results = scan_and_trigger(review_dir, base=bt_base)
         assert results == []
 
     def test_non_converged_skipped(self, review_dir, bt_base):
-        self._write_non_converged_review(review_dir)
+        self._write_review_file(
+            review_dir, "codex-review-20260224-0500.md", "test",
+            "fail", {"x": "reject"}, converged=False,
+        )
         results = scan_and_trigger(review_dir, base=bt_base)
         assert results == []
 
-    def test_converged_dry_run(self, review_dir, bt_base):
-        self._write_converged_codex_review(review_dir)
+    def test_multi_round_dry_run(self, review_dir, bt_base):
+        """Two files with same subject → grouped → 2 stances → ceremony triggered."""
+        self._write_multi_round_converged_pair(review_dir)
         results = scan_and_trigger(review_dir, base=bt_base, dry_run=True)
         assert len(results) == 1
         assert results[0]["dry_run"] is True
         assert results[0]["scenario"] == "plan_review"
-        assert results[0]["stances_count"] == 1
+        assert results[0]["stances_count"] == 2
+        assert results[0]["group_size"] == 2
 
-    def test_converged_triggers_ceremony(self, review_dir, bt_base):
-        self._write_converged_codex_review(review_dir)
+    def test_multi_round_triggers_ceremony(self, review_dir, bt_base):
+        """Multi-round grouping produces non-empty residue via stance diff."""
+        self._write_multi_round_converged_pair(review_dir)
         results = scan_and_trigger(review_dir, base=bt_base)
         assert len(results) == 1
         assert "consensus_id" in results[0]
         assert "residue_id" in results[0]
         assert "tension_id" in results[0]
+        assert results[0]["group_size"] == 2
 
         from scripts.block_topology import list_blocks
         assert len(list_blocks(bt_base, block_type="consensus")) == 1
         assert len(list_blocks(bt_base, block_type="residue")) == 1
         assert len(list_blocks(bt_base, block_type="tension")) == 1
 
+    def test_single_round_skipped_by_guard(self, review_dir, bt_base):
+        """Single-file group → only 1 stance → skipped by <2 guard."""
+        self._write_review_file(
+            review_dir, "codex-review-20260224-0500.md", "single round",
+            "pass", {}, converged=True,
+        )
+        results = scan_and_trigger(review_dir, base=bt_base)
+        assert results == []
+
     def test_nonexistent_dir_returns_empty(self, tmp_path, bt_base):
         results = scan_and_trigger(tmp_path / "nope", base=bt_base)
         assert results == []
 
-    def test_mixed_converged_and_not(self, review_dir, bt_base):
-        self._write_converged_codex_review(review_dir, "codex-review-001.md")
-        self._write_non_converged_review(review_dir, "codex-review-002.md")
+    def test_different_subjects_produce_separate_groups(self, review_dir, bt_base):
+        """Different subjects → separate groups → each evaluated independently."""
+        self._write_multi_round_converged_pair(review_dir, subject="共识仪式审查")
+        # Add a second subject group with only 1 file → should be skipped
+        self._write_review_file(
+            review_dir, "codex-review-20260224-0700.md", "线段划分审查",
+            "pass", {"seg": "accept"}, converged=True,
+        )
         results = scan_and_trigger(review_dir, base=bt_base)
+        # Only the 2-file group should produce a ceremony
         assert len(results) == 1
+
+    def test_files_field_in_result(self, review_dir, bt_base):
+        """Result includes 'files' list for audit trail."""
+        self._write_multi_round_converged_pair(review_dir)
+        results = scan_and_trigger(review_dir, base=bt_base, dry_run=True)
+        assert "files" in results[0]
+        assert len(results[0]["files"]) == 2
