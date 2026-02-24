@@ -162,7 +162,7 @@ residue e 的发现与修正史：
 
 ## 下游推论
 
-1. inquiry_loop.py 实现同主体 diff + Key 冻结
+1. ~~inquiry_loop.py 实现同主体 diff + Key 冻结~~ **已完成**（30/30 测试通过）
 2. 收敛后输出 trajectories（互斥破裂轨迹 + 预期 tension 方向）
 3. 编排者选择轨迹（实践决断，非认识论判断）
 4. 下一轮 audit 检验切口（但对假死盲——residue d）

@@ -44,9 +44,10 @@ def extract_downstream_actions(filepath):
 
     actions = []
     # 逐行扫描原始文本，用于检测删除线/已执行标记
+    # 只取顶级编号行（\d+.），排除子列表项（- xxx）避免索引错位
     raw_lines = [
         line for line in section.split("\n")
-        if re.match(r'^\s*(?:\d+\.\s+|\-\s+)', line)
+        if re.match(r'^\s*\d+\.\s+', line)
     ]
     for i, groups in enumerate(items, 1):
         # 合并匹配组
@@ -59,9 +60,9 @@ def extract_downstream_actions(filepath):
             resolved_inline = False
             if raw.lstrip("0123456789.-) ").startswith("~~"):
                 resolved_inline = True
-            elif "**已执行**" in raw or "**已确认**" in raw:
+            elif "**已执行**" in raw or "**已确认**" in raw or "**已完成**" in raw or "**已结算" in raw:
                 resolved_inline = True
-            elif "已执行——" in raw or "已确认——" in raw:
+            elif "已执行——" in raw or "已确认——" in raw or "已完成——" in raw:
                 resolved_inline = True
             actions.append({"index": i, "text": text, "resolved_inline": resolved_inline})
 
