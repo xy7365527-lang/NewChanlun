@@ -38,7 +38,10 @@ residue 字段语义（§21 严格定义）：
 from __future__ import annotations
 
 import re
+import sys
+from collections import defaultdict
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Literal
 
@@ -440,28 +443,194 @@ def find_trigger_block_for_review(
 # ── 管道入口：从 review-results 驱动共识仪式 ──
 
 
-def _extract_stance_sequence_from_review(review_file: Path) -> list:
-    """从 review-results 文件中提取立场声明序列。
+# ── 单文件提取 ──
 
-    review-results 文件包含 Codex/Gemini 的完整回复文本（Response 段），
-    其中可能包含 ---stance-declaration--- 块。
-    """
-    from scripts.stance_parser import parse_stance_declaration
 
+def _extract_response_text(review_file: Path) -> str:
+    """从 review-results 文件中提取 Response 段文本。"""
     text = review_file.read_text(encoding="utf-8")
-
-    # 提取 Response 段后的内容（Codex/Gemini 回复）
     response_marker = "## Response"
     response_start = text.find(response_marker)
     if response_start < 0:
-        response_text = text
-    else:
-        response_text = text[response_start:]
+        return text
+    return text[response_start:]
 
+
+def _extract_stance_sequence_from_review(review_file: Path) -> list:
+    """从单个 review-results 文件中提取立场声明。
+
+    返回包含 0 或 1 个 StanceDeclaration 的列表。
+    """
+    from scripts.stance_parser import parse_stance_declaration
+
+    response_text = _extract_response_text(review_file)
     sd = parse_stance_declaration(response_text, round_number=1)
     if sd is not None:
         return [sd]
     return []
+
+
+# ── 多轮聚合器（183号目A）──
+
+
+_SUBJECT_RE = re.compile(
+    r"^\s*-?\s*\*\*subject\*\*:\s*(.+)$", re.MULTILINE | re.IGNORECASE,
+)
+
+_TIMESTAMP_FILENAME_RE = re.compile(
+    r"(\d{8})-(\d{4})",
+)
+
+
+def _extract_subject(review_file: Path) -> str | None:
+    """从 review 文件的元数据段提取 subject 字段。
+
+    元数据格式: `- **subject**: <内容>` 在 `## 元数据` 段中。
+    """
+    text = review_file.read_text(encoding="utf-8")
+    m = _SUBJECT_RE.search(text)
+    if m:
+        return m.group(1).strip()
+    return None
+
+
+def _extract_timestamp_from_filename(filename: str) -> datetime | None:
+    """从文件名中提取时间戳。
+
+    支持格式: codex-review-YYYYMMDD-HHMM*.md
+    """
+    m = _TIMESTAMP_FILENAME_RE.search(filename)
+    if not m:
+        return None
+    date_str = m.group(1)
+    time_str = m.group(2)
+    try:
+        return datetime(
+            year=int(date_str[:4]),
+            month=int(date_str[4:6]),
+            day=int(date_str[6:8]),
+            hour=int(time_str[:2]),
+            minute=int(time_str[2:4]),
+            tzinfo=timezone.utc,
+        )
+    except (ValueError, IndexError):
+        return None
+
+
+def _normalize_subject(subject: str) -> str:
+    """归一化 subject 用于分组比较。
+
+    去除标点和空白差异，只保留连续中文/英文/数字字符。
+    """
+    return re.sub(r"[^\w]", "", subject).lower()
+
+
+def group_reviews_by_subject(
+    review_dir: Path,
+    time_window_hours: int = 24,
+) -> list[list[Path]]:
+    """扫描 review-results 目录，按 subject 相似度和时间窗口分组。
+
+    分组规则：
+    - 同一个归一化 subject 的多个文件属于同一组
+    - 只聚合同一时间窗口内（默认 24 小时）的文件
+    - 每组按文件名时间戳排序（时间序 = 轮次序）
+    - 没有 subject 的文件单独成组
+    - 没有时间戳的文件归入其 subject 组（不受时间窗口约束）
+
+    Parameters
+    ----------
+    review_dir : Path
+        review-results 目录。
+    time_window_hours : int
+        时间窗口，默认 24 小时。
+
+    Returns
+    -------
+    list[list[Path]]
+        每组为按时间排序的文件列表。
+    """
+    if not review_dir.is_dir():
+        return []
+
+    md_files = sorted(review_dir.glob("*.md"))
+    if not md_files:
+        return []
+
+    file_info: list[tuple[Path, str | None, datetime | None]] = []
+    for f in md_files:
+        subject = _extract_subject(f)
+        ts = _extract_timestamp_from_filename(f.name)
+        file_info.append((f, subject, ts))
+
+    subject_groups: dict[str, list[tuple[Path, datetime | None]]] = defaultdict(list)
+    no_subject: list[tuple[Path, datetime | None]] = []
+
+    for path, subject, ts in file_info:
+        if subject is None:
+            no_subject.append((path, ts))
+        else:
+            key = _normalize_subject(subject)
+            subject_groups[key].append((path, ts))
+
+    result: list[list[Path]] = []
+    window = timedelta(hours=time_window_hours)
+
+    for _key, files_with_ts in subject_groups.items():
+        files_with_ts.sort(
+            key=lambda x: x[1] or datetime.max.replace(tzinfo=timezone.utc),
+        )
+
+        if len(files_with_ts) <= 1:
+            result.append([f for f, _ in files_with_ts])
+            continue
+
+        current_group: list[Path] = [files_with_ts[0][0]]
+        anchor_ts = files_with_ts[0][1]
+
+        for path, ts in files_with_ts[1:]:
+            if anchor_ts is not None and ts is not None:
+                if ts - anchor_ts <= window:
+                    current_group.append(path)
+                    continue
+            elif anchor_ts is None or ts is None:
+                current_group.append(path)
+                continue
+
+            result.append(current_group)
+            current_group = [path]
+            anchor_ts = ts
+
+        if current_group:
+            result.append(current_group)
+
+    for path, _ in no_subject:
+        result.append([path])
+
+    return result
+
+
+def extract_multi_round_stances(
+    review_files: list[Path],
+) -> list[StanceDeclaration]:
+    """从多个 review 文件中提取立场声明序列。
+
+    每个文件对应一轮。按文件顺序分配 round_number。
+
+    Parameters
+    ----------
+    review_files : list[Path]
+        按时间排序的 review 文件列表。
+
+    Returns
+    -------
+    list[StanceDeclaration]
+        从各文件中成功提取的 StanceDeclaration 列表。
+    """
+    from scripts.stance_parser import parse_stance_sequence
+
+    texts = [_extract_response_text(f) for f in review_files]
+    return parse_stance_sequence(texts, start_round=1)
 
 
 def _detect_review_mode(review_file: Path) -> str | None:
@@ -476,14 +645,39 @@ def _detect_review_mode(review_file: Path) -> str | None:
     return None
 
 
+def _detect_group_mode(files: list[Path]) -> str | None:
+    """从文件组推断场景。取第一个有效 mode。"""
+    for f in files:
+        mode = _detect_review_mode(f)
+        if mode is not None:
+            return mode
+    return None
+
+
+def _find_group_trigger(files: list[Path], base: Path) -> str | None:
+    """从文件组中查找 trigger block ID。取第一个有效值。"""
+    for f in files:
+        trigger_id = find_trigger_block_for_review(f, base)
+        if trigger_id is not None:
+            return trigger_id
+    return None
+
+
+def _any_file_converged(files: list[Path]) -> bool:
+    """检测文件组中是否至少有一个文件表明收敛。"""
+    return any(detect_convergence_from_review_file(f) for f in files)
+
+
 def scan_and_trigger(
     review_dir: Path | None = None,
     base: Path = DEFAULT_BASE,
     dry_run: bool = False,
 ) -> list[dict]:
-    """扫描 review-results 目录，对已收敛且未处理的 review 触发共识仪式。
+    """扫描 review-results 目录，按 subject 分组多轮 review，触发共识仪式。
 
-    §63 缺口修复：让管道第一次跑通。
+    183号目A：多轮 stance 序列聚合器。
+    替代原先的逐文件处理——按 subject 分组后聚合多轮立场序列，
+    使 compute_stance_diff 能得到跨轮差分。
 
     Parameters
     ----------
@@ -497,7 +691,7 @@ def scan_and_trigger(
     Returns
     -------
     list[dict]
-        每个被处理的 review 的结果。
+        每组被处理的 review 的结果。
     """
     if review_dir is None:
         review_dir = Path(".chanlun/review-results")
@@ -505,18 +699,35 @@ def scan_and_trigger(
     if not review_dir.is_dir():
         return []
 
+    groups = group_reviews_by_subject(review_dir)
     results = []
-    for review_file in sorted(review_dir.glob("*.md")):
-        if not detect_convergence_from_review_file(review_file):
+
+    for group in groups:
+        if not _any_file_converged(group):
             continue
 
-        trigger_id = find_trigger_block_for_review(review_file, base)
-        scenario = _detect_review_mode(review_file)
+        scenario = _detect_group_mode(group)
         if scenario is None:
             continue
 
-        stances = _extract_stance_sequence_from_review(review_file)
-        conclusion = f"质询循环收敛——来源: {review_file.name}"
+        trigger_id = _find_group_trigger(group, base)
+
+        # 多轮聚合：从整组文件提取 stance 序列
+        stances = extract_multi_round_stances(group)
+
+        # ── 空仪式防护（183号目C）──
+        # stance 序列 < 2 轮：输入不足，不触发仪式
+        if len(stances) < 2:
+            group_names = [f.name for f in group]
+            print(
+                f"[consensus-trigger] 跳过 {group_names}: "
+                f"stance 序列不足 2 轮 (got {len(stances)})",
+                file=sys.stderr,
+            )
+            continue
+
+        group_names = [f.name for f in group]
+        conclusion = f"质询循环收敛——来源: {', '.join(group_names)}"
 
         if scenario == "gemini_verify":
             cycle = extract_from_gemini_verify(
@@ -532,22 +743,39 @@ def scan_and_trigger(
                 conclusion=conclusion,
             )
 
+        # concession 全为空：无实质让步内容，不触发仪式
+        if (
+            not cycle.gemini_conceded
+            and not cycle.codex_conceded
+            and not cycle.unresolved
+        ):
+            print(
+                f"[consensus-trigger] 跳过 {group_names}: "
+                "concession 全为空，无实质让步内容",
+                file=sys.stderr,
+            )
+            continue
+
         if dry_run:
             results.append({
-                "file": str(review_file),
+                "files": [str(f) for f in group],
+                "file": str(group[-1]),
                 "scenario": scenario,
                 "trigger_block_id": trigger_id,
                 "stances_count": len(stances),
+                "group_size": len(group),
                 "dry_run": True,
             })
             continue
 
         ceremony_result = trigger_ceremony(cycle, base=base)
         results.append({
-            "file": str(review_file),
+            "files": [str(f) for f in group],
+            "file": str(group[-1]),
             "scenario": scenario,
             "trigger_block_id": trigger_id,
             "stances_count": len(stances),
+            "group_size": len(group),
             "consensus_id": ceremony_result["consensus"]["id"],
             "residue_id": ceremony_result["residue"]["id"],
             "tension_id": ceremony_result["tension"]["id"],
