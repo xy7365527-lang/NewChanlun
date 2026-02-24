@@ -44,23 +44,100 @@ def get_required_skills(root):
 
 
 def get_frozen_nodes(root):
-    """从 dag.yaml 读取 frozen 节点集合（147号：topo_effect 扫描）。
+    """从 block-topology 读取 frozen 节点集合（147号 + 178号-2 迁移）。
 
-    frozen 节点由 topology-mutator 标记（dag_add_node.py --topo_effect freeze:target:scope）。
-    返回 frozen 节点 id 集合，供 ceremony 判断是否跳过依赖这些节点的下游工位。
+    查询 freezes 关系的 target，对 scope=downstream 的 freeze 做 BFS 展开
+    下游依赖。通过 meta.json 反查回旧谱系编号（下游 workstation 过滤用旧编号）。
+
+    downstream 语义由查询方保证（topology_operator 写入时只记录一条 freezes
+    关系 + content.scope="downstream"，不展开）。本函数就是那个查询方。
     """
-    dag_path = os.path.join(root, ".chanlun/genealogy/dag.yaml")
-    frozen_ids = set()
-    if not os.path.isfile(dag_path):
-        return frozen_ids
+    base = os.path.join(root, ".chanlun/block-topology")
+    relations_path = os.path.join(base, "relations.jsonl")
+    meta_path = os.path.join(base, "meta.json")
+
+    if not os.path.isfile(relations_path):
+        return set()
+
+    # 1. 读取所有关系
+    all_rels = []
     try:
-        with open(dag_path, encoding="utf-8") as f:
-            dag = yaml.safe_load(f)
-        for node in dag.get("nodes", []):
-            if node.get("frozen"):
-                frozen_ids.add(str(node["id"]))
+        with open(relations_path, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    all_rels.append(json.loads(line))
     except Exception:
-        pass
+        return set()
+
+    # 2. 提取 freezes 关系的 direct targets + 对应的 event 区块 id
+    #    freezes 关系: from=event_block, to=target_block, created_by=event_block
+    frozen_sha_ids = set()
+    freeze_events = []  # (event_block_id, target_sha)
+    for rel in all_rels:
+        if rel.get("relation") == "freezes":
+            frozen_sha_ids.add(rel["to"])
+            freeze_events.append((rel["from"], rel["to"]))
+
+    if not frozen_sha_ids:
+        return set()
+
+    # 3. 对 scope=downstream 的 freeze，BFS 展开 target 的所有下游
+    #    读取 freeze event 区块的 content.scope
+    blocks_dir = os.path.join(base, "blocks")
+    downstream_targets = set()
+    for event_id, target_sha in freeze_events:
+        event_path = os.path.join(blocks_dir, f"{event_id}.json")
+        if not os.path.isfile(event_path):
+            continue
+        try:
+            with open(event_path, encoding="utf-8") as f:
+                event_block = json.load(f)
+            if event_block.get("content", {}).get("scope") == "downstream":
+                downstream_targets.add(target_sha)
+        except Exception:
+            continue
+
+    if downstream_targets:
+        # 构建 depends_on 图: parent → children
+        # depends_on: from depends_on to → to 是 parent, from 是 child
+        children_of = {}
+        for rel in all_rels:
+            if rel.get("relation") == "depends_on" and rel.get("order") == 1:
+                parent = rel["to"]
+                child = rel["from"]
+                children_of.setdefault(parent, set()).add(child)
+
+        # BFS 从每个 downstream target 展开所有下游
+        for target_sha in downstream_targets:
+            queue = list(children_of.get(target_sha, set()))
+            while queue:
+                current = queue.pop()
+                if current not in frozen_sha_ids:
+                    frozen_sha_ids.add(current)
+                    queue.extend(
+                        children_of.get(current, set()) - frozen_sha_ids
+                    )
+
+    # 4. 反查 id_mapping: sha → 旧编号
+    reverse_mapping = {}
+    if os.path.isfile(meta_path):
+        try:
+            with open(meta_path, encoding="utf-8") as f:
+                meta = json.load(f)
+            for old_id, sha in meta.get("id_mapping", {}).items():
+                reverse_mapping[sha] = old_id
+        except Exception:
+            pass
+
+    frozen_ids = set()
+    for sha in frozen_sha_ids:
+        old_id = reverse_mapping.get(sha)
+        if old_id:
+            frozen_ids.add(str(old_id))
+        else:
+            frozen_ids.add(sha)  # fallback: 新区块无旧映射时用 SHA
+
     return frozen_ids
 
 
@@ -390,46 +467,28 @@ def detect_genealogy_anomalies(root):
                 "detail": f"编号 {num} 被 {len(files)} 个文件使用",
             })
 
-    # DAG completeness check: every settled file should have a corresponding dag.yaml node
-    dag_path = os.path.join(root, ".chanlun/genealogy/dag.yaml")
-    if os.path.isfile(dag_path):
+    # Block-topology completeness check: every settled file should have a
+    # corresponding entry in meta.json id_mapping (178号-2 迁移：dag.yaml → block-topology)
+    meta_path = os.path.join(root, ".chanlun/block-topology/meta.json")
+    if os.path.isfile(meta_path):
         try:
-            with open(dag_path, encoding="utf-8") as f:
-                dag = yaml.safe_load(f)
-            # Normalize IDs: strip leading zeros for purely numeric IDs
-            def _normalize_id(raw):
-                s = str(raw)
-                # Try to treat as pure integer (strip leading zeros)
+            with open(meta_path, encoding="utf-8") as f:
+                meta = json.load(f)
+            # id_mapping keys are string genealogy ids (e.g. "001", "062")
+            # Normalize: strip leading zeros for comparison with file_num_str (int)
+            mapped_ids = set()
+            for key in meta.get("id_mapping", {}).keys():
                 try:
-                    return str(int(s))
+                    mapped_ids.add(str(int(key)))
                 except ValueError:
-                    # IDs like '005a', '019b' — strip leading zeros from numeric prefix
-                    m_id = re.match(r'^0*(\d+)(\D.*)$', s)
-                    if m_id:
-                        return m_id.group(1) + m_id.group(2)
-                    return s
+                    mapped_ids.add(key)
 
-            dag_ids = {_normalize_id(node["id"]) for node in dag.get("nodes", [])}
-
-            # Check: settled files without dag node
             for file_num_str, filenames in num_to_files.items():
-                if str(file_num_str) not in dag_ids:
+                if str(file_num_str) not in mapped_ids:
                     anomalies.append({
-                        "type": "missing_dag_node",
+                        "type": "missing_block_mapping",
                         "file": filenames[0],
-                        "detail": f"编号 {file_num_str} 在 settled/ 中存在但 dag.yaml 无对应节点",
-                    })
-
-            # Check: depends_on edge targets must exist in dag nodes
-            for edge in dag.get("edges", {}).get("depends_on", []):
-                raw_target = str(edge.get("to", ""))
-                raw_source = str(edge.get("from", ""))
-                target = _normalize_id(raw_target) if raw_target else ""
-                source = _normalize_id(raw_source) if raw_source else ""
-                if target and target not in dag_ids:
-                    anomalies.append({
-                        "type": "dangling_depends_on",
-                        "detail": f"depends_on 边 {source}→{target} 的目标 {target} 不存在于 dag nodes",
+                        "detail": f"编号 {file_num_str} 在 settled/ 中存在但 block-topology 无对应映射",
                     })
         except Exception:
             pass

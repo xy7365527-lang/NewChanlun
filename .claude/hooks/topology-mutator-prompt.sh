@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# PostToolUse Hook — topology-mutator 触发提示（147号谱系下游推论1）
+# PostToolUse Hook — topology-mutator 触发提示（147号谱系下游推论1 + 178号-2 升格）
 #
 # 触发：PostToolUse on Write/Edit
 # 逻辑：settled 谱系写入后，检测 topo_effect 字段，
-#       若存在则通过 systemMessage 提示 Lead 执行 dag_add_node.py --topo_effect
+#       若存在则通过 systemMessage 提示 Lead 执行 topology_operator.py
 # 设计：D策略（082号）——hooks 提示 + Lead 认领
 # 原则0：只提示，不阻断
 
@@ -71,7 +71,7 @@ if [ "$MATCH" != "yes" ]; then
   exit 0
 fi
 
-# 提取 topo_effect 和谱系 id，生成 dag_add_node.py 命令提示
+# 提取 topo_effect 和谱系 id，生成 topology_operator.py 命令提示
 python - "$FILE_PATH" <<'PY' 2>/dev/null || true
 import json
 import re
@@ -119,11 +119,10 @@ type_name = type_names.get(effect_type, effect_type)
 negates_str = ", ".join(negates_items) if negates_items else "(见谱系文件)"
 
 msg = (
-    f"[topology-mutator/147] 谱系 {genealogy_id} 携带拓扑效果: {type_name}。"
+    f"[topology-mutator/147+178] 谱系 {genealogy_id} 携带拓扑效果: {type_name}。"
     f" 目标: {target_id}, 范围: {scope}, 否定: {negates_str}。"
-    f" Lead 应执行: python scripts/dag_add_node.py --id {genealogy_id}"
-    f" --topo_effect {topo_effect}"
-    f" （如尚未通过 dag_add_node.py 添加节点，需补充 --title/--file/--negates 参数）"
+    f" Lead 应执行: python scripts/topology_operator.py --genealogy {file_path}"
+    f" --base .chanlun/block-topology"
 )
 print(json.dumps({"systemMessage": msg}, ensure_ascii=False))
 PY
