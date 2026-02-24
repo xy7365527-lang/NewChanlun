@@ -257,38 +257,34 @@ def run_migration(
     print(f"[migration] Project root: {project_root}")
     print(f"[migration] Target: {base}")
 
-    # Step 1: Create genesis block
+    # Step 1: Migrate settled files → event blocks
+    id_mapping, blocks = migrate_settled_files(settled_dir, base)
+    print(f"[migration] Migrated {len(blocks)} genealogy records → blocks")
+
+    # Step 2: Create genesis block (after migration, so count is known)
     genesis_content = {
         "action": "genesis",
         "migrated_from": "dag.yaml + settled/*.md",
         "description": "One-time migration from genealogy to block topology",
+        "count": len(blocks),
     }
     genesis = make_block("event", "migration", genesis_content, refs=[])
     write_block(genesis, base)
     print(f"[migration] Genesis block: {genesis['id'][:16]}...")
 
-    # Step 2: Migrate settled files → event blocks
-    id_mapping, blocks = migrate_settled_files(settled_dir, base)
-    print(f"[migration] Migrated {len(blocks)} genealogy records → blocks")
-
-    # Update genesis content with count (recompute for accuracy)
-    genesis_content["count"] = len(blocks)
-    genesis_final = make_block("event", "migration", genesis_content, refs=[])
-    write_block(genesis_final, base)
-
     # Step 3: Migrate edges → relations
     relation_count = migrate_edges(dag_path, id_mapping,
-                                   genesis_final["id"], base)
+                                   genesis["id"], base)
     print(f"[migration] Migrated {relation_count} edges → relations")
 
     # Step 4: Write meta.json
     meta = {
         "version": "1.0.0",
-        "genesis_block_id": genesis_final["id"],
+        "genesis_block_id": genesis["id"],
         "block_count": len(blocks) + 1,  # +1 for genesis
         "relation_count": relation_count,
         "id_mapping": id_mapping,
-        "migrated_at": genesis_final["timestamp"],
+        "migrated_at": genesis["timestamp"],
     }
     write_meta(meta, base)
     print(f"[migration] meta.json written")
