@@ -1,13 +1,26 @@
 ---
 name: consensus-ceremony-trigger
 description: >
-  共识仪式触发协议。质询循环收敛时，从质询产出中提取让步轨迹，
-  调用 consensus_ceremony.write_consensus_ceremony() 执行三区块原子写入。
-  解决总方针 §63 的缺口：让步轨迹的结构化提取。
+  共识仪式触发协议（立场差分架构）。质询循环收敛时，从结构化立场序列中
+  通过差分计算推导让步轨迹，调用 consensus_ceremony.write_consensus_ceremony()
+  执行三区块原子写入。解决总方针 §63 的缺口。
 genealogy_source: "§21, §63"
 ---
 
-# 共识仪式触发协议
+# 共识仪式触发协议（立场差分架构）
+
+## 编排者决断
+
+事后正则提取被否定。编排者给出的架构决断：
+
+1. **让步 ≠ 陈述"我让步了"（énoncé）**，让步 = 从位置 A 到位置 B 的移动（énonciation）
+2. **正则匹配只能抓陈述，抓不到言说行为**
+3. **立场差分架构**：
+   - 每轮质询输出结构化格式：**判定**（verdict）+ **立场清单**（stances KV 对）
+   - 让步 = 相邻轮次立场清单的差分
+   - Agent 不自我报告让步，系统从立场差分中推导
+   - 自我报告的让步 vs 被计算出的让步之间的差异本身也是信号（divergence）
+4. **关键约束**：无法修改 Gemini/Codex 内部推理，只能控制输入（prompt）和输出协议
 
 ## 总方针推导链
 
@@ -33,6 +46,25 @@ CC 的每一个产出进入双重质询循环。Gemini 从理论一致性、逻�
 ### §63 → 当前阶段缺口
 质询循环已有基础，但让步轨迹在对话历史中未被结构化提取。本模块解决此缺口。
 
+## 数据结构
+
+```python
+from scripts.consensus_trigger import (
+    StanceDeclaration,    # 单轮立场声明
+    StanceDiff,           # 相邻轮次差分
+    ConcessionTrace,      # 让步轨迹（含 divergence 信号）
+    InquiryCycleResult,   # 质询循环结构化产出
+)
+
+# StanceDeclaration: 每轮质询的结构化输出
+sd = StanceDeclaration(
+    verdict="fail",                     # pass | fail | conditional
+    stances={"issue_x": "reject"},      # 具体点 → 持有的立场
+    round_number=1,
+    self_reported_concessions=[],       # 可选：agent 自我报告的让步
+)
+```
+
 ## 当前阶段的两个独立场景（§63）
 
 ### 场景 A: Gemini 概念层质询
@@ -41,7 +73,7 @@ CC 的每一个产出进入双重质询循环。Gemini 从理论一致性、逻�
 - **收敛判定**: agent 对 Gemini 否定做出判定（否定成立/不成立均为收敛）
 - **residue 映射**:
   - 否定成立: Gemini 坚持否定 → gemini_conceded=[], codex_conceded=[]
-  - 否定不成立: Gemini 放弃否定立场 → gemini_conceded=[放弃的内容], codex_conceded=[]
+  - 否定不成立: Gemini 放弃否定立场 → gemini_conceded 来自差分
 - **codex_conceded 始终为空**: Codex 不参与此场景
 
 ### 场景 B: Plan-review 多轮对审
@@ -49,7 +81,7 @@ CC 的每一个产出进入双重质询循环。Gemini 从理论一致性、逻�
 - **触发事件**: plan_review → codex-challenger review 多轮
 - **收敛判定**: Codex 明确确认满意
 - **residue 映射**:
-  - codex_conceded: Codex 在多轮对审中放弃的质疑（早期轮次提出但最终撤回的）
+  - codex_conceded: 来自立场差分推导（相邻轮次 removed + changed）
   - gemini_conceded 始终为空: Gemini 不参与 plan-review
 
 ### 场景 C: Gemini decide（不触发）
@@ -60,6 +92,9 @@ CC 的每一个产出进入双重质询循环。Gemini 从理论一致性、逻�
 
 ```python
 from scripts.consensus_trigger import (
+    StanceDeclaration,
+    compute_stance_diff,
+    derive_concession_trace,
     extract_from_gemini_verify,
     extract_from_plan_review,
     trigger_ceremony,
@@ -68,21 +103,43 @@ from scripts.consensus_trigger import (
 )
 
 # 场景 A: Gemini verify 收敛后
+stance_seq = [
+    StanceDeclaration(verdict="fail", stances={"def_x": "incorrect"}, round_number=1),
+    StanceDeclaration(verdict="pass", stances={}, round_number=2),
+]
 cycle = extract_from_gemini_verify(
-    verify_result_text="...",
-    trigger_block_id="<sha256>",  # §21: CC 产出区块 id
-    negation_stands=True,          # agent 判定
+    stance_sequence=stance_seq,
+    trigger_block_id="<sha256>",   # §21: CC 产出区块 id
+    negation_stands=False,          # agent 判定
+    conclusion="否定不成立，原定义正确",
 )
-result = trigger_ceremony(cycle)   # → 5 blocks + 4 relations 原子写入
+result = trigger_ceremony(cycle)    # → 5 blocks + 4 relations 原子写入
 
 # 场景 B: plan-review 收敛后
+stance_seq = [
+    StanceDeclaration(verdict="fail", stances={"hook": "reject"}, round_number=1),
+    StanceDeclaration(verdict="pass", stances={}, round_number=2),
+]
 cycle = extract_from_plan_review(
-    review_results_dir=Path(".chanlun/review-results"),
+    stance_sequence=stance_seq,
     trigger_block_id="<sha256>",   # §21: CC 产出区块 id
+    conclusion="方案定稿",
 )
-if cycle:
-    result = trigger_ceremony(cycle)
+result = trigger_ceremony(cycle)
+
+# 差分计算（底层）
+diff = compute_stance_diff(stance_seq[0], stance_seq[1])
+trace = derive_concession_trace(stance_seq)
+# trace.divergence: 自我报告 vs 计算出的让步之间的差异
 ```
+
+## Divergence 信号
+
+`ConcessionTrace.divergence` 记录自我报告与系统计算之间的差异：
+- `self_reported_not_computed: X` — agent 声称让步了 X 但立场数据未变化
+- `computed_not_self_reported: X` — 立场数据变化了但 agent 未报告让步 X
+
+这个差异本身是有意义的信号，不是错误。
 
 ## D 策略约束（082号）
 
@@ -92,7 +149,6 @@ if cycle:
 
 ## 边界条件
 
-- review-results 文件无法解析时不触发仪式，不报错
 - trigger_block_id 无法从 review-results 提取时，agent 需手动提供
 - 场景 A 和 B 可在同一 session 中共存（不同质询循环独立触发）
 - 完整的双重质询循环（§18：同一 CC 产出同时被 Gemini 和 Codex 质询）是未来相位目标（§71），当前阶段两个场景独立运作

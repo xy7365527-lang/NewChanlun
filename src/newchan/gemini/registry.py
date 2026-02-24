@@ -11,6 +11,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
+from scripts.stance_parser import STANCE_OUTPUT_PROTOCOL_GEMINI
+
 ModeKey = Literal["challenge", "verify", "decide", "derive"]
 
 # ── System Prompts ──
@@ -213,7 +215,7 @@ _CHALLENGE_TEMPLATE = """\
 - **建议**：如何解决（如果有）
 
 如果没有发现问题，输出"无否定"并说明你检查了什么。
-"""
+""" + STANCE_OUTPUT_PROTOCOL_GEMINI
 
 _VERIFY_TEMPLATE = """\
 ## 验证目标
@@ -235,7 +237,7 @@ _VERIFY_TEMPLATE = """\
 - **结论**：成立 / 不成立 / 部分成立
 - **依据**：为什么
 - **隐藏假设**：如果有
-"""
+""" + STANCE_OUTPUT_PROTOCOL_GEMINI
 
 _DECIDE_TEMPLATE = """\
 ## 决策请求

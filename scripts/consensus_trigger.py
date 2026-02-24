@@ -1,4 +1,13 @@
-"""共识仪式触发协议——质询循环收敛时提取让步轨迹并触发三区块写入。
+"""共识仪式触发协议——立场差分架构。
+
+编排者决断（本体论位置）：
+- 让步 ≠ 陈述"我让步了"（énoncé），让步 = 从位置 A 到位置 B 的移动（énonciation）
+- 正则匹配只能抓陈述，抓不到言说行为
+- 立场差分架构替代事后正则提取：
+  - 每轮质询输出结构化格式：判定 + 立场清单（KV 对）
+  - 让步 = 相邻轮次立场清单的差分
+  - Agent 不自我报告让步，系统从立场差分中推导
+  - 自我报告的让步 vs 被计算出的让步之间的差异本身也是信号
 
 推导路径（从总方针出发）：
 
@@ -29,7 +38,7 @@ residue 字段语义（§21 严格定义）：
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
@@ -37,9 +46,46 @@ from scripts.block_topology import DEFAULT_BASE
 from scripts.consensus_ceremony import write_consensus_ceremony
 
 
+# ── 立场差分数据结构 ──
+
+
+@dataclass(frozen=True, slots=True)
+class StanceDeclaration:
+    """单轮质询的结构化立场声明。
+
+    编排者决断：至少两个字段——判定 + 立场清单（KV 对）。
+    """
+
+    verdict: Literal["pass", "fail", "conditional"]
+    stances: dict[str, str]  # 具体点 → 持有的立场
+    round_number: int = 0
+    self_reported_concessions: list[str] = field(default_factory=list)
+    # 自我报告的让步（可选）——与系统计算的让步做对比时用
+
+
+@dataclass(frozen=True, slots=True)
+class StanceDiff:
+    """相邻轮次之间的立场变化。"""
+
+    round_from: int
+    round_to: int
+    changed: dict[str, tuple[str, str]]  # key → (old_stance, new_stance)
+    added: dict[str, str]  # 新增的立场条目
+    removed: dict[str, str]  # 消失的立场条目（= 让步的直接证据）
+
+
+@dataclass(frozen=True, slots=True)
+class ConcessionTrace:
+    """从立场差分推导出的让步轨迹。"""
+
+    computed_concessions: list[str]  # 系统计算：从差分推导
+    self_reported_concessions: list[str]  # 自我报告：agent 声称的
+    divergence: list[str]  # 两者的差异（本身是信号）
+
+
 @dataclass(frozen=True, slots=True)
 class InquiryCycleResult:
-    """质询循环的结构化产出——从非结构化的质询过程中提取。
+    """质询循环的结构化产出——从立场差分中推导。
 
     字段语义遵循 §21 的定义：
     - trigger_block_id: 触发质询的原始 CC 产出区块 id（§21 consensus.refs）
@@ -48,6 +94,8 @@ class InquiryCycleResult:
     - codex_conceded: Codex 在质询中放弃的立场（§21 residue 字段）
     - concession_reasons: 让步理由（§21 residue.content.reasons）
     - unresolved: 双方承认未解决但暂时搁置的部分（§21 tension.content.unresolved）
+    - concession_trace: 从立场差分推导的让步轨迹（含 divergence 信号）
+    - stance_diffs: 所有相邻轮次的差分列表
     """
 
     scenario: Literal["gemini_verify", "plan_review"]
@@ -58,14 +106,116 @@ class InquiryCycleResult:
     concession_reasons: dict[str, str]
     unresolved: list[str]
     source: str = "cc"
+    concession_trace: ConcessionTrace | None = None
+    stance_diffs: list[StanceDiff] = field(default_factory=list)
+
+
+# ── 差分计算 ──
+
+
+def compute_stance_diff(
+    earlier: StanceDeclaration,
+    later: StanceDeclaration,
+) -> StanceDiff:
+    """计算两轮立场声明之间的差分。
+
+    changed = 同一 key 但 value 不同
+    removed = earlier 有 later 没有（= 让步的直接证据）
+    added = later 有 earlier 没有
+    """
+    earlier_keys = set(earlier.stances)
+    later_keys = set(later.stances)
+
+    changed: dict[str, tuple[str, str]] = {}
+    for key in earlier_keys & later_keys:
+        if earlier.stances[key] != later.stances[key]:
+            changed[key] = (earlier.stances[key], later.stances[key])
+
+    removed: dict[str, str] = {
+        key: earlier.stances[key] for key in earlier_keys - later_keys
+    }
+
+    added: dict[str, str] = {
+        key: later.stances[key] for key in later_keys - earlier_keys
+    }
+
+    return StanceDiff(
+        round_from=earlier.round_number,
+        round_to=later.round_number,
+        changed=changed,
+        added=added,
+        removed=removed,
+    )
+
+
+def derive_concession_trace(
+    stance_sequence: list[StanceDeclaration],
+) -> ConcessionTrace:
+    """从完整立场序列推导让步轨迹。
+
+    编排者决断：
+    - computed_concessions 来自差分（removed + changed 中放弃的立场）
+    - self_reported_concessions 来自 StanceDeclaration 中 agent 自我报告的
+    - divergence 是两者的差集（本身是信号——agent 说自己让步了但数据没变化，
+      或数据变了但 agent 没报告）
+    """
+    if len(stance_sequence) < 2:
+        all_self_reported: list[str] = []
+        for sd in stance_sequence:
+            all_self_reported.extend(sd.self_reported_concessions)
+        return ConcessionTrace(
+            computed_concessions=[],
+            self_reported_concessions=all_self_reported,
+            divergence=[],
+        )
+
+    computed_set: set[str] = set()
+    for i in range(len(stance_sequence) - 1):
+        diff = compute_stance_diff(stance_sequence[i], stance_sequence[i + 1])
+        # removed keys = 让步（立场完全消失）
+        computed_set.update(diff.removed)
+        # changed keys = 让步（立场发生变化）
+        computed_set.update(diff.changed)
+
+    computed = sorted(computed_set)
+
+    # 收集所有轮次的自我报告
+    all_self_reported = []
+    for sd in stance_sequence:
+        all_self_reported.extend(sd.self_reported_concessions)
+    self_reported_set = set(all_self_reported)
+
+    # 计算 divergence
+    divergence: list[str] = []
+    # 自我报告但未计算出 -> agent 声称让步但数据未变化
+    for item in sorted(self_reported_set - computed_set):
+        divergence.append(
+            f"self_reported_not_computed: {item}"
+        )
+    # 计算出但未自我报告 -> 数据变化但 agent 未报告
+    for item in sorted(computed_set - self_reported_set):
+        divergence.append(
+            f"computed_not_self_reported: {item}"
+        )
+
+    return ConcessionTrace(
+        computed_concessions=computed,
+        self_reported_concessions=all_self_reported,
+        divergence=divergence,
+    )
+
+
+# ── 提取函数（立场差分架构） ──
 
 
 def extract_from_gemini_verify(
-    verify_result_text: str,
+    stance_sequence: list[StanceDeclaration],
     trigger_block_id: str,
     negation_stands: bool,
+    conclusion: str,
+    unresolved: list[str] | None = None,
 ) -> InquiryCycleResult:
-    """从 Gemini verify 质询结果中提取共识仪式所需数据。
+    """从 Gemini verify 质询的立场序列中推导共识仪式所需数据。
 
     §18: Gemini 从理论一致性、逻辑严格性、概念有效性质询。
     §19: 质询到共识为止。
@@ -74,41 +224,42 @@ def extract_from_gemini_verify(
 
     两种收敛结果：
     - 否定成立: CC 的产出被 Gemini 否定。共识 = "此处有问题"。
-      Gemini 坚持了否定，没有让步。结论是否定结论。
+      Gemini 坚持了否定，没有让步。
     - 否定不成立: Gemini 的否定被 CC 驳回。共识 = "原产出成立"。
-      Gemini 放弃了否定立场（gemini_conceded 记录这些立场）。
+      Gemini 放弃了否定立场（从立场差分推导）。
 
     Parameters
     ----------
-    verify_result_text : str
-        Gemini verify 的完整输出文本。
+    stance_sequence : list[StanceDeclaration]
+        Gemini verify 各轮的结构化立场声明。
     trigger_block_id : str
         触发质询的原始 CC 产出区块 ID（§21: consensus.refs 指向此 ID）。
     negation_stands : bool
         agent 判定 Gemini 否定是否成立。
+    conclusion : str
+        质询结论。
+    unresolved : list[str] | None
+        未解决项。
 
     Returns
     -------
     InquiryCycleResult
     """
-    conclusion = _extract_section(verify_result_text, "结论", "结果")
-    unresolved = _extract_list_items(verify_result_text, "未解决", "搁置", "悬置")
+    trace = derive_concession_trace(stance_sequence)
+
+    # 计算相邻轮次的 diffs
+    diffs: list[StanceDiff] = []
+    for i in range(len(stance_sequence) - 1):
+        diffs.append(compute_stance_diff(stance_sequence[i], stance_sequence[i + 1]))
 
     if negation_stands:
         # Gemini 否定成立 → Gemini 坚持否定，没有让步
-        # 共识 = "CC 产出的 X 被否定"
         gemini_conceded: list[str] = []
         reasons = {"consensus": "Gemini 概念层否定成立——CC 产出被否定"}
     else:
-        # Gemini 否定不成立 → Gemini 放弃了否定立场
-        # 共识 = "CC 产出成立"
-        gemini_conceded = _extract_list_items(
-            verify_result_text, "误判", "不成立", "驳回",
-        )
+        # Gemini 否定不成立 → 让步来自差分
+        gemini_conceded = trace.computed_concessions
         reasons = {"gemini": "Gemini 否定不成立——Gemini 放弃否定立场"}
-
-    if not conclusion:
-        conclusion = verify_result_text[:200].strip()
 
     return InquiryCycleResult(
         scenario="gemini_verify",
@@ -117,84 +268,55 @@ def extract_from_gemini_verify(
         gemini_conceded=gemini_conceded,
         codex_conceded=[],  # 此场景无 Codex 参与（§63 当前阶段形态）
         concession_reasons=reasons,
-        unresolved=unresolved,
+        unresolved=unresolved if unresolved is not None else [],
         source="cc",
+        concession_trace=trace,
+        stance_diffs=diffs,
     )
 
 
 def extract_from_plan_review(
-    review_results_dir: Path,
+    stance_sequence: list[StanceDeclaration],
     trigger_block_id: str,
-    plan_subject: str = "",
-) -> InquiryCycleResult | None:
-    """从 plan-review 多轮对审的持久化文件中提取共识仪式所需数据。
+    conclusion: str,
+    unresolved: list[str] | None = None,
+) -> InquiryCycleResult:
+    """从 plan-review 多轮对审的立场序列中推导共识仪式所需数据。
 
     §18: Codex 从实现可行性、代码正确性、架构一致性质询。
     §19: 质询到共识为止。
-    plan-review SKILL.md: 共识 = Codex 对方案所有质疑都被回应且 Codex 明确确认满意。
 
     此场景中 Opus（CC 的 plan 模式）出方案，Codex 质询。
     gemini_conceded 始终为空（Gemini 不参与 plan-review）。
-    codex_conceded 记录 Codex 在对审过程中放弃的质疑。
+    codex_conceded 来自立场差分推导。
 
     Parameters
     ----------
-    review_results_dir : Path
-        review-results 目录路径。
+    stance_sequence : list[StanceDeclaration]
+        plan-review 各轮的结构化立场声明。
     trigger_block_id : str
         触发 plan-review 的原始 CC 产出区块 ID。
-    plan_subject : str
-        方案的主题标识。
+    conclusion : str
+        质询结论。
+    unresolved : list[str] | None
+        未解决项。
 
     Returns
     -------
-    InquiryCycleResult | None
-        提取成功返回结构化数据；如果没有找到 plan-review 文件则返回 None。
+    InquiryCycleResult
     """
-    review_files = sorted(
-        review_results_dir.glob("plan-review-*.md"),
-        key=lambda p: p.name,
-    )
-    if not review_files:
-        return None
+    trace = derive_concession_trace(stance_sequence)
 
-    # 按轮次分组：plan-review-{timestamp}-round{N}.md
-    rounds: dict[int, Path] = {}
-    for f in review_files:
-        match = re.search(r"round(\d+)", f.name)
-        if match:
-            rounds[int(match.group(1))] = f
+    # 计算相邻轮次的 diffs
+    diffs: list[StanceDiff] = []
+    for i in range(len(stance_sequence) - 1):
+        diffs.append(compute_stance_diff(stance_sequence[i], stance_sequence[i + 1]))
 
-    if not rounds:
-        final_text = review_files[-1].read_text(encoding="utf-8")
-        round_count = 1
-    else:
-        max_round = max(rounds.keys())
-        final_text = rounds[max_round].read_text(encoding="utf-8")
-        round_count = max_round
-
-    # 从最终轮次提取数据
-    conclusion = _extract_section(final_text, "最终方案", "结论", "共识")
-
-    # Codex 在多轮对审中放弃的质疑（Codex 最初提出但后来被 Opus 回应后撤回的）
-    codex_conceded = _extract_list_items(
-        final_text, "Codex让步", "Codex撤回", "质疑解决",
-    )
-
-    # 搜集所有轮次中 Codex 提出但最终轮未再提出的质疑
-    # 这些质疑被 Opus 回应后 Codex 放弃了——这就是 residue
-    if not codex_conceded and len(rounds) > 1:
-        codex_conceded = _extract_cross_round_concessions(rounds)
-
-    unresolved = _extract_list_items(final_text, "未解决", "搁置", "遗留")
-
-    if not conclusion:
-        conclusion = f"plan-review {round_count} 轮对审完成"
-        if plan_subject:
-            conclusion = f"{plan_subject}: {conclusion}"
+    codex_conceded = trace.computed_concessions
 
     reasons: dict[str, str] = {}
     if codex_conceded:
+        round_count = len(stance_sequence)
         reasons["codex"] = f"Codex 在 {round_count} 轮对审中放弃部分质疑"
 
     return InquiryCycleResult(
@@ -204,34 +326,14 @@ def extract_from_plan_review(
         gemini_conceded=[],  # plan-review 不涉及 Gemini（§63 当前阶段形态）
         codex_conceded=codex_conceded,
         concession_reasons=reasons,
-        unresolved=unresolved,
+        unresolved=unresolved if unresolved is not None else [],
         source="cc",
+        concession_trace=trace,
+        stance_diffs=diffs,
     )
 
 
-def _extract_cross_round_concessions(rounds: dict[int, Path]) -> list[str]:
-    """跨轮次提取 Codex 让步：早期轮次提出但最终轮未再提出的质疑。
-
-    §20: 共识 = 缝合，缝合必然生产剩余物。
-    跨轮次消失的质疑就是被缝合排除的内容——residue 的物质来源。
-    """
-    if len(rounds) < 2:
-        return []
-
-    sorted_round_nums = sorted(rounds.keys())
-    final_round = sorted_round_nums[-1]
-    final_text = rounds[final_round].read_text(encoding="utf-8")
-    final_issues = set(_extract_list_items(final_text, "质疑", "问题", "缺陷"))
-
-    conceded: list[str] = []
-    for rn in sorted_round_nums[:-1]:
-        earlier_text = rounds[rn].read_text(encoding="utf-8")
-        earlier_issues = _extract_list_items(earlier_text, "质疑", "问题", "缺陷")
-        for issue in earlier_issues:
-            if issue not in final_issues and issue not in conceded:
-                conceded.append(issue)
-
-    return conceded
+# ── 仪式触发 ──
 
 
 def trigger_ceremony(
@@ -242,6 +344,10 @@ def trigger_ceremony(
 
     §21: 三区块原子性地同时写入。
     §63: 在质询循环结束时强制触发共识仪式。
+
+    立场差分数据通过 InquiryCycleResult 的 concession_trace 和 stance_diffs
+    字段传递，但最终调用 write_consensus_ceremony 时仍然传 list[str] 格式的
+    conceded 字段（下游接口约束）。
 
     Parameters
     ----------
@@ -265,6 +371,9 @@ def trigger_ceremony(
         source=cycle_result.source,
         base=base,
     )
+
+
+# ── 保留的辅助函数（不涉及让步提取） ──
 
 
 def detect_convergence_from_review_file(review_file: Path) -> bool:
@@ -326,56 +435,3 @@ def find_trigger_block_for_review(
             return target_val
 
     return None
-
-
-# ── 内部辅助函数 ──
-
-
-def _extract_section(text: str, *keywords: str) -> str:
-    """从文本中提取与关键词匹配的节标题下的第一段内容。"""
-    for kw in keywords:
-        pattern = rf"^#{{2,4}}\s+.*{re.escape(kw)}.*$"
-        match = re.search(pattern, text, re.MULTILINE | re.IGNORECASE)
-        if match:
-            start = match.end()
-            next_heading = re.search(r"^#{2,4}\s+", text[start:], re.MULTILINE)
-            end = start + next_heading.start() if next_heading else len(text)
-            section = text[start:end].strip()
-            if section:
-                return section
-    return ""
-
-
-def _extract_list_items(text: str, *keywords: str) -> list[str]:
-    """从文本中提取包含关键词的列表项。
-
-    策略1：找到包含关键词的节标题，提取其下所有列表项。
-    策略2：扫描所有列表项，找包含关键词的。
-    """
-    items: list[str] = []
-
-    for kw in keywords:
-        pattern = rf"^#{{2,4}}\s+.*{re.escape(kw)}.*$"
-        match = re.search(pattern, text, re.MULTILINE | re.IGNORECASE)
-        if match:
-            start = match.end()
-            next_heading = re.search(r"^#{2,4}\s+", text[start:], re.MULTILINE)
-            end = start + next_heading.start() if next_heading else len(text)
-            section = text[start:end]
-            for line in section.splitlines():
-                stripped = line.strip()
-                if stripped.startswith(("- ", "* ")):
-                    items.append(stripped[2:].strip())
-            if items:
-                return items
-
-    for line in text.splitlines():
-        stripped = line.strip()
-        if stripped.startswith(("- ", "* ")):
-            item_text = stripped[2:].strip()
-            for kw in keywords:
-                if kw.lower() in item_text.lower():
-                    items.append(item_text)
-                    break
-
-    return items
