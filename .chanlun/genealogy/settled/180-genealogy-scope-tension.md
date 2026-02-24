@@ -1,0 +1,62 @@
+---
+id: '180'
+title: 谱系作用域张力——用户级(~/.genealogy/)与仓库级(.chanlun/block-topology/)
+type: 張力標記
+status: 已结算
+date: 2026-02-24
+depends_on:
+  - '178'   # 区块拓扑建系（工程实现选择了仓库级路径）
+related:
+  - '179'   # 四角结构（多主体拓扑的作用域前提）
+tensions_with: []
+negates: []
+negation_form: "无——这是未解决张力的标记，不是否定"
+topo_effect: ""
+downstream_inferences:
+  - id: "180-1"
+    content: "当前单项目阶段无需行动：.chanlun/block-topology/ 足够"
+    type: 行動
+    status: resolved
+    resolved_by: "当前只有NewChanlun一个仓库，张力不显现"
+  - id: "180-2"
+    content: "多项目架构成形时（四矩阵各自独立仓库/系统），谱系作用域成为真正的架构决策"
+    type: 張力
+    status: unresolved
+    note: "结算点：多项目架构设计阶段。不是178号-2（操作路径）能覆盖的"
+  - id: "180-3"
+    content: "总方针声明~/.genealogy/暗示跨项目元谱系层——工程实现尚未为此预留位置"
+    type: 張力
+    status: unresolved
+    note: "总方针(纲目版v3 §12/§16)使用~/.genealogy/路径，这是方针层对谱系作用域的声明"
+---
+
+# 180号：谱系作用域张力
+
+## 张力描述
+
+总方针（纲目版v3）声明谱系路径为 `~/.genealogy/`——home 目录下的隐藏目录，用户级，跨项目。
+工程实现（178号区块拓扑建系）选择了 `.chanlun/block-topology/`——项目目录下，仓库级，项目内。
+
+这不是寻址不统一的技术问题（178号-2 topology_operator 改造可以解决操作路径统一）。
+这是**谱系作用域**的问题：谱系是属于一个项目的，还是属于系统整体的？
+
+## 来处
+
+二阶观察（v51-ceremony）将此张力归入178号-2覆盖范围。
+编排者否定——topology_operator改造解决的是操作路径，不是作用域。
+
+## 为什么当前不显现
+
+只有 NewChanlun 一个仓库时，项目级谱系 = 系统级谱系，无区别。
+
+## 何时显现
+
+总方针核心回路（纲目版v3 §25）包含四矩阵：股权、商品、地产、现金。
+如果四矩阵各自有独立仓库或独立系统，谱系住在哪里成为架构决策：
+- 每个仓库各自一份 `.chanlun/block-topology/`？→ 谱系碎片化，跨项目关系无处存放
+- 统一到 `~/.genealogy/`？→ 总方针声明的路径，但需要跨仓库引用机制
+- 两层：项目级谱系 + 元谱系层？→ 需要设计元谱系与项目谱系的关系协议
+
+## 结算条件
+
+多项目架构设计时。当前标记为张力，不触发行动。
