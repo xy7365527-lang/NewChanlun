@@ -1,0 +1,30 @@
+{
+  "id": "a9d8a60deeb51c18fc0e3cf58c9ce2858c9b880f653a55be86a6d4897ee1a10a",
+  "type": "event",
+  "timestamp": "2026-02-24T04:16:40.647030+00:00",
+  "source": "cc",
+  "content": {
+    "id": "179",
+    "title": "四角结构——拓扑分析家作为第四位置（不可归约）",
+    "status": "已结算",
+    "type": "語法記録",
+    "date": "2026-02-24",
+    "negation_form": "",
+    "depends_on": [
+      "069",
+      "178",
+      "174"
+    ],
+    "related": [
+      "057",
+      "058",
+      "089"
+    ],
+    "negates": [],
+    "topo_effect": "",
+    "tensions_with": [],
+    "source_file": "settled\\179-four-position-topology-analyst.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

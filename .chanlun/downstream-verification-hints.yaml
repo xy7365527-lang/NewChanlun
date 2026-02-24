@@ -50,6 +50,12 @@ hints:
       pattern: "freeze"
     - file: ".chanlun/dispatch-dag.yaml"
       pattern: "topology-mutator"
+  "178-2":
+    - file: "scripts/ceremony_scan.py"
+      pattern: "block-topology"
+  "178-3":
+    - file: "scripts/consensus_ceremony.py"
+      pattern: "write_consensus_ceremony"
   "179-1":
     - file: ".claude/commands/ceremony.md"
       pattern: "topology-analyst"
