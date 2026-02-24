@@ -2,7 +2,7 @@
 id: '182'
 title: 递归运动为零诊断——系统当前运行单层线性追加，未执行三层递归
 type: 矛盾发现
-status: 生成态
+status: settled
 date: 2026-02-24
 negation_source: heterogeneous
 negation_form: expansion
