@@ -261,11 +261,40 @@ def get_last_ceremony_info(root):
 # 纲举目张推导
 # ---------------------------------------------------------------------------
 
+def _already_audited_targets(root):
+    """扫描 settled + pending 谱系中的 audit_targets 字段，返回已审计过的目标集合。
+
+    192号发现：gangju_analysis 没有记忆已审计过的 new_mu，导致重复生成 pending 谱系。
+    """
+    audited = set()
+    for subdir in ("settled", "pending"):
+        dirpath = os.path.join(root, ".chanlun", "genealogy", subdir)
+        if not os.path.isdir(dirpath):
+            continue
+        for fp in glob.glob(os.path.join(dirpath, "*.md")):
+            try:
+                with open(fp, encoding="utf-8") as f:
+                    text = f.read()
+                fm_match = re.match(r"^---\s*\n(.*?)\n---", text, re.DOTALL)
+                if not fm_match:
+                    continue
+                fm = yaml.safe_load(fm_match.group(1))
+                if fm and isinstance(fm.get("audit_targets"), list):
+                    for target in fm["audit_targets"]:
+                        audited.add(str(target).strip())
+            except Exception:
+                continue
+    return audited
+
+
 def derive_mu(block_stats, genealogy_stats, root):
     """从纲的逻辑必然性推导 filled_mu / empty_mu / new_mu。"""
     filled_mu = []
     empty_mu = []
     new_mu = []
+
+    # 192号修复：已审计过的目标不再重复检测
+    audited = _already_audited_targets(root)
 
     type_counts = block_stats.get("type_counts", {})
     delta_blocks = block_stats.get("delta_blocks", 0)
@@ -275,10 +304,11 @@ def derive_mu(block_stats, genealogy_stats, root):
     residue_status = compute_residue_status(root)
     if consensus_count > 0:
         if residue_status != "substantive":
-            new_mu.append({
-                "mu": "多轮质询管道",
-                "reason": f"consensus 区块 {consensus_count} 个，但 residue 内容全为空——质询仅走形式未产出实质让步",
-            })
+            if "多轮质询管道" not in audited:
+                new_mu.append({
+                    "mu": "多轮质询管道",
+                    "reason": f"consensus 区块 {consensus_count} 个，但 residue 内容全为空——质询仅走形式未产出实质让步",
+                })
         else:
             filled_mu.append({
                 "mu": "共识仪式物质证据",
@@ -287,10 +317,11 @@ def derive_mu(block_stats, genealogy_stats, root):
 
     # 规则2：无 async_self_reference 相关区块 → 新目"异步自指实现"
     if not has_async_self_reference_blocks(root):
-        new_mu.append({
-            "mu": "异步自指实现",
-            "reason": "block-topology 中无 async_self_reference 相关区块——蜂群声明为异步自指拓扑但无物质证据",
-        })
+        if "异步自指实现" not in audited:
+            new_mu.append({
+                "mu": "异步自指实现",
+                "reason": "block-topology 中无 async_self_reference 相关区块——蜂群声明为异步自指拓扑但无物质证据",
+            })
 
     # 规则3：delta_blocks == 0 且有 session（距上次 ceremony > 0）→ empty_mu
     has_ceremony = get_last_ceremony_info(root)
@@ -309,10 +340,11 @@ def derive_mu(block_stats, genealogy_stats, root):
         )
         total_recent = sum(recent_types.values())
         if total_recent >= 10 and contradiction_types == 0:
-            new_mu.append({
-                "mu": "质询深度不足",
-                "reason": f"最近 {total_recent} 个谱系无矛盾发现类型——可能停留在语法记录层，未触及概念张力",
-            })
+            if "质询深度不足" not in audited:
+                new_mu.append({
+                    "mu": "质询深度不足",
+                    "reason": f"最近 {total_recent} 个谱系无矛盾发现类型——可能停留在语法记录层，未触及概念张力",
+                })
 
     # 补充规则：pending 谱系积压
     pending_count = genealogy_stats.get("pending_count", 0)
