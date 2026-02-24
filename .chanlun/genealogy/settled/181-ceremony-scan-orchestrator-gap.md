@@ -3,7 +3,7 @@ number: 181
 type: meta-rule
 status: 已结算
 date: 2026-02-24
-title: ceremony_scan 与编排者决断的接口缺口
+title: ceremony_scan 与 session 结晶的职责边界确认
 rule_version_baseline:
   claude_md_commit: "97f3ba3186f1919ff6abf02dea4247724d47c79a"
   rules_dir_mtime: "2026-02-23 21:10:15 +0000"
@@ -11,43 +11,34 @@ genealogy_refs:
   - 154  # ceremony 空蜂群退出路径
   - 162  # RTAS 持久化由 session 结晶保证
   - 174  # 谱系即生成引擎
-topo_effect: "ceremony_scan 的工位推导逻辑需要识别 session 恢复指引中的编排者决断"
+topo_effect: "无——现有设计正确，不需要变更"
 downstream:
-  - "ceremony_scan.py 增加 session 恢复指引解析（从 session 的'待处理'段提取未完成的编排者决断工位）"
-  - "或者：承认 ceremony_scan 只推导谱系增量工位，编排者决断注入的工位由 Lead 从 session 手动读取——这是合理的设计边界"
+  - "ceremony_scan 不扩展：它是文件系统扫描器，不是对话理解器"
+  - "session 结晶继续作为编排者决断的独立传递通道"
 ---
 
-# 181号: ceremony_scan 与编排者决断的接口缺口
+# 181号: ceremony_scan 与 session 结晶的职责边界确认
 
-## 观察
+## 原始观察
 
-v43-swarm session 中，ceremony_scan 返回 `clean_terminate=true`（无工位），但编排者在 v42-swarm 结束时给出了明确的架构决断（立场差分架构），session 恢复指引的"待处理"段记录了具体的实现任务。
+v43-swarm session 中，ceremony_scan 返回 `clean_terminate=true`（无工位），但编排者在 v42-swarm 结束时给出了明确的架构决断（立场差分架构），session 恢复指引的"待处理"段记录了具体的实现任务。Lead 从 session 文件手动读取编排者决断，手动创建蜂群和工位。
 
-Lead 从 session 文件手动读取编排者决断，手动创建蜂群和工位。这个模式已在运作但未显式化。
+## 原始判断（已修正）
 
-## 张力
+~~原始判断将此视为"接口缺口"和"语法记录候选"。~~
 
-ceremony_scan 的工位推导逻辑基于两个数据源：
-1. 谱系增量（delta_genealogy）
-2. 区块增量（delta_blocks）
+## 编排者修正
 
-**缺失的第三数据源**：session 恢复指引中的"待处理"段（编排者决断产生的实现任务）。
+这不是缺口，不是张力，不需要谱系化为语法记录。原始判断犯了角色越界的错误：
 
-这不是 bug——ceremony_scan 设计时就只关注谱系状态的确定性推导。编排者决断是非确定性的（每次可能不同），ceremony_scan 无法预测。
+1. **ceremony_scan 的输入是物质变化（文件系统）**，不是对话历史。让它读 session 恢复指引来推导工位 = 让文件系统扫描器变成对话理解器 = 职责膨胀。
+2. **两条独立信息通道各自正确运作**：
+   - ceremony_scan：从谱系/区块增量自动推导工位
+   - session 结晶：传递编排者决断给下一轮 CC
+3. **Lead 从 session 读取决断启动工位不是"绕过"ceremony_scan**——这就是正确路径。编排者决断是人类行为，通过人类可读通道（session 文件）传递，由 CC 在下一轮启动时读取。
 
-## 四分法分类
+结论：两个系统的正确分工被误读为"接口缺口"。无遗漏，无张力。
 
-**语法记录候选**：Lead 已经在实践中用"从 session 恢复指引读取编排者决断 → 手动 TeamCreate"的方式处理这个缺口。这个模式需要决定：
+## 附加观察（保留）
 
-- **选项 A**：显式化这个模式为 ceremony skill 的一部分（warm_start 时自动解析 session 的待处理段）
-- **选项 B**：承认这是合理的设计边界——编排者决断超出自动推导范围，由 Lead 手动处理
-
-两个选项都合理，这是一个需要编排者价值判断的**选择**。
-
-## 收敛/发散判定
-
-与 154号（ceremony 空蜂群退出路径）相关但是**发散**——154号处理的是空工位的退出路径设计，本次观察的是非空但非谱系推导的工位来源。新维度。
-
-## 附加观察
-
-v43-swarm 的 stance-diff-impl 工位展示了一个正面模式：工位从编排者决断中自主推导出未显式列出的工作项（stance_parser.py + registry.py 修改）。这是四分法"定理"类的正确执行——已知约束（"只能控制输入和输出协议"）的逻辑必然推论。
+v43-swarm 的 stance-diff-impl 工位从编排者决断中自主推导出未显式列出的工作项（stance_parser.py + registry.py 修改）。四分法"定理"类的正确执行。
