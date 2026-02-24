@@ -65,7 +65,11 @@ consensus 区块 1 个，但 residue 内容全为空——质询仅走形式未�
    - 三区块由 commit bc6d1a4（v46-swarm "三层架构首次实质激活"）写入
    - 该版本的 scan_and_trigger() 无空仪式防护、无 trigger_id 查找逻辑
    - Gemini R1 解释 B（代码演进时间差）确认——问题1的矛盾消解
-2. 防护逻辑一致性：先回答"零让步共识是否应写入区块"的概念层问题
+2. ~~防护逻辑一致性：先回答"零让步共识是否应写入区块"的概念层问题~~ **已结算（定理类推导）**
+   - §21 共识仪式三区块的触发条件是质询循环收敛
+   - 零让步共识 = 初始立场即一致 → 不存在质询循环 → 不存在收敛 → 不触发仪式
+   - 183号目C（stance<2轮不触发）已正确实现此逻辑
+   - Gemini R1 发现2的 reject_defect_assumption 结论正确：inquiry_loop 不加空仪式防护是正确设计（零让步场景由 scan_and_trigger 层面防护）
 3. ~~`refs: ["unknown"]` 修复：补全悬空 consensus 区块的来源引用~~ **已完成**
    - consensus dc9e4c7f... 的 refs 已更新为 182号 event block (4f49811c...)
    - consensus_trigger.py 新增 refs 悬空防护（191号目3）：trigger_id 为 None 时拒绝写入
