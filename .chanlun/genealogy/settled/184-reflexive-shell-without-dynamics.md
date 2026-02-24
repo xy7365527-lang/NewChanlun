@@ -2,7 +2,7 @@
 id: '184'
 title: 反思层拓扑空壳——Reflexive layer 激活但动力学机制（异步自指、多轮质询）未执行
 type: 矛盾发现
-status: 生成态
+status: settled
 date: 2026-02-24
 negation_source: heterogeneous
 negation_form: expansion

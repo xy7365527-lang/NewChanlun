@@ -2,7 +2,7 @@
 id: '183'
 title: 纲举目张——动力学机制缺失诊断（Gemini+Codex 双向审计收敛）
 type: 矛盾发现
-status: 生成态
+status: settled
 date: 2026-02-24
 negation_source: heterogeneous
 negation_form: expansion
