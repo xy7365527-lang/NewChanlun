@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""矛盾→拓扑操作自动映射（147号谱系下游推论1）。
+"""矛盾→拓扑操作自动映射（147号谱系下游推论1 + 178号-2升格）。
 
-读取谱系文件，根据否定类型执行对应的拓扑操作。
+读取谱系文件，根据否定类型执行对应的拓扑操作——写入 block-topology。
 
 否定形式→拓扑操作映射（040号 + 147号）：
   - waiting（等待型）  → freeze（冻结路径）
@@ -12,14 +12,18 @@
   1. topo_effect 字段（结构化格式 type:target:scope）— 直接执行
   2. negation_form 字段 — 推导拓扑操作类型（需要 target/scope 参数补充）
 
+178号-2 升格：
+  - topology_operator 不再读写 dag.yaml，改为通过 block_topology.py 写入区块+关系
+  - dag.yaml 冻结在迁移时刻的快照，不再更新
+
 用法:
   # 从谱系文件读取 topo_effect 并执行
   python scripts/topology_operator.py --genealogy .chanlun/genealogy/settled/147-xxx.md
 
-  # 直接指定拓扑操作
-  python scripts/topology_operator.py --effect freeze:062:downstream
+  # 直接指定拓扑操作（需要 SHA256 id）
+  python scripts/topology_operator.py --effect freeze:062:downstream --base .chanlun/block-topology
 
-  # dry-run 模式（只报告，不修改 dag.yaml）
+  # dry-run 模式（只报告，不写入 block-topology）
   python scripts/topology_operator.py --genealogy .chanlun/genealogy/settled/147-xxx.md --dry-run
 
   # 从 negation_form 推导（需要补充 target 和 scope）
@@ -29,7 +33,6 @@
 from __future__ import annotations
 
 import argparse
-import copy
 import datetime
 import re
 import sys
@@ -37,6 +40,15 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+
+from scripts.block_topology import (
+    DEFAULT_BASE,
+    compute_block_id,
+    make_relation,
+    read_all_relations,
+    read_meta,
+    write_block_with_relations,
+)
 
 
 # ── 否定形式→拓扑操作映射表（040号 + 147号） ──
@@ -49,7 +61,7 @@ NEGATION_FORM_TO_TOPO: dict[str, str] = {
 
 TOPO_DESCRIPTIONS: dict[str, str] = {
     "freeze": "冻结路径（等待型否定）——冻结目标节点及其下游依赖，直到后续回溯规定解冻",
-    "split": "分裂节点（扩张型否定）——目标节点分裂为两个：原规定 + 违反记录",
+    "split": "分裂节点（扩张型否定）——记录此处发生了概念分裂事件",
     "sever": "切断连接（分离型否定）——切断目标节点与原路径的连接，形成独立路径",
 }
 
@@ -130,206 +142,222 @@ def infer_topo_type_from_negation_form(negation_form: str) -> str | None:
     return NEGATION_FORM_TO_TOPO.get(form)
 
 
-def load_dag(dag_path: Path) -> dict:
-    """加载 dag.yaml。"""
-    with open(dag_path, encoding="utf-8") as f:
-        return yaml.safe_load(f)
+# ── id 解析 ──
 
+def resolve_genealogy_id(
+    genealogy_id: str, base: Path = DEFAULT_BASE
+) -> str | None:
+    """通过 meta.json 的 id_mapping 将旧谱系 id 解析为区块 SHA256 id。
 
-def save_dag(dag: dict, dag_path: Path) -> None:
-    """保存 dag.yaml。"""
-    with open(dag_path, "w", encoding="utf-8") as f:
-        yaml.dump(
-            dag,
-            f,
-            allow_unicode=True,
-            default_flow_style=False,
-            sort_keys=False,
-        )
-
-
-def apply_freeze(
-    dag: dict, source_id: str, target_id: str, scope: str
-) -> list[str]:
-    """冻结路径操作（等待型否定）。
+    Args:
+        genealogy_id: 旧格式谱系 id（如 "001", "062"）。
+        base: block-topology 根路径。
 
     Returns:
-        操作日志列表。
+        SHA256 区块 id，或 None（id 不在映射表中）。
     """
-    log: list[str] = []
-    nodes = dag.get("nodes", [])
-    edges = dag.get("edges", {})
-
-    # 冻结目标节点
-    found = False
-    for n in nodes:
-        if str(n["id"]) == target_id:
-            n["frozen"] = True
-            n["frozen_by"] = source_id
-            log.append(f"冻结节点 {target_id}（by {source_id}）")
-            found = True
-            break
-
-    if not found:
-        log.append(f"警告: 目标节点 {target_id} 不存在于 dag.yaml")
-        return log
-
-    # 如果 scope=downstream，冻结所有以 target 为起点的 depends_on 边
-    if scope == "downstream":
-        for e in edges.get("depends_on", []):
-            if str(e.get("to", "")) == target_id:
-                e["frozen_by"] = source_id
-                log.append(
-                    f"冻结边: {e.get('from')} -> {target_id}（下游冻结）"
-                )
-
-    return log
+    meta = read_meta(base)
+    if meta is None:
+        return None
+    return meta.get("id_mapping", {}).get(str(genealogy_id))
 
 
-def apply_split(
-    dag: dict, source_id: str, target_id: str, _scope: str
-) -> list[str]:
-    """分裂节点操作（扩张型否定）。
+# ── 拓扑操作写入（block-topology） ──
+
+def write_freeze(
+    source_id: str,
+    target_id: str,
+    scope: str,
+    base: Path = DEFAULT_BASE,
+) -> dict:
+    """冻结拓扑操作——写入 event 区块 + freezes 关系。
+
+    scope=downstream 的语义由查询方保证：查询时看到 scope: downstream
+    就知道该区块的所有下游也被冻结。写入时不展开 downstream——区块不可变，
+    不能回去改已有区块的 frozen 字段。
+
+    Args:
+        source_id: 触发操作的谱系区块 SHA256 id。
+        target_id: 被冻结的目标区块 SHA256 id。
+        scope: "local" | "downstream"。
+        base: block-topology 根路径。
 
     Returns:
-        操作日志列表。
+        写入的 event 区块 dict。
     """
-    log: list[str] = []
-    nodes = dag.get("nodes", [])
-
-    original = None
-    for n in nodes:
-        if str(n["id"]) == target_id:
-            original = n
-            break
-
-    if original is None:
-        log.append(f"警告: 目标节点 {target_id} 不存在于 dag.yaml")
-        return log
-
-    node_a = {
-        **copy.deepcopy(original),
-        "id": f"{target_id}-a",
-        "split_from": target_id,
-        "split_by": source_id,
-    }
-    node_b = {
-        **copy.deepcopy(original),
-        "id": f"{target_id}-b",
-        "split_from": target_id,
-        "split_by": source_id,
-    }
-    original["split_into"] = [f"{target_id}-a", f"{target_id}-b"]
-    original["split_by"] = source_id
-
-    nodes.append(node_a)
-    nodes.append(node_b)
-    log.append(
-        f"分裂节点 {target_id} → {target_id}-a + {target_id}-b（by {source_id}）"
+    content = {"action": "freeze", "target": target_id, "scope": scope}
+    refs = [source_id]
+    block_id = compute_block_id("event", "cc", content, refs)
+    relations = [
+        make_relation(block_id, target_id, "freezes", order=1,
+                      created_by=block_id),
+    ]
+    return write_block_with_relations(
+        "event", "cc", content, refs, relations, base=base,
     )
 
-    return log
 
+def write_split(
+    source_id: str,
+    target_id: str,
+    scope: str,
+    base: Path = DEFAULT_BASE,
+) -> dict:
+    """分裂拓扑操作——写入 event 区块 + splits 关系。
 
-def apply_sever(
-    dag: dict, source_id: str, target_id: str, _scope: str
-) -> list[str]:
-    """切断连接操作（分离型否定）。
+    语义约束（编排者决断）：split 记录的是"此处发生了分裂"，不是"产生了
+    两个新实体"。分支的独立演化是后续谱系事件——如果分支A被否定而分支B存活，
+    这通过后续 event 区块引用 split event 来间接表达。
+
+    Args:
+        source_id: 触发操作的谱系区块 SHA256 id。
+        target_id: 被分裂的目标区块 SHA256 id。
+        scope: "local" | "downstream"。
+        base: block-topology 根路径。
 
     Returns:
-        操作日志列表。
+        写入的 event 区块 dict。
     """
-    log: list[str] = []
-    edges = dag.get("edges", {})
-
-    # 有向边
-    for edge_type in ("depends_on", "negates"):
-        for e in edges.get(edge_type, []):
-            if (
-                str(e.get("from", "")) == target_id
-                or str(e.get("to", "")) == target_id
-            ):
-                e["severed_by"] = source_id
-                log.append(
-                    f"切断 {edge_type} 边（涉及 {target_id}，by {source_id}）"
-                )
-
-    # 无向边
-    for edge_type in ("related", "tensions_with"):
-        for e in edges.get(edge_type, []):
-            pair = e.get("between", [])
-            if target_id in [str(p) for p in pair]:
-                e["severed_by"] = source_id
-                log.append(
-                    f"切断 {edge_type} 边（涉及 {target_id}，by {source_id}）"
-                )
-
-    if not log:
-        log.append(f"无涉及 {target_id} 的边需要切断")
-
-    return log
+    content = {"action": "split", "target": target_id, "scope": scope}
+    refs = [source_id]
+    block_id = compute_block_id("event", "cc", content, refs)
+    relations = [
+        make_relation(block_id, target_id, "splits", order=1,
+                      created_by=block_id),
+    ]
+    return write_block_with_relations(
+        "event", "cc", content, refs, relations, base=base,
+    )
 
 
-TOPO_OPERATORS = {
-    "freeze": apply_freeze,
-    "split": apply_split,
-    "sever": apply_sever,
+def write_sever(
+    source_id: str,
+    target_id: str,
+    scope: str,
+    base: Path = DEFAULT_BASE,
+) -> dict:
+    """切断连接拓扑操作——写入 event 区块 + severs 关系。
+
+    Args:
+        source_id: 触发操作的谱系区块 SHA256 id。
+        target_id: 被切断连接的目标区块 SHA256 id。
+        scope: "local" | "downstream"。
+        base: block-topology 根路径。
+
+    Returns:
+        写入的 event 区块 dict。
+    """
+    content = {"action": "sever", "target": target_id, "scope": scope}
+    refs = [source_id]
+    block_id = compute_block_id("event", "cc", content, refs)
+    relations = [
+        make_relation(block_id, target_id, "severs", order=1,
+                      created_by=block_id),
+    ]
+    return write_block_with_relations(
+        "event", "cc", content, refs, relations, base=base,
+    )
+
+
+TOPO_WRITERS = {
+    "freeze": write_freeze,
+    "split": write_split,
+    "sever": write_sever,
 }
 
 
-def compute_load_bearing_score(dag: dict, node_id: str) -> dict:
-    """基于 DAG 后代节点数 + 级联否定影响范围的承重点评分（176号下游推论3）。
-
-    在 depends_on 图中，"from" 依赖 "to"。因此 node_id 的后代是
-    所有 depends_on 边中以 node_id 为 "to"（直接或传递）的节点。
-
-    级联否定影响：如果 node_id 被否定（negates 边），其所有后代节点的
-    depends_on 链断裂。
+def execute_topo_effect(
+    source_id: str,
+    effect_type: str,
+    target_id: str,
+    scope: str,
+    base: Path = DEFAULT_BASE,
+) -> dict:
+    """执行拓扑操作——调度到具体写入函数。
 
     Args:
-        dag: dag.yaml 数据。
-        node_id: 目标节点 ID。
+        source_id: 触发操作的谱系区块 SHA256 id。
+        effect_type: freeze | split | sever。
+        target_id: 操作目标区块 SHA256 id。
+        scope: local | downstream。
+        base: block-topology 根路径。
+
+    Returns:
+        {"executed": bool, "log": list[str], "block": dict|None}
+    """
+    writer = TOPO_WRITERS.get(effect_type)
+    if writer is None:
+        return {
+            "executed": False,
+            "log": [f"错误: 未知拓扑操作类型 '{effect_type}'"],
+            "block": None,
+        }
+    block = writer(source_id, target_id, scope, base)
+    desc = TOPO_DESCRIPTIONS.get(effect_type, effect_type)
+    return {
+        "executed": True,
+        "log": [f"{desc}：{target_id}（by {source_id}，scope={scope}）"],
+        "block": block,
+    }
+
+
+# ── 承重点评分（从 block-topology relations 构建图） ──
+
+def compute_load_bearing_score(
+    block_id: str, base: Path = DEFAULT_BASE
+) -> dict:
+    """基于 block-topology relations 的承重点评分（176号下游推论3）。
+
+    从 relations.jsonl 构建 depends_on 图，计算后代节点数 + 级联否定影响范围。
+
+    正确分母 = 拓扑图实际参与者（出现在 depends_on/negates 关系的 from 或 to
+    中的区块），不包含 rewrite/consensus/residue 等非谱系区块。
+
+    Args:
+        block_id: 目标区块 SHA256 id。
+        base: block-topology 根路径。
 
     Returns:
         {"descendants": N, "cascade_impact": M, "score": N+M,
          "is_load_bearing": bool, "threshold": T}
     """
-    nodes = dag.get("nodes", [])
-    edges = dag.get("edges", {})
-    all_ids = {str(n["id"]) for n in nodes}
-    total_nodes = len(all_ids)
-    nid = str(node_id)
+    all_rels = read_all_relations(base)
 
-    # Build adjacency: parent -> set of children (depends_on: from depends on to)
-    # "to" is the parent, "from" is the child
-    children_of: dict[str, set[str]] = {str(n["id"]): set() for n in nodes}
-    for e in edges.get("depends_on", []):
-        parent = str(e.get("to", ""))
-        child = str(e.get("from", ""))
-        if parent in children_of:
-            children_of[parent].add(child)
+    # 构建 depends_on 图（children_of）和 negates 图
+    # depends_on: from depends on to → to 是 parent, from 是 child
+    children_of: dict[str, set[str]] = {}
+    negates_targets: dict[str, set[str]] = {}
+    topo_participants: set[str] = set()
 
-    # Compute transitive descendants via BFS
+    for rel in all_rels:
+        rel_type = rel.get("relation")
+        if rel_type == "depends_on" and rel.get("order") == 1:
+            parent = rel["to"]
+            child = rel["from"]
+            children_of.setdefault(parent, set()).add(child)
+            topo_participants.add(parent)
+            topo_participants.add(child)
+        elif rel_type == "negates" and rel.get("order") == 1:
+            negates_targets.setdefault(rel["from"], set()).add(rel["to"])
+            topo_participants.add(rel["from"])
+            topo_participants.add(rel["to"])
+
+    total_nodes = len(topo_participants)
+
+    # BFS 后代计算
     descendants: set[str] = set()
-    queue = list(children_of.get(nid, set()))
+    queue = list(children_of.get(block_id, set()))
     while queue:
         current = queue.pop()
         if current not in descendants:
             descendants.add(current)
             queue.extend(children_of.get(current, set()) - descendants)
 
-    # Cascade impact: nodes that are negated by this node (negates edges)
-    # plus all descendants of those negated nodes
-    negated_targets: set[str] = set()
-    for e in edges.get("negates", []):
-        if str(e.get("from", "")) == nid:
-            negated_targets.add(str(e.get("to", "")))
-
+    # 级联否定影响：被此节点否定的节点 + 它们的所有后代
+    negated = negates_targets.get(block_id, set())
     cascade_nodes: set[str] = set()
-    for target in negated_targets:
-        # The negated target itself
+    for target in negated:
         cascade_nodes.add(target)
-        # Plus all descendants of the negated target
         q = list(children_of.get(target, set()))
         while q:
             c = q.pop()
@@ -337,7 +365,7 @@ def compute_load_bearing_score(dag: dict, node_id: str) -> dict:
                 cascade_nodes.add(c)
                 q.extend(children_of.get(c, set()) - cascade_nodes)
 
-    # Remove overlap with descendants (don't double-count)
+    # 去重
     cascade_only = cascade_nodes - descendants
 
     desc_count = len(descendants)
@@ -354,121 +382,7 @@ def compute_load_bearing_score(dag: dict, node_id: str) -> dict:
     }
 
 
-def execute_topo_effect(
-    dag: dict,
-    source_id: str,
-    effect_type: str,
-    target_id: str,
-    scope: str,
-) -> list[str]:
-    """执行拓扑操作。
-
-    Args:
-        dag: dag.yaml 数据。
-        source_id: 触发操作的谱系 ID。
-        effect_type: freeze | split | sever。
-        target_id: 操作目标节点 ID。
-        scope: local | downstream。
-
-    Returns:
-        操作日志列表。
-    """
-    operator = TOPO_OPERATORS.get(effect_type)
-    if operator is None:
-        return [f"错误: 未知拓扑操作类型 '{effect_type}'"]
-    return operator(dag, source_id, target_id, scope)
-
-
-def auto_execute_from_file(
-    genealogy_path: str, dag_path: str = ".chanlun/genealogy/dag.yaml"
-) -> dict:
-    """RTAS 循环调用入口：从谱系文件提取 topo_effect 并执行。
-
-    流程：
-    1. 读取谱系文件，提取 frontmatter
-    2. 检查 topo_executed_at 是否已存在（已执行则跳过）
-    3. 提取 topo_effect，验证是结构化格式（type:target:scope）
-    4. 无 topo_effect 或非结构化 → 返回 executed=False
-    5. 检查目标节点承重性（compute_load_bearing_score）
-    6. 承重点 → 返回 executed=False, load_bearing=True, warning
-    7. 非承重点 → 执行拓扑操作（修改 dag.yaml）
-    8. 执行后在谱系文件 frontmatter 追加 topo_executed_at
-
-    Returns:
-        {"executed": bool, "effect": str|None, "log": list[str],
-         "load_bearing": bool, "source_id": str}
-    """
-    gpath = Path(genealogy_path)
-    dpath = Path(dag_path)
-
-    result: dict[str, Any] = {
-        "executed": False,
-        "effect": None,
-        "log": [],
-        "load_bearing": False,
-        "source_id": "unknown",
-    }
-
-    # 1. 读取谱系文件
-    if not gpath.exists():
-        result["log"].append(f"谱系文件不存在: {genealogy_path}")
-        return result
-
-    content = gpath.read_text(encoding="utf-8")
-    fields = extract_genealogy_fields(content)
-    source_id = str(fields.get("id", "unknown"))
-    result["source_id"] = source_id
-
-    # 2. 检查是否已执行
-    if fields.get("topo_executed_at"):
-        result["log"].append(f"谱系 {source_id}: 已执行（topo_executed_at={fields['topo_executed_at']}），跳过")
-        return result
-
-    # 3. 提取结构化 topo_effect
-    te_str = str(fields.get("topo_effect", "")).strip()
-    parsed = parse_topo_effect(te_str)
-    if parsed is None:
-        result["log"].append(f"谱系 {source_id}: 无结构化 topo_effect（'{te_str}'），跳过")
-        return result
-
-    effect_type, target_id, scope = parsed
-    result["effect"] = f"{effect_type}:{target_id}:{scope}"
-
-    # 4. 加载 DAG
-    if not dpath.exists():
-        result["log"].append(f"dag.yaml 不存在: {dag_path}")
-        return result
-
-    dag = load_dag(dpath)
-
-    # 5. 检查承重性
-    lb = compute_load_bearing_score(dag, target_id)
-    result["load_bearing"] = lb["is_load_bearing"]
-
-    if lb["is_load_bearing"]:
-        result["log"].append(
-            f"谱系 {source_id}: 目标 {target_id} 是承重点"
-            f"（score={lb['score']}, threshold={lb['threshold']}），"
-            f"拒绝自动执行 {effect_type}"
-        )
-        return result
-
-    # 6. 执行拓扑操作
-    op_log = execute_topo_effect(dag, source_id, effect_type, target_id, scope)
-    result["log"].extend(op_log)
-
-    # 7. 保存 dag.yaml
-    save_dag(dag, dpath)
-    result["log"].append(f"dag.yaml 已更新")
-
-    # 8. 回写 topo_executed_at 到谱系文件 frontmatter
-    today = datetime.date.today().isoformat()
-    _write_topo_executed_at(gpath, today)
-    result["log"].append(f"谱系文件 {source_id}: 写入 topo_executed_at: \"{today}\"")
-
-    result["executed"] = True
-    return result
-
+# ── 谱系文件回写 ──
 
 def _write_topo_executed_at(genealogy_path: Path, date_str: str) -> None:
     """在谱系文件的 YAML frontmatter 中追加 topo_executed_at 字段。
@@ -498,9 +412,122 @@ def _write_topo_executed_at(genealogy_path: Path, date_str: str) -> None:
     genealogy_path.write_text("\n".join(lines), encoding="utf-8")
 
 
+# ── RTAS 循环入口 ──
+
+def auto_execute_from_file(
+    genealogy_path: str, base: str | Path = DEFAULT_BASE
+) -> dict:
+    """RTAS 循环调用入口：从谱系文件提取 topo_effect 并写入 block-topology。
+
+    流程：
+    1. 读取谱系文件，提取 frontmatter
+    2. 检查 topo_executed_at 是否已存在（已执行则跳过）
+    3. 提取 topo_effect，验证是结构化格式（type:target:scope）
+    4. 无 topo_effect 或非结构化 → 返回 executed=False
+    5. 通过 meta.json id_mapping 将旧谱系 id 解析为 SHA256
+    6. 检查目标节点承重性（compute_load_bearing_score）
+    7. 承重点 → 返回 executed=False, load_bearing=True, warning
+    8. 非承重点 → 执行拓扑操作（写入 block-topology）
+    9. 执行后在谱系文件 frontmatter 追加 topo_executed_at
+
+    Returns:
+        {"executed": bool, "effect": str|None, "log": list[str],
+         "load_bearing": bool, "source_id": str}
+    """
+    gpath = Path(genealogy_path)
+    bpath = Path(base)
+
+    result: dict[str, Any] = {
+        "executed": False,
+        "effect": None,
+        "log": [],
+        "load_bearing": False,
+        "source_id": "unknown",
+    }
+
+    # 1. 读取谱系文件
+    if not gpath.exists():
+        result["log"].append(f"谱系文件不存在: {genealogy_path}")
+        return result
+
+    content = gpath.read_text(encoding="utf-8")
+    fields = extract_genealogy_fields(content)
+    source_id = str(fields.get("id", "unknown"))
+    result["source_id"] = source_id
+
+    # 2. 检查是否已执行
+    if fields.get("topo_executed_at"):
+        result["log"].append(
+            f"谱系 {source_id}: 已执行"
+            f"（topo_executed_at={fields['topo_executed_at']}），跳过"
+        )
+        return result
+
+    # 3. 提取结构化 topo_effect
+    te_str = str(fields.get("topo_effect", "")).strip()
+    parsed = parse_topo_effect(te_str)
+    if parsed is None:
+        result["log"].append(
+            f"谱系 {source_id}: 无结构化 topo_effect（'{te_str}'），跳过"
+        )
+        return result
+
+    effect_type, target_id, scope = parsed
+    result["effect"] = f"{effect_type}:{target_id}:{scope}"
+
+    # 4. 解析旧谱系 id 为 SHA256
+    source_sha = resolve_genealogy_id(source_id, bpath)
+    target_sha = resolve_genealogy_id(target_id, bpath)
+
+    if source_sha is None:
+        result["log"].append(
+            f"谱系 {source_id}: source id '{source_id}' "
+            f"不在 meta.json id_mapping 中"
+        )
+        return result
+
+    if target_sha is None:
+        result["log"].append(
+            f"谱系 {source_id}: target id '{target_id}' "
+            f"不在 meta.json id_mapping 中"
+        )
+        return result
+
+    # 5. 检查承重性
+    lb = compute_load_bearing_score(target_sha, bpath)
+    result["load_bearing"] = lb["is_load_bearing"]
+
+    if lb["is_load_bearing"]:
+        result["log"].append(
+            f"谱系 {source_id}: 目标 {target_id} 是承重点"
+            f"（score={lb['score']}, threshold={lb['threshold']}），"
+            f"拒绝自动执行 {effect_type}"
+        )
+        return result
+
+    # 6. 执行拓扑操作（写入 block-topology）
+    exec_result = execute_topo_effect(
+        source_sha, effect_type, target_sha, scope, bpath,
+    )
+    result["log"].extend(exec_result["log"])
+
+    if not exec_result["executed"]:
+        return result
+
+    # 7. 回写 topo_executed_at 到谱系文件 frontmatter
+    today = datetime.date.today().isoformat()
+    _write_topo_executed_at(gpath, today)
+    result["log"].append(
+        f"谱系文件 {source_id}: 写入 topo_executed_at: \"{today}\""
+    )
+
+    result["executed"] = True
+    return result
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="矛盾→拓扑操作自动映射（147号谱系）"
+        description="矛盾→拓扑操作自动映射（147号谱系 + 178号-2升格）"
     )
     parser.add_argument(
         "--genealogy",
@@ -521,14 +548,14 @@ def main() -> int:
         help="操作范围（默认 local）",
     )
     parser.add_argument(
-        "--dag",
-        default=".chanlun/genealogy/dag.yaml",
-        help="dag.yaml 路径（默认 .chanlun/genealogy/dag.yaml）",
+        "--base",
+        default=str(DEFAULT_BASE),
+        help=f"block-topology 根路径（默认 {DEFAULT_BASE}）",
     )
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="只报告将执行的操作，不修改 dag.yaml",
+        help="只报告将执行的操作，不写入 block-topology",
     )
     args = parser.parse_args()
 
@@ -606,36 +633,47 @@ def main() -> int:
         )
         return 1
 
-    # 加载 DAG
-    dag_path = Path(args.dag)
-    if not dag_path.exists():
-        print(f"错误: dag.yaml 不存在: {args.dag}", file=sys.stderr)
-        return 1
+    # 解析 id → SHA256（如果 base 中有 meta.json）
+    base = Path(args.base)
+    source_sha = resolve_genealogy_id(source_id, base)
+    target_sha = resolve_genealogy_id(target_id, base)
 
-    dag = load_dag(dag_path)
+    # 如果没有 id_mapping，使用原始 id（CLI 可能直接传 SHA256）
+    if source_sha is None:
+        source_sha = source_id
+    if target_sha is None:
+        target_sha = target_id
 
     # 报告
     desc = TOPO_DESCRIPTIONS.get(effect_type, effect_type)
     print(f"\n{'=' * 60}")
-    print(f"  矛盾→拓扑操作（147号）")
+    print(f"  矛盾→拓扑操作（147号 + 178号-2）")
     print(f"{'=' * 60}")
     print(f"  来源谱系: {source_id}")
     print(f"  操作类型: {effect_type} — {desc}")
     print(f"  目标节点: {target_id}")
     print(f"  操作范围: {scope}")
     print(f"  模式: {'dry-run（不修改）' if args.dry_run else '执行'}")
+    print(f"  block-topology: {base}")
     print(f"{'=' * 60}\n")
 
+    if args.dry_run:
+        print(f"[dry-run] 以上操作未实际执行")
+        return 0
+
     # 执行
-    log = execute_topo_effect(dag, source_id, effect_type, target_id, scope)
-    for entry in log:
+    exec_result = execute_topo_effect(
+        source_sha, effect_type, target_sha, scope, base,
+    )
+    for entry in exec_result["log"]:
         print(f"  {entry}")
 
-    if not args.dry_run:
-        save_dag(dag, dag_path)
-        print(f"\ndag.yaml 已更新: {len(dag.get('nodes', []))} 节点")
+    if exec_result["executed"]:
+        block = exec_result["block"]
+        print(f"\nblock-topology 已写入: event block {block['id'][:16]}...")
     else:
-        print(f"\n[dry-run] 以上操作未实际执行")
+        print(f"\n执行失败")
+        return 1
 
     return 0
 
