@@ -1,0 +1,22 @@
+{
+  "id": "7324d9058217c214128e80538e8bddccacdf58364c42f5327c5bc15f9c791a1f",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.197798+00:00",
+  "source": "migration",
+  "content": {
+    "id": "156",
+    "status": "已结算",
+    "type": "语法记录（编排者 INTERRUPT）",
+    "date": "2026-02-23",
+    "depends_on": [
+      "055-no-simple-task-exemption",
+      "154-ceremony-empty-swarm-path"
+    ],
+    "negates": [
+      "154"
+    ],
+    "source_file": "settled\\156-negate-ceremony-empty-swarm-path.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

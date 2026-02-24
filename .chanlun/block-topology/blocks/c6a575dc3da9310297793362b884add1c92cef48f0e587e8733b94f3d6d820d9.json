@@ -1,0 +1,25 @@
+{
+  "id": "c6a575dc3da9310297793362b884add1c92cef48f0e587e8733b94f3d6d820d9",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.158670+00:00",
+  "source": "migration",
+  "content": {
+    "id": "108",
+    "title": "背驰定义到实现的选择谱系",
+    "status": "已结算",
+    "type": "语法记录",
+    "date": "2026-02-22",
+    "depends_on": [],
+    "related": [
+      "004",
+      "007",
+      "009"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "provenance": "[旧缠论:选择]",
+    "source_file": "settled\\108-beichi-impl-choices.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

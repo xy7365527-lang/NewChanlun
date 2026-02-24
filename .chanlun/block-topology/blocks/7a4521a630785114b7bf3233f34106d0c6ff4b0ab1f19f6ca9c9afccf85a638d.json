@@ -1,0 +1,23 @@
+{
+  "id": "7a4521a630785114b7bf3233f34106d0c6ff4b0ab1f19f6ca9c9afccf85a638d",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.050959+00:00",
+  "source": "migration",
+  "content": {
+    "id": "004",
+    "title": "概念溯源框架 004：旧缠论 vs 新缠论",
+    "status": "已结算",
+    "type": "元概念（meta-concept）",
+    "date": "2026-02-16",
+    "depends_on": [],
+    "related": [
+      "003",
+      "005b"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled\\004-provenance-framework.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

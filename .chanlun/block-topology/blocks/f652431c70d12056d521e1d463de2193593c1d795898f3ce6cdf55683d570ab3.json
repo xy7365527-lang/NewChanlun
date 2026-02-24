@@ -1,0 +1,25 @@
+{
+  "id": "f652431c70d12056d521e1d463de2193593c1d795898f3ce6cdf55683d570ab3",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.084582+00:00",
+  "source": "migration",
+  "content": {
+    "id": "035",
+    "title": "035 数学工具结晶：从 PDF 到 skill 的压缩",
+    "status": "已结算",
+    "type": "语法记录（已在运作的规则显式化：数学语言与缠论语言的对应关系）",
+    "date": "2026-02-18",
+    "depends_on": [],
+    "related": [
+      "020",
+      "020a",
+      "023",
+      "025"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled\\035-math-tools-crystallization.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

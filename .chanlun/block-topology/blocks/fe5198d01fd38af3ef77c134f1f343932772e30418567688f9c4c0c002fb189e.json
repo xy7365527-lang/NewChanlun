@@ -1,0 +1,33 @@
+{
+  "id": "fe5198d01fd38af3ef77c134f1f343932772e30418567688f9c4c0c002fb189e",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.203560+00:00",
+  "source": "migration",
+  "content": {
+    "id": "166",
+    "title": "亏格/genus——递归运动的不可消除拓扑残余",
+    "status": "已结算（附张力）",
+    "type": "语法记录",
+    "date": "2026-02-23",
+    "negation_source": "heterogeneous",
+    "negation_form": "双向收敛（Gemini质询后修正术语边界，保留结构映射）",
+    "depends_on": [
+      "139",
+      "069",
+      "093",
+      "064"
+    ],
+    "related": [
+      "005b",
+      "020",
+      "089",
+      "068"
+    ],
+    "tensions_with": [
+      "{'target': '139号亏格重定义', 'content': 'Gemini指出：puncture与genus是不同拓扑操作，DAG节点增加不等同于流形genus增加。139号重定义消除了部分混淆但未完全解决离散/连续范畴差异'}"
+    ],
+    "source_file": "settled\\166-genus-as-recursive-residue.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

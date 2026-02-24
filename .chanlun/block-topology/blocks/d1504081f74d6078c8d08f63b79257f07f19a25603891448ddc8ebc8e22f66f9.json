@@ -1,0 +1,25 @@
+{
+  "id": "d1504081f74d6078c8d08f63b79257f07f19a25603891448ddc8ebc8e22f66f9",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.106931+00:00",
+  "source": "migration",
+  "content": {
+    "id": "061",
+    "title": "孤岛审计——拓扑结构的向下区间套",
+    "status": "已结算",
+    "type": "语法记录",
+    "date": "2026-02-20",
+    "depends_on": [
+      "059",
+      "060"
+    ],
+    "related": [
+      "036"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled\\061-island-audit.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,29 @@
+{
+  "id": "d0622b2a7274308963784886847b048f0164f79d7da0bdbee67c28c95a931b98",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.089829+00:00",
+  "source": "migration",
+  "content": {
+    "id": "041",
+    "title": "编排者代理（Gemini Orchestrator Proxy）",
+    "status": "已结算",
+    "type": "语法记录",
+    "date": "2026-02-20",
+    "depends_on": [
+      "028",
+      "030a",
+      "032",
+      "039"
+    ],
+    "related": [
+      "005b",
+      "018",
+      "020"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled\\041-orchestrator-proxy.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

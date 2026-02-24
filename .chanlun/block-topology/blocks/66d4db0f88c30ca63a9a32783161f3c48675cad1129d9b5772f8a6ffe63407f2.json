@@ -1,0 +1,28 @@
+{
+  "id": "66d4db0f88c30ca63a9a32783161f3c48675cad1129d9b5772f8a6ffe63407f2",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.105353+00:00",
+  "source": "migration",
+  "content": {
+    "id": "059",
+    "title": "元编排层结构性审计——线性/拓扑/递归三维诊断",
+    "status": "已结算",
+    "type": "语法记录",
+    "date": "2026-02-20",
+    "depends_on": [
+      "020",
+      "033",
+      "036",
+      "056",
+      "058"
+    ],
+    "related": [
+      "012"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled\\059-structural-audit.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,27 @@
+{
+  "id": "047bf7204b8fc2ea0e4b109e14ae2f12f479b8d166f41b8c0df97158251cff0b",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.102139+00:00",
+  "source": "migration",
+  "content": {
+    "id": "055",
+    "title": "双螺旋架构：Gemini 数学原则到元编排的移植",
+    "status": "已结算",
+    "type": "选择（已决断）",
+    "date": "2026-02-20",
+    "depends_on": [
+      "042",
+      "051",
+      "053"
+    ],
+    "related": [
+      "049",
+      "054"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled\\055-double-helix-architecture.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

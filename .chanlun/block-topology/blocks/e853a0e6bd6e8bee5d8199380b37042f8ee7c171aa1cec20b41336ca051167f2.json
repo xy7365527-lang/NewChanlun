@@ -1,0 +1,24 @@
+{
+  "id": "e853a0e6bd6e8bee5d8199380b37042f8ee7c171aa1cec20b41336ca051167f2",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.083772+00:00",
+  "source": "migration",
+  "content": {
+    "id": "034",
+    "title": "034 工具声明与工具能力的不一致性",
+    "status": "已结算",
+    "type": "矛盾记录",
+    "date": "2026-02-17",
+    "depends_on": [],
+    "related": [
+      "016",
+      "032",
+      "033"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled\\034-tool-declaration-vs-capability.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

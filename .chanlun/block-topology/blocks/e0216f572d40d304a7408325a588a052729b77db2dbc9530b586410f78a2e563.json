@@ -1,0 +1,32 @@
+{
+  "id": "e0216f572d40d304a7408325a588a052729b77db2dbc9530b586410f78a2e563",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.109659+00:00",
+  "source": "migration",
+  "content": {
+    "id": "064",
+    "title": "晚期拉康拓扑学与蜂群递归——异质对话谱系",
+    "status": "已结算",
+    "type": "语法记录",
+    "date": "2026-02-20",
+    "depends_on": [
+      "020",
+      "053",
+      "062",
+      "063"
+    ],
+    "related": [
+      "005b"
+    ],
+    "negates": [
+      "062"
+    ],
+    "negated_by": [],
+    "tensions_with": [
+      "065"
+    ],
+    "source_file": "settled\\064-lacan-topology-heterogeneous-dialogue.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

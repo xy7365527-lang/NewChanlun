@@ -1,0 +1,32 @@
+{
+  "id": "4ddbbf2d41af397f3ca5c4c25d91d7636e065f275b1d297121b08fa20573ec4e",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.128736+00:00",
+  "source": "migration",
+  "content": {
+    "id": "080",
+    "title": "NegationObject 本体论修正：从德勒兹替代路径到拉康结构性死结",
+    "status": "已结算",
+    "type": "语法记录",
+    "date": "2026-02-21",
+    "negation_source": "heterogeneous",
+    "negation_form": "separation",
+    "depends_on": [
+      "064",
+      "005b",
+      "005a",
+      "078"
+    ],
+    "related": [
+      "062",
+      "030a",
+      "031"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "provenance": "[新缠论]",
+    "source_file": "settled\\080-negationobject-lacan-correction.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

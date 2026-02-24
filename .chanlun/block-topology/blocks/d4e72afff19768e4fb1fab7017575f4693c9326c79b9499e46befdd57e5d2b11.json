@@ -1,0 +1,25 @@
+{
+  "id": "d4e72afff19768e4fb1fab7017575f4693c9326c79b9499e46befdd57e5d2b11",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.097422+00:00",
+  "source": "migration",
+  "content": {
+    "id": "050",
+    "title": "守恒约束语义空洞：方向守恒 ≠ 资本守恒",
+    "status": "已结算",
+    "type": "定理",
+    "date": "2026-02-20",
+    "depends_on": [
+      "026",
+      "047"
+    ],
+    "related": [
+      "025"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled\\050-conservation-semantic-void.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,27 @@
+{
+  "id": "d5cbaf79256a4a0b5675886bae302d7efc85a599dd21481c64f71b23807b3f54",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.140140+00:00",
+  "source": "migration",
+  "content": {
+    "id": "090",
+    "title": "严格性是蜂群的语法规则——从个案否定到永久原则",
+    "status": "已结算",
+    "type": "语法记录",
+    "date": "2026-02-21",
+    "depends_on": [
+      "089",
+      "087",
+      "005b"
+    ],
+    "related": [
+      "086",
+      "084"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled\\090-strictness-grammar-rule.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,26 @@
+{
+  "id": "5116f126ac878290f370e883dbea073a5fbd679e167c134e9d6994e0c3e174fe",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.147207+00:00",
+  "source": "migration",
+  "content": {
+    "id": "096",
+    "title": "蜂群规则的分布式存在形式——完全禁用孤立 subagent，无例外",
+    "status": "已结算",
+    "type": "选择",
+    "date": "2026-02-22",
+    "negation_source": "编排者 INTERRUPT + Gemini decide（异质决断）",
+    "negation_form": "expansion（095号\"唯一例外\"条款被否定——架构纯粹性优先于实用性）",
+    "depends_on": [
+      "089",
+      "090",
+      "093",
+      "095"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled\\096-distributed-rules-no-exception.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

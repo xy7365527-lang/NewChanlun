@@ -1,0 +1,28 @@
+{
+  "id": "7c4df4b52e081756c1eeae90380848db75a4b4cd37b298e7f018b823651184f5",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.117809+00:00",
+  "source": "migration",
+  "content": {
+    "id": "072",
+    "title": "Hook 强制层的双重前提——执行保障与阻断语义",
+    "status": "已结算",
+    "type": "语法记录",
+    "date": "2026-02-21",
+    "depends_on": [
+      "013",
+      "042",
+      "071"
+    ],
+    "related": [
+      "016",
+      "033",
+      "070"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled\\072-hook-enforcement-dual-prerequisite.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

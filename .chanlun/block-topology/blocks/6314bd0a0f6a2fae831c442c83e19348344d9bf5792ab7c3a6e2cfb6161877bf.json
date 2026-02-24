@@ -1,0 +1,29 @@
+{
+  "id": "6314bd0a0f6a2fae831c442c83e19348344d9bf5792ab7c3a6e2cfb6161877bf",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.093046+00:00",
+  "source": "migration",
+  "content": {
+    "id": "045",
+    "title": "「无结构不任务」语法规则",
+    "status": "已结算",
+    "type": "语法记录",
+    "date": "2026-02-20",
+    "depends_on": [
+      "013",
+      "033",
+      "042"
+    ],
+    "related": [
+      "016",
+      "028",
+      "032",
+      "044"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled\\045-no-structure-no-task.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

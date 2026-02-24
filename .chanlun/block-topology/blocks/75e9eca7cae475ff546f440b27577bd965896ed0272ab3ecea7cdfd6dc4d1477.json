@@ -1,0 +1,31 @@
+{
+  "id": "75e9eca7cae475ff546f440b27577bd965896ed0272ab3ecea7cdfd6dc4d1477",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.154436+00:00",
+  "source": "migration",
+  "content": {
+    "id": "104",
+    "title": "三框架显式映射——069四维度/093五约束/097五特征的严格关系",
+    "status": "已结算",
+    "type": "定理",
+    "date": "2026-02-22",
+    "negation_source": "内容审计（三份审计报告识别映射不严格）",
+    "negation_form": "定理（三个框架的层面关系从已有定义逻辑推导）",
+    "depends_on": [
+      "069",
+      "093",
+      "097"
+    ],
+    "related": [
+      "062",
+      "089",
+      "094"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "provenance": "[新缠论]",
+    "source_file": "settled\\104-three-framework-mapping.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

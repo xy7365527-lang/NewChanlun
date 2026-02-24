@@ -1,0 +1,23 @@
+{
+  "id": "7333526ce4ac7d6dd8fe5bdb06497ccf4dcb8bc2beed57f9a2f10a408e1fa577",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.198911+00:00",
+  "source": "migration",
+  "content": {
+    "id": "158",
+    "status": "已结算",
+    "type": "语法记录（编排者方针）",
+    "date": "2026-02-23",
+    "depends_on": [
+      "069-recursive-topology-async-self-referential-swarm",
+      "083-clean-terminate-d-strategy",
+      "084-comprehensive-island-audit",
+      "089-meta-orchestration-aufhebung-audit",
+      "147-topology-effect",
+      "156-negate-ceremony-empty-swarm-path"
+    ],
+    "source_file": "settled\\158-three-step-strategy-topology-effect.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

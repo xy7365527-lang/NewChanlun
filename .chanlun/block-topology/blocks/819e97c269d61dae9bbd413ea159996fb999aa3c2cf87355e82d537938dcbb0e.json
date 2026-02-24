@@ -1,0 +1,33 @@
+{
+  "id": "819e97c269d61dae9bbd413ea159996fb999aa3c2cf87355e82d537938dcbb0e",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.184677+00:00",
+  "source": "migration",
+  "content": {
+    "id": "134",
+    "title": "v37全体系声明-能力缺口审计——P0修复批",
+    "status": "已结算",
+    "type": "行动",
+    "date": "2026-02-22",
+    "negation_source": "v37-swarm 三层审计（principles/infra/genealogy）",
+    "negation_form": "行动（声明-能力缺口修复，不携带信息差）",
+    "depends_on": [
+      "088",
+      "081",
+      "132",
+      "075"
+    ],
+    "related": [
+      "091",
+      "130",
+      "090",
+      "133"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "provenance": "[新缠论]",
+    "source_file": "settled\\134-v37-gap-audit-fix.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

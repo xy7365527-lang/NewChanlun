@@ -1,0 +1,24 @@
+{
+  "id": "37ea1b2b4dea9ffcc460279a1d96ce6b6d8211f0d5d066c1ada8905c50a22eb6",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.163358+00:00",
+  "source": "migration",
+  "content": {
+    "id": "113",
+    "title": "包含处理工程选择谱系",
+    "status": "已结算",
+    "type": "语法记录",
+    "date": "2026-02-22",
+    "depends_on": [],
+    "related": [
+      "001",
+      "002"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "provenance": "[旧缠论:选择]",
+    "source_file": "settled\\113-baohan-engineering-choices.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

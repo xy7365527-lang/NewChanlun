@@ -1,0 +1,29 @@
+{
+  "id": "562ad6b9f0ddc622b15f94a6d8398eaab57c83b51caa65fb03dd2de00e758766",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.106175+00:00",
+  "source": "migration",
+  "content": {
+    "id": "060",
+    "title": "元编排 3+1 架构原则——蜂群递归/异步自指/拓扑/结晶",
+    "status": "已结算",
+    "type": "语法记录",
+    "date": "2026-02-20",
+    "depends_on": [
+      "013",
+      "020a",
+      "053",
+      "056",
+      "059"
+    ],
+    "related": [
+      "020",
+      "055"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled\\060-three-plus-one-architecture.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

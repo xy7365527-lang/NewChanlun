@@ -1,0 +1,26 @@
+{
+  "id": "7b601c7dd1b9b1dcd7ef2f8eac05e350443ab7de0f752f3a1c07c0eb0d7e1932",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.144928+00:00",
+  "source": "migration",
+  "content": {
+    "id": "094",
+    "title": "两个 Gap 在五约束框架下的重新定位",
+    "status": "已结算",
+    "type": "概念重定位",
+    "date": "2026-02-21",
+    "negation_source": "框架迁移",
+    "negation_form": "重定位（从 R.S.I 拓扑语言迁移到五约束有向依赖图语言）",
+    "depends_on": [
+      "069",
+      "093"
+    ],
+    "related": [
+      "058",
+      "062"
+    ],
+    "source_file": "settled\\094-gap-reposition.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,32 @@
+{
+  "id": "7699564d773350dece1360d2e0444e6a5a020b11f539283a66bfc9b3a3d6732f",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.166053+00:00",
+  "source": "migration",
+  "content": {
+    "id": "116",
+    "title": "105号声明-能力修正——Trampoline从\"永久禁止\"降级为\"退化特例需要理由\"",
+    "status": "已结算",
+    "type": "定理",
+    "date": "2026-02-22",
+    "negation_source": "v32矛盾显现审计（T3识别）+ 谱系逻辑推导",
+    "negation_form": "定理（090号语法规则 + 系统实际状态 → 105号声明必须修正）",
+    "depends_on": [
+      "090",
+      "095",
+      "104",
+      "105"
+    ],
+    "related": [
+      "073b",
+      "084",
+      "087"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "provenance": "[新缠论]",
+    "source_file": "settled\\116-105-statement-capability-correction.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

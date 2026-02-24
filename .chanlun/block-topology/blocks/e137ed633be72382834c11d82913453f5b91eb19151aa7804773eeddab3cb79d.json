@@ -1,0 +1,19 @@
+{
+  "id": "e137ed633be72382834c11d82913453f5b91eb19151aa7804773eeddab3cb79d",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.200548+00:00",
+  "source": "migration",
+  "content": {
+    "id": "161",
+    "status": "已结算",
+    "type": "语法记录",
+    "date": "2026-02-23",
+    "depends_on": [
+      "090-strictness-as-grammar",
+      "136-cost-benefit-dissolution-prohibited"
+    ],
+    "source_file": "settled\\161-negate-pragmatism.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

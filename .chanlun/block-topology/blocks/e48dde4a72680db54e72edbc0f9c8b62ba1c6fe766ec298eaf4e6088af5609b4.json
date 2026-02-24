@@ -1,0 +1,22 @@
+{
+  "id": "e48dde4a72680db54e72edbc0f9c8b62ba1c6fe766ec298eaf4e6088af5609b4",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.198314+00:00",
+  "source": "migration",
+  "content": {
+    "id": "157",
+    "status": "已结算",
+    "type": "语法记录（编排者 INTERRUPT）",
+    "date": "2026-02-23",
+    "depends_on": [
+      "156-negate-ceremony-empty-swarm-path",
+      "055-no-simple-task-exemption"
+    ],
+    "negates": [
+      "无（对规则文件中隐含分类的否定）"
+    ],
+    "source_file": "settled\\157-negate-longterm-exclusion.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

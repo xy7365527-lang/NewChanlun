@@ -1,0 +1,25 @@
+{
+  "id": "cbad454c08d4a0ecbbd038d6d79e15cf9b452d9a2cbb6b206b91116f5b68c758",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.190760+00:00",
+  "source": "migration",
+  "content": {
+    "id": "140",
+    "title": "ceremony_scan 闭合下游推论→工位的数据通路（蜂群持久化修复）",
+    "status": "已结算",
+    "type": "定理",
+    "date": "2026-02-22",
+    "depends_on": [
+      "138",
+      "134"
+    ],
+    "related": [
+      "137",
+      "139"
+    ],
+    "tensions_with": [],
+    "source_file": "settled\\140-ceremony-scan-downstream-closure.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,29 @@
+{
+  "id": "46f486537112d5499226e177dece38ad7dba8aa816854477f46f430b683ee9bb",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.096373+00:00",
+  "source": "migration",
+  "content": {
+    "id": "049",
+    "title": "统一编排协议：语义事件总线",
+    "status": "已结算",
+    "type": "选择",
+    "date": "2026-02-20",
+    "depends_on": [
+      "037",
+      "041",
+      "042",
+      "043",
+      "048"
+    ],
+    "related": [
+      "016",
+      "035"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled\\049-unified-orchestration-protocol.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

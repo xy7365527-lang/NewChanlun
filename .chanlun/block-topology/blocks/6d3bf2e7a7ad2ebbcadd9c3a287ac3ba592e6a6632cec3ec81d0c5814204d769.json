@@ -1,0 +1,25 @@
+{
+  "id": "6d3bf2e7a7ad2ebbcadd9c3a287ac3ba592e6a6632cec3ec81d0c5814204d769",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.094655+00:00",
+  "source": "migration",
+  "content": {
+    "id": "047",
+    "title": "CASH 顶点重定义：主权信用/流动性复合体",
+    "status": "已结算",
+    "type": "选择",
+    "date": "2026-02-20",
+    "depends_on": [
+      "026"
+    ],
+    "related": [
+      "022",
+      "025"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled\\047-cash-vertex-redefinition.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

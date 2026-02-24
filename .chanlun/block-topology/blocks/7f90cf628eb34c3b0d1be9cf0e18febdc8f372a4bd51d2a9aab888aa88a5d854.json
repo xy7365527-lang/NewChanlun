@@ -1,0 +1,20 @@
+{
+  "id": "7f90cf628eb34c3b0d1be9cf0e18febdc8f372a4bd51d2a9aab888aa88a5d854",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.075865+00:00",
+  "source": "migration",
+  "content": {
+    "id": "026",
+    "title": "现金角双重身份：度量基准与流转顶点",
+    "status": "已结算",
+    "type": "矛盾记录",
+    "date": "2026-02-18",
+    "depends_on": [],
+    "related": [],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled\\026-cash-vertex-dual-role.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

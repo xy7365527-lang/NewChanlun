@@ -1,0 +1,32 @@
+{
+  "id": "57de347f8511b490b3c44487a7e7bc4f654e5024942d5f67b12e1f828110721c",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.129956+00:00",
+  "source": "migration",
+  "content": {
+    "id": "081",
+    "title": "蜂群持续自动化断裂：D策略 — roadmap对象化 + scan补全 + 终止逻辑修正",
+    "status": "已结算",
+    "type": "选择",
+    "date": "2026-02-21",
+    "negation_source": "heterogeneous",
+    "negation_form": "expansion",
+    "depends_on": [
+      "041",
+      "078",
+      "079",
+      "018"
+    ],
+    "related": [
+      "058",
+      "075",
+      "076"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "provenance": "[新缠论]",
+    "source_file": "settled\\081-swarm-continuity-strategy-d.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}
