@@ -934,6 +934,16 @@ nodes:
   status: settled
   type: 矛盾发现
   file: settled/187-architecture-separation-pseudo-diagnosis.md
+- id: '188'
+  title: 多轮质询管道收敛算法——十三轮 Gemini 质询结算
+  status: 结算态
+  type: 概念发现
+  file: pending/188-gangju-auto-20260224-0741.md
+- id: '189'
+  title: 纲举目张自动检测——待质询项
+  status: 生成态
+  type: 待定
+  file: pending/189-gangju-auto-20260224-0756.md
 edges:
   depends_on:
   - from: '136'
