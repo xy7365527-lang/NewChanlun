@@ -1,0 +1,15 @@
+{
+  "id": "6100e37d99abb9a553a40af3c5a2c5839edfb6adb0bb5fc3a2eac3b4c78672cc",
+  "type": "event",
+  "timestamp": "2026-02-24T07:14:33.271548+00:00",
+  "source": "cc",
+  "content": {
+    "action": "split",
+    "target": "f9407ddb63cbf0084286eee3cc826c4636169902b68d71c43d89043270ac4533",
+    "scope": "local"
+  },
+  "refs": [
+    "184"
+  ],
+  "git_ref": ""
+}

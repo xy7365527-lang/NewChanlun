@@ -27,7 +27,7 @@ python scripts/ceremony_scan.py
 - `workstations`: 推导出的业务工位列表
 - `required_skills`: 从 dispatch-dag event_skill_map 读取的 structural skill 列表
 
-**这是 ceremony 中唯一允许的 Bash 调用。**
+**这是 ceremony 步骤 1 的 Bash 调用。** 完整白名单见"绝对禁止"节。
 
 ## 步骤 2：输出摘要（谱系状态概览）
 
@@ -85,10 +85,17 @@ spawn 完成后，**立即调用 `TaskList`** 查看任务状态。然后进入 
 4. 对每个空闲的工位：检查是否有新任务可分配，没有则 `shutdown_request`
 5. 如果仍有 `in_progress` 任务：通过 `SendMessage` 询问进展，结合 `TaskList` 轮询状态
 6. **拓扑分析家**（179号）：如果 `.chanlun/block-topology/blocks/` 存在且区块数 > 0，spawn topology-analyst 冷读拓扑。spawn 时**不传递** CC 编排上下文（session 文件、蜂群状态），只传递区块拓扑数据路径 `.chanlun/block-topology/`。分析家返回拓扑报告 → CC 决断是否对奇点/模式做出回应。上下文隔离是结构性要求（179号：分析家 ≠ CC 的延伸）
-7. 所有工位完成后：写入完整 session → commit → push → **重新执行步骤1（ceremony_scan.py）**
-8. 如果步骤1发现新工位 → 回到步骤4 spawn 新工位，继续循环
-9. 如果步骤1无新工位 → 输出格式B（无待做行动）→ 执行 TeamDelete 清理蜂群
-10. 持久化由 session 结晶 + 热启动保证——下次 ceremony 从 session 热启动恢复（162号）
+7. 所有工位完成后：写入完整 session → commit → push
+8. **纲举目张分析（步骤 7.5）**：
+   ```bash
+   python scripts/gangju_analysis.py
+   ```
+   - 如果输出中 `audit_needed: true` → spawn gemini-challenger（verify 模式）+ codex-challenger（review 模式）执行双向审计
+   - 审计结果写入谱系 pending/ → commit → push
+9. 重新执行步骤1（ceremony_scan.py）——此时新 pending 会被检测到
+10. 如果步骤1发现新工位 → 回到步骤4 spawn 新工位，继续循环
+11. 如果步骤1无新工位 → 输出格式B（无待做行动）→ 执行 TeamDelete 清理蜂群
+12. 持久化由 session 结晶 + 热启动保证——下次 ceremony 从 session 热启动恢复（162号）
 
 **持久化规则**：状态结晶发生在状态转换点，不是终点。session 是蜂群跨上下文的唯一状态载体，必须在每个关键转换点更新：
 - 工位完成 → 增量写入
@@ -108,6 +115,7 @@ spawn 完成后，**立即调用 `TaskList`** 查看任务状态。然后进入 
 
 - **全生命周期禁止额外 Bash**，以下白名单例外（077-C，Gemini decide 选项B）：
   - `python scripts/ceremony_scan.py`（步骤 1）
+  - `python scripts/gangju_analysis.py`（步骤 7.5：纲举目张分析）
   - `git add` / `git commit` / `git push`（持久化不变量）
   - `git fetch` / `git rebase`（push 失败时的恢复）
   - session 文件写入（增量持久化）
