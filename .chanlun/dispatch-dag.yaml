@@ -99,6 +99,7 @@ genome_layer:
       - "spec-execution-gap"
       - "sub-swarm-ceremony"  # 096号修正 + 097号纯化：子蜂群创建流程结晶（095号谱系），由 CLAUDE.md 原则15声明 skill 路径
       - "plan-review"  # 160号：Plan 阶段多模型对审协议
+      - "consensus-ceremony-trigger"  # §21/§63：质询循环收敛→共识仪式触发协议
 
   # 存在论声明
   ontological_status: >
@@ -459,6 +460,20 @@ edges:
       condition: "新 settled 条目写入"
       trigger: "genealogy_settlement 事件触发 gemini-challenger 概念层谱系质询模式"
 
+    # 质询循环收敛 → 共识仪式（§21: 每次质询循环收敛时强制执行共识仪式）
+    # 场景 A: Gemini verify 收敛 → consensus_trigger.extract_from_gemini_verify()
+    # 场景 B: plan-review 多轮对审收敛 → consensus_trigger.extract_from_plan_review()
+    - from: gemini-challenger
+      to: genealogist
+      type: inquiry_cycle_converged
+      condition: "质询循环收敛（否定成立或不成立均为收敛）"
+      trigger: "consensus-ceremony-trigger.sh advisory hook 提示 + agent 调用 consensus_trigger.trigger_ceremony()（D策略，082号）"
+    - from: codex-challenger
+      to: genealogist
+      type: inquiry_cycle_converged
+      condition: "plan-review 多轮对审达成共识（Codex 明确确认满意）"
+      trigger: "consensus-ceremony-trigger.sh advisory hook 提示 + agent 调用 consensus_trigger.trigger_ceremony()（D策略，082号）"
+
     # 元观察者 → gemini-challenger（提案审查路径，069号）
     - from: meta-observer
       to: gemini-challenger
@@ -560,6 +575,12 @@ edges:
       action: "genealogy_conceptual_review"
       description: "谱系结算时触发 Gemini 概念层异质否定——对新结算谱系做概念层质询（175号：谱系结晶→异质否定→可能的新矛盾→新谱系）"
       priority: medium
+
+    - event: inquiry_cycle_converged
+      activates_edge: "gemini-challenger/codex-challenger → consensus-ceremony"
+      action: "trigger_consensus_ceremony"
+      description: "质询循环收敛时触发共识仪式三区块写入（§21: consensus/residue/tension 原子写入）。consensus-ceremony-trigger.sh advisory hook 检测 review-results 写入并提示"
+      priority: high
 
 # ═══════════════════════════════════════════════════════════════
 # 4. 编排者代理（041号谱系）
