@@ -12,6 +12,7 @@
 089号声明：当前为硬编码优先级扫描，不是 DAG 拓扑排序。
 147号更新：topo_effect 扫描——frozen 节点的下游工位不 spawn
 176号更新：delta_genealogy 检测——RTAS循环是否产生新谱系
+178号更新：delta_blocks 检测——block-topology 区块变化
     dispatch-dag.yaml 的 ceremony_sequence 定义了 DAG 格式的 nodes+depends_on，
     但本脚本并未实现 DAG 解析器——扫描顺序由代码逻辑决定（roadmap → session → fallback）。
     DAG 的 ceremony_sequence 由 LLM 解释执行（057号推论：LLM 不是状态机）。
@@ -477,6 +478,40 @@ def compute_delta_genealogy(root):
     return result
 
 
+def compute_delta_blocks(root):
+    """178号下游推论：检测 block-topology 区块变化。
+
+    从 meta.json 读取迁移时区块数，与当前 blocks/ 目录下 *.json 文件数比较。
+    区块系统是谱系的补充/升格，与 delta_genealogy 并存。
+    """
+    block_dir = os.path.join(root, ".chanlun/block-topology/blocks")
+    meta_path = os.path.join(root, ".chanlun/block-topology/meta.json")
+
+    # 当前区块数
+    if os.path.isdir(block_dir):
+        current_blocks = len(glob.glob(os.path.join(block_dir, "*.json")))
+    else:
+        current_blocks = 0
+
+    # 迁移时区块数（从 meta.json）
+    migration_block_count = 0
+    if os.path.isfile(meta_path):
+        try:
+            with open(meta_path, "r", encoding="utf-8") as f:
+                meta = json.load(f)
+            migration_block_count = meta.get("block_count", 0)
+        except Exception:
+            pass
+
+    delta = current_blocks - migration_block_count
+    return {
+        "migration_block_count": migration_block_count,
+        "current_block_count": current_blocks,
+        "delta": delta,
+        "warning": "区块拓扑无新区块" if delta == 0 and current_blocks > 0 else None,
+    }
+
+
 def main():
     parser = argparse.ArgumentParser(description="蜂群 spawn 通用工具")
     parser.add_argument("--skills", action="store_true", help="只输出 required_skills")
@@ -578,6 +613,9 @@ def main():
     delta_genealogy = compute_delta_genealogy(root)
     if delta_genealogy is not None:
         result["delta_genealogy"] = delta_genealogy
+
+    # 178号下游推论：Δ区块检测——block-topology 是否有新区块
+    result["delta_blocks"] = compute_delta_blocks(root)
 
     # 081号下游推论：pattern-buffer 达标模式扫描（分片版）
     pb_dir = os.path.join(root, ".chanlun/pattern-buffer")

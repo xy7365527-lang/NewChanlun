@@ -84,10 +84,11 @@ spawn 完成后，**立即调用 `TaskList`** 查看任务状态。然后进入 
 3. **增量持久化**：每次有工位完成，立即更新 session 文件（追加该工位产出摘要）。这保证中途断掉时下次热启动能恢复到最后一个已完成工位的状态
 4. 对每个空闲的工位：检查是否有新任务可分配，没有则 `shutdown_request`
 5. 如果仍有 `in_progress` 任务：通过 `SendMessage` 询问进展，结合 `TaskList` 轮询状态
-6. 所有工位完成后：写入完整 session → commit → push → **重新执行步骤1（ceremony_scan.py）**
-7. 如果步骤1发现新工位 → 回到步骤4 spawn 新工位，继续循环
-8. 如果步骤1无新工位 → 输出格式B（无待做行动）→ 执行 TeamDelete 清理蜂群
-9. 持久化由 session 结晶 + 热启动保证——下次 ceremony 从 session 热启动恢复（162号）
+6. **拓扑分析家**（179号）：如果 `.chanlun/block-topology/blocks/` 存在且区块数 > 0，spawn topology-analyst 冷读拓扑。spawn 时**不传递** CC 编排上下文（session 文件、蜂群状态），只传递区块拓扑数据路径 `.chanlun/block-topology/`。分析家返回拓扑报告 → CC 决断是否对奇点/模式做出回应。上下文隔离是结构性要求（179号：分析家 ≠ CC 的延伸）
+7. 所有工位完成后：写入完整 session → commit → push → **重新执行步骤1（ceremony_scan.py）**
+8. 如果步骤1发现新工位 → 回到步骤4 spawn 新工位，继续循环
+9. 如果步骤1无新工位 → 输出格式B（无待做行动）→ 执行 TeamDelete 清理蜂群
+10. 持久化由 session 结晶 + 热启动保证——下次 ceremony 从 session 热启动恢复（162号）
 
 **持久化规则**：状态结晶发生在状态转换点，不是终点。session 是蜂群跨上下文的唯一状态载体，必须在每个关键转换点更新：
 - 工位完成 → 增量写入
@@ -126,3 +127,4 @@ spawn 完成后，**立即调用 `TaskList`** 查看任务状态。然后进入 
 - 162号：否定"不执行 TeamDelete"——持久化由 RTAS 循环保证
 - 174号：谱系即生成引擎——RTAS 是谱系的实现
 - 175号：认识论反转落地——谱系驱动架构 + Codex 谱系异质否定
+- 179号：四角结构——拓扑分析家作为第四位置（上下文隔离冷读）
