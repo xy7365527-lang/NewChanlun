@@ -27,8 +27,8 @@ gangju_analysis.py 重复检测的根因：脚本没有记忆已审计过的 new
 
 ## 下游推论
 
-1. gangju_analysis.py 需要审计历史记忆——避免对已审计的 new_mu 重复生成 pending 谱系
-2. 或者：修复空 residue 区块本身（删除或填充），使检测条件不再触发
+1. ~~gangju_analysis.py 需要审计历史记忆——避免对已审计的 new_mu 重复生成 pending 谱系~~ **已完成**（_already_audited_targets 函数）
+2. 或者：修复空 residue 区块本身（删除或填充），使检测条件不再触发——192号-1 已选择去重方案，此替代方案不执行
 
 ## 谱系引用
 
