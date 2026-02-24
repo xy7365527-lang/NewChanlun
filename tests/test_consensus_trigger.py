@@ -27,6 +27,7 @@ from scripts.consensus_trigger import (
     extract_from_gemini_verify,
     extract_from_plan_review,
     find_trigger_block_for_review,
+    scan_and_trigger,
     trigger_ceremony,
 )
 
@@ -776,3 +777,93 @@ class TestEndToEnd:
         # Still produces valid ceremony
         result = trigger_ceremony(cycle, base=tmp_base)
         assert result["consensus"]["type"] == "consensus"
+
+
+# ── scan_and_trigger tests ──
+
+
+class TestScanAndTrigger:
+    """scan_and_trigger: 管道入口——从 review-results 驱动共识仪式。"""
+
+    @pytest.fixture
+    def review_dir(self, tmp_path):
+        d = tmp_path / "review-results"
+        d.mkdir()
+        return d
+
+    @pytest.fixture
+    def bt_base(self, tmp_path):
+        base = tmp_path / "block-topology"
+        base.mkdir()
+        (base / "blocks").mkdir()
+        return base
+
+    def _write_converged_codex_review(self, review_dir, filename="codex-review-test.md"):
+        content = """\
+# Codex review
+
+## Response
+
+代码通过审查。方案定稿。
+
+---stance-declaration---
+verdict: pass
+stances: {}
+concessions: []
+---end-stance---
+"""
+        path = review_dir / filename
+        path.write_text(content, encoding="utf-8")
+        return path
+
+    def _write_non_converged_review(self, review_dir, filename="codex-review-nope.md"):
+        content = """\
+# Codex review
+
+## Response
+
+Still reviewing. No conclusion yet.
+"""
+        path = review_dir / filename
+        path.write_text(content, encoding="utf-8")
+        return path
+
+    def test_empty_dir_returns_empty(self, review_dir, bt_base):
+        results = scan_and_trigger(review_dir, base=bt_base)
+        assert results == []
+
+    def test_non_converged_skipped(self, review_dir, bt_base):
+        self._write_non_converged_review(review_dir)
+        results = scan_and_trigger(review_dir, base=bt_base)
+        assert results == []
+
+    def test_converged_dry_run(self, review_dir, bt_base):
+        self._write_converged_codex_review(review_dir)
+        results = scan_and_trigger(review_dir, base=bt_base, dry_run=True)
+        assert len(results) == 1
+        assert results[0]["dry_run"] is True
+        assert results[0]["scenario"] == "plan_review"
+        assert results[0]["stances_count"] == 1
+
+    def test_converged_triggers_ceremony(self, review_dir, bt_base):
+        self._write_converged_codex_review(review_dir)
+        results = scan_and_trigger(review_dir, base=bt_base)
+        assert len(results) == 1
+        assert "consensus_id" in results[0]
+        assert "residue_id" in results[0]
+        assert "tension_id" in results[0]
+
+        from scripts.block_topology import list_blocks
+        assert len(list_blocks(bt_base, block_type="consensus")) == 1
+        assert len(list_blocks(bt_base, block_type="residue")) == 1
+        assert len(list_blocks(bt_base, block_type="tension")) == 1
+
+    def test_nonexistent_dir_returns_empty(self, tmp_path, bt_base):
+        results = scan_and_trigger(tmp_path / "nope", base=bt_base)
+        assert results == []
+
+    def test_mixed_converged_and_not(self, review_dir, bt_base):
+        self._write_converged_codex_review(review_dir, "codex-review-001.md")
+        self._write_non_converged_review(review_dir, "codex-review-002.md")
+        results = scan_and_trigger(review_dir, base=bt_base)
+        assert len(results) == 1

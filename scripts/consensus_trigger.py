@@ -435,3 +435,122 @@ def find_trigger_block_for_review(
             return target_val
 
     return None
+
+
+# ── 管道入口：从 review-results 驱动共识仪式 ──
+
+
+def _extract_stance_sequence_from_review(review_file: Path) -> list:
+    """从 review-results 文件中提取立场声明序列。
+
+    review-results 文件包含 Codex/Gemini 的完整回复文本（Response 段），
+    其中可能包含 ---stance-declaration--- 块。
+    """
+    from scripts.stance_parser import parse_stance_declaration
+
+    text = review_file.read_text(encoding="utf-8")
+
+    # 提取 Response 段后的内容（Codex/Gemini 回复）
+    response_marker = "## Response"
+    response_start = text.find(response_marker)
+    if response_start < 0:
+        response_text = text
+    else:
+        response_text = text[response_start:]
+
+    sd = parse_stance_declaration(response_text, round_number=1)
+    if sd is not None:
+        return [sd]
+    return []
+
+
+def _detect_review_mode(review_file: Path) -> str | None:
+    """从 review 文件名推断场景。"""
+    name = review_file.name
+    if name.startswith("codex-review"):
+        return "plan_review"
+    if name.startswith("gemini-"):
+        return "gemini_verify"
+    if name.startswith("codex-diagnose"):
+        return "plan_review"
+    return None
+
+
+def scan_and_trigger(
+    review_dir: Path | None = None,
+    base: Path = DEFAULT_BASE,
+    dry_run: bool = False,
+) -> list[dict]:
+    """扫描 review-results 目录，对已收敛且未处理的 review 触发共识仪式。
+
+    §63 缺口修复：让管道第一次跑通。
+
+    Parameters
+    ----------
+    review_dir : Path | None
+        review-results 目录路径。默认 .chanlun/review-results/。
+    base : Path
+        block-topology 目录路径。
+    dry_run : bool
+        如果为 True，只报告不写入。
+
+    Returns
+    -------
+    list[dict]
+        每个被处理的 review 的结果。
+    """
+    if review_dir is None:
+        review_dir = Path(".chanlun/review-results")
+
+    if not review_dir.is_dir():
+        return []
+
+    results = []
+    for review_file in sorted(review_dir.glob("*.md")):
+        if not detect_convergence_from_review_file(review_file):
+            continue
+
+        trigger_id = find_trigger_block_for_review(review_file, base)
+        scenario = _detect_review_mode(review_file)
+        if scenario is None:
+            continue
+
+        stances = _extract_stance_sequence_from_review(review_file)
+        conclusion = f"质询循环收敛——来源: {review_file.name}"
+
+        if scenario == "gemini_verify":
+            cycle = extract_from_gemini_verify(
+                stance_sequence=stances,
+                trigger_block_id=trigger_id or "unknown",
+                negation_stands=False,
+                conclusion=conclusion,
+            )
+        else:
+            cycle = extract_from_plan_review(
+                stance_sequence=stances,
+                trigger_block_id=trigger_id or "unknown",
+                conclusion=conclusion,
+            )
+
+        if dry_run:
+            results.append({
+                "file": str(review_file),
+                "scenario": scenario,
+                "trigger_block_id": trigger_id,
+                "stances_count": len(stances),
+                "dry_run": True,
+            })
+            continue
+
+        ceremony_result = trigger_ceremony(cycle, base=base)
+        results.append({
+            "file": str(review_file),
+            "scenario": scenario,
+            "trigger_block_id": trigger_id,
+            "stances_count": len(stances),
+            "consensus_id": ceremony_result["consensus"]["id"],
+            "residue_id": ceremony_result["residue"]["id"],
+            "tension_id": ceremony_result["tension"]["id"],
+        })
+
+    return results
