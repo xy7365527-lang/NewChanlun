@@ -687,6 +687,36 @@ def gauge_equivalence_report(
     except Exception:
         pass
 
+    # T6 跨层 Leray 可计算近似（204号谱系）
+    t6_results = []
+    try:
+        if not t7_results:
+            # 需要管线结果——复用 T7 的管线调用
+            _, _, _, _, rl_t6 = _run_pipeline(
+                df_raw, modes[0], min_strict_sep, center_sustain_m,
+            )
+        else:
+            rl_t6 = rl_first
+        if len(rl_t6) >= 2:
+            t6_checks = check_cross_level_leray(rl_t6, tau=tau)
+            t6_results = [
+                {
+                    "level_low": r.level_low,
+                    "level_high": r.level_high,
+                    "passed": r.passed,
+                    "w1_low": r.w1_low,
+                    "w1_high": r.w1_high,
+                    "w1_monotone": r.w1_monotone,
+                    "bottleneck_dist": r.bottleneck_dist,
+                    "bottleneck_bounded": r.bottleneck_bounded,
+                    "kl_divergence": r.kl_divergence,
+                    "kl_bounded": r.kl_bounded,
+                }
+                for r in t6_checks
+            ]
+    except Exception:
+        pass
+
     return {
         "modes": list(modes),
         "n_transitions": len(transitions),
@@ -710,6 +740,7 @@ def gauge_equivalence_report(
             for t in transitions
         ],
         "strong_invariant_summary": strong_summary,
+        "t6_cross_level_leray": t6_results,
         "t7_recursive_order": t7_results,
         "t8_divergence_topology": t8_results,
     }
@@ -895,5 +926,137 @@ def check_trend_move_equivalence(levels) -> list[T5Result]:
             identity=identity,
             n_moves=len(moves),
             n_confirmed_trends=len(confirmed_trends),
+        ))
+    return results
+
+
+# ---------------------------------------------------------------------------
+# T6：Leray 条件的可计算近似（204号谱系——搁置模式否定后的严格形式）
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True, slots=True)
+class T6Result:
+    """T6 跨层 Leray 条件可计算近似结果。
+
+    T6 原始定义：R¹f_* = 0（Leray 谱序列高阶直像层消失）。
+    不可直接计算（需要 sheaf 库 + 范畴结构定义）。
+
+    可计算近似（204号）：三个跨层诊断指标的合取——
+    1. W₁ 单调性：高级别 W₁ 范数 ≤ 低级别（信息量递减）
+    2. Bottleneck 距离：层级间持续图距离 ≤ δ（信息损失有界）
+    3. KL 散度：条带长度分布漂移 ≤ κ（分布形状保持）
+
+    直觉：如果 R¹f_* = 0（无信息丢失），则：
+    - 粗粒化后的条形码总持续量不应增加（W₁ 单调）
+    - 层级间持续图不应剧烈变化（bottleneck 有界）
+    - 条带长度的统计分布不应漂移（KL 有界）
+    """
+    level_low: int
+    level_high: int
+    passed: bool
+    w1_low: float
+    w1_high: float
+    w1_monotone: bool
+    bottleneck_dist: float
+    bottleneck_bounded: bool
+    kl_divergence: float
+    kl_bounded: bool
+    delta: float
+    kappa: float
+    n_bars_low: int
+    n_bars_high: int
+
+
+def _bar_length_distribution(barcode: tuple[tuple[float, float], ...], n_bins: int = 10) -> np.ndarray:
+    """将条形码的条带长度转为归一化直方图（概率分布）。
+
+    用于 KL 散度计算。空条形码返回均匀分布。
+    """
+    if not barcode:
+        return np.ones(n_bins) / n_bins
+    lengths = np.array([d - b for b, d in barcode])
+    if len(lengths) == 0 or np.max(lengths) == 0:
+        return np.ones(n_bins) / n_bins
+    max_len = np.max(lengths)
+    normalized = lengths / max_len
+    hist, _ = np.histogram(normalized, bins=n_bins, range=(0, 1))
+    # Laplace 平滑避免 log(0)
+    hist = hist.astype(float) + 1.0
+    return hist / hist.sum()
+
+
+def _kl_divergence(p: np.ndarray, q: np.ndarray) -> float:
+    """计算 KL(P || Q)。假设 p, q 已归一化且无零元素。"""
+    return float(np.sum(p * np.log(p / q)))
+
+
+def check_cross_level_leray(
+    levels,
+    *,
+    tau: float = 0.0,
+    delta: float = 5.0,
+    kappa: float = 1.0,
+) -> list[T6Result]:
+    """T6 Leray 条件的可计算近似——跨层诊断。
+
+    对每对相邻层级 (k, k+1) 检查三个条件：
+    1. W₁ 单调性：W₁(B_{k+1}) ≤ W₁(B_k)
+    2. Bottleneck 有界：d_B(Dgm_k, Dgm_{k+1}) ≤ δ
+    3. KL 散度有界：KL(len_dist_{k+1} || len_dist_k) ≤ κ
+
+    三个条件全部满足 → passed = True（Leray 近似成立）。
+
+    Parameters
+    ----------
+    levels : list[RecursiveLevel]
+        从 build_recursive_levels 返回的层级列表。
+    tau : float
+        W₁ 范数的 τ-trim 阈值。
+    delta : float
+        Bottleneck 距离上界。默认 5.0。
+    kappa : float
+        KL 散度上界。默认 1.0。
+    """
+    results: list[T6Result] = []
+    for i in range(len(levels) - 1):
+        low_level = levels[i]
+        high_level = levels[i + 1]
+        bc_low = centers_to_barcode(low_level.centers)
+        bc_high = centers_to_barcode(high_level.centers)
+
+        # W₁ 范数
+        w1_low = _w1_norm(bc_low, tau=tau)
+        w1_high = _w1_norm(bc_high, tau=tau)
+        w1_monotone = w1_high <= w1_low
+
+        # Bottleneck 距离
+        dgm_low = barcode_to_diagram(bc_low)
+        dgm_high = barcode_to_diagram(bc_high)
+        bn_dist = _bottleneck_distance(dgm_low, dgm_high)
+        bn_bounded = bn_dist <= delta
+
+        # KL 散度
+        dist_low = _bar_length_distribution(bc_low)
+        dist_high = _bar_length_distribution(bc_high)
+        kl = _kl_divergence(dist_high, dist_low)
+        kl_bounded = kl <= kappa
+
+        passed = w1_monotone and bn_bounded and kl_bounded
+
+        results.append(T6Result(
+            level_low=low_level.level,
+            level_high=high_level.level,
+            passed=passed,
+            w1_low=w1_low,
+            w1_high=w1_high,
+            w1_monotone=w1_monotone,
+            bottleneck_dist=bn_dist,
+            bottleneck_bounded=bn_bounded,
+            kl_divergence=kl,
+            kl_bounded=kl_bounded,
+            delta=delta,
+            kappa=kappa,
+            n_bars_low=len(bc_low),
+            n_bars_high=len(bc_high),
         ))
     return results
