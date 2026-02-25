@@ -56,7 +56,7 @@ audit_targets:
 1. TrendTypeInstance 需要增加 `as_move_direction` 属性（基于 start/end 价格）→ [resolved: start_price/end_price + as_move_direction property 已实现]
 2. `_try_init_center` 在 level ≥2 时应使用 `as_move_direction` 而非 `direction` → [resolved: getattr 优先读 as_move_direction]
 3. 修复后合成数据应能产生 ≥2 层递归 → [resolved: 合成数据 10 settled centers → 9 confirmed trends → level 2 形成 1 center]
-4. λ 参数校准依赖此修复（需要多层递归数据）→ [unblocked: level 2 已可形成，待校准]
+4. λ 参数校准依赖此修复（需要多层递归数据）→ [resolved: λ 从 3.0 校准为 1.5（86 合成样本 P99=0.83，commit f17b680）]
 
 ## 谱系引用
 
