@@ -47,7 +47,7 @@ def extract_downstream_actions(filepath):
     # 只取顶级编号行（\d+.），排除子列表项（- xxx）避免索引错位
     raw_lines = [
         line for line in section.split("\n")
-        if re.match(r'^\s*\d+\.\s+', line)
+        if re.match(r'^(\d+\.\s+|-\s+)', line)
     ]
     for i, groups in enumerate(items, 1):
         # 合并匹配组
@@ -64,6 +64,10 @@ def extract_downstream_actions(filepath):
                 resolved_inline = True
             elif "已执行——" in raw or "已确认——" in raw or "已完成——" in raw:
                 resolved_inline = True
+            elif "→ [resolved:" in raw:
+                resolved_inline = True
+            elif "→ [blocked:" in raw:
+                resolved_inline = "blocked"
             actions.append({"index": i, "text": text, "resolved_inline": resolved_inline})
 
     return gid, actions
@@ -247,7 +251,7 @@ def audit(root=None):
             if override_status:
                 status = override_status
             elif action.get("resolved_inline"):
-                status = "resolved"
+                status = "blocked" if action["resolved_inline"] == "blocked" else "resolved"
             else:
                 status = check_action_resolved(action["text"], gid, all_content, neg_map)
                 # 154号-2 优化：heuristic 判定 unresolved 时，
