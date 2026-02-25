@@ -1,0 +1,13 @@
+{
+  "id": "31d114c6621e5930eed907a7434b60b3f8ed7cfd9f3807decbc09a123b57ed40",
+  "type": "consensus",
+  "timestamp": "2026-02-25T03:35:29.452150+00:00",
+  "source": "cc",
+  "content": {
+    "conclusion": "质询循环收敛（12 轮）。产出 8 条互斥破裂轨迹：\n  轨迹A: 沿 bi_direction_dependency 破裂 → 沿 bi_direction_dependency 破裂 → 沉默的歧义性（(stance, null) 判定——residue b）\n  轨迹B: 沿 bi_greedy_matching 破裂 → 沿 bi_greedy_matching 破裂 → 沉默的歧义性（(stance, null) 判定——residue b）\n  轨迹C: 沿 bi_internal_extremum 破裂 → 沿 bi_internal_extremum 破裂 → 沉默的歧义性（(stance, null) 判定——residue b）\n  轨迹D: 沿 code_audit_feasibility 破裂 → 沿 code_audit_feasibility 破裂 → 沉默的歧义性（(stance, null) 判定——residue b）\n  轨迹E: 沿 extreme_value_constraint 破裂 → 沿 extreme_value_constraint 破裂 → 沉默的歧义性（(stance, null) 判定——residue b）\n  轨迹F: 沿 independent_kline_ambiguity 破裂 → 沿 independent_kline_ambiguity 破裂 → 沉默的歧义性（(stance, null) 判定——residue b）\n  轨迹G: 沿 initial_direction_deadlock 破裂 → 沿 initial_direction_deadlock 破裂 → 沉默的歧义性（(stance, null) 判定——residue b）\n  轨迹H: 沿 missing_code_context 破裂 → 沿 missing_code_context 破裂 → Gemini 方向(contradictory) vs Codex 方向(needs_work)\n→ 选择一条轨迹。系统沿该方向继续。"
+  },
+  "refs": [
+    "193-1-codex-stance-revalidation"
+  ],
+  "git_ref": ""
+}

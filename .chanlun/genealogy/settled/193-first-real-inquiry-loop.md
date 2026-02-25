@@ -85,7 +85,7 @@ Gemini 对每个 Key 产出 stance（reject/fail/contradictory/needs_work），C
 
 ## 下游推论
 
-1. Codex STANCE_OUTPUT_PROTOCOL 合规性——需要调查 Codex 不输出 YAML stance 的原因（prompt 不够明确 or 模型能力限制）
+1. ~~Codex STANCE_OUTPUT_PROTOCOL 合规性——需要调查 Codex 不输出 YAML stance 的原因（prompt 不够明确 or 模型能力限制）~~ **已完成**（6b47d56：system prompt 强化 + 双重追加移除。重跑后 Codex 在 1/8 Key 上产出 stance，从全沉默改善为部分沉默。residue b 是结构性属性，非完全可消除）
 2. ~~Gemini 产出的 10 个 Key 的语义审计——这些 Key 是否忠实反映了笔定义的核心议题~~ 依赖 Gemini 原始回复内容分析
 3. ~~184-2 正式完成——第一次真实多轮质询循环已执行~~ **已完成**（本谱系即证明）
 4. ~~188-2 部分完成——trajectories 已输出（9 条），但全部是 residue b 类型（单方沉默），缺少双方对立的轨迹~~ **已完成**（overrides 188-2 resolved）
