@@ -687,18 +687,14 @@ def gauge_equivalence_report(
     except Exception:
         pass
 
-    # T6 跨层 Leray 可计算近似（204号谱系）
+    # T6 跨层 Leray 可计算近似（204号谱系，Gemini Round 1 修正）
     t6_results = []
     try:
-        if not t7_results:
-            # 需要管线结果——复用 T7 的管线调用
-            _, _, _, _, rl_t6 = _run_pipeline(
-                df_raw, modes[0], min_strict_sep, center_sustain_m,
-            )
-        else:
-            rl_t6 = rl_first
-        if len(rl_t6) >= 2:
-            t6_checks = check_cross_level_leray(rl_t6, tau=tau)
+        rl_for_t6 = rl_first if t7_results else _run_pipeline(
+            df_raw, modes[0], min_strict_sep, center_sustain_m,
+        )[4]
+        if len(rl_for_t6) >= 2:
+            t6_checks = check_cross_level_leray(rl_for_t6, tau=tau)
             t6_results = [
                 {
                     "level_low": r.level_low,
@@ -706,11 +702,13 @@ def gauge_equivalence_report(
                     "passed": r.passed,
                     "w1_low": r.w1_low,
                     "w1_high": r.w1_high,
-                    "w1_monotone": r.w1_monotone,
+                    "w1_ratio": r.w1_ratio,
+                    "w1_ratio_bounded": r.w1_ratio_bounded,
                     "bottleneck_dist": r.bottleneck_dist,
                     "bottleneck_bounded": r.bottleneck_bounded,
                     "kl_divergence": r.kl_divergence,
                     "kl_bounded": r.kl_bounded,
+                    "inconclusive": r.inconclusive,
                 }
                 for r in t6_checks
             ]
@@ -941,26 +939,28 @@ class T6Result:
     T6 原始定义：R¹f_* = 0（Leray 谱序列高阶直像层消失）。
     不可直接计算（需要 sheaf 库 + 范畴结构定义）。
 
-    可计算近似（204号）：三个跨层诊断指标的合取——
-    1. W₁ 单调性：高级别 W₁ 范数 ≤ 低级别（信息量递减）
+    可计算近似（204号，Gemini Round 1 修正）：三个跨层诊断指标——
+    1. W₁ 比率有界：W₁(B_{k+1}) / W₁(B_k) ≤ λ（信息量增长受控）
+       注意：缠论高级别中枢价格跨度更大，W₁ 可以增加（不要求单调递减），
+       但增长比率应有界——无界增长暗示递归构造创造了虚假信息。
     2. Bottleneck 距离：层级间持续图距离 ≤ δ（信息损失有界）
     3. KL 散度：条带长度分布漂移 ≤ κ（分布形状保持）
-
-    直觉：如果 R¹f_* = 0（无信息丢失），则：
-    - 粗粒化后的条形码总持续量不应增加（W₁ 单调）
-    - 层级间持续图不应剧烈变化（bottleneck 有界）
-    - 条带长度的统计分布不应漂移（KL 有界）
+       当 min(n_bars_low, n_bars_high) < min_bars_kl 时标记 inconclusive，
+       KL 不参与 passed 判定（小样本下 Laplace 平滑主导分布）。
     """
     level_low: int
     level_high: int
     passed: bool
     w1_low: float
     w1_high: float
-    w1_monotone: bool
+    w1_ratio: float
+    w1_ratio_bounded: bool
+    w1_lambda: float
     bottleneck_dist: float
     bottleneck_bounded: bool
     kl_divergence: float
     kl_bounded: bool
+    inconclusive: bool
     delta: float
     kappa: float
     n_bars_low: int
@@ -996,19 +996,20 @@ def check_cross_level_leray(
     tau: float = 0.0,
     delta: float = 5.0,
     kappa: float = 1.0,
+    w1_lambda: float = 3.0,
+    min_bars_kl: int = 5,
 ) -> list[T6Result]:
     """T6 Leray 条件的可计算近似——跨层诊断。
 
     对每对相邻层级 (k, k+1) 检查三个条件：
-    1. W₁ 单调性：W₁(B_{k+1}) ≤ W₁(B_k)
+    1. W₁ 比率有界：W₁(B_{k+1}) / W₁(B_k) ≤ λ
+       缠论高级别中枢跨度更大，W₁ 可以增加但增长比率应有界。
     2. Bottleneck 有界：d_B(Dgm_k, Dgm_{k+1}) ≤ δ
     3. KL 散度有界：KL(len_dist_{k+1} || len_dist_k) ≤ κ
+       当 min(n_bars) < min_bars_kl 时标记 inconclusive，KL 不参与判定。
 
-    三个条件全部满足 → passed = True（Leray 近似成立）。
-
-    注意：W₁ 单调性和 KL 散度是尺度无关的（相对比较），但 bottleneck 距离
-    是价格单位相关的绝对值。delta 的默认值 5.0 适用于单一股票的内部比较
-    （同一股票价格尺度一致）。跨股票比较时需根据价格尺度调整 delta。
+    注意：bottleneck 距离是价格单位相关的绝对值。delta 的默认值 5.0
+    适用于单一股票的内部比较。跨股票比较时需根据价格尺度调整 delta。
 
     Parameters
     ----------
@@ -1018,9 +1019,12 @@ def check_cross_level_leray(
         W₁ 范数的 τ-trim 阈值。
     delta : float
         Bottleneck 距离上界（价格单位）。默认 5.0。
-        尺度相关——不同价格范围的股票需调整此值。
     kappa : float
         KL 散度上界（无量纲）。默认 1.0。
+    w1_lambda : float
+        W₁ 比率上界。默认 3.0（允许高级别 W₁ 最多为低级别的 3 倍）。
+    min_bars_kl : int
+        KL 散度计算的最小条带数。低于此值标记 inconclusive。默认 5。
     """
     results: list[T6Result] = []
     for i in range(len(levels) - 1):
@@ -1029,10 +1033,14 @@ def check_cross_level_leray(
         bc_low = centers_to_barcode(low_level.centers)
         bc_high = centers_to_barcode(high_level.centers)
 
-        # W₁ 范数
+        # W₁ 范数 + 比率有界（Gemini Round 1 修正：不要求单调递减）
         w1_low = _w1_norm(bc_low, tau=tau)
         w1_high = _w1_norm(bc_high, tau=tau)
-        w1_monotone = w1_high <= w1_low
+        if w1_low > 0:
+            w1_ratio = w1_high / w1_low
+        else:
+            w1_ratio = 0.0 if w1_high == 0 else float("inf")
+        w1_ratio_bounded = w1_ratio <= w1_lambda
 
         # Bottleneck 距离
         dgm_low = barcode_to_diagram(bc_low)
@@ -1040,13 +1048,20 @@ def check_cross_level_leray(
         bn_dist = _bottleneck_distance(dgm_low, dgm_high)
         bn_bounded = bn_dist <= delta
 
-        # KL 散度
+        # KL 散度（小样本 inconclusive）
+        n_low = len(bc_low)
+        n_high = len(bc_high)
+        kl_inconclusive = min(n_low, n_high) < min_bars_kl
         dist_low = _bar_length_distribution(bc_low)
         dist_high = _bar_length_distribution(bc_high)
         kl = _kl_divergence(dist_high, dist_low)
         kl_bounded = kl <= kappa
 
-        passed = w1_monotone and bn_bounded and kl_bounded
+        # 合取判定：inconclusive 的 KL 不参与
+        if kl_inconclusive:
+            passed = w1_ratio_bounded and bn_bounded
+        else:
+            passed = w1_ratio_bounded and bn_bounded and kl_bounded
 
         results.append(T6Result(
             level_low=low_level.level,
@@ -1054,14 +1069,17 @@ def check_cross_level_leray(
             passed=passed,
             w1_low=w1_low,
             w1_high=w1_high,
-            w1_monotone=w1_monotone,
+            w1_ratio=w1_ratio,
+            w1_ratio_bounded=w1_ratio_bounded,
+            w1_lambda=w1_lambda,
             bottleneck_dist=bn_dist,
             bottleneck_bounded=bn_bounded,
             kl_divergence=kl,
             kl_bounded=kl_bounded,
+            inconclusive=kl_inconclusive,
             delta=delta,
             kappa=kappa,
-            n_bars_low=len(bc_low),
-            n_bars_high=len(bc_high),
+            n_bars_low=n_low,
+            n_bars_high=n_high,
         ))
     return results
