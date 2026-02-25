@@ -3,6 +3,22 @@
 实现 K 线包含关系的识别与合并，这是分型、笔、线段等所有上层结构的前提。
 
 规格引用: docs/chan_spec.md §2 包含关系（Inclusion）
+
+## 拓扑语义（195号）
+
+### 结构映射
+包含处理是带邻接约束的区间包含等价类的商空间构造。
+
+- raw K线序列 X 上的偏序关系 ≤ 由"包含"定义：a ≤ b ⇔ [a.low, a.high] ⊆ [b.low, b.high]
+- 等价关系 ~：x ~ y ⇔ x 与 y 有包含关系且相邻（传递闭包后形成等价类）
+- merge_inclusion() 是商映射 π: X → X/~，将每个等价类映射到一个 merged bar
+- merged_to_raw 是商映射的纤维结构：记录每个 merged bar 对应的 raw 范围
+- 方向状态 dir_state 决定"向上取并/向下取交"——等价类代表元的极值选择规则
+
+### 映射的边界
+商映射 π 是精确的——merge_inclusion 确实计算了等价类的代表元。
+但不应称 Alexandrov 拓扑——Alexandrov 拓扑在有限离散序列上是平凡的（每个点既开又闭）。
+真正的拓扑内容在于商映射的纤维结构（merged_to_raw = π 的逐纤维分解），不在开集。
 """
 
 from __future__ import annotations

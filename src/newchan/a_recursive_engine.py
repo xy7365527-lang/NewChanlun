@@ -9,6 +9,26 @@
 级别是市场"长"出来的，不是预设的。
 
 规格引用: docs/chan_spec.md §6, §7, §8, §9
+
+## 拓扑语义（195号）
+
+### 结构映射
+级别递归是自下而上的分层构造（stratification）。
+
+- RecursiveLevel(k) = 第 k 层 stratum S_k
+- Move[0] = Segment（最低层 stratum）
+- Move[k] = TrendTypeInstance[k-1]（高层 stratum 由低层构造）
+- 层级依赖性：低层确认后高层才构造（S_{k+1} 的构造材料来自 S_k 的已确认元素）
+- 递归门槛：confirmed trends >= 3 才触发下一层构造
+- build_recursive_levels() = 自下而上的分层构造算法
+- levels_to_level_views() = 分层到观察窗口的投影（L* 选择）
+- 级别是"长"出来的 = 分层是内禀的（由数据决定，不是预设的）
+
+### 映射的边界
+这里的"分层"是组合学意义上的层级分解——空间 = ∪S_k，各层不相交且由低层构造。
+不是 Whitney 分层——Whitney 条件 (a)(b) 需要光滑流形的切空间/割线收敛条件，
+离散构造不具备光滑性。类比的有效部分：递归层级是内禀的（由数据生长，不是预设的），
+这和分层的精神（decomposition by intrinsic structure）一致。
 """
 
 from __future__ import annotations
