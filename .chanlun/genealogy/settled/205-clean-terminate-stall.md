@@ -51,7 +51,7 @@ ceremony_scan 的 workstations 是从谱系下游推论推导的——它只能�
 
 1. clean_terminate 不是停止信号——蜂群应在 clean_terminate 后主动推导下一步可推进方向 → [resolved: 205号规则本身——定理类]
 2. gangju_analysis 应更新 T6 已实现状态 → [resolved: derive_mu() 新增 Layer 3 T6 状态检测规则，输出 "Layer 3 T6 已实现"]
-3. T6 应经过 Gemini×Codex 审核（与 Layer 1/2 同等流程）→ 本 session 执行
+3. T6 应经过 Gemini×Codex 审核（与 Layer 1/2 同等流程）→ [resolved: Gemini APPROVED + Codex APPROVED with NEEDS_FIX（δ 尺度说明已修复）]
 
 ## 谱系引用
 
