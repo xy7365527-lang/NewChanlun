@@ -8,6 +8,9 @@ trigger: gangju_analysis.py 自动检测——强不变量保持率偏低 + T8 �
 depends_on:
   - "195"
   - "207"
+audit_targets:
+  - "强不变量保持率偏低"
+  - "T8 全部 inconclusive"
 ---
 
 # 208号：gauge 不变量保持率模式分析 + T8 inconclusive 根因
