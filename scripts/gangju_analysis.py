@@ -443,6 +443,38 @@ def derive_mu(block_stats, genealogy_stats, root):
                 "reason": "Layer 1 审核共识 + gauge 经验验证均 filled → T8 背驰拓扑化可启动",
             })
 
+    # 规则：Layer 2 审核共识检测
+    layer2_approved = False
+    if os.path.isdir(review_dir):
+        gemini_l2_files = sorted(glob.glob(
+            os.path.join(review_dir, "plan-review-layer2-gemini-round*.md"),
+        ))
+        codex_l2_files = sorted(glob.glob(
+            os.path.join(review_dir, "plan-review-layer2-codex-round*.md"),
+        ))
+        gemini_l2_ok = False
+        codex_l2_ok = False
+        if gemini_l2_files:
+            with open(gemini_l2_files[-1], encoding="utf-8") as f:
+                if "APPROVED" in f.read():
+                    gemini_l2_ok = True
+        if codex_l2_files:
+            with open(codex_l2_files[-1], encoding="utf-8") as f:
+                if "APPROVED" in f.read():
+                    codex_l2_ok = True
+        layer2_approved = gemini_l2_ok and codex_l2_ok
+
+    if layer2_approved:
+        filled_mu.append({
+            "mu": "Layer 2 审核共识",
+            "evidence": "Gemini + Codex 最终轮均 APPROVED（T8 背驰拓扑化）",
+        })
+    elif layer1_approved and gauge_verified:
+        empty_mu.append({
+            "mu": "Layer 2 审核共识",
+            "reason": "Layer 2 审核文件不存在或未全部 APPROVED",
+        })
+
     # 补充规则：谱系类型分布检测
     recent_types = genealogy_stats.get("recent_type_distribution", {})
     if recent_types:
