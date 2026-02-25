@@ -113,9 +113,9 @@ def compute_beta1_tau(barcode: tuple[tuple[float, float], ...], tau: float) -> i
 class DecompositionFingerprint:
     """一次分解的拓扑指纹。
 
-    不变量候选按强度分层（待 gauge_equivalence_report 验证）：
-    - 强不变量候选：n_centers, trend_kinds, center_zd_zg_pairs, barcode, beta1_tau
-    - 弱不变量（预期在不同模式下变化）：n_strokes, n_segments, max_level
+    不变量候选按强度分层（209号谱系降级后）：
+    - 强不变量（Tier 1/2）：n_centers, beta1_tau, trend_kinds
+    - 弱不变量：n_strokes, n_segments, max_level, center_zd_zg_pairs, barcode_bottleneck
 
     barcode 字段（Layer 1 共识）：
     每个中枢 [ZD, ZG] 对应一个 bar (ZD, ZG)——T3（中枢↔zigzag条带一一对应）。
@@ -503,39 +503,15 @@ def _check_strong_invariants(
     fp_b: DecompositionFingerprint,
     tolerance: float = 0.0,
 ) -> dict[str, bool]:
-    """检查强不变量候选是否保持。
+    """检查强不变量（Tier 1/2）是否保持（209号谱系降级后）。
 
-    tolerance: ZD/ZG 比较的容差（0.0 = 精确比较）。
+    Tier 1: n_centers, beta1_tau
+    Tier 2: trend_kinds
     """
-    # n_centers
-    centers_preserved = fp_a.n_centers == fp_b.n_centers
-
-    # center_zd_zg_pairs（带容差）
-    intervals_preserved = False
-    if centers_preserved:
-        intervals_preserved = all(
-            abs(a[0] - b[0]) <= tolerance and abs(a[1] - b[1]) <= tolerance
-            for a, b in zip(fp_a.center_zd_zg_pairs, fp_b.center_zd_zg_pairs)
-        )
-
-    # trend_kinds
-    trends_preserved = fp_a.trend_kinds == fp_b.trend_kinds
-
-    # beta1_tau（去范畴化后的不变量）
-    beta1_preserved = fp_a.beta1_tau == fp_b.beta1_tau
-
-    # barcode bottleneck 距离（带容差）
-    dgm_a = barcode_to_diagram(fp_a.barcode)
-    dgm_b = barcode_to_diagram(fp_b.barcode)
-    bn_dist = _bottleneck_distance(dgm_a, dgm_b)
-    barcode_preserved = bn_dist <= tolerance
-
     return {
-        "n_centers": centers_preserved,
-        "center_zd_zg_pairs": intervals_preserved,
-        "trend_kinds": trends_preserved,
-        "beta1_tau": beta1_preserved,
-        "barcode_bottleneck": barcode_preserved,
+        "n_centers": fp_a.n_centers == fp_b.n_centers,
+        "trend_kinds": fp_a.trend_kinds == fp_b.trend_kinds,
+        "beta1_tau": fp_a.beta1_tau == fp_b.beta1_tau,
     }
 
 
@@ -543,12 +519,18 @@ def _check_weak_invariants(
     fp_a: DecompositionFingerprint,
     fp_b: DecompositionFingerprint,
 ) -> dict[str, bool]:
-    """检查弱不变量是否保持（预期变化——记录实际情况）。"""
+    """检查弱不变量是否保持（预期变化——记录实际情况）。
+
+    209号谱系降级：center_zd_zg_pairs 和 barcode_bottleneck 从强不变量
+    降级为弱不变量（Tier 3，strict 模式下 0% 保持率）。
+    """
     return {
         "n_strokes": fp_a.n_strokes == fp_b.n_strokes,
         "n_segments": fp_a.n_segments == fp_b.n_segments,
         "n_trends": fp_a.n_trends == fp_b.n_trends,
         "max_level": fp_a.max_level == fp_b.max_level,
+        "center_zd_zg_pairs": fp_a.center_zd_zg_pairs == fp_b.center_zd_zg_pairs,
+        "barcode_bottleneck": fp_a.barcode == fp_b.barcode,
     }
 
 
@@ -626,9 +608,9 @@ def compute_transition(
 def _tier_weighted_rate(strong_summary: dict) -> dict:
     """按 Tier 加权计算强不变量通过率（209号谱系）。
 
-    Tier 1 权重 3，Tier 2 权重 2，Tier 3 权重 1。
+    209号降级后仅含 Tier 1（权重 3）和 Tier 2（权重 2）。
     """
-    weights = {1: 3, 2: 2, 3: 1}
+    weights = {1: 3, 2: 2}
     weighted_sum = 0.0
     weight_total = 0.0
     tier_rates = {}
@@ -687,17 +669,12 @@ def gauge_equivalence_report(
             transitions.append(tr)
 
     # 汇总强不变量保持率
-    strong_keys = [
-        "n_centers", "center_zd_zg_pairs", "trend_kinds",
-        "beta1_tau", "barcode_bottleneck",
-    ]
-    # 209号谱系：gauge 不变量层级结构
+    # 209号谱系降级后：强不变量仅含 Tier 1/2
+    strong_keys = ["n_centers", "trend_kinds", "beta1_tau"]
     tier_map = {
         "n_centers": 1,
         "beta1_tau": 1,
         "trend_kinds": 2,
-        "center_zd_zg_pairs": 3,
-        "barcode_bottleneck": 3,
     }
     strong_summary = {}
     for k in strong_keys:
