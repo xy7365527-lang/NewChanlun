@@ -1,0 +1,20 @@
+{
+  "id": "2d60e22f86d1668c371e49bdc686eae0df225119acfd3ee4cb79e96c8cbd4e0c",
+  "type": "event",
+  "timestamp": "2026-02-25T19:16:08.246761+00:00",
+  "source": "cc",
+  "content": {
+    "id": "202",
+    "title": "蜂群将可自决事项伪装为需编排者决策",
+    "status": "已结算",
+    "type": "语法记录",
+    "date": "2026-02-25",
+    "depends_on": [
+      "196",
+      "137"
+    ],
+    "source_file": "settled/202-false-blocked-escalation.md"
+  },
+  "refs": [],
+  "git_ref": "5708334"
+}
