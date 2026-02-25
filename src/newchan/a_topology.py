@@ -616,6 +616,34 @@ def compute_transition(
     )
 
 
+def _tier_weighted_rate(strong_summary: dict) -> dict:
+    """按 Tier 加权计算强不变量通过率（209号谱系）。
+
+    Tier 1 权重 3，Tier 2 权重 2，Tier 3 权重 1。
+    """
+    weights = {1: 3, 2: 2, 3: 1}
+    weighted_sum = 0.0
+    weight_total = 0.0
+    tier_rates = {}
+    for k, v in strong_summary.items():
+        tier = v.get("tier", 0)
+        if tier not in tier_rates:
+            tier_rates[tier] = {"preserved": 0, "total": 0}
+        tier_rates[tier]["preserved"] += v["preserved"]
+        tier_rates[tier]["total"] += v["total"]
+        w = weights.get(tier, 1)
+        weighted_sum += v["rate"] * w
+        weight_total += w
+    overall = weighted_sum / weight_total if weight_total > 0 else 0.0
+    return {
+        "overall_weighted": round(overall, 4),
+        "per_tier": {
+            t: round(d["preserved"] / d["total"], 4) if d["total"] > 0 else 0.0
+            for t, d in sorted(tier_rates.items())
+        },
+    }
+
+
 def gauge_equivalence_report(
     df_raw: pd.DataFrame,
     modes: tuple[str, ...] = ("wide", "strict", "new"),
@@ -656,6 +684,14 @@ def gauge_equivalence_report(
         "n_centers", "center_zd_zg_pairs", "trend_kinds",
         "beta1_tau", "barcode_bottleneck",
     ]
+    # 209号谱系：gauge 不变量层级结构
+    tier_map = {
+        "n_centers": 1,
+        "beta1_tau": 1,
+        "trend_kinds": 2,
+        "center_zd_zg_pairs": 3,
+        "barcode_bottleneck": 3,
+    }
     strong_summary = {}
     for k in strong_keys:
         preserved = sum(1 for t in transitions if t.strong_invariants_preserved.get(k, False))
@@ -663,6 +699,7 @@ def gauge_equivalence_report(
             "preserved": preserved,
             "total": len(transitions),
             "rate": preserved / len(transitions) if transitions else 0.0,
+            "tier": tier_map.get(k, 0),
         }
 
     # T7 递归条形码偏序检查（取第一个模式的管线结果）
@@ -781,6 +818,7 @@ def gauge_equivalence_report(
             for t in transitions
         ],
         "strong_invariant_summary": strong_summary,
+        "tier_weighted_rate": _tier_weighted_rate(strong_summary),
         "t6_cross_level_leray": t6_results,
         "t7_recursive_order": t7_results,
         "t8_divergence_topology": t8_results,
