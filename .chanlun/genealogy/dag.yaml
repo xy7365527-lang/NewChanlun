@@ -979,6 +979,31 @@ nodes:
   status: settled
   type: meta-rule
   file: settled/196-idle-duty-degradation.md
+- id: '197'
+  title: 纲举目张自动检测——待质询项
+  status: 生成态
+  type: 待定
+  file: pending/197-gangju-auto-20260225-0734.md
+- id: '198'
+  title: ''
+  status: 已结算
+  type: meta-rule
+  file: settled/198-meta-observation-t8-session.md
+- id: '199'
+  title: ''
+  status: 已结算
+  type: 概念发现
+  file: settled/199-t8-level0-inconclusive.md
+- id: '200'
+  title: ''
+  status: 已结算
+  type: 语法记录
+  file: settled/200-stopguard-zombie-tasks.md
+- id: '201'
+  title: ''
+  status: 已结算
+  type: meta-rule
+  file: settled/201-meta-observation-repair-session.md
 edges:
   depends_on:
   - from: '136'
@@ -1991,6 +2016,12 @@ edges:
     to: '161'
   - from: '196'
     to: '179'
+  - from: '199'
+    to: '195'
+  - from: '199'
+    to: '197'
+  - from: '200'
+    to: '186'
   triggered:
   - from: '005'
     to: 005a

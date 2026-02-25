@@ -29,9 +29,9 @@ Plan 阶段（ExitPlanMode 前）创建的 TaskCreate 任务在实现完成后�
 
 ## 下游推论
 
-1. 实现完成后应检查并清理 plan 阶段的任务队列
-2. 或者：Stop-Guard 应区分"plan 任务"和"agent 任务"
-3. 186号（clean_terminate 计算时序）是同类问题的先例
+1. 实现完成后应检查并清理 plan 阶段的任务队列 → [resolved: post-plan-cleanup 工位实现]
+2. 或者：Stop-Guard 应区分"plan 任务"和"agent 任务" → [resolved: 选择200号-1路线]
+3. 186号（clean_terminate 计算时序）是同类问题的先例 → [resolved: depends_on 已引用]
 
 ## 修复
 

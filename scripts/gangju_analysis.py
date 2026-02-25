@@ -435,15 +435,7 @@ def derive_mu(block_stats, genealogy_stats, root):
             "reason": "gauge-equivalence-empirical-report.md 不存在或成功率非 100%",
         })
 
-    # 规则：Layer 2 就绪检测
-    if layer1_approved and gauge_verified:
-        if "Layer 2 T8 就绪" not in audited:
-            new_mu.append({
-                "mu": "Layer 2 T8 就绪",
-                "reason": "Layer 1 审核共识 + gauge 经验验证均 filled → T8 背驰拓扑化可启动",
-            })
-
-    # 规则：Layer 2 审核共识检测
+    # 规则：Layer 2 审核共识检测（先于 Layer 2 就绪/已实现判定）
     layer2_approved = False
     if os.path.isdir(review_dir):
         gemini_l2_files = sorted(glob.glob(
@@ -474,6 +466,19 @@ def derive_mu(block_stats, genealogy_stats, root):
             "mu": "Layer 2 审核共识",
             "reason": "Layer 2 审核文件不存在或未全部 APPROVED",
         })
+
+    # 规则：Layer 2 T8 状态检测（197号谱系：T8 已实现）
+    if layer1_approved and gauge_verified:
+        if layer2_approved:
+            filled_mu.append({
+                "mu": "Layer 2 T8 已实现",
+                "evidence": "Layer 1 审核共识 + gauge 经验验证 + Layer 2 审核共识均 filled（197号谱系）",
+            })
+        elif "Layer 2 T8 就绪" not in audited:
+            new_mu.append({
+                "mu": "Layer 2 T8 就绪",
+                "reason": "Layer 1 审核共识 + gauge 经验验证均 filled → T8 背驰拓扑化可启动",
+            })
 
     # 补充规则：谱系类型分布检测
     recent_types = genealogy_stats.get("recent_type_distribution", {})

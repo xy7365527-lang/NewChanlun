@@ -47,5 +47,5 @@ settlement_evidence:
 
 ## 下游推论
 
-- Layer 2 完成 → 纲举目张体系中 T8 从"就绪"变为"已实现"
-- 下一阶段：Layer 3 (T6 Leray) 或真实市场数据验证（195号-5 长期项）
+- Layer 2 完成 → 纲举目张体系中 T8 从"就绪"变为"已实现" → [blocked: gangju-update 工位待实现]
+- 下一阶段：Layer 3 (T6 Leray) 或真实市场数据验证（195号-5 长期项） → [blocked: 长期项]
