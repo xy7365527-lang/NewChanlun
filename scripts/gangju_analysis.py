@@ -480,6 +480,56 @@ def derive_mu(block_stats, genealogy_stats, root):
                 "reason": "Layer 1 审核共识 + gauge 经验验证均 filled → T8 背驰拓扑化可启动",
             })
 
+    # 规则：Layer 3 T6 状态检测（204号谱系：T6 可计算近似已实现）
+    # 检测 check_cross_level_leray 是否存在于 a_topology.py
+    t6_implemented = False
+    topology_path = os.path.join(root, "src", "newchan", "a_topology.py")
+    if os.path.isfile(topology_path):
+        with open(topology_path, encoding="utf-8") as f:
+            topo_content = f.read()
+        t6_implemented = "def check_cross_level_leray" in topo_content
+
+    # 检测 Layer 3 审核共识
+    layer3_approved = False
+    l3_gemini_files = glob.glob(
+        os.path.join(review_dir, "plan-review-layer3-gemini-round*.md"),
+    )
+    l3_codex_files = glob.glob(
+        os.path.join(review_dir, "plan-review-layer3-codex-round*.md"),
+    )
+    gemini_l3_ok = False
+    codex_l3_ok = False
+    if l3_gemini_files:
+        with open(sorted(l3_gemini_files)[-1], encoding="utf-8") as f:
+            gemini_l3_ok = "APPROVED" in f.read()
+    if l3_codex_files:
+        with open(sorted(l3_codex_files)[-1], encoding="utf-8") as f:
+            codex_l3_ok = "APPROVED" in f.read()
+    layer3_approved = gemini_l3_ok and codex_l3_ok
+
+    if t6_implemented:
+        if layer3_approved:
+            filled_mu.append({
+                "mu": "Layer 3 T6 已审核",
+                "evidence": "T6 可计算近似已实现 + Gemini×Codex 审核通过（204号谱系）",
+            })
+        else:
+            filled_mu.append({
+                "mu": "Layer 3 T6 已实现",
+                "evidence": "check_cross_level_leray 已实现（W₁单调+bottleneck有界+KL散度有界），待审核",
+            })
+            if "Layer 3 T6 待审核" not in audited:
+                new_mu.append({
+                    "mu": "Layer 3 T6 待审核",
+                    "reason": "T6 可计算近似已实现但未经 Gemini×Codex 审核",
+                })
+    elif layer2_approved:
+        if "Layer 3 T6 就绪" not in audited:
+            new_mu.append({
+                "mu": "Layer 3 T6 就绪",
+                "reason": "Layer 2 审核通过 → T6 可计算近似可启动（204号：不搁置）",
+            })
+
     # 补充规则：谱系类型分布检测
     recent_types = genealogy_stats.get("recent_type_distribution", {})
     if recent_types:
