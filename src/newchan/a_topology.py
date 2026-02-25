@@ -1006,6 +1006,10 @@ def check_cross_level_leray(
 
     三个条件全部满足 → passed = True（Leray 近似成立）。
 
+    注意：W₁ 单调性和 KL 散度是尺度无关的（相对比较），但 bottleneck 距离
+    是价格单位相关的绝对值。delta 的默认值 5.0 适用于单一股票的内部比较
+    （同一股票价格尺度一致）。跨股票比较时需根据价格尺度调整 delta。
+
     Parameters
     ----------
     levels : list[RecursiveLevel]
@@ -1013,9 +1017,10 @@ def check_cross_level_leray(
     tau : float
         W₁ 范数的 τ-trim 阈值。
     delta : float
-        Bottleneck 距离上界。默认 5.0。
+        Bottleneck 距离上界（价格单位）。默认 5.0。
+        尺度相关——不同价格范围的股票需调整此值。
     kappa : float
-        KL 散度上界。默认 1.0。
+        KL 散度上界（无量纲）。默认 1.0。
     """
     results: list[T6Result] = []
     for i in range(len(levels) - 1):
