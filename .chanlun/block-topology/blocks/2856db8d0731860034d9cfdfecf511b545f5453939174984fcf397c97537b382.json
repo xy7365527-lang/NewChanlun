@@ -1,0 +1,26 @@
+{
+  "id": "2856db8d0731860034d9cfdfecf511b545f5453939174984fcf397c97537b382",
+  "type": "residue",
+  "timestamp": "2026-02-25T03:35:29.452173+00:00",
+  "source": "cc",
+  "content": {
+    "gemini_conceded": [
+      "bi_direction_dependency",
+      "bi_greedy_matching",
+      "bi_internal_extremum",
+      "code_audit_feasibility",
+      "extreme_value_constraint",
+      "independent_kline_ambiguity",
+      "initial_direction_deadlock",
+      "missing_code_context"
+    ],
+    "codex_conceded": [],
+    "reasons": {
+      "gemini": "Gemini 在质询中放弃 8 个立场"
+    }
+  },
+  "refs": [
+    "31d114c6621e5930eed907a7434b60b3f8ed7cfd9f3807decbc09a123b57ed40"
+  ],
+  "git_ref": ""
+}
