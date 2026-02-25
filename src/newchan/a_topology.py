@@ -749,6 +749,27 @@ def gauge_equivalence_report(
                 }
                 for r in t8_checks
             ]
+            # 210号谱系：多维度力度汇总
+            n_total = len(t8_checks)
+            n_inconclusive = sum(1 for r in t8_checks if r.inconclusive)
+            n_conclusive = n_total - n_inconclusive
+            conclusive = [r for r in t8_checks if not r.inconclusive]
+            t8_results = {
+                "details": t8_results,
+                "summary": {
+                    "total": n_total,
+                    "inconclusive": n_inconclusive,
+                    "conclusive": n_conclusive,
+                    "w1_passed": sum(1 for r in conclusive if r.passed),
+                    "w1_failed": sum(1 for r in conclusive if not r.passed),
+                    "macd_w1_consensus": sum(
+                        1 for r in conclusive if r.passed and r.macd_agrees
+                    ),
+                    "macd_only": sum(
+                        1 for r in conclusive if not r.passed and not r.macd_agrees
+                    ),
+                },
+            }
     except Exception:
         pass
 
