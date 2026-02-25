@@ -13,22 +13,24 @@
 ## 拓扑语义（195号）
 
 ### 结构映射
-级别递归是自下而上的分层构造（stratification）。
+级别递归是自下而上的滤子构造（filtration）。
 
-- RecursiveLevel(k) = 第 k 层 stratum S_k
-- Move[0] = Segment（最低层 stratum）
-- Move[k] = TrendTypeInstance[k-1]（高层 stratum 由低层构造）
-- 层级依赖性：低层确认后高层才构造（S_{k+1} 的构造材料来自 S_k 的已确认元素）
-- 递归门槛：confirmed trends >= 3 才触发下一层构造
-- build_recursive_levels() = 自下而上的分层构造算法
-- levels_to_level_views() = 分层到观察窗口的投影（L* 选择）
-- 级别是"长"出来的 = 分层是内禀的（由数据决定，不是预设的）
+- RecursiveLevel(k) = 滤子的第 k 级 F_k
+- Move[0] = Segment（滤子的最低级）
+- Move[k] = TrendTypeInstance[k-1]（高级由低级的已确认元素构造）
+- 层级依赖性：F_k 确认后 F_{k+1} 才构造（滤子的包含关系 F_0 ⊂ F_1 ⊂ ...）
+- 递归门槛：confirmed trends >= 3 才触发下一级构造
+- build_recursive_levels() = 自下而上的滤子构造算法
+- levels_to_level_views() = 滤子到观察窗口的投影（L* 选择）
+- 级别是"长"出来的 = 滤子是内禀的（由数据决定，不是预设的）
 
 ### 映射的边界
-这里的"分层"是组合学意义上的层级分解——空间 = ∪S_k，各层不相交且由低层构造。
-不是 Whitney 分层——Whitney 条件 (a)(b) 需要光滑流形的切空间/割线收敛条件，
+这里的"滤子"是组合学意义上的多尺度层级构造——低级确认后高级才浮现。
+不是 Whitney 分层（stratification）——stratification 将同一空间拆为互不相交的子集，
+而级别递归是对同一时间轴的粗粒化（coarse-graining），高级包含低级的信息。
+不是 Whitney 条件——Whitney 条件需要光滑流形的切空间/割线收敛条件，
 离散构造不具备光滑性。类比的有效部分：递归层级是内禀的（由数据生长，不是预设的），
-这和分层的精神（decomposition by intrinsic structure）一致。
+这和滤子的精神（逐层精炼的结构）一致。
 """
 
 from __future__ import annotations

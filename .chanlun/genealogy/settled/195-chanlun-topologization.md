@@ -42,7 +42,7 @@ Opus 自审（Round 1）发现并修正 4 个 HIGH 问题：
 3. **L6 Whitney 分层 → 分层构造**：Whitney 条件需光滑性，离散构造不具备
 4. **强不变量 → 候选**：n_centers/ZD_ZG 在不同模式下是否保持是待验证假设
 
-## 六层拓扑对应（最终版）
+## 六层拓扑对应（最终版 v4——Gemini 3.1 Pro 审计后修正）
 
 | 层级 | 缠论概念 | 代码模块 | 拓扑对应物 |
 |------|---------|---------|-----------|
@@ -51,8 +51,8 @@ Opus 自审（Round 1）发现并修正 4 个 HIGH 问题：
 | L2 | 笔 | a_stroke.py | CW 1-cell（最精确的对应） |
 | L3 | 线段 | a_segment_v1.py | 1-chain / 子复形 |
 | L4 | 中枢 | a_center_v0.py | 闭区间族的有限交 |
-| L5 | 走势类型 | a_trendtype_v0.py | 路径空间上的有限组合分类 |
-| L6 | 级别递归 | a_recursive_engine.py | 分层构造 stratification |
+| L5 | 走势类型 | a_trendtype_v0.py | 有向图路径的有限组合分类 |
+| L6 | 级别递归 | a_recursive_engine.py | 滤子构造 filtration |
 
 ## 转换函数框架
 
