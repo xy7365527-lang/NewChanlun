@@ -361,6 +361,88 @@ def derive_mu(block_stats, genealogy_stats, root):
                 "reason": "a_topology.py 不存在——分解不唯一(001号)的等价类验证缺失",
             })
 
+    # 规则：Layer 1 审核共识检测
+    review_dir = os.path.join(root, ".chanlun", "review-results")
+    layer1_approved = False
+    if os.path.isdir(review_dir):
+        gemini_approved = False
+        codex_approved = False
+        # 查找最终轮（最大 round 号）的审核文件
+        gemini_files = sorted(glob.glob(
+            os.path.join(review_dir, "plan-review-layer1-gemini-round*.md"),
+        ))
+        codex_files = sorted(glob.glob(
+            os.path.join(review_dir, "plan-review-layer1-codex-round*.md"),
+        ))
+        if gemini_files:
+            with open(gemini_files[-1], encoding="utf-8") as f:
+                if "APPROVED" in f.read():
+                    gemini_approved = True
+        if codex_files:
+            with open(codex_files[-1], encoding="utf-8") as f:
+                if "APPROVED" in f.read():
+                    codex_approved = True
+        layer1_approved = gemini_approved and codex_approved
+
+    if layer1_approved:
+        filled_mu.append({
+            "mu": "Layer 1 审核共识",
+            "evidence": "Gemini + Codex 最终轮均 APPROVED",
+        })
+    else:
+        empty_mu.append({
+            "mu": "Layer 1 审核共识",
+            "reason": "Gemini/Codex 审核未全部 APPROVED（或审核文件不存在）",
+        })
+
+    # 规则：gauge 经验验证检测
+    gauge_report_path = os.path.join(
+        root, ".chanlun", "review-results",
+        "gauge-equivalence-empirical-report.md",
+    )
+    gauge_verified = False
+    gauge_summary = ""
+    if os.path.isfile(gauge_report_path):
+        with open(gauge_report_path, encoding="utf-8") as f:
+            gauge_content = f.read()
+        # 检测 成功/失败/总计 行的成功率
+        m = re.search(
+            r"\*\*成功/失败/总计\*\*:\s*(\d+)/(\d+)/(\d+)",
+            gauge_content,
+        )
+        if m:
+            success, fail, total = int(m.group(1)), int(m.group(2)), int(m.group(3))
+            if fail == 0 and success == total and total > 0:
+                gauge_verified = True
+                # 提取保持率摘要
+                rates = re.findall(
+                    r"\|\s*(\w+)\s*\|.*?\|\s*([\d.]+%)\s*\|",
+                    gauge_content,
+                )
+                gauge_summary = (
+                    f"{success}/{total} 全成功"
+                    + (f"，保持率: {', '.join(f'{k}={v}' for k, v in rates[:5])}" if rates else "")
+                )
+
+    if gauge_verified:
+        filled_mu.append({
+            "mu": "gauge 经验验证",
+            "evidence": gauge_summary,
+        })
+    else:
+        empty_mu.append({
+            "mu": "gauge 经验验证",
+            "reason": "gauge-equivalence-empirical-report.md 不存在或成功率非 100%",
+        })
+
+    # 规则：Layer 2 就绪检测
+    if layer1_approved and gauge_verified:
+        if "Layer 2 T8 就绪" not in audited:
+            new_mu.append({
+                "mu": "Layer 2 T8 就绪",
+                "reason": "Layer 1 审核共识 + gauge 经验验证均 filled → T8 背驰拓扑化可启动",
+            })
+
     # 补充规则：谱系类型分布检测
     recent_types = genealogy_stats.get("recent_type_distribution", {})
     if recent_types:

@@ -246,6 +246,197 @@ def compute_structural_delta(
     )
 
 
+# ---------------------------------------------------------------------------
+# T8：背驰 = Wasserstein-1 带容差单调下降（Layer 2）
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True, slots=True)
+class T8Result:
+    """T8 背驰拓扑后验验证结果。
+
+    T8 断言：背驰 ⇔ W₁(Dgm(C)) ≤ W₁(Dgm(A)) - η
+    其中 Dgm(X) 是 X 段内中枢构成的条形码。
+
+    这是对现有 MACD 三维度 OR 判定的拓扑后验验证，
+    不替代原始背驰检测。
+    """
+    divergence_index: int
+    kind: str
+    direction: str
+    w1_a: float
+    w1_c: float
+    w1_drop: float  # w1_a - w1_c
+    eta: float
+    passed: bool  # w1_c <= w1_a - eta
+    inconclusive: bool  # A/C 段无中枢时 True
+    n_centers_a: int
+    n_centers_c: int
+    normalized: bool
+
+
+def _normalize_barcode(
+    barcode: tuple[tuple[float, float], ...],
+    price_low: float,
+    price_high: float,
+) -> tuple[tuple[float, float], ...]:
+    """仿射规范化条形码到 [0, 1] 区间。
+
+    将每个 bar (birth, death) 线性映射：
+    normalized = (value - price_low) / span，其中 span = price_high - price_low。
+
+    如果 span ≤ 0（退化情况），返回原始条形码。
+    """
+    span = price_high - price_low
+    if span <= 0:
+        return barcode
+    return tuple(
+        ((b - price_low) / span, (d - price_low) / span)
+        for b, d in barcode
+    )
+
+
+def _w1_norm(barcode: tuple[tuple[float, float], ...]) -> float:
+    """计算条形码到空图的 Wasserstein-1 距离（W₁ 范数）。
+
+    W₁(Dgm, ∅) = Σ|d_i - b_i| / 2
+    即每个 bar 的半寿命之和——条形码的"总持续量"。
+
+    空条形码返回 0.0。
+    """
+    if not barcode:
+        return 0.0
+    return sum(abs(d - b) / 2.0 for b, d in barcode)
+
+
+def _centers_in_segment_range(
+    centers,
+    segments,
+    seg_start: int,
+    seg_end: int,
+) -> list:
+    """筛选 seg_start..seg_end 范围内的中枢子集。
+
+    中枢的 seg0/seg1 完全落在 [seg_start, seg_end] 范围内才选入。
+    centers 和 segments 分别是中枢列表和线段列表。
+    """
+    return [
+        c for c in centers
+        if c.seg0 >= seg_start and c.seg1 <= seg_end
+    ]
+
+
+def _segment_price_range(
+    segments,
+    seg_start: int,
+    seg_end: int,
+) -> tuple[float, float]:
+    """提取 segment 范围内的 (min_low, max_high)。
+
+    用于仿射规范化。遍历 segments[seg_start..seg_end] 的 low/high。
+    """
+    lows = [segments[i].low for i in range(seg_start, min(seg_end + 1, len(segments)))]
+    highs = [segments[i].high for i in range(seg_start, min(seg_end + 1, len(segments)))]
+    if not lows:
+        return (0.0, 0.0)
+    return (min(lows), max(highs))
+
+
+def check_divergence_topology(
+    divergences,
+    segments,
+    centers,
+    *,
+    eta: float = 0.0,
+    normalize: bool = True,
+) -> list[T8Result]:
+    """对背驰列表逐个验证 T8 拓扑后验。
+
+    Parameters
+    ----------
+    divergences : list[Divergence]
+        来自 a_divergence.py 的背驰检测结果。
+    segments : list[Segment]
+        线段列表（用于提取价格范围和中枢筛选）。
+    centers : list[Center]
+        中枢列表。
+    eta : float
+        容差参数。背驰判定：w1_c <= w1_a - eta。
+    normalize : bool
+        是否做仿射规范化（默认 True）。
+
+    Returns
+    -------
+    list[T8Result]
+        每个背驰对应一个 T8 验证结果。
+    """
+    results: list[T8Result] = []
+
+    for idx, div in enumerate(divergences):
+        # 筛选 A 段和 C 段内的中枢
+        centers_a = _centers_in_segment_range(
+            centers, segments, div.seg_a_start, div.seg_a_end,
+        )
+        centers_c = _centers_in_segment_range(
+            centers, segments, div.seg_c_start, div.seg_c_end,
+        )
+
+        # 无中枢时标记 inconclusive
+        if not centers_a and not centers_c:
+            results.append(T8Result(
+                divergence_index=idx,
+                kind=div.kind,
+                direction=div.direction,
+                w1_a=0.0,
+                w1_c=0.0,
+                w1_drop=0.0,
+                eta=eta,
+                passed=False,
+                inconclusive=True,
+                n_centers_a=0,
+                n_centers_c=0,
+                normalized=normalize,
+            ))
+            continue
+
+        # 构造条形码
+        bc_a = centers_to_barcode(centers_a)
+        bc_c = centers_to_barcode(centers_c)
+
+        # 仿射规范化
+        if normalize and segments:
+            price_low_a, price_high_a = _segment_price_range(
+                segments, div.seg_a_start, div.seg_a_end,
+            )
+            price_low_c, price_high_c = _segment_price_range(
+                segments, div.seg_c_start, div.seg_c_end,
+            )
+            bc_a = _normalize_barcode(bc_a, price_low_a, price_high_a)
+            bc_c = _normalize_barcode(bc_c, price_low_c, price_high_c)
+
+        # 计算 W₁ 范数
+        w1_a = _w1_norm(bc_a)
+        w1_c = _w1_norm(bc_c)
+        w1_drop = w1_a - w1_c
+        passed = w1_c <= w1_a - eta
+
+        results.append(T8Result(
+            divergence_index=idx,
+            kind=div.kind,
+            direction=div.direction,
+            w1_a=w1_a,
+            w1_c=w1_c,
+            w1_drop=w1_drop,
+            eta=eta,
+            passed=passed,
+            inconclusive=False,
+            n_centers_a=len(centers_a),
+            n_centers_c=len(centers_c),
+            normalized=normalize,
+        ))
+
+    return results
+
+
 def _check_strong_invariants(
     fp_a: DecompositionFingerprint,
     fp_b: DecompositionFingerprint,
@@ -420,6 +611,64 @@ def gauge_equivalence_report(
             "rate": preserved / len(transitions) if transitions else 0.0,
         }
 
+    # T7 递归条形码偏序检查（取第一个模式的管线结果）
+    t7_results = []
+    try:
+        _, _, _, _, rl_first = _run_pipeline(
+            df_raw, modes[0], min_strict_sep, center_sustain_m,
+        )
+        if len(rl_first) >= 2:
+            t7_checks = check_recursive_barcode_order(rl_first, tau=tau)
+            t7_results = [
+                {
+                    "level_low": r.level_low,
+                    "level_high": r.level_high,
+                    "passed": r.passed,
+                    "trimmed_low_count": r.trimmed_low_count,
+                    "high_count": r.high_count,
+                }
+                for r in t7_checks
+            ]
+    except Exception:
+        pass
+
+    # T8 背驰拓扑后验检查（取第一个模式的管线结果）
+    t8_results = []
+    try:
+        from newchan.a_divergence import divergences_from_level
+        s_first, seg_first, c_first, t_first, rl_first = _run_pipeline(
+            df_raw, modes[0], min_strict_sep, center_sustain_m,
+        )
+        if rl_first:
+            level0 = rl_first[0]
+            divs = divergences_from_level(
+                level0.moves if hasattr(level0, "moves") else seg_first,
+                level0.centers,
+                level0.trends,
+                level0.level,
+            )
+        else:
+            divs = divergences_from_level(seg_first, c_first, t_first, 0)
+        if divs:
+            t8_checks = check_divergence_topology(
+                divs, seg_first, c_first, eta=0.0,
+            )
+            t8_results = [
+                {
+                    "divergence_index": r.divergence_index,
+                    "kind": r.kind,
+                    "direction": r.direction,
+                    "w1_a": r.w1_a,
+                    "w1_c": r.w1_c,
+                    "w1_drop": r.w1_drop,
+                    "passed": r.passed,
+                    "inconclusive": r.inconclusive,
+                }
+                for r in t8_checks
+            ]
+    except Exception:
+        pass
+
     return {
         "modes": list(modes),
         "n_transitions": len(transitions),
@@ -443,6 +692,8 @@ def gauge_equivalence_report(
             for t in transitions
         ],
         "strong_invariant_summary": strong_summary,
+        "t7_recursive_order": t7_results,
+        "t8_divergence_topology": t8_results,
     }
 
 

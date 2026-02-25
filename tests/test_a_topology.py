@@ -10,6 +10,7 @@ from newchan.a_topology import (
     TransitionResult,
     T7Result,
     T5Result,
+    T8Result,
     centers_to_barcode,
     barcode_to_diagram,
     compute_beta1_tau,
@@ -19,6 +20,9 @@ from newchan.a_topology import (
     gauge_equivalence_report,
     _bottleneck_distance,
     _check_barcode_inclusion,
+    _w1_norm,
+    _normalize_barcode,
+    check_divergence_topology,
     check_recursive_barcode_order,
     check_trend_move_equivalence,
 )
@@ -541,3 +545,170 @@ class TestT5FailurePaths:
         assert results[0].confirmed_only is True
         assert results[0].identity is False  # trend_b is not trend_a
         assert results[0].passed is False
+
+
+# ---------------------------------------------------------------------------
+# T8：背驰拓扑后验验证测试（Layer 2）
+# ---------------------------------------------------------------------------
+
+class TestT8DivergenceTopology:
+    def test_t8_w1_norm_basic(self):
+        """W₁ 范数：Σ|d-b|/2 求和。"""
+        bc = ((1.0, 3.0), (2.0, 6.0))
+        # |3-1|/2 + |6-2|/2 = 1.0 + 2.0 = 3.0
+        assert _w1_norm(bc) == pytest.approx(3.0)
+
+    def test_t8_w1_norm_empty(self):
+        """空条形码 → W₁ = 0.0。"""
+        assert _w1_norm(()) == 0.0
+
+    def test_t8_normalize_barcode(self):
+        """仿射规范化将条形码映射到 [0, 1] 区间。"""
+        bc = ((100.0, 104.0), (102.0, 106.0))
+        normalized = _normalize_barcode(bc, price_low=100.0, price_high=110.0)
+        # span = 10, (100-100)/10=0.0, (104-100)/10=0.4, (102-100)/10=0.2, (106-100)/10=0.6
+        assert normalized[0] == pytest.approx((0.0, 0.4))
+        assert normalized[1] == pytest.approx((0.2, 0.6))
+
+    def test_t8_normalize_barcode_zero_span(self):
+        """span=0 退化情况返回原始条形码。"""
+        bc = ((5.0, 5.0),)
+        result = _normalize_barcode(bc, price_low=5.0, price_high=5.0)
+        assert result == bc
+
+    def test_t8_synthetic_divergence(self):
+        """合成背驰：W₁(C) < W₁(A) → passed=True。"""
+        from types import SimpleNamespace as NS
+
+        # 构造 segments: 10 个线段
+        segments = [
+            NS(s0=i, s1=i, i0=i*10, i1=(i+1)*10, direction="up",
+               high=100.0 + i * 2, low=98.0 + i * 2)
+            for i in range(10)
+        ]
+        # A 段中枢（宽带——高持续量）
+        center_a = NS(seg0=1, seg1=3, low=99.0, high=103.0,
+                       kind="settled", confirmed=True, sustain=0,
+                       direction="up", gg=103.0, dd=99.0, g=100.0, d=101.0,
+                       development="", level_id=0, terminated=False)
+        # C 段中枢（窄带——低持续量 = 力竭信号）
+        center_c = NS(seg0=7, seg1=9, low=112.0, high=113.0,
+                       kind="settled", confirmed=True, sustain=0,
+                       direction="up", gg=113.0, dd=112.0, g=112.5, d=112.5,
+                       development="", level_id=0, terminated=False)
+        centers = [center_a, center_c]
+
+        # 构造一个 Divergence
+        div = NS(kind="trend", direction="top", level_id=0,
+                 seg_a_start=0, seg_a_end=4, seg_c_start=6, seg_c_end=9,
+                 center_idx=1, force_a=100.0, force_c=50.0, confirmed=True)
+
+        results = check_divergence_topology(
+            [div], segments, centers, eta=0.0, normalize=False,
+        )
+        assert len(results) == 1
+        r = results[0]
+        assert isinstance(r, T8Result)
+        assert r.inconclusive is False
+        assert r.n_centers_a == 1
+        assert r.n_centers_c == 1
+        # A 段中枢 [99,103] → |103-99|/2 = 2.0
+        assert r.w1_a == pytest.approx(2.0)
+        # C 段中枢 [112,113] → |113-112|/2 = 0.5
+        assert r.w1_c == pytest.approx(0.5)
+        assert r.passed is True
+        assert r.w1_drop == pytest.approx(1.5)
+
+    def test_t8_inconclusive(self):
+        """A/C 段无中枢 → inconclusive=True。"""
+        from types import SimpleNamespace as NS
+
+        segments = [
+            NS(s0=i, s1=i, i0=i*10, i1=(i+1)*10, direction="up",
+               high=100.0, low=98.0)
+            for i in range(10)
+        ]
+        div = NS(kind="trend", direction="top", level_id=0,
+                 seg_a_start=0, seg_a_end=3, seg_c_start=6, seg_c_end=9,
+                 center_idx=0, force_a=100.0, force_c=50.0, confirmed=True)
+
+        results = check_divergence_topology(
+            [div], segments, [], eta=0.0,  # 空中枢列表
+        )
+        assert len(results) == 1
+        assert results[0].inconclusive is True
+        assert results[0].passed is False
+
+    def test_t8_eta_tolerance(self):
+        """eta>0 需要更大的 W₁ drop 才能 pass。"""
+        from types import SimpleNamespace as NS
+
+        segments = [
+            NS(s0=i, s1=i, i0=i*10, i1=(i+1)*10, direction="up",
+               high=100.0 + i, low=98.0 + i)
+            for i in range(10)
+        ]
+        # 两个中枢，A 段的比 C 段的略宽
+        center_a = NS(seg0=1, seg1=3, low=99.0, high=102.0,
+                       kind="settled", confirmed=True, sustain=0,
+                       direction="up", gg=102.0, dd=99.0, g=100.0, d=100.0,
+                       development="", level_id=0, terminated=False)
+        center_c = NS(seg0=7, seg1=9, low=105.0, high=107.5,
+                       kind="settled", confirmed=True, sustain=0,
+                       direction="up", gg=107.5, dd=105.0, g=106.0, d=106.0,
+                       development="", level_id=0, terminated=False)
+        centers = [center_a, center_c]
+
+        div = NS(kind="trend", direction="top", level_id=0,
+                 seg_a_start=0, seg_a_end=4, seg_c_start=6, seg_c_end=9,
+                 center_idx=1, force_a=100.0, force_c=80.0, confirmed=True)
+
+        # 无规范化，A: |102-99|/2=1.5, C: |107.5-105|/2=1.25
+        # w1_drop = 0.25
+        # eta=0 → passed (0.25 > 0)
+        results_no_eta = check_divergence_topology(
+            [div], segments, centers, eta=0.0, normalize=False,
+        )
+        assert results_no_eta[0].passed is True
+
+        # eta=0.5 → not passed (w1_c=1.25 > w1_a - eta = 1.5 - 0.5 = 1.0? 1.25 > 1.0 → False)
+        results_with_eta = check_divergence_topology(
+            [div], segments, centers, eta=0.5, normalize=False,
+        )
+        assert results_with_eta[0].passed is False
+
+    def test_t8_from_pipeline(self, df_raw):
+        """真实数据端到端：运行管线 → 检测背驰 → T8 验证。"""
+        from newchan.a_topology import _run_pipeline
+        from newchan.a_divergence import divergences_from_level
+
+        strokes, segments, centers, trends, rec_levels = _run_pipeline(df_raw, "wide")
+
+        # 获取背驰
+        if rec_levels:
+            level0 = rec_levels[0]
+            divs = divergences_from_level(
+                level0.moves if hasattr(level0, "moves") else segments,
+                level0.centers,
+                level0.trends,
+                level0.level,
+            )
+            used_centers = level0.centers
+        else:
+            from newchan.a_center_v0 import centers_from_segments_v0
+            from newchan.a_trendtype_v0 import trend_instances_from_centers
+            used_centers = centers_from_segments_v0(segments)
+            used_trends = trend_instances_from_centers(segments, used_centers)
+            divs = divergences_from_level(segments, used_centers, used_trends, 0)
+
+        if divs:
+            results = check_divergence_topology(
+                divs, segments, used_centers, eta=0.0,
+            )
+            assert len(results) == len(divs)
+            for r in results:
+                assert isinstance(r, T8Result)
+                assert r.w1_a >= 0.0
+                assert r.w1_c >= 0.0
+                assert isinstance(r.passed, bool)
+                assert isinstance(r.inconclusive, bool)
