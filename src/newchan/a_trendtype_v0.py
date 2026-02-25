@@ -90,6 +90,20 @@ class TrendTypeInstance:
     confirmed: bool
     # ── 新增字段（有默认值，向下兼容） ──
     level_id: int = 0
+    start_price: float = 0.0
+    end_price: float = 0.0
+
+    @property
+    def as_move_direction(self) -> Literal["up", "down"]:
+        """作为高级别 Move 时的方向（基于起止价格）。
+
+        211号谱系：TrendTypeInstance.direction 是内部结构方向，
+        不代表它作为高级别"线段"的方向。as_move_direction 由
+        start_price/end_price 决定，用于 level ≥2 中枢构造。
+        """
+        if self.end_price > self.start_price:
+            return "up"
+        return "down"
 
 
 # ====================================================================
@@ -230,6 +244,8 @@ def _merge_adjacent_same_direction_trends(
                 ci for ci in inst.center_indices if ci not in prev.center_indices
             ),
             confirmed=True,
+            start_price=prev.start_price,
+            end_price=inst.end_price,
         )
     return merged
 
@@ -273,10 +289,24 @@ def _compute_seg_boundaries(
     return seg0, seg1
 
 
+def _move_start_end_price(move: object) -> tuple[float, float]:
+    """提取 move 的起止价格（211号谱系）。
+
+    Segment: 由 direction 推导（up → low→high, down → high→low）。
+    TrendTypeInstance: 直接使用 start_price/end_price。
+    """
+    sp = getattr(move, "start_price", 0.0)
+    if sp != 0.0:
+        return sp, getattr(move, "end_price", 0.0)
+    if getattr(move, "direction", "") == "up":
+        return move.low, move.high
+    return move.high, move.low
+
+
 def _compute_instance_metrics(
     segments: list, seg0: int, seg1: int, n_seg: int,
-) -> tuple[int, int, float, float, int]:
-    """计算 i0, i1, high, low；不足 3 段时扩展 seg1。返回 (i0, i1, high, low, seg1)。"""
+) -> tuple[int, int, float, float, float, float, int]:
+    """计算 i0, i1, high, low, start_price, end_price；不足 3 段时扩展 seg1。"""
     if seg1 - seg0 < 2:
         seg1 = min(seg0 + 2, n_seg - 1)
     i0 = segments[seg0].i0
@@ -284,7 +314,9 @@ def _compute_instance_metrics(
     seg_slice = segments[seg0 : seg1 + 1]
     high = max(s.high for s in seg_slice) if seg_slice else 0.0
     low = min(s.low for s in seg_slice) if seg_slice else 0.0
-    return i0, i1, high, low, seg1
+    start_price = _move_start_end_price(segments[seg0])[0]
+    end_price = _move_start_end_price(segments[seg1])[1]
+    return i0, i1, high, low, start_price, end_price, seg1
 
 
 def _mark_last_instance_unconfirmed(
@@ -305,6 +337,8 @@ def _mark_last_instance_unconfirmed(
         low=last.low,
         center_indices=last.center_indices,
         confirmed=False,
+        start_price=last.start_price,
+        end_price=last.end_price,
     )]
 
 
@@ -346,7 +380,7 @@ def trend_instances_from_centers(
         seg0, seg1 = _compute_seg_boundaries(
             gi, center_idxs, centers, groups, n_seg,
         )
-        i0, i1, high, low, seg1 = _compute_instance_metrics(
+        i0, i1, high, low, start_price, end_price, seg1 = _compute_instance_metrics(
             segments, seg0, seg1, n_seg,
         )
         instances.append(TrendTypeInstance(
@@ -356,6 +390,8 @@ def trend_instances_from_centers(
             high=high, low=low,
             center_indices=tuple(center_idxs),
             confirmed=True,
+            start_price=start_price,
+            end_price=end_price,
         ))
 
     instances = _merge_adjacent_same_direction_trends(instances)

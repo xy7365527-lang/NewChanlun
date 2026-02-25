@@ -115,6 +115,8 @@ def _stamp_trends(trends: list[TrendTypeInstance], level_id: int) -> list[TrendT
             center_indices=t.center_indices,
             confirmed=t.confirmed,
             level_id=level_id,
+            start_price=t.start_price,
+            end_price=t.end_price,
         )
         for t in trends
     ]
