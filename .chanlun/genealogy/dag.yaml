@@ -954,6 +954,16 @@ nodes:
   status: 生成态
   type: 待定
   file: pending/191-gangju-auto-20260224-1101.md
+- id: '192'
+  title: 纲举目张重复检测——191号审计的重复信号
+  status: 结算态
+  type: 语法记录
+  file: settled/192-gangju-duplicate-detection.md
+- id: '193'
+  title: 第一次真实多轮质询——缠论笔定义代码忠实度审计
+  status: 结算态
+  type: 概念发现
+  file: settled/193-first-real-inquiry-loop.md
 edges:
   depends_on:
   - from: '136'
@@ -1940,6 +1950,14 @@ edges:
     to: '188'
   - from: '191'
     to: '178'
+  - from: '192'
+    to: '191'
+  - from: '193'
+    to: '184'
+  - from: '193'
+    to: '188'
+  - from: '193'
+    to: '191'
   triggered:
   - from: '005'
     to: 005a
