@@ -43,11 +43,7 @@ from scripts.consensus_trigger import (
     derive_concession_trace,
     trigger_ceremony,
 )
-from scripts.stance_parser import (
-    STANCE_OUTPUT_PROTOCOL_CODEX,
-    STANCE_OUTPUT_PROTOCOL_GEMINI,
-    parse_stance_declaration,
-)
+from scripts.stance_parser import parse_stance_declaration
 
 
 # ── 数据结构 ──
@@ -478,9 +474,10 @@ def run_inquiry_loop(
         round_context = _build_round_context(subject, context, snapshots)
 
         # ── Gemini challenge ──
-        gemini_subject = subject + STANCE_OUTPUT_PROTOCOL_GEMINI
+        # STANCE_OUTPUT_PROTOCOL 已在 challenge template 中追加，
+        # 不再在 subject 中重复（193号诊断）
         gemini_result = gemini_challenger.challenge(  # type: ignore[union-attr]
-            gemini_subject, round_context,
+            subject, round_context,
         )
         gemini_stance = parse_stance_declaration(
             gemini_result.response, round_number=round_number,
@@ -500,13 +497,14 @@ def run_inquiry_loop(
         snapshots.append(gemini_snap)
 
         # ── Codex review ──
-        codex_subject = subject + STANCE_OUTPUT_PROTOCOL_CODEX
+        # STANCE_OUTPUT_PROTOCOL 已在 review template 中追加，
+        # 不再在 subject 中重复（193号诊断：双重追加 + 长 context 导致忽略）
         codex_context = round_context + (
             f"\n\n=== Gemini R{round_number} 回复 ===\n"
             f"{gemini_result.response}\n"
         )
         codex_result = codex_challenger.review(  # type: ignore[union-attr]
-            codex_subject, codex_context,
+            subject, codex_context,
         )
         codex_stance = parse_stance_declaration(
             codex_result.response, round_number=round_number,
