@@ -32,6 +32,9 @@ _REVIEW_SYSTEM_PROMPT = """\
 - 如果没有发现问题，明确说"无否定"
 - 不要客套，不要模糊化，直击要害
 - 输出严格诊断，不是单向 lint
+
+【强制输出要求】你的每次回复末尾必须包含 YAML 格式的立场声明块（---stance-declaration--- 到 ---end-stance---）。\
+无论回复多长、context 多复杂，这个结构化立场声明不可省略。缺少立场声明的回复视为无效。
 """
 
 _DIAGNOSE_SYSTEM_PROMPT = """\
