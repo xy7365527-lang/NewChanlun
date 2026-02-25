@@ -1,6 +1,6 @@
 # 真实市场数据验证报告
 
-生成时间：2026-02-25 21:34
+生成时间：2026-02-25 22:01
 谱系引用：195号-5（拓扑不变量真实数据验证）+ 202号-3（gauge equivalence 经验验证）
 
 ## 数据来源
@@ -21,13 +21,13 @@
 
 | 数据集 | K线数 | T1(barcode) | T3(centers) | T4(beta1) | T5 | T6 | T7 | T8 | 强不变量通过率 |
 |--------|-------|-------------|-------------|-----------|-----|-----|-----|-----|---------------|
-| sz000001 平安银行 | 1974 | 1/3 | 1/3 | 1/3 | N/A | N/A | N/A | 0/0(inc:3) | 46.7% |
-| sh600036 招商银行 | 1974 | 0/3 | 3/3 | 3/3 | N/A | N/A | N/A | 0/0(inc:3) | 60.0% |
-| sz000858 五粮液 | 1974 | 0/3 | 1/3 | 1/3 | N/A | N/A | N/A | 0/0(inc:2) | 20.0% |
-| sh601318 中国平安 | 1974 | 1/3 | 3/3 | 3/3 | N/A | N/A | N/A | 0/0(inc:5) | 60.0% |
-| sz002475 立讯精密 | 1974 | 1/3 | 3/3 | 3/3 | N/A | N/A | N/A | 0/0(inc:1) | 60.0% |
-| SYN-A 深递归合成 | 1200 | 0/3 | 1/3 | 1/3 | N/A | N/A | N/A | 0/0(inc:2) | 20.0% |
-| SYN-B 多中枢背驰合成 | 1500 | 1/3 | 3/3 | 3/3 | N/A | N/A | N/A | 0/0(inc:2) | 60.0% |
+| sz000001 平安银行 | 1974 | 1/3 | 1/3 | 1/3 | N/A | N/A | N/A | 2/3 | 46.7% |
+| sh600036 招商银行 | 1974 | 0/3 | 3/3 | 3/3 | N/A | N/A | N/A | 1/3 | 60.0% |
+| sz000858 五粮液 | 1974 | 0/3 | 1/3 | 1/3 | N/A | N/A | N/A | 2/2 | 20.0% |
+| sh601318 中国平安 | 1974 | 1/3 | 3/3 | 3/3 | N/A | N/A | N/A | 3/5 | 60.0% |
+| sz002475 立讯精密 | 1974 | 1/3 | 3/3 | 3/3 | N/A | N/A | N/A | 1/1 | 60.0% |
+| SYN-A 深递归合成 | 1200 | 0/3 | 1/3 | 1/3 | N/A | N/A | N/A | 2/2 | 20.0% |
+| SYN-B 多中枢背驰合成 | 1500 | 1/3 | 3/3 | 3/3 | N/A | N/A | N/A | 0/2 | 60.0% |
 
 ## T6 跨层 Leray 可计算近似详细结果
 
@@ -43,68 +43,68 @@
 
 | idx | kind | direction | W1_A | W1_C | W1_drop | passed | inconclusive | centers_a | centers_c | mode | level |
 |-----|------|-----------|------|------|---------|--------|--------------|-----------|-----------|------|-------|
-| 0 | consolidation | top | 0.0000 | 0.0000 | 0.0000 | False | True | 0 | 0 | wide | 1 |
-| 0 | consolidation | top | 0.0000 | 0.0000 | 0.0000 | False | True | 0 | 0 | strict | 1 |
-| 0 | consolidation | top | 0.0000 | 0.0000 | 0.0000 | False | True | 0 | 0 | new | 1 |
+| 0 | consolidation | top | 2.5227 | 0.5932 | 1.9294 | True | False | 0 | 0 | wide | 1 |
+| 0 | consolidation | top | 1.1286 | 1.6880 | -0.5594 | False | False | 0 | 0 | strict | 1 |
+| 0 | consolidation | top | 2.6667 | 0.5932 | 2.0734 | True | False | 0 | 0 | new | 1 |
 
-非inconclusive：0项
+非inconclusive：3项，通过2项
 
 ### sh600036 招商银行
 
 | idx | kind | direction | W1_A | W1_C | W1_drop | passed | inconclusive | centers_a | centers_c | mode | level |
 |-----|------|-----------|------|------|---------|--------|--------------|-----------|-----------|------|-------|
-| 0 | consolidation | top | 0.0000 | 0.0000 | 0.0000 | False | True | 0 | 0 | wide | 1 |
-| 0 | consolidation | top | 0.0000 | 0.0000 | 0.0000 | False | True | 0 | 0 | strict | 1 |
-| 0 | consolidation | top | 0.0000 | 0.0000 | 0.0000 | False | True | 0 | 0 | new | 1 |
+| 0 | consolidation | top | 1.3048 | 1.7635 | -0.4587 | False | False | 0 | 0 | wide | 1 |
+| 0 | consolidation | top | 1.7504 | 1.5618 | 0.1886 | True | False | 0 | 0 | strict | 1 |
+| 0 | consolidation | top | 1.4514 | 1.7635 | -0.3121 | False | False | 0 | 0 | new | 1 |
 
-非inconclusive：0项
+非inconclusive：3项，通过1项
 
 ### sz000858 五粮液
 
 | idx | kind | direction | W1_A | W1_C | W1_drop | passed | inconclusive | centers_a | centers_c | mode | level |
 |-----|------|-----------|------|------|---------|--------|--------------|-----------|-----------|------|-------|
-| 0 | consolidation | top | 0.0000 | 0.0000 | 0.0000 | False | True | 0 | 0 | wide | 1 |
-| 0 | consolidation | top | 0.0000 | 0.0000 | 0.0000 | False | True | 0 | 0 | strict | 1 |
+| 0 | consolidation | top | 2.0342 | 0.8652 | 1.1691 | True | False | 0 | 0 | wide | 1 |
+| 0 | consolidation | top | 3.1681 | 2.3023 | 0.8658 | True | False | 0 | 0 | strict | 1 |
 
-非inconclusive：0项
+非inconclusive：2项，通过2项
 
 ### sh601318 中国平安
 
 | idx | kind | direction | W1_A | W1_C | W1_drop | passed | inconclusive | centers_a | centers_c | mode | level |
 |-----|------|-----------|------|------|---------|--------|--------------|-----------|-----------|------|-------|
-| 0 | consolidation | top | 0.0000 | 0.0000 | 0.0000 | False | True | 0 | 0 | wide | 1 |
-| 1 | consolidation | top | 0.0000 | 0.0000 | 0.0000 | False | True | 0 | 0 | wide | 1 |
-| 0 | consolidation | bottom | 0.0000 | 0.0000 | 0.0000 | False | True | 0 | 0 | strict | 1 |
-| 0 | consolidation | top | 0.0000 | 0.0000 | 0.0000 | False | True | 0 | 0 | new | 1 |
-| 1 | consolidation | bottom | 0.0000 | 0.0000 | 0.0000 | False | True | 0 | 0 | new | 1 |
+| 0 | consolidation | top | 2.5846 | 1.7023 | 0.8823 | True | False | 0 | 0 | wide | 1 |
+| 1 | consolidation | top | 1.1580 | 1.6468 | -0.4887 | False | False | 0 | 0 | wide | 1 |
+| 0 | consolidation | bottom | 1.0912 | 1.4702 | -0.3790 | False | False | 0 | 0 | strict | 1 |
+| 0 | consolidation | top | 2.6180 | 1.7023 | 0.9157 | True | False | 0 | 0 | new | 1 |
+| 1 | consolidation | bottom | 1.3965 | 0.9699 | 0.4266 | True | False | 0 | 0 | new | 1 |
 
-非inconclusive：0项
+非inconclusive：5项，通过3项
 
 ### sz002475 立讯精密
 
 | idx | kind | direction | W1_A | W1_C | W1_drop | passed | inconclusive | centers_a | centers_c | mode | level |
 |-----|------|-----------|------|------|---------|--------|--------------|-----------|-----------|------|-------|
-| 0 | consolidation | bottom | 0.0000 | 0.0000 | 0.0000 | False | True | 0 | 0 | strict | 1 |
+| 0 | consolidation | bottom | 1.8157 | 0.5974 | 1.2184 | True | False | 0 | 0 | strict | 1 |
 
-非inconclusive：0项
+非inconclusive：1项，通过1项
 
 ### SYN-A 深递归合成
 
 | idx | kind | direction | W1_A | W1_C | W1_drop | passed | inconclusive | centers_a | centers_c | mode | level |
 |-----|------|-----------|------|------|---------|--------|--------------|-----------|-----------|------|-------|
-| 0 | consolidation | top | 0.0000 | 0.0000 | 0.0000 | False | True | 0 | 0 | wide | 1 |
-| 0 | consolidation | top | 0.0000 | 0.0000 | 0.0000 | False | True | 0 | 0 | new | 1 |
+| 0 | consolidation | top | 1.4033 | 0.6422 | 0.7611 | True | False | 0 | 0 | wide | 1 |
+| 0 | consolidation | top | 0.6494 | 0.6422 | 0.0072 | True | False | 0 | 0 | new | 1 |
 
-非inconclusive：0项
+非inconclusive：2项，通过2项
 
 ### SYN-B 多中枢背驰合成
 
 | idx | kind | direction | W1_A | W1_C | W1_drop | passed | inconclusive | centers_a | centers_c | mode | level |
 |-----|------|-----------|------|------|---------|--------|--------------|-----------|-----------|------|-------|
-| 0 | consolidation | top | 0.0000 | 0.0000 | 0.0000 | False | True | 0 | 0 | wide | 1 |
-| 0 | consolidation | top | 0.0000 | 0.0000 | 0.0000 | False | True | 0 | 0 | new | 1 |
+| 0 | consolidation | top | 2.9610 | 3.2211 | -0.2602 | False | False | 0 | 0 | wide | 1 |
+| 0 | consolidation | top | 2.9610 | 4.3143 | -1.3533 | False | False | 0 | 0 | new | 1 |
 
-非inconclusive：0项
+非inconclusive：2项，通过0项
 
 ## T7 递归条形码偏序详细结果
 
@@ -262,20 +262,21 @@
 - 强不变量通过率：37/75 = 49.3%
 - T5：0/0
 - T7：0/0
-- T8 非inconclusive：0/0，inconclusive：14
+- T8 非inconclusive：9/14，inconclusive：0
 
 ### 合成数据
 - 强不变量通过率：12/30 = 40.0%
 - T5：0/0
 - T7：0/0
-- T8 非inconclusive：0/0，inconclusive：4
+- T8 非inconclusive：2/4，inconclusive：0
 
 ### 总体
 - 强不变量通过率：49/105 = 46.7%
 - T5：0/0（递归级别 < 2）
 - T6：0/0（递归级别 < 2）
 - T7：0/0（递归级别 < 2）
-- T8 非inconclusive：0/0，inconclusive：18
+- T8 非inconclusive：11/18，inconclusive：0
+- T8 通过率：11/18 = 61.1%（真实数据 9/14=64.3%，合成数据 2/4=50.0%）
 
 ### 递归级别瓶颈诊断
 
@@ -291,10 +292,8 @@ T5/T6/T7 全部 N/A 的根因：日线数据递归深度不足。
 
 递归终止链：14 线段 → 2 中枢 → 1 走势类型实例 → level 2 需要 ≥3 confirmed trends → 终止。
 
-产生 level 2 的最低条件：≥4 中枢 → ≥15 线段（理论下限）。
-日线级别 7 年数据仅产生 12-14 线段，距离阈值差距不大但未达到。
+### T8 笔振荡 fallback（208号谱系）
 
-解决路径：
-1. 更高频数据（5min/15min/30min K线）→ 更多笔和线段 → 更深递归
-2. 更长时间跨度日线（≥15 年）→ 可能产生足够线段
-3. 207号-3（λ/δ/κ 参数校准）依赖此前提——属于长期工程项
+原 T8 设计用"A/C 段内中枢条形码"构造 Dgm → 连接段无中枢 → 全部 inconclusive。
+208号修正：fallback 到"A/C 段内笔振荡条形码"——每根笔 (low, high) 构成一个 bar。
+修正后 T8 从 0/0(inc:18) 变为 11/18 passed(inc:0)，验证了背驰 = 后段笔振荡总量 < 前段的拓扑语义。
