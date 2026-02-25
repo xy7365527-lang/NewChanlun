@@ -6,28 +6,107 @@
 本模块回答第一个问题：对同一价格数据 X，比较不同 (mode, params) 下
 管线输出的拓扑指纹，判定哪些结构量在参数变化下保持。
 
-## 拓扑语义（195号）
+## 拓扑语义（195号 + Gemini×Codex 共识）
+
+### T1 公理（底层）
+Extended PH 和 Zigzag PH 在中枢的区间分解意义下等价（模块同构）。
+代码层面，centers_to_barcode 直接从中枢提取 bars (birth=ZD, death=ZG)，
+隐含了 zigzag 3-支撑条带和中枢的一一对应（T3）。
+这是公理性质——不可在代码中验证，只能声明。
 
 ### 结构映射
 - 分解空间 D(X) = {所有合法分解} 是集合
 - 管线 P_m: 输入空间 → D(X) 是参数化的确定性映射（mode m 决定参数）
 - 等价关系 A ~ B ⇔ ∃X, m₁, m₂: P_{m₁}(X) = A ∧ P_{m₂}(X) = B
-  （即 A 和 B 来自同一输入 X 的不同参数分解——共享输入保证对称性）
 - 不变量候选 I: D(X) → V 是指纹函数，若 A ~ B ⇒ I(A) = I(B) 则 I 是不变量
 
+### 条形码与 β₁^τ（共识修正#2）
+走势空间不是流形——它是有限 CW 复形。亏格（genus）在 CW 复形上无定义，
+但贝蒂数 β₁ 有定义（= H₁ 的秩）。条形码是范畴层面的对象（持续模块的
+区间分解），β₁^τ = #{bars with length > τ} 是对条形码的去范畴化
+（decategorification）——从 K₀(PersMod) 取秩泛函，丢弃生死时间信息。
+
+### TDA 桥接层
+本模块是 A 系统和 TDA 库之间的桥接层。
+接口隔离：TDA 计算封装在 _bottleneck_distance() / _wasserstein_distance() 中。
+当前后端：persim（bottleneck 基于 Hera 库，数学上正确）。
+将来换库（gudhi/scikit-tda）只改这两个桥接函数，不改 A 系统。
+
 ### 映射的边界
-管线 P_m 是单向的确定性算子，不可逆（不同输入可能产出相同分解）。
-等价关系的对称性由"共享同一输入 X"保证，不是由管线的可逆性保证。
+管线 P_m 是单向的确定性算子，不可逆。
 不变量是候选（待 gauge_equivalence_report 验证），不是已证明的定理。
-商空间 D(X)/~ 的良定义性依赖等价关系的正确构造——自反性（同一参数同一输出）、
-对称性（共享输入的对称定义）、传递性（管线确定性 + 输入共享的传递）均满足。
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
+import numpy as np
 import pandas as pd
+
+
+# ---------------------------------------------------------------------------
+# TDA 桥接层——接口隔离，将来换库只改这里
+# ---------------------------------------------------------------------------
+
+def _bottleneck_distance(
+    dgm_a: np.ndarray, dgm_b: np.ndarray,
+) -> float:
+    """计算两个持续图（persistence diagram）之间的 bottleneck 距离。
+
+    使用 persim 库。输入为 shape (n, 2) 的 numpy 数组，每行 (birth, death)。
+    空图用 shape (0, 2) 表示。
+    """
+    from persim import bottleneck
+
+    if dgm_a.shape[0] == 0 and dgm_b.shape[0] == 0:
+        return 0.0
+    return float(bottleneck(dgm_a, dgm_b))
+
+
+def _wasserstein_distance(
+    dgm_a: np.ndarray, dgm_b: np.ndarray, order: int = 1,
+) -> float:
+    """计算两个持续图之间的 Wasserstein-p 距离。
+
+    默认 p=1（用于 T8 背驰检测——Layer 2）。
+    """
+    from persim import wasserstein
+
+    if dgm_a.shape[0] == 0 and dgm_b.shape[0] == 0:
+        return 0.0
+    return float(wasserstein(dgm_a, dgm_b, order=order))
+
+
+def centers_to_barcode(centers) -> tuple[tuple[float, float], ...]:
+    """从中枢列表提取条形码（T3：中枢 ↔ zigzag 条带一一对应）。
+
+    每个中枢 [ZD, ZG] 对应一个 bar (birth=ZD, death=ZG)。
+    这是 T3 的直接实现：三段区间交集 [ZD, ZG] = zigzag H₀ 的一个
+    3-支撑条带。
+    """
+    return tuple((float(c.low), float(c.high)) for c in centers)
+
+
+def barcode_to_diagram(barcode: tuple[tuple[float, float], ...]) -> np.ndarray:
+    """将条形码元组转为 persim 需要的 numpy 数组格式。"""
+    if not barcode:
+        return np.empty((0, 2), dtype=np.float64)
+    return np.array(barcode, dtype=np.float64)
+
+
+def compute_beta1_tau(barcode: tuple[tuple[float, float], ...], tau: float) -> int:
+    """计算 β₁^τ：τ-显著的第一贝蒂数（共识修正#2）。
+
+    β₁^τ = #{bars in barcode | death - birth > τ}
+
+    这是条形码的去范畴化（decategorification）——从 K₀(PersMod) 取秩泛函，
+    丢弃生死时间信息，只保留"有多少个独立的拓扑特征存活超过阈值 τ"。
+
+    注意：不使用 genus（亏格）这个术语，因为走势空间是有限 CW 复形，
+    不是闭可定向曲面。β₁ 在 CW 复形上有定义（= H₁ 的秩），genus 没有。
+    """
+    return sum(1 for b, d in barcode if d - b > tau)
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,13 +114,23 @@ class DecompositionFingerprint:
     """一次分解的拓扑指纹。
 
     不变量候选按强度分层（待 gauge_equivalence_report 验证）：
-    - 强不变量候选（假设在不同笔模式下保持）：n_centers, trend_kinds, center_zd_zg_pairs
+    - 强不变量候选：n_centers, trend_kinds, center_zd_zg_pairs, barcode, beta1_tau
     - 弱不变量（预期在不同模式下变化）：n_strokes, n_segments, max_level
+
+    barcode 字段（Layer 1 共识）：
+    每个中枢 [ZD, ZG] 对应一个 bar (ZD, ZG)——T3（中枢↔zigzag条带一一对应）。
+    条形码是范畴层面的不变量候选，携带每个中枢的完整生死信息。
+
+    beta1_tau 字段（共识修正#2）：
+    β₁^τ = #{bars | death - birth > τ}。这是条形码的去范畴化结果。
+    τ = 0 时 beta1_tau = n_centers；τ > 0 时只计长寿命中枢。
     """
-    # 强不变量候选（待验证——不同笔模式可能影响中枢数量和区间）
+    # 强不变量候选
     n_centers: int
     center_zd_zg_pairs: tuple[tuple[float, float], ...]
     trend_kinds: tuple[str, ...]
+    barcode: tuple[tuple[float, float], ...]  # T3: 中枢↔条带
+    beta1_tau: int  # 共识修正#2: β₁^τ（去范畴化）
     # 弱不变量
     n_strokes: int
     n_segments: int
@@ -55,6 +144,11 @@ class StructuralDelta:
 
     编排者修正：float structural_distance 丢失结构信息。
     StructuralDelta 是可分析的拓扑对象。
+
+    bottleneck_distance 字段（Layer 1 共识）：
+    两个条形码之间的 bottleneck 距离——gauge 不变量的核心度量。
+    由瓶颈稳定性定理保证：若 δ_k 变动导致 ‖f-g‖_∞ ≤ ε，
+    则 d_B(Dgm(f), Dgm(g)) ≤ ε。长度 > 2ε 的条带不受影响。
     """
     stroke_count_diff: int
     segment_count_diff: int
@@ -62,6 +156,8 @@ class StructuralDelta:
     center_interval_diffs: tuple[tuple[float, float], ...]  # 每个中枢的 (ΔZD, ΔZG)
     trend_kind_mutations: tuple[tuple[str, str], ...]  # (source_kind, target_kind) 对
     level_diff: int
+    bottleneck_distance: float  # 条形码 bottleneck 距离（Layer 1 共识）
+    beta1_tau_diff: int  # β₁^τ 差异
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,17 +174,31 @@ class TransitionResult:
 
 def compute_fingerprint(
     strokes, segments, centers, trends, rec_levels,
+    *, tau: float = 0.0,
 ) -> DecompositionFingerprint:
-    """计算一次分解的拓扑指纹。"""
+    """计算一次分解的拓扑指纹。
+
+    Parameters
+    ----------
+    tau : float
+        β₁^τ 的阈值（T4：δ-Morse = gauge choice）。
+        tau 就是 δ_k——Morse 函数的阈值参数。不同 tau 给出不同的
+        β₁^τ，这正是 gauge choice 的体现：阈值选择是规范自由度，
+        不影响长寿命拓扑特征的分类。默认 0.0 = 所有中枢都计入。
+    """
     center_pairs = tuple(
         (float(c.low), float(c.high)) for c in centers
     )
+    barcode = centers_to_barcode(centers)
+    beta1 = compute_beta1_tau(barcode, tau)
     trend_kind_list = tuple(t.kind for t in trends)
     max_level = len(rec_levels) if rec_levels else 1
     return DecompositionFingerprint(
         n_centers=len(centers),
         center_zd_zg_pairs=center_pairs,
         trend_kinds=trend_kind_list,
+        barcode=barcode,
+        beta1_tau=beta1,
         n_strokes=len(strokes),
         n_segments=len(segments),
         n_trends=len(trends),
@@ -119,6 +229,11 @@ def compute_structural_delta(
         if fp_a.trend_kinds[i] != fp_b.trend_kinds[i]
     )
 
+    # 条形码 bottleneck 距离（Layer 1 共识）
+    dgm_a = barcode_to_diagram(fp_a.barcode)
+    dgm_b = barcode_to_diagram(fp_b.barcode)
+    bn_dist = _bottleneck_distance(dgm_a, dgm_b)
+
     return StructuralDelta(
         stroke_count_diff=fp_b.n_strokes - fp_a.n_strokes,
         segment_count_diff=fp_b.n_segments - fp_a.n_segments,
@@ -126,6 +241,8 @@ def compute_structural_delta(
         center_interval_diffs=center_diffs,
         trend_kind_mutations=mutations,
         level_diff=fp_b.max_level - fp_a.max_level,
+        bottleneck_distance=bn_dist,
+        beta1_tau_diff=fp_b.beta1_tau - fp_a.beta1_tau,
     )
 
 
@@ -152,10 +269,21 @@ def _check_strong_invariants(
     # trend_kinds
     trends_preserved = fp_a.trend_kinds == fp_b.trend_kinds
 
+    # beta1_tau（去范畴化后的不变量）
+    beta1_preserved = fp_a.beta1_tau == fp_b.beta1_tau
+
+    # barcode bottleneck 距离（带容差）
+    dgm_a = barcode_to_diagram(fp_a.barcode)
+    dgm_b = barcode_to_diagram(fp_b.barcode)
+    bn_dist = _bottleneck_distance(dgm_a, dgm_b)
+    barcode_preserved = bn_dist <= tolerance
+
     return {
         "n_centers": centers_preserved,
         "center_zd_zg_pairs": intervals_preserved,
         "trend_kinds": trends_preserved,
+        "beta1_tau": beta1_preserved,
+        "barcode_bottleneck": barcode_preserved,
     }
 
 
@@ -207,11 +335,17 @@ def compute_transition(
     min_strict_sep: int = 5,
     center_sustain_m: int = 2,
     tolerance: float = 0.0,
+    tau: float = 0.0,
 ) -> TransitionResult:
     """计算两种分解参数之间的转换函数结果。
 
     运行管线两次（mode_a, mode_b），比较拓扑指纹，
     分层报告强/弱不变量的保持状态，输出结构差异对象。
+
+    Parameters
+    ----------
+    tau : float
+        β₁^τ 的阈值。默认 0.0。
     """
     s_a, seg_a, c_a, t_a, rl_a = _run_pipeline(
         df_raw, mode_a, min_strict_sep, center_sustain_m,
@@ -220,8 +354,8 @@ def compute_transition(
         df_raw, mode_b, min_strict_sep, center_sustain_m,
     )
 
-    fp_a = compute_fingerprint(s_a, seg_a, c_a, t_a, rl_a)
-    fp_b = compute_fingerprint(s_b, seg_b, c_b, t_b, rl_b)
+    fp_a = compute_fingerprint(s_a, seg_a, c_a, t_a, rl_a, tau=tau)
+    fp_b = compute_fingerprint(s_b, seg_b, c_b, t_b, rl_b, tau=tau)
     delta = compute_structural_delta(fp_a, fp_b)
     strong = _check_strong_invariants(fp_a, fp_b, tolerance)
     weak = _check_weak_invariants(fp_a, fp_b)
@@ -244,15 +378,21 @@ def gauge_equivalence_report(
     min_strict_sep: int = 5,
     center_sustain_m: int = 2,
     tolerance: float = 0.0,
+    tau: float = 0.0,
 ) -> dict:
     """对所有 mode 组合计算转换函数，输出等价类报告。
 
     分层报告：
-    - 强不变量候选（n_centers, trend_kinds, center_intervals）的保持率
-    - 弱不变量（n_strokes, n_segments）的变化幅度
-    - 每对模式之间的 StructuralDelta
+    - 强不变量候选的保持率（含 barcode bottleneck 和 β₁^τ）
+    - 弱不变量的变化幅度
+    - 每对模式之间的 StructuralDelta（含 bottleneck 距离）
 
     这是 001号谱系"分解不唯一 = gauge choice"的可计算验证。
+
+    Parameters
+    ----------
+    tau : float
+        β₁^τ 的阈值。默认 0.0。
     """
     transitions = []
     for i, ma in enumerate(modes):
@@ -262,11 +402,15 @@ def gauge_equivalence_report(
                 min_strict_sep=min_strict_sep,
                 center_sustain_m=center_sustain_m,
                 tolerance=tolerance,
+                tau=tau,
             )
             transitions.append(tr)
 
     # 汇总强不变量保持率
-    strong_keys = ["n_centers", "center_zd_zg_pairs", "trend_kinds"]
+    strong_keys = [
+        "n_centers", "center_zd_zg_pairs", "trend_kinds",
+        "beta1_tau", "barcode_bottleneck",
+    ]
     strong_summary = {}
     for k in strong_keys:
         preserved = sum(1 for t in transitions if t.strong_invariants_preserved.get(k, False))
@@ -279,6 +423,7 @@ def gauge_equivalence_report(
     return {
         "modes": list(modes),
         "n_transitions": len(transitions),
+        "tau": tau,
         "transitions": [
             {
                 "source": t.source_mode,
@@ -289,6 +434,8 @@ def gauge_equivalence_report(
                     "center_count_diff": t.delta.center_count_diff,
                     "level_diff": t.delta.level_diff,
                     "trend_mutations": list(t.delta.trend_kind_mutations),
+                    "bottleneck_distance": t.delta.bottleneck_distance,
+                    "beta1_tau_diff": t.delta.beta1_tau_diff,
                 },
                 "strong_preserved": t.strong_invariants_preserved,
                 "weak_preserved": t.weak_invariants_preserved,
@@ -297,3 +444,159 @@ def gauge_equivalence_report(
         ],
         "strong_invariant_summary": strong_summary,
     }
+
+
+# ---------------------------------------------------------------------------
+# T7：递归条形码偏序（B_{k+1} ⊆ Trim(B_k, τ)）
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True, slots=True)
+class T7Result:
+    """T7 递归条形码偏序检查结果。
+
+    T7 断言：高级别的条形码是低级别条形码经过阈值修剪后的子集。
+    B_{k+1} ⊆ Trim(B_k, τ_{k+1})
+    """
+    level_low: int
+    level_high: int
+    passed: bool
+    trimmed_low_count: int
+    high_count: int
+    unmatched_bars: tuple[tuple[float, float], ...]
+
+
+def _check_barcode_inclusion(
+    bars_high: tuple[tuple[float, float], ...],
+    bars_trimmed_low: tuple[tuple[float, float], ...],
+    epsilon: float,
+) -> tuple[bool, tuple[tuple[float, float], ...]]:
+    """检查 bars_high 是否 ε-嵌入 bars_trimmed_low（真单射）。
+
+    对 bars_high 中的每个 bar (b,d)，要求存在 bars_trimmed_low 中的
+    某个 **尚未被匹配** 的 bar (b',d') 使得 |b-b'| < ε 且 |d-d'| < ε。
+    真单射：bars_trimmed_low 中每个 bar 至多被匹配一次。
+
+    边界情况：
+    - bars_high 为空 → True（空集总被包含）
+    - bars_trimmed_low 为空但 bars_high 非空 → False
+
+    Returns
+    -------
+    (passed, unmatched_bars) : tuple[bool, tuple[tuple[float, float], ...]]
+    """
+    if not bars_high:
+        return (True, ())
+    if not bars_trimmed_low:
+        return (False, bars_high)
+    matched_low: set[int] = set()
+    unmatched: list[tuple[float, float]] = []
+    for b, d in bars_high:
+        found = False
+        for j, (b2, d2) in enumerate(bars_trimmed_low):
+            if j not in matched_low and abs(b - b2) < epsilon and abs(d - d2) < epsilon:
+                matched_low.add(j)
+                found = True
+                break
+        if not found:
+            unmatched.append((b, d))
+    return (len(unmatched) == 0, tuple(unmatched))
+
+
+def check_recursive_barcode_order(
+    levels,
+    tau: float = 0.0,
+    epsilon: float = 1.0,
+) -> list[T7Result]:
+    """检查递归层级间的条形码偏序（T7）。
+
+    对每对相邻层级 (k, k+1)：
+    - B_k = 第 k 层中枢的条形码
+    - Trim(B_k, τ) = {bar in B_k | death - birth > τ}
+    - 验证 B_{k+1} ε-嵌入 Trim(B_k)（真单射匹配）
+
+    Parameters
+    ----------
+    levels : list[RecursiveLevel]
+        从 build_recursive_levels 返回的层级列表。
+    tau : float
+        Trim 阈值——只保留长度 > τ 的条带。
+    epsilon : float
+        ε-匹配容差——birth/death 偏差在此范围内视为匹配。
+    """
+    results: list[T7Result] = []
+    for i in range(len(levels) - 1):
+        low_level = levels[i]
+        high_level = levels[i + 1]
+        bc_low = centers_to_barcode(low_level.centers)
+        bc_high = centers_to_barcode(high_level.centers)
+        trimmed_low = tuple(bar for bar in bc_low if bar[1] - bar[0] > tau)
+        passed, unmatched = _check_barcode_inclusion(bc_high, trimmed_low, epsilon)
+        results.append(T7Result(
+            level_low=low_level.level,
+            level_high=high_level.level,
+            passed=passed,
+            trimmed_low_count=len(trimmed_low),
+            high_count=len(bc_high),
+            unmatched_bars=unmatched,
+        ))
+    return results
+
+
+# ---------------------------------------------------------------------------
+# T5：走势类型 ≅ 上级笔（构造不变式验证）
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True, slots=True)
+class T5Result:
+    """T5 走势类型≡上级笔 构造不变式验证结果。
+
+    T5（Trend_k ≅ E(X_{k+1})）在当前递归引擎中是构造保证：
+    levels[k+1].moves 就是 levels[k].confirmed_trends 的同一引用。
+    因此 T5 不是运行时约束，而是构造不变式验证——检查引擎是否
+    正确传递了引用且没有混入 unconfirmed trends。
+    """
+    level_low: int
+    level_high: int
+    passed: bool
+    confirmed_only: bool
+    identity: bool
+    n_moves: int
+    n_confirmed_trends: int
+
+
+def check_trend_move_equivalence(levels) -> list[T5Result]:
+    """验证递归层级间的走势≡上级笔构造不变式（T5）。
+
+    对每对相邻层级 (k, k+1) 检查：
+    1. confirmed_only：levels[k+1].moves 中所有元素的 confirmed 为 True
+    2. identity：levels[k+1].moves 与 levels[k].confirmed_trends 内容一致
+
+    Parameters
+    ----------
+    levels : list[RecursiveLevel]
+        从 build_recursive_levels 返回的层级列表。
+    """
+    results: list[T5Result] = []
+    for i in range(len(levels) - 1):
+        low_level = levels[i]
+        high_level = levels[i + 1]
+        confirmed_trends = [t for t in low_level.trends if t.confirmed]
+        moves = high_level.moves
+        confirmed_only = all(
+            getattr(m, "confirmed", True) for m in moves
+        )
+        identity = (
+            len(moves) == len(confirmed_trends)
+            and all(m is ct for m, ct in zip(moves, confirmed_trends))
+        )
+        passed = confirmed_only and identity
+        results.append(T5Result(
+            level_low=low_level.level,
+            level_high=high_level.level,
+            passed=passed,
+            confirmed_only=confirmed_only,
+            identity=identity,
+            n_moves=len(moves),
+            n_confirmed_trends=len(confirmed_trends),
+        ))
+    return results
