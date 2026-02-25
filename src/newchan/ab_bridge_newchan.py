@@ -97,6 +97,7 @@ def _run_a_pipeline(df_raw, segment_algo, stroke_mode, min_strict_sep, center_su
     fractals = fractals_from_merged(df_merged)
     strokes = strokes_from_fractals(
         df_merged, fractals, mode=stroke_mode, min_strict_sep=min_strict_sep,
+        merged_to_raw=merged_to_raw if stroke_mode == "new" else None,
     )
     if segment_algo == "v1":
         segments = segments_from_strokes_v1(strokes)
