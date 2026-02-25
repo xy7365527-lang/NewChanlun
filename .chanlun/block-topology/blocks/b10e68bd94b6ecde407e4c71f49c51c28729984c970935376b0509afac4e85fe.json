@@ -1,0 +1,20 @@
+{
+  "id": "b10e68bd94b6ecde407e4c71f49c51c28729984c970935376b0509afac4e85fe",
+  "type": "event",
+  "timestamp": "2026-02-25T08:12:20.246029+00:00",
+  "source": "ceremony-fix",
+  "content": {
+    "id": "199",
+    "title": "T8 在级别 0 天然 inconclusive——递归级别约束",
+    "status": "已结算",
+    "type": "概念发现",
+    "date": "2026-02-25",
+    "depends_on": [
+      "195",
+      "197"
+    ],
+    "source_file": "settled/199-t8-level0-inconclusive.md"
+  },
+  "refs": [],
+  "git_ref": "999de98"
+}
