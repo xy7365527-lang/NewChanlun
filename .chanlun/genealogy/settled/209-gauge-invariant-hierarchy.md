@@ -53,9 +53,9 @@ gauge 等价性 ≈ 同胚级别——保持中枢数量和 β₁^τ，不保持
 
 ## 下游推论
 
-1. gauge_equivalence_report 应区分 Tier 1/2/3 不变量 → 待实现
-2. 强不变量通过率应按 Tier 加权报告（Tier 1 权重高于 Tier 3）→ 待实现
-3. center_zd_zg_pairs 和 barcode_bottleneck 应从"强不变量"降级为"弱不变量" → 待讨论
+1. gauge_equivalence_report 应区分 Tier 1/2/3 不变量 → [resolved: tier_map 已实现]
+2. 强不变量通过率应按 Tier 加权报告（Tier 1 权重高于 Tier 3）→ [resolved: _tier_weighted_rate 已实现]
+3. center_zd_zg_pairs 和 barcode_bottleneck 应从"强不变量"降级为"弱不变量" → [resolved: 209号-3 已执行]
 
 ## 谱系引用
 

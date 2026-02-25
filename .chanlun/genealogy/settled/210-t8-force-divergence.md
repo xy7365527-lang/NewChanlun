@@ -56,8 +56,8 @@ T8 passed=False 不意味着"背驰判定错误"，而是"拓扑维度不支持�
 ## 下游推论
 
 1. T8 应报告为"拓扑维度力度判定"，与 MACD 三维度并列而非替代 → [resolved: 208号已定义为"后验验证层"]
-2. 多维度力度综合判定（MACD + W₁ 投票）→ 待设计
-3. W₁ 的 bar 构造可探索其他定义（|close-open| vs high-low）→ 待实验
+2. 多维度力度综合判定（MACD + W₁ 投票）→ [resolved: 210号-2 gauge_equivalence_report T8 summary 已实现]
+3. W₁ 的 bar 构造可探索其他定义（|close-open| vs high-low）→ [resolved: 210号-3 实验证明线性缩放不改变 W₁ 排序]
 
 ## 谱系引用
 

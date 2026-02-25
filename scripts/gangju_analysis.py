@@ -561,6 +561,36 @@ def derive_mu(block_stats, genealogy_stats, root):
                     "reason": f"总体通过率 {pass_pct}%（< 50%）——需分析模式对差异（wide→new vs wide→strict）",
                 })
 
+        # per-invariant 通过率检测（211号目推导）
+        # 从验证报告中提取每个强不变量的 True/False 统计
+        strong_per_inv = {}
+        for m_inv in re.finditer(
+            r"strong:\s*\{([^}]+)\}",
+            vr_content,
+        ):
+            pairs_str = m_inv.group(1)
+            for m_kv in re.finditer(r"'(\w+)':\s*(True|False)", pairs_str):
+                k, v = m_kv.group(1), m_kv.group(2) == "True"
+                if k not in strong_per_inv:
+                    strong_per_inv[k] = {"preserved": 0, "total": 0}
+                strong_per_inv[k]["total"] += 1
+                if v:
+                    strong_per_inv[k]["preserved"] += 1
+
+        for inv_name, inv_stats in strong_per_inv.items():
+            if inv_stats["total"] > 0:
+                inv_rate = inv_stats["preserved"] / inv_stats["total"] * 100
+                if inv_rate < 50.0:
+                    mu_key = f"强不变量 {inv_name} 保持率偏低"
+                    if mu_key not in audited:
+                        new_mu.append({
+                            "mu": mu_key,
+                            "reason": (
+                                f"{inv_name}: {inv_stats['preserved']}/{inv_stats['total']} "
+                                f"= {inv_rate:.1f}%（< 50%）——接近 Tier 3 降级阈值"
+                            ),
+                        })
+
         # 提取 T8 inconclusive 统计
         m_t8 = re.search(
             r"T8\s+非inconclusive[：:]\s*(\d+)/(\d+)[，,]\s*inconclusive[：:]\s*(\d+)",
