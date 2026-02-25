@@ -842,12 +842,15 @@ class TestT6CrossLevelLeray:
         assert r.w1_low >= 0
         assert r.w1_high >= 0
         assert isinstance(r.passed, bool)
-        assert isinstance(r.w1_monotone, bool)
+        assert isinstance(r.w1_ratio_bounded, bool)
+        assert r.w1_ratio >= 0
         assert isinstance(r.bottleneck_bounded, bool)
         assert isinstance(r.kl_bounded, bool)
+        # 小样本（1 bar high）→ inconclusive
+        assert r.inconclusive is True
 
-    def test_t6_w1_monotone_pass(self):
-        """高级别 W₁ < 低级别 → w1_monotone = True。"""
+    def test_t6_w1_ratio_bounded(self):
+        """高级别 W₁ 在 λ 倍以内 → w1_ratio_bounded = True。"""
         from types import SimpleNamespace
 
         # 低级别：宽条带
@@ -863,7 +866,27 @@ class TestT6CrossLevelLeray:
         level1 = SimpleNamespace(level=1, centers=centers_high)
 
         results = check_cross_level_leray([level0, level1])
-        assert results[0].w1_monotone is True
+        assert results[0].w1_ratio_bounded is True
+        assert results[0].w1_ratio <= 3.0
+
+    def test_t6_w1_ratio_unbounded(self):
+        """高级别 W₁ 远超低级别 → w1_ratio_bounded = False（λ=1.0 时）。"""
+        from types import SimpleNamespace
+
+        # 低级别：窄条带
+        centers_low = [
+            SimpleNamespace(low=10.0, high=15.0, seg0=0, seg1=2),
+        ]
+        # 高级别：宽条带（缠论递归放大）
+        centers_high = [
+            SimpleNamespace(low=0.0, high=100.0, seg0=0, seg1=1),
+        ]
+        level0 = SimpleNamespace(level=0, centers=centers_low)
+        level1 = SimpleNamespace(level=1, centers=centers_high)
+
+        results = check_cross_level_leray([level0, level1], w1_lambda=1.0)
+        assert results[0].w1_ratio > 1.0
+        assert results[0].w1_ratio_bounded is False
 
     def test_t6_single_level_no_result(self):
         """单层递归无 T6 结果。"""
