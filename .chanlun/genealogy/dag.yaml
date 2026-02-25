@@ -1014,6 +1014,51 @@ nodes:
   status: 已结算
   type: 概念发现
   file: settled/203-real-data-gauge-sensitivity.md
+- id: '204'
+  title: ''
+  status: 已结算
+  type: meta-rule
+  file: settled/204-shelving-pattern.md
+- id: '205'
+  title: ''
+  status: 已结算
+  type: meta-rule
+  file: settled/205-clean-terminate-stall.md
+- id: '206'
+  title: 纲举目张自动检测——待质询项
+  status: 生成态
+  type: 待定
+  file: pending/206-gangju-auto-20260225-2039.md
+- id: '207'
+  title: ''
+  status: 已结算
+  type: 概念发现
+  file: settled/207-w1-monotone-contradiction.md
+- id: '208'
+  title: ''
+  status: 已结算
+  type: 概念发现
+  file: settled/208-gauge-invariant-rate-analysis.md
+- id: '209'
+  title: ''
+  status: 已结算
+  type: 概念发现
+  file: settled/209-gauge-invariant-hierarchy.md
+- id: '210'
+  title: ''
+  status: 已结算
+  type: 概念发现
+  file: settled/210-t8-force-divergence.md
+- id: '211'
+  title: ''
+  status: 已结算
+  type: 概念发现
+  file: settled/211-recursive-direction-semantic-gap.md
+- id: '212'
+  title: 纲举目张自动检测——待质询项
+  status: 生成态
+  type: 待定
+  file: pending/212-gangju-auto-20260225-2334.md
 edges:
   depends_on:
   - from: '136'
@@ -2040,6 +2085,42 @@ edges:
     to: '195'
   - from: '203'
     to: '199'
+  - from: '204'
+    to: '157'
+  - from: '204'
+    to: '196'
+  - from: '204'
+    to: '202'
+  - from: '205'
+    to: '196'
+  - from: '205'
+    to: '202'
+  - from: '205'
+    to: '204'
+  - from: '205'
+    to: '143'
+  - from: '206'
+    to: '205'
+  - from: '207'
+    to: '204'
+  - from: '207'
+    to: '205'
+  - from: '208'
+    to: '195'
+  - from: '208'
+    to: '207'
+  - from: '209'
+    to: '195'
+  - from: '209'
+    to: '208'
+  - from: '210'
+    to: '208'
+  - from: '210'
+    to: '209'
+  - from: '211'
+    to: '195'
+  - from: '211'
+    to: '208'
   triggered:
   - from: '005'
     to: 005a
