@@ -1083,7 +1083,7 @@ def check_cross_level_leray(
     tau: float = 0.0,
     delta: float = 5.0,
     kappa: float = 1.0,
-    w1_lambda: float = 3.0,
+    w1_lambda: float = 1.5,
     min_bars_kl: int = 5,
 ) -> list[T6Result]:
     """T6 Leray 条件的可计算近似——跨层诊断。
@@ -1109,7 +1109,8 @@ def check_cross_level_leray(
     kappa : float
         KL 散度上界（无量纲）。默认 1.0。
     w1_lambda : float
-        W₁ 比率上界。默认 3.0（允许高级别 W₁ 最多为低级别的 3 倍）。
+        W₁ 比率上界。默认 1.5（207号-3 校准：86 个合成样本 P99=0.83，
+        保守取 P99×1.8≈1.5 留余量给真实市场数据不规则性）。
     min_bars_kl : int
         KL 散度计算的最小条带数。低于此值标记 inconclusive。默认 5。
     """
