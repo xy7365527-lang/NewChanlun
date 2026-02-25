@@ -295,17 +295,23 @@ def _normalize_barcode(
     )
 
 
-def _w1_norm(barcode: tuple[tuple[float, float], ...]) -> float:
+def _w1_norm(barcode: tuple[tuple[float, float], ...], tau: float = 0.0) -> float:
     """计算条形码到空图的 Wasserstein-1 距离（W₁ 范数）。
 
     W₁(Dgm, ∅) = Σ|d_i - b_i| / 2
     即每个 bar 的半寿命之和——条形码的"总持续量"。
 
+    Parameters
+    ----------
+    tau : float
+        τ-trim 阈值。|d-b| <= tau 的短条带被过滤（failure mode 1/4 防护）。
+        默认 0.0（不过滤）。
+
     空条形码返回 0.0。
     """
     if not barcode:
         return 0.0
-    return sum(abs(d - b) / 2.0 for b, d in barcode)
+    return sum(abs(d - b) / 2.0 for b, d in barcode if abs(d - b) > tau)
 
 
 def _centers_in_segment_range(
@@ -347,6 +353,7 @@ def check_divergence_topology(
     centers,
     *,
     eta: float = 0.0,
+    tau: float = 0.0,
     normalize: bool = True,
 ) -> list[T8Result]:
     """对背驰列表逐个验证 T8 拓扑后验。
@@ -361,6 +368,9 @@ def check_divergence_topology(
         中枢列表。
     eta : float
         容差参数。背驰判定：w1_c <= w1_a - eta。
+    tau : float
+        τ-trim 阈值。|d-b| <= tau 的短条带在计算 W₁ 前被过滤。
+        防护 failure mode 1（边界抖动）和 4（噪声主导）。默认 0.0。
     normalize : bool
         是否做仿射规范化（默认 True）。
 
@@ -415,9 +425,9 @@ def check_divergence_topology(
             bc_a = _normalize_barcode(bc_a, price_low_a, price_high_a)
             bc_c = _normalize_barcode(bc_c, price_low_c, price_high_c)
 
-        # 计算 W₁ 范数
-        w1_a = _w1_norm(bc_a)
-        w1_c = _w1_norm(bc_c)
+        # 计算 W₁ 范数（tau-trim 过滤短条带）
+        w1_a = _w1_norm(bc_a, tau=tau)
+        w1_c = _w1_norm(bc_c, tau=tau)
         w1_drop = w1_a - w1_c
         passed = w1_c <= w1_a - eta
 

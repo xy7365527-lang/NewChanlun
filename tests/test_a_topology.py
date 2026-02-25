@@ -562,6 +562,16 @@ class TestT8DivergenceTopology:
         """空条形码 → W₁ = 0.0。"""
         assert _w1_norm(()) == 0.0
 
+    def test_t8_w1_norm_tau_trim(self):
+        """tau-trim 过滤短条带后计算 W₁。"""
+        bc = ((1.0, 3.0), (2.0, 2.5), (0.0, 10.0))
+        # 无 trim: |3-1|/2 + |2.5-2|/2 + |10-0|/2 = 1.0 + 0.25 + 5.0 = 6.25
+        assert _w1_norm(bc, tau=0.0) == pytest.approx(6.25)
+        # tau=1.0: 过滤 |2.5-2|=0.5 <= 1.0 → 1.0 + 5.0 = 6.0
+        assert _w1_norm(bc, tau=1.0) == pytest.approx(6.0)
+        # tau=3.0: 过滤 |3-1|=2.0 和 |2.5-2|=0.5 → 只剩 |10-0|/2 = 5.0
+        assert _w1_norm(bc, tau=3.0) == pytest.approx(5.0)
+
     def test_t8_normalize_barcode(self):
         """仿射规范化将条形码映射到 [0, 1] 区间。"""
         bc = ((100.0, 104.0), (102.0, 106.0))
