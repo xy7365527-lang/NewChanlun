@@ -689,6 +689,7 @@ class TestT8DivergenceTopology:
         assert r.w1_c > 0.0  # C 段有笔振荡
         assert r.w1_a > r.w1_c  # A 段振荡 > C 段 → 背驰
         assert r.passed is True
+        assert r.macd_agrees is True  # force_a=100 > force_c=30, w1_a > w1_c → 一致
 
     def test_t8_inconclusive_a_only(self):
         """A 段有中枢但 C 段无中枢 → inconclusive=True（数据不足，非力竭）。"""
