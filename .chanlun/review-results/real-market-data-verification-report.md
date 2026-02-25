@@ -1,6 +1,6 @@
 # 真实市场数据验证报告
 
-生成时间：2026-02-25 22:01
+生成时间：2026-02-25 22:42
 谱系引用：195号-5（拓扑不变量真实数据验证）+ 202号-3（gauge equivalence 经验验证）
 
 ## 数据来源
@@ -21,13 +21,13 @@
 
 | 数据集 | K线数 | T1(barcode) | T3(centers) | T4(beta1) | T5 | T6 | T7 | T8 | 强不变量通过率 |
 |--------|-------|-------------|-------------|-----------|-----|-----|-----|-----|---------------|
-| sz000001 平安银行 | 1974 | 1/3 | 1/3 | 1/3 | N/A | N/A | N/A | 2/3 | 46.7% |
-| sh600036 招商银行 | 1974 | 0/3 | 3/3 | 3/3 | N/A | N/A | N/A | 1/3 | 60.0% |
-| sz000858 五粮液 | 1974 | 0/3 | 1/3 | 1/3 | N/A | N/A | N/A | 2/2 | 20.0% |
-| sh601318 中国平安 | 1974 | 1/3 | 3/3 | 3/3 | N/A | N/A | N/A | 3/5 | 60.0% |
-| sz002475 立讯精密 | 1974 | 1/3 | 3/3 | 3/3 | N/A | N/A | N/A | 1/1 | 60.0% |
-| SYN-A 深递归合成 | 1200 | 0/3 | 1/3 | 1/3 | N/A | N/A | N/A | 2/2 | 20.0% |
-| SYN-B 多中枢背驰合成 | 1500 | 1/3 | 3/3 | 3/3 | N/A | N/A | N/A | 0/2 | 60.0% |
+| sz000001 平安银行 | 1974 | 0/0 | 1/3 | 1/3 | N/A | N/A | N/A | 2/3 | 55.6% |
+| sh600036 招商银行 | 1974 | 0/0 | 3/3 | 3/3 | N/A | N/A | N/A | 1/3 | 100.0% |
+| sz000858 五粮液 | 1974 | 0/0 | 1/3 | 1/3 | N/A | N/A | N/A | 2/2 | 33.3% |
+| sh601318 中国平安 | 1974 | 0/0 | 3/3 | 3/3 | N/A | N/A | N/A | 3/5 | 77.8% |
+| sz002475 立讯精密 | 1974 | 0/0 | 3/3 | 3/3 | N/A | N/A | N/A | 1/1 | 77.8% |
+| SYN-A 深递归合成 | 1200 | 0/0 | 1/3 | 1/3 | N/A | N/A | N/A | 2/2 | 33.3% |
+| SYN-B 多中枢背驰合成 | 1500 | 0/0 | 3/3 | 3/3 | N/A | N/A | N/A | 0/2 | 77.8% |
 
 ## T6 跨层 Leray 可计算近似详细结果
 
@@ -122,19 +122,19 @@
 - stroke_diff=-30, segment_diff=-2, center_diff=-1, level_diff=0
 - bottleneck=2.3050, beta1_tau_diff=-1
 - trend_mutations=[]
-- strong: {'n_centers': False, 'center_zd_zg_pairs': False, 'trend_kinds': True, 'beta1_tau': False, 'barcode_bottleneck': False}
+- strong: {'n_centers': False, 'trend_kinds': True, 'beta1_tau': False}
 
 **wide -> new**
 - stroke_diff=14, segment_diff=0, center_diff=0, level_diff=0
 - bottleneck=0.0000, beta1_tau_diff=0
 - trend_mutations=[]
-- strong: {'n_centers': True, 'center_zd_zg_pairs': True, 'trend_kinds': True, 'beta1_tau': True, 'barcode_bottleneck': True}
+- strong: {'n_centers': True, 'trend_kinds': True, 'beta1_tau': True}
 
 **strict -> new**
 - stroke_diff=44, segment_diff=2, center_diff=1, level_diff=0
 - bottleneck=2.3050, beta1_tau_diff=1
 - trend_mutations=[]
-- strong: {'n_centers': False, 'center_zd_zg_pairs': False, 'trend_kinds': True, 'beta1_tau': False, 'barcode_bottleneck': False}
+- strong: {'n_centers': False, 'trend_kinds': True, 'beta1_tau': False}
 
 ### sh600036 招商银行
 
@@ -142,19 +142,19 @@
 - stroke_diff=-29, segment_diff=-3, center_diff=0, level_diff=0
 - bottleneck=4.4300, beta1_tau_diff=0
 - trend_mutations=[]
-- strong: {'n_centers': True, 'center_zd_zg_pairs': False, 'trend_kinds': True, 'beta1_tau': True, 'barcode_bottleneck': False}
+- strong: {'n_centers': True, 'trend_kinds': True, 'beta1_tau': True}
 
 **wide -> new**
 - stroke_diff=22, segment_diff=2, center_diff=0, level_diff=0
 - bottleneck=3.1150, beta1_tau_diff=0
 - trend_mutations=[]
-- strong: {'n_centers': True, 'center_zd_zg_pairs': False, 'trend_kinds': True, 'beta1_tau': True, 'barcode_bottleneck': False}
+- strong: {'n_centers': True, 'trend_kinds': True, 'beta1_tau': True}
 
 **strict -> new**
 - stroke_diff=51, segment_diff=5, center_diff=0, level_diff=0
 - bottleneck=1.4300, beta1_tau_diff=0
 - trend_mutations=[]
-- strong: {'n_centers': True, 'center_zd_zg_pairs': False, 'trend_kinds': True, 'beta1_tau': True, 'barcode_bottleneck': False}
+- strong: {'n_centers': True, 'trend_kinds': True, 'beta1_tau': True}
 
 ### sz000858 五粮液
 
@@ -162,19 +162,19 @@
 - stroke_diff=-14, segment_diff=0, center_diff=2, level_diff=0
 - bottleneck=18.8300, beta1_tau_diff=2
 - trend_mutations=[]
-- strong: {'n_centers': False, 'center_zd_zg_pairs': False, 'trend_kinds': True, 'beta1_tau': False, 'barcode_bottleneck': False}
+- strong: {'n_centers': False, 'trend_kinds': True, 'beta1_tau': False}
 
 **wide -> new**
 - stroke_diff=17, segment_diff=-8, center_diff=0, level_diff=0
 - bottleneck=9.3050, beta1_tau_diff=0
 - trend_mutations=[]
-- strong: {'n_centers': True, 'center_zd_zg_pairs': False, 'trend_kinds': False, 'beta1_tau': True, 'barcode_bottleneck': False}
+- strong: {'n_centers': True, 'trend_kinds': False, 'beta1_tau': True}
 
 **strict -> new**
 - stroke_diff=31, segment_diff=-8, center_diff=-2, level_diff=0
 - bottleneck=18.8300, beta1_tau_diff=-2
 - trend_mutations=[]
-- strong: {'n_centers': False, 'center_zd_zg_pairs': False, 'trend_kinds': False, 'beta1_tau': False, 'barcode_bottleneck': False}
+- strong: {'n_centers': False, 'trend_kinds': False, 'beta1_tau': False}
 
 ### sh601318 中国平安
 
@@ -182,19 +182,19 @@
 - stroke_diff=-48, segment_diff=-7, center_diff=0, level_diff=0
 - bottleneck=4.2950, beta1_tau_diff=0
 - trend_mutations=[]
-- strong: {'n_centers': True, 'center_zd_zg_pairs': False, 'trend_kinds': False, 'beta1_tau': True, 'barcode_bottleneck': False}
+- strong: {'n_centers': True, 'trend_kinds': False, 'beta1_tau': True}
 
 **wide -> new**
 - stroke_diff=10, segment_diff=1, center_diff=0, level_diff=0
 - bottleneck=0.0000, beta1_tau_diff=0
 - trend_mutations=[]
-- strong: {'n_centers': True, 'center_zd_zg_pairs': True, 'trend_kinds': True, 'beta1_tau': True, 'barcode_bottleneck': True}
+- strong: {'n_centers': True, 'trend_kinds': True, 'beta1_tau': True}
 
 **strict -> new**
 - stroke_diff=58, segment_diff=8, center_diff=0, level_diff=0
 - bottleneck=4.2950, beta1_tau_diff=0
 - trend_mutations=[]
-- strong: {'n_centers': True, 'center_zd_zg_pairs': False, 'trend_kinds': False, 'beta1_tau': True, 'barcode_bottleneck': False}
+- strong: {'n_centers': True, 'trend_kinds': False, 'beta1_tau': True}
 
 ### sz002475 立讯精密
 
@@ -202,19 +202,19 @@
 - stroke_diff=-26, segment_diff=11, center_diff=0, level_diff=0
 - bottleneck=3.7650, beta1_tau_diff=0
 - trend_mutations=[]
-- strong: {'n_centers': True, 'center_zd_zg_pairs': False, 'trend_kinds': False, 'beta1_tau': True, 'barcode_bottleneck': False}
+- strong: {'n_centers': True, 'trend_kinds': False, 'beta1_tau': True}
 
 **wide -> new**
 - stroke_diff=18, segment_diff=0, center_diff=0, level_diff=0
 - bottleneck=0.0000, beta1_tau_diff=0
 - trend_mutations=[]
-- strong: {'n_centers': True, 'center_zd_zg_pairs': True, 'trend_kinds': True, 'beta1_tau': True, 'barcode_bottleneck': True}
+- strong: {'n_centers': True, 'trend_kinds': True, 'beta1_tau': True}
 
 **strict -> new**
 - stroke_diff=44, segment_diff=-11, center_diff=0, level_diff=0
 - bottleneck=3.7650, beta1_tau_diff=0
 - trend_mutations=[]
-- strong: {'n_centers': True, 'center_zd_zg_pairs': False, 'trend_kinds': False, 'beta1_tau': True, 'barcode_bottleneck': False}
+- strong: {'n_centers': True, 'trend_kinds': False, 'beta1_tau': True}
 
 ### SYN-A 深递归合成
 
@@ -222,19 +222,19 @@
 - stroke_diff=-42, segment_diff=-13, center_diff=-1, level_diff=0
 - bottleneck=10.5300, beta1_tau_diff=-1
 - trend_mutations=[]
-- strong: {'n_centers': False, 'center_zd_zg_pairs': False, 'trend_kinds': False, 'beta1_tau': False, 'barcode_bottleneck': False}
+- strong: {'n_centers': False, 'trend_kinds': False, 'beta1_tau': False}
 
 **wide -> new**
 - stroke_diff=18, segment_diff=2, center_diff=0, level_diff=0
 - bottleneck=12.2058, beta1_tau_diff=0
 - trend_mutations=[]
-- strong: {'n_centers': True, 'center_zd_zg_pairs': False, 'trend_kinds': True, 'beta1_tau': True, 'barcode_bottleneck': False}
+- strong: {'n_centers': True, 'trend_kinds': True, 'beta1_tau': True}
 
 **strict -> new**
 - stroke_diff=60, segment_diff=15, center_diff=1, level_diff=0
 - bottleneck=13.2733, beta1_tau_diff=1
 - trend_mutations=[]
-- strong: {'n_centers': False, 'center_zd_zg_pairs': False, 'trend_kinds': False, 'beta1_tau': False, 'barcode_bottleneck': False}
+- strong: {'n_centers': False, 'trend_kinds': False, 'beta1_tau': False}
 
 ### SYN-B 多中枢背驰合成
 
@@ -242,58 +242,36 @@
 - stroke_diff=-42, segment_diff=-9, center_diff=0, level_diff=0
 - bottleneck=8.5594, beta1_tau_diff=0
 - trend_mutations=[]
-- strong: {'n_centers': True, 'center_zd_zg_pairs': False, 'trend_kinds': False, 'beta1_tau': True, 'barcode_bottleneck': False}
+- strong: {'n_centers': True, 'trend_kinds': False, 'beta1_tau': True}
 
 **wide -> new**
 - stroke_diff=6, segment_diff=0, center_diff=0, level_diff=0
 - bottleneck=0.0000, beta1_tau_diff=0
 - trend_mutations=[]
-- strong: {'n_centers': True, 'center_zd_zg_pairs': True, 'trend_kinds': True, 'beta1_tau': True, 'barcode_bottleneck': True}
+- strong: {'n_centers': True, 'trend_kinds': True, 'beta1_tau': True}
 
 **strict -> new**
 - stroke_diff=48, segment_diff=9, center_diff=0, level_diff=0
 - bottleneck=8.5594, beta1_tau_diff=0
 - trend_mutations=[]
-- strong: {'n_centers': True, 'center_zd_zg_pairs': False, 'trend_kinds': False, 'beta1_tau': True, 'barcode_bottleneck': False}
+- strong: {'n_centers': True, 'trend_kinds': False, 'beta1_tau': True}
 
 ## 结论
 
 ### 真实数据
-- 强不变量通过率：37/75 = 49.3%
+- 强不变量通过率：31/45 = 68.9%
 - T5：0/0
 - T7：0/0
 - T8 非inconclusive：9/14，inconclusive：0
 
 ### 合成数据
-- 强不变量通过率：12/30 = 40.0%
+- 强不变量通过率：10/18 = 55.6%
 - T5：0/0
 - T7：0/0
 - T8 非inconclusive：2/4，inconclusive：0
 
 ### 总体
-- 强不变量通过率：49/105 = 46.7%
-- T5：0/0（递归级别 < 2）
-- T6：0/0（递归级别 < 2）
-- T7：0/0（递归级别 < 2）
+- 强不变量通过率：41/63 = 65.1%
+- T5：0/0
+- T7：0/0
 - T8 非inconclusive：11/18，inconclusive：0
-- T8 通过率：11/18 = 61.1%（真实数据 9/14=64.3%，合成数据 2/4=50.0%）
-
-### 递归级别瓶颈诊断
-
-T5/T6/T7 全部 N/A 的根因：日线数据递归深度不足。
-
-诊断数据（sz000001 平安银行，1974 根日线，2018-2026）：
-
-| 模式 | 笔数 | 线段数 | 中枢数 | 递归层数 |
-|------|------|--------|--------|----------|
-| wide | 167 | 14 | 2 | 1 |
-| strict | 137 | 12 | 1 | 1 |
-| new | 181 | 14 | 2 | 1 |
-
-递归终止链：14 线段 → 2 中枢 → 1 走势类型实例 → level 2 需要 ≥3 confirmed trends → 终止。
-
-### T8 笔振荡 fallback（208号谱系）
-
-原 T8 设计用"A/C 段内中枢条形码"构造 Dgm → 连接段无中枢 → 全部 inconclusive。
-208号修正：fallback 到"A/C 段内笔振荡条形码"——每根笔 (low, high) 构成一个 bar。
-修正后 T8 从 0/0(inc:18) 变为 11/18 passed(inc:0)，验证了背驰 = 后段笔振荡总量 < 前段的拓扑语义。
