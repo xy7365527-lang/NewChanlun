@@ -34,10 +34,10 @@ Dgm(A) 和 Dgm(C) 才有非空条形码。
 
 ## 下游推论
 
-1. T8 的主要应用场景是递归级别 ≥ 1 的背驰验证
-2. 级别 0 的 T8 结果应以 inconclusive 为主，这是正确行为而非缺陷
-3. 真实市场数据验证应聚焦于递归级别 ≥ 1 的背驰
-4. gauge_equivalence_report 中的 T8 检查在级别 0 上预期为空或全 inconclusive
+1. T8 的主要应用场景是递归级别 ≥ 1 的背驰验证 → [resolved: 199号结论本身]
+2. 级别 0 的 T8 结果应以 inconclusive 为主，这是正确行为而非缺陷 → [resolved: 199号结论本身]
+3. 真实市场数据验证应聚焦于递归级别 ≥ 1 的背驰 → [blocked: 需真实市场数据（195号-5 长期项）]
+4. gauge_equivalence_report 中的 T8 检查在级别 0 上预期为空或全 inconclusive → [resolved: t8-empirical-verification-report.md 已验证]
 
 ## 经验证据
 
