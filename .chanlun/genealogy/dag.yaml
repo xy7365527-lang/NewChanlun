@@ -974,6 +974,11 @@ nodes:
   status: 结算态
   type: 概念发现
   file: settled/195-chanlun-topologization.md
+- id: '196'
+  title: 无条件义务在等待状态下的降级风险
+  status: settled
+  type: meta-rule
+  file: settled/196-idle-duty-degradation.md
 edges:
   depends_on:
   - from: '136'
@@ -1982,6 +1987,10 @@ edges:
     to: '114'
   - from: '195'
     to: '113'
+  - from: '196'
+    to: '161'
+  - from: '196'
+    to: '179'
   triggered:
   - from: '005'
     to: 005a
