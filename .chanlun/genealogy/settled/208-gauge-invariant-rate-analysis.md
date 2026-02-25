@@ -58,7 +58,7 @@ audit_targets:
 
 1. gauge 保持率的模式对差异是结构性的，不需要修复 → [resolved: 写入验证报告作为已知特征]
 2. T8 Dgm 构造需要重新定义：从"A/C 段内中枢条形码"改为"A/C 段价格序列持续图" → [resolved: _strokes_to_barcode 笔振荡 fallback 已实现，T8 从 0/0 → 11/18]
-3. 更高频数据验证 → 长期工程项（与 207号-3 同类）
+3. 更高频数据验证 → [partial: yfinance 获取 10 只美股 1h/15m/5m 数据，最多 4 settled centers（TSLA 1h），不足以产生 level 2 confirmed trends。结构性约束：yfinance intraday 最多 2 年（1h）/60 天（5m），时间窗口不足。A 股高频数据需 akshare（当前连接不可用）。λ 校准已由合成数据完成（207号-3）]
 
 ## 谱系引用
 
