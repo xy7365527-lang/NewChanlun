@@ -314,6 +314,23 @@ def _w1_norm(barcode: tuple[tuple[float, float], ...], tau: float = 0.0) -> floa
     return sum(abs(d - b) / 2.0 for b, d in barcode if abs(d - b) > tau)
 
 
+def _strokes_to_barcode(
+    strokes,
+    s_start: int,
+    s_end: int,
+) -> tuple[tuple[float, float], ...]:
+    """从笔列表构造条形码——每根笔的 (low, high) 就是一个 bar。
+
+    用于 T8 fallback：当连接段内无中枢时，用笔振荡构造持续图。
+    背驰 = 后段笔振荡总量 < 前段（208号谱系）。
+    """
+    bars = []
+    for i in range(s_start, min(s_end + 1, len(strokes))):
+        s = strokes[i]
+        bars.append((s.low, s.high))
+    return tuple(bars)
+
+
 def _centers_in_segment_range(
     centers,
     segments,
@@ -352,6 +369,7 @@ def check_divergence_topology(
     segments,
     centers,
     *,
+    strokes=None,
     eta: float = 0.0,
     tau: float = 0.0,
     normalize: bool = True,
@@ -366,6 +384,9 @@ def check_divergence_topology(
         线段列表（用于提取价格范围和中枢筛选）。
     centers : list[Center]
         中枢列表。
+    strokes : list[Stroke] | None
+        笔列表（可选）。当 A/C 段内无中枢时，用笔振荡构造条形码（208号谱系）。
+        如果为 None 且无中枢，标记 inconclusive。
     eta : float
         容差参数。背驰判定：w1_c <= w1_a - eta。
     tau : float
@@ -390,29 +411,50 @@ def check_divergence_topology(
             centers, segments, div.seg_c_start, div.seg_c_end,
         )
 
-        # 任一侧无中枢 → inconclusive（域语义：无中枢 = 数据不足，非力竭）
-        # 力竭 = 有中枢但中枢变窄（W₁ 下降），而非完全没有中枢。
-        # Gemini×Codex Round 1 共识：选择理解B（or），拒绝理解A（and）。
-        if not centers_a or not centers_c:
+        # 构造条形码：优先用中枢，fallback 到笔振荡（208号谱系）
+        use_stroke_fallback = False
+        if centers_a and centers_c:
+            bc_a = centers_to_barcode(centers_a)
+            bc_c = centers_to_barcode(centers_c)
+        elif strokes is not None:
+            # Fallback：用连接段内的笔振荡构造持续图
+            seg_a_obj = segments[div.seg_a_start] if div.seg_a_start < len(segments) else None
+            seg_c_obj = segments[div.seg_c_start] if div.seg_c_start < len(segments) else None
+            if seg_a_obj is not None and seg_c_obj is not None:
+                bc_a = _strokes_to_barcode(strokes, seg_a_obj.s0, seg_a_obj.s1)
+                bc_c = _strokes_to_barcode(strokes, seg_c_obj.s0, seg_c_obj.s1)
+                # 多段连接段：合并所有段的笔
+                if div.seg_a_end > div.seg_a_start:
+                    seg_a_last = segments[min(div.seg_a_end, len(segments) - 1)]
+                    bc_a = _strokes_to_barcode(strokes, seg_a_obj.s0, seg_a_last.s1)
+                if div.seg_c_end > div.seg_c_start:
+                    seg_c_last = segments[min(div.seg_c_end, len(segments) - 1)]
+                    bc_c = _strokes_to_barcode(strokes, seg_c_obj.s0, seg_c_last.s1)
+                use_stroke_fallback = True
+            else:
+                # segments 索引越界 → inconclusive
+                results.append(T8Result(
+                    divergence_index=idx,
+                    kind=div.kind,
+                    direction=div.direction,
+                    w1_a=0.0, w1_c=0.0, w1_drop=0.0,
+                    eta=eta, passed=False, inconclusive=True,
+                    n_centers_a=len(centers_a), n_centers_c=len(centers_c),
+                    normalized=normalize,
+                ))
+                continue
+        else:
+            # 无 strokes 且无中枢 → inconclusive
             results.append(T8Result(
                 divergence_index=idx,
                 kind=div.kind,
                 direction=div.direction,
-                w1_a=0.0,
-                w1_c=0.0,
-                w1_drop=0.0,
-                eta=eta,
-                passed=False,
-                inconclusive=True,
-                n_centers_a=len(centers_a),
-                n_centers_c=len(centers_c),
+                w1_a=0.0, w1_c=0.0, w1_drop=0.0,
+                eta=eta, passed=False, inconclusive=True,
+                n_centers_a=len(centers_a), n_centers_c=len(centers_c),
                 normalized=normalize,
             ))
             continue
-
-        # 构造条形码
-        bc_a = centers_to_barcode(centers_a)
-        bc_c = centers_to_barcode(centers_c)
 
         # 仿射规范化
         if normalize and segments:
@@ -668,8 +710,9 @@ def gauge_equivalence_report(
         )
         if divs:
             # segments 参数必须与 divergences 的索引空间一致（= t8_moves）
+            # strokes 传入以启用笔振荡 fallback（208号谱系）
             t8_checks = check_divergence_topology(
-                divs, t8_moves, t8_centers, eta=0.0,
+                divs, t8_moves, t8_centers, strokes=s_first, eta=0.0,
             )
             t8_results = [
                 {

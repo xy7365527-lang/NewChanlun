@@ -530,6 +530,60 @@ def derive_mu(block_stats, genealogy_stats, root):
                 "reason": "Layer 2 审核通过 → T6 可计算近似可启动（204号：不搁置）",
             })
 
+    # 规则：真实数据验证报告追踪（208号目推导）
+    verify_report = os.path.join(
+        root, ".chanlun", "review-results",
+        "real-market-data-verification-report.md",
+    )
+    if os.path.isfile(verify_report):
+        with open(verify_report, encoding="utf-8") as f:
+            vr_content = f.read()
+
+        # 提取总体强不变量通过率
+        m_rate = re.search(
+            r"强不变量通过率[：:]\s*(\d+)/(\d+)\s*=\s*([\d.]+)%",
+            vr_content,
+        )
+        if m_rate:
+            pass_n, total_n, pass_pct = (
+                int(m_rate.group(1)),
+                int(m_rate.group(2)),
+                float(m_rate.group(3)),
+            )
+            filled_mu.append({
+                "mu": "真实数据强不变量验证",
+                "evidence": f"{pass_n}/{total_n} = {pass_pct}%",
+            })
+            # 通过率 < 50% 且未审计 → 新目
+            if pass_pct < 50.0 and "强不变量保持率偏低" not in audited:
+                new_mu.append({
+                    "mu": "强不变量保持率偏低",
+                    "reason": f"总体通过率 {pass_pct}%（< 50%）——需分析模式对差异（wide→new vs wide→strict）",
+                })
+
+        # 提取 T8 inconclusive 统计
+        m_t8 = re.search(
+            r"T8\s+非inconclusive[：:]\s*(\d+)/(\d+)[，,]\s*inconclusive[：:]\s*(\d+)",
+            vr_content,
+        )
+        if m_t8:
+            t8_valid = int(m_t8.group(1))
+            t8_total = int(m_t8.group(2))
+            t8_inc = int(m_t8.group(3))
+            if t8_inc > 0 and t8_valid == 0:
+                if "T8 全部 inconclusive" not in audited:
+                    new_mu.append({
+                        "mu": "T8 全部 inconclusive",
+                        "reason": f"{t8_inc} 个 T8 结果全部 inconclusive（A/C 段无中枢）——level 1 结构性约束，需更深递归或重新定义 Dgm 构造",
+                    })
+
+        # 提取递归级别瓶颈
+        if "递归级别瓶颈" in vr_content:
+            filled_mu.append({
+                "mu": "递归深度瓶颈已诊断",
+                "evidence": "日线 7 年数据仅产生 1 层递归（14 线段 → 2 中枢 → 1 走势），T5/T6/T7 全 N/A",
+            })
+
     # 补充规则：谱系类型分布检测
     recent_types = genealogy_stats.get("recent_type_distribution", {})
     if recent_types:

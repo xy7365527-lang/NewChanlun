@@ -634,7 +634,7 @@ class TestT8DivergenceTopology:
         assert r.w1_drop == pytest.approx(1.5)
 
     def test_t8_inconclusive(self):
-        """A/C 段无中枢 → inconclusive=True。"""
+        """A/C 段无中枢且无 strokes → inconclusive=True。"""
         from types import SimpleNamespace as NS
 
         segments = [
@@ -647,11 +647,48 @@ class TestT8DivergenceTopology:
                  center_idx=0, force_a=100.0, force_c=50.0, confirmed=True)
 
         results = check_divergence_topology(
-            [div], segments, [], eta=0.0,  # 空中枢列表
+            [div], segments, [], eta=0.0,  # 空中枢列表，无 strokes
         )
         assert len(results) == 1
         assert results[0].inconclusive is True
         assert results[0].passed is False
+
+    def test_t8_stroke_fallback(self):
+        """A/C 段无中枢但有 strokes → 用笔振荡构造条形码（208号谱系）。"""
+        from types import SimpleNamespace as NS
+
+        # 构造 strokes：A 段笔振荡大，C 段笔振荡小 → 背驰
+        strokes = []
+        # A 段 strokes (index 0..9): 大振荡
+        for i in range(10):
+            strokes.append(NS(low=90.0 + i, high=100.0 + i, direction="up"))
+        # B 段 strokes (index 10..19): 中间
+        for i in range(10):
+            strokes.append(NS(low=95.0, high=105.0, direction="up"))
+        # C 段 strokes (index 20..22): 小振荡
+        for i in range(3):
+            strokes.append(NS(low=98.0, high=100.0, direction="up"))
+
+        # segments: A=[seg0], C=[seg2]
+        segments = [
+            NS(s0=0, s1=9, i0=0, i1=100, direction="up", high=109.0, low=90.0),
+            NS(s0=10, s1=19, i0=100, i1=200, direction="up", high=105.0, low=95.0),
+            NS(s0=20, s1=22, i0=200, i1=230, direction="up", high=100.0, low=98.0),
+        ]
+        div = NS(kind="consolidation", direction="top", level_id=0,
+                 seg_a_start=0, seg_a_end=0, seg_c_start=2, seg_c_end=2,
+                 center_idx=0, force_a=100.0, force_c=30.0, confirmed=True)
+
+        results = check_divergence_topology(
+            [div], segments, [], strokes=strokes, eta=0.0, normalize=False,
+        )
+        assert len(results) == 1
+        r = results[0]
+        assert r.inconclusive is False  # 不再 inconclusive
+        assert r.w1_a > 0.0  # A 段有笔振荡
+        assert r.w1_c > 0.0  # C 段有笔振荡
+        assert r.w1_a > r.w1_c  # A 段振荡 > C 段 → 背驰
+        assert r.passed is True
 
     def test_t8_inconclusive_a_only(self):
         """A 段有中枢但 C 段无中枢 → inconclusive=True（数据不足，非力竭）。"""
@@ -769,7 +806,7 @@ class TestT8DivergenceTopology:
 
         if divs:
             results = check_divergence_topology(
-                divs, segments, used_centers, eta=0.0,
+                divs, segments, used_centers, strokes=strokes, eta=0.0,
             )
             assert len(results) == len(divs)
             for r in results:
