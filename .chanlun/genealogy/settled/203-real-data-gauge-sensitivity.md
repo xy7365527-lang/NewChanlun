@@ -37,8 +37,8 @@ depends_on:
 
 1. T1 barcode 不一致的根因是笔定义差异导致线段数量不同（stroke_diff 非零），进而影响中枢边界 → [resolved: 203号结论本身]
 2. T3/T4 的完全一致说明中枢数量和 β₁ 是真正的强不变量——对笔定义不敏感 → [resolved: 203号结论本身]
-3. T1 barcode bottleneck 的阈值 ε 可能需要根据真实数据校准 → 后续工程项
-4. 需要更多股票样本验证 T1 不一致的频率和分布
+3. T1 barcode bottleneck 的阈值 ε 可能需要根据真实数据校准 → [resolved: 15只A股校准完成——strict ε=3.38(73.3%), moderate ε=8.19(86.7%), lenient ε=16.65(95.6%)]
+4. 需要更多股票样本验证 T1 不一致的频率和分布 → [resolved: 扩展到15只A股（大/中/小盘+多行业），25/45非零bottleneck，wide→new最稳定(11/15零)，strict→new最不稳定(12/15非零)]
 
 ## 经验证据
 
