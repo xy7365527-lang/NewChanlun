@@ -26,7 +26,7 @@ v53-swarm 蜂群审计。编排者决断"全部 10 条轨迹并行推进"（188-
 |-----|------|--------|--------|
 | counting_anchor_ambiguity | 锚点 | 忠实 | - |
 | definition_anchor_collapse | 锚点 | 忠实 | - |
-| lesson81_anchor_ambiguity | 锚点 | 有歧义 | LOW |
+| lesson81_anchor_ambiguity | 锚点 | 忠实 | - |
 | new_bi_anchor_ambiguity | 锚点 | 忠实 | - |
 | dual_baseline_counting | 计数 | 忠实 | - |
 | kline_count_metric | 计数 | 忠实 | - |
@@ -35,7 +35,7 @@ v53-swarm 蜂群审计。编排者决断"全部 10 条轨迹并行推进"（188-
 | new_old_bi_compatibility | 兼容性 | 有歧义 | **HIGH** |
 | missing_code_context | 兼容性 | 有歧义 | LOW |
 
-**总结**：7 忠实 / 3 有歧义（2 LOW + 1 HIGH）/ 0 不忠实 / 0 定义冲突。
+**总结**：8 忠实 / 2 有歧义（2 LOW）/ 0 不忠实 / 0 定义冲突。
 
 ## HIGH 问题：ab_bridge 新笔静默退化
 
@@ -55,8 +55,9 @@ BiEngine 路径（`bi_engine.py:112-121`）一直正确传递该参数，只有 
 - 解读A：指 raw K线 → 只排除极值那1根 raw K线
 - 解读B：指 merged K线 → 排除整个 merged bar（可能对应多根 raw K线）
 
-代码选择了解读B（偏严）。两种解读在绝大多数情况下等价，
-仅在极值 merged bar 吞噬多根 raw K线时有差异。
+**歧义已消解**：回溯第81课原文（L110），"顶分型中最高K线"的语境是分型上下文，
+"K线"指 merged K线。代码排除整个 merged bar 的 raw 范围（解读B）与原文一致。
+判定升级为**忠实**。
 
 ### extreme_value_tie_breaker（LOW）
 
@@ -73,7 +74,7 @@ BiEngine 采用全量重算策略（O(n²)），自包含所有上下文，
 ## 下游推论
 
 1. ~~ab_bridge 新笔退化修复~~ **已完成**（b3b5a9a）
-2. lesson81_anchor_ambiguity 定义歧义——需要回溯缠师原文确认"K线"在该语境下的指称（依赖原文精读）
+2. ~~lesson81_anchor_ambiguity 定义歧义——需要回溯缠师原文确认"K线"在该语境下的指称（依赖原文精读）~~ **已完成**（原文语境确认：分型中的"K线"= merged K线，代码忠实）
 3. BiEngine 全量重算 O(n²) 性能优化——当前无正确性影响，实盘数据量大时可能成为瓶颈（非紧急）
 
 ## 谱系引用

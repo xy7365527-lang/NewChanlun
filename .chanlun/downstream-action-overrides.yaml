@@ -384,3 +384,8 @@
 
 # === 191号 — 空 consensus 区块审计 ===
 191-4: resolved    # inquiry_loop 声明-能力一致性——193号验证：代码按声明执行（收敛+三区块写入），Codex stance 不合规是外部模型限制
+
+# === 194号 — 笔定义代码忠实度审计 ===
+194-1: resolved    # ab_bridge 新笔退化修复（b3b5a9a）
+194-2: resolved    # lesson81_anchor_ambiguity 歧义消解——原文语境确认"K线"= merged K线，代码忠实
+194-3: blocked    # BiEngine O(n²) 性能优化（阻塞项：实盘数据量评估——当前无正确性影响）
