@@ -1,4 +1,4 @@
-"""拓扑不变量与转换函数测试（195号谱系）。"""
+"""拓扑不变量与转换函数测试（195号谱系 + Layer 1 共识）。"""
 
 import pytest
 import pandas as pd
@@ -8,10 +8,19 @@ from newchan.a_topology import (
     DecompositionFingerprint,
     StructuralDelta,
     TransitionResult,
+    T7Result,
+    T5Result,
+    centers_to_barcode,
+    barcode_to_diagram,
+    compute_beta1_tau,
     compute_fingerprint,
     compute_structural_delta,
     compute_transition,
     gauge_equivalence_report,
+    _bottleneck_distance,
+    _check_barcode_inclusion,
+    check_recursive_barcode_order,
+    check_trend_move_equivalence,
 )
 
 
@@ -44,6 +53,67 @@ def df_raw_short():
 
 
 # ---------------------------------------------------------------------------
+# TDA 桥接层测试
+# ---------------------------------------------------------------------------
+
+class TestTDABridge:
+    def test_bottleneck_empty_diagrams(self):
+        """空条形码之间的 bottleneck 距离应为 0。"""
+        empty = np.empty((0, 2), dtype=np.float64)
+        assert _bottleneck_distance(empty, empty) == 0.0
+
+    def test_bottleneck_identical_diagrams(self):
+        """相同条形码之间的 bottleneck 距离应为 0。"""
+        dgm = np.array([[1.0, 3.0], [2.0, 5.0]], dtype=np.float64)
+        assert _bottleneck_distance(dgm, dgm) == 0.0
+
+    def test_bottleneck_different_diagrams(self):
+        """不同条形码之间的 bottleneck 距离应 > 0。"""
+        dgm_a = np.array([[1.0, 3.0]], dtype=np.float64)
+        dgm_b = np.array([[1.0, 5.0]], dtype=np.float64)
+        dist = _bottleneck_distance(dgm_a, dgm_b)
+        assert dist > 0.0
+
+    def test_barcode_to_diagram_empty(self):
+        """空条形码转为 (0,2) 数组。"""
+        dgm = barcode_to_diagram(())
+        assert dgm.shape == (0, 2)
+
+    def test_barcode_to_diagram_nonempty(self):
+        """非空条形码转为正确形状的数组。"""
+        bc = ((99.0, 101.0), (100.0, 102.0))
+        dgm = barcode_to_diagram(bc)
+        assert dgm.shape == (2, 2)
+        assert dgm[0, 0] == 99.0
+        assert dgm[1, 1] == 102.0
+
+
+# ---------------------------------------------------------------------------
+# beta1_tau 测试（共识修正#2）
+# ---------------------------------------------------------------------------
+
+class TestBeta1Tau:
+    def test_beta1_tau_zero_threshold(self):
+        """τ=0 时 β₁^τ = 所有 bar 的数量。"""
+        bc = ((99.0, 101.0), (100.0, 105.0))
+        assert compute_beta1_tau(bc, tau=0.0) == 2
+
+    def test_beta1_tau_filters_short_bars(self):
+        """τ>0 时只计长寿命条带。"""
+        bc = ((99.0, 101.0), (100.0, 105.0))  # 长度: 2.0, 5.0
+        assert compute_beta1_tau(bc, tau=3.0) == 1  # 只有 5.0 > 3.0
+
+    def test_beta1_tau_all_filtered(self):
+        """τ 大于所有条带长度时 β₁^τ = 0。"""
+        bc = ((99.0, 101.0), (100.0, 102.0))  # 长度: 2.0, 2.0
+        assert compute_beta1_tau(bc, tau=5.0) == 0
+
+    def test_beta1_tau_empty(self):
+        """空条形码的 β₁^τ = 0。"""
+        assert compute_beta1_tau((), tau=0.0) == 0
+
+
+# ---------------------------------------------------------------------------
 # DecompositionFingerprint 测试
 # ---------------------------------------------------------------------------
 
@@ -53,6 +123,8 @@ class TestDecompositionFingerprint:
             n_centers=2,
             center_zd_zg_pairs=((99.0, 101.0), (100.0, 102.0)),
             trend_kinds=("up_trend",),
+            barcode=((99.0, 101.0), (100.0, 102.0)),
+            beta1_tau=2,
             n_strokes=10,
             n_segments=5,
             n_trends=1,
@@ -60,6 +132,22 @@ class TestDecompositionFingerprint:
         )
         with pytest.raises(AttributeError):
             fp.n_centers = 3  # type: ignore[misc]
+
+    def test_fingerprint_has_barcode_fields(self):
+        """指纹包含 barcode 和 beta1_tau 字段。"""
+        fp = DecompositionFingerprint(
+            n_centers=1,
+            center_zd_zg_pairs=((99.0, 101.0),),
+            trend_kinds=("consolidation",),
+            barcode=((99.0, 101.0),),
+            beta1_tau=1,
+            n_strokes=8,
+            n_segments=4,
+            n_trends=1,
+            max_level=1,
+        )
+        assert fp.barcode == ((99.0, 101.0),)
+        assert fp.beta1_tau == 1
 
     def test_fingerprint_from_pipeline(self, df_raw):
         from newchan.a_topology import _run_pipeline
@@ -70,6 +158,18 @@ class TestDecompositionFingerprint:
         assert fp.n_segments == len(segments)
         assert fp.n_centers == len(centers)
         assert fp.n_trends == len(trends)
+        # 新字段存在且一致
+        assert len(fp.barcode) == len(centers)
+        assert fp.beta1_tau >= 0
+        # barcode 与 center_zd_zg_pairs 一致
+        assert fp.barcode == fp.center_zd_zg_pairs
+
+    def test_fingerprint_beta1_tau_with_threshold(self, df_raw):
+        """tau > 0 时 beta1_tau ≤ n_centers。"""
+        from newchan.a_topology import _run_pipeline
+        strokes, segments, centers, trends, rec_levels = _run_pipeline(df_raw, "wide")
+        fp = compute_fingerprint(strokes, segments, centers, trends, rec_levels, tau=1.0)
+        assert fp.beta1_tau <= fp.n_centers
 
 
 # ---------------------------------------------------------------------------
@@ -82,6 +182,8 @@ class TestStructuralDelta:
             n_centers=1,
             center_zd_zg_pairs=((99.0, 101.0),),
             trend_kinds=("consolidation",),
+            barcode=((99.0, 101.0),),
+            beta1_tau=1,
             n_strokes=8,
             n_segments=4,
             n_trends=1,
@@ -93,12 +195,16 @@ class TestStructuralDelta:
         assert delta.center_count_diff == 0
         assert delta.level_diff == 0
         assert len(delta.trend_kind_mutations) == 0
+        assert delta.bottleneck_distance == 0.0
+        assert delta.beta1_tau_diff == 0
 
     def test_delta_detects_differences(self):
         fp_a = DecompositionFingerprint(
             n_centers=2,
             center_zd_zg_pairs=((99.0, 101.0), (100.0, 102.0)),
             trend_kinds=("up_trend",),
+            barcode=((99.0, 101.0), (100.0, 102.0)),
+            beta1_tau=2,
             n_strokes=10,
             n_segments=5,
             n_trends=1,
@@ -108,6 +214,8 @@ class TestStructuralDelta:
             n_centers=3,
             center_zd_zg_pairs=((99.0, 101.0), (100.5, 102.5), (101.0, 103.0)),
             trend_kinds=("consolidation",),
+            barcode=((99.0, 101.0), (100.5, 102.5), (101.0, 103.0)),
+            beta1_tau=3,
             n_strokes=12,
             n_segments=6,
             n_trends=1,
@@ -118,11 +226,40 @@ class TestStructuralDelta:
         assert delta.segment_count_diff == 1
         assert delta.center_count_diff == 1
         assert delta.level_diff == 1
-        # 第二个中枢区间变化
         assert len(delta.center_interval_diffs) == 2  # min(2, 3) = 2
-        # 走势类型突变
         assert len(delta.trend_kind_mutations) == 1
         assert delta.trend_kind_mutations[0] == ("up_trend", "consolidation")
+        # 新字段
+        assert delta.bottleneck_distance > 0.0
+        assert delta.beta1_tau_diff == 1
+
+    def test_delta_bottleneck_symmetric(self):
+        """bottleneck 距离是对称的。"""
+        fp_a = DecompositionFingerprint(
+            n_centers=1,
+            center_zd_zg_pairs=((99.0, 101.0),),
+            trend_kinds=(),
+            barcode=((99.0, 101.0),),
+            beta1_tau=1,
+            n_strokes=5,
+            n_segments=2,
+            n_trends=0,
+            max_level=1,
+        )
+        fp_b = DecompositionFingerprint(
+            n_centers=1,
+            center_zd_zg_pairs=((99.0, 103.0),),
+            trend_kinds=(),
+            barcode=((99.0, 103.0),),
+            beta1_tau=1,
+            n_strokes=5,
+            n_segments=2,
+            n_trends=0,
+            max_level=1,
+        )
+        d_ab = compute_structural_delta(fp_a, fp_b)
+        d_ba = compute_structural_delta(fp_b, fp_a)
+        assert abs(d_ab.bottleneck_distance - d_ba.bottleneck_distance) < 1e-10
 
 
 # ---------------------------------------------------------------------------
@@ -138,17 +275,23 @@ class TestTransition:
         assert tr.delta.segment_count_diff == 0
         assert tr.delta.center_count_diff == 0
         assert tr.delta.level_diff == 0
+        assert tr.delta.bottleneck_distance == 0.0
+        assert tr.delta.beta1_tau_diff == 0
         assert all(tr.strong_invariants_preserved.values())
         assert all(tr.weak_invariants_preserved.values())
 
     def test_transition_wide_vs_strict(self, df_raw):
-        """wide vs strict：弱不变量可能变化，结构差异有结构。"""
+        """wide vs strict：结构差异有结构，含 bottleneck 距离。"""
         tr = compute_transition(df_raw, "wide", "strict")
         assert isinstance(tr, TransitionResult)
         assert isinstance(tr.delta, StructuralDelta)
-        # 不断言具体值——只断言结构完整性
         assert tr.source_mode == "wide"
         assert tr.target_mode == "strict"
+        # bottleneck_distance 有值（≥ 0）
+        assert tr.delta.bottleneck_distance >= 0.0
+        # 强不变量报告包含新字段
+        assert "beta1_tau" in tr.strong_invariants_preserved
+        assert "barcode_bottleneck" in tr.strong_invariants_preserved
 
 
 # ---------------------------------------------------------------------------
@@ -162,8 +305,16 @@ class TestGaugeEquivalence:
         assert report["n_transitions"] == 1
         assert len(report["transitions"]) == 1
         assert "strong_invariant_summary" in report
-        for k in ("n_centers", "center_zd_zg_pairs", "trend_kinds"):
+        # 新增字段检查
+        for k in ("n_centers", "center_zd_zg_pairs", "trend_kinds",
+                   "beta1_tau", "barcode_bottleneck"):
             assert k in report["strong_invariant_summary"]
+        # tau 参数记录在报告中
+        assert "tau" in report
+        # transition 包含 bottleneck_distance
+        t0 = report["transitions"][0]
+        assert "bottleneck_distance" in t0["delta"]
+        assert "beta1_tau_diff" in t0["delta"]
 
     def test_report_three_modes(self, df_raw):
         """三模式报告应有 3 对转换。"""
@@ -177,15 +328,171 @@ class TestGaugeEquivalence:
         )
         assert report["n_transitions"] == 1
 
+    def test_report_with_tau(self, df_raw):
+        """带 τ 阈值的报告。"""
+        report = gauge_equivalence_report(
+            df_raw, modes=("wide", "strict"), tau=2.0,
+        )
+        assert report["tau"] == 2.0
+
 
 class TestCenterIntervalsInvariant:
     def test_center_intervals_across_modes(self, df_raw):
-        """验证中枢 ZD/ZG 在不同笔模式下的稳定性（经验性检验）。
-
-        这个测试不断言 ZD/ZG 完全相等——它记录偏差幅度，
-        为强/弱不变量的分类提供经验数据。
-        """
+        """验证中枢 ZD/ZG 在不同笔模式下的稳定性（经验性检验）。"""
         tr = compute_transition(df_raw, "wide", "strict")
         if tr.source_fp.n_centers > 0 and tr.target_fp.n_centers > 0:
-            # 记录差异——不断言保持，因为这是待验证的假设
             assert isinstance(tr.delta.center_interval_diffs, tuple)
+            # bottleneck 距离作为更精确的稳定性度量
+            assert tr.delta.bottleneck_distance >= 0.0
+
+    def test_barcode_consistency_t3(self, df_raw):
+        """T3 验证：barcode 与 center_zd_zg_pairs 一致（中枢↔条带一一对应）。"""
+        tr = compute_transition(df_raw, "wide", "wide")
+        # 同一模式下，barcode 应等于 center_zd_zg_pairs
+        assert tr.source_fp.barcode == tr.source_fp.center_zd_zg_pairs
+
+    def test_beta1_tau_gauge_candidate(self, df_raw):
+        """β₁^τ 作为 gauge 不变量候选的经验检验。"""
+        tr = compute_transition(df_raw, "wide", "strict", tau=1.0)
+        # 记录差异——β₁^τ 是否在不同模式下保持
+        # 不做强断言：这是待验证的假设
+        assert isinstance(tr.source_fp.beta1_tau, int)
+        assert isinstance(tr.target_fp.beta1_tau, int)
+
+
+# ---------------------------------------------------------------------------
+# T7：递归条形码偏序测试（ε-真单射匹配）
+# ---------------------------------------------------------------------------
+
+class TestBarcodeInclusion:
+    def test_empty_high_always_passes(self):
+        """空 bars_high 总被包含。"""
+        passed, unmatched = _check_barcode_inclusion((), ((1.0, 3.0),), 1.0)
+        assert passed is True
+        assert unmatched == ()
+
+    def test_empty_low_nonempty_high_fails(self):
+        """非空 bars_high 不被空 bars_trimmed_low 包含。"""
+        passed, unmatched = _check_barcode_inclusion(((1.0, 3.0),), (), 1.0)
+        assert passed is False
+        assert unmatched == ((1.0, 3.0),)
+
+    def test_exact_match(self):
+        """精确匹配通过。"""
+        bars = ((1.0, 3.0), (2.0, 5.0))
+        passed, unmatched = _check_barcode_inclusion(bars, bars, 0.01)
+        assert passed is True
+        assert unmatched == ()
+
+    def test_epsilon_tolerance(self):
+        """ε 容差内的匹配通过。"""
+        high = ((1.0, 3.0),)
+        low = ((1.05, 3.05),)
+        passed, _ = _check_barcode_inclusion(high, low, 0.1)
+        assert passed is True
+
+    def test_outside_epsilon_fails(self):
+        """超出 ε 容差不匹配。"""
+        high = ((1.0, 3.0),)
+        low = ((2.0, 4.0),)
+        passed, unmatched = _check_barcode_inclusion(high, low, 0.5)
+        assert passed is False
+        assert len(unmatched) == 1
+
+    def test_true_injective_no_double_match(self):
+        """真单射：bars_trimmed_low 中每个 bar 至多被匹配一次。"""
+        high = ((1.0, 3.0), (1.0, 3.0))  # 两个相同的 bar
+        low = ((1.0, 3.0),)  # 只有一个
+        passed, unmatched = _check_barcode_inclusion(high, low, 0.1)
+        assert passed is False
+        assert len(unmatched) == 1
+
+    def test_surplus_low_bars_ok(self):
+        """bars_trimmed_low 有多余 bar 不影响通过。"""
+        high = ((1.0, 3.0),)
+        low = ((1.0, 3.0), (5.0, 8.0), (10.0, 15.0))
+        passed, _ = _check_barcode_inclusion(high, low, 0.1)
+        assert passed is True
+
+
+class TestT7RecursiveOrder:
+    def test_single_level_no_check(self):
+        """只有一层时 T7 无需检查，返回空列表。"""
+        from newchan.a_topology import _run_pipeline
+        from newchan.a_recursive_engine import build_recursive_levels
+        df = _make_ohlc(50, seed=99)
+        from newchan.a_inclusion import merge_inclusion
+        from newchan.a_fractal import fractals_from_merged
+        from newchan.a_stroke import strokes_from_fractals
+        from newchan.a_segment_v1 import segments_from_strokes_v1
+        df_m, m2r = merge_inclusion(df)
+        fractals = fractals_from_merged(df_m)
+        strokes = strokes_from_fractals(df_m, fractals, mode="wide")
+        segments = segments_from_strokes_v1(strokes)
+        levels = build_recursive_levels(segments)
+        if len(levels) <= 1:
+            results = check_recursive_barcode_order(levels)
+            assert results == []
+
+    def test_t7_from_pipeline(self, df_raw):
+        """用真实数据运行管线，如果产生多层则验证 T7。"""
+        from newchan.a_topology import _run_pipeline
+        from newchan.a_recursive_engine import build_recursive_levels
+        from newchan.a_inclusion import merge_inclusion
+        from newchan.a_fractal import fractals_from_merged
+        from newchan.a_stroke import strokes_from_fractals
+        from newchan.a_segment_v1 import segments_from_strokes_v1
+        df_m, m2r = merge_inclusion(df_raw)
+        fractals = fractals_from_merged(df_m)
+        strokes = strokes_from_fractals(df_m, fractals, mode="wide")
+        segments = segments_from_strokes_v1(strokes)
+        levels = build_recursive_levels(segments)
+        if len(levels) >= 2:
+            results = check_recursive_barcode_order(levels, tau=0.0, epsilon=5.0)
+            assert len(results) == len(levels) - 1
+            for r in results:
+                assert isinstance(r, T7Result)
+
+
+# ---------------------------------------------------------------------------
+# T5：走势类型 ≅ 上级笔 构造不变式验证测试
+# ---------------------------------------------------------------------------
+
+class TestT5TrendMoveEquivalence:
+    def test_single_level_no_check(self):
+        """只有一层时 T5 无需检查，返回空列表。"""
+        from newchan.a_recursive_engine import build_recursive_levels
+        from newchan.a_inclusion import merge_inclusion
+        from newchan.a_fractal import fractals_from_merged
+        from newchan.a_stroke import strokes_from_fractals
+        from newchan.a_segment_v1 import segments_from_strokes_v1
+        df = _make_ohlc(50, seed=99)
+        df_m, m2r = merge_inclusion(df)
+        fractals = fractals_from_merged(df_m)
+        strokes = strokes_from_fractals(df_m, fractals, mode="wide")
+        segments = segments_from_strokes_v1(strokes)
+        levels = build_recursive_levels(segments)
+        if len(levels) <= 1:
+            results = check_trend_move_equivalence(levels)
+            assert results == []
+
+    def test_t5_from_pipeline(self, df_raw):
+        """用真实数据运行管线，验证 T5 构造不变式。"""
+        from newchan.a_recursive_engine import build_recursive_levels
+        from newchan.a_inclusion import merge_inclusion
+        from newchan.a_fractal import fractals_from_merged
+        from newchan.a_stroke import strokes_from_fractals
+        from newchan.a_segment_v1 import segments_from_strokes_v1
+        df_m, m2r = merge_inclusion(df_raw)
+        fractals = fractals_from_merged(df_m)
+        strokes = strokes_from_fractals(df_m, fractals, mode="wide")
+        segments = segments_from_strokes_v1(strokes)
+        levels = build_recursive_levels(segments)
+        if len(levels) >= 2:
+            results = check_trend_move_equivalence(levels)
+            assert len(results) == len(levels) - 1
+            for r in results:
+                assert isinstance(r, T5Result)
+                assert r.confirmed_only is True
+                assert r.identity is True
+                assert r.passed is True

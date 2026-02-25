@@ -23,6 +23,7 @@ dependencies = [
     "openai>=2.0",
     "mcp>=1.0",
     "networkx>=3.0",
+    "persim>=0.3",
 ]
 
 [project.scripts]
