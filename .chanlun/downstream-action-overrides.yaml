@@ -366,21 +366,21 @@
 178-1: resolved    # ceremony_scan.py 增加 compute_delta_blocks()——检测 block-topology/blocks/ 区块数变化，与 meta.json 迁移时基准比较
 
 # === 183号 — 动力学机制缺失 ===
-183-3: blocked    # 首次非空 residue 分界线——观察性命题，依赖第一次真实多轮质询（阻塞项：API key + 实际运行）
+183-3: resolved    # 首次非空 residue 达成——193号质询产出 9 个 Key 的 residue + tension（系统从拓扑空壳变为递归运动）
 
 # === 184号 — Gemini 异质审计 ===
-184-2: blocked    # 第一次真实多轮质询循环（阻塞项：Gemini API key + 实际运行环境）
+184-2: resolved    # 第一次真实多轮质询循环——193号（9轮收敛，10 Key，9 trajectories，三区块写入成功）
 
 # === 187号 — 架构分离伪诊断 ===
 187-1: blocked    # 架构分离前置条件：动力学机制建立（阻塞项：目A+目B+目E 完整管道建立）
 187-2: blocked    # 半自主判断标准写入 ceremony skill（阻塞项：187-1 前置条件）
-187-3: blocked    # 引擎点火（阻塞项：API key + 真实多轮质询）
+187-3: blocked    # 引擎点火（阻塞项：完整多轮质询循环——193号为首次但 Codex stance 全 None）
 
 # === 188号 — 多轮质询管道收敛算法 ===
-188-2: blocked    # trajectories 输出（阻塞项：inquiry_loop 实际运行）
-188-3: blocked    # 编排者选择轨迹（阻塞项：188-2 前置条件）
-188-4: blocked    # 下一轮 audit 检验切口（阻塞项：188-2 前置条件）
-188-5: blocked    # 系统前提验证（阻塞项：至少一次完整多轮质询循环）
+188-2: resolved    # trajectories 输出——193号产出 9 条破裂轨迹（全部 residue b 类型）
+188-3: blocked    # 编排者选择轨迹（阻塞项：需要编排者价值判断）
+188-4: blocked    # 下一轮 audit 检验切口（阻塞项：188-3 编排者选择）
+188-5: resolved    # 系统前提验证——193号验证了"盲目的破裂轨迹优于静止"公理的可执行性
 
 # === 191号 — 空 consensus 区块审计 ===
-191-4: blocked    # inquiry_loop 声明-能力一致性（阻塞项：API key + 实际运行验证）
+191-4: resolved    # inquiry_loop 声明-能力一致性——193号验证：代码按声明执行（收敛+三区块写入），Codex stance 不合规是外部模型限制

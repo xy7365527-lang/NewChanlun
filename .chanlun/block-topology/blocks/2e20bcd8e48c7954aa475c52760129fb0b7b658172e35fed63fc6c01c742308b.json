@@ -1,0 +1,30 @@
+{
+  "id": "2e20bcd8e48c7954aa475c52760129fb0b7b658172e35fed63fc6c01c742308b",
+  "type": "residue",
+  "timestamp": "2026-02-25T03:20:47.153889+00:00",
+  "source": "cc",
+  "content": {
+    "gemini_conceded": [
+      "counting_anchor_ambiguity",
+      "definition_anchor_collapse",
+      "dual_baseline_counting",
+      "extreme_value_tie_breaker",
+      "extremum_matching_logic",
+      "kline_count_metric",
+      "lesson81_anchor_ambiguity",
+      "new_bi_anchor_ambiguity",
+      "new_old_bi_compatibility"
+    ],
+    "codex_conceded": [
+      "missing_code_context"
+    ],
+    "reasons": {
+      "gemini": "Gemini 在质询中放弃 9 个立场",
+      "codex": "Codex 在质询中放弃 1 个立场"
+    }
+  },
+  "refs": [
+    "4be3aa28b1e6006f424a0c2448f904ea8b3f75a3d4409c0724c0c42e50b6476c"
+  ],
+  "git_ref": ""
+}
