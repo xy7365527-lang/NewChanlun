@@ -964,6 +964,16 @@ nodes:
   status: 结算态
   type: 概念发现
   file: settled/193-first-real-inquiry-loop.md
+- id: '194'
+  title: 笔定义代码忠实度审计——10 Key 并行诊断
+  status: 结算态
+  type: 概念发现
+  file: settled/194-bi-fidelity-audit-10key.md
+- id: '195'
+  title: 缠论代码拓扑化——六层对应 + 转换函数等价框架
+  status: 结算态
+  type: 概念发现
+  file: settled/195-chanlun-topologization.md
 edges:
   depends_on:
   - from: '136'
@@ -1958,6 +1968,20 @@ edges:
     to: '188'
   - from: '193'
     to: '191'
+  - from: '194'
+    to: '193'
+  - from: '194'
+    to: '113'
+  - from: '194'
+    to: '114'
+  - from: '194'
+    to: '001'
+  - from: '195'
+    to: '001'
+  - from: '195'
+    to: '114'
+  - from: '195'
+    to: '113'
   triggered:
   - from: '005'
     to: 005a

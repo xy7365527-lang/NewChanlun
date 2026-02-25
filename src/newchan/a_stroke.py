@@ -3,6 +3,25 @@
 从分型序列构造笔：分型去重、顶底交替、宽/严笔参数化、确认语义。
 
 规格引用: docs/chan_spec.md §4 笔（Stroke）
+
+## 拓扑语义（195号）
+
+### 结构映射
+笔是 CW 复形的 1-cell 构造。
+
+- 分型 = 0-cell（CW 复形的顶点集）
+- 笔 = 1-cell（连接两个 0-cell 的边）
+- 胶合映射 φ: ∂D¹ → X⁰ 由 (i0, i1) 定义：笔的端点必须是分型
+- 连续性保证 strokes[i].i1 == strokes[i+1].i0 = CW 胶合条件（相邻 1-cell 共享 0-cell）
+- 顶底交替 = CW 复形的定向性：1-cell 从 index-0 到 index-1 或反之
+- gap 检查 = 1-cell 的最小长度约束（宽笔/严笔/新笔 = 不同的 CW 接纳准则）
+- 001号谱系：同一 0-cell 集可生成不同的 1-cell 集 = 分解不唯一 = gauge choice
+
+### 映射的边界
+CW 复形的 1-cell 类比在此处是精确的——分型确实是 0-cell，笔确实是连接两个 0-cell 的 1-cell，
+胶合条件（端点共享）确实被 strokes[i].i1 == strokes[i+1].i0 保证。
+限度：CW 复形通常允许 1-cell 自环（端点相同），笔不允许（顶底交替）。
+这是 CW 复形的一个受限特例——定向 1 维 CW 复形。
 """
 
 from __future__ import annotations

@@ -3,6 +3,25 @@
 在包含处理后的 MergedBar 序列上识别顶分型与底分型。
 
 规格引用: docs/chan_spec.md §3 分型（Fractal）
+
+## 拓扑语义（195号）
+
+### 结构映射
+分型是一维价格函数的局部极值点——Morse 临界点的离散一维类比。
+
+- merged bar 序列上的价格函数 f: {merged bars} → ℝ 是离散函数
+- 顶分型 = 局部极大值点（index-1 临界点的类比）
+- 底分型 = 局部极小值点（index-0 临界点的类比）
+- 双条件（h_curr > h_prev AND h_curr > h_next AND l_curr > l_prev AND l_curr > l_next）
+  = 严格局部极值条件（Morse 非退化条件的离散一维对应：严格不等式 = 非退化）
+- fractals_from_merged() 是局部极值点的枚举
+- 114号谱系：分型形式化稳定性（双条件保证中心bar=极值bar）
+
+### 映射的边界
+这里的"Morse"是连续 Morse 理论的一维类比（一维函数的局部极值 = 临界点），
+不是 Forman 离散 Morse 理论的精确实例。Forman 理论需要 CW 复形上的
+梯度向量场配对结构，分型检测不具备这个结构。
+类比的有效部分：严格不等式条件排除了退化（平台/相等），这和 Morse 非退化条件精神一致。
 """
 
 from __future__ import annotations

@@ -331,6 +331,36 @@ def derive_mu(block_stats, genealogy_stats, root):
             "reason": f"delta_blocks=0, migration_block_count={block_stats['migration_block_count']}, current={block_stats['total_blocks']}",
         })
 
+    # 规则：拓扑标注覆盖率检测（195号）
+    topo_modules = [
+        "a_inclusion.py", "a_fractal.py", "a_stroke.py",
+        "a_segment_v1.py", "a_center_v0.py", "a_trendtype_v0.py",
+        "a_recursive_engine.py",
+    ]
+    topo_annotated = 0
+    for mod in topo_modules:
+        mod_path = os.path.join(root, "src", "newchan", mod)
+        if os.path.isfile(mod_path):
+            with open(mod_path, encoding="utf-8") as f:
+                if "拓扑语义" in f.read(3000):
+                    topo_annotated += 1
+    topo_coverage = topo_annotated / len(topo_modules) if topo_modules else 0
+    if topo_coverage < 1.0:
+        if "拓扑标注覆盖" not in audited:
+            new_mu.append({
+                "mu": "拓扑标注覆盖",
+                "reason": f"A 系统模块拓扑标注 {topo_annotated}/{len(topo_modules)} ({topo_coverage:.0%})——未全覆盖",
+            })
+
+    # 规则：转换函数等价验证（195号）
+    topo_module = os.path.join(root, "src", "newchan", "a_topology.py")
+    if not os.path.isfile(topo_module):
+        if "转换函数等价" not in audited:
+            new_mu.append({
+                "mu": "转换函数等价",
+                "reason": "a_topology.py 不存在——分解不唯一(001号)的等价类验证缺失",
+            })
+
     # 补充规则：谱系类型分布检测
     recent_types = genealogy_stats.get("recent_type_distribution", {})
     if recent_types:
