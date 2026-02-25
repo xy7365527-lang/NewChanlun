@@ -238,8 +238,8 @@ def _try_init_center(
     if zg_all <= zd_all:
         return None
 
-    s1_dir = getattr(s1, "direction", "")
-    s3_dir = getattr(s3, "direction", "")
+    s1_dir = getattr(s1, "as_move_direction", "") or getattr(s1, "direction", "")
+    s3_dir = getattr(s3, "as_move_direction", "") or getattr(s3, "direction", "")
     if s1_dir and s3_dir and s1_dir != s3_dir:
         logger.warning(
             "Center skip: s1.dir=%s != s3.dir=%s at i=%d", s1_dir, s3_dir, i,
@@ -247,7 +247,7 @@ def _try_init_center(
         return None
 
     zd, zg = _zseg_interval(s1, s3)
-    direction = getattr(s1, "direction", "")
+    direction = getattr(s1, "as_move_direction", "") or getattr(s1, "direction", "")
     gg = max(s1.high, s3.high)
     dd = min(s1.low, s3.low)
     g = min(s1.high, s3.high)
