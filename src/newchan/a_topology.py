@@ -380,8 +380,10 @@ def check_divergence_topology(
             centers, segments, div.seg_c_start, div.seg_c_end,
         )
 
-        # 无中枢时标记 inconclusive
-        if not centers_a and not centers_c:
+        # 任一侧无中枢 → inconclusive（域语义：无中枢 = 数据不足，非力竭）
+        # 力竭 = 有中枢但中枢变窄（W₁ 下降），而非完全没有中枢。
+        # Gemini×Codex Round 1 共识：选择理解B（or），拒绝理解A（and）。
+        if not centers_a or not centers_c:
             results.append(T8Result(
                 divergence_index=idx,
                 kind=div.kind,
@@ -392,8 +394,8 @@ def check_divergence_topology(
                 eta=eta,
                 passed=False,
                 inconclusive=True,
-                n_centers_a=0,
-                n_centers_c=0,
+                n_centers_a=len(centers_a),
+                n_centers_c=len(centers_c),
                 normalized=normalize,
             ))
             continue
@@ -641,17 +643,23 @@ def gauge_equivalence_report(
         )
         if rl_first:
             level0 = rl_first[0]
-            divs = divergences_from_level(
-                level0.moves if hasattr(level0, "moves") else seg_first,
-                level0.centers,
-                level0.trends,
-                level0.level,
-            )
+            # level0.moves 在 level=1 时是 Segment 列表，索引空间与 Center.seg0/seg1 一致
+            t8_moves = level0.moves if hasattr(level0, "moves") else seg_first
+            t8_centers = level0.centers
+            t8_trends = level0.trends
+            t8_level = level0.level
         else:
-            divs = divergences_from_level(seg_first, c_first, t_first, 0)
+            t8_moves = seg_first
+            t8_centers = c_first
+            t8_trends = t_first
+            t8_level = 0
+        divs = divergences_from_level(
+            t8_moves, t8_centers, t8_trends, t8_level,
+        )
         if divs:
+            # segments 参数必须与 divergences 的索引空间一致（= t8_moves）
             t8_checks = check_divergence_topology(
-                divs, seg_first, c_first, eta=0.0,
+                divs, t8_moves, t8_centers, eta=0.0,
             )
             t8_results = [
                 {

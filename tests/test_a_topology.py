@@ -639,6 +639,58 @@ class TestT8DivergenceTopology:
         assert results[0].inconclusive is True
         assert results[0].passed is False
 
+    def test_t8_inconclusive_a_only(self):
+        """A 段有中枢但 C 段无中枢 → inconclusive=True（数据不足，非力竭）。"""
+        from types import SimpleNamespace as NS
+
+        segments = [
+            NS(s0=i, s1=i, i0=i*10, i1=(i+1)*10, direction="up",
+               high=100.0 + i * 2, low=98.0 + i * 2)
+            for i in range(10)
+        ]
+        center_a = NS(seg0=1, seg1=3, low=99.0, high=103.0,
+                       kind="settled", confirmed=True, sustain=0,
+                       direction="up", gg=103.0, dd=99.0, g=100.0, d=101.0,
+                       development="", level_id=0, terminated=False)
+        div = NS(kind="trend", direction="top", level_id=0,
+                 seg_a_start=0, seg_a_end=4, seg_c_start=6, seg_c_end=9,
+                 center_idx=0, force_a=100.0, force_c=50.0, confirmed=True)
+
+        results = check_divergence_topology(
+            [div], segments, [center_a], eta=0.0,
+        )
+        assert len(results) == 1
+        assert results[0].inconclusive is True
+        assert results[0].passed is False
+        assert results[0].n_centers_a == 1
+        assert results[0].n_centers_c == 0
+
+    def test_t8_inconclusive_c_only(self):
+        """C 段有中枢但 A 段无中枢 → inconclusive=True。"""
+        from types import SimpleNamespace as NS
+
+        segments = [
+            NS(s0=i, s1=i, i0=i*10, i1=(i+1)*10, direction="up",
+               high=100.0 + i * 2, low=98.0 + i * 2)
+            for i in range(10)
+        ]
+        center_c = NS(seg0=7, seg1=9, low=112.0, high=113.0,
+                       kind="settled", confirmed=True, sustain=0,
+                       direction="up", gg=113.0, dd=112.0, g=112.5, d=112.5,
+                       development="", level_id=0, terminated=False)
+        div = NS(kind="trend", direction="top", level_id=0,
+                 seg_a_start=0, seg_a_end=4, seg_c_start=6, seg_c_end=9,
+                 center_idx=0, force_a=100.0, force_c=50.0, confirmed=True)
+
+        results = check_divergence_topology(
+            [div], segments, [center_c], eta=0.0,
+        )
+        assert len(results) == 1
+        assert results[0].inconclusive is True
+        assert results[0].passed is False
+        assert results[0].n_centers_a == 0
+        assert results[0].n_centers_c == 1
+
     def test_t8_eta_tolerance(self):
         """eta>0 需要更大的 W₁ drop 才能 pass。"""
         from types import SimpleNamespace as NS
