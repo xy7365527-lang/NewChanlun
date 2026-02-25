@@ -299,7 +299,8 @@ class TestTransition:
         assert tr.delta.bottleneck_distance >= 0.0
         # 强不变量报告包含新字段
         assert "beta1_tau" in tr.strong_invariants_preserved
-        assert "barcode_bottleneck" in tr.strong_invariants_preserved
+        # 209号降级：barcode_bottleneck 移至 weak_invariants_preserved
+        assert "barcode_bottleneck" in tr.weak_invariants_preserved
 
 
 # ---------------------------------------------------------------------------
@@ -314,8 +315,8 @@ class TestGaugeEquivalence:
         assert len(report["transitions"]) == 1
         assert "strong_invariant_summary" in report
         # 新增字段检查
-        for k in ("n_centers", "center_zd_zg_pairs", "trend_kinds",
-                   "beta1_tau", "barcode_bottleneck"):
+        # 209号降级后强不变量仅含 Tier 1/2
+        for k in ("n_centers", "trend_kinds", "beta1_tau"):
             assert k in report["strong_invariant_summary"]
         # tau 参数记录在报告中
         assert "tau" in report
