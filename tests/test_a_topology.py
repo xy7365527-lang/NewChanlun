@@ -11,6 +11,7 @@ from newchan.a_topology import (
     T7Result,
     T5Result,
     T8Result,
+    T6Result,
     centers_to_barcode,
     barcode_to_diagram,
     compute_beta1_tau,
@@ -25,6 +26,9 @@ from newchan.a_topology import (
     check_divergence_topology,
     check_recursive_barcode_order,
     check_trend_move_equivalence,
+    check_cross_level_leray,
+    _bar_length_distribution,
+    _kl_divergence,
 )
 
 
@@ -774,3 +778,124 @@ class TestT8DivergenceTopology:
                 assert r.w1_c >= 0.0
                 assert isinstance(r.passed, bool)
                 assert isinstance(r.inconclusive, bool)
+
+
+# ---------------------------------------------------------------------------
+# T6：Leray 条件可计算近似（204号谱系）
+# ---------------------------------------------------------------------------
+
+class TestT6CrossLevelLeray:
+    """T6 跨层 Leray 可计算近似测试。"""
+
+    def test_t6_bar_length_distribution_basic(self):
+        """条带长度直方图基本功能。"""
+        bc = ((0.0, 10.0), (0.0, 5.0), (0.0, 2.0))
+        dist = _bar_length_distribution(bc)
+        assert dist.shape == (10,)
+        assert abs(dist.sum() - 1.0) < 1e-9  # 归一化
+
+    def test_t6_bar_length_distribution_empty(self):
+        """空条形码返回均匀分布。"""
+        dist = _bar_length_distribution(())
+        assert dist.shape == (10,)
+        assert abs(dist.sum() - 1.0) < 1e-9
+        # 均匀分布：每个 bin 相等
+        assert abs(dist[0] - dist[-1]) < 1e-9
+
+    def test_t6_kl_divergence_same(self):
+        """相同分布 KL = 0。"""
+        p = np.array([0.25, 0.25, 0.25, 0.25])
+        assert abs(_kl_divergence(p, p)) < 1e-9
+
+    def test_t6_kl_divergence_different(self):
+        """不同分布 KL > 0。"""
+        p = np.array([0.5, 0.3, 0.1, 0.1])
+        q = np.array([0.25, 0.25, 0.25, 0.25])
+        kl = _kl_divergence(p, q)
+        assert kl > 0
+
+    def test_t6_synthetic_two_levels(self):
+        """合成两层递归——T6 检查应产出结果。"""
+        from types import SimpleNamespace
+
+        # 低级别：3 个中枢
+        centers_low = [
+            SimpleNamespace(low=10.0, high=20.0, seg0=0, seg1=2),
+            SimpleNamespace(low=25.0, high=35.0, seg0=3, seg1=5),
+            SimpleNamespace(low=40.0, high=50.0, seg0=6, seg1=8),
+        ]
+        # 高级别：1 个中枢（粗粒化后）
+        centers_high = [
+            SimpleNamespace(low=15.0, high=45.0, seg0=0, seg1=2),
+        ]
+        level0 = SimpleNamespace(level=0, centers=centers_low)
+        level1 = SimpleNamespace(level=1, centers=centers_high)
+
+        results = check_cross_level_leray([level0, level1])
+        assert len(results) == 1
+        r = results[0]
+        assert isinstance(r, T6Result)
+        assert r.level_low == 0
+        assert r.level_high == 1
+        assert r.n_bars_low == 3
+        assert r.n_bars_high == 1
+        assert r.w1_low >= 0
+        assert r.w1_high >= 0
+        assert isinstance(r.passed, bool)
+        assert isinstance(r.w1_monotone, bool)
+        assert isinstance(r.bottleneck_bounded, bool)
+        assert isinstance(r.kl_bounded, bool)
+
+    def test_t6_w1_monotone_pass(self):
+        """高级别 W₁ < 低级别 → w1_monotone = True。"""
+        from types import SimpleNamespace
+
+        # 低级别：宽条带
+        centers_low = [
+            SimpleNamespace(low=0.0, high=100.0, seg0=0, seg1=2),
+            SimpleNamespace(low=10.0, high=90.0, seg0=3, seg1=5),
+        ]
+        # 高级别：窄条带（粗粒化后信息量减少）
+        centers_high = [
+            SimpleNamespace(low=30.0, high=50.0, seg0=0, seg1=1),
+        ]
+        level0 = SimpleNamespace(level=0, centers=centers_low)
+        level1 = SimpleNamespace(level=1, centers=centers_high)
+
+        results = check_cross_level_leray([level0, level1])
+        assert results[0].w1_monotone is True
+
+    def test_t6_single_level_no_result(self):
+        """单层递归无 T6 结果。"""
+        from types import SimpleNamespace
+        level0 = SimpleNamespace(level=0, centers=[])
+        results = check_cross_level_leray([level0])
+        assert results == []
+
+    def test_t6_delta_kappa_params(self):
+        """自定义 delta/kappa 参数。"""
+        from types import SimpleNamespace
+
+        centers_low = [
+            SimpleNamespace(low=0.0, high=50.0, seg0=0, seg1=2),
+        ]
+        centers_high = [
+            SimpleNamespace(low=0.0, high=50.0, seg0=0, seg1=1),
+        ]
+        level0 = SimpleNamespace(level=0, centers=centers_low)
+        level1 = SimpleNamespace(level=1, centers=centers_high)
+
+        # 极严格参数
+        results_strict = check_cross_level_leray(
+            [level0, level1], delta=0.001, kappa=0.001,
+        )
+        assert len(results_strict) == 1
+        assert results_strict[0].delta == 0.001
+        assert results_strict[0].kappa == 0.001
+
+        # 极宽松参数
+        results_lenient = check_cross_level_leray(
+            [level0, level1], delta=1000.0, kappa=1000.0,
+        )
+        assert results_lenient[0].bottleneck_bounded is True
+        assert results_lenient[0].kl_bounded is True
