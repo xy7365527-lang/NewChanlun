@@ -1009,6 +1009,11 @@ nodes:
   status: 已结算
   type: 语法记录
   file: settled/202-false-blocked-escalation.md
+- id: '203'
+  title: ''
+  status: 已结算
+  type: 概念发现
+  file: settled/203-real-data-gauge-sensitivity.md
 edges:
   depends_on:
   - from: '136'
@@ -2031,6 +2036,10 @@ edges:
     to: '196'
   - from: '202'
     to: '137'
+  - from: '203'
+    to: '195'
+  - from: '203'
+    to: '199'
   triggered:
   - from: '005'
     to: 005a
