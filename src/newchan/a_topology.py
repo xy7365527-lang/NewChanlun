@@ -272,6 +272,7 @@ class T8Result:
     n_centers_a: int
     n_centers_c: int
     normalized: bool
+    macd_agrees: bool  # MACD force 方向与 W₁ 方向一致（210号谱系）
 
 
 def _normalize_barcode(
@@ -440,7 +441,7 @@ def check_divergence_topology(
                     w1_a=0.0, w1_c=0.0, w1_drop=0.0,
                     eta=eta, passed=False, inconclusive=True,
                     n_centers_a=len(centers_a), n_centers_c=len(centers_c),
-                    normalized=normalize,
+                    normalized=normalize, macd_agrees=False,
                 ))
                 continue
         else:
@@ -452,7 +453,7 @@ def check_divergence_topology(
                 w1_a=0.0, w1_c=0.0, w1_drop=0.0,
                 eta=eta, passed=False, inconclusive=True,
                 n_centers_a=len(centers_a), n_centers_c=len(centers_c),
-                normalized=normalize,
+                normalized=normalize, macd_agrees=False,
             ))
             continue
 
@@ -473,6 +474,11 @@ def check_divergence_topology(
         w1_drop = w1_a - w1_c
         passed = w1_c <= w1_a - eta
 
+        # MACD force 方向与 W₁ 方向一致性（210号谱系）
+        force_a = getattr(div, "force_a", 0.0)
+        force_c = getattr(div, "force_c", 0.0)
+        macd_agrees = (force_a >= force_c) == (w1_a >= w1_c)
+
         results.append(T8Result(
             divergence_index=idx,
             kind=div.kind,
@@ -486,6 +492,7 @@ def check_divergence_topology(
             n_centers_a=len(centers_a),
             n_centers_c=len(centers_c),
             normalized=normalize,
+            macd_agrees=macd_agrees,
         ))
 
     return results
@@ -761,6 +768,7 @@ def gauge_equivalence_report(
                     "w1_drop": r.w1_drop,
                     "passed": r.passed,
                     "inconclusive": r.inconclusive,
+                    "macd_agrees": r.macd_agrees,
                 }
                 for r in t8_checks
             ]

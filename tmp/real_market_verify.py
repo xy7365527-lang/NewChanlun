@@ -163,7 +163,8 @@ def run_verification(df: pd.DataFrame, label: str) -> dict:
                             all_t8.append({"divergence_index": r.divergence_index, "kind": r.kind,
                                            "direction": r.direction, "w1_a": r.w1_a, "w1_c": r.w1_c,
                                            "w1_drop": r.w1_drop, "passed": r.passed,
-                                           "inconclusive": r.inconclusive, "mode": mode, "level": lvl,
+                                           "inconclusive": r.inconclusive, "macd_agrees": r.macd_agrees,
+                                           "mode": mode, "level": lvl,
                                            "n_centers_a": r.n_centers_a, "n_centers_c": r.n_centers_c})
                 except Exception:
                     pass
