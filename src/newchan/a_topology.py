@@ -473,8 +473,11 @@ def _check_barcode_inclusion(
     """检查 bars_high 是否 ε-嵌入 bars_trimmed_low（真单射）。
 
     对 bars_high 中的每个 bar (b,d)，要求存在 bars_trimmed_low 中的
-    某个 **尚未被匹配** 的 bar (b',d') 使得 |b-b'| < ε 且 |d-d'| < ε。
+    某个 **尚未被匹配** 的 bar (b',d') 使得 |b-b'| ≤ ε 且 |d-d'| ≤ ε。
     真单射：bars_trimmed_low 中每个 bar 至多被匹配一次。
+
+    使用最大二分匹配（增广路径法）消除贪心假阴性。
+    复杂度 O(n²·m)，对 n_centers < 20 的场景足够。
 
     边界情况：
     - bars_high 为空 → True（空集总被包含）
@@ -488,18 +491,45 @@ def _check_barcode_inclusion(
         return (True, ())
     if not bars_trimmed_low:
         return (False, bars_high)
-    matched_low: set[int] = set()
-    unmatched: list[tuple[float, float]] = []
-    for b, d in bars_high:
-        found = False
-        for j, (b2, d2) in enumerate(bars_trimmed_low):
-            if j not in matched_low and abs(b - b2) < epsilon and abs(d - d2) < epsilon:
-                matched_low.add(j)
-                found = True
-                break
-        if not found:
-            unmatched.append((b, d))
-    return (len(unmatched) == 0, tuple(unmatched))
+
+    n = len(bars_high)
+    m = len(bars_trimmed_low)
+
+    # 构建相容矩阵：compat[i][j] = bars_high[i] 与 bars_trimmed_low[j] 在 ε 内
+    compat: list[list[bool]] = [
+        [
+            abs(bars_high[i][0] - bars_trimmed_low[j][0]) <= epsilon
+            and abs(bars_high[i][1] - bars_trimmed_low[j][1]) <= epsilon
+            for j in range(m)
+        ]
+        for i in range(n)
+    ]
+
+    # 最大二分匹配——增广路径法（Hungarian-style augmenting paths）
+    # match_low[j] = 匹配到 bars_trimmed_low[j] 的 bars_high 索引，-1 表示未匹配
+    match_low: list[int] = [-1] * m
+
+    def _augment(i: int, visited: list[bool]) -> bool:
+        for j in range(m):
+            if compat[i][j] and not visited[j]:
+                visited[j] = True
+                if match_low[j] == -1 or _augment(match_low[j], visited):
+                    match_low[j] = i
+                    return True
+        return False
+
+    matched_count = 0
+    for i in range(n):
+        if _augment(i, [False] * m):
+            matched_count += 1
+
+    if matched_count == n:
+        return (True, ())
+
+    # 找出未匹配的 bars_high
+    matched_high: set[int] = set(match_low[j] for j in range(m) if match_low[j] != -1)
+    unmatched = tuple(bars_high[i] for i in range(n) if i not in matched_high)
+    return (False, unmatched)
 
 
 def check_recursive_barcode_order(
@@ -582,9 +612,7 @@ def check_trend_move_equivalence(levels) -> list[T5Result]:
         high_level = levels[i + 1]
         confirmed_trends = [t for t in low_level.trends if t.confirmed]
         moves = high_level.moves
-        confirmed_only = all(
-            getattr(m, "confirmed", True) for m in moves
-        )
+        confirmed_only = all(m.confirmed for m in moves)
         identity = (
             len(moves) == len(confirmed_trends)
             and all(m is ct for m, ct in zip(moves, confirmed_trends))

@@ -1,0 +1,25 @@
+{
+  "id": "6c795ae0163b65934fd01dc2879fd82f38ba00b9ce4a5f96f0d98dbc5ca58cb9",
+  "type": "event",
+  "timestamp": "2026-02-25T06:53:29.692012+00:00",
+  "source": "cc",
+  "content": {
+    "id": "196",
+    "title": "无条件义务在等待状态下的降级风险",
+    "status": "settled",
+    "type": "meta-rule",
+    "date": "2026-02-25",
+    "negation_source": "meta-observer",
+    "negation_form": "observation",
+    "depends_on": [
+      "161",
+      "179"
+    ],
+    "related": [],
+    "negates": [],
+    "tensions_with": [],
+    "source_file": "settled/196-idle-duty-degradation.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

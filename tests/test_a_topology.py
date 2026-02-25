@@ -414,6 +414,23 @@ class TestBarcodeInclusion:
         passed, _ = _check_barcode_inclusion(high, low, 0.1)
         assert passed is True
 
+    def test_exact_match_epsilon_zero(self):
+        """epsilon=0.0 时精确相同的 bar 应匹配。"""
+        bars = ((1.0, 3.0),)
+        passed, unmatched = _check_barcode_inclusion(bars, bars, 0.0)
+        assert passed is True
+        assert unmatched == ()
+
+    def test_bipartite_matching_avoids_greedy_false_negative(self):
+        """ε-邻域交叠场景：贪心会假阴性，二分匹配应通过。"""
+        # Gemini 反例：H1 邻域覆盖 L1 和 L2，H2 邻域只覆盖 L1
+        # 贪心 H1→L1 锁定后 H2→L2 失败；最优 H1→L2, H2→L1 通过
+        high = ((1.0, 3.0), (1.08, 3.08))
+        low = ((1.05, 3.05), (0.95, 2.95))
+        passed, unmatched = _check_barcode_inclusion(high, low, 0.1)
+        assert passed is True
+        assert unmatched == ()
+
 
 class TestT7RecursiveOrder:
     def test_single_level_no_check(self):
@@ -496,3 +513,31 @@ class TestT5TrendMoveEquivalence:
                 assert r.confirmed_only is True
                 assert r.identity is True
                 assert r.passed is True
+
+
+class TestT5FailurePaths:
+    def test_t5_fails_with_unconfirmed_move(self):
+        """moves 中含 unconfirmed trend 时 confirmed_only 应为 False。"""
+        from types import SimpleNamespace as NS
+        # Mock: level 0 has one confirmed trend, level 1 moves has one unconfirmed
+        trend_confirmed = NS(confirmed=True, kind="up_trend")
+        trend_unconfirmed = NS(confirmed=False, kind="down_trend")
+        level_0 = NS(level=0, trends=[trend_confirmed], centers=[], moves=[])
+        level_1 = NS(level=1, trends=[], centers=[], moves=[trend_unconfirmed])
+        results = check_trend_move_equivalence([level_0, level_1])
+        assert len(results) == 1
+        assert results[0].confirmed_only is False
+        assert results[0].passed is False
+
+    def test_t5_fails_with_identity_mismatch(self):
+        """moves 与 confirmed_trends 引用不同时 identity 应为 False。"""
+        from types import SimpleNamespace as NS
+        trend_a = NS(confirmed=True, kind="up_trend")
+        trend_b = NS(confirmed=True, kind="up_trend")  # 不同对象
+        level_0 = NS(level=0, trends=[trend_a], centers=[], moves=[])
+        level_1 = NS(level=1, trends=[], centers=[], moves=[trend_b])
+        results = check_trend_move_equivalence([level_0, level_1])
+        assert len(results) == 1
+        assert results[0].confirmed_only is True
+        assert results[0].identity is False  # trend_b is not trend_a
+        assert results[0].passed is False
