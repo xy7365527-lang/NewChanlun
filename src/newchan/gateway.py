@@ -1,4 +1,4 @@
-"""FastAPI 网关 — REST + WebSocket 回放系统
+"""FastAPI 网关 — REST + WebSocket 回放 + 实时推送
 
 端点：
 - POST /api/replay/start  — 创建回放会话
@@ -7,7 +7,8 @@
 - POST /api/replay/play   — 自动播放（后台 asyncio.Task）
 - POST /api/replay/pause  — 暂停
 - GET  /api/replay/status  — 查询状态
-- WS   /ws/feed            — WebSocket 双向通信
+- WS   /ws/feed            — WebSocket 双向通信（回放模式）
+- WS   /ws/live/{symbol}   — WebSocket 实时推送（live 模式）
 
 启动方式：
     uvicorn newchan.gateway:app --port 8766
@@ -16,6 +17,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import uuid
 from dataclasses import asdict
 from datetime import datetime, timezone
@@ -78,6 +80,25 @@ _play_tasks: dict[str, asyncio.Task] = {}
 
 # WebSocket 连接：session_id -> set[WebSocket]
 _ws_clients: dict[str, set[WebSocket]] = {}
+
+# ── Live 模式全局状态 ──
+
+logger = logging.getLogger(__name__)
+
+# Live 模式：symbol -> RecursiveOrchestrator（每个标的一个引擎）
+_live_engines: dict[str, RecursiveOrchestrator] = {}
+
+# Live 模式：symbol -> 最新快照（每次 process_bar 后更新）
+_live_snapshots: dict[str, RecursiveOrchestratorSnapshot] = {}
+
+# Live 模式：symbol -> bar 计数（引擎已处理的 bar 数）
+_live_bar_counts: dict[str, int] = {}
+
+# Live 模式 WS 客户端：symbol -> set[WebSocket]
+_live_clients: dict[str, set[WebSocket]] = {}
+
+# Live 模式：asyncio event loop 引用（用于从 feeder 线程调度到 async）
+_live_loop: asyncio.AbstractEventLoop | None = None
 
 
 # ════════════════════════════════════════════════
@@ -757,3 +778,127 @@ async def _handle_ws_command(ws: WebSocket, cmd: WsCommand, bound_session_id: st
     elif cmd.action == "unsubscribe":
         if bound_session_id and bound_session_id in _ws_clients:
             _ws_clients[bound_session_id].discard(ws)
+
+
+# ════════════════════════════════════════════════
+# Live 模式 — 实时 WebSocket 推送
+# ════════════════════════════════════════════════
+
+
+def _ensure_live_engine(symbol: str) -> RecursiveOrchestrator:
+    """获取或创建指定标的的 live 引擎，用缓存中已有的 bar 预热。"""
+    if symbol in _live_engines:
+        return _live_engines[symbol]
+
+    engine = RecursiveOrchestrator(stream_id=f"live-{symbol}")
+
+    # 预热：用缓存中已有的历史 bar 驱动引擎到最新状态
+    snap = None
+    try:
+        bars = _load_bars(symbol, "1min", "1m")
+        for bar in bars:
+            snap = engine.process_bar(bar)
+        _live_bar_counts[symbol] = len(bars)
+        if snap is not None:
+            _live_snapshots[symbol] = snap
+        logger.info("Live engine %s 预热完成: %d bars", symbol, len(bars))
+    except (ValueError, Exception) as e:
+        _live_bar_counts[symbol] = 0
+        logger.warning("Live engine %s 预热失败（无缓存数据）: %s", symbol, e)
+
+    _live_engines[symbol] = engine
+    return engine
+
+
+def _live_current_snapshot(symbol: str) -> dict:
+    """获取 live 引擎当前状态的 WsSnapshot dict。"""
+    snap = _live_snapshots.get(symbol)
+    if snap is not None:
+        return _snapshot_to_ws(snap)
+    return WsSnapshot(bar_idx=0, strokes=[], event_count=0).model_dump()
+
+
+async def _live_broadcast(symbol: str, message: dict) -> None:
+    """向指定标的的所有 live WS 客户端广播消息。"""
+    clients = _live_clients.get(symbol, set())
+    dead: list[WebSocket] = []
+    for ws in clients:
+        try:
+            await ws.send_json(message)
+        except Exception:
+            dead.append(ws)
+    for ws in dead:
+        clients.discard(ws)
+
+
+def _on_live_bar(symbol: str, bar: Bar) -> None:
+    """DatabentoLiveFeeder 的 on_bar 回调（在 feeder 线程中执行）。
+
+    将 bar 送入对应引擎，然后通过 event loop 调度异步广播。
+    """
+    engine = _live_engines.get(symbol)
+    if engine is None:
+        return
+
+    snap = engine.process_bar(bar)
+    bar_idx = _live_bar_counts.get(symbol, 0)
+    _live_bar_counts[symbol] = bar_idx + 1
+    _live_snapshots[symbol] = snap
+
+    clients = _live_clients.get(symbol, set())
+    if not clients:
+        return
+
+    bar_msg = _bar_to_ws(bar, bar_idx, stream_id=f"live-{symbol}")
+    event_msgs = [_event_to_ws(ev, stream_id=f"live-{symbol}") for ev in snap.all_events]
+    snapshot_msg = _snapshot_to_ws(snap)
+
+    loop = _live_loop
+    if loop is None or loop.is_closed():
+        return
+
+    async def _push():
+        await _live_broadcast(symbol, bar_msg)
+        for ev_msg in event_msgs:
+            await _live_broadcast(symbol, ev_msg)
+        await _live_broadcast(symbol, snapshot_msg)
+
+    loop.call_soon_threadsafe(asyncio.ensure_future, _push())
+
+
+@app.websocket("/ws/live/{symbol}")
+async def ws_live(ws: WebSocket, symbol: str):
+    """Live 模式 WebSocket — 实时推送缠论分析结果。
+
+    连接后立即发送当前 snapshot，之后每收到新 bar 推送增量更新。
+    """
+    global _live_loop
+    symbol = symbol.upper()
+
+    await ws.accept()
+
+    # 捕获 event loop 引用（供 feeder 线程回调使用）
+    _live_loop = asyncio.get_running_loop()
+
+    # 确保引擎已初始化
+    _ensure_live_engine(symbol)
+
+    # 注册客户端
+    _live_clients.setdefault(symbol, set()).add(ws)
+
+    try:
+        # 发送当前快照
+        snapshot = _live_current_snapshot(symbol)
+        await ws.send_json(snapshot)
+
+        # 保持连接，等待客户端消息或断连
+        while True:
+            try:
+                data = await ws.receive_json()
+                # 客户端可发送 ping 或其他控制消息
+                if isinstance(data, dict) and data.get("action") == "ping":
+                    await ws.send_json({"type": "pong"})
+            except WebSocketDisconnect:
+                break
+    finally:
+        _live_clients.get(symbol, set()).discard(ws)

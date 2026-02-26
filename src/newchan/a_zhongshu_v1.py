@@ -101,7 +101,9 @@ def zhongshu_from_segments(segments: list[Segment]) -> list[Zhongshu]:
 
     算法：滑窗三段重叠 → 延伸 → 突破 → 续进（break_seg_idx - 2）。
     """
-    confirmed = [s for s in segments if s.confirmed]
+    # 严格过滤：confirmed AND settled（与递归路径 SegmentAsComponent.completed 一致）
+    # confirmed=True 排除最后一段；kind="settled" 排除未经结算锚验证的候选段
+    confirmed = [s for s in segments if s.confirmed and s.kind == "settled"]
     n = len(confirmed)
     if n < 3:
         return []

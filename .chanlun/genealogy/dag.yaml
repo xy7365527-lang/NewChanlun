@@ -1079,6 +1079,11 @@ nodes:
   status: 生成态
   type: meta-rule
   file: pending/216-meta-observation-v55-swarm.md
+- id: '217'
+  title: 元观察——v56-swarm 并行工位隐式依赖 + ceremony_scan 误报模式
+  status: 已结算
+  type: meta-rule
+  file: settled/217-meta-observation-v56-swarm.md
 edges:
   depends_on:
   - from: '136'
@@ -2161,6 +2166,10 @@ edges:
     to: '032'
   - from: '216'
     to: '205'
+  - from: '217'
+    to: '216'
+  - from: '217'
+    to: '175'
   triggered:
   - from: '005'
     to: 005a

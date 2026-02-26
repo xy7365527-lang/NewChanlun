@@ -155,7 +155,7 @@ Move[2] = 2级走势类型（✅ 已实现：moves_from_level_zhongshus + Recurs
 
 由于本项目不使用多周期方案（编排者决断），"假中枢"的来源不再是"TF 口径产出"，而是：
 1. **递归链未完成时的候选中枢**：低级别走势类型尚未 settled，导致高级别中枢是"暂态"的
-2. **组件完成判定不严格**：用 Segment 直接构造中枢时，未验证 Segment 是否构成完整的次级别走势类型
+2. ~~**组件完成判定不严格**：用 Segment 直接构造中枢时，未验证 Segment 是否构成完整的次级别走势类型~~ → ✅ **已修复（2026-02-26）**：`zhongshu_from_segments` 过滤条件从 `confirmed` 严格化为 `confirmed AND kind=="settled"`，与递归路径 `SegmentAsComponent.completed` 一致。Level-1 中枢构造不再隐式依赖"confirmed 段恰好都是 settled"的不变量。
 
 因此"真/假"的区分在于**递归链的完整性和组件完成状态**，而非来源口径的差异。
 
