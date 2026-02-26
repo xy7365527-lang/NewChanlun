@@ -191,7 +191,13 @@ tasks:
   - id: nested_divergence_endpoint
     title: "嵌套背驰端点——暴露 A 系统能力"
     priority: P2
-    status: active
+    status: completed
+    completed_date: "2026-02-26"
+    completion_note: |
+      三个并行工位（parallel_group）完成：
+      - /api/nested_divergence 端点（server.py +88行）
+      - ab_bridge_newchan 可选集成（+57行）
+      - 20 个测试全通过。1975 passed, 8 skipped。
     source: "v55-swarm Codex 诊断：嵌套背驰孤岛（run_nested_search 完整但无端点）"
     description: |
       run_nested_search() 完整实现，但 server.py 无端点，build_overlay_newchan() 无调用。
