@@ -15,7 +15,7 @@
 #
 # 来源：078号 D 策略 + Gemini decide + 人类编排者确认
 
-version: "1.4"
+version: "1.5"
 genealogy_ref: "081-swarm-continuity-strategy-d"
 
 # 里程碑：定义偏序链全节点实现完毕（2026-02-21）
@@ -160,7 +160,71 @@ tasks:
     added_by: "083号Gemini decide（异质质询代理执行）"
     added_date: "2026-02-21"
 
-  - id: recursion_termination_consistency
+  # ─── 第三阶段任务（v55-swarm Gemini×Codex 交叉诊断，2026-02-26）──────────
+  # 来源：编排者指令"沿总纲领一步步前进" + Gemini/Codex 异质否定共识
+  # 诊断：A系统已完整闭环，B系统停留在笔级别，形式化→可用产品桥梁断裂
+  # 方向：打通 A→B 桥梁，让买卖点可见、可回放、可交互
+
+  - id: bsp_bridge_connect
+    title: "买卖点桥接——打通 A→B 管线"
+    priority: P1
+    status: active
+    source: "v55-swarm Codex 诊断：BSP 断链（ab_bridge_newchan.py 未调用 BuySellPointEngine）"
+    description: |
+      build_overlay_newchan() 返回 JSON 无 bsp 字段，前端无法显示买卖点。
+      直接原因：ab_bridge_newchan.py 使用静态批量管线 _run_a_pipeline()，未调用 BuySellPointEngine。
+      修复：在 ab_bridge_newchan.py 中实例化 RecursiveOrchestrator，批量 process_bar，
+      取 bsp_snapshot 写入返回 dict。
+    constraints:
+      - "BSP 时间索引需与 merged_to_raw 对齐"
+      - "性能：避免双管线重复计算"
+    definition_ref: ".chanlun/definitions/maimai.md"
+    added_by: "v55-swarm（Gemini×Codex 交叉诊断）"
+    added_date: "2026-02-26"
+
+  - id: replay_engine_upgrade
+    title: "回放引擎升级——从笔级到全链路"
+    priority: P1
+    status: active
+    source: "v55-swarm Codex 诊断：回放引擎降级（gateway.py 硬编码 BiEngine）"
+    description: |
+      WebSocket 回放只产生 stroke_* 事件，无 segment_*/zhongshu_*/move_*/bsp_*。
+      直接原因：gateway.py 硬编码 BiEngine，ReplaySession 接口绑定 BiEngineSnapshot。
+      修复：gateway.py 替换为 RecursiveOrchestrator，ReplaySession.step() 改为处理
+      RecursiveOrchestratorSnapshot。
+    constraints:
+      - "前端协议需升级（当前只消费 stroke 事件）"
+      - "保持 WebSocket 消息格式向后兼容或明确版本号"
+    added_by: "v55-swarm（Gemini×Codex 交叉诊断）"
+    added_date: "2026-02-26"
+
+  - id: nested_divergence_endpoint
+    title: "嵌套背驰端点——暴露 A 系统能力"
+    priority: P2
+    status: active
+    source: "v55-swarm Codex 诊断：嵌套背驰孤岛（run_nested_search 完整但无端点）"
+    description: |
+      run_nested_search() 完整实现，但 server.py 无端点，build_overlay_newchan() 无调用。
+      修复：新增独立 /api/nested_divergence 端点（避免 overlay 每次请求全量重算）。
+    constraints:
+      - "大数据窗口可能超时——需要缓存或增量策略"
+    added_by: "v55-swarm（Gemini×Codex 交叉诊断）"
+    added_date: "2026-02-26"
+
+  - id: resolve_panzheng_beichi
+    title: "结算盘整背驰与买卖点映射"
+    priority: P1
+    status: active
+    source: "v55-swarm Gemini 提案：a_buysellpoint_v1.py 中 TBD-4 未决"
+    description: |
+      解决 a_buysellpoint_v1.py 中的 [TBD-4]。
+      明确定义 a+A+b 结构下的盘整背驰，决断其是否能触发第一类买卖点。
+      产出：更新定义字典，补充相关测试用例。
+    constraints:
+      - "如与 beichi/zhongshu 产生不可调和矛盾 → 走矛盾上浮"
+    definition_ref: ".chanlun/definitions/beichi.md"
+    added_by: "v55-swarm（Gemini 提案）"
+    added_date: "2026-02-26"
     title: "递归终止条件表述统一（dispatch-dag 内部矛盾修正）"
     priority: P1
     status: completed
