@@ -471,3 +471,150 @@ tasks:
     decomposition: parallel
     added_by: "v56-swarm Gemini decide（异质质询代理执行）"
     added_date: "2026-02-26"
+
+  # ─── 第五阶段任务（v57-swarm Gemini decide，2026-02-26）──────────────────────
+  # 来源：编排者指令"派生第五阶段目标" + Gemini decide 异质决策
+  # 诊断：A系统全链路闭环，下一步是概念严格化闭环 + 实战验证基础设施双轨并行
+  # 方向：递归组件完成判定严格化 + 背驰逻辑结算 + 回测框架 + 实时数据流
+
+  - id: concept_strict_closure
+    title: "概念层严格化与未决项结算"
+    priority: P1
+    status: active
+    source: "维度4（概念层缺口）+ Gemini decide 第五阶段派生"
+    description: |
+      解决当前系统中遗留的核心概念矛盾，确保引擎逻辑与缠论严格定义对齐。
+      特别是递归层级的严格性（次级别走势类型完成判定）和背驰逻辑的确定性（T6/T7 OR/AND）。
+      Gemini 判定：这是 P1——不修复此问题，后续回测和实战信号建立在不严格的沙盒之上。
+    constraints:
+      - "必须遵循'级别=递归层级'原则，禁止用时间周期妥协"
+      - "任何结算必须更新对应的 .md 规范文件"
+      - "如严格验证导致 90%+ 行情无法识别中枢，走矛盾上浮（/escalate），不降级"
+    subtasks:
+      - id: strict_recursive_component
+        title: "递归组件完成判定严格化"
+        description: |
+          修复 level_recursion.md 缺口：在 RecursiveOrchestrator 中，
+          强制验证构成中枢的 Segment 必须是完整的次级别走势类型，
+          消除暂态中枢带来的逻辑不确定性。
+        relevant_files:
+          - "src/newchan/orchestrator/recursive.py"
+          - ".chanlun/definitions/level_recursion.md"
+      - id: beichi_logic_settlement
+        title: "背驰 T6/T7 逻辑结算"
+        description: |
+          结算 beichi.md 中 T6（黄白线 DIF 峰值）与 T7（红绿柱 HIST 峰值）的 OR/AND 关系。
+          通过原文溯源或实证回测确定组合逻辑，更新 a_divergence_v1.py。
+        relevant_files:
+          - "src/newchan/a_divergence_v1.py"
+          - ".chanlun/definitions/beichi.md"
+          - "docs/chanlun/text/blog/INDEX.md"
+      - id: liuzhuan_implementation
+        title: "流转关系完整实现"
+        description: |
+          建立 flow_relation_v1.md 规范，补全 flow_relation.py，
+          实现 等价→比价→流转 的完整逻辑链条。
+        relevant_files:
+          - "src/newchan/flow_relation.py"
+          - ".chanlun/definitions/liuzhuan.md"
+    decomposition: parallel
+    added_by: "v57-swarm Gemini decide（异质质询代理执行）"
+    added_date: "2026-02-26"
+
+  - id: backtest_evaluation_framework
+    title: "信号回测与质量评估框架"
+    priority: P1
+    status: active
+    source: "维度1（A系统→实战应用的缺口）+ Gemini decide 第五阶段派生"
+    description: |
+      构建基于 A 系统买卖点信号的回测引擎，评估当前形态学信号在历史数据中的
+      真实胜率和盈亏比，为策略实战提供数据支撑。
+      Gemini 风险声明：回测可能暴露震荡市中极低胜率，这是系统需要面对的真实反馈。
+    constraints:
+      - "回测框架必须与 RecursiveOrchestrator 解耦，仅消费其输出的信号"
+      - "必须包含严格的防未来函数机制（信号确认时间点不可使用未来数据）"
+      - "不修改 A 系统逻辑，仅在其输出上构建统计层"
+    subtasks:
+      - id: build_backtest_engine
+        title: "构建基础回测引擎"
+        description: |
+          实现简单的入场、出场逻辑，支持基于第一/二/三类买卖点生成交易记录。
+          入场：买卖点确认时；出场：反向买卖点或止损。
+        relevant_files:
+          - "src/newchan/a_buysellpoint_v1.py"
+          - "src/newchan/orchestrator/recursive.py"
+      - id: signal_quality_metrics
+        title: "信号质量统计指标"
+        description: |
+          计算并输出胜率、盈亏比、最大回撤等核心指标，
+          支持按买卖点类型（1B/2B/3B/1S/2S/3S）分类统计。
+        relevant_files:
+          - "src/newchan/a_buysellpoint_v1.py"
+          - "src/newchan/data_av.py"
+    decomposition: parallel
+    added_by: "v57-swarm Gemini decide（异质质询代理执行）"
+    added_date: "2026-02-26"
+
+  - id: live_data_integration
+    title: "实时数据流与实盘集成"
+    priority: P1
+    status: active
+    source: "维度1（A系统→实战应用的缺口）& 维度2（B系统→用户体验的缺口）+ Gemini decide 第五阶段派生"
+    description: |
+      将系统从静态/回放模式升级为真正的实时增量计算模式，
+      打通实时数据源（data_databento_live.py）与核心引擎（RecursiveOrchestrator）。
+    constraints:
+      - "必须处理增量 K 线的包含关系和分型动态重绘问题"
+      - "实时推送与回放推送共用 WsSnapshot 结构，不引入新的消息格式"
+    subtasks:
+      - id: databento_live_orchestrator
+        title: "Databento Live 集成"
+        description: |
+          将 data_databento_live.py 与 RecursiveOrchestrator 彻底打通，
+          实现实时 tick/bar 驱动的增量计算。
+        relevant_files:
+          - "src/newchan/data_databento_live.py"
+          - "src/newchan/orchestrator/recursive.py"
+          - "src/newchan/gateway.py"
+      - id: real_time_ws_push
+        title: "实时 WebSocket 推送"
+        description: |
+          扩展现有的 WsSnapshot 机制，支持非回放模式下的实时计算结果推送至前端。
+          区分 replay 模式和 live 模式的消息路由。
+        relevant_files:
+          - "src/newchan/contracts/ws_messages.py"
+          - "src/newchan/gateway.py"
+          - "src/newchan/server.py"
+    decomposition: parallel
+    added_by: "v57-swarm Gemini decide（异质质询代理执行）"
+    added_date: "2026-02-26"
+
+  - id: engineering_robustness
+    title: "工程健壮性与性能监控"
+    priority: P2
+    status: active
+    source: "维度3（工程质量缺口）+ Gemini decide 第五阶段派生"
+    description: |
+      提升系统的工业级可用性，确保在大规模数据和长时间运行下的稳定性和可观测性。
+    constraints:
+      - "监控指标不应显著拖慢核心引擎的计算速度"
+      - "错误处理不得吞掉概念层异常（no-workaround 规则）"
+    subtasks:
+      - id: performance_profiling
+        title: "递归引擎性能基准测试"
+        description: |
+          在 10年+ 级别的大数据集上测试 RecursiveOrchestrator 的性能，
+          定位并优化计算瓶颈（目标：单标的 1min 10年数据 < 30s）。
+        relevant_files:
+          - "src/newchan/orchestrator/recursive.py"
+          - "src/newchan/data_av.py"
+      - id: api_error_handling
+        title: "API 端点错误处理强化"
+        description: |
+          完善 server.py 中各端点的异常捕获与标准化错误响应，
+          防止引擎崩溃导致服务不可用。区分 4xx（参数错误）和 5xx（引擎错误）。
+        relevant_files:
+          - "src/newchan/server.py"
+    decomposition: parallel
+    added_by: "v57-swarm Gemini decide（异质质询代理执行）"
+    added_date: "2026-02-26"
