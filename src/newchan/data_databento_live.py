@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import logging
 import threading
+from datetime import timezone
+from typing import Callable
 
 import databento as db
 import pandas as pd
@@ -21,6 +23,7 @@ import pandas as pd
 from newchan.cache import append_df
 from newchan.config import DATABENTO_API_KEY
 from newchan.data_databento import _FUTURES_MAP
+from newchan.types import Bar
 
 logger = logging.getLogger(__name__)
 
@@ -42,9 +45,11 @@ class DatabentoLiveFeeder:
         self,
         symbols: list[str] | None = None,
         dataset: str = "GLBX.MDP3",
+        on_bar: Callable[[str, Bar], None] | None = None,
     ):
         self._symbols = [s.upper() for s in (symbols or DEFAULT_LIVE_SYMBOLS)]
         self._dataset = dataset
+        self._on_bar = on_bar
         self._client: db.Live | None = None
         self._thread: threading.Thread | None = None
         self._running = False
@@ -179,6 +184,22 @@ class DatabentoLiveFeeder:
             cache_name = self._cache_map[our_sym]
             append_df(cache_name, row)
             self._bar_count += 1
+
+            # 回调：将 bar 传递给外部消费者（如 LiveEngine）
+            if self._on_bar is not None:
+                bar_ts = ts.replace(tzinfo=timezone.utc) if ts.tzinfo is None else ts
+                bar = Bar(
+                    ts=bar_ts,
+                    open=msg.pretty_open,
+                    high=msg.pretty_high,
+                    low=msg.pretty_low,
+                    close=msg.pretty_close,
+                    volume=msg.volume,
+                )
+                try:
+                    self._on_bar(our_sym, bar)
+                except Exception as cb_err:
+                    logger.warning("on_bar callback error: %s", cb_err)
 
             if self._bar_count <= 5 or self._bar_count % 100 == 0:
                 logger.info(

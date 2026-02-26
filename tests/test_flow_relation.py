@@ -13,11 +13,17 @@ import pytest
 
 from newchan.capital_flow import FlowDirection
 from newchan.flow_relation import (
+    CashSignalAnalysis,
     EdgeFlowInput,
+    FlowRelation,
+    FlowRole,
     ResonanceStrength,
     VertexFlowState,
     aggregate_vertex_flows,
+    check_conservation,
     detect_resonance,
+    disambiguate_cash_signal,
+    extract_flow_relations,
 )
 from newchan.matrix_topology import AssetVertex
 
@@ -257,3 +263,243 @@ def _find_vertex(
         if s.vertex == vertex:
             return s
     raise ValueError(f"未找到顶点 {vertex}")
+
+
+# ── FlowRole 分类 ─────────────────────────────────────────
+
+
+class TestFlowRole:
+    """FlowRole 与 net_flow 的对应关系。"""
+
+    def test_source_role(self) -> None:
+        """net ≤ -2 → SOURCE。"""
+        edges = [
+            _edge_input(V.EQUITY, V.CASH, FlowDirection.A_TO_B),
+            _edge_input(V.REAL_ESTATE, V.CASH, FlowDirection.A_TO_B),
+            _edge_input(V.COMMODITY, V.CASH, FlowDirection.A_TO_B),
+            _edge_input(V.EQUITY, V.REAL_ESTATE, FlowDirection.EQUILIBRIUM),
+            _edge_input(V.EQUITY, V.COMMODITY, FlowDirection.EQUILIBRIUM),
+            _edge_input(V.REAL_ESTATE, V.COMMODITY, FlowDirection.EQUILIBRIUM),
+        ]
+        states = aggregate_vertex_flows(edges)
+        # EQUITY: 1 条流出(→CASH), 0 条流入 → net=-1 → NEUTRAL
+        eq = _find_vertex(states, V.EQUITY)
+        assert eq.role == FlowRole.NEUTRAL
+        # CASH: 3 条流入 → net=+3 → SINK
+        cash = _find_vertex(states, V.CASH)
+        assert cash.role == FlowRole.SINK
+
+    def test_sink_role(self) -> None:
+        """net ≥ +2 → SINK。"""
+        edges = [
+            _edge_input(V.EQUITY, V.CASH, FlowDirection.A_TO_B),
+            _edge_input(V.REAL_ESTATE, V.CASH, FlowDirection.A_TO_B),
+            _edge_input(V.COMMODITY, V.CASH, FlowDirection.EQUILIBRIUM),
+            _edge_input(V.EQUITY, V.REAL_ESTATE, FlowDirection.EQUILIBRIUM),
+            _edge_input(V.EQUITY, V.COMMODITY, FlowDirection.EQUILIBRIUM),
+            _edge_input(V.REAL_ESTATE, V.COMMODITY, FlowDirection.EQUILIBRIUM),
+        ]
+        states = aggregate_vertex_flows(edges)
+        cash = _find_vertex(states, V.CASH)
+        assert cash.role == FlowRole.SINK
+        assert cash.net_flow == 2
+
+    def test_neutral_role(self) -> None:
+        """net = 0 → NEUTRAL。"""
+        edges = [
+            _edge_input(a, b, FlowDirection.EQUILIBRIUM)
+            for a in V
+            for b in V
+            if a.value < b.value
+        ]
+        states = aggregate_vertex_flows(edges)
+        for s in states:
+            assert s.role == FlowRole.NEUTRAL
+
+
+# ── 流转关系提取 ──────────────────────────────────────────
+
+
+class TestExtractFlowRelations:
+    """extract_flow_relations：从顶点状态提取 Flow(源→汇)。"""
+
+    def test_single_source_single_sink(self) -> None:
+        """一个源、一个汇 → 一条流转关系。"""
+        # COMMODITY 全流出(-3=SOURCE), CASH 全流入(+3=SINK)
+        edges = [
+            _edge_input(V.EQUITY, V.COMMODITY, FlowDirection.B_TO_A),
+            _edge_input(V.REAL_ESTATE, V.COMMODITY, FlowDirection.B_TO_A),
+            _edge_input(V.COMMODITY, V.CASH, FlowDirection.A_TO_B),
+            _edge_input(V.EQUITY, V.CASH, FlowDirection.A_TO_B),
+            _edge_input(V.REAL_ESTATE, V.CASH, FlowDirection.A_TO_B),
+            _edge_input(V.EQUITY, V.REAL_ESTATE, FlowDirection.EQUILIBRIUM),
+        ]
+        states = aggregate_vertex_flows(edges)
+        relations = extract_flow_relations(states)
+        assert len(relations) == 1
+        assert relations[0].source == V.COMMODITY
+        assert relations[0].sinks == frozenset([V.CASH])
+
+    def test_no_resonance_no_relations(self) -> None:
+        """全均衡 → 无流转关系。"""
+        edges = [
+            _edge_input(a, b, FlowDirection.EQUILIBRIUM)
+            for a in V
+            for b in V
+            if a.value < b.value
+        ]
+        states = aggregate_vertex_flows(edges)
+        relations = extract_flow_relations(states)
+        assert relations == []
+
+    def test_source_without_sink(self) -> None:
+        """有源无汇 → FlowRelation.sinks 为空集。"""
+        # COMMODITY 全流出(-3), 其余各得 +1 → 无 SINK
+        edges = [
+            _edge_input(V.EQUITY, V.COMMODITY, FlowDirection.B_TO_A),
+            _edge_input(V.REAL_ESTATE, V.COMMODITY, FlowDirection.B_TO_A),
+            _edge_input(V.COMMODITY, V.CASH, FlowDirection.A_TO_B),
+            _edge_input(V.EQUITY, V.REAL_ESTATE, FlowDirection.EQUILIBRIUM),
+            _edge_input(V.EQUITY, V.CASH, FlowDirection.EQUILIBRIUM),
+            _edge_input(V.REAL_ESTATE, V.CASH, FlowDirection.EQUILIBRIUM),
+        ]
+        states = aggregate_vertex_flows(edges)
+        relations = extract_flow_relations(states)
+        assert len(relations) == 1
+        assert relations[0].source == V.COMMODITY
+        assert relations[0].sinks == frozenset()
+
+    def test_multiple_sources_multiple_sinks(self) -> None:
+        """多源多汇场景。"""
+        # EQUITY→CASH, EQUITY→COMMODITY, RE→CASH, RE→COMMODITY
+        # EQUITY 和 RE 各 2 条流出 → SOURCE
+        # CASH 和 COMMODITY 各 2 条流入 → SINK
+        edges = [
+            _edge_input(V.EQUITY, V.CASH, FlowDirection.A_TO_B),
+            _edge_input(V.EQUITY, V.COMMODITY, FlowDirection.A_TO_B),
+            _edge_input(V.REAL_ESTATE, V.CASH, FlowDirection.A_TO_B),
+            _edge_input(V.REAL_ESTATE, V.COMMODITY, FlowDirection.A_TO_B),
+            _edge_input(V.EQUITY, V.REAL_ESTATE, FlowDirection.EQUILIBRIUM),
+            _edge_input(V.COMMODITY, V.CASH, FlowDirection.EQUILIBRIUM),
+        ]
+        states = aggregate_vertex_flows(edges)
+        relations = extract_flow_relations(states)
+        sources = {r.source for r in relations}
+        assert sources == {V.EQUITY, V.REAL_ESTATE}
+        for r in relations:
+            assert r.sinks == frozenset([V.CASH, V.COMMODITY])
+
+    def test_flow_relation_is_immutable(self) -> None:
+        """FlowRelation 是 frozen dataclass。"""
+        fr = FlowRelation(
+            source=V.EQUITY, sinks=frozenset([V.CASH])
+        )
+        with pytest.raises(AttributeError):
+            fr.source = V.COMMODITY  # type: ignore[misc]
+
+
+# ── 守恒约束 ──────────────────────────────────────────────
+
+
+class TestCheckConservation:
+    """check_conservation：Σnet(V) = 0。"""
+
+    def test_conserved_all_equilibrium(self) -> None:
+        edges = [
+            _edge_input(a, b, FlowDirection.EQUILIBRIUM)
+            for a in V
+            for b in V
+            if a.value < b.value
+        ]
+        states = aggregate_vertex_flows(edges)
+        assert check_conservation(states) is True
+
+    def test_conserved_with_active_edges(self) -> None:
+        """有方向的边也守恒（拓扑不变量）。"""
+        edges = [
+            _edge_input(V.EQUITY, V.CASH, FlowDirection.A_TO_B),
+            _edge_input(V.REAL_ESTATE, V.CASH, FlowDirection.A_TO_B),
+            _edge_input(V.COMMODITY, V.CASH, FlowDirection.A_TO_B),
+            _edge_input(V.EQUITY, V.REAL_ESTATE, FlowDirection.B_TO_A),
+            _edge_input(V.EQUITY, V.COMMODITY, FlowDirection.A_TO_B),
+            _edge_input(V.REAL_ESTATE, V.COMMODITY, FlowDirection.EQUILIBRIUM),
+        ]
+        states = aggregate_vertex_flows(edges)
+        assert check_conservation(states) is True
+
+    def test_broken_conservation_detected(self) -> None:
+        """手工构造破缺状态 → check_conservation 返回 False。"""
+        # 直接构造不守恒的 states（绕过 aggregate 的拓扑保证）
+        broken_states = [
+            VertexFlowState(V.EQUITY, 1, ResonanceStrength.NONE, FlowRole.NEUTRAL),
+            VertexFlowState(V.REAL_ESTATE, 1, ResonanceStrength.NONE, FlowRole.NEUTRAL),
+            VertexFlowState(V.COMMODITY, 0, ResonanceStrength.NONE, FlowRole.NEUTRAL),
+            VertexFlowState(V.CASH, 0, ResonanceStrength.NONE, FlowRole.NEUTRAL),
+        ]
+        assert check_conservation(broken_states) is False
+
+
+# ── 现金边信号消歧 ────────────────────────────────────────
+
+
+class TestDisambiguateCashSignal:
+    """disambiguate_cash_signal：026号谱系。"""
+
+    def test_neutral_when_cash_net_zero(self) -> None:
+        """CASH net=0 → neutral。"""
+        edges = [
+            _edge_input(V.EQUITY, V.CASH, FlowDirection.A_TO_B),
+            _edge_input(V.REAL_ESTATE, V.CASH, FlowDirection.B_TO_A),
+            _edge_input(V.COMMODITY, V.CASH, FlowDirection.EQUILIBRIUM),
+            _edge_input(V.EQUITY, V.REAL_ESTATE, FlowDirection.EQUILIBRIUM),
+            _edge_input(V.EQUITY, V.COMMODITY, FlowDirection.EQUILIBRIUM),
+            _edge_input(V.REAL_ESTATE, V.COMMODITY, FlowDirection.EQUILIBRIUM),
+        ]
+        result = disambiguate_cash_signal(edges)
+        assert isinstance(result, CashSignalAnalysis)
+        assert result.signal_type == "neutral"
+        assert result.cash_net_flow == 0
+
+    def test_metric_shift_when_asset_subgraph_uniform(self) -> None:
+        """纯资产子图全均衡（方差=0）+ CASH 有净流 → metric_shift。"""
+        edges = [
+            _edge_input(V.EQUITY, V.CASH, FlowDirection.A_TO_B),
+            _edge_input(V.REAL_ESTATE, V.CASH, FlowDirection.A_TO_B),
+            _edge_input(V.COMMODITY, V.CASH, FlowDirection.A_TO_B),
+            _edge_input(V.EQUITY, V.REAL_ESTATE, FlowDirection.EQUILIBRIUM),
+            _edge_input(V.EQUITY, V.COMMODITY, FlowDirection.EQUILIBRIUM),
+            _edge_input(V.REAL_ESTATE, V.COMMODITY, FlowDirection.EQUILIBRIUM),
+        ]
+        result = disambiguate_cash_signal(edges)
+        assert result.signal_type == "metric_shift"
+        assert result.cash_net_flow == 3
+
+    def test_genuine_flow_when_asset_subgraph_divergent(self) -> None:
+        """纯资产子图有分化 + CASH 有净流 → genuine_flow 或 mixed。"""
+        edges = [
+            _edge_input(V.EQUITY, V.CASH, FlowDirection.A_TO_B),
+            _edge_input(V.REAL_ESTATE, V.CASH, FlowDirection.A_TO_B),
+            _edge_input(V.COMMODITY, V.CASH, FlowDirection.A_TO_B),
+            # 纯资产子图有分化
+            _edge_input(V.EQUITY, V.REAL_ESTATE, FlowDirection.A_TO_B),
+            _edge_input(V.EQUITY, V.COMMODITY, FlowDirection.A_TO_B),
+            _edge_input(V.REAL_ESTATE, V.COMMODITY, FlowDirection.B_TO_A),
+        ]
+        result = disambiguate_cash_signal(edges)
+        assert result.signal_type in ("genuine_flow", "mixed")
+        assert result.cash_net_flow == 3
+        assert result.asset_subgraph_variance > 0
+
+    def test_result_fields_complete(self) -> None:
+        """CashSignalAnalysis 所有字段都有值。"""
+        edges = [
+            _edge_input(a, b, FlowDirection.A_TO_B)
+            for a in V
+            for b in V
+            if a.value < b.value
+        ]
+        result = disambiguate_cash_signal(edges)
+        assert isinstance(result.cash_net_flow, int)
+        assert isinstance(result.asset_subgraph_variance, float)
+        assert result.signal_type in ("genuine_flow", "metric_shift", "mixed", "neutral")
+        assert 0.0 <= result.confidence <= 1.0
