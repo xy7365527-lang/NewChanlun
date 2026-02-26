@@ -1064,6 +1064,11 @@ nodes:
   status: 已结算
   type: 概念发现
   file: settled/213-weak-inquiry-false-positive.md
+- id: '214'
+  title: 递归级别 ≥ 1 验证——结构性不可达确认
+  status: 已结算
+  type: 概念发现
+  file: settled/214-recursive-level-unreachable.md
 edges:
   depends_on:
   - from: '136'
@@ -2132,6 +2137,14 @@ edges:
     to: '208'
   - from: '213'
     to: '212'
+  - from: '214'
+    to: '208'
+  - from: '214'
+    to: '202'
+  - from: '214'
+    to: '208'
+  - from: '214'
+    to: '202'
   triggered:
   - from: '005'
     to: 005a
