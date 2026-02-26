@@ -1,157 +1,65 @@
-# /ceremony — Swarm₀：递归蜂群的第0层（谱系驱动）
+# /ceremony — Lead 最小自举序列
 
-蜂群启动。**谱系决定做什么，RTAS决定怎么做**（174号）。
-Python 脚本从谱系状态做确定性推导，LLM 负责 spawn 谱系推导出的业务工位。
-结构能力由 skill 提供（事件驱动），不再作为 teammate spawn。
+Lead 的全部行为是执行此序列。序列之外的行为不合法。
+scan 输出什么就 spawn 什么。Lead 不做实质认知工作。
 
-## 设计原则
+## 序列（不可委托，不可重排）
 
-- ceremony 是蜂群的第0层递归（Swarm₀），不是前置阶段（058号）
-- **谱系是生成引擎**——ceremony 的一切行动从谱系推导，产出凝固回谱系（174号）
-- LLM 不是状态机（057号）——确定性逻辑由 Python 脚本执行
-- 结构能力 = skill（事件驱动），不是 teammate（075号）
-- skill 由 dispatch-dag 的 event_skill_map 定义，事件触发时自动执行
-- **RTAS 是谱系的实现**——递归循环服务于谱系的生成性，不是反过来（174号）
-
-## 步骤 1：运行扫描脚本
-
-```bash
-python scripts/ceremony_scan.py
-```
-
-脚本输出 JSON，包含：
-- `mode`: warm_start / cold_start
-- `definitions`: 定义数量
-- `pending` / `settled`: 谱系数量
-- `session`: 最新 session 文件名
-- `workstations`: 推导出的业务工位列表
-- `required_skills`: 从 dispatch-dag event_skill_map 读取的 structural skill 列表
-
-**这是 ceremony 步骤 1 的 Bash 调用。** 完整白名单见"绝对禁止"节。
-
-## 步骤 2：输出摘要（谱系状态概览）
-
-根据 JSON 输出一行摘要——这是谱系当前状态的快照，决定蜂群此次运动的方向：
-```
-[ceremony] {mode} | 定义 {definitions} 条 | 谱系 {settled} settled / {pending} pending | HEAD {head}
-[ceremony] 工位 {len(workstations)} 个 | skill {len(required_skills)} 个（事件驱动）
-```
-
-## 步骤 3：TeamCreate
-
-```
-TeamCreate(team_name="v{N}-swarm", description="...")
-```
-
-**命名一致性约束**：TeamCreate 的 `team_name` 参数就是蜂群的唯一标识。后续所有操作（Task spawn 的 `team_name`、Stop-Guard 检测）都必须使用同一个名字。系统可能返回自动生成的随机名——忽略随机名，所有引用以 `team_name` 参数值为准。
-
-## 步骤 4：并行 spawn 谱系推导出的业务工位
-
-谱系决定做什么——遍历 JSON 中的 `workstations`（由谱系状态推导而来），为每个工位发出一个 Task 调用（全部并行）：
-
-```
-Task(name="{workstation.name 简写}", subagent_type="general-purpose", team_name="{蜂群名}",
-     mode="bypassPermissions", run_in_background=true,
-     prompt="{workstation.name}: {具体任务描述}")
-```
-
-如果 `workstations` 为空：输出 `[020号反转] 无新区分可产出——系统干净终止`，不执行步骤 3-4。**但仍必须更新 session + commit**（记录"干净终止"状态）。
-
-如果 `workstations` 非空但全部状态含"待 Gemini decide"或"长期"：
-1. "待 Gemini decide" 的工位 → **不是阻塞**，直接路由 Gemini（041号：选择/语法记录路由 Gemini，不等待人类）
-2. "长期"工位 → 不 spawn，保留在 session 遗留项
-3. 如果路由 Gemini 后仍有可执行工位 → spawn 蜂群执行
-4. 如果只剩"长期"工位 → 输出 `[阻塞] 仅剩长期工程项，无可自主推进的工位`
-5. **更新 session + commit**（持久化不变量）
-
-**持久化不变量**：ceremony 的每条退出路径（spawn 蜂群 / 干净终止 / 显式阻塞）都必须以 session 更新 + commit + push 结束。没有例外。push 失败（如 non-fast-forward）时，先 rebase 再重推，不允许跳过。蜂群通过 RTAS 循环持久化——每次 ceremony 清理后，下次 ceremony 从 session 热启动恢复全部状态（162号）。
-
-**注意：不再 spawn 结构工位。** genealogist/quality-guard/meta-observer/code-verifier 等结构能力
-由 event_skill_map 定义，在对应事件发生时自动触发（075号谱系）。
-
-## 步骤 5：输出行动声明
-
-```
-→ 接下来：监控 N 个工位运行
-```
-
-## 步骤 6：汇报循环（RTAS 递归——谱系的实现）
-
-spawn 完成后，**立即调用 `TaskList`** 查看任务状态。然后进入 RTAS 循环——每次循环都是谱系的一次生成-实现-凝固迭代。
-
-**Lead 并行化原则（218号）**：Lead 是 RTAS 的一环，不是 RTAS 之外的串行瓶颈。Lead 的一切操作遵守与工位相同的并行原则——独立操作一律并行，只有严格数据依赖才允许串行。
-
-### 循环内操作（并行优先）
-
-1. 调用 `TaskList` 查看所有任务状态
-2. **批量并行处理**完成/空闲的工位：
-   - 所有 `shutdown_request` 在同一个消息中并行发出
-   - 所有完成工位的结果汇报在同一轮中完成
-   - 禁止逐个串行处理工位
-3. **增量持久化**：工位完成时更新 session 文件
-4. **Lead 不空转**：如果仍有 `in_progress` 工位，Lead 在等待期间并行执行可用的独立操作：
-   - 拓扑分析家冷读（179号，上下文隔离读取 .chanlun/block-topology/——conditional skill 按需触发）
-   - meta-observer 二阶观察
-   - session 增量写入
-   - 这些操作与工位监控并行，不是串行等待后再执行
-5. **测试验证 spawn 为工位**：Lead 不自己跑 `pytest`。测试验证 spawn 为 code-verifier 工位，与其他操作并行。Lead 只消费测试结果
-6. 所有工位完成后：写入完整 session → commit → push
-7. **纲举目张 ∥ 重扫描**（并行）：
-   ```bash
-   # 以下两个脚本在同一轮中并行调用
-   python scripts/gangju_analysis.py
-   python scripts/ceremony_scan.py
+1. `python scripts/ceremony_scan.py --phase initial` → JSON
+2. JSON.workstations 为空 → `[020号反转] 干净终止` → 写 session → commit → push → 停止
+3. 输出摘要：`[ceremony] {mode} | 谱系 {settled}s/{pending}p | 工位 {len(workstations)}`
+4. `TeamCreate(team_name="v{N}-swarm")`
+5. JSON.workstations[] 全部并行 spawn：
    ```
-   - gangju `audit_needed: true` → spawn 审计工位
-   - ceremony_scan 发现新工位 → 回到步骤4
-   - 两者无数据依赖，必须并行
-8. 如果无新工位且无审计需求 → 输出格式B → TeamDelete
-9. 持久化由 session 结晶 + 热启动保证（162号）
+   Task(name="{简写}", subagent_type="general-purpose", team_name="{蜂群名}",
+        mode="bypassPermissions", run_in_background=true, prompt="...")
+   ```
+   无 depends_on 的工位并行，有 depends_on 的按序。
+6. RTAS 循环（consume）：
+   - `TaskList` 查看状态
+   - 完成的工位：汇报 + `shutdown_request`（批量并行，不逐个串行）
+   - 每条 completion 到达时增量写 session（不等 consume_all）
+   - 空闲工位无新任务：`shutdown_request`
+   - 仍有 in_progress：`SendMessage` 询问 + `TaskList` 轮询
+7. 全部完成 → 写 session → commit → push
+8. `python scripts/ceremony_scan.py --phase rescan` → JSON
+9. rescan.workstations[] 非空且与上轮不同 → 回到步骤 5 spawn 新工位
+10. rescan.workstations[] 为空或与上轮相同（不动点） → `TeamDelete` → 停止
+11. 安全阀：rescan 循环 ≤ 3 次（max_rescan_depth=3），超过则强制终止
 
-### 严格串行的操作（仅以下允许串行）
+## 白名单（Lead 只执行这三类操作）
 
-- `git add → git commit → git push`：git 操作有严格顺序依赖
-- `ceremony_scan 输出 → spawn 工位`：工位列表依赖扫描结果
-- `TeamCreate → Task spawn`：spawn 依赖 team 存在
+| 类 | 操作 |
+|----|------|
+| 调度 | `ceremony_scan.py`、`TeamCreate`、`TeamDelete` |
+| 路由 | `Task` spawn、`SendMessage` 转发、`shutdown_request` |
+| 持久化 | `git add/commit/push`、session 写入 |
 
-除上述三项外，Lead 的任何串行执行都是违规。
+## 不变量
 
-**持久化规则**：状态结晶发生在状态转换点，不是终点。session 是蜂群跨上下文的唯一状态载体，必须在每个关键转换点更新：
-- 工位完成 → 增量写入
-- 循环回扫描之前 → 强制写入 + commit + push
-- 持久化 ≠ 进程存活。持久化 = session 结晶 + 热启动 + 谱系 DAG 跨 session 延续（162号）
+- **确定性**：相同文件系统状态 → 相同 scan 输出 → 相同 workstations
+- **并行默认**（218号）：无依赖的工位全部并行 spawn，Lead 的独立操作并行执行
+- **增量持久化**：每条 completion 到达时写 session，不等 consume_all
+- **不动点终止**：rescan 输出与上轮相同 → 循环终止
+- **只读扫描**：scan 不写文件、不运行测试（VDW 除外）
+- **持久化不变量**：每条退出路径都以 session + commit + push 结束，无例外
 
-汇报格式：
-```
-[蜂群名] 工位 {name}: {状态}
-  产出: {简述}
-  问题: {如有}
-```
+## 中断处理
 
-**关键：每次 Stop hook 拦截时，执行步骤 1（调用 TaskList），不要再次尝试停止。**
+- Stop hook → Session 退出流程（写 session 快照 → 停止）
+- 概念分离 → `/escalate`（不在序列中插入判断步骤）
+- push 失败 → `git fetch && git rebase` → 重推
 
 ## 绝对禁止
 
-- **全生命周期禁止额外 Bash**，以下白名单例外（077-C，Gemini decide 选项B）：
-  - `python scripts/ceremony_scan.py`（步骤 1）
-  - `python scripts/gangju_analysis.py`（步骤 7.5：纲举目张分析）
-  - `git add` / `git commit` / `git push`（持久化不变量）
-  - `git fetch` / `git rebase`（push 失败时的恢复）
-  - session 文件写入（增量持久化）
-- **不运行额外的 Read/Glob**（所有信息已在 JSON 中）
-- **不输出确认请求**（不问"是否正确"、"待确认"）
-- **不输出等待信号**
-- **不用 Explore agent 替代 Task**——Explore 是只读搜索工具，不是蜂群节点
-- 白名单膨胀超过 5 项时需重新审视 ceremony 设计
+- 白名单外的 Bash 调用
+- 额外的 Read/Glob（信息已在 JSON 中）
+- 确认请求（"是否正确"、"待确认"）
+- 等待信号
+- Explore agent 替代 Task
 
 ## 谱系引用
 
-- 075号：结构工位从 teammate 转为 skill + 事件驱动
-- 058号：ceremony 是 Swarm₀
-- 057号：LLM 不是状态机
-- 056号：蜂群递归是默认模式
-- 069号：递归拓扑异步自指蜂群
-- 162号：否定"不执行 TeamDelete"——持久化由 RTAS 循环保证
-- 174号：谱系即生成引擎——RTAS 是谱系的实现
-- 175号：认识论反转落地——谱系驱动架构 + Codex 谱系异质否定
-- 179号：四角结构——拓扑分析家作为第四位置（上下文隔离冷读）
+058号（Swarm₀）、057号（LLM非状态机）、075号（skill事件驱动）、
+162号（RTAS持久化）、174号（谱系即生成引擎）、179号（拓扑分析家冷读）、
+218号（Lead并行化）
