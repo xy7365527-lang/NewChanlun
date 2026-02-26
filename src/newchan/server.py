@@ -157,15 +157,18 @@ def api_ohlcv():
     count_back = request.query.get("countBack", "")
 
     filtered = resampled
-    if to_ts:
-        to_dt = pd.Timestamp(int(to_ts), unit="s")
-        filtered = filtered[filtered.index <= to_dt]
-    if after_ts:
-        after_dt = pd.Timestamp(int(after_ts), unit="s")
-        filtered = filtered[filtered.index > after_dt]
-    if count_back:
-        n = int(count_back)
-        filtered = filtered.iloc[-n:]
+    try:
+        if to_ts:
+            to_dt = pd.Timestamp(int(to_ts), unit="s")
+            filtered = filtered[filtered.index <= to_dt]
+        if after_ts:
+            after_dt = pd.Timestamp(int(after_ts), unit="s")
+            filtered = filtered[filtered.index > after_dt]
+        if count_back:
+            n = int(count_back)
+            filtered = filtered.iloc[-n:]
+    except (ValueError, TypeError) as e:
+        return _json_resp({"error": f"分页参数无效: {e}"}, 400)
 
     return _json_resp({"data": _df_to_records(filtered), "count": len(filtered)})
 
@@ -301,12 +304,15 @@ def api_synthetic():
 
 @app.route("/api/connection")
 def api_connection():
-    feeder = _get_live_feeder()
-    return _json_resp({
-        "connected": feeder.is_running,
-        "source": "databento_live",
-        "bar_count": feeder.bar_count,
-    })
+    try:
+        feeder = _get_live_feeder()
+        return _json_resp({
+            "connected": feeder.is_running,
+            "source": "databento_live",
+            "bar_count": feeder.bar_count,
+        })
+    except Exception as e:
+        return _json_resp({"connected": False, "error": str(e)}, 500)
 
 
 @app.route("/api/connection/connect", method="POST")
@@ -352,8 +358,11 @@ def api_search():
                 seen.add(sym)
 
     # 2. Databento 品种目录搜索（支持中英文、交易所名模糊匹配）
-    from newchan.data_databento import search_symbols
-    db_results = search_symbols(q)
+    try:
+        from newchan.data_databento import search_symbols
+        db_results = search_symbols(q)
+    except Exception:
+        db_results = []
     for item in db_results:
         sym = item["symbol"]
         if sym not in seen:
@@ -381,8 +390,11 @@ def api_subscribe():
     if not symbol:
         return _json_resp({"error": "missing symbol"}, 400)
     # Databento Live feeder 在后台自动运行，无需单独订阅
-    feeder = _get_live_feeder()
-    return _json_resp({"subscribed": feeder.is_running, "symbol": symbol})
+    try:
+        feeder = _get_live_feeder()
+        return _json_resp({"subscribed": feeder.is_running, "symbol": symbol})
+    except Exception as e:
+        return _json_resp({"subscribed": False, "symbol": symbol, "error": str(e)}, 500)
 
 
 @app.route("/api/unsubscribe", method="POST")
@@ -412,8 +424,11 @@ def api_newchan_overlay():
     detail = request.query.get("detail", "full")
     segment_algo = request.query.get("segment_algo", "v1")
     stroke_mode = request.query.get("stroke_mode", "wide")
-    min_strict_sep = int(request.query.get("min_strict_sep", "5"))
-    center_sustain_m = int(request.query.get("center_sustain_m", "2"))
+    try:
+        min_strict_sep = int(request.query.get("min_strict_sep", "5"))
+        center_sustain_m = int(request.query.get("center_sustain_m", "2"))
+    except (ValueError, TypeError) as e:
+        return _json_resp({"error": f"参数无效: {e}"}, 400)
     include_nested_divergence = request.query.get("include_nested_divergence", "false").lower() in ("true", "1", "yes")
     limit = request.query.get("limit", "")
 
@@ -466,8 +481,11 @@ def api_nested_divergence():
     interval = request.query.get("interval", "1min")
     tf = request.query.get("tf", "1m")
     stroke_mode = request.query.get("stroke_mode", "wide")
-    min_strict_sep = int(request.query.get("min_strict_sep", "5"))
-    max_levels = int(request.query.get("max_levels", "6"))
+    try:
+        min_strict_sep = int(request.query.get("min_strict_sep", "5"))
+        max_levels = int(request.query.get("max_levels", "6"))
+    except (ValueError, TypeError) as e:
+        return _json_resp({"error": f"参数无效: {e}"}, 400)
     limit = request.query.get("limit", "3000")
 
     if not symbol:
@@ -565,22 +583,31 @@ def _get_live_feeder():
 
 @app.route("/api/live/status")
 def api_live_status():
-    feeder = _get_live_feeder()
-    return _json_resp(feeder.status())
+    try:
+        feeder = _get_live_feeder()
+        return _json_resp(feeder.status())
+    except Exception as e:
+        return _json_resp({"error": str(e)}, 500)
 
 
 @app.route("/api/live/start", method="POST")
 def api_live_start():
-    feeder = _get_live_feeder()
-    feeder.start()
-    return _json_resp(feeder.status())
+    try:
+        feeder = _get_live_feeder()
+        feeder.start()
+        return _json_resp(feeder.status())
+    except Exception as e:
+        return _json_resp({"error": str(e)}, 500)
 
 
 @app.route("/api/live/stop", method="POST")
 def api_live_stop():
-    feeder = _get_live_feeder()
-    feeder.stop()
-    return _json_resp(feeder.status())
+    try:
+        feeder = _get_live_feeder()
+        feeder.stop()
+        return _json_resp(feeder.status())
+    except Exception as e:
+        return _json_resp({"error": str(e)}, 500)
 
 
 # ------------------------------------------------------------------
