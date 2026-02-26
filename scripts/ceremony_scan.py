@@ -210,11 +210,29 @@ def detect_pending_topo_effects(root):
     return pending
 
 
+def _run_validation_cmd(cmd, root, timeout=30):
+    """执行 validation_cmd，返回 (exit_code, stdout, stderr)。超时视为失败。"""
+    try:
+        result = subprocess.run(
+            cmd, shell=True, cwd=root,
+            capture_output=True, text=True, timeout=timeout,
+        )
+        return result.returncode, result.stdout.strip(), result.stderr.strip()
+    except subprocess.TimeoutExpired:
+        return -1, "", f"validation_cmd timeout ({timeout}s)"
+    except Exception as exc:
+        return -1, "", f"validation_cmd error: {exc}"
+
+
 def get_roadmap_workstations(root):
     """从 .chanlun/roadmap.yaml 读取待执行的业务目标（最高优先级任务来源）。
 
     081号谱系：roadmap 是结构化业务目标载体，ceremony_scan 的最高优先级来源。
     只返回 status=active 的任务。
+
+    验证驱动（VDW）：如果任务有 validation_cmd 字段，先执行验证。
+    Exit Code 0 → auto_verified=true，不生成工位。
+    Exit Code 非 0 → 生成工位，附带验证输出。
     """
     roadmap_path = os.path.join(root, ".chanlun/roadmap.yaml")
     tasks = []
@@ -225,14 +243,50 @@ def get_roadmap_workstations(root):
             data = yaml.safe_load(f)
         for task in data.get("tasks", []):
             if task.get("status") == "active":
-                tasks.append({
-                    "priority": task.get("priority", "P2"),
-                    "name": task.get("id", task.get("title", "未命名")),
-                    "status": "roadmap:active",
-                    "source": "roadmap",
-                    "description": task.get("description", ""),
-                    "title": task.get("title", ""),
-                })
+                validation_cmd = task.get("validation_cmd")
+                relevant_files = task.get("relevant_files", [])
+
+                # 验证驱动：有 validation_cmd 时先执行
+                if validation_cmd:
+                    exit_code, stdout, stderr = _run_validation_cmd(
+                        validation_cmd, root,
+                    )
+                    if exit_code == 0:
+                        # 验证通过——不生成工位，但记录 auto_verified
+                        tasks.append({
+                            "priority": task.get("priority", "P2"),
+                            "name": task.get("id", task.get("title", "未命名")),
+                            "status": "roadmap:active",
+                            "source": "roadmap",
+                            "description": task.get("description", ""),
+                            "title": task.get("title", ""),
+                            "auto_verified": True,
+                        })
+                        continue
+
+                    # 验证失败——生成工位，附带诊断信息
+                    validation_output = (stderr or stdout)[:500]
+                    tasks.append({
+                        "priority": task.get("priority", "P2"),
+                        "name": task.get("id", task.get("title", "未命名")),
+                        "status": "roadmap:active",
+                        "source": "roadmap",
+                        "description": task.get("description", ""),
+                        "title": task.get("title", ""),
+                        "relevant_files": relevant_files,
+                        "validation_output": validation_output,
+                        "done_criteria": validation_cmd,
+                    })
+                else:
+                    # 无 validation_cmd——行为不变（向后兼容）
+                    tasks.append({
+                        "priority": task.get("priority", "P2"),
+                        "name": task.get("id", task.get("title", "未命名")),
+                        "status": "roadmap:active",
+                        "source": "roadmap",
+                        "description": task.get("description", ""),
+                        "title": task.get("title", ""),
+                    })
     except Exception as exc:
         # roadmap 格式错误时不阻塞扫描，但记录错误
         tasks.append({
@@ -605,10 +659,18 @@ def main():
 
     # 1. 最高优先级：roadmap.yaml 中的 active 任务
     roadmap_tasks = get_roadmap_workstations(root)
-    if roadmap_tasks:
+    # VDW：分离 auto_verified 任务（不生成工位）和需要工位的任务
+    verified_tasks = [t for t in roadmap_tasks if t.get("auto_verified")]
+    unverified_tasks = [t for t in roadmap_tasks if not t.get("auto_verified")]
+    if verified_tasks:
+        result["auto_verified"] = [
+            {"name": t["name"], "status": "auto_verified"} for t in verified_tasks
+        ]
+    if unverified_tasks:
         # roadmap 任务插入到 workstations 最前（P2 优先级，高于 P3 long_term）
-        workstations = roadmap_tasks + workstations
-        result["roadmap_tasks_found"] = len(roadmap_tasks)
+        workstations = unverified_tasks + workstations
+    result["roadmap_tasks_found"] = len(roadmap_tasks)
+    result["roadmap_tasks_verified"] = len(verified_tasks)
 
     # 147号：扫描 frozen 节点，过滤依赖 frozen 节点的工位
     frozen_nodes = get_frozen_nodes(root)

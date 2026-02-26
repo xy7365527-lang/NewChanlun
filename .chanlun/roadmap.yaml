@@ -198,6 +198,11 @@ tasks:
       修复：新增独立 /api/nested_divergence 端点（避免 overlay 每次请求全量重算）。
     constraints:
       - "大数据窗口可能超时——需要缓存或增量策略"
+    validation_cmd: "python -c \"import sys; sys.path.insert(0,'src'); from newchan.server import app; routes=[r.rule for r in app.routes]; assert any('nested_divergence' in r for r in routes), f'no nested_divergence route in {routes}'\""
+    relevant_files:
+      - "src/newchan/server.py"
+      - "src/newchan/a_nested_divergence.py"
+      - "src/newchan/ab_bridge_newchan.py"
     added_by: "v55-swarm（Gemini×Codex 交叉诊断）"
     added_date: "2026-02-26"
 
