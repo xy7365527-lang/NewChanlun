@@ -608,7 +608,11 @@ tasks:
   - id: engineering_robustness
     title: "工程健壮性与性能监控"
     priority: P2
-    status: active
+    status: completed
+    completed_date: "2026-02-26"
+    completion_note: |
+      P2 完成：API 错误处理强化（server.py/gateway.py 统一错误中间件）+
+      性能基准测试（performance_benchmark.py）。2138 passed, 15 skipped。
     source: "维度3（工程质量缺口）+ Gemini decide 第五阶段派生"
     description: |
       提升系统的工业级可用性，确保在大规模数据和长时间运行下的稳定性和可观测性。
