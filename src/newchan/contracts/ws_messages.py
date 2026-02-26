@@ -47,12 +47,22 @@ class WsEvent(BaseModel):
 
 
 class WsSnapshot(BaseModel):
-    """快照消息 — 连接或 seek 后发送完整状态。"""
+    """快照消息 — 连接或 seek 后发送完整状态。
+
+    全链路字段（segments ~ recursive_snapshots）均为 Optional，
+    向后兼容：旧客户端忽略新字段，新客户端按需消费。
+    """
 
     type: Literal["snapshot"] = "snapshot"
     bar_idx: int
     strokes: list[dict[str, Any]]
     event_count: int
+    segments: list[dict[str, Any]] | None = None
+    centers: list[dict[str, Any]] | None = None
+    moves: list[dict[str, Any]] | None = None
+    bsp: list[dict[str, Any]] | None = None
+    lstar: dict[str, Any] | None = None
+    recursive_snapshots: list[dict[str, Any]] | None = None
 
 
 class WsReplayStatus(BaseModel):
