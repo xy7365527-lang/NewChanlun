@@ -77,25 +77,44 @@ Task(name="{workstation.name 简写}", subagent_type="general-purpose", team_nam
 
 ## 步骤 6：汇报循环（RTAS 递归——谱系的实现）
 
-spawn 完成后，**立即调用 `TaskList`** 查看任务状态。然后进入 RTAS 循环——每次循环都是谱系的一次生成-实现-凝固迭代：
+spawn 完成后，**立即调用 `TaskList`** 查看任务状态。然后进入 RTAS 循环——每次循环都是谱系的一次生成-实现-凝固迭代。
+
+**Lead 并行化原则（218号）**：Lead 是 RTAS 的一环，不是 RTAS 之外的串行瓶颈。Lead 的一切操作遵守与工位相同的并行原则——独立操作一律并行，只有严格数据依赖才允许串行。
+
+### 循环内操作（并行优先）
 
 1. 调用 `TaskList` 查看所有任务状态
-2. 对每个完成的工位：汇报结果给编排者，然后 `shutdown_request`
-3. **增量持久化**：每次有工位完成，立即更新 session 文件（追加该工位产出摘要）。这保证中途断掉时下次热启动能恢复到最后一个已完成工位的状态
-4. 对每个空闲的工位：检查是否有新任务可分配，没有则 `shutdown_request`
-5. 如果仍有 `in_progress` 任务：通过 `SendMessage` 询问进展，结合 `TaskList` 轮询状态
-6. **拓扑分析家**（179号）：如果 `.chanlun/block-topology/blocks/` 存在且区块数 > 0，spawn topology-analyst 冷读拓扑。spawn 时**不传递** CC 编排上下文（session 文件、蜂群状态），只传递区块拓扑数据路径 `.chanlun/block-topology/`。分析家返回拓扑报告 → CC 决断是否对奇点/模式做出回应。上下文隔离是结构性要求（179号：分析家 ≠ CC 的延伸）
-7. 所有工位完成后：写入完整 session → commit → push
-8. **纲举目张分析（步骤 7.5）**：
+2. **批量并行处理**完成/空闲的工位：
+   - 所有 `shutdown_request` 在同一个消息中并行发出
+   - 所有完成工位的结果汇报在同一轮中完成
+   - 禁止逐个串行处理工位
+3. **增量持久化**：工位完成时更新 session 文件
+4. **Lead 不空转**：如果仍有 `in_progress` 工位，Lead 在等待期间并行执行可用的独立操作：
+   - 拓扑分析家 spawn（179号，上下文隔离冷读 .chanlun/block-topology/）
+   - meta-observer 二阶观察
+   - session 增量写入
+   - 这些操作与工位监控并行，不是串行等待后再执行
+5. **测试验证 spawn 为工位**：Lead 不自己跑 `pytest`。测试验证 spawn 为 code-verifier 工位，与其他操作并行。Lead 只消费测试结果
+6. 所有工位完成后：写入完整 session → commit → push
+7. **纲举目张 ∥ 重扫描**（并行）：
    ```bash
+   # 以下两个脚本在同一轮中并行调用
    python scripts/gangju_analysis.py
+   python scripts/ceremony_scan.py
    ```
-   - 如果输出中 `audit_needed: true` → spawn gemini-challenger（verify 模式）+ codex-challenger（review 模式）执行双向审计
-   - 审计结果写入谱系 pending/ → commit → push
-9. 重新执行步骤1（ceremony_scan.py）——此时新 pending 会被检测到
-10. 如果步骤1发现新工位 → 回到步骤4 spawn 新工位，继续循环
-11. 如果步骤1无新工位 → 输出格式B（无待做行动）→ 执行 TeamDelete 清理蜂群
-12. 持久化由 session 结晶 + 热启动保证——下次 ceremony 从 session 热启动恢复（162号）
+   - gangju `audit_needed: true` → spawn 审计工位
+   - ceremony_scan 发现新工位 → 回到步骤4
+   - 两者无数据依赖，必须并行
+8. 如果无新工位且无审计需求 → 输出格式B → TeamDelete
+9. 持久化由 session 结晶 + 热启动保证（162号）
+
+### 严格串行的操作（仅以下允许串行）
+
+- `git add → git commit → git push`：git 操作有严格顺序依赖
+- `ceremony_scan 输出 → spawn 工位`：工位列表依赖扫描结果
+- `TeamCreate → Task spawn`：spawn 依赖 team 存在
+
+除上述三项外，Lead 的任何串行执行都是违规。
 
 **持久化规则**：状态结晶发生在状态转换点，不是终点。session 是蜂群跨上下文的唯一状态载体，必须在每个关键转换点更新：
 - 工位完成 → 增量写入
