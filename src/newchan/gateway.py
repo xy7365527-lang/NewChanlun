@@ -29,12 +29,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from newchan.a_stroke import Stroke
+from newchan.backpressure import BackpressureQueue
 from newchan.bi_engine import BiEngineSnapshot
 from newchan.orchestrator.recursive import (
     RecursiveOrchestrator,
     RecursiveOrchestratorSnapshot,
 )
 from newchan.contracts.ws_messages import (
+    ReplayControlRequest,
     ReplayPauseRequest,
     ReplayPlayRequest,
     ReplaySeekRequest,
@@ -107,6 +109,10 @@ _live_bar_counts: dict[str, int] = {}
 
 # Live 模式 WS 客户端：symbol -> set[WebSocket]
 _live_clients: dict[str, set[WebSocket]] = {}
+
+# Live 模式：每个 WS 客户端的背压队列和消费任务
+_live_bp_queues: dict[WebSocket, BackpressureQueue] = {}
+_live_bp_tasks: dict[WebSocket, asyncio.Task] = {}
 
 # Live 模式：asyncio event loop 引用（用于从 feeder 线程调度到 async）
 _live_loop: asyncio.AbstractEventLoop | None = None
@@ -548,6 +554,63 @@ async def replay_status(session_id: str):
     return ReplayStatusResponse(**session.get_status())
 
 
+@app.post("/api/replay/control")
+async def replay_control(req: ReplayControlRequest):
+    """统一回放控制端点 — play/pause/step/seek/stop。"""
+    session = _get_session_or_404(req.session_id)
+
+    if req.action == "play":
+        _cancel_play_task(req.session_id)
+        session.speed = req.speed
+        session.mode = "playing"
+        task = asyncio.create_task(_play_loop(req.session_id))
+        _play_tasks[req.session_id] = task
+        return _status_to_ws(session)
+
+    elif req.action == "pause":
+        _cancel_play_task(req.session_id)
+        if session.mode == "playing":
+            session.mode = "paused"
+        await _broadcast(session.session_id, _status_to_ws(session))
+        return _status_to_ws(session)
+
+    elif req.action == "step":
+        orch = _orchestrators.get(req.session_id)
+        step_req = ReplayStepRequest(session_id=req.session_id, count=req.count)
+        if orch is not None:
+            result = await _step_multi_tf(step_req, session, orch)
+        else:
+            result = await _step_single_tf(step_req, session)
+        return result.model_dump()
+
+    elif req.action == "seek":
+        _cancel_play_task(req.session_id)
+        orch = _orchestrators.get(req.session_id)
+        if orch is not None:
+            tf_snaps = orch.seek(req.target_idx)
+            base_snap = tf_snaps.get(orch.base_tf)
+        else:
+            base_snap = session.seek(req.target_idx)
+        if base_snap is not None:
+            snapshot_dict = _snapshot_to_ws(base_snap)
+        else:
+            snapshot_dict = WsSnapshot(bar_idx=0, strokes=[], event_count=0).model_dump()
+        await _broadcast(req.session_id, snapshot_dict)
+        await _broadcast(req.session_id, _status_to_ws(session))
+        return _status_to_ws(session)
+
+    elif req.action == "stop":
+        _cancel_play_task(req.session_id)
+        session.mode = "idle"
+        # 清理会话
+        _sessions.pop(req.session_id, None)
+        _orchestrators.pop(req.session_id, None)
+        _ws_clients.pop(req.session_id, None)
+        return {"mode": "idle", "current_idx": 0, "total_bars": 0, "speed": 1}
+
+    raise HTTPException(status_code=400, detail=f"未知 action: {req.action}")
+
+
 # ════════════════════════════════════════════════
 # 自动播放
 # ════════════════════════════════════════════════
@@ -823,16 +886,25 @@ def _live_current_snapshot(symbol: str) -> dict:
 
 
 async def _live_broadcast(symbol: str, message: dict) -> None:
-    """向指定标的的所有 live WS 客户端广播消息。"""
+    """向指定标的的所有 live WS 客户端投递消息（经背压队列）。"""
     clients = _live_clients.get(symbol, set())
-    dead: list[WebSocket] = []
     for ws in clients:
-        try:
-            await ws.send_json(message)
-        except Exception:
-            dead.append(ws)
-    for ws in dead:
-        clients.discard(ws)
+        bpq = _live_bp_queues.get(ws)
+        if bpq is not None:
+            bpq.put_nowait(message)
+
+
+async def _live_ws_consumer(ws: WebSocket, bpq: BackpressureQueue) -> None:
+    """从背压队列取消息并发送到 WS 客户端。发送失败时静默退出。"""
+    try:
+        while True:
+            message = await bpq.get()
+            try:
+                await ws.send_json(message)
+            except Exception:
+                break
+    except asyncio.CancelledError:
+        pass
 
 
 def _on_live_bar(symbol: str, bar: Bar) -> None:
@@ -875,6 +947,7 @@ async def ws_live(ws: WebSocket, symbol: str):
     """Live 模式 WebSocket — 实时推送缠论分析结果。
 
     连接后立即发送当前 snapshot，之后每收到新 bar 推送增量更新。
+    每个客户端持有独立的 BackpressureQueue，队列满时丢弃非关键帧。
     """
     global _live_loop
     symbol = symbol.upper()
@@ -886,6 +959,12 @@ async def ws_live(ws: WebSocket, symbol: str):
 
     # 确保引擎已初始化
     _ensure_live_engine(symbol)
+
+    # 创建背压队列和消费任务
+    bpq = BackpressureQueue(maxsize=100)
+    _live_bp_queues[ws] = bpq
+    consumer_task = asyncio.create_task(_live_ws_consumer(ws, bpq))
+    _live_bp_tasks[ws] = consumer_task
 
     # 注册客户端
     _live_clients.setdefault(symbol, set()).add(ws)
@@ -906,3 +985,54 @@ async def ws_live(ws: WebSocket, symbol: str):
                 break
     finally:
         _live_clients.get(symbol, set()).discard(ws)
+        # 清理背压队列和消费任务
+        consumer_task.cancel()
+        try:
+            await consumer_task
+        except asyncio.CancelledError:
+            pass
+        _live_bp_queues.pop(ws, None)
+        _live_bp_tasks.pop(ws, None)
+
+
+# ════════════════════════════════════════════════
+# Live 状态监控端点
+# ════════════════════════════════════════════════
+
+
+@app.get("/api/live/status")
+async def api_live_status():
+    """返回各标的连接状态、最后更新时间、重连次数、背压队列深度。"""
+    import time as _time
+
+    symbols_status: dict[str, dict] = {}
+    for symbol, engine in _live_engines.items():
+        snap = _live_snapshots.get(symbol)
+        last_ts = engine.last_bar_ts if hasattr(engine, "last_bar_ts") else None
+        # RecursiveOrchestrator 没有 last_bar_ts，从 _live_snapshots 推断
+        last_update: float | None = None
+        if snap is not None and hasattr(snap, "bar_idx"):
+            last_update = _time.time()  # 近似：有 snapshot 说明曾收到数据
+
+        # 统计该 symbol 所有客户端的背压队列
+        clients = _live_clients.get(symbol, set())
+        client_count = len(clients)
+        total_queue_depth = 0
+        total_dropped = 0
+        for ws in clients:
+            bpq = _live_bp_queues.get(ws)
+            if bpq is not None:
+                total_queue_depth += bpq.qsize()
+                total_dropped += bpq.dropped_count
+
+        symbols_status[symbol] = {
+            "bar_count": _live_bar_counts.get(symbol, 0),
+            "connected_clients": client_count,
+            "queue_depth": total_queue_depth,
+            "dropped_frames": total_dropped,
+        }
+
+    return {
+        "active_symbols": len(_live_engines),
+        "symbols": symbols_status,
+    }

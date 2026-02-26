@@ -10,7 +10,7 @@ import { useReplayStore } from "../store/replayStore";
 
 // ── helpers ──
 
-const WS_URL = "ws://localhost:8766/ws/feed";
+const WS_URL = `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/ws/feed`;
 const RECONNECT_DELAY = 3000;
 
 /** 将 WsEventMessage 的 payload 展开为 ChanEvent */

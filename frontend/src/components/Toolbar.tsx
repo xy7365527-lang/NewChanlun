@@ -1,12 +1,19 @@
 import { useAppStore, SUPPORTED_TFS } from "../store/appStore";
 import { SearchDropdown } from "./SearchDropdown";
+import { SymbolSelector } from "./SymbolSelector";
+import { LevelSelector } from "./LevelSelector";
 
-export function Toolbar() {
+interface ToolbarProps {
+  maxLevel?: number;
+}
+
+export function Toolbar({ maxLevel = 0 }: ToolbarProps) {
   const { symbol, tf, setTf } = useAppStore();
 
   return (
     <div className="toolbar">
       <span className="toolbar-symbol">{symbol}</span>
+      <SymbolSelector />
       <SearchDropdown />
       <div className="toolbar-sep" />
       {SUPPORTED_TFS.map((t) => (
@@ -18,6 +25,8 @@ export function Toolbar() {
           {t}
         </button>
       ))}
+      <div className="toolbar-sep" />
+      <LevelSelector maxLevel={maxLevel} />
     </div>
   );
 }

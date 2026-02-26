@@ -66,6 +66,6 @@ ceremony.md 的最终目标是缩减到 ~25 行伪代码级别。
 
 ## 下游推论
 
-1. ceremony_scan.py 应扩展为输出所有工位（业务+结构），让 Lead 只做 spawn_all
-2. ceremony.md 应进一步缩减到自举形式
+1. ~~ceremony_scan.py 应扩展为输出所有工位（业务+结构），让 Lead 只做 spawn_all~~ → **resolved**（commit 3412cfa：添加 --phase 参数 + 结构工位推导）
+2. ~~ceremony.md 应进一步缩减到自举形式~~ → **resolved**（commit 7120720：重写为 65 行）
 3. Codex API 不可用时不阻塞蜂群——Gemini 单向质询可作为降级方案

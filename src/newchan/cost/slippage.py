@@ -56,6 +56,10 @@ class FixedSlippage(SlippageBase):
 
     slippage_points: float = 0.0
 
+    def apply(self, price: float, side: str) -> float:
+        """Protocol 接口 — CostConfig / BacktestEngine 使用。"""
+        return self.apply_slippage(price, side)  # type: ignore[arg-type]
+
     def apply_slippage(
         self,
         price: float,
@@ -79,6 +83,10 @@ class PercentSlippage(SlippageBase):
     """
 
     slippage_pct: float = 0.001
+
+    def apply(self, price: float, side: str) -> float:
+        """Protocol 接口 — CostConfig / BacktestEngine 使用。"""
+        return self.apply_slippage(price, side)  # type: ignore[arg-type]
 
     def apply_slippage(
         self,
@@ -109,6 +117,10 @@ class MarketImpactSlippage(SlippageBase):
 
     threshold_pct: float = 0.01
     impact_coeff: float = 0.1
+
+    def apply(self, price: float, side: str) -> float:
+        """Protocol 接口 — 无 volume 信息时返回原价。"""
+        return self.apply_slippage(price, side)  # type: ignore[arg-type]
 
     def apply_slippage(
         self,

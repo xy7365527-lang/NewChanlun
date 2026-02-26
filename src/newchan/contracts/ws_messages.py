@@ -164,3 +164,13 @@ class ReplayStatusResponse(BaseModel):
     current_idx: int
     total_bars: int
     speed: float
+
+
+class ReplayControlRequest(BaseModel):
+    """统一回放控制请求 — POST /api/replay/control"""
+
+    session_id: str
+    action: Literal["play", "pause", "step", "seek", "stop"]
+    speed: float = 1.0
+    count: int = 1
+    target_idx: int = 0

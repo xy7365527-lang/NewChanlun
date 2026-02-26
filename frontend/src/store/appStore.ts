@@ -5,9 +5,11 @@ interface AppState {
   interval: string; // 缓存 key 用的周期，如 "1min"
   tf: string; // 显示周期，如 "1m", "5m", "1h", "1d"
   detail: "min" | "full";
+  selectedLevel: number; // 0 = 显示所有级别, 1+ = 仅显示指定级别
 
   setSymbol: (s: string) => void;
   setTf: (tf: string) => void;
+  setSelectedLevel: (level: number) => void;
 }
 
 // tf → interval 映射：前端显示周期 → 后端缓存周期
@@ -30,7 +32,9 @@ export const useAppStore = create<AppState>((set) => ({
   interval: "1min",
   tf: "1m",
   detail: "full",
+  selectedLevel: 0,
 
   setSymbol: (symbol) => set({ symbol: symbol.toUpperCase() }),
   setTf: (tf) => set({ tf, interval: TF_TO_INTERVAL[tf] ?? "1min" }),
+  setSelectedLevel: (level) => set({ selectedLevel: level }),
 }));
