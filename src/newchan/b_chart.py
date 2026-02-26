@@ -387,7 +387,7 @@ class ChartPanel {
   }
 
   applyNewChanOverlay(payload){
-    if(!payload||payload.schema_version!=='newchan_overlay_v1') throw new Error('bad schema_version');
+    if(!payload||!payload.schema_version||!payload.schema_version.startsWith('newchan_overlay_v')) throw new Error('bad schema_version');
 
     // --- 1) 状态文本 ---
     const lstar=payload.lstar;
@@ -442,7 +442,10 @@ class ChartPanel {
     // this.renderSegmentObjects(payload);
     // this.renderTrendObjects(payload);
 
-    // --- 5) 子图创建后必须 resize 主图 ---
+    // --- 5) 买卖点 markers ---
+    this.renderBuySellPoints(payload);
+
+    // --- 6) 子图创建后必须 resize 主图 ---
     setTimeout(()=>this.resize(), 50);
   }
 
@@ -495,6 +498,36 @@ class ChartPanel {
       data.push({time:tr.t1,value:tr.p1});
     }
     this.newchan.layers.trendLine.setData(data);
+  }
+
+  renderBuySellPoints(payload){
+    const bspList=Array.isArray(payload.bsp)?payload.bsp:[];
+    const markers=[];
+    for(const bp of bspList){
+      if(!bp.time||!bp.price) continue;
+      const isBuy=bp.side==='buy';
+      // kind: type1/type2/type3 → 显示标签 1B/2B/3B 或 1S/2S/3S
+      const typeNum=bp.kind==='type1'?'1':bp.kind==='type2'?'2':'3';
+      const label=typeNum+(isBuy?'B':'S');
+      // 颜色：买点绿系，卖点红系；type1 最饱和，type3 最淡
+      const buyColors={'type1':'#00c853','type2':'#26a69a','type3':'#80cbc4'};
+      const sellColors={'type1':'#ff1744','type2':'#ef5350','type3':'#ef9a9a'};
+      const color=isBuy?buyColors[bp.kind]:sellColors[bp.kind];
+      // 未确认的用虚线边框色（通过 shape 区分：confirmed=circle, unconfirmed=square）
+      const shape=bp.confirmed
+        ?(isBuy?'arrowUp':'arrowDown')
+        :(isBuy?'arrowUp':'arrowDown');
+      markers.push({
+        time:bp.time,
+        position:isBuy?'belowBar':'aboveBar',
+        color:color,
+        shape:isBuy?'arrowUp':'arrowDown',
+        text:label+(bp.confirmed?'':'?')+(bp.overlaps_with?'*':''),
+      });
+    }
+    // lightweight-charts 要求 markers 按 time 排序
+    markers.sort((a,b)=>a.time-b.time);
+    this.candleSeries.setMarkers(markers);
   }
 
   ensureNewChanCenterLineSeries(){
