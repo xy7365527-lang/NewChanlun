@@ -243,9 +243,67 @@ def get_roadmap_workstations(root):
             data = yaml.safe_load(f)
         for task in data.get("tasks", []):
             if task.get("status") == "active":
+                task_id = task.get("id", task.get("title", "未命名"))
                 validation_cmd = task.get("validation_cmd")
                 relevant_files = task.get("relevant_files", [])
+                subtasks = task.get("subtasks", [])
 
+                # subtasks 展开：每个 subtask 生成独立工位
+                if subtasks:
+                    decomposition = task.get("decomposition", "parallel")
+                    for st in subtasks:
+                        st_id = st.get("id", "unknown")
+                        st_name = f"{task_id}:{st_id}"
+                        st_validation = st.get("validation_cmd", validation_cmd)
+                        st_relevant = st.get("relevant_files", relevant_files)
+
+                        # subtask 级别的 VDW
+                        if st_validation:
+                            exit_code, stdout, stderr = _run_validation_cmd(
+                                st_validation, root,
+                            )
+                            if exit_code == 0:
+                                tasks.append({
+                                    "priority": task.get("priority", "P2"),
+                                    "name": st_name,
+                                    "status": "roadmap:active",
+                                    "source": "roadmap",
+                                    "description": st.get("description", ""),
+                                    "title": st.get("title", ""),
+                                    "parallel_group": task_id,
+                                    "decomposition": decomposition,
+                                    "auto_verified": True,
+                                })
+                                continue
+                            validation_output = (stderr or stdout)[:500]
+                            tasks.append({
+                                "priority": task.get("priority", "P2"),
+                                "name": st_name,
+                                "status": "roadmap:active",
+                                "source": "roadmap",
+                                "description": st.get("description", ""),
+                                "title": st.get("title", ""),
+                                "relevant_files": st_relevant,
+                                "validation_output": validation_output,
+                                "done_criteria": st_validation,
+                                "parallel_group": task_id,
+                                "decomposition": decomposition,
+                            })
+                        else:
+                            tasks.append({
+                                "priority": task.get("priority", "P2"),
+                                "name": st_name,
+                                "status": "roadmap:active",
+                                "source": "roadmap",
+                                "description": st.get("description", ""),
+                                "title": st.get("title", ""),
+                                "relevant_files": st_relevant,
+                                "parallel_group": task_id,
+                                "decomposition": decomposition,
+                            })
+                    continue
+
+                # 无 subtasks——原有逻辑（向后兼容）
                 # 验证驱动：有 validation_cmd 时先执行
                 if validation_cmd:
                     exit_code, stdout, stderr = _run_validation_cmd(
@@ -255,7 +313,7 @@ def get_roadmap_workstations(root):
                         # 验证通过——不生成工位，但记录 auto_verified
                         tasks.append({
                             "priority": task.get("priority", "P2"),
-                            "name": task.get("id", task.get("title", "未命名")),
+                            "name": task_id,
                             "status": "roadmap:active",
                             "source": "roadmap",
                             "description": task.get("description", ""),
@@ -268,7 +326,7 @@ def get_roadmap_workstations(root):
                     validation_output = (stderr or stdout)[:500]
                     tasks.append({
                         "priority": task.get("priority", "P2"),
-                        "name": task.get("id", task.get("title", "未命名")),
+                        "name": task_id,
                         "status": "roadmap:active",
                         "source": "roadmap",
                         "description": task.get("description", ""),
@@ -281,7 +339,7 @@ def get_roadmap_workstations(root):
                     # 无 validation_cmd——行为不变（向后兼容）
                     tasks.append({
                         "priority": task.get("priority", "P2"),
-                        "name": task.get("id", task.get("title", "未命名")),
+                        "name": task_id,
                         "status": "roadmap:active",
                         "source": "roadmap",
                         "description": task.get("description", ""),
@@ -632,6 +690,7 @@ def main():
     # 保留 --structural 作为 --skills 的别名（向后兼容）
     parser.add_argument("--structural", action="store_true", help="(deprecated) 等同于 --skills")
     parser.add_argument("--workstations", nargs="*", help="指定业务工位名称")
+    parser.add_argument("--workstations-json", type=str, help="JSON 字符串，解析为结构化工位列表")
     args = parser.parse_args()
 
     root = os.getcwd()
@@ -643,6 +702,28 @@ def main():
 
     if args.workstations:
         result["workstations"] = [{"name": w, "priority": "P1", "status": "pending"} for w in args.workstations]
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return
+
+    if args.workstations_json:
+        try:
+            ws_list = json.loads(args.workstations_json)
+            if not isinstance(ws_list, list):
+                ws_list = [ws_list]
+            # 每个元素可以是 dict（结构化工位）或 str（名称）
+            workstations = []
+            for item in ws_list:
+                if isinstance(item, dict):
+                    # 确保必要字段存在
+                    item.setdefault("priority", "P1")
+                    item.setdefault("status", "pending")
+                    workstations.append(item)
+                elif isinstance(item, str):
+                    workstations.append({"name": item, "priority": "P1", "status": "pending"})
+            result["workstations"] = workstations
+        except json.JSONDecodeError as exc:
+            result["workstations"] = []
+            result["workstations_json_error"] = f"JSON 解析失败: {exc}"
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return
 

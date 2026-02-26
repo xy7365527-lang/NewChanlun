@@ -203,6 +203,24 @@ tasks:
       - "src/newchan/server.py"
       - "src/newchan/a_nested_divergence.py"
       - "src/newchan/ab_bridge_newchan.py"
+    subtasks:
+      - id: api_endpoint
+        title: "新增 /api/nested_divergence 端点"
+        description: "在 server.py 中新增端点，调用 run_nested_search()"
+        relevant_files:
+          - "src/newchan/server.py"
+          - "src/newchan/a_nested_divergence.py"
+      - id: bridge_integration
+        title: "ab_bridge_newchan 集成嵌套背驰"
+        description: "在 build_overlay_newchan() 中可选调用嵌套背驰"
+        relevant_files:
+          - "src/newchan/ab_bridge_newchan.py"
+      - id: endpoint_tests
+        title: "端点测试"
+        description: "新增 tests/test_nested_divergence_endpoint.py"
+        relevant_files:
+          - "tests/"
+    decomposition: parallel
     added_by: "v55-swarm（Gemini×Codex 交叉诊断）"
     added_date: "2026-02-26"
 
