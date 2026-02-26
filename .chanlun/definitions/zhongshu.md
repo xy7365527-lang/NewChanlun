@@ -205,8 +205,8 @@
   - 与 BiEngine、SegmentEngine 三层同构
 
 - **审计检查**：`src/newchan/audit/zhongshu_checker.py`
-  - `check_zhongshu_definition(zhongshu, segments)` — 验证三段重叠定义
-  - `check_zhongshu_identity(zhongshu)` — 验证确定性 ID
+  - `ZhongshuInvariantChecker` — per-bar 中枢不变量检查器
+  - 检查 I11（三段重叠 zg>zd）、I12（settle 前须有 candidate）、I13（seg 可追溯）、I14（invalidate 幂等）、I17（invalidate 终态）
 
 - **状态管理**：`src/newchan/core/recursion/zhongshu_state.py`
   - `ZhongshuSnapshot` — 中枢快照
@@ -222,7 +222,7 @@
 ### 数据结构（Zhongshu）
 
 ```python
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Zhongshu:
     zd: float              # 中枢下沿
     zg: float              # 中枢上沿
@@ -234,6 +234,8 @@ class Zhongshu:
     break_direction: str   # "up" / "down" / ""
     first_seg_s0: int      # 第一段起点笔索引
     last_seg_s1: int       # 最后段终点笔索引
+    gg: float              # 波动区间上界 max(所有段 high)
+    dd: float              # 波动区间下界 min(所有段 low)
 ```
 
 ---
@@ -398,8 +400,8 @@ class Zhongshu:
 
 ### 测试要求
 
-- **定义检查**：`check_zhongshu_definition()` 验证三段重叠成立
-- **确定性 ID**：`check_zhongshu_identity()` 保证可溯源
+- **不变量检查**：`ZhongshuInvariantChecker` 验证 I11（重叠）、I12（candidate→settle 序）、I13（可追溯）、I14（幂等）、I17（终态）
+- **测试覆盖**：`tests/test_zhongshu_invariants.py`、`tests/test_zhongshu_overlap_golden.py`、`tests/test_zhongshu_determinism.py`、`tests/test_zhongshu_identity_skip.py`、`tests/test_zhongshu_invalidate_propagation.py`、`tests/test_zhongshu_level.py`
 - **覆盖率例外**：本模块受"生成态例外"约束（见 `.claude/rules/testing-override.md`）
   - 若测试失败暴露定义冲突 → 矛盾上浮流程
   - 不可通过修改实现来让测试通过
@@ -430,8 +432,8 @@ class Zhongshu:
   - 涨停封死 → 只能形成1分钟级别中枢延伸
   - 庄股日成交一次 → 无法形成更大级别中枢
 - **下游质询点**：
-  - ZG/ZD 是固定还是动态？（当前 v1 选固定）
-  - 中枢扩展判定的充要性？（待验证）
+  - ~~ZG/ZD 是固定还是动态？~~ → v1 已结算：固定区间（初始三段确定后不变）
+  - ~~中枢扩展判定的充要性？~~ → `a_zhongshu_level.py` 已实现泛化中枢构造（级别扩展）
 
 ### 4. 下游推论
 

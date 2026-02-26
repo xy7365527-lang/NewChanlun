@@ -439,3 +439,48 @@ class TestApiNewchanOverlay:
             result = _parse(api_newchan_overlay())
             assert "error" in result
             assert response.status_code == 500
+
+    @patch("newchan.server.resample_ohlc")
+    @patch("newchan.server.load_df")
+    @patch("newchan.server.request")
+    def test_include_nested_divergence_passed_through(self, mock_req, mock_load, mock_resample):
+        df = _make_ohlcv_df(10)
+        mock_req.query = _make_query({
+            "symbol": "CL", "interval": "1min", "tf": "1m",
+            "detail": "full", "segment_algo": "v1",
+            "stroke_mode": "wide", "min_strict_sep": "5",
+            "center_sustain_m": "2", "limit": "",
+            "include_nested_divergence": "true",
+        })
+        mock_load.return_value = df
+        mock_resample.return_value = df
+
+        overlay_data = {"strokes": [], "segments": [], "nested_divergence": [{"x": 1}]}
+        with patch("newchan.ab_bridge_newchan.build_overlay_newchan", return_value=overlay_data) as mock_build:
+            from newchan.server import api_newchan_overlay
+
+            _parse(api_newchan_overlay())
+            _, kwargs = mock_build.call_args
+            assert kwargs["include_nested_divergence"] is True
+
+    @patch("newchan.server.resample_ohlc")
+    @patch("newchan.server.load_df")
+    @patch("newchan.server.request")
+    def test_include_nested_divergence_defaults_false(self, mock_req, mock_load, mock_resample):
+        df = _make_ohlcv_df(10)
+        mock_req.query = _make_query({
+            "symbol": "CL", "interval": "1min", "tf": "1m",
+            "detail": "full", "segment_algo": "v1",
+            "stroke_mode": "wide", "min_strict_sep": "5",
+            "center_sustain_m": "2", "limit": "",
+        })
+        mock_load.return_value = df
+        mock_resample.return_value = df
+
+        overlay_data = {"strokes": [], "segments": []}
+        with patch("newchan.ab_bridge_newchan.build_overlay_newchan", return_value=overlay_data) as mock_build:
+            from newchan.server import api_newchan_overlay
+
+            _parse(api_newchan_overlay())
+            _, kwargs = mock_build.call_args
+            assert kwargs["include_nested_divergence"] is False

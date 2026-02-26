@@ -414,6 +414,7 @@ def api_newchan_overlay():
     stroke_mode = request.query.get("stroke_mode", "wide")
     min_strict_sep = int(request.query.get("min_strict_sep", "5"))
     center_sustain_m = int(request.query.get("center_sustain_m", "2"))
+    include_nested_divergence = request.query.get("include_nested_divergence", "false").lower() in ("true", "1", "yes")
     limit = request.query.get("limit", "")
 
     if not symbol:
@@ -445,6 +446,7 @@ def api_newchan_overlay():
             stroke_mode=stroke_mode,
             min_strict_sep=min_strict_sep,
             center_sustain_m=center_sustain_m,
+            include_nested_divergence=include_nested_divergence,
         )
     except Exception as e:
         import traceback
