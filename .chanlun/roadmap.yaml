@@ -480,7 +480,12 @@ tasks:
   - id: concept_strict_closure
     title: "概念层严格化与未决项结算"
     priority: P1
-    status: active
+    status: completed
+    completed_date: "2026-02-26"
+    completion_note: |
+      3 个并行工位完成：a_zhongshu_v1.py 递归组件严格化(+3行)、
+      level_recursion.md 状态更新、beichi T6/T7 原文溯源、
+      test_flow_relation.py 流转关系测试(+246行)。
     source: "维度4（概念层缺口）+ Gemini decide 第五阶段派生"
     description: |
       解决当前系统中遗留的核心概念矛盾，确保引擎逻辑与缠论严格定义对齐。
@@ -524,7 +529,12 @@ tasks:
   - id: backtest_evaluation_framework
     title: "信号回测与质量评估框架"
     priority: P1
-    status: active
+    status: completed
+    completed_date: "2026-02-26"
+    completion_note: |
+      2 个并行工位完成：backtest.py 回测引擎(255行)、
+      signal_quality_report.py 信号统计脚本(263行)、
+      test_backtest.py(414行) + test_signal_quality.py(201行)。
     source: "维度1（A系统→实战应用的缺口）+ Gemini decide 第五阶段派生"
     description: |
       构建基于 A 系统买卖点信号的回测引擎，评估当前形态学信号在历史数据中的
@@ -558,7 +568,13 @@ tasks:
   - id: live_data_integration
     title: "实时数据流与实盘集成"
     priority: P1
-    status: active
+    status: completed
+    completed_date: "2026-02-26"
+    completion_note: |
+      2 个并行工位完成：live_engine.py Databento Live 集成(119行)、
+      gateway.py 实时 WS 推送 /ws/live/{symbol}(+147行)、
+      data_databento_live.py 适配(+21行)、
+      test_live_engine.py(187行) + test_gateway_live.py(175行)。
     source: "维度1（A系统→实战应用的缺口）& 维度2（B系统→用户体验的缺口）+ Gemini decide 第五阶段派生"
     description: |
       将系统从静态/回放模式升级为真正的实时增量计算模式，
