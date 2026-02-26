@@ -202,7 +202,7 @@ class TestBackwardCompatibility:
     """确保不传 cost_config 时，原有接口不受影响。"""
 
     def test_engine_without_cost_config(self) -> None:
-        engine = BacktestEngine(config=BacktestConfig(stop_loss_pct=0))
+        engine = BacktestEngine(config=BacktestConfig())
         engine.process_snapshot(_make_snap(0, [_buy_bsp()]), _MockBar(100.0))
         engine.process_snapshot(_make_snap(1, [_sell_bsp()]), _MockBar(120.0))
         result = engine.result()
