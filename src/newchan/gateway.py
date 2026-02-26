@@ -24,8 +24,9 @@ from datetime import datetime, timezone
 from typing import Any
 
 import pandas as pd
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from newchan.a_stroke import Stroke
 from newchan.bi_engine import BiEngineSnapshot
@@ -66,6 +67,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(Exception)
+async def _unhandled_exception_handler(request: Request, exc: Exception):
+    """全局兜底：未捕获异常 → 500 JSON（不泄露堆栈）。"""
+    logger.exception("Unhandled exception on %s %s", request.method, request.url.path)
+    return JSONResponse(
+        status_code=500,
+        content=WsError(message="服务器内部错误", code="internal_error").model_dump(),
+    )
 
 # ── 全局状态 ──
 
@@ -329,6 +340,14 @@ def _get_session(session_id: str) -> ReplaySession:
     return sess
 
 
+def _get_session_or_404(session_id: str) -> ReplaySession:
+    """获取会话，不存在则抛出 HTTPException 404。"""
+    sess = _sessions.get(session_id)
+    if sess is None:
+        raise HTTPException(status_code=404, detail=f"会话 {session_id} 不存在")
+    return sess
+
+
 async def _broadcast(session_id: str, message: dict) -> None:
     """向指定会话的所有 WS 客户端广播消息。"""
     clients = _ws_clients.get(session_id, set())
@@ -353,10 +372,10 @@ async def replay_start(req: ReplayStartRequest):
     try:
         bars = _load_bars(req.symbol, req.interval, req.tf)
     except ValueError as e:
-        return WsError(message=str(e), code="data_error").model_dump()
+        raise HTTPException(status_code=404, detail=str(e))
 
     if not bars:
-        return WsError(message="数据为空", code="data_error").model_dump()
+        raise HTTPException(status_code=404, detail="数据为空")
 
     session_id = str(uuid.uuid4())
 
@@ -452,10 +471,7 @@ async def _step_single_tf(req, session):
 @app.post("/api/replay/step", response_model=ReplayStepResponse)
 async def replay_step(req: ReplayStepRequest):
     """步进指定数量的 bar。"""
-    try:
-        session = _get_session(req.session_id)
-    except ValueError as e:
-        return WsError(message=str(e), code="session_not_found").model_dump()
+    session = _get_session_or_404(req.session_id)
 
     orch = _orchestrators.get(req.session_id)
     if orch is not None:
@@ -466,10 +482,7 @@ async def replay_step(req: ReplayStepRequest):
 @app.post("/api/replay/seek", response_model=ReplaySeekResponse)
 async def replay_seek(req: ReplaySeekRequest):
     """跳转到指定位置。"""
-    try:
-        session = _get_session(req.session_id)
-    except ValueError as e:
-        return WsError(message=str(e), code="session_not_found").model_dump()
+    session = _get_session_or_404(req.session_id)
 
     _cancel_play_task(req.session_id)
 
@@ -499,10 +512,7 @@ async def replay_seek(req: ReplaySeekRequest):
 @app.post("/api/replay/play")
 async def replay_play(req: ReplayPlayRequest):
     """启动自动播放。"""
-    try:
-        session = _get_session(req.session_id)
-    except ValueError as e:
-        return WsError(message=str(e), code="session_not_found").model_dump()
+    session = _get_session_or_404(req.session_id)
 
     # 取消已有播放任务
     _cancel_play_task(req.session_id)
@@ -520,10 +530,7 @@ async def replay_play(req: ReplayPlayRequest):
 @app.post("/api/replay/pause")
 async def replay_pause(req: ReplayPauseRequest):
     """暂停自动播放。"""
-    try:
-        session = _get_session(req.session_id)
-    except ValueError as e:
-        return WsError(message=str(e), code="session_not_found").model_dump()
+    session = _get_session_or_404(req.session_id)
 
     _cancel_play_task(req.session_id)
     if session.mode == "playing":
@@ -536,10 +543,7 @@ async def replay_pause(req: ReplayPauseRequest):
 @app.get("/api/replay/status", response_model=ReplayStatusResponse)
 async def replay_status(session_id: str):
     """查询回放状态。"""
-    try:
-        session = _get_session(session_id)
-    except ValueError as e:
-        return WsError(message=str(e), code="session_not_found").model_dump()
+    session = _get_session_or_404(session_id)
 
     return ReplayStatusResponse(**session.get_status())
 

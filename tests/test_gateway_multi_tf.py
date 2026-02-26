@@ -115,7 +115,7 @@ class TestMultiTFSessionCreate:
         assert body["session_id"] not in _orchestrators
 
     def test_empty_data_returns_error(self):
-        """数据为空 → 返回 500（gateway 返回 WsError 与 response_model 不匹配）。"""
+        """数据为空 → 返回 404。"""
         with patch("newchan.gateway._load_bars", return_value=[]):
             c = TestClient(app, raise_server_exceptions=False)
             resp = c.post("/api/replay/start", json={
@@ -123,17 +123,17 @@ class TestMultiTFSessionCreate:
                 "tf": "5m",
                 "timeframes": ["5m", "30m"],
             })
-        assert resp.status_code == 500
+        assert resp.status_code == 404
 
     def test_load_failure_returns_error(self):
-        """_load_bars 抛异常 → 返回 500（gateway 返回 WsError 与 response_model 不匹配）。"""
+        """_load_bars 抛异常 → 返回 404。"""
         with patch("newchan.gateway._load_bars", side_effect=ValueError("缓存不存在")):
             c = TestClient(app, raise_server_exceptions=False)
             resp = c.post("/api/replay/start", json={
                 "symbol": "MISSING",
                 "tf": "5m",
             })
-        assert resp.status_code == 500
+        assert resp.status_code == 404
 
 
 # =====================================================================
@@ -218,13 +218,13 @@ class TestMultiTFStep:
         assert "bar_idx" in body
 
     def test_step_invalid_session(self):
-        """不存在的 session_id → 返回 500（WsError 与 response_model 不匹配）。"""
+        """不存在的 session_id → 返回 404。"""
         c = TestClient(app, raise_server_exceptions=False)
         resp = c.post("/api/replay/step", json={
             "session_id": "nonexistent",
             "count": 1,
         })
-        assert resp.status_code == 500
+        assert resp.status_code == 404
 
 
 # =====================================================================
@@ -319,13 +319,13 @@ class TestMultiTFSeek:
         assert strokes_step == strokes_seek
 
     def test_seek_invalid_session(self):
-        """不存在的 session_id → 返回 500（WsError 与 response_model 不匹配）。"""
+        """不存在的 session_id → 返回 404。"""
         c = TestClient(app, raise_server_exceptions=False)
         resp = c.post("/api/replay/seek", json={
             "session_id": "nonexistent",
             "target_idx": 10,
         })
-        assert resp.status_code == 500
+        assert resp.status_code == 404
 
 
 # =====================================================================
