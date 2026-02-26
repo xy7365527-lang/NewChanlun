@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
 from datetime import timezone
 from typing import Callable
 
@@ -63,11 +64,21 @@ class DatabentoLiveFeeder:
         # db_symbols 列表（用于 subscribe）
         self._db_symbols: list[str] = []
 
+        # 每个 symbol 的实时状态追踪
+        self._symbol_states: dict[str, dict] = {}
+        self._reconnect_count: int = 0
+
         for sym in self._symbols:
             db_sym = _FUTURES_MAP.get(sym, f"{sym}.c.0")
             self._db_to_our[db_sym] = sym
             self._cache_map[sym] = f"{sym}_1min_raw"
             self._db_symbols.append(db_sym)
+            self._symbol_states[sym] = {
+                "connection": "disconnected",
+                "last_update_ts": None,
+                "reconnect_count": 0,
+                "queue_depth": 0,
+            }
 
     @property
     def is_running(self) -> bool:
@@ -82,11 +93,21 @@ class DatabentoLiveFeeder:
         return self._last_error
 
     def status(self) -> dict:
-        """返回当前状态。"""
+        """返回当前状态（含每个 symbol 的连接详情）。"""
+        symbols_status: dict[str, dict] = {}
+        for sym in self._symbols:
+            state = self._symbol_states.get(sym, {})
+            symbols_status[sym] = {
+                "connection": state.get("connection", "disconnected"),
+                "last_update_ts": state.get("last_update_ts"),
+                "reconnect_count": state.get("reconnect_count", 0),
+                "queue_depth": state.get("queue_depth", 0),
+            }
         return {
             "running": self._running,
-            "symbols": self._symbols,
+            "symbols": symbols_status,
             "bar_count": self._bar_count,
+            "reconnect_count": self._reconnect_count,
             "last_error": self._last_error,
         }
 
@@ -102,6 +123,8 @@ class DatabentoLiveFeeder:
 
         self._running = True
         self._last_error = None
+        for sym in self._symbols:
+            self._symbol_states[sym]["connection"] = "connected"
         self._thread = threading.Thread(
             target=self._run, daemon=True, name="databento-live",
         )
@@ -111,6 +134,8 @@ class DatabentoLiveFeeder:
     def stop(self) -> None:
         """停止实时订阅。"""
         self._running = False
+        for sym in self._symbols:
+            self._symbol_states[sym]["connection"] = "disconnected"
         if self._client is not None:
             try:
                 self._client.close()
@@ -150,6 +175,8 @@ class DatabentoLiveFeeder:
             logger.error("Live feeder 异常: %s", e)
         finally:
             self._running = False
+            for sym in self._symbols:
+                self._symbol_states[sym]["connection"] = "disconnected"
 
     def _handle_ohlcv(self, msg: db.OHLCVMsg) -> None:
         """处理一条 OHLCVMsg，增量追加到缓存。"""
@@ -184,6 +211,10 @@ class DatabentoLiveFeeder:
             cache_name = self._cache_map[our_sym]
             append_df(cache_name, row)
             self._bar_count += 1
+
+            # 更新 symbol 状态
+            self._symbol_states[our_sym]["last_update_ts"] = time.time()
+            self._symbol_states[our_sym]["connection"] = "connected"
 
             # 回调：将 bar 传递给外部消费者（如 LiveEngine）
             if self._on_bar is not None:
