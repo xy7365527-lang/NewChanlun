@@ -258,6 +258,64 @@ def get_last_ceremony_info(root):
 
 
 # ---------------------------------------------------------------------------
+# 弱质询信号词扫描（212号下游推论）
+# ---------------------------------------------------------------------------
+
+# 回避性措辞：出现在谱系 commit message 或正文中时，标记为潜在质询深度不足
+WEAK_INQUIRY_KEYWORDS = [
+    "正常表现",
+    "不需要变更",
+    "无需",
+    "已足够",
+    "不需要",
+    "无需调整",
+    "符合预期",
+    "暂不处理",
+    "可以接受",
+    "影响不大",
+    "不影响",
+    "问题不大",
+    "可忽略",
+]
+
+
+def _scan_weak_inquiry_signals(root):
+    """扫描最近 settled 谱系内容，检测弱质询信号词。
+
+    返回命中列表 [{"file": basename, "keyword": matched_keyword, "line": line_text}, ...]
+    """
+    settled_dir = os.path.join(root, ".chanlun", "genealogy", "settled")
+    if not os.path.isdir(settled_dir):
+        return []
+
+    settled_files = sorted(glob.glob(os.path.join(settled_dir, "*.md")))
+    # 只扫描最近 20 个（与结构层检测范围一致）
+    recent_files = settled_files[-20:]
+
+    hits = []
+    for fp in recent_files:
+        try:
+            with open(fp, encoding="utf-8") as f:
+                content = f.read()
+        except Exception:
+            continue
+
+        basename = os.path.basename(fp)
+        for keyword in WEAK_INQUIRY_KEYWORDS:
+            if keyword in content:
+                # 找到包含关键词的首行作为上下文
+                for line in content.splitlines():
+                    if keyword in line:
+                        hits.append({
+                            "file": basename,
+                            "keyword": keyword,
+                            "line": line.strip()[:120],
+                        })
+                        break  # 每个文件每个关键词只记录一次
+    return hits
+
+
+# ---------------------------------------------------------------------------
 # 纲举目张推导
 # ---------------------------------------------------------------------------
 
@@ -614,7 +672,7 @@ def derive_mu(block_stats, genealogy_stats, root):
                 "evidence": "日线 7 年数据仅产生 1 层递归（14 线段 → 2 中枢 → 1 走势），T5/T6/T7 全 N/A",
             })
 
-    # 补充规则：谱系类型分布检测
+    # 补充规则：谱系类型分布检测（结构层）
     recent_types = genealogy_stats.get("recent_type_distribution", {})
     if recent_types:
         # 如果最近谱系全是 语法记录 类型，缺少 矛盾发现 → 质询深度不足信号
@@ -628,6 +686,20 @@ def derive_mu(block_stats, genealogy_stats, root):
                     "mu": "质询深度不足",
                     "reason": f"最近 {total_recent} 个谱系无矛盾发现类型——可能停留在语法记录层，未触及概念张力",
                 })
+
+    # 补充规则：谱系内容弱质询信号词扫描（内容层，212号下游推论）
+    weak_inquiry_hits = _scan_weak_inquiry_signals(root)
+    if weak_inquiry_hits:
+        if "弱质询信号词" not in audited:
+            hit_summary = "; ".join(
+                f"{h['file']}→「{h['keyword']}」" for h in weak_inquiry_hits[:5]
+            )
+            if len(weak_inquiry_hits) > 5:
+                hit_summary += f" …等共 {len(weak_inquiry_hits)} 处"
+            new_mu.append({
+                "mu": "弱质询信号词",
+                "reason": f"谱系内容中检测到回避性措辞——{hit_summary}",
+            })
 
     # 补充规则：pending 谱系积压
     pending_count = genealogy_stats.get("pending_count", 0)
