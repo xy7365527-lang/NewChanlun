@@ -2,10 +2,11 @@
 id: '214'
 title: 递归级别 ≥ 1 验证——结构性不可达确认
 type: 概念发现
-status: 已结算
+status: 已结算（被215号否定）
 date: 2026-02-26
 source: v53-swarm（Lead 接管 + yfinance 多品种验证）
 settlement: 吸收
+negated_by: '215'  # AV 1min 付费数据源下 Level 1 可达
 depends_on:
   - '208'   # gauge 不变量保持率分析（T6/T7 结构性不可达）
   - '202'   # 递归级别验证分类为行动类
