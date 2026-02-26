@@ -51,8 +51,8 @@ gangju_analysis.py 新增的弱质询信号词扫描首次运行，检测到 8 �
 
 ## 下游推论
 
-1. gangju_analysis.py 的 WEAK_INQUIRY_KEYWORDS 列表需要精简 + 上下文过滤 → 待实现
-2. 扫描器首次运行的校准数据已获得——可作为后续精度评估的 baseline
+1. ~~gangju_analysis.py 的 WEAK_INQUIRY_KEYWORDS 列表需要精简 + 上下文过滤~~ → [resolved: v52-swarm Lead 直接实现——关键词 13→8 + _is_excluded_line 上下文过滤]
+2. 扫描器首次运行的校准数据已获得——可作为后续精度评估的 baseline → [resolved: 定理类，213号本身即 baseline]
 
 ## 谱系引用
 
