@@ -284,11 +284,13 @@ _EXCLUSION_PATTERNS = [
 
 
 def _is_excluded_line(line):
-    """检查行是否属于排除上下文（引用、技术范围界定）。"""
+    """检查行是否属于排除上下文（引用、技术范围界定、文档示例）。"""
     stripped = line.strip()
-    # 引号包裹的文本（引用他人原话）
+    # 引号包裹的文本（引用他人原话 / 文档中列举关键词示例）
     if "「" in stripped or "」" in stripped or """ in stripped or """ in stripped:
         return True
+    if '"' in stripped and stripped.count('"') >= 2:
+        return True  # 双引号包裹的示例文本
     for pat in _EXCLUSION_PATTERNS:
         if pat in stripped:
             return True
