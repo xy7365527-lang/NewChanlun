@@ -7,6 +7,7 @@ import { useChart } from "./hooks/useChart";
 import { useDatafeed } from "./hooks/useDatafeed";
 import { useOverlay } from "./hooks/useOverlay";
 import { useEventFeed } from "./hooks/useEventFeed";
+import { useLiveWebSocket } from "./hooks/useLiveWebSocket";
 import { useAppStore } from "./store/appStore";
 import { useReplayStore } from "./store/replayStore";
 import { EventMarkerManager } from "./primitives/EventMarkerPrimitive";
@@ -41,6 +42,14 @@ function ChartArea() {
   // 连接 WebSocket（回放模式启用）
   useEventFeed({ enabled: isReplaying });
 
+  // 实时 WebSocket（非回放模式下启用）
+  useLiveWebSocket({
+    symbol,
+    enabled: !isReplaying,
+    candleSeries: refs?.candleSeries ?? null,
+    volumeSeries: refs?.volumeSeries ?? null,
+  });
+
   // 挂载/卸载 marker manager
   useEffect(() => {
     if (refs?.candleSeries) {
@@ -69,14 +78,17 @@ function ChartArea() {
     prevEventsLen.current = events.length;
   }, [events]);
 
+  const maxLevel = overlay?.levels?.length ?? 0;
+
   return (
     <>
+      <Toolbar maxLevel={maxLevel} />
       <div style={{ flex: 1, minHeight: 0, position: "relative" }}>
         <div
           ref={containerRef}
           style={{ width: "100%", height: "100%", background: "#131722" }}
         />
-        <StatusBadge lstar={lstar} totalLevels={overlay?.levels?.length ?? 0} />
+        <StatusBadge lstar={lstar} totalLevels={maxLevel} />
       </div>
       <MacdPane overlay={overlay} mainChart={refs?.chart ?? null} />
     </>
@@ -97,7 +109,6 @@ export default function App() {
         overflow: "hidden",
       }}
     >
-      <Toolbar />
       <ChartArea />
       <ReplayBar />
     </div>

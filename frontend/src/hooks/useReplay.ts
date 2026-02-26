@@ -3,7 +3,7 @@ import { useReplayStore } from "../store/replayStore";
 import { useAppStore } from "../store/appStore";
 import type { ReplayStatus } from "../types/events";
 
-const API_BASE = "http://localhost:8766";
+const API_BASE = "";
 
 export interface UseReplayReturn {
   startReplay: () => Promise<void>;
