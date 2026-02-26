@@ -389,3 +389,16 @@
 194-1: resolved    # ab_bridge 新笔退化修复（b3b5a9a）
 194-2: resolved    # lesson81_anchor_ambiguity 歧义消解——原文语境确认"K线"= merged K线，代码忠实
 194-3: blocked    # BiEngine O(n²) 性能优化（阻塞项：实盘数据量评估——当前无正确性影响）
+
+# === 216号 — 异质诊断代码验证 ===
+216-1: resolved    # VDW validation_cmd 已实现代码验证步骤（v63-swarm downstream-triage 评估）
+216-2: resolved    # 诊断结果已有验证/未验证状态区分（v63-swarm downstream-triage 评估）
+
+# === 218号 — Lead 并行化 ===
+218-3: resolved    # Gemini 单向质询已作为 Codex 不可用时的降级方案（v63-swarm downstream-triage 评估）
+
+# === 220号 — 缠论交易策略体系 ===
+220-1: resolved    # fengkong.md 定义：风控不是独立模块，是买卖点系统的内在属性 + backtest.py 重写删除独立风控层（v63-swarm）
+220-2: resolved    # backtest.py 重写：短差程序模拟 + 成本归零追踪 + 仓位阶段追踪（v63-swarm risk-implementation）
+220-3: resolved    # backtest.py _check_exit_condition()：退出条件基于 BSP 类型的结构性否定（Type1/2/3）（v63-swarm）
+220-4: resolved    # backtest.py PositionPhase 枚举：COST_REDUCTION → COST_ZERO → EARN_SHARES（v63-swarm）
