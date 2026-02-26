@@ -1069,6 +1069,11 @@ nodes:
   status: 已结算
   type: 概念发现
   file: settled/214-recursive-level-unreachable.md
+- id: '215'
+  title: Alpha Vantage 1min 大规模验证——递归 Level 1 可达确认
+  status: 已结算
+  type: 概念发现
+  file: settled/215-av-1min-recursive-reachable.md
 edges:
   depends_on:
   - from: '136'
@@ -2141,10 +2146,10 @@ edges:
     to: '208'
   - from: '214'
     to: '202'
-  - from: '214'
+  - from: '215'
+    to: '214'
+  - from: '215'
     to: '208'
-  - from: '214'
-    to: '202'
   triggered:
   - from: '005'
     to: 005a
@@ -2215,6 +2220,8 @@ edges:
   - from: '162'
     to: '158'
     scope: partial:下游推论1被否定，三步战略本身保留
+  - from: '215'
+    to: '214'
   related:
   - between:
     - '001'
@@ -3654,6 +3661,8 @@ edges:
     by: '156'
   - target: 088
     by: '173'
+  - target: '214'
+    by: '215'
   - target: '158'
     by: '162'
     scope: partial:下游推论1被否定，三步战略本身保留
