@@ -90,7 +90,7 @@ spawn 完成后，**立即调用 `TaskList`** 查看任务状态。然后进入 
    - 禁止逐个串行处理工位
 3. **增量持久化**：工位完成时更新 session 文件
 4. **Lead 不空转**：如果仍有 `in_progress` 工位，Lead 在等待期间并行执行可用的独立操作：
-   - 拓扑分析家 spawn（179号，上下文隔离冷读 .chanlun/block-topology/）
+   - 拓扑分析家冷读（179号，上下文隔离读取 .chanlun/block-topology/——conditional skill 按需触发）
    - meta-observer 二阶观察
    - session 增量写入
    - 这些操作与工位监控并行，不是串行等待后再执行

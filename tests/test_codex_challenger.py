@@ -91,7 +91,7 @@ class TestReview:
             assert result.mode == "review"
             assert result.subject == "中枢实现代码"
             assert result.response == "无否定。代码逻辑自洽。"
-            assert result.model == "codex-5.3"
+            assert result.model == "gpt-5.3-codex"
             assert "中枢实现代码" in result.prompt
             assert "src/newchan/core/zhongshu.py" in result.prompt
 
@@ -180,7 +180,7 @@ class TestDecide:
             assert isinstance(result, ReviewResult)
             assert result.mode == "decide"
             assert result.subject == "中枢内部线段集合用 list 还是 frozenset"
-            assert result.model == "codex-5.3"
+            assert result.model == "gpt-5.3-codex"
 
 
 class TestFallback:
@@ -219,7 +219,7 @@ class TestFallback:
             c = CodexChallenger(api_key="test")
             result = c.review("test")
 
-            assert result.model == "codex-5.3"
+            assert result.model == "gpt-5.3-codex"
             assert result.response == "primary ok"
 
     def test_both_fail_raises(self) -> None:
