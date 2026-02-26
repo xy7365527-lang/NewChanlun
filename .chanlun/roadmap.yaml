@@ -648,8 +648,14 @@ tasks:
   - id: risk_management_module
     title: "风控与仓位管理模块（缠论体系）"
     priority: P1
-    status: active
-    unblocked_note: "220号谱系已结算（缠论交易策略体系），定义基础已就绪"
+    status: completed
+    completed_date: "2026-02-26"
+    completion_note: |
+      v63-swarm 3个子任务全部完成：
+      - fengkong.md: 缠论风控定义（退出条件/短差程序/成本归零），11课原文溯源
+      - backtest.py: 重写——删除 stop_loss_pct，实现结构性退出条件（Type1/2/3）+
+        短差程序模拟 + 仓位阶段追踪（降成本→归零→挣股票）
+      - tests/test_backtest.py: 18 tests passed
     source: "维度1（回测→实战缺口）：无风控模块，实战存在无限风险敞口"
     description: |
       【回退说明】原设计使用通用金融工程语言（ATR止损、Kelly公式、最大回撤控制），
