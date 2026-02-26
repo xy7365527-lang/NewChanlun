@@ -1084,6 +1084,21 @@ nodes:
   status: 已结算
   type: meta-rule
   file: settled/217-meta-observation-v56-swarm.md
+- id: '218'
+  title: Lead 并行化——割掉 RTAS 的串行尾巴
+  status: 已结算
+  type: 语法记录
+  file: settled/218-lead-parallelization.md
+- id: '219'
+  title: 元观察——v60-swarm 缠论语言封闭性违反 + F3术语修正 + risk残留断裂
+  status: 已结算
+  type: meta-rule
+  file: settled/219-meta-observation-v60-swarm.md
+- id: '220'
+  title: 缠论交易策略体系——退出条件/资金管理/短差程序/区间套溯源
+  status: 生成态
+  type: concept-discovery
+  file: pending/220-chanlun-trading-system.md
 edges:
   depends_on:
   - from: '136'
@@ -2170,6 +2185,22 @@ edges:
     to: '216'
   - from: '217'
     to: '175'
+  - from: '218'
+    to: 069
+  - from: '218'
+    to: 090
+  - from: '218'
+    to: '143'
+  - from: '218'
+    to: '217'
+  - from: '219'
+    to: '217'
+  - from: '219'
+    to: '075'
+  - from: '219'
+    to: '218'
+  - from: '220'
+    to: '219'
   triggered:
   - from: '005'
     to: 005a

@@ -490,6 +490,85 @@ def discover_business_tasks(root):
     return tasks
 
 
+def derive_structural_workstations(root, phase):
+    """220号下游推论：从 dispatch-dag event_skill_map 推导结构工位。
+
+    phase="initial"：只推导首次扫描时可执行的结构工位
+    phase="rescan"：推导 swarm_cycle_end 触发的结构工位（meta-observer、topology-analyst、gangju-audit）
+
+    结构工位作为 ephemeral skill invocation 出现在 workstations 列表中（F3 已解决：075号定义成立）。
+    """
+    workstations = []
+
+    if phase == "rescan":
+        # meta-observer：swarm_cycle_end 触发（dispatch-dag structural skill）
+        workstations.append({
+            "priority": "P1",
+            "name": "meta-observer",
+            "type": "structural",
+            "trigger": "swarm_cycle_end",
+            "status": "structural:rescan",
+            "source": "dispatch-dag:event_skill_map",
+            "agent": ".claude/agents/meta-observer.md",
+            "description": "二阶观察——规则触发/违反模式、语法记录候选、元规则一致性",
+        })
+
+        # topology-analyst：blocks 存在时触发（conditional skill）
+        blocks_dir = os.path.join(root, ".chanlun/block-topology/blocks")
+        if os.path.isdir(blocks_dir):
+            block_count = len(glob.glob(os.path.join(blocks_dir, "*.json")))
+            if block_count > 0:
+                workstations.append({
+                    "priority": "P2",
+                    "name": "topology-analyst",
+                    "type": "conditional",
+                    "trigger": "blocks_exist",
+                    "status": f"structural:rescan (blocks={block_count})",
+                    "source": "dispatch-dag:event_skill_map",
+                    "agent": ".claude/agents/topology-analyst.md",
+                    "description": f"冷读 .chanlun/block-topology/（{block_count} 区块）",
+                })
+
+        # gangju-audit：gangju_analysis 只读函数检测 audit_needed
+        audit_needed = _check_gangju_audit_needed(root)
+        if audit_needed:
+            workstations.append({
+                "priority": "P1",
+                "name": "gangju-audit",
+                "type": "structural",
+                "trigger": "audit_needed",
+                "status": "structural:rescan",
+                "source": "gangju_analysis:audit_needed",
+                "description": "纲举目张审计——gemini-challenger(verify) + codex-challenger(review)",
+            })
+
+    return workstations
+
+
+def _check_gangju_audit_needed(root):
+    """从 gangju_analysis 导入只读函数，检测是否需要审计。
+
+    只读原则：不调用 generate_pending_skeleton，只检测 audit_needed 条件。
+    """
+    try:
+        import sys
+        scripts_dir = os.path.join(root, "scripts")
+        if scripts_dir not in sys.path:
+            sys.path.insert(0, scripts_dir)
+        import gangju_analysis as ga
+
+        # 只读检测：提取纲、计算统计、判断 audit_needed
+        gangs = ga.extract_gang(root)
+        if not gangs:
+            return False
+        block_stats = ga.compute_block_stats(root)
+        genealogy_stats = ga.compute_genealogy_stats(root)
+        mu = ga.derive_mu(gangs, block_stats, genealogy_stats)
+        return mu.get("audit_needed", False)
+    except Exception:
+        return False
+
+
 def detect_genealogy_anomalies(root):
     """检测谱系编号异常：重复编号、文件名编号与内部 id 不一致、dag.yaml 完整性、frontmatter schema。
 
@@ -668,6 +747,8 @@ def main():
     parser.add_argument("--structural", action="store_true", help="(deprecated) 等同于 --skills")
     parser.add_argument("--workstations", nargs="*", help="指定业务工位名称")
     parser.add_argument("--workstations-json", type=str, help="JSON 字符串，解析为结构化工位列表")
+    parser.add_argument("--phase", choices=["initial", "rescan"], default="initial",
+                        help="扫描阶段：initial（首次）或 rescan（工位完成后）")
     args = parser.parse_args()
 
     root = os.getcwd()
@@ -769,6 +850,13 @@ def main():
 
     result["workstations"] = workstations
     result["test_verification_needed"] = True  # Lead spawn 独立测试工位
+    result["phase"] = args.phase
+
+    # 220号：结构工位推导（phase 决定触发条件）
+    structural_ws = derive_structural_workstations(root, args.phase)
+    if structural_ws:
+        workstations.extend(structural_ws)
+        result["structural_workstations"] = [w["name"] for w in structural_ws]
 
     # pending 谱系计数（多处使用）
     pending_count = len(glob.glob(os.path.join(root, ".chanlun/genealogy/pending/*.md")))
