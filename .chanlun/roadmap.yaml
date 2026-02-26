@@ -270,3 +270,165 @@ tasks:
       - "069-recursive-topology-async-self-referential-swarm（unresolved #4）"
     added_by: "083号Gemini decide（异质质询代理执行）"
     added_date: "2026-02-21"
+
+  # ─── 第四阶段任务（v56-swarm Gemini decide，2026-02-26）──────────────────────
+  # 来源：编排者指令"沿总纲领一步步前进" + Gemini decide 异质决策
+  # 诊断：A系统高维产出（BSP/递归/T6T7）与B系统低维展示的矛盾 + 概念定义遗留债务
+  # 方向：打通 A→B 可视化桥梁 + 清偿概念债务 + 扩大验证规模
+
+  - id: bsp_visualization
+    title: "买卖点(BSP) B系统可视化"
+    priority: P1
+    status: active
+    source: "v56-swarm Gemini decide（第四阶段派生）"
+    description: |
+      解决断点1：A系统已通过 ab_bridge_newchan.py 产出 bsp 数据（第296行），
+      但 b_plot.py 和 b_chart.py 完全无 BSP 渲染代码。
+      需实现买卖点的可视化标注，打通 A->B 的实战反馈闭环。
+      一、二、三类买卖点需差异化视觉呈现（颜色/形状/标签）。
+    constraints:
+      - "必须支持一、二、三类买卖点的差异化视觉呈现"
+      - "不得修改 A 系统产出的数据结构，仅在 B 系统做适配"
+      - "BSP 坐标基于 merged 索引，需通过 merged_to_raw 映射到时间轴"
+    validation_cmd: "python -c \"import sys; sys.path.insert(0,'src'); from newchan import b_plot; src=open('src/newchan/b_plot.py').read(); assert 'bsp' in src.lower(), 'b_plot.py has no BSP rendering'\" && python -m pytest tests/ -k bsp -x -q"
+    relevant_files:
+      - "src/newchan/b_plot.py"
+      - "src/newchan/b_chart.py"
+      - "src/newchan/ab_bridge_newchan.py"
+    subtasks:
+      - id: bsp_plot_render
+        title: "b_plot.py 买卖点渲染"
+        description: "在 b_plot.py 中实现 BSP 标注层，支持三类买卖点差异化显示"
+        relevant_files:
+          - "src/newchan/b_plot.py"
+          - "src/newchan/ab_bridge_newchan.py"
+      - id: bsp_chart_render
+        title: "b_chart.py 买卖点渲染"
+        description: "在 b_chart.py 中实现 BSP 标注层（与 b_plot 并行）"
+        relevant_files:
+          - "src/newchan/b_chart.py"
+          - "src/newchan/ab_bridge_newchan.py"
+      - id: bsp_render_tests
+        title: "BSP 渲染测试"
+        description: "新增 tests/test_bsp_visualization.py，验证三类买卖点渲染输出"
+        relevant_files:
+          - "tests/"
+    decomposition: parallel
+    added_by: "v56-swarm Gemini decide（异质质询代理执行）"
+    added_date: "2026-02-26"
+
+  - id: zhongshu_expansion_validation
+    title: "中枢扩展充要条件验证闭环"
+    priority: P1
+    status: active
+    source: "v56-swarm Gemini decide（第四阶段派生）"
+    description: |
+      解决定义文件遗留债务：zhongshu.md 第434行"中枢扩展充要条件待验证"、
+      第480行"问题#2暂搁待走势类型模块"。
+      zoushi.md v1.6 已结算，依赖已满足。
+      需编写针对性测试验证充要条件，并更新 zhongshu.md 状态。
+      充要条件：离开段[dn,gn]与中枢[ZD,ZG]不重叠 ↔ 中枢扩展/趋势延续。
+    constraints:
+      - "必须基于已结算的 zoushi 模块（a_trendtype_v0.py + a_move_v1.py）进行验证"
+      - "验证结果必须反写回 zhongshu.md，更新 #2 状态"
+      - "如发现充要条件不成立，走矛盾上浮（/escalate），不绕过"
+    validation_cmd: "python -m pytest tests/test_zhongshu_expansion.py -x -q"
+    relevant_files:
+      - "src/newchan/a_zhongshu_v1.py"
+      - "src/newchan/a_move_v1.py"
+      - "src/newchan/a_trendtype_v0.py"
+      - ".chanlun/definitions/zhongshu.md"
+    subtasks:
+      - id: expansion_condition_test
+        title: "充要条件测试用例编写"
+        description: "构造满足/不满足扩展条件的合成数据，验证 a_zhongshu_v1.py 行为"
+        relevant_files:
+          - "src/newchan/a_zhongshu_v1.py"
+          - "src/newchan/synthetic.py"
+      - id: zhongshu_def_update
+        title: "zhongshu.md 状态更新"
+        description: "根据验证结果更新 zhongshu.md #2 状态（已结算/矛盾上浮）"
+        relevant_files:
+          - ".chanlun/definitions/zhongshu.md"
+    decomposition: parallel
+    added_by: "v56-swarm Gemini decide（异质质询代理执行）"
+    added_date: "2026-02-26"
+
+  - id: t6t7_contribution_analysis
+    title: "T6/T7 真实数据贡献率分析"
+    priority: P2
+    status: active
+    source: "v56-swarm Gemini decide（第四阶段派生）"
+    description: |
+      解决断点4：T6/T7 已集成到 a_divergence_v1.py OR 逻辑，
+      但 215号 T8 通过率 65.4% 中 T6/T7 贡献未单独统计。
+      需在 20 只美股标的（AV 1min 数据）上统计：
+      1. T6 单独触发率（DIF峰值比较）
+      2. T7 单独触发率（HIST峰值比较）
+      3. T2/T6/T7 各自贡献的背驰判定数量
+      4. 仅 T6 或 T7 触发（T2 未触发）的比例——衡量 T6/T7 的增量价值
+    constraints:
+      - "使用 AV 1min 数据（215号已验证的 20 只标的）"
+      - "统计结果写入谱系（新建 217号）"
+      - "不修改 a_divergence_v1.py 逻辑，仅添加统计层"
+    validation_cmd: "python scripts/t6t7_contribution_stats.py --output tmp/t6t7-stats.json && python -c \"import json; d=json.load(open('tmp/t6t7-stats.json')); assert 't6_only_rate' in d\""
+    relevant_files:
+      - "src/newchan/a_divergence_v1.py"
+      - "src/newchan/data_av.py"
+      - "scripts/t6t7_contribution_stats.py"
+    subtasks:
+      - id: stats_script
+        title: "T6/T7 统计脚本"
+        description: "新建 scripts/t6t7_contribution_stats.py，遍历 20 只标的统计三维度触发率"
+        relevant_files:
+          - "src/newchan/a_divergence_v1.py"
+          - "src/newchan/data_av.py"
+      - id: t6t7_genealogy
+        title: "写入 217号谱系"
+        description: "将统计结果写入 .chanlun/genealogy/settled/217-t6t7-contribution-analysis.md"
+        relevant_files:
+          - ".chanlun/genealogy/settled/"
+    decomposition: parallel
+    added_by: "v56-swarm Gemini decide（异质质询代理执行）"
+    added_date: "2026-02-26"
+
+  - id: multi_tf_gateway_upgrade
+    title: "多TF gateway 路径升级至 RecursiveOrchestrator"
+    priority: P2
+    status: active
+    source: "v56-swarm Gemini decide（第四阶段派生）"
+    description: |
+      解决断点2（修正版）：replay.py 已升级完毕（单TF路径）。
+      多TF路径在 gateway.py 中使用 TFOrchestrator（第52/73/261行）。
+      需将 gateway.py 的多TF逻辑迁移至 RecursiveOrchestrator，
+      实现单TF/多TF架构收敛。
+      关键函数：_step_multi_tf（第289行）、_play_multi_tf（第452行）。
+    constraints:
+      - "升级后多TF回放结果必须与旧版一致或更优（全量测试无回归）"
+      - "彻底移除 TFOrchestrator 引用（gateway.py 第52/73/261行）"
+      - "如发现 TFOrchestrator 与 RecursiveOrchestrator 存在不可调和的语义差异，走矛盾上浮"
+    validation_cmd: "python -m pytest tests/ -x -q && python -c \"import sys; sys.path.insert(0,'src'); src=open('src/newchan/gateway.py').read(); assert 'TFOrchestrator' not in src, 'TFOrchestrator still present'\""
+    relevant_files:
+      - "src/newchan/gateway.py"
+      - "src/newchan/b_timeframe.py"
+      - "src/newchan/orchestrator/recursive.py"
+    subtasks:
+      - id: gateway_multi_tf_migrate
+        title: "gateway.py 多TF逻辑迁移"
+        description: "将 _step_multi_tf / _play_multi_tf 改用 RecursiveOrchestrator"
+        relevant_files:
+          - "src/newchan/gateway.py"
+          - "src/newchan/orchestrator/recursive.py"
+      - id: tf_orchestrator_removal
+        title: "TFOrchestrator 清除"
+        description: "确认 TFOrchestrator 无其他引用后删除或标记废弃"
+        relevant_files:
+          - "src/newchan/gateway.py"
+      - id: multi_tf_regression_tests
+        title: "多TF回归测试"
+        description: "新增/更新 tests/test_gateway_multi_tf.py 验证升级后行为"
+        relevant_files:
+          - "tests/"
+    decomposition: parallel
+    added_by: "v56-swarm Gemini decide（异质质询代理执行）"
+    added_date: "2026-02-26"
