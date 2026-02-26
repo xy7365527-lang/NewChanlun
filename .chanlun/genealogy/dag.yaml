@@ -1059,6 +1059,11 @@ nodes:
   status: 生成态
   type: 待定
   file: pending/212-gangju-auto-20260225-2334.md
+- id: '213'
+  title: 弱质询信号词扫描——全 false positive + 扫描器精度改进
+  status: 已结算
+  type: 概念发现
+  file: settled/213-weak-inquiry-false-positive.md
 edges:
   depends_on:
   - from: '136'
@@ -2125,6 +2130,8 @@ edges:
     to: '211'
   - from: '212'
     to: '208'
+  - from: '213'
+    to: '212'
   triggered:
   - from: '005'
     to: 005a

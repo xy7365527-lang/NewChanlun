@@ -261,27 +261,44 @@ def get_last_ceremony_info(root):
 # 弱质询信号词扫描（212号下游推论）
 # ---------------------------------------------------------------------------
 
-# 回避性措辞：出现在谱系 commit message 或正文中时，标记为潜在质询深度不足
+# 回避性措辞（213号校准后精简版）：仅保留真正的回避信号词
+# 移除了"不需要"、"不影响"、"无需"等技术文档高频词（100% false positive）
 WEAK_INQUIRY_KEYWORDS = [
-    "正常表现",
-    "不需要变更",
-    "无需",
-    "已足够",
-    "不需要",
-    "无需调整",
-    "符合预期",
     "暂不处理",
-    "可以接受",
-    "影响不大",
-    "不影响",
-    "问题不大",
     "可忽略",
+    "问题不大",
+    "影响不大",
+    "不需要深入",
+    "不需要分析",
+    "不需要变更",
+    "无需调整",
 ]
+
+# 上下文排除模式（213号：引用行和技术范围界定产生 false positive）
+_EXCLUSION_PATTERNS = [
+    "编排者",       # 编排者引语
+    "原文",         # 原文引用
+    "缠师",         # 缠师引用
+    "不需要 ",      # "不需要 X 库/工具" 技术范围界定（注意尾部空格）
+]
+
+
+def _is_excluded_line(line):
+    """检查行是否属于排除上下文（引用、技术范围界定）。"""
+    stripped = line.strip()
+    # 引号包裹的文本（引用他人原话）
+    if "「" in stripped or "」" in stripped or """ in stripped or """ in stripped:
+        return True
+    for pat in _EXCLUSION_PATTERNS:
+        if pat in stripped:
+            return True
+    return False
 
 
 def _scan_weak_inquiry_signals(root):
     """扫描最近 settled 谱系内容，检测弱质询信号词。
 
+    213号校准：增加上下文过滤，排除引用行和技术范围界定。
     返回命中列表 [{"file": basename, "keyword": matched_keyword, "line": line_text}, ...]
     """
     settled_dir = os.path.join(root, ".chanlun", "genealogy", "settled")
@@ -306,6 +323,8 @@ def _scan_weak_inquiry_signals(root):
                 # 找到包含关键词的首行作为上下文
                 for line in content.splitlines():
                     if keyword in line:
+                        if _is_excluded_line(line):
+                            break  # 排除上下文命中，跳过此关键词
                         hits.append({
                             "file": basename,
                             "keyword": keyword,
