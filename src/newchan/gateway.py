@@ -26,7 +26,11 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
 from newchan.a_stroke import Stroke
-from newchan.bi_engine import BiEngine, BiEngineSnapshot
+from newchan.bi_engine import BiEngineSnapshot
+from newchan.orchestrator.recursive import (
+    RecursiveOrchestrator,
+    RecursiveOrchestratorSnapshot,
+)
 from newchan.contracts.ws_messages import (
     ReplayPauseRequest,
     ReplayPlayRequest,
@@ -141,6 +145,20 @@ def _stroke_to_dict(s: Stroke) -> dict:
     }
 
 
+def _snap_events(snap: RecursiveOrchestratorSnapshot | BiEngineSnapshot) -> list[DomainEvent]:
+    """统一获取快照中的事件列表。"""
+    if isinstance(snap, RecursiveOrchestratorSnapshot):
+        return snap.all_events
+    return snap.events
+
+
+def _snap_strokes(snap: RecursiveOrchestratorSnapshot | BiEngineSnapshot) -> list[Stroke]:
+    """统一获取快照中的笔列表。"""
+    if isinstance(snap, RecursiveOrchestratorSnapshot):
+        return snap.bi_snapshot.strokes
+    return snap.strokes
+
+
 def _event_to_ws(ev: DomainEvent, tf: str = "", stream_id: str = "") -> dict:
     """将域事件转为 WsEvent 消息 dict。"""
     _exclude = {"event_type", "bar_idx", "bar_ts", "seq", "event_id", "schema_version"}
@@ -158,12 +176,18 @@ def _event_to_ws(ev: DomainEvent, tf: str = "", stream_id: str = "") -> dict:
     ).model_dump()
 
 
-def _snapshot_to_ws(snap: BiEngineSnapshot) -> dict:
-    """BiEngineSnapshot -> WsSnapshot 消息 dict。"""
+def _snapshot_to_ws(snap: RecursiveOrchestratorSnapshot | BiEngineSnapshot) -> dict:
+    """RecursiveOrchestratorSnapshot 或 BiEngineSnapshot -> WsSnapshot 消息 dict。"""
+    if isinstance(snap, RecursiveOrchestratorSnapshot):
+        strokes = snap.bi_snapshot.strokes
+        event_count = len(snap.all_events)
+    else:
+        strokes = snap.strokes
+        event_count = len(snap.events)
     return WsSnapshot(
         bar_idx=snap.bar_idx,
-        strokes=[_stroke_to_dict(s) for s in snap.strokes],
-        event_count=len(snap.events),
+        strokes=[_stroke_to_dict(s) for s in strokes],
+        event_count=event_count,
     ).model_dump()
 
 
@@ -247,7 +271,7 @@ async def replay_start(req: ReplayStartRequest):
         _sessions[session_id] = orch.base_session
     else:
         # 单 TF：走原有路径
-        engine = BiEngine(stroke_mode=req.stroke_mode, min_strict_sep=req.min_strict_sep)
+        engine = RecursiveOrchestrator(stroke_mode=req.stroke_mode, min_strict_sep=req.min_strict_sep)
         session = ReplaySession(
             session_id=session_id,
             bars=bars,
@@ -273,7 +297,7 @@ async def _step_multi_tf(req, session, orch):
     for tf, snaps in tf_snapshots.items():
         sid = orch._stream_ids.get(tf, "")
         for snap in snaps:
-            for ev in snap.events:
+            for ev in _snap_events(snap):
                 events_ws.append(WsEvent(**_event_to_ws(ev, tf=tf, stream_id=sid)))
 
     for tf, snaps in tf_snapshots.items():
@@ -283,7 +307,7 @@ async def _step_multi_tf(req, session, orch):
             bar_idx = snap.bar_idx
             if bar_idx < tf_session.total_bars:
                 await _broadcast(req.session_id, _bar_to_ws(tf_session.bars[bar_idx], bar_idx, tf=tf, stream_id=sid))
-            for ev in snap.events:
+            for ev in _snap_events(snap):
                 await _broadcast(req.session_id, _event_to_ws(ev, tf=tf, stream_id=sid))
     await _broadcast(req.session_id, _status_to_ws(session))
 
@@ -301,7 +325,7 @@ async def _step_single_tf(req, session):
         return ReplayStepResponse(bar_idx=session.current_idx - 1)
 
     last_snap = snapshots[-1]
-    events_ws = [WsEvent(**_event_to_ws(ev)) for snap in snapshots for ev in snap.events]
+    events_ws = [WsEvent(**_event_to_ws(ev)) for snap in snapshots for ev in _snap_events(snap)]
 
     last_bar_idx = session.current_idx - 1
     bar = session.bars[last_bar_idx] if last_bar_idx < session.total_bars else None
@@ -311,7 +335,7 @@ async def _step_single_tf(req, session):
         bar_idx = snap.bar_idx
         if bar_idx < session.total_bars:
             await _broadcast(session.session_id, _bar_to_ws(session.bars[bar_idx], bar_idx))
-        for ev in snap.events:
+        for ev in _snap_events(snap):
             await _broadcast(session.session_id, _event_to_ws(ev))
     await _broadcast(session.session_id, _status_to_ws(session))
 
@@ -352,8 +376,8 @@ async def replay_seek(req: ReplaySeekRequest):
 
     snapshot_ws = WsSnapshot(
         bar_idx=base_snap.bar_idx if base_snap else 0,
-        strokes=[_stroke_to_dict(s) for s in (base_snap.strokes if base_snap else [])],
-        event_count=len(base_snap.events) if base_snap else 0,
+        strokes=[_stroke_to_dict(s) for s in (_snap_strokes(base_snap) if base_snap else [])],
+        event_count=len(_snap_events(base_snap)) if base_snap else 0,
     )
 
     await _broadcast(req.session_id, snapshot_ws.model_dump())
@@ -437,7 +461,7 @@ async def _play_multi_tf(session_id: str, session, orch) -> bool:
             bi = snap.bar_idx
             if bi < tf_session.total_bars:
                 await _broadcast(session_id, _bar_to_ws(tf_session.bars[bi], bi, tf=tf, stream_id=sid))
-            for ev in snap.events:
+            for ev in _snap_events(snap):
                 await _broadcast(session_id, _event_to_ws(ev, tf=tf, stream_id=sid))
     return True
 
@@ -452,7 +476,7 @@ async def _play_single_tf(session_id: str, session) -> bool:
     bar = session.bars[bar_idx] if bar_idx < session.total_bars else None
     if bar is not None:
         await _broadcast(session_id, _bar_to_ws(bar, bar_idx))
-    for ev in snap.events:
+    for ev in _snap_events(snap):
         await _broadcast(session_id, _event_to_ws(ev))
     return True
 
@@ -558,7 +582,7 @@ async def _handle_ws_replay_start(ws: WebSocket, cmd: WsCommand) -> str | None:
         return None
 
     session_id = str(uuid.uuid4())
-    engine = BiEngine()
+    engine = RecursiveOrchestrator()
     session = ReplaySession(session_id=session_id, bars=bars, engine=engine)
     _sessions[session_id] = session
 
@@ -584,7 +608,7 @@ async def _handle_ws_replay_step(ws: WebSocket, bound_session_id: str | None) ->
         bar_idx = snap.bar_idx
         if bar_idx < session.total_bars:
             await _broadcast(sid, _bar_to_ws(session.bars[bar_idx], bar_idx))
-        for ev in snap.events:
+        for ev in _snap_events(snap):
             await _broadcast(sid, _event_to_ws(ev))
     await _broadcast(sid, _status_to_ws(session))
 

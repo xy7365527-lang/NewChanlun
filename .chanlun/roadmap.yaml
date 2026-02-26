@@ -168,17 +168,12 @@ tasks:
   - id: bsp_bridge_connect
     title: "买卖点桥接——打通 A→B 管线"
     priority: P1
-    status: active
+    status: completed
+    completed_date: "2026-02-26"
+    completion_note: |
+      Codex 诊断有误——build_overlay_newchan() 第229行已调用 _run_bsp_via_orchestrator()，
+      第241行返回 bsp 字段。BSP 桥接早已实现。
     source: "v55-swarm Codex 诊断：BSP 断链（ab_bridge_newchan.py 未调用 BuySellPointEngine）"
-    description: |
-      build_overlay_newchan() 返回 JSON 无 bsp 字段，前端无法显示买卖点。
-      直接原因：ab_bridge_newchan.py 使用静态批量管线 _run_a_pipeline()，未调用 BuySellPointEngine。
-      修复：在 ab_bridge_newchan.py 中实例化 RecursiveOrchestrator，批量 process_bar，
-      取 bsp_snapshot 写入返回 dict。
-    constraints:
-      - "BSP 时间索引需与 merged_to_raw 对齐"
-      - "性能：避免双管线重复计算"
-    definition_ref: ".chanlun/definitions/maimai.md"
     added_by: "v55-swarm（Gemini×Codex 交叉诊断）"
     added_date: "2026-02-26"
 
@@ -214,18 +209,16 @@ tasks:
   - id: resolve_panzheng_beichi
     title: "结算盘整背驰与买卖点映射"
     priority: P1
-    status: active
+    status: completed
+    completed_date: "2026-02-26"
+    completion_note: |
+      Gemini 诊断有误——TBD-4 已标记 ✅ 已结算（a_buysellpoint_v1.py:19）。
+      maimai #4 已结算：盘整背驰不触发第一类买卖点；可间接导致第三类买点，由 Type3 机制独立识别。
     source: "v55-swarm Gemini 提案：a_buysellpoint_v1.py 中 TBD-4 未决"
-    description: |
-      解决 a_buysellpoint_v1.py 中的 [TBD-4]。
-      明确定义 a+A+b 结构下的盘整背驰，决断其是否能触发第一类买卖点。
-      产出：更新定义字典，补充相关测试用例。
-    constraints:
-      - "如与 beichi/zhongshu 产生不可调和矛盾 → 走矛盾上浮"
-    definition_ref: ".chanlun/definitions/beichi.md"
     added_by: "v55-swarm（Gemini 提案）"
     added_date: "2026-02-26"
-    title: "递归终止条件表述统一（dispatch-dag 内部矛盾修正）"
+
+  - id: recursion_termination_consistency
     priority: P1
     status: completed
     completed_date: "2026-02-21"
