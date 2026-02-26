@@ -19,7 +19,7 @@
     DAG 的 ceremony_sequence 由 LLM 解释执行（057号推论：LLM 不是状态机）。
     未来演化路径：重写为真正读取 ceremony_sequence 的 DAG 拓扑排序（选项 C 边界条件）。
 """
-import json, os, glob, yaml, sys, argparse, subprocess, re
+import json, os, glob, yaml, argparse, subprocess, re
 
 
 BACKGROUND_NOISE_STATUSES = {"background_noise", "观察项", "背景噪音"}
@@ -475,37 +475,14 @@ def discover_business_tasks(root):
 
     对应 dispatch-dag ceremony_sequence.no_work_fallback：
     "扫描 TODO/覆盖率/spec合规/谱系张力，产出至少一个工位"
+
+    注意：测试验证不在此脚本中执行（只读扫描原则）。
+    通过 test_verification_needed 信号通知 Lead spawn 独立测试工位。
     """
     tasks = []
 
-    # 1. 测试失败扫描
-    try:
-        result = subprocess.run(
-            [sys.executable, "-m", "pytest",
-             "--ignore=tests/test_cli_gateway_plot.py",
-             "--ignore=tests/test_data_databento.py",
-             "--ignore=tests/test_mcp_bridge.py",
-             "--tb=no", "-q"],
-            cwd=root, capture_output=True, text=True, timeout=120,
-        )
-        output = result.stdout + result.stderr
-        # 解析 "N failed" 行
-        for line in output.split("\n"):
-            if "failed" in line and ("passed" in line or "error" in line):
-                parts = line.split(",")
-                for part in parts:
-                    part = part.strip()
-                    if "failed" in part:
-                        count = part.split()[0]
-                        tasks.append({
-                            "priority": "P1",
-                            "name": f"修复 {count} 个测试失败",
-                            "status": "pytest 发现",
-                            "source": "test_failures",
-                        })
-                        break
-    except Exception:
-        pass
+    # 1. 测试验证：不在 scan 中执行 pytest（只读扫描原则）
+    #    test_verification_needed 信号在顶层 JSON 中输出，Lead spawn 独立测试工位
 
     # 2. 测试覆盖率（如果 pytest-cov 可用）
     # 暂不实现，避免 scan 耗时过长
@@ -791,6 +768,7 @@ def main():
         result["fallback_triggered"] = True
 
     result["workstations"] = workstations
+    result["test_verification_needed"] = True  # Lead spawn 独立测试工位
 
     # pending 谱系计数（多处使用）
     pending_count = len(glob.glob(os.path.join(root, ".chanlun/genealogy/pending/*.md")))
