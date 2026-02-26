@@ -313,6 +313,15 @@ tasks:
         description: "新增 tests/test_bsp_visualization.py，验证三类买卖点渲染输出"
         relevant_files:
           - "tests/"
+      - id: overlay_nested_divergence_passthrough
+        title: "overlay 端点 nested_divergence 参数透传"
+        description: |
+          Codex GAP-1：server.py:439 调用 build_overlay_newchan() 时未传 include_nested_divergence，
+          导致 overlay 响应中 nested_divergence 永远是 []。
+          修复：从 query string 读取 include_nested_divergence 参数并透传。
+        relevant_files:
+          - "src/newchan/server.py"
+          - "src/newchan/ab_bridge_newchan.py"
     decomposition: parallel
     added_by: "v56-swarm Gemini decide（异质质询代理执行）"
     added_date: "2026-02-26"
@@ -429,6 +438,15 @@ tasks:
         description: "新增/更新 tests/test_gateway_multi_tf.py 验证升级后行为"
         relevant_files:
           - "tests/"
+      - id: ws_snapshot_full_chain
+        title: "WsSnapshot 全链路字段扩展"
+        description: |
+          Codex GAP-3：WsSnapshot（ws_messages.py:49）只有 strokes 字段，
+          _snapshot_to_ws（gateway.py:179）丢弃了 segments/centers/bsp/lstar/recursive_snapshots。
+          扩展 WsSnapshot 包含全链路输出，WS 回放客户端可获取完整状态。
+        relevant_files:
+          - "src/newchan/contracts/ws_messages.py"
+          - "src/newchan/gateway.py"
     decomposition: parallel
     added_by: "v56-swarm Gemini decide（异质质询代理执行）"
     added_date: "2026-02-26"
