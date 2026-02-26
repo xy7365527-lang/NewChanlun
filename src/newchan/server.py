@@ -455,6 +455,94 @@ def api_newchan_overlay():
 
 
 # ------------------------------------------------------------------
+# API: 区间套跨级别背驰搜索
+# ------------------------------------------------------------------
+
+@app.route("/api/nested_divergence")
+def api_nested_divergence():
+    symbol = request.query.get("symbol", "").upper()
+    interval = request.query.get("interval", "1min")
+    tf = request.query.get("tf", "1m")
+    stroke_mode = request.query.get("stroke_mode", "wide")
+    min_strict_sep = int(request.query.get("min_strict_sep", "5"))
+    max_levels = int(request.query.get("max_levels", "6"))
+    limit = request.query.get("limit", "3000")
+
+    if not symbol:
+        return _json_resp({"error": "missing symbol"}, 400)
+
+    cache_name = f"{symbol}_{interval}_raw"
+    df = load_df(cache_name)
+    if df is None:
+        return _json_resp({"error": f"缓存 {cache_name} 不存在"}, 404)
+
+    try:
+        resampled = resample_ohlc(df, tf)
+    except ValueError as e:
+        return _json_resp({"error": str(e)}, 400)
+
+    # 限制窗口大小，避免大数据集超时
+    if limit:
+        n = int(limit)
+        if n > 0:
+            resampled = resampled.iloc[-n:]
+
+    try:
+        from newchan.nested_pipeline import run_nested_search
+        from newchan.types import Bar
+
+        bars = [
+            Bar(
+                ts=resampled.index[i],
+                open=float(resampled.iloc[i]["open"]),
+                high=float(resampled.iloc[i]["high"]),
+                low=float(resampled.iloc[i]["low"]),
+                close=float(resampled.iloc[i]["close"]),
+                volume=float(resampled.iloc[i]["volume"]) if "volume" in resampled.columns else None,
+            )
+            for i in range(len(resampled))
+        ]
+
+        results, _snap = run_nested_search(
+            bars,
+            stroke_mode=stroke_mode,
+            min_strict_sep=min_strict_sep,
+            max_levels=max_levels,
+        )
+    except Exception as e:
+        traceback.print_exc()
+        return _json_resp({"error": str(e)}, 500)
+
+    # 序列化 NestedDivergence → JSON
+    data = []
+    for nd in results:
+        chain = []
+        for level_id, div in nd.chain:
+            entry = {"level_id": level_id, "divergence": None}
+            if div is not None:
+                entry["divergence"] = {
+                    "kind": div.kind,
+                    "direction": div.direction,
+                    "level_id": div.level_id,
+                    "seg_a_start": div.seg_a_start,
+                    "seg_a_end": div.seg_a_end,
+                    "seg_c_start": div.seg_c_start,
+                    "seg_c_end": div.seg_c_end,
+                    "center_idx": div.center_idx,
+                    "force_a": round(div.force_a, 6),
+                    "force_c": round(div.force_c, 6),
+                    "confirmed": div.confirmed,
+                }
+            chain.append(entry)
+        data.append({
+            "chain": chain,
+            "bar_range": list(nd.bar_range),
+        })
+
+    return _json_resp({"data": data, "count": len(data), "bars_used": len(resampled)})
+
+
+# ------------------------------------------------------------------
 # 启动服务
 # ------------------------------------------------------------------
 

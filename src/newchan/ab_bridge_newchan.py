@@ -26,6 +26,7 @@ from newchan.a_level_fsm_newchan import (
     classify_center_practical_newchan,
     select_lstar_newchan,
 )
+from newchan.nested_pipeline import run_nested_search
 from newchan.orchestrator.recursive import RecursiveOrchestrator
 from newchan.types import Bar
 
@@ -169,6 +170,35 @@ def _build_bsp(buysellpoints, merged_to_raw, raw_index):
     return result
 
 
+def _build_nested_divergence(nd_results, merged_to_raw, raw_index):
+    """将 NestedDivergence 列表映射到前端 JSON。"""
+    result = []
+    for nd in nd_results:
+        chain = []
+        for level_id, div in nd.chain:
+            entry = {"level_id": level_id, "divergence": None}
+            if div is not None:
+                entry["divergence"] = {
+                    "kind": div.kind,
+                    "direction": div.direction,
+                    "level_id": div.level_id,
+                    "force_a": div.force_a,
+                    "force_c": div.force_c,
+                    "confirmed": div.confirmed,
+                }
+            chain.append(entry)
+        bar_start, bar_end = nd.bar_range
+        t0 = _merged_idx_to_epoch(bar_start, merged_to_raw, raw_index)
+        t1 = _merged_idx_to_epoch(bar_end, merged_to_raw, raw_index)
+        result.append({
+            "chain": chain,
+            "bar_range": [bar_start, bar_end],
+            "t0": t0,
+            "t1": t1,
+        })
+    return result
+
+
 def _maybe_run_assertions(
     df_raw, df_merged, merged_to_raw, fractals, strokes, segments,
     centers, rec_levels, level_views, last_price,
@@ -202,6 +232,7 @@ def build_overlay_newchan(
     macd_fast: int = 12,
     macd_slow: int = 26,
     macd_signal: int = 9,
+    include_nested_divergence: bool = False,
 ) -> dict:
     """构建新缠论 overlay 完整输出（schema_version="newchan_overlay_v2"）。"""
     if len(df_raw) < 3:
@@ -228,6 +259,30 @@ def build_overlay_newchan(
 
     buysellpoints = _run_bsp_via_orchestrator(df_raw, stroke_mode, min_strict_sep)
 
+    nested_div = []
+    if include_nested_divergence:
+        bars = [
+            Bar(
+                ts=df_raw.index[i],
+                open=float(df_raw.iloc[i]["open"]),
+                high=float(df_raw.iloc[i]["high"]),
+                low=float(df_raw.iloc[i]["low"]),
+                close=float(df_raw.iloc[i]["close"]),
+                volume=float(df_raw.iloc[i]["volume"]) if "volume" in df_raw.columns else None,
+            )
+            for i in range(len(df_raw))
+        ]
+        nd_results, _ = run_nested_search(
+            bars,
+            df_macd=df_macd,
+            macd_fast=macd_fast,
+            macd_slow=macd_slow,
+            macd_signal=macd_signal,
+            stroke_mode=stroke_mode,
+            min_strict_sep=min_strict_sep,
+        )
+        nested_div = _build_nested_divergence(nd_results, merged_to_raw, raw_index)
+
     return {
         "schema_version": "newchan_overlay_v2",
         "symbol": symbol, "tf": tf, "detail": detail,
@@ -239,6 +294,7 @@ def build_overlay_newchan(
         "levels": _build_levels(rec_levels, segments, strokes, merged_to_raw, raw_index, df_macd, df_merged),
         "macd": _build_macd_series(df_macd, raw_index, macd_fast, macd_slow, macd_signal),
         "bsp": _build_bsp(buysellpoints, merged_to_raw, raw_index),
+        "nested_divergence": nested_div,
     }
 
 
@@ -255,6 +311,7 @@ def _empty_overlay(symbol, tf, detail, mf, ms, msig):
         "levels": [],
         "macd": {"fast": mf, "slow": ms, "signal": msig, "series": []},
         "bsp": [],
+        "nested_divergence": [],
     }
 
 
