@@ -67,7 +67,7 @@ negates:
 
 ## 下游推论
 
-1. T6/T7 验证现在有可能在 depth=2 标的上执行 → [open: 需要检查 Level 1 是否有 confirmed centers]
+1. T6/T7 验证现在有可能在 depth=2 标的上执行 → [resolved: SPY 1min 产生首个 T6 结果（inconclusive，bottleneck_bounded=false），T7 仍为空（需要 depth≥3）]
 2. 总体 T8 数据集扩展到 52 个（32 旧 + 20 新），通过率从 62.2% 提升到 ~64% → [resolved: 定理类]
 3. 递归引擎在真实 1min 数据上正确运行 → [resolved: 行动类，已验证]
 
