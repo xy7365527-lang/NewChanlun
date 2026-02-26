@@ -646,52 +646,55 @@ tasks:
   # 方向：风控+成本模型（P1）→ 实时生产加固（P1）→ 前端交互（P2）→ 数据源扩展（P2）
 
   - id: risk_management_module
-    title: "风控与仓位管理模块"
+    title: "风控与仓位管理模块（缠论体系）"
     priority: P1
-    status: active
+    status: blocked
+    blocked_by: "需基于缠师原文溯源，建立缠论风控谱系后重新设计"
     source: "维度1（回测→实战缺口）：无风控模块，实战存在无限风险敞口"
     description: |
-      当前 backtest.py 仅统计信号胜率/盈亏比，无止损逻辑和仓位管理。
-      实战使用必须具备：
-      1. 止损策略：固定点数止损、ATR倍数止损、结构止损（跌破前低/前高）
-      2. 仓位管理：固定比例（每笔风险 = 账户 N%）、Kelly 公式
-      3. 最大回撤控制：触发阈值后暂停开仓
-      4. 与 backtest.py 集成：回测时应用风控规则，输出风控后的净值曲线
-      风控模块必须与 A 系统解耦——仅消费 BuySellPoint 输出，不修改引擎逻辑。
+      【回退说明】原设计使用通用金融工程语言（ATR止损、Kelly公式、最大回撤控制），
+      违反缠论体系的语言封闭性——缠论-新缠论的运动不允许外部语言介入。
+      已删除 src/newchan/risk/ 全部代码。
+
+      重新设计必须基于缠师原文：
+      1. 止损 = 买卖点失败判定（非固定点数/ATR）
+         - "跌破前面长期均线上位的最低位，就意味着买入程序出现问题"
+         - 第一类买点失败 = 走势类型未按预期完成
+      2. 仓位管理 = 短差程序（非 Kelly 公式）
+         - "大级别买点介入的，在次级别第一类卖点出现时，可以先减仓"
+         - "卖点时变少，买点时回复原来数量，绝对不加仓"
+      3. 风控 = 成本归零策略
+         - "只有成本为0的，才是安全的"
+      4. 退出 = 操作级别卖点出现
+         - "在你的操作级别上，你是不参与任何调整或下跌走势类型的"
+
+      前置条件：溯源缠师原文，建立缠论风控谱系（新谱系），定义严格后再编码。
     constraints:
-      - "风控参数必须可配置（不硬编码），支持参数扫描"
-      - "止损触发时间点不可使用未来数据（防未来函数）"
+      - "所有风控概念必须基于缠师原文，不允许外部金融工程语言介入"
+      - "止损 = 买卖点失败判定，不是固定点数/ATR"
+      - "仓位管理 = 短差程序（买卖点驱动），不是 Kelly/固定比例"
       - "与 backtest.py 集成时不修改现有回测引擎接口"
-      - "结构止损依赖 A 系统中枢/笔数据，通过 RecursiveOrchestrator 输出获取"
+      - "前置：溯源缠师原文建立谱系 → 定义结算 → 编码"
     subtasks:
-      - id: stop_loss_strategies
-        title: "止损策略实现"
+      - id: chanlun_risk_source_tracing
+        title: "缠师原文风控溯源"
         description: |
-          实现三种止损：
-          - FixedStopLoss：入场价 ± 固定点数
-          - ATRStopLoss：入场价 ± N * ATR(period)
-          - StructuralStopLoss：跌破/突破最近笔的极值点
-          新建 src/newchan/risk/stop_loss.py
-      - id: position_sizing
-        title: "仓位管理实现"
+          从缠师108课博文中系统溯源风控相关论述：
+          - 买卖点失败判定（止损的缠论表达）
+          - 短差程序（仓位管理的缠论表达）
+          - 成本归零策略（风控的缠论表达）
+          - 操作级别退出规则
+          建立缠论风控谱系（新谱系），定义结算后方可编码。
+      - id: chanlun_risk_definition
+        title: "缠论风控定义文件"
         description: |
-          实现两种仓位计算：
-          - FixedRiskSizing：每笔风险 = 账户 * risk_pct，仓位 = 风险金额 / 止损距离
-          - KellySizing：基于历史胜率/盈亏比计算 Kelly 比例（含半 Kelly 保守版）
-          新建 src/newchan/risk/position_sizing.py
-      - id: drawdown_control
-        title: "最大回撤控制"
+          基于溯源结果，新建 .chanlun/definitions/fengkong.md，
+          严格定义缠论体系内的风控概念，不引入外部语言。
+      - id: chanlun_risk_implementation
+        title: "缠论风控模块实现"
         description: |
-          实现账户级别的回撤监控：
-          - 实时计算当前回撤（相对历史最高净值）
-          - 触发阈值（如 -15%）后暂停开仓，直到净值恢复
-          新建 src/newchan/risk/drawdown_guard.py
-      - id: backtest_risk_integration
-        title: "风控模块与回测引擎集成"
-        description: |
-          扩展 backtest.py，支持传入 RiskConfig（止损策略 + 仓位管理 + 回撤控制）。
-          输出增加：风控后净值曲线、止损触发次数、仓位分布统计。
-          新增 tests/test_risk_management.py
+          基于已结算的缠论风控定义编码实现。
+          依赖 chanlun_risk_definition 完成。
     decomposition: parallel
     added_by: "v59-swarm Gemini derive（异质质询代理执行）"
     added_date: "2026-02-26"
@@ -874,22 +877,21 @@ tasks:
     added_date: "2026-02-26"
 
   - id: backtest_advanced_analytics
-    title: "回测高级分析"
+    title: "回测高级分析（缠论体系）"
     priority: P2
     status: active
-    source: "维度1（回测→实战缺口）：多标的横向对比和信号时效性分析缺失"
+    source: "维度1（回测→实战缺口）：多标的横向对比和信号质量分析缺失"
     description: |
       当前 signal_quality_report.py 仅支持单标的统计。
-      扩展目标：
-      1. 多标的横向对比：在 N 个标的上批量运行回测，输出对比表格（胜率/盈亏比/最大回撤）
-      2. 信号时效性分析：买卖点信号从确认到最优入场的时间窗口分析
-      3. 蒙特卡洛模拟：随机打乱交易顺序，评估策略稳健性（排除运气成分）
-      4. 参数敏感性分析：在不同止损/仓位参数下的净值曲线对比
+      扩展目标（缠论语言）：
+      1. 多标的横向对比：在 N 个标的上批量运行回测，输出对比表格（各类买卖点胜率/盈亏比）
+      2. 信号时效性分析：买卖点信号确认后的走势类型完成度分析
+      3. 买卖点级别分布：统计各级别买卖点的触发频率和有效性
       这些分析工具为策略优化提供数据支撑，不修改 A 系统逻辑。
     constraints:
       - "批量回测必须支持并行执行（multiprocessing），避免串行过慢"
       - "所有分析结果输出为结构化数据（JSON/CSV），支持外部工具消费"
-      - "蒙特卡洛模拟次数默认 1000 次，可配置"
+      - "分析维度必须基于缠论概念（买卖点类型、走势类型、中枢级别），不引入外部统计方法"
     subtasks:
       - id: multi_symbol_backtest
         title: "多标的批量回测"
@@ -899,15 +901,17 @@ tasks:
       - id: signal_timeliness_analysis
         title: "信号时效性分析"
         description: |
-          分析买卖点信号确认后 N 根 K 线内的价格走势分布，
-          确定最优入场窗口（信号确认后立即入场 vs 等待回调）。
+          分析买卖点信号确认后的走势类型完成度：
+          - 第一类买卖点后走势类型是否按预期完成
+          - 第二类买卖点的次级别回调/反弹幅度分布
+          - 第三类买卖点后中枢离开段的力度分布
           新建 scripts/signal_timeliness.py
-      - id: monte_carlo_simulation
-        title: "蒙特卡洛模拟"
+      - id: bsp_level_distribution
+        title: "买卖点级别分布分析"
         description: |
-          对回测交易序列进行随机重排，生成净值曲线分布，
-          计算策略在随机条件下的期望收益和风险区间。
-          新建 src/newchan/analysis/monte_carlo.py
+          统计各递归级别上买卖点的触发频率和有效性，
+          分析不同级别买卖点的实战价值差异。
+          新建 scripts/bsp_level_stats.py
     decomposition: parallel
     added_by: "v59-swarm Gemini derive（异质质询代理执行）"
     added_date: "2026-02-26"
