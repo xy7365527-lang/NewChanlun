@@ -18,6 +18,8 @@ from fastapi.testclient import TestClient
 
 from newchan.gateway import (
     _live_bar_counts,
+    _live_bp_queues,
+    _live_bp_tasks,
     _live_clients,
     _live_engines,
     _live_snapshots,
@@ -34,11 +36,15 @@ def _clean_live_state():
     _live_bar_counts.clear()
     _live_clients.clear()
     _live_snapshots.clear()
+    _live_bp_queues.clear()
+    _live_bp_tasks.clear()
     yield
     _live_engines.clear()
     _live_bar_counts.clear()
     _live_clients.clear()
     _live_snapshots.clear()
+    _live_bp_queues.clear()
+    _live_bp_tasks.clear()
 
 
 def _make_bar(idx: int, price: float = 100.0) -> Bar:
@@ -173,3 +179,63 @@ class TestLiveEngineReuse:
             with client.websocket_connect("/ws/live/BZ") as ws:
                 ws.receive_json()
             assert id(_live_engines["BZ"]) == engine_id
+
+
+class TestLiveStatusEndpoint:
+    """测试 GET /api/live/status 端点。"""
+
+    def test_empty_status(self):
+        """无活跃标的时返回空状态。"""
+        client = TestClient(app)
+        resp = client.get("/api/live/status")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["active_symbols"] == 0
+        assert data["symbols"] == {}
+
+    def test_status_with_engine(self):
+        """有引擎时返回标的状态。"""
+        from newchan.orchestrator.recursive import RecursiveOrchestrator
+
+        engine = RecursiveOrchestrator(stream_id="live-TEST")
+        _live_engines["TEST"] = engine
+        _live_bar_counts["TEST"] = 42
+
+        client = TestClient(app)
+        resp = client.get("/api/live/status")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["active_symbols"] == 1
+        assert data["symbols"]["TEST"]["bar_count"] == 42
+        assert data["symbols"]["TEST"]["connected_clients"] == 0
+
+    def test_status_reflects_connected_client(self):
+        """有 WS 客户端连接时 connected_clients > 0。"""
+        client = TestClient(app)
+        with patch("newchan.gateway._load_bars", side_effect=ValueError("无缓存")):
+            with client.websocket_connect("/ws/live/TEST") as ws:
+                ws.receive_json()  # snapshot
+                resp = client.get("/api/live/status")
+                data = resp.json()
+                assert data["symbols"]["TEST"]["connected_clients"] == 1
+
+
+class TestBackpressureIntegration:
+    """测试背压队列在 WS live 路径中的集成。"""
+
+    def test_bp_queue_created_on_connect(self):
+        """WS 连接时创建背压队列。"""
+        client = TestClient(app)
+        with patch("newchan.gateway._load_bars", side_effect=ValueError("无缓存")):
+            with client.websocket_connect("/ws/live/TEST") as ws:
+                ws.receive_json()  # snapshot
+                assert len(_live_bp_queues) == 1
+
+    def test_bp_queue_cleaned_on_disconnect(self):
+        """WS 断连后背压队列被清理。"""
+        client = TestClient(app)
+        with patch("newchan.gateway._load_bars", side_effect=ValueError("无缓存")):
+            with client.websocket_connect("/ws/live/TEST") as ws:
+                ws.receive_json()
+        assert len(_live_bp_queues) == 0
+        assert len(_live_bp_tasks) == 0
