@@ -11,7 +11,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-_MODEL = "codex-5.3"
+_MODEL = "gpt-5.3-codex"
 _FALLBACK_MODEL = "gpt-5.2-codex"
 
 
