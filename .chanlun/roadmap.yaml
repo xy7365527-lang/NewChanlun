@@ -180,16 +180,11 @@ tasks:
   - id: replay_engine_upgrade
     title: "回放引擎升级——从笔级到全链路"
     priority: P1
-    status: active
-    source: "v55-swarm Codex 诊断：回放引擎降级（gateway.py 硬编码 BiEngine）"
-    description: |
-      WebSocket 回放只产生 stroke_* 事件，无 segment_*/zhongshu_*/move_*/bsp_*。
-      直接原因：gateway.py 硬编码 BiEngine，ReplaySession 接口绑定 BiEngineSnapshot。
-      修复：gateway.py 替换为 RecursiveOrchestrator，ReplaySession.step() 改为处理
-      RecursiveOrchestratorSnapshot。
-    constraints:
-      - "前端协议需升级（当前只消费 stroke 事件）"
-      - "保持 WebSocket 消息格式向后兼容或明确版本号"
+    status: completed
+    completed_date: "2026-02-26"
+    completion_note: |
+      单TF路径：replay.py + gateway.py 从 BiEngine 升级到 RecursiveOrchestrator。
+      1955 测试全通过。多TF路径（TFOrchestrator）待后续。
     added_by: "v55-swarm（Gemini×Codex 交叉诊断）"
     added_date: "2026-02-26"
 
