@@ -58,7 +58,7 @@ audit_targets:
 
 1. gauge 保持率的模式对差异是结构性的，不需要修复 → [resolved: 写入验证报告作为已知特征]
 2. T8 Dgm 构造需要重新定义：从"A/C 段内中枢条形码"改为"A/C 段价格序列持续图" → [resolved: _strokes_to_barcode 笔振荡 fallback 已实现，T8 从 0/0 → 11/18]
-3. 更高频数据验证 → [partial: yfinance 获取 10 只美股 1h/15m/5m 数据，最多 4 settled centers（TSLA 1h），不足以产生 level 2 confirmed trends。结构性约束：yfinance intraday 最多 2 年（1h）/60 天（5m），时间窗口不足。A 股高频数据需 akshare（当前连接不可用）。λ 校准已由合成数据完成（207号-3）]
+3. 更高频数据验证 → [resolved: 第二轮验证完成。akshare 新浪数据源获取 16 只期货（日线，最长 21 年）+ 4 只 A 股指数（日线，最长 34 年）。T8: 14/23 passed（60.9%），0 inconclusive。gauge 保持率 mean=0.479（与第一轮 49.3% 一致）。递归深度结构性极限：棉花 CF0（5142 bars）产生 4 confirmed trends → Level 2 仅 1 个 unconfirmed center → 递归停止。T6/T7 在日线级别结构性不可达。15min 期货数据（3 个月 1023 bars）段数不足（4-14 段）。结论：T6 跨层验证需要分钟级 + 长时间跨度数据，当前可用数据源无法满足]
 
 ## 谱系引用
 
