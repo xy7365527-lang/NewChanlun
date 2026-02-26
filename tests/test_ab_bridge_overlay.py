@@ -67,7 +67,7 @@ class TestOverlaySchema:
         expected_keys = {
             "schema_version", "symbol", "tf", "detail",
             "lstar", "strokes", "segments", "centers", "trends", "levels", "macd",
-            "bsp",
+            "bsp", "nested_divergence",
         }
         assert set(self.result_full.keys()) == expected_keys
 
