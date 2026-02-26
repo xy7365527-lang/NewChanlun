@@ -13,11 +13,11 @@
 
 已知 TBD（生成态）
 ------------------
-- [TBD-1] 下跌确立条件（严格 vs 宽松口径）
+- [TBD-1] 下跌确立条件（严格 vs 宽松口径） → ✅ maimai #1 已结算（严格口径：≥2中枢=下跌趋势）
 - [TBD-2] 走势完成映射 → ✅ maimai #2 已落地（Type 2/3 confirmed = Move.settled）
 - [TBD-3] 确认时机定义 → ✅ maimai #2 已落地
-- [TBD-4] 盘整背驰与买卖点
-- [TBD-5] 中枢范围（ZG/ZD 固定 vs 动态）
+- [TBD-4] 盘整背驰与买卖点 → ✅ maimai #4 已结算（盘整背驰不触发第一类买卖点；可间接导致第三类买点，由 Type3 机制独立识别）
+- [TBD-5] 中枢范围（ZG/ZD 固定 vs 动态） → ✅ maimai #5 已结算（判定范围=[ZD,ZG]，非[DD,GG]）
 """
 
 from __future__ import annotations

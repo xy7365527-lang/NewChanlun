@@ -67,6 +67,18 @@ Task(name="{工位名}", subagent_type="general-purpose", team_name="{子team名
      prompt="你是 {子team名} 的工位 {工位名}。\n\n任务：{具体描述}\n\n...")
 ```
 
+**数量递归规则（parallel_group 信号）**：
+
+当 ceremony_scan 输出的工位携带 `parallel_group` 字段时：
+- 同一 `parallel_group` 的所有工位**全部并行 spawn**，不评估"是否值得分解"
+- 不存在"任务太多"的上限——RTAS 用数量递归解决复杂性
+- Lead 读取 `parallel_group` 信号执行 spawn，不做价值判断
+- `decomposition` 字段指示分解策略（`parallel` = 全部并行，`sequential` = 按序执行）
+- 默认 `decomposition: parallel`
+
+示例：ceremony_scan 输出 3 个工位均携带 `parallel_group: nested_divergence_endpoint`，
+则 Lead 在同一个消息中发出 3 个并行 Task 调用。
+
 ### 4. 监控与汇总
 
 你（作为子蜂群的 Lead）负责：

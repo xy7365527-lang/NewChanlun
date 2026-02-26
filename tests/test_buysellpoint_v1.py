@@ -594,3 +594,240 @@ class TestTBD1StrictCriterion:
         t1_points = [bp for bp in bsps if bp.kind == "type1"]
         # 严格口径：consolidation Move → 无 Type1
         assert len(t1_points) == 0
+
+
+# =====================================================================
+# M) TBD-4 结算：盘整背驰与买卖点的完整关系
+#    [旧缠论] 第24课、第21课、第37课答疑
+# =====================================================================
+
+class TestTBD4PanzhengBeichiSettlement:
+    """TBD-4 结算测试：盘整背驰不触发第一类买卖点，但可间接导致第三类买点。
+
+    原文依据：
+    - 第21课L42："只有在下跌确立后的中枢下方才可能出现买点。这就是第一类买点。"
+      → 盘整（1个中枢）不满足趋势前提，排除第一类买卖点。
+    - 第24课L36："如果C段上破中枢，但MACD柱子的面积小于A段的，这时候的原则是先出来，
+      其后有两种情况，如果回跌不重新跌回，就在次级别的第一类买点回补，
+      刚好这反而构成该级别的第三类买点，反之就继续该盘整。"
+      → 盘整背驰后C段上破中枢 + 回试不跌破ZG = 第三类买点（由 Type3 机制独立识别）。
+    - 第37课答疑："盘整背驰与背驰，本质上是一样的，只是力度、级别以及发生的中枢位置不同而已。"
+      → 本质同构，但买卖点触发条件不同。
+
+    结论：
+    - 盘整背驰 ≠ 第一类买卖点（代码守卫：kind != "trend" → skip）
+    - 盘整背驰可间接导致第三类买点（由 _detect_type3 独立识别，不依赖 Divergence）
+    - 盘整背驰是中枢震荡操作信号，不属于三类买卖点体系
+    """
+
+    def test_consolidation_divergence_excluded_from_type1_buy(self):
+        """盘整底背驰不产生第一类买点。
+
+        a+A+b 结构（1个中枢），b段向下盘整背驰 → 不是1B。
+        """
+        segments = [
+            _seg(0, 0, 0, 10, "down", 100, 90),
+            _seg(1, 1, 10, 20, "up", 98, 92),
+            _seg(2, 2, 20, 30, "down", 95, 88),
+            _seg(3, 3, 30, 40, "up", 92, 85),    # A段（离开中枢向下）
+            _seg(4, 4, 40, 50, "down", 88, 82),   # b段（盘整背驰：力度 < A段）
+        ]
+
+        zhongshus = [
+            Zhongshu(zd=90.0, zg=95.0, seg_start=0, seg_end=2, seg_count=3,
+                     settled=True, break_seg=3, break_direction="down",
+                     first_seg_s0=0, last_seg_s1=2, gg=100.0, dd=88.0),
+        ]
+
+        moves = [
+            Move(kind="consolidation", direction="down", seg_start=0, seg_end=4,
+                 zs_start=0, zs_end=0, zs_count=1, settled=False,
+                 high=100.0, low=82.0, first_seg_s0=0, last_seg_s1=4),
+        ]
+
+        divs = [
+            Divergence(kind="consolidation", direction="bottom", level_id=1,
+                       seg_a_start=0, seg_a_end=2, seg_c_start=4, seg_c_end=4,
+                       center_idx=0, force_a=300.0, force_c=80.0, confirmed=False),
+        ]
+
+        bsps = buysellpoints_from_level(segments, zhongshus, moves, divs, level_id=1)
+        t1 = [bp for bp in bsps if bp.kind == "type1"]
+        assert len(t1) == 0, "盘整背驰不应产生第一类买卖点"
+
+    def test_consolidation_divergence_excluded_from_type1_sell(self):
+        """盘整顶背驰不产生第一类卖点。
+
+        a+A+b 结构（1个中枢），b段向上盘整背驰 → 不是1S。
+        """
+        segments = [
+            _seg(0, 0, 0, 10, "up", 20, 10),
+            _seg(1, 1, 10, 20, "down", 18, 12),
+            _seg(2, 2, 20, 30, "up", 20, 14),
+            _seg(3, 3, 30, 40, "down", 18, 15),   # A段
+            _seg(4, 4, 40, 50, "up", 22, 18),      # b段（盘整背驰）
+        ]
+
+        zhongshus = [
+            Zhongshu(zd=12.0, zg=18.0, seg_start=0, seg_end=2, seg_count=3,
+                     settled=True, break_seg=3, break_direction="up",
+                     first_seg_s0=0, last_seg_s1=2, gg=20.0, dd=10.0),
+        ]
+
+        moves = [
+            Move(kind="consolidation", direction="up", seg_start=0, seg_end=4,
+                 zs_start=0, zs_end=0, zs_count=1, settled=False,
+                 high=22.0, low=10.0, first_seg_s0=0, last_seg_s1=4),
+        ]
+
+        divs = [
+            Divergence(kind="consolidation", direction="top", level_id=1,
+                       seg_a_start=0, seg_a_end=2, seg_c_start=4, seg_c_end=4,
+                       center_idx=0, force_a=200.0, force_c=60.0, confirmed=False),
+        ]
+
+        bsps = buysellpoints_from_level(segments, zhongshus, moves, divs, level_id=1)
+        t1 = [bp for bp in bsps if bp.kind == "type1"]
+        assert len(t1) == 0, "盘整顶背驰不应产生第一类卖点"
+
+    def test_panzheng_beichi_then_type3_buy_independent(self):
+        """盘整背驰后C段上破中枢 + 回试不跌破ZG → 第三类买点。
+
+        第24课场景：盘整背驰 → 先出来 → 回跌不重新跌回 → 第三类买点。
+        关键：第三类买点由 _detect_type3 独立识别（离开+回试+ZG比较），
+        不依赖 Divergence 输入。盘整背驰只是操作层退出信号。
+
+        结构：
+          seg0-2 → 中枢 [ZD=50, ZG=60]
+          seg3   → 向上突破（break_seg，C段上破中枢）
+          seg4   → 回试 low=62 > ZG=60 → 3B
+        """
+        segments = [
+            _seg(0, 0, 0, 10, "up", 60, 50),
+            _seg(1, 1, 10, 20, "down", 58, 52),
+            _seg(2, 2, 20, 30, "up", 60, 50),
+            _seg(3, 3, 30, 50, "up", 80, 55),     # C段上破中枢
+            _seg(4, 4, 50, 60, "down", 70, 62),    # 回试: low=62 > ZG=60 → 3B
+        ]
+
+        zhongshus = [
+            Zhongshu(zd=50.0, zg=60.0, seg_start=0, seg_end=2, seg_count=3,
+                     settled=True, break_seg=3, break_direction="up",
+                     first_seg_s0=0, last_seg_s1=2, gg=60.0, dd=50.0),
+        ]
+
+        moves = [
+            Move(kind="consolidation", direction="up", seg_start=0, seg_end=4,
+                 zs_start=0, zs_end=0, zs_count=1, settled=False,
+                 high=80.0, low=50.0, first_seg_s0=0, last_seg_s1=4),
+        ]
+
+        # 盘整背驰存在，但不影响买卖点识别
+        divs = [
+            Divergence(kind="consolidation", direction="top", level_id=1,
+                       seg_a_start=0, seg_a_end=0, seg_c_start=3, seg_c_end=3,
+                       center_idx=0, force_a=300.0, force_c=100.0, confirmed=False),
+        ]
+
+        bsps = buysellpoints_from_level(segments, zhongshus, moves, divs, level_id=1)
+
+        # 无第一类买卖点（盘整背驰被排除）
+        t1 = [bp for bp in bsps if bp.kind == "type1"]
+        assert len(t1) == 0, "盘整背驰不产生第一类买卖点"
+
+        # 有第三类买点（由 Type3 机制独立识别）
+        t3_buys = [bp for bp in bsps if bp.kind == "type3" and bp.side == "buy"]
+        assert len(t3_buys) == 1, "C段上破中枢 + 回试不跌破ZG → 第三类买点"
+        assert t3_buys[0].seg_idx == 4
+        assert t3_buys[0].center_zg == 60.0
+
+    def test_panzheng_beichi_pullback_into_center_no_type3(self):
+        """盘整背驰后C段上破中枢，但回跌重新跌回 → 无第三类买点，继续盘整。
+
+        第24课："反之就继续该盘整。"
+        """
+        segments = [
+            _seg(0, 0, 0, 10, "up", 60, 50),
+            _seg(1, 1, 10, 20, "down", 58, 52),
+            _seg(2, 2, 20, 30, "up", 60, 50),
+            _seg(3, 3, 30, 50, "up", 75, 55),     # C段上破中枢
+            _seg(4, 4, 50, 60, "down", 68, 55),    # 回跌: low=55 < ZG=60 → 跌回中枢
+        ]
+
+        zhongshus = [
+            Zhongshu(zd=50.0, zg=60.0, seg_start=0, seg_end=2, seg_count=3,
+                     settled=True, break_seg=3, break_direction="up",
+                     first_seg_s0=0, last_seg_s1=2, gg=60.0, dd=50.0),
+        ]
+
+        moves = [
+            Move(kind="consolidation", direction="up", seg_start=0, seg_end=4,
+                 zs_start=0, zs_end=0, zs_count=1, settled=False,
+                 high=75.0, low=50.0, first_seg_s0=0, last_seg_s1=4),
+        ]
+
+        divs = [
+            Divergence(kind="consolidation", direction="top", level_id=1,
+                       seg_a_start=0, seg_a_end=0, seg_c_start=3, seg_c_end=3,
+                       center_idx=0, force_a=300.0, force_c=100.0, confirmed=False),
+        ]
+
+        bsps = buysellpoints_from_level(segments, zhongshus, moves, divs, level_id=1)
+
+        t1 = [bp for bp in bsps if bp.kind == "type1"]
+        t3 = [bp for bp in bsps if bp.kind == "type3"]
+        assert len(t1) == 0, "盘整背驰不产生第一类买卖点"
+        assert len(t3) == 0, "回跌跌回中枢 → 无第三类买点，继续盘整"
+
+    def test_panzheng_beichi_c_not_break_center_no_bsp(self):
+        """盘整背驰 + C段不破中枢 → 无任何买卖点（纯中枢震荡）。
+
+        第24课："如果C段不破中枢，一旦出现MACD柱子的C段面积小于A段面积，其后必定有回跌。"
+        这是中枢震荡操作信号，不属于三类买卖点体系。
+        """
+        segments = [
+            _seg(0, 0, 0, 10, "up", 58, 50),
+            _seg(1, 1, 10, 20, "down", 56, 52),
+            _seg(2, 2, 20, 30, "up", 58, 50),
+            _seg(3, 3, 30, 40, "down", 55, 51),   # A段（中枢内震荡）
+            _seg(4, 4, 40, 50, "up", 57, 52),      # C段不破中枢（high=57 < ZG=58）
+        ]
+
+        zhongshus = [
+            Zhongshu(zd=50.0, zg=58.0, seg_start=0, seg_end=2, seg_count=3,
+                     settled=False, break_seg=-1, break_direction=None,
+                     first_seg_s0=0, last_seg_s1=2, gg=58.0, dd=50.0),
+        ]
+
+        moves = [
+            Move(kind="consolidation", direction="up", seg_start=0, seg_end=4,
+                 zs_start=0, zs_end=0, zs_count=1, settled=False,
+                 high=58.0, low=50.0, first_seg_s0=0, last_seg_s1=4),
+        ]
+
+        divs = [
+            Divergence(kind="consolidation", direction="top", level_id=1,
+                       seg_a_start=0, seg_a_end=0, seg_c_start=4, seg_c_end=4,
+                       center_idx=0, force_a=200.0, force_c=80.0, confirmed=False),
+        ]
+
+        bsps = buysellpoints_from_level(segments, zhongshus, moves, divs, level_id=1)
+        assert len(bsps) == 0, "C段不破中枢的盘整背驰 → 纯中枢震荡，无买卖点"
+
+    def test_only_trend_divergence_triggers_type1(self):
+        """同时存在趋势背驰和盘整背驰时，只有趋势背驰产生第一类买卖点。"""
+        segs, zss, mvs, divs = _make_downtrend_with_divergence()
+
+        # 追加一个盘整背驰
+        extra_div = Divergence(
+            kind="consolidation", direction="bottom", level_id=1,
+            seg_a_start=0, seg_a_end=2, seg_c_start=8, seg_c_end=8,
+            center_idx=0, force_a=200.0, force_c=50.0, confirmed=False,
+        )
+        all_divs = list(divs) + [extra_div]
+
+        bsps = buysellpoints_from_level(segs, zss, mvs, all_divs, level_id=1)
+        t1 = [bp for bp in bsps if bp.kind == "type1"]
+        # 只有趋势背驰产生的那一个 Type1
+        assert len(t1) == 1
+        assert t1[0].divergence_key == (1, 10, 10)

@@ -26,6 +26,8 @@ from newchan.a_level_fsm_newchan import (
     classify_center_practical_newchan,
     select_lstar_newchan,
 )
+from newchan.orchestrator.recursive import RecursiveOrchestrator
+from newchan.types import Bar
 
 
 # ====================================================================
@@ -116,6 +118,57 @@ def _resolve_level1(rec_levels, segments, center_sustain_m):
     return centers, trends
 
 
+def _run_bsp_via_orchestrator(df_raw, stroke_mode, min_strict_sep):
+    """通过 RecursiveOrchestrator 逐 bar 驱动，取最终 bsp_snapshot。
+
+    返回 BuySellPointSnapshot.buysellpoints（list[BuySellPoint]）。
+    orchestrator 内部已包含完整五层管线 + 递归，不与 _run_a_pipeline 重复——
+    两者使用不同管线（批量 vs 事件驱动），BSP 仅存在于事件驱动管线。
+    """
+    orch = RecursiveOrchestrator(
+        stream_id="overlay",
+        stroke_mode=stroke_mode,
+        min_strict_sep=min_strict_sep,
+    )
+    snap = None
+    for i in range(len(df_raw)):
+        row = df_raw.iloc[i]
+        bar = Bar(
+            ts=df_raw.index[i],
+            open=float(row["open"]),
+            high=float(row["high"]),
+            low=float(row["low"]),
+            close=float(row["close"]),
+            volume=float(row["volume"]) if "volume" in row.index else None,
+        )
+        snap = orch.process_bar(bar)
+    if snap is None:
+        return []
+    return list(snap.bsp_snapshot.buysellpoints)
+
+
+def _build_bsp(buysellpoints, merged_to_raw, raw_index):
+    """将 BuySellPoint 列表映射到前端 JSON。
+
+    BSP 的 bar_idx 是 merged 索引，需通过 merged_to_raw 映射到 raw 时间轴。
+    """
+    result = []
+    for bp in buysellpoints:
+        t = _merged_idx_to_epoch(bp.bar_idx, merged_to_raw, raw_index)
+        result.append({
+            "kind": bp.kind,
+            "side": bp.side,
+            "level_id": bp.level_id,
+            "seg_idx": bp.seg_idx,
+            "price": bp.price,
+            "time": t,
+            "confirmed": bp.confirmed,
+            "settled": bp.settled,
+            "overlaps_with": bp.overlaps_with,
+        })
+    return result
+
+
 def _maybe_run_assertions(
     df_raw, df_merged, merged_to_raw, fractals, strokes, segments,
     centers, rec_levels, level_views, last_price,
@@ -173,6 +226,8 @@ def build_overlay_newchan(
         segment_algo, stroke_mode, min_strict_sep, center_sustain_m,
     )
 
+    buysellpoints = _run_bsp_via_orchestrator(df_raw, stroke_mode, min_strict_sep)
+
     return {
         "schema_version": "newchan_overlay_v2",
         "symbol": symbol, "tf": tf, "detail": detail,
@@ -183,6 +238,7 @@ def build_overlay_newchan(
         "trends": _build_trends(trends, segments, strokes, merged_to_raw, raw_index, df_macd, df_merged),
         "levels": _build_levels(rec_levels, segments, strokes, merged_to_raw, raw_index, df_macd, df_merged),
         "macd": _build_macd_series(df_macd, raw_index, macd_fast, macd_slow, macd_signal),
+        "bsp": _build_bsp(buysellpoints, merged_to_raw, raw_index),
     }
 
 
@@ -198,6 +254,7 @@ def _empty_overlay(symbol, tf, detail, mf, ms, msig):
         "strokes": [], "segments": [], "centers": [], "trends": [],
         "levels": [],
         "macd": {"fast": mf, "slow": ms, "signal": msig, "series": []},
+        "bsp": [],
     }
 
 
