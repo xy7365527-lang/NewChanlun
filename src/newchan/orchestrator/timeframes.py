@@ -1,12 +1,13 @@
 """TFOrchestrator — 多级别并行调度器
 
 持有多个 ReplaySession（每 TF 一个），以 base TF 时间戳为锚点
-驱动高 TF 步进。
+驱动高 TF 步进。每个 TF 使用独立的 RecursiveOrchestrator，
+支持 level≥2 递归中枢和走势构造。
 
 核心规则：
 - base TF 每步进 1 bar，检查高 TF 是否有 bar 的 close time ≤ 当前 base 时间
 - 有 → 该 TF 步进；无 → 跳过
-- 各 TF 的 BiEngine 完全独立，互不污染
+- 各 TF 的 RecursiveOrchestrator 完全独立，互不污染
 """
 
 from __future__ import annotations
@@ -16,12 +17,10 @@ from datetime import datetime, timezone
 import pandas as pd
 
 from newchan.b_timeframe import resample_ohlc
-from newchan.bi_engine import BiEngine, BiEngineSnapshot
-from newchan.core.recursion.buysellpoint_engine import BuySellPointEngine
-from newchan.core.recursion.move_engine import MoveEngine
-from newchan.core.recursion.segment_engine import SegmentEngine
-from newchan.core.recursion.zhongshu_engine import ZhongshuEngine
-from newchan.orchestrator.bus import EventBus
+from newchan.orchestrator.recursive import (
+    RecursiveOrchestrator,
+    RecursiveOrchestratorSnapshot,
+)
 from newchan.replay import ReplaySession
 from newchan.types import Bar
 
@@ -72,6 +71,9 @@ def _df_to_bars(df: pd.DataFrame) -> list[Bar]:
 class TFOrchestrator:
     """多级别并行调度器。
 
+    每个 TF 使用独立的 RecursiveOrchestrator（含 RecursiveStack），
+    支持 level≥2 递归中枢和走势构造。
+
     Parameters
     ----------
     session_id : str
@@ -81,7 +83,7 @@ class TFOrchestrator:
     timeframes : list[str]
         TF 列表，第一个为 base TF，例如 ``["5m", "30m"]``。
     stroke_mode : str
-        笔模式（传给每个 BiEngine）。
+        笔模式（传给每个 RecursiveOrchestrator）。
     min_strict_sep : int
         严笔最小间距。
 
@@ -89,8 +91,8 @@ class TFOrchestrator:
 
         orch = TFOrchestrator("sid", bars, ["5m", "30m"])
         result = orch.step(1)
-        # result["5m"] = [BiEngineSnapshot, ...]
-        # result["30m"] = [BiEngineSnapshot, ...]  # 可能为空
+        # result["5m"] = [RecursiveOrchestratorSnapshot, ...]
+        # result["30m"] = [RecursiveOrchestratorSnapshot, ...]  # 可能为空
     """
 
     def __init__(
@@ -109,10 +111,8 @@ class TFOrchestrator:
         self.base_tf = timeframes[0]
         self.timeframes = list(timeframes)
         self.symbol = symbol
-        self.bus = EventBus()
 
         self._stream_ids = self._build_stream_ids(symbol)
-        self._init_pipeline_engines()
         self._init_sessions(session_id, base_bars, timeframes, stroke_mode, min_strict_sep)
 
     # ------------------------------------------------------------------
@@ -129,21 +129,6 @@ class TFOrchestrator:
             for tf in self.timeframes
         }
 
-    def _init_pipeline_engines(self) -> None:
-        """为每个 TF 创建四层引擎（Segment -> Zhongshu -> Move -> BSP）。"""
-        self._segment_engines: dict[str, SegmentEngine] = {}
-        self._zhongshu_engines: dict[str, ZhongshuEngine] = {}
-        self._move_engines: dict[str, MoveEngine] = {}
-        self._bsp_engines: dict[str, BuySellPointEngine] = {}
-        for tf_idx, tf in enumerate(self.timeframes):
-            sid = self._stream_ids.get(tf, "")
-            self._segment_engines[tf] = SegmentEngine(stream_id=sid)
-            self._zhongshu_engines[tf] = ZhongshuEngine(stream_id=sid)
-            self._move_engines[tf] = MoveEngine(stream_id=sid)
-            self._bsp_engines[tf] = BuySellPointEngine(
-                level_id=tf_idx + 1, stream_id=sid,
-            )
-
     def _init_sessions(
         self,
         session_id: str,
@@ -152,12 +137,16 @@ class TFOrchestrator:
         stroke_mode: str,
         min_strict_sep: int,
     ) -> None:
-        """为每个 TF 创建独立 ReplaySession。"""
+        """为每个 TF 创建独立 ReplaySession（引擎为 RecursiveOrchestrator）。"""
         self.sessions: dict[str, ReplaySession] = {}
         self._higher_tf_bars: dict[str, list[Bar]] = {}
 
         # base TF session
-        engine_base = BiEngine(stroke_mode=stroke_mode, min_strict_sep=min_strict_sep)
+        engine_base = RecursiveOrchestrator(
+            stream_id=self._stream_ids.get(self.base_tf, ""),
+            stroke_mode=stroke_mode,
+            min_strict_sep=min_strict_sep,
+        )
         self.sessions[self.base_tf] = ReplaySession(
             session_id=f"{session_id}_{self.base_tf}",
             bars=base_bars,
@@ -171,7 +160,11 @@ class TFOrchestrator:
         for tf in timeframes[1:]:
             df_resampled = resample_ohlc(df_base, tf)
             tf_bars = _df_to_bars(df_resampled)
-            engine = BiEngine(stroke_mode=stroke_mode, min_strict_sep=min_strict_sep)
+            engine = RecursiveOrchestrator(
+                stream_id=self._stream_ids.get(tf, ""),
+                stroke_mode=stroke_mode,
+                min_strict_sep=min_strict_sep,
+            )
             self.sessions[tf] = ReplaySession(
                 session_id=f"{session_id}_{tf}",
                 bars=tf_bars,
@@ -216,31 +209,17 @@ class TFOrchestrator:
         """base TF 的 bar 列表。"""
         return self.base_session.bars
 
-    def _run_pipeline(self, tf: str, snap: BiEngineSnapshot) -> None:
-        """运行四层引擎管线，聚合事件到 snap 并推入 bus。"""
-        seg_snap = self._segment_engines[tf].process_snapshot(snap)
-        zs_snap = self._zhongshu_engines[tf].process_segment_snapshot(seg_snap)
-        move_snap = self._move_engines[tf].process_zhongshu_snapshot(zs_snap)
-        bsp_snap = self._bsp_engines[tf].process_snapshots(
-            move_snap, zs_snap, seg_snap,
-        )
-        # 聚合所有层事件（创建新列表，不修改原始 snap.events 引用）
-        extra = seg_snap.events + zs_snap.events + move_snap.events + bsp_snap.events
-        if extra:
-            snap.events = list(snap.events) + extra
-        self.bus.push(
-            tf, snap.events,
-            stream_id=self._stream_ids.get(tf, ""),
-        )
-
-    def step(self, count: int = 1) -> dict[str, list[BiEngineSnapshot]]:
+    def step(self, count: int = 1) -> dict[str, list[RecursiveOrchestratorSnapshot]]:
         """步进 base TF count 根 bar。
 
         高 TF 根据时间戳对齐自动步进。
         返回各 TF 的快照列表（可能为空表示该 TF 本轮无步进）。
-        所有事件同时进入 EventBus（带 tf 标签）。
+        每个 TF 的 RecursiveOrchestrator 内部已完成全链路（含递归层），
+        无需外部 pipeline。
         """
-        result: dict[str, list[BiEngineSnapshot]] = {tf: [] for tf in self.timeframes}
+        result: dict[str, list[RecursiveOrchestratorSnapshot]] = {
+            tf: [] for tf in self.timeframes
+        }
 
         for _ in range(count):
             if self.base_session.current_idx >= self.base_session.total_bars:
@@ -250,11 +229,9 @@ class TFOrchestrator:
             base_bar = self.base_session.bars[self.base_session.current_idx]
             base_ts = _dt_to_epoch(base_bar.ts)
 
-            # 步进 base TF
+            # 步进 base TF（RecursiveOrchestrator 内部完成全链路）
             base_snaps = self.base_session.step(1)
             result[self.base_tf].extend(base_snaps)
-            for snap in base_snaps:
-                self._run_pipeline(self.base_tf, snap)
 
             # 检查高 TF 是否需要步进
             for tf in self.timeframes[1:]:
@@ -266,7 +243,7 @@ class TFOrchestrator:
         self,
         tf: str,
         base_ts: float,
-        result: dict[str, list[BiEngineSnapshot]],
+        result: dict[str, list[RecursiveOrchestratorSnapshot]],
     ) -> None:
         """步进单个高 TF 直到其下一根 bar 超过 base_ts。"""
         sess = self.sessions[tf]
@@ -276,25 +253,17 @@ class TFOrchestrator:
                 break
             tf_snaps = sess.step(1)
             result[tf].extend(tf_snaps)
-            for snap in tf_snaps:
-                self._run_pipeline(tf, snap)
 
-    def seek(self, target_idx: int) -> dict[str, BiEngineSnapshot | None]:
+    def seek(self, target_idx: int) -> dict[str, RecursiveOrchestratorSnapshot | None]:
         """Seek base TF 到 target_idx。
 
         高 TF 按时间戳对齐 seek 到对应位置。
         返回各 TF 的最终快照。
+        ReplaySession.seek() 内部调用 engine.reset()，无需外部重置。
         """
-        result: dict[str, BiEngineSnapshot | None] = {}
+        result: dict[str, RecursiveOrchestratorSnapshot | None] = {}
 
-        # 重置所有四层引擎（seek 会重置 BiEngine，需同步）
-        for tf in self.timeframes:
-            self._segment_engines[tf].reset()
-            self._zhongshu_engines[tf].reset()
-            self._move_engines[tf].reset()
-            self._bsp_engines[tf].reset()
-
-        # base TF seek
+        # base TF seek（ReplaySession.seek 内部重置 RecursiveOrchestrator）
         base_snap = self.base_session.seek(target_idx)
         result[self.base_tf] = base_snap
 

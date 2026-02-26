@@ -13,9 +13,9 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from newchan.bi_engine import BiEngine
 from newchan.events import DomainEvent, InvariantViolation
 from newchan.orchestrator.bus import EventBus, TaggedEvent
+from newchan.orchestrator.recursive import RecursiveOrchestrator
 from newchan.orchestrator.timeframes import TFOrchestrator
 from newchan.replay import ReplaySession
 from newchan.types import Bar
@@ -125,7 +125,7 @@ class TestTFOrchestrator:
         """单 TF orchestrator === 直接用 ReplaySession。"""
         bars = _generate_1m_bars(60)
         orch = TFOrchestrator("sid", bars, ["5m"])
-        direct_engine = BiEngine()
+        direct_engine = RecursiveOrchestrator()
         direct_session = ReplaySession("sid_direct", bars, direct_engine)
 
         # 步进完所有 bar
@@ -133,8 +133,8 @@ class TestTFOrchestrator:
             result = orch.step(1)
             direct_session.step(1)
 
-        orch_strokes = orch.base_session.engine.current_strokes
-        direct_strokes = direct_session.engine.current_strokes
+        orch_strokes = orch.base_session.engine._bi_engine.current_strokes
+        direct_strokes = direct_session.engine._bi_engine.current_strokes
         assert len(orch_strokes) == len(direct_strokes)
         for a, b in zip(orch_strokes, direct_strokes):
             assert a.i0 == b.i0
@@ -146,24 +146,22 @@ class TestTFOrchestrator:
         bars = _generate_1m_bars(120)
         orch = TFOrchestrator("sid", bars, ["5m", "30m"])
 
-        all_5m_events: list[TaggedEvent] = []
-        all_30m_events: list[TaggedEvent] = []
+        all_5m_snaps = []
+        all_30m_snaps = []
 
         for _ in range(len(bars)):
-            orch.step(1)
-            tagged = orch.bus.drain()
-            for te in tagged:
-                if te.tf == "5m":
-                    all_5m_events.append(te)
-                elif te.tf == "30m":
-                    all_30m_events.append(te)
+            result = orch.step(1)
+            all_5m_snaps.extend(result.get("5m", []))
+            all_30m_snaps.extend(result.get("30m", []))
 
-        # 两个 TF 都应该有事件（如果数据足够产生笔的话）
-        # 不做数量断言（取决于具体数据），但确保标签正确
-        for te in all_5m_events:
-            assert te.tf == "5m"
-        for te in all_30m_events:
-            assert te.tf == "30m"
+        # 两个 TF 都应该有快照（如果数据足够产生笔的话）
+        # 确保各 TF 的事件来自各自的引擎
+        events_5m = [ev for snap in all_5m_snaps for ev in snap.all_events]
+        events_30m = [ev for snap in all_30m_snaps for ev in snap.all_events]
+        # 事件 ID 不应重叠（各引擎独立生成）
+        ids_5m = {ev.event_id for ev in events_5m}
+        ids_30m = {ev.event_id for ev in events_30m}
+        assert ids_5m.isdisjoint(ids_30m), "5m 和 30m 事件 ID 不应重叠"
 
     def test_two_tf_independent_strokes(self):
         """双 TF 的最终 strokes 互相独立。"""
@@ -173,8 +171,8 @@ class TestTFOrchestrator:
         for _ in range(len(bars)):
             orch.step(1)
 
-        strokes_5m = orch.sessions["5m"].engine.current_strokes
-        strokes_30m = orch.sessions["30m"].engine.current_strokes
+        strokes_5m = orch.sessions["5m"].engine._bi_engine.current_strokes
+        strokes_30m = orch.sessions["30m"].engine._bi_engine.current_strokes
 
         # 30m 的笔数应该 ≤ 5m（更少的 bar 产生更少的笔）
         assert len(strokes_30m) <= len(strokes_5m) + 1  # +1 容差
@@ -187,12 +185,12 @@ class TestTFOrchestrator:
         orch1 = TFOrchestrator("sid1", bars, ["5m", "30m"])
         for _ in range(80):
             orch1.step(1)
-        strokes_step = orch1.sessions["5m"].engine.current_strokes
+        strokes_step = orch1.sessions["5m"].engine._bi_engine.current_strokes
 
         # 方式 2：seek 到 bar 79（0-based，含该 bar）
         orch2 = TFOrchestrator("sid2", bars, ["5m", "30m"])
         orch2.seek(79)
-        strokes_seek = orch2.sessions["5m"].engine.current_strokes
+        strokes_seek = orch2.sessions["5m"].engine._bi_engine.current_strokes
 
         assert len(strokes_step) == len(strokes_seek)
         for a, b in zip(strokes_step, strokes_seek):
@@ -208,9 +206,12 @@ class TestTFOrchestrator:
             orch = TFOrchestrator("sid", bars, ["5m", "30m"])
             event_ids: dict[str, list[str]] = {"5m": [], "30m": []}
             for _ in range(len(bars)):
-                orch.step(1)
-                for te in orch.bus.drain():
-                    event_ids[te.tf].append(te.event.event_id)
+                result = orch.step(1)
+                for tf, snaps in result.items():
+                    if tf in event_ids:
+                        for snap in snaps:
+                            for ev in snap.all_events:
+                                event_ids[tf].append(ev.event_id)
             return event_ids
 
         r1 = run_once()
@@ -225,10 +226,12 @@ class TestTFOrchestrator:
 
         violations = []
         for _ in range(len(bars)):
-            orch.step(1)
-            for te in orch.bus.drain():
-                if isinstance(te.event, InvariantViolation):
-                    violations.append(te)
+            result = orch.step(1)
+            for tf, snaps in result.items():
+                for snap in snaps:
+                    for ev in snap.all_events:
+                        if isinstance(ev, InvariantViolation):
+                            violations.append((tf, ev))
 
         assert violations == [], f"意外违规: {violations}"
 

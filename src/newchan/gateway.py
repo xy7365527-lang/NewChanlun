@@ -176,19 +176,105 @@ def _event_to_ws(ev: DomainEvent, tf: str = "", stream_id: str = "") -> dict:
     ).model_dump()
 
 
+def _segment_to_dict(seg) -> dict:
+    """Segment -> 可序列化 dict。"""
+    return {
+        "s0": seg.s0, "s1": seg.s1,
+        "i0": seg.i0, "i1": seg.i1,
+        "direction": seg.direction,
+        "high": seg.high, "low": seg.low,
+        "confirmed": seg.confirmed,
+        "kind": seg.kind,
+        "ep0_price": seg.ep0_price, "ep1_price": seg.ep1_price,
+    }
+
+
+def _zhongshu_to_dict(zs) -> dict:
+    """Zhongshu -> 可序列化 dict。"""
+    return {
+        "zd": zs.zd, "zg": zs.zg,
+        "seg_start": zs.seg_start, "seg_end": zs.seg_end,
+        "seg_count": zs.seg_count, "settled": zs.settled,
+        "break_seg": zs.break_seg, "break_direction": zs.break_direction,
+        "gg": zs.gg, "dd": zs.dd,
+    }
+
+
+def _move_to_dict(m) -> dict:
+    """Move -> 可序列化 dict。"""
+    return {
+        "kind": m.kind, "direction": m.direction,
+        "seg_start": m.seg_start, "seg_end": m.seg_end,
+        "zs_start": m.zs_start, "zs_end": m.zs_end,
+        "zs_count": m.zs_count, "settled": m.settled,
+        "high": m.high, "low": m.low,
+    }
+
+
+def _bsp_to_dict(bp) -> dict:
+    """BuySellPoint -> 可序列化 dict。"""
+    return {
+        "kind": bp.kind, "side": bp.side,
+        "level_id": bp.level_id, "seg_idx": bp.seg_idx,
+        "price": bp.price, "confirmed": bp.confirmed,
+        "settled": bp.settled,
+        "overlaps_with": bp.overlaps_with,
+    }
+
+
+def _lstar_to_dict(ls) -> dict:
+    """LStar -> 可序列化 dict。"""
+    return {
+        "level": ls.level,
+        "center_idx": ls.center_idx,
+        "regime": ls.regime.value if hasattr(ls.regime, "value") else str(ls.regime),
+    }
+
+
+def _recursive_level_to_dict(rl) -> dict:
+    """RecursiveLevelSnapshot -> 可序列化 dict。"""
+    return {
+        "level_id": rl.level_id,
+        "zhongshus": [
+            {
+                "zd": z.zd, "zg": z.zg,
+                "comp_start": z.comp_start, "comp_end": z.comp_end,
+                "comp_count": z.comp_count, "settled": z.settled,
+                "break_comp": z.break_comp, "break_direction": z.break_direction,
+                "gg": z.gg, "dd": z.dd, "level_id": z.level_id,
+            }
+            for z in rl.zhongshus
+        ],
+        "moves": [_move_to_dict(m) for m in rl.moves],
+    }
+
+
 def _snapshot_to_ws(snap: RecursiveOrchestratorSnapshot | BiEngineSnapshot) -> dict:
     """RecursiveOrchestratorSnapshot 或 BiEngineSnapshot -> WsSnapshot 消息 dict。"""
     if isinstance(snap, RecursiveOrchestratorSnapshot):
         strokes = snap.bi_snapshot.strokes
         event_count = len(snap.all_events)
+        return WsSnapshot(
+            bar_idx=snap.bar_idx,
+            strokes=[_stroke_to_dict(s) for s in strokes],
+            event_count=event_count,
+            segments=[_segment_to_dict(s) for s in snap.seg_snapshot.segments],
+            centers=[_zhongshu_to_dict(z) for z in snap.zs_snapshot.zhongshus],
+            moves=[_move_to_dict(m) for m in snap.move_snapshot.moves],
+            bsp=[_bsp_to_dict(b) for b in snap.bsp_snapshot.buysellpoints],
+            lstar=_lstar_to_dict(snap.lstar) if snap.lstar else None,
+            recursive_snapshots=[
+                _recursive_level_to_dict(r) for r in snap.recursive_snapshots
+            ] or None,
+        ).model_dump()
     else:
         strokes = snap.strokes
         event_count = len(snap.events)
-    return WsSnapshot(
-        bar_idx=snap.bar_idx,
-        strokes=[_stroke_to_dict(s) for s in strokes],
-        event_count=event_count,
-    ).model_dump()
+        return WsSnapshot(
+            bar_idx=snap.bar_idx,
+            strokes=[_stroke_to_dict(s) for s in strokes],
+            event_count=event_count,
+        ).model_dump()
 
 
 def _bar_to_ws(bar: Bar, idx: int, tf: str = "", stream_id: str = "") -> dict:
@@ -374,13 +460,13 @@ async def replay_seek(req: ReplaySeekRequest):
     else:
         base_snap = session.seek(req.target_idx)
 
-    snapshot_ws = WsSnapshot(
-        bar_idx=base_snap.bar_idx if base_snap else 0,
-        strokes=[_stroke_to_dict(s) for s in (_snap_strokes(base_snap) if base_snap else [])],
-        event_count=len(_snap_events(base_snap)) if base_snap else 0,
-    )
+    if base_snap is not None:
+        snapshot_dict = _snapshot_to_ws(base_snap)
+    else:
+        snapshot_dict = WsSnapshot(bar_idx=0, strokes=[], event_count=0).model_dump()
+    snapshot_ws = WsSnapshot(**snapshot_dict)
 
-    await _broadcast(req.session_id, snapshot_ws.model_dump())
+    await _broadcast(req.session_id, snapshot_dict)
     await _broadcast(req.session_id, _status_to_ws(session))
 
     return ReplaySeekResponse(

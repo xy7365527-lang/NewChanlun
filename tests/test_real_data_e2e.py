@@ -98,7 +98,7 @@ class TestRealDataFullPipeline:
         """笔层产出验证。"""
         # 取最后一个快照（event_log 中最后一条）
         last_snap = pipeline_result.base_session.event_log[-1]
-        strokes = last_snap.strokes
+        strokes = last_snap.bi_snapshot.strokes
         assert len(strokes) > 10, f"笔数应 > 10，实际 {len(strokes)}"
         # 笔方向交替
         for i in range(1, len(strokes)):
@@ -109,7 +109,8 @@ class TestRealDataFullPipeline:
 
     def test_segment_layer(self, pipeline_result):
         """线段层产出验证（v1 管线）。"""
-        segments = pipeline_result._segment_engines["1m"].current_segments
+        last_snap = pipeline_result.base_session.event_log[-1]
+        segments = last_snap.seg_snapshot.segments
         assert len(segments) >= 1, f"线段数应 >= 1，实际 {len(segments)}"
         # 线段方向交替
         for i in range(1, len(segments)):
@@ -120,7 +121,8 @@ class TestRealDataFullPipeline:
 
     def test_no_degenerate_segments(self, pipeline_result):
         """退化段检查（001 谱系验证）。"""
-        segments = pipeline_result._segment_engines["1m"].current_segments
+        last_snap = pipeline_result.base_session.event_log[-1]
+        segments = last_snap.seg_snapshot.segments
         degenerate_count = 0
         for seg in segments:
             n_strokes = seg.s1 - seg.s0 + 1
@@ -133,7 +135,8 @@ class TestRealDataFullPipeline:
 
     def test_zhongshu_layer(self, pipeline_result):
         """中枢层产出验证。"""
-        zhongshus = pipeline_result._zhongshu_engines["1m"].current_zhongshus
+        last_snap = pipeline_result.base_session.event_log[-1]
+        zhongshus = last_snap.zs_snapshot.zhongshus
         print(f"\n[E2E] 中枢总数: {len(zhongshus)}")
         if len(zhongshus) > 0:
             for i, zs in enumerate(zhongshus):
@@ -143,7 +146,8 @@ class TestRealDataFullPipeline:
 
     def test_move_layer(self, pipeline_result):
         """走势类型层产出验证。"""
-        moves = pipeline_result._move_engines["1m"].current_moves
+        last_snap = pipeline_result.base_session.event_log[-1]
+        moves = last_snap.move_snapshot.moves
         print(f"\n[E2E] 走势类型总数: {len(moves)}")
         kind_counts: dict[str, int] = {}
         for i, m in enumerate(moves):
@@ -154,7 +158,8 @@ class TestRealDataFullPipeline:
 
     def test_buysellpoint_layer(self, pipeline_result):
         """买卖点层产出验证。"""
-        bsps = pipeline_result._bsp_engines["1m"].current_buysellpoints
+        last_snap = pipeline_result.base_session.event_log[-1]
+        bsps = last_snap.bsp_snapshot.buysellpoints
         print(f"\n[E2E] 买卖点总数: {len(bsps)}")
         type_counts: dict[str, int] = {}
         for bsp in bsps:
@@ -165,16 +170,16 @@ class TestRealDataFullPipeline:
     def test_pipeline_summary(self, pipeline_result, rth_bars):
         """全管线汇总报告。"""
         last_snap = pipeline_result.base_session.event_log[-1]
-        segments = pipeline_result._segment_engines["1m"].current_segments
-        zhongshus = pipeline_result._zhongshu_engines["1m"].current_zhongshus
-        moves = pipeline_result._move_engines["1m"].current_moves
-        bsps = pipeline_result._bsp_engines["1m"].current_buysellpoints
+        segments = last_snap.seg_snapshot.segments
+        zhongshus = last_snap.zs_snapshot.zhongshus
+        moves = last_snap.move_snapshot.moves
+        bsps = last_snap.bsp_snapshot.buysellpoints
 
         summary = {
             "bars(RTH)": len(rth_bars),
-            "merged_bars": last_snap.n_merged,
-            "fractals": last_snap.n_fractals,
-            "strokes": len(last_snap.strokes),
+            "merged_bars": last_snap.bi_snapshot.n_merged,
+            "fractals": last_snap.bi_snapshot.n_fractals,
+            "strokes": len(last_snap.bi_snapshot.strokes),
             "segments(v1)": len(segments),
             "zhongshus": len(zhongshus),
             "moves": len(moves),
@@ -188,8 +193,8 @@ class TestRealDataFullPipeline:
         print(f"{'='*60}")
 
         # 层层递减
-        assert last_snap.n_merged <= len(rth_bars)
-        assert len(last_snap.strokes) <= last_snap.n_merged
+        assert last_snap.bi_snapshot.n_merged <= len(rth_bars)
+        assert len(last_snap.bi_snapshot.strokes) <= last_snap.bi_snapshot.n_merged
 
 
 @skip_no_data
@@ -215,7 +220,7 @@ class TestRealDataV0V1Comparison:
         )
         orch.step(len(rth_bars))
         last_snap = orch.base_session.event_log[-1]
-        strokes = last_snap.strokes
+        strokes = last_snap.bi_snapshot.strokes
 
         if len(strokes) < 3:
             pytest.skip(f"笔数不足: {len(strokes)}")
@@ -251,7 +256,7 @@ class TestRealDataV0V1Comparison:
             stroke_mode="wide",
         )
         orch_wide.step(len(rth_bars))
-        n_wide = len(orch_wide.base_session.event_log[-1].strokes)
+        n_wide = len(orch_wide.base_session.event_log[-1].bi_snapshot.strokes)
 
         orch_new = TFOrchestrator(
             session_id="cmp_new",
@@ -260,7 +265,7 @@ class TestRealDataV0V1Comparison:
             stroke_mode="new",
         )
         orch_new.step(len(rth_bars))
-        n_new = len(orch_new.base_session.event_log[-1].strokes)
+        n_new = len(orch_new.base_session.event_log[-1].bi_snapshot.strokes)
 
         print(f"\n[CMP] 宽笔: {n_wide} 笔, 新笔: {n_new} 笔")
         assert n_wide > 0

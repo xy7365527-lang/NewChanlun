@@ -70,20 +70,7 @@ class TestEventIdRegression:
             snap = engine_a.process_bar(bar)
             events_a.extend(snap.events)
 
-        # 有 symbol（新路径，通过 Orchestrator）
-        orch = TFOrchestrator(
-            session_id="test",
-            base_bars=bars,
-            timeframes=["5m"],
-            symbol="BZ",
-        )
-        orch.step(60)
-        tagged = orch.bus.drain()
-        events_b = [te.event for te in tagged]
-
         # event_id 在两种路径下应完全一致
-        # 注意：单 TF Orchestrator 走 resample 路径，bars 数量可能不同
-        # 所以这里比较的是引擎直接运行的 event_id 稳定性
         assert len(events_a) > 0
         fp_a = compute_stream_fingerprint(events_a)
 
@@ -195,7 +182,7 @@ class TestOrchestratorStreamIds:
         assert len(orch._stream_ids) == 0
 
     def test_step_pushes_stream_id_to_bus(self):
-        """step() 后 EventBus 中的 TaggedEvent 携带 stream_id。"""
+        """step() 后各 session 引擎的 EventBus 中的 TaggedEvent 携带 stream_id。"""
         bars = _generate_1m_bars(60)
         orch = TFOrchestrator(
             session_id="test",
@@ -204,7 +191,8 @@ class TestOrchestratorStreamIds:
             symbol="BZ",
         )
         orch.step(30)
-        tagged = orch.bus.drain()
+        # 每个 session 的 RecursiveOrchestrator 有自己的 bus
+        tagged = orch.sessions["5m"].engine.bus.drain()
         if tagged:
             for te in tagged:
                 assert te.stream_id != "", "有 symbol 时 stream_id 不应为空"
