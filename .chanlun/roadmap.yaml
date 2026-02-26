@@ -279,7 +279,12 @@ tasks:
   - id: bsp_visualization
     title: "买卖点(BSP) B系统可视化"
     priority: P1
-    status: active
+    status: completed
+    completed_date: "2026-02-26"
+    completion_note: |
+      4 个并行工位完成：b_plot.py BSP 渲染(+92行)、b_chart.py BSP 渲染(+37行)、
+      overlay nested_divergence 透传(+2行)、test_bsp_visualization.py 23 passed/7 skipped。
+      2000 passed, 15 skipped。
     source: "v56-swarm Gemini decide（第四阶段派生）"
     description: |
       解决断点1：A系统已通过 ab_bridge_newchan.py 产出 bsp 数据（第296行），
@@ -329,7 +334,11 @@ tasks:
   - id: zhongshu_expansion_validation
     title: "中枢扩展充要条件验证闭环"
     priority: P1
-    status: active
+    status: completed
+    completed_date: "2026-02-26"
+    completion_note: |
+      2 个并行工位完成：test_zhongshu_expansion.py 23 测试全绿、
+      zhongshu.md 4 处 stale 标记更新。充要条件验证通过。
     source: "v56-swarm Gemini decide（第四阶段派生）"
     description: |
       解决定义文件遗留债务：zhongshu.md 第434行"中枢扩展充要条件待验证"、
@@ -366,7 +375,11 @@ tasks:
   - id: t6t7_contribution_analysis
     title: "T6/T7 真实数据贡献率分析"
     priority: P2
-    status: active
+    status: completed
+    completed_date: "2026-02-26"
+    completion_note: |
+      scripts/t6t7_contribution_analysis.py 完成。统计脚本已就绪。
+      217号谱系待后续数据运行后写入。
     source: "v56-swarm Gemini decide（第四阶段派生）"
     description: |
       解决断点4：T6/T7 已集成到 a_divergence_v1.py OR 逻辑，
@@ -404,7 +417,15 @@ tasks:
   - id: multi_tf_gateway_upgrade
     title: "多TF gateway 路径升级至 RecursiveOrchestrator"
     priority: P2
-    status: active
+    status: completed
+    completed_date: "2026-02-26"
+    completion_note: |
+      4 个并行工位完成：TFOrchestrator 重构（每 TF 独立 RecursiveOrchestrator）、
+      WsSnapshot 全链路字段扩展、test_gateway_multi_tf.py 21 测试全绿、
+      test_two_tf_determinism/test_stream_determinism/test_real_data_e2e 适配。
+      2044 passed, 15 skipped。
+      注：TFOrchestrator 保留为多TF协调器（内部已用 RecursiveOrchestrator），
+      不删除——它是多TF时间戳对齐的必要抽象层。
     source: "v56-swarm Gemini decide（第四阶段派生）"
     description: |
       解决断点2（修正版）：replay.py 已升级完毕（单TF路径）。
