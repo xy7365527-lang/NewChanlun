@@ -625,7 +625,7 @@ fractal_template:
     - "任何 teammate 面对 ≥2 个可并行子任务时，必须 spawn 子蜂群（095号：真递归是默认模式）"
     - "子蜂群通过 TeamCreate 创建独立 team，复制父蜂群的完整结构（097号五特征 DAG 模板）"
     - "扁平 Lead→Worker 是退化特例，使用需要理由——必须证明子任务不需要独立治理"
-    - "递归深度无人为限制，由 topology-manager 的收敛信号自然终止（020号：背驰+分型 = 区间套收敛判定）"
+    - "递归深度由资源约束和视差 Gap 累积自然终止（工程上限约 3-4 层），终止信号来自 topology-manager 收敛判定（020号）"
     - "父 teammate 对子 teammates 负路由责任"
     - "结构工位默认扁平——裁判不参与走势。例外：结构工位自身任务需分解时允许 spawn 同类型子工位（受限递归），不允许 spawn 任务工位"
   visibility: "所有 teammates（含任意深度的子 teammates）在同一 task list 中可见"
@@ -636,6 +636,11 @@ fractal_template:
 # 081号更新：加入 roadmap.yaml 扫描（最高优先级来源）+ 精确化 terminate_condition
 # ═══════════════════════════════════════════════════════════════
 ceremony_sequence:
+  # 注意：ceremony_sequence 使用 DAG 格式声明逻辑依赖关系，
+  # 但 ceremony_scan.py 当前以优先级线性扫描实现（roadmap → session → fallback）。
+  # DAG 的 depends_on 约束由 LLM 解释执行，不由代码强制拓扑排序。
+  # 这是当前工程选择——DAG 声明保留了逻辑依赖信息，
+  # 代码实现的线性扫描覆盖了最常见的执行路径。
   cold_start:
     output_policy: "所有关键步骤（scan结果、工位派生、Gemini决断、蜂群状态变更）向编排者展示——编排者需要观察系统演化"
     nodes:

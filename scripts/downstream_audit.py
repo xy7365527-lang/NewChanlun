@@ -7,6 +7,7 @@
 154号-2 优化：verification_hint 机制——在报告 unresolved 前先用 hint
 检查实际文件内容，减少假阳性。
 156号扩展：支持 expect: absent（pattern 不应出现在文件中）。
+P6修复：解析 YAML frontmatter downstream_inferences 字段，消除假阳性。
 
 用法:
   python scripts/downstream_audit.py              # 输出 JSON 报告
@@ -16,6 +17,74 @@ import json, os, re, glob, sys, argparse, yaml
 
 OVERRIDE_STATUSES = {"resolved", "superseded", "blocked", "background_noise"}
 # 157号：long_term 已被否定，所有原 long_term 迁移为 blocked
+
+
+def parse_yaml_frontmatter(content):
+    """解析文件的 YAML frontmatter，返回 parsed dict 或 None。"""
+    if not content.startswith("---"):
+        return None
+    end = content.find("\n---", 3)
+    if end < 0:
+        return None
+    try:
+        return yaml.safe_load(content[3:end])
+    except Exception:
+        return None
+
+
+def extract_yaml_downstream_statuses(content):
+    """从 YAML frontmatter 的 downstream_inferences 提取 {id: status} 映射。
+
+    P6修复：YAML frontmatter 中的 downstream_inferences 是结构化数据源，
+    其 status 字段优先级高于 markdown 内联标记和启发式判断。
+
+    返回 dict: {"228-1": "resolved", "228-2": "resolved", ...}
+    """
+    fm = parse_yaml_frontmatter(content)
+    if not fm or not isinstance(fm, dict):
+        return {}
+    inferences = fm.get("downstream_inferences")
+    if not inferences or not isinstance(inferences, list):
+        return {}
+    result = {}
+    for item in inferences:
+        if not isinstance(item, dict):
+            continue
+        item_id = str(item.get("id", ""))
+        item_status = str(item.get("status", ""))
+        if item_id and item_status:
+            result[item_id] = item_status
+    return result
+
+
+def extract_yaml_only_actions(content, gid):
+    """从仅有 YAML frontmatter downstream_inferences（无 markdown 章节）的文件提取 actions。
+
+    当文件有 YAML downstream_inferences 但没有 ## 下游推论 章节时，
+    YAML 是唯一的数据源——直接从 YAML 构建 actions 列表。
+    """
+    fm = parse_yaml_frontmatter(content)
+    if not fm or not isinstance(fm, dict):
+        return []
+    inferences = fm.get("downstream_inferences")
+    if not inferences or not isinstance(inferences, list):
+        return []
+    actions = []
+    for i, item in enumerate(inferences, 1):
+        if not isinstance(item, dict):
+            continue
+        item_id = str(item.get("id", ""))
+        desc = item.get("description") or item.get("content") or ""
+        if not desc:
+            continue
+        # 从 id 提取 index（如 "180-2" → 2），fallback 到枚举序号
+        index = i
+        if item_id:
+            parts = item_id.rsplit("-", 1)
+            if len(parts) == 2 and parts[1].isdigit():
+                index = int(parts[1])
+        actions.append({"index": index, "text": desc, "resolved_inline": False})
+    return actions
 
 
 def extract_downstream_actions(filepath):
@@ -33,7 +102,9 @@ def extract_downstream_actions(filepath):
         content, re.DOTALL
     )
     if not m:
-        return gid, []
+        # P6修复：无 markdown 章节时，尝试从 YAML frontmatter 提取
+        yaml_actions = extract_yaml_only_actions(content, gid)
+        return gid, yaml_actions
 
     section = m.group(1)
     # 提取编号条目（1. xxx 或 - xxx）
@@ -223,12 +294,15 @@ def audit(root=None):
 
     # 预加载所有内容用于交叉引用
     all_content = []
+    # P6修复：预加载 YAML frontmatter downstream_inferences 状态
+    yaml_statuses = {}  # {"{gid}-{index}": status}
     for fp in files:
         with open(fp, encoding="utf-8") as f:
             content = f.read()
         m = re.search(r'^id:\s*["\']?(\d{3})["\']?', content, re.MULTILINE)
         gid = m.group(1) if m else os.path.basename(fp)[:3]
         all_content.append((gid, content))
+        yaml_statuses.update(extract_yaml_downstream_statuses(content))
 
     neg_map = load_negation_map(settled_dir)
 
@@ -247,8 +321,12 @@ def audit(root=None):
         for action in actions:
             total += 1
             override_key = f"{gid}-{action['index']}"
+            # P6修复：优先级链 yaml_statuses > overrides > inline > heuristic > verification_hints
+            yaml_status = yaml_statuses.get(override_key)
             override_status = overrides.get(override_key)
-            if override_status:
+            if yaml_status and yaml_status in OVERRIDE_STATUSES:
+                status = yaml_status
+            elif override_status:
                 status = override_status
             elif action.get("resolved_inline"):
                 status = "blocked" if action["resolved_inline"] == "blocked" else "resolved"

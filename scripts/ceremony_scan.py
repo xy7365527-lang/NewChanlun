@@ -15,9 +15,10 @@
 178号更新：delta_blocks 检测——block-topology 区块变化
 183号更新：async_self_reference 集成——t审查t-1 异步自指审计
     dispatch-dag.yaml 的 ceremony_sequence 定义了 DAG 格式的 nodes+depends_on，
-    但本脚本并未实现 DAG 解析器——扫描顺序由代码逻辑决定（roadmap → session → fallback）。
-    DAG 的 ceremony_sequence 由 LLM 解释执行（057号推论：LLM 不是状态机）。
-    未来演化路径：重写为真正读取 ceremony_sequence 的 DAG 拓扑排序（选项 C 边界条件）。
+    但本脚本以优先级线性扫描实现（roadmap → session → fallback）——这是有意的工程选择。
+    DAG 声明保留逻辑依赖信息供 LLM 解释执行（057号推论：LLM 不是状态机），
+    代码实现的线性扫描覆盖最常见的执行路径。
+    演化路径：如需强制拓扑排序，可重写为真正读取 ceremony_sequence 的 DAG 解析器。
 """
 import json, os, glob, yaml, argparse, subprocess, re
 
