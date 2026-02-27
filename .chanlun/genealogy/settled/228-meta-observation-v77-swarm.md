@@ -17,13 +17,16 @@ depends_on:
 downstream_inferences:
   - id: 228-1
     description: ceremony-step-guard.sh 需要增加 agent 身份过滤或调整 .ceremony-step 生命周期
-    status: unresolved
+    status: resolved
+    resolution: 方案B实施——hook 在步骤5-6（工位执行阶段）静默退出，仅步骤7-10阻断 Lead 原子链
   - id: 228-2
     description: 确认 Claude Code PostToolUse hook INPUT_JSON 是否携带 agent 标识
-    status: unresolved
+    status: resolved
+    resolution: 平台不携带 agent 标识（已知限制），方案A 不可行，已走方案B
   - id: 228-3
     description: 227号下游推论1 状态细化为"部分修复——write 落地，clear/scope 待修"
-    status: unresolved
+    status: resolved
+    resolution: 已更新227号下游推论1状态
 ---
 
 # 228号：元观察——v77-swarm ceremony-step-guard 爆炸半径

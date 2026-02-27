@@ -29,6 +29,8 @@ STATE_FILE="$CWD/.ceremony-step"
 [ -f "$STATE_FILE" ] || exit 0
 
 # 读取步骤信息并注入指令
+# 228号修复（方案B）：步骤5-6是工位执行阶段，hook 无法区分 Lead 与工位（平台不携带 agent 标识），
+# 因此在这些步骤中静默退出，仅在步骤7-10（push→rescan→evaluate 原子链）阻断。
 INPUT_JSON="$INPUT" "$PYTHON_BIN" - "$STATE_FILE" <<'PY'
 import json
 import sys
@@ -43,6 +45,18 @@ except Exception:
 
 step = state.get("step", "?")
 phase = state.get("phase", "unknown")
+
+# 228号方案B：步骤5（spawn）和6（consume）期间工位正在执行，
+# hook 无法区分 Lead 与工位调用（平台限制，228-2 已确认），
+# 静默退出避免误阻断工位。仅步骤7-10需要守卫 Lead 的原子链。
+try:
+    step_num = int(step)
+except (ValueError, TypeError):
+    step_num = -1
+
+if step_num in (5, 6):
+    # 工位执行阶段——静默退出，不阻断
+    sys.exit(0)
 
 reason = (
     f"[ceremony-step-guard] 你正在 ceremony 步骤 {step}（{phase}）。"

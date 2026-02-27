@@ -83,7 +83,7 @@ ceremony.md 新增的"角色边界（226号类型C缓解）"章节：
 
 ## 下游推论
 
-1. 观察1（ceremony_state.py 集成缺口）是行动类，下一个 ceremony 应修复
+1. 观察1（ceremony_state.py 集成缺口）是行动类——部分修复：write 已落地（ceremony.md 步骤1 调用 ceremony_state.py write），clear/scope 待修（ceremony 终止路径未调用 clear，且 hook 作用域已通过228号方案B缓解）
 2. 观察3的模式（机械性步骤脚本化）可作为未来 ceremony 优化的指导原则
 
 ## 边界条件
