@@ -741,6 +741,124 @@ def compute_delta_blocks(root):
     }
 
 
+def compute_advancement_candidates(root):
+    """编排者战略决策：roadmap_awareness 层（纯信息，不生成工位）。
+
+    scan 负责呈现材料，编排者负责解释/行动。
+    manual_dispatch 是正式的编排者决策接口，不是绕过机制。
+
+    来源：
+    1. roadmap.yaml 已完成任务的下一步提示
+    2. 最近 10 个已结算谱系中 downstream_inferences 标记为"选择"类的未处理项
+    3. meta-observer 最近产出中的下游推论
+
+    返回结构化列表，每个元素包含 source/direction/description/category 字段。
+    category: choice（需编排者决策）| theory（理论推进）| engineering（工程推进）
+    """
+    candidates = []
+
+    # 1. roadmap.yaml：已完成任务的 completion_note 中提取后续方向
+    roadmap_path = os.path.join(root, ".chanlun/roadmap.yaml")
+    if os.path.isfile(roadmap_path):
+        try:
+            with open(roadmap_path, encoding="utf-8") as f:
+                data = yaml.safe_load(f)
+            for task in data.get("tasks", []):
+                if task.get("status") != "completed":
+                    continue
+                note = task.get("completion_note", "")
+                # 从 completion_note 中提取"待后续"/"后续"/"下一步"等提示
+                for line in note.split("\n"):
+                    stripped = line.strip()
+                    if any(kw in stripped for kw in ("待后续", "后续", "下一步", "TODO", "待")):
+                        candidates.append({
+                            "source": f"roadmap:{task.get('id', '?')}",
+                            "direction": stripped,
+                            "description": f"已完成任务 {task.get('title', '')} 的后续方向",
+                            "category": "engineering",
+                        })
+        except Exception:
+            pass
+
+    # 2. 最近 10 个已结算谱系的 downstream_inferences 中未解决的选择类项
+    settled_files = sorted(
+        glob.glob(os.path.join(root, ".chanlun/genealogy/settled/*.md")),
+        key=os.path.getmtime,
+        reverse=True,
+    )[:10]
+    for settled_file in settled_files:
+        try:
+            with open(settled_file, encoding="utf-8") as f:
+                head = f.read(4000)
+            fm_match = re.match(r"^---\s*\n(.+?)\n---", head, re.DOTALL)
+            if not fm_match:
+                continue
+            fm = yaml.safe_load(fm_match.group(1))
+            if not isinstance(fm, dict):
+                continue
+            genealogy_id = str(fm.get("id", "?"))
+            for di in fm.get("downstream_inferences", []):
+                if not isinstance(di, dict):
+                    continue
+                status = str(di.get("status", "")).lower()
+                if status in ("resolved", "已结算", "已修复"):
+                    continue
+                desc = di.get("description", "")
+                # 分类：包含"选择"/"decide"/"方向"关键词的是 choice 类
+                if any(kw in desc for kw in ("选择", "decide", "方向", "策略")):
+                    cat = "choice"
+                elif any(kw in desc for kw in ("形式化", "定义", "概念", "定理", "证明")):
+                    cat = "theory"
+                else:
+                    cat = "engineering"
+                candidates.append({
+                    "source": f"genealogy:{genealogy_id}号-{di.get('id', '?')}",
+                    "direction": desc[:200],
+                    "description": f"谱系{genealogy_id}号下游推论（status={di.get('status', '?')}）",
+                    "category": cat,
+                })
+        except Exception:
+            pass
+
+    # 3. meta-observer 最近产出（最近一个 meta-observation 类型谱系的下游推论）
+    for settled_file in settled_files:
+        try:
+            with open(settled_file, encoding="utf-8") as f:
+                head = f.read(4000)
+            fm_match = re.match(r"^---\s*\n(.+?)\n---", head, re.DOTALL)
+            if not fm_match:
+                continue
+            fm = yaml.safe_load(fm_match.group(1))
+            if not isinstance(fm, dict):
+                continue
+            source = str(fm.get("source", ""))
+            if "meta-observer" not in source:
+                continue
+            genealogy_id = str(fm.get("id", "?"))
+            for di in fm.get("downstream_inferences", []):
+                if not isinstance(di, dict):
+                    continue
+                status = str(di.get("status", "")).lower()
+                if status in ("resolved", "已结算", "已修复"):
+                    continue
+                # 避免与上面的谱系扫描重复
+                candidate_id = f"meta-observer:{genealogy_id}号-{di.get('id', '?')}"
+                if any(c["source"] == candidate_id for c in candidates):
+                    continue
+                desc = di.get("description", "")
+                candidates.append({
+                    "source": candidate_id,
+                    "direction": desc[:200],
+                    "description": f"meta-observer {genealogy_id}号下游推论（status={di.get('status', '?')}）",
+                    "category": "choice" if any(kw in desc for kw in ("选择", "decide", "方向")) else "theory",
+                })
+            break  # 只取最近一个 meta-observation
+        except Exception:
+            pass
+
+    return candidates
+
+
 def main():
     parser = argparse.ArgumentParser(description="蜂群 spawn 通用工具")
     parser.add_argument("--skills", action="store_true", help="只输出 required_skills")
@@ -1019,6 +1137,18 @@ def main():
             })
     except Exception as exc:
         result["async_self_ref_error"] = f"{type(exc).__name__}: {exc}"
+
+    # 编排者战略决策：roadmap_awareness 层（纯信息，不生成工位）
+    # manual_dispatch 是正式的编排者决策接口，不是绕过机制
+    # scan 负责呈现材料，编排者负责解释/行动
+    advancement_candidates = compute_advancement_candidates(root)
+    if advancement_candidates:
+        result["advancement_candidates"] = advancement_candidates
+        result["roadmap_awareness_note"] = (
+            "advancement_candidates 是纯信息。"
+            "编排者通过 manual_dispatch 选择执行哪些方向。"
+            "scan 不做 dispatch 决策。"
+        )
 
     # 081号：清晰报告干净终止条件（必须在所有 workstations 追加完成后计算）
     # 真阴性干净终止 = roadmap 为空 AND workstations 为空 AND pending 谱系为空
