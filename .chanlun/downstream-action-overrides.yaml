@@ -424,3 +424,7 @@
 226-5: resolved    # ceremony-step-guard.sh 已创建——PostToolUse 全工具守卫，ceremony 期间注入正面指令
 226-6: resolved    # ceremony_push_and_rescan.sh 已创建——步骤7-10原子链脚本，消除 LLM 决策间隙
 226-7: resolved    # 认识论确认——P3（分析后提问）完整修复受平台限制（hook 无法拦截自然语言输出），记录为已知 Gap
+
+# === 227号 — 元观察（ceremony_state.py 集成缺口 + 收敛信号） ===
+227-1: resolved    # ceremony_state.py 集成缺口已修复——ceremony.md 步骤1/2/10 + ceremony_push_and_rescan.sh 步骤7/8 已接入 write_step/clear
+227-2: resolved    # 认识论确认——机械性步骤脚本化模式已在 ceremony_push_and_rescan.sh 中体现，可作为未来优化指导
