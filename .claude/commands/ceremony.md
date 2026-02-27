@@ -21,8 +21,8 @@ scan 输出什么就 spawn 什么。Lead 不做实质认知工作。
    - 每条 completion 到达时增量写 session（不等 consume_all）
    - 空闲工位无新任务：`shutdown_request`
    - 仍有 in_progress：`SendMessage` 询问 + `TaskList` 轮询
-7. 全部完成 → 写 session → commit → push
-8. `python scripts/ceremony_scan.py --phase rescan` → JSON
+7. 全部完成 → 写 session → `bash scripts/ceremony_push_and_rescan.sh "commit message"` （原子链：commit→push→rescan，消除 LLM 决策间隙）
+8. 解析 rescan JSON 输出
 9. rescan.workstations[] 非空且与上轮不同 → 回到步骤 5 spawn 新工位
 10. rescan.workstations[] 为空或与上轮相同（不动点） → `TeamDelete` → 停止
 11. 安全阀：rescan 循环 ≤ 3 次（max_rescan_depth=3），超过则强制终止
@@ -50,9 +50,15 @@ scan 输出什么就 spawn 什么。Lead 不做实质认知工作。
 - 概念分离 → `/escalate`（不在序列中插入判断步骤）
 - push 失败 → `git fetch && git rebase` → 重推
 
+## 角色边界（226号类型C缓解）
+
+Lead 遇到需要修改文件的任务 → 唯一合法行为是 spawn 工位。
+Lead 不直接执行 Write/Edit（白名单路径除外）。违反此条 = 僭越。
+
 ## 绝对禁止
 
 - 白名单外的 Bash 调用
+- 白名单外的 Write/Edit（Lead 不做实质认知工作——spawn 工位）
 - 额外的 Read/Glob（信息已在 JSON 中）
 - 确认请求（"是否正确"、"待确认"）
 - 等待信号
@@ -62,4 +68,5 @@ scan 输出什么就 spawn 什么。Lead 不做实质认知工作。
 
 058号（Swarm₀）、057号（LLM非状态机）、075号（skill事件驱动）、
 162号（RTAS持久化）、174号（谱系即生成引擎）、179号（拓扑分析家冷读）、
-218号（Lead并行化）
+218号（Lead并行化）、224号（push→rescan原子性）、225号（rescan→evaluate原子性）、
+226号（三层无状态统一根因 + 类型C角色边界缓解）

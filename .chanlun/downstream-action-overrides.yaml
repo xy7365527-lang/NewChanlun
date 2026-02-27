@@ -415,3 +415,12 @@
 # === 225号 — ceremony rescan→evaluate 原子性断裂 ===
 225-1: resolved    # post-commit-flow.md 原子链声明 + flow-continuity-guard.sh hook 覆盖——步骤7-10原子块已实现
 225-2: resolved    # 修复模式（hook守卫+规则声明+正面指令）已在224/225号中确立——认识论确认
+
+# === 226号 — Lead 中断问题完整根因（三层无状态） ===
+226-1: resolved    # 认识论确认——类型B（纯文本后断裂）是平台限制（057号推论），编排者发送消息即可触发继续
+226-2: resolved    # ceremony.md 已增加"角色边界（226号类型C缓解）"章节——Lead 遇到修改文件任务 → spawn 工位
+226-3: resolved    # 认识论确认——224/225号 hook 修复模式（Bash后注入正面指令）是类型A的完整解
+226-4: resolved    # ceremony_state.py 已创建——.ceremony-step 状态文件管理（write_step/read_step/clear_step/is_in_ceremony）
+226-5: resolved    # ceremony-step-guard.sh 已创建——PostToolUse 全工具守卫，ceremony 期间注入正面指令
+226-6: resolved    # ceremony_push_and_rescan.sh 已创建——步骤7-10原子链脚本，消除 LLM 决策间隙
+226-7: resolved    # 认识论确认——P3（分析后提问）完整修复受平台限制（hook 无法拦截自然语言输出），记录为已知 Gap
