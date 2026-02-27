@@ -29,8 +29,11 @@ STATE_FILE="$CWD/.ceremony-step"
 [ -f "$STATE_FILE" ] || exit 0
 
 # 读取步骤信息并注入指令
-# 228号修复（方案B）：步骤5-6是工位执行阶段，hook 无法区分 Lead 与工位（平台不携带 agent 标识），
-# 因此在这些步骤中静默退出，仅在步骤7-10（push→rescan→evaluate 原子链）阻断。
+# 228号修复（完整版）：hook 无法区分 Lead 与工位（平台不携带 agent 标识，228-2 已确认）。
+# 仅步骤7-10（push→rescan→evaluate→terminate 原子链）需要阻断——
+# 这些步骤是 Lead 独占的（工位已被 shutdown），不会误伤工位。
+# 步骤1-6：Lead 已通过 ceremony.md 正面指令驱动，不需要 hook 阻断；
+# 且步骤5-6有工位在运行，阻断会误伤工位。
 INPUT_JSON="$INPUT" "$PYTHON_BIN" - "$STATE_FILE" <<'PY'
 import json
 import sys
@@ -46,16 +49,15 @@ except Exception:
 step = state.get("step", "?")
 phase = state.get("phase", "unknown")
 
-# 228号方案B：步骤5（spawn）和6（consume）期间工位正在执行，
-# hook 无法区分 Lead 与工位调用（平台限制，228-2 已确认），
-# 静默退出避免误阻断工位。仅步骤7-10需要守卫 Lead 的原子链。
 try:
     step_num = int(step)
 except (ValueError, TypeError):
     step_num = -1
 
-if step_num in (5, 6):
-    # 工位执行阶段——静默退出，不阻断
+# 228号完整修复：仅步骤7-10阻断（Lead 独占的原子链）。
+# 步骤1-6静默退出——步骤1-4 Lead 已在按序列执行（ceremony.md 正面指令），
+# 步骤5-6有工位在运行，阻断会误伤（228号观察1的根因）。
+if step_num < 7:
     sys.exit(0)
 
 reason = (
