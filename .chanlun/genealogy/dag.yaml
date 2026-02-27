@@ -1129,6 +1129,12 @@ nodes:
   status: 已结算
   type: meta-rule
   file: settled/226-lead-interrupt-complete-diagnosis.md
+- id: '227'
+  title: 元观察——v70-swarm P0/P1 修复 session（ceremony 状态文件集成缺口 + 三个收敛信号）
+  status: 已结算
+  type: meta-rule
+  file: settled/227-meta-observation-v70-swarm.md
+  depends_on: ['226', '036', '076']
 edges:
   depends_on:
   - from: '136'
@@ -2259,6 +2265,12 @@ edges:
     to: '057'
   - from: '226'
     to: '173'
+  - from: '227'
+    to: '226'
+  - from: '227'
+    to: '036'
+  - from: '227'
+    to: '076'
   triggered:
   - from: '005'
     to: 005a

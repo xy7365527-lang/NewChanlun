@@ -1080,3 +1080,5 @@
 {"type":"depends_on","target_genealogy_id":"137"}
 {"type":"depends_on","target_genealogy_id":"057"}
 {"type":"depends_on","target_genealogy_id":"173"}
+{"from": "9cb870784f5f4afdf2b6d1ba01a7475b636889f497ec9cfd855ba3c7d784022f", "to_genealogy": ["226", "036", "076"], "relation": "depends_on"}
+{"from": "4b2a0836ac2cdbe7416719cce646a115c1a1ad24251e414cd02b6397a0b96407", "to_genealogy": [226, 36, 76], "type": "depends_on"}
