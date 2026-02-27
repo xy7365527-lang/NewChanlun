@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # ceremony-step-guard.sh — PostToolUse hook
+# ⚠️ 本文件已从 settings.json hook 注册中移除（v87-swarm, 228-4）。
+# 保留作为谱系文档——记录 228-1 修复路径和设计决策。
 # 检查 .ceremony-step 是否存在，如果存在则注入正面指令强制继续 ceremony 序列。
 # P0 修复：ceremony 协议要求状态维护，但 LLM 无状态——通过 hook 注入弥补。
 

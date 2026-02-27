@@ -27,6 +27,10 @@ downstream_inferences:
     description: 227号下游推论1 状态从"部分修复"更新为完全修复（write/clear/scope 三项均已落地）
     status: resolved
     resolution: 已更新227号下游推论1状态为 resolved——write 落地（ceremony.md 步骤1 + ceremony_push_and_rescan.sh），clear 落地（ceremony.md 步骤2/10），scope 通过方案B resolved
+  - id: 228-4
+    description: ceremony-step-guard.sh hook 注册删除——空壳 hook 消耗无意义的执行开销
+    status: resolved
+    resolution: 完整删除（v87-swarm）——从 settings.json 移除所有 9 个 matcher 注册。hook 文件保留作为谱系文档但不再执行。
 ---
 
 # 228号：元观察——v77-swarm ceremony-step-guard 爆炸半径
