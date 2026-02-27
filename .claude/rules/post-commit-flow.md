@@ -29,6 +29,26 @@ push 成功后的**唯一合法输出格式**：
 
 **用户消息处理**：ceremony 执行中（步骤1-10）收到的用户消息，在 ceremony 到达终止条件（步骤10 不动点或步骤2 干净终止）后统一回应。ceremony 序列不可被用户消息中断。
 
+## ceremony 中的 rescan→evaluate 原子性（225号）
+
+rescan（步骤8）和 evaluate/spawn/terminate（步骤9-10）是**同一个原子操作的连续阶段**。
+
+**正面规则**（137号要求）：
+
+ceremony_scan.py --phase rescan 执行完成后的**唯一合法行为**：
+1. 解析 JSON 输出
+2. workstations 非空且与上轮不同 → 回到步骤5 spawn 新工位
+3. workstations 为空或与上轮相同 → TeamDelete → 停止
+
+**不存在其他行为。** 以下都是违规：
+- rescan 后回应用户消息——用户消息在 ceremony 完成后统一回应
+- rescan 后输出总结段落——直接执行步骤9或10
+- rescan 后输出格式B——rescan 结果评估就是待做行动
+
+**原子链完整覆盖**：ceremony 步骤 7→8→9→10 是一条不可中断的原子链：
+- push（7）→ rescan（8）：224号
+- rescan（8）→ evaluate/spawn/terminate（9-10）：225号
+
 ## 缺口发现时的执行路径
 
 如果 commit/push 过程中或完成后发现缺口（push 失败、残留状态、规则未覆盖的边界等）：
