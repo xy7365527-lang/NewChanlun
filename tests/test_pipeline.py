@@ -161,6 +161,36 @@ class TestLocateBSP:
         assert new_ctx.horizontal.current_step is HorizontalStep.EDGE_BSP
 
 
+# ── TestCostTrackerImmutability ───────────────────────────
+
+
+class TestCostTrackerImmutability:
+    """测试 execute_entry / execute_exit 后原 ctx 的 cost_tracker 不变。"""
+
+    def test_cost_tracker_immutability_on_entry(self) -> None:
+        """execute_entry 后原 ctx 的 cost_tracker 不变。"""
+        from newchan.pipeline import create_context, execute_entry
+
+        ctx = create_context(FULL_RISK_ON)
+        original_entries = ctx.cost_tracker.total_entries
+        new_ctx, _ = execute_entry(ctx, LayerType.L0_CONFIG, "配置层一买", 0.5)
+        # 原 ctx 的 cost_tracker 应不变
+        assert ctx.cost_tracker.total_entries == original_entries
+        # 新 ctx 的 cost_tracker 应有记录
+        assert new_ctx.cost_tracker.total_entries > 0
+
+    def test_cost_tracker_immutability_on_exit(self) -> None:
+        """execute_exit 后原 ctx 的 cost_tracker 不变。"""
+        from newchan.pipeline import create_context, execute_entry, execute_exit
+
+        ctx = create_context(FULL_RISK_ON)
+        ctx, _ = execute_entry(ctx, LayerType.L0_CONFIG, "配置层一买", 0.5)
+        pre_exit_exits = ctx.cost_tracker.total_exits
+        new_ctx, _ = execute_exit(ctx, LayerType.L0_CONFIG, abort=False)
+        # 原 ctx 的 cost_tracker.total_exits 应不变
+        assert ctx.cost_tracker.total_exits == pre_exit_exits
+
+
 # ── TestComputePosition ────────────────────────────────────
 
 
@@ -334,6 +364,28 @@ class TestPipelineStep:
         ctx, result = execute_entry(ctx, LayerType.L0_CONFIG, "配置层一买", 0.5)
         assert ctx.state_machine.get_state(LayerType.L0_CONFIG) is LayerState.ACTIVE
         assert result.realized_profit == 0.0
+
+    def test_pipeline_step_auto_entry(self) -> None:
+        """pipeline_step 在 horizontal 完成后自动入场（如果有共振信号）。"""
+        from newchan.pipeline import create_context, locate_bsp, pipeline_step
+
+        ctx = create_context(FULL_RISK_ON)
+        # 先推完 5 步
+        for i in range(5):
+            bsp = _make_bsp(BSPType.B1, time=float(i + 1))
+            ctx = locate_bsp(ctx, bsp, target=f"target_{i}")
+        # 第 6 步通过 pipeline_step 带共振信号——应自动入场
+        bsp6 = _make_bsp(BSPType.B1, time=6.0)
+        resonance_signals = [
+            _make_resonance_signal(bsp6, SignalLayer.CONFIG, time=6.0),
+            _make_resonance_signal(bsp6, SignalLayer.INDEPENDENT_EDGE, time=6.0),
+        ]
+        new_ctx = pipeline_step(
+            ctx, bsp=bsp6, resonance_signals=resonance_signals,
+            time_tolerance_fn=_time_tolerance,
+        )
+        # 验证自动入场
+        assert new_ctx.state_machine.get_state(LayerType.L0_CONFIG) is LayerState.ACTIVE
 
     def test_full_pipeline_abort(self) -> None:
         """完整止损流程：entry -> negation -> abort。"""
