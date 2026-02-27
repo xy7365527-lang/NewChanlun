@@ -1099,6 +1099,21 @@ nodes:
   status: 已结算
   type: concept-discovery
   file: settled/220-chanlun-trading-system.md
+- id: '222'
+  title: v4 §2.3 加法守恒范畴错误——将离散流向拓扑约束误判为近似
+  status: 已结算
+  type: 矛盾发现
+  file: settled/222-v4-conservation-law-category-error.md
+- id: '223'
+  title: v4 §5.4 模式D派生边分类不完备——遗漏混合状态
+  status: 已结算
+  type: 矛盾发现
+  file: settled/223-v4-pattern-d-incomplete-classification.md
+- id: '221'
+  title: 元观察——v3质询双向收敛 + 编排者第0条洞察（等价关系级别依赖性）
+  status: 已结算
+  type: meta-rule
+  file: settled/221-meta-observation-v3-inquiry-session.md
 edges:
   depends_on:
   - from: '136'
@@ -2201,6 +2216,14 @@ edges:
     to: '218'
   - from: '220'
     to: '219'
+  - from: '222'
+    to: '115'
+  - from: '221'
+    to: '219'
+  - from: '221'
+    to: '115'
+  - from: '223'
+    to: '115'
   triggered:
   - from: '005'
     to: 005a
