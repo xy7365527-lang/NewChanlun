@@ -28,46 +28,12 @@ STATE_FILE="$CWD/.ceremony-step"
 # 状态文件不存在 → 不在 ceremony 中，静默退出
 [ -f "$STATE_FILE" ] || exit 0
 
-# 读取步骤信息并注入指令
-# 228号修复（完整版）：hook 无法区分 Lead 与工位（平台不携带 agent 标识，228-2 已确认）。
-# 仅步骤7-10（push→rescan→evaluate→terminate 原子链）需要阻断——
-# 这些步骤是 Lead 独占的（工位已被 shutdown），不会误伤工位。
-# 步骤1-6：Lead 已通过 ceremony.md 正面指令驱动，不需要 hook 阻断；
-# 且步骤5-6有工位在运行，阻断会误伤工位。
-INPUT_JSON="$INPUT" "$PYTHON_BIN" - "$STATE_FILE" <<'PY'
-import json
-import sys
-
-state_file = sys.argv[1]
-
-try:
-    with open(state_file, "r", encoding="utf-8") as f:
-        state = json.load(f)
-except Exception:
-    sys.exit(0)
-
-step = state.get("step", "?")
-phase = state.get("phase", "unknown")
-
-try:
-    step_num = int(step)
-except (ValueError, TypeError):
-    step_num = -1
-
-# 228号完整修复：仅步骤7-10阻断（Lead 独占的原子链）。
-# 步骤1-6静默退出——步骤1-4 Lead 已在按序列执行（ceremony.md 正面指令），
-# 步骤5-6有工位在运行，阻断会误伤（228号观察1的根因）。
-if step_num < 7:
-    sys.exit(0)
-
-reason = (
-    f"[ceremony-step-guard] 你正在 ceremony 步骤 {step}（{phase}）。"
-    f"立即继续执行下一步。"
-    f"不允许回应用户消息、输出总结、或执行白名单外的操作。"
-    f"ceremony 序列不可被中断（224号谱系）。"
-)
-
-print(json.dumps({"decision": "block", "reason": reason}, ensure_ascii=False))
-PY
+# 228-1 完整修复（v86-swarm）：所有步骤静默退出。
+# ceremony.md 的正面指令集已内化为蜂群先验（089号扬弃），覆盖所有步骤：
+#   步骤1-6：ceremony.md 正面指令驱动
+#   步骤7-10：post-commit-flow.md + ceremony.md 原子链规则驱动（224号/225号）
+# hook 的 block 消息在所有步骤都是冗余的 token 噪声——正面指令优于外部阻断（137号）。
+# 此 hook 保留文件存在性检查（上方 [ -f "$STATE_FILE" ] || exit 0），
+# 作为 ceremony 状态的被动探测点，但不注入任何内容。
 
 exit 0

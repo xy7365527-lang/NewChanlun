@@ -18,7 +18,7 @@ downstream_inferences:
   - id: 228-1
     description: ceremony-step-guard.sh 需要增加 agent 身份过滤或调整 .ceremony-step 生命周期
     status: resolved
-    resolution: 完整修复——hook 在步骤1-6全部静默退出（步骤1-4 Lead 已由 ceremony.md 正面指令驱动无需 hook 阻断，步骤5-6有工位在运行会误伤），仅步骤7-10阻断（Lead 独占的 push→rescan→evaluate→terminate 原子链，工位已被 shutdown）
+    resolution: 完整修复（v86-swarm）——所有步骤静默退出。ceremony.md 正面指令集已内化为蜂群先验（089号），覆盖全部步骤1-10。hook 的 block 消息在所有步骤都是冗余 token 噪声（137号——正面输出格式优于否定性禁令）。hook 保留状态文件存在性检查作为被动探测点，但不注入任何内容
   - id: 228-2
     description: 确认 Claude Code PostToolUse hook INPUT_JSON 是否携带 agent 标识
     status: resolved
@@ -135,7 +135,7 @@ v77-swarm 仅产出3个工位（stagnation-auditor + topology-analyst + meta-obs
 
 ## 下游推论
 
-1. ~~观察1（ceremony-step-guard 爆炸半径）是行动类，需要在 ceremony-step-guard.sh 中增加 agent 身份过滤或调整 `.ceremony-step` 的生命周期~~ → [resolved: 方案B——hook 在步骤1-6静默退出，仅步骤7-10阻断]
+1. ~~观察1（ceremony-step-guard 爆炸半径）是行动类，需要在 ceremony-step-guard.sh 中增加 agent 身份过滤或调整 `.ceremony-step` 的生命周期~~ → [resolved: 完整修复（v86-swarm）——所有步骤静默退出，block 逻辑完全删除]
 2. ~~需要确认 Claude Code PostToolUse hook 的 INPUT_JSON 是否携带 agent 标识——如果不携带，方案A 不可行，必须走方案B~~ → [resolved: 平台不携带 agent 标识（已知限制），已走方案B]
 3. ~~227号下游推论1（ceremony_state.py 集成缺口是行动类）的状态从"已修复"细化为"部分修复——write 落地，clear/scope 待修"~~ → [resolved: write/clear/scope 三项均已落地]
 
