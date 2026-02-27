@@ -1,0 +1,120 @@
+{
+  "data_source": "synthetic",
+  "data_period": "499 trading days",
+  "bar_count": 499,
+  "binding": {
+    "E": "SPY",
+    "C": "GLD",
+    "R": "TLT",
+    "$": "UUP",
+    "edges": {
+      "E_dollar": "SPY/UUP",
+      "C_dollar": "GLD/UUP",
+      "R_dollar": "TLT/UUP"
+    }
+  },
+  "correlations": {
+    "E_dollar_vs_C_dollar": {
+      "pearson": 0.223256,
+      "partial_controlling_dollar": -0.012966
+    },
+    "E_dollar_vs_R_dollar": {
+      "pearson": 0.267818,
+      "partial_controlling_dollar": 0.050939
+    },
+    "C_dollar_vs_R_dollar": {
+      "pearson": 0.227032,
+      "partial_controlling_dollar": -0.038443
+    }
+  },
+  "rolling_correlation_summary": {
+    "E_dollar_vs_C_dollar": {
+      "mean": 0.206789,
+      "std": 0.10364,
+      "max": 0.419009,
+      "min": -0.071483,
+      "window": 60,
+      "n_windows": 440
+    },
+    "E_dollar_vs_R_dollar": {
+      "mean": 0.254754,
+      "std": 0.15245,
+      "max": 0.542438,
+      "min": -0.094345,
+      "window": 60,
+      "n_windows": 440
+    },
+    "C_dollar_vs_R_dollar": {
+      "mean": 0.220608,
+      "std": 0.090937,
+      "max": 0.419027,
+      "min": -0.025008,
+      "window": 60,
+      "n_windows": 440
+    }
+  },
+  "config_space_coverage": {
+    "total_configs_possible": 27,
+    "configs_observed": 27,
+    "coverage_pct": 100.0,
+    "config_distribution": {
+      "(-1,-1,-1)": 17,
+      "(-1,-1,0)": 13,
+      "(-1,-1,1)": 11,
+      "(-1,0,-1)": 5,
+      "(-1,0,0)": 9,
+      "(-1,0,1)": 24,
+      "(-1,1,-1)": 2,
+      "(-1,1,0)": 10,
+      "(-1,1,1)": 9,
+      "(0,-1,-1)": 21,
+      "(0,-1,0)": 19,
+      "(0,-1,1)": 11,
+      "(0,0,-1)": 12,
+      "(0,0,0)": 36,
+      "(0,0,1)": 33,
+      "(0,1,-1)": 4,
+      "(0,1,0)": 9,
+      "(0,1,1)": 34,
+      "(1,-1,-1)": 16,
+      "(1,-1,0)": 29,
+      "(1,-1,1)": 9,
+      "(1,0,-1)": 9,
+      "(1,0,0)": 18,
+      "(1,0,1)": 38,
+      "(1,1,-1)": 15,
+      "(1,1,0)": 32,
+      "(1,1,1)": 54
+    },
+    "total_samples": 499
+  },
+  "polarity_index_stats": {
+    "mean": 0.5311,
+    "std": 1.5715,
+    "distribution": {
+      "-3": 17,
+      "-2": 39,
+      "-1": 69,
+      "0": 123,
+      "1": 93,
+      "2": 104,
+      "3": 54
+    }
+  },
+  "independence_assessment": "E_dollar_vs_C_dollar: 中等相关 (|pearson|=0.223)，独立性部分成立; E_dollar_vs_R_dollar: 中等相关 (|pearson|=0.268)，独立性部分成立; C_dollar_vs_R_dollar: 中等相关 (|pearson|=0.227)，独立性部分成立",
+  "theoretical_findings": [
+    {
+      "finding": "E_dollar_vs_R_dollar 滚动相关标准差 0.152",
+      "implication": "独立性是时变的，存在独立性失效期和恢复期的交替",
+      "category": "time_varying"
+    }
+  ],
+  "methodology": {
+    "pearson": "日收益率 Pearson 相关系数",
+    "partial_correlation": "控制 UUP 收益率后的偏相关（OLS 残差法）",
+    "rolling_window": "60 日滚动窗口",
+    "walk_direction": "20 日均线斜率阈值法（0.5 * std）",
+    "config_space": "三元组 (sigma_e, sigma_c, sigma_r) in {-1,0,+1}^3"
+  },
+  "timestamp": "2026-02-27T22:55:50.170174"
+}

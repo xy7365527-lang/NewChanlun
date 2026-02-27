@@ -184,7 +184,8 @@ tasks:
     completed_date: "2026-02-26"
     completion_note: |
       单TF路径：replay.py + gateway.py 从 BiEngine 升级到 RecursiveOrchestrator。
-      1955 测试全通过。多TF路径（TFOrchestrator）待后续。
+      多TF路径：TFOrchestrator 已使用 RecursiveOrchestrator（v56-swarm 完成）。
+      1955 测试全通过。
     added_by: "v55-swarm（Gemini×Codex 交叉诊断）"
     added_date: "2026-02-26"
 
@@ -378,8 +379,9 @@ tasks:
     status: completed
     completed_date: "2026-02-26"
     completion_note: |
-      scripts/t6t7_contribution_analysis.py 完成。统计脚本已就绪。
-      217号谱系待后续数据运行后写入。
+      scripts/t6t7_contribution_analysis.py 完成并在 AAPL 1min×5天数据上运行。
+      结果：T6 触发 0 次（递归深度不足），T7 产生 1 个三类卖点。
+      229号谱系已写入完整统计和分析。
     source: "v56-swarm Gemini decide（第四阶段派生）"
     description: |
       解决断点4：T6/T7 已集成到 a_divergence_v1.py OR 逻辑，
@@ -391,7 +393,7 @@ tasks:
       4. 仅 T6 或 T7 触发（T2 未触发）的比例——衡量 T6/T7 的增量价值
     constraints:
       - "使用 AV 1min 数据（215号已验证的 20 只标的）"
-      - "统计结果写入谱系（新建 217号）"
+      - "统计结果写入谱系（229号，217号已被 meta-observation 占用）"
       - "不修改 a_divergence_v1.py 逻辑，仅添加统计层"
     validation_cmd: "python scripts/t6t7_contribution_stats.py --output tmp/t6t7-stats.json && python -c \"import json; d=json.load(open('tmp/t6t7-stats.json')); assert 't6_only_rate' in d\""
     relevant_files:
