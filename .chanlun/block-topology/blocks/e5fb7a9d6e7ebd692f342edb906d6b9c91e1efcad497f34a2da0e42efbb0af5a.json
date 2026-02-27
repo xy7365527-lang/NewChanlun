@@ -1,0 +1,20 @@
+{
+  "id": "e5fb7a9d6e7ebd692f342edb906d6b9c91e1efcad497f34a2da0e42efbb0af5a",
+  "type": "event",
+  "timestamp": "2026-02-27T03:06:28.425487+00:00",
+  "source": "cc",
+  "content": {
+    "genealogy_id": "224",
+    "title": "ceremony push→rescan 原子性断裂",
+    "type": "meta-rule",
+    "status": "已结算",
+    "date": "2026-02-27",
+    "file": "settled/224-ceremony-atomic-rescan.md"
+  },
+  "refs": [
+    "137",
+    "143",
+    "218"
+  ],
+  "git_ref": ""
+}

@@ -406,3 +406,12 @@
 # === 221号 — v3质询双向收敛元观察 ===
 221-1: resolved    # v4 已完成：§2.5 两层结构 + §4.1 log-MACD 两层口径 + §5 配置约束命题（dengjia.md 等已落实）
 221-2: resolved    # 222号（加法守恒范畴错误）+ 223号（模式D分类不完备）均已结算于 settled/
+
+# === 224号 — ceremony push→rescan 原子性断裂 ===
+224-1: resolved    # post-commit-flow.md 已声明"ceremony 完成后统一回应"——退出路径检查未回应消息已覆盖
+224-2: resolved    # post-commit-flow.md 已声明"按时间顺序统一回应"——积压消息处理规则已覆盖
+224-3: resolved    # ✅ 225号扩展已完成：rescan→evaluate 同构断裂修复
+
+# === 225号 — ceremony rescan→evaluate 原子性断裂 ===
+225-1: resolved    # post-commit-flow.md 原子链声明 + flow-continuity-guard.sh hook 覆盖——步骤7-10原子块已实现
+225-2: resolved    # 修复模式（hook守卫+规则声明+正面指令）已在224/225号中确立——认识论确认
