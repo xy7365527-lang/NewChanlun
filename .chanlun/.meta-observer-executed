@@ -1,1 +1,10 @@
-2026-02-27T00:43:05+08:00
+v71-swarm meta-observer | 2026-02-27 | head=eefd765
+rule_version_baseline:
+  claude_md_commit: 97f3ba3186f1919ff6abf02dea4247724d47c79a
+  rules_dir_mtime: 2026-02-27 03:01:30 +0000
+result: convergence — 无新谱系
+observations:
+  - 224→225→226 三连谱系收敛于 057号/137号（LLM非状态机 + 否定性禁令无效）
+  - 工位卡住模式（v69 interrupt-diagnosis/codex-diagnose + v71 meta-observer）是 057号推论，非新发现
+  - 226号 P0/P1 修复与 137号一致（正面格式替代否定性禁令 + 状态注入）
+  - Lead 角色边界僭越被编排者即时捕获——173号边界条件暴露，已由 226号类型C缓解
