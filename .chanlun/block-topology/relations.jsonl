@@ -1067,3 +1067,11 @@
 {"from": "cff735761f37ce64eab4cb015e00f0c7e207afd11f924616e1789a1e8da4350c", "to": "ce84b48f01e2831f2d0c19253918843af5f119dd950e3a4a5b7ebeb447957c98", "type": "depends_on", "genealogy_from": "221", "genealogy_to": "115"}
 {"from": "ad93ce5ab2c043cf1a64d795b1e1be33fa96b789bc6e8e5a97eff252088ee23b", "to": "ce84b48f01e2831f2d0c19253918843af5f119dd950e3a4a5b7ebeb447957c98", "type": "depends_on", "genealogy_from": "222", "genealogy_to": "115"}
 {"from": "0b3a5b34cd59c84cc9592680872d706b95b938434fff666d4a609e97cf95de68", "to": "ce84b48f01e2831f2d0c19253918843af5f119dd950e3a4a5b7ebeb447957c98", "type": "depends_on", "genealogy_from": "223", "genealogy_to": "115"}
+{"type":"depends_on","target_genealogy_id":"137"}
+{"type":"depends_on","target_genealogy_id":"143"}
+{"type":"depends_on","target_genealogy_id":"218"}
+{"type":"depends_on","target_genealogy_id":"137"}
+{"type":"depends_on","target_genealogy_id":"143"}
+{"type":"depends_on","target_genealogy_id":"218"}
+{"type":"depends_on","target_genealogy_id":"224"}
+{"type":"depends_on","target_genealogy_id":"137"}
