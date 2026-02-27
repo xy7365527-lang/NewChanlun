@@ -11,7 +11,7 @@
 #   2. 蜂群任务队列非空 → 阻止 + 注入具体路由
 #   3. 谱系有生成态矛盾 → 阻止 + 注入具体文件名和四分法指令
 #   4. @proof-required 标签未验证 → 阻止 + 路由到 Gemini 数学验证
-#   5. ceremony 确认请求检测 → 阻止
+#   5. 四分法违規检测（通用） → 阻止
 #   6. 以上均无 → 放行
 #
 # 熔断机制：
@@ -301,26 +301,31 @@ print(json.dumps({
     exit 0
 fi
 
-# ─── 检查 5：ceremony 确认请求检测（058号谱系） ───
-if [ -f ".chanlun/.ceremony-in-progress" ]; then
-    CONFIRM_PATTERNS='待确认|以上理解是否正确|如有偏差请指出|是否现在处理|是否有新的|请确认|等待.*确认'
-    STOP_CONTENT=$(echo "$input" | python -c "
+# ─── 检查 5（通用）：四分法违規检测（不限 ceremony） ───
+# 226号 P3 重现修复：四分法是通用语法规则（no-unnecessary-escalation.md），不应 ceremony-gated
+# 原 058号谱系 ceremony 专用 → 去门控化为全场景覆盖
+CONFIRM_PATTERNS='待确认|以上理解是否正确|如有偏差请指出|是否现在处理|是否有新的|请确认|等待.*确认|你要我|先讨论|还是先|要不要|需不需要|是否需要|你觉得|你认为|你希望|还是认为|你要的是'
+STOP_CONTENT=$(echo "$input" | python -c "
 import sys, json
 try:
     d = json.loads(sys.stdin.read())
     print(d.get('stop_hook_content', d.get('content', '')))
 except: pass
 " 2>/dev/null || true)
-    if echo "$STOP_CONTENT" | grep -qP "$CONFIRM_PATTERNS" 2>/dev/null; then
-        python -c "
+# 排除 /escalate 上下文中的合法问号（选择类/语法记录类上浮是允许的）
+IS_ESCALATE=0
+if echo "$STOP_CONTENT" | grep -q '/escalate' 2>/dev/null; then
+    IS_ESCALATE=1
+fi
+if [ "$IS_ESCALATE" -eq 0 ] && echo "$STOP_CONTENT" | grep -qP "$CONFIRM_PATTERNS" 2>/dev/null; then
+    python -c "
 import json
 print(json.dumps({
     'decision': 'block',
-    'reason': '[Stop-Guard] ceremony 阶段检测到确认请求（违反058号谱系）。不允许停止。路由指令: 删除确认请求，直接输出行动声明并执行。'
+    'reason': '[Stop-Guard] 检测到四分法违规：输出包含确认请求/选择上浮模式。行动类事项直接执行，不提问。立即执行格式A：输出 → 接下来：[具体动作] 并紧跟工具调用。'
 }, ensure_ascii=False))
 "
-        exit 0
-    fi
+    exit 0
 fi
 
 # ─── 全部检查通过：允许停止（静默退出） ───

@@ -6,6 +6,7 @@ MACD 是"指标力度"，不参与结构断言；只作为输出与买卖点/显
 
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 
 
@@ -33,6 +34,43 @@ def compute_macd(
     close = df_raw["close"]
     ema_fast = close.ewm(span=fast, adjust=False).mean()
     ema_slow = close.ewm(span=slow, adjust=False).mean()
+    macd_line = ema_fast - ema_slow
+    signal_line = macd_line.ewm(span=signal, adjust=False).mean()
+    hist = macd_line - signal_line
+
+    return pd.DataFrame({
+        "macd": macd_line,
+        "signal": signal_line,
+        "hist": hist,
+    }, index=df_raw.index)
+
+
+def compute_log_macd(
+    df_raw: pd.DataFrame,
+    fast: int = 12,
+    slow: int = 26,
+    signal: int = 9,
+) -> pd.DataFrame:
+    """在 log(close) 上计算 MACD，保证比价可加性。
+
+    性质：log(A/B) + log(B/C) = log(A/C)，EMA 是线性算子，
+    因此 log_macd(A/B).hist + log_macd(B/C).hist = log_macd(A/C).hist。
+
+    Parameters
+    ----------
+    df_raw : pd.DataFrame
+        必须含 ``close`` 列，且 close > 0。
+    fast, slow, signal : int
+        EMA 周期参数。
+
+    Returns
+    -------
+    pd.DataFrame
+        列: ``macd``, ``signal``, ``hist``。index 与 df_raw 相同。
+    """
+    log_close = np.log(df_raw["close"])
+    ema_fast = log_close.ewm(span=fast, adjust=False).mean()
+    ema_slow = log_close.ewm(span=slow, adjust=False).mean()
     macd_line = ema_fast - ema_slow
     signal_line = macd_line.ewm(span=signal, adjust=False).mean()
     hist = macd_line - signal_line

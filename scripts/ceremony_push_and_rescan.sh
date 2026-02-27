@@ -21,8 +21,9 @@ COMMIT_MSG="${1:-chore: ceremony atomic chain commit}"
 # --- Step 1: 写入 ceremony 状态（步骤7：push 阶段）---
 python "$SCRIPT_DIR/ceremony_state.py" write 7 push
 
-# --- Step 2: git add 已知文件类型 ---
+# --- Step 2: git add 已知文件类型（排除 tmp/）---
 git add -- '*.py' '*.md' '*.yaml' '*.sh' '*.json' '*.jsonl' 2>/dev/null
+git reset HEAD -- tmp/ 2>/dev/null
 
 # --- Step 2: git commit（仅当有 staged changes 时）---
 COMMITTED=false
@@ -40,10 +41,13 @@ PUSH_OK=false
 if git push 2>/dev/null; then
     PUSH_OK=true
 else
-    echo "push 失败，尝试 fetch+rebase+push..." >&2
+    echo "push 失败，尝试 stash+fetch+rebase+push..." >&2
+    git stash -u
     if git fetch origin && git rebase "origin/$(git branch --show-current)" && git push; then
         PUSH_OK=true
+        git stash pop 2>/dev/null
     else
+        git stash pop 2>/dev/null
         echo '{"error": "git push 失败（含 rebase 重试）", "phase": "push"}'
         exit 1
     fi
