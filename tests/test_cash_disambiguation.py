@@ -269,9 +269,15 @@ class TestInputValidation:
     """消歧函数应对不合法输入报错。"""
 
     def test_wrong_edge_count(self) -> None:
-        """非 6 条边 → 报错。"""
-        with pytest.raises(ValueError, match="6"):
+        """非 6 条边 → 报错（消歧需要完整 K4）。"""
+        with pytest.raises(ValueError, match="完整 K4"):
             disambiguate_cash_signal([])
+
+    def test_partial_graph_rejected(self) -> None:
+        """部分图（<6 条边）→ 报错。"""
+        edges = [_edge(V.EQUITY, V.CASH, D.A_TO_B)]
+        with pytest.raises(ValueError, match="完整 K4"):
+            disambiguate_cash_signal(edges)
 
     def test_duplicate_edge(self) -> None:
         """重复边 → 报错。"""

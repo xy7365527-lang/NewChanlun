@@ -57,7 +57,7 @@ class TestFlowDirection:
         assert FlowDirection.EQUILIBRIUM.value == "均衡"
 
     def test_members_count(self):
-        assert len(FlowDirection) == 3
+        assert len(FlowDirection) == 4
 
 
 # ── StrokeFlow 不可变性 ─────────────────────────────────

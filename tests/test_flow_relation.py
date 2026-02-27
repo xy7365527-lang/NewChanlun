@@ -229,10 +229,24 @@ class TestResonance:
 class TestEdgeInputValidation:
     """输入校验。"""
 
-    def test_wrong_edge_count(self) -> None:
-        """非 6 条边 → 报错。"""
-        with pytest.raises(ValueError, match="6"):
+    def test_empty_edges_rejected(self) -> None:
+        """0 条边 → 报错。"""
+        with pytest.raises(ValueError, match="1-6"):
             aggregate_vertex_flows([])
+
+    def test_seven_edges_rejected(self) -> None:
+        """7 条边 → 报错。"""
+        edges = [
+            _edge_input(V.EQUITY, V.CASH, FlowDirection.A_TO_B),
+            _edge_input(V.REAL_ESTATE, V.CASH, FlowDirection.A_TO_B),
+            _edge_input(V.COMMODITY, V.CASH, FlowDirection.A_TO_B),
+            _edge_input(V.EQUITY, V.REAL_ESTATE, FlowDirection.EQUILIBRIUM),
+            _edge_input(V.EQUITY, V.COMMODITY, FlowDirection.EQUILIBRIUM),
+            _edge_input(V.REAL_ESTATE, V.COMMODITY, FlowDirection.EQUILIBRIUM),
+            _edge_input(V.REAL_ESTATE, V.COMMODITY, FlowDirection.A_TO_B),  # 第 7 条
+        ]
+        with pytest.raises(ValueError, match="1-6"):
+            aggregate_vertex_flows(edges)
 
     def test_duplicate_edge(self) -> None:
         """重复边 → 报错。"""
@@ -251,6 +265,92 @@ class TestEdgeInputValidation:
         """自环 → 报错。"""
         with pytest.raises(ValueError, match="自环"):
             _edge_input(V.CASH, V.CASH, FlowDirection.A_TO_B)
+
+    def test_unknown_direction_rejected(self) -> None:
+        """UNKNOWN 方向的边 → 报错（fail-fast）。"""
+        edges = [
+            _edge_input(V.EQUITY, V.CASH, FlowDirection.UNKNOWN),
+            _edge_input(V.REAL_ESTATE, V.CASH, FlowDirection.A_TO_B),
+            _edge_input(V.COMMODITY, V.CASH, FlowDirection.A_TO_B),
+            _edge_input(V.EQUITY, V.REAL_ESTATE, FlowDirection.EQUILIBRIUM),
+            _edge_input(V.EQUITY, V.COMMODITY, FlowDirection.EQUILIBRIUM),
+            _edge_input(V.REAL_ESTATE, V.COMMODITY, FlowDirection.EQUILIBRIUM),
+        ]
+        with pytest.raises(ValueError, match="UNKNOWN"):
+            aggregate_vertex_flows(edges)
+
+
+# ── 部分图聚合 ─────────────────────────────────────────
+
+
+class TestPartialGraph:
+    """部分图（1-5 条边）聚合：第二层级别扫描的常态。"""
+
+    def test_single_edge(self) -> None:
+        """1 条边 → 两个顶点各 ±1，其余 0。"""
+        edges = [_edge_input(V.EQUITY, V.CASH, FlowDirection.A_TO_B)]
+        states = aggregate_vertex_flows(edges)
+        eq = _find_vertex(states, V.EQUITY)
+        cash = _find_vertex(states, V.CASH)
+        assert eq.net_flow == -1
+        assert cash.net_flow == +1
+        # 其余顶点 net=0
+        for s in states:
+            if s.vertex not in (V.EQUITY, V.CASH):
+                assert s.net_flow == 0
+
+    def test_three_edges_triangle(self) -> None:
+        """3 条边（一个三角形）→ 守恒成立。"""
+        edges = [
+            _edge_input(V.EQUITY, V.CASH, FlowDirection.A_TO_B),
+            _edge_input(V.CASH, V.COMMODITY, FlowDirection.A_TO_B),
+            _edge_input(V.COMMODITY, V.EQUITY, FlowDirection.A_TO_B),
+        ]
+        states = aggregate_vertex_flows(edges)
+        total = sum(s.net_flow for s in states)
+        assert total == 0  # 三角形守恒
+
+    def test_partial_graph_conservation(self) -> None:
+        """任意部分图 → Σnet(V) = 0（代数恒等式）。"""
+        edges = [
+            _edge_input(V.EQUITY, V.CASH, FlowDirection.A_TO_B),
+            _edge_input(V.REAL_ESTATE, V.COMMODITY, FlowDirection.B_TO_A),
+        ]
+        states = aggregate_vertex_flows(edges)
+        assert check_conservation(states) is True
+
+
+# ── EdgeFlowInput.level_id ─────────────────────────────
+
+
+class TestEdgeFlowInputLevelId:
+    """EdgeFlowInput.level_id：层级标识，向后兼容。"""
+
+    def test_default_none(self) -> None:
+        """不传 level_id → None。"""
+        e = _edge_input(V.EQUITY, V.CASH, FlowDirection.A_TO_B)
+        assert e.level_id is None
+
+    def test_explicit_level_id(self) -> None:
+        """显式传 level_id。"""
+        e = EdgeFlowInput(
+            vertex_a=V.EQUITY, vertex_b=V.CASH,
+            direction=FlowDirection.A_TO_B, level_id=2,
+        )
+        assert e.level_id == 2
+
+    def test_level_id_does_not_affect_aggregation(self) -> None:
+        """level_id 不影响聚合结果（纯标注字段）。"""
+        edges_no_level = [
+            _edge_input(V.EQUITY, V.CASH, FlowDirection.A_TO_B),
+        ]
+        edges_with_level = [
+            EdgeFlowInput(V.EQUITY, V.CASH, FlowDirection.A_TO_B, level_id=3),
+        ]
+        states_a = aggregate_vertex_flows(edges_no_level)
+        states_b = aggregate_vertex_flows(edges_with_level)
+        for sa, sb in zip(states_a, states_b):
+            assert sa.net_flow == sb.net_flow
 
 
 # ── helpers ──────────────────────────────────────────────

@@ -402,3 +402,7 @@
 220-2: resolved    # backtest.py 重写：短差程序模拟 + 成本归零追踪 + 仓位阶段追踪（v63-swarm risk-implementation）
 220-3: resolved    # backtest.py _check_exit_condition()：退出条件基于 BSP 类型的结构性否定（Type1/2/3）（v63-swarm）
 220-4: resolved    # backtest.py PositionPhase 枚举：COST_REDUCTION → COST_ZERO → EARN_SHARES（v63-swarm）
+
+# === 221号 — v3质询双向收敛元观察 ===
+221-1: resolved    # v4 已完成：§2.5 两层结构 + §4.1 log-MACD 两层口径 + §5 配置约束命题（dengjia.md 等已落实）
+221-2: resolved    # 222号（加法守恒范畴错误）+ 223号（模式D分类不完备）均已结算于 settled/
