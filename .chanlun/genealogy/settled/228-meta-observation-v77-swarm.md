@@ -3,7 +3,7 @@ id: '228'
 number: 228
 title: 元观察——v77-swarm ceremony-step-guard 爆炸半径 + stagnation 诊断收敛 + 227号集成缺口部分修复
 type: meta-rule
-status: 生成态
+status: 已结算
 date: 2026-02-27
 source: meta-observer 二阶观察
 session: v77-swarm
@@ -14,6 +14,16 @@ depends_on:
   - '227'   # v70-swarm 元观察（ceremony_state.py 集成缺口）
   - '226'   # Lead 中断问题完整根因（三层无状态）
   - '036'   # 声明-能力一致性原则
+downstream_inferences:
+  - id: 228-1
+    description: ceremony-step-guard.sh 需要增加 agent 身份过滤或调整 .ceremony-step 生命周期
+    status: unresolved
+  - id: 228-2
+    description: 确认 Claude Code PostToolUse hook INPUT_JSON 是否携带 agent 标识
+    status: unresolved
+  - id: 228-3
+    description: 227号下游推论1 状态细化为"部分修复——write 落地，clear/scope 待修"
+    status: unresolved
 ---
 
 # 228号：元观察——v77-swarm ceremony-step-guard 爆炸半径
