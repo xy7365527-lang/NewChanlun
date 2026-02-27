@@ -1082,3 +1082,6 @@
 {"type":"depends_on","target_genealogy_id":"173"}
 {"from": "9cb870784f5f4afdf2b6d1ba01a7475b636889f497ec9cfd855ba3c7d784022f", "to_genealogy": ["226", "036", "076"], "relation": "depends_on"}
 {"from": "4b2a0836ac2cdbe7416719cce646a115c1a1ad24251e414cd02b6397a0b96407", "to_genealogy": [226, 36, 76], "type": "depends_on"}
+{"from": "6aa2f22ff8838b7cd298e9165a1d7dce5bed91c2bbc4a5b293c4c9150d4e565e", "to": "4b2a0836ac2cdbe7416719cce646a115c1a1ad24251e414cd02b6397a0b96407", "relation": "depends_on", "order": 1, "created_by": "ef30b2e00b40150c568ec6798798f41bdf5d8f3878e02dbd3290d425f705212b", "timestamp": "2026-02-27T07:57:39.504630+00:00"}
+{"from": "6aa2f22ff8838b7cd298e9165a1d7dce5bed91c2bbc4a5b293c4c9150d4e565e", "to": "bd829230d535789838383c8c487d085ecbcf28ae6637e41bac66e7ea13d54f02", "relation": "depends_on", "order": 1, "created_by": "ef30b2e00b40150c568ec6798798f41bdf5d8f3878e02dbd3290d425f705212b", "timestamp": "2026-02-27T07:57:39.504630+00:00"}
+{"from": "6aa2f22ff8838b7cd298e9165a1d7dce5bed91c2bbc4a5b293c4c9150d4e565e", "to": "b2e3ce0af55a13790ec2b44512dabf252965d368a7fef52e721f73fb5ecd0676", "relation": "depends_on", "order": 1, "created_by": "ef30b2e00b40150c568ec6798798f41bdf5d8f3878e02dbd3290d425f705212b", "timestamp": "2026-02-27T07:57:39.504630+00:00"}
