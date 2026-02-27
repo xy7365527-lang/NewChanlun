@@ -428,3 +428,7 @@
 # === 227号 — 元观察（ceremony_state.py 集成缺口 + 收敛信号） ===
 227-1: resolved    # ceremony_state.py 集成缺口已修复——ceremony.md 步骤1/2/10 + ceremony_push_and_rescan.sh 步骤7/8 已接入 write_step/clear
 227-2: resolved    # 认识论确认——机械性步骤脚本化模式已在 ceremony_push_and_rescan.sh 中体现，可作为未来优化指导
+
+# === 180号 — 谱系作用域张力 ===
+180-2: blocked    # 多项目架构决策——当前单仓库阶段张力不显现（阻塞项：多项目架构成形——四矩阵各自独立仓库/系统）
+180-3: blocked    # 跨项目元谱系层预留——总方针声明~/.genealogy/但工程实现尚未需要（阻塞项：多项目架构成形——四矩阵各自独立仓库/系统）
