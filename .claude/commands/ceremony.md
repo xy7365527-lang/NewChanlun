@@ -5,8 +5,8 @@ scan 输出什么就 spawn 什么。Lead 不做实质认知工作。
 
 ## 序列（不可委托，不可重排）
 
-1. `python scripts/ceremony_scan.py --phase initial` → JSON
-2. JSON.workstations 为空 → `[020号反转] 干净终止` → 写 session → commit → push → 停止
+1. `python scripts/ceremony_state.py write 1 initial` → `python scripts/ceremony_scan.py --phase initial` → JSON
+2. JSON.workstations 为空 → `python scripts/ceremony_state.py clear` → `[020号反转] 干净终止` → 写 session → commit → push → 停止
 3. 输出摘要：`[ceremony] {mode} | 谱系 {settled}s/{pending}p | 工位 {len(workstations)}`
 4. `TeamCreate(team_name="v{N}-swarm")`
 5. JSON.workstations[] 全部并行 spawn：
@@ -24,7 +24,7 @@ scan 输出什么就 spawn 什么。Lead 不做实质认知工作。
 7. 全部完成 → 写 session → `bash scripts/ceremony_push_and_rescan.sh "commit message"` （原子链：commit→push→rescan，消除 LLM 决策间隙）
 8. 解析 rescan JSON 输出
 9. rescan.workstations[] 非空且与上轮不同 → 回到步骤 5 spawn 新工位
-10. rescan.workstations[] 为空或与上轮相同（不动点） → `TeamDelete` → 停止
+10. rescan.workstations[] 为空或与上轮相同（不动点） → `python scripts/ceremony_state.py clear` → `TeamDelete` → 停止
 11. 安全阀：rescan 循环 ≤ 3 次（max_rescan_depth=3），超过则强制终止
 
 ## 白名单（Lead 只执行这三类操作）

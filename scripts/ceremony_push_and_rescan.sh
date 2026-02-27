@@ -18,7 +18,10 @@ cd "$REPO_ROOT" || { echo '{"error": "无法进入仓库根目录"}'; exit 1; }
 
 COMMIT_MSG="${1:-chore: ceremony atomic chain commit}"
 
-# --- Step 1: git add 已知文件类型 ---
+# --- Step 1: 写入 ceremony 状态（步骤7：push 阶段）---
+python "$SCRIPT_DIR/ceremony_state.py" write 7 push
+
+# --- Step 2: git add 已知文件类型 ---
 git add -- '*.py' '*.md' '*.yaml' '*.sh' '*.json' '*.jsonl' 2>/dev/null
 
 # --- Step 2: git commit（仅当有 staged changes 时）---
@@ -46,7 +49,10 @@ else
     fi
 fi
 
-# --- Step 4: ceremony rescan ---
+# --- Step 4: 更新 ceremony 状态（步骤8：rescan 阶段）---
+python "$SCRIPT_DIR/ceremony_state.py" write 8 rescan
+
+# --- Step 5: ceremony rescan ---
 RESCAN_TMPFILE=$(mktemp)
 python "$SCRIPT_DIR/ceremony_scan.py" --phase rescan >"$RESCAN_TMPFILE" 2>&1
 RESCAN_EXIT=$?
