@@ -83,12 +83,12 @@ ceremony.md 新增的"角色边界（226号类型C缓解）"章节：
 
 ## 下游推论
 
-1. 观察1（ceremony_state.py 集成缺口）是行动类——部分修复：write 已落地（ceremony.md 步骤1 调用 ceremony_state.py write），clear/scope 待修（ceremony 终止路径未调用 clear，且 hook 作用域已通过228号方案B缓解）
-   - status: partially_resolved
-   - resolution: write 落地，clear/scope 待修
+1. 观察1（ceremony_state.py 集成缺口）是行动类——已完全修复：write 落地（ceremony.md 步骤1 + ceremony_push_and_rescan.sh 步骤7/8），clear 落地（ceremony.md 步骤2干净终止 + 步骤10不动点终止均调用 clear），hook 作用域通过228号方案B resolved
+   - status: resolved
+   - resolution: write/clear/scope 三项均已修复
 2. 观察3的模式（机械性步骤脚本化）可作为未来 ceremony 优化的指导原则
 
 ## 边界条件
 
-- 如果 ceremony_state.py 的集成在下一个 session 中完成，观察1从"发散信号"变为"已修复的执行缺口"
+- ceremony_state.py 集成已完成，观察1从"发散信号"变为"已修复的执行缺口"
 - 如果 Claude Code 平台增加 PostOutput hook，226号类型B的分类需要更新（从"不可修"变为"可修"）

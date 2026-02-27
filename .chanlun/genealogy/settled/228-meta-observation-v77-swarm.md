@@ -24,9 +24,9 @@ downstream_inferences:
     status: resolved
     resolution: 平台不携带 agent 标识（已知限制），方案A 不可行，已走方案B
   - id: 228-3
-    description: 227号下游推论1 状态细化为"部分修复——write 落地，clear/scope 待修"
+    description: 227号下游推论1 状态从"部分修复"更新为完全修复（write/clear/scope 三项均已落地）
     status: resolved
-    resolution: 已更新227号下游推论1状态
+    resolution: 已更新227号下游推论1状态为 resolved——write 落地（ceremony.md 步骤1 + ceremony_push_and_rescan.sh），clear 落地（ceremony.md 步骤2/10），scope 通过方案B resolved
 ---
 
 # 228号：元观察——v77-swarm ceremony-step-guard 爆炸半径
