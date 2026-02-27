@@ -1,0 +1,22 @@
+{
+  "id": "bd829230d535789838383c8c487d085ecbcf28ae6637e41bac66e7ea13d54f02",
+  "type": "event",
+  "timestamp": "2026-02-27T03:43:07.739996+00:00",
+  "source": "cc",
+  "content": {
+    "genealogy_id": "226",
+    "title": "Lead 中断问题完整根因——三层无状态统一根因",
+    "type": "meta-rule",
+    "status": "已结算",
+    "date": "2026-02-27",
+    "file": "settled/226-lead-interrupt-complete-diagnosis.md"
+  },
+  "refs": [
+    "224",
+    "225",
+    "137",
+    "057",
+    "173"
+  ],
+  "git_ref": ""
+}

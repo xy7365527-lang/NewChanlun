@@ -1114,6 +1114,21 @@ nodes:
   status: 已结算
   type: meta-rule
   file: settled/221-meta-observation-v3-inquiry-session.md
+- id: '224'
+  title: ceremony push→rescan 原子性断裂——用户消息中断 ceremony 序列
+  status: 已结算
+  type: meta-rule
+  file: settled/224-ceremony-atomic-rescan.md
+- id: '225'
+  title: ceremony rescan→evaluate 原子性断裂——rescan 完成后被用户消息中断
+  status: 已结算
+  type: meta-rule
+  file: settled/225-ceremony-atomic-rescan-evaluate.md
+- id: '226'
+  title: Lead 中断问题完整根因——三类断裂 + 角色边界僭越
+  status: 已结算
+  type: meta-rule
+  file: settled/226-lead-interrupt-complete-diagnosis.md
 edges:
   depends_on:
   - from: '136'
@@ -2224,6 +2239,26 @@ edges:
     to: '115'
   - from: '223'
     to: '115'
+  - from: '224'
+    to: '137'
+  - from: '224'
+    to: '143'
+  - from: '224'
+    to: '218'
+  - from: '225'
+    to: '224'
+  - from: '225'
+    to: '137'
+  - from: '226'
+    to: '224'
+  - from: '226'
+    to: '225'
+  - from: '226'
+    to: '137'
+  - from: '226'
+    to: '057'
+  - from: '226'
+    to: '173'
   triggered:
   - from: '005'
     to: 005a
