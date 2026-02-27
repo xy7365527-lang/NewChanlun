@@ -1143,6 +1143,11 @@ nodes:
   status: 生成态
   type: meta-rule
   file: pending/228-meta-observation-v77-swarm.md
+- id: '229'
+  title: T6/T7 真实数据贡献率分析
+  status: 已结算
+  type: 概念发现
+  file: settled/229-t6t7-contribution-analysis.md
 edges:
   depends_on:
   - from: '136'
@@ -2285,6 +2290,8 @@ edges:
     to: '226'
   - from: '228'
     to: '036'
+  - from: '229'
+    to: '215'
   triggered:
   - from: '005'
     to: 005a
