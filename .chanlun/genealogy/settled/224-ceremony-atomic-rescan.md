@@ -29,14 +29,13 @@ Lead 在 ceremony 序列执行中反复"断掉"：push 完成后（步骤7），
 1. **用户消息中断 ceremony 序列**：编排者消息作为 system-reminder 到达时，Lead 放弃 ceremony 序列去回应消息。push→rescan 之间没有原子性保证。
 2. **否定性禁令无效**（137号）：lead-parallel-dispatch.md 禁止"等待确认再 re-scan"，但否定性禁令对行为执行层无效——Lead 不是"等待确认"，而是"被消息吸引走了"。
 3. **post-commit-flow.md 缺口**：只规定了"commit/push 后在同一个输出中完成总结和下一步行动"，但没有显式提到 rescan 是 push 后的强制下一步。
+4. **flow-continuity-guard.sh 只覆盖 git commit，不覆盖 git push**（Codex 诊断发现）：push 成功后 hook 静默退出，不注入继续执行指令。push→rescan 之间存在无守卫窗口。
 
-## 修复
+## 修复（三层联动）
 
-在 post-commit-flow.md 中新增正面格式约束（137号要求）：
-
-1. push 后唯一合法输出：`已 push。→ 接下来：rescan` + 工具调用
-2. ceremony 执行中收到的用户消息在 ceremony 完成后统一回应
-3. ceremony 序列不可被用户消息中断
+1. **hook 层（137号合规）**：扩展 flow-continuity-guard.sh 覆盖 git push，push 后注入正面指令"立即执行 rescan"
+2. **规则层**：post-commit-flow.md 新增 push→rescan 原子性规则
+3. **意图层**：ceremony skill 标注步骤 7-10 为原子块
 
 ## 边界条件
 
