@@ -18,7 +18,7 @@ downstream_inferences:
   - id: 228-1
     description: ceremony-step-guard.sh 需要增加 agent 身份过滤或调整 .ceremony-step 生命周期
     status: resolved
-    resolution: 方案B实施——hook 在步骤5-6（工位执行阶段）静默退出，仅步骤7-10阻断 Lead 原子链
+    resolution: 完整修复——hook 在步骤1-6全部静默退出（步骤1-4 Lead 已由 ceremony.md 正面指令驱动无需 hook 阻断，步骤5-6有工位在运行会误伤），仅步骤7-10阻断（Lead 独占的 push→rescan→evaluate→terminate 原子链，工位已被 shutdown）
   - id: 228-2
     description: 确认 Claude Code PostToolUse hook INPUT_JSON 是否携带 agent 标识
     status: resolved
