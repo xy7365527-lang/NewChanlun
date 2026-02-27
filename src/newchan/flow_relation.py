@@ -41,6 +41,7 @@ class EdgeFlowInput:
     vertex_a: AssetVertex
     vertex_b: AssetVertex
     direction: FlowDirection
+    level_id: int | None = None  # 层级标识，None=不区分层级（第一层分析）
 
     def __post_init__(self) -> None:
         if self.vertex_a == self.vertex_b:
@@ -119,7 +120,12 @@ class FlowRelation:
 def _flow_contribution(edge: EdgeFlowInput, vertex: AssetVertex) -> int:
     """计算一条边对给定顶点的 flow 贡献。
 
-    Returns +1（流入 vertex）、-1（流出 vertex）或 0（均衡）。
+    Returns +1（流入 vertex）、-1（流出 vertex）或 0（均衡/不关联）。
+
+    Raises
+    ------
+    ValueError
+        direction 为 UNKNOWN 或未识别的枚举值。
     """
     if edge.direction == FlowDirection.EQUILIBRIUM:
         return 0
@@ -130,12 +136,16 @@ def _flow_contribution(edge: EdgeFlowInput, vertex: AssetVertex) -> int:
         if vertex == edge.vertex_a:
             return -1  # 流出 vertex
         return 0  # 不关联
-    # B_TO_A: 资本从 B → A
-    if vertex == edge.vertex_a:
-        return +1  # 流入 vertex
-    if vertex == edge.vertex_b:
-        return -1  # 流出 vertex
-    return 0  # 不关联
+    if edge.direction == FlowDirection.B_TO_A:
+        # 资本从 B → A
+        if vertex == edge.vertex_a:
+            return +1  # 流入 vertex
+        if vertex == edge.vertex_b:
+            return -1  # 流出 vertex
+        return 0  # 不关联
+    raise ValueError(
+        f"不可聚合的方向：{edge.direction.value}（{edge.vertex_a.value}/{edge.vertex_b.value}）"
+    )
 
 
 def _classify_resonance(net: int) -> ResonanceStrength:
@@ -166,12 +176,13 @@ def _classify_role(net: int) -> FlowRole:
 def aggregate_vertex_flows(
     edges: list[EdgeFlowInput],
 ) -> list[VertexFlowState]:
-    """聚合 6 条边的方向为 4 个顶点的流转状态。
+    """聚合 1-6 条边的方向为 4 个顶点的流转状态。
 
     Parameters
     ----------
     edges : list[EdgeFlowInput]
-        恰好 6 条边的流转方向输入。
+        1 到 6 条边的流转方向输入。部分图（<6 条边）在第二层级别扫描中
+        是常态——并非所有比价对都有已完成的走势。
 
     Returns
     -------
@@ -181,10 +192,19 @@ def aggregate_vertex_flows(
     Raises
     ------
     ValueError
-        边数不等于 6，或存在重复边。
+        边数为 0 或超过 6，存在重复边，或任何边的方向为 UNKNOWN。
+        UNKNOWN 边不应参与聚合——它们应在上游级别扫描阶段被过滤掉。
     """
-    if len(edges) != 6:
-        raise ValueError(f"需要恰好 6 条边，实际 {len(edges)} 条")
+    if not edges or len(edges) > 6:
+        raise ValueError(f"需要 1-6 条边，实际 {len(edges)} 条")
+
+    # UNKNOWN 边 fail-fast
+    for e in edges:
+        if e.direction == FlowDirection.UNKNOWN:
+            raise ValueError(
+                f"UNKNOWN 边不允许参与聚合：{e.vertex_a.value}/{e.vertex_b.value}。"
+                f"调用链上游应在级别扫描阶段过滤掉未完成走势的边"
+            )
 
     # 检查重复
     seen: set[frozenset[AssetVertex]] = set()
@@ -256,6 +276,11 @@ def check_conservation(states: list[VertexFlowState]) -> bool:
 
     守恒破缺的信号意义：如果不守恒，说明某条边的走势判读有误，
     或资本流向了四矩阵之外（跨区域流动）。
+
+    部分图（<6 条边）上守恒恒真：乘法恒等式 A/B × B/C × C/A ≡ 1
+    对任何子集都成立，因为它是逐时刻的代数恒等式，对每个三角形独立成立。
+    部分图不破坏恒等式。因此 check_conservation 在部分图上的返回值
+    没有诊断意义——守恒破缺只在完整 K4 图上才是有意义的信号。
 
     Parameters
     ----------
@@ -347,7 +372,22 @@ def _classify_cash_signal(
 def disambiguate_cash_signal(
     edge_inputs: list[EdgeFlowInput],
 ) -> CashSignalAnalysis:
-    """现金边信号消歧：用纯资产子图校验现金边信号的可信度。"""
+    """现金边信号消歧：用纯资产子图校验现金边信号的可信度。
+
+    要求恰好 6 条边（完整 K4 图）。消歧需要完整的纯资产三角形来判断
+    "资产在动还是尺子在动"——部分图上做消歧会静默产出错误结果。
+    K4 不完整时消歧不可执行。
+
+    Raises
+    ------
+    ValueError
+        边数不等于 6（通过 aggregate_vertex_flows 传递）。
+    """
+    if len(edge_inputs) != 6:
+        raise ValueError(
+            f"消歧需要完整 K4 图（6 条边），实际 {len(edge_inputs)} 条。"
+            f"部分图上消歧会产出错误结果"
+        )
     states = aggregate_vertex_flows(edge_inputs)
 
     cash_net = 0
