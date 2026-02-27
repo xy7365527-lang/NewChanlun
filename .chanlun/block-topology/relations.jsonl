@@ -1075,3 +1075,8 @@
 {"type":"depends_on","target_genealogy_id":"218"}
 {"type":"depends_on","target_genealogy_id":"224"}
 {"type":"depends_on","target_genealogy_id":"137"}
+{"type":"depends_on","target_genealogy_id":"224"}
+{"type":"depends_on","target_genealogy_id":"225"}
+{"type":"depends_on","target_genealogy_id":"137"}
+{"type":"depends_on","target_genealogy_id":"057"}
+{"type":"depends_on","target_genealogy_id":"173"}

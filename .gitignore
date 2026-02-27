@@ -35,6 +35,9 @@ nul
 Thumbs.db
 .DS_Store
 
+# Ceremony state (runtime only)
+.ceremony-step
+
 # Data / temp
 _test_db.py
 charting-library-context.txt
