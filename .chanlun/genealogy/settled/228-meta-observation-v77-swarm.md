@@ -135,9 +135,9 @@ v77-swarm 仅产出3个工位（stagnation-auditor + topology-analyst + meta-obs
 
 ## 下游推论
 
-1. 观察1（ceremony-step-guard 爆炸半径）是行动类，需要在 ceremony-step-guard.sh 中增加 agent 身份过滤或调整 `.ceremony-step` 的生命周期
-2. 需要确认 Claude Code PostToolUse hook 的 INPUT_JSON 是否携带 agent 标识——如果不携带，方案A 不可行，必须走方案B
-3. 227号下游推论1（ceremony_state.py 集成缺口是行动类）的状态从"已修复"细化为"部分修复——write 落地，clear/scope 待修"
+1. ~~观察1（ceremony-step-guard 爆炸半径）是行动类，需要在 ceremony-step-guard.sh 中增加 agent 身份过滤或调整 `.ceremony-step` 的生命周期~~ → [resolved: 方案B——hook 在步骤1-6静默退出，仅步骤7-10阻断]
+2. ~~需要确认 Claude Code PostToolUse hook 的 INPUT_JSON 是否携带 agent 标识——如果不携带，方案A 不可行，必须走方案B~~ → [resolved: 平台不携带 agent 标识（已知限制），已走方案B]
+3. ~~227号下游推论1（ceremony_state.py 集成缺口是行动类）的状态从"已修复"细化为"部分修复——write 落地，clear/scope 待修"~~ → [resolved: write/clear/scope 三项均已落地]
 
 ## 边界条件
 
