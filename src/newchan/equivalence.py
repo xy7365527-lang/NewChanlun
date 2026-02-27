@@ -248,6 +248,11 @@ def make_ratio_kline(df_a: pd.DataFrame, df_b: pd.DataFrame) -> pd.DataFrame:
     对 OHLC 四列分别除法，volume 取 A。
     自动按时间戳对齐（inner join）。
 
+    注意：当前实现对 OHLC 四列各自除法，这是近似——A_high/B_high ≠ max(A(t)/B(t))。
+    严格的构造原则（v4 §1.1）：比价序列应从最细粒度的逐时刻 A(t)/B(t) 生成，
+    再从比价序列聚合出 K 线。调用者应确保输入是最细可配对粒度的数据，
+    在该粒度上 OHLC 各自除法的近似误差可忽略。
+
     概念溯源：[旧缠论:隐含] 比价K线构造
     """
     idx = df_a.index.intersection(df_b.index)
