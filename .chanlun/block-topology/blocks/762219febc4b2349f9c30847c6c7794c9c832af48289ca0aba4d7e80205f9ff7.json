@@ -1,0 +1,25 @@
+{
+  "id": "762219febc4b2349f9c30847c6c7794c9c832af48289ca0aba4d7e80205f9ff7",
+  "type": "event",
+  "timestamp": "2026-02-25T08:00:00.000000+00:00",
+  "source": "cc",
+  "content": {
+    "id": "194",
+    "title": "笔定义代码忠实度审计——10 Key 并行诊断",
+    "status": "结算态",
+    "type": "概念发现",
+    "date": "2026-02-25",
+    "depends_on": [
+      "193",
+      "113",
+      "114",
+      "001"
+    ],
+    "related": [],
+    "negates": [],
+    "tensions_with": [],
+    "source_file": "settled/194-bi-fidelity-audit-10key.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}
