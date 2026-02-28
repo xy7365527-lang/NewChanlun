@@ -1,6 +1,7 @@
 """纤维丛 pipeline 适配器 — 直积配置到纤维丛修正的桥梁。
 
 236号谱系：纤维丛集成——直积近似 vs 纤维丛精确解的策略偏差量化。
+240号谱系：纤维丛上下文集成——FiberTradingContext 接入策略层。
 
 编排者指令：不替换直积（直积作为一级近似保留），而是并行运行，量化策略信号的偏差。
 
@@ -8,6 +9,11 @@
   - 接收现有 pipeline 的 Configuration 输出
   - 用纤维丛联络计算修正后的 R 条件概率
   - 返回修正信号（FiberBundlePoint + 偏差度量）
+
+240号扩展：
+  - FiberTradingContext：包装 TradingContext + 纤维丛修正
+  - create_fiber_context：从 TradingContext 创建纤维丛增强版
+  - FiberSignalFilter：polarity 分歧检测 + 修正报告
 """
 
 from __future__ import annotations
@@ -244,3 +250,168 @@ class FiberPipelineAdapter:
     def global_kl_divergence(self) -> float:
         """纤维丛与直积的全局 KL 散度。"""
         return self._fb.kl_divergence_from_product()
+
+
+# ── 240号：FiberTradingContext 集成 ─────────────────────────────
+
+
+@dataclass(frozen=True, slots=True)
+class FiberTradingContext:
+    """纤维丛增强的交易上下文。
+
+    包装（而非继承）TradingContext，附加纤维丛修正信息。
+    不修改原始 TradingContext 的任何字段——纯附加层。
+
+    Attributes
+    ----------
+    ctx : TradingContext
+        原始交易上下文（完整保留）。
+    fiber_correction : FiberCorrection
+        纤维丛对当前配置的修正结果。
+    fiber_polarity : int
+        纤维丛修正后的 polarity_index。
+    polarity_divergence : bool
+        直积 polarity 与纤维丛 polarity 是否不同。
+    correction_confidence : float
+        修正的置信度（= KL 散度，越大表示纤维丛分布偏离直积越远）。
+    """
+
+    ctx: object  # TradingContext — 避免循环导入，运行时类型检查
+    fiber_correction: FiberCorrection
+    fiber_polarity: int
+    polarity_divergence: bool
+    correction_confidence: float
+
+    @property
+    def product_polarity(self) -> int:
+        """直积假设下的 polarity（即原始 ctx.polarity）。"""
+        return self.ctx.polarity  # type: ignore[union-attr]
+
+    @property
+    def config(self) -> Configuration:
+        """当前配置（委托给原始 ctx）。"""
+        return self.ctx.config  # type: ignore[union-attr]
+
+    @property
+    def timestamp(self) -> float:
+        """当前时刻（委托给原始 ctx）。"""
+        return self.ctx.timestamp  # type: ignore[union-attr]
+
+
+def create_fiber_context(
+    ctx: object,
+    fb: FiberBundleConfigSpace | None = None,
+) -> FiberTradingContext:
+    """从现有 TradingContext 创建纤维丛增强版。
+
+    Parameters
+    ----------
+    ctx : TradingContext
+        原始交易上下文。
+    fb : FiberBundleConfigSpace | None
+        纤维丛配置空间。None 时使用 230号数据的默认纤维丛。
+
+    Returns
+    -------
+    FiberTradingContext
+        纤维丛增强的交易上下文。
+    """
+    config = ctx.config  # type: ignore[union-attr]
+    correction = compute_fiber_correction(config, fb)
+
+    base = BasePoint(config.sigma_e.value, config.sigma_c.value)
+    fiber_dist = (fb or default_fiber_bundle()).connection.fiber_distribution(base)
+    fiber_pol = _fiber_polarity(base, fiber_dist, config.sigma_r.value)
+
+    product_pol = ctx.polarity  # type: ignore[union-attr]
+    divergence = product_pol != fiber_pol
+
+    return FiberTradingContext(
+        ctx=ctx,
+        fiber_correction=correction,
+        fiber_polarity=fiber_pol,
+        polarity_divergence=divergence,
+        correction_confidence=correction.kl_divergence,
+    )
+
+
+class FiberSignalFilter:
+    """纤维丛信号过滤器。
+
+    当直积 polarity 与纤维丛 polarity 不同时（polarity_divergence=True），
+    标记该交易日为"纤维丛修正区域"。
+
+    策略含义：在修正区域内，直积给出的方向信号可能是错误的，
+    纤维丛修正提供了更精确的方向判断。
+
+    Attributes
+    ----------
+    adapter : FiberPipelineAdapter
+        底层纤维丛适配器。
+    kl_threshold : float
+        KL 散度阈值——低于此值时认为修正不显著，不覆盖 polarity。
+    """
+
+    __slots__ = ("_adapter", "_kl_threshold")
+
+    def __init__(
+        self,
+        adapter: FiberPipelineAdapter | None = None,
+        kl_threshold: float = 0.0,
+    ) -> None:
+        self._adapter = adapter if adapter is not None else FiberPipelineAdapter()
+        self._kl_threshold = kl_threshold
+
+    @property
+    def kl_threshold(self) -> float:
+        """KL 散度阈值。"""
+        return self._kl_threshold
+
+    def should_override_polarity(self, fiber_ctx: FiberTradingContext) -> bool:
+        """判断是否应覆盖直积 polarity。
+
+        条件：
+        1. polarity_divergence = True（两种模型给出不同方向）
+        2. correction_confidence > kl_threshold（修正显著）
+
+        Parameters
+        ----------
+        fiber_ctx : FiberTradingContext
+            纤维丛增强的交易上下文。
+
+        Returns
+        -------
+        bool
+            True 表示应使用纤维丛 polarity 替代直积 polarity。
+        """
+        return (
+            fiber_ctx.polarity_divergence
+            and fiber_ctx.correction_confidence > self._kl_threshold
+        )
+
+    def correction_report(self, fiber_ctx: FiberTradingContext) -> dict:
+        """生成修正报告。
+
+        Parameters
+        ----------
+        fiber_ctx : FiberTradingContext
+            纤维丛增强的交易上下文。
+
+        Returns
+        -------
+        dict
+            修正报告，包含 polarity 对比、KL 散度、R 概率分布等。
+        """
+        correction = fiber_ctx.fiber_correction
+        return {
+            "product_polarity": fiber_ctx.product_polarity,
+            "fiber_polarity": fiber_ctx.fiber_polarity,
+            "polarity_divergence": fiber_ctx.polarity_divergence,
+            "should_override": self.should_override_polarity(fiber_ctx),
+            "kl_divergence": correction.kl_divergence,
+            "correction_magnitude": correction.correction_magnitude,
+            "r_prob_product": dict(correction.r_prob_product),
+            "r_prob_fiber": dict(correction.r_prob_fiber),
+            "config": correction.original_config.as_tuple,
+            "timestamp": fiber_ctx.timestamp,
+        }
