@@ -1,53 +1,48 @@
-"""v109 结算通道可观测性实验 — Alpha Vantage 数据源。
+"""v109 结算通道可观测性实验 — yfinance 数据源。
 
 三步实验设计：
 
-Step 1：XAU/USD 替代 GLD 重跑 234号基线
+Step 1：GC=F（COMEX 黄金期货）替代 GLD 重跑 234号基线
   - 目的：测试 GLD 的 ETF 微观结构（交易时间、折溢价、创设赎回机制）
     是否污染了 234号 E-C 独立性结论
-  - E=SPY, C=XAU/USD（现货黄金）, R=TLT, $=UUP
-  - GLD 是 ETF，与 SPY 共享股票市场微观结构；XAU/USD 是现货，无股票市场中介
+  - E=SPY, C=GC=F（COMEX 黄金期货）, R=TLT, $=UUP
+  - GLD 是 ETF，与 SPY 共享股票市场微观结构；GC=F 是期货，无股票市场中介
   - 判据：
-    - XAU/USD 版 E-C 仍 independent → GLD ETF 微观结构未污染
-    - XAU/USD 版 E-C 变为 amplitude/direction → 234号 E-C 独立可能是 ETF 微观结构伪影
+    - GC=F 版 E-C 仍 independent → GLD ETF 微观结构未污染
+    - GC=F 版 E-C 变为 amplitude/direction → 234号 E-C 独立可能是 ETF 微观结构伪影
 
-Step 2：布伦特原油替代 GLD
+Step 2：BZ=F（NYMEX 布伦特原油期货）替代 GLD
   - 目的：测试石油（石油美元锚点）是否对缠论 D 算子可见——即结算通道的可观测性
-  - E=SPY, C=BRENT（布伦特原油）, R=TLT, $=UUP
+  - E=SPY, C=BZ=F（NYMEX 布伦特原油期货）, R=TLT, $=UUP
   - 三个情景：
     - A：全吸收（与 DBA 相同）→ 纯商品，D 算子看不见
     - B：部分保留/放大（类似 GLD）→ 石油美元具有结算通道特征
     - C：第三种模式
 
 Step 3：控制变量一致性检验
-  - 目的：三组实验（XAU-USD/DBA/BRENT）统一使用 Alpha Vantage 数据源后，
+  - 目的：三组实验（GC=F / DBA / BZ=F）统一使用 yfinance 数据源后，
     对比 E-R、E-$、R-$ 三条控制变量边的稳定性
-  - XAU/USD 基线（Step 1 已跑），DBA 和 BRENT 作为对照组
+  - GC=F 基线（Step 1 已跑），DBA 和 BZ=F 作为对照组
   - 判据：
-    - 三条控制边在三组间稳定 → 259号 R-$ 异常归因于数据对齐（yfinance vs Alpha Vantage）
+    - 三条控制边在三组间稳定 → 259号 R-$ 异常归因于数据对齐
     - 三条控制边仍不稳定 → 六条边间接耦合，需要诊断
 
-数据源：Alpha Vantage（直接 HTTP 请求）
-  - XAU/USD：FX_DAILY（from_symbol=XAU, to_symbol=USD）
-  - BRENT：Commodities endpoint（function=BRENT&interval=daily）
-  - SPY/TLT/UUP/DBA：TIME_SERIES_DAILY（outputsize=full）
+数据源：yfinance
+  - GC=F：COMEX 黄金期货
+  - BZ=F：NYMEX 布伦特原油期货
+  - SPY/TLT/UUP/DBA：股票/ETF 日线
 """
 
 from __future__ import annotations
 
 import json
-import os
 import sys
-import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 import numpy as np
-import requests
-
-from dotenv import load_dotenv
-load_dotenv('.env.local')
+import yfinance as yf
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_PROJECT_ROOT / "src"))
@@ -61,13 +56,30 @@ from newchan.types import Bar
 
 
 # ---------------------------------------------------------------------------
-# Alpha Vantage API 常量
+# yfinance 数据获取
 # ---------------------------------------------------------------------------
 
-_AV_BASE_URL = "https://www.alphavantage.co/query"
 
-# Alpha Vantage 免费版：5 calls/min
-_API_CALL_INTERVAL_SEC = 15  # 保守间隔，避免触发限流
+def fetch_yf(symbol: str, start: str = "2002-01-01") -> list[Bar]:
+    """通过 yfinance 获取日线数据。"""
+    print(f"[FETCH] {symbol} via yfinance...")
+    ticker = yf.Ticker(symbol)
+    df = ticker.history(start=start, auto_adjust=True)
+    bars: list[Bar] = []
+    for idx, row in df.iterrows():
+        bars.append(Bar(
+            ts=idx.to_pydatetime().replace(tzinfo=None),
+            open=float(row["Open"]),
+            high=float(row["High"]),
+            low=float(row["Low"]),
+            close=float(row["Close"]),
+            volume=float(row["Volume"]) if "Volume" in row and row["Volume"] else None,
+        ))
+    if bars:
+        print(f"  -> {len(bars)} bars ({bars[0].ts.date()} ~ {bars[-1].ts.date()})")
+    else:
+        raise RuntimeError(f"No data for {symbol}")
+    return bars
 
 
 # ---------------------------------------------------------------------------
@@ -89,211 +101,6 @@ _BASELINE_259: dict[str, Any] = {}  # 由 v108 实验填充，此处仅作对比
 # 234号时间窗口
 _234_START = "2007-03-01"
 _234_END = "2026-02-26"
-
-
-# ---------------------------------------------------------------------------
-# Alpha Vantage 数据获取
-# ---------------------------------------------------------------------------
-
-
-def _get_api_key() -> str:
-    """从环境变量获取 Alpha Vantage API key。"""
-    key = os.environ.get("ALPHA_VANTAGE_API_KEY", "")
-    if not key:
-        raise RuntimeError(
-            "ALPHA_VANTAGE_API_KEY 环境变量未设置。"
-            "请设置后重新运行：export ALPHA_VANTAGE_API_KEY=your_key"
-        )
-    return key
-
-
-def _rate_limit_sleep() -> None:
-    """API 调用间隔等待。"""
-    print(f"  [RATE LIMIT] 等待 {_API_CALL_INTERVAL_SEC}s...")
-    time.sleep(_API_CALL_INTERVAL_SEC)
-
-
-def fetch_equity(symbol: str, api_key: str) -> list[Bar]:
-    """通过 Alpha Vantage TIME_SERIES_DAILY 获取股票/ETF 日线数据。
-
-    Parameters
-    ----------
-    symbol : str
-        股票代码（SPY/TLT/UUP）。
-    api_key : str
-        Alpha Vantage API key。
-
-    Returns
-    -------
-    list[Bar]
-        按时间升序排列的 Bar 列表。
-    """
-    print(f"[FETCH] {symbol} via Alpha Vantage TIME_SERIES_DAILY...")
-    params = {
-        "function": "TIME_SERIES_DAILY",
-        "symbol": symbol,
-        "outputsize": "full",
-        "apikey": api_key,
-    }
-    resp = requests.get(_AV_BASE_URL, params=params, timeout=60)
-    resp.raise_for_status()
-    data = resp.json()
-
-    if "Error Message" in data:
-        raise RuntimeError(f"Alpha Vantage error for {symbol}: {data['Error Message']}")
-    if "Note" in data:
-        raise RuntimeError(f"Alpha Vantage rate limit for {symbol}: {data['Note']}")
-
-    ts_key = "Time Series (Daily)"
-    if ts_key not in data:
-        raise RuntimeError(
-            f"Alpha Vantage 返回中无 '{ts_key}'。"
-            f"返回的 keys: {list(data.keys())}"
-        )
-
-    time_series = data[ts_key]
-    bars: list[Bar] = []
-    for date_str, ohlcv in time_series.items():
-        bars.append(
-            Bar(
-                ts=datetime.strptime(date_str, "%Y-%m-%d"),
-                open=float(ohlcv["1. open"]),
-                high=float(ohlcv["2. high"]),
-                low=float(ohlcv["3. low"]),
-                close=float(ohlcv["4. close"]),
-                volume=float(ohlcv["5. volume"]),
-            )
-        )
-
-    bars.sort(key=lambda b: b.ts)
-    print(f"  -> {len(bars)} bars ({bars[0].ts.date()} ~ {bars[-1].ts.date()})")
-    return bars
-
-
-def fetch_fx(from_sym: str, to_sym: str, api_key: str) -> list[Bar]:
-    """通过 Alpha Vantage FX_DAILY 获取外汇/贵金属日线数据。
-
-    用于 XAU/USD（现货黄金兑美元）。
-
-    Parameters
-    ----------
-    from_sym : str
-        源货币（如 XAU）。
-    to_sym : str
-        目标货币（如 USD）。
-    api_key : str
-        Alpha Vantage API key。
-
-    Returns
-    -------
-    list[Bar]
-        按时间升序排列的 Bar 列表。
-    """
-    print(f"[FETCH] {from_sym}/{to_sym} via Alpha Vantage FX_DAILY...")
-    params = {
-        "function": "FX_DAILY",
-        "from_symbol": from_sym,
-        "to_symbol": to_sym,
-        "outputsize": "full",
-        "apikey": api_key,
-    }
-    resp = requests.get(_AV_BASE_URL, params=params, timeout=60)
-    resp.raise_for_status()
-    data = resp.json()
-
-    if "Error Message" in data:
-        raise RuntimeError(f"Alpha Vantage error for {from_sym}/{to_sym}: {data['Error Message']}")
-    if "Note" in data:
-        raise RuntimeError(f"Alpha Vantage rate limit for {from_sym}/{to_sym}: {data['Note']}")
-
-    ts_key = "Time Series FX (Daily)"
-    if ts_key not in data:
-        raise RuntimeError(
-            f"Alpha Vantage 返回中无 '{ts_key}'。"
-            f"返回的 keys: {list(data.keys())}"
-        )
-
-    time_series = data[ts_key]
-    bars: list[Bar] = []
-    for date_str, ohlc in time_series.items():
-        bars.append(
-            Bar(
-                ts=datetime.strptime(date_str, "%Y-%m-%d"),
-                open=float(ohlc["1. open"]),
-                high=float(ohlc["2. high"]),
-                low=float(ohlc["3. low"]),
-                close=float(ohlc["4. close"]),
-                volume=None,  # FX_DAILY 无成交量
-            )
-        )
-
-    bars.sort(key=lambda b: b.ts)
-    print(f"  -> {len(bars)} bars ({bars[0].ts.date()} ~ {bars[-1].ts.date()})")
-    return bars
-
-
-def fetch_commodity_brent(api_key: str) -> list[Bar]:
-    """通过 Alpha Vantage Commodities 端点获取布伦特原油日线数据。
-
-    端点：function=BRENT&interval=daily
-
-    注意：Alpha Vantage Commodities 端点返回格式与 TIME_SERIES_DAILY 不同：
-    返回 {"name": "...", "interval": "daily", "unit": "...", "data": [{"date": "...", "value": "..."}, ...]}
-    只有日期和收盘价（value），无 OHLC。为兼容 BiEngine 管线，
-    使用 value 同时填充 open/high/low/close。
-
-    Parameters
-    ----------
-    api_key : str
-        Alpha Vantage API key。
-
-    Returns
-    -------
-    list[Bar]
-        按时间升序排列的 Bar 列表。
-    """
-    print("[FETCH] BRENT via Alpha Vantage Commodities endpoint...")
-    params = {
-        "function": "BRENT",
-        "interval": "daily",
-        "apikey": api_key,
-    }
-    resp = requests.get(_AV_BASE_URL, params=params, timeout=60)
-    resp.raise_for_status()
-    data = resp.json()
-
-    if "Error Message" in data:
-        raise RuntimeError(f"Alpha Vantage error for BRENT: {data['Error Message']}")
-    if "Note" in data:
-        raise RuntimeError(f"Alpha Vantage rate limit for BRENT: {data['Note']}")
-
-    if "data" not in data:
-        raise RuntimeError(
-            f"Alpha Vantage BRENT 返回中无 'data'。"
-            f"返回的 keys: {list(data.keys())}"
-        )
-
-    bars: list[Bar] = []
-    for entry in data["data"]:
-        value_str = entry.get("value", "")
-        if value_str == "." or not value_str:
-            continue  # 跳过缺失值
-        price = float(value_str)
-        bars.append(
-            Bar(
-                ts=datetime.strptime(entry["date"], "%Y-%m-%d"),
-                open=price,
-                high=price,
-                low=price,
-                close=price,
-                volume=None,
-            )
-        )
-
-    bars.sort(key=lambda b: b.ts)
-    print(f"  -> {len(bars)} bars ({bars[0].ts.date()} ~ {bars[-1].ts.date()})")
-    return bars
-
 
 
 # ---------------------------------------------------------------------------
@@ -719,25 +526,25 @@ def run_pipeline(
 
 
 # ---------------------------------------------------------------------------
-# Step 1：XAU/USD 替代 GLD
+# Step 1：GC=F（COMEX 黄金期货）替代 GLD
 # ---------------------------------------------------------------------------
 
 
-def run_step1(api_key: str) -> dict[str, Any]:
-    """Step 1：XAU/USD 替代 GLD 重跑 234号基线。
+def run_step1() -> dict[str, Any]:
+    """Step 1：GC=F 替代 GLD 重跑 234号基线。
 
-    E=SPY, C=XAU/USD（现货黄金）, R=TLT, $=UUP
+    E=SPY, C=GC=F（COMEX 黄金期货）, R=TLT, $=UUP
     测试 GLD 的 ETF 微观结构是否污染了 234号 E-C 独立性结论。
     """
-    symbols = ("SPY", "XAUUSD", "TLT", "UUP")
-    symbol_labels = {"SPY": "E", "XAUUSD": "C_spot", "TLT": "R", "UUP": "$"}
+    symbols = ("SPY", "GC=F", "TLT", "UUP")
+    symbol_labels = {"SPY": "E", "GC=F": "C_spot", "TLT": "R", "UUP": "$"}
 
     edges = {
         "E-R": ("SPY", "TLT"),
-        "E-C_spot": ("SPY", "XAUUSD"),
+        "E-C_spot": ("SPY", "GC=F"),
         "E-$": ("SPY", "UUP"),
-        "C_spot-R": ("XAUUSD", "TLT"),
-        "C_spot-$": ("XAUUSD", "UUP"),
+        "C_spot-R": ("GC=F", "TLT"),
+        "C_spot-$": ("GC=F", "UUP"),
         "R-$": ("TLT", "UUP"),
     }
 
@@ -760,17 +567,10 @@ def run_step1(api_key: str) -> dict[str, Any]:
 
     all_bars: dict[str, list[Bar]] = {}
 
-    all_bars["SPY"] = fetch_equity("SPY", api_key)
-    _rate_limit_sleep()
-
-    all_bars["TLT"] = fetch_equity("TLT", api_key)
-    _rate_limit_sleep()
-
-    all_bars["UUP"] = fetch_equity("UUP", api_key)
-    _rate_limit_sleep()
-
-    all_bars["XAUUSD"] = fetch_fx("XAU", "USD", api_key)
-    # 最后一个 API 调用，不需要额外等待
+    all_bars["SPY"] = fetch_yf("SPY")
+    all_bars["TLT"] = fetch_yf("TLT")
+    all_bars["UUP"] = fetch_yf("UUP")
+    all_bars["GC=F"] = fetch_yf("GC=F")
 
     # 运行管线
     result = run_pipeline(
@@ -780,7 +580,7 @@ def run_step1(api_key: str) -> dict[str, Any]:
         edges=edges,
         edge_mapping_234=edge_mapping_234,
         control_edges=control_edges,
-        step_name="Step 1: XAU/USD 替代 GLD — ETF 微观结构污染检测",
+        step_name="Step 1: GC=F（COMEX 黄金期货）替代 GLD — ETF 微观结构污染检测",
     )
 
     # Step 1 特有判据
@@ -792,7 +592,7 @@ def run_step1(api_key: str) -> dict[str, Any]:
         verdict = {
             "scenario": "A-clean",
             "conclusion": (
-                f"XAU/USD 版 E-C 仍为 independent "
+                f"GC=F 版 E-C 仍为 independent "
                 f"(partial_corr={ec_spot['continuous']['partial_corr']:.4f})。"
                 f"GLD ETF 微观结构未污染 234号 E-C 独立性结论。"
                 f"E-C 独立是黄金资产的内在性质，不依赖 ETF 中介。"
@@ -802,7 +602,7 @@ def run_step1(api_key: str) -> dict[str, Any]:
         verdict = {
             "scenario": "B-contaminated",
             "conclusion": (
-                f"XAU/USD 版 E-C 分类为 {ec_type} "
+                f"GC=F 版 E-C 分类为 {ec_type} "
                 f"(partial_corr={ec_spot['continuous']['partial_corr']:.4f}, "
                 f"beta={ec_spot['discrete'].get('beta', 0.0):.4f})。"
                 f"与 234号 E-C independent 不同。"
@@ -815,7 +615,7 @@ def run_step1(api_key: str) -> dict[str, Any]:
     cs_spot = result["edges"]["C_spot-$"]
     cs_cls = cs_spot["classification"]
     cs_note = (
-        f"C_spot(XAU/USD)-$: {cs_cls['coupling_type']}, "
+        f"C_spot(GC=F)-$: {cs_cls['coupling_type']}, "
         f"absorption={cs_cls['absorption_ratio']:.3f} "
         f"(234号 C-$: amplitude, absorption=0.928)"
     )
@@ -824,9 +624,9 @@ def run_step1(api_key: str) -> dict[str, Any]:
     result["verdict"] = verdict
     result["experiment_design"] = {
         "purpose": "测试 GLD ETF 微观结构是否污染 234号 E-C 独立性结论",
-        "replacement": "GLD (ETF) -> XAU/USD (现货黄金)",
+        "replacement": "GLD (ETF) -> GC=F (COMEX 黄金期货)",
         "controls": "SPY(E), TLT(R), UUP($) 不变",
-        "hypothesis": "如果 E-C 独立是黄金内在性质而非 ETF 伪影，XAU/USD 版应保持 independent",
+        "hypothesis": "如果 E-C 独立是黄金内在性质而非 ETF 伪影，GC=F 版应保持 independent",
     }
 
     print(f"\n--- Step 1 判定 ---")
@@ -838,25 +638,25 @@ def run_step1(api_key: str) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# Step 2：布伦特原油替代 GLD
+# Step 2：BZ=F（NYMEX 布伦特原油期货）替代 GLD
 # ---------------------------------------------------------------------------
 
 
-def run_step2(api_key: str) -> dict[str, Any]:
-    """Step 2：布伦特原油替代 GLD。
+def run_step2() -> dict[str, Any]:
+    """Step 2：BZ=F 替代 GLD。
 
-    E=SPY, C=BRENT（布伦特原油）, R=TLT, $=UUP
+    E=SPY, C=BZ=F（NYMEX 布伦特原油期货）, R=TLT, $=UUP
     测试石油（石油美元锚点）是否对缠论 D 算子可见——结算通道的可观测性。
     """
-    symbols = ("SPY", "BRENT", "TLT", "UUP")
-    symbol_labels = {"SPY": "E", "BRENT": "C_oil", "TLT": "R", "UUP": "$"}
+    symbols = ("SPY", "BZ=F", "TLT", "UUP")
+    symbol_labels = {"SPY": "E", "BZ=F": "C_oil", "TLT": "R", "UUP": "$"}
 
     edges = {
         "E-R": ("SPY", "TLT"),
-        "E-C_oil": ("SPY", "BRENT"),
+        "E-C_oil": ("SPY", "BZ=F"),
         "E-$": ("SPY", "UUP"),
-        "C_oil-R": ("BRENT", "TLT"),
-        "C_oil-$": ("BRENT", "UUP"),
+        "C_oil-R": ("BZ=F", "TLT"),
+        "C_oil-$": ("BZ=F", "UUP"),
         "R-$": ("TLT", "UUP"),
     }
 
@@ -878,28 +678,10 @@ def run_step2(api_key: str) -> dict[str, Any]:
 
     all_bars: dict[str, list[Bar]] = {}
 
-    all_bars["SPY"] = fetch_equity("SPY", api_key)
-    _rate_limit_sleep()
-
-    all_bars["TLT"] = fetch_equity("TLT", api_key)
-    _rate_limit_sleep()
-
-    all_bars["UUP"] = fetch_equity("UUP", api_key)
-    _rate_limit_sleep()
-
-    all_bars["BRENT"] = fetch_commodity_brent(api_key)
-    # 最后一个 API 调用，不需要额外等待
-
-    # BRENT 数据特殊处理说明
-    # Alpha Vantage Commodities 端点仅返回 date+value（收盘价），无 OHLC。
-    # BiEngine 对 open=high=low=close 的 bar 可能生成较少的笔（无价格振荡），
-    # 这是数据源限制，不是管线错误。记录此约束。
-    brent_data_note = (
-        "BRENT 数据来自 Alpha Vantage Commodities 端点，仅有收盘价（无 OHLC）。"
-        "open=high=low=close，BiEngine 处理此类 bar 时包含处理无效（无高低价差异），"
-        "可能导致笔数量偏少。此为数据源约束。"
-    )
-    print(f"\n  [NOTE] {brent_data_note}")
+    all_bars["SPY"] = fetch_yf("SPY")
+    all_bars["TLT"] = fetch_yf("TLT")
+    all_bars["UUP"] = fetch_yf("UUP")
+    all_bars["BZ=F"] = fetch_yf("BZ=F")
 
     # 运行管线
     result = run_pipeline(
@@ -909,7 +691,7 @@ def run_step2(api_key: str) -> dict[str, Any]:
         edges=edges,
         edge_mapping_234=edge_mapping_234,
         control_edges=control_edges,
-        step_name="Step 2: BRENT 替代 GLD — 石油美元结算通道可观测性",
+        step_name="Step 2: BZ=F（NYMEX 布伦特原油期货）替代 GLD — 石油美元结算通道可观测性",
     )
 
     # Step 2 特有判据：三情景
@@ -924,7 +706,7 @@ def run_step2(api_key: str) -> dict[str, Any]:
     if co_type == "amplitude" and co_cls["in_kernel"]:
         scenario = "A-absorbed"
         conclusion = (
-            f"C_oil(BRENT)-$: {co_type}, absorption={co_absorption:.3f}。"
+            f"C_oil(BZ=F)-$: {co_type}, absorption={co_absorption:.3f}。"
             f"全吸收——与 DBA（259号）模式相同。"
             f"石油对 D 算子不可见，纯商品行为。"
             f"石油美元在缠论离散化层面无结算通道特征。"
@@ -932,7 +714,7 @@ def run_step2(api_key: str) -> dict[str, Any]:
     elif co_type == "direction" or co_type == "amplified":
         scenario = "B-channel"
         conclusion = (
-            f"C_oil(BRENT)-$: {co_type}, absorption={co_absorption:.3f}。"
+            f"C_oil(BZ=F)-$: {co_type}, absorption={co_absorption:.3f}。"
             f"部分保留/放大——石油美元具有结算通道特征。"
             f"石油-美元关系在缠论 D 算子下不被完全吸收，"
             f"方向耦合穿透离散化滤波器。"
@@ -941,7 +723,7 @@ def run_step2(api_key: str) -> dict[str, Any]:
     else:
         scenario = "C-third"
         conclusion = (
-            f"C_oil(BRENT)-$: {co_type}, absorption={co_absorption:.3f}。"
+            f"C_oil(BZ=F)-$: {co_type}, absorption={co_absorption:.3f}。"
             f"第三种模式——石油-美元关系不属于已知的两种分类。"
             f"可能暗示石油与美元的耦合结构需要新的描述框架。"
         )
@@ -950,16 +732,15 @@ def run_step2(api_key: str) -> dict[str, Any]:
         "scenario": scenario,
         "conclusion": conclusion,
         "ec_oil_note": (
-            f"E-C_oil(SPY-BRENT): {ec_cls['coupling_type']}, "
+            f"E-C_oil(SPY-BZ=F): {ec_cls['coupling_type']}, "
             f"partial_corr={ec_oil['continuous']['partial_corr']:.4f}"
         ),
-        "brent_data_note": brent_data_note,
     }
 
     result["verdict"] = verdict
     result["experiment_design"] = {
         "purpose": "测试石油（石油美元锚点）是否对缠论 D 算子可见——结算通道可观测性",
-        "replacement": "GLD (黄金) -> BRENT (布伦特原油)",
+        "replacement": "GLD (黄金) -> BZ=F (NYMEX 布伦特原油期货)",
         "controls": "SPY(E), TLT(R), UUP($) 不变",
         "scenarios": {
             "A": "全吸收（与 DBA 相同）-> 纯商品，D 算子看不见",
@@ -982,27 +763,24 @@ def run_step2(api_key: str) -> dict[str, Any]:
 
 
 def run_step3_control_consistency(
-    api_key: str,
     step1_result: dict[str, Any],
     step2_result: dict[str, Any],
 ) -> dict[str, Any]:
     """Step 3：控制变量一致性检验。
 
-    三组实验（XAU/USD / DBA / BRENT）统一使用 Alpha Vantage 数据源后，
+    三组实验（GC=F / DBA / BZ=F）统一使用 yfinance 数据源后，
     对比 E-R、E-$、R-$ 三条控制变量边的稳定性。
 
-    XAU/USD 数据来自 Step 1 结果（不重复获取）。
-    DBA 需要新获取（Alpha Vantage TIME_SERIES_DAILY）。
-    BRENT 数据来自 Step 2 结果（不重复获取）。
+    GC=F 数据来自 Step 1 结果（不重复获取）。
+    DBA 需要新获取（yfinance）。
+    BZ=F 数据来自 Step 2 结果（不重复获取）。
 
     Parameters
     ----------
-    api_key : str
-        Alpha Vantage API key。
     step1_result : dict
-        Step 1（XAU/USD）的完整结果。
+        Step 1（GC=F）的完整结果。
     step2_result : dict
-        Step 2（BRENT）的完整结果。
+        Step 2（BZ=F）的完整结果。
 
     Returns
     -------
@@ -1035,22 +813,15 @@ def run_step3_control_consistency(
 
     # 获取数据
     print("\n" + "=" * 70)
-    print("Step 3：获取 DBA 基线数据（Alpha Vantage）")
+    print("Step 3：获取 DBA 基线数据（yfinance）")
     print("=" * 70)
 
     all_bars: dict[str, list[Bar]] = {}
 
-    all_bars["SPY"] = fetch_equity("SPY", api_key)
-    _rate_limit_sleep()
-
-    all_bars["TLT"] = fetch_equity("TLT", api_key)
-    _rate_limit_sleep()
-
-    all_bars["UUP"] = fetch_equity("UUP", api_key)
-    _rate_limit_sleep()
-
-    all_bars["DBA"] = fetch_equity("DBA", api_key)
-    # 最后一个 API 调用，不需要额外等待
+    all_bars["SPY"] = fetch_yf("SPY")
+    all_bars["TLT"] = fetch_yf("TLT")
+    all_bars["UUP"] = fetch_yf("UUP")
+    all_bars["DBA"] = fetch_yf("DBA")
 
     # 运行管线
     dba_result = run_pipeline(
@@ -1060,12 +831,12 @@ def run_step3_control_consistency(
         edges=edges,
         edge_mapping_234=edge_mapping_234,
         control_edges=control_edges,
-        step_name="Step 3 基线: DBA (Alpha Vantage) — 农产品商品 ETF",
+        step_name="Step 3 基线: DBA (yfinance) — 农产品商品 ETF",
     )
 
     # ---- 控制变量对比 ----
     # 三条控制边：E-R, E-$, R-$
-    # 三组实验：XAU/USD（step1）, DBA（本步）, BRENT（step2）
+    # 三组实验：GC=F（step1）, DBA（本步）, BZ=F（step2）
     control_edge_names = ["E-R", "E-$", "R-$"]
 
     # DBA：直接用本步骤结果
@@ -1079,7 +850,7 @@ def run_step3_control_consistency(
             "absorption": edge_data["classification"]["absorption_ratio"],
         }
 
-    # Step1 (XAU/USD)：控制边名相同
+    # Step1 (GC=F)：控制边名相同
     step1_controls = {}
     for edge in control_edge_names:
         edge_data = step1_result["edges"][edge]
@@ -1090,7 +861,7 @@ def run_step3_control_consistency(
             "absorption": edge_data["classification"]["absorption_ratio"],
         }
 
-    # Step2 (BRENT)：控制边名相同
+    # Step2 (BZ=F)：控制边名相同
     step2_controls = {}
     for edge in control_edge_names:
         edge_data = step2_result["edges"][edge]
@@ -1130,9 +901,9 @@ def run_step3_control_consistency(
                 "type": _BASELINE_234[edge]["type"],
                 "absorption": _BASELINE_234[edge].get("absorption", None),
             },
-            "xauusd": s1,
+            "gc_f": s1,
             "dba": dba,
-            "brent": s2,
+            "bz_f": s2,
             "variability": {
                 "partial_corr_std": round(pc_std, 6),
                 "beta_std": round(beta_std, 6),
@@ -1145,13 +916,13 @@ def run_step3_control_consistency(
         print(f"\n  {edge}:")
         print(f"    234号(yfinance): pc={_BASELINE_234[edge]['partial_corr']:.4f}, "
               f"beta={_BASELINE_234[edge]['beta']:.4f}, type={_BASELINE_234[edge]['type']}")
-        print(f"    XAU/USD:         pc={s1['partial_corr']:.4f}, "
+        print(f"    GC=F:            pc={s1['partial_corr']:.4f}, "
               f"beta={s1['beta']:.4f}, type={s1['classification']}")
         print(f"    DBA:             pc={dba['partial_corr']:.4f}, "
               f"beta={dba['beta']:.4f}, type={dba['classification']}")
-        print(f"    BRENT:           pc={s2['partial_corr']:.4f}, "
+        print(f"    BZ=F:            pc={s2['partial_corr']:.4f}, "
               f"beta={s2['beta']:.4f}, type={s2['classification']}")
-        print(f"    → pc_std={pc_std:.4f}, beta_std={beta_std:.4f}, "
+        print(f"    -> pc_std={pc_std:.4f}, beta_std={beta_std:.4f}, "
               f"abs_std={abs_std:.4f}, type_unanimous={type_unanimous}")
 
     # 判定
@@ -1171,8 +942,8 @@ def run_step3_control_consistency(
             "stable": True,
             "conclusion": (
                 f"三条控制边在三组实验中保持稳定（max pc_std={max_pc_std:.4f} < {_STABILITY_THRESHOLD}，"
-                f"分类全一致）。259号 R-$ 异常可归因于数据对齐差异（yfinance vs Alpha Vantage）。"
-                f"统一 Alpha Vantage 数据源后，控制变量一致性成立。"
+                f"分类全一致）。259号 R-$ 异常可归因于数据对齐差异。"
+                f"统一 yfinance 数据源后，控制变量一致性成立。"
             ),
         }
     else:
@@ -1200,11 +971,11 @@ def run_step3_control_consistency(
         "consistency_table": consistency_table,
         "verdict": verdict,
         "experiment_design": {
-            "purpose": "控制变量一致性检验——统一 Alpha Vantage 数据源后，三条控制边是否稳定",
+            "purpose": "控制变量一致性检验——统一 yfinance 数据源后，三条控制边是否稳定",
             "control_edges": control_edge_names,
-            "groups": ["XAU/USD", "DBA", "BRENT"],
+            "groups": ["GC=F", "DBA", "BZ=F"],
             "stability_threshold": _STABILITY_THRESHOLD,
-            "hypothesis_if_stable": "259号 R-$ 异常归因于 yfinance vs Alpha Vantage 数据对齐差异",
+            "hypothesis_if_stable": "259号 R-$ 异常归因于数据对齐差异",
             "hypothesis_if_unstable": "六条边间接耦合，替换 C 列影响控制变量",
         },
     }
@@ -1217,60 +988,50 @@ def run_step3_control_consistency(
 
 def main() -> None:
     print("=" * 70)
-    print("v109 结算通道可观测性实验 — Alpha Vantage 数据源")
+    print("v109 结算通道可观测性实验 — yfinance 数据源")
     print("=" * 70)
     print(f"234号基准：SPY(E)/GLD(C)/TLT(R)/UUP($), 4780 bars, 2007-03-01~2026-02-27")
-    print(f"数据源：Alpha Vantage (免费版 5 calls/min)")
+    print(f"数据源：yfinance")
     print()
-
-    api_key = _get_api_key()
 
     # ---- Step 1 ----
     print("\n" + "#" * 70)
-    print("# STEP 1: XAU/USD 替代 GLD — ETF 微观结构污染检测")
+    print("# STEP 1: GC=F（COMEX 黄金期货）替代 GLD — ETF 微观结构污染检测")
     print("#" * 70)
-    step1_result = run_step1(api_key)
-
-    # Step 1 → Step 2 之间等待，避免限流
-    print(f"\n[INTER-STEP] 等待 {_API_CALL_INTERVAL_SEC}s 避免 API 限流...")
-    time.sleep(_API_CALL_INTERVAL_SEC)
+    step1_result = run_step1()
 
     # ---- Step 2 ----
     print("\n" + "#" * 70)
-    print("# STEP 2: BRENT 替代 GLD — 石油美元结算通道可观测性")
+    print("# STEP 2: BZ=F（NYMEX 布伦特原油期货）替代 GLD — 石油美元结算通道可观测性")
     print("#" * 70)
-    step2_result = run_step2(api_key)
-
-    # Step 2 → Step 3 之间等待，避免限流
-    print(f"\n[INTER-STEP] 等待 {_API_CALL_INTERVAL_SEC}s 避免 API 限流...")
-    time.sleep(_API_CALL_INTERVAL_SEC)
+    step2_result = run_step2()
 
     # ---- Step 3 ----
     print("\n" + "#" * 70)
-    print("# STEP 3: 控制变量一致性检验（XAU/USD + DBA + BRENT 三组对比）")
+    print("# STEP 3: 控制变量一致性检验（GC=F + DBA + BZ=F 三组对比）")
     print("#" * 70)
-    step3_result = run_step3_control_consistency(api_key, step1_result, step2_result)
+    step3_result = run_step3_control_consistency(step1_result, step2_result)
 
-    # ---- 综合对比表（四列：234原始/XAU-USD/DBA/BRENT，六条边全覆盖）----
+    # ---- 综合对比表（四列：234原始/GC=F/DBA/BZ=F，六条边全覆盖）----
     print("\n" + "=" * 70)
-    print("综合对比表（四列 × 六条边）")
+    print("综合对比表（四列 x 六条边）")
     print("=" * 70)
 
     # 收集各组六条边数据
     # 映射：统一边名 -> 各组实际边名
     unified_edges = ["E-R", "E-C", "E-$", "C-R", "C-$", "R-$"]
 
-    # Step1 边名映射（C_spot → C）
+    # Step1 边名映射（C_spot -> C）
     step1_edge_map = {
         "E-R": "E-R", "E-C": "E-C_spot", "E-$": "E-$",
         "C-R": "C_spot-R", "C-$": "C_spot-$", "R-$": "R-$",
     }
-    # Step2 边名映射（C_oil → C）
+    # Step2 边名映射（C_oil -> C）
     step2_edge_map = {
         "E-R": "E-R", "E-C": "E-C_oil", "E-$": "E-$",
         "C-R": "C_oil-R", "C-$": "C_oil-$", "R-$": "R-$",
     }
-    # DBA 边名映射（C_agri → C）
+    # DBA 边名映射（C_agri -> C）
     dba_edge_map = {
         "E-R": "E-R", "E-C": "E-C_agri", "E-$": "E-$",
         "C-R": "C_agri-R", "C-$": "C_agri-$", "R-$": "R-$",
@@ -1279,7 +1040,7 @@ def main() -> None:
     dba_edges = step3_result["dba_full_result"]["edges"]
 
     # 表头
-    header = f"  {'边':<8} {'234号(yf)':<18} {'XAU/USD':<18} {'DBA':<18} {'BRENT':<18}"
+    header = f"  {'边':<8} {'234号(yf)':<18} {'GC=F':<18} {'DBA':<18} {'BZ=F':<18}"
     sep = f"  {'-'*8} {'-'*18} {'-'*18} {'-'*18} {'-'*18}"
     print(header)
     print(sep)
@@ -1294,7 +1055,7 @@ def main() -> None:
             if b234 else "N/A"
         )
 
-        # XAU/USD (Step1)
+        # GC=F (Step1)
         s1_key = step1_edge_map[edge]
         s1_data = step1_result["edges"].get(s1_key, {})
         if s1_data:
@@ -1316,7 +1077,7 @@ def main() -> None:
             dba_type, dba_pc = "?", 0.0
             dba_str = "N/A"
 
-        # BRENT (Step2)
+        # BZ=F (Step2)
         s2_key = step2_edge_map[edge]
         s2_data = step2_result["edges"].get(s2_key, {})
         if s2_data:
@@ -1339,7 +1100,7 @@ def main() -> None:
                 "beta": b234.get("beta", None),
                 "absorption": b234.get("absorption", None),
             },
-            "xauusd": {
+            "gc_f": {
                 "type": s1_type,
                 "partial_corr": s1_pc,
                 "beta": s1_data.get("discrete", {}).get("beta", 0.0) if s1_data else None,
@@ -1351,7 +1112,7 @@ def main() -> None:
                 "beta": dba_data.get("discrete", {}).get("beta", 0.0) if dba_data else None,
                 "absorption": dba_data["classification"]["absorption_ratio"] if dba_data else None,
             },
-            "brent": {
+            "bz_f": {
                 "type": s2_type,
                 "partial_corr": s2_pc,
                 "beta": s2_data.get("discrete", {}).get("beta", 0.0) if s2_data else None,
@@ -1366,13 +1127,13 @@ def main() -> None:
     # Step 1 结果
     step1_output = {
         "genealogy": "v109-step1",
-        "title": "XAU/USD 替代 GLD — ETF 微观结构污染检测",
+        "title": "GC=F（COMEX 黄金期货）替代 GLD — ETF 微观结构污染检测",
         **step1_result,
         "methodology": {
             "continuous": "日对数收益率 Pearson + 偏相关（控制其余两标的）",
             "discrete": "BiEngine（new笔模式）-> 逐bar方向 -> 线性回归 beta",
             "classification": "classify_coupling(partial_corr, beta) from discretization_kernel.py",
-            "data_source": "Alpha Vantage (FX_DAILY for XAU/USD, TIME_SERIES_DAILY for equities)",
+            "data_source": "yfinance (GC=F for gold futures, equities/ETFs direct)",
         },
         "timestamp": datetime.now().isoformat(),
     }
@@ -1385,14 +1146,13 @@ def main() -> None:
     # Step 2 结果
     step2_output = {
         "genealogy": "v109-step2",
-        "title": "BRENT 替代 GLD — 石油美元结算通道可观测性",
+        "title": "BZ=F（NYMEX 布伦特原油期货）替代 GLD — 石油美元结算通道可观测性",
         **step2_result,
         "methodology": {
             "continuous": "日对数收益率 Pearson + 偏相关（控制其余两标的）",
             "discrete": "BiEngine（new笔模式）-> 逐bar方向 -> 线性回归 beta",
             "classification": "classify_coupling(partial_corr, beta) from discretization_kernel.py",
-            "data_source": "Alpha Vantage (Commodities/BRENT for oil, TIME_SERIES_DAILY for equities)",
-            "brent_data_note": step2_result["verdict"]["brent_data_note"],
+            "data_source": "yfinance (BZ=F for Brent crude futures, equities/ETFs direct)",
         },
         "timestamp": datetime.now().isoformat(),
     }
@@ -1405,7 +1165,7 @@ def main() -> None:
     # Step 3 结果
     step3_output = {
         "genealogy": "v109-step3",
-        "title": "控制变量一致性检验 — 统一 Alpha Vantage 数据源",
+        "title": "控制变量一致性检验 — 统一 yfinance 数据源",
         "consistency_table": step3_result["consistency_table"],
         "verdict": step3_result["verdict"],
         "experiment_design": step3_result["experiment_design"],
@@ -1414,7 +1174,7 @@ def main() -> None:
             "continuous": "日对数收益率 Pearson + 偏相关（控制其余两标的）",
             "discrete": "BiEngine（new笔模式）-> 逐bar方向 -> 线性回归 beta",
             "classification": "classify_coupling(partial_corr, beta) from discretization_kernel.py",
-            "data_source": "Alpha Vantage (TIME_SERIES_DAILY for all equities/ETFs)",
+            "data_source": "yfinance (all symbols)",
             "stability_metric": "三组间偏相关标准差 + 分类一致性",
         },
         "timestamp": datetime.now().isoformat(),
