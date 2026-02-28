@@ -1318,6 +1318,16 @@ nodes:
   status: resolved
   type: meta-rule
   file: settled/263-meta-observation-v111-swarm.md
+- id: '264'
+  title: 定理1最终撤销——两版三轮全否 + "不测而测"消解层间过渡问题
+  status: settled
+  type: 编排者决断
+  file: settled/264-theorem1-final-revocation.md
+- id: '265'
+  title: 操作方法论——帕萨卡利亚模型（三层条件设定 + 多重赋格）
+  status: settled
+  type: 操作方法论
+  file: settled/265-operational-methodology-passacaglia.md
 edges:
   depends_on:
   - from: '136'
@@ -2669,6 +2679,18 @@ edges:
   - from: '263'
     to: '258'
   - from: '263'
+    to: '255'
+  - from: '264'
+    to: '254'
+  - from: '264'
+    to: '256'
+  - from: '264'
+    to: '255'
+  - from: '265'
+    to: '254'
+  - from: '265'
+    to: '264'
+  - from: '265'
     to: '255'
   triggered:
   - from: '005'
