@@ -24,7 +24,7 @@ downstream_inferences:
     status: resolved（181号推论在v107极端案例下验证成立）
   - id: 258-2
     description: Gemini 3.1 Pro thinking 模式产出的否定质量（构造精确反例+追溯上游纤维丛解体）是否应标准化为异质质询的默认要求
-    status: 选择类（需编排者价值判断——thinking 模式 token 成本 vs 否定深度）
+    status: resolved（编排者直接决断——v111-swarm gemini-upgrade工位执行thinking模式标准化为默认）
   - id: 258-3
     description: 256/257 分类为选择类的正当性确认——两者均涉及"完备化方向"而非"逻辑必然推论"，四分法分类正确
     status: resolved（018号四分法正确分类确认）
