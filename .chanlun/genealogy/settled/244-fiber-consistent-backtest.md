@@ -5,7 +5,7 @@ title: 纤维丛管道自洽后回测对比——矛盾操作归零 + 裁决翻�
 type: 经验验证
 status: 已结算
 date: 2026-02-28
-source: v99-swarm backtest-rerun 工位
+source: v98-swarm backtest-rerun 工位
 depends_on:
   - '242'  # 共振回测对比——直积 vs 纤维丛筛选器干净度裁决（修复前基线）
   - '243'  # 纤维丛管道 scan direction 层间一致性修复
