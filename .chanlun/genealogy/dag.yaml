@@ -1303,6 +1303,11 @@ nodes:
   status: resolved
   type: meta-rule
   file: settled/260-meta-observation-v108-swarm.md
+- id: '261'
+  title: 元观察——v109-swarm 批量结算 + 操作语义标注 + 递归缺失诊断的方法论信号
+  status: resolved
+  type: meta-rule
+  file: settled/261-meta-observation-v109-swarm.md
 edges:
   depends_on:
   - from: '136'
@@ -2635,6 +2640,14 @@ edges:
     to: '181'
   - from: '259'
     to: '232'
+  - from: '261'
+    to: '260'
+  - from: '261'
+    to: '137'
+  - from: '261'
+    to: '016'
+  - from: '261'
+    to: '036'
   triggered:
   - from: '005'
     to: 005a
