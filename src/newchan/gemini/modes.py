@@ -57,7 +57,7 @@ class GeminiChallenger:
     api_key : str | None
         Google API Key。None 时从 GOOGLE_API_KEY 环境变量读取。
     model : str
-        模型名称，默认 gemini-3-pro-preview。
+        模型名称，默认 gemini-3.1-pro-preview。
     """
 
     def __init__(

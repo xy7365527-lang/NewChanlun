@@ -801,7 +801,9 @@ def compute_advancement_candidates(root):
                 if not isinstance(di, dict):
                     continue
                 status = str(di.get("status", "")).lower()
-                if status in ("resolved", "已结算", "已修复"):
+                # 状态字段可能包含括号内理由，如 "resolved（理由）"，取括号前关键词
+                status_key = re.split(r'[（(]', status, maxsplit=1)[0].strip()
+                if status_key in ("resolved", "已结算", "已修复"):
                     continue
                 desc = di.get("description", "")
                 # 分类：包含"选择"/"decide"/"方向"关键词的是 choice 类
@@ -839,7 +841,9 @@ def compute_advancement_candidates(root):
                 if not isinstance(di, dict):
                     continue
                 status = str(di.get("status", "")).lower()
-                if status in ("resolved", "已结算", "已修复"):
+                # 状态字段可能包含括号内理由，如 "resolved（理由）"，取括号前关键词
+                status_key = re.split(r'[（(]', status, maxsplit=1)[0].strip()
+                if status_key in ("resolved", "已结算", "已修复"):
                     continue
                 # 避免与上面的谱系扫描重复
                 candidate_id = f"meta-observer:{genealogy_id}号-{di.get('id', '?')}"

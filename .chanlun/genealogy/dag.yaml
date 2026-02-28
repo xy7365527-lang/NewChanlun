@@ -1308,6 +1308,11 @@ nodes:
   status: resolved
   type: meta-rule
   file: settled/261-meta-observation-v109-swarm.md
+- id: '262'
+  title: v109 结算通道可观测性实验——代理敏感性与六条边稳定性分类
+  status: 已结算
+  type: 经验验证
+  file: settled/262-v109-proxy-sensitivity-experiment.md
 edges:
   depends_on:
   - from: '136'
@@ -2648,6 +2653,12 @@ edges:
     to: '016'
   - from: '261'
     to: '036'
+  - from: '262'
+    to: '234'
+  - from: '262'
+    to: '259'
+  - from: '262'
+    to: '235'
   triggered:
   - from: '005'
     to: 005a
