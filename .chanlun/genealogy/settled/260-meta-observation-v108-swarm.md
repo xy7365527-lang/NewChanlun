@@ -19,13 +19,13 @@ depends_on:
 downstream_inferences:
   - id: 260-1
     description: context compaction 后 team/task 状态丢失是 Claude Code 平台限制——工位产出通过文件系统保全是正确的容错路径。但 TaskList 残留导致 Stop-Guard 误判"3个活跃任务"
-    status: 定理类（平台限制的逻辑推论，无需修复——Stop-Guard 已正确被人工清理）
+    status: resolved（162号推论——文件系统是唯一可靠持久化层）
   - id: 260-2
     description: 编排者个人 Gemini 对话与体系内 gemini-challenger 工位独立收敛到相同的四个否定方向——异源收敛是否定鲁棒性的强信号
-    status: 定理类（221号双向收敛模式的扩展实例）
+    status: resolved（221号双向收敛模式扩展——操作者间收敛）
   - id: 260-3
     description: v108 实验数据驱动的 K4 顶点重命名（C→Au）是否应写入谱系——编排者洞察"缠论看见了黄金的货币属性"改变了 232-235 链的语义解读
-    status: 选择类（语义重命名影响深远，需编排者确认方向后再写入）
+    status: resolved（编排者决断：不重命名C→Au，加操作语义标注）
 ---
 
 # 260号：元观察——v108-swarm 实验蜂群

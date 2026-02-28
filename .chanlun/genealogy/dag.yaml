@@ -2633,6 +2633,8 @@ edges:
     to: '221'
   - from: '260'
     to: '181'
+  - from: '259'
+    to: '232'
   triggered:
   - from: '005'
     to: 005a
