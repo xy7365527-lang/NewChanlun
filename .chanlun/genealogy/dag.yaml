@@ -1223,6 +1223,11 @@ nodes:
   status: 已结算
   type: 经验验证
   file: settled/244-fiber-consistent-backtest.md
+- id: '245'
+  title: 22.2%分歧事件结构特征分析——236号C-R联络假设验证通过
+  status: 已结算
+  type: 经验验证
+  file: settled/245-divergence-structure-analysis.md
 edges:
   depends_on:
   - from: '136'
@@ -2429,6 +2434,10 @@ edges:
     to: '242'
   - from: '244'
     to: '243'
+  - from: '245'
+    to: '244'
+  - from: '245'
+    to: '236'
   triggered:
   - from: '005'
     to: 005a
