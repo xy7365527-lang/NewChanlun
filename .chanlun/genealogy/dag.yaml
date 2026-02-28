@@ -1253,6 +1253,41 @@ nodes:
   status: settled
   type: 经验验证
   file: settled/250-extended-data-window-validation.md
+- id: '251'
+  title: 60min 单层背驰检测——方向性力度 vs 振幅力度对比
+  status: settled
+  type: 经验验证
+  file: settled/251-divergence-comparison-60min.md
+- id: '252'
+  title: 递归 1min 深度验证
+  status: settled
+  type: 经验验证
+  file: settled/252-recursive-1min-depth-validation.md
+- id: '253'
+  title: 双管道真实 BSP 回测对比——22.2% 分歧率在真实数据复现
+  status: settled
+  type: 经验验证
+  file: settled/253-dual-pipeline-real-bsp-backtest.md
+- id: '254'
+  title: 多经济体资本流转本体论
+  status: settled
+  type: 理论形式化
+  file: settled/254-multi-economy-capital-flow-ontology.md
+- id: '255'
+  title: 编排者-Claude 推导对话——从操盘方法到多经济体本体论
+  status: settled
+  type: 概念生成史
+  file: settled/255-dialogue-trading-method-to-ontology.md
+- id: '256'
+  title: 254号定理1——三态逆序递归顺序的形式化跳跃
+  status: 生成态
+  type: 矛盾发现
+  file: pending/256-tristate-order-derivation-gap.md
+- id: '257'
+  title: 254号定理2——E-$_USD移出ker(D)判据：代理变量范畴错误+相变阈值缺失
+  status: 生成态
+  type: 矛盾发现
+  file: pending/257-usd-hegemony-proxy-gap.md
 edges:
   depends_on:
   - from: '136'
@@ -2495,6 +2530,70 @@ edges:
     to: '246'
   - from: '250'
     to: '229'
+  - from: '251'
+    to: '250'
+  - from: '251'
+    to: '249'
+  - from: '251'
+    to: '233'
+  - from: '252'
+    to: '250'
+  - from: '252'
+    to: '249'
+  - from: '252'
+    to: '246'
+  - from: '252'
+    to: '229'
+  - from: '252'
+    to: '238'
+  - from: '253'
+    to: '252'
+  - from: '253'
+    to: '241'
+  - from: '253'
+    to: '244'
+  - from: '253'
+    to: '233'
+  - from: '254'
+    to: '232'
+  - from: '254'
+    to: '233'
+  - from: '254'
+    to: '234'
+  - from: '254'
+    to: '235'
+  - from: '254'
+    to: '245'
+  - from: '254'
+    to: '231'
+  - from: '255'
+    to: '254'
+  - from: '255'
+    to: '253'
+  - from: '255'
+    to: '252'
+  - from: '255'
+    to: '241'
+  - from: '255'
+    to: '232'
+  - from: '255'
+    to: '233'
+  - from: '255'
+    to: '234'
+  - from: '255'
+    to: '235'
+  - from: '256'
+    to: '254'
+  - from: '256'
+    to: '233'
+  - from: '256'
+    to: '235'
+  - from: '257'
+    to: '254'
+  - from: '257'
+    to: '233'
+  - from: '257'
+    to: '234'
   triggered:
   - from: '005'
     to: 005a
