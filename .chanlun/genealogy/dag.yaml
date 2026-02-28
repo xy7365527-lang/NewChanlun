@@ -1168,6 +1168,11 @@ nodes:
   status: 已结算
   type: 概念发现
   file: settled/233-discretization-kernel.md
+- id: '234'
+  title: ker(D) L2 交叉验证——K4 完全图全六条边
+  status: 已结算
+  type: 经验验证
+  file: settled/234-kernel-l2-cross-verification.md
 edges:
   depends_on:
   - from: '136'
@@ -2326,6 +2331,12 @@ edges:
     to: '230'
   - from: '233'
     to: '232'
+  - from: '234'
+    to: '233'
+  - from: '234'
+    to: '232'
+  - from: '234'
+    to: '230'
   triggered:
   - from: '005'
     to: 005a

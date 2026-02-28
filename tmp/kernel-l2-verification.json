@@ -1,0 +1,161 @@
+{
+  "genealogy": "234",
+  "title": "ker(D) L2 交叉验证 — K4 完全图全六条边",
+  "data_info": {
+    "n_common_bars": 4780,
+    "date_range": "2007-03-01 ~ 2026-02-27",
+    "symbols": [
+      "SPY",
+      "GLD",
+      "TLT",
+      "UUP"
+    ]
+  },
+  "edges": {
+    "E-R": {
+      "symbols": [
+        "SPY",
+        "TLT"
+      ],
+      "continuous": {
+        "pearson": -0.317236,
+        "partial_corr_used": -0.336
+      },
+      "discrete": {
+        "discrete_pearson": -0.020222,
+        "beta": -0.020664,
+        "concordance": 0.492113,
+        "n_active": 3867
+      },
+      "classification": {
+        "coupling_type": "amplitude",
+        "in_kernel": true,
+        "absorption_ratio": 0.949405,
+        "dominant_layer": "D1+D3"
+      }
+    },
+    "C-R": {
+      "symbols": [
+        "GLD",
+        "TLT"
+      ],
+      "continuous": {
+        "pearson": 0.165993,
+        "partial_corr_used": 0.153
+      },
+      "discrete": {
+        "discrete_pearson": 0.00927,
+        "beta": 0.00933,
+        "concordance": 0.505642,
+        "n_active": 3811
+      },
+      "classification": {
+        "coupling_type": "direction",
+        "in_kernel": false,
+        "absorption_ratio": 0.0,
+        "dominant_layer": "none"
+      }
+    },
+    "E-C": {
+      "symbols": [
+        "SPY",
+        "GLD"
+      ],
+      "continuous": {
+        "pearson": 0.049658,
+        "partial_corr_used": -0.029
+      },
+      "discrete": {
+        "discrete_pearson": 0.02294,
+        "beta": 0.023288,
+        "concordance": 0.52296,
+        "n_active": 3811
+      },
+      "classification": {
+        "coupling_type": "independent",
+        "in_kernel": false,
+        "absorption_ratio": 0.0,
+        "dominant_layer": "none"
+      }
+    },
+    "E-$": {
+      "symbols": [
+        "SPY",
+        "UUP"
+      ],
+      "continuous": {
+        "pearson": -0.183059,
+        "partial_corr_used": -0.183059
+      },
+      "discrete": {
+        "discrete_pearson": -0.005934,
+        "beta": -0.006067,
+        "concordance": 0.500395,
+        "n_active": 3799
+      },
+      "classification": {
+        "coupling_type": "amplitude",
+        "in_kernel": true,
+        "absorption_ratio": 0.966858,
+        "dominant_layer": "D1"
+      }
+    },
+    "C-$": {
+      "symbols": [
+        "GLD",
+        "UUP"
+      ],
+      "continuous": {
+        "pearson": -0.413945,
+        "partial_corr_used": -0.413945
+      },
+      "discrete": {
+        "discrete_pearson": -0.029567,
+        "beta": -0.029741,
+        "concordance": 0.487098,
+        "n_active": 3798
+      },
+      "classification": {
+        "coupling_type": "amplitude",
+        "in_kernel": true,
+        "absorption_ratio": 0.928152,
+        "dominant_layer": "D1"
+      }
+    },
+    "R-$": {
+      "symbols": [
+        "TLT",
+        "UUP"
+      ],
+      "continuous": {
+        "pearson": -0.065133,
+        "partial_corr_used": -0.065133
+      },
+      "discrete": {
+        "discrete_pearson": 0.049972,
+        "beta": 0.049956,
+        "concordance": 0.525276,
+        "n_active": 3798
+      },
+      "classification": {
+        "coupling_type": "amplitude",
+        "in_kernel": true,
+        "absorption_ratio": 0.233016,
+        "dominant_layer": "D3"
+      }
+    }
+  },
+  "summary": {
+    "n_in_kernel": 4,
+    "n_direction": 1,
+    "n_independent": 1,
+    "consistency_with_232": true
+  },
+  "methodology": {
+    "continuous": "日收益率 Pearson 相关（新三条边直接相关，旧三条边用232号偏相关）",
+    "discrete": "BiEngine（new笔模式）-> 逐bar方向 -> 方向序列线性回归 beta",
+    "classification": "classify_coupling(partial_corr, beta) from discretization_kernel.py",
+    "note": "笔方向作为D1层输出的代理，比走势方向密集得多"
+  },
+  "timestamp": "2026-02-28T01:48:10.236898"
+}
