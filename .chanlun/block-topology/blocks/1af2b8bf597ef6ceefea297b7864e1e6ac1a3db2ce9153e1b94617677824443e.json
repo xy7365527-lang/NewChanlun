@@ -1,0 +1,13 @@
+{
+  "type": "event",
+  "content": {
+    "title": "段引擎 71→1 压缩诊断",
+    "genealogy_id": 248,
+    "summary": "71 strokes → 1 segment 压缩是 bug，不是缠论定义的自然结果。bug 位置：segments_from_strokes_v1 用 strokes[0].direction 作为初始段方向，当第一笔在绝对极值且与后续趋势反向时，L78 持续拒绝所有分型触发。对比实验从笔1开始产出7段，确认核心逻辑正确。"
+  },
+  "refs": [
+    "b31f49d6b96efb9b468ba9c61e11864ce2eb4e81670a46fb8a812812502f64a3",
+    "be9a52f26ce32237f45c99955ff5cdc2f969ef95187287f40ad7fa597f702986",
+    "39dca675a052f73699930b7204381d7a9637aaae26432dda9a88214c5d3a5d9c"
+  ]
+}
