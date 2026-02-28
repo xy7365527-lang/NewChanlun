@@ -324,7 +324,9 @@ def audit(root=None):
             total += 1
             override_key = f"{gid}-{action['index']}"
             # P6修复：优先级链 yaml_statuses > overrides > inline > heuristic > verification_hints
-            yaml_status = yaml_statuses.get(override_key)
+            yaml_status_raw = yaml_statuses.get(override_key)
+            # 状态字段可能包含括号内理由，如 "resolved（理由）"，取括号前关键词
+            yaml_status = re.split(r'[（(]', yaml_status_raw, maxsplit=1)[0].strip() if yaml_status_raw else None
             override_status = overrides.get(override_key)
             if yaml_status and yaml_status in OVERRIDE_STATUSES:
                 status = yaml_status

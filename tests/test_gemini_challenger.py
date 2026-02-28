@@ -176,7 +176,7 @@ class TestDecide:
             c = GeminiChallenger(api_key="test")
             result = c.decide("test subject")
 
-            assert result.model == "gemini-3-pro-preview"
+            assert result.model == "gemini-2.5-pro"
             assert result.response == "fallback decide"
             assert result.mode == "decide"
 
@@ -245,7 +245,7 @@ class TestDerive:
             c = GeminiChallenger(api_key="test")
             result = c.derive("test statement")
 
-            assert result.model == "gemini-3-pro-preview"
+            assert result.model == "gemini-2.5-pro"
             assert result.response == "fallback derive"
             assert result.mode == "derive"
 
@@ -365,7 +365,7 @@ class TestFallback:
             c = GeminiChallenger(api_key="test")
             result = c.challenge("test subject")
 
-            assert result.model == "gemini-3-pro-preview"
+            assert result.model == "gemini-2.5-pro"
             assert result.response == "fallback response"
             assert mock_client.models.generate_content.call_count == 2
 

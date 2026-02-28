@@ -11,8 +11,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-_MODEL = "gemini-2.5-pro"
-_FALLBACK_MODEL = "gemini-3.1-pro-preview"
+_MODEL = "gemini-3.1-pro-preview"
+_FALLBACK_MODEL = "gemini-2.5-pro"
 
 
 def call_with_fallback(
