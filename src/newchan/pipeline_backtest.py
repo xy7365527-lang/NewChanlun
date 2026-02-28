@@ -119,6 +119,7 @@ class DualResonanceSignals:
     """双模型共振信号（直积 + 纤维丛并行输出）。
 
     241号谱系：两套组装方式各生成一份共振信号。
+    243号谱系：fiber_scan_direction 使纤维丛管道 scan 层与共振层使用同一 polarity 来源。
 
     Attributes
     ----------
@@ -132,6 +133,9 @@ class DualResonanceSignals:
         纤维丛联络下的 polarity_index。
     polarity_divergence : bool
         两种 polarity 是否不同。
+    fiber_scan_direction : str
+        纤维丛版的 scan direction（由 fiber_polarity 决定）。
+        "buy" / "sell" / "neutral"。与 fiber_signals 的 CONFIG 层方向来源一致。
     """
 
     product_signals: tuple[ResonanceSignal, ...]
@@ -139,6 +143,22 @@ class DualResonanceSignals:
     product_polarity: int
     fiber_polarity: int
     polarity_divergence: bool
+    fiber_scan_direction: str
+
+
+def _polarity_to_scan_direction(polarity: int) -> str:
+    """polarity -> scan direction 字符串。
+
+    与 pipeline.scan_configuration 的方向逻辑一致：
+    S > 0 -> "buy", S < 0 -> "sell", S = 0 -> "neutral"。
+
+    243号谱系：提取为独立函数，使纤维丛版可以从 fiber_polarity 推导 scan direction。
+    """
+    if polarity > 0:
+        return "buy"
+    if polarity < 0:
+        return "sell"
+    return "neutral"
 
 
 def _polarity_to_bsp(polarity: int, bsp: BSP) -> BSP:
@@ -237,12 +257,16 @@ def _build_resonance_signals(
         fiber_pol = product_pol
     fiber_signals = _build_signals_for_polarity(fiber_pol, bsp)
 
+    # 243号：fiber_scan_direction 由 fiber_pol 决定（与 fiber_signals CONFIG 层同源）
+    fiber_scan_dir = _polarity_to_scan_direction(fiber_pol)
+
     return DualResonanceSignals(
         product_signals=product_signals,
         fiber_signals=fiber_signals,
         product_polarity=product_pol,
         fiber_polarity=fiber_ctx.fiber_polarity,
         polarity_divergence=fiber_ctx.polarity_divergence,
+        fiber_scan_direction=fiber_scan_dir,
     )
 
 

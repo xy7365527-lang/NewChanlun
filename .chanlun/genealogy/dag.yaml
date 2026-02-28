@@ -1213,6 +1213,16 @@ nodes:
   status: 已结算
   type: 经验验证
   file: settled/242-resonance-backtest-comparison.md
+- id: '243'
+  title: 纤维丛管道 scan direction 层间一致性修复
+  status: 已结算
+  type: 工程修复
+  file: settled/243-fiber-scan-consistency.md
+- id: '244'
+  title: 纤维丛管道自洽后回测对比——矛盾操作归零 + 裁决翻转为平局
+  status: 已结算
+  type: 经验验证
+  file: settled/244-fiber-consistent-backtest.md
 edges:
   depends_on:
   - from: '136'
@@ -2411,6 +2421,14 @@ edges:
     to: '240'
   - from: '242'
     to: '241'
+  - from: '243'
+    to: '241'
+  - from: '243'
+    to: '242'
+  - from: '244'
+    to: '242'
+  - from: '244'
+    to: '243'
   triggered:
   - from: '005'
     to: 005a

@@ -107,6 +107,7 @@ class SignalDecision:
     polarity_divergence: bool
     product_polarity: int
     fiber_polarity: int
+    fiber_scan_direction: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -118,6 +119,7 @@ class ConfigResult:
     fiber_polarity: int
     polarity_divergence: bool
     scan_direction: str
+    fiber_scan_direction: str
     decisions: tuple[SignalDecision, ...]
 
     # 直积版指标
@@ -140,7 +142,11 @@ def evaluate_config(
     bsps: list[BSP],
     fiber_filter: FiberSignalFilter,
 ) -> ConfigResult:
-    """对单个配置评估两套筛选器。"""
+    """对单个配置评估两套筛选器。
+
+    243号修复：纤维丛版使用 fiber_scan_direction（来自 DualResonanceSignals），
+    而非直积 scan_configuration 的输出。两套管道各自内部一致。
+    """
     ctx = create_context(config, timestamp=0.0)
     _, directions = scan_configuration(ctx)
     scan_dir = directions[0] if directions else "neutral"
@@ -156,9 +162,11 @@ def evaluate_config(
     flips = 0
     prev_product_dir: str | None = None
     prev_fiber_dir: str | None = None
+    fiber_scan_dir = "neutral"  # 初始值，会被第一个 dual 覆盖
 
     for idx, bsp in enumerate(bsps):
         dual = _build_resonance_signals(bsp, ctx, fiber_filter)
+        fiber_scan_dir = dual.fiber_scan_direction
 
         # 直积版共振检查
         product_resonates = resonance_check(
@@ -211,6 +219,7 @@ def evaluate_config(
             polarity_divergence=dual.polarity_divergence,
             product_polarity=dual.product_polarity,
             fiber_polarity=dual.fiber_polarity,
+            fiber_scan_direction=dual.fiber_scan_direction,
         ))
 
     return ConfigResult(
@@ -220,6 +229,7 @@ def evaluate_config(
         fiber_polarity=decisions[0].fiber_polarity if decisions else 0,
         polarity_divergence=any(d.polarity_divergence for d in decisions),
         scan_direction=scan_dir,
+        fiber_scan_direction=fiber_scan_dir,
         decisions=tuple(decisions),
         product_entry_count=product_entry,
         product_block_count=product_block,
@@ -311,8 +321,9 @@ def compute_cleanliness(
                 if (d.fiber_direction == "buy" and not bsp_is_buy) or \
                    (d.fiber_direction == "sell" and bsp_is_buy):
                     m.fiber_false_signals += 1
-                if (cr.scan_direction == "sell" and bsp_is_buy) or \
-                   (cr.scan_direction == "buy" and not bsp_is_buy):
+                # 243号修复：纤维丛版矛盾检查使用 fiber_scan_direction
+                if (d.fiber_scan_direction == "sell" and bsp_is_buy) or \
+                   (d.fiber_scan_direction == "buy" and not bsp_is_buy):
                     m.fiber_contradictions += 1
 
     return m
@@ -391,6 +402,7 @@ def run_dual_backtest() -> dict:
                 "product_polarity": cr.product_polarity,
                 "fiber_polarity": cr.fiber_polarity,
                 "scan_direction": cr.scan_direction,
+                "fiber_scan_direction": cr.fiber_scan_direction,
                 "product_entries": cr.product_entry_count,
                 "fiber_entries": cr.fiber_entry_count,
                 "product_blocks": cr.product_block_count,
@@ -408,6 +420,7 @@ def run_dual_backtest() -> dict:
             "fiber_polarity": cr.fiber_polarity,
             "polarity_divergence": cr.polarity_divergence,
             "scan_direction": cr.scan_direction,
+            "fiber_scan_direction": cr.fiber_scan_direction,
             "product_entries": cr.product_entry_count,
             "fiber_entries": cr.fiber_entry_count,
             "product_blocks": cr.product_block_count,
