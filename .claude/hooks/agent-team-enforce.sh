@@ -7,10 +7,13 @@
 #   2. 如果没有 team_name → block + 要求使用 Agent Team
 #   3. 无例外（096号谱系）：Task(Explore) 同样需要 team_name
 #      搜索任务改用 Glob/Grep/Read 直接工具，或在 team 内 spawn 搜索 teammate
+#   4. [spec-gap-audit] 检查 spawn prompt 是否包含三基因（073a号：topo_address/depth_budget/parent_callback）
+#      缺失时 advisory 警告（不阻断——避免032号死锁重演）
 #
 # 095号谱系：严格使用 Agent Team，不使用孤立 subagent
 # 096号谱系：无例外——规则是语法规则，例外使规则降级为软性建议
 # 016号谱系：规则没有代码强制就不会被执行
+# 073a号谱系：spawn 三基因——topo_address, depth_budget, parent_callback
 
 set -uo pipefail
 
@@ -75,5 +78,27 @@ if not team_name:
         }
     }, ensure_ascii=False))
 else:
-    sys.exit(0)
+    # --- 三基因检查（073a号谱系，spec-gap-audit 修复） ---
+    # Task 有 team_name → 放行，但检查 prompt 是否包含三基因
+    # 仅对非 Explore 类型检查（Explore 是搜索，不是 spawn）
+    subagent_type = tool_input.get('subagent_type', '')
+    if subagent_type != 'Explore':
+        prompt = tool_input.get('prompt', '') or tool_input.get('description', '') or ''
+        missing_genes = []
+        if 'topo_address' not in prompt.lower() and '拓扑坐标' not in prompt:
+            missing_genes.append('topo_address')
+        if 'depth_budget' not in prompt.lower() and '递归深度' not in prompt and '深度预算' not in prompt:
+            missing_genes.append('depth_budget')
+        if 'parent_callback' not in prompt.lower() and '父节点回调' not in prompt:
+            missing_genes.append('parent_callback')
+        if missing_genes:
+            msg = (f'[073a号 spawn 三基因] Task prompt 缺少基因: {", ".join(missing_genes)}。'
+                   f'dispatch-dag task_template 要求每个衍生节点携带三基因：'
+                   f'topo_address（拓扑坐标）, depth_budget（递归深度预算）, parent_callback（父节点回调）。'
+                   f'建议在 prompt 中注入这些信息。')
+            print(json.dumps({'systemMessage': msg}, ensure_ascii=False))
+        else:
+            sys.exit(0)
+    else:
+        sys.exit(0)
 " <<< "$INPUT"

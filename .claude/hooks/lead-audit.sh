@@ -40,8 +40,42 @@ case "$TOOL_NAME" in
   *) exit 0 ;;
 esac
 
-# 检测是否为蜂群内的子工位调用（子工位调用不审计——它们就是执行者）
+# 检测是否为蜂群内的子工位调用（子工位调用走不同的审计路径）
 if [ -n "${CLAUDE_AGENT_NAME:-}" ]; then
+  # --- 子工位基因组写入检测（spec-gap-audit 修复：缺口#34） ---
+  # dispatch-dag task_template 声明子工位为局部作用域，不修改全局 hook/谱系/定义。
+  # 子工位写入基因组文件时记录为拓扑异常（advisory，不阻断）。
+  IS_GENOME_WRITE=$(python -c "
+import sys, re
+tool_name = sys.argv[1]
+file_path = sys.argv[2]
+if tool_name not in ('Write', 'Edit'):
+    print('no')
+    sys.exit(0)
+fp = file_path.replace('\\\\', '/').replace('\\\\\\\\', '/')
+genome_patterns = [
+    r'CLAUDE\.md$',
+    r'[\\\\/]\.claude[\\\\/]hooks[\\\\/]',
+    r'[\\\\/]\.claude[\\\\/]rules[\\\\/]',
+    r'[\\\\/]\.claude[\\\\/]skills[\\\\/]',
+    r'[\\\\/]\.claude[\\\\/]agents[\\\\/]',
+    r'[\\\\/]\.chanlun[\\\\/]dispatch-dag\.yaml$',
+]
+for pat in genome_patterns:
+    if re.search(pat, fp, re.IGNORECASE):
+        print('yes')
+        sys.exit(0)
+print('no')
+" "$TOOL_NAME" "$FILE_PATH" 2>/dev/null || echo "no")
+
+  if [ "$IS_GENOME_WRITE" = "yes" ]; then
+    MSG="[lead-audit/spec-gap] 子工位 ${CLAUDE_AGENT_NAME} 写入基因组文件 ${FILE_PATH}。task_template 声明子工位为局部作用域，不应修改全局 hook/规则/定义。"
+    MSG="$MSG" python -c "
+import json, os
+msg = os.environ['MSG']
+print(json.dumps({'systemMessage': msg}, ensure_ascii=False))
+" 2>/dev/null
+  fi
   exit 0
 fi
 

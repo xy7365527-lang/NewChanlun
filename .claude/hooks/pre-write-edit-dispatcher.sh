@@ -122,6 +122,11 @@ if is_genealogy:
     if missing:
         messages.append("[genealogy-write-guard] 缺失字段: " + ", ".join(missing))
 
+    # negation_form 检查（spec-gap-audit 修复：meta-orchestration 要求每条谱系标注 negation_form）
+    has_negation_form = bool(re.search(r'(?:negation_form|否定形式)\s*[:：]', content))
+    if not has_negation_form:
+        messages.append("[genealogy-write-guard] 建议标注 negation_form（否定形式：waiting/expansion/separation/unclassified）")
+
     # 前置引用验证
     if "前置" not in missing:
         m = re.search(r'(?:\*\*前置\*\*|前置)\s*[:：]\s*(.*)', content)
