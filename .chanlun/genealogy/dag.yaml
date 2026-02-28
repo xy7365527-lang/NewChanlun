@@ -1341,7 +1341,6 @@ nodes:
   depends_on:
   - '254'
   - '265'
-  - '252'
   - '235'
   - '232'
   file: settled/267-operational-methodology-v1.md
