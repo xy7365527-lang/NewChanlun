@@ -7,6 +7,11 @@
 概念溯源：
   [操盘方法 v2] §一 完整交易管道
   回测时每 bar 推进 TradingContext，根据状态机状态决策入退场。
+
+241号谱系：_build_resonance_signals 从双层简化升级为双模型并行共振构建。
+  直积版：ConfigurationSpace polarity → CONFIG 层方向，BSP 本身 → INDEPENDENT_EDGE 层。
+  纤维丛版：FiberSignalFilter polarity 分歧检测 → CONFIG 层方向修正。
+  两版并行输出，在 DualResonanceSignals 中同时可用。
 """
 
 from __future__ import annotations
@@ -27,7 +32,11 @@ from newchan.pipeline import (
     locate_bsp,
     scan_configuration,
 )
-from newchan.topology.config_space import Configuration
+from newchan.topology.config_space import Configuration, polarity_index
+from newchan.topology.fiber_pipeline_adapter import (
+    FiberSignalFilter,
+    create_fiber_context,
+)
 from newchan.trading.layer_state import LayerState, LayerType
 
 
@@ -45,12 +54,15 @@ class PipelineBacktestConfig:
         成本配置。None = 不计成本。
     allow_short : bool
         是否允许做空。
+    fiber_filter : FiberSignalFilter | None
+        纤维丛信号过滤器。None = 使用默认。
     """
 
     config: Configuration
     time_tolerance_fn: Callable[[int, int], float] | None = None
     cost_config: CostConfig | None = None
     allow_short: bool = False
+    fiber_filter: FiberSignalFilter | None = None
 
 
 def _default_time_tolerance(level_i: int, level_j: int) -> float:
@@ -102,28 +114,136 @@ def _kind_to_sell_type(kind: str) -> BSPType:
     return mapping.get(kind, BSPType.S1)
 
 
-def _build_resonance_signals(bsp: BSP) -> list[ResonanceSignal]:
-    """从单个 BSP 构建最小共振信号集。
+@dataclass(frozen=True, slots=True)
+class DualResonanceSignals:
+    """双模型共振信号（直积 + 纤维丛并行输出）。
 
-    策略级回测的简化：用单 BSP 构建 CONFIG + INDEPENDENT_EDGE 双层信号，
-    使 resonance_check 能通过（需要 >= 2 个同方向信号）。
+    241号谱系：两套组装方式各生成一份共振信号。
+
+    Attributes
+    ----------
+    product_signals : tuple[ResonanceSignal, ...]
+        直积版共振信号（ConfigurationSpace polarity 决定 CONFIG 层方向）。
+    fiber_signals : tuple[ResonanceSignal, ...]
+        纤维丛版共振信号（FiberSignalFilter polarity 决定 CONFIG 层方向）。
+    product_polarity : int
+        直积假设下的 polarity_index。
+    fiber_polarity : int
+        纤维丛联络下的 polarity_index。
+    polarity_divergence : bool
+        两种 polarity 是否不同。
     """
-    return [
+
+    product_signals: tuple[ResonanceSignal, ...]
+    fiber_signals: tuple[ResonanceSignal, ...]
+    product_polarity: int
+    fiber_polarity: int
+    polarity_divergence: bool
+
+
+def _polarity_to_bsp(polarity: int, bsp: BSP) -> BSP:
+    """根据 polarity 方向生成 CONFIG 层的方向 BSP。
+
+    polarity > 0 → buy 方向（使用 B1 类型）
+    polarity < 0 → sell 方向（使用 S1 类型）
+    polarity = 0 → 使用 BSP 自身方向（neutral 时 CONFIG 层不提供独立方向信息）
+
+    返回新 BSP，保留原始 BSP 的 edge_id/level/time/price，仅修改 bsp_type。
+    """
+    if polarity > 0:
+        config_type = BSPType.B1
+    elif polarity < 0:
+        config_type = BSPType.S1
+    else:
+        config_type = bsp.bsp_type
+    return BSP(
+        edge_id=f"{bsp.edge_id}_config",
+        level=bsp.level,
+        time=bsp.time,
+        bsp_type=config_type,
+        price=bsp.price,
+    )
+
+
+def _build_signals_for_polarity(
+    polarity: int,
+    bsp: BSP,
+) -> tuple[ResonanceSignal, ...]:
+    """从 polarity 和 BSP 构建一组共振信号。
+
+    CONFIG 层：polarity 方向（配置层全局方向确认）。
+    INDEPENDENT_EDGE 层：BSP 自身方向（独立边级别方向确认）。
+
+    共振条件：CONFIG 层方向与 INDEPENDENT_EDGE 层方向一致时，
+    信号通过 resonance_check。不一致时 resonance_check 返回 False——
+    这是真实的共振筛选：配置不支持的方向不入场。
+    """
+    config_bsp = _polarity_to_bsp(polarity, bsp)
+    return (
         ResonanceSignal(
-            edge_id=bsp.edge_id,
+            edge_id=config_bsp.edge_id,
             level=bsp.level,
-            bsp=bsp,
+            bsp=config_bsp,
             layer=SignalLayer.CONFIG,
             time=bsp.time,
         ),
         ResonanceSignal(
-            edge_id=f"{bsp.edge_id}_edge",
+            edge_id=bsp.edge_id,
             level=bsp.level,
             bsp=bsp,
             layer=SignalLayer.INDEPENDENT_EDGE,
             time=bsp.time,
         ),
-    ]
+    )
+
+
+def _build_resonance_signals(
+    bsp: BSP,
+    ctx: TradingContext,
+    fiber_filter: FiberSignalFilter | None = None,
+) -> DualResonanceSignals:
+    """从 BSP + TradingContext 构建双模型共振信号。
+
+    241号谱系：替换双层简化，使用真实共振构建。
+
+    直积版：polarity_index(config) 决定 CONFIG 层方向。
+    纤维丛版：FiberSignalFilter 检测 polarity 分歧，
+    polarity_divergence=True 且 KL > threshold 时使用 fiber_polarity。
+
+    Parameters
+    ----------
+    bsp : BSP
+        当前步确认的买卖点。
+    ctx : TradingContext
+        当前交易上下文（携带 Configuration）。
+    fiber_filter : FiberSignalFilter | None
+        纤维丛信号过滤器。None 时使用默认。
+
+    Returns
+    -------
+    DualResonanceSignals
+        双模型共振信号。
+    """
+    # 直积版：ConfigurationSpace polarity
+    product_pol = polarity_index(ctx.config)
+    product_signals = _build_signals_for_polarity(product_pol, bsp)
+
+    # 纤维丛版：FiberTradingContext polarity
+    ff = fiber_filter if fiber_filter is not None else FiberSignalFilter()
+    fiber_ctx = create_fiber_context(ctx)
+    if ff.should_override_polarity(fiber_ctx):
+        fiber_pol = fiber_ctx.fiber_polarity
+    else:
+        fiber_pol = product_pol
+    fiber_signals = _build_signals_for_polarity(fiber_pol, bsp)
+
+    return DualResonanceSignals(
+        product_signals=product_signals,
+        fiber_signals=fiber_signals,
+        product_polarity=product_pol,
+        fiber_polarity=fiber_ctx.fiber_polarity,
+        polarity_divergence=fiber_ctx.polarity_divergence,
+    )
 
 
 @dataclass
@@ -155,10 +275,12 @@ class PipelineBacktestEngine:
         self._cost_config = config.cost_config or CostConfig()
         self._ctx: TradingContext = create_context(config.config)
         self._time_tolerance_fn = config.time_tolerance_fn or _default_time_tolerance
+        self._fiber_filter = config.fiber_filter
         self._trades: list[Trade] = []
         self._open_trade: _OpenTrade | None = None
         self._seen_bsp_keys: set[tuple[int, str, str, int]] = set()
         self._bar_count = 0
+        self._last_dual_signals: DualResonanceSignals | None = None
 
     @property
     def has_open_position(self) -> bool:
@@ -169,6 +291,11 @@ class PipelineBacktestEngine:
     def ctx(self) -> TradingContext:
         """当前 TradingContext（只读访问）。"""
         return self._ctx
+
+    @property
+    def last_dual_signals(self) -> DualResonanceSignals | None:
+        """最近一次共振信号构建的双模型结果（只读访问）。"""
+        return self._last_dual_signals
 
     def process_snapshot(self, snapshot, bar) -> None:
         """处理一个 RecursiveOrchestratorSnapshot + 对应 Bar。
@@ -234,17 +361,23 @@ class PipelineBacktestEngine:
 
         流程：
         1. locate_bsp: 推进横向区间套
-        2. compute_position: 计算共振仓位
-        3. execute_entry: 仓位 > 0 时入场
+        2. _build_resonance_signals: 双模型共振信号构建
+        3. compute_position: 使用直积版信号计算共振仓位
+        4. execute_entry: 仓位 > 0 时入场
 
-        横向区间套六步在回测中逐步推进（每个新 BSP 推进一步），
-        但入场决策由配置极性 + 共振仓位决定，不以六步全部完成为前提。
+        241号谱系：共振信号从双层简化升级为真实构建。
+        直积版信号用于入场决策（与现有管道语义一致）。
+        纤维丛版信号通过 last_dual_signals 暴露给调用方做对比分析。
         """
         # 1. 推进区间套
         self._ctx = locate_bsp(self._ctx, bsp)
 
-        # 2. 计算共振仓位
-        resonance_signals = _build_resonance_signals(bsp)
+        # 2. 双模型共振信号构建
+        dual = _build_resonance_signals(bsp, self._ctx, self._fiber_filter)
+        self._last_dual_signals = dual
+
+        # 3. 使用直积版信号计算共振仓位
+        resonance_signals = list(dual.product_signals)
         position, _level = compute_position(
             self._ctx, resonance_signals, self._time_tolerance_fn,
         )
