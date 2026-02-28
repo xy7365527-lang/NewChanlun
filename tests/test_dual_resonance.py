@@ -20,6 +20,7 @@ from newchan.pipeline_backtest import (
     _build_resonance_signals,
     _build_signals_for_polarity,
     _polarity_to_bsp,
+    _polarity_to_scan_direction,
 )
 from newchan.topology.config_space import (
     CENTER,
@@ -140,6 +141,7 @@ class TestDualResonanceSignalsStructure:
             product_polarity=3,
             fiber_polarity=3,
             polarity_divergence=False,
+            fiber_scan_direction="buy",
         )
         try:
             dual.product_polarity = 0  # type: ignore[misc]
@@ -148,7 +150,7 @@ class TestDualResonanceSignalsStructure:
             pass
 
     def test_all_fields_present(self):
-        """五个字段全部可访问。"""
+        """六个字段全部可访问。"""
         signals = _build_signals_for_polarity(3, _buy_bsp())
         dual = DualResonanceSignals(
             product_signals=signals,
@@ -156,12 +158,14 @@ class TestDualResonanceSignalsStructure:
             product_polarity=3,
             fiber_polarity=1,
             polarity_divergence=True,
+            fiber_scan_direction="buy",
         )
         assert dual.product_signals == signals
         assert dual.fiber_signals == signals
         assert dual.product_polarity == 3
         assert dual.fiber_polarity == 1
         assert dual.polarity_divergence is True
+        assert dual.fiber_scan_direction == "buy"
 
 
 # ── _build_resonance_signals 直积版 ──
@@ -303,3 +307,77 @@ class TestDivergencePoints:
             # 不强制不同（取决于具体纤维丛参数），但结构可观测
             assert product_config_dir.is_present
             assert fiber_config_dir.is_present
+
+
+# ── _polarity_to_scan_direction ──
+
+
+class TestPolarityToScanDirection:
+    """polarity 到 scan direction 映射（243号）。"""
+
+    def test_positive_gives_buy(self):
+        assert _polarity_to_scan_direction(3) == "buy"
+        assert _polarity_to_scan_direction(1) == "buy"
+
+    def test_negative_gives_sell(self):
+        assert _polarity_to_scan_direction(-3) == "sell"
+        assert _polarity_to_scan_direction(-1) == "sell"
+
+    def test_zero_gives_neutral(self):
+        assert _polarity_to_scan_direction(0) == "neutral"
+
+
+# ── fiber_scan_direction 一致性（243号）──
+
+
+class TestFiberScanDirectionConsistency:
+    """fiber_scan_direction 与 fiber_polarity 一致。"""
+
+    def test_fiber_scan_direction_matches_fiber_polarity(self):
+        """fiber_scan_direction 由 fiber_polarity 推导，两者方向一致。"""
+        ctx = create_context(FULL_RISK_ON)
+        dual = _build_resonance_signals(_buy_bsp(), ctx)
+        expected = _polarity_to_scan_direction(dual.fiber_polarity)
+        assert dual.fiber_scan_direction == expected
+
+    def test_fiber_scan_direction_all_configs(self):
+        """27 种配置下 fiber_scan_direction 始终与 fiber_polarity 一致。"""
+        for e in WalkDirection:
+            for c in WalkDirection:
+                for r in WalkDirection:
+                    config = Configuration(e, c, r)
+                    ctx = create_context(config)
+                    dual = _build_resonance_signals(_buy_bsp(), ctx)
+                    expected = _polarity_to_scan_direction(dual.fiber_polarity)
+                    assert dual.fiber_scan_direction == expected, (
+                        f"config={config.label}: "
+                        f"fiber_scan_direction={dual.fiber_scan_direction} "
+                        f"!= expected={expected} "
+                        f"(fiber_polarity={dual.fiber_polarity})"
+                    )
+
+    def test_fiber_scan_direction_with_filter_override(self):
+        """高阈值下 fiber_scan_direction 仍由 fiber_polarity 决定（不受阈值影响）。"""
+        config = Configuration(WalkDirection.UP, WalkDirection.DOWN, WalkDirection.DOWN)
+        ctx = create_context(config)
+        # 高阈值：纤维丛修正不被采纳 → fiber_pol 回退到 product_pol
+        high_filter = FiberSignalFilter(kl_threshold=1000.0)
+        dual = _build_resonance_signals(_buy_bsp(), ctx, high_filter)
+        # fiber_scan_direction 仍然由实际使用的 fiber_pol 决定
+        expected = _polarity_to_scan_direction(dual.fiber_polarity)
+        assert dual.fiber_scan_direction == expected
+
+    def test_divergent_config_fiber_scan_direction_differs(self):
+        """当 polarity 分歧时，fiber_scan_direction 可能与直积 scan_direction 不同。"""
+        config = Configuration(WalkDirection.UP, WalkDirection.DOWN, WalkDirection.DOWN)
+        ctx = create_context(config)
+        ff = FiberSignalFilter(kl_threshold=0.0)
+        dual = _build_resonance_signals(_buy_bsp(), ctx, ff)
+        product_scan = _polarity_to_scan_direction(dual.product_polarity)
+        if dual.polarity_divergence:
+            # 有分歧时两者方向可能不同（取决于纤维丛参数）
+            assert isinstance(dual.fiber_scan_direction, str)
+            assert dual.fiber_scan_direction in ("buy", "sell", "neutral")
+        else:
+            # 无分歧时两者一致
+            assert dual.fiber_scan_direction == product_scan
