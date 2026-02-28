@@ -63,9 +63,11 @@ topology-analyst 读出多重边 → 触发 suspended:topology-cycle。
 ## 3. 设计升级
 
 270号选项D修正：
-- 检测层从文本层 stance-diff 升级为拓扑层否定边等价检测
-- 检测到同一目标上的拓扑等价否定边 → 冻结为 `suspended:topology-cycle`
-- 270号已实现的 `_check_stance_repetition()` 保留为降级方案（当攻击未写入拓扑时使用）
+- 检测层从单一文本 stance-diff 升级为三层互补架构（272号裁定修正）：
+  1. **拓扑层**：同源同目标的多重边检测（纯结构判据）
+  2. **canonical form 层**：不同节点但缺陷本质 ID 相同的语义重复检测
+  3. **文本层**（降级方案）：270号 `_check_stance_repetition()` stance-diff
+- 检测到拓扑等价否定边 → 冻结为 `suspended:topology-cycle`
 
 ## 4. 边界条件
 

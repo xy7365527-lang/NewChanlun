@@ -1223,3 +1223,10 @@
 {"from":"271","to":"270","type":"depends_on","label":"审讯者终止条件设计（被升级的原始设计）"}
 {"from":"271","to":"269","type":"depends_on","label":"OQ5四轮质询（法医验尸报告实例）"}
 {"from":"271","to":"005","type":"depends_on","label":"对象否定对象"}
+{"source":"272","target":"271","type":"depends_on","label":"拓扑检测设计修正"}
+{"source":"272","target":"270","type":"depends_on","label":"stance-diff保留为降级方案"}
+{"source":"272","target":"030a","type":"depends_on","label":"Gemini异质否定源RTAS质询方"}
+{"source":"272","target":"005b","type":"depends_on","label":"拓扑结构判据合法性来源"}
+{"source":"272","target":"218","type":"extends","label":"附庸的附庸不是我的附庸——局部依赖原则"}
+{"source":"272","target":"069","type":"extends","label":"递归拓扑蜂群局部依赖涌现全局DAG"}
+{"source":"272","target":"005","type":"extends","label":"否定之否定精确化——边有效性标记变化"}
