@@ -1178,6 +1178,16 @@ nodes:
   status: 已结算
   type: 概念发现
   file: settled/235-tristate-discretization.md
+- id: '236'
+  title: 纤维丛集成——直积近似 vs 纤维丛精确解的策略偏差量化
+  status: 已结算
+  type: 工程集成
+  file: settled/236-fiber-bundle-integration.md
+- id: '237'
+  title: T6/T7 三态诊断——229号递归深度问题的三态根因分类
+  status: 已结算
+  type: 诊断分析
+  file: settled/237-t6t7-tristate-diagnosis.md
 edges:
   depends_on:
   - from: '136'
@@ -2346,6 +2356,16 @@ edges:
     to: '233'
   - from: '235'
     to: '234'
+  - from: '236'
+    to: '232'
+  - from: '236'
+    to: '235'
+  - from: '237'
+    to: '229'
+  - from: '237'
+    to: '235'
+  - from: '237'
+    to: '236'
   triggered:
   - from: '005'
     to: 005a
