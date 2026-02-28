@@ -1,0 +1,17 @@
+{
+  "type": "event",
+  "timestamp": "2026-02-28T10:30:00.000000+00:00",
+  "source": "cc",
+  "content": {
+    "title": "共振回测对比——直积 vs 纤维丛筛选器干净度裁决",
+    "genealogy_id": 242,
+    "summary": "241号DualResonanceSignals双模型输出基础上,全27种K4配置×20BSP交替序列对比回测. 59.3%配置存在polarity分歧,22.2%BSP事件产生不同入场/阻断决策. 直积版矛盾操作率0%,纤维丛版17.65%(原因:scan_configuration仍用直积polarity与fiber_polarity不一致). 裁决:直积版更干净(0.8765 vs 0.8235). 纤维丛完整集成需scan_configuration也用fiber_polarity. 新增19个测试."
+  },
+  "refs": [
+    "fa8068d6c73fd4aec1f295e98fa7c2847c50fa22a00f9194d655b4c187406833",
+    "812aec721e445cee9c9fd57783456cb84adeceea86ebb7f9e8c3b6cc81eb588c",
+    "0b51ddd95a52204bca794470ab019c99e8718af09eeef270f46d663fd9476db4"
+  ],
+  "git_ref": "",
+  "id": "b51cf10906dc350ecb0faa17de7f33b092ce564922316cdb38ce548468b3dc05"
+}
