@@ -1,0 +1,312 @@
+{
+  "genealogy": "v109-step3",
+  "title": "控制变量一致性检验 — 统一 yfinance 数据源",
+  "consistency_table": {
+    "E-R": {
+      "234_baseline": {
+        "partial_corr": -0.317,
+        "beta": -0.02,
+        "type": "amplitude",
+        "absorption": 0.949
+      },
+      "gc_f": {
+        "partial_corr": -0.332714,
+        "beta": 0.028899,
+        "classification": "amplitude",
+        "absorption": 0.913142
+      },
+      "dba": {
+        "partial_corr": -0.301992,
+        "beta": 0.006344,
+        "classification": "amplitude",
+        "absorption": 0.978993
+      },
+      "bz_f": {
+        "partial_corr": -0.289209,
+        "beta": 0.030616,
+        "classification": "amplitude",
+        "absorption": 0.894139
+      },
+      "variability": {
+        "partial_corr_std": 0.018257,
+        "beta_std": 0.011059,
+        "absorption_std": 0.036359,
+        "type_unanimous": true,
+        "types": [
+          "amplitude",
+          "amplitude",
+          "amplitude"
+        ]
+      }
+    },
+    "E-$": {
+      "234_baseline": {
+        "partial_corr": -0.183,
+        "beta": -0.006,
+        "type": "amplitude",
+        "absorption": 0.967
+      },
+      "gc_f": {
+        "partial_corr": -0.203799,
+        "beta": -0.013158,
+        "classification": "amplitude",
+        "absorption": 0.935436
+      },
+      "dba": {
+        "partial_corr": -0.155665,
+        "beta": 0.017696,
+        "classification": "amplitude",
+        "absorption": 0.88632
+      },
+      "bz_f": {
+        "partial_corr": -0.181628,
+        "beta": 0.006203,
+        "classification": "amplitude",
+        "absorption": 0.965848
+      },
+      "variability": {
+        "partial_corr_std": 0.019671,
+        "beta_std": 0.012732,
+        "absorption_std": 0.032765,
+        "type_unanimous": true,
+        "types": [
+          "amplitude",
+          "amplitude",
+          "amplitude"
+        ]
+      }
+    },
+    "R-$": {
+      "234_baseline": {
+        "partial_corr": -0.065,
+        "beta": 0.05,
+        "type": "amplitude",
+        "absorption": 0.233
+      },
+      "gc_f": {
+        "partial_corr": -0.088616,
+        "beta": 0.060074,
+        "classification": "direction",
+        "absorption": 0.322086
+      },
+      "dba": {
+        "partial_corr": -0.15653,
+        "beta": -0.008594,
+        "classification": "amplitude",
+        "absorption": 0.945097
+      },
+      "bz_f": {
+        "partial_corr": -0.160027,
+        "beta": 0.063686,
+        "classification": "direction",
+        "absorption": 0.60203
+      },
+      "variability": {
+        "partial_corr_std": 0.03287,
+        "beta_std": 0.033254,
+        "absorption_std": 0.254778,
+        "type_unanimous": false,
+        "types": [
+          "direction",
+          "amplitude",
+          "direction"
+        ]
+      }
+    }
+  },
+  "verdict": {
+    "stable": false,
+    "unstable_edges": [
+      "R-$"
+    ],
+    "conclusion": "控制边不稳定（不稳定边：['R-$']，max pc_std=0.0329）。六条边存在间接耦合——替换 C 列资产影响了控制变量边。需要进一步诊断耦合结构。"
+  },
+  "experiment_design": {
+    "purpose": "控制变量一致性检验——统一 yfinance 数据源后，三条控制边是否稳定",
+    "control_edges": [
+      "E-R",
+      "E-$",
+      "R-$"
+    ],
+    "groups": [
+      "GC=F",
+      "DBA",
+      "BZ=F"
+    ],
+    "stability_threshold": 0.05,
+    "hypothesis_if_stable": "259号 R-$ 异常归因于数据对齐差异",
+    "hypothesis_if_unstable": "六条边间接耦合，替换 C 列影响控制变量"
+  },
+  "comprehensive_table": {
+    "E-R": {
+      "is_control": true,
+      "234_yfinance": {
+        "type": "amplitude",
+        "partial_corr": -0.317,
+        "beta": -0.02,
+        "absorption": 0.949
+      },
+      "gc_f": {
+        "type": "amplitude",
+        "partial_corr": -0.332714,
+        "beta": 0.028899,
+        "absorption": 0.913142
+      },
+      "dba": {
+        "type": "amplitude",
+        "partial_corr": -0.301992,
+        "beta": 0.006344,
+        "absorption": 0.978993
+      },
+      "bz_f": {
+        "type": "amplitude",
+        "partial_corr": -0.289209,
+        "beta": 0.030616,
+        "absorption": 0.894139
+      }
+    },
+    "E-C": {
+      "is_control": false,
+      "234_yfinance": {
+        "type": "independent",
+        "partial_corr": -0.029,
+        "beta": 0.023,
+        "absorption": null
+      },
+      "gc_f": {
+        "type": "independent",
+        "partial_corr": -0.001209,
+        "beta": 0.042337,
+        "absorption": 0.0
+      },
+      "dba": {
+        "type": "amplitude",
+        "partial_corr": 0.216831,
+        "beta": 0.000369,
+        "absorption": 0.998298
+      },
+      "bz_f": {
+        "type": "amplitude",
+        "partial_corr": 0.237684,
+        "beta": 0.025146,
+        "absorption": 0.894204
+      }
+    },
+    "E-$": {
+      "is_control": true,
+      "234_yfinance": {
+        "type": "amplitude",
+        "partial_corr": -0.183,
+        "beta": -0.006,
+        "absorption": 0.967
+      },
+      "gc_f": {
+        "type": "amplitude",
+        "partial_corr": -0.203799,
+        "beta": -0.013158,
+        "absorption": 0.935436
+      },
+      "dba": {
+        "type": "amplitude",
+        "partial_corr": -0.155665,
+        "beta": 0.017696,
+        "absorption": 0.88632
+      },
+      "bz_f": {
+        "type": "amplitude",
+        "partial_corr": -0.181628,
+        "beta": 0.006203,
+        "absorption": 0.965848
+      }
+    },
+    "C-R": {
+      "is_control": false,
+      "234_yfinance": {
+        "type": "direction",
+        "partial_corr": 0.166,
+        "beta": 0.009,
+        "absorption": null
+      },
+      "gc_f": {
+        "type": "amplitude",
+        "partial_corr": 0.11278,
+        "beta": -0.016109,
+        "absorption": 0.857164
+      },
+      "dba": {
+        "type": "amplitude",
+        "partial_corr": -0.10787,
+        "beta": 0.028654,
+        "absorption": 0.734365
+      },
+      "bz_f": {
+        "type": "amplitude",
+        "partial_corr": -0.150742,
+        "beta": -0.021266,
+        "absorption": 0.858925
+      }
+    },
+    "C-$": {
+      "is_control": false,
+      "234_yfinance": {
+        "type": "amplitude",
+        "partial_corr": -0.414,
+        "beta": -0.03,
+        "absorption": 0.928
+      },
+      "gc_f": {
+        "type": "direction",
+        "partial_corr": -0.344112,
+        "beta": -0.064468,
+        "absorption": 0.812654
+      },
+      "dba": {
+        "type": "amplitude",
+        "partial_corr": -0.23019,
+        "beta": -0.022511,
+        "absorption": 0.902207
+      },
+      "bz_f": {
+        "type": "amplitude",
+        "partial_corr": -0.135186,
+        "beta": -0.044098,
+        "absorption": 0.673798
+      }
+    },
+    "R-$": {
+      "is_control": true,
+      "234_yfinance": {
+        "type": "amplitude",
+        "partial_corr": -0.065,
+        "beta": 0.05,
+        "absorption": 0.233
+      },
+      "gc_f": {
+        "type": "direction",
+        "partial_corr": -0.088616,
+        "beta": 0.060074,
+        "absorption": 0.322086
+      },
+      "dba": {
+        "type": "amplitude",
+        "partial_corr": -0.15653,
+        "beta": -0.008594,
+        "absorption": 0.945097
+      },
+      "bz_f": {
+        "type": "direction",
+        "partial_corr": -0.160027,
+        "beta": 0.063686,
+        "absorption": 0.60203
+      }
+    }
+  },
+  "methodology": {
+    "continuous": "日对数收益率 Pearson + 偏相关（控制其余两标的）",
+    "discrete": "BiEngine（new笔模式）-> 逐bar方向 -> 线性回归 beta",
+    "classification": "classify_coupling(partial_corr, beta) from discretization_kernel.py",
+    "data_source": "yfinance (all symbols)",
+    "stability_metric": "三组间偏相关标准差 + 分类一致性"
+  },
+  "timestamp": "2026-02-28T12:01:32.853966"
+}

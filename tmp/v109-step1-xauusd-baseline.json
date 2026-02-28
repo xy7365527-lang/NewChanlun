@@ -1,0 +1,287 @@
+{
+  "genealogy": "v109-step1",
+  "title": "GC=F（COMEX 黄金期货）替代 GLD — ETF 微观结构污染检测",
+  "data_info": {
+    "n_common_bars": 4776,
+    "date_range": "2007-03-01 ~ 2026-02-26",
+    "symbols": {
+      "SPY": "E",
+      "GC=F": "C_spot",
+      "TLT": "R",
+      "UUP": "$"
+    }
+  },
+  "edges": {
+    "E-R": {
+      "symbols": [
+        "SPY",
+        "TLT"
+      ],
+      "labels": [
+        "E",
+        "R"
+      ],
+      "continuous": {
+        "pearson": -0.315789,
+        "partial_corr": -0.332714
+      },
+      "discrete": {
+        "discrete_pearson": 0.028155,
+        "beta": 0.028899,
+        "concordance": 0.51829,
+        "n_active": 3882
+      },
+      "classification": {
+        "coupling_type": "amplitude",
+        "in_kernel": true,
+        "absorption_ratio": 0.913142,
+        "dominant_layer": "D1"
+      }
+    },
+    "E-C_spot": {
+      "symbols": [
+        "SPY",
+        "GC=F"
+      ],
+      "labels": [
+        "E",
+        "C_spot"
+      ],
+      "continuous": {
+        "pearson": 0.027312,
+        "partial_corr": -0.001209
+      },
+      "discrete": {
+        "discrete_pearson": 0.041582,
+        "beta": 0.042337,
+        "concordance": 0.534552,
+        "n_active": 3502
+      },
+      "classification": {
+        "coupling_type": "independent",
+        "in_kernel": false,
+        "absorption_ratio": 0.0,
+        "dominant_layer": "none"
+      }
+    },
+    "E-$": {
+      "symbols": [
+        "SPY",
+        "UUP"
+      ],
+      "labels": [
+        "E",
+        "$"
+      ],
+      "continuous": {
+        "pearson": -0.18305,
+        "partial_corr": -0.203799
+      },
+      "discrete": {
+        "discrete_pearson": -0.012813,
+        "beta": -0.013158,
+        "concordance": 0.497038,
+        "n_active": 3883
+      },
+      "classification": {
+        "coupling_type": "amplitude",
+        "in_kernel": true,
+        "absorption_ratio": 0.935436,
+        "dominant_layer": "D1+D3"
+      }
+    },
+    "C_spot-R": {
+      "symbols": [
+        "GC=F",
+        "TLT"
+      ],
+      "labels": [
+        "C_spot",
+        "R"
+      ],
+      "continuous": {
+        "pearson": 0.136678,
+        "partial_corr": 0.11278
+      },
+      "discrete": {
+        "discrete_pearson": -0.015995,
+        "beta": -0.016109,
+        "concordance": 0.495146,
+        "n_active": 3502
+      },
+      "classification": {
+        "coupling_type": "amplitude",
+        "in_kernel": true,
+        "absorption_ratio": 0.857164,
+        "dominant_layer": "D1"
+      }
+    },
+    "C_spot-$": {
+      "symbols": [
+        "GC=F",
+        "UUP"
+      ],
+      "labels": [
+        "C_spot",
+        "$"
+      ],
+      "continuous": {
+        "pearson": -0.35661,
+        "partial_corr": -0.344112
+      },
+      "discrete": {
+        "discrete_pearson": -0.06397,
+        "beta": -0.064468,
+        "concordance": 0.470303,
+        "n_active": 3502
+      },
+      "classification": {
+        "coupling_type": "direction",
+        "in_kernel": false,
+        "absorption_ratio": 0.812654,
+        "dominant_layer": "none"
+      }
+    },
+    "R-$": {
+      "symbols": [
+        "TLT",
+        "UUP"
+      ],
+      "labels": [
+        "R",
+        "$"
+      ],
+      "continuous": {
+        "pearson": -0.069601,
+        "partial_corr": -0.088616
+      },
+      "discrete": {
+        "discrete_pearson": 0.060056,
+        "beta": 0.060074,
+        "concordance": 0.53057,
+        "n_active": 3909
+      },
+      "classification": {
+        "coupling_type": "direction",
+        "in_kernel": false,
+        "absorption_ratio": 0.322086,
+        "dominant_layer": "none"
+      }
+    }
+  },
+  "comparison_with_234": {
+    "E-R": {
+      "edge_234": "E-R",
+      "is_control": true,
+      "new_type": "amplitude",
+      "old_type": "amplitude",
+      "new_in_kernel": true,
+      "old_in_kernel": true,
+      "new_partial_corr": -0.332714,
+      "old_partial_corr": -0.317,
+      "new_beta": 0.028899,
+      "old_beta": -0.02,
+      "new_absorption": 0.913142,
+      "old_absorption": 0.949,
+      "type_match": true
+    },
+    "E-C_spot": {
+      "edge_234": "E-C",
+      "is_control": false,
+      "new_type": "independent",
+      "old_type": "independent",
+      "new_in_kernel": false,
+      "old_in_kernel": false,
+      "new_partial_corr": -0.001209,
+      "old_partial_corr": -0.029,
+      "new_beta": 0.042337,
+      "old_beta": 0.023,
+      "new_absorption": 0.0,
+      "old_absorption": null,
+      "type_match": true
+    },
+    "E-$": {
+      "edge_234": "E-$",
+      "is_control": true,
+      "new_type": "amplitude",
+      "old_type": "amplitude",
+      "new_in_kernel": true,
+      "old_in_kernel": true,
+      "new_partial_corr": -0.203799,
+      "old_partial_corr": -0.183,
+      "new_beta": -0.013158,
+      "old_beta": -0.006,
+      "new_absorption": 0.935436,
+      "old_absorption": 0.967,
+      "type_match": true
+    },
+    "C_spot-R": {
+      "edge_234": "C-R",
+      "is_control": false,
+      "new_type": "amplitude",
+      "old_type": "direction",
+      "new_in_kernel": true,
+      "old_in_kernel": false,
+      "new_partial_corr": 0.11278,
+      "old_partial_corr": 0.166,
+      "new_beta": -0.016109,
+      "old_beta": 0.009,
+      "new_absorption": 0.857164,
+      "old_absorption": null,
+      "type_match": false
+    },
+    "C_spot-$": {
+      "edge_234": "C-$",
+      "is_control": false,
+      "new_type": "direction",
+      "old_type": "amplitude",
+      "new_in_kernel": false,
+      "old_in_kernel": true,
+      "new_partial_corr": -0.344112,
+      "old_partial_corr": -0.414,
+      "new_beta": -0.064468,
+      "old_beta": -0.03,
+      "new_absorption": 0.812654,
+      "old_absorption": 0.928,
+      "type_match": false
+    },
+    "R-$": {
+      "edge_234": "R-$",
+      "is_control": true,
+      "new_type": "direction",
+      "old_type": "amplitude",
+      "new_in_kernel": false,
+      "old_in_kernel": true,
+      "new_partial_corr": -0.088616,
+      "old_partial_corr": -0.065,
+      "new_beta": 0.060074,
+      "old_beta": 0.05,
+      "new_absorption": 0.322086,
+      "old_absorption": 0.233,
+      "type_match": false
+    }
+  },
+  "summary": {
+    "n_in_kernel": 3,
+    "n_direction": 2,
+    "n_independent": 1
+  },
+  "verdict": {
+    "scenario": "A-clean",
+    "conclusion": "GC=F 版 E-C 仍为 independent (partial_corr=-0.0012)。GLD ETF 微观结构未污染 234号 E-C 独立性结论。E-C 独立是黄金资产的内在性质，不依赖 ETF 中介。",
+    "c_dollar_note": "C_spot(GC=F)-$: direction, absorption=0.813 (234号 C-$: amplitude, absorption=0.928)"
+  },
+  "experiment_design": {
+    "purpose": "测试 GLD ETF 微观结构是否污染 234号 E-C 独立性结论",
+    "replacement": "GLD (ETF) -> GC=F (COMEX 黄金期货)",
+    "controls": "SPY(E), TLT(R), UUP($) 不变",
+    "hypothesis": "如果 E-C 独立是黄金内在性质而非 ETF 伪影，GC=F 版应保持 independent"
+  },
+  "methodology": {
+    "continuous": "日对数收益率 Pearson + 偏相关（控制其余两标的）",
+    "discrete": "BiEngine（new笔模式）-> 逐bar方向 -> 线性回归 beta",
+    "classification": "classify_coupling(partial_corr, beta) from discretization_kernel.py",
+    "data_source": "yfinance (GC=F for gold futures, equities/ETFs direct)"
+  },
+  "timestamp": "2026-02-28T12:01:32.852753"
+}
