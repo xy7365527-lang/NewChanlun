@@ -91,7 +91,7 @@ _BASELINE_234 = {
     "E-$": {"partial_corr": -0.183, "beta": -0.006, "type": "amplitude", "in_kernel": True, "absorption": 0.967},
     "C-$": {"partial_corr": -0.414, "beta": -0.030, "type": "amplitude", "in_kernel": True, "absorption": 0.928},
     "R-$": {"partial_corr": -0.065, "beta": 0.050, "type": "amplitude", "in_kernel": True, "absorption": 0.233},
-    "C-R": {"partial_corr": 0.166, "beta": 0.009, "type": "direction", "in_kernel": False},
+    "C-R": {"partial_corr": 0.166, "beta": 0.009, "type": "amplitude", "in_kernel": True, "absorption": 0.946},
     "E-C": {"partial_corr": -0.029, "beta": 0.023, "type": "independent", "in_kernel": False},
 }
 
