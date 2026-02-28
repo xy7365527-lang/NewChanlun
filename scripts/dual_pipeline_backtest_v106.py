@@ -73,10 +73,19 @@ _KIND_BUY = {"type1": BSPType.B1, "type2": BSPType.B2, "type3": BSPType.B3}
 _KIND_SELL = {"type1": BSPType.S1, "type2": BSPType.S2, "type3": BSPType.S3}
 
 
-def _load_252_bsps() -> list[BSP]:
-    """加载 252号的 7 个 BSP。"""
+def _load_252_bsps(confirmed_only: bool = True) -> list[BSP]:
+    """加载 252号的 BSP。
+
+    Parameters
+    ----------
+    confirmed_only : bool
+        True = 仅加载已确认的 BSP（5 个），排除 unconfirmed（2 个）。
+        任务要求：只用 confirmed 的 BSP 参与入场决策。
+    """
     bsps: list[BSP] = []
     for r in _BSP_RAW:
+        if confirmed_only and not r["confirmed"]:
+            continue
         mapping = _KIND_BUY if r["side"] == "buy" else _KIND_SELL
         bsps.append(BSP(
             edge_id=f"bt_{r['seg_idx']}",
