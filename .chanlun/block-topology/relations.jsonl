@@ -1216,3 +1216,7 @@
 {"source": "c5a7782c5b099f570eba18b53308b9d48ff1a1071482dcccc050defe36883027", "target": "4daf928b7a60112a5bc7785a23d878816044555b39af0db0c1a1e611789574bd", "type": "depends_on", "source_id": "269", "target_id": "233"}
 {"source": "c5a7782c5b099f570eba18b53308b9d48ff1a1071482dcccc050defe36883027", "target": "5962a412f921f32335c1e9ef2eb96c29d5e3db66e6f5df5d2aa9e66b0cac98a1", "type": "depends_on", "source_id": "269", "target_id": "235"}
 {"source": "c5a7782c5b099f570eba18b53308b9d48ff1a1071482dcccc050defe36883027", "target": "7ddffa75ff4170387e9d3a9a2f5f9ce75c1b9b71de5b4a8fb4ef1925ab5c8d3d", "type": "depends_on", "source_id": "269", "target_id": "257"}
+{"from":"270","to":"269","type":"depends_on","label":"OQ5四轮质询（终止条件缺失的发现场景）"}
+{"from":"270","to":"030","type":"depends_on","label":"Gemini的本体论位置（审讯者角色定义）"}
+{"from":"270","to":"137","type":"depends_on","label":"否定性禁令对行为执行层无效"}
+{"from":"270","to":"005","type":"depends_on","label":"对象否定对象"}
