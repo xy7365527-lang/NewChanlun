@@ -3,7 +3,9 @@ id: '256'
 number: 256
 title: 254号定理1——三态逆序递归顺序的形式化跳跃（双轮质询确认）
 type: 矛盾发现
-status: 生成态
+status: resolved
+resolution: 修正——254号定理1从"待完备化"降级为"启发式假说（非定理）"。推导链不存在是事实（双轮Gemini质询确认+代码层无实现），不需要编排者选择方向即可降级。
+resolution_date: 2026-02-28
 date: 2026-02-28
 source: gemini-challenger 工位，Gemini 异质质询（双轮）
 negation_source: heterogeneous

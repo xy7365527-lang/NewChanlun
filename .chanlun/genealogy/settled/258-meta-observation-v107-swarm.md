@@ -3,8 +3,10 @@ id: '258'
 number: 258
 title: 元观察——v107-swarm 纯理论蜂群首例 + ceremony_scan 输入域边界 + Gemini 否定质量跃升 + 选择类分类正当性
 type: meta-rule
-status: 生成态
-four_category: 混合（258-1定理类已确认, 258-2选择类待编排者, 258-3定理类已确认）
+status: resolved
+four_category: 全部resolved（258-1定理类已确认, 258-2编排者决断:标准化, 258-3定理类已确认）
+resolution: 三条下游推论全部结算。258-1(ceremony_scan输入域边界)=定理类自动确认。258-2(thinking模式标准化)=编排者决断:标准化为质询协议必选步骤。258-3(256/257分类正当性)=定理类自动确认。
+resolution_date: 2026-02-28
 date: 2026-02-28
 source: meta-observer 二阶观察
 session: v107-swarm
