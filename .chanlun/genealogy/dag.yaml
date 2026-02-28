@@ -1354,6 +1354,11 @@ nodes:
   status: settled
   type: 矛盾发现
   file: settled/268a-267-operational-challenge.md
+- id: '269'
+  title: 开放问题5重开质询——ker(D)边界重组不可区分锚内与换锚（Gemini否定+代理再评估）
+  status: settled
+  type: 矛盾发现
+  file: settled/269-oq5-reopen-challenge.md
 edges:
   depends_on:
   - from: '136'
@@ -2746,6 +2751,14 @@ edges:
     to: '265'
   - from: 268a
     to: '267'
+  - from: '269'
+    to: '254'
+  - from: '269'
+    to: '233'
+  - from: '269'
+    to: '235'
+  - from: '269'
+    to: '257'
   triggered:
   - from: '005'
     to: 005a
