@@ -1,0 +1,328 @@
+{
+  "daily_weekly": {
+    "dataset": "SPY日线+周线(2年)",
+    "low_tf": "daily",
+    "high_tf": "weekly",
+    "t6_reachability": {
+      "directional": {
+        "active_levels": 0,
+        "t6_reachable": false
+      },
+      "amplitude": {
+        "active_levels": 0,
+        "t6_reachable": false
+      }
+    },
+    "level_details": {
+      "daily": {
+        "bar_count": 502,
+        "move_count": 0,
+        "zhongshu_count": 0,
+        "direction": "none",
+        "has_last_move": false
+      },
+      "weekly": {
+        "bar_count": 105,
+        "move_count": 0,
+        "zhongshu_count": 0,
+        "direction": "none",
+        "has_last_move": false
+      }
+    },
+    "divergences": {
+      "directional": {
+        "count": 0,
+        "details": []
+      },
+      "amplitude": {
+        "count": 0,
+        "details": []
+      }
+    },
+    "resonance_signals": {
+      "directional_count": 0,
+      "amplitude_count": 0
+    },
+    "bsps": {
+      "directional_count": 0,
+      "amplitude_count": 0
+    },
+    "force_comparison": {},
+    "pipeline_stages": {
+      "daily": {
+        "bar_count": 502,
+        "stroke_count": 36,
+        "segment_count": 3,
+        "zhongshu_count": 0,
+        "move_count": 0,
+        "snapshot_available": true,
+        "d2_compression_ratio": "36 strokes → 3 segments",
+        "segments": [
+          {
+            "s0": 0,
+            "s1": 6,
+            "direction": "down",
+            "confirmed": true,
+            "high": 555.0240998431519,
+            "low": 483.44319225577453,
+            "stroke_span": 6
+          },
+          {
+            "s0": 7,
+            "s1": 17,
+            "direction": "up",
+            "confirmed": true,
+            "high": 606.1123628380831,
+            "low": 501.1184823455798,
+            "stroke_span": 10
+          },
+          {
+            "s0": 18,
+            "s1": 35,
+            "direction": "down",
+            "confirmed": false,
+            "high": 697.8400268554688,
+            "low": 477.6403203280687,
+            "stroke_span": 17
+          }
+        ],
+        "zhongshus": []
+      },
+      "weekly": {
+        "bar_count": 105,
+        "stroke_count": 6,
+        "segment_count": 1,
+        "zhongshu_count": 0,
+        "move_count": 0,
+        "snapshot_available": true,
+        "d2_compression_ratio": "6 strokes → 1 segments",
+        "segments": [
+          {
+            "s0": 0,
+            "s1": 5,
+            "direction": "down",
+            "confirmed": false,
+            "high": 697.8400268554688,
+            "low": 477.64033941348686,
+            "stroke_span": 5
+          }
+        ],
+        "zhongshus": []
+      }
+    }
+  },
+  "60min_daily": {
+    "dataset": "SPY60min+日线(6月)",
+    "low_tf": "60min",
+    "high_tf": "daily",
+    "t6_reachability": {
+      "directional": {
+        "active_levels": 1,
+        "t6_reachable": false
+      },
+      "amplitude": {
+        "active_levels": 1,
+        "t6_reachable": false
+      }
+    },
+    "level_details": {
+      "60min": {
+        "bar_count": 874,
+        "move_count": 1,
+        "zhongshu_count": 2,
+        "direction": "up",
+        "has_last_move": true,
+        "last_move": {
+          "kind": "consolidation",
+          "direction": "up",
+          "seg_start": 0,
+          "seg_end": 7,
+          "zs_count": 1,
+          "settled": false,
+          "high": 689.7000122070312,
+          "low": 634.9199829101562
+        }
+      },
+      "daily": {
+        "bar_count": 126,
+        "move_count": 0,
+        "zhongshu_count": 0,
+        "direction": "none",
+        "has_last_move": false
+      }
+    },
+    "divergences": {
+      "directional": {
+        "count": 0,
+        "details": []
+      },
+      "amplitude": {
+        "count": 0,
+        "details": []
+      }
+    },
+    "resonance_signals": {
+      "directional_count": 0,
+      "amplitude_count": 0
+    },
+    "bsps": {
+      "directional_count": 0,
+      "amplitude_count": 0
+    },
+    "force_comparison": {
+      "60min": {
+        "amplitude_force": 54.780029296875,
+        "directional_force": 4.25,
+        "move_kind": "consolidation",
+        "move_direction": "up",
+        "move_zs_count": 1,
+        "move_seg_span": 8
+      }
+    },
+    "pipeline_stages": {
+      "60min": {
+        "bar_count": 874,
+        "stroke_count": 71,
+        "segment_count": 8,
+        "zhongshu_count": 2,
+        "move_count": 1,
+        "snapshot_available": true,
+        "d2_compression_ratio": "71 strokes → 8 segments",
+        "segments": [
+          {
+            "s0": 0,
+            "s1": 12,
+            "direction": "down",
+            "confirmed": true,
+            "high": 667.3400268554688,
+            "low": 634.9199829101562,
+            "stroke_span": 12
+          },
+          {
+            "s0": 13,
+            "s1": 17,
+            "direction": "up",
+            "confirmed": true,
+            "high": 673.9500122070312,
+            "low": 654.405029296875,
+            "stroke_span": 4
+          },
+          {
+            "s0": 18,
+            "s1": 34,
+            "direction": "down",
+            "confirmed": true,
+            "high": 689.7000122070312,
+            "low": 650.8499755859375,
+            "stroke_span": 16
+          },
+          {
+            "s0": 35,
+            "s1": 39,
+            "direction": "up",
+            "confirmed": true,
+            "high": 688.3900146484375,
+            "low": 650.8499755859375,
+            "stroke_span": 4
+          },
+          {
+            "s0": 40,
+            "s1": 46,
+            "direction": "down",
+            "confirmed": true,
+            "high": 689.25,
+            "low": 671.1950073242188,
+            "stroke_span": 6
+          },
+          {
+            "s0": 47,
+            "s1": 53,
+            "direction": "up",
+            "confirmed": true,
+            "high": 696.0900268554688,
+            "low": 671.1950073242188,
+            "stroke_span": 6
+          },
+          {
+            "s0": 54,
+            "s1": 56,
+            "direction": "down",
+            "confirmed": true,
+            "high": 696.0900268554688,
+            "low": 676.5700073242188,
+            "stroke_span": 2
+          },
+          {
+            "s0": 57,
+            "s1": 70,
+            "direction": "up",
+            "confirmed": false,
+            "high": 697.8400268554688,
+            "low": 675.780029296875,
+            "stroke_span": 13
+          }
+        ],
+        "zhongshus": [
+          {
+            "seg_start": 0,
+            "seg_end": 3,
+            "zg": 667.3400268554688,
+            "zd": 654.405029296875,
+            "gg": 689.7000122070312,
+            "dd": 634.9199829101562
+          },
+          {
+            "seg_start": 3,
+            "seg_end": 6,
+            "zg": 688.3900146484375,
+            "zd": 671.1950073242188,
+            "gg": 696.0900268554688,
+            "dd": 650.8499755859375
+          }
+        ]
+      },
+      "daily": {
+        "bar_count": 126,
+        "stroke_count": 9,
+        "segment_count": 1,
+        "zhongshu_count": 0,
+        "move_count": 0,
+        "snapshot_available": true,
+        "d2_compression_ratio": "9 strokes → 1 segments",
+        "segments": [
+          {
+            "s0": 0,
+            "s1": 8,
+            "direction": "up",
+            "confirmed": false,
+            "high": 697.8400268554688,
+            "low": 631.2991867317828,
+            "stroke_span": 8
+          }
+        ],
+        "zhongshus": []
+      }
+    }
+  },
+  "summary": {
+    "t6_reachability": [
+      "daily_weekly: dir=False, amp=False",
+      "60min_daily: dir=False, amp=False"
+    ],
+    "t6_reachable_any": false,
+    "directional_divergences_total": 0,
+    "amplitude_divergences_total": 0,
+    "divergence_difference": 0,
+    "ker_d_operational_significance": "本次验证中无差异: 两种力度均检测到 0 个背驰. 可能原因: 数据量不足或市场阶段特殊",
+    "t6_unreachable_diagnosis": [
+      "daily_weekly: T6不可达, 原因: TF ['daily', 'weekly'] 未产生走势 (bar数不足或波动不够)",
+      "60min_daily: T6不可达, 原因: TF ['daily'] 未产生走势 (bar数不足或波动不够)"
+    ],
+    "d2_compression_pipeline": [
+      "daily_weekly/daily: 502 bars → 36 strokes → 3 segs → 0 zhongshu → 0 moves",
+      "daily_weekly/weekly: 105 bars → 6 strokes → 1 segs → 0 zhongshu → 0 moves",
+      "60min_daily/60min: 874 bars → 71 strokes → 8 segs → 2 zhongshu → 1 moves",
+      "60min_daily/daily: 126 bars → 9 strokes → 1 segs → 0 zhongshu → 0 moves"
+    ]
+  }
+}

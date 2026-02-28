@@ -1238,6 +1238,16 @@ nodes:
   status: 已结算
   type: 经验验证
   file: settled/247-real-data-multi-tf-validation.md
+- id: '248'
+  title: 段引擎 71→1 压缩诊断
+  status: settled
+  type: 诊断
+  file: settled/248-segment-engine-diagnosis.md
+- id: '249'
+  title: L78 修复后真实数据重新验证
+  status: settled
+  type: 经验验证
+  file: settled/249-real-data-revalidation-post-l78-fix.md
 edges:
   depends_on:
   - from: '136'
@@ -2460,6 +2470,18 @@ edges:
     to: '237'
   - from: '247'
     to: '233'
+  - from: '248'
+    to: '247'
+  - from: '248'
+    to: '237'
+  - from: '248'
+    to: '3'
+  - from: '249'
+    to: '247'
+  - from: '249'
+    to: '248'
+  - from: '249'
+    to: '246'
   triggered:
   - from: '005'
     to: 005a
