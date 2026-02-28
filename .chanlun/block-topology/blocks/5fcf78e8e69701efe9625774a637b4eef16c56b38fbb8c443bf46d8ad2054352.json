@@ -1,0 +1,17 @@
+{
+  "id": "5fcf78e8e69701efe9625774a637b4eef16c56b38fbb8c443bf46d8ad2054352",
+  "type": "event",
+  "timestamp": "2026-02-28T10:26:52.600934+00:00",
+  "source": "gemini",
+  "content": {
+    "title": "254号定理1——三态逆序递归顺序的形式化跳跃（双轮质询确认）",
+    "genealogy_id": 256,
+    "summary": "254号定理1声称递归顺序=三态逆序。Gemini双轮质询确认：观察属性→操作指令的推导链缺失，代码层无实现。降级为启发式假说。"
+  },
+  "refs": [
+    "ca1ebe06e82982323ead2b9d7622f9fca32e7d625678760300b8ada625e14763",
+    "4daf928b7a60112a5bc7785a23d878816044555b39af0db0c1a1e611789574bd",
+    "5962a412f921f32335c1e9ef2eb96c29d5e3db66e6f5df5d2aa9e66b0cac98a1"
+  ],
+  "git_ref": ""
+}

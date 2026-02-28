@@ -1290,9 +1290,14 @@ nodes:
   file: pending/257-usd-hegemony-proxy-gap.md
 - id: '258'
   title: 元观察——v107-swarm 纯理论蜂群首例 + ceremony_scan 输入域边界 + Gemini 否定质量跃升 + 选择类分类正当性
-  status: 生成态
+  status: 已结算
   type: meta-rule
-  file: pending/258-meta-observation-v107-swarm.md
+  file: settled/258-meta-observation-v107-swarm.md
+- id: '259'
+  title: 黄金折叠剥离实验——DBA替换GLD验证C-$吸收的一般性（情景A成立）
+  status: settled
+  type: 实验验证
+  file: settled/259-gold-fold-decoupling-experiment.md
 edges:
   depends_on:
   - from: '136'
@@ -2607,6 +2612,16 @@ edges:
     to: '154'
   - from: '258'
     to: '221'
+  - from: '254'
+    to: '252'
+  - from: '259'
+    to: '234'
+  - from: '259'
+    to: '233'
+  - from: '259'
+    to: '235'
+  - from: '259'
+    to: '254'
   triggered:
   - from: '005'
     to: 005a
