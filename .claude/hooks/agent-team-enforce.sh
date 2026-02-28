@@ -91,12 +91,26 @@ else:
             missing_genes.append('depth_budget')
         if 'parent_callback' not in prompt.lower() and '父节点回调' not in prompt:
             missing_genes.append('parent_callback')
+
+        # 递归判断块检测（ceremony 步骤5 强制注入）
+        has_recursion_block = ('递归判断' in prompt or 'sub-swarm-ceremony' in prompt.lower())
+        missing_recursion = not has_recursion_block
+
+        messages = []
         if missing_genes:
-            msg = (f'[073a号 spawn 三基因] Task prompt 缺少基因: {", ".join(missing_genes)}。'
-                   f'dispatch-dag task_template 要求每个衍生节点携带三基因：'
-                   f'topo_address（拓扑坐标）, depth_budget（递归深度预算）, parent_callback（父节点回调）。'
-                   f'建议在 prompt 中注入这些信息。')
-            print(json.dumps({'systemMessage': msg}, ensure_ascii=False))
+            messages.append(
+                f'[073a号 spawn 三基因] Task prompt 缺少基因: {", ".join(missing_genes)}。'
+                f'dispatch-dag task_template 要求每个衍生节点携带三基因：'
+                f'topo_address（拓扑坐标）, depth_budget（递归深度预算）, parent_callback（父节点回调）。'
+                f'请在 prompt 中注入这些信息（见 .claude/commands/ceremony.md 步骤5 递归判断块）。')
+        if missing_recursion:
+            messages.append(
+                f'[递归判断缺失] Task prompt 未包含递归判断块。'
+                f'ceremony 步骤5 要求每个工位 prompt 开头包含递归判断指令（评估任务是否可分解为子蜂群）。'
+                f'原则15：真递归是默认模式，扁平执行是退化特例。'
+                f'请在 prompt 开头注入递归判断块（见 .claude/commands/ceremony.md 步骤5）。')
+        if messages:
+            print(json.dumps({'systemMessage': ' | '.join(messages)}, ensure_ascii=False))
         else:
             sys.exit(0)
     else:
