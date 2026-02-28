@@ -1233,6 +1233,11 @@ nodes:
   status: 已结算
   type: 工程架构
   file: settled/246-multi-tf-pipeline-integration.md
+- id: '247'
+  title: 真实数据多 TF 验证——246号 T6 可达性和方向性力度背驰的经验检验
+  status: 已结算
+  type: 经验验证
+  file: settled/247-real-data-multi-tf-validation.md
 edges:
   depends_on:
   - from: '136'
@@ -2449,6 +2454,12 @@ edges:
     to: '237'
   - from: '246'
     to: '239'
+  - from: '247'
+    to: '246'
+  - from: '247'
+    to: '237'
+  - from: '247'
+    to: '233'
   triggered:
   - from: '005'
     to: 005a
