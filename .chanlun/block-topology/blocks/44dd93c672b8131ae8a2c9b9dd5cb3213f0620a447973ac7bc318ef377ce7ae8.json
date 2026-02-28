@@ -1,0 +1,16 @@
+{
+  "type": "event",
+  "timestamp": "2026-02-28T09:00:00.000000+00:00",
+  "source": "cc",
+  "content": {
+    "title": "多 TF 输入架构——绕过 D2 递归压缩瓶颈",
+    "genealogy_id": 238,
+    "summary": "MultiTFOrchestrator架构实现: 不同TF的bar数据分别构建各级别, 绕过单TF递归中D2线段引擎的压缩率瓶颈. 核心组件: TimeframeLevel(TF配置), MultiTFOrchestrator(多TF独立运行RecursiveOrchestrator), CrossLevelDivergence(跨级别背驰=T6的多TF替代实现), BuySellPoint(背驰→买卖点). adapter模式不修改BiEngine/pipeline/RecursiveOrchestrator. 跨TF对齐用时间戳. 区间套定理(第27课)的直接工程实现."
+  },
+  "refs": [
+    "dc56f57b672666b4d7e89869683667ac8837f082b3e9f71a44faad3a88bb8774",
+    "be9a52f26ce32237f45c99955ff5cdc2f969ef95187287f40ad7fa597f702986"
+  ],
+  "git_ref": "",
+  "id": "44dd93c672b8131ae8a2c9b9dd5cb3213f0620a447973ac7bc318ef377ce7ae8"
+}

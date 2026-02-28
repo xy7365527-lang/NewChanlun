@@ -5,7 +5,7 @@ title: 纤维丛上下文集成——FiberTradingContext 接入策略层
 type: 工程集成
 status: 已结算
 date: 2026-02-28
-source: v97-swarm fiber-context 工位
+source: v96-swarm fiber-context 工位
 depends_on:
   - '236'  # 纤维丛集成——直积近似 vs 纤维丛精确解的策略偏差量化
 epistemology:
