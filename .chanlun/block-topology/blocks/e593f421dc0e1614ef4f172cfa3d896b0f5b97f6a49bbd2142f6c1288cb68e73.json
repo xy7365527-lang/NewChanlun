@@ -1,0 +1,17 @@
+{
+  "type": "event",
+  "timestamp": "2026-02-28T20:00:00.000000+00:00",
+  "source": "cc",
+  "content": {
+    "title": "定理1最终撤销——两版三轮全否 + \"不测而测\"消解层间过渡问题",
+    "genealogy_id": 264,
+    "summary": "254号定理1位置最终留空。第一版(三态逆序)形式化跳跃(256号)，第二版(层间同步赋格)三轮Gemini质询全fail，时间尺度死锁不可修复"
+  },
+  "refs": [
+    "ca1ebe06e82982323ead2b9d7622f9fca32e7d625678760300b8ada625e14763",
+    "5fcf78e8e69701efe9625774a637b4eef16c56b38fbb8c443bf46d8ad2054352",
+    "d26f99fb0721c10e967558aa2f0fd4417e71b0b77f8c1258122ee6736f4e0992"
+  ],
+  "git_ref": "",
+  "id": "e593f421dc0e1614ef4f172cfa3d896b0f5b97f6a49bbd2142f6c1288cb68e73"
+}
