@@ -1,0 +1,13 @@
+{
+  "type": "event",
+  "content": {
+    "title": "多 TF pipeline 集成——238号架构接入交易管道 + 239号方向性力度替代",
+    "genealogy_id": 246,
+    "summary": "实现 MultiTFPipelineAdapter，将238号 MultiTFOrchestrator 输出接入 pipeline.py 交易管道，用239号方向性力度替代振幅力度做跨级别背驰检测，使 T6 从结构性不可达变为有条件可达。"
+  },
+  "refs": [
+    "44dd93c672b8131ae8a2c9b9dd5cb3213f0620a447973ac7bc318ef377ce7ae8",
+    "be9a52f26ce32237f45c99955ff5cdc2f969ef95187287f40ad7fa597f702986",
+    "bfe1a70caa558aa6b70eff556d17b847f9ea26b1a1a347a53ee553de8215d71b"
+  ]
+}
