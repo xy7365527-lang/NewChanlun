@@ -1,0 +1,13 @@
+{
+  "type": "event",
+  "content": {
+    "title": "L78 修复后真实数据重新验证",
+    "genealogy_id": 249,
+    "summary": "段引擎 L78 修复使 60min D2 压缩从 71→1 恢复到 71→8，产生 2 个中枢和 1 个走势。T6 仍不可达（active_levels=1），但 60min 单 TF 层已突破走势产出瓶颈。248号 bug 诊断被完全确认。247号 60min 结论被翻转。"
+  },
+  "refs": [
+    "b31f49d6b96efb9b468ba9c61e11864ce2eb4e81670a46fb8a812812502f64a3",
+    "1af2b8bf597ef6ceefea297b7864e1e6ac1a3db2ce9153e1b94617677824443e",
+    "42536101a59698672670ad951738b88aabda8483c1e13b3d522845744d9a1f98"
+  ]
+}

@@ -1,0 +1,883 @@
+{
+  "daily_weekly_3y": {
+    "dataset": "SPY日线+周线(3年,yfinance)",
+    "low_tf": "daily",
+    "high_tf": "weekly",
+    "t6_reachability": {
+      "directional": {
+        "active_levels": 0,
+        "t6_reachable": false
+      },
+      "amplitude": {
+        "active_levels": 0,
+        "t6_reachable": false
+      }
+    },
+    "level_details": {
+      "daily": {
+        "bar_count": 753,
+        "move_count": 0,
+        "zhongshu_count": 1,
+        "direction": "none",
+        "has_last_move": false
+      },
+      "weekly": {
+        "bar_count": 157,
+        "move_count": 0,
+        "zhongshu_count": 0,
+        "direction": "none",
+        "has_last_move": false
+      }
+    },
+    "divergences": {
+      "directional": {
+        "count": 0,
+        "details": []
+      },
+      "amplitude": {
+        "count": 0,
+        "details": []
+      }
+    },
+    "resonance_signals": {
+      "directional_count": 0,
+      "amplitude_count": 0
+    },
+    "bsps": {
+      "directional_count": 0,
+      "amplitude_count": 0
+    },
+    "force_comparison": {},
+    "pipeline_stages": {
+      "daily": {
+        "bar_count": 753,
+        "stroke_count": 55,
+        "segment_count": 4,
+        "zhongshu_count": 1,
+        "move_count": 0,
+        "snapshot_available": true,
+        "d2_compression_ratio": "55 strokes → 4 segments",
+        "segments": [
+          {
+            "s0": 0,
+            "s1": 8,
+            "direction": "up",
+            "confirmed": true,
+            "high": 444.9760876219577,
+            "low": 365.9056454879313,
+            "stroke_span": 8
+          },
+          {
+            "s0": 9,
+            "s1": 13,
+            "direction": "down",
+            "confirmed": true,
+            "high": 444.9760876219577,
+            "low": 397.7253990601317,
+            "stroke_span": 4
+          },
+          {
+            "s0": 14,
+            "s1": 36,
+            "direction": "up",
+            "confirmed": true,
+            "high": 606.1123017730542,
+            "low": 397.7253990601317,
+            "stroke_span": 22
+          },
+          {
+            "s0": 37,
+            "s1": 54,
+            "direction": "down",
+            "confirmed": false,
+            "high": 697.8400268554688,
+            "low": 477.6403203280687,
+            "stroke_span": 17
+          }
+        ],
+        "zhongshus": [
+          {
+            "seg_start": 0,
+            "seg_end": 2,
+            "zg": 444.9760876219577,
+            "zd": 397.7253990601317,
+            "gg": 606.1123017730542,
+            "dd": 365.9056454879313
+          }
+        ]
+      },
+      "weekly": {
+        "bar_count": 157,
+        "stroke_count": 9,
+        "segment_count": 1,
+        "zhongshu_count": 0,
+        "move_count": 0,
+        "snapshot_available": true,
+        "d2_compression_ratio": "9 strokes → 1 segments",
+        "segments": [
+          {
+            "s0": 0,
+            "s1": 8,
+            "direction": "up",
+            "confirmed": false,
+            "high": 697.8400268554688,
+            "low": 365.9056058061602,
+            "stroke_span": 8
+          }
+        ],
+        "zhongshus": []
+      }
+    }
+  },
+  "60min_daily_730d": {
+    "dataset": "SPY60min+日线(730天,yfinance)",
+    "low_tf": "60min",
+    "high_tf": "daily",
+    "t6_reachability": {
+      "directional": {
+        "active_levels": 1,
+        "t6_reachable": false
+      },
+      "amplitude": {
+        "active_levels": 1,
+        "t6_reachable": false
+      }
+    },
+    "level_details": {
+      "60min": {
+        "bar_count": 5078,
+        "move_count": 7,
+        "zhongshu_count": 8,
+        "direction": "up",
+        "has_last_move": true,
+        "last_move": {
+          "kind": "consolidation",
+          "direction": "up",
+          "seg_start": 33,
+          "seg_end": 39,
+          "zs_count": 1,
+          "settled": false,
+          "high": 696.0900268554688,
+          "low": 634.9199829101562
+        }
+      },
+      "daily": {
+        "bar_count": 730,
+        "move_count": 0,
+        "zhongshu_count": 1,
+        "direction": "none",
+        "has_last_move": false
+      }
+    },
+    "divergences": {
+      "directional": {
+        "count": 0,
+        "details": []
+      },
+      "amplitude": {
+        "count": 0,
+        "details": []
+      }
+    },
+    "resonance_signals": {
+      "directional_count": 0,
+      "amplitude_count": 0
+    },
+    "bsps": {
+      "directional_count": 0,
+      "amplitude_count": 0
+    },
+    "force_comparison": {
+      "60min": {
+        "amplitude_force": 61.1700439453125,
+        "directional_force": 3.7857142857142856,
+        "move_kind": "consolidation",
+        "move_direction": "up",
+        "move_zs_count": 1,
+        "move_seg_span": 7
+      }
+    },
+    "pipeline_stages": {
+      "60min": {
+        "bar_count": 5078,
+        "stroke_count": 407,
+        "segment_count": 40,
+        "zhongshu_count": 8,
+        "move_count": 7,
+        "snapshot_available": true,
+        "d2_compression_ratio": "407 strokes → 40 segments",
+        "segments": [
+          {
+            "s0": 0,
+            "s1": 8,
+            "direction": "down",
+            "confirmed": true,
+            "high": 415.7200012207031,
+            "low": 403.7799987792969,
+            "stroke_span": 8
+          },
+          {
+            "s0": 9,
+            "s1": 29,
+            "direction": "up",
+            "confirmed": true,
+            "high": 443.8999938964844,
+            "low": 403.739990234375,
+            "stroke_span": 20
+          },
+          {
+            "s0": 30,
+            "s1": 50,
+            "direction": "down",
+            "confirmed": true,
+            "high": 459.44000244140625,
+            "low": 431.19000244140625,
+            "stroke_span": 20
+          },
+          {
+            "s0": 51,
+            "s1": 55,
+            "direction": "up",
+            "confirmed": true,
+            "high": 452.8299865722656,
+            "low": 433.010009765625,
+            "stroke_span": 4
+          },
+          {
+            "s0": 56,
+            "s1": 58,
+            "direction": "down",
+            "confirmed": true,
+            "high": 453.6700134277344,
+            "low": 442.75,
+            "stroke_span": 2
+          },
+          {
+            "s0": 59,
+            "s1": 73,
+            "direction": "up",
+            "confirmed": true,
+            "high": 451.0799865722656,
+            "low": 420.17999267578125,
+            "stroke_span": 14
+          },
+          {
+            "s0": 74,
+            "s1": 80,
+            "direction": "down",
+            "confirmed": true,
+            "high": 438.1400146484375,
+            "low": 408.9100036621094,
+            "stroke_span": 6
+          },
+          {
+            "s0": 81,
+            "s1": 91,
+            "direction": "up",
+            "confirmed": true,
+            "high": 459.6499938964844,
+            "low": 408.9100036621094,
+            "stroke_span": 10
+          },
+          {
+            "s0": 92,
+            "s1": 118,
+            "direction": "down",
+            "confirmed": true,
+            "high": 503.5,
+            "low": 454.30999755859375,
+            "stroke_span": 26
+          },
+          {
+            "s0": 119,
+            "s1": 127,
+            "direction": "up",
+            "confirmed": true,
+            "high": 518.2200927734375,
+            "low": 490.7149963378906,
+            "stroke_span": 8
+          },
+          {
+            "s0": 128,
+            "s1": 130,
+            "direction": "down",
+            "confirmed": true,
+            "high": 518.2200927734375,
+            "low": 508.3599853515625,
+            "stroke_span": 2
+          },
+          {
+            "s0": 131,
+            "s1": 133,
+            "direction": "up",
+            "confirmed": true,
+            "high": 524.1099853515625,
+            "low": 508.3599853515625,
+            "stroke_span": 2
+          },
+          {
+            "s0": 134,
+            "s1": 144,
+            "direction": "down",
+            "confirmed": true,
+            "high": 524.6099853515625,
+            "low": 493.8599853515625,
+            "stroke_span": 10
+          },
+          {
+            "s0": 145,
+            "s1": 157,
+            "direction": "up",
+            "confirmed": true,
+            "high": 531.5601196289062,
+            "low": 493.8599853515625,
+            "stroke_span": 12
+          },
+          {
+            "s0": 158,
+            "s1": 162,
+            "direction": "down",
+            "confirmed": true,
+            "high": 533.0700073242188,
+            "low": 518.3599853515625,
+            "stroke_span": 4
+          },
+          {
+            "s0": 163,
+            "s1": 169,
+            "direction": "up",
+            "confirmed": true,
+            "high": 550.1199951171875,
+            "low": 518.3599853515625,
+            "stroke_span": 6
+          },
+          {
+            "s0": 170,
+            "s1": 184,
+            "direction": "down",
+            "confirmed": true,
+            "high": 565.1599731445312,
+            "low": 537.4500122070312,
+            "stroke_span": 14
+          },
+          {
+            "s0": 185,
+            "s1": 197,
+            "direction": "up",
+            "confirmed": true,
+            "high": 563.9099731445312,
+            "low": 510.67999267578125,
+            "stroke_span": 12
+          },
+          {
+            "s0": 198,
+            "s1": 212,
+            "direction": "down",
+            "confirmed": true,
+            "high": 574.3800048828125,
+            "low": 539.4400024414062,
+            "stroke_span": 14
+          },
+          {
+            "s0": 213,
+            "s1": 219,
+            "direction": "up",
+            "confirmed": true,
+            "high": 586.1199951171875,
+            "low": 565.27001953125,
+            "stroke_span": 6
+          },
+          {
+            "s0": 220,
+            "s1": 228,
+            "direction": "down",
+            "confirmed": true,
+            "high": 586.1199951171875,
+            "low": 567.8900146484375,
+            "stroke_span": 8
+          },
+          {
+            "s0": 229,
+            "s1": 241,
+            "direction": "up",
+            "confirmed": true,
+            "high": 609.0700073242188,
+            "low": 567.8900146484375,
+            "stroke_span": 12
+          },
+          {
+            "s0": 242,
+            "s1": 250,
+            "direction": "down",
+            "confirmed": true,
+            "high": 608.4349975585938,
+            "low": 575.3499755859375,
+            "stroke_span": 8
+          },
+          {
+            "s0": 251,
+            "s1": 255,
+            "direction": "up",
+            "confirmed": true,
+            "high": 610.780029296875,
+            "low": 575.3499755859375,
+            "stroke_span": 4
+          },
+          {
+            "s0": 256,
+            "s1": 262,
+            "direction": "down",
+            "confirmed": true,
+            "high": 610.780029296875,
+            "low": 590.489990234375,
+            "stroke_span": 6
+          },
+          {
+            "s0": 263,
+            "s1": 267,
+            "direction": "up",
+            "confirmed": true,
+            "high": 613.22998046875,
+            "low": 598.510009765625,
+            "stroke_span": 4
+          },
+          {
+            "s0": 268,
+            "s1": 274,
+            "direction": "down",
+            "confirmed": true,
+            "high": 613.22998046875,
+            "low": 549.6799926757812,
+            "stroke_span": 6
+          },
+          {
+            "s0": 275,
+            "s1": 289,
+            "direction": "up",
+            "confirmed": true,
+            "high": 576.4099731445312,
+            "low": 481.79998779296875,
+            "stroke_span": 14
+          },
+          {
+            "s0": 290,
+            "s1": 306,
+            "direction": "down",
+            "confirmed": true,
+            "high": 595.5399780273438,
+            "low": 508.4599914550781,
+            "stroke_span": 16
+          },
+          {
+            "s0": 307,
+            "s1": 311,
+            "direction": "up",
+            "confirmed": true,
+            "high": 605.0599975585938,
+            "low": 575.5999755859375,
+            "stroke_span": 4
+          },
+          {
+            "s0": 312,
+            "s1": 326,
+            "direction": "down",
+            "confirmed": true,
+            "high": 639.8499755859375,
+            "low": 591.8900146484375,
+            "stroke_span": 14
+          },
+          {
+            "s0": 327,
+            "s1": 329,
+            "direction": "up",
+            "confirmed": true,
+            "high": 646.1900024414062,
+            "low": 619.2899780273438,
+            "stroke_span": 2
+          },
+          {
+            "s0": 330,
+            "s1": 336,
+            "direction": "down",
+            "confirmed": true,
+            "high": 649.47998046875,
+            "low": 632.9500122070312,
+            "stroke_span": 6
+          },
+          {
+            "s0": 337,
+            "s1": 353,
+            "direction": "up",
+            "confirmed": true,
+            "high": 673.9500122070312,
+            "low": 634.9199829101562,
+            "stroke_span": 16
+          },
+          {
+            "s0": 354,
+            "s1": 370,
+            "direction": "down",
+            "confirmed": true,
+            "high": 689.7000122070312,
+            "low": 650.8499755859375,
+            "stroke_span": 16
+          },
+          {
+            "s0": 371,
+            "s1": 375,
+            "direction": "up",
+            "confirmed": true,
+            "high": 688.3900146484375,
+            "low": 650.8499755859375,
+            "stroke_span": 4
+          },
+          {
+            "s0": 376,
+            "s1": 382,
+            "direction": "down",
+            "confirmed": true,
+            "high": 689.25,
+            "low": 671.1950073242188,
+            "stroke_span": 6
+          },
+          {
+            "s0": 383,
+            "s1": 389,
+            "direction": "up",
+            "confirmed": true,
+            "high": 696.0900268554688,
+            "low": 671.1950073242188,
+            "stroke_span": 6
+          },
+          {
+            "s0": 390,
+            "s1": 392,
+            "direction": "down",
+            "confirmed": true,
+            "high": 696.0900268554688,
+            "low": 676.5700073242188,
+            "stroke_span": 2
+          },
+          {
+            "s0": 393,
+            "s1": 406,
+            "direction": "up",
+            "confirmed": false,
+            "high": 697.8400268554688,
+            "low": 675.780029296875,
+            "stroke_span": 13
+          }
+        ],
+        "zhongshus": [
+          {
+            "seg_start": 1,
+            "seg_end": 7,
+            "zg": 443.8999938964844,
+            "zd": 433.010009765625,
+            "gg": 459.6499938964844,
+            "dd": 403.739990234375
+          },
+          {
+            "seg_start": 9,
+            "seg_end": 13,
+            "zg": 518.2200927734375,
+            "zd": 508.3599853515625,
+            "gg": 531.5601196289062,
+            "dd": 490.7149963378906
+          },
+          {
+            "seg_start": 13,
+            "seg_end": 15,
+            "zg": 531.5601196289062,
+            "zd": 518.3599853515625,
+            "gg": 550.1199951171875,
+            "dd": 493.8599853515625
+          },
+          {
+            "seg_start": 15,
+            "seg_end": 18,
+            "zg": 550.1199951171875,
+            "zd": 537.4500122070312,
+            "gg": 574.3800048828125,
+            "dd": 510.67999267578125
+          },
+          {
+            "seg_start": 18,
+            "seg_end": 21,
+            "zg": 574.3800048828125,
+            "zd": 567.8900146484375,
+            "gg": 609.0700073242188,
+            "dd": 539.4400024414062
+          },
+          {
+            "seg_start": 21,
+            "seg_end": 30,
+            "zg": 608.4349975585938,
+            "zd": 575.3499755859375,
+            "gg": 639.8499755859375,
+            "dd": 481.79998779296875
+          },
+          {
+            "seg_start": 30,
+            "seg_end": 33,
+            "zg": 639.8499755859375,
+            "zd": 632.9500122070312,
+            "gg": 673.9500122070312,
+            "dd": 591.8900146484375
+          },
+          {
+            "seg_start": 33,
+            "seg_end": 37,
+            "zg": 673.9500122070312,
+            "zd": 650.8499755859375,
+            "gg": 696.0900268554688,
+            "dd": 634.9199829101562
+          }
+        ]
+      },
+      "daily": {
+        "bar_count": 730,
+        "stroke_count": 52,
+        "segment_count": 4,
+        "zhongshu_count": 1,
+        "move_count": 0,
+        "snapshot_available": true,
+        "d2_compression_ratio": "52 strokes → 4 segments",
+        "segments": [
+          {
+            "s0": 1,
+            "s1": 5,
+            "direction": "up",
+            "confirmed": true,
+            "high": 444.9760876219577,
+            "low": 389.58252493310016,
+            "stroke_span": 4
+          },
+          {
+            "s0": 6,
+            "s1": 10,
+            "direction": "down",
+            "confirmed": true,
+            "high": 444.9760876219577,
+            "low": 397.72533824344663,
+            "stroke_span": 4
+          },
+          {
+            "s0": 11,
+            "s1": 33,
+            "direction": "up",
+            "confirmed": true,
+            "high": 606.1123628380831,
+            "low": 397.72533824344663,
+            "stroke_span": 22
+          },
+          {
+            "s0": 34,
+            "s1": 51,
+            "direction": "down",
+            "confirmed": false,
+            "high": 697.8400268554688,
+            "low": 477.64034947944,
+            "stroke_span": 17
+          }
+        ],
+        "zhongshus": [
+          {
+            "seg_start": 0,
+            "seg_end": 2,
+            "zg": 444.9760876219577,
+            "zd": 397.72533824344663,
+            "gg": 606.1123628380831,
+            "dd": 389.58252493310016
+          }
+        ]
+      }
+    }
+  },
+  "av_daily": {
+    "dataset": "SPY日线(Alpha Vantage,~3年)",
+    "tf": "daily",
+    "bar_count": 750,
+    "t6_reachability": {
+      "directional": {
+        "active_levels": 0,
+        "t6_reachable": false
+      },
+      "amplitude": {
+        "active_levels": 0,
+        "t6_reachable": false
+      }
+    },
+    "note": "单 TF 数据集（Alpha Vantage daily），T6 需要 >=2 active_levels，此数据集最多 1 层——用于 pipeline 管线诊断对比",
+    "pipeline_stages": {
+      "daily": {
+        "bar_count": 750,
+        "stroke_count": 56,
+        "segment_count": 3,
+        "zhongshu_count": 0,
+        "move_count": 0,
+        "snapshot_available": true,
+        "d2_compression_ratio": "56 strokes → 3 segments",
+        "segments": [
+          {
+            "s0": 0,
+            "s1": 14,
+            "direction": "down",
+            "confirmed": true,
+            "high": 459.44,
+            "low": 380.65,
+            "stroke_span": 14
+          },
+          {
+            "s0": 15,
+            "s1": 37,
+            "direction": "up",
+            "confirmed": true,
+            "high": 613.23,
+            "low": 409.21,
+            "stroke_span": 22
+          },
+          {
+            "s0": 38,
+            "s1": 55,
+            "direction": "down",
+            "confirmed": false,
+            "high": 697.84,
+            "low": 481.8,
+            "stroke_span": 17
+          }
+        ],
+        "zhongshus": []
+      }
+    },
+    "level_details": {
+      "daily": {
+        "bar_count": 750,
+        "move_count": 0,
+        "zhongshu_count": 0,
+        "direction": "none",
+        "has_last_move": false
+      }
+    }
+  },
+  "v103_comparison": {
+    "daily_weekly": {
+      "v103": {
+        "bar_count": 502,
+        "stroke_count": 36,
+        "segment_count": 3,
+        "zhongshu_count": 0,
+        "move_count": 0
+      },
+      "v104": {
+        "bar_count": 753,
+        "stroke_count": 55,
+        "segment_count": 4,
+        "zhongshu_count": 1,
+        "move_count": 0
+      },
+      "delta": {
+        "bar_count": 251,
+        "stroke_count": 19,
+        "segment_count": 1,
+        "zhongshu_count": 1,
+        "move_count": 0
+      }
+    },
+    "60min_daily": {
+      "60min": {
+        "v103": {
+          "bar_count": 874,
+          "stroke_count": 71,
+          "segment_count": 8,
+          "zhongshu_count": 2,
+          "move_count": 1
+        },
+        "v104": {
+          "bar_count": 5078,
+          "stroke_count": 407,
+          "segment_count": 40,
+          "zhongshu_count": 8,
+          "move_count": 7
+        },
+        "delta": {
+          "bar_count": 4204,
+          "stroke_count": 336,
+          "segment_count": 32,
+          "zhongshu_count": 6,
+          "move_count": 6
+        }
+      },
+      "daily": {
+        "v103": {
+          "bar_count": 126,
+          "stroke_count": 9,
+          "segment_count": 1,
+          "zhongshu_count": 0,
+          "move_count": 0
+        },
+        "v104": {
+          "bar_count": 730,
+          "stroke_count": 52,
+          "segment_count": 4,
+          "zhongshu_count": 1,
+          "move_count": 0
+        },
+        "delta": {
+          "bar_count": 604,
+          "stroke_count": 43,
+          "segment_count": 3,
+          "zhongshu_count": 1,
+          "move_count": 0
+        }
+      }
+    }
+  },
+  "summary": {
+    "t6_reachability": [
+      "daily_weekly_3y: dir_t6=False (levels=0), amp_t6=False (levels=0)",
+      "60min_daily_730d: dir_t6=False (levels=1), amp_t6=False (levels=1)",
+      "av_daily: dir_t6=False (levels=0), amp_t6=False (levels=0)"
+    ],
+    "t6_reachable_any": false,
+    "directional_divergences_total": 0,
+    "amplitude_divergences_total": 0,
+    "divergence_difference": 0,
+    "ker_d_operational_significance": "本次验证中无差异: 两种力度均检测到 0 个背驰",
+    "t6_unreachable_diagnosis": [
+      "daily_weekly_3y: T6不可达, 无走势的TF: ['daily(segs=4,zs=1)', 'weekly(segs=1,zs=0)']",
+      "60min_daily_730d: T6不可达, 无走势的TF: ['daily(segs=4,zs=1)']",
+      "av_daily: T6不可达, 无走势的TF: ['daily(segs=3,zs=0)']"
+    ],
+    "d2_compression_pipeline": [
+      "daily_weekly_3y/daily: 753 bars → 55 strokes → 4 segs → 1 zhongshu → 0 moves",
+      "daily_weekly_3y/weekly: 157 bars → 9 strokes → 1 segs → 0 zhongshu → 0 moves",
+      "60min_daily_730d/60min: 5078 bars → 407 strokes → 40 segs → 8 zhongshu → 7 moves",
+      "60min_daily_730d/daily: 730 bars → 52 strokes → 4 segs → 1 zhongshu → 0 moves",
+      "av_daily/daily: 750 bars → 56 strokes → 3 segs → 0 zhongshu → 0 moves"
+    ],
+    "v103_delta": {
+      "daily_weekly": {
+        "bar_count": 251,
+        "stroke_count": 19,
+        "segment_count": 1,
+        "zhongshu_count": 1,
+        "move_count": 0
+      },
+      "60min_daily/60min": {
+        "bar_count": 4204,
+        "stroke_count": 336,
+        "segment_count": 32,
+        "zhongshu_count": 6,
+        "move_count": 6
+      },
+      "60min_daily/daily": {
+        "bar_count": 604,
+        "stroke_count": 43,
+        "segment_count": 3,
+        "zhongshu_count": 1,
+        "move_count": 0
+      }
+    }
+  }
+}
