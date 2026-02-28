@@ -1228,6 +1228,11 @@ nodes:
   status: 已结算
   type: 经验验证
   file: settled/245-divergence-structure-analysis.md
+- id: '246'
+  title: 多 TF pipeline 集成——238号架构接入交易管道 + 239号方向性力度替代
+  status: 已结算
+  type: 工程架构
+  file: settled/246-multi-tf-pipeline-integration.md
 edges:
   depends_on:
   - from: '136'
@@ -2438,6 +2443,12 @@ edges:
     to: '244'
   - from: '245'
     to: '236'
+  - from: '246'
+    to: '238'
+  - from: '246'
+    to: '237'
+  - from: '246'
+    to: '239'
   triggered:
   - from: '005'
     to: 005a
