@@ -1,0 +1,13 @@
+{
+  "genealogy_id": "266",
+  "title": "元观察——v113-swarm 定理6一轮否定速度 + Claude自否定Gemini重构方向 + YAML解析边界修复 + downstream清零机制",
+  "type": "meta-rule",
+  "status": "settled",
+  "date": "2026-02-28",
+  "depends_on": [
+    "263",
+    "258",
+    "016",
+    "264"
+  ]
+}
