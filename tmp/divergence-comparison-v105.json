@@ -1,0 +1,195 @@
+{
+  "pipeline": {
+    "bar_count": 5078,
+    "stroke_count": 407,
+    "segment_count": 40,
+    "zhongshu_count": 8,
+    "move_count": 7
+  },
+  "moves": [
+    {
+      "index": 0,
+      "kind": "trend",
+      "direction": "up",
+      "seg_start": 1,
+      "seg_end": 12,
+      "zs_count": 2,
+      "settled": true,
+      "high": 531.56012,
+      "low": 403.73999,
+      "amplitude_force": 127.820129,
+      "directional_force": 3.25
+    },
+    {
+      "index": 1,
+      "kind": "consolidation",
+      "direction": "up",
+      "seg_start": 13,
+      "seg_end": 14,
+      "zs_count": 1,
+      "settled": true,
+      "high": 550.119995,
+      "low": 493.859985,
+      "amplitude_force": 56.26001,
+      "directional_force": 1.25
+    },
+    {
+      "index": 2,
+      "kind": "consolidation",
+      "direction": "up",
+      "seg_start": 15,
+      "seg_end": 17,
+      "zs_count": 1,
+      "settled": true,
+      "high": 574.380005,
+      "low": 510.679993,
+      "amplitude_force": 63.700012,
+      "directional_force": 1.833333
+    },
+    {
+      "index": 3,
+      "kind": "consolidation",
+      "direction": "up",
+      "seg_start": 18,
+      "seg_end": 20,
+      "zs_count": 1,
+      "settled": true,
+      "high": 609.070007,
+      "low": 539.440002,
+      "amplitude_force": 69.630005,
+      "directional_force": 1.666667
+    },
+    {
+      "index": 4,
+      "kind": "consolidation",
+      "direction": "up",
+      "seg_start": 21,
+      "seg_end": 29,
+      "zs_count": 1,
+      "settled": true,
+      "high": 639.849976,
+      "low": 481.799988,
+      "amplitude_force": 158.049988,
+      "directional_force": 4.777778
+    },
+    {
+      "index": 5,
+      "kind": "consolidation",
+      "direction": "up",
+      "seg_start": 30,
+      "seg_end": 32,
+      "zs_count": 1,
+      "settled": true,
+      "high": 673.950012,
+      "low": 591.890015,
+      "amplitude_force": 82.059998,
+      "directional_force": 1.666667
+    },
+    {
+      "index": 6,
+      "kind": "consolidation",
+      "direction": "up",
+      "seg_start": 33,
+      "seg_end": 39,
+      "zs_count": 1,
+      "settled": false,
+      "high": 696.090027,
+      "low": 634.919983,
+      "amplitude_force": 61.170044,
+      "directional_force": 3.785714
+    }
+  ],
+  "divergence_comparisons": [
+    {
+      "move_pair": [
+        0,
+        1
+      ],
+      "direction": "up",
+      "amplitude_force_prev": 127.820129,
+      "amplitude_force_curr": 56.26001,
+      "amplitude_divergence": true,
+      "directional_force_prev": 3.25,
+      "directional_force_curr": 1.25,
+      "directional_divergence": true,
+      "judgment_differs": false
+    },
+    {
+      "move_pair": [
+        1,
+        2
+      ],
+      "direction": "up",
+      "amplitude_force_prev": 56.26001,
+      "amplitude_force_curr": 63.700012,
+      "amplitude_divergence": false,
+      "directional_force_prev": 1.25,
+      "directional_force_curr": 1.833333,
+      "directional_divergence": false,
+      "judgment_differs": false
+    },
+    {
+      "move_pair": [
+        2,
+        3
+      ],
+      "direction": "up",
+      "amplitude_force_prev": 63.700012,
+      "amplitude_force_curr": 69.630005,
+      "amplitude_divergence": false,
+      "directional_force_prev": 1.833333,
+      "directional_force_curr": 1.666667,
+      "directional_divergence": true,
+      "judgment_differs": true
+    },
+    {
+      "move_pair": [
+        3,
+        4
+      ],
+      "direction": "up",
+      "amplitude_force_prev": 69.630005,
+      "amplitude_force_curr": 158.049988,
+      "amplitude_divergence": false,
+      "directional_force_prev": 1.666667,
+      "directional_force_curr": 4.777778,
+      "directional_divergence": false,
+      "judgment_differs": false
+    },
+    {
+      "move_pair": [
+        4,
+        5
+      ],
+      "direction": "up",
+      "amplitude_force_prev": 158.049988,
+      "amplitude_force_curr": 82.059998,
+      "amplitude_divergence": true,
+      "directional_force_prev": 4.777778,
+      "directional_force_curr": 1.666667,
+      "directional_divergence": true,
+      "judgment_differs": false
+    },
+    {
+      "move_pair": [
+        5,
+        6
+      ],
+      "direction": "up",
+      "amplitude_force_prev": 82.059998,
+      "amplitude_force_curr": 61.170044,
+      "amplitude_divergence": true,
+      "directional_force_prev": 1.666667,
+      "directional_force_curr": 3.785714,
+      "directional_divergence": false,
+      "judgment_differs": true
+    }
+  ],
+  "summary": {
+    "total_move_pairs_compared": 6,
+    "amplitude_divergences": 3,
+    "directional_divergences": 3,
+    "judgment_differs_count": 2,
+    "ker_d_operational_significance": "有操作意义: 2/6 对同向走势上两种力度给出不同背驰判断。 振幅力度检测到 3 个背驰, 方向性力度检测到 3 个背驰。 差异走势对: [[2, 3], [5, 6]]"
+  }
+}

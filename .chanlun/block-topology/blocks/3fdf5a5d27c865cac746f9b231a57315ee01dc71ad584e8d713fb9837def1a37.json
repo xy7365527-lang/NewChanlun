@@ -1,0 +1,14 @@
+{
+  "type": "event",
+  "content": {
+    "title": "扩展数据窗口验证——daily 层中枢产出但走势未形成",
+    "genealogy_id": 250,
+    "summary": "数据窗口从 6 个月扩展到 2-3 年后，daily 层从 3 段 0 中枢进步到 4 段 1 中枢，但 move_count=0（离开段 unconfirmed）。T6 仍不可达（active_levels=1）。瓶颈从'数据量不足'转为'走势完整性'。60min 层增长到 40 段/8 中枢/7 走势，验证管线健壮性。AV vs yfinance 数据源差异暴露段划分敏感性。"
+  },
+  "refs": [
+    "0fdda15c08ca80466fc65331a21417f61dfd26c0c5d54f774df5e3dd9c3d6269",
+    "1af2b8bf597ef6ceefea297b7864e1e6ac1a3db2ce9153e1b94617677824443e",
+    "42536101a59698672670ad951738b88aabda8483c1e13b3d522845744d9a1f98",
+    "dc56f57b672666b4d7e89869683667ac8837f082b3e9f71a44faad3a88bb8774"
+  ]
+}

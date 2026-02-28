@@ -3,7 +3,7 @@ id: '229'
 number: 229
 title: T6/T7 真实数据贡献率分析
 type: 概念发现
-status: 已结算
+status: 已关闭
 date: 2026-02-27
 source: v88-swarm t6t7-genealogy 工位
 depends_on:
@@ -110,12 +110,30 @@ GOOGL 是三标的中结构最丰富的：9 线段 / 2 中枢（1 已结算+1 �
 
 ### 下游推论
 
-1. **T6 结构性不可达**：T6 需要 recursive_levels >= 2 来形成跨级别背驰链。当前单 TF 递归架构无法在任何已测数据条件下达到此条件。
-2. **T7 边际可用**：3 标的 × 20+年数据共产出 1 个买卖点。T7 的低产出与中枢/走势稀缺一致。
-3. **架构层面的问题**：如需 T6/T7 发挥作用，可能需要多 TF 输入（multi-timeframe）而非单 TF 递归——即直接用不同 TF 的 bar 数据分别构建各级别，而非依赖递归栈从单一 TF 向上推导。
+1. **T6 结构性不可达** `[resolved: closed, v104]`：T6 需要 recursive_levels >= 2 来形成跨级别背驰链。当前单 TF 递归架构无法在任何已测数据条件下达到此条件。v100 实现多 TF 架构后，v101-v104 四轮验证一致确认：60min+daily 组合下 T6 不可达，根因是日线缠论结构天然稀疏（730 bar → 52 strokes → 4 segments → 1 zhongshu → 0 moves）。
+2. **T7 边际可用** `[resolved: closed, v104]`：3 标的 × 20+年数据共产出 1 个买卖点。T7 的低产出与中枢/走势稀缺一致。v104 扩展数据窗口后 daily 层走势仍未产出，T7 产出条件不变。
+3. **架构层面的问题** `[resolved: closed, v100]`：如需 T6/T7 发挥作用，可能需要多 TF 输入（multi-timeframe）而非单 TF 递归——即直接用不同 TF 的 bar 数据分别构建各级别，而非依赖递归栈从单一 TF 向上推导。v100 已实现 MultiTFPipelineAdapter，验证结果确认多 TF 输入本身正确但日线结构稀疏性不可绕过。
 
 ## 影响声明
 
 - 确认了 T6/T7 统计脚本的功能正确性（脚本可运行、结果可复现）
 - 明确了当前数据条件下的贡献率下限
 - roadmap `t6t7_contribution_analysis` 任务从"待后续"推进为"已完成"
+
+## 关闭声明（v105-swarm，2026-02-28）
+
+**编排者指令关闭。**
+
+从 v91 到 v104，经历四次尝试：
+1. v100：多 TF 架构（MultiTFPipelineAdapter）
+2. v101-v103：段引擎修复 + 真实数据验证
+3. v104：数据窗口扩展到 2-3 年
+
+结论始终一致：T6/T7 在 60min+daily 组合下结构性不可达。
+
+根因：日线缠论结构天然稀疏。730 bar → 52 strokes → 4 segments → 1 zhongshu → 0 moves。
+中枢未被突破（第4段 unconfirmed），走势引擎不产出走势。即使确认，daily 层走势密度也不足以支撑跨 TF 背驰比较。
+
+**这不是系统缺陷，是日线级别缠论结构的物理特征。**
+
+未来方向：如需 T6/T7，降低 TF 组合（5min+60min 或 1min+5min），不是扩展数据。
