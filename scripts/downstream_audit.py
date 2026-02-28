@@ -135,9 +135,11 @@ def extract_downstream_actions(filepath):
                 resolved_inline = True
             elif "已执行——" in raw or "已确认——" in raw or "已完成——" in raw:
                 resolved_inline = True
-            elif "→ [resolved:" in raw:
+            elif "→ [resolved:" in raw or "`[resolved:" in raw:
                 resolved_inline = True
-            elif "→ [blocked:" in raw:
+            elif "→ [blocked:" in raw or "`[blocked:" in raw:
+                resolved_inline = "blocked"
+            elif "`[acknowledged:" in raw or "→ [acknowledged:" in raw:
                 resolved_inline = "blocked"
             actions.append({"index": i, "text": text, "resolved_inline": resolved_inline})
 

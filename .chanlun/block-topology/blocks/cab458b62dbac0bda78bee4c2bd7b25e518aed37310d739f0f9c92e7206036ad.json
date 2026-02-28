@@ -1,0 +1,15 @@
+{
+  "type": "event",
+  "content": {
+    "title": "递归 1min 深度验证",
+    "genealogy_id": 252,
+    "summary": "SPY 1min 数据（7409 bar，28交易日）通过 RecursiveOrchestrator 实际达到 2 级递归深度：7409 bars → 541 strokes → 59 segments → 10 zhongshu → 9 moves → recursive 2 levels。T6 等价可达（2层有走势）。递归路径比多 TF 路径更符合缠论原义（级别是递归产物），数据需求更小（28天 vs 3年）。"
+  },
+  "refs": [
+    "3fdf5a5d27c865cac746f9b231a57315ee01dc71ad584e8d713fb9837def1a37",
+    "0fdda15c08ca80466fc65331a21417f61dfd26c0c5d54f774df5e3dd9c3d6269",
+    "42536101a59698672670ad951738b88aabda8483c1e13b3d522845744d9a1f98",
+    "dc56f57b672666b4d7e89869683667ac8837f082b3e9f71a44faad3a88bb8774",
+    "44dd93c672b8131ae8a2c9b9dd5cb3213f0620a447973ac7bc318ef377ce7ae8"
+  ]
+}
