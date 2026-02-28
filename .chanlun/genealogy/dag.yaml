@@ -1298,6 +1298,11 @@ nodes:
   status: settled
   type: 实验验证
   file: settled/259-gold-fold-decoupling-experiment.md
+- id: '260'
+  title: 元观察——v108-swarm 实验蜂群 + context compaction 后 team 状态丢失 + 编排者概念层洞察的嵌入路径
+  status: resolved
+  type: meta-rule
+  file: settled/260-meta-observation-v108-swarm.md
 edges:
   depends_on:
   - from: '136'
@@ -2622,6 +2627,12 @@ edges:
     to: '235'
   - from: '259'
     to: '254'
+  - from: '260'
+    to: '258'
+  - from: '260'
+    to: '221'
+  - from: '260'
+    to: '181'
   triggered:
   - from: '005'
     to: 005a
