@@ -1328,6 +1328,11 @@ nodes:
   status: settled
   type: 操作方法论
   file: settled/265-operational-methodology-passacaglia.md
+- id: '266'
+  title: 元观察——v113-swarm 定理6一轮否定速度 + Claude自否定Gemini重构方向 + YAML解析边界修复 + downstream清零机制
+  status: settled
+  type: meta-rule
+  file: settled/266-meta-observation-v113-swarm.md
 edges:
   depends_on:
   - from: '136'
@@ -2692,6 +2697,14 @@ edges:
     to: '264'
   - from: '265'
     to: '255'
+  - from: '266'
+    to: '263'
+  - from: '266'
+    to: '258'
+  - from: '266'
+    to: '016'
+  - from: '266'
+    to: '264'
   triggered:
   - from: '005'
     to: 005a
