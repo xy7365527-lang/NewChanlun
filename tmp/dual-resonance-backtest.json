@@ -1,0 +1,771 @@
+{
+  "summary": {
+    "total_configs": 27,
+    "total_bsp_events": 540,
+    "divergent_configs": 16,
+    "divergent_config_rate": 0.5925925925925926,
+    "product": {
+      "entries": 340,
+      "blocks": 200,
+      "neutrals": 0,
+      "false_signals": 0,
+      "contradictions": 0,
+      "entry_rate": 0.6296296296296297,
+      "block_rate": 0.37037037037037035,
+      "false_signal_rate": 0.0
+    },
+    "fiber": {
+      "entries": 340,
+      "blocks": 200,
+      "neutrals": 0,
+      "false_signals": 0,
+      "contradictions": 60,
+      "entry_rate": 0.6296296296296297,
+      "block_rate": 0.37037037037037035,
+      "false_signal_rate": 0.0
+    },
+    "decision_divergences": 120,
+    "decision_divergence_rate": 0.2222222222222222
+  },
+  "consistency": {
+    "product_consistency": 0.5882352941176471,
+    "product_consistent_count": 200,
+    "product_total_resonances": 340,
+    "fiber_consistency": 0.5882352941176471,
+    "fiber_consistent_count": 200,
+    "fiber_total_resonances": 340
+  },
+  "verdict": {
+    "winner": "product",
+    "reason": "直积版假信号率更低或一致性更高",
+    "product_score": 0.8765,
+    "fiber_score": 0.8235,
+    "detail": {
+      "product_false_rate": 0.0,
+      "fiber_false_rate": 0.0,
+      "product_contradiction_rate": 0.0,
+      "fiber_contradiction_rate": 0.1765,
+      "product_consistency": 0.5882,
+      "fiber_consistency": 0.5882
+    }
+  },
+  "divergent_details": [
+    {
+      "config": [
+        1,
+        1,
+        0
+      ],
+      "label": "(+,+,0)",
+      "product_polarity": 2,
+      "fiber_polarity": 3,
+      "scan_direction": "buy",
+      "product_entries": 10,
+      "fiber_entries": 10,
+      "product_blocks": 10,
+      "fiber_blocks": 10,
+      "decision_diffs": 0
+    },
+    {
+      "config": [
+        1,
+        1,
+        -1
+      ],
+      "label": "(+,+,-)",
+      "product_polarity": 1,
+      "fiber_polarity": 3,
+      "scan_direction": "buy",
+      "product_entries": 10,
+      "fiber_entries": 10,
+      "product_blocks": 10,
+      "fiber_blocks": 10,
+      "decision_diffs": 0
+    },
+    {
+      "config": [
+        1,
+        0,
+        1
+      ],
+      "label": "(+,0,+)",
+      "product_polarity": 2,
+      "fiber_polarity": 0,
+      "scan_direction": "buy",
+      "product_entries": 10,
+      "fiber_entries": 20,
+      "product_blocks": 10,
+      "fiber_blocks": 0,
+      "decision_diffs": 10
+    },
+    {
+      "config": [
+        1,
+        0,
+        0
+      ],
+      "label": "(+,0,0)",
+      "product_polarity": 1,
+      "fiber_polarity": 0,
+      "scan_direction": "buy",
+      "product_entries": 10,
+      "fiber_entries": 20,
+      "product_blocks": 10,
+      "fiber_blocks": 0,
+      "decision_diffs": 10
+    },
+    {
+      "config": [
+        1,
+        -1,
+        1
+      ],
+      "label": "(+,-,+)",
+      "product_polarity": 1,
+      "fiber_polarity": -1,
+      "scan_direction": "buy",
+      "product_entries": 10,
+      "fiber_entries": 10,
+      "product_blocks": 10,
+      "fiber_blocks": 10,
+      "decision_diffs": 20
+    },
+    {
+      "config": [
+        1,
+        -1,
+        0
+      ],
+      "label": "(+,-,0)",
+      "product_polarity": 0,
+      "fiber_polarity": -1,
+      "scan_direction": "neutral",
+      "product_entries": 20,
+      "fiber_entries": 10,
+      "product_blocks": 0,
+      "fiber_blocks": 10,
+      "decision_diffs": 10
+    },
+    {
+      "config": [
+        0,
+        1,
+        0
+      ],
+      "label": "(0,+,0)",
+      "product_polarity": 1,
+      "fiber_polarity": 2,
+      "scan_direction": "buy",
+      "product_entries": 10,
+      "fiber_entries": 10,
+      "product_blocks": 10,
+      "fiber_blocks": 10,
+      "decision_diffs": 0
+    },
+    {
+      "config": [
+        0,
+        1,
+        -1
+      ],
+      "label": "(0,+,-)",
+      "product_polarity": 0,
+      "fiber_polarity": 2,
+      "scan_direction": "neutral",
+      "product_entries": 20,
+      "fiber_entries": 10,
+      "product_blocks": 0,
+      "fiber_blocks": 10,
+      "decision_diffs": 10
+    },
+    {
+      "config": [
+        0,
+        -1,
+        1
+      ],
+      "label": "(0,-,+)",
+      "product_polarity": 0,
+      "fiber_polarity": -2,
+      "scan_direction": "neutral",
+      "product_entries": 20,
+      "fiber_entries": 10,
+      "product_blocks": 0,
+      "fiber_blocks": 10,
+      "decision_diffs": 10
+    },
+    {
+      "config": [
+        0,
+        -1,
+        0
+      ],
+      "label": "(0,-,0)",
+      "product_polarity": -1,
+      "fiber_polarity": -2,
+      "scan_direction": "sell",
+      "product_entries": 10,
+      "fiber_entries": 10,
+      "product_blocks": 10,
+      "fiber_blocks": 10,
+      "decision_diffs": 0
+    },
+    {
+      "config": [
+        -1,
+        1,
+        0
+      ],
+      "label": "(-,+,0)",
+      "product_polarity": 0,
+      "fiber_polarity": 1,
+      "scan_direction": "neutral",
+      "product_entries": 20,
+      "fiber_entries": 10,
+      "product_blocks": 0,
+      "fiber_blocks": 10,
+      "decision_diffs": 10
+    },
+    {
+      "config": [
+        -1,
+        1,
+        -1
+      ],
+      "label": "(-,+,-)",
+      "product_polarity": -1,
+      "fiber_polarity": 1,
+      "scan_direction": "sell",
+      "product_entries": 10,
+      "fiber_entries": 10,
+      "product_blocks": 10,
+      "fiber_blocks": 10,
+      "decision_diffs": 20
+    },
+    {
+      "config": [
+        -1,
+        0,
+        0
+      ],
+      "label": "(-,0,0)",
+      "product_polarity": -1,
+      "fiber_polarity": 0,
+      "scan_direction": "sell",
+      "product_entries": 10,
+      "fiber_entries": 20,
+      "product_blocks": 10,
+      "fiber_blocks": 0,
+      "decision_diffs": 10
+    },
+    {
+      "config": [
+        -1,
+        0,
+        -1
+      ],
+      "label": "(-,0,-)",
+      "product_polarity": -2,
+      "fiber_polarity": 0,
+      "scan_direction": "sell",
+      "product_entries": 10,
+      "fiber_entries": 20,
+      "product_blocks": 10,
+      "fiber_blocks": 0,
+      "decision_diffs": 10
+    },
+    {
+      "config": [
+        -1,
+        -1,
+        1
+      ],
+      "label": "(-,-,+)",
+      "product_polarity": -1,
+      "fiber_polarity": -3,
+      "scan_direction": "sell",
+      "product_entries": 10,
+      "fiber_entries": 10,
+      "product_blocks": 10,
+      "fiber_blocks": 10,
+      "decision_diffs": 0
+    },
+    {
+      "config": [
+        -1,
+        -1,
+        0
+      ],
+      "label": "(-,-,0)",
+      "product_polarity": -2,
+      "fiber_polarity": -3,
+      "scan_direction": "sell",
+      "product_entries": 10,
+      "fiber_entries": 10,
+      "product_blocks": 10,
+      "fiber_blocks": 10,
+      "decision_diffs": 0
+    }
+  ],
+  "all_configs": [
+    {
+      "config": [
+        1,
+        1,
+        1
+      ],
+      "label": "(+,+,+)",
+      "product_polarity": 3,
+      "fiber_polarity": 3,
+      "polarity_divergence": false,
+      "scan_direction": "buy",
+      "product_entries": 10,
+      "fiber_entries": 10,
+      "product_blocks": 10,
+      "fiber_blocks": 10,
+      "decision_diffs": 0
+    },
+    {
+      "config": [
+        1,
+        1,
+        0
+      ],
+      "label": "(+,+,0)",
+      "product_polarity": 2,
+      "fiber_polarity": 3,
+      "polarity_divergence": true,
+      "scan_direction": "buy",
+      "product_entries": 10,
+      "fiber_entries": 10,
+      "product_blocks": 10,
+      "fiber_blocks": 10,
+      "decision_diffs": 0
+    },
+    {
+      "config": [
+        1,
+        1,
+        -1
+      ],
+      "label": "(+,+,-)",
+      "product_polarity": 1,
+      "fiber_polarity": 3,
+      "polarity_divergence": true,
+      "scan_direction": "buy",
+      "product_entries": 10,
+      "fiber_entries": 10,
+      "product_blocks": 10,
+      "fiber_blocks": 10,
+      "decision_diffs": 0
+    },
+    {
+      "config": [
+        1,
+        0,
+        1
+      ],
+      "label": "(+,0,+)",
+      "product_polarity": 2,
+      "fiber_polarity": 0,
+      "polarity_divergence": true,
+      "scan_direction": "buy",
+      "product_entries": 10,
+      "fiber_entries": 20,
+      "product_blocks": 10,
+      "fiber_blocks": 0,
+      "decision_diffs": 10
+    },
+    {
+      "config": [
+        1,
+        0,
+        0
+      ],
+      "label": "(+,0,0)",
+      "product_polarity": 1,
+      "fiber_polarity": 0,
+      "polarity_divergence": true,
+      "scan_direction": "buy",
+      "product_entries": 10,
+      "fiber_entries": 20,
+      "product_blocks": 10,
+      "fiber_blocks": 0,
+      "decision_diffs": 10
+    },
+    {
+      "config": [
+        1,
+        0,
+        -1
+      ],
+      "label": "(+,0,-)",
+      "product_polarity": 0,
+      "fiber_polarity": 0,
+      "polarity_divergence": false,
+      "scan_direction": "neutral",
+      "product_entries": 20,
+      "fiber_entries": 20,
+      "product_blocks": 0,
+      "fiber_blocks": 0,
+      "decision_diffs": 0
+    },
+    {
+      "config": [
+        1,
+        -1,
+        1
+      ],
+      "label": "(+,-,+)",
+      "product_polarity": 1,
+      "fiber_polarity": -1,
+      "polarity_divergence": true,
+      "scan_direction": "buy",
+      "product_entries": 10,
+      "fiber_entries": 10,
+      "product_blocks": 10,
+      "fiber_blocks": 10,
+      "decision_diffs": 20
+    },
+    {
+      "config": [
+        1,
+        -1,
+        0
+      ],
+      "label": "(+,-,0)",
+      "product_polarity": 0,
+      "fiber_polarity": -1,
+      "polarity_divergence": true,
+      "scan_direction": "neutral",
+      "product_entries": 20,
+      "fiber_entries": 10,
+      "product_blocks": 0,
+      "fiber_blocks": 10,
+      "decision_diffs": 10
+    },
+    {
+      "config": [
+        1,
+        -1,
+        -1
+      ],
+      "label": "(+,-,-)",
+      "product_polarity": -1,
+      "fiber_polarity": -1,
+      "polarity_divergence": false,
+      "scan_direction": "sell",
+      "product_entries": 10,
+      "fiber_entries": 10,
+      "product_blocks": 10,
+      "fiber_blocks": 10,
+      "decision_diffs": 0
+    },
+    {
+      "config": [
+        0,
+        1,
+        1
+      ],
+      "label": "(0,+,+)",
+      "product_polarity": 2,
+      "fiber_polarity": 2,
+      "polarity_divergence": false,
+      "scan_direction": "buy",
+      "product_entries": 10,
+      "fiber_entries": 10,
+      "product_blocks": 10,
+      "fiber_blocks": 10,
+      "decision_diffs": 0
+    },
+    {
+      "config": [
+        0,
+        1,
+        0
+      ],
+      "label": "(0,+,0)",
+      "product_polarity": 1,
+      "fiber_polarity": 2,
+      "polarity_divergence": true,
+      "scan_direction": "buy",
+      "product_entries": 10,
+      "fiber_entries": 10,
+      "product_blocks": 10,
+      "fiber_blocks": 10,
+      "decision_diffs": 0
+    },
+    {
+      "config": [
+        0,
+        1,
+        -1
+      ],
+      "label": "(0,+,-)",
+      "product_polarity": 0,
+      "fiber_polarity": 2,
+      "polarity_divergence": true,
+      "scan_direction": "neutral",
+      "product_entries": 20,
+      "fiber_entries": 10,
+      "product_blocks": 0,
+      "fiber_blocks": 10,
+      "decision_diffs": 10
+    },
+    {
+      "config": [
+        0,
+        0,
+        1
+      ],
+      "label": "(0,0,+)",
+      "product_polarity": 1,
+      "fiber_polarity": 1,
+      "polarity_divergence": false,
+      "scan_direction": "buy",
+      "product_entries": 10,
+      "fiber_entries": 10,
+      "product_blocks": 10,
+      "fiber_blocks": 10,
+      "decision_diffs": 0
+    },
+    {
+      "config": [
+        0,
+        0,
+        0
+      ],
+      "label": "(0,0,0)",
+      "product_polarity": 0,
+      "fiber_polarity": 0,
+      "polarity_divergence": false,
+      "scan_direction": "neutral",
+      "product_entries": 20,
+      "fiber_entries": 20,
+      "product_blocks": 0,
+      "fiber_blocks": 0,
+      "decision_diffs": 0
+    },
+    {
+      "config": [
+        0,
+        0,
+        -1
+      ],
+      "label": "(0,0,-)",
+      "product_polarity": -1,
+      "fiber_polarity": -1,
+      "polarity_divergence": false,
+      "scan_direction": "sell",
+      "product_entries": 10,
+      "fiber_entries": 10,
+      "product_blocks": 10,
+      "fiber_blocks": 10,
+      "decision_diffs": 0
+    },
+    {
+      "config": [
+        0,
+        -1,
+        1
+      ],
+      "label": "(0,-,+)",
+      "product_polarity": 0,
+      "fiber_polarity": -2,
+      "polarity_divergence": true,
+      "scan_direction": "neutral",
+      "product_entries": 20,
+      "fiber_entries": 10,
+      "product_blocks": 0,
+      "fiber_blocks": 10,
+      "decision_diffs": 10
+    },
+    {
+      "config": [
+        0,
+        -1,
+        0
+      ],
+      "label": "(0,-,0)",
+      "product_polarity": -1,
+      "fiber_polarity": -2,
+      "polarity_divergence": true,
+      "scan_direction": "sell",
+      "product_entries": 10,
+      "fiber_entries": 10,
+      "product_blocks": 10,
+      "fiber_blocks": 10,
+      "decision_diffs": 0
+    },
+    {
+      "config": [
+        0,
+        -1,
+        -1
+      ],
+      "label": "(0,-,-)",
+      "product_polarity": -2,
+      "fiber_polarity": -2,
+      "polarity_divergence": false,
+      "scan_direction": "sell",
+      "product_entries": 10,
+      "fiber_entries": 10,
+      "product_blocks": 10,
+      "fiber_blocks": 10,
+      "decision_diffs": 0
+    },
+    {
+      "config": [
+        -1,
+        1,
+        1
+      ],
+      "label": "(-,+,+)",
+      "product_polarity": 1,
+      "fiber_polarity": 1,
+      "polarity_divergence": false,
+      "scan_direction": "buy",
+      "product_entries": 10,
+      "fiber_entries": 10,
+      "product_blocks": 10,
+      "fiber_blocks": 10,
+      "decision_diffs": 0
+    },
+    {
+      "config": [
+        -1,
+        1,
+        0
+      ],
+      "label": "(-,+,0)",
+      "product_polarity": 0,
+      "fiber_polarity": 1,
+      "polarity_divergence": true,
+      "scan_direction": "neutral",
+      "product_entries": 20,
+      "fiber_entries": 10,
+      "product_blocks": 0,
+      "fiber_blocks": 10,
+      "decision_diffs": 10
+    },
+    {
+      "config": [
+        -1,
+        1,
+        -1
+      ],
+      "label": "(-,+,-)",
+      "product_polarity": -1,
+      "fiber_polarity": 1,
+      "polarity_divergence": true,
+      "scan_direction": "sell",
+      "product_entries": 10,
+      "fiber_entries": 10,
+      "product_blocks": 10,
+      "fiber_blocks": 10,
+      "decision_diffs": 20
+    },
+    {
+      "config": [
+        -1,
+        0,
+        1
+      ],
+      "label": "(-,0,+)",
+      "product_polarity": 0,
+      "fiber_polarity": 0,
+      "polarity_divergence": false,
+      "scan_direction": "neutral",
+      "product_entries": 20,
+      "fiber_entries": 20,
+      "product_blocks": 0,
+      "fiber_blocks": 0,
+      "decision_diffs": 0
+    },
+    {
+      "config": [
+        -1,
+        0,
+        0
+      ],
+      "label": "(-,0,0)",
+      "product_polarity": -1,
+      "fiber_polarity": 0,
+      "polarity_divergence": true,
+      "scan_direction": "sell",
+      "product_entries": 10,
+      "fiber_entries": 20,
+      "product_blocks": 10,
+      "fiber_blocks": 0,
+      "decision_diffs": 10
+    },
+    {
+      "config": [
+        -1,
+        0,
+        -1
+      ],
+      "label": "(-,0,-)",
+      "product_polarity": -2,
+      "fiber_polarity": 0,
+      "polarity_divergence": true,
+      "scan_direction": "sell",
+      "product_entries": 10,
+      "fiber_entries": 20,
+      "product_blocks": 10,
+      "fiber_blocks": 0,
+      "decision_diffs": 10
+    },
+    {
+      "config": [
+        -1,
+        -1,
+        1
+      ],
+      "label": "(-,-,+)",
+      "product_polarity": -1,
+      "fiber_polarity": -3,
+      "polarity_divergence": true,
+      "scan_direction": "sell",
+      "product_entries": 10,
+      "fiber_entries": 10,
+      "product_blocks": 10,
+      "fiber_blocks": 10,
+      "decision_diffs": 0
+    },
+    {
+      "config": [
+        -1,
+        -1,
+        0
+      ],
+      "label": "(-,-,0)",
+      "product_polarity": -2,
+      "fiber_polarity": -3,
+      "polarity_divergence": true,
+      "scan_direction": "sell",
+      "product_entries": 10,
+      "fiber_entries": 10,
+      "product_blocks": 10,
+      "fiber_blocks": 10,
+      "decision_diffs": 0
+    },
+    {
+      "config": [
+        -1,
+        -1,
+        -1
+      ],
+      "label": "(-,-,-)",
+      "product_polarity": -3,
+      "fiber_polarity": -3,
+      "polarity_divergence": false,
+      "scan_direction": "sell",
+      "product_entries": 10,
+      "fiber_entries": 10,
+      "product_blocks": 10,
+      "fiber_blocks": 10,
+      "decision_diffs": 0
+    }
+  ]
+}

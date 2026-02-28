@@ -1203,6 +1203,16 @@ nodes:
   status: 已结算
   type: 概念发现 + 工程实现
   file: settled/239-directional-force.md
+- id: '241'
+  title: 共振双管道——_build_resonance_signals 从双层简化升级为双模型并行共振构建
+  status: 已结算
+  type: 工程修复 + 工程集成
+  file: settled/241-resonance-dual-pipeline.md
+- id: '242'
+  title: 共振回测对比——直积 vs 纤维丛筛选器干净度裁决
+  status: 已结算
+  type: 经验验证
+  file: settled/242-resonance-backtest-comparison.md
 edges:
   depends_on:
   - from: '136'
@@ -2391,6 +2401,16 @@ edges:
     to: '235'
   - from: '239'
     to: '237'
+  - from: '241'
+    to: '236'
+  - from: '241'
+    to: '240'
+  - from: '242'
+    to: '236'
+  - from: '242'
+    to: '240'
+  - from: '242'
+    to: '241'
   triggered:
   - from: '005'
     to: 005a
