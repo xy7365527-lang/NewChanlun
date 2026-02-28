@@ -21,13 +21,13 @@ depends_on:
 downstream_inferences:
   - id: 258-1
     description: ceremony_scan 的输入域扩展——纯理论输入（对话记录→本体论形式化）不产生 ceremony_scan 可检测的物质变化，Lead 手动构建工位是正确路径（181号确认）。但 v107 是首次零代码输出的蜂群，验证了 181号分工在极端案例下仍然成立
-    status: 定理类（181号推论，无需修复）
+    status: resolved（181号推论在v107极端案例下验证成立）
   - id: 258-2
     description: Gemini 3.1 Pro thinking 模式产出的否定质量（构造精确反例+追溯上游纤维丛解体）是否应标准化为异质质询的默认要求
     status: 选择类（需编排者价值判断——thinking 模式 token 成本 vs 否定深度）
   - id: 258-3
     description: 256/257 分类为选择类的正当性确认——两者均涉及"完备化方向"而非"逻辑必然推论"，四分法分类正确
-    status: 定理类（四分法018号推论）
+    status: resolved（018号四分法正确分类确认）
 ---
 
 # 258号：元观察——v107-swarm 纯理论蜂群首例
