@@ -3,7 +3,9 @@ id: '257'
 number: 257
 title: 254号定理2——E-$_USD移出ker(D)判据：代理变量范畴错误+相变阈值缺失
 type: 矛盾发现
-status: 生成态
+status: resolved
+resolution: 修正——254号定理2的监控指标（UUP+80%阈值）标注为"代理变量待替换"。UUP语义错误（法币相对汇率≠结算尺地位）是事实，不需要编排者选择即可标注。替代指标的具体选择仍为开放问题。
+resolution_date: 2026-02-28
 date: 2026-02-28
 source: gemini-challenger 工位，Gemini 异质质询
 negation_source: heterogeneous
