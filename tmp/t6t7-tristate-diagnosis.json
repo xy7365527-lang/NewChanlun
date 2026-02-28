@@ -1,0 +1,126 @@
+{
+  "metadata": {
+    "genealogy_id": 237,
+    "title": "T6/T7 三态诊断——229号递归深度问题的三态根因分类",
+    "depends_on": [
+      229,
+      235,
+      236
+    ],
+    "date": "2026-02-28"
+  },
+  "t6_analysis": {
+    "steps": [
+      {
+        "name": "recursive_depth_check",
+        "description": "检查 snap.recursive_snapshots 非空（即 recursive_levels >= 2）",
+        "info_type": "direction",
+        "d_layer_interaction": "D = D3.D2.D1 的递归应用。第一次 D 将 bar->bi->segment->zhongshu->move，第二次 D 将 settled(L1 moves) 作为新的 'bar' 再次 D。递归终止条件 = len(moves) < 3。",
+        "tristate_position": "conditional",
+        "rationale": "递归深度取决于 D 的压缩率。229号发现：500+ bi -> 2-9 segments -> 0-2 zhongshus -> recursive_levels=1。压缩率由线段定义的固有特性决定——线段至少三笔且需要特征序列分型确认终结。这是 D2 层对弱方向信号的吸收（古怪线段吸收机制）在递归叠加时的累积效应：D2 每吸收一轮短程方向噪声，下一层输入的数据量骤降。"
+      },
+      {
+        "name": "level_k_trend_divergence",
+        "description": "高级别趋势背驰：force_a vs force_c（价格振幅力度）",
+        "info_type": "mixed",
+        "d_layer_interaction": "force = (max_high - min_low) * duration。高级别无 MACD 数据，用价格振幅作为力度代理。这是幅度信息（振幅）+ 方向信息（趋势走势的方向）的混合。",
+        "tristate_position": "absorbed",
+        "rationale": "价格振幅力度的核心判据是 force_c < force_a（C段力度小于A段）。这依赖幅度比较——而幅度信息在 D1 层即被丢弃。高级别背驰使用振幅力度作为 MACD 的代理，但振幅恰好是 ker(D) 的典型成员。这意味着高级别背驰判断本质上在使用一个被 D 系统性吸收的信号。"
+      },
+      {
+        "name": "level_k_consolidation_divergence",
+        "description": "高级别盘整背驰：离开中枢的力度比较",
+        "info_type": "mixed",
+        "d_layer_interaction": "同样使用 _amplitude_force，即价格振幅力度。盘整中枢 [ZD,ZG] 由 D3 构造，离开中枢的方向是 D3 保留的信息，但力度比较是幅度信息。",
+        "tristate_position": "absorbed",
+        "rationale": "盘整背驰力度 = 离开中枢的振幅。中枢方向判定 ∉ ker(D)（D3 保留走势方向），但力度衰减判定 ∈ ker(D)（幅度信息被 D1 吸收）。混合判据中的关键比较（力度衰减）属于 ker(D)。"
+      },
+      {
+        "name": "bar_range_narrowing",
+        "description": "区间套向下收缩：从高级别 C 段映射到 bar 范围",
+        "info_type": "direction",
+        "d_layer_interaction": "bar 范围映射只使用 seg_start/seg_end 索引（结构信息），不使用幅度。这是 D 保留的信息——位置关系。",
+        "tristate_position": "preserved",
+        "rationale": "区间套收缩纯粹基于位置索引映射，不涉及幅度。这是 D 的 image 部分——结构方向信息完整保留。"
+      },
+      {
+        "name": "level1_macd_divergence",
+        "description": "L1 MACD 背驰检测（在收缩后的 bar 范围内）",
+        "info_type": "mixed",
+        "d_layer_interaction": "MACD = EMA(close, 12) - EMA(close, 26)。MACD 力度 = 面积（MACD 值之和的绝对值）。close 是精确价格（幅度信息），但 MACD 经过 EMA 平滑后保留了方向趋势（低频方向信号通过 D2 线段滤噪后信噪比上升）。",
+        "tristate_position": "amplified",
+        "rationale": "L1 MACD 背驰在线段级别（D2 后）操作。234号数据表明：方向耦合在 D1→D3 过程中被放大（C-R beta_d1=0.009 -> beta_d3=0.688）。MACD 面积虽然包含幅度信息，但经过 D2 滤噪后方向信号被相对放大。然而，背驰的核心判据仍是 force_c < force_a（力度衰减），这是幅度比较。放大的是方向信号的信噪比，不是幅度比较的有效性。"
+      }
+    ],
+    "tristate_summary": {
+      "category": "conditional-on-absorbed",
+      "description": "T6 的瓶颈是递归深度不足（recursive_levels=1）。递归深度不足的根因是 D2 层对弱方向信号的累积吸收——每次递归迭代，D2 都大规模压缩输入数据量。在三态框架中，这属于 ker(D) 在递归维度的表现：D2 的弱方向吸收使得递归叠加后数据量指数衰减。T6 的两个背驰力度判断步骤（level_k_trend/consolidation）使用价格振幅力度（∈ ker(D)），进一步削弱了信号质量。结论：T6 低贡献率是结构性的——在单 TF 递归架构下不可改变。"
+    }
+  },
+  "t7_analysis": {
+    "steps": [
+      {
+        "name": "type1_trend_divergence_trigger",
+        "description": "Type1 买卖点触发条件：趋势背驰（div.kind == 'trend'）",
+        "info_type": "mixed",
+        "d_layer_interaction": "趋势背驰 = MACD 力度衰减。趋势方向 ∉ ker(D)（D3 保留），力度比较的幅度成分 ∈ ker(D)。",
+        "tristate_position": "absorbed",
+        "rationale": "Type1 的必要前提是趋势背驰，而趋势走势需要 ≥2 中枢。229号数据：L1 中枢 0-2 个，走势 0-1 个，趋势走势极稀缺。即使在有趋势走势的情况下，背驰力度判断的幅度成分 ∈ ker(D)。但 Type1 不依赖跨级别——它可以在 L1 单层触发。低产出原因不在三态位置，而在中枢/走势稀缺。"
+      },
+      {
+        "name": "type1_direction_assignment",
+        "description": "Type1 方向判定：div.direction == 'bottom' -> buy, 'top' -> sell",
+        "info_type": "direction",
+        "d_layer_interaction": "方向由背驰方向决定，纯方向信息。",
+        "tristate_position": "preserved",
+        "rationale": "方向信息 ∉ ker(D)，在离散化后完全保留。"
+      },
+      {
+        "name": "type2_rebound_search",
+        "description": "Type2 回调/反弹搜索：找 Type1 之后的第一个反向段",
+        "info_type": "direction",
+        "d_layer_interaction": "使用 segment.direction 搜索反向段。方向信息由 D1（笔方向）和 D2（线段方向）保留。",
+        "tristate_position": "preserved",
+        "rationale": "Type2 搜索纯粹基于线段方向，不使用幅度信息。方向 ∉ ker(D)。Type2 的低产出完全由 Type1 稀缺导致（Type2 依赖 Type1）。"
+      },
+      {
+        "name": "type3_break_direction",
+        "description": "Type3 中枢突破方向：zs.break_direction",
+        "info_type": "direction",
+        "d_layer_interaction": "中枢突破方向由 D3 构造保留。break_direction = 离开中枢的方向（up/down）。",
+        "tristate_position": "preserved",
+        "rationale": "方向信息 ∉ ker(D)。"
+      },
+      {
+        "name": "type3_pullback_range_check",
+        "description": "Type3 回试范围检查：pullback_seg.low > zs.zg 或 pullback_seg.high < zs.zd",
+        "info_type": "amplitude",
+        "d_layer_interaction": "zg/zd 是中枢区间边界（D3 构造的结构信息，但数值来源是线段端点价格）。pullback_seg.low/high 是线段端点价格。比较 low > zg 或 high < zd 是幅度比较。",
+        "tristate_position": "preserved",
+        "rationale": "这里的幅度比较有特殊性：它不是判断力度衰减（那属于 ker(D)），而是判断位置关系（回试后仍在中枢之外）。位置关系 = 结构信息，由 D3 保留。虽然使用价格数值，但判据实质是拓扑判断（在/不在中枢区间内），不是幅度大小比较。∉ ker(D)。"
+      }
+    ],
+    "tristate_summary": {
+      "category": "preserved-but-starved",
+      "description": "T7 的核心判断步骤大多基于方向信息（∉ ker(D)）。Type3 的位置判断（low > zg / high < zd）虽使用价格数值，但实质是拓扑判断（中枢内外），∉ ker(D)。T7 低产出不是因为信号被 D 吸收，而是因为上游结构稀缺——中枢/走势/背驰太少，导致买卖点触发条件难以满足。T7 的三态位置是 preserved（方向信息保留），但上游 'starved'（数据不足）。Type1 依赖趋势背驰（趋势需要 ≥2 中枢，当前数据 0-2 中枢）。Type2 依赖 Type1（Type1 稀缺 → Type2 更稀缺）。Type3 依赖中枢突破（中枢稀缺 → Type3 稀缺）。"
+    }
+  },
+  "fiber_bundle_impact": {
+    "t6_uses_polarity": false,
+    "t7_uses_polarity": false,
+    "fiber_correction_channel": "纤维丛修正 → TradingContext.polarity → scan_configuration 方向 → 区间套定位/共振仓位/状态机。T6/T7 不在此通道上——它们在构造层（bi/segment/zhongshu/move）操作，不依赖 Configuration 或 polarity_index。",
+    "impact_assessment": "纤维丛修正对 T6/T7 **无直接影响**。236号发现的 45% polarity 差异影响的是策略层（scan_configuration → 仓位），不影响构造层（bi → segment → zhongshu → move → divergence → buysellpoint）。T6/T7 的低贡献率根因在递归深度不足，这是构造层（D 算子的递归应用）的问题，与纤维丛修正所在的策略层无关。\n\n唯一的间接通道：如果纤维丛修正改变了交易决策（通过 polarity 影响入退场），可能影响对 T6/T7 信号的 *使用*，但不影响 T6/T7 信号的 *产生*。产生问题是 229号的核心问题。"
+  },
+  "recursive_depth_analysis": {
+    "d_iteration_count": 2,
+    "compression_per_iteration": "D1: ~10:1（bar→bi）。D2: ~50-100:1（bi→segment，线段引擎压缩率极高——229号实证）。D3: ~3-10:1（segment→zhongshu→move）。单次 D 迭代总压缩率 ~1500-10000:1。",
+    "amplification_after_two_iterations": "235号放大效应是针对跨资产方向耦合（beta_d1→beta_d3）。递归深度问题不是跨资产耦合问题，而是单资产内部的数据量问题。D 的放大效应（滤噪后方向信号信噪比上升）无法解决数据量不足——放大的是信号质量，不是信号数量。recursive_levels=1 意味着 D 的第一次迭代已经把数据压缩到只剩 0-1 个 move，第二次迭代无数据可处理。",
+    "structural_barrier": "D2（线段引擎）的压缩率是结构性瓶颈。缠论线段定义的固有特性：线段至少三笔、需要特征序列分型确认终结、古怪线段被吸收（D2 absorbs_weak_direction=True）。这些公理性约束使得长期数据中的笔被大规模合并为极少线段。例如 GOOGL 388 笔 ≈ 14年数据被合并为 1 条下跌线段。这不是实现缺陷——这是 D2 层按公理执行弱方向信号吸收的结果。在三态框架下，D2 的弱方向吸收导致递归输入数据量骤降，这是 ker(D) 在递归维度上的表现——不是幅度被吸收，而是弱方向信号在递归叠加中被累积吸收。"
+  },
+  "root_cause": "T6/T7 低贡献率的根因在三态框架下分属两类：\n1. T6: ker(D) 在递归维度的累积效应——D2 弱方向吸收导致递归输入指数衰减，recursive_levels 无法突破 1。这是结构性不可达。高级别背驰力度判断使用的幅度信息也 ∈ ker(D)，双重削弱。\n2. T7: ∉ ker(D) 但上游 starved——买卖点判断步骤大多基于方向信息（preserved），但上游构造层产出（中枢/走势/背驰）不足。上游不足又回到 D2 的压缩率问题。\n3. 纤维丛修正（236号）对两者无直接影响——T6/T7 在构造层操作，纤维丛修正在策略层操作，两者在 pipeline 中没有数据通路。",
+  "actionable_paths": [
+    "多 TF 输入（multi-timeframe）：229号已识别此路径。用不同 TF 的 bar 数据分别构建各级别，绕过单 TF 递归中 D2 的压缩率瓶颈。三态分析支持此结论：问题出在 D2 的累积吸收，多 TF 直接绕过 D2 递归叠加。",
+    "高级别背驰力度替代指标：当前 _amplitude_force 使用价格振幅（∈ ker(D)）。如果有方向性力度指标（∉ ker(D)），高级别背驰判断可能更有效。但这不解决递归深度问题，只优化假设递归深度足够时的信号质量。",
+    "不可操作（结构性约束）：D2 的弱方向吸收是缠论线段定义的固有特性。修改 D2 = 修改线段定义 = 修改缠论公理。这不是工程选择，是公理约束。"
+  ]
+}
