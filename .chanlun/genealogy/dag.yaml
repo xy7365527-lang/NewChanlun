@@ -1153,6 +1153,16 @@ nodes:
   status: 已结算
   type: 概念发现
   file: settled/230-k4-independence-real-data.md
+- id: '231'
+  title: 形式化有效域规则——有效域 ≠ 定义域 + 认识论等级标注
+  status: 已结算
+  type: 语法记录
+  file: settled/231-formalization-validity-domain.md
+- id: '232'
+  title: ConfigurationSpace 纤维丛重构——从直积到 B ×_ω F
+  status: 已结算
+  type: 概念发现
+  file: settled/232-config-space-fiber-bundle.md
 edges:
   depends_on:
   - from: '136'
@@ -2299,6 +2309,16 @@ edges:
     to: '215'
   - from: '230'
     to: '229'
+  - from: '231'
+    to: '222'
+  - from: '231'
+    to: '223'
+  - from: '231'
+    to: '230'
+  - from: '231'
+    to: 090
+  - from: '232'
+    to: '230'
   triggered:
   - from: '005'
     to: 005a
