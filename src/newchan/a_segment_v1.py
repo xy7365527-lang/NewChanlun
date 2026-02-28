@@ -125,26 +125,15 @@ def _make_segment(
     if not _top_above_bottom(direction, ep0_price, ep1_price):
         top_price = ep1_price if direction == "up" else ep0_price
         bottom_price = ep0_price if direction == "up" else ep1_price
-        if confirmed:
-            # 已确认段违反硬约束 = 线段划分错误，必须 raise
-            logger.error(
-                "segment top-above-bottom violation (L78): "
-                "direction=%s, s0=%d, s1=%d, top_price=%f, bottom_price=%f, "
-                "top_price must be > bottom_price",
-                direction, s0, s1, top_price, bottom_price,
-            )
-            raise ValueError(
-                f"Segment top-above-bottom violation (第78课硬约束): "
-                f"direction={direction}, s0={s0}, s1={s1}, "
-                f"top_price={top_price}, bottom_price={bottom_price}. "
-                f"顶分型价格必须严格高于底分型价格。"
-            )
-        # 未确认段（候选/中间状态）允许暂时违反，等待后续数据重新划分
+        # 248号修复：L78 违反从 raise 改为 warning。
+        # 第78课"顶高于底"是已完成线段的性质描述。
+        # 当特征序列分型合法触发断段时，断段本身是正确的，
+        # L78 违反说明段方向可能需要重新评估，但不应阻止断段。
         logger.warning(
-            "segment top-above-bottom warning (L78): unconfirmed segment "
-            "direction=%s, s0=%d, s1=%d, top_price=%f, bottom_price=%f — "
-            "will be re-evaluated with incoming data",
-            direction, s0, s1, top_price, bottom_price,
+            "segment top-above-bottom warning (L78): "
+            "direction=%s, s0=%d, s1=%d, top_price=%f, bottom_price=%f, "
+            "confirmed=%s — segment created despite L78 violation",
+            direction, s0, s1, top_price, bottom_price, confirmed,
         )
 
     return Segment(
@@ -376,18 +365,18 @@ def _try_trigger_segment(
         feat.skip_trigger(k)
         return None
 
-    # L78 硬约束前置验证：若产生的段违反顶高于底，则触发无效
+    # L78 后置警告（248号修复：前置 reject → 后置 warning）
+    # 第78课"顶高于底"是已完成线段的性质描述，不应作为形成过程的过滤条件。
+    # 三模型共识：前置验证过严导致 71 strokes → 1 segment 压缩。
     start_type, end_type = _segment_endpoint_types(seg_dir)
     _, ep0_price = _stroke_endpoint_by_type(strokes[seg_start], start_type)
     _, ep1_price = _stroke_endpoint_by_type(strokes[end_stroke], end_type)
     if not _top_above_bottom(seg_dir, ep0_price, ep1_price):
-        logger.debug(
-            "skip trigger: L78 violation seg_dir=%s, s0=%d, s1=%d, "
-            "ep0=%.4f, ep1=%.4f",
+        logger.warning(
+            "L78 warning (post-check): seg_dir=%s, s0=%d, s1=%d, "
+            "ep0=%.4f, ep1=%.4f — proceeding with trigger",
             seg_dir, seg_start, end_stroke, ep0_price, ep1_price,
         )
-        feat.skip_trigger(k)
-        return None
 
     # 结算锚验证：新段前三笔必须有重叠
     if k + 2 >= n or not _three_stroke_overlap(
