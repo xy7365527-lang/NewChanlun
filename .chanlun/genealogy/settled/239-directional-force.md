@@ -1,0 +1,120 @@
+---
+id: '239'
+number: 239
+title: 方向性力度——不依赖幅度的走势强度度量（∉ ker(D)）
+type: 概念发现 + 工程实现
+status: 已结算
+date: 2026-02-28
+source: v96-swarm directional-force 工位
+depends_on:
+  - '235'  # 离散化算子 D 的三态分类
+  - '237'  # T6/T7 三态诊断
+---
+
+# 239号：方向性力度——不依赖幅度的走势强度度量（∉ ker(D)）
+
+## 1. 结论
+
+237号诊断指出：高级别背驰力度判断使用 `_amplitude_force`（价格振幅 = max_high - min_low），这是纯幅度信息，∈ ker(D)。235号证明缠论离散化系统性地吸收幅度信息。因此高级别背驰力度判断本质上在使用一个被 D 吸收的信号。
+
+本谱系设计并实现了三种方向性力度指标，均 ∉ ker(D)：
+
+| 方法 | 名称 | 信息来源 | 三态位置 |
+|------|------|---------|---------|
+| A | directional_persistence | 同向线段比例 + 最长连续同向 | preserved（纯方向信息） |
+| B | stroke_density_force | 笔密度（反转频率） | preserved（D1 输出统计） |
+| C | zhongshu_drift_force | 中枢 [ZD,ZG] 偏移方向 | preserved（D3 保留的位置关系） |
+
+### 方法 A：方向持续性力度
+
+走势中同向线段占比越高、连续同向段越长，力度越强。
+
+- 加权公式：`persistence = (same_dir_count / total) * (max_consecutive_run / total)`
+- 纯方向信息：只看 segment.direction，不看 segment.high/low
+- D1 编码方向、丢弃幅度 → 方向持续性穿透 D 的所有层
+
+### 方法 B：笔密度力度
+
+走势区间内笔数量越多（反转越频繁），力度越弱。
+
+- 公式：`force = 1 / (stroke_count / bar_span)`
+- 依赖 D1 输出的结构密度——趋势性走势笔少，震荡走势笔多
+- 不依赖价格幅度
+
+### 方法 C：中枢偏移力度
+
+连续中枢的中点沿走势方向偏移越大，力度越强。
+
+- 公式：`drift = avg(normalized_shift_per_pair)`
+- normalized_shift = `(curr_mid - prev_mid) / prev_width`
+- 使用中枢间相对位置关系（D3 保留），不使用绝对价格
+
+## 2. 定义依据
+
+### ker(D) 结构（235号）
+
+ker(D) = 纯幅度耦合的集合。D = D3 · D2 · D1 系统性地滤除幅度信息，保留方向信息。
+
+| 信号类型 | D 作用 | 背驰力度关联 |
+|---------|--------|------------|
+| 价格振幅 | ∈ ker(D)，被 D1 丢弃 | 旧 `_amplitude_force` |
+| 线段方向 | ∉ ker(D)，D1 保留 | 方法 A |
+| 笔密度 | ∉ ker(D)，D1 输出统计 | 方法 B |
+| 中枢位置关系 | ∉ ker(D)，D3 保留 | 方法 C |
+
+### 背驰定义（缠论第24/25课）
+
+背驰 = 后段力度 < 前段力度。力度度量本身不是缠论定义的一部分——缠论定义的是"力度比较"的逻辑结构（A 段 vs C 段），不是"力度"的具体计算方式。MACD 面积是辅助工具（第24课明确声明），因此替换力度度量方式不违反缠论定义。
+
+## 3. 边界条件
+
+### 3.1 方向持续性在短段中失灵
+
+当 A 段或 C 段仅包含 1-2 段线段时，方向持续性的统计意义弱。此时笔密度或中枢偏移更可靠。
+
+### 3.2 笔密度估计依赖线段-笔比例假设
+
+`stroke_density_from_segments` 使用 "每段至少 3 笔" 的下界估计。古怪线段或新笔定义可能导致比例偏差。当笔数据可用时，应使用 `stroke_density_force` 直接计算。
+
+### 3.3 中枢偏移需要至少 2 个中枢
+
+盘整背驰（单中枢）无法使用方法 C。此时 composite_directional_force 自动回退到方法 A+B 组合。
+
+### 3.4 不替代 MACD 在 L1 的作用
+
+L1 级别 MACD 面积是混合信号（部分方向 + 部分幅度），且 L1 有 MACD 数据可用。方向性力度主要解决的是高级别无 MACD 数据时的 fallback 力度问题。
+
+## 4. 下游推论
+
+### 4.1 高级别背驰信号质量可能提升
+
+237号指出高级别 `_amplitude_force` ∈ ker(D)，双重削弱 T6 信号。替换为方向性力度后，高级别背驰判断不再使用被 D 系统性吸收的信号。
+
+### 4.2 可作为 adapter 集成到背驰检测
+
+directional_force 模块是独立附加模块，不修改 a_divergence_v1.py。通过 adapter 模式可以在背驰检测中使用方向性力度替代振幅力度。
+
+### 4.3 复合力度可调节权重
+
+composite_directional_force 的权重（0.4/0.3/0.3 或 0.5/0.5）是初始设定，可根据真实数据对比结果调整。
+
+## 5. 谱系引用
+
+- **237号**（T6/T7 三态诊断）：直接前置。诊断了 `_amplitude_force` ∈ ker(D) 的问题，提出了替代力度指标的建议。
+- **235号**（离散化算子 D 的三态分类）：直接前置。提供了 ker(D) = 纯幅度耦合的理论基础和三态分类工具。
+- **233号**（ker(D) 结构）：间接前置。ker(D) 结构定理的推导。
+
+## 6. 影响声明
+
+### 新增文件
+
+1. `src/newchan/topology/directional_force.py`：方向性力度模块（三种方法 + 复合力度 + 对比工具）
+2. `tests/test_topology/test_directional_force.py`：33 个测试（全部通过）
+3. `scripts/directional_force_comparison.py`：SPY 日线数据对比脚本
+4. `.chanlun/genealogy/settled/239-directional-force.md`：本谱系
+
+### 不修改的结构
+
+1. `src/newchan/a_divergence_v1.py`：不修改（adapter 模式）
+2. `src/newchan/a_divergence.py`：不修改
+3. `src/newchan/topology/discretization_kernel.py`：不修改

@@ -1188,6 +1188,21 @@ nodes:
   status: 已结算
   type: 诊断分析
   file: settled/237-t6t7-tristate-diagnosis.md
+- id: '240'
+  title: 纤维丛上下文集成——FiberTradingContext 接入策略层
+  status: 已结算
+  type: 工程集成
+  file: settled/240-fiber-context-integration.md
+- id: '238'
+  title: 多 TF 输入架构——绕过 D2 递归压缩瓶颈
+  status: 已结算
+  type: 工程架构
+  file: settled/238-multi-tf-architecture.md
+- id: '239'
+  title: 方向性力度——不依赖幅度的走势强度度量（∉ ker(D)）
+  status: 已结算
+  type: 概念发现 + 工程实现
+  file: settled/239-directional-force.md
 edges:
   depends_on:
   - from: '136'
@@ -2366,6 +2381,16 @@ edges:
     to: '235'
   - from: '237'
     to: '236'
+  - from: '240'
+    to: '236'
+  - from: '238'
+    to: '229'
+  - from: '238'
+    to: '237'
+  - from: '239'
+    to: '235'
+  - from: '239'
+    to: '237'
   triggered:
   - from: '005'
     to: 005a

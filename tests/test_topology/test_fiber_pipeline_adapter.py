@@ -6,6 +6,9 @@
 3. 当 E = UP, C = DOWN 时修正显著（risk-on/off 分歧点）
 4. 向后兼容：adapter 输出的 config 与原始一致
 5. KL 散度非负
+6. FiberTradingContext 正确构造（240号）
+7. polarity_divergence 检测正确（240号）
+8. FiberSignalFilter 逻辑正确（240号）
 """
 
 import math
@@ -28,8 +31,12 @@ from newchan.topology.fiber_bundle import (
 from newchan.topology.fiber_pipeline_adapter import (
     FiberCorrection,
     FiberPipelineAdapter,
+    FiberSignalFilter,
+    FiberTradingContext,
     compute_fiber_correction,
+    create_fiber_context,
 )
+from newchan.pipeline import TradingContext, create_context
 
 
 class TestFiberCorrection:
@@ -243,3 +250,208 @@ class TestFiberPipelineAdapter:
     def test_flat_global_kl_zero(self, flat_adapter):
         kl = flat_adapter.global_kl_divergence()
         assert abs(kl) < 1e-10
+
+
+# ── 240号：FiberTradingContext 测试 ─────────────────────────────
+
+
+class TestFiberTradingContext:
+    """FiberTradingContext 正确构造。"""
+
+    @pytest.fixture
+    def risk_on_ctx(self):
+        """FULL_RISK_ON 配置的 TradingContext。"""
+        return create_context(FULL_RISK_ON, timestamp=1000.0)
+
+    @pytest.fixture
+    def center_ctx(self):
+        """CENTER 配置的 TradingContext。"""
+        return create_context(CENTER, timestamp=2000.0)
+
+    @pytest.fixture
+    def divergence_ctx(self):
+        """E=UP, C=DOWN 分歧点的 TradingContext。"""
+        config = Configuration(WalkDirection.UP, WalkDirection.DOWN, WalkDirection.FLAT)
+        return create_context(config, timestamp=3000.0)
+
+    def test_wraps_original_ctx(self, risk_on_ctx):
+        """fiber_ctx.ctx 是原始 TradingContext 的引用。"""
+        fiber_ctx = create_fiber_context(risk_on_ctx)
+        assert fiber_ctx.ctx is risk_on_ctx
+
+    def test_config_delegation(self, risk_on_ctx):
+        """config 属性委托给原始 ctx。"""
+        fiber_ctx = create_fiber_context(risk_on_ctx)
+        assert fiber_ctx.config is risk_on_ctx.config
+
+    def test_timestamp_delegation(self, risk_on_ctx):
+        """timestamp 属性委托给原始 ctx。"""
+        fiber_ctx = create_fiber_context(risk_on_ctx)
+        assert fiber_ctx.timestamp == 1000.0
+
+    def test_product_polarity_matches_ctx(self, risk_on_ctx):
+        """product_polarity 与原始 ctx.polarity 一致。"""
+        fiber_ctx = create_fiber_context(risk_on_ctx)
+        assert fiber_ctx.product_polarity == risk_on_ctx.polarity
+
+    def test_fiber_correction_present(self, risk_on_ctx):
+        """fiber_correction 是 FiberCorrection 实例。"""
+        fiber_ctx = create_fiber_context(risk_on_ctx)
+        assert isinstance(fiber_ctx.fiber_correction, FiberCorrection)
+
+    def test_fiber_polarity_is_int(self, risk_on_ctx):
+        """fiber_polarity 是整数。"""
+        fiber_ctx = create_fiber_context(risk_on_ctx)
+        assert isinstance(fiber_ctx.fiber_polarity, int)
+
+    def test_correction_confidence_is_kl(self, risk_on_ctx):
+        """correction_confidence 等于 KL 散度。"""
+        fiber_ctx = create_fiber_context(risk_on_ctx)
+        assert fiber_ctx.correction_confidence == fiber_ctx.fiber_correction.kl_divergence
+
+    def test_center_no_divergence(self, center_ctx):
+        """底空间中心无 polarity 分歧。"""
+        fiber_ctx = create_fiber_context(center_ctx)
+        assert not fiber_ctx.polarity_divergence
+
+    def test_center_zero_confidence(self, center_ctx):
+        """底空间中心的修正置信度为 0。"""
+        fiber_ctx = create_fiber_context(center_ctx)
+        assert abs(fiber_ctx.correction_confidence) < 1e-10
+
+    def test_immutability(self, risk_on_ctx):
+        """FiberTradingContext 是不可变的（frozen=True）。"""
+        fiber_ctx = create_fiber_context(risk_on_ctx)
+        with pytest.raises(AttributeError):
+            fiber_ctx.fiber_polarity = 999  # type: ignore[misc]
+
+    def test_custom_fiber_bundle(self, risk_on_ctx):
+        """可以传入自定义纤维丛。"""
+        flat_fb = FiberBundleConfigSpace(Connection(0.0, 0.0))
+        fiber_ctx = create_fiber_context(risk_on_ctx, flat_fb)
+        assert abs(fiber_ctx.correction_confidence) < 1e-10
+        assert not fiber_ctx.polarity_divergence
+
+
+class TestPolarityDivergenceDetection:
+    """polarity_divergence 检测正确。"""
+
+    def test_all_flat_base_no_divergence(self):
+        """底空间 (FLAT, FLAT) 上所有 R 值无 polarity 分歧。"""
+        for r in WalkDirection:
+            config = Configuration(WalkDirection.FLAT, WalkDirection.FLAT, r)
+            ctx = create_context(config)
+            fiber_ctx = create_fiber_context(ctx)
+            assert not fiber_ctx.polarity_divergence
+
+    def test_flat_connection_no_divergence(self):
+        """平坦联络下所有配置无 polarity 分歧。"""
+        flat_fb = FiberBundleConfigSpace(Connection(0.0, 0.0))
+        for e in WalkDirection:
+            for c in WalkDirection:
+                for r in WalkDirection:
+                    config = Configuration(e, c, r)
+                    ctx = create_context(config)
+                    fiber_ctx = create_fiber_context(ctx, flat_fb)
+                    assert not fiber_ctx.polarity_divergence
+
+    def test_divergence_possible_for_non_flat(self):
+        """非平坦底空间上存在 polarity 分歧的配置。"""
+        divergence_found = False
+        for e in WalkDirection:
+            for c in WalkDirection:
+                for r in WalkDirection:
+                    config = Configuration(e, c, r)
+                    ctx = create_context(config)
+                    fiber_ctx = create_fiber_context(ctx)
+                    if fiber_ctx.polarity_divergence:
+                        divergence_found = True
+                        break
+                if divergence_found:
+                    break
+            if divergence_found:
+                break
+        assert divergence_found, "默认联络下应存在至少一个 polarity 分歧的配置"
+
+
+class TestFiberSignalFilter:
+    """FiberSignalFilter 逻辑正确。"""
+
+    @pytest.fixture
+    def default_filter(self):
+        return FiberSignalFilter()
+
+    @pytest.fixture
+    def high_threshold_filter(self):
+        return FiberSignalFilter(kl_threshold=100.0)
+
+    def test_no_override_when_no_divergence(self, default_filter):
+        """无 polarity 分歧时不覆盖。"""
+        ctx = create_context(CENTER)
+        fiber_ctx = create_fiber_context(ctx)
+        assert not default_filter.should_override_polarity(fiber_ctx)
+
+    def test_no_override_with_high_threshold(self, high_threshold_filter):
+        """高阈值时即使有分歧也不覆盖。"""
+        # 找一个有分歧的配置
+        for e in WalkDirection:
+            for c in WalkDirection:
+                for r in WalkDirection:
+                    config = Configuration(e, c, r)
+                    ctx = create_context(config)
+                    fiber_ctx = create_fiber_context(ctx)
+                    # 即使有分歧，阈值太高也不覆盖
+                    assert not high_threshold_filter.should_override_polarity(fiber_ctx)
+
+    def test_override_when_divergence_and_sufficient_confidence(self, default_filter):
+        """有分歧且置信度足够时覆盖。"""
+        override_found = False
+        for e in WalkDirection:
+            for c in WalkDirection:
+                for r in WalkDirection:
+                    config = Configuration(e, c, r)
+                    ctx = create_context(config)
+                    fiber_ctx = create_fiber_context(ctx)
+                    if default_filter.should_override_polarity(fiber_ctx):
+                        assert fiber_ctx.polarity_divergence
+                        assert fiber_ctx.correction_confidence > 0.0
+                        override_found = True
+        assert override_found, "默认联络下应存在被覆盖的配置"
+
+    def test_correction_report_structure(self, default_filter):
+        """修正报告包含所有必要字段。"""
+        ctx = create_context(FULL_RISK_ON, timestamp=42.0)
+        fiber_ctx = create_fiber_context(ctx)
+        report = default_filter.correction_report(fiber_ctx)
+
+        required_keys = {
+            "product_polarity",
+            "fiber_polarity",
+            "polarity_divergence",
+            "should_override",
+            "kl_divergence",
+            "correction_magnitude",
+            "r_prob_product",
+            "r_prob_fiber",
+            "config",
+            "timestamp",
+        }
+        assert set(report.keys()) == required_keys
+
+    def test_correction_report_values(self, default_filter):
+        """修正报告的值与 FiberTradingContext 一致。"""
+        ctx = create_context(FULL_RISK_ON, timestamp=42.0)
+        fiber_ctx = create_fiber_context(ctx)
+        report = default_filter.correction_report(fiber_ctx)
+
+        assert report["product_polarity"] == fiber_ctx.product_polarity
+        assert report["fiber_polarity"] == fiber_ctx.fiber_polarity
+        assert report["polarity_divergence"] == fiber_ctx.polarity_divergence
+        assert report["kl_divergence"] == fiber_ctx.fiber_correction.kl_divergence
+        assert report["timestamp"] == 42.0
+        assert report["config"] == FULL_RISK_ON.as_tuple
+
+    def test_kl_threshold_property(self):
+        """kl_threshold 属性可读。"""
+        f = FiberSignalFilter(kl_threshold=0.5)
+        assert f.kl_threshold == 0.5
