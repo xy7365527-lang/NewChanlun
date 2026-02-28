@@ -1,7 +1,7 @@
 """降成本状态机测试 — TDD RED phase。
 
 认识论标注：L0（从267号定义直接推导的代数结构）。
-谱系引用：267号操作方法论 v1。
+谱系引用：267号操作方法论 v1，268a号结算修正。
 """
 
 from __future__ import annotations
@@ -393,3 +393,143 @@ class TestImmutability:
         assert new is not fsm
         assert fsm.state == CostState.SCANNING
         assert new.state == CostState.POSITION_OPEN
+
+
+# ═══════════════════════════════════════════════════════════════
+# 8. 268a攻击1：初始自有资金动态重置
+# ═══════════════════════════════════════════════════════════════
+
+
+class TestOwnCapitalReset:
+    """268a攻击1修正：RESET 事件携带新 own_capital，每次循环独立核算。"""
+
+    def test_reset_with_new_own_capital(self) -> None:
+        """止损后 RESET 携带缩水后的实际资金。"""
+        fsm = _open_position(_make_fsm(equity=100_000.0, margin=100_000.0))
+        # 止损
+        fsm = transition(fsm, FsmEvent(
+            event_type=FsmEventType.BUY_POINT_NEGATED,
+            price=8.0,
+            level="30min",
+        ))
+        assert fsm.state == CostState.STOPPED_OUT
+        # RESET 时传入缩水后的实际资金
+        new_capital = 80_000.0
+        fsm = transition(fsm, FsmEvent(
+            event_type=FsmEventType.RESET,
+            price=0.0,
+            level="",
+            new_own_capital=new_capital,
+        ))
+        assert fsm.state == CostState.SCANNING
+        assert fsm.own_capital == pytest.approx(new_capital)
+
+    def test_reset_without_new_own_capital_preserves_old(self) -> None:
+        """向后兼容：不传 new_own_capital 时沿用原值。"""
+        fsm = _open_position(_make_fsm(equity=100_000.0, margin=100_000.0))
+        fsm = transition(fsm, FsmEvent(
+            event_type=FsmEventType.BUY_POINT_NEGATED,
+            price=8.0,
+            level="30min",
+        ))
+        fsm = transition(fsm, FsmEvent(
+            event_type=FsmEventType.RESET,
+            price=0.0,
+            level="",
+        ))
+        assert fsm.own_capital == pytest.approx(100_000.0)
+
+    def test_consecutive_stop_loss_capital_shrinks(self) -> None:
+        """连续止损后，每次 RESET 传入缩水资金，建仓规模随之缩小。"""
+        capital = 100_000.0
+        margin = 100_000.0
+        fsm = CostReductionFSM.create(own_capital=capital, margin_amount=margin)
+
+        for shrunk_capital in [80_000.0, 64_000.0, 51_200.0]:
+            # 建仓
+            fsm = transition(fsm, FsmEvent(
+                event_type=FsmEventType.BUY_POINT_CONFIRMED,
+                price=10.0,
+                level="30min",
+            ))
+            # 止损
+            fsm = transition(fsm, FsmEvent(
+                event_type=FsmEventType.BUY_POINT_NEGATED,
+                price=8.0,
+                level="30min",
+            ))
+            # RESET 传入缩水后资金
+            fsm = transition(fsm, FsmEvent(
+                event_type=FsmEventType.RESET,
+                price=0.0,
+                level="",
+                new_own_capital=shrunk_capital,
+            ))
+            assert fsm.own_capital == pytest.approx(shrunk_capital)
+
+        # 最终以 51200 建仓，份额应该是 (51200 + 100000) / 10
+        fsm = transition(fsm, FsmEvent(
+            event_type=FsmEventType.BUY_POINT_CONFIRMED,
+            price=10.0,
+            level="30min",
+        ))
+        expected_shares = (51_200.0 + margin) / 10.0
+        assert fsm.total_shares == pytest.approx(expected_shares)
+
+
+# ═══════════════════════════════════════════════════════════════
+# 9. 268a攻击2：最小可操作级别外部参数
+# ═══════════════════════════════════════════════════════════════
+
+
+class TestMinOperableLevel:
+    """268a攻击2修正：min_operable_level 作为不入语法的外部参数标注。"""
+
+    def test_default_min_operable_level_is_empty(self) -> None:
+        fsm = _make_fsm()
+        assert fsm.min_operable_level == ""
+
+    def test_create_with_min_operable_level(self) -> None:
+        fsm = CostReductionFSM.create(
+            own_capital=100_000.0,
+            min_operable_level="5min",
+        )
+        assert fsm.min_operable_level == "5min"
+
+    def test_min_operable_level_preserved_through_transitions(self) -> None:
+        """min_operable_level 在状态转移中保持不变。"""
+        fsm = CostReductionFSM.create(
+            own_capital=100_000.0,
+            margin_amount=100_000.0,
+            min_operable_level="5min",
+        )
+        fsm = transition(fsm, FsmEvent(
+            event_type=FsmEventType.BUY_POINT_CONFIRMED,
+            price=10.0,
+            level="30min",
+        ))
+        assert fsm.min_operable_level == "5min"
+
+    def test_min_operable_level_preserved_after_reset(self) -> None:
+        """RESET 后 min_operable_level 不丢失。"""
+        fsm = CostReductionFSM.create(
+            own_capital=100_000.0,
+            margin_amount=100_000.0,
+            min_operable_level="5min",
+        )
+        fsm = transition(fsm, FsmEvent(
+            event_type=FsmEventType.BUY_POINT_CONFIRMED,
+            price=10.0,
+            level="30min",
+        ))
+        fsm = transition(fsm, FsmEvent(
+            event_type=FsmEventType.BUY_POINT_NEGATED,
+            price=8.0,
+            level="30min",
+        ))
+        fsm = transition(fsm, FsmEvent(
+            event_type=FsmEventType.RESET,
+            price=0.0,
+            level="",
+        ))
+        assert fsm.min_operable_level == "5min"
