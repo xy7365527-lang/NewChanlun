@@ -7,7 +7,8 @@ status: 生成态
 date: 2026-02-28
 source: gemini-challenger 工位，Gemini 异质质询
 negation_source: heterogeneous
-negation_form: unclassified
+negation_form: 选择类（替代指标需编排者决断：石油-黄金比价/复合指标/标记不可操作化）
+four_category: 选择
 negation_model: gemini-3.1-pro-preview
 depends_on:
   - '254'  # 多经济体资本流转本体论

@@ -7,7 +7,8 @@ status: 生成态
 date: 2026-02-28
 source: gemini-challenger 工位，Gemini 异质质询（双轮）
 negation_source: heterogeneous
-negation_form: unclassified
+negation_form: 选择类（完备化方向需编排者决断：补推导链/降级启发式/删除定理1）
+four_category: 选择
 negation_model: gemini-2.5-pro（第二轮）/ gemini-3.1-pro-preview（第一轮）
 depends_on:
   - '254'  # 多经济体资本流转本体论
