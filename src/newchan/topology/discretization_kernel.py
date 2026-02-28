@@ -1,9 +1,14 @@
-"""离散化算子 D 的核（kernel）结构 — 缠论的内在选择性原理。
+"""离散化算子 D 的核（kernel）结构与三态分类 — 缠论的内在选择性原理。
 
 233号谱系：离散化算子 D 的核结构。
+235号谱系：D 的三态分类——吸收/保留/放大。
 
 缠论的离散化不是对连续动力学的近似，而是拓扑滤波器。
-它系统性地吸收幅度耦合，保留方向耦合。
+D 对耦合模式的作用是三态的：
+
+  1. 吸收（ker(D)）：纯幅度耦合 → 0
+  2. 保留：底空间独立耦合 → 不变
+  3. 放大（image(D) 的非平凡部分）：方向耦合通过噪声滤除被相对放大
 
 离散化算子 D = D3 . D2 . D1：
 
@@ -32,6 +37,12 @@ ker(D) 的结构定理：
   D2 通过特征序列合并吸收短程方向噪声 -> 弱方向耦合部分进入 ker(D2)
   D3 通过中枢吸收区间内振荡 -> 中枢内振荡幅度耦合 in ker(D3)
 
+放大机制（235号）：
+  D 的每一层滤除幅度噪声（ker 部分），使方向信号的信噪比递增。
+  C-R 避险方向耦合在 D1（笔）层面信噪比低（被幅度噪声淹没），
+  经 D2（线段滤噪）和 D3（中枢吸收区间振荡）后信噪比急剧上升。
+  234号数据：C-R β_d1=0.009 → β_d3=0.688，放大比≈76倍。
+
 232号经验验证：
   - E-R: partial_corr = -0.336, beta = -0.017 -> ker(D) (幅度跷跷板被 FLAT 吸收)
   - C-R: partial_corr = 0.153, beta = 0.688 -> not ker(D) (方向避险同步性穿透)
@@ -47,11 +58,12 @@ from typing import Literal
 
 
 class CouplingType(Enum):
-    """耦合类型分类。"""
+    """耦合类型分类（235号三态扩展）。"""
 
-    AMPLITUDE = "amplitude"  # 纯幅度耦合：方向独立但幅度相关
-    DIRECTION = "direction"  # 方向耦合：方向本身存在相关性
+    AMPLITUDE = "amplitude"  # 纯幅度耦合：方向独立但幅度相关（ker(D)）
+    DIRECTION = "direction"  # 方向耦合：方向本身存在相关性（not ker(D)）
     INDEPENDENT = "independent"  # 底空间独立（不走联络）
+    AMPLIFIED = "amplified"  # 方向耦合被递归放大（image(D) 非平凡部分）
 
 
 @dataclass(frozen=True, slots=True)
@@ -222,28 +234,40 @@ def classify_coupling(
     partial_corr: float,
     beta: float,
     *,
+    beta_d3: float | None = None,
     kernel_threshold: float = 0.05,
     independence_threshold: float = 0.05,
+    amplification_threshold: float = 5.0,
 ) -> CouplingClassification:
     """判断一对资产间的耦合是否属于 ker(D)。
 
     基于连续偏相关和离散联络参数的对比，判断耦合类型。
+    235号扩展：当同时提供 D1 级 beta 和 D3 级 beta_d3 时，
+    检测放大态（AMPLIFIED）。
 
     判断逻辑：
     1. 如果 |partial_corr| < independence_threshold -> INDEPENDENT（底空间独立）
-    2. 如果 |partial_corr| 显著但 |beta| < kernel_threshold -> AMPLITUDE（ker(D)）
-    3. 如果 |beta| >= kernel_threshold -> DIRECTION（not ker(D)）
+    2. 如果提供 beta_d3 且 |beta_d3| / max(|beta|, epsilon) > amplification_threshold
+       -> AMPLIFIED（方向耦合被递归放大）
+    3. 如果 |partial_corr| 显著但 |beta| < kernel_threshold -> AMPLITUDE（ker(D)）
+    4. 如果 |beta| >= kernel_threshold -> DIRECTION（not ker(D)）
 
     Parameters
     ----------
     partial_corr : float
         连续收益率的偏相关系数。
     beta : float
-        离散联络参数（纤维丛 softmax 模型的耦合系数）。
+        离散联络参数（D1 级，纤维丛 softmax 模型的耦合系数）。
+    beta_d3 : float | None
+        D3 级离散联络参数（走势方向级别），可选。
+        提供时启用三态放大检测。
     kernel_threshold : float
         离散耦合的显著性阈值。|beta| 低于此值视为被吸收。
     independence_threshold : float
         底空间独立性阈值。|partial_corr| 低于此值视为独立。
+    amplification_threshold : float
+        放大比阈值。|beta_d3| / max(|beta|, epsilon) 超过此值时分类为 AMPLIFIED。
+        默认 5.0（五倍放大）。
 
     Returns
     -------
@@ -267,7 +291,20 @@ def classify_coupling(
     else:
         absorption = 0.0
 
-    # Case 2: 连续层面有耦合，离散层面被吸收 -> ker(D)
+    # Case 2: 放大检测（235号三态扩展）
+    if beta_d3 is not None:
+        abs_beta_d3 = abs(beta_d3)
+        _epsilon = 1e-10
+        ratio = abs_beta_d3 / max(abs_beta, _epsilon)
+        if ratio > amplification_threshold and abs_beta_d3 >= kernel_threshold:
+            return CouplingClassification(
+                coupling_type=CouplingType.AMPLIFIED,
+                in_kernel=False,
+                absorption_ratio=0.0,
+                dominant_layer="none",
+            )
+
+    # Case 3: 连续层面有耦合，离散层面被吸收 -> ker(D)
     if abs_beta < kernel_threshold:
         return CouplingClassification(
             coupling_type=CouplingType.AMPLITUDE,
@@ -276,7 +313,7 @@ def classify_coupling(
             dominant_layer=_identify_dominant_layer(abs_pc, abs_beta),
         )
 
-    # Case 3: 离散层面仍有显著耦合 -> not ker(D)
+    # Case 4: 离散层面仍有显著耦合 -> not ker(D)
     return CouplingClassification(
         coupling_type=CouplingType.DIRECTION,
         in_kernel=False,
@@ -310,6 +347,96 @@ def _identify_dominant_layer(abs_pc: float, abs_beta: float) -> str:
     if abs_pc > 0.1:
         return "D1"
     return "D3"
+
+
+# ── 放大分析（235号三态扩展）──────────────────────────────────
+
+
+@dataclass(frozen=True, slots=True)
+class AmplificationAnalysis:
+    """方向耦合放大分析结果（235号）。
+
+    当方向耦合在 D1→D3 过程中被放大时，记录放大的定量和定性信息。
+
+    放大机制：D 的每一层滤除幅度噪声（ker 部分），使方向信号的
+    信噪比递增。这不是绝对放大，而是噪声滤除后的相对放大。
+
+    Attributes
+    ----------
+    amplification_ratio : float
+        放大比 = |beta_d3| / max(|beta_d1|, epsilon)。
+    mechanism : str
+        放大机制的描述。
+    resonance_layers : tuple[str, ...]
+        产生共振/放大的层。
+    """
+
+    amplification_ratio: float
+    mechanism: str
+    resonance_layers: tuple[str, ...]
+
+
+def analyze_amplification(
+    beta_d1: float,
+    beta_d3: float,
+    partial_corr: float,
+) -> AmplificationAnalysis:
+    """分析方向耦合在 D1→D3 过程中的放大效应。
+
+    从缠论公理推导放大机制：
+    - D1（笔）保留方向但不放大：笔只编码方向，不累积信号
+    - D2（线段）通过特征序列合并滤除短程噪声，使弱方向信号信噪比上升
+    - D3（中枢→走势）通过 [ZD,ZG] 区间吸收幅度振荡，方向信号相对增强
+
+    每一层滤除幅度噪声 = 放大方向信号的相对强度。
+
+    Parameters
+    ----------
+    beta_d1 : float
+        D1 级（笔方向）离散联络参数。
+    beta_d3 : float
+        D3 级（走势方向）离散联络参数。
+    partial_corr : float
+        连续层偏相关系数。
+
+    Returns
+    -------
+    AmplificationAnalysis
+    """
+    _epsilon = 1e-10
+    abs_d1 = abs(beta_d1)
+    abs_d3 = abs(beta_d3)
+    ratio = abs_d3 / max(abs_d1, _epsilon)
+
+    # 识别共振层
+    resonance: list[str] = []
+    if abs_d1 < abs_d3:
+        # D2 滤除短程噪声使信噪比上升
+        resonance.append("D2")
+        # D3 吸收区间振荡使方向信号相对增强
+        resonance.append("D3")
+
+    mechanism_parts: list[str] = []
+    if "D2" in resonance:
+        mechanism_parts.append(
+            "D2（线段）通过特征序列合并滤除短程方向噪声，"
+            "使弱方向信号的信噪比上升"
+        )
+    if "D3" in resonance:
+        mechanism_parts.append(
+            "D3（中枢→走势）通过 [ZD,ZG] 区间吸收幅度振荡，"
+            "方向信号相对增强"
+        )
+    if not mechanism_parts:
+        mechanism_parts.append("无显著放大（D1→D3 信号强度未增加）")
+
+    mechanism = "；".join(mechanism_parts)
+
+    return AmplificationAnalysis(
+        amplification_ratio=ratio,
+        mechanism=mechanism,
+        resonance_layers=tuple(resonance),
+    )
 
 
 # ── 离散化算子（形式化表示）──────────────────────────────────
@@ -394,4 +521,61 @@ class DiscretizationOperator:
             "E-R": self.classify(partial_corr=-0.336, beta=-0.017),
             "C-R": self.classify(partial_corr=0.153, beta=0.688),
             "E-C": self.classify(partial_corr=-0.029, beta=0.0),
+        }
+
+    def tristate_classify(
+        self,
+        partial_corr: float,
+        beta_d1: float,
+        beta_d3: float,
+        **kwargs: float,
+    ) -> CouplingClassification:
+        """三态分类（235号）：吸收/保留/放大。
+
+        同时考虑 D1 级和 D3 级离散参数，检测放大态。
+
+        Parameters
+        ----------
+        partial_corr : float
+            连续收益率偏相关。
+        beta_d1 : float
+            D1 级（笔方向）离散联络参数。
+        beta_d3 : float
+            D3 级（走势方向）离散联络参数。
+        **kwargs
+            传递给 classify_coupling 的额外关键字参数。
+
+        Returns
+        -------
+        CouplingClassification
+        """
+        return classify_coupling(
+            partial_corr, beta_d1, beta_d3=beta_d3, **kwargs,
+        )
+
+    def verify_234(self) -> dict[str, CouplingClassification]:
+        """用 234号六条边数据验证三态分类。
+
+        234号数据（4780 交易日，SPY/GLD/TLT/UUP）。
+        C-R 使用双层数据（beta_d1=0.009, beta_d3=0.688）启用放大检测。
+        其他五条边仅有 D1 层数据。
+
+        Returns
+        -------
+        dict[str, CouplingClassification]
+            六条边的分类结果。
+        """
+        return {
+            # 吸收态：强连续耦合被 D 几乎完全吸收
+            "E-R": self.classify(partial_corr=-0.317, beta=-0.020),
+            "E-$": self.classify(partial_corr=-0.183, beta=-0.006),
+            "C-$": self.classify(partial_corr=-0.414, beta=-0.030),
+            # 吸收态（边界）：弱连续耦合，弱吸收
+            "R-$": self.classify(partial_corr=-0.065, beta=0.050),
+            # 放大态：D1 近零，D3 强耦合
+            "C-R": self.tristate_classify(
+                partial_corr=0.166, beta_d1=0.009, beta_d3=0.688,
+            ),
+            # 保留态：底空间独立（沿用 232号偏相关 -0.029）
+            "E-C": self.classify(partial_corr=-0.029, beta=0.023),
         }
