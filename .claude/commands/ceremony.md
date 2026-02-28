@@ -15,6 +15,24 @@ scan 输出什么就 spawn 什么。Lead 不做实质认知工作。
         mode="bypassPermissions", run_in_background=true, prompt="...")
    ```
    无 depends_on 的工位并行，有 depends_on 的按序。
+
+   **递归判断注入（强制，不可省略）**：每个工位的 prompt 开头必须包含以下递归判断块。
+   Lead 在构建 prompt 时将模板变量替换为实际值后注入。
+
+   ```
+   ## 递归判断（必须执行，不可跳过）
+
+   在开始执行任务前，评估当前任务：
+   1. 是否可分解为 ≥2 个独立子任务？
+   2. 如果是 → 读取 .claude/skills/sub-swarm-ceremony/SKILL.md，执行子蜂群创建
+   3. 如果否 → 在当前层直接执行（扁平退化特例，需在产出中记录理由："任务不可分解因为 [具体原因]"）
+
+   topo_address: {team_name}/{agent_name}
+   depth_budget: {N}  # Lead 从自身 depth_budget 减1 传递；depth_budget=0 时禁止递归，直接执行
+   parent_callback: team-lead
+   ```
+
+   depth_budget 初始值由 Lead 在 ceremony 入口设定，默认 3。每层递归减 1 传递给子工位。
 6. RTAS 循环（consume）：
    - `TaskList` 查看状态
    - 完成的工位：汇报 + `shutdown_request`（批量并行，不逐个串行）
