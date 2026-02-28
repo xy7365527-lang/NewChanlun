@@ -48,3 +48,4 @@ deploy/
 # Data files
 data/
 .coverage
+.env.local
