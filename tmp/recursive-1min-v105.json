@@ -1,0 +1,424 @@
+{
+  "data_source": "yfinance",
+  "symbol": "SPY",
+  "interval": "1min",
+  "bar_count": 7409,
+  "bar_range": {
+    "first": "2026-02-02T09:30:00-05:00",
+    "last": "2026-02-27T15:59:00-05:00"
+  },
+  "level_1": {
+    "stroke_count": 541,
+    "segment_count": 59,
+    "zhongshu_count": 10,
+    "move_count": 9,
+    "bsp_count": 7,
+    "segments_detail": [
+      {
+        "s0": 1,
+        "s1": 3,
+        "direction": "up",
+        "high": 695.75,
+        "low": 692.0999755859375,
+        "confirmed": true,
+        "settled": null
+      },
+      {
+        "s0": 4,
+        "s1": 14,
+        "direction": "down",
+        "high": 696.9299926757812,
+        "low": 693.9199829101562,
+        "confirmed": true,
+        "settled": null
+      },
+      {
+        "s0": 15,
+        "s1": 19,
+        "direction": "up",
+        "high": 696.8800048828125,
+        "low": 695.6849975585938,
+        "confirmed": true,
+        "settled": null
+      },
+      {
+        "s0": 20,
+        "s1": 36,
+        "direction": "down",
+        "high": 696.9600219726562,
+        "low": 690.7999877929688,
+        "confirmed": true,
+        "settled": null
+      },
+      {
+        "s0": 37,
+        "s1": 51,
+        "direction": "up",
+        "high": 693.4299926757812,
+        "low": 684.030029296875,
+        "confirmed": true,
+        "settled": null
+      },
+      {
+        "s0": 509,
+        "s1": 519,
+        "direction": "up",
+        "high": 686.2899169921875,
+        "low": 682.469970703125,
+        "confirmed": true,
+        "settled": null
+      },
+      {
+        "s0": 520,
+        "s1": 528,
+        "direction": "down",
+        "high": 686.2899169921875,
+        "low": 683.0599975585938,
+        "confirmed": true,
+        "settled": null
+      },
+      {
+        "s0": 529,
+        "s1": 531,
+        "direction": "up",
+        "high": 684.97998046875,
+        "low": 683.0599975585938,
+        "confirmed": true,
+        "settled": null
+      },
+      {
+        "s0": 532,
+        "s1": 536,
+        "direction": "down",
+        "high": 684.97998046875,
+        "low": 682.989990234375,
+        "confirmed": true,
+        "settled": null
+      },
+      {
+        "s0": 537,
+        "s1": 540,
+        "direction": "up",
+        "high": 686.1500244140625,
+        "low": 682.989990234375,
+        "confirmed": false,
+        "settled": null
+      }
+    ],
+    "zhongshus_detail": [
+      {
+        "zd": 695.6849975585938,
+        "zg": 695.75,
+        "seg_start": 0,
+        "seg_end": 3,
+        "seg_count": 4,
+        "settled": true,
+        "break_direction": "down"
+      },
+      {
+        "zd": 690.7999877929688,
+        "zg": 691.4500122070312,
+        "seg_start": 3,
+        "seg_end": 6,
+        "seg_count": 4,
+        "settled": true,
+        "break_direction": "down"
+      },
+      {
+        "zd": 681.760009765625,
+        "zg": 682.614990234375,
+        "seg_start": 6,
+        "seg_end": 10,
+        "seg_count": 5,
+        "settled": true,
+        "break_direction": "up"
+      },
+      {
+        "zd": 693.8900146484375,
+        "zg": 695.6599731445312,
+        "seg_start": 12,
+        "seg_end": 19,
+        "seg_count": 8,
+        "settled": true,
+        "break_direction": "down"
+      },
+      {
+        "zd": 691.3900146484375,
+        "zg": 693.4500122070312,
+        "seg_start": 19,
+        "seg_end": 24,
+        "seg_count": 6,
+        "settled": true,
+        "break_direction": "down"
+      },
+      {
+        "zd": 682.219970703125,
+        "zg": 685.9650268554688,
+        "seg_start": 24,
+        "seg_end": 32,
+        "seg_count": 9,
+        "settled": true,
+        "break_direction": "up"
+      },
+      {
+        "zd": 687.8900146484375,
+        "zg": 688.7249755859375,
+        "seg_start": 32,
+        "seg_end": 35,
+        "seg_count": 4,
+        "settled": true,
+        "break_direction": "down"
+      },
+      {
+        "zd": 682.9600219726562,
+        "zg": 685.8300170898438,
+        "seg_start": 35,
+        "seg_end": 45,
+        "seg_count": 11,
+        "settled": true,
+        "break_direction": "up"
+      },
+      {
+        "zd": 691.7999877929688,
+        "zg": 691.989990234375,
+        "seg_start": 46,
+        "seg_end": 49,
+        "seg_count": 4,
+        "settled": true,
+        "break_direction": "down"
+      },
+      {
+        "zd": 684.739990234375,
+        "zg": 689.0999755859375,
+        "seg_start": 49,
+        "seg_end": 57,
+        "seg_count": 9,
+        "settled": false,
+        "break_direction": ""
+      }
+    ],
+    "moves_detail": [
+      {
+        "kind": "consolidation",
+        "direction": "down",
+        "seg_start": 0,
+        "seg_end": 2,
+        "zs_start": 0,
+        "zs_end": 0,
+        "zs_count": 1,
+        "settled": true,
+        "high": 696.9600219726562,
+        "low": 690.7999877929688
+      },
+      {
+        "kind": "consolidation",
+        "direction": "down",
+        "seg_start": 3,
+        "seg_end": 5,
+        "zs_start": 1,
+        "zs_end": 1,
+        "zs_count": 1,
+        "settled": true,
+        "high": 696.9600219726562,
+        "low": 681.760009765625
+      },
+      {
+        "kind": "consolidation",
+        "direction": "up",
+        "seg_start": 6,
+        "seg_end": 11,
+        "zs_start": 2,
+        "zs_end": 2,
+        "zs_count": 1,
+        "settled": true,
+        "high": 690.8499755859375,
+        "low": 675.7899780273438
+      },
+      {
+        "kind": "consolidation",
+        "direction": "down",
+        "seg_start": 12,
+        "seg_end": 18,
+        "zs_start": 3,
+        "zs_end": 3,
+        "zs_count": 1,
+        "settled": true,
+        "high": 697.1300048828125,
+        "low": 688.3400268554688
+      },
+      {
+        "kind": "consolidation",
+        "direction": "down",
+        "seg_start": 19,
+        "seg_end": 23,
+        "zs_start": 4,
+        "zs_end": 4,
+        "zs_count": 1,
+        "settled": true,
+        "high": 697.1300048828125,
+        "low": 682.219970703125
+      },
+      {
+        "kind": "consolidation",
+        "direction": "up",
+        "seg_start": 24,
+        "seg_end": 31,
+        "zs_start": 5,
+        "zs_end": 5,
+        "zs_count": 1,
+        "settled": true,
+        "high": 695.3499755859375,
+        "low": 675.780029296875
+      },
+      {
+        "kind": "consolidation",
+        "direction": "down",
+        "seg_start": 32,
+        "seg_end": 34,
+        "zs_start": 6,
+        "zs_end": 6,
+        "zs_count": 1,
+        "settled": true,
+        "high": 689.1500244140625,
+        "low": 681.969970703125
+      },
+      {
+        "kind": "consolidation",
+        "direction": "up",
+        "seg_start": 35,
+        "seg_end": 45,
+        "zs_start": 7,
+        "zs_end": 7,
+        "zs_count": 1,
+        "settled": true,
+        "high": 690.0599975585938,
+        "low": 680.0
+      },
+      {
+        "kind": "consolidation",
+        "direction": "down",
+        "seg_start": 46,
+        "seg_end": 58,
+        "zs_start": 8,
+        "zs_end": 8,
+        "zs_count": 1,
+        "settled": false,
+        "high": 693.530029296875,
+        "low": 684.3499755859375
+      }
+    ],
+    "bsps_detail": [
+      {
+        "kind": "type3",
+        "side": "sell",
+        "level_id": 1,
+        "seg_idx": 6,
+        "price": 690.8499755859375,
+        "confirmed": true
+      },
+      {
+        "kind": "type3",
+        "side": "sell",
+        "level_id": 1,
+        "seg_idx": 8,
+        "price": 682.614990234375,
+        "confirmed": true
+      },
+      {
+        "kind": "type3",
+        "side": "buy",
+        "level_id": 1,
+        "seg_idx": 13,
+        "price": 693.8900146484375,
+        "confirmed": true
+      },
+      {
+        "kind": "type3",
+        "side": "sell",
+        "level_id": 1,
+        "seg_idx": 26,
+        "price": 686.280029296875,
+        "confirmed": true
+      },
+      {
+        "kind": "type3",
+        "side": "sell",
+        "level_id": 1,
+        "seg_idx": 38,
+        "price": 684.0598754882812,
+        "confirmed": true
+      },
+      {
+        "kind": "type3",
+        "side": "buy",
+        "level_id": 1,
+        "seg_idx": 47,
+        "price": 690.1701049804688,
+        "confirmed": false
+      },
+      {
+        "kind": "type3",
+        "side": "sell",
+        "level_id": 1,
+        "seg_idx": 52,
+        "price": 689.8099975585938,
+        "confirmed": false
+      }
+    ]
+  },
+  "recursive_levels": [
+    {
+      "level_id": 2,
+      "zhongshu_count": 2,
+      "move_count": 1,
+      "zhongshus_detail": [
+        {
+          "zd": 690.7999877929688,
+          "zg": 690.8499755859375,
+          "comp_start": 0,
+          "comp_end": 5,
+          "comp_count": 6,
+          "settled": true,
+          "break_direction": "down",
+          "level_id": 2
+        },
+        {
+          "zd": 681.969970703125,
+          "zg": 689.1500244140625,
+          "comp_start": 5,
+          "comp_end": 7,
+          "comp_count": 3,
+          "settled": false,
+          "break_direction": "",
+          "level_id": 2
+        }
+      ],
+      "moves_detail": [
+        {
+          "kind": "consolidation",
+          "direction": "down",
+          "seg_start": 0,
+          "seg_end": 5,
+          "zs_start": 0,
+          "zs_end": 0,
+          "zs_count": 1,
+          "settled": false,
+          "high": 697.1300048828125,
+          "low": 675.780029296875
+        }
+      ]
+    }
+  ],
+  "max_level_reached": 2,
+  "t6_equivalent": {
+    "recursive_levels_with_moves": 2,
+    "t6_reachable_equivalent": true
+  },
+  "summary": {
+    "total_levels": 2,
+    "total_zhongshus": 12,
+    "total_moves": 10,
+    "total_bsps": 7,
+    "pipeline": "7409 bars → 541 strokes → 59 segments → 10 zhongshu → 9 moves → recursive 2 levels"
+  }
+}

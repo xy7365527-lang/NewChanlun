@@ -1248,6 +1248,11 @@ nodes:
   status: settled
   type: 经验验证
   file: settled/249-real-data-revalidation-post-l78-fix.md
+- id: '250'
+  title: 扩展数据窗口验证——daily 层中枢产出但走势未形成
+  status: settled
+  type: 经验验证
+  file: settled/250-extended-data-window-validation.md
 edges:
   depends_on:
   - from: '136'
@@ -2482,6 +2487,14 @@ edges:
     to: '248'
   - from: '249'
     to: '246'
+  - from: '250'
+    to: '249'
+  - from: '250'
+    to: '248'
+  - from: '250'
+    to: '246'
+  - from: '250'
+    to: '229'
   triggered:
   - from: '005'
     to: 005a
