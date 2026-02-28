@@ -1220,3 +1220,6 @@
 {"from":"270","to":"030","type":"depends_on","label":"Gemini的本体论位置（审讯者角色定义）"}
 {"from":"270","to":"137","type":"depends_on","label":"否定性禁令对行为执行层无效"}
 {"from":"270","to":"005","type":"depends_on","label":"对象否定对象"}
+{"from":"271","to":"270","type":"depends_on","label":"审讯者终止条件设计（被升级的原始设计）"}
+{"from":"271","to":"269","type":"depends_on","label":"OQ5四轮质询（法医验尸报告实例）"}
+{"from":"271","to":"005","type":"depends_on","label":"对象否定对象"}
