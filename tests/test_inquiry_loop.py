@@ -25,6 +25,7 @@ from scripts.inquiry_loop import (
     InquiryResult,
     RoundSnapshot,
     Trajectory,
+    _check_stance_repetition,
     build_cycle_result,
     build_trajectories,
     check_convergence,
@@ -330,6 +331,137 @@ class TestCheckConvergence:
         assert isinstance(v.key_frozen, bool)
         assert isinstance(v.same_subject_stable, bool)
         assert isinstance(v.reason, str)
+
+
+# ── Stance repetition detection tests (270号) ──
+
+
+class TestCheckStanceRepetition:
+    def test_no_repetition_with_different_stances(self):
+        """每轮 stance 不同 → 不重复"""
+        s1 = _make_stance(stances={"a": "reject"}, round_number=1)
+        s2 = _make_stance(stances={"a": "accept"}, round_number=2)
+        s3 = _make_stance(stances={"a": "needs_work"}, round_number=3)
+        snaps = [
+            _make_snapshot(1, "gemini", stance=s1),
+            _make_snapshot(2, "gemini", stance=s2),
+            _make_snapshot(3, "gemini", stance=s3),
+        ]
+        detected, keys = _check_stance_repetition(snaps, "gemini", window=2)
+        assert detected is False
+        assert keys == []
+
+    def test_repetition_detected_key_and_value_same(self):
+        """连续 3 轮（基准+2轮重复）Key+Value 完全相同 → 检测到重复"""
+        stance = _make_stance(stances={"attack_a": "reject", "attack_b": "contradictory"})
+        snaps = [
+            _make_snapshot(1, "gemini", stance=stance),
+            _make_snapshot(2, "gemini", stance=stance),
+            _make_snapshot(3, "gemini", stance=stance),
+        ]
+        detected, keys = _check_stance_repetition(snaps, "gemini", window=2)
+        assert detected is True
+        assert sorted(keys) == ["attack_a", "attack_b"]
+
+    def test_same_key_different_value_not_repetition(self):
+        """Key 相同但 Value 不同 = 有实质进展，不算重复"""
+        s1 = _make_stance(stances={"a": "reject"}, round_number=1)
+        s2 = _make_stance(stances={"a": "reject"}, round_number=2)
+        s3 = _make_stance(stances={"a": "needs_work"}, round_number=3)
+        snaps = [
+            _make_snapshot(1, "gemini", stance=s1),
+            _make_snapshot(2, "gemini", stance=s2),
+            _make_snapshot(3, "gemini", stance=s3),
+        ]
+        detected, keys = _check_stance_repetition(snaps, "gemini", window=2)
+        assert detected is False
+        assert keys == []
+
+    def test_insufficient_rounds(self):
+        """轮数不足 → 不检测"""
+        stance = _make_stance(stances={"a": "reject"})
+        snaps = [
+            _make_snapshot(1, "gemini", stance=stance),
+            _make_snapshot(2, "gemini", stance=stance),
+        ]
+        # window=2 需要至少 3 轮（1基准 + 2重复）
+        detected, keys = _check_stance_repetition(snaps, "gemini", window=2)
+        assert detected is False
+
+    def test_filters_by_speaker(self):
+        """只检测指定 speaker，忽略其他 speaker"""
+        g_stance = _make_stance(stances={"a": "reject"})
+        c_stance = _make_stance(stances={"a": "accept"})
+        snaps = [
+            _make_snapshot(1, "gemini", stance=g_stance),
+            _make_snapshot(1, "codex", stance=c_stance),
+            _make_snapshot(2, "gemini", stance=g_stance),
+            _make_snapshot(2, "codex", stance=c_stance),
+            _make_snapshot(3, "gemini", stance=g_stance),
+            _make_snapshot(3, "codex", stance=c_stance),
+        ]
+        # Gemini 连续 3 轮相同 → 重复
+        detected, keys = _check_stance_repetition(snaps, "gemini", window=2)
+        assert detected is True
+        assert keys == ["a"]
+        # Codex 也连续 3 轮相同 → 重复
+        detected_c, keys_c = _check_stance_repetition(snaps, "codex", window=2)
+        assert detected_c is True
+        assert keys_c == ["a"]
+
+    def test_none_stance_not_treated_as_repetition(self):
+        """stance 解析失败（None）不视为重复"""
+        snaps = [
+            _make_snapshot(1, "gemini", stance=None),
+            _make_snapshot(2, "gemini", stance=None),
+            _make_snapshot(3, "gemini", stance=None),
+        ]
+        detected, keys = _check_stance_repetition(snaps, "gemini", window=2)
+        assert detected is False
+        assert keys == []
+
+    def test_empty_stances_dict_is_repetition(self):
+        """空 stances dict 连续出现 = verdict 重复但无 key 内容。
+
+        空 stance_snapshot 是空 frozenset，baseline 为空 → 不进入重复
+        （因为空集不携带攻击信息）。
+        """
+        s = _make_stance(stances={}, round_number=1)
+        snaps = [
+            _make_snapshot(1, "gemini", stance=s),
+            _make_snapshot(2, "gemini", stance=s),
+            _make_snapshot(3, "gemini", stance=s),
+        ]
+        detected, keys = _check_stance_repetition(snaps, "gemini", window=2)
+        # 空 stance = 无攻击内容，不应被检测为重复
+        assert detected is False
+
+    def test_window_1(self):
+        """window=1 时，连续 2 轮相同即检测到重复"""
+        stance = _make_stance(stances={"x": "reject"})
+        snaps = [
+            _make_snapshot(1, "gemini", stance=stance),
+            _make_snapshot(2, "gemini", stance=stance),
+        ]
+        detected, keys = _check_stance_repetition(snaps, "gemini", window=1)
+        assert detected is True
+        assert keys == ["x"]
+
+    def test_repetition_broken_by_change_in_middle(self):
+        """中间有变化，最近2轮相同但基准不同 → 不重复"""
+        s1 = _make_stance(stances={"a": "reject"}, round_number=1)
+        s2 = _make_stance(stances={"a": "accept"}, round_number=2)
+        s3 = _make_stance(stances={"a": "reject"}, round_number=3)
+        s4 = _make_stance(stances={"a": "reject"}, round_number=4)
+        snaps = [
+            _make_snapshot(1, "gemini", stance=s1),
+            _make_snapshot(2, "gemini", stance=s2),
+            _make_snapshot(3, "gemini", stance=s3),
+            _make_snapshot(4, "gemini", stance=s4),
+        ]
+        # 最近 3 轮 = s2, s3, s4。s2 != s3 → 不重复
+        detected, keys = _check_stance_repetition(snaps, "gemini", window=2)
+        assert detected is False
 
 
 # ── Trajectories tests ──

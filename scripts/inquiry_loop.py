@@ -229,6 +229,78 @@ def check_convergence(
     )
 
 
+# ── Stance 重复检测（270号谱系） ──
+
+
+def _extract_stance_snapshot(
+    stance: StanceDeclaration | None,
+) -> frozenset[tuple[str, str]]:
+    """从 StanceDeclaration 中提取 (key, value) 对集合。
+
+    返回 frozenset 以支持集合比较。stance 为 None 时返回空集。
+    """
+    if stance is None:
+        return frozenset()
+    return frozenset(stance.stances.items())
+
+
+def _check_stance_repetition(
+    snapshots: list[RoundSnapshot],
+    speaker: str = "gemini",
+    window: int = 2,
+) -> tuple[bool, list[str]]:
+    """检测同一主体连续 N 轮 stance Key+Value 完全不变。
+
+    270号谱系设计：
+    - 连续 N=2 轮核心 stance Key 集合不变 → 检测为立场重复
+    - stance Key 相同但 Value 不同 = 有实质进展，不算重复
+    - 只有 Key 和 Value 都没变才算重复
+    - 检测位置：challenger 调用方，不在 Gemini 内部
+
+    Parameters
+    ----------
+    snapshots : list[RoundSnapshot]
+        已有快照序列。
+    speaker : str
+        要检测的主体（"gemini" 或 "codex"）。
+    window : int
+        连续重复的轮数阈值，默认 2。
+
+    Returns
+    -------
+    tuple[bool, list[str]]
+        (是否检测到重复, 重复的 Key 列表)。
+        Key 列表在未检测到重复时为空列表。
+    """
+    speaker_snapshots = [s for s in snapshots if s.speaker == speaker]
+    if len(speaker_snapshots) < window + 1:
+        # 需要至少 window+1 轮才能检测到连续 window 轮不变
+        # （需要一个基准轮 + window 轮重复）
+        return (False, [])
+
+    # 提取每轮的 stance snapshot（key-value 对集合）
+    stance_snapshots = [
+        _extract_stance_snapshot(s.stance) for s in speaker_snapshots
+    ]
+
+    # 检查最近 window+1 轮是否连续相同
+    recent = stance_snapshots[-(window + 1):]
+
+    # 空 stance（解析失败）不视为重复——无法判断内容
+    if not recent[0]:
+        return (False, [])
+
+    # 连续 window 轮与基准轮完全相同
+    baseline = recent[0]
+    for i in range(1, len(recent)):
+        if recent[i] != baseline:
+            return (False, [])
+
+    # 检测到重复，提取重复的 Key 列表
+    repeated_keys = sorted(k for k, _ in baseline)
+    return (True, repeated_keys)
+
+
 # ── Trajectories 构建 ──
 
 

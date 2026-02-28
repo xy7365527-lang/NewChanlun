@@ -1359,6 +1359,11 @@ nodes:
   status: settled
   type: 矛盾发现
   file: settled/269-oq5-reopen-challenge.md
+- id: '270'
+  title: 审讯者终止条件设计——stance-diff检测+编排者确认（选项D）
+  status: settled
+  type: 语法记录
+  file: settled/270-challenger-termination-design.md
 edges:
   depends_on:
   - from: '136'
@@ -2759,6 +2764,14 @@ edges:
     to: '235'
   - from: '269'
     to: '257'
+  - from: '270'
+    to: '269'
+  - from: '270'
+    to: '030'
+  - from: '270'
+    to: '137'
+  - from: '270'
+    to: '005'
   triggered:
   - from: '005'
     to: 005a

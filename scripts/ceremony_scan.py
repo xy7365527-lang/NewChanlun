@@ -1154,6 +1154,26 @@ def main():
             "scan 不做 dispatch 决策。"
         )
 
+    # 270号：suspended 工位过滤——从 ceremony_state 读取 suspended 列表，
+    # 匹配 workstations 中的 name 字段，过滤掉 suspended 工位
+    try:
+        from scripts.ceremony_state import get_suspended_workstations
+    except ImportError:
+        from ceremony_state import get_suspended_workstations
+    suspended = get_suspended_workstations()
+    if suspended:
+        result["suspended_workstations"] = suspended
+        pre_suspend_count = len(workstations)
+        workstations = [
+            w for w in workstations
+            if w.get("name", "") not in suspended
+        ]
+        suspended_filtered = pre_suspend_count - len(workstations)
+        if suspended_filtered > 0:
+            result["suspended_filtered_count"] = suspended_filtered
+        # workstations 引用已更新——同步到 result
+        result["workstations"] = workstations
+
     # 081号：清晰报告干净终止条件（必须在所有 workstations 追加完成后计算）
     # 真阴性干净终止 = roadmap 为空 AND workstations 为空 AND pending 谱系为空
     result["clean_terminate"] = (
