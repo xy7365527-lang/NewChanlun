@@ -1351,9 +1351,9 @@ nodes:
   file: settled/268-meta-observation-v114-swarm.md
 - id: 268a
   title: 267号操作方法论 v1——实操场景异质质询（四项否定）
-  status: 生成态
+  status: settled
   type: 矛盾发现
-  file: pending/268a-267-operational-challenge.md
+  file: settled/268a-267-operational-challenge.md
 edges:
   depends_on:
   - from: '136'

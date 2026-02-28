@@ -5,10 +5,13 @@
   - L2（待验证）：sub_ratio 默认值、融资利率等参数
 
 谱系引用：267号操作方法论 v1——满仓满融降成本体系。
+268a号结算修正：
+  - 攻击1（接受）："初始自有资金"每次新循环独立核算，RESET 事件携带新 own_capital
+  - 攻击2（部分接受）：min_operable_level 作为不入语法的外部参数标注
 
 状态：SCANNING → POSITION_OPEN → COST_REDUCING → PRINCIPAL_WITHDRAWN → STOPPED_OUT
       任何持仓状态 → STOPPED_OUT（买点失效 = 止损）
-      STOPPED_OUT → SCANNING（重置）
+      STOPPED_OUT → SCANNING（重置，own_capital 按实际资金重新核算）
 """
 
 from __future__ import annotations
@@ -60,6 +63,7 @@ class FsmEvent:
     event_type: FsmEventType
     price: float
     level: str
+    new_own_capital: float | None = None  # 268a攻击1：RESET时携带止损后的实际自有资金
 
 
 @dataclass(frozen=True, slots=True)
@@ -123,7 +127,7 @@ class CostReductionFSM:
     state : CostState
         当前状态。
     own_capital : float
-        初始自有资金。
+        初始自有资金（268a攻击1修正：每次新循环独立核算，等于当时实际自有资金）。
     margin_amount : float
         融资额度。
     total_shares : float
@@ -138,6 +142,8 @@ class CostReductionFSM:
         操作主级别。
     sub_ratio : float
         每层短差动用比例上限（外部参数，267号§不入语法）。
+    min_operable_level : str
+        最小可操作短差级别（外部参数，268a攻击2：市场交易制度约束，如A股T+1）。
     active_short_diff : ShortDiffCycle | None
         当前活跃的短差循环。
     completed_short_diffs : tuple[ShortDiffCycle, ...]
@@ -155,6 +161,7 @@ class CostReductionFSM:
     entry_price: float
     entry_level: str
     sub_ratio: float
+    min_operable_level: str
     active_short_diff: ShortDiffCycle | None
     completed_short_diffs: tuple[ShortDiffCycle, ...]
     fugue_voices: tuple[FugueVoice, ...]
@@ -165,6 +172,7 @@ class CostReductionFSM:
         own_capital: float,
         margin_amount: float = 0.0,
         sub_ratio: float = 0.3,
+        min_operable_level: str = "",
     ) -> CostReductionFSM:
         """创建初始状态机（SCANNING）。"""
         return CostReductionFSM(
@@ -177,6 +185,7 @@ class CostReductionFSM:
             entry_price=0.0,
             entry_level="",
             sub_ratio=sub_ratio,
+            min_operable_level=min_operable_level,
             active_short_diff=None,
             completed_short_diffs=(),
             fugue_voices=(),
@@ -214,6 +223,7 @@ def _replace(fsm: CostReductionFSM, **kwargs: object) -> CostReductionFSM:
         entry_price=kwargs.get("entry_price", fsm.entry_price),  # type: ignore[arg-type]
         entry_level=kwargs.get("entry_level", fsm.entry_level),  # type: ignore[arg-type]
         sub_ratio=kwargs.get("sub_ratio", fsm.sub_ratio),  # type: ignore[arg-type]
+        min_operable_level=kwargs.get("min_operable_level", fsm.min_operable_level),  # type: ignore[arg-type]
         active_short_diff=kwargs.get("active_short_diff", fsm.active_short_diff),  # type: ignore[arg-type]
         completed_short_diffs=kwargs.get("completed_short_diffs", fsm.completed_short_diffs),  # type: ignore[arg-type]
         fugue_voices=kwargs.get("fugue_voices", fsm.fugue_voices),  # type: ignore[arg-type]
@@ -444,10 +454,13 @@ def _handle_stopped_out(
         raise IllegalTransitionError(
             f"STOPPED_OUT 仅接受 RESET，收到 {event.event_type.name}"
         )
+    # 268a攻击1修正：每次新循环独立核算，own_capital 按实际资金重新设定
+    new_capital = event.new_own_capital if event.new_own_capital is not None else fsm.own_capital
     return CostReductionFSM.create(
-        own_capital=fsm.own_capital,
+        own_capital=new_capital,
         margin_amount=fsm.margin_amount,
         sub_ratio=fsm.sub_ratio,
+        min_operable_level=fsm.min_operable_level,
     )
 
 
