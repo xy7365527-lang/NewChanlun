@@ -1,0 +1,15 @@
+{
+  "type": "event",
+  "timestamp": "2026-02-28T00:51:43.065361+00:00",
+  "source": "cc",
+  "content": {
+    "title": "ConfigurationSpace 纤维丛重构——从直积到 B ×_ω F",
+    "genealogy_id": 232,
+    "summary": "ConfigurationSpace从直积{-1,0,+1}^3重构为纤维丛π:E→B. 底空间B={-1,0,+1}^2(sigma_e×sigma_c直积,E-C偏相关≈0), 纤维F={-1,0,+1}(sigma_r), 联络ω参数化为softmax模型. 关键发现:连续-离散耦合强度排序反转(偏相关|E-R|>|C-R|, 联络|C-R|>>|E-R|)."
+  },
+  "refs": [
+    "eb9e685a73461fe5b0a0a1cdbaff0b7b1d2b23069788104b27647c0fd05c292c"
+  ],
+  "git_ref": "",
+  "id": "248da257e8b5853032a33bc38b7cb67b862c82be4c7e733d13ec02ecf5384c83"
+}
