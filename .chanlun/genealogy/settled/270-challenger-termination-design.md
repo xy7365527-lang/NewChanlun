@@ -18,10 +18,10 @@ downstream_inferences:
     status: resolved（定理类——有效性前提已从现有基础设施验证）
   - id: 270-2
     description: '实现需要在challenger调用方增加_check_stance_repetition(history)函数，约30-50行。检测逻辑在调用方而非Gemini内部，不改变审讯者角色定义（030a号保持）'
-    status: open（行动类——待实现）
+    status: resolved（v119-swarm stance-detector 工位完成，inquiry_loop.py +72行，9测试通过）
   - id: 270-3
     description: 'suspended:stance-repetition状态需要在ceremony中注册为工位跳过条件。后续ceremony遇到suspended工位时直接跳过，不重新发起审讯'
-    status: open（行动类——待实现）
+    status: resolved（v119-swarm suspended-state 工位完成，ceremony_state.py +74行 + ceremony_scan.py +20行）
 ---
 
 # 270号：审讯者终止条件设计——stance-diff检测+编排者确认
