@@ -1333,6 +1333,23 @@ nodes:
   status: settled
   type: meta-rule
   file: settled/266-meta-observation-v113-swarm.md
+- id: '267'
+  title: 操作方法论 v1——满仓满融降成本体系
+  type: 操作方法论
+  status: settled
+  date: 2026-02-28
+  depends_on:
+  - '254'
+  - '265'
+  - '252'
+  - '235'
+  - '232'
+  file: settled/267-operational-methodology-v1.md
+- id: '268'
+  title: 元观察——v114-swarm 操作方法论内部推导首例 + 252号引用错位 + 概率论扬弃推导链完整性
+  status: settled
+  type: meta-rule
+  file: settled/268-meta-observation-v114-swarm.md
 edges:
   depends_on:
   - from: '136'
@@ -2705,6 +2722,24 @@ edges:
     to: '016'
   - from: '266'
     to: '264'
+  - from: '267'
+    to: '254'
+  - from: '267'
+    to: '265'
+  - from: '267'
+    to: '252'
+  - from: '267'
+    to: '235'
+  - from: '267'
+    to: '232'
+  - from: '268'
+    to: '266'
+  - from: '268'
+    to: '267'
+  - from: '268'
+    to: '254'
+  - from: '268'
+    to: '265'
   triggered:
   - from: '005'
     to: 005a
