@@ -1173,6 +1173,11 @@ nodes:
   status: 已结算
   type: 经验验证
   file: settled/234-kernel-l2-cross-verification.md
+- id: '235'
+  title: 离散化算子 D 的三态分类——吸收/保留/放大
+  status: 已结算
+  type: 概念发现
+  file: settled/235-tristate-discretization.md
 edges:
   depends_on:
   - from: '136'
@@ -2337,6 +2342,10 @@ edges:
     to: '232'
   - from: '234'
     to: '230'
+  - from: '235'
+    to: '233'
+  - from: '235'
+    to: '234'
   triggered:
   - from: '005'
     to: 005a
