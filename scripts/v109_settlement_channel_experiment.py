@@ -1,6 +1,6 @@
 """v109 结算通道可观测性实验 — Alpha Vantage 数据源。
 
-两步实验设计：
+三步实验设计：
 
 Step 1：XAU/USD 替代 GLD 重跑 234号基线
   - 目的：测试 GLD 的 ETF 微观结构（交易时间、折溢价、创设赎回机制）
@@ -19,10 +19,18 @@ Step 2：布伦特原油替代 GLD
     - B：部分保留/放大（类似 GLD）→ 石油美元具有结算通道特征
     - C：第三种模式
 
+Step 3：控制变量一致性检验
+  - 目的：三组实验（XAU-USD/DBA/BRENT）统一使用 Alpha Vantage 数据源后，
+    对比 E-R、E-$、R-$ 三条控制变量边的稳定性
+  - XAU/USD 基线（Step 1 已跑），DBA 和 BRENT 作为对照组
+  - 判据：
+    - 三条控制边在三组间稳定 → 259号 R-$ 异常归因于数据对齐（yfinance vs Alpha Vantage）
+    - 三条控制边仍不稳定 → 六条边间接耦合，需要诊断
+
 数据源：Alpha Vantage（直接 HTTP 请求）
   - XAU/USD：FX_DAILY（from_symbol=XAU, to_symbol=USD）
   - BRENT：Commodities endpoint（function=BRENT&interval=daily）
-  - SPY/TLT/UUP：TIME_SERIES_DAILY（outputsize=full）
+  - SPY/TLT/UUP/DBA：TIME_SERIES_DAILY（outputsize=full）
 """
 
 from __future__ import annotations
@@ -37,6 +45,9 @@ from typing import Any
 
 import numpy as np
 import requests
+
+from dotenv import load_dotenv
+load_dotenv('.env.local')
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_PROJECT_ROOT / "src"))
@@ -282,6 +293,7 @@ def fetch_commodity_brent(api_key: str) -> list[Bar]:
     bars.sort(key=lambda b: b.ts)
     print(f"  -> {len(bars)} bars ({bars[0].ts.date()} ~ {bars[-1].ts.date()})")
     return bars
+
 
 
 # ---------------------------------------------------------------------------
@@ -965,6 +977,240 @@ def run_step2(api_key: str) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# Step 3：控制变量一致性检验
+# ---------------------------------------------------------------------------
+
+
+def run_step3_control_consistency(
+    api_key: str,
+    step1_result: dict[str, Any],
+    step2_result: dict[str, Any],
+) -> dict[str, Any]:
+    """Step 3：控制变量一致性检验。
+
+    三组实验（XAU/USD / DBA / BRENT）统一使用 Alpha Vantage 数据源后，
+    对比 E-R、E-$、R-$ 三条控制变量边的稳定性。
+
+    XAU/USD 数据来自 Step 1 结果（不重复获取）。
+    DBA 需要新获取（Alpha Vantage TIME_SERIES_DAILY）。
+    BRENT 数据来自 Step 2 结果（不重复获取）。
+
+    Parameters
+    ----------
+    api_key : str
+        Alpha Vantage API key。
+    step1_result : dict
+        Step 1（XAU/USD）的完整结果。
+    step2_result : dict
+        Step 2（BRENT）的完整结果。
+
+    Returns
+    -------
+    dict
+        控制变量一致性检验结果。
+    """
+    # ---- DBA 基线 ----
+    symbols = ("SPY", "DBA", "TLT", "UUP")
+    symbol_labels = {"SPY": "E", "DBA": "C_agri", "TLT": "R", "UUP": "$"}
+
+    edges = {
+        "E-R": ("SPY", "TLT"),
+        "E-C_agri": ("SPY", "DBA"),
+        "E-$": ("SPY", "UUP"),
+        "C_agri-R": ("DBA", "TLT"),
+        "C_agri-$": ("DBA", "UUP"),
+        "R-$": ("TLT", "UUP"),
+    }
+
+    edge_mapping_234 = {
+        "E-R": "E-R",
+        "E-C_agri": "E-C",
+        "E-$": "E-$",
+        "C_agri-R": "C-R",
+        "C_agri-$": "C-$",
+        "R-$": "R-$",
+    }
+
+    control_edges = {"E-R", "E-$", "R-$"}
+
+    # 获取数据
+    print("\n" + "=" * 70)
+    print("Step 3：获取 DBA 基线数据（Alpha Vantage）")
+    print("=" * 70)
+
+    all_bars: dict[str, list[Bar]] = {}
+
+    all_bars["SPY"] = fetch_equity("SPY", api_key)
+    _rate_limit_sleep()
+
+    all_bars["TLT"] = fetch_equity("TLT", api_key)
+    _rate_limit_sleep()
+
+    all_bars["UUP"] = fetch_equity("UUP", api_key)
+    _rate_limit_sleep()
+
+    all_bars["DBA"] = fetch_equity("DBA", api_key)
+    # 最后一个 API 调用，不需要额外等待
+
+    # 运行管线
+    dba_result = run_pipeline(
+        all_bars=all_bars,
+        symbols=symbols,
+        symbol_labels=symbol_labels,
+        edges=edges,
+        edge_mapping_234=edge_mapping_234,
+        control_edges=control_edges,
+        step_name="Step 3 基线: DBA (Alpha Vantage) — 农产品商品 ETF",
+    )
+
+    # ---- 控制变量对比 ----
+    # 三条控制边：E-R, E-$, R-$
+    # 三组实验：XAU/USD（step1）, DBA（本步）, BRENT（step2）
+    control_edge_names = ["E-R", "E-$", "R-$"]
+
+    # DBA：直接用本步骤结果
+    dba_controls = {}
+    for edge in control_edge_names:
+        edge_data = dba_result["edges"][edge]
+        dba_controls[edge] = {
+            "partial_corr": edge_data["continuous"]["partial_corr"],
+            "beta": edge_data["discrete"].get("beta", 0.0),
+            "classification": edge_data["classification"]["coupling_type"],
+            "absorption": edge_data["classification"]["absorption_ratio"],
+        }
+
+    # Step1 (XAU/USD)：控制边名相同
+    step1_controls = {}
+    for edge in control_edge_names:
+        edge_data = step1_result["edges"][edge]
+        step1_controls[edge] = {
+            "partial_corr": edge_data["continuous"]["partial_corr"],
+            "beta": edge_data["discrete"].get("beta", 0.0),
+            "classification": edge_data["classification"]["coupling_type"],
+            "absorption": edge_data["classification"]["absorption_ratio"],
+        }
+
+    # Step2 (BRENT)：控制边名相同
+    step2_controls = {}
+    for edge in control_edge_names:
+        edge_data = step2_result["edges"][edge]
+        step2_controls[edge] = {
+            "partial_corr": edge_data["continuous"]["partial_corr"],
+            "beta": edge_data["discrete"].get("beta", 0.0),
+            "classification": edge_data["classification"]["coupling_type"],
+            "absorption": edge_data["classification"]["absorption_ratio"],
+        }
+
+    # 计算变异度
+    print("\n" + "=" * 60)
+    print("  控制变量一致性检验")
+    print("=" * 60)
+
+    consistency_table: dict[str, dict[str, Any]] = {}
+
+    for edge in control_edge_names:
+        dba = dba_controls[edge]
+        s1 = step1_controls[edge]
+        s2 = step2_controls[edge]
+
+        pc_values = [s1["partial_corr"], dba["partial_corr"], s2["partial_corr"]]
+        beta_values = [s1["beta"], dba["beta"], s2["beta"]]
+        abs_values = [s1["absorption"], dba["absorption"], s2["absorption"]]
+        types = [s1["classification"], dba["classification"], s2["classification"]]
+
+        pc_std = float(np.std(pc_values, ddof=0))
+        beta_std = float(np.std(beta_values, ddof=0))
+        abs_std = float(np.std(abs_values, ddof=0))
+        type_unanimous = len(set(types)) == 1
+
+        consistency_table[edge] = {
+            "234_baseline": {
+                "partial_corr": _BASELINE_234[edge]["partial_corr"],
+                "beta": _BASELINE_234[edge]["beta"],
+                "type": _BASELINE_234[edge]["type"],
+                "absorption": _BASELINE_234[edge].get("absorption", None),
+            },
+            "xauusd": s1,
+            "dba": dba,
+            "brent": s2,
+            "variability": {
+                "partial_corr_std": round(pc_std, 6),
+                "beta_std": round(beta_std, 6),
+                "absorption_std": round(abs_std, 6),
+                "type_unanimous": type_unanimous,
+                "types": types,
+            },
+        }
+
+        print(f"\n  {edge}:")
+        print(f"    234号(yfinance): pc={_BASELINE_234[edge]['partial_corr']:.4f}, "
+              f"beta={_BASELINE_234[edge]['beta']:.4f}, type={_BASELINE_234[edge]['type']}")
+        print(f"    XAU/USD:         pc={s1['partial_corr']:.4f}, "
+              f"beta={s1['beta']:.4f}, type={s1['classification']}")
+        print(f"    DBA:             pc={dba['partial_corr']:.4f}, "
+              f"beta={dba['beta']:.4f}, type={dba['classification']}")
+        print(f"    BRENT:           pc={s2['partial_corr']:.4f}, "
+              f"beta={s2['beta']:.4f}, type={s2['classification']}")
+        print(f"    → pc_std={pc_std:.4f}, beta_std={beta_std:.4f}, "
+              f"abs_std={abs_std:.4f}, type_unanimous={type_unanimous}")
+
+    # 判定
+    all_unanimous = all(
+        v["variability"]["type_unanimous"] for v in consistency_table.values()
+    )
+    max_pc_std = max(
+        v["variability"]["partial_corr_std"] for v in consistency_table.values()
+    )
+
+    # 阈值：偏相关标准差 < 0.05 视为稳定
+    _STABILITY_THRESHOLD = 0.05
+    all_stable = max_pc_std < _STABILITY_THRESHOLD
+
+    if all_unanimous and all_stable:
+        verdict = {
+            "stable": True,
+            "conclusion": (
+                f"三条控制边在三组实验中保持稳定（max pc_std={max_pc_std:.4f} < {_STABILITY_THRESHOLD}，"
+                f"分类全一致）。259号 R-$ 异常可归因于数据对齐差异（yfinance vs Alpha Vantage）。"
+                f"统一 Alpha Vantage 数据源后，控制变量一致性成立。"
+            ),
+        }
+    else:
+        unstable_edges = [
+            edge for edge, v in consistency_table.items()
+            if not v["variability"]["type_unanimous"]
+            or v["variability"]["partial_corr_std"] >= _STABILITY_THRESHOLD
+        ]
+        verdict = {
+            "stable": False,
+            "unstable_edges": unstable_edges,
+            "conclusion": (
+                f"控制边不稳定（不稳定边：{unstable_edges}，max pc_std={max_pc_std:.4f}）。"
+                f"六条边存在间接耦合——替换 C 列资产影响了控制变量边。"
+                f"需要进一步诊断耦合结构。"
+            ),
+        }
+
+    print(f"\n--- Step 3 判定 ---")
+    print(f"  稳定: {verdict['stable']}")
+    print(f"  结论: {verdict['conclusion']}")
+
+    return {
+        "dba_full_result": dba_result,
+        "consistency_table": consistency_table,
+        "verdict": verdict,
+        "experiment_design": {
+            "purpose": "控制变量一致性检验——统一 Alpha Vantage 数据源后，三条控制边是否稳定",
+            "control_edges": control_edge_names,
+            "groups": ["XAU/USD", "DBA", "BRENT"],
+            "stability_threshold": _STABILITY_THRESHOLD,
+            "hypothesis_if_stable": "259号 R-$ 异常归因于 yfinance vs Alpha Vantage 数据对齐差异",
+            "hypothesis_if_unstable": "六条边间接耦合，替换 C 列影响控制变量",
+        },
+    }
+
+
+# ---------------------------------------------------------------------------
 # 主流程
 # ---------------------------------------------------------------------------
 
@@ -995,35 +1241,123 @@ def main() -> None:
     print("#" * 70)
     step2_result = run_step2(api_key)
 
-    # ---- 综合对比 ----
+    # Step 2 → Step 3 之间等待，避免限流
+    print(f"\n[INTER-STEP] 等待 {_API_CALL_INTERVAL_SEC}s 避免 API 限流...")
+    time.sleep(_API_CALL_INTERVAL_SEC)
+
+    # ---- Step 3 ----
+    print("\n" + "#" * 70)
+    print("# STEP 3: 控制变量一致性检验（XAU/USD + DBA + BRENT 三组对比）")
+    print("#" * 70)
+    step3_result = run_step3_control_consistency(api_key, step1_result, step2_result)
+
+    # ---- 综合对比表（四列：234原始/XAU-USD/DBA/BRENT，六条边全覆盖）----
     print("\n" + "=" * 70)
-    print("综合对比表")
+    print("综合对比表（四列 × 六条边）")
     print("=" * 70)
 
-    print("\n  C 列替换实验结果汇总：")
-    print(f"  {'实验':<20} {'C 标的':<15} {'E-C':<15} {'C-$':<15} {'C-R':<15}")
-    print(f"  {'-'*20} {'-'*15} {'-'*15} {'-'*15} {'-'*15}")
+    # 收集各组六条边数据
+    # 映射：统一边名 -> 各组实际边名
+    unified_edges = ["E-R", "E-C", "E-$", "C-R", "C-$", "R-$"]
 
-    # 234号基准
-    print(f"  {'234号(基准)':<20} {'GLD(ETF)':<15} "
-          f"{'independent':<15} {'amplitude':<15} {'direction':<15}")
+    # Step1 边名映射（C_spot → C）
+    step1_edge_map = {
+        "E-R": "E-R", "E-C": "E-C_spot", "E-$": "E-$",
+        "C-R": "C_spot-R", "C-$": "C_spot-$", "R-$": "R-$",
+    }
+    # Step2 边名映射（C_oil → C）
+    step2_edge_map = {
+        "E-R": "E-R", "E-C": "E-C_oil", "E-$": "E-$",
+        "C-R": "C_oil-R", "C-$": "C_oil-$", "R-$": "R-$",
+    }
+    # DBA 边名映射（C_agri → C）
+    dba_edge_map = {
+        "E-R": "E-R", "E-C": "E-C_agri", "E-$": "E-$",
+        "C-R": "C_agri-R", "C-$": "C_agri-$", "R-$": "R-$",
+    }
 
-    # Step 1
-    s1_ec = step1_result["edges"]["E-C_spot"]["classification"]["coupling_type"]
-    s1_cs = step1_result["edges"]["C_spot-$"]["classification"]["coupling_type"]
-    s1_cr = step1_result["edges"]["C_spot-R"]["classification"]["coupling_type"]
-    print(f"  {'Step1(XAU/USD)':<20} {'XAU/USD(现货)':<15} "
-          f"{s1_ec:<15} {s1_cs:<15} {s1_cr:<15}")
+    dba_edges = step3_result["dba_full_result"]["edges"]
 
-    # Step 2
-    s2_ec = step2_result["edges"]["E-C_oil"]["classification"]["coupling_type"]
-    s2_cs = step2_result["edges"]["C_oil-$"]["classification"]["coupling_type"]
-    s2_cr = step2_result["edges"]["C_oil-R"]["classification"]["coupling_type"]
-    print(f"  {'Step2(BRENT)':<20} {'BRENT(原油)':<15} "
-          f"{s2_ec:<15} {s2_cs:<15} {s2_cr:<15}")
+    # 表头
+    header = f"  {'边':<8} {'234号(yf)':<18} {'XAU/USD':<18} {'DBA':<18} {'BRENT':<18}"
+    sep = f"  {'-'*8} {'-'*18} {'-'*18} {'-'*18} {'-'*18}"
+    print(header)
+    print(sep)
 
-    # 259号（如果有数据）
-    # 注：259号使用 DBA（纯农产品），此处仅作占位提醒
+    comprehensive_table: dict[str, dict[str, Any]] = {}
+
+    for edge in unified_edges:
+        # 234号基准
+        b234 = _BASELINE_234.get(edge, {})
+        b234_str = (
+            f"{b234.get('type', '?'):<10} pc={b234.get('partial_corr', 0):.3f}"
+            if b234 else "N/A"
+        )
+
+        # XAU/USD (Step1)
+        s1_key = step1_edge_map[edge]
+        s1_data = step1_result["edges"].get(s1_key, {})
+        if s1_data:
+            s1_type = s1_data["classification"]["coupling_type"]
+            s1_pc = s1_data["continuous"]["partial_corr"]
+            s1_str = f"{s1_type:<10} pc={s1_pc:.3f}"
+        else:
+            s1_type, s1_pc = "?", 0.0
+            s1_str = "N/A"
+
+        # DBA (Step3)
+        dba_key = dba_edge_map[edge]
+        dba_data = dba_edges.get(dba_key, {})
+        if dba_data:
+            dba_type = dba_data["classification"]["coupling_type"]
+            dba_pc = dba_data["continuous"]["partial_corr"]
+            dba_str = f"{dba_type:<10} pc={dba_pc:.3f}"
+        else:
+            dba_type, dba_pc = "?", 0.0
+            dba_str = "N/A"
+
+        # BRENT (Step2)
+        s2_key = step2_edge_map[edge]
+        s2_data = step2_result["edges"].get(s2_key, {})
+        if s2_data:
+            s2_type = s2_data["classification"]["coupling_type"]
+            s2_pc = s2_data["continuous"]["partial_corr"]
+            s2_str = f"{s2_type:<10} pc={s2_pc:.3f}"
+        else:
+            s2_type, s2_pc = "?", 0.0
+            s2_str = "N/A"
+
+        is_control = edge in {"E-R", "E-$", "R-$"}
+        marker = " [ctrl]" if is_control else ""
+        print(f"  {edge:<8} {b234_str:<18} {s1_str:<18} {dba_str:<18} {s2_str:<18}{marker}")
+
+        comprehensive_table[edge] = {
+            "is_control": is_control,
+            "234_yfinance": {
+                "type": b234.get("type", None),
+                "partial_corr": b234.get("partial_corr", None),
+                "beta": b234.get("beta", None),
+                "absorption": b234.get("absorption", None),
+            },
+            "xauusd": {
+                "type": s1_type,
+                "partial_corr": s1_pc,
+                "beta": s1_data.get("discrete", {}).get("beta", 0.0) if s1_data else None,
+                "absorption": s1_data["classification"]["absorption_ratio"] if s1_data else None,
+            },
+            "dba": {
+                "type": dba_type,
+                "partial_corr": dba_pc,
+                "beta": dba_data.get("discrete", {}).get("beta", 0.0) if dba_data else None,
+                "absorption": dba_data["classification"]["absorption_ratio"] if dba_data else None,
+            },
+            "brent": {
+                "type": s2_type,
+                "partial_corr": s2_pc,
+                "beta": s2_data.get("discrete", {}).get("beta", 0.0) if s2_data else None,
+                "absorption": s2_data["classification"]["absorption_ratio"] if s2_data else None,
+            },
+        }
 
     # ---- 写出结果 ----
     out_dir = _PROJECT_ROOT / "tmp"
@@ -1068,8 +1402,31 @@ def main() -> None:
         json.dump(step2_output, f, indent=2, ensure_ascii=False)
     print(f"[Step 2 结果已写入] {step2_path}")
 
+    # Step 3 结果
+    step3_output = {
+        "genealogy": "v109-step3",
+        "title": "控制变量一致性检验 — 统一 Alpha Vantage 数据源",
+        "consistency_table": step3_result["consistency_table"],
+        "verdict": step3_result["verdict"],
+        "experiment_design": step3_result["experiment_design"],
+        "comprehensive_table": comprehensive_table,
+        "methodology": {
+            "continuous": "日对数收益率 Pearson + 偏相关（控制其余两标的）",
+            "discrete": "BiEngine（new笔模式）-> 逐bar方向 -> 线性回归 beta",
+            "classification": "classify_coupling(partial_corr, beta) from discretization_kernel.py",
+            "data_source": "Alpha Vantage (TIME_SERIES_DAILY for all equities/ETFs)",
+            "stability_metric": "三组间偏相关标准差 + 分类一致性",
+        },
+        "timestamp": datetime.now().isoformat(),
+    }
+
+    step3_path = out_dir / "v109-step3-control-consistency.json"
+    with open(step3_path, "w", encoding="utf-8") as f:
+        json.dump(step3_output, f, indent=2, ensure_ascii=False)
+    print(f"[Step 3 结果已写入] {step3_path}")
+
     print("\n" + "=" * 70)
-    print("v109 实验完成。")
+    print("v109 实验完成（三步 + 综合对比表）。")
     print("=" * 70)
 
 
