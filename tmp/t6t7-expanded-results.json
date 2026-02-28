@@ -1,0 +1,118 @@
+{
+  "analysis_date": "2026-02-28 00:07:33",
+  "data_source": "AlphaVantage daily (full)",
+  "symbols": {
+    "AAPL": {
+      "pipeline_summary": {
+        "total_bars": 6621,
+        "L1_strokes": 574,
+        "L1_segments": 7,
+        "L1_zhongshus": 1,
+        "L1_moves": 0,
+        "recursive_levels": 1
+      },
+      "structural_diagnosis": "7 segments, 1 zhongshu (unsettled, no break) -> 0 moves -> recursive stack idle. AAPL 25-year daily: L1 structure incomplete (zhongshu not broken).",
+      "T6_nested_divergence": {
+        "total_signals": 0,
+        "trigger_bar_count": 0,
+        "trigger_rate_pct": 0.0
+      },
+      "T7_buysellpoints": {
+        "total_buysellpoints": 0
+      }
+    },
+    "MSFT": {
+      "pipeline_summary": {
+        "total_bars": 6621,
+        "L1_strokes": 593,
+        "L1_segments": 2,
+        "L1_zhongshus": 0,
+        "L1_moves": 0,
+        "recursive_levels": 1
+      },
+      "structural_diagnosis": "Only 2 segments, 0 zhongshus -> 0 moves. MSFT daily: L1 segment engine bottleneck (593 strokes compressed into 2 segments — likely one mega-trend).",
+      "T6_nested_divergence": {
+        "total_signals": 0,
+        "trigger_bar_count": 0,
+        "trigger_rate_pct": 0.0
+      },
+      "T7_buysellpoints": {
+        "total_buysellpoints": 0
+      }
+    },
+    "GOOGL": {
+      "pipeline_summary": {
+        "total_bars": 5416,
+        "L1_strokes": 476,
+        "L1_segments": 9,
+        "L1_zhongshus": 2,
+        "L1_moves": 1,
+        "recursive_levels": 1
+      },
+      "structural_diagnosis": "9 segments, 2 zhongshus (1 settled, 1 unsettled), 1 unsettled consolidation move -> moves < 3 -> recursive termination. Best case among 3 symbols but still insufficient for L2.",
+      "L1_detail": {
+        "zhongshu_0": "zd=98.94, zg=129.04, seg_count=5, settled=True, break_direction=up",
+        "zhongshu_1": "zd=147.215, zg=153.78, seg_count=4, settled=False, no_break",
+        "move_0": "kind=consolidation, direction=up, zs_count=1, settled=False"
+      },
+      "T6_nested_divergence": {
+        "total_signals": 0,
+        "trigger_bar_count": 0,
+        "trigger_rate_pct": 0.0
+      },
+      "T7_buysellpoints": {
+        "total_buysellpoints": 1,
+        "kind_distribution": {"type3": 1},
+        "side_distribution": {"buy": 1},
+        "level_distribution": {"1": 1},
+        "new_bsp_event_rate_pct": 0.0185
+      }
+    }
+  },
+  "comparison_with_229": {
+    "AAPL_daily_vs_1min": {
+      "bars": "6621 daily vs 1646 (1min RTH)",
+      "recursive_levels": "1 vs 1 (unchanged)",
+      "T6": "0 vs 0 (unchanged)",
+      "T7": "0 vs 1 (regression — daily AAPL has fewer BSP than 1min AAPL)"
+    },
+    "MSFT_daily": {
+      "bars": "6621 daily",
+      "recursive_levels": 1,
+      "T6": 0,
+      "T7": 0,
+      "note": "Worst case — 593 strokes form only 2 segments"
+    },
+    "GOOGL_daily": {
+      "bars": "5416 daily",
+      "recursive_levels": 1,
+      "T6": 0,
+      "T7": "1 (type3 buy — same order of magnitude as 229 baseline)"
+    }
+  },
+  "baseline_229": {
+    "data": "AAPL 1min x 5 days, 1646 RTH bars",
+    "recursive_levels": 1,
+    "T6_total_signals": 0,
+    "T7_total_buysellpoints": 1,
+    "T7_types": {"type3_sell": 1}
+  },
+  "root_cause_diagnosis": {
+    "finding": "Recursive depth = 1 is a STRUCTURAL CONSTRAINT, not a data-insufficiency artifact.",
+    "mechanism": "RecursiveStack terminates when L1 moves < 3. All 3 symbols have L1 moves <= 1 even with 5000-6600 daily bars (20+ years).",
+    "bottleneck_chain": [
+      "L1 strokes (400-600) -> L1 segments (2-9): segment engine compresses hundreds of strokes into few segments",
+      "L1 segments (2-9) -> L1 zhongshus (0-2): few segments produce few or no zhongshus",
+      "L1 zhongshus (0-2) -> L1 moves (0-1): zhongshu not broken or insufficient for move construction",
+      "L1 moves (0-1) -> recursive termination: moves < 3 triggers termination"
+    ],
+    "key_insight": "The L1 segment engine is the primary bottleneck. With daily bars as input, each L1 segment spans massive time periods (e.g., GOOGL Seg[1] spans 3540 bars = ~14 years of daily data). The characteristic sequence method produces very few segments at this timescale.",
+    "229_hypothesis_update": "229 hypothesized that 'longer timeframe or higher TF data would increase recursive depth'. This is FALSIFIED — daily x 20yr produces the SAME recursive depth as 1min x 5day."
+  },
+  "downstream_implications": {
+    "for_T6": "T6 (nested divergence) requires recursive_levels >= 2 to form cross-level divergence chains. With the current pipeline producing recursive_levels = 1 on all tested data, T6 is structurally unreachable.",
+    "for_T7": "T7 (BSP) is marginally functional (0-1 BSP across 3 symbols with 20+ years of daily data). The low count is consistent with low zhongshu/move counts at L1.",
+    "architectural_question": "Is the bottleneck in the segment engine (correct behavior for daily data) or in the recursive architecture (should use multi-timeframe input rather than single-TF recursion)?"
+  },
+  "conclusion": "229号的'数据不足'假说被证伪：日线全量（20+年，5000-6600 bar）的递归深度与1分钟×5天完全相同（均为1级）。瓶颈是结构性的——L1线段引擎将数百根笔压缩为2-9根线段，导致中枢和走势数量不足以驱动递归。T6在当前架构下结构性不可达（需要recursive_levels>=2但从未实现）。T7边际可用但产出极低（3个标的20+年共1个买卖点）。"
+}

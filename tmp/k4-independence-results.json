@@ -1,7 +1,7 @@
 {
-  "data_source": "synthetic",
-  "data_period": "499 trading days",
-  "bar_count": 499,
+  "data_source": "alphavantage",
+  "data_period": "4779 trading days",
+  "bar_count": 4779,
   "binding": {
     "E": "SPY",
     "C": "GLD",
@@ -15,42 +15,42 @@
   },
   "correlations": {
     "E_dollar_vs_C_dollar": {
-      "pearson": 0.223256,
-      "partial_controlling_dollar": -0.012966
+      "pearson": 0.343637,
+      "partial_controlling_dollar": -0.029185
     },
     "E_dollar_vs_R_dollar": {
-      "pearson": 0.267818,
-      "partial_controlling_dollar": 0.050939
+      "pearson": 0.027159,
+      "partial_controlling_dollar": -0.335529
     },
     "C_dollar_vs_R_dollar": {
-      "pearson": 0.227032,
-      "partial_controlling_dollar": -0.038443
+      "pearson": 0.455482,
+      "partial_controlling_dollar": 0.153056
     }
   },
   "rolling_correlation_summary": {
     "E_dollar_vs_C_dollar": {
-      "mean": 0.206789,
-      "std": 0.10364,
-      "max": 0.419009,
-      "min": -0.071483,
+      "mean": 0.374361,
+      "std": 0.251633,
+      "max": 0.832289,
+      "min": -0.391334,
       "window": 60,
-      "n_windows": 440
+      "n_windows": 4720
     },
     "E_dollar_vs_R_dollar": {
-      "mean": 0.254754,
-      "std": 0.15245,
-      "max": 0.542438,
-      "min": -0.094345,
+      "mean": 0.058107,
+      "std": 0.312495,
+      "max": 0.727838,
+      "min": -0.657423,
       "window": 60,
-      "n_windows": 440
+      "n_windows": 4720
     },
     "C_dollar_vs_R_dollar": {
-      "mean": 0.220608,
-      "std": 0.090937,
-      "max": 0.419027,
-      "min": -0.025008,
+      "mean": 0.484001,
+      "std": 0.205931,
+      "max": 0.871542,
+      "min": -0.327067,
       "window": 60,
-      "n_windows": 440
+      "n_windows": 4720
     }
   },
   "config_space_coverage": {
@@ -58,53 +58,63 @@
     "configs_observed": 27,
     "coverage_pct": 100.0,
     "config_distribution": {
-      "(-1,-1,-1)": 17,
-      "(-1,-1,0)": 13,
-      "(-1,-1,1)": 11,
-      "(-1,0,-1)": 5,
-      "(-1,0,0)": 9,
-      "(-1,0,1)": 24,
-      "(-1,1,-1)": 2,
-      "(-1,1,0)": 10,
-      "(-1,1,1)": 9,
-      "(0,-1,-1)": 21,
-      "(0,-1,0)": 19,
-      "(0,-1,1)": 11,
-      "(0,0,-1)": 12,
-      "(0,0,0)": 36,
-      "(0,0,1)": 33,
-      "(0,1,-1)": 4,
-      "(0,1,0)": 9,
-      "(0,1,1)": 34,
-      "(1,-1,-1)": 16,
-      "(1,-1,0)": 29,
-      "(1,-1,1)": 9,
-      "(1,0,-1)": 9,
-      "(1,0,0)": 18,
-      "(1,0,1)": 38,
-      "(1,1,-1)": 15,
-      "(1,1,0)": 32,
-      "(1,1,1)": 54
+      "(-1,-1,-1)": 229,
+      "(-1,-1,0)": 97,
+      "(-1,-1,1)": 40,
+      "(-1,0,-1)": 121,
+      "(-1,0,0)": 132,
+      "(-1,0,1)": 105,
+      "(-1,1,-1)": 42,
+      "(-1,1,0)": 45,
+      "(-1,1,1)": 155,
+      "(0,-1,-1)": 350,
+      "(0,-1,0)": 240,
+      "(0,-1,1)": 40,
+      "(0,0,-1)": 266,
+      "(0,0,0)": 579,
+      "(0,0,1)": 209,
+      "(0,1,-1)": 49,
+      "(0,1,0)": 275,
+      "(0,1,1)": 243,
+      "(1,-1,-1)": 65,
+      "(1,-1,0)": 40,
+      "(1,-1,1)": 14,
+      "(1,0,-1)": 147,
+      "(1,0,0)": 318,
+      "(1,0,1)": 129,
+      "(1,1,-1)": 69,
+      "(1,1,0)": 395,
+      "(1,1,1)": 385
     },
-    "total_samples": 499
+    "total_samples": 4779
   },
   "polarity_index_stats": {
-    "mean": 0.5311,
-    "std": 1.5715,
+    "mean": 0.2346,
+    "std": 1.6126,
     "distribution": {
-      "-3": 17,
-      "-2": 39,
-      "-1": 69,
-      "0": 123,
-      "1": 93,
-      "2": 104,
-      "3": 54
+      "-3": 229,
+      "-2": 568,
+      "-1": 785,
+      "0": 1005,
+      "1": 1040,
+      "2": 767,
+      "3": 385
     }
   },
-  "independence_assessment": "E_dollar_vs_C_dollar: 中等相关 (|pearson|=0.223)，独立性部分成立; E_dollar_vs_R_dollar: 中等相关 (|pearson|=0.268)，独立性部分成立; C_dollar_vs_R_dollar: 中等相关 (|pearson|=0.227)，独立性部分成立",
+  "independence_assessment": "E_dollar_vs_C_dollar: 中等相关 (|pearson|=0.344)，独立性部分成立; E_dollar_vs_R_dollar: 弱相关 (|pearson|=0.027)，独立性成立; C_dollar_vs_R_dollar: 中等相关 (|pearson|=0.455)，独立性部分成立",
   "theoretical_findings": [
     {
-      "finding": "E_dollar_vs_R_dollar 滚动相关标准差 0.152",
+      "finding": "E_dollar_vs_C_dollar 滚动相关标准差 0.252",
+      "implication": "独立性是时变的，存在独立性失效期和恢复期的交替",
+      "category": "time_varying"
+    },
+    {
+      "finding": "E_dollar_vs_R_dollar 滚动相关标准差 0.312",
+      "implication": "独立性是时变的，存在独立性失效期和恢复期的交替",
+      "category": "time_varying"
+    },
+    {
+      "finding": "C_dollar_vs_R_dollar 滚动相关标准差 0.206",
       "implication": "独立性是时变的，存在独立性失效期和恢复期的交替",
       "category": "time_varying"
     }
@@ -116,5 +126,5 @@
     "walk_direction": "20 日均线斜率阈值法（0.5 * std）",
     "config_space": "三元组 (sigma_e, sigma_c, sigma_r) in {-1,0,+1}^3"
   },
-  "timestamp": "2026-02-27T22:55:50.170174"
+  "timestamp": "2026-02-27T23:56:33.856192"
 }
