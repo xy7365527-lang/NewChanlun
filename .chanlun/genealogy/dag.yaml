@@ -1409,6 +1409,11 @@ nodes:
   status: 已结算
   type: meta-rule
   file: settled/280-meta-observation-v123-swarm.md
+- id: '281'
+  title: 元观察——v124-swarm 回测主线框架搭建 + 280号 block-topology 修复
+  status: 已结算
+  type: meta-rule
+  file: settled/281-meta-observation-v124-swarm.md
 edges:
   depends_on:
   - from: '136'
@@ -2862,6 +2867,14 @@ edges:
   - from: '280'
     to: '204'
   - from: '280'
+    to: '189'
+  - from: '281'
+    to: '280'
+  - from: '281'
+    to: '267'
+  - from: '281'
+    to: '204'
+  - from: '281'
     to: '189'
   triggered:
   - from: '005'
