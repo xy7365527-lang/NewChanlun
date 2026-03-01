@@ -87,8 +87,7 @@ else:
         missing_genes = []
         if 'topo_address' not in prompt.lower() and '拓扑坐标' not in prompt:
             missing_genes.append('topo_address')
-        if 'depth_budget' not in prompt.lower() and '递归深度' not in prompt and '深度预算' not in prompt:
-            missing_genes.append('depth_budget')
+        # 274号废除 depth_budget——递归终止由原子性和不动点决定，不由计数器决定
         if 'parent_callback' not in prompt.lower() and '父节点回调' not in prompt:
             missing_genes.append('parent_callback')
 
@@ -100,8 +99,8 @@ else:
         if missing_genes:
             messages.append(
                 f'[073a号 spawn 三基因] Task prompt 缺少基因: {", ".join(missing_genes)}。'
-                f'dispatch-dag task_template 要求每个衍生节点携带三基因：'
-                f'topo_address（拓扑坐标）, depth_budget（递归深度预算）, parent_callback（父节点回调）。'
+                f'dispatch-dag task_template 要求每个衍生节点携带两基因（274号废除 depth_budget 后）：'
+                f'topo_address（拓扑坐标）, parent_callback（父节点回调）。'
                 f'请在 prompt 中注入这些信息（见 .claude/commands/ceremony.md 步骤5 递归判断块）。')
         if missing_recursion:
             messages.append(
