@@ -9,12 +9,22 @@ import pytest
 from scripts.ceremony_state import (
     _STATE_FILE,
     _SUSPENDED_FILE,
+    _TEAM_INIT_DIR,
+    _WAL_FILE,
+    WAL_PHASES,
+    clear_ceremony_state,
     clear_step,
+    compute_rescan_hash,
+    get_incomplete_team_inits,
     get_suspended_workstations,
     is_in_ceremony,
+    mark_team_init_complete,
+    mark_team_init_started,
+    read_ceremony_state,
     read_step,
     suspend_workstation,
     unsuspend_workstation,
+    write_ceremony_state,
     write_step,
 )
 
@@ -152,3 +162,163 @@ class TestSuspendedWorkstations:
             suspended = get_suspended_workstations()
 
             assert suspended["ws-A"]["reason"] == "new-reason"
+
+
+# ═══════════════════════════════════════════════════════════════
+# WAL ceremony state tests（283号缺口B）
+# ═══════════════════════════════════════════════════════════════
+
+
+class TestWALCeremonyState:
+    @pytest.fixture(autouse=True)
+    def _patch_wal(self, tmp_path):
+        fake_wal = tmp_path / ".chanlun" / "ceremony_wal.json"
+        with patch("scripts.ceremony_state._WAL_FILE", fake_wal):
+            yield fake_wal
+
+    def test_write_and_read_ceremony_state(self, tmp_path):
+        fake_wal = tmp_path / ".chanlun" / "ceremony_wal.json"
+        with patch("scripts.ceremony_state._WAL_FILE", fake_wal):
+            write_ceremony_state(1, "SCAN_DONE", rescan_hash="abc123", workstations=["ws-a", "ws-b"])
+            data = read_ceremony_state()
+
+            assert data is not None
+            assert data["epoch"] == 1
+            assert data["phase"] == "SCAN_DONE"
+            assert data["rescan_hash"] == "abc123"
+            assert data["workstations"] == ["ws-a", "ws-b"]
+            assert "last_transition_ts" in data
+            assert data["prev_rescan_hash"] is None
+
+    def test_prev_rescan_hash_preserved(self, tmp_path):
+        fake_wal = tmp_path / ".chanlun" / "ceremony_wal.json"
+        with patch("scripts.ceremony_state._WAL_FILE", fake_wal):
+            write_ceremony_state(1, "SCAN_DONE", rescan_hash="hash1")
+            write_ceremony_state(1, "RESCAN_DONE", rescan_hash="hash2")
+            data = read_ceremony_state()
+
+            assert data["rescan_hash"] == "hash2"
+            assert data["prev_rescan_hash"] == "hash1"
+
+    def test_read_nonexistent_wal(self, tmp_path):
+        fake_wal = tmp_path / ".chanlun" / "ceremony_wal.json"
+        with patch("scripts.ceremony_state._WAL_FILE", fake_wal):
+            assert read_ceremony_state() is None
+
+    def test_clear_ceremony_state(self, tmp_path):
+        fake_wal = tmp_path / ".chanlun" / "ceremony_wal.json"
+        with patch("scripts.ceremony_state._WAL_FILE", fake_wal):
+            write_ceremony_state(1, "SCAN_DONE")
+            assert read_ceremony_state() is not None
+
+            clear_ceremony_state()
+            assert read_ceremony_state() is None
+
+    def test_clear_removes_tmp(self, tmp_path):
+        fake_wal = tmp_path / ".chanlun" / "ceremony_wal.json"
+        with patch("scripts.ceremony_state._WAL_FILE", fake_wal):
+            # 手动创建 tmp 文件
+            fake_wal.parent.mkdir(parents=True, exist_ok=True)
+            tmp_file = fake_wal.with_suffix(".json.tmp")
+            tmp_file.write_text("{}", encoding="utf-8")
+
+            clear_ceremony_state()
+            assert not tmp_file.exists()
+
+    def test_invalid_phase_raises(self, tmp_path):
+        fake_wal = tmp_path / ".chanlun" / "ceremony_wal.json"
+        with patch("scripts.ceremony_state._WAL_FILE", fake_wal):
+            with pytest.raises(ValueError, match="Invalid WAL phase"):
+                write_ceremony_state(1, "INVALID_PHASE")
+
+    def test_corrupted_wal_file(self, tmp_path):
+        fake_wal = tmp_path / ".chanlun" / "ceremony_wal.json"
+        with patch("scripts.ceremony_state._WAL_FILE", fake_wal):
+            fake_wal.parent.mkdir(parents=True, exist_ok=True)
+            fake_wal.write_text("not json", encoding="utf-8")
+            assert read_ceremony_state() is None
+
+    def test_atomic_write_no_tmp_residue(self, tmp_path):
+        fake_wal = tmp_path / ".chanlun" / "ceremony_wal.json"
+        with patch("scripts.ceremony_state._WAL_FILE", fake_wal):
+            write_ceremony_state(1, "SCAN_DONE")
+            tmp_file = fake_wal.with_suffix(".json.tmp")
+            assert not tmp_file.exists()
+            assert fake_wal.exists()
+
+    def test_compute_rescan_hash(self):
+        output_a = {"workstations": [{"name": "ws-a"}, {"name": "ws-b"}]}
+        output_b = {"workstations": [{"name": "ws-b"}, {"name": "ws-a"}]}
+        output_c = {"workstations": [{"name": "ws-a"}, {"name": "ws-c"}]}
+
+        hash_a = compute_rescan_hash(output_a)
+        hash_b = compute_rescan_hash(output_b)
+        hash_c = compute_rescan_hash(output_c)
+
+        # 同内容（排序后）hash 相同
+        assert hash_a == hash_b
+        # 不同内容 hash 不同
+        assert hash_a != hash_c
+        # hash 是 16 字符 hex
+        assert len(hash_a) == 16
+
+    def test_compute_rescan_hash_empty(self):
+        assert compute_rescan_hash({}) == compute_rescan_hash({"workstations": []})
+
+
+# ═══════════════════════════════════════════════════════════════
+# Team init 事务标记 tests（283号缺口C）
+# ═══════════════════════════════════════════════════════════════
+
+
+class TestTeamInit:
+    @pytest.fixture(autouse=True)
+    def _patch_team_init_dir(self, tmp_path):
+        fake_dir = tmp_path / ".chanlun" / "team_init"
+        with patch("scripts.ceremony_state._TEAM_INIT_DIR", fake_dir):
+            yield fake_dir
+
+    def test_mark_started_and_complete(self, tmp_path):
+        fake_dir = tmp_path / ".chanlun" / "team_init"
+        with patch("scripts.ceremony_state._TEAM_INIT_DIR", fake_dir):
+            mark_team_init_started("v128-swarm")
+            data = json.loads((fake_dir / "v128-swarm.json").read_text(encoding="utf-8"))
+            assert data["status"] == "started"
+            assert data["team_name"] == "v128-swarm"
+            assert "started_at" in data
+
+            mark_team_init_complete("v128-swarm")
+            data = json.loads((fake_dir / "v128-swarm.json").read_text(encoding="utf-8"))
+            assert data["status"] == "complete"
+            assert "completed_at" in data
+            assert data["team_name"] == "v128-swarm"
+
+    def test_get_incomplete_empty(self, tmp_path):
+        fake_dir = tmp_path / ".chanlun" / "team_init"
+        with patch("scripts.ceremony_state._TEAM_INIT_DIR", fake_dir):
+            assert get_incomplete_team_inits() == []
+
+    def test_get_incomplete_team_inits(self, tmp_path):
+        fake_dir = tmp_path / ".chanlun" / "team_init"
+        with patch("scripts.ceremony_state._TEAM_INIT_DIR", fake_dir):
+            mark_team_init_started("team-a")
+            mark_team_init_started("team-b")
+            mark_team_init_complete("team-b")
+
+            incomplete = get_incomplete_team_inits()
+            assert incomplete == ["team-a"]
+
+    def test_mark_complete_without_started(self, tmp_path):
+        fake_dir = tmp_path / ".chanlun" / "team_init"
+        with patch("scripts.ceremony_state._TEAM_INIT_DIR", fake_dir):
+            mark_team_init_complete("orphan-team")
+            data = json.loads((fake_dir / "orphan-team.json").read_text(encoding="utf-8"))
+            assert data["status"] == "complete"
+
+    def test_corrupted_init_file_treated_as_incomplete(self, tmp_path):
+        fake_dir = tmp_path / ".chanlun" / "team_init"
+        with patch("scripts.ceremony_state._TEAM_INIT_DIR", fake_dir):
+            fake_dir.mkdir(parents=True, exist_ok=True)
+            (fake_dir / "broken-team.json").write_text("not json", encoding="utf-8")
+            incomplete = get_incomplete_team_inits()
+            assert "broken-team" in incomplete
