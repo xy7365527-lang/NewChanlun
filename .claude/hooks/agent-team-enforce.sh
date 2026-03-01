@@ -7,13 +7,13 @@
 #   2. 如果没有 team_name → block + 要求使用 Agent Team
 #   3. 无例外（096号谱系）：Task(Explore) 同样需要 team_name
 #      搜索任务改用 Glob/Grep/Read 直接工具，或在 team 内 spawn 搜索 teammate
-#   4. [spec-gap-audit] 检查 spawn prompt 是否包含三基因（073a号：topo_address/depth_budget/parent_callback）
+#   4. [spec-gap-audit] 检查 spawn prompt 是否包含两基因（073a号+274号：topo_address/parent_callback）
 #      缺失时 advisory 警告（不阻断——避免032号死锁重演）
 #
 # 095号谱系：严格使用 Agent Team，不使用孤立 subagent
 # 096号谱系：无例外——规则是语法规则，例外使规则降级为软性建议
 # 016号谱系：规则没有代码强制就不会被执行
-# 073a号谱系：spawn 三基因——topo_address, depth_budget, parent_callback
+# 073a号谱系+274号：spawn 两基因——topo_address, parent_callback（depth_budget 已废除）
 
 set -uo pipefail
 
@@ -78,8 +78,8 @@ if not team_name:
         }
     }, ensure_ascii=False))
 else:
-    # --- 三基因检查（073a号谱系，spec-gap-audit 修复） ---
-    # Task 有 team_name → 放行，但检查 prompt 是否包含三基因
+    # --- 两基因检查（073a号+274号谱系，spec-gap-audit 修复） ---
+    # Task 有 team_name → 放行，但检查 prompt 是否包含两基因
     # 仅对非 Explore 类型检查（Explore 是搜索，不是 spawn）
     subagent_type = tool_input.get('subagent_type', '')
     if subagent_type != 'Explore':
@@ -98,7 +98,7 @@ else:
         messages = []
         if missing_genes:
             messages.append(
-                f'[073a号 spawn 三基因] Task prompt 缺少基因: {", ".join(missing_genes)}。'
+                f'[073a号+274号 spawn 两基因] Task prompt 缺少基因: {", ".join(missing_genes)}。'
                 f'dispatch-dag task_template 要求每个衍生节点携带两基因（274号废除 depth_budget 后）：'
                 f'topo_address（拓扑坐标）, parent_callback（父节点回调）。'
                 f'请在 prompt 中注入这些信息（见 .claude/commands/ceremony.md 步骤5 递归判断块）。')
