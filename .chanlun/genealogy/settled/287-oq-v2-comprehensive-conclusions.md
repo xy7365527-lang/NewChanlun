@@ -15,13 +15,13 @@ topo_effect: "286号推论1 部分否证——'R/$ 唯一趋势边'废除；Au/R
 downstream_inferences:
   - id: 1
     description: "Au/R 背驰状态是否区分'逼近边界'的不同阶段——待更多历史窗口（如 1998 亚洲金融危机、2011 欧债危机）验证"
-    status: open
+    status: "verified（289号：六窗口验证——Au/R 仅在系统性危机窗口激活，背驰仅在当前窗口出现）"
   - id: 2
     description: "沉寂边位置反转（2008=R/$，当前=E/$）是否有操作含义——待整合回操作框架验证"
     status: open
   - id: 3
     description: "对等窗口内全部盘整 0 趋势——趋势走势是否仅在跨周期累积时出现——待理论层面确认"
-    status: open
+    status: "verified（289号：六个窗口全部0趋势，加固此结论）"
 ---
 
 # 287号：OQ v2 实验综合结论——补充实验校正 + 硬结论定稿

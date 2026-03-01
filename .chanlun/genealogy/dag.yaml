@@ -1449,6 +1449,16 @@ nodes:
   status: 已结算
   type: meta-rule
   file: settled/288-meta-observation-v131-swarm.md
+- id: '289'
+  title: OQ5-ext 多窗口扩展实验——Au/R 六窗口行为验证
+  status: 已结算
+  type: 概念发现
+  file: settled/289-oq5-ext-multi-window.md
+- id: '289'
+  title: OQ5-ext 多窗口扩展实验——Au/R 六窗口行为验证
+  status: 已结算
+  type: 概念发现
+  file: settled/289-oq5-ext-multi-window.md
 edges:
   depends_on:
   - from: '136'
@@ -2965,6 +2975,14 @@ edges:
     to: '287'
   - from: '288'
     to: '282'
+  - from: '289'
+    to: '287'
+  - from: '289'
+    to: '284'
+  - from: '289'
+    to: '283'
+  - from: '289'
+    to: '279'
   triggered:
   - from: '005'
     to: 005a
