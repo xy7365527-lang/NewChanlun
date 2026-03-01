@@ -987,6 +987,23 @@ def main():
         workstations.extend(structural_ws)
         result["structural_workstations"] = [w["name"] for w in structural_ws]
 
+    # 283号缺口C：incomplete team init 扫描
+    # 插入点：structural_ws 追加之后、suspended 过滤之前
+    try:
+        from scripts.ceremony_state import get_incomplete_team_inits
+    except ImportError:
+        from ceremony_state import get_incomplete_team_inits
+    incomplete_teams = get_incomplete_team_inits()
+    if incomplete_teams:
+        result["incomplete_team_inits"] = incomplete_teams
+        for team_name in incomplete_teams:
+            workstations.append({
+                "priority": "P0",
+                "name": f"team_init_incomplete:{team_name}",
+                "status": "team init 未完成，需要清理或重试",
+                "source": "team_init_audit",
+            })
+
     # pending 谱系计数（多处使用）
     pending_count = len(glob.glob(os.path.join(root, ".chanlun/genealogy/pending/*.md")))
 

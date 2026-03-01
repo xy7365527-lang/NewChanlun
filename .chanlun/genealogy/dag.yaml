@@ -1414,6 +1414,11 @@ nodes:
   status: 已结算
   type: meta-rule
   file: settled/281-meta-observation-v124-swarm.md
+- id: '282'
+  title: 元观察——v127-swarm 终止 session（无新发现）
+  status: 已结算
+  type: meta-rule
+  file: settled/282-meta-observation-v127-swarm.md
 edges:
   depends_on:
   - from: '136'
@@ -2876,6 +2881,10 @@ edges:
     to: '204'
   - from: '281'
     to: '189'
+  - from: '282'
+    to: '281'
+  - from: '282'
+    to: '260'
   triggered:
   - from: '005'
     to: 005a

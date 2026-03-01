@@ -150,6 +150,30 @@ ${STALE_SUPPLEMENT}"
     fi
 fi
 
+# 283号缺口A：采集工位 checkpoints 摘要
+CHECKPOINT_SUMMARY=""
+if [ -d ".chanlun/checkpoints" ]; then
+    CHECKPOINT_SUMMARY=$(python -c "
+import json, os, glob
+entries = []
+for f in sorted(glob.glob('.chanlun/checkpoints/*/*.json')):
+    if f.endswith('.tmp'): continue
+    try:
+        with open(f, encoding='utf-8') as fh:
+            d = json.load(fh)
+        entries.append(f\"| {d.get('team_name','?')} | {d.get('agent_name','?')} | {d.get('phase','?')} | {d.get('updated_at','?')[:19]} |\")
+    except Exception:
+        pass
+if entries:
+    print('| team | agent | phase | updated_at |')
+    print('|------|-------|-------|------------|')
+    for e in entries:
+        print(e)
+else:
+    print('（无活跃 checkpoint）')
+" 2>/dev/null || echo "（checkpoint 采集失败）")
+fi
+
 # 写入 session（统一格式，不再区分 precompact/手动）
 cat > "$SESSION_FILE" << SESSION_EOF
 # Session
@@ -171,6 +195,9 @@ cat > "$SESSION_FILE" << SESSION_EOF
 
 ## 活跃蜂群
 ${SWARM_STATUS:-"（无活跃蜂群）"}
+
+## 工位 Checkpoints
+${CHECKPOINT_SUMMARY}
 
 ## 中断点
 ${PREV_INTERRUPTS:-"（自动快照，中断点待 CC 下次写入）"}
