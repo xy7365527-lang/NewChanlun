@@ -17,7 +17,7 @@ downstream_inferences:
     status: open（行动类——待实现）
   - id: 272-2
     description: '否定之否定的精确拓扑表达修正：不是"边方向反转"，是"新节点C的否定边使旧否定边失效，旧节点B的状态从被否定恢复为开放"。边有效性标记变化，不是边反转'
-    status: open（语法记录类——待写入定义）
+    status: resolved（273号已写入形式化定义）
   - id: 272-3
     description: '优先级确定：1>3>2。先做拓扑检测（canonical form + 多重边），再形式化否定拓扑代数，递归深度维持 depth_budget=3'
     status: resolved（编排者已裁定，无需实现）

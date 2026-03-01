@@ -9,13 +9,17 @@
 075号更新：structural_nodes → required_skills（事件驱动 skill 架构）
 079号更新：background_noise 降级 + 业务层任务发现（no_work_fallback）
 081号更新：roadmap.yaml 扫描（最高优先级任务来源）+ 终止逻辑修正
-089号声明：当前为硬编码优先级扫描，不是 DAG 拓扑排序。
+089号声明：当前为硬编码来源优先级扫描，不是 DAG 拓扑排序。
 147号更新：topo_effect 扫描——frozen 节点的下游工位不 spawn
 176号更新：delta_genealogy 检测——RTAS循环是否产生新谱系
 178号更新：delta_blocks 检测——block-topology 区块变化
 183号更新：async_self_reference 集成——t审查t-1 异步自指审计
+274号更新：priority 字段语义明确为来源标记（非全局排序依据）。
+    扫描来源有序列（roadmap → session → fallback），但这是"从哪里发现工位"的策略，
+    不是"工位之间谁先谁后"的排序。Lead 消费 scan 输出时全部并行 spawn（218号要求），
+    不按 priority 字段排序。
     dispatch-dag.yaml 的 ceremony_sequence 定义了 DAG 格式的 nodes+depends_on，
-    但本脚本以优先级线性扫描实现（roadmap → session → fallback）——这是有意的工程选择。
+    但本脚本以来源优先级线性扫描实现（roadmap → session → fallback）——这是有意的工程选择。
     DAG 声明保留逻辑依赖信息供 LLM 解释执行（057号推论：LLM 不是状态机），
     代码实现的线性扫描覆盖最常见的执行路径。
     演化路径：如需强制拓扑排序，可重写为真正读取 ceremony_sequence 的 DAG 解析器。
@@ -909,17 +913,19 @@ def main():
         return
 
     # 根 ceremony 模式：全量扫描
-    # 扫描顺序（优先级递减）：
-    # 1. roadmap.yaml（最高优先级，结构化业务目标）
+    # 扫描来源（按发现策略排列，不是工位间的执行排序）：
+    # 1. roadmap.yaml（结构化业务目标——最先扫描的来源）
     # 2. session 遗留项 + pending 谱系
     # 3. no_work_fallback（测试失败等）
+    # 274号：priority 字段是工位的来源标记，不产生全局排序效力。
+    #   Lead spawn 工位时全部并行（218号要求），不按 priority 排序。
     # 081号：只有 roadmap 为空 AND session 遗留为空 AND fallback 为空，才是真阴性干净终止
 
     session_name, workstations = get_session_workstations(root)
     result["mode"] = "warm_start" if session_name else "cold_start"
     result["session"] = session_name
 
-    # 1. 最高优先级：roadmap.yaml 中的 active 任务
+    # 1. 首先扫描：roadmap.yaml 中的 active 任务
     roadmap_tasks = get_roadmap_workstations(root)
     # VDW：分离 auto_verified 任务（不生成工位）和需要工位的任务
     verified_tasks = [t for t in roadmap_tasks if t.get("auto_verified")]
@@ -929,7 +935,7 @@ def main():
             {"name": t["name"], "status": "auto_verified"} for t in verified_tasks
         ]
     if unverified_tasks:
-        # roadmap 任务插入到 workstations 最前（P2 优先级，高于 P3 long_term）
+        # roadmap 任务插入到 workstations 最前（列表拼接顺序≠执行排序，274号：Lead 全部并行 spawn）
         workstations = unverified_tasks + workstations
     result["roadmap_tasks_found"] = len(roadmap_tasks)
     result["roadmap_tasks_verified"] = len(verified_tasks)

@@ -1364,6 +1364,26 @@ nodes:
   status: settled
   type: 语法记录
   file: settled/270-challenger-termination-design.md
+- id: '271'
+  title: 审讯终止检测升级——从文本stance-diff到拓扑否定边等价检测
+  status: settled
+  type: 语法记录
+  file: settled/271-topology-cycle-detection-upgrade.md
+- id: '272'
+  title: RTAS三议题裁定——拓扑检测+否定拓扑代数+递归深度
+  status: settled
+  type: 编排者裁定
+  file: settled/272-rtas-three-topic-ruling.md
+- id: '273'
+  title: 否定拓扑代数——边有效性标记与否定之否定的精确拓扑表达
+  status: settled
+  type: 语法记录
+  file: settled/273-negation-topology-algebra.md
+- id: '274'
+  title: ''
+  status: 已结算
+  type: 语法记录
+  file: settled/274-local-dependency-principle.md
 edges:
   depends_on:
   - from: '136'
@@ -2772,6 +2792,26 @@ edges:
     to: '137'
   - from: '270'
     to: '005'
+  - from: '271'
+    to: '270'
+  - from: '271'
+    to: '269'
+  - from: '271'
+    to: '005'
+  - from: '272'
+    to: '271'
+  - from: '272'
+    to: '270'
+  - from: '272'
+    to: 030a
+  - from: '273'
+    to: '272'
+  - from: '273'
+    to: 005b
+  - from: '273'
+    to: 089
+  - from: '273'
+    to: '271'
   triggered:
   - from: '005'
     to: 005a
@@ -2844,6 +2884,8 @@ edges:
     scope: partial:下游推论1被否定，三步战略本身保留
   - from: '215'
     to: '214'
+  - from: '274'
+    to: 218号（扩展：218割掉串行尾巴，274割掉全局排序思维）
   related:
   - between:
     - '001'
