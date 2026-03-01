@@ -1,1 +1,38 @@
-2026-03-01-0007-session.md
+2026-03-01-0041-session.md
+
+## 二阶观察（meta-observer guard 触发，session_end）
+
+rule_version_baseline:
+  claude_md_commit: 97f3ba3186f1919ff6abf02dea4247724d47c79a
+  rules_dir_mtime: 2026-03-01 00:27:49 +0000
+
+### 观察范围
+本 session 从 compacted summary 恢复，执行 v121-swarm RTAS consume loop（6工位完成/shutdown）→ agent-team-enforce.sh 注释修复 → session 更新 → commit → push → rescan → 不动点终止。
+
+### 规则触发/违反模式
+
+1. **218号/275号并行执行**：shutdown 批量并行发送。合规。
+
+2. **224/225号原子链**：push → rescan → evaluate → 不动点终止。原子链完整，无中断。合规。
+
+3. **137号格式合规**：最终输出格式B + 排除理由推导链。合规。
+
+4. **重复工位处理模式**：v121-swarm 3对重复工位（compaction前后重复spawn），
+   处理方式：容忍冗余完成→全部shutdown。与260号观察的"compaction后team状态丢失"同源，
+   但处理方式从"重建"改进为"容忍冗余"。收敛信号。
+
+5. **meta-observer行动类发现**：agent-team-enforce.sh注释残留，四分法=行动类，Lead直接修复。合规。
+
+### 语法记录候选
+
+无新候选。编号分配原子性候选（频率=1）维持观察。
+
+### 元规则一致性
+
+- 274号与所有下游文件（ceremony.md/SKILL.md/agent-team-enforce.sh/dispatch-dag.yaml）一致性确认
+- 275号与lead-parallel-dispatch.md一致性确认
+- 273号-1（schema扩展）和273号-2（文本修正）均resolved，与谱系文件一致
+
+### 结论
+
+无新矛盾。无需写入谱系。所有规则执行合规。
