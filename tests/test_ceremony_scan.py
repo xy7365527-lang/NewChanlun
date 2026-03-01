@@ -618,3 +618,97 @@ class TestAsyncSelfRefIntegration:
         output = _run_main_in_tmp(tmp_path, monkeypatch)
 
         assert output["clean_terminate"] is False
+
+
+# ═══════════════════════════════════════════════════════════════
+# suspended 工位过滤（270号）
+# ═══════════════════════════════════════════════════════════════
+
+
+class TestSuspendedWorkstationFiltering:
+    """270号：ceremony_scan 过滤 suspended 工位。"""
+
+    def test_suspended_workstation_filtered_from_output(self, tmp_path, monkeypatch) -> None:
+        """suspended 工位不出现在 scan 的 workstations 输出中。"""
+        from unittest import mock
+        from scripts.ceremony_state import _SUSPENDED_FILE
+
+        # 创建一个 roadmap 任务（会产生 workstation）
+        roadmap_dir = os.path.join(tmp_path, ".chanlun")
+        os.makedirs(roadmap_dir, exist_ok=True)
+        roadmap_path = os.path.join(roadmap_dir, "roadmap.yaml")
+        with open(roadmap_path, "w", encoding="utf-8") as f:
+            f.write(textwrap.dedent("""\
+                tasks:
+                  - id: task-alpha
+                    title: 任务Alpha
+                    status: active
+                    priority: P2
+                    description: 测试任务Alpha
+                  - id: task-beta
+                    title: 任务Beta
+                    status: active
+                    priority: P2
+                    description: 测试任务Beta
+            """))
+
+        # 将 task-alpha 标记为 suspended
+        fake_suspended = tmp_path / ".ceremony-suspended"
+        suspended_data = {
+            "task-alpha": {
+                "reason": "stance-repetition",
+                "suspended_at": "2026-02-28T00:00:00+00:00",
+            }
+        }
+        fake_suspended.write_text(json.dumps(suspended_data, ensure_ascii=False), encoding="utf-8")
+
+        with mock.patch("scripts.ceremony_state._SUSPENDED_FILE", fake_suspended):
+            output = _run_main_in_tmp(tmp_path, monkeypatch)
+
+        ws_names = [w["name"] for w in output["workstations"]]
+        assert "task-alpha" not in ws_names
+        assert "task-beta" in ws_names
+        assert output.get("suspended_filtered_count", 0) >= 1
+        assert "suspended_workstations" in output
+        assert "task-alpha" in output["suspended_workstations"]
+
+    def test_unsuspended_workstation_appears_in_output(self, tmp_path, monkeypatch) -> None:
+        """编排者恢复 suspended 工位后，该工位重新出现在 scan 输出中。"""
+        from unittest import mock
+        from scripts.ceremony_state import suspend_workstation, unsuspend_workstation
+
+        # 创建 roadmap 任务
+        roadmap_dir = os.path.join(tmp_path, ".chanlun")
+        os.makedirs(roadmap_dir, exist_ok=True)
+        roadmap_path = os.path.join(roadmap_dir, "roadmap.yaml")
+        with open(roadmap_path, "w", encoding="utf-8") as f:
+            f.write(textwrap.dedent("""\
+                tasks:
+                  - id: task-gamma
+                    title: 任务Gamma
+                    status: active
+                    priority: P2
+                    description: 测试任务Gamma
+            """))
+
+        fake_suspended = tmp_path / ".ceremony-suspended"
+
+        with mock.patch("scripts.ceremony_state._SUSPENDED_FILE", fake_suspended):
+            # 先 suspend
+            suspend_workstation("task-gamma", "stance-repetition")
+
+            # 再 unsuspend
+            unsuspend_workstation("task-gamma")
+
+            output = _run_main_in_tmp(tmp_path, monkeypatch)
+
+        ws_names = [w["name"] for w in output["workstations"]]
+        assert "task-gamma" in ws_names
+        assert output.get("suspended_filtered_count", 0) == 0
+
+    def test_no_suspended_no_filtering(self, tmp_path, monkeypatch) -> None:
+        """无 suspended 工位时，不影响 workstations 列表。"""
+        output = _run_main_in_tmp(tmp_path, monkeypatch)
+
+        assert "suspended_workstations" not in output
+        assert "suspended_filtered_count" not in output

@@ -80,6 +80,7 @@ class BarStep:
     cost_basis: float
     cumulative_recovered: float
     total_shares: float
+    missed_signals_count: int = 0
 
 
 @dataclass
@@ -149,6 +150,10 @@ class FullPipelineEngine:
 
         # BSP 跟踪（去重）
         self._seen_bsp_keys: set[tuple[int, str, str, int]] = set()
+
+        # 机会成本跟踪（不换仓原则，267号§五）
+        self._missed_bsp_keys: set[tuple[str, int, str, str, int]] = set()
+        self._current_bar_missed: int = 0
 
     def _get_or_create_orchestrator(self, symbol: str) -> RecursiveOrchestrator:
         """获取或创建候选标的的 orchestrator。"""
@@ -284,6 +289,8 @@ class FullPipelineEngine:
         scanner_selected: str | None = None
 
         # 3-6. 根据 FSM 状态分派
+        self._current_bar_missed = 0
+
         if self._fsm.state == CostState.SCANNING:
             self._handle_scanning(polarity, candidate_bars, config_label)
             if self._fsm.state == CostState.POSITION_OPEN:
@@ -309,6 +316,7 @@ class FullPipelineEngine:
             cost_basis=self._fsm.cost_basis,
             cumulative_recovered=self._fsm.cumulative_recovered,
             total_shares=self._fsm.total_shares,
+            missed_signals_count=self._current_bar_missed,
         )
         self._steps.append(step)
         self._bar_idx += 1
@@ -344,6 +352,9 @@ class FullPipelineEngine:
         if self._held_symbol is None:
             return
 
+        # 机会成本跟踪：推进其他标的并检测买点（267号§五不换仓原则）
+        self._track_missed_signals(candidate_bars)
+
         bar = candidate_bars.get(self._held_symbol)
         if bar is None:
             return
@@ -368,6 +379,9 @@ class FullPipelineEngine:
         if self._held_symbol is None:
             return
 
+        # 机会成本跟踪
+        self._track_missed_signals(candidate_bars)
+
         bar = candidate_bars.get(self._held_symbol)
         if bar is None:
             return
@@ -386,6 +400,27 @@ class FullPipelineEngine:
             price=price,
             level=level,
         ))
+
+    def _track_missed_signals(self, candidate_bars: dict[str, Bar]) -> None:
+        """跟踪持仓期间其他标的出现的买点信号（不换仓原则机会成本）。
+
+        267号§五：持仓期间不因外部机会换仓。
+        此方法不影响交易决策，仅记录错过的信号用于事后分析。
+        """
+        self._current_bar_missed = 0
+        for sym, bar in candidate_bars.items():
+            if sym == self._held_symbol:
+                continue
+            orch = self._get_or_create_orchestrator(sym)
+            snap = orch.process_bar(bar)
+            for bp in snap.bsp_snapshot.buysellpoints:
+                if not bp.confirmed or bp.side != "buy":
+                    continue
+                key = (sym, bp.seg_idx, bp.kind, bp.side, bp.level_id)
+                if key in self._missed_bsp_keys:
+                    continue
+                self._missed_bsp_keys.add(key)
+                self._current_bar_missed += 1
 
     def _handle_stopped_out(self) -> None:
         """STOPPED_OUT 状态处理：自动 RESET。"""

@@ -36,6 +36,7 @@ from pathlib import Path
 from typing import Literal
 
 from scripts.block_topology import DEFAULT_BASE
+from scripts.topo_repetition_detect import run_topo_detection
 from scripts.consensus_trigger import (
     InquiryCycleResult,
     StanceDeclaration,
@@ -97,6 +98,8 @@ class InquiryResult:
     total_rounds: int
     registered_keys: frozenset[str]
     cycle_result: InquiryCycleResult | None  # 收敛后的仪式输入
+    suspended: bool = False  # 272号三层检测暂停
+    suspend_reason: str = ""  # 暂停原因
 
 
 # ── 收敛检测 ──
@@ -541,6 +544,28 @@ def run_inquiry_loop(
     key_registry: set[str] = set()
     round_number = 0
 
+    # ── 272号三层检测：拓扑层 + canonical form 层（前置检测） ──
+    # 拓扑数据在质询循环期间不变，只需检测一次
+    topo_result = run_topo_detection(base=base)
+    if topo_result.should_suspend:
+        empty_verdict = ConvergenceVerdict(
+            converged=False,
+            key_frozen=False,
+            same_subject_stable=False,
+            reason=f"suspended:topology-cycle — {topo_result.suspend_reason}",
+        )
+        return InquiryResult(
+            converged=False,
+            verdict=empty_verdict,
+            snapshots=(),
+            trajectories=(),
+            total_rounds=0,
+            registered_keys=frozenset(),
+            cycle_result=None,
+            suspended=True,
+            suspend_reason=f"suspended:topology-cycle — {topo_result.suspend_reason}",
+        )
+
     while True:
         round_number += 1
         round_context = _build_round_context(subject, context, snapshots)
@@ -595,7 +620,7 @@ def run_inquiry_loop(
         )
         snapshots.append(codex_snap)
 
-        # ── 收敛检查 ──
+        # ── 收敛检查（优先于 stance-repetition） ──
         verdict = check_convergence(snapshots, stability_window)
         if verdict.converged:
             frozen_keys = frozenset(key_registry)
@@ -615,6 +640,41 @@ def run_inquiry_loop(
                 registered_keys=frozen_keys,
                 cycle_result=cycle_result,
             )
+
+        # ── 272号三层检测：文本层 stance-diff（收敛未触发时的死循环保护） ──
+        # 收敛 = stance 稳定（有实质进展的正常终止）
+        # stance-repetition = 未收敛但 stance 已停滞（死循环信号）
+        # 只在收敛条件不满足时才检查——避免正常收敛被误判为重复
+        for speaker in ("gemini", "codex"):
+            repeated, repeated_keys = _check_stance_repetition(
+                snapshots, speaker=speaker, window=stability_window,
+            )
+            if repeated:
+                stance_verdict = ConvergenceVerdict(
+                    converged=False,
+                    key_frozen=False,
+                    same_subject_stable=False,
+                    reason=(
+                        f"suspended:stance-repetition — "
+                        f"{speaker} 连续 {stability_window} 轮 stance 完全不变"
+                        f"但收敛条件未满足，重复 Key: {repeated_keys}"
+                    ),
+                )
+                return InquiryResult(
+                    converged=False,
+                    verdict=stance_verdict,
+                    snapshots=tuple(snapshots),
+                    trajectories=(),
+                    total_rounds=round_number,
+                    registered_keys=frozenset(key_registry),
+                    cycle_result=None,
+                    suspended=True,
+                    suspend_reason=(
+                        f"suspended:stance-repetition — "
+                        f"{speaker} 连续 {stability_window} 轮 stance 完全不变"
+                        f"但收敛条件未满足，重复 Key: {repeated_keys}"
+                    ),
+                )
 
 
 # ── CLI 入口 ──
