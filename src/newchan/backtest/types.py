@@ -5,6 +5,10 @@
 - 幅度态（amplitude）：当前走势相对前一走势的幅度比
 - 吸收态（absorption）：中枢是否在扩展（新笔是否被中枢吸收）
 
+K4 完全图模型：四个顶点 E/Au/R/$，六条边。
+D 算子跑在边上（比价序列），不是跑在顶点上。
+边的方向态 = 资本在两个矩阵之间的相对流向。
+
 认识论标注：
   - 类型定义：L0（从缠论定义直接推导）
   - D 算子读数提取：L0（映射规则从定义推导）
@@ -101,40 +105,78 @@ def extract_d_reading(snapshot: RecursiveOrchestratorSnapshot) -> DOperatorReadi
 
 
 # ═══════════════════════════════════════════════════════════════
-# K4 配置状态
+# K4 完全图边状态
 # ═══════════════════════════════════════════════════════════════
 
 
-@dataclass(frozen=True, slots=True)
-class AssetState:
-    """单资产状态：D 算子读数 + WalkDirection。"""
+# K4 完全图的六条边标签
+K4_EDGE_LABELS: tuple[str, ...] = (
+    "E/Au", "E/R", "E/$", "Au/R", "Au/$", "R/$",
+)
 
-    symbol: str
+
+@dataclass(frozen=True, slots=True)
+class EdgeState:
+    """K4 完全图的一条边。
+
+    每条边是两个矩阵之间的资本流动通道。
+    D 算子跑在边的比价序列上。
+
+    Attributes
+    ----------
+    edge_label : str
+        边标签："E/Au", "E/R", "E/$", "Au/R", "Au/$", "R/$"。
+    vertex_from : str
+        起点矩阵。
+    vertex_to : str
+        终点矩阵。
+    d_reading : DOperatorReading
+        D 算子读数（方向态/幅度态/吸收态）。
+    walk_direction : WalkDirection
+        走势方向。
+    """
+
+    edge_label: str
+    vertex_from: str
+    vertex_to: str
     d_reading: DOperatorReading
     walk_direction: WalkDirection
 
 
 @dataclass(frozen=True, slots=True)
 class K4State:
-    """K4 三资产配置状态。
+    """K4 六条边配置状态。
+
+    K4 完全图四顶点 E/Au/R/$，六条边。
+    每条边各自跑 RecursiveOrchestrator，产出方向态/幅度态/吸收态。
+    六条边的联合状态 = K4 配置。
 
     Attributes
     ----------
-    e : AssetState
-        E/$ (SPY) 状态。
-    au : AssetState
-        Au/$ (GLD) 状态。
-    r : AssetState
-        R/$ (TLT) 状态。
+    e_au : EdgeState
+        E/Au 边（SPY/GLD 比价）。
+    e_r : EdgeState
+        E/R 边（SPY/TLT 比价）。
+    e_usd : EdgeState
+        E/$ 边（SPY，美元计价）。
+    au_r : EdgeState
+        Au/R 边（GLD/TLT 比价）。
+    au_usd : EdgeState
+        Au/$ 边（GLD，美元计价）。
+    r_usd : EdgeState
+        R/$ 边（TLT，美元计价）。
     config : Configuration
-        K4 配置三元组。
+        K4 配置三元组（E/$, Au/$, R/$ 压缩视图）。
     polarity : int
         极性指数 S。
     """
 
-    e: AssetState
-    au: AssetState
-    r: AssetState
+    e_au: EdgeState
+    e_r: EdgeState
+    e_usd: EdgeState
+    au_r: EdgeState
+    au_usd: EdgeState
+    r_usd: EdgeState
     config: Configuration
     polarity: int
 

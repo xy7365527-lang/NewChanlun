@@ -75,11 +75,7 @@ def _make_orchestrator_snapshot(
     recursive_snapshots: list[RecursiveLevelSnapshot] | None = None,
     bar_ts: float = 100.0,
 ) -> RecursiveOrchestratorSnapshot:
-    """构造最小 RecursiveOrchestratorSnapshot（只填充走势相关字段）。
-
-    bi_snapshot / seg_snapshot / zs_snapshot / bsp_snapshot 使用 None
-    因为 k4_scanner 只读取 move_snapshot 和 recursive_snapshots。
-    """
+    """构造最小 RecursiveOrchestratorSnapshot（只填充走势相关字段）。"""
     return RecursiveOrchestratorSnapshot(
         bar_idx=0,
         bar_ts=bar_ts,
@@ -128,11 +124,10 @@ class TestWalkDirectionFromSnapshot:
                 _make_move(direction="down", kind="trend", settled=False),
             ],
         )
-        # 只有第一个 move 是 settled，所以方向 = UP
         assert walk_direction_from_snapshot(snap) == WalkDirection.UP
 
     def test_unsettled_only_returns_flat(self) -> None:
-        """只有未 settled 的 move → FLAT（与 D 算子读数统一）。"""
+        """只有未 settled 的 move → FLAT。"""
         snap = _make_orchestrator_snapshot(
             moves=[_make_move(direction="up", kind="trend", settled=False)],
         )
@@ -159,7 +154,6 @@ class TestWalkDirectionFromSnapshot:
             moves=[_make_move(direction="up", kind="trend", settled=True)],
             recursive_snapshots=[rl],
         )
-        # level=1 → recursive_snapshots[0]
         assert walk_direction_from_snapshot(snap, level=1) == WalkDirection.DOWN
 
     def test_recursive_level_out_of_range_returns_flat(self) -> None:
@@ -175,41 +169,41 @@ class TestWalkDirectionFromSnapshot:
 
 
 class TestK4Configuration:
-    """三元组正确组合。"""
+    """三元组正确组合（从 E/$, Au/$, R/$ 三条边）。"""
 
     def test_all_up(self) -> None:
-        e = _make_orchestrator_snapshot(
+        e_usd = _make_orchestrator_snapshot(
             moves=[_make_move(direction="up", kind="trend")],
         )
-        au = _make_orchestrator_snapshot(
+        au_usd = _make_orchestrator_snapshot(
             moves=[_make_move(direction="up", kind="trend")],
         )
-        r = _make_orchestrator_snapshot(
+        r_usd = _make_orchestrator_snapshot(
             moves=[_make_move(direction="up", kind="trend")],
         )
-        cfg = k4_configuration(e, au, r)
+        cfg = k4_configuration(e_usd, au_usd, r_usd)
         assert cfg == Configuration(WalkDirection.UP, WalkDirection.UP, WalkDirection.UP)
 
     def test_mixed_directions(self) -> None:
-        e = _make_orchestrator_snapshot(
+        e_usd = _make_orchestrator_snapshot(
             moves=[_make_move(direction="up", kind="trend")],
         )
-        au = _make_orchestrator_snapshot(
+        au_usd = _make_orchestrator_snapshot(
             moves=[_make_move(direction="down", kind="consolidation")],
         )
-        r = _make_orchestrator_snapshot(
+        r_usd = _make_orchestrator_snapshot(
             moves=[_make_move(direction="down", kind="trend")],
         )
-        cfg = k4_configuration(e, au, r)
+        cfg = k4_configuration(e_usd, au_usd, r_usd)
         assert cfg == Configuration(
             WalkDirection.UP, WalkDirection.FLAT, WalkDirection.DOWN,
         )
 
     def test_all_empty(self) -> None:
-        e = _make_orchestrator_snapshot(moves=[])
-        au = _make_orchestrator_snapshot(moves=[])
-        r = _make_orchestrator_snapshot(moves=[])
-        cfg = k4_configuration(e, au, r)
+        e_usd = _make_orchestrator_snapshot(moves=[])
+        au_usd = _make_orchestrator_snapshot(moves=[])
+        r_usd = _make_orchestrator_snapshot(moves=[])
+        cfg = k4_configuration(e_usd, au_usd, r_usd)
         assert cfg == Configuration(
             WalkDirection.FLAT, WalkDirection.FLAT, WalkDirection.FLAT,
         )
@@ -219,39 +213,53 @@ class TestK4Configuration:
 
 
 class TestScanK4:
-    """完整 K4 扫描结果。"""
+    """完整 K4 扫描结果（六条边）。"""
 
     def test_full_result_fields(self) -> None:
-        e = _make_orchestrator_snapshot(
+        e_au = _make_orchestrator_snapshot(
             moves=[_make_move(direction="up", kind="trend")],
             bar_ts=1000.0,
         )
-        au = _make_orchestrator_snapshot(
+        e_r = _make_orchestrator_snapshot(
             moves=[_make_move(direction="down", kind="trend")],
             bar_ts=1000.0,
         )
-        r = _make_orchestrator_snapshot(
+        e_usd = _make_orchestrator_snapshot(
+            moves=[_make_move(direction="up", kind="trend")],
+            bar_ts=1000.0,
+        )
+        au_r = _make_orchestrator_snapshot(
             moves=[_make_move(direction="up", kind="consolidation")],
             bar_ts=1000.0,
         )
-        result = scan_k4(e, au, r)
+        au_usd = _make_orchestrator_snapshot(
+            moves=[_make_move(direction="down", kind="trend")],
+            bar_ts=1000.0,
+        )
+        r_usd = _make_orchestrator_snapshot(
+            moves=[_make_move(direction="up", kind="consolidation")],
+            bar_ts=1000.0,
+        )
+        result = scan_k4(e_au, e_r, e_usd, au_r, au_usd, r_usd)
         expected_cfg = Configuration(
             WalkDirection.UP, WalkDirection.DOWN, WalkDirection.FLAT,
         )
         assert result.config == expected_cfg
         assert result.polarity == polarity_index(expected_cfg)
-        assert result.e_direction == WalkDirection.UP
-        assert result.au_direction == WalkDirection.DOWN
-        assert result.r_direction == WalkDirection.FLAT
+        assert result.e_au_direction == WalkDirection.UP
+        assert result.e_r_direction == WalkDirection.DOWN
+        assert result.e_usd_direction == WalkDirection.UP
+        assert result.au_r_direction == WalkDirection.FLAT
+        assert result.au_usd_direction == WalkDirection.DOWN
+        assert result.r_usd_direction == WalkDirection.FLAT
         assert result.bar_ts == 1000.0
 
     def test_result_is_frozen(self) -> None:
-        e = _make_orchestrator_snapshot(
+        snap = _make_orchestrator_snapshot(
             moves=[_make_move(direction="up", kind="trend")],
         )
-        au = _make_orchestrator_snapshot(moves=[])
-        r = _make_orchestrator_snapshot(moves=[])
-        result = scan_k4(e, au, r)
+        empty = _make_orchestrator_snapshot(moves=[])
+        result = scan_k4(empty, empty, snap, empty, empty, empty)
         with pytest.raises(AttributeError):
             result.polarity = 99  # type: ignore[misc]
 
@@ -259,29 +267,26 @@ class TestScanK4:
         snap_up = _make_orchestrator_snapshot(
             moves=[_make_move(direction="up", kind="trend")],
         )
-        result = scan_k4(snap_up, snap_up, snap_up)
+        # E/$, Au/$, R/$ 都是 UP → polarity=3
+        result = scan_k4(snap_up, snap_up, snap_up, snap_up, snap_up, snap_up)
         assert result.polarity == 3
 
     def test_polarity_full_risk_off(self) -> None:
         snap_down = _make_orchestrator_snapshot(
             moves=[_make_move(direction="down", kind="trend")],
         )
-        result = scan_k4(snap_down, snap_down, snap_down)
+        result = scan_k4(snap_down, snap_down, snap_down, snap_down, snap_down, snap_down)
         assert result.polarity == -3
 
-    def test_bar_ts_from_e_snapshot(self) -> None:
-        """bar_ts 取自 e_snapshot。"""
-        e = _make_orchestrator_snapshot(
+    def test_bar_ts_from_e_usd_snapshot(self) -> None:
+        """bar_ts 取自 e_usd_snapshot。"""
+        snap_with_ts = _make_orchestrator_snapshot(
             moves=[_make_move(direction="up", kind="trend")],
             bar_ts=42.5,
         )
-        au = _make_orchestrator_snapshot(
+        snap_other = _make_orchestrator_snapshot(
             moves=[],
             bar_ts=99.0,
         )
-        r = _make_orchestrator_snapshot(
-            moves=[],
-            bar_ts=88.0,
-        )
-        result = scan_k4(e, au, r)
+        result = scan_k4(snap_other, snap_other, snap_with_ts, snap_other, snap_other, snap_other)
         assert result.bar_ts == 42.5

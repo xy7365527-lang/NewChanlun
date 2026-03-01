@@ -1,4 +1,4 @@
-"""k4_config.py 测试 — K4 配置读取 + D 算子读数。
+"""k4_config.py 测试 — K4 六条边配置读取 + D 算子读数。
 
 认识论标注：L1（合成数据，验证管线正确性）。
 """
@@ -71,52 +71,63 @@ def _make_move(direction: str = "up", kind: str = "trend", settled: bool = True)
 
 
 class TestReadK4Config:
-    """K4 配置读取。"""
+    """K4 六条边配置读取。"""
 
     def test_all_flat(self):
-        """三标的均无走势 → 全 FLAT，polarity=0。"""
+        """六条边均无走势 → 全 FLAT，polarity=0。"""
         snap = _FakeSnapshot()
-        k4 = read_k4_config(snap, snap, snap)
+        k4 = read_k4_config(snap, snap, snap, snap, snap, snap)
         assert k4.polarity == 0
-        assert k4.e.walk_direction == WalkDirection.FLAT
-        assert k4.au.walk_direction == WalkDirection.FLAT
-        assert k4.r.walk_direction == WalkDirection.FLAT
+        assert k4.e_usd.walk_direction == WalkDirection.FLAT
+        assert k4.au_usd.walk_direction == WalkDirection.FLAT
+        assert k4.r_usd.walk_direction == WalkDirection.FLAT
+        assert k4.e_au.walk_direction == WalkDirection.FLAT
+        assert k4.e_r.walk_direction == WalkDirection.FLAT
+        assert k4.au_r.walk_direction == WalkDirection.FLAT
 
     def test_all_up(self):
-        """三标的均上涨趋势 → polarity=3。"""
+        """六条边均上涨趋势 → polarity=3（E/$, Au/$, R/$ 均 UP）。"""
         snap = _FakeSnapshot(
             move_snapshot=_MoveSnapshot(moves=[
                 _make_move(direction="up", kind="trend", settled=True),
             ]),
         )
-        k4 = read_k4_config(snap, snap, snap)
+        k4 = read_k4_config(snap, snap, snap, snap, snap, snap)
         assert k4.polarity == 3
         assert k4.config.label == "(+,+,+)"
 
     def test_mixed(self):
-        """E=up, Au=flat, R=down → polarity=0。"""
-        e_snap = _FakeSnapshot(
+        """E/$=up, Au/$=flat, R/$=down → polarity=0。"""
+        up_snap = _FakeSnapshot(
             move_snapshot=_MoveSnapshot(moves=[
                 _make_move(direction="up", kind="trend", settled=True),
             ]),
         )
-        au_snap = _FakeSnapshot(
+        flat_snap = _FakeSnapshot(
             move_snapshot=_MoveSnapshot(moves=[
                 _make_move(direction="up", kind="consolidation", settled=True),
             ]),
         )
-        r_snap = _FakeSnapshot(
+        down_snap = _FakeSnapshot(
             move_snapshot=_MoveSnapshot(moves=[
                 _make_move(direction="down", kind="trend", settled=True),
             ]),
         )
-        k4 = read_k4_config(e_snap, au_snap, r_snap)
-        # consolidation → FLAT, so polarity = UP + FLAT + DOWN = 0
+        empty_snap = _FakeSnapshot()
+        # 参数顺序：e_au, e_r, e_usd, au_r, au_usd, r_usd
+        k4 = read_k4_config(
+            empty_snap,   # E/Au
+            empty_snap,   # E/R
+            up_snap,      # E/$
+            empty_snap,   # Au/R
+            flat_snap,    # Au/$
+            down_snap,    # R/$
+        )
         assert k4.polarity == 0
         assert k4.config.label == "(+,0,-)"
 
     def test_d_readings_attached(self):
-        """D 算子读数正确附加到每个标的。"""
+        """D 算子读数正确附加到每条边。"""
         snap_with_moves = _FakeSnapshot(
             move_snapshot=_MoveSnapshot(moves=[
                 _make_move(direction="up", settled=True),
@@ -127,23 +138,41 @@ class TestReadK4Config:
         )
         snap_empty = _FakeSnapshot()
 
-        k4 = read_k4_config(snap_with_moves, snap_empty, snap_empty)
+        k4 = read_k4_config(
+            snap_empty,       # E/Au
+            snap_empty,       # E/R
+            snap_with_moves,  # E/$
+            snap_empty,       # Au/R
+            snap_empty,       # Au/$
+            snap_empty,       # R/$
+        )
 
         # E/$ has up direction and unsettled zhongshu (absorption=True)
-        assert k4.e.d_reading.direction == Direction.UP
-        assert k4.e.d_reading.absorption is True
+        assert k4.e_usd.d_reading.direction == Direction.UP
+        assert k4.e_usd.d_reading.absorption is True
 
         # Au/$ and R/$ are flat with no absorption
-        assert k4.au.d_reading.direction == Direction.FLAT
-        assert k4.r.d_reading.direction == Direction.FLAT
+        assert k4.au_usd.d_reading.direction == Direction.FLAT
+        assert k4.r_usd.d_reading.direction == Direction.FLAT
 
-    def test_custom_symbols(self):
-        """自定义标的代码。"""
+    def test_edge_labels(self):
+        """六条边的标签正确。"""
         snap = _FakeSnapshot()
-        k4 = read_k4_config(
-            snap, snap, snap,
-            e_symbol="QQQ", au_symbol="SLV", r_symbol="IEF",
-        )
-        assert k4.e.symbol == "QQQ"
-        assert k4.au.symbol == "SLV"
-        assert k4.r.symbol == "IEF"
+        k4 = read_k4_config(snap, snap, snap, snap, snap, snap)
+        assert k4.e_au.edge_label == "E/Au"
+        assert k4.e_r.edge_label == "E/R"
+        assert k4.e_usd.edge_label == "E/$"
+        assert k4.au_r.edge_label == "Au/R"
+        assert k4.au_usd.edge_label == "Au/$"
+        assert k4.r_usd.edge_label == "R/$"
+
+    def test_vertex_pairs(self):
+        """六条边的顶点对正确。"""
+        snap = _FakeSnapshot()
+        k4 = read_k4_config(snap, snap, snap, snap, snap, snap)
+        assert (k4.e_au.vertex_from, k4.e_au.vertex_to) == ("E", "Au")
+        assert (k4.e_r.vertex_from, k4.e_r.vertex_to) == ("E", "R")
+        assert (k4.e_usd.vertex_from, k4.e_usd.vertex_to) == ("E", "$")
+        assert (k4.au_r.vertex_from, k4.au_r.vertex_to) == ("Au", "R")
+        assert (k4.au_usd.vertex_from, k4.au_usd.vertex_to) == ("Au", "$")
+        assert (k4.r_usd.vertex_from, k4.r_usd.vertex_to) == ("R", "$")

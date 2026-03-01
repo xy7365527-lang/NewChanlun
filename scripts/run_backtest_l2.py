@@ -177,7 +177,7 @@ def serialize_state_log(result: BacktestOrchestratorResult) -> list[dict]:
 
 
 def serialize_k4_log(result: BacktestOrchestratorResult) -> list[dict]:
-    """生成 K4 配置变化日志（含时间戳）。"""
+    """生成 K4 配置变化日志（含时间戳 + 六条边方向态）。"""
     log: list[dict] = []
     for bar_idx, label in result.k4_changes:
         step = result.steps[bar_idx] if bar_idx < len(result.steps) else None
@@ -188,9 +188,12 @@ def serialize_k4_log(result: BacktestOrchestratorResult) -> list[dict]:
             "bar_ts": ts,
             "config_label": label,
             "polarity": k4.polarity if k4 else None,
-            "e_direction": k4.e.d_reading.direction.value if k4 else None,
-            "au_direction": k4.au.d_reading.direction.value if k4 else None,
-            "r_direction": k4.r.d_reading.direction.value if k4 else None,
+            "e_au_direction": k4.e_au.d_reading.direction.value if k4 else None,
+            "e_r_direction": k4.e_r.d_reading.direction.value if k4 else None,
+            "e_usd_direction": k4.e_usd.d_reading.direction.value if k4 else None,
+            "au_r_direction": k4.au_r.d_reading.direction.value if k4 else None,
+            "au_usd_direction": k4.au_usd.d_reading.direction.value if k4 else None,
+            "r_usd_direction": k4.r_usd.d_reading.direction.value if k4 else None,
         })
     return log
 
