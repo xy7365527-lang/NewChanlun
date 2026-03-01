@@ -1,4 +1,5 @@
 ---
+id: 291
 number: 291
 type: meta-rule
 title: 元观察——v132-swarm ceremony 中途编排者任务注入

@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "genesis_block_id": "ef30b2e00b40150c568ec6798798f41bdf5d8f3878e02dbd3290d425f705212b",
-  "block_count": 316,
+  "block_count": 317,
   "relation_count": 1261,
   "id_mapping": {
     "001": "5e9eb9e9a6bc35d4facbca6edefc536ec55121e0f898d5161e1dd61f719f4d1b",
