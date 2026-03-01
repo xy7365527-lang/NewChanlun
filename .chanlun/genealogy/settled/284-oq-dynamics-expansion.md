@@ -10,7 +10,7 @@ topo_effect: "OQ1-OQ5 全部重写，废除旧版所有表述；OQ5 从二元检
 downstream_inferences:
   - id: 1
     description: "scripts/experiments/oq*.py 实验脚本需要按 OQ v2 重写"
-    status: "行动类——待实验脚本修正"
+    status: "resolved（v129-swarm：四个实验脚本已按 OQ v2 重写）"
 ---
 
 # 284号：开放问题 v2——D 算子 + 背驰判断的联合阅读
