@@ -1419,6 +1419,16 @@ nodes:
   status: 已结算
   type: meta-rule
   file: settled/282-meta-observation-v127-swarm.md
+- id: '283'
+  title: 测度论作为元语言——资本流转拓扑与缠论动力学的统一阅读
+  status: 已结算
+  type: ''
+  file: settled/283-measure-theory-as-metalanguage.md
+- id: '284'
+  title: 开放问题 v2——D 算子 + 背驰判断的联合阅读
+  status: 已结算
+  type: ''
+  file: settled/284-oq-dynamics-expansion.md
 edges:
   depends_on:
   - from: '136'
@@ -2885,6 +2895,24 @@ edges:
     to: '281'
   - from: '282'
     to: '260'
+  - from: '283'
+    to: '279'
+  - from: '283'
+    to: '269'
+  - from: '283'
+    to: '108'
+  - from: '283'
+    to: '237'
+  - from: '284'
+    to: '283'
+  - from: '284'
+    to: '279'
+  - from: '284'
+    to: '269'
+  - from: '284'
+    to: '254'
+  - from: '284'
+    to: '237'
   triggered:
   - from: '005'
     to: 005a
