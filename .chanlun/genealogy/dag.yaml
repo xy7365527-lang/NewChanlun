@@ -1444,6 +1444,11 @@ nodes:
   status: 已结算
   type: 概念发现
   file: settled/287-oq-v2-comprehensive-conclusions.md
+- id: '288'
+  title: 元观察——v131-swarm 编排者结构性校正模式 + 蜂群内部自校正/编排者校正边界
+  status: 已结算
+  type: meta-rule
+  file: settled/288-meta-observation-v131-swarm.md
 edges:
   depends_on:
   - from: '136'
@@ -2952,6 +2957,14 @@ edges:
     to: '279'
   - from: '287'
     to: '286'
+  - from: '288'
+    to: '286'
+  - from: '288'
+    to: '285'
+  - from: '288'
+    to: '287'
+  - from: '288'
+    to: '282'
   triggered:
   - from: '005'
     to: 005a
