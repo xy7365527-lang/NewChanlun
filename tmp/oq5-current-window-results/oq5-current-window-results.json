@@ -1,0 +1,839 @@
+{
+  "liquidity_crisis_2007_2009": {
+    "window_name": "liquidity_crisis_2007_2009",
+    "date_range": "2007-01-01 ~ 2009-12-31",
+    "total_edges": 12,
+    "active_edges": [
+      "E/$",
+      "Au/$",
+      "E/Au",
+      "Au/R",
+      "E/R",
+      "XAU/USD",
+      "R/Au_corner",
+      "DEXJPUS",
+      "DEXUSUK",
+      "DEXSZUS",
+      "DEXUSEU"
+    ],
+    "diverging_edges": [
+      "E/$",
+      "E/Au",
+      "E/R",
+      "XAU/USD",
+      "DEXJPUS",
+      "DEXUSUK",
+      "DEXSZUS"
+    ],
+    "silent_edges": [
+      "R/$"
+    ],
+    "active_count": 11,
+    "diverging_count": 7,
+    "pure_asset_active": [
+      "E/Au",
+      "Au/R",
+      "E/R"
+    ],
+    "cash_active": [
+      "E/$",
+      "Au/$"
+    ],
+    "corner_active": [
+      "XAU/USD",
+      "R/Au_corner",
+      "DEXJPUS",
+      "DEXUSUK",
+      "DEXSZUS",
+      "DEXUSEU"
+    ],
+    "narrative": {
+      "pure_asset_vs_cash_divergence": true,
+      "corner_showing_structure": true
+    },
+    "key_edges": {
+      "Au/R": {
+        "active": true,
+        "has_divergence": false,
+        "trend_count": 0,
+        "consolidation_count": 1,
+        "bsp_count": 0,
+        "last_move_kind": "consolidation",
+        "last_move_direction": "up"
+      },
+      "R/$": {
+        "active": false,
+        "has_divergence": false,
+        "trend_count": 0,
+        "consolidation_count": 0,
+        "bsp_count": 0,
+        "last_move_kind": "",
+        "last_move_direction": ""
+      }
+    },
+    "edge_details": {
+      "E/$": {
+        "bars": 756,
+        "date_range": "2007-01-03 ~ 2009-12-31",
+        "moves": 1,
+        "settled": 0,
+        "trend": 0,
+        "consolidation": 1,
+        "bsp": 1,
+        "events": 17,
+        "last_move_kind": "consolidation",
+        "last_move_direction": "down",
+        "moves_detail": [
+          {
+            "idx": 0,
+            "kind": "consolidation",
+            "direction": "down",
+            "settled": false,
+            "high": 112.197956,
+            "low": 86.798729,
+            "zs_count": 1
+          }
+        ]
+      },
+      "Au/$": {
+        "bars": 756,
+        "date_range": "2007-01-03 ~ 2009-12-31",
+        "moves": 1,
+        "settled": 0,
+        "trend": 0,
+        "consolidation": 1,
+        "bsp": 0,
+        "events": 14,
+        "last_move_kind": "consolidation",
+        "last_move_direction": "up",
+        "moves_detail": [
+          {
+            "idx": 0,
+            "kind": "consolidation",
+            "direction": "up",
+            "settled": false,
+            "high": 100.440002,
+            "low": 59.66,
+            "zs_count": 1
+          }
+        ]
+      },
+      "R/$": {
+        "bars": 756,
+        "date_range": "2007-01-03 ~ 2009-12-31",
+        "moves": 0,
+        "settled": 0,
+        "trend": 0,
+        "consolidation": 0,
+        "bsp": 0,
+        "events": 11,
+        "last_move_kind": "",
+        "last_move_direction": "",
+        "moves_detail": []
+      },
+      "E/Au": {
+        "bars": 756,
+        "date_range": "2007-01-03 ~ 2009-12-31",
+        "moves": 2,
+        "settled": 1,
+        "trend": 0,
+        "consolidation": 2,
+        "bsp": 1,
+        "events": 20,
+        "last_move_kind": "consolidation",
+        "last_move_direction": "down",
+        "moves_detail": [
+          {
+            "idx": 0,
+            "kind": "consolidation",
+            "direction": "down",
+            "settled": true,
+            "high": 1.699819,
+            "low": 0.898779,
+            "zs_count": 1
+          },
+          {
+            "idx": 1,
+            "kind": "consolidation",
+            "direction": "down",
+            "settled": false,
+            "high": 1.699819,
+            "low": 0.529359,
+            "zs_count": 1
+          }
+        ]
+      },
+      "Au/R": {
+        "bars": 756,
+        "date_range": "2007-01-03 ~ 2009-12-31",
+        "moves": 1,
+        "settled": 0,
+        "trend": 0,
+        "consolidation": 1,
+        "bsp": 0,
+        "events": 15,
+        "last_move_kind": "consolidation",
+        "last_move_direction": "up",
+        "moves_detail": [
+          {
+            "idx": 0,
+            "kind": "consolidation",
+            "direction": "up",
+            "settled": false,
+            "high": 1.833794,
+            "low": 1.204655,
+            "zs_count": 1
+          }
+        ]
+      },
+      "E/R": {
+        "bars": 756,
+        "date_range": "2007-01-03 ~ 2009-12-31",
+        "moves": 1,
+        "settled": 0,
+        "trend": 0,
+        "consolidation": 1,
+        "bsp": 1,
+        "events": 17,
+        "last_move_kind": "consolidation",
+        "last_move_direction": "down",
+        "moves_detail": [
+          {
+            "idx": 0,
+            "kind": "consolidation",
+            "direction": "down",
+            "settled": false,
+            "high": 2.341568,
+            "low": 1.593179,
+            "zs_count": 1
+          }
+        ]
+      },
+      "XAU/USD": {
+        "bars": 757,
+        "date_range": "2007-01-02 ~ 2009-12-31",
+        "moves": 1,
+        "settled": 0,
+        "trend": 0,
+        "consolidation": 1,
+        "bsp": 1,
+        "events": 10,
+        "last_move_kind": "consolidation",
+        "last_move_direction": "up",
+        "moves_detail": [
+          {
+            "idx": 0,
+            "kind": "consolidation",
+            "direction": "up",
+            "settled": false,
+            "high": 1014.599976,
+            "low": 607.0,
+            "zs_count": 1
+          }
+        ]
+      },
+      "R/Au_corner": {
+        "bars": 756,
+        "date_range": "2007-01-03 ~ 2009-12-31",
+        "moves": 1,
+        "settled": 0,
+        "trend": 0,
+        "consolidation": 1,
+        "bsp": 0,
+        "events": 15,
+        "last_move_kind": "consolidation",
+        "last_move_direction": "down",
+        "moves_detail": [
+          {
+            "idx": 0,
+            "kind": "consolidation",
+            "direction": "down",
+            "settled": false,
+            "high": 0.830113,
+            "low": 0.545318,
+            "zs_count": 1
+          }
+        ]
+      },
+      "DEXJPUS": {
+        "bars": 758,
+        "date_range": "2007-01-02 ~ 2009-12-31",
+        "moves": 1,
+        "settled": 0,
+        "trend": 0,
+        "consolidation": 1,
+        "bsp": 1,
+        "events": 16,
+        "last_move_kind": "consolidation",
+        "last_move_direction": "down",
+        "moves_detail": [
+          {
+            "idx": 0,
+            "kind": "consolidation",
+            "direction": "down",
+            "settled": false,
+            "high": 124.09,
+            "low": 96.88,
+            "zs_count": 1
+          }
+        ]
+      },
+      "DEXUSUK": {
+        "bars": 758,
+        "date_range": "2007-01-02 ~ 2009-12-31",
+        "moves": 1,
+        "settled": 0,
+        "trend": 0,
+        "consolidation": 1,
+        "bsp": 1,
+        "events": 20,
+        "last_move_kind": "consolidation",
+        "last_move_direction": "down",
+        "moves_detail": [
+          {
+            "idx": 0,
+            "kind": "consolidation",
+            "direction": "down",
+            "settled": false,
+            "high": 2.1104,
+            "low": 1.3658,
+            "zs_count": 1
+          }
+        ]
+      },
+      "DEXSZUS": {
+        "bars": 758,
+        "date_range": "2007-01-02 ~ 2009-12-31",
+        "moves": 2,
+        "settled": 1,
+        "trend": 0,
+        "consolidation": 2,
+        "bsp": 1,
+        "events": 16,
+        "last_move_kind": "consolidation",
+        "last_move_direction": "up",
+        "moves_detail": [
+          {
+            "idx": 0,
+            "kind": "consolidation",
+            "direction": "down",
+            "settled": true,
+            "high": 1.2534,
+            "low": 0.986,
+            "zs_count": 1
+          },
+          {
+            "idx": 1,
+            "kind": "consolidation",
+            "direction": "up",
+            "settled": false,
+            "high": 1.2452,
+            "low": 0.986,
+            "zs_count": 1
+          }
+        ]
+      },
+      "DEXUSEU": {
+        "bars": 758,
+        "date_range": "2007-01-02 ~ 2009-12-31",
+        "moves": 1,
+        "settled": 0,
+        "trend": 0,
+        "consolidation": 1,
+        "bsp": 0,
+        "events": 16,
+        "last_move_kind": "consolidation",
+        "last_move_direction": "down",
+        "moves_detail": [
+          {
+            "idx": 0,
+            "kind": "consolidation",
+            "direction": "down",
+            "settled": false,
+            "high": 1.601,
+            "low": 1.2446,
+            "zs_count": 1
+          }
+        ]
+      }
+    }
+  },
+  "current_2020_2026": {
+    "window_name": "current_2020_2026",
+    "date_range": "2020-01-01 ~ 2026-03-01",
+    "total_edges": 12,
+    "active_edges": [
+      "Au/$",
+      "R/$",
+      "E/Au",
+      "Au/R",
+      "E/R",
+      "XAU/USD",
+      "R/Au_corner",
+      "DEXJPUS",
+      "DEXUSUK",
+      "DEXSZUS",
+      "DEXUSEU"
+    ],
+    "diverging_edges": [
+      "Au/$",
+      "R/$",
+      "Au/R",
+      "E/R",
+      "R/Au_corner",
+      "DEXJPUS",
+      "DEXUSUK",
+      "DEXSZUS",
+      "DEXUSEU"
+    ],
+    "silent_edges": [
+      "E/$"
+    ],
+    "active_count": 11,
+    "diverging_count": 9,
+    "pure_asset_active": [
+      "E/Au",
+      "Au/R",
+      "E/R"
+    ],
+    "cash_active": [
+      "Au/$",
+      "R/$"
+    ],
+    "corner_active": [
+      "XAU/USD",
+      "R/Au_corner",
+      "DEXJPUS",
+      "DEXUSUK",
+      "DEXSZUS",
+      "DEXUSEU"
+    ],
+    "narrative": {
+      "pure_asset_vs_cash_divergence": true,
+      "corner_showing_structure": true
+    },
+    "key_edges": {
+      "Au/R": {
+        "active": true,
+        "has_divergence": true,
+        "trend_count": 0,
+        "consolidation_count": 3,
+        "bsp_count": 2,
+        "last_move_kind": "consolidation",
+        "last_move_direction": "up"
+      },
+      "R/$": {
+        "active": true,
+        "has_divergence": true,
+        "trend_count": 0,
+        "consolidation_count": 2,
+        "bsp_count": 1,
+        "last_move_kind": "consolidation",
+        "last_move_direction": "down"
+      }
+    },
+    "edge_details": {
+      "E/$": {
+        "bars": 1547,
+        "date_range": "2020-01-02 ~ 2026-02-27",
+        "moves": 0,
+        "settled": 0,
+        "trend": 0,
+        "consolidation": 0,
+        "bsp": 0,
+        "events": 12,
+        "last_move_kind": "",
+        "last_move_direction": "",
+        "moves_detail": []
+      },
+      "Au/$": {
+        "bars": 1547,
+        "date_range": "2020-01-02 ~ 2026-02-27",
+        "moves": 1,
+        "settled": 0,
+        "trend": 0,
+        "consolidation": 1,
+        "bsp": 1,
+        "events": 22,
+        "last_move_kind": "consolidation",
+        "last_move_direction": "up",
+        "moves_detail": [
+          {
+            "idx": 0,
+            "kind": "consolidation",
+            "direction": "up",
+            "settled": false,
+            "high": 194.449997,
+            "low": 136.119995,
+            "zs_count": 1
+          }
+        ]
+      },
+      "R/$": {
+        "bars": 1547,
+        "date_range": "2020-01-02 ~ 2026-02-27",
+        "moves": 2,
+        "settled": 1,
+        "trend": 0,
+        "consolidation": 2,
+        "bsp": 1,
+        "events": 34,
+        "last_move_kind": "consolidation",
+        "last_move_direction": "down",
+        "moves_detail": [
+          {
+            "idx": 0,
+            "kind": "consolidation",
+            "direction": "up",
+            "settled": true,
+            "high": 151.310766,
+            "low": 113.726041,
+            "zs_count": 1
+          },
+          {
+            "idx": 1,
+            "kind": "consolidation",
+            "direction": "down",
+            "settled": false,
+            "high": 134.026061,
+            "low": 80.731776,
+            "zs_count": 1
+          }
+        ]
+      },
+      "E/Au": {
+        "bars": 1547,
+        "date_range": "2020-01-02 ~ 2026-02-27",
+        "moves": 2,
+        "settled": 1,
+        "trend": 0,
+        "consolidation": 2,
+        "bsp": 0,
+        "events": 22,
+        "last_move_kind": "consolidation",
+        "last_move_direction": "down",
+        "moves_detail": [
+          {
+            "idx": 0,
+            "kind": "consolidation",
+            "direction": "up",
+            "settled": true,
+            "high": 2.706117,
+            "low": 1.369234,
+            "zs_count": 1
+          },
+          {
+            "idx": 1,
+            "kind": "consolidation",
+            "direction": "down",
+            "settled": false,
+            "high": 2.655624,
+            "low": 1.705006,
+            "zs_count": 1
+          }
+        ]
+      },
+      "Au/R": {
+        "bars": 1547,
+        "date_range": "2020-01-02 ~ 2026-02-27",
+        "moves": 3,
+        "settled": 2,
+        "trend": 0,
+        "consolidation": 3,
+        "bsp": 2,
+        "events": 34,
+        "last_move_kind": "consolidation",
+        "last_move_direction": "up",
+        "moves_detail": [
+          {
+            "idx": 0,
+            "kind": "consolidation",
+            "direction": "up",
+            "settled": true,
+            "high": 1.833146,
+            "low": 0.972971,
+            "zs_count": 1
+          },
+          {
+            "idx": 1,
+            "kind": "consolidation",
+            "direction": "up",
+            "settled": true,
+            "high": 2.466879,
+            "low": 1.231104,
+            "zs_count": 1
+          },
+          {
+            "idx": 2,
+            "kind": "consolidation",
+            "direction": "up",
+            "settled": false,
+            "high": 2.985435,
+            "low": 1.706602,
+            "zs_count": 1
+          }
+        ]
+      },
+      "E/R": {
+        "bars": 1547,
+        "date_range": "2020-01-02 ~ 2026-02-27",
+        "moves": 2,
+        "settled": 1,
+        "trend": 0,
+        "consolidation": 2,
+        "bsp": 2,
+        "events": 27,
+        "last_move_kind": "consolidation",
+        "last_move_direction": "up",
+        "moves_detail": [
+          {
+            "idx": 0,
+            "kind": "consolidation",
+            "direction": "up",
+            "settled": true,
+            "high": 4.103417,
+            "low": 1.433364,
+            "zs_count": 1
+          },
+          {
+            "idx": 1,
+            "kind": "consolidation",
+            "direction": "up",
+            "settled": false,
+            "high": 5.604518,
+            "low": 3.102535,
+            "zs_count": 1
+          }
+        ]
+      },
+      "XAU/USD": {
+        "bars": 1549,
+        "date_range": "2020-01-02 ~ 2026-02-27",
+        "moves": 1,
+        "settled": 0,
+        "trend": 0,
+        "consolidation": 1,
+        "bsp": 0,
+        "events": 17,
+        "last_move_kind": "consolidation",
+        "last_move_direction": "up",
+        "moves_detail": [
+          {
+            "idx": 0,
+            "kind": "consolidation",
+            "direction": "up",
+            "settled": false,
+            "high": 2130.199951,
+            "low": 1452.099976,
+            "zs_count": 1
+          }
+        ]
+      },
+      "R/Au_corner": {
+        "bars": 1547,
+        "date_range": "2020-01-02 ~ 2026-02-27",
+        "moves": 3,
+        "settled": 2,
+        "trend": 0,
+        "consolidation": 3,
+        "bsp": 2,
+        "events": 34,
+        "last_move_kind": "consolidation",
+        "last_move_direction": "down",
+        "moves_detail": [
+          {
+            "idx": 0,
+            "kind": "consolidation",
+            "direction": "down",
+            "settled": true,
+            "high": 1.02778,
+            "low": 0.54551,
+            "zs_count": 1
+          },
+          {
+            "idx": 1,
+            "kind": "consolidation",
+            "direction": "down",
+            "settled": true,
+            "high": 0.812279,
+            "low": 0.40537,
+            "zs_count": 1
+          },
+          {
+            "idx": 2,
+            "kind": "consolidation",
+            "direction": "down",
+            "settled": false,
+            "high": 0.58596,
+            "low": 0.33496,
+            "zs_count": 1
+          }
+        ]
+      },
+      "DEXJPUS": {
+        "bars": 1533,
+        "date_range": "2020-01-02 ~ 2026-02-20",
+        "moves": 4,
+        "settled": 3,
+        "trend": 0,
+        "consolidation": 4,
+        "bsp": 4,
+        "events": 47,
+        "last_move_kind": "consolidation",
+        "last_move_direction": "up",
+        "moves_detail": [
+          {
+            "idx": 0,
+            "kind": "consolidation",
+            "direction": "up",
+            "settled": true,
+            "high": 111.86,
+            "low": 102.52,
+            "zs_count": 1
+          },
+          {
+            "idx": 1,
+            "kind": "consolidation",
+            "direction": "up",
+            "settled": true,
+            "high": 114.31,
+            "low": 102.7,
+            "zs_count": 1
+          },
+          {
+            "idx": 2,
+            "kind": "consolidation",
+            "direction": "up",
+            "settled": true,
+            "high": 138.94,
+            "low": 109.26,
+            "zs_count": 1
+          },
+          {
+            "idx": 3,
+            "kind": "consolidation",
+            "direction": "up",
+            "settled": false,
+            "high": 151.56,
+            "low": 112.82,
+            "zs_count": 1
+          }
+        ]
+      },
+      "DEXUSUK": {
+        "bars": 1533,
+        "date_range": "2020-01-02 ~ 2026-02-20",
+        "moves": 1,
+        "settled": 0,
+        "trend": 0,
+        "consolidation": 1,
+        "bsp": 1,
+        "events": 20,
+        "last_move_kind": "consolidation",
+        "last_move_direction": "down",
+        "moves_detail": [
+          {
+            "idx": 0,
+            "kind": "consolidation",
+            "direction": "down",
+            "settled": false,
+            "high": 1.4188,
+            "low": 1.0703,
+            "zs_count": 1
+          }
+        ]
+      },
+      "DEXSZUS": {
+        "bars": 1533,
+        "date_range": "2020-01-02 ~ 2026-02-20",
+        "moves": 3,
+        "settled": 2,
+        "trend": 0,
+        "consolidation": 3,
+        "bsp": 1,
+        "events": 41,
+        "last_move_kind": "consolidation",
+        "last_move_direction": "down",
+        "moves_detail": [
+          {
+            "idx": 0,
+            "kind": "consolidation",
+            "direction": "up",
+            "settled": true,
+            "high": 1.0028,
+            "low": 0.8784,
+            "zs_count": 1
+          },
+          {
+            "idx": 1,
+            "kind": "consolidation",
+            "direction": "down",
+            "settled": true,
+            "high": 1.0131,
+            "low": 0.8861,
+            "zs_count": 1
+          },
+          {
+            "idx": 2,
+            "kind": "consolidation",
+            "direction": "down",
+            "settled": false,
+            "high": 0.942,
+            "low": 0.8069,
+            "zs_count": 1
+          }
+        ]
+      },
+      "DEXUSEU": {
+        "bars": 1533,
+        "date_range": "2020-01-02 ~ 2026-02-20",
+        "moves": 4,
+        "settled": 3,
+        "trend": 0,
+        "consolidation": 4,
+        "bsp": 2,
+        "events": 55,
+        "last_move_kind": "consolidation",
+        "last_move_direction": "up",
+        "moves_detail": [
+          {
+            "idx": 0,
+            "kind": "consolidation",
+            "direction": "up",
+            "settled": true,
+            "high": 1.2295,
+            "low": 1.0797,
+            "zs_count": 1
+          },
+          {
+            "idx": 1,
+            "kind": "consolidation",
+            "direction": "down",
+            "settled": true,
+            "high": 1.2295,
+            "low": 1.1196,
+            "zs_count": 1
+          },
+          {
+            "idx": 2,
+            "kind": "consolidation",
+            "direction": "down",
+            "settled": true,
+            "high": 1.2241,
+            "low": 1.0376,
+            "zs_count": 1
+          },
+          {
+            "idx": 3,
+            "kind": "consolidation",
+            "direction": "up",
+            "settled": false,
+            "high": 1.1508,
+            "low": 0.9616,
+            "zs_count": 1
+          }
+        ]
+      }
+    }
+  }
+}
