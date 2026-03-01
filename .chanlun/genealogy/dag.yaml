@@ -1390,7 +1390,7 @@ nodes:
   type: 语法记录
   file: settled/275-local-dependency-principle.md
 - id: '277'
-  title: ''
+  title: D算子级别口径修正——级别=递归深度，不是K线周期
   status: 已结算
   type: 矛盾发现
   file: settled/277-d-operator-level-caliber-fix.md
@@ -1398,7 +1398,7 @@ nodes:
   title: 元观察——v122-swarm 编排者辩证INTERRUPT + 已结算定义执行漂移
   status: 已结算
   type: meta-rule
-  file: pending/278-meta-observation-v122-swarm.md
+  file: settled/278-meta-observation-v122-swarm.md
 edges:
   depends_on:
   - from: '136'
