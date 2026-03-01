@@ -9,7 +9,22 @@ negation_form: "separation（全局截断与局部依赖的分离）"
 negates: ["073a号（depth_budget 基因废除）"]
 tensions_with: []
 topo_effect: "ceremony.md/sub-swarm-ceremony/agent-team-enforce.sh/dispatch-dag.yaml 递归终止条件重写"
-downstream_inferences: []
+downstream_inferences:
+  - id: 1
+    description: "ceremony.md 步骤5：递归判断块移除 depth_budget 参数"
+    status: "resolved（已修改 ceremony.md）"
+  - id: 2
+    description: "ceremony.md 步骤11：移除 max_rescan_depth=3 安全阀，rescan 终止条件仅为不动点"
+    status: "resolved（已修改 ceremony.md）"
+  - id: 3
+    description: "sub-swarm-ceremony SKILL.md：递归深度章节重写为结构性终止"
+    status: "resolved（已修改 SKILL.md）"
+  - id: 4
+    description: "agent-team-enforce.sh：spawn 基因检查从三基因降为两基因（topo_address + parent_callback）"
+    status: "resolved（已修改 hook）"
+  - id: 5
+    description: "dispatch-dag.yaml：required_genes 移除 depth_budget，recursion_rules 更新终止条件"
+    status: "resolved（已修改 dispatch-dag.yaml）"
 ---
 
 # 274号：废除 depth_budget 和 max_rescan_depth
@@ -38,11 +53,7 @@ context window 耗尽 → 触发 compaction → 下一轮恢复继续。这是�
 
 ## 下游推论
 
-- ceremony.md 步骤5：递归判断块移除 depth_budget 参数
-- ceremony.md 步骤11：移除 max_rescan_depth=3 安全阀，rescan 终止条件仅为不动点
-- sub-swarm-ceremony SKILL.md：递归深度章节重写为结构性终止
-- agent-team-enforce.sh：spawn 基因检查从三基因降为两基因（topo_address + parent_callback）
-- dispatch-dag.yaml：required_genes 移除 depth_budget，recursion_rules 更新终止条件
+（见 frontmatter downstream_inferences，全部已执行）
 
 ## 影响声明
 
