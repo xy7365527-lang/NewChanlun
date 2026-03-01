@@ -107,12 +107,21 @@ def make_block(block_type: str, source: str, content: dict,
     }
 
 
+VALIDITY_VALUES = frozenset({"active", "invalidated"})
+
+
 def make_relation(from_id: str, to_id: str, relation: str, order: int,
                   created_by: str, **extra) -> dict:
     """Create a relation record dict.
 
     created_by must be a SHA256 hex digest — enforces type consistency
     (编排者决断: created_by 字段类型始终为 SHA256).
+
+    For negates relations, the following optional fields are supported
+    (273号 schema 扩展):
+      - validity: "active" | "invalidated", defaults to "active"
+      - invalidated_by: SHA256 of the block that invalidated this edge
+      - invalidated_at: ISO 8601 timestamp of invalidation
     """
     _validate_sha256(created_by, "created_by")
     if relation not in RELATION_TYPES:
@@ -128,8 +137,60 @@ def make_relation(from_id: str, to_id: str, relation: str, order: int,
         "created_by": created_by,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
+    # 273号: negates 边默认 validity="active"
+    if relation == "negates":
+        rec["validity"] = extra.pop("validity", "active")
+        rec["invalidated_by"] = extra.pop("invalidated_by", None)
+        rec["invalidated_at"] = extra.pop("invalidated_at", None)
+        if rec["validity"] not in VALIDITY_VALUES:
+            raise ValueError(
+                f"Invalid validity: {rec['validity']!r}. "
+                f"Must be one of {sorted(VALIDITY_VALUES)}"
+            )
     rec.update(extra)
     return rec
+
+
+def _normalize_relation(rec: dict) -> dict:
+    """Normalize a relation dict for backward compatibility (273号).
+
+    Adds default validity fields to negates relations that lack them.
+    Returns a new dict — does not mutate the input.
+    """
+    if rec.get("relation") != "negates":
+        return rec
+    if "validity" in rec:
+        return rec
+    normalized = dict(rec)
+    normalized["validity"] = "active"
+    normalized["invalidated_by"] = None
+    normalized["invalidated_at"] = None
+    return normalized
+
+
+def invalidate_relation(relation: dict, invalidated_by_block_id: str) -> dict:
+    """Mark a negates relation as invalidated (273号).
+
+    Returns a new dict with validity="invalidated", invalidated_by and
+    invalidated_at set. Does not mutate the input dict. Does not write
+    to disk — the caller decides when to persist.
+
+    Idempotent: if the relation is already invalidated, returns a copy
+    without changing the state (273号边界条件3).
+    """
+    if relation.get("relation") != "negates":
+        raise ValueError(
+            "invalidate_relation only applies to negates relations, "
+            f"got relation={relation.get('relation')!r}"
+        )
+    result = dict(relation)
+    # 已经 invalidated 的边不能被再次 invalidated（幂等）
+    if result.get("validity") == "invalidated":
+        return result
+    result["validity"] = "invalidated"
+    result["invalidated_by"] = invalidated_by_block_id
+    result["invalidated_at"] = datetime.now(timezone.utc).isoformat()
+    return result
 
 
 # --- File I/O ---
@@ -271,7 +332,11 @@ def read_block(block_id: str, base: Path = DEFAULT_BASE) -> dict | None:
 
 
 def read_all_relations(base: Path = DEFAULT_BASE) -> list[dict]:
-    """Read all relations from JSONL."""
+    """Read all relations from JSONL.
+
+    Applies backward-compatible normalization (273号): negates relations
+    without validity fields get default values.
+    """
     jsonl_path = base / "relations.jsonl"
     if not jsonl_path.exists():
         return []
@@ -279,7 +344,7 @@ def read_all_relations(base: Path = DEFAULT_BASE) -> list[dict]:
     for line in jsonl_path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if line:
-            relations.append(json.loads(line))
+            relations.append(_normalize_relation(json.loads(line)))
     return relations
 
 
