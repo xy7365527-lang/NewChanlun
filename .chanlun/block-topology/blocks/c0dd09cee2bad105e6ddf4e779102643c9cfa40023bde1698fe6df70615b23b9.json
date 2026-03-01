@@ -1,0 +1,29 @@
+{
+  "id": "c0dd09cee2bad105e6ddf4e779102643c9cfa40023bde1698fe6df70615b23b9",
+  "type": "event",
+  "timestamp": "2026-03-01T13:00:00.000000+00:00",
+  "source": "cc",
+  "content": {
+    "id": "295",
+    "title": "操盘主体的第四层——形式系统穷尽后的剩余决断",
+    "status": "已结算",
+    "type": "操作方法论",
+    "date": "2026-03-01",
+    "negation_form": "无——这是四层框架的存在论定位，不是否定",
+    "depends_on": [
+      "292",
+      "265",
+      "267"
+    ],
+    "related": [
+      "254",
+      "235"
+    ],
+    "negates": [],
+    "topo_effect": "新增第四层主体位置，为292/265/267提供存在论编址",
+    "tensions_with": [],
+    "source_file": "settled\\295-subject-fourth-layer.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

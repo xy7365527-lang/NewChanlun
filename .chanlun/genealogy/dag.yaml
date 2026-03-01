@@ -1459,6 +1459,41 @@ nodes:
   status: 已结算
   type: meta-rule
   file: settled/290-meta-observation-v132-session.md
+- id: '291'
+  title: 元观察——v132-swarm ceremony 中途编排者任务注入
+  status: settled
+  type: meta-rule
+  file: settled/291-meta-observation-v132-swarm.md
+- id: '293'
+  title: 星形拓扑——霸权的拓扑定义
+  status: settled
+  type: concept
+  file: settled/293-star-topology-hegemony.md
+- id: '295'
+  title: 操盘主体的第四层——形式系统穷尽后的剩余决断
+  status: settled
+  type: 操作方法论
+  file: settled/295-subject-fourth-layer.md
+- id: '296'
+  title: 新域诞生形式条件——质变不可形式化 + 数据作为候选新域 + 局部完备性 vs 全局运动
+  status: 已结算
+  type: 概念发现
+  file: settled/296-new-domain-genesis.md
+- id: '294'
+  title: 金融折叠与生产折叠——D算子的结构性偏见与M-C...P...C'-M'回路
+  status: settled
+  type: 理论形式化
+  file: settled/294-financial-vs-production-fold.md
+- id: '297'
+  title: 同一存在论与折叠的统一——域不能安息于域
+  status: settled
+  type: 概念生成史
+  file: settled/297-identity-ontology-fold-unity.md
+- id: '292'
+  title: 折叠拓扑本体论——分类学之前的存在论结构
+  status: 已结算
+  type: 理论形式化
+  file: settled/292-fold-topology-ontology.md
 edges:
   depends_on:
   - from: '136'
@@ -2988,6 +3023,40 @@ edges:
   - from: '290'
     to: '289'
   - from: '290'
+    to: '287'
+  - from: '291'
+    to: '290'
+  - from: '291'
+    to: '224'
+  - from: '291'
+    to: '225'
+  - from: '293'
+    to: '292'
+  - from: '293'
+    to: '254'
+  - from: '295'
+    to: '292'
+  - from: '295'
+    to: '265'
+  - from: '295'
+    to: '267'
+  - from: '296'
+    to: '292'
+  - from: '294'
+    to: '292'
+  - from: '294'
+    to: '293'
+  - from: '297'
+    to: '292'
+  - from: '297'
+    to: '255'
+  - from: '292'
+    to: '254'
+  - from: '292'
+    to: '255'
+  - from: '292'
+    to: '284'
+  - from: '292'
     to: '287'
   triggered:
   - from: '005'
