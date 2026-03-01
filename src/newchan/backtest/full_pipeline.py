@@ -33,7 +33,7 @@ from newchan.types import Bar
 # ── 依赖模块的条件导入（K4Scanner / StockScanner 可能尚未就绪） ──
 
 try:
-    from newchan.topology.k4_scanner import K4ScanResult, scan_k4  # type: ignore[import-not-found]
+    from newchan.topology.k4_scanner import K4ScanResult  # type: ignore[import-not-found]
     _HAS_K4_SCANNER = True
 except ImportError:
     _HAS_K4_SCANNER = False
@@ -177,14 +177,14 @@ class FullPipelineEngine:
 
         返回 (config_label, polarity)。
 
-        如果 k4_scanner 模块可用，调用 scan_k4()；
-        否则使用 lstar 推导走势方向作为 fallback。
+        使用 k4_configuration() 直接从 E/$, Au/$, R/$ 三条边推导 Configuration。
         """
         if _HAS_K4_SCANNER:
-            result = scan_k4(snapshots[0], snapshots[1], snapshots[2], level=1)
-            cfg = result.config
+            from newchan.topology.k4_scanner import k4_configuration as k4_cfg
+            cfg = k4_cfg(snapshots[0], snapshots[1], snapshots[2], level=1)
+            pol = polarity_index(cfg)
             label = f"({_dir_char(cfg.sigma_e)},{_dir_char(cfg.sigma_c)},{_dir_char(cfg.sigma_r)})"
-            return (label, result.polarity)
+            return (label, pol)
 
         # Fallback：从 lstar 推导方向
         directions = []

@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 
 from newchan.a_buysellpoint_v1 import BuySellPoint
 from newchan.backtest.scanner import rank_by_tightness, scan_stocks
-from newchan.backtest.types import K4State, AssetState, DOperatorReading, Direction
+from newchan.backtest.types import K4State, EdgeState, DOperatorReading, Direction
 from newchan.topology.config_space import Configuration, WalkDirection
 
 
@@ -54,11 +54,27 @@ class _FakeSnapshot:
     all_events: list = field(default_factory=list)
 
 
-def _make_k4_state(polarity: int = 3) -> K4State:
-    """构造 K4State，polarity 由参数控制。"""
+def _make_edge_state(
+    edge_label: str,
+    vertex_from: str,
+    vertex_to: str,
+    walk_dir: WalkDirection = WalkDirection.UP,
+) -> EdgeState:
+    """构造 EdgeState。"""
     d_reading = DOperatorReading(
         direction=Direction.UP, amplitude=1.0, absorption=False,
     )
+    return EdgeState(
+        edge_label=edge_label,
+        vertex_from=vertex_from,
+        vertex_to=vertex_to,
+        d_reading=d_reading,
+        walk_direction=walk_dir,
+    )
+
+
+def _make_k4_state(polarity: int = 3) -> K4State:
+    """构造 K4State，polarity 由参数控制。"""
     dirs = {
         3: (WalkDirection.UP, WalkDirection.UP, WalkDirection.UP),
         0: (WalkDirection.FLAT, WalkDirection.FLAT, WalkDirection.FLAT),
@@ -67,9 +83,12 @@ def _make_k4_state(polarity: int = 3) -> K4State:
     e_dir, au_dir, r_dir = dirs.get(polarity, (WalkDirection.FLAT, WalkDirection.FLAT, WalkDirection.FLAT))
 
     return K4State(
-        e=AssetState(symbol="SPY", d_reading=d_reading, walk_direction=e_dir),
-        au=AssetState(symbol="GLD", d_reading=d_reading, walk_direction=au_dir),
-        r=AssetState(symbol="TLT", d_reading=d_reading, walk_direction=r_dir),
+        e_au=_make_edge_state("E/Au", "E", "Au", e_dir),
+        e_r=_make_edge_state("E/R", "E", "R", e_dir),
+        e_usd=_make_edge_state("E/$", "E", "$", e_dir),
+        au_r=_make_edge_state("Au/R", "Au", "R", au_dir),
+        au_usd=_make_edge_state("Au/$", "Au", "$", au_dir),
+        r_usd=_make_edge_state("R/$", "R", "$", r_dir),
         config=Configuration(sigma_e=e_dir, sigma_c=au_dir, sigma_r=r_dir),
         polarity=polarity,
     )
@@ -104,8 +123,6 @@ class TestScanStocks:
         snap = _FakeSnapshot(
             bsp_snapshot=_BspSnapshot(buysellpoints=[_make_buy_bsp()]),
         )
-        # XLK is in EQUITY_UNIVERSE, TLT is in RATE_UNIVERSE
-        # polarity=0 → universe = EQUITY + RATE → both are scanned
         result = scan_stocks(k4, {"XLK": snap, "TLT": snap})
         assert result.candidates_count >= 0
 
@@ -116,9 +133,7 @@ class TestScanStocks:
             bsp_snapshot=_BspSnapshot(buysellpoints=[_make_buy_bsp()]),
         )
         snap_no_buy = _FakeSnapshot()
-        # XLK has buy point, XLF does not
         result = scan_stocks(k4, {"XLK": snap_with_buy, "XLF": snap_no_buy})
-        # Result depends on stock_scanner internals
         assert result.candidates_count >= 0
 
 
@@ -132,12 +147,10 @@ class TestRankByTightness:
 
     def test_ranking_order(self):
         """排序按 tightness 降序。"""
-        # 一个有买点（tightness > 0），一个没有（tightness = 0）
         snap_with_buy = _FakeSnapshot(
             bsp_snapshot=_BspSnapshot(buysellpoints=[_make_buy_bsp()]),
         )
         snap_no_buy = _FakeSnapshot()
         result = rank_by_tightness({"AAA": snap_with_buy, "BBB": snap_no_buy})
         assert len(result) == 2
-        # 第一个 tightness >= 第二个
         assert result[0][1] >= result[1][1]

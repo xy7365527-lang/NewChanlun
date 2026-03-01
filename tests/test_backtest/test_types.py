@@ -1,4 +1,4 @@
-"""types.py 测试 — D 算子读数提取。
+"""types.py 测试 — D 算子读数提取 + EdgeState/K4State。
 
 认识论标注：L1（合成数据，验证管线正确性）。
 """
@@ -11,10 +11,10 @@ from datetime import datetime
 from newchan.a_move_v1 import Move
 from newchan.a_zhongshu_v1 import Zhongshu
 from newchan.backtest.types import (
-    AssetState,
     CostCurvePoint,
     DOperatorReading,
     Direction,
+    EdgeState,
     K4State,
     ScannerResult,
     StateMachineEvent,
@@ -199,18 +199,49 @@ class TestExtractDReading:
 # ── 数据类型完整性 ──
 
 
+def _make_edge_state(
+    edge_label: str = "E/$",
+    vertex_from: str = "E",
+    vertex_to: str = "$",
+    direction: Direction = Direction.UP,
+    walk_dir: WalkDirection = WalkDirection.UP,
+) -> EdgeState:
+    """构造 EdgeState。"""
+    reading = DOperatorReading(direction=direction, amplitude=1.0, absorption=False)
+    return EdgeState(
+        edge_label=edge_label,
+        vertex_from=vertex_from,
+        vertex_to=vertex_to,
+        d_reading=reading,
+        walk_direction=walk_dir,
+    )
+
+
 class TestDataTypes:
     """共享类型定义完整性。"""
+
+    def test_edge_state_immutable(self):
+        """EdgeState 是不可变的。"""
+        edge = _make_edge_state()
+        assert edge.edge_label == "E/$"
+        assert edge.vertex_from == "E"
 
     def test_k4_state_immutable(self):
         """K4State 是不可变的。"""
         config = Configuration(WalkDirection.UP, WalkDirection.FLAT, WalkDirection.DOWN)
-        reading = DOperatorReading(direction=Direction.UP, amplitude=1.0, absorption=False)
-        e = AssetState(symbol="SPY", d_reading=reading, walk_direction=WalkDirection.UP)
-        au = AssetState(symbol="GLD", d_reading=reading, walk_direction=WalkDirection.FLAT)
-        r = AssetState(symbol="TLT", d_reading=reading, walk_direction=WalkDirection.DOWN)
-        state = K4State(e=e, au=au, r=r, config=config, polarity=0)
+        state = K4State(
+            e_au=_make_edge_state("E/Au", "E", "Au"),
+            e_r=_make_edge_state("E/R", "E", "R"),
+            e_usd=_make_edge_state("E/$", "E", "$"),
+            au_r=_make_edge_state("Au/R", "Au", "R"),
+            au_usd=_make_edge_state("Au/$", "Au", "$", Direction.FLAT, WalkDirection.FLAT),
+            r_usd=_make_edge_state("R/$", "R", "$", Direction.DOWN, WalkDirection.DOWN),
+            config=config,
+            polarity=0,
+        )
         assert state.polarity == 0
+        assert state.e_au.edge_label == "E/Au"
+        assert state.e_usd.edge_label == "E/$"
 
     def test_scanner_result_none_symbol(self):
         """ScannerResult 允许 None 选股结果。"""

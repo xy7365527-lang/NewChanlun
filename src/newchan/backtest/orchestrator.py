@@ -1,12 +1,15 @@
-"""全流程编排 — K4 配置 → 选股扫描 → 状态机 → 成本跟踪。
+"""全流程编排 — K4 六条边配置 → 选股扫描 → 状态机 → 成本跟踪。
+
+K4 完全图模型：四顶点 E/Au/R/$，六条边。
+D 算子跑在六条边的比价序列上（不是跑在顶点上）。
+三条比价边：E/Au=SPY/GLD, E/R=SPY/TLT, Au/R=GLD/TLT。
+三条顶点→现金边：E/$=SPY, Au/$=GLD, R/$=TLT。
 
 逐 bar 同步推进，所有判断基于当前已确认结构（不用未来数据）。
 
-复用 backtest.full_pipeline.FullPipelineEngine 的逐 bar 架构，
-在其基础上附加 D 算子读数和降成本曲线追踪。
-
 认识论标注：
   - 编排逻辑：L0（从架构定义推导）
+  - 比价 Bar 构造：L0（比值运算）
   - 信号提取规则：L2（需回测验证）
 
 谱系引用：267号操作方法论 v1。
@@ -33,6 +36,53 @@ from newchan.types import Bar
 
 
 # ═══════════════════════════════════════════════════════════════
+# 比价 Bar 构造
+# ═══════════════════════════════════════════════════════════════
+
+
+def make_ratio_bar(bar_a: Bar, bar_b: Bar) -> Bar:
+    """构造比价 Bar。A/B 的比价。
+
+    OHLC 各分量取比值，high/low 取所有比值的极值
+    以确保 high >= low 且覆盖比价的真实波动范围。
+
+    Parameters
+    ----------
+    bar_a : Bar
+        分子标的的 bar。
+    bar_b : Bar
+        分母标的的 bar。
+
+    Returns
+    -------
+    Bar
+        比价 bar（volume=None）。
+    """
+    ratio_open = bar_a.open / bar_b.open
+    ratio_high = bar_a.high / bar_b.high
+    ratio_low = bar_a.low / bar_b.low
+    ratio_close = bar_a.close / bar_b.close
+    all_ratios = (ratio_open, ratio_high, ratio_low, ratio_close)
+    return Bar(
+        ts=bar_a.ts,
+        open=ratio_open,
+        high=max(all_ratios),
+        low=min(all_ratios),
+        close=ratio_close,
+        volume=None,
+    )
+
+
+# ═══════════════════════════════════════════════════════════════
+# K4 六条边标识
+# ═══════════════════════════════════════════════════════════════
+
+# 六条边的 stream_id 和构造方式
+# 索引：0=E/Au, 1=E/R, 2=E/$, 3=Au/R, 4=Au/$, 5=R/$
+K4_EDGE_STREAM_IDS = ("E/Au", "E/R", "E/$", "Au/R", "Au/$", "R/$")
+
+
+# ═══════════════════════════════════════════════════════════════
 # 配置
 # ═══════════════════════════════════════════════════════════════
 
@@ -50,7 +100,7 @@ class BacktestOrchestratorConfig:
     short_diff_ratio : float
         短差比例 n%。
     k4_symbols : tuple[str, str, str]
-        K4 三标的。
+        K4 三标的（SPY, GLD, TLT）。
     candidate_symbols : tuple[str, ...]
         候选标的列表。
     """
@@ -86,7 +136,7 @@ class OrchestratorStep:
     bar_ts : datetime
         bar 时间戳。
     k4_state : K4State
-        K4 配置状态。
+        K4 配置状态（六条边）。
     scanner_result : ScannerResult
         选股扫描结果。
     sm_state : StateMachineState
@@ -151,7 +201,11 @@ class BacktestOrchestratorResult:
 
 
 class BacktestOrchestrator:
-    """全流程回测编排器。
+    """全流程回测编排器（六条边模型）。
+
+    K4 完全图六条边各自跑 RecursiveOrchestrator。
+    三条比价边（E/Au, E/R, Au/R）的输入是比价 Bar。
+    三条顶点→现金边（E/$, Au/$, R/$）的输入是原始 Bar。
 
     用法::
 
@@ -168,11 +222,11 @@ class BacktestOrchestrator:
         self._config = config
         self._bar_idx = 0
 
-        # K4 三条比价线的 orchestrator
-        self._k4_orchestrators = (
-            RecursiveOrchestrator(stream_id=config.k4_symbols[0]),
-            RecursiveOrchestrator(stream_id=config.k4_symbols[1]),
-            RecursiveOrchestrator(stream_id=config.k4_symbols[2]),
+        # K4 六条边的 orchestrator
+        # 顺序：E/Au, E/R, E/$, Au/R, Au/$, R/$
+        self._k4_orchestrators = tuple(
+            RecursiveOrchestrator(stream_id=sid)
+            for sid in K4_EDGE_STREAM_IDS
         )
 
         # 候选标的 orchestrators（按需创建）
@@ -211,6 +265,28 @@ class BacktestOrchestrator:
             )
         return self._candidate_orchestrators[symbol]
 
+    @staticmethod
+    def _build_edge_bars(
+        spy_bar: Bar, gld_bar: Bar, tlt_bar: Bar,
+    ) -> tuple[Bar, Bar, Bar, Bar, Bar, Bar]:
+        """从三标的原始 bar 构造六条边的 bar。
+
+        Returns
+        -------
+        tuple[Bar, Bar, Bar, Bar, Bar, Bar]
+            (E/Au, E/R, E/$, Au/R, Au/$, R/$)
+            E/$ = SPY 原始 bar, Au/$ = GLD 原始 bar, R/$ = TLT 原始 bar。
+            E/Au = SPY/GLD 比价, E/R = SPY/TLT 比价, Au/R = GLD/TLT 比价。
+        """
+        return (
+            make_ratio_bar(spy_bar, gld_bar),   # E/Au
+            make_ratio_bar(spy_bar, tlt_bar),    # E/R
+            spy_bar,                              # E/$
+            make_ratio_bar(gld_bar, tlt_bar),    # Au/R
+            gld_bar,                              # Au/$
+            tlt_bar,                              # R/$
+        )
+
     def process_bar(
         self,
         k4_bars: tuple[Bar, Bar, Bar],
@@ -222,6 +298,7 @@ class BacktestOrchestrator:
         ----------
         k4_bars : tuple[Bar, Bar, Bar]
             K4 三标的的当前 bar (SPY, GLD, TLT)。
+            内部自动构造六条边的比价 bar。
         candidate_bars : dict[str, Bar]
             候选标的的当前 bar。
 
@@ -232,18 +309,23 @@ class BacktestOrchestrator:
         """
         bar_ts = k4_bars[0].ts
 
-        # 1. 推进 K4 三条比价线
+        # 1. 从三标的 bar 构造六条边的 bar
+        edge_bars = self._build_edge_bars(k4_bars[0], k4_bars[1], k4_bars[2])
+
+        # 2. 推进 K4 六条边
         k4_snapshots = tuple(
             orch.process_bar(bar)
-            for orch, bar in zip(self._k4_orchestrators, k4_bars)
+            for orch, bar in zip(self._k4_orchestrators, edge_bars)
         )
 
-        # 2. 读取 K4 配置（含 D 算子读数）
+        # 3. 读取 K4 配置（含六条边的 D 算子读数）
         k4_state = read_k4_config(
-            k4_snapshots[0], k4_snapshots[1], k4_snapshots[2],
-            e_symbol=self._config.k4_symbols[0],
-            au_symbol=self._config.k4_symbols[1],
-            r_symbol=self._config.k4_symbols[2],
+            k4_snapshots[0],  # E/Au
+            k4_snapshots[1],  # E/R
+            k4_snapshots[2],  # E/$
+            k4_snapshots[3],  # Au/R
+            k4_snapshots[4],  # Au/$
+            k4_snapshots[5],  # R/$
         )
 
         # K4 变化日志
@@ -252,21 +334,19 @@ class BacktestOrchestrator:
             self._k4_changes.append((self._bar_idx, k4_label))
             self._prev_k4_label = k4_label
 
-        # 3. 推进所有候选标的
+        # 4. 推进所有候选标的
         candidate_snapshots: dict[str, RecursiveOrchestratorSnapshot] = {}
         for sym, bar in candidate_bars.items():
             orch = self._get_or_create_orchestrator(sym)
             candidate_snapshots[sym] = orch.process_bar(bar)
 
-        # 4. 选股扫描
+        # 5. 选股扫描
         scanner_result = scan_stocks(k4_state, candidate_snapshots)
 
-        # 5. 状态机驱动
+        # 6. 状态机驱动
         action: TradeAction | None = None
-        prev_action_count = len(self._sm.actions)
 
         if self._sm.state == StateMachineState.EMPTY:
-            # 空仓：检查是否有选股命中
             action = self._handle_empty(
                 scanner_result, candidate_snapshots, candidate_bars,
             )
@@ -275,13 +355,11 @@ class BacktestOrchestrator:
             StateMachineState.SHORT_TRADE,
             StateMachineState.ADDED,
         ):
-            # 持仓：检查次级别买卖点
             action = self._handle_position(candidate_snapshots, candidate_bars)
         elif self._sm.state == StateMachineState.FULL:
-            # 满仓：检查主级别卖点
             action = self._handle_full(candidate_snapshots, candidate_bars)
 
-        # 6. 记录步进
+        # 7. 记录步进
         step = OrchestratorStep(
             bar_idx=self._bar_idx,
             bar_ts=bar_ts,
@@ -312,7 +390,6 @@ class BacktestOrchestrator:
         if snap is None:
             return None
 
-        # 检查是否有已确认买点
         for bp in snap.bsp_snapshot.buysellpoints:
             if not bp.confirmed or bp.side != "buy":
                 continue
@@ -321,7 +398,6 @@ class BacktestOrchestrator:
                 continue
             self._seen_bsp_keys.add(key)
 
-            # 建仓
             bar = candidate_bars.get(symbol)
             if bar is None:
                 continue
@@ -356,7 +432,6 @@ class BacktestOrchestrator:
 
         price = bar.close
 
-        # 检查买点失效（价格跌破入场价 10%）
         if (self._sm.fsm.entry_price > 0
                 and price < self._sm.fsm.entry_price * 0.9):
             self._sm = self._sm.process_event(
@@ -366,13 +441,11 @@ class BacktestOrchestrator:
                 trigger="price_below_entry_10pct",
             )
             stop_action = self._sm.actions[-1] if self._sm.actions else None
-            # 保存当前周期操作到累计列表
             self._all_actions.extend(self._sm.actions)
             self._all_cost_curve.extend(self._sm.cost_curve)
             self._held_symbol = None
             self._stock_changes.append((self._bar_idx, None))
             self._seen_bsp_keys.clear()
-            # STOPPED_OUT → RESET
             self._sm = CostReductionStateMachine.create(
                 initial_capital=max(1.0, self._sm.fsm.own_capital),
                 margin_ratio=self._config.margin_ratio,
@@ -380,7 +453,6 @@ class BacktestOrchestrator:
             )
             return stop_action
 
-        # 检查次级别卖点 → 短差卖出
         for bp in snap.bsp_snapshot.buysellpoints:
             if not bp.confirmed:
                 continue
@@ -442,13 +514,11 @@ class BacktestOrchestrator:
                 trigger=f"main_sell_{bp.kind}_L{bp.level_id}",
             )
             sell_action = self._sm.actions[-1] if self._sm.actions else None
-            # 保存当前周期操作到累计列表
             self._all_actions.extend(self._sm.actions)
             self._all_cost_curve.extend(self._sm.cost_curve)
             self._held_symbol = None
             self._stock_changes.append((self._bar_idx, None))
             self._seen_bsp_keys.clear()
-            # STOPPED_OUT → RESET
             self._sm = CostReductionStateMachine.create(
                 initial_capital=max(1.0, self._sm.fsm.own_capital),
                 margin_ratio=self._config.margin_ratio,
@@ -490,6 +560,7 @@ def run_backtest(
         回测配置。
     k4_bar_streams : tuple[list[Bar], list[Bar], list[Bar]]
         K4 三标的 bar 流 (SPY, GLD, TLT)，同步对齐。
+        内部自动构造六条边的比价 bar。
     candidate_bar_streams : dict[str, list[Bar]]
         候选标的 bar 流。
 

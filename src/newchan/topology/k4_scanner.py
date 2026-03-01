@@ -3,9 +3,10 @@
 认识论标注：L0（从配置空间定义直接推导的映射，不依赖数据）
 
 概念溯源：ontology-v2-push.md §三
-- 三条比价线 E/$=SPY, Au/$=GLD, R/$=TLT
-- 走势方向 → WalkDirection → Configuration 三元组
-- Configuration → polarity_index
+
+K4 完全图模型：四顶点 E/Au/R/$，六条边。
+D 算子跑在六条边的比价序列上。
+Configuration 三元组（E/$, Au/$, R/$）是六条边信息的压缩视图。
 
 映射规则：
 - trend（趋势）→ 保留 direction（"up" → UP, "down" → DOWN）
@@ -89,20 +90,22 @@ def walk_direction_from_snapshot(
 
 
 def k4_configuration(
-    e_snapshot: RecursiveOrchestratorSnapshot,
-    au_snapshot: RecursiveOrchestratorSnapshot,
-    r_snapshot: RecursiveOrchestratorSnapshot,
+    e_usd_snapshot: RecursiveOrchestratorSnapshot,
+    au_usd_snapshot: RecursiveOrchestratorSnapshot,
+    r_usd_snapshot: RecursiveOrchestratorSnapshot,
     level: int = 0,
 ) -> Configuration:
-    """从三条比价线的快照组合成 K4 Configuration。
+    """从三条顶点→现金边（E/$, Au/$, R/$）的快照组合成 K4 Configuration。
+
+    Configuration 是六条边信息的压缩视图，仅使用三条直接对现金的边。
 
     Parameters
     ----------
-    e_snapshot : RecursiveOrchestratorSnapshot
+    e_usd_snapshot : RecursiveOrchestratorSnapshot
         E/$ (SPY) 快照。
-    au_snapshot : RecursiveOrchestratorSnapshot
+    au_usd_snapshot : RecursiveOrchestratorSnapshot
         Au/$ (GLD) 快照。
-    r_snapshot : RecursiveOrchestratorSnapshot
+    r_usd_snapshot : RecursiveOrchestratorSnapshot
         R/$ (TLT) 快照。
     level : int
         级别，默认 0。
@@ -112,9 +115,9 @@ def k4_configuration(
     Configuration
     """
     return Configuration(
-        sigma_e=walk_direction_from_snapshot(e_snapshot, level),
-        sigma_c=walk_direction_from_snapshot(au_snapshot, level),
-        sigma_r=walk_direction_from_snapshot(r_snapshot, level),
+        sigma_e=walk_direction_from_snapshot(e_usd_snapshot, level),
+        sigma_c=walk_direction_from_snapshot(au_usd_snapshot, level),
+        sigma_r=walk_direction_from_snapshot(r_usd_snapshot, level),
     )
 
 
@@ -125,42 +128,63 @@ class K4ScanResult:
     Attributes
     ----------
     config : Configuration
-        K4 配置三元组。
+        K4 配置三元组（E/$, Au/$, R/$ 压缩视图）。
     polarity : int
         极性指数 S = sigma_e + sigma_c + sigma_r。
-    e_direction : WalkDirection
-        E/$ 方向。
-    au_direction : WalkDirection
-        Au/$ 方向。
-    r_direction : WalkDirection
-        R/$ 方向。
+    e_au_direction : WalkDirection
+        E/Au 边方向。
+    e_r_direction : WalkDirection
+        E/R 边方向。
+    e_usd_direction : WalkDirection
+        E/$ 边方向。
+    au_r_direction : WalkDirection
+        Au/R 边方向。
+    au_usd_direction : WalkDirection
+        Au/$ 边方向。
+    r_usd_direction : WalkDirection
+        R/$ 边方向。
     bar_ts : float
-        时间戳（取自 e_snapshot）。
+        时间戳（取自 e_usd_snapshot）。
     """
 
     config: Configuration
     polarity: int
-    e_direction: WalkDirection
-    au_direction: WalkDirection
-    r_direction: WalkDirection
+    e_au_direction: WalkDirection
+    e_r_direction: WalkDirection
+    e_usd_direction: WalkDirection
+    au_r_direction: WalkDirection
+    au_usd_direction: WalkDirection
+    r_usd_direction: WalkDirection
     bar_ts: float
 
 
 def scan_k4(
-    e_snapshot: RecursiveOrchestratorSnapshot,
-    au_snapshot: RecursiveOrchestratorSnapshot,
-    r_snapshot: RecursiveOrchestratorSnapshot,
+    e_au_snapshot: RecursiveOrchestratorSnapshot,
+    e_r_snapshot: RecursiveOrchestratorSnapshot,
+    e_usd_snapshot: RecursiveOrchestratorSnapshot,
+    au_r_snapshot: RecursiveOrchestratorSnapshot,
+    au_usd_snapshot: RecursiveOrchestratorSnapshot,
+    r_usd_snapshot: RecursiveOrchestratorSnapshot,
     level: int = 0,
 ) -> K4ScanResult:
-    """完整的 K4 扫描：计算配置 + 极性 + 打包结果。
+    """完整的 K4 扫描：从六条边的快照计算配置 + 极性 + 打包结果。
+
+    Configuration 从 E/$, Au/$, R/$ 三条边推导（压缩视图）。
+    六条边的完整方向态全部记录在结果中。
 
     Parameters
     ----------
-    e_snapshot : RecursiveOrchestratorSnapshot
+    e_au_snapshot : RecursiveOrchestratorSnapshot
+        E/Au (SPY/GLD) 比价快照。
+    e_r_snapshot : RecursiveOrchestratorSnapshot
+        E/R (SPY/TLT) 比价快照。
+    e_usd_snapshot : RecursiveOrchestratorSnapshot
         E/$ (SPY) 快照。
-    au_snapshot : RecursiveOrchestratorSnapshot
+    au_r_snapshot : RecursiveOrchestratorSnapshot
+        Au/R (GLD/TLT) 比价快照。
+    au_usd_snapshot : RecursiveOrchestratorSnapshot
         Au/$ (GLD) 快照。
-    r_snapshot : RecursiveOrchestratorSnapshot
+    r_usd_snapshot : RecursiveOrchestratorSnapshot
         R/$ (TLT) 快照。
     level : int
         级别，默认 0。
@@ -169,15 +193,22 @@ def scan_k4(
     -------
     K4ScanResult
     """
-    e_dir = walk_direction_from_snapshot(e_snapshot, level)
-    au_dir = walk_direction_from_snapshot(au_snapshot, level)
-    r_dir = walk_direction_from_snapshot(r_snapshot, level)
-    config = Configuration(sigma_e=e_dir, sigma_c=au_dir, sigma_r=r_dir)
+    e_au_dir = walk_direction_from_snapshot(e_au_snapshot, level)
+    e_r_dir = walk_direction_from_snapshot(e_r_snapshot, level)
+    e_usd_dir = walk_direction_from_snapshot(e_usd_snapshot, level)
+    au_r_dir = walk_direction_from_snapshot(au_r_snapshot, level)
+    au_usd_dir = walk_direction_from_snapshot(au_usd_snapshot, level)
+    r_usd_dir = walk_direction_from_snapshot(r_usd_snapshot, level)
+
+    config = Configuration(sigma_e=e_usd_dir, sigma_c=au_usd_dir, sigma_r=r_usd_dir)
     return K4ScanResult(
         config=config,
         polarity=polarity_index(config),
-        e_direction=e_dir,
-        au_direction=au_dir,
-        r_direction=r_dir,
-        bar_ts=e_snapshot.bar_ts,
+        e_au_direction=e_au_dir,
+        e_r_direction=e_r_dir,
+        e_usd_direction=e_usd_dir,
+        au_r_direction=au_r_dir,
+        au_usd_direction=au_usd_dir,
+        r_usd_direction=r_usd_dir,
+        bar_ts=e_usd_snapshot.bar_ts,
     )
