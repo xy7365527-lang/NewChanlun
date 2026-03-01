@@ -1,8 +1,8 @@
 {
   "version": "1.0.0",
   "genesis_block_id": "ef30b2e00b40150c568ec6798798f41bdf5d8f3878e02dbd3290d425f705212b",
-  "block_count": 314,
-  "relation_count": 1254,
+  "block_count": 315,
+  "relation_count": 1258,
   "id_mapping": {
     "001": "5e9eb9e9a6bc35d4facbca6edefc536ec55121e0f898d5161e1dd61f719f4d1b",
     "002": "f3880e58a3c164556474e5a536a88e12ddd5e2692b449e5789e32555746a1b6a",
@@ -291,7 +291,8 @@
     "285": "4492afe168fc820e5eb76fcc59b1b4f997ee03312532c497a220cff77d5e7e84",
     "286": "0449eaa35d3474c66ca5f93dc475a76d310fc27c0ef2d0078e3a60d46dbac1da",
     "287": "6ebe6700473a45ea6badf9946b28a4bccdbebe3cbff187f047c39e7b6cf629f4",
-    "288": "f7f8e7f58d6321a9dc59734367b7f7990431d14e0bc7ea4645a92609d760d93c"
+    "288": "f7f8e7f58d6321a9dc59734367b7f7990431d14e0bc7ea4645a92609d760d93c",
+    "289": "5fa55b08ddcd3ec92e59295528483283197e81fa237e3fcfbdea9264ecfca8e5"
   },
   "migrated_at": "2026-02-24T01:53:23.215386+00:00"
 }
