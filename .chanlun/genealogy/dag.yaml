@@ -1439,6 +1439,11 @@ nodes:
   status: 已结算
   type: meta-rule
   file: settled/286-meta-observation-v130-experiments.md
+- id: '287'
+  title: OQ v2 实验综合结论——补充实验校正 + 硬结论定稿
+  status: 已结算
+  type: 概念发现
+  file: settled/287-oq-v2-comprehensive-conclusions.md
 edges:
   depends_on:
   - from: '136'
@@ -2939,6 +2944,14 @@ edges:
     to: '284'
   - from: '286'
     to: '283'
+  - from: '287'
+    to: '284'
+  - from: '287'
+    to: '283'
+  - from: '287'
+    to: '279'
+  - from: '287'
+    to: '286'
   triggered:
   - from: '005'
     to: 005a

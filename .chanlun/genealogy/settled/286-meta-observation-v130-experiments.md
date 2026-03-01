@@ -16,7 +16,7 @@ topo_effect: ""
 downstream_inferences:
   - id: 1
     description: "R/$ 跨实验一致性（OQ1 最强先行指标 + OQ4/OQ5 唯一趋势边）是否构成一个可结晶的操作规则——待 L3 交叉验证确认"
-    status: open（语法记录候选——待观察）
+    status: "partially_falsified（287号：'唯一趋势边'是全历史累积产物，对等窗口内不成立；OQ1 先行性仍有效）"
 rule_version_baseline:
   claude_md_commit: "97f3ba3186f1919ff6abf02dea4247724d47c79a"
   rules_dir_mtime: "2026-03-01 00:27:49 +0000"
