@@ -1389,6 +1389,16 @@ nodes:
   status: 已结算
   type: 语法记录
   file: settled/275-local-dependency-principle.md
+- id: '277'
+  title: ''
+  status: 已结算
+  type: 矛盾发现
+  file: settled/277-d-operator-level-caliber-fix.md
+- id: '278'
+  title: 元观察——v122-swarm 编排者辩证INTERRUPT + 已结算定义执行漂移
+  status: 已结算
+  type: meta-rule
+  file: pending/278-meta-observation-v122-swarm.md
 edges:
   depends_on:
   - from: '136'
@@ -2817,6 +2827,18 @@ edges:
     to: 089
   - from: '273'
     to: '271'
+  - from: '277'
+    to: '269'
+  - from: '277'
+    to: '233'
+  - from: '278'
+    to: '277'
+  - from: '278'
+    to: 090
+  - from: '278'
+    to: '216'
+  - from: '278'
+    to: '204'
   triggered:
   - from: '005'
     to: 005a
@@ -2897,6 +2919,8 @@ edges:
     to: 073a号（depth_budget 基因废除）
   - from: '275'
     to: 218号（扩展：218割掉串行尾巴，275割掉全局排序思维）
+  - from: '277'
+    to: 269号验证方法（直接在月线/年线K线上跑D算子——使用了被否定的口径B）
   related:
   - between:
     - '001'
