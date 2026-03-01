@@ -1384,6 +1384,11 @@ nodes:
   status: 已结算
   type: 语法记录
   file: settled/274-local-dependency-principle.md
+- id: '275'
+  title: ''
+  status: 已结算
+  type: 语法记录
+  file: settled/275-local-dependency-principle.md
 edges:
   depends_on:
   - from: '136'
@@ -2886,6 +2891,12 @@ edges:
     to: '214'
   - from: '274'
     to: 218号（扩展：218割掉串行尾巴，274割掉全局排序思维）
+  - from: '275'
+    to: 218号（扩展：218割掉串行尾巴，274割掉全局排序思维）
+  - from: '274'
+    to: 073a号（depth_budget 基因废除）
+  - from: '275'
+    to: 218号（扩展：218割掉串行尾巴，275割掉全局排序思维）
   related:
   - between:
     - '001'
