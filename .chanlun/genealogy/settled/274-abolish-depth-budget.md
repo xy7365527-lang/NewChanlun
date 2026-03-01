@@ -1,10 +1,18 @@
-# 274号：废除 depth_budget 和 max_rescan_depth
+---
+id: 274
+type: 架构修正
+status: 已结算
+date: "2026-03-01"
+source: "编排者指令"
+negation_source: "human（编排者——全局截断与缠论同构终止条件的分离）"
+negation_form: "separation（全局截断与局部依赖的分离）"
+negates: ["073a号（depth_budget 基因废除）"]
+tensions_with: []
+topo_effect: "ceremony.md/sub-swarm-ceremony/agent-team-enforce.sh/dispatch-dag.yaml 递归终止条件重写"
+downstream_inferences: []
+---
 
-- **status**: 已结算
-- **settled_at**: 2026-03-01
-- **type**: 架构修正
-- **negation_source**: human（编排者指令）
-- **negation_form**: separation（全局截断与局部依赖的分离）
+# 274号：废除 depth_budget 和 max_rescan_depth
 
 ## 结论
 

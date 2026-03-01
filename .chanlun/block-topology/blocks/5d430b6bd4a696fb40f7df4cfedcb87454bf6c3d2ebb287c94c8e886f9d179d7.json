@@ -1,0 +1,12 @@
+{
+  "id": "5d430b6bd4a696fb40f7df4cfedcb87454bf6c3d2ebb287c94c8e886f9d179d7",
+  "type": "consensus",
+  "timestamp": "2026-03-01T00:26:15.624730+00:00",
+  "source": "cc",
+  "content": {
+    "title": "废除 depth_budget 和 max_rescan_depth",
+    "genealogy_id": "274"
+  },
+  "refs": [],
+  "git_ref": "0ef4ae58916f2a9a5b8ced4d49167862489d0c23"
+}
