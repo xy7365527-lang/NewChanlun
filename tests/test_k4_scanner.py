@@ -120,22 +120,34 @@ class TestWalkDirectionFromSnapshot:
         snap = _make_orchestrator_snapshot(moves=[])
         assert walk_direction_from_snapshot(snap) == WalkDirection.FLAT
 
-    def test_multiple_moves_uses_last(self) -> None:
-        """多个 move 时取最后一个。"""
+    def test_multiple_moves_uses_last_settled(self) -> None:
+        """多个 move 时取最后一个 settled move（与 D 算子读数统一）。"""
         snap = _make_orchestrator_snapshot(
             moves=[
                 _make_move(direction="up", kind="trend", settled=True),
                 _make_move(direction="down", kind="trend", settled=False),
             ],
         )
-        assert walk_direction_from_snapshot(snap) == WalkDirection.DOWN
+        # 只有第一个 move 是 settled，所以方向 = UP
+        assert walk_direction_from_snapshot(snap) == WalkDirection.UP
 
-    def test_unsettled_trend_still_directional(self) -> None:
-        """未 settled 的趋势仍然有方向。"""
+    def test_unsettled_only_returns_flat(self) -> None:
+        """只有未 settled 的 move → FLAT（与 D 算子读数统一）。"""
         snap = _make_orchestrator_snapshot(
             moves=[_make_move(direction="up", kind="trend", settled=False)],
         )
-        assert walk_direction_from_snapshot(snap) == WalkDirection.UP
+        assert walk_direction_from_snapshot(snap) == WalkDirection.FLAT
+
+    def test_last_settled_among_multiple(self) -> None:
+        """多个 settled move 时取最后一个 settled。"""
+        snap = _make_orchestrator_snapshot(
+            moves=[
+                _make_move(direction="up", kind="trend", settled=True),
+                _make_move(direction="down", kind="trend", settled=True),
+                _make_move(direction="up", kind="trend", settled=False),
+            ],
+        )
+        assert walk_direction_from_snapshot(snap) == WalkDirection.DOWN
 
     def test_recursive_level(self) -> None:
         """level > 0 读取 recursive_snapshots。"""

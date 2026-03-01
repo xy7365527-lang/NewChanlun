@@ -125,14 +125,18 @@ class TestTargetUniverse:
         result = target_universe(config)
         assert result == RATE_UNIVERSE
 
-    def test_neutral_returns_empty(self) -> None:
-        """polarity == 0 → 空元组。"""
-        from newchan.trading.stock_scanner import target_universe
+    def test_neutral_returns_all(self) -> None:
+        """polarity == 0（中性）→ EQUITY + RATE（K4 不筛选，层2独立生效）。"""
+        from newchan.trading.stock_scanner import (
+            EQUITY_UNIVERSE,
+            RATE_UNIVERSE,
+            target_universe,
+        )
 
         # (+,0,-) → polarity = 0
         config = _cfg(1, 0, -1)
         result = target_universe(config)
-        assert result == ()
+        assert result == EQUITY_UNIVERSE + RATE_UNIVERSE
 
     def test_mild_risk_on(self) -> None:
         """polarity = 1 → EQUITY_UNIVERSE。"""
@@ -237,19 +241,20 @@ class TestScanCandidates:
                 >= result.candidates[i + 1].nesting_tightness
             )
 
-    def test_neutral_polarity_no_scan(self) -> None:
-        """polarity == 0 → 空 candidates, selected = None。"""
+    def test_neutral_polarity_scans_all(self) -> None:
+        """polarity == 0（中性）→ 扫描 EQUITY + RATE，有买点则选中。"""
         from newchan.trading.stock_scanner import scan_candidates
 
         config = _cfg(1, 0, -1)  # polarity = 0
         snapshots = {
             "XLK": _mock_recursive_snapshot(levels=3, buy_levels=(1, 2, 3)),
+            "TLT": _mock_recursive_snapshot(levels=3, buy_levels=(1,)),
         }
         result = scan_candidates(config, snapshots)
 
         assert result.polarity == 0
-        assert result.candidates == ()
-        assert result.selected is None
+        assert result.selected is not None
+        assert len(result.candidates) >= 1
 
     def test_empty_candidate_snapshots(self) -> None:
         """空 candidate_snapshots → selected = None。"""

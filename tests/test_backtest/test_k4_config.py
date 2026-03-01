@@ -86,7 +86,7 @@ class TestReadK4Config:
         """三标的均上涨趋势 → polarity=3。"""
         snap = _FakeSnapshot(
             move_snapshot=_MoveSnapshot(moves=[
-                _make_move(direction="up", kind="trend", settled=False),
+                _make_move(direction="up", kind="trend", settled=True),
             ]),
         )
         k4 = read_k4_config(snap, snap, snap)
@@ -97,17 +97,17 @@ class TestReadK4Config:
         """E=up, Au=flat, R=down → polarity=0。"""
         e_snap = _FakeSnapshot(
             move_snapshot=_MoveSnapshot(moves=[
-                _make_move(direction="up", kind="trend", settled=False),
+                _make_move(direction="up", kind="trend", settled=True),
             ]),
         )
         au_snap = _FakeSnapshot(
             move_snapshot=_MoveSnapshot(moves=[
-                _make_move(direction="up", kind="consolidation", settled=False),
+                _make_move(direction="up", kind="consolidation", settled=True),
             ]),
         )
         r_snap = _FakeSnapshot(
             move_snapshot=_MoveSnapshot(moves=[
-                _make_move(direction="down", kind="trend", settled=False),
+                _make_move(direction="down", kind="trend", settled=True),
             ]),
         )
         k4 = read_k4_config(e_snap, au_snap, r_snap)
