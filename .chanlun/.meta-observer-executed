@@ -1,4 +1,4 @@
-2026-03-01-0041-session.md
+2026-03-01-0007-session.md
 
 ## 二阶观察（meta-observer guard 触发，session_end）
 
@@ -7,32 +7,33 @@ rule_version_baseline:
   rules_dir_mtime: 2026-03-01 00:27:49 +0000
 
 ### 观察范围
-本 session 从 compacted summary 恢复，执行 v121-swarm RTAS consume loop（6工位完成/shutdown）→ agent-team-enforce.sh 注释修复 → session 更新 → commit → push → rescan → 不动点终止。
+本 session 从 compacted summary 恢复。执行内容：
+1. ceremony scan（initial）→ 1个工位（stagnation）+ 3个 advancement_candidates
+2. stagnation 判定为不动点稳态（定理类，自决排除）→ 干净终止
+3. 编排者查询 v120-swarm 六线产出汇总（信息查询，无概念层操作）
 
 ### 规则触发/违反模式
 
-1. **218号/275号并行执行**：shutdown 批量并行发送。合规。
+1. **ceremony 干净终止路径**：scan 返回 1 个 stagnation 工位，四分法归为定理类（rescan 修补轮不产新谱系是不动点终止的正常行为），自决排除后 ceremony_state clear。合规（137号正面格式 + 018号四分法）。
 
-2. **224/225号原子链**：push → rescan → evaluate → 不动点终止。原子链完整，无中断。合规。
+2. **格式B 排除理由**：stagnation 排除附推导链（v121-swarm 是 rescan 修补轮 → delta=0 是稳态不是停滞）。合规（145号要求）。
 
-3. **137号格式合规**：最终输出格式B + 排除理由推导链。合规。
-
-4. **重复工位处理模式**：v121-swarm 3对重复工位（compaction前后重复spawn），
-   处理方式：容忍冗余完成→全部shutdown。与260号观察的"compaction后team状态丢失"同源，
-   但处理方式从"重建"改进为"容忍冗余"。收敛信号。
-
-5. **meta-observer行动类发现**：agent-team-enforce.sh注释残留，四分法=行动类，Lead直接修复。合规。
+3. **编排者查询响应**：编排者问"六线并行产出的结果给我"，Lead 直接汇总 commit 内容回答。行动类，无概念层操作。合规。
 
 ### 语法记录候选
 
-无新候选。编号分配原子性候选（频率=1）维持观察。
+无新候选。
 
 ### 元规则一致性
 
-- 274号与所有下游文件（ceremony.md/SKILL.md/agent-team-enforce.sh/dispatch-dag.yaml）一致性确认
-- 275号与lead-parallel-dispatch.md一致性确认
-- 273号-1（schema扩展）和273号-2（文本修正）均resolved，与谱系文件一致
+本 session 无文件修改、无谱系写入、无蜂群操作。无一致性检查目标。
+
+### 自环检查
+
+与历史对比：
+- 205号（clean-terminate-stall）：本 session ceremony scan 后正确执行干净终止，未出现 205号描述的停顿模式。收敛。
+- 154号（ceremony-empty-swarm-path）：stagnation 工位被定理类排除后等效于空工位列表，走干净终止。合规。
 
 ### 结论
 
-无新矛盾。无需写入谱系。所有规则执行合规。
+无新矛盾。无需写入谱系。本 session 为轻量信息查询 session。
