@@ -1,0 +1,21 @@
+{
+  "id": "f109b42296587110fa3c3c7678dcd3404cbfcf83ecdf42e2297d4a7e89099c48",
+  "type": "event",
+  "timestamp": "2026-03-01T23:15:00.000000+00:00",
+  "source": "cc",
+  "content": {
+    "id": "295",
+    "title": "操盘主体的第四层——形式系统穷尽后的剩余决断",
+    "status": "已结算",
+    "type": "操作方法论",
+    "date": "2026-03-01",
+    "depends_on": ["292", "265", "267"],
+    "related": [],
+    "negates": [],
+    "topo_effect": "四层框架（地图/语法/方法/主体）定位所有已有理论的存在论层次",
+    "tensions_with": [],
+    "source_file": "settled/295-subject-fourth-layer.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}
