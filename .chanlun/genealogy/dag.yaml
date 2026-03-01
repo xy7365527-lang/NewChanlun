@@ -1406,9 +1406,9 @@ nodes:
   file: settled/279-oq5-caliber-a-verification.md
 - id: '280'
   title: 元观察——v123-swarm OQ5完整生命周期模式 + 279号推论执行分派
-  status: 生成态
+  status: 已结算
   type: meta-rule
-  file: pending/280-meta-observation-v123-swarm.md
+  file: settled/280-meta-observation-v123-swarm.md
 edges:
   depends_on:
   - from: '136'
