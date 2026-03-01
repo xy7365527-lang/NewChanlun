@@ -1434,6 +1434,11 @@ nodes:
   status: 已结算
   type: meta-rule
   file: settled/285-meta-observation-v129-swarm.md
+- id: '286'
+  title: 元观察——v130 session OQ v2 四实验并行执行 + 跨实验交叉验证涌现
+  status: 已结算
+  type: meta-rule
+  file: settled/286-meta-observation-v130-experiments.md
 edges:
   depends_on:
   - from: '136'
@@ -2928,6 +2933,12 @@ edges:
     to: '219'
   - from: '285'
     to: '278'
+  - from: '286'
+    to: '285'
+  - from: '286'
+    to: '284'
+  - from: '286'
+    to: '283'
   triggered:
   - from: '005'
     to: 005a
