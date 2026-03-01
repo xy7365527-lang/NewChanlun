@@ -101,6 +101,38 @@ def _top_above_bottom(
     return ep0_price > ep1_price
 
 
+def _standardize_endpoints(
+    seg_strokes: list[Stroke],
+    s0: int,
+    direction: Literal["up", "down"],
+) -> tuple[int, float, int, float]:
+    """第78课标准化：当结构端点违反 L78 时，用实际 high/low 替代。
+
+    第78课原文："如果线段中，最高或最低点不是线段的端点，那么，
+    在任何以线段为基础的分析中……都可以把该线段标准化为
+    最高低点都在端点。"
+
+    返回 (ep0_i, ep0_price, ep1_i, ep1_price)。
+    """
+    if direction == "up":
+        # 向上线段标准化：ep0=最低点, ep1=最高点
+        low_stroke = min(seg_strokes, key=lambda s: s.low)
+        high_stroke = max(seg_strokes, key=lambda s: s.high)
+        ep0_i = low_stroke.i0 if low_stroke.p0 <= low_stroke.p1 else low_stroke.i1
+        ep0_price = low_stroke.low
+        ep1_i = high_stroke.i0 if high_stroke.p0 >= high_stroke.p1 else high_stroke.i1
+        ep1_price = high_stroke.high
+    else:
+        # 向下线段标准化：ep0=最高点, ep1=最低点
+        high_stroke = max(seg_strokes, key=lambda s: s.high)
+        low_stroke = min(seg_strokes, key=lambda s: s.low)
+        ep0_i = high_stroke.i0 if high_stroke.p0 >= high_stroke.p1 else high_stroke.i1
+        ep0_price = high_stroke.high
+        ep1_i = low_stroke.i0 if low_stroke.p0 <= low_stroke.p1 else low_stroke.i1
+        ep1_price = low_stroke.low
+    return ep0_i, ep0_price, ep1_i, ep1_price
+
+
 def _make_segment(
     strokes: list[Stroke],
     s0: int,
@@ -112,8 +144,10 @@ def _make_segment(
 ) -> Segment:
     """创建 Segment：端点从边界笔取，保证相邻段视觉连续。
 
-    硬约束（第78课）：顶分型价格必须严格高于底分型价格。
-    违反此约束说明线段划分有误。
+    第78课硬约束 + 标准化：
+    - 结构端点从边界笔的分型取得
+    - 若违反"顶高于底"（L78），应用第78课标准化：
+      用段内实际 high/low 作为有效端点
     """
     seg_strokes = strokes[s0 : s1 + 1]
     seg_high = max(s.high for s in seg_strokes)
@@ -123,17 +157,20 @@ def _make_segment(
     ep1_i, ep1_price = _stroke_endpoint_by_type(strokes[s1], end_type)
 
     if not _top_above_bottom(direction, ep0_price, ep1_price):
-        top_price = ep1_price if direction == "up" else ep0_price
-        bottom_price = ep0_price if direction == "up" else ep1_price
-        # 248号修复：L78 违反从 raise 改为 warning。
-        # 第78课"顶高于底"是已完成线段的性质描述。
-        # 当特征序列分型合法触发断段时，断段本身是正确的，
-        # L78 违反说明段方向可能需要重新评估，但不应阻止断段。
-        logger.warning(
-            "segment top-above-bottom warning (L78): "
-            "direction=%s, s0=%d, s1=%d, top_price=%f, bottom_price=%f, "
-            "confirmed=%s — segment created despite L78 violation",
-            direction, s0, s1, top_price, bottom_price, confirmed,
+        # 279号修复：L78 违反时应用第78课标准化。
+        # 248号将 L78 从 reject 改为 warning（解决 71→1 压缩）。
+        # 本修复进一步：不仅允许断段，还将端点标准化为实际 high/low，
+        # 使下游（中枢/走势）看到的线段区间语义正确。
+        # 第78课原文："经过标准化处理后，所有向上线段都是以最低点开始
+        # 最高点结束，向下线段都是以最高点开始最低点结束"。
+        logger.debug(
+            "L78 standardization: direction=%s, s0=%d, s1=%d, "
+            "structural_ep0=%.6f, structural_ep1=%.6f → "
+            "standardized to high=%.6f, low=%.6f",
+            direction, s0, s1, ep0_price, ep1_price, seg_high, seg_low,
+        )
+        ep0_i, ep0_price, ep1_i, ep1_price = _standardize_endpoints(
+            seg_strokes, s0, direction,
         )
 
     return Segment(
@@ -365,16 +402,16 @@ def _try_trigger_segment(
         feat.skip_trigger(k)
         return None
 
-    # L78 后置警告（248号修复：前置 reject → 后置 warning）
-    # 第78课"顶高于底"是已完成线段的性质描述，不应作为形成过程的过滤条件。
-    # 三模型共识：前置验证过严导致 71 strokes → 1 segment 压缩。
+    # L78 后置信息（248号修复 + 279号标准化）
+    # 第78课"顶高于底"在 _make_segment 中处理：违反时应用标准化。
+    # 此处仅做 debug 记录，不阻止触发。
     start_type, end_type = _segment_endpoint_types(seg_dir)
     _, ep0_price = _stroke_endpoint_by_type(strokes[seg_start], start_type)
     _, ep1_price = _stroke_endpoint_by_type(strokes[end_stroke], end_type)
     if not _top_above_bottom(seg_dir, ep0_price, ep1_price):
-        logger.warning(
-            "L78 warning (post-check): seg_dir=%s, s0=%d, s1=%d, "
-            "ep0=%.4f, ep1=%.4f — proceeding with trigger",
+        logger.debug(
+            "L78 pre-check: seg_dir=%s, s0=%d, s1=%d, "
+            "ep0=%.4f, ep1=%.4f — will be standardized in _make_segment",
             seg_dir, seg_start, end_stroke, ep0_price, ep1_price,
         )
 
