@@ -10,6 +10,7 @@ import pytest
 from scripts.block_topology import (
     append_relation,
     compute_block_id,
+    invalidate_relation,
     list_blocks,
     make_block,
     make_relation,
@@ -237,3 +238,183 @@ def test_make_relation_validates_created_by():
         created_by=VALID_SHA,
     )
     assert rel["created_by"] == VALID_SHA
+
+
+# --- 12. negates relation has default validity="active" (273号) ---
+
+def test_negates_default_validity():
+    """New negates relations have validity='active' by default."""
+    rel = make_relation(VALID_SHA, VALID_SHA_B, "negates", 1, VALID_SHA_C)
+    assert rel["validity"] == "active"
+    assert rel["invalidated_by"] is None
+    assert rel["invalidated_at"] is None
+
+
+# --- 13. non-negates relations do NOT have validity fields ---
+
+def test_non_negates_no_validity():
+    """Non-negates relations should not have validity fields."""
+    rel = make_relation(VALID_SHA, VALID_SHA_B, "depends_on", 1, VALID_SHA_C)
+    assert "validity" not in rel
+    assert "invalidated_by" not in rel
+    assert "invalidated_at" not in rel
+
+
+# --- 14. invalidate_relation sets fields correctly (273号) ---
+
+def test_invalidate_relation():
+    """invalidate_relation marks a negates edge as invalidated."""
+    rel = make_relation(VALID_SHA, VALID_SHA_B, "negates", 1, VALID_SHA_C)
+    assert rel["validity"] == "active"
+
+    invalidator_id = "d" * 64
+    result = invalidate_relation(rel, invalidator_id)
+
+    # Original is not mutated
+    assert rel["validity"] == "active"
+
+    # Result has correct fields
+    assert result["validity"] == "invalidated"
+    assert result["invalidated_by"] == invalidator_id
+    assert result["invalidated_at"] is not None
+    # Other fields preserved
+    assert result["from"] == VALID_SHA
+    assert result["to"] == VALID_SHA_B
+    assert result["relation"] == "negates"
+    assert result["order"] == 1
+
+
+# --- 15. invalidate_relation is idempotent (273号边界条件3) ---
+
+def test_invalidate_relation_idempotent():
+    """Already invalidated relations are returned unchanged (idempotent)."""
+    rel = make_relation(VALID_SHA, VALID_SHA_B, "negates", 1, VALID_SHA_C)
+    invalidator_1 = "d" * 64
+    invalidator_2 = "e" * 64
+
+    result_1 = invalidate_relation(rel, invalidator_1)
+    result_2 = invalidate_relation(result_1, invalidator_2)
+
+    # Second invalidation does not change the record
+    assert result_2["validity"] == "invalidated"
+    assert result_2["invalidated_by"] == invalidator_1  # first invalidator kept
+    assert result_2["invalidated_at"] == result_1["invalidated_at"]
+
+
+# --- 16. invalidate_relation rejects non-negates ---
+
+def test_invalidate_relation_rejects_non_negates():
+    """invalidate_relation raises ValueError for non-negates relations."""
+    rel = make_relation(VALID_SHA, VALID_SHA_B, "depends_on", 1, VALID_SHA_C)
+    with pytest.raises(ValueError, match="negates"):
+        invalidate_relation(rel, "d" * 64)
+
+
+# --- 17. backward compatibility: old negates without validity (273号) ---
+
+def test_backward_compat_old_negates_read(tmp_base):
+    """Old-format negates relations (no validity) get default active on read."""
+    # Write a negates relation in old format (no validity fields) directly
+    old_format = {
+        "from": VALID_SHA,
+        "to": VALID_SHA_B,
+        "relation": "negates",
+        "order": 1,
+        "created_by": VALID_SHA_C,
+        "timestamp": "2026-01-01T00:00:00+00:00",
+    }
+    jsonl_path = tmp_base / "relations.jsonl"
+    jsonl_path.write_text(
+        json.dumps(old_format, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+
+    # Read back — should have validity defaults
+    rels = read_all_relations(tmp_base)
+    assert len(rels) == 1
+    assert rels[0]["validity"] == "active"
+    assert rels[0]["invalidated_by"] is None
+    assert rels[0]["invalidated_at"] is None
+
+    # query_relations uses read_all_relations, so also normalized
+    queried = query_relations(tmp_base, relation="negates")
+    assert len(queried) == 1
+    assert queried[0]["validity"] == "active"
+
+
+# --- 18. backward compat: non-negates old relations unaffected ---
+
+def test_backward_compat_non_negates_unchanged(tmp_base):
+    """Non-negates relations are not modified by normalization."""
+    old_format = {
+        "from": VALID_SHA,
+        "to": VALID_SHA_B,
+        "relation": "depends_on",
+        "order": 1,
+        "created_by": VALID_SHA_C,
+        "timestamp": "2026-01-01T00:00:00+00:00",
+    }
+    jsonl_path = tmp_base / "relations.jsonl"
+    jsonl_path.write_text(
+        json.dumps(old_format, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+
+    rels = read_all_relations(tmp_base)
+    assert len(rels) == 1
+    assert "validity" not in rels[0]
+
+
+# --- 19. mixed old/new format relations coexist ---
+
+def test_mixed_old_new_format(tmp_base):
+    """Old-format and new-format negates relations coexist correctly."""
+    old_negates = json.dumps({
+        "from": VALID_SHA, "to": VALID_SHA_B, "relation": "negates",
+        "order": 1, "created_by": VALID_SHA_C,
+        "timestamp": "2026-01-01T00:00:00+00:00",
+    }, separators=(",", ":"))
+    new_negates = json.dumps({
+        "from": VALID_SHA_B, "to": VALID_SHA_C, "relation": "negates",
+        "order": 1, "created_by": VALID_SHA,
+        "timestamp": "2026-02-01T00:00:00+00:00",
+        "validity": "invalidated",
+        "invalidated_by": "d" * 64,
+        "invalidated_at": "2026-02-15T00:00:00+00:00",
+    }, separators=(",", ":"))
+    depends = json.dumps({
+        "from": VALID_SHA, "to": VALID_SHA_C, "relation": "depends_on",
+        "order": 1, "created_by": VALID_SHA_B,
+        "timestamp": "2026-01-15T00:00:00+00:00",
+    }, separators=(",", ":"))
+
+    jsonl_path = tmp_base / "relations.jsonl"
+    jsonl_path.write_text(
+        old_negates + "\n" + new_negates + "\n" + depends + "\n",
+        encoding="utf-8",
+    )
+
+    rels = read_all_relations(tmp_base)
+    assert len(rels) == 3
+
+    # Old negates normalized to active
+    assert rels[0]["validity"] == "active"
+    assert rels[0]["invalidated_by"] is None
+
+    # New negates keeps its invalidated state
+    assert rels[1]["validity"] == "invalidated"
+    assert rels[1]["invalidated_by"] == "d" * 64
+
+    # depends_on unchanged
+    assert "validity" not in rels[2]
+
+
+# --- 20. make_relation rejects invalid validity ---
+
+def test_make_relation_rejects_invalid_validity():
+    """make_relation raises ValueError for invalid validity values."""
+    with pytest.raises(ValueError, match="validity"):
+        make_relation(
+            VALID_SHA, VALID_SHA_B, "negates", 1, VALID_SHA_C,
+            validity="bogus",
+        )

@@ -15,7 +15,7 @@ depends_on:
 downstream_inferences:
   - id: 273-1
     description: 'relations.jsonl schema 扩展：negates 类型的边增加 validity 字段（active | invalidated），默认 active。增加 invalidated_by 字段记录使其失效的边的 source 节点 ID'
-    status: open（行动类——待实现）
+    status: resolved
   - id: 273-2
     description: '271号设计中"边方向反转"描述需更新为"边有效性标记变化"——271号文本层回溯修正'
     status: resolved（271号当前文本已使用"边有效性"而非"边方向反转"——272号裁定时已修正）
