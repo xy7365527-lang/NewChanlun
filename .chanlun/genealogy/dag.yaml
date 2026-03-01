@@ -1454,11 +1454,11 @@ nodes:
   status: 已结算
   type: 概念发现
   file: settled/289-oq5-ext-multi-window.md
-- id: '289'
-  title: OQ5-ext 多窗口扩展实验——Au/R 六窗口行为验证
+- id: '290'
+  title: 元观察——v132 session 蜂群自主实验推进 + context恢复后的ceremony续行
   status: 已结算
-  type: 概念发现
-  file: settled/289-oq5-ext-multi-window.md
+  type: meta-rule
+  file: settled/290-meta-observation-v132-session.md
 edges:
   depends_on:
   - from: '136'
@@ -2983,6 +2983,12 @@ edges:
     to: '283'
   - from: '289'
     to: '279'
+  - from: '290'
+    to: '288'
+  - from: '290'
+    to: '289'
+  - from: '290'
+    to: '287'
   triggered:
   - from: '005'
     to: 005a
