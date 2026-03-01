@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "genesis_block_id": "ef30b2e00b40150c568ec6798798f41bdf5d8f3878e02dbd3290d425f705212b",
-  "block_count": 275,
+  "block_count": 306,
   "relation_count": 1233,
   "id_mapping": {
     "001": "5e9eb9e9a6bc35d4facbca6edefc536ec55121e0f898d5161e1dd61f719f4d1b",
@@ -282,8 +282,8 @@
     "276": "pending_migration",
     "277": "bbc1314902db47f06fdc932ae01101d19a096e86a4ac5ac9a7526dbd2920082a",
     "278": "pending_migration",
-    "279": "pending_migration"
+    "279": "pending_migration",
+    "280": "96961601fbddd87f30329f8e0547acf28ebb7b48752b9803f40317e490d0e1c2"
   },
-  "block_count": 307,
   "migrated_at": "2026-02-24T01:53:23.215386+00:00"
 }
