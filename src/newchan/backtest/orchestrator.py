@@ -194,6 +194,10 @@ class BacktestOrchestrator:
         # 步进记录
         self._steps: list[OrchestratorStep] = []
 
+        # 跨重置操作累计
+        self._all_actions: list[TradeAction] = []
+        self._all_cost_curve: list[CostCurvePoint] = []
+
         # 日志
         self._k4_changes: list[tuple[int, str]] = []
         self._stock_changes: list[tuple[int, str | None]] = []
@@ -259,6 +263,7 @@ class BacktestOrchestrator:
 
         # 5. 状态机驱动
         action: TradeAction | None = None
+        prev_action_count = len(self._sm.actions)
 
         if self._sm.state == StateMachineState.EMPTY:
             # 空仓：检查是否有选股命中
@@ -360,7 +365,10 @@ class BacktestOrchestrator:
                 bar_idx=self._bar_idx,
                 trigger="price_below_entry_10pct",
             )
-            old_symbol = self._held_symbol
+            stop_action = self._sm.actions[-1] if self._sm.actions else None
+            # 保存当前周期操作到累计列表
+            self._all_actions.extend(self._sm.actions)
+            self._all_cost_curve.extend(self._sm.cost_curve)
             self._held_symbol = None
             self._stock_changes.append((self._bar_idx, None))
             self._seen_bsp_keys.clear()
@@ -370,7 +378,7 @@ class BacktestOrchestrator:
                 margin_ratio=self._config.margin_ratio,
                 short_diff_ratio=self._config.short_diff_ratio,
             )
-            return self._sm.actions[-1] if self._sm.actions else None
+            return stop_action
 
         # 检查次级别卖点 → 短差卖出
         for bp in snap.bsp_snapshot.buysellpoints:
@@ -433,6 +441,10 @@ class BacktestOrchestrator:
                 bar_idx=self._bar_idx,
                 trigger=f"main_sell_{bp.kind}_L{bp.level_id}",
             )
+            sell_action = self._sm.actions[-1] if self._sm.actions else None
+            # 保存当前周期操作到累计列表
+            self._all_actions.extend(self._sm.actions)
+            self._all_cost_curve.extend(self._sm.cost_curve)
             self._held_symbol = None
             self._stock_changes.append((self._bar_idx, None))
             self._seen_bsp_keys.clear()
@@ -442,17 +454,19 @@ class BacktestOrchestrator:
                 margin_ratio=self._config.margin_ratio,
                 short_diff_ratio=self._config.short_diff_ratio,
             )
-            return self._sm.actions[-1] if self._sm.actions else None
+            return sell_action
 
         return None
 
     def result(self) -> BacktestOrchestratorResult:
         """返回回测结果。"""
+        all_actions = tuple(self._all_actions) + self._sm.actions
+        all_cost_curve = tuple(self._all_cost_curve) + self._sm.cost_curve
         return BacktestOrchestratorResult(
             config=self._config,
             steps=tuple(self._steps),
-            actions=self._sm.actions,
-            cost_curve=self._sm.cost_curve,
+            actions=all_actions,
+            cost_curve=all_cost_curve,
             k4_changes=tuple(self._k4_changes),
             stock_changes=tuple(self._stock_changes),
         )

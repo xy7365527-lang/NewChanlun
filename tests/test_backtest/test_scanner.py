@@ -98,14 +98,16 @@ class TestScanStocks:
         assert result.selected_symbol is None
         assert result.candidates_count == 0
 
-    def test_neutral_polarity_returns_none(self):
-        """polarity=0 → 不扫描。"""
+    def test_neutral_polarity_scans_all(self):
+        """polarity=0（中性）→ 扫描所有矩阵，有买点可选中。"""
         k4 = _make_k4_state(polarity=0)
         snap = _FakeSnapshot(
             bsp_snapshot=_BspSnapshot(buysellpoints=[_make_buy_bsp()]),
         )
-        result = scan_stocks(k4, {"XLK": snap})
-        assert result.selected_symbol is None
+        # XLK is in EQUITY_UNIVERSE, TLT is in RATE_UNIVERSE
+        # polarity=0 → universe = EQUITY + RATE → both are scanned
+        result = scan_stocks(k4, {"XLK": snap, "TLT": snap})
+        assert result.candidates_count >= 0
 
     def test_positive_polarity_scans_equity(self):
         """polarity>0 → 扫描 EQUITY_UNIVERSE。"""

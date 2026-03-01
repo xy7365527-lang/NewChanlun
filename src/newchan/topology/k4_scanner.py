@@ -62,9 +62,13 @@ def walk_direction_from_snapshot(
 
     逻辑：
     - 读取指定级别的 moves 列表
-    - 取最后一个 move 的方向
+    - 取最后一个 **settled** move 的方向（与 D 算子读数一致）
     - consolidation → FLAT
-    - moves 为空 → FLAT（保守默认）
+    - 无 settled move → FLAT（保守默认）
+
+    统一映射：K4 配置状态直接基于 D 算子的走势方向（settled moves），
+    不存在独立的 sigma 映射。config.sigma_e/c/r 和 d_reading.direction
+    来自同一数据源。
 
     Parameters
     ----------
@@ -78,9 +82,10 @@ def walk_direction_from_snapshot(
     WalkDirection
     """
     moves = _get_moves_at_level(snapshot, level)
-    if not moves:
+    settled_moves = [m for m in moves if m.settled]
+    if not settled_moves:
         return WalkDirection.FLAT
-    return _direction_from_move(moves[-1])
+    return _direction_from_move(settled_moves[-1])
 
 
 def k4_configuration(

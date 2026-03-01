@@ -49,22 +49,24 @@ RATE_UNIVERSE: tuple[str, ...] = ("TLT", "IEF", "SHY")
 def target_universe(config: Configuration) -> tuple[str, ...]:
     """根据 K4 配置确定目标矩阵。
 
-    规则（从267号操作方法论推导）：
-    - polarity > 0（risk-on）→ EQUITY_UNIVERSE
-    - polarity < 0（risk-off）→ RATE_UNIVERSE
-    - polarity == 0（neutral）→ 空元组（等待，不扫描）
+    三值逻辑（从267号操作方法论推导）：
+    - polarity > 0（risk-on，支持）→ EQUITY_UNIVERSE
+    - polarity < 0（risk-off，反对）→ RATE_UNIVERSE
+    - polarity == 0（中性）→ EQUITY_UNIVERSE + RATE_UNIVERSE
+      中性 ≠ 反对。K4 中性时，层2的缠论结构独立生效——
+      有完备买卖点就可以操作。K4 不提供额外筛选。
     - sigma_e.UP 且 sigma_c.UP → 额外加入 GLD（Au 同向）
 
     认识论等级：L2（需真实数据验证的映射规则）。
     """
     pol = polarity_index(config)
-    if pol == 0:
-        return ()
 
     if pol > 0:
         base = EQUITY_UNIVERSE
-    else:
+    elif pol < 0:
         base = RATE_UNIVERSE
+    else:
+        base = EQUITY_UNIVERSE + RATE_UNIVERSE
 
     if config.sigma_e is WalkDirection.UP and config.sigma_c is WalkDirection.UP:
         return base + GOLD_UNIVERSE
