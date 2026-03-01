@@ -17,7 +17,7 @@
 
 version: "3.1"
 provenance: "[新缠论]"
-genealogy_ref: "072, 068, 069, 075-structural-to-skill, 081-swarm-continuity-strategy-d, 089-aufhebung-audit, 093-five-constraints-topology, 175-epistemological-reversal-implementation, 179-four-position-topology-analyst, 274-local-dependency-principle"
+genealogy_ref: "072, 068, 069, 075-structural-to-skill, 081-swarm-continuity-strategy-d, 089-aufhebung-audit, 093-five-constraints-topology, 175-epistemological-reversal-implementation, 179-four-position-topology-analyst, 274-abolish-depth-budget, 275-local-dependency-principle"
 
 # ═══════════════════════════════════════════════════════════════
 # 层级索引（095-4：三层分类——genome / structural / business）
@@ -345,7 +345,7 @@ nodes:
       - "蜂群递归是默认执行模式，不是复杂度触发的优化——任何多目标任务默认并行 spawn"  # 055号
       - "子工位为局部作用域（不修改全局 hook/谱系/定义），递归深度由 topology-manager 收敛信号终止（020号背驰+分型），无人为硬限制"
       - "020号（背驰+分型）是递归的终止/结算条件，不是启动条件"  # 020号
-      - "附庸的附庸不是我的附庸——每层只管直接下级，不越级管理子蜂群内部"  # 274号
+      - "附庸的附庸不是我的附庸——每层只管直接下级，不越级管理子蜂群内部"  # 275号
 
   # --- 系统/虚拟节点（外部系统，不受 DAG 拓扑约束） ---
   system_nodes:

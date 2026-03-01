@@ -1,0 +1,12 @@
+{
+  "id": "8dce3d7183b29846eb240dbfd6632a3ebee088e2fcff17c7c98258f0eacdd1cf",
+  "type": "consensus",
+  "timestamp": "2026-03-01T00:26:15.626330+00:00",
+  "source": "cc",
+  "content": {
+    "title": "局部依赖原则",
+    "genealogy_id": "275"
+  },
+  "refs": [],
+  "git_ref": "0ef4ae58916f2a9a5b8ced4d49167862489d0c23"
+}
