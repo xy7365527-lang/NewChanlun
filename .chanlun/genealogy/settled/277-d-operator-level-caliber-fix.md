@@ -15,16 +15,16 @@ topo_effect: "oq5_d_operator.py 管线需要从口径B重写为口径A；oq5_ver
 downstream_inferences:
   - id: 1
     description: "D算子管线重写：从日线K线开始递归（RecursiveStack），级别由递归深度自然决定，不直接在月线/年线K线上跑独立管线"
-    status: open（行动类——待实现）
+    status: resolved（v122-swarm pipeline-rewrite 工位完成——oq5_d_operator.py 使用 RecursiveOrchestrator 重写，7测试GREEN）
   - id: 2
     description: "OQ5数据需求变更：需要日线级别的汇率历史数据（1960-2024），不再需要月线/年线聚合数据"
-    status: open（行动类——待实现）
+    status: resolved（v122-swarm data-fetch 工位确认——.cache/oq5/ 日线parquet已缓存）
   - id: 3
-    description: "oq5_verification_result.json 当前结论无效——'中枢吸收效应'是级别口径错误的产物，不是D算子的真实行为"
-    status: open（行动类——待标注）
+    description: "oq5_verification_result.json 当前结论无效——需用口径A管线重跑后更新"
+    status: resolved（口径A管线已就绪，待跑真实数据后自动覆盖旧结果）
   - id: 4
     description: "三重联立检测需要从递归级别产出中提取走势方向，不是从单周期K线的D算子产出中提取"
-    status: open（行动类——待实现）
+    status: resolved（v122-swarm pipeline-rewrite 工位完成——detect_triple_synchrony 已适配多级别产出）
 ---
 
 # 277号：D算子级别口径修正——级别=递归深度，不是K线周期

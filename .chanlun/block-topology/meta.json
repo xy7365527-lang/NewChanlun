@@ -278,7 +278,10 @@
     "272": "f68057c1b556f61eae9d2cf620fe12764e57065906455c16a1ebd50efbfd27f5",
     "273": "86c0729d3439774b8e3098d92cf3b1aae0bc3e54a803a99ab88ebb3e8f35acf4",
     "274": "5d430b6bd4a696fb40f7df4cfedcb87454bf6c3d2ebb287c94c8e886f9d179d7",
-    "275": "8dce3d7183b29846eb240dbfd6632a3ebee088e2fcff17c7c98258f0eacdd1cf"
+    "275": "8dce3d7183b29846eb240dbfd6632a3ebee088e2fcff17c7c98258f0eacdd1cf",
+    "276": "pending_migration",
+    "277": "bbc1314902db47f06fdc932ae01101d19a096e86a4ac5ac9a7526dbd2920082a"
   },
+  "block_count": 307,
   "migrated_at": "2026-02-24T01:53:23.215386+00:00"
 }
