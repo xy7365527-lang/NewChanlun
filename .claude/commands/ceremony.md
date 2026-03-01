@@ -28,11 +28,11 @@ scan 输出什么就 spawn 什么。Lead 不做实质认知工作。
    3. 如果否 → 在当前层直接执行（扁平退化特例，需在产出中记录理由："任务不可分解因为 [具体原因]"）
 
    topo_address: {team_name}/{agent_name}
-   depth_budget: {N}  # Lead 从自身 depth_budget 减1 传递；depth_budget=0 时禁止递归，直接执行
    parent_callback: team-lead
    ```
 
-   depth_budget 初始值由 Lead 在 ceremony 入口设定，默认 3。每层递归减 1 传递给子工位。
+   递归终止条件（274号）：仅原子性（不可分解）和不动点（无新工位）。无外部计数器。
+   context window 耗尽 → 触发 compaction → 下一轮恢复继续（暂停，不是终止）。
 6. RTAS 循环（consume）：
    - `TaskList` 查看状态
    - 完成的工位：汇报 + `shutdown_request`（批量并行，不逐个串行）
@@ -43,7 +43,7 @@ scan 输出什么就 spawn 什么。Lead 不做实质认知工作。
 8. 解析 rescan JSON 输出
 9. rescan.workstations[] 非空且与上轮不同 → 回到步骤 5 spawn 新工位
 10. rescan.workstations[] 为空或与上轮相同（不动点） → `python scripts/ceremony_state.py clear` → `TeamDelete` → 停止
-11. 安全阀：rescan 循环 ≤ 3 次（max_rescan_depth=3），超过则强制终止
+11. （274号废除 max_rescan_depth）rescan 循环终止条件仅为不动点（步骤10）。无外部计数器
 
 ## 白名单（Lead 只执行这三类操作）
 

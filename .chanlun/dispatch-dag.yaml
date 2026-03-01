@@ -17,7 +17,7 @@
 
 version: "3.1"
 provenance: "[新缠论]"
-genealogy_ref: "072, 068, 069, 075-structural-to-skill, 081-swarm-continuity-strategy-d, 089-aufhebung-audit, 093-five-constraints-topology, 175-epistemological-reversal-implementation, 179-four-position-topology-analyst"
+genealogy_ref: "072, 068, 069, 075-structural-to-skill, 081-swarm-continuity-strategy-d, 089-aufhebung-audit, 093-five-constraints-topology, 175-epistemological-reversal-implementation, 179-four-position-topology-analyst, 274-local-dependency-principle"
 
 # ═══════════════════════════════════════════════════════════════
 # 层级索引（095-4：三层分类——genome / structural / business）
@@ -327,16 +327,12 @@ nodes:
     # DAG 约束：任务节点的输入/输出边必须连接支配节点
     input_constraint: "requires_dominator_edge"
     output_constraint: "requires_dominator_edge"
-    # spawn 三基因（073a号谱系：每个衍生节点必须携带）
+    # spawn 两基因（073a号谱系，274号废除 depth_budget——递归终止由原子性和不动点决定，不由计数器决定）
     required_genes:
       - id: topo_address
         description: "当前节点在分形树中的拓扑坐标（如 v13-swarm/gene-writer）"
         format: "{team_name}/{agent_name}"
         enforcement: "ceremony 步骤5 递归判断块强制注入（见 .claude/commands/ceremony.md 步骤5）"
-      - id: depth_budget
-        description: "剩余递归深度或 token 预算，防止无限增殖"
-        format: "integer >= 0"
-        enforcement: "ceremony 步骤5 递归判断块强制注入；depth_budget=0 时工位禁止递归，直接执行"
       - id: parent_callback
         description: "父节点等待结果的标识符"
         format: "{team_name}/{recipient_name}"
@@ -349,6 +345,7 @@ nodes:
       - "蜂群递归是默认执行模式，不是复杂度触发的优化——任何多目标任务默认并行 spawn"  # 055号
       - "子工位为局部作用域（不修改全局 hook/谱系/定义），递归深度由 topology-manager 收敛信号终止（020号背驰+分型），无人为硬限制"
       - "020号（背驰+分型）是递归的终止/结算条件，不是启动条件"  # 020号
+      - "附庸的附庸不是我的附庸——每层只管直接下级，不越级管理子蜂群内部"  # 274号
 
   # --- 系统/虚拟节点（外部系统，不受 DAG 拓扑约束） ---
   system_nodes:
@@ -625,7 +622,7 @@ fractal_template:
     - "任何 teammate 面对 ≥2 个可并行子任务时，必须 spawn 子蜂群（095号：真递归是默认模式）"
     - "子蜂群通过 TeamCreate 创建独立 team，复制父蜂群的完整结构（097号五特征 DAG 模板）"
     - "扁平 Lead→Worker 是退化特例，使用需要理由——必须证明子任务不需要独立治理"
-    - "递归深度由资源约束和视差 Gap 累积自然终止（工程上限约 3-4 层），终止信号来自 topology-manager 收敛判定（020号）"
+    - "递归终止条件仅两个（274号）：原子性（不可分解）和不动点（无新工位）。无外部计数器。context window 耗尽→compaction→恢复继续（暂停，不是终止）"
     - "父 teammate 对子 teammates 负路由责任"
     - "结构工位默认扁平——裁判不参与走势。例外：结构工位自身任务需分解时允许 spawn 同类型子工位（受限递归），不允许 spawn 任务工位"
   visibility: "所有 teammates（含任意深度的子 teammates）在同一 task list 中可见"
