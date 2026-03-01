@@ -1429,6 +1429,11 @@ nodes:
   status: 已结算
   type: ''
   file: settled/284-oq-dynamics-expansion.md
+- id: '285'
+  title: 元观察——v129-swarm 编排者语言清洗 + OQ v2 实验脚本重写
+  status: 已结算
+  type: meta-rule
+  file: settled/285-meta-observation-v129-swarm.md
 edges:
   depends_on:
   - from: '136'
@@ -2913,6 +2918,16 @@ edges:
     to: '254'
   - from: '284'
     to: '237'
+  - from: '285'
+    to: '282'
+  - from: '285'
+    to: '284'
+  - from: '285'
+    to: '283'
+  - from: '285'
+    to: '219'
+  - from: '285'
+    to: '278'
   triggered:
   - from: '005'
     to: 005a

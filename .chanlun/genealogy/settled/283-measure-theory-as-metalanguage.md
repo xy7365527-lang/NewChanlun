@@ -10,7 +10,7 @@ topo_effect: "279号推论3修正——旧语言（噪声/降权/前置层/强�
 downstream_inferences:
   - id: 1
     description: "OQ 实验脚本需要按同步阅读逻辑重设计——不是分别检测现金角子图和互测网络，而是六条边 D 算子产出的结构性自洽检测"
-    status: "行动类——待实验脚本修正"
+    status: "resolved（v129-swarm：实验脚本已按同步阅读逻辑重写）"
   - id: 2
     description: "测度论对照表（RN导数=汇率、绝对连续=汇率存在、互奇异=汇率失效）是否值得在知识库中显式记录——语法记录候选"
     status: "待观察"
