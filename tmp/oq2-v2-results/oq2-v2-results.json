@@ -1,0 +1,739 @@
+{
+  "experiment": "OQ2 v2 权益矩阵内部拓扑",
+  "pipeline": "RecursiveOrchestrator（D算子+背驰+BSP一体）",
+  "epistemology_level": "L2",
+  "genealogy_ref": [
+    "284号（OQ v2）",
+    "283号",
+    "279号"
+  ],
+  "timestamp": "2026-03-01T09:20:22.874162",
+  "data_range": "1998-12-22 ~ 2026-02-27",
+  "symbols": [
+    "XLK",
+    "XLF",
+    "XLE",
+    "XLV",
+    "XLY"
+  ],
+  "edges": [
+    {
+      "edge_label": "XLK/XLF",
+      "sym_a": "XLK",
+      "sym_b": "XLF",
+      "total_bars": 6837,
+      "num_strokes": 472,
+      "num_segments": 45,
+      "num_zhongshus": 9,
+      "num_moves": 8,
+      "num_settled_moves": 7,
+      "num_bsp": 6,
+      "last_move_kind": "consolidation",
+      "last_move_direction": "up",
+      "last_move_settled": false,
+      "bsp_events_count": 42,
+      "is_active": true,
+      "has_divergence_bsp": true
+    },
+    {
+      "edge_label": "XLK/XLE",
+      "sym_a": "XLK",
+      "sym_b": "XLE",
+      "total_bars": 6837,
+      "num_strokes": 497,
+      "num_segments": 51,
+      "num_zhongshus": 8,
+      "num_moves": 8,
+      "num_settled_moves": 7,
+      "num_bsp": 7,
+      "last_move_kind": "consolidation",
+      "last_move_direction": "up",
+      "last_move_settled": false,
+      "bsp_events_count": 39,
+      "is_active": true,
+      "has_divergence_bsp": true
+    },
+    {
+      "edge_label": "XLK/XLV",
+      "sym_a": "XLK",
+      "sym_b": "XLV",
+      "total_bars": 6837,
+      "num_strokes": 443,
+      "num_segments": 52,
+      "num_zhongshus": 8,
+      "num_moves": 7,
+      "num_settled_moves": 6,
+      "num_bsp": 6,
+      "last_move_kind": "consolidation",
+      "last_move_direction": "up",
+      "last_move_settled": false,
+      "bsp_events_count": 38,
+      "is_active": true,
+      "has_divergence_bsp": true
+    },
+    {
+      "edge_label": "XLK/XLY",
+      "sym_a": "XLK",
+      "sym_b": "XLY",
+      "total_bars": 6837,
+      "num_strokes": 420,
+      "num_segments": 43,
+      "num_zhongshus": 7,
+      "num_moves": 6,
+      "num_settled_moves": 5,
+      "num_bsp": 5,
+      "last_move_kind": "consolidation",
+      "last_move_direction": "up",
+      "last_move_settled": false,
+      "bsp_events_count": 19,
+      "is_active": true,
+      "has_divergence_bsp": true
+    },
+    {
+      "edge_label": "XLF/XLE",
+      "sym_a": "XLF",
+      "sym_b": "XLE",
+      "total_bars": 6837,
+      "num_strokes": 488,
+      "num_segments": 57,
+      "num_zhongshus": 12,
+      "num_moves": 12,
+      "num_settled_moves": 11,
+      "num_bsp": 9,
+      "last_move_kind": "consolidation",
+      "last_move_direction": "up",
+      "last_move_settled": false,
+      "bsp_events_count": 36,
+      "is_active": true,
+      "has_divergence_bsp": true
+    },
+    {
+      "edge_label": "XLF/XLV",
+      "sym_a": "XLF",
+      "sym_b": "XLV",
+      "total_bars": 6837,
+      "num_strokes": 485,
+      "num_segments": 58,
+      "num_zhongshus": 8,
+      "num_moves": 7,
+      "num_settled_moves": 6,
+      "num_bsp": 5,
+      "last_move_kind": "consolidation",
+      "last_move_direction": "down",
+      "last_move_settled": false,
+      "bsp_events_count": 29,
+      "is_active": true,
+      "has_divergence_bsp": true
+    },
+    {
+      "edge_label": "XLF/XLY",
+      "sym_a": "XLF",
+      "sym_b": "XLY",
+      "total_bars": 6837,
+      "num_strokes": 436,
+      "num_segments": 47,
+      "num_zhongshus": 5,
+      "num_moves": 4,
+      "num_settled_moves": 3,
+      "num_bsp": 2,
+      "last_move_kind": "consolidation",
+      "last_move_direction": "down",
+      "last_move_settled": false,
+      "bsp_events_count": 16,
+      "is_active": true,
+      "has_divergence_bsp": true
+    },
+    {
+      "edge_label": "XLE/XLV",
+      "sym_a": "XLE",
+      "sym_b": "XLV",
+      "total_bars": 6837,
+      "num_strokes": 507,
+      "num_segments": 61,
+      "num_zhongshus": 9,
+      "num_moves": 8,
+      "num_settled_moves": 7,
+      "num_bsp": 6,
+      "last_move_kind": "consolidation",
+      "last_move_direction": "up",
+      "last_move_settled": false,
+      "bsp_events_count": 19,
+      "is_active": true,
+      "has_divergence_bsp": true
+    },
+    {
+      "edge_label": "XLE/XLY",
+      "sym_a": "XLE",
+      "sym_b": "XLY",
+      "total_bars": 6837,
+      "num_strokes": 489,
+      "num_segments": 43,
+      "num_zhongshus": 9,
+      "num_moves": 8,
+      "num_settled_moves": 7,
+      "num_bsp": 7,
+      "last_move_kind": "consolidation",
+      "last_move_direction": "down",
+      "last_move_settled": false,
+      "bsp_events_count": 41,
+      "is_active": true,
+      "has_divergence_bsp": true
+    },
+    {
+      "edge_label": "XLV/XLY",
+      "sym_a": "XLV",
+      "sym_b": "XLY",
+      "total_bars": 6837,
+      "num_strokes": 464,
+      "num_segments": 58,
+      "num_zhongshus": 3,
+      "num_moves": 2,
+      "num_settled_moves": 1,
+      "num_bsp": 1,
+      "last_move_kind": "consolidation",
+      "last_move_direction": "down",
+      "last_move_settled": false,
+      "bsp_events_count": 6,
+      "is_active": true,
+      "has_divergence_bsp": true
+    }
+  ],
+  "topology": {
+    "active_edges": [
+      "XLK/XLF",
+      "XLK/XLE",
+      "XLK/XLV",
+      "XLK/XLY",
+      "XLF/XLE",
+      "XLF/XLV",
+      "XLF/XLY",
+      "XLE/XLV",
+      "XLE/XLY",
+      "XLV/XLY"
+    ],
+    "ker_d_edges": [],
+    "diverging_edges": [
+      "XLK/XLF",
+      "XLK/XLE",
+      "XLK/XLV",
+      "XLK/XLY",
+      "XLF/XLE",
+      "XLF/XLV",
+      "XLF/XLY",
+      "XLE/XLV",
+      "XLE/XLY",
+      "XLV/XLY"
+    ],
+    "num_active": 10,
+    "num_ker_d": 0,
+    "num_diverging": 10,
+    "vertices_in_active": [
+      "XLE",
+      "XLF",
+      "XLK",
+      "XLV",
+      "XLY"
+    ],
+    "adjacency": {
+      "XLK": [
+        "XLE",
+        "XLF",
+        "XLV",
+        "XLY"
+      ],
+      "XLF": [
+        "XLE",
+        "XLK",
+        "XLV",
+        "XLY"
+      ],
+      "XLE": [
+        "XLF",
+        "XLK",
+        "XLV",
+        "XLY"
+      ],
+      "XLV": [
+        "XLE",
+        "XLF",
+        "XLK",
+        "XLY"
+      ],
+      "XLY": [
+        "XLE",
+        "XLF",
+        "XLK",
+        "XLV"
+      ]
+    },
+    "topology_type": "complete_K5",
+    "vertex_degrees": {
+      "XLE": 4,
+      "XLF": 4,
+      "XLK": 4,
+      "XLV": 4,
+      "XLY": 4
+    }
+  },
+  "time_varying_topology": [
+    {
+      "bar_idx": 0,
+      "ts": "1998-12-22",
+      "active_count": 0,
+      "ker_d_count": 10,
+      "active_edges": []
+    },
+    {
+      "bar_idx": 250,
+      "ts": "1999-12-20",
+      "active_count": 0,
+      "ker_d_count": 10,
+      "active_edges": []
+    },
+    {
+      "bar_idx": 500,
+      "ts": "2000-12-14",
+      "active_count": 1,
+      "ker_d_count": 9,
+      "active_edges": [
+        "XLF/XLE"
+      ]
+    },
+    {
+      "bar_idx": 750,
+      "ts": "2001-12-18",
+      "active_count": 5,
+      "ker_d_count": 5,
+      "active_edges": [
+        "XLK/XLE",
+        "XLK/XLV",
+        "XLK/XLY",
+        "XLF/XLE",
+        "XLF/XLY"
+      ]
+    },
+    {
+      "bar_idx": 1000,
+      "ts": "2002-12-16",
+      "active_count": 5,
+      "ker_d_count": 5,
+      "active_edges": [
+        "XLK/XLE",
+        "XLK/XLV",
+        "XLK/XLY",
+        "XLF/XLE",
+        "XLF/XLY"
+      ]
+    },
+    {
+      "bar_idx": 1250,
+      "ts": "2003-12-12",
+      "active_count": 5,
+      "ker_d_count": 5,
+      "active_edges": [
+        "XLK/XLE",
+        "XLK/XLV",
+        "XLK/XLY",
+        "XLF/XLE",
+        "XLF/XLY"
+      ]
+    },
+    {
+      "bar_idx": 1500,
+      "ts": "2004-12-10",
+      "active_count": 5,
+      "ker_d_count": 5,
+      "active_edges": [
+        "XLK/XLE",
+        "XLK/XLV",
+        "XLK/XLY",
+        "XLF/XLE",
+        "XLF/XLY"
+      ]
+    },
+    {
+      "bar_idx": 1750,
+      "ts": "2005-12-07",
+      "active_count": 6,
+      "ker_d_count": 4,
+      "active_edges": [
+        "XLK/XLF",
+        "XLK/XLE",
+        "XLK/XLV",
+        "XLK/XLY",
+        "XLF/XLE",
+        "XLF/XLY"
+      ]
+    },
+    {
+      "bar_idx": 2000,
+      "ts": "2006-12-05",
+      "active_count": 9,
+      "ker_d_count": 1,
+      "active_edges": [
+        "XLK/XLF",
+        "XLK/XLE",
+        "XLK/XLV",
+        "XLK/XLY",
+        "XLF/XLE",
+        "XLF/XLV",
+        "XLF/XLY",
+        "XLE/XLV",
+        "XLE/XLY"
+      ]
+    },
+    {
+      "bar_idx": 2250,
+      "ts": "2007-12-04",
+      "active_count": 9,
+      "ker_d_count": 1,
+      "active_edges": [
+        "XLK/XLF",
+        "XLK/XLE",
+        "XLK/XLV",
+        "XLK/XLY",
+        "XLF/XLE",
+        "XLF/XLV",
+        "XLF/XLY",
+        "XLE/XLV",
+        "XLE/XLY"
+      ]
+    },
+    {
+      "bar_idx": 2500,
+      "ts": "2008-12-01",
+      "active_count": 9,
+      "ker_d_count": 1,
+      "active_edges": [
+        "XLK/XLF",
+        "XLK/XLE",
+        "XLK/XLV",
+        "XLK/XLY",
+        "XLF/XLE",
+        "XLF/XLV",
+        "XLF/XLY",
+        "XLE/XLV",
+        "XLE/XLY"
+      ]
+    },
+    {
+      "bar_idx": 2750,
+      "ts": "2009-11-27",
+      "active_count": 9,
+      "ker_d_count": 1,
+      "active_edges": [
+        "XLK/XLF",
+        "XLK/XLE",
+        "XLK/XLV",
+        "XLK/XLY",
+        "XLF/XLE",
+        "XLF/XLV",
+        "XLF/XLY",
+        "XLE/XLV",
+        "XLE/XLY"
+      ]
+    },
+    {
+      "bar_idx": 3000,
+      "ts": "2010-11-24",
+      "active_count": 9,
+      "ker_d_count": 1,
+      "active_edges": [
+        "XLK/XLF",
+        "XLK/XLE",
+        "XLK/XLV",
+        "XLK/XLY",
+        "XLF/XLE",
+        "XLF/XLV",
+        "XLF/XLY",
+        "XLE/XLV",
+        "XLE/XLY"
+      ]
+    },
+    {
+      "bar_idx": 3250,
+      "ts": "2011-11-21",
+      "active_count": 9,
+      "ker_d_count": 1,
+      "active_edges": [
+        "XLK/XLF",
+        "XLK/XLE",
+        "XLK/XLV",
+        "XLK/XLY",
+        "XLF/XLE",
+        "XLF/XLV",
+        "XLF/XLY",
+        "XLE/XLV",
+        "XLE/XLY"
+      ]
+    },
+    {
+      "bar_idx": 3500,
+      "ts": "2012-11-20",
+      "active_count": 10,
+      "ker_d_count": 0,
+      "active_edges": [
+        "XLK/XLF",
+        "XLK/XLE",
+        "XLK/XLV",
+        "XLK/XLY",
+        "XLF/XLE",
+        "XLF/XLV",
+        "XLF/XLY",
+        "XLE/XLV",
+        "XLE/XLY",
+        "XLV/XLY"
+      ]
+    },
+    {
+      "bar_idx": 3750,
+      "ts": "2013-11-18",
+      "active_count": 10,
+      "ker_d_count": 0,
+      "active_edges": [
+        "XLK/XLF",
+        "XLK/XLE",
+        "XLK/XLV",
+        "XLK/XLY",
+        "XLF/XLE",
+        "XLF/XLV",
+        "XLF/XLY",
+        "XLE/XLV",
+        "XLE/XLY",
+        "XLV/XLY"
+      ]
+    },
+    {
+      "bar_idx": 4000,
+      "ts": "2014-11-14",
+      "active_count": 10,
+      "ker_d_count": 0,
+      "active_edges": [
+        "XLK/XLF",
+        "XLK/XLE",
+        "XLK/XLV",
+        "XLK/XLY",
+        "XLF/XLE",
+        "XLF/XLV",
+        "XLF/XLY",
+        "XLE/XLV",
+        "XLE/XLY",
+        "XLV/XLY"
+      ]
+    },
+    {
+      "bar_idx": 4250,
+      "ts": "2015-11-12",
+      "active_count": 10,
+      "ker_d_count": 0,
+      "active_edges": [
+        "XLK/XLF",
+        "XLK/XLE",
+        "XLK/XLV",
+        "XLK/XLY",
+        "XLF/XLE",
+        "XLF/XLV",
+        "XLF/XLY",
+        "XLE/XLV",
+        "XLE/XLY",
+        "XLV/XLY"
+      ]
+    },
+    {
+      "bar_idx": 4500,
+      "ts": "2016-11-09",
+      "active_count": 10,
+      "ker_d_count": 0,
+      "active_edges": [
+        "XLK/XLF",
+        "XLK/XLE",
+        "XLK/XLV",
+        "XLK/XLY",
+        "XLF/XLE",
+        "XLF/XLV",
+        "XLF/XLY",
+        "XLE/XLV",
+        "XLE/XLY",
+        "XLV/XLY"
+      ]
+    },
+    {
+      "bar_idx": 4750,
+      "ts": "2017-11-07",
+      "active_count": 10,
+      "ker_d_count": 0,
+      "active_edges": [
+        "XLK/XLF",
+        "XLK/XLE",
+        "XLK/XLV",
+        "XLK/XLY",
+        "XLF/XLE",
+        "XLF/XLV",
+        "XLF/XLY",
+        "XLE/XLV",
+        "XLE/XLY",
+        "XLV/XLY"
+      ]
+    },
+    {
+      "bar_idx": 5000,
+      "ts": "2018-11-05",
+      "active_count": 10,
+      "ker_d_count": 0,
+      "active_edges": [
+        "XLK/XLF",
+        "XLK/XLE",
+        "XLK/XLV",
+        "XLK/XLY",
+        "XLF/XLE",
+        "XLF/XLV",
+        "XLF/XLY",
+        "XLE/XLV",
+        "XLE/XLY",
+        "XLV/XLY"
+      ]
+    },
+    {
+      "bar_idx": 5250,
+      "ts": "2019-11-04",
+      "active_count": 10,
+      "ker_d_count": 0,
+      "active_edges": [
+        "XLK/XLF",
+        "XLK/XLE",
+        "XLK/XLV",
+        "XLK/XLY",
+        "XLF/XLE",
+        "XLF/XLV",
+        "XLF/XLY",
+        "XLE/XLV",
+        "XLE/XLY",
+        "XLV/XLY"
+      ]
+    },
+    {
+      "bar_idx": 5500,
+      "ts": "2020-10-30",
+      "active_count": 10,
+      "ker_d_count": 0,
+      "active_edges": [
+        "XLK/XLF",
+        "XLK/XLE",
+        "XLK/XLV",
+        "XLK/XLY",
+        "XLF/XLE",
+        "XLF/XLV",
+        "XLF/XLY",
+        "XLE/XLV",
+        "XLE/XLY",
+        "XLV/XLY"
+      ]
+    },
+    {
+      "bar_idx": 5750,
+      "ts": "2021-10-28",
+      "active_count": 10,
+      "ker_d_count": 0,
+      "active_edges": [
+        "XLK/XLF",
+        "XLK/XLE",
+        "XLK/XLV",
+        "XLK/XLY",
+        "XLF/XLE",
+        "XLF/XLV",
+        "XLF/XLY",
+        "XLE/XLV",
+        "XLE/XLY",
+        "XLV/XLY"
+      ]
+    },
+    {
+      "bar_idx": 6000,
+      "ts": "2022-10-26",
+      "active_count": 10,
+      "ker_d_count": 0,
+      "active_edges": [
+        "XLK/XLF",
+        "XLK/XLE",
+        "XLK/XLV",
+        "XLK/XLY",
+        "XLF/XLE",
+        "XLF/XLV",
+        "XLF/XLY",
+        "XLE/XLV",
+        "XLE/XLY",
+        "XLV/XLY"
+      ]
+    },
+    {
+      "bar_idx": 6250,
+      "ts": "2023-10-25",
+      "active_count": 10,
+      "ker_d_count": 0,
+      "active_edges": [
+        "XLK/XLF",
+        "XLK/XLE",
+        "XLK/XLV",
+        "XLK/XLY",
+        "XLF/XLE",
+        "XLF/XLV",
+        "XLF/XLY",
+        "XLE/XLV",
+        "XLE/XLY",
+        "XLV/XLY"
+      ]
+    },
+    {
+      "bar_idx": 6500,
+      "ts": "2024-10-23",
+      "active_count": 10,
+      "ker_d_count": 0,
+      "active_edges": [
+        "XLK/XLF",
+        "XLK/XLE",
+        "XLK/XLV",
+        "XLK/XLY",
+        "XLF/XLE",
+        "XLF/XLV",
+        "XLF/XLY",
+        "XLE/XLV",
+        "XLE/XLY",
+        "XLV/XLY"
+      ]
+    },
+    {
+      "bar_idx": 6750,
+      "ts": "2025-10-23",
+      "active_count": 10,
+      "ker_d_count": 0,
+      "active_edges": [
+        "XLK/XLF",
+        "XLK/XLE",
+        "XLK/XLV",
+        "XLK/XLY",
+        "XLF/XLE",
+        "XLF/XLV",
+        "XLF/XLY",
+        "XLE/XLV",
+        "XLE/XLY",
+        "XLV/XLY"
+      ]
+    }
+  ],
+  "edge_classification": {
+    "consistent": [],
+    "diverging": [
+      "XLK/XLF",
+      "XLK/XLE",
+      "XLK/XLV",
+      "XLK/XLY",
+      "XLF/XLE",
+      "XLF/XLV",
+      "XLF/XLY",
+      "XLE/XLV",
+      "XLE/XLY",
+      "XLV/XLY"
+    ],
+    "ker_d": []
+  }
+}

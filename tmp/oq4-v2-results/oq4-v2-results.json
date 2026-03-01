@@ -1,0 +1,895 @@
+{
+  "k3_edges": {
+    "E/Au": {
+      "total_bars": 5341,
+      "date_range": "2004-11-18 ~ 2026-02-27",
+      "structure": {
+        "moves": 7,
+        "settled_moves": 6,
+        "segments": 48,
+        "zhongshus": 8,
+        "trends": 0,
+        "consolidations": 7
+      },
+      "divergence": {
+        "bsp_count": 5,
+        "bsp_events_total": 25,
+        "has_bsp": true
+      },
+      "last_move": {
+        "kind": "consolidation",
+        "direction": "up",
+        "settled": false
+      },
+      "moves_detail": [
+        {
+          "idx": 0,
+          "kind": "consolidation",
+          "direction": "down",
+          "settled": true,
+          "high": 2.9463,
+          "low": 1.8028,
+          "zs_count": 1
+        },
+        {
+          "idx": 1,
+          "kind": "consolidation",
+          "direction": "down",
+          "settled": true,
+          "high": 2.9463,
+          "low": 1.2389,
+          "zs_count": 1
+        },
+        {
+          "idx": 2,
+          "kind": "consolidation",
+          "direction": "down",
+          "settled": true,
+          "high": 2.3544,
+          "low": 0.706,
+          "zs_count": 1
+        },
+        {
+          "idx": 3,
+          "kind": "consolidation",
+          "direction": "down",
+          "settled": true,
+          "high": 1.6914,
+          "low": 0.5889,
+          "zs_count": 1
+        },
+        {
+          "idx": 4,
+          "kind": "consolidation",
+          "direction": "up",
+          "settled": true,
+          "high": 1.3657,
+          "low": 0.5889,
+          "zs_count": 1
+        },
+        {
+          "idx": 5,
+          "kind": "consolidation",
+          "direction": "up",
+          "settled": true,
+          "high": 1.5647,
+          "low": 0.7781,
+          "zs_count": 1
+        },
+        {
+          "idx": 6,
+          "kind": "consolidation",
+          "direction": "up",
+          "settled": false,
+          "high": 2.4796,
+          "low": 1.3909,
+          "zs_count": 1
+        }
+      ],
+      "recursive_levels": [
+        {
+          "level_id": 2,
+          "move_count": 1,
+          "zhongshu_count": 2,
+          "trend_count": 0,
+          "consolidation_count": 1
+        }
+      ]
+    },
+    "R/Au": {
+      "total_bars": 5341,
+      "date_range": "2004-11-18 ~ 2026-02-27",
+      "structure": {
+        "moves": 7,
+        "settled_moves": 6,
+        "segments": 48,
+        "zhongshus": 7,
+        "trends": 0,
+        "consolidations": 7
+      },
+      "divergence": {
+        "bsp_count": 4,
+        "bsp_events_total": 12,
+        "has_bsp": true
+      },
+      "last_move": {
+        "kind": "consolidation",
+        "direction": "down",
+        "settled": false
+      },
+      "moves_detail": [
+        {
+          "idx": 0,
+          "kind": "consolidation",
+          "direction": "down",
+          "settled": true,
+          "high": 1.1921,
+          "low": 0.5453,
+          "zs_count": 1
+        },
+        {
+          "idx": 1,
+          "kind": "consolidation",
+          "direction": "down",
+          "settled": true,
+          "high": 0.9368,
+          "low": 0.4348,
+          "zs_count": 1
+        },
+        {
+          "idx": 2,
+          "kind": "consolidation",
+          "direction": "up",
+          "settled": true,
+          "high": 0.5998,
+          "low": 0.4001,
+          "zs_count": 1
+        },
+        {
+          "idx": 3,
+          "kind": "consolidation",
+          "direction": "up",
+          "settled": true,
+          "high": 0.6955,
+          "low": 0.456,
+          "zs_count": 1
+        },
+        {
+          "idx": 4,
+          "kind": "consolidation",
+          "direction": "down",
+          "settled": true,
+          "high": 1.0278,
+          "low": 0.5455,
+          "zs_count": 1
+        },
+        {
+          "idx": 5,
+          "kind": "consolidation",
+          "direction": "down",
+          "settled": true,
+          "high": 0.8123,
+          "low": 0.4054,
+          "zs_count": 1
+        },
+        {
+          "idx": 6,
+          "kind": "consolidation",
+          "direction": "down",
+          "settled": false,
+          "high": 0.586,
+          "low": 0.335,
+          "zs_count": 1
+        }
+      ],
+      "recursive_levels": [
+        {
+          "level_id": 2,
+          "move_count": 0,
+          "zhongshu_count": 1,
+          "trend_count": 0,
+          "consolidation_count": 0
+        }
+      ]
+    },
+    "E/R": {
+      "total_bars": 5341,
+      "date_range": "2004-11-18 ~ 2026-02-27",
+      "structure": {
+        "moves": 7,
+        "settled_moves": 6,
+        "segments": 47,
+        "zhongshus": 8,
+        "trends": 0,
+        "consolidations": 7
+      },
+      "divergence": {
+        "bsp_count": 6,
+        "bsp_events_total": 25,
+        "has_bsp": true
+      },
+      "last_move": {
+        "kind": "consolidation",
+        "direction": "up",
+        "settled": false
+      },
+      "moves_detail": [
+        {
+          "idx": 0,
+          "kind": "consolidation",
+          "direction": "up",
+          "settled": true,
+          "high": 2.0557,
+          "low": 1.6288,
+          "zs_count": 1
+        },
+        {
+          "idx": 1,
+          "kind": "consolidation",
+          "direction": "down",
+          "settled": true,
+          "high": 2.3416,
+          "low": 0.8444,
+          "zs_count": 1
+        },
+        {
+          "idx": 2,
+          "kind": "consolidation",
+          "direction": "up",
+          "settled": true,
+          "high": 1.9297,
+          "low": 0.7614,
+          "zs_count": 1
+        },
+        {
+          "idx": 3,
+          "kind": "consolidation",
+          "direction": "up",
+          "settled": true,
+          "high": 2.2609,
+          "low": 1.4205,
+          "zs_count": 1
+        },
+        {
+          "idx": 4,
+          "kind": "consolidation",
+          "direction": "up",
+          "settled": true,
+          "high": 3.3605,
+          "low": 1.4334,
+          "zs_count": 1
+        },
+        {
+          "idx": 5,
+          "kind": "consolidation",
+          "direction": "up",
+          "settled": true,
+          "high": 4.1034,
+          "low": 1.4334,
+          "zs_count": 1
+        },
+        {
+          "idx": 6,
+          "kind": "consolidation",
+          "direction": "up",
+          "settled": false,
+          "high": 5.6045,
+          "low": 3.1025,
+          "zs_count": 1
+        }
+      ],
+      "recursive_levels": [
+        {
+          "level_id": 2,
+          "move_count": 0,
+          "zhongshu_count": 1,
+          "trend_count": 0,
+          "consolidation_count": 0
+        }
+      ]
+    }
+  },
+  "k4_edges": {
+    "E/$": {
+      "total_bars": 5341,
+      "date_range": "2004-11-18 ~ 2026-02-27",
+      "structure": {
+        "moves": 8,
+        "settled_moves": 7,
+        "segments": 38,
+        "zhongshus": 9,
+        "trends": 0,
+        "consolidations": 8
+      },
+      "divergence": {
+        "bsp_count": 8,
+        "bsp_events_total": 29,
+        "has_bsp": true
+      },
+      "last_move": {
+        "kind": "consolidation",
+        "direction": "up",
+        "settled": false
+      },
+      "moves_detail": [
+        {
+          "idx": 0,
+          "kind": "consolidation",
+          "direction": "up",
+          "settled": true,
+          "high": 92.0388,
+          "low": 77.6089,
+          "zs_count": 1
+        },
+        {
+          "idx": 1,
+          "kind": "consolidation",
+          "direction": "down",
+          "settled": true,
+          "high": 112.198,
+          "low": 84.7893,
+          "zs_count": 1
+        },
+        {
+          "idx": 2,
+          "kind": "consolidation",
+          "direction": "up",
+          "settled": true,
+          "high": 95.1083,
+          "low": 49.204,
+          "zs_count": 1
+        },
+        {
+          "idx": 3,
+          "kind": "consolidation",
+          "direction": "up",
+          "settled": true,
+          "high": 111.5594,
+          "low": 64.6161,
+          "zs_count": 1
+        },
+        {
+          "idx": 4,
+          "kind": "consolidation",
+          "direction": "up",
+          "settled": true,
+          "high": 135.5801,
+          "low": 83.379,
+          "zs_count": 1
+        },
+        {
+          "idx": 5,
+          "kind": "consolidation",
+          "direction": "up",
+          "settled": true,
+          "high": 187.9666,
+          "low": 125.5433,
+          "zs_count": 1
+        },
+        {
+          "idx": 6,
+          "kind": "consolidation",
+          "direction": "up",
+          "settled": true,
+          "high": 252.9709,
+          "low": 153.4214,
+          "zs_count": 1
+        },
+        {
+          "idx": 7,
+          "kind": "consolidation",
+          "direction": "up",
+          "settled": false,
+          "high": 454.0224,
+          "low": 179.3455,
+          "zs_count": 1
+        }
+      ],
+      "recursive_levels": [
+        {
+          "level_id": 2,
+          "move_count": 1,
+          "zhongshu_count": 1,
+          "trend_count": 0,
+          "consolidation_count": 1
+        }
+      ]
+    },
+    "Au/$": {
+      "total_bars": 5341,
+      "date_range": "2004-11-18 ~ 2026-02-27",
+      "structure": {
+        "moves": 7,
+        "settled_moves": 6,
+        "segments": 46,
+        "zhongshus": 7,
+        "trends": 0,
+        "consolidations": 7
+      },
+      "divergence": {
+        "bsp_count": 6,
+        "bsp_events_total": 18,
+        "has_bsp": true
+      },
+      "last_move": {
+        "kind": "consolidation",
+        "direction": "up",
+        "settled": false
+      },
+      "moves_detail": [
+        {
+          "idx": 0,
+          "kind": "consolidation",
+          "direction": "up",
+          "settled": true,
+          "high": 72.26,
+          "low": 41.02,
+          "zs_count": 1
+        },
+        {
+          "idx": 1,
+          "kind": "consolidation",
+          "direction": "up",
+          "settled": true,
+          "high": 100.44,
+          "low": 41.7,
+          "zs_count": 1
+        },
+        {
+          "idx": 2,
+          "kind": "consolidation",
+          "direction": "up",
+          "settled": true,
+          "high": 119.54,
+          "low": 63.39,
+          "zs_count": 1
+        },
+        {
+          "idx": 3,
+          "kind": "consolidation",
+          "direction": "up",
+          "settled": true,
+          "high": 139.54,
+          "low": 88.82,
+          "zs_count": 1
+        },
+        {
+          "idx": 4,
+          "kind": "consolidation",
+          "direction": "down",
+          "settled": true,
+          "high": 185.85,
+          "low": 114.68,
+          "zs_count": 1
+        },
+        {
+          "idx": 5,
+          "kind": "consolidation",
+          "direction": "up",
+          "settled": true,
+          "high": 194.45,
+          "low": 100.23,
+          "zs_count": 1
+        },
+        {
+          "idx": 6,
+          "kind": "consolidation",
+          "direction": "up",
+          "settled": false,
+          "high": 194.45,
+          "low": 136.12,
+          "zs_count": 1
+        }
+      ],
+      "recursive_levels": [
+        {
+          "level_id": 2,
+          "move_count": 1,
+          "zhongshu_count": 2,
+          "trend_count": 0,
+          "consolidation_count": 1
+        }
+      ]
+    },
+    "R/$": {
+      "total_bars": 5341,
+      "date_range": "2004-11-18 ~ 2026-02-27",
+      "structure": {
+        "moves": 7,
+        "settled_moves": 6,
+        "segments": 55,
+        "zhongshus": 9,
+        "trends": 1,
+        "consolidations": 6
+      },
+      "divergence": {
+        "bsp_count": 5,
+        "bsp_events_total": 29,
+        "has_bsp": true
+      },
+      "last_move": {
+        "kind": "consolidation",
+        "direction": "down",
+        "settled": false
+      },
+      "moves_detail": [
+        {
+          "idx": 0,
+          "kind": "consolidation",
+          "direction": "up",
+          "settled": true,
+          "high": 57.0085,
+          "low": 43.3413,
+          "zs_count": 1
+        },
+        {
+          "idx": 1,
+          "kind": "consolidation",
+          "direction": "up",
+          "settled": true,
+          "high": 74.436,
+          "low": 46.4165,
+          "zs_count": 1
+        },
+        {
+          "idx": 2,
+          "kind": "consolidation",
+          "direction": "up",
+          "settled": true,
+          "high": 102.6887,
+          "low": 57.9815,
+          "zs_count": 1
+        },
+        {
+          "idx": 3,
+          "kind": "consolidation",
+          "direction": "up",
+          "settled": true,
+          "high": 110.5026,
+          "low": 80.655,
+          "zs_count": 1
+        },
+        {
+          "idx": 4,
+          "kind": "trend",
+          "direction": "up",
+          "settled": true,
+          "high": 151.3109,
+          "low": 91.0802,
+          "zs_count": 2
+        },
+        {
+          "idx": 5,
+          "kind": "consolidation",
+          "direction": "up",
+          "settled": true,
+          "high": 145.9556,
+          "low": 113.7261,
+          "zs_count": 1
+        },
+        {
+          "idx": 6,
+          "kind": "consolidation",
+          "direction": "down",
+          "settled": false,
+          "high": 134.0261,
+          "low": 80.7318,
+          "zs_count": 1
+        }
+      ],
+      "recursive_levels": [
+        {
+          "level_id": 2,
+          "move_count": 1,
+          "zhongshu_count": 1,
+          "trend_count": 0,
+          "consolidation_count": 1
+        }
+      ]
+    },
+    "E/Au": {
+      "total_bars": 5341,
+      "date_range": "2004-11-18 ~ 2026-02-27",
+      "structure": {
+        "moves": 8,
+        "settled_moves": 7,
+        "segments": 48,
+        "zhongshus": 9,
+        "trends": 0,
+        "consolidations": 8
+      },
+      "divergence": {
+        "bsp_count": 7,
+        "bsp_events_total": 36,
+        "has_bsp": true
+      },
+      "last_move": {
+        "kind": "consolidation",
+        "direction": "up",
+        "settled": false
+      },
+      "moves_detail": [
+        {
+          "idx": 0,
+          "kind": "consolidation",
+          "direction": "down",
+          "settled": true,
+          "high": 2.0192,
+          "low": 1.5364,
+          "zs_count": 1
+        },
+        {
+          "idx": 1,
+          "kind": "consolidation",
+          "direction": "down",
+          "settled": true,
+          "high": 1.8555,
+          "low": 0.8988,
+          "zs_count": 1
+        },
+        {
+          "idx": 2,
+          "kind": "consolidation",
+          "direction": "down",
+          "settled": true,
+          "high": 1.6998,
+          "low": 0.5294,
+          "zs_count": 1
+        },
+        {
+          "idx": 3,
+          "kind": "consolidation",
+          "direction": "down",
+          "settled": true,
+          "high": 1.2541,
+          "low": 0.4696,
+          "zs_count": 1
+        },
+        {
+          "idx": 4,
+          "kind": "consolidation",
+          "direction": "up",
+          "settled": true,
+          "high": 1.1346,
+          "low": 0.4696,
+          "zs_count": 1
+        },
+        {
+          "idx": 5,
+          "kind": "consolidation",
+          "direction": "up",
+          "settled": true,
+          "high": 1.333,
+          "low": 0.6398,
+          "zs_count": 1
+        },
+        {
+          "idx": 6,
+          "kind": "consolidation",
+          "direction": "up",
+          "settled": true,
+          "high": 1.8324,
+          "low": 1.2381,
+          "zs_count": 1
+        },
+        {
+          "idx": 7,
+          "kind": "consolidation",
+          "direction": "up",
+          "settled": false,
+          "high": 2.7061,
+          "low": 1.352,
+          "zs_count": 1
+        }
+      ],
+      "recursive_levels": [
+        {
+          "level_id": 2,
+          "move_count": 2,
+          "zhongshu_count": 2,
+          "trend_count": 0,
+          "consolidation_count": 2
+        }
+      ]
+    },
+    "Au/R": {
+      "total_bars": 5341,
+      "date_range": "2004-11-18 ~ 2026-02-27",
+      "structure": {
+        "moves": 7,
+        "settled_moves": 6,
+        "segments": 48,
+        "zhongshus": 7,
+        "trends": 0,
+        "consolidations": 7
+      },
+      "divergence": {
+        "bsp_count": 4,
+        "bsp_events_total": 12,
+        "has_bsp": true
+      },
+      "last_move": {
+        "kind": "consolidation",
+        "direction": "up",
+        "settled": false
+      },
+      "moves_detail": [
+        {
+          "idx": 0,
+          "kind": "consolidation",
+          "direction": "up",
+          "settled": true,
+          "high": 1.8338,
+          "low": 0.8389,
+          "zs_count": 1
+        },
+        {
+          "idx": 1,
+          "kind": "consolidation",
+          "direction": "up",
+          "settled": true,
+          "high": 2.2999,
+          "low": 1.0675,
+          "zs_count": 1
+        },
+        {
+          "idx": 2,
+          "kind": "consolidation",
+          "direction": "down",
+          "settled": true,
+          "high": 2.4997,
+          "low": 1.6672,
+          "zs_count": 1
+        },
+        {
+          "idx": 3,
+          "kind": "consolidation",
+          "direction": "down",
+          "settled": true,
+          "high": 2.193,
+          "low": 1.4379,
+          "zs_count": 1
+        },
+        {
+          "idx": 4,
+          "kind": "consolidation",
+          "direction": "up",
+          "settled": true,
+          "high": 1.8331,
+          "low": 0.973,
+          "zs_count": 1
+        },
+        {
+          "idx": 5,
+          "kind": "consolidation",
+          "direction": "up",
+          "settled": true,
+          "high": 2.4669,
+          "low": 1.2311,
+          "zs_count": 1
+        },
+        {
+          "idx": 6,
+          "kind": "consolidation",
+          "direction": "up",
+          "settled": false,
+          "high": 2.9854,
+          "low": 1.7066,
+          "zs_count": 1
+        }
+      ],
+      "recursive_levels": [
+        {
+          "level_id": 2,
+          "move_count": 0,
+          "zhongshu_count": 1,
+          "trend_count": 0,
+          "consolidation_count": 0
+        }
+      ]
+    },
+    "E/R": {
+      "total_bars": 5341,
+      "date_range": "2004-11-18 ~ 2026-02-27",
+      "structure": {
+        "moves": 7,
+        "settled_moves": 6,
+        "segments": 47,
+        "zhongshus": 8,
+        "trends": 0,
+        "consolidations": 7
+      },
+      "divergence": {
+        "bsp_count": 6,
+        "bsp_events_total": 25,
+        "has_bsp": true
+      },
+      "last_move": {
+        "kind": "consolidation",
+        "direction": "up",
+        "settled": false
+      },
+      "moves_detail": [
+        {
+          "idx": 0,
+          "kind": "consolidation",
+          "direction": "up",
+          "settled": true,
+          "high": 2.0557,
+          "low": 1.6288,
+          "zs_count": 1
+        },
+        {
+          "idx": 1,
+          "kind": "consolidation",
+          "direction": "down",
+          "settled": true,
+          "high": 2.3416,
+          "low": 0.8444,
+          "zs_count": 1
+        },
+        {
+          "idx": 2,
+          "kind": "consolidation",
+          "direction": "up",
+          "settled": true,
+          "high": 1.9297,
+          "low": 0.7614,
+          "zs_count": 1
+        },
+        {
+          "idx": 3,
+          "kind": "consolidation",
+          "direction": "up",
+          "settled": true,
+          "high": 2.2609,
+          "low": 1.4205,
+          "zs_count": 1
+        },
+        {
+          "idx": 4,
+          "kind": "consolidation",
+          "direction": "up",
+          "settled": true,
+          "high": 3.3605,
+          "low": 1.4334,
+          "zs_count": 1
+        },
+        {
+          "idx": 5,
+          "kind": "consolidation",
+          "direction": "up",
+          "settled": true,
+          "high": 4.1034,
+          "low": 1.4334,
+          "zs_count": 1
+        },
+        {
+          "idx": 6,
+          "kind": "consolidation",
+          "direction": "up",
+          "settled": false,
+          "high": 5.6045,
+          "low": 3.1025,
+          "zs_count": 1
+        }
+      ],
+      "recursive_levels": [
+        {
+          "level_id": 2,
+          "move_count": 0,
+          "zhongshu_count": 1,
+          "trend_count": 0,
+          "consolidation_count": 0
+        }
+      ]
+    }
+  },
+  "completeness": {
+    "k3_all_edges_have_structure": true,
+    "k3_any_edge_has_divergence_bsp": true,
+    "k3_edge_count": 3,
+    "k4_edge_count": 6,
+    "assessment": "K3 截面可产出完整走势结构"
+  }
+}
