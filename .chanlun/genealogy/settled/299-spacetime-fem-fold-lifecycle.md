@@ -3,7 +3,7 @@ id: '299'
 number: 299
 title: 时空有限元与折叠生命周期——Gemini 空间力学类比的时间维度补完
 type: theory
-status: settled
+status: 已结算
 date: "2026-03-02"
 source:
   description: 编排者与 Claude 对话（2026-03-01/02），第三轮——Claude 对 Gemini 评审的补完
