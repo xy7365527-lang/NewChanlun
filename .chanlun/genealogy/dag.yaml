@@ -1559,7 +1559,12 @@ nodes:
   title: 元观察——309号异质审查裁定执行 + 关系分层代码实现 + block-topology 302-308 补建
   status: 已结算
   type: meta-rule
-  file: pending/310-meta-observation-phase2-ruling-execution.md
+  file: settled/310-meta-observation-phase2-ruling-execution.md
+- id: '311'
+  title: 元观察——v134-swarm Phase 2→Phase 3 过渡 + 方向变更（flag complex 取消→穿越基础设施）
+  status: 已结算
+  type: meta-rule
+  file: settled/311-meta-observation-v134-swarm-phase-transition.md
 edges:
   depends_on:
   - from: '136'
@@ -3264,6 +3269,16 @@ edges:
     to: 090
   - from: '310'
     to: '231'
+  - from: '311'
+    to: '310'
+  - from: '311'
+    to: '309'
+  - from: '311'
+    to: '218'
+  - from: '311'
+    to: '137'
+  - from: '311'
+    to: 090
   triggered:
   - from: '005'
     to: 005a

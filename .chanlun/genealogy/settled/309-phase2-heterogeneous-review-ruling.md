@@ -110,3 +110,10 @@ status: 已结算
 - 273号：有向图范畴裁定（关系类型的范畴基础）
 - 231号：形式化有效域规则（L0-L3 认识论等级——inherits 的 L2+ 验证需求）
 - 090号：严格性语法规则（否定过度工程化方案的依据）
+
+### 下游推论解决记录（v134-swarm session）
+
+- 推论1（Phase 3 flag complex 输入缩减为 Layer 1）：**direction_changed** — 编排者已取消原 Phase 3 方案（directed flag complex → β₁^Δ 全部取消）。新方向：traverse.py 查询接口 + 偶遇记录 + Morse 地形 + 概念注册表导出。Layer 1 cycle_rank = 0 已确认（310号补充记录），逻辑层是 DAG，flag complex 不再适用
+- 推论2（概念注册表是 inherits 前置条件）：**direction_changed** — inherits Phase 2 不实现（309号裁定自身已确认）。编排者新方向将概念注册表从 inherits 前置条件转变为 Phase 3 独立导出功能，不再与 inherits 绑定
+- 推论3（domain 标注粒度 concept 级）：**direction_changed** — 编排者否定社区检测方案（"domain 社区检测不做"）。domain 下沉到 concept 级的裁定保留，但自动化实现路径取消。六域枚举（chanlun/capital_flow/system_architecture/metatheory/consensus/implementation）作为静态配置保留，不在 Phase 3 近期路径中
+- 推论4（文档结构词过滤列表维护）：**resolved** — `_STRUCTURAL_MARKERS` frozenset 已在 310号 session（commit 489ba76）中实现于 concept_extractor.py，18 个结构标记。与 `_FRONTMATTER_METADATA_FIELDS`（17 字段）共同构成双层结构过滤
