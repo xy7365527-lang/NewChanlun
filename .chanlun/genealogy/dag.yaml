@@ -1519,6 +1519,27 @@ nodes:
   status: 已结算
   type: meta-rule
   file: pending/302-meta-observation-content-topology-session.md
+- id: '303'
+  title: 元观察——Phase 2 否定/扬弃拓扑方案讨论 session（context compaction 后延续）
+  status: 已结算
+  type: meta-rule
+  file: settled/303-meta-observation-phase2-discussion-session.md
+- id: '304'
+  title: 元观察——Phase 2 同调全局表达力 Gemini 讨论 session（context compaction 后延续）
+  status: 已结算
+  type: meta-rule
+  file: settled/304-meta-observation-phase2-gemini-homology-session.md
+- id: '305'
+  title: 元观察——Phase 2 否定/扬弃拓扑升级实现 session（context compaction 后延续）
+  status: 已结算
+  type: meta-rule
+  file: settled/305-meta-observation-phase2-implementation-session.md
+- id: '306'
+  title: 元观察——Phase 2 图不变量实现 session（compute_graph_invariants + is_structurally_significant
+    接口预留）
+  status: 已结算
+  type: meta-rule
+  file: settled/306-meta-observation-phase2-graph-invariants.md
 edges:
   depends_on:
   - from: '136'
@@ -3127,6 +3148,52 @@ edges:
     to: 090
   - from: '302'
     to: '231'
+  - from: '303'
+    to: '302'
+  - from: '303'
+    to: '273'
+  - from: '303'
+    to: '218'
+  - from: '303'
+    to: '137'
+  - from: '303'
+    to: 090
+  - from: '304'
+    to: '303'
+  - from: '304'
+    to: '273'
+  - from: '304'
+    to: '218'
+  - from: '304'
+    to: '137'
+  - from: '304'
+    to: 090
+  - from: '305'
+    to: '304'
+  - from: '305'
+    to: '302'
+  - from: '305'
+    to: '273'
+  - from: '305'
+    to: '218'
+  - from: '305'
+    to: '137'
+  - from: '305'
+    to: 090
+  - from: '306'
+    to: '305'
+  - from: '306'
+    to: '304'
+  - from: '306'
+    to: '302'
+  - from: '306'
+    to: '273'
+  - from: '306'
+    to: '218'
+  - from: '306'
+    to: '137'
+  - from: '306'
+    to: 090
   triggered:
   - from: '005'
     to: 005a
