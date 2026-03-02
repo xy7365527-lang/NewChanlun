@@ -242,14 +242,22 @@ def make_relation(from_id: str, to_id: str, relation: str, order: int,
 def _normalize_relation(rec: dict) -> dict:
     """Normalize a relation dict for backward compatibility (273号).
 
-    Adds default validity fields to VALIDITY_CAPABLE_RELATIONS that lack them.
+    1. Maps legacy field names: source→from, target→to, type→relation.
+    2. Adds default validity fields to VALIDITY_CAPABLE_RELATIONS that lack them.
     Returns a new dict — does not mutate the input.
     """
-    if rec.get("relation") not in VALIDITY_CAPABLE_RELATIONS:
-        return dict(rec)
-    if "validity" in rec:
-        return dict(rec)
     normalized = dict(rec)
+    # Legacy field name mapping (dag.yaml migration produced source/target/type)
+    if "source" in normalized and "from" not in normalized:
+        normalized["from"] = normalized.pop("source")
+    if "target" in normalized and "to" not in normalized:
+        normalized["to"] = normalized.pop("target")
+    if "type" in normalized and "relation" not in normalized:
+        normalized["relation"] = normalized.pop("type")
+    if normalized.get("relation") not in VALIDITY_CAPABLE_RELATIONS:
+        return normalized
+    if "validity" in normalized:
+        return normalized
     normalized["validity"] = "active"
     normalized["invalidated_by"] = None
     normalized["invalidated_at"] = None
