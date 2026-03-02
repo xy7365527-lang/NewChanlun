@@ -1565,6 +1565,16 @@ nodes:
   status: 已结算
   type: meta-rule
   file: settled/311-meta-observation-v134-swarm-phase-transition.md
+- id: '312'
+  title: Phase 3 穿越基础设施裁定——Gemini+Codex 讨论 5 共识确认 + 3 分歧裁定 + 1 补充裁定
+  status: 已结算
+  type: consensus
+  file: settled/312-phase3-traverse-infrastructure-ruling.md
+- id: '313'
+  title: 元观察——v134-swarm Phase 3 讨论 + 总方针工作线分析
+  status: 已结算
+  type: meta-rule
+  file: settled/313-meta-observation-v134-swarm-phase3-discuss.md
 edges:
   depends_on:
   - from: '136'
@@ -3278,6 +3288,22 @@ edges:
   - from: '311'
     to: '137'
   - from: '311'
+    to: 090
+  - from: '312'
+    to: '311'
+  - from: '312'
+    to: '309'
+  - from: '312'
+    to: '273'
+  - from: '313'
+    to: '312'
+  - from: '313'
+    to: '311'
+  - from: '313'
+    to: '218'
+  - from: '313'
+    to: '137'
+  - from: '313'
     to: 090
   triggered:
   - from: '005'
