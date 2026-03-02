@@ -149,5 +149,5 @@ Phase 2 七步实现全部完成。下一步进入 Phase 3 讨论阶段（编排
 ### 下游推论解决记录（v133-swarm session）
 
 - 推论1（图不变量真实数据验证）：**resolved** — 实测结果：active_beta_0=2, active_cycle_rank=1404, full_beta_0=2, full_cycle_rank=1404。active/full 一致表明当前无 invalidated 边。beta_0=2 确认图有 2 个连通分量。cycle_rank=1404 确认环路丰富度。认识论等级：L2（真实数据验证）
-- 推论2（TOPOLOGICAL_RELATIONS 整合）：**delegated** — 已交给 audit-executor 工位处理
+- 推论2（TOPOLOGICAL_RELATIONS 整合）：**resolved** — concept_topology_check.py 第497-501行已显式说明集合关系：LOGICAL ⊂ NAVIGATIONAL ⊂ TOPOLOGICAL ⊂ RELATION_TYPES。310号观察3 记录了 defines 的集合异常（NAVIGATIONAL 包含 defines 但 TOPOLOGICAL 不包含），代码层已正确处理（测试排除 defines 后验证子集关系）。一致性维护点已标注
 - 推论3（性能问题）：**deferred** — 当前规模（330+ 区块）下 iterative Tarjan O(V+E) 无性能瓶颈

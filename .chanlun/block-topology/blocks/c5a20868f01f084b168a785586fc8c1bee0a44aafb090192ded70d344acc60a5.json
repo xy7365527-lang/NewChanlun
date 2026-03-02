@@ -1,0 +1,24 @@
+{
+  "id": "c5a20868f01f084b168a785586fc8c1bee0a44aafb090192ded70d344acc60a5",
+  "type": "event",
+  "timestamp": "2026-03-02T07:51:47.645352+00:00",
+  "source": "migration",
+  "content": {
+    "id": "310",
+    "title": "元观察——309号异质审查裁定执行 + 关系分层代码实现 + block-topology 302-308 补建",
+    "status": "已结算",
+    "type": "meta-rule",
+    "date": "2026-03-02",
+    "depends_on": [
+      "309",
+      "308",
+      "218",
+      "137",
+      "090",
+      "231"
+    ],
+    "source_file": "settled\\310-meta-observation-phase2-ruling-execution.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}
