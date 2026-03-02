@@ -117,3 +117,14 @@ audit-executor 和 topo-mapper 标记为 in_progress 说明它们仍在执行中
 本轮核心产出是 309号裁定的忠实代码实现——四议题逐条对应，无范围膨胀。195 测试全通过。一个发散信号（观察3：`NAVIGATIONAL ⊄ TOPOLOGICAL` 的集合关系异常）是定理类，标注备查。308号语法记录候选（过滤判断依据层级）第二次收敛确认。
 
 无规则触发/违反异常。元规则一致性确认——218号并行、137号格式、090号严格性在本轮持续执行。
+
+### 补充记录（session_end guard 触发）
+
+commit 8a6e53d 完成了 309号裁定第三项（613条 missing_dependency 粗筛分类）：
+- `_SUBSTANTIVE_RELATIONS` frozenset + triage 分类逻辑 + 5 个测试
+- 分类结果：should_be_depends_on(9) / should_be_references(320) / info_only(284)
+- Layer 1 cycle_rank = 0（逻辑层零循环依赖）
+
+此 commit 延续观察1模式（裁定→代码执行闭环），无新规则触发/违反。Layer 1 cycle_rank = 0 是 L0 级计算结果（从已有 relations.jsonl 数据直接推导），不构成方法论洞察。
+
+最终测试状态：3488 passed, 15 skipped, 0 failed。
