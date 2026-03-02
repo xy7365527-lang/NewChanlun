@@ -1,0 +1,68 @@
+{
+  "id": "2a1ea3debac3e10f7efcc78678d24d09c5757d09fcbc56016f4e9ca4c3fb2b58",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.678563+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "a6db91ccc3c9ab6eee7d8f5282b31be174cb65f4e3fe2c88c91c39ce56b1753f",
+    "content_analysis": {
+      "genealogy_id": "191",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "来源标注"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "审计发现"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "触发原因"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "Gemini verify 审计（R1）— conditional"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系引用"
+        }
+      ],
+      "concepts": [],
+      "references": [
+        "178",
+        "182",
+        "183",
+        "187",
+        "188",
+        "191"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "a6db91ccc3c9ab6eee7d8f5282b31be174cb65f4e3fe2c88c91c39ce56b1753f"
+  ],
+  "git_ref": ""
+}

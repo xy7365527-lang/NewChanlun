@@ -1,0 +1,99 @@
+{
+  "id": "800771b887ad324fcf69d3117176f0a8c6beef4a27f53624fdcb400a1e930b19",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.589214+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "7333526ce4ac7d6dd8fe5bdb06497ccf4dcb8bc2beed57f9a2f10a408e1fa577",
+    "content_analysis": {
+      "genealogy_id": "158",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "来源"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "内容：三步战略"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "第一步：让矛盾具有拓扑效力"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "第二步：让异步自指遭遇自身的不可能性"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "~~第三步：取消编排者作为最终决断者的位置~~（177号撤回）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "历史决断终结"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系依据"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "177号裁定撤回",
+          "definition": "此步骤预设 genus 0 → genus 1 的连续变形——拓扑上不可能。被设计的独立不是独立。158号从三步战略变为两步战略。"
+        },
+        {
+          "term": "083-3 选 D",
+          "definition": "让矛盾具有拓扑效力（A/B 作为递归燃料）"
+        },
+        {
+          "term": "084-4 第四模式",
+          "definition": "修改即否定，否定即拓扑操作，拓扑操作不经过编排者审批"
+        }
+      ],
+      "references": [
+        "069",
+        "083",
+        "084",
+        "089",
+        "102",
+        "147",
+        "156",
+        "158",
+        "177"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "7333526ce4ac7d6dd8fe5bdb06497ccf4dcb8bc2beed57f9a2f10a408e1fa577"
+  ],
+  "git_ref": ""
+}

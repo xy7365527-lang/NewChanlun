@@ -1,0 +1,77 @@
+{
+  "id": "236f569a8dd4a6cd581767dcd875adae1677ec29104b61c2efe690f54507ff4f",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.981067+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "5d430b6bd4a696fb40f7df4cfedcb87454bf6c3d2ebb287c94c8e886f9d179d7",
+    "content_analysis": {
+      "genealogy_id": "274",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "结论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "定义依据"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系引用"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "原子性",
+          "definition": "当前任务不可分解为 ≥2 个独立子任务 → 直接执行"
+        },
+        {
+          "term": "不动点",
+          "definition": "rescan 未产生新工位 → ceremony 终止"
+        }
+      ],
+      "references": [
+        "056",
+        "069",
+        "094",
+        "272",
+        "274"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {
+        "negation_source": "human（编排者——全局截断与缠论同构终止条件的分离）",
+        "negation_form": "separation（全局截断与局部依赖的分离）",
+        "negates": [
+          "073a"
+        ]
+      },
+      "conclusion_summary": "废除 depth_budget 全局截断参数和 max_rescan_depth 安全阀。递归终止条件简化为仅两个结构性判断："
+    }
+  },
+  "refs": [
+    "5d430b6bd4a696fb40f7df4cfedcb87454bf6c3d2ebb287c94c8e886f9d179d7"
+  ],
+  "git_ref": ""
+}

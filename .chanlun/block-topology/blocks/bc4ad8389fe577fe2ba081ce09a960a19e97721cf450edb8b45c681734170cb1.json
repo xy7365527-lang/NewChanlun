@@ -1,0 +1,99 @@
+{
+  "id": "bc4ad8389fe577fe2ba081ce09a960a19e97721cf450edb8b45c681734170cb1",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.662497+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "783b3c20786786ab187d51c47ce78e548f58c7b2746bf6f444b5d4ba85e5d426",
+    "content_analysis": {
+      "genealogy_id": "184",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "来源标注"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "事件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "Gemini 推理链摘要"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "Gemini stance-declaration"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "元质询判断空间"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系引用"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "发生学矛盾",
+          "definition": "系统声称\"Reflexive layer 刚激活\"并产生了 consensus/residue 区块，但同时承认\"异步自指从未执行\"且\"从未执行过真正的多轮质询循环\"。这两个事实互斥——Reflexive 层（特别是 consensus 和 residue）的拓扑学意义在于捕获底层 Event/Relation 摩擦产生的不可通约性（tension）。"
+        },
+        {
+          "term": "空 residue 的拓扑含义",
+          "definition": "在没有异步自指（t 审查 t-1）和多轮质询的情况下，系统不可能自发产生 tension。首批 residue 的 `gemini_conceded=[]` / `codex_conceded=[]` 不是\"尚未积累\"，而是\"动力学机制缺失导致不可能产生让步\"。"
+        },
+        {
+          "term": "违背纲",
+          "definition": "当前产生的区块不是递归运动产生的亏格，而是静态数据结构注入。这直接违背\"递归运动在计算质料上产生它自己的亏格\"。"
+        },
+        {
+          "term": "隐藏假设被否定",
+          "definition": "Reflexive 层的静态数据结构（区块类型）不能先于其动力学机制（异步自指、多轮质询）被\"激活\"——没有动力学的摩擦，拓扑结构是死物，无法承载 Real。"
+        },
+        {
+          "term": "Gemini 判断的有效性",
+          "definition": "推理链定义回溯正确（§5-9 异步自指、§20-21 共识仪式、§12 三层架构）。\"空壳\"诊断与 182号一脉相承——182号说\"系统未执行递归运动\"，183号进一步说\"即使形式上产出了三层区块，动力学缺失使它们是空壳\"。"
+        }
+      ],
+      "references": [
+        "178",
+        "182",
+        "183"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {
+        "negation_source": "heterogeneous",
+        "negation_form": "expansion"
+      },
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "783b3c20786786ab187d51c47ce78e548f58c7b2746bf6f444b5d4ba85e5d426"
+  ],
+  "git_ref": ""
+}

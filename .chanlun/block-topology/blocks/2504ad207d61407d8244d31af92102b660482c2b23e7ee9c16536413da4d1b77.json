@@ -1,0 +1,97 @@
+{
+  "id": "2504ad207d61407d8244d31af92102b660482c2b23e7ee9c16536413da4d1b77",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.583814+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "809a8f8dd7c169e8be3e634a768ad68d6d1f17bd7409afc01ce4a97c882e8337",
+    "content_analysis": {
+      "genealogy_id": "155",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "矛盾发现"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "决断过程"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "Gemini decide() 审查（4 条判定）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "编排者决断"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "最终设计"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "三种模式"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "架构位置"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "否定来源链完整性"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系依据"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "增加 `decide` 模式",
+          "definition": "Codex 需要代码层技术选型代理（数据结构、算法选择）"
+        },
+        {
+          "term": "Claude-challenger 必须扩展覆盖 Codex 产出",
+          "definition": "否则代码层形成封闭的\"技术官僚主义\""
+        }
+      ],
+      "references": [
+        "005b",
+        "030a",
+        "062",
+        "089",
+        "093",
+        "155"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "809a8f8dd7c169e8be3e634a768ad68d6d1f17bd7409afc01ce4a97c882e8337"
+  ],
+  "git_ref": ""
+}

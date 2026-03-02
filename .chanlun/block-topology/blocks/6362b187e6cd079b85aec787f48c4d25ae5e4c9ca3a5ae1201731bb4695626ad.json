@@ -1,0 +1,128 @@
+{
+  "id": "6362b187e6cd079b85aec787f48c4d25ae5e4c9ca3a5ae1201731bb4695626ad",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.435378+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "995b3eed551f337276d7f58bfa58e55f26b386f05acbfe7225f75f97f6d5182c",
+    "content_analysis": {
+      "genealogy_id": "095",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "结论"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "真递归是默认模式（编排者 INTERRUPT 修正）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "统一约束：严格使用 Agent Team"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "子蜂群同样是递归拓扑异步自指蜂群（编排者决定）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "定义依据"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "五约束框架下的递归限制"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "创世 Gap 的递归行为"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "实际深度上限"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "修正后",
+          "definition": "真递归拓扑异步自指蜂群是默认模式。Trampoline 是退化特例。"
+        },
+        {
+          "term": "拓扑",
+          "definition": "子 team 有自己的 TaskList 作为 DAG 路由"
+        },
+        {
+          "term": "异步自指",
+          "definition": "子 team 内部的 agent 用 t 时刻规则审查 t-1 时刻的产出"
+        },
+        {
+          "term": "结晶",
+          "definition": "子 team 的产出在收缩相凝固为文件，向上回传给父蜂群"
+        },
+        {
+          "term": "ceremony",
+          "definition": "子 team 的创建者作为子 Swarm₀，加载规则后递归进入工作"
+        }
+      ],
+      "references": [
+        "037",
+        "056",
+        "069",
+        "073",
+        "073b",
+        "095"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {
+        "negation_source": "编排者决定",
+        "negation_form": "expansion（073b号 Trampoline 的边界条件触发——Team 模式提供真调用栈递归的平台基础）",
+        "negates": [
+          "073b"
+        ],
+        "negated_by": [
+          "096"
+        ]
+      },
+      "conclusion_summary": "**蜂群严格使用 Agent Team（TeamCreate + Task with team_name）实现递归，不使用孤立 subagent（Task without team_name）。**"
+    }
+  },
+  "refs": [
+    "995b3eed551f337276d7f58bfa58e55f26b386f05acbfe7225f75f97f6d5182c"
+  ],
+  "git_ref": ""
+}

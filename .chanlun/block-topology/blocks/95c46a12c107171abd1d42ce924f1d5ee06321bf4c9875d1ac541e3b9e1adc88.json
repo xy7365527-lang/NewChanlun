@@ -1,0 +1,138 @@
+{
+  "id": "95c46a12c107171abd1d42ce924f1d5ee06321bf4c9875d1ac541e3b9e1adc88",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.392638+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "36c1a9ebc0f80c0a31a50c6981e48705292880fc02fd96d68783714d9a08bde1",
+    "content_analysis": {
+      "genealogy_id": "084",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "背景"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "Gemini 推理链摘要"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "同质质询（对 Gemini 否定的验证）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "矛盾点 1：权限幻觉 — **判定成立**"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "矛盾点 2：Hook 格式混用 — **部分成立，部分误判**"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "矛盾点 3：自生长回路断裂 — **判定成立**"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "矛盾点 4：拓扑守卫自毁 — **判定成立**"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "全面孤岛清单（结合 Gemini 质询结论）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "Hooks — 逐项状态"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "Agents — 逐项状态"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "Skills — 逐项状态"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "核心矛盾摘要"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系引用"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "权限控制死锁",
+          "definition": "`lead-permissions.sh` 的 restrict 模式实际无效——全局 `settings.json` allow 一切，`settings.local.json` 的 deny 数组为空，权限降级是幻觉。"
+        },
+        {
+          "term": "Hook I/O 契约混用",
+          "definition": "`hub-node-impact-guard.sh` 输出纯文本（非 JSON），框架忽略；`flow-continuity-guard.sh` 和 `ceremony-completion-guard.sh` 输出 `decision:block` 格式，但 `recursive-guard.sh`（同为 PostToolUse）用 `continue:true + systemMessage` 格式，存在不一致。"
+        },
+        {
+          "term": "自生长回路物理断裂",
+          "definition": "`precompact-save.sh` 使用 `python3`（Windows 上不可用）和硬编码 Linux 路径 `/home/user/NewChanlun`，导致 session 文件无法生成，整个 043 号自生长链路在 Windows 上断裂。"
+        },
+        {
+          "term": "拓扑守卫自毁",
+          "definition": "`topology-guard.sh` 的 ROOT_NODES 包含不存在的 `src/newchan/skills/manifest.yaml`，BFS 从两个（而非三个）根节点出发，导致孤岛检测产生系统性误报。"
+        },
+        {
+          "term": "否定部分成立",
+          "definition": "hub-node 纯文本问题成立；flow-continuity 和 ceremony-completion 的格式不一致问题成立（但严重性评级需要降一档）。"
+        }
+      ],
+      "references": [
+        "016",
+        "032",
+        "043",
+        "061",
+        "072",
+        "075",
+        "082"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {
+        "negation_source": "heterogeneous",
+        "negation_form": "expansion"
+      },
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "36c1a9ebc0f80c0a31a50c6981e48705292880fc02fd96d68783714d9a08bde1"
+  ],
+  "git_ref": ""
+}

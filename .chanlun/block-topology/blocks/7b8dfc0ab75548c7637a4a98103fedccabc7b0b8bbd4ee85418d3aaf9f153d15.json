@@ -1,0 +1,154 @@
+{
+  "id": "7b8dfc0ab75548c7637a4a98103fedccabc7b0b8bbd4ee85418d3aaf9f153d15",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.238527+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "e802deb7044128f4a2af6203db87cc264dff4b6cff345e0403bc562d41883332",
+    "content_analysis": {
+      "genealogy_id": "039",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "触发事件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "一、系统性绕过模式分析"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "观察到的模式"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "根因分析"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "模式命名"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "二、dispatch-spec ceremony 序列 vs 实际执行偏差"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "warm_start 规定序列"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "divine-madness 时序问题"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "三、Kiro \"spawn 但不赋予实质任务\" vs 本次 \"不 spawn\""
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "两种偏差的对比"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "诊断：同一偏差的两种表现"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "与 027 号谱系的关联"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "四、dispatch-spec 缺口清单审计"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "已知 5 个缺口（来自 task #4 描述）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "本次分析新发现的缺口"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "缺口总数"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "五、G6 的特殊性：元层无限回归"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "可能的出路"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "结算记录（v6 session 四分法复核）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "G6-G10 缺口解决状态"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "已结算原则"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "溯源"
+        }
+      ],
+      "concepts": [],
+      "references": [
+        "020",
+        "042"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "e802deb7044128f4a2af6203db87cc264dff4b6cff345e0403bc562d41883332"
+  ],
+  "git_ref": ""
+}

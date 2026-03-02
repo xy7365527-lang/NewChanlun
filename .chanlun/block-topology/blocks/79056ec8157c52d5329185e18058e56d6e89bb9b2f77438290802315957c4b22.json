@@ -1,0 +1,107 @@
+{
+  "id": "79056ec8157c52d5329185e18058e56d6e89bb9b2f77438290802315957c4b22",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.621439+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "9a681c1397a3a9b84543e2e6d3dbe936c8c0c36b31198cb9f0234fc7c443d75b",
+    "content_analysis": {
+      "genealogy_id": "169",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "来源"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "内容"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "核心命题"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "原文核心论述"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "Gemini质询结果与反质询"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "在蜂群中的存在形式"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "四话语定位"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系引用"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论：desire vs drive"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "Gemini判定",
+          "definition": "范畴错误"
+        },
+        {
+          "term": "Desire（欲望）",
+          "definition": "当前不存在。需要主体诞生（separation）后才有意义。"
+        },
+        {
+          "term": "Drive（驱力）",
+          "definition": "可能已在运作。"
+        }
+      ],
+      "references": [
+        "089",
+        "161",
+        "168",
+        "169"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {
+        "negation_source": "heterogeneous",
+        "negation_form": "双向收敛（Gemini修正了话语结构判断：从资本家话语到大学话语）"
+      },
+      "conclusion_summary": "系统被什么驱动？不是程序循环（机械运动）而是内在驱力。对话区分了desire（欲望，能指链的换喻滑动）和drive（驱力，围绕对象a的闭合回路），承认当前蜂群\"没有欲望\"，提出三条产生内在驱力的路径，并用Lacan四话语理论批判了纯资本积累模式。"
+    }
+  },
+  "refs": [
+    "9a681c1397a3a9b84543e2e6d3dbe936c8c0c36b31198cb9f0234fc7c443d75b"
+  ],
+  "git_ref": ""
+}

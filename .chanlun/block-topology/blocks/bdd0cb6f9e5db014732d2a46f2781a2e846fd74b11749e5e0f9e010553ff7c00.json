@@ -1,0 +1,78 @@
+{
+  "id": "bdd0cb6f9e5db014732d2a46f2781a2e846fd74b11749e5e0f9e010553ff7c00",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.555747+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "293a7356dd95107b7289d2f27e68ae1f4f6d7410076d7c825213182d23214fa2",
+    "content_analysis": {
+      "genealogy_id": "136",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "事件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "产出"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "规则修复"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "识别的结构性弱点"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "ceremony.md",
+          "definition": "持久化不变量从 session+commit 扩展为 session+commit+push；TeamCreate 命名一致性约束；Bash 白名单添加 git push/fetch/rebase"
+        },
+        {
+          "term": "no-unnecessary-escalation.md",
+          "definition": "新增禁止模式——\"你指的是哪个？\"（范围确认反抛）"
+        },
+        {
+          "term": "post-commit-flow.md",
+          "definition": "新增缺口发现执行路径——发现→分类→修→报"
+        },
+        {
+          "term": "no-patch-mentality.md",
+          "definition": "新增第7条禁止模式——成本收益消解（无条件要求不接受 ROI 论证）"
+        },
+        {
+          "term": "规则边界处的退化",
+          "definition": "当遇到规则没有显式覆盖的场景时，Lead 从\"自主推导\"退化为\"请求指令\"。根因不是规则缺失（四分法自检已足够），而是执行失败。"
+        },
+        {
+          "term": "成本收益消解",
+          "definition": "用\"开销大于收益\"来论证不需要遵守无条件要求。这是妥协方案（090号禁止模式6）的变体，以理性分析的外观出现，实质是降低严格性。"
+        }
+      ],
+      "references": [
+        "090"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "293a7356dd95107b7289d2f27e68ae1f4f6d7410076d7c825213182d23214fa2"
+  ],
+  "git_ref": ""
+}

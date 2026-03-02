@@ -1,0 +1,189 @@
+{
+  "id": "322c4e03ce9b031c273c445dbaec9bbbd2d80064124dc9afd9aab2fadebd187a",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.852302+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "0fdda15c08ca80466fc65331a21417f61dfd26c0c5d54f774df5e3dd9c3d6269",
+    "content_analysis": {
+      "genealogy_id": "249",
+      "sections": [
+        {
+          "level": 2,
+          "number": "1",
+          "title": "结论"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "对比表"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "60min 管线详细恢复"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "力度对比（首次产出）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "daily_weekly 数据集"
+        },
+        {
+          "level": 2,
+          "number": "2",
+          "title": "定义依据"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "248号：bug 精确定位"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "246号：T6 可达条件"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "缠论中枢定义"
+        },
+        {
+          "level": 2,
+          "number": "3",
+          "title": "边界条件"
+        },
+        {
+          "level": 3,
+          "number": "3",
+          "title": "1 结论翻转条件"
+        },
+        {
+          "level": 3,
+          "number": "3",
+          "title": "2 ker(D) 验证条件"
+        },
+        {
+          "level": 3,
+          "number": "3",
+          "title": "3 数据时效"
+        },
+        {
+          "level": 2,
+          "number": "4",
+          "title": "下游推论"
+        },
+        {
+          "level": 3,
+          "number": "4",
+          "title": "1 247号部分翻转"
+        },
+        {
+          "level": 3,
+          "number": "4",
+          "title": "2 229号仍不可关闭"
+        },
+        {
+          "level": 3,
+          "number": "4",
+          "title": "3 248号完全确认"
+        },
+        {
+          "level": 3,
+          "number": "4",
+          "title": "4 力度值首次产出"
+        },
+        {
+          "level": 2,
+          "number": "5",
+          "title": "谱系引用"
+        },
+        {
+          "level": 2,
+          "number": "6",
+          "title": "影响声明"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "新增文件"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "状态变更"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "暴露的新瓶颈"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "daily 层段数增加",
+          "definition": "如果 daily 层的 9 strokes 能产出 ≥3 段（其中 ≥3 段有价格重叠），则 daily 也产出中枢→走势→active_levels=2→T6 可达"
+        },
+        {
+          "term": "更长数据",
+          "definition": "更多月份的 60min 数据（当前受 yfinance 6 个月限制）可能让 daily 层有更多笔"
+        },
+        {
+          "term": "不同市场阶段",
+          "definition": "当前 daily 层只有 1 个 up 段（市场处于近 6 个月单边上涨+急跌），震荡市可能产出更多方向交替的段"
+        },
+        {
+          "term": "翻转",
+          "definition": "60min 的 \"71→1→0→0\" 翻转为 \"71→8→2→1\"。这不是 D2 弱方向吸收的真实压缩，是初始方向 bug"
+        },
+        {
+          "term": "保留",
+          "definition": "daily 和 weekly 的结果不变（不受 L78 修复影响）。Daily 的 D2 压缩（36→3→0→0）仍然存在"
+        },
+        {
+          "term": "修正",
+          "definition": "247号\"D2 压缩是独立的、根本性的瓶颈\"需要区分——60min 的压缩是 bug（已修），daily 的 3 段未产出中枢可能是数据量不足（9 strokes），不是 D2 bug"
+        },
+        {
+          "term": "247号",
+          "definition": "60min 相关结论被翻转（bug 导致的虚假压缩），daily/weekly 结论不变"
+        },
+        {
+          "term": "248号",
+          "definition": "完全确认（bug 诊断正确，修复有效）"
+        },
+        {
+          "term": "229号",
+          "definition": "不变。T6 仍不可达，但瓶颈缩窄为 daily 层"
+        },
+        {
+          "term": "246号",
+          "definition": "不变。架构正确，60min 层已产出走势"
+        }
+      ],
+      "references": [
+        "229",
+        "233",
+        "246",
+        "247",
+        "248",
+        "249"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": "**段引擎 L78 修复（ca3958a）使 60min 的 D2 压缩从 71→1 恢复到 71→8，产生 2 个中枢和 1 个走势。T6 仍不可达（active_levels=1，需 >=2），但 60min 单 TF 层已突破走势产出瓶颈。**"
+    }
+  },
+  "refs": [
+    "0fdda15c08ca80466fc65331a21417f61dfd26c0c5d54f774df5e3dd9c3d6269"
+  ],
+  "git_ref": ""
+}

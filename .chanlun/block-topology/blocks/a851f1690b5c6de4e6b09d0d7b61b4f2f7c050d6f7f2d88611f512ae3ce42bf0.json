@@ -1,0 +1,59 @@
+{
+  "id": "a851f1690b5c6de4e6b09d0d7b61b4f2f7c050d6f7f2d88611f512ae3ce42bf0",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.216626+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "6421460ced764876026e94103931194b4a6f8b3c217349f08315f4a842666f3c",
+    "content_analysis": {
+      "genealogy_id": "030",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "矛盾现象"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "产出"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响范围"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "SKILL.md",
+          "definition": "质询序列结构变更（新增第零步）"
+        },
+        {
+          "term": "所有 Claude agent",
+          "definition": "矛盾场景下需做基底校验"
+        },
+        {
+          "term": "Lead",
+          "definition": "新增定义校验职责"
+        }
+      ],
+      "references": [],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "6421460ced764876026e94103931194b4a6f8b3c217349f08315f4a842666f3c"
+  ],
+  "git_ref": ""
+}

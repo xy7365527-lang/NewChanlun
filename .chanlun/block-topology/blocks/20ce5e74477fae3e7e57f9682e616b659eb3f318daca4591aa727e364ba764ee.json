@@ -1,0 +1,65 @@
+{
+  "id": "20ce5e74477fae3e7e57f9682e616b659eb3f318daca4591aa727e364ba764ee",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.715972+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "e1de6fbdd0ad6a84719028fe0e63878dc8974328d160cd0ea938a2c19439c1f1",
+    "content_analysis": {
+      "genealogy_id": "208",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "结论"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "强不变量保持率 49.3% 的结构性解释"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "T8 全部 inconclusive 的结构性解释"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "定义依据"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系引用"
+        }
+      ],
+      "concepts": [],
+      "references": [
+        "195",
+        "207",
+        "208"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": "### 强不变量保持率 49.3% 的结构性解释"
+    }
+  },
+  "refs": [
+    "e1de6fbdd0ad6a84719028fe0e63878dc8974328d160cd0ea938a2c19439c1f1"
+  ],
+  "git_ref": ""
+}

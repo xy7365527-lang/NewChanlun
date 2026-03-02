@@ -1,0 +1,148 @@
+{
+  "id": "96d6f9b0fe96e496b37d6fb0013c79c66ada9e5335cb7921cb2aa24185689f5f",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.921855+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "46fc602a418d2c580c792726cc1282561173f23b0bb1509280f42ef353dbdef5",
+    "content_analysis": {
+      "genealogy_id": "263",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "观察 1（语法记录候选）：258-2 决断路径——编排者先于蜂群判断"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "现象"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "路径分析"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "与 260-3 的对比"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "分类"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "观察 2（发散信号）：新定理1 fail——操盘方法形式化的第一次否定"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "现象"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "本体论影响分析"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "与 256号的关系"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "分类"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "观察 3（收敛信号）：ceremony_scan 状态字段正则修复"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "现象"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "根因"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "与016号的关系"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "分类"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "观察 4（收敛信号）：v111 蜂群结构——基础设施轮 + 编排者指令执行"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "现象"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "模式"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "分类"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "自环检查"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "不否定",
+          "definition": "三层递归结构的本体论地位（这来自 255号对话的推导链，不依赖新定理1的形式化）"
+        },
+        {
+          "term": "否定",
+          "definition": "新定理1尝试用\"先到先得\"规则处理层间事件竞争的方案"
+        }
+      ],
+      "references": [
+        "016",
+        "255",
+        "256",
+        "258",
+        "260",
+        "261",
+        "263"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "46fc602a418d2c580c792726cc1282561173f23b0bb1509280f42ef353dbdef5"
+  ],
+  "git_ref": ""
+}

@@ -1,0 +1,85 @@
+{
+  "id": "c0a2ccacb9b26988e7cdada9589b2830e9d23469b0623091a1019dc617d20c94",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.332832+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "7550ae94fb4c2c9240034beef0fe6dca22ebb9e4090d0b80143856c0de8db281",
+    "content_analysis": {
+      "genealogy_id": "070",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "现象"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "诊断（Gemini 异质质询）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "决断"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "修复"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "事实纠正",
+          "definition": "ceremony.md 第65行已禁止\"待确认\"输出——问题不在文本定义"
+        },
+        {
+          "term": "真正的死锁",
+          "definition": "纯文本指令（\"紧跟 tool 调用\"）对抗不了 LLM 的生成惯性（输出完段落自然停止）"
+        },
+        {
+          "term": "创世 Gap 实例",
+          "definition": "你无法用系统内的规则去强制启动系统本身。ceremony 处于 Swarm₀，拓扑约束尚未接管"
+        },
+        {
+          "term": "旧 Stop hook 矛盾",
+          "definition": "ceremony-completion-guard.sh 用计数器状态机（\"第一次拦截，第二次放行\"），但 ceremony.md 要求静默执行不停顿——两者逻辑死锁"
+        }
+      ],
+      "references": [
+        "048",
+        "057",
+        "058",
+        "059",
+        "069",
+        "070"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "7550ae94fb4c2c9240034beef0fe6dca22ebb9e4090d0b80143856c0de8db281"
+  ],
+  "git_ref": ""
+}

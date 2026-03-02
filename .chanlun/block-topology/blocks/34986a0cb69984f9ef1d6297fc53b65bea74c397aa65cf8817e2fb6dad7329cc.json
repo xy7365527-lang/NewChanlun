@@ -1,0 +1,90 @@
+{
+  "id": "34986a0cb69984f9ef1d6297fc53b65bea74c397aa65cf8817e2fb6dad7329cc",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.154311+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "1707ffd04e8bf4a9eb20c363dc428f926f0c42a925345df06730b39b5d3147b7",
+    "content_analysis": {
+      "genealogy_id": "012",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "发现过程"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "实证"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "错误路径的损失"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "正确路径的收益"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "规则（语法记录）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "谱系写作时机"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "理由"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "蜂群 + 谱系的正确工作流"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "结算时间",
+          "definition": "2026-02-17"
+        },
+        {
+          "term": "结算依据",
+          "definition": "编排者反馈 + 007-011 写作过程的实际经验"
+        },
+        {
+          "term": "错误路径",
+          "definition": "蜂群完成 → 汇总结论给编排者 → 编排者确认 → 补写谱系"
+        },
+        {
+          "term": "正确路径",
+          "definition": "蜂群完成 → **立即写谱系** → 谱系之间的张力暴露新洞察 → 再汇总"
+        }
+      ],
+      "references": [
+        "010"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "1707ffd04e8bf4a9eb20c363dc428f926f0c42a925345df06730b39b5d3147b7"
+  ],
+  "git_ref": ""
+}

@@ -1,0 +1,39 @@
+{
+  "id": "c0172dca0ce1c7bd162e7880465ed4b573400dd70442090e6795974fbd3609a8",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.712788+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "0cba4cbecba4b099683681f9120f90dbc02b377d71ad8b1d8ed5ce79d73d0a8f",
+    "content_analysis": {
+      "genealogy_id": "206",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "结论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系引用"
+        }
+      ],
+      "concepts": [],
+      "references": [
+        "205",
+        "206"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": "gangju_analysis.py 自动检测到 `audit_needed=true`，new_mu=\"Layer 3 T6 待审核\"。"
+    }
+  },
+  "refs": [
+    "0cba4cbecba4b099683681f9120f90dbc02b377d71ad8b1d8ed5ce79d73d0a8f"
+  ],
+  "git_ref": ""
+}

@@ -1,0 +1,76 @@
+{
+  "id": "5d0d99f6b0c56e2083eb62daaa17f5776fe82e9f61257956928a1ae7e6a252ec",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.167346+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "87e0582198286e141349621696a468d19f73448a171b4c8100418b06e2ce0594",
+    "content_analysis": {
+      "genealogy_id": "017",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "命题"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "发现过程"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "触发事件"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "关键观察"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "具体变更"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "来源"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "结算依据",
+          "definition": "016（规则无代码强制不执行）+ 014/015 的同构应用"
+        }
+      ],
+      "references": [],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "87e0582198286e141349621696a468d19f73448a171b4c8100418b06e2ce0594"
+  ],
+  "git_ref": ""
+}

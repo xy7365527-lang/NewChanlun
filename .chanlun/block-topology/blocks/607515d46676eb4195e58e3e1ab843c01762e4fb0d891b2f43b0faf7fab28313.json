@@ -1,0 +1,94 @@
+{
+  "id": "607515d46676eb4195e58e3e1ab843c01762e4fb0d891b2f43b0faf7fab28313",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.372679+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "4ddbbf2d41af397f3ca5c4c25d91d7636e065f275b1d297121b08fa20573ec4e",
+    "content_analysis": {
+      "genealogy_id": "080",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "问题背景（来自 064号）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "修正内容"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "旧定义（德勒兹框架，废止）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "新定义（拉康框架，已结算）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "与 005b 的一致性"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "工程影响"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "negation_model",
+          "definition": "gemini-3.1-pro-preview"
+        },
+        {
+          "term": "决断来源",
+          "definition": "078号 D 策略决断，064-1 显式授权"
+        },
+        {
+          "term": "问题",
+          "definition": "这个框架与 005b 的语法规则不一致。"
+        },
+        {
+          "term": "是否影响当前代码",
+          "definition": "否。"
+        }
+      ],
+      "references": [
+        "064",
+        "078"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {
+        "negation_source": "heterogeneous",
+        "negation_form": "separation"
+      },
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "4ddbbf2d41af397f3ca5c4c25d91d7636e065f275b1d297121b08fa20573ec4e"
+  ],
+  "git_ref": ""
+}

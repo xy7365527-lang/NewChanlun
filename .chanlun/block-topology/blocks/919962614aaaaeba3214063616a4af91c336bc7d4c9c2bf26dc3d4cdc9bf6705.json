@@ -1,0 +1,56 @@
+{
+  "id": "919962614aaaaeba3214063616a4af91c336bc7d4c9c2bf26dc3d4cdc9bf6705",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.235349+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "98b57582b8798a56fc08a38ace67c7edbfae5ef63c880b841b5193ae6351aa05",
+    "content_analysis": {
+      "genealogy_id": "037",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "发现"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "结算条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        }
+      ],
+      "concepts": [],
+      "references": [],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "98b57582b8798a56fc08a38ace67c7edbfae5ef63c880b841b5193ae6351aa05"
+  ],
+  "git_ref": ""
+}

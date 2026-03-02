@@ -1,0 +1,71 @@
+{
+  "id": "5a0e206c3b5fedb0b61c271b4b10ad5a4a9275f53cc836851d812f652a7d8972",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.860881+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "0e34fc5581327b01554a3ae7abc958567b4da04eb9812bc94203cf6ebce9a30b",
+    "content_analysis": {
+      "genealogy_id": "251",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "结论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "定义依据"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系引用"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "Move[2]↔[3]",
+          "definition": "振幅力度递增（63.70→69.63，价格区间扩大）→ 无背驰。方向性力度递减（1.83→1.67，结构复杂度上升/方向持续性下降）→ 背驰。方向性力度捕捉到了振幅掩盖的方向衰减。"
+        },
+        {
+          "term": "Move[5]↔[6]",
+          "definition": "振幅力度递减（82.06→61.17，价格区间收缩）→ 背驰。方向性力度递增（1.67→3.79，seg_span 从 3 段扩展到 7 段而 zs_count 不变）→ 无背驰。方向性力度认为结构展开弥补了价格收窄。"
+        }
+      ],
+      "references": [
+        "233",
+        "239",
+        "249",
+        "250",
+        "251"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": "在 SPY 60min 730天数据（5078 bar → 407 笔 → 40 段 → 8 中枢 → 7 走势）上，\n振幅力度（∈ ker(D)）与方向性力度（∉ ker(D)）对同向走势背驰的判断存在 **2/6 差异**："
+    }
+  },
+  "refs": [
+    "0e34fc5581327b01554a3ae7abc958567b4da04eb9812bc94203cf6ebce9a30b"
+  ],
+  "git_ref": ""
+}

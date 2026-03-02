@@ -1,0 +1,108 @@
+{
+  "id": "2b67349f90bce3a1795940dc4781b96b402754b586eaf409dbc3f6842dc14475",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.228704+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "4395e3215521ad58e3147856a77756052b11823711427ddde63132f7e10b5340",
+    "content_analysis": {
+      "genealogy_id": "033",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "触发事件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "诊断"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "Gemini 异质质询结论"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "根因分析"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "范式转换"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "解法"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "dispatch-spec.yaml"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "Lead 角色重定义"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "修改路径"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "结构工位",
+          "definition": "每次 ceremony 必须 spawn 的工位列表（mandatory=true, can_be_skipped=false）"
+        },
+        {
+          "term": "任务工位",
+          "definition": "从中断点动态派生的规则"
+        },
+        {
+          "term": "ceremony 执行序列",
+          "definition": "冷启动/热启动的完整步骤链"
+        },
+        {
+          "term": "验证规则",
+          "definition": "post-ceremony 检查条件"
+        }
+      ],
+      "references": [],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "4395e3215521ad58e3147856a77756052b11823711427ddde63132f7e10b5340"
+  ],
+  "git_ref": ""
+}

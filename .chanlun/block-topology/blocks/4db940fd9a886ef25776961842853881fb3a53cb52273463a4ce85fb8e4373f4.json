@@ -1,0 +1,86 @@
+{
+  "id": "4db940fd9a886ef25776961842853881fb3a53cb52273463a4ce85fb8e4373f4",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.624009+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "92a9e99d5ee909015451f455bf240ba2e6f02c4bc45d93e007cc71814e20a004",
+    "content_analysis": {
+      "genealogy_id": "170",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "命题"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "映射链与严格性分级"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "Gemini 异质否定（有效部分）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "Gemini 异质否定（无效部分）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "结算后的精确表述"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论：S1 作为承重点概念锚"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "动态可转化性缺失",
+          "definition": "毛泽东的主要矛盾随历史阶段变化可转化为次要矛盾，蜂群的承重点一旦确立不可动——这违反矛盾论的核心命题。**判定：成立。** 蜂群的结算态不具备毛泽东矛盾论中主要矛盾的可转化性。"
+        },
+        {
+          "term": "阶级分析基础缺失",
+          "definition": "矛盾论建立在阶级分析上，蜂群节点是抽象逻辑规则，无阶级对应物。**判定：成立。** 映射排空了政治经济学的物质内容。"
+        }
+      ],
+      "references": [
+        "020",
+        "170"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {
+        "negation_source": "heterogeneous",
+        "negation_form": "separation"
+      },
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "92a9e99d5ee909015451f455bf240ba2e6f02c4bc45d93e007cc71814e20a004"
+  ],
+  "git_ref": ""
+}

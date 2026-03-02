@@ -1,0 +1,73 @@
+{
+  "id": "2cd2dbf5ccfadeffc578a96298b0c16d6ea8685c08061915058635714089b38e",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.562670+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "617863ad0f1bc8f61fc4873f338eee9f89a5e0ef9ec5747576c8c8bb6a80a1b5",
+    "content_analysis": {
+      "genealogy_id": "138",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "事件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "具体变更"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "no-unnecessary-escalation.md"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "post-commit-flow.md"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "core-principles/SKILL.md"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        }
+      ],
+      "concepts": [],
+      "references": [
+        "137"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "617863ad0f1bc8f61fc4873f338eee9f89a5e0ef9ec5747576c8c8bb6a80a1b5"
+  ],
+  "git_ref": ""
+}

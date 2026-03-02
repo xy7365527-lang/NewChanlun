@@ -1,0 +1,92 @@
+{
+  "id": "75b9af9612feac3f119e5552d81d5eb50e4defc81c9b07b0619200d3502cef4f",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.258256+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "9c989eeff8bd1e9d1232c40cee82dafb400fc8e43d4b8f9a58b9db1dc9868ab2",
+    "content_analysis": {
+      "genealogy_id": "044",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "现象"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "已结算原则"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "机制"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "分型形式化（Gemini 贡献）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "被否定的方案"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "仅改 skill 层",
+          "definition": "skill 已经写了正确的规则（第 254 行），但 agent 仍然违反。016号已证明文本层规则不足。"
+        },
+        {
+          "term": "仅改 hook 层",
+          "definition": "hook 注入的 systemMessage 与 skill 的\"待确认\"结尾矛盾，造成上下文精神分裂。（本次实际情况：skill 层已正确，只需 hook 层补全。）"
+        }
+      ],
+      "references": [
+        "016",
+        "019a",
+        "020",
+        "028",
+        "042"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [
+        {
+          "target_id": "",
+          "target_desc": "仅改 skill 层",
+          "negation_type": "rejected_plan"
+        },
+        {
+          "target_id": "",
+          "target_desc": "仅改 hook 层",
+          "negation_type": "rejected_plan"
+        }
+      ],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "9c989eeff8bd1e9d1232c40cee82dafb400fc8e43d4b8f9a58b9db1dc9868ab2"
+  ],
+  "git_ref": ""
+}

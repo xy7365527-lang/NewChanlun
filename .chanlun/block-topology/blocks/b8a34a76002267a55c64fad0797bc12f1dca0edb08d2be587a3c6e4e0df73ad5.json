@@ -1,0 +1,98 @@
+{
+  "id": "b8a34a76002267a55c64fad0797bc12f1dca0edb08d2be587a3c6e4e0df73ad5",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.345167+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "eb86dfced79fe27c8ae723bc8b5d8c76db53e1eff6b080b0ecec682bbad48f87",
+    "content_analysis": {
+      "genealogy_id": "073a",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "否定 073 的理由"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "修正后的语法记录"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "核心发现"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "spawn 三基因"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "事实",
+          "definition": "当前系统使用 Agent Team 模式（Task tool with team_name），teammates 可以使用 Task tool spawn 新的 teammates，递归深度无平台限制。"
+        },
+        {
+          "term": "可观测性",
+          "definition": "黑板模式让所有状态对 Lead 可见"
+        },
+        {
+          "term": "可控性",
+          "definition": "黑板模式允许 Lead 在任意节点介入"
+        },
+        {
+          "term": "控制流与数据流解耦",
+          "definition": "Task tool spawn = 控制流，TaskList/SendMessage = 数据流"
+        },
+        {
+          "term": "拓扑坐标",
+          "definition": "当前节点在分形树中的位置"
+        },
+        {
+          "term": "深度预算",
+          "definition": "剩余递归深度或 token 预算"
+        },
+        {
+          "term": "父回调标识",
+          "definition": "父节点标识符（team_name + recipient）"
+        }
+      ],
+      "references": [
+        "073"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {
+        "negation_source": "Gemini 3.1 Pro 蜂群递归审计 v2（Agent Team 模式修正）",
+        "negation_form": "",
+        "negates": [
+          "073"
+        ]
+      },
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "eb86dfced79fe27c8ae723bc8b5d8c76db53e1eff6b080b0ecec682bbad48f87"
+  ],
+  "git_ref": ""
+}

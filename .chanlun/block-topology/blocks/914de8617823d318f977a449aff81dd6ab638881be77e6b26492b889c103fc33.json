@@ -1,0 +1,60 @@
+{
+  "id": "914de8617823d318f977a449aff81dd6ab638881be77e6b26492b889c103fc33",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.674973+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "3b257b0f1085bed2716664f64a3c6bd7ee244fbc9469536d37b115e53c0ad3a6",
+    "content_analysis": {
+      "genealogy_id": "189",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "观察内容"
+        },
+        {
+          "level": 3,
+          "number": "1",
+          "title": "语法记录候选：质询轮数与收敛质量的非线性关系"
+        },
+        {
+          "level": 3,
+          "number": "2",
+          "title": "规则触发模式：编排者 confirmation bias 被 Gemini 否定"
+        },
+        {
+          "level": 3,
+          "number": "3",
+          "title": "规则违反模式：Nachträglichkeit 的话术风险"
+        },
+        {
+          "level": 3,
+          "number": "4",
+          "title": "自环检查：与历史 meta-rule 的关系"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "结论"
+        }
+      ],
+      "concepts": [],
+      "references": [
+        "137",
+        "175",
+        "189"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": "无需走 /escalate 的发现。语法记录候选（方向转换检测）标记为待观察，如果在未来 session 中反复出现，再结晶为规则。"
+    }
+  },
+  "refs": [
+    "3b257b0f1085bed2716664f64a3c6bd7ee244fbc9469536d37b115e53c0ad3a6"
+  ],
+  "git_ref": ""
+}

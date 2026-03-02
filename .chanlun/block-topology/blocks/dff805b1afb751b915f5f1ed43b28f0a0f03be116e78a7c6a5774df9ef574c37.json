@@ -1,0 +1,60 @@
+{
+  "id": "dff805b1afb751b915f5f1ed43b28f0a0f03be116e78a7c6a5774df9ef574c37",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.707366+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "c8ff8298e750ed684d5c28fac1ceccd5702d55a8e6ae2eb3331643493ee47d66",
+    "content_analysis": {
+      "genealogy_id": "203",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "结论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "定义依据"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "经验证据"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系引用"
+        }
+      ],
+      "concepts": [],
+      "references": [
+        "195",
+        "199",
+        "203"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": "真实 A 股数据（3 只股票，661 根日 K 线）上的 gauge_equivalence_report 验证揭示："
+    }
+  },
+  "refs": [
+    "c8ff8298e750ed684d5c28fac1ceccd5702d55a8e6ae2eb3331643493ee47d66"
+  ],
+  "git_ref": ""
+}

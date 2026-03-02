@@ -1,0 +1,75 @@
+{
+  "id": "6e8871a3a3f224f1d193777c27d55f4beb59741755d678b9f1b14ad4af466412",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.665529+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "c58696b97918d1effd23c2c1978f9b7928d08742de8c73f533af3ee0865b36c3",
+    "content_analysis": {
+      "genealogy_id": "185",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "来源标注"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "观察"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "已在运作的隐性规则"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "语法记录"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "规则",
+          "definition": "RTAS 循环在工位全部完成后、重新 ceremony_scan 之前，必须执行纲举目张分析——从纲推导新目 + Gemini/Codex 双向审计。"
+        },
+        {
+          "term": "自动化形式",
+          "definition": "`scripts/gangju_analysis.py` 脚本，ceremony skill 白名单加一条调用。"
+        },
+        {
+          "term": "循环位置",
+          "definition": "步骤7（commit+push）之后，步骤1（ceremony_scan.py）之前。"
+        }
+      ],
+      "references": [
+        "185",
+        "187"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {
+        "negation_source": "orchestrator",
+        "negation_form": "expansion"
+      },
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "c58696b97918d1effd23c2c1978f9b7928d08742de8c73f533af3ee0865b36c3"
+  ],
+  "git_ref": ""
+}

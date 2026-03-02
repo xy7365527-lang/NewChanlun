@@ -1,0 +1,74 @@
+{
+  "id": "c8b0a1697d08e056ac8b3b53e1b0b3349d16bdad61d6382c3944e050b012e870",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.692263+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "7c08174b3b4e36af9f3c5a5a8666cdb34d8f4800ace103ecc1131dfc958cb93a",
+    "content_analysis": {
+      "genealogy_id": "196",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "观察"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "根因"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "语法记录候选"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "179号 topology-analyst",
+          "definition": "ceremony 步骤 6.6 的触发条件满足（225 个区块 > 0），"
+        },
+        {
+          "term": "plan-review Gemini 对审",
+          "definition": "plan-review skill 要求 Gemini×Codex 双方对审，"
+        },
+        {
+          "term": "暗规则",
+          "definition": "\"等待工位时，只做轮询，不主动推进非阻塞义务\""
+        },
+        {
+          "term": "显式化",
+          "definition": "等待工位时，Lead 应扫描所有无条件义务（ceremony 步骤中的"
+        }
+      ],
+      "references": [
+        "179",
+        "196"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {
+        "negation_source": "meta-observer",
+        "negation_form": "observation"
+      },
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "7c08174b3b4e36af9f3c5a5a8666cdb34d8f4800ace103ecc1131dfc958cb93a"
+  ],
+  "git_ref": ""
+}

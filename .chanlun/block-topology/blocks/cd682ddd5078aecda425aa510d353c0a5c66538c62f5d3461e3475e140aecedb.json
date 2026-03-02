@@ -1,0 +1,61 @@
+{
+  "id": "cd682ddd5078aecda425aa510d353c0a5c66538c62f5d3461e3475e140aecedb",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.106259+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "f3880e58a3c164556474e5a536a88e12ddd5e2692b449e5789e32555746a1b6a",
+    "content_analysis": {
+      "genealogy_id": "002",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "矛盾描述"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "已确认缺口及补录"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "已完成的修正"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "第二阶段待下游工作"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "结算依据"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "结算时间",
+          "definition": "2026-02-16"
+        }
+      ],
+      "references": [],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "f3880e58a3c164556474e5a536a88e12ddd5e2692b449e5789e32555746a1b6a"
+  ],
+  "git_ref": ""
+}

@@ -1,0 +1,95 @@
+{
+  "id": "a8feffdeb7951b8cb854f8d26d80e52b762da96cb09d9aa66da2013ba4ffdc3a",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.137742+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "504acc199fa824e67b8508a245b43bd0821d04376873c397a84aab3015358a55",
+    "content_analysis": {
+      "genealogy_id": "008",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "矛盾描述"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "结论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "前提1：级别由中枢的递归层次决定"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "前提2：盘整有明确的级别"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "前提3：中枢形成即确认级别"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "推论"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "精确关系"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "原文关键证据"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "对代码的影响"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "对 level_determination_v1.md 草稿的修正"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "结算时间",
+          "definition": "2026-02-17"
+        },
+        {
+          "term": "结算依据",
+          "definition": "原文穷尽搜索（13条证据）+ 缠师终极断言（第33课）"
+        }
+      ],
+      "references": [],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": "**趋势确立 ≠ 级别确认。两者是独立概念。**"
+    }
+  },
+  "refs": [
+    "504acc199fa824e67b8508a245b43bd0821d04376873c397a84aab3015358a55"
+  ],
+  "git_ref": ""
+}

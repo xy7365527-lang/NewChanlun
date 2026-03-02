@@ -1,0 +1,140 @@
+{
+  "id": "61f5734d6fe6d87e37350e6d7877650de9ed8dfe45a6add4d01f3182681d66be",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.254103+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "561c66209a364c22832954a0d71a82153c003a6a1f74b169c00177c7914c2a91",
+    "content_analysis": {
+      "genealogy_id": "043",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "现象"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "已结算原则"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "回路结构（缠论形式化）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "关键机制"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "数据结构"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "缠论形式化对应"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "被否定的方案"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "补充观察"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "语法记录",
+          "definition": "将上述已结算原则串联，识别出一条已在运作但未显式化的回路——session 操作序列中的重复模式，经谱系结算后结晶为 skill，skill 注册到 manifest 后被元编排自动加载使用，使用产生新的操作序列。回路不是设计出来的，是五条已结算原则的逻辑必然组合。"
+        },
+        {
+          "term": "谱系自动检测",
+          "definition": "post-session hook 扫描操作序列，识别未注册的重复模式，写入 pattern-buffer"
+        },
+        {
+          "term": "结晶自动触发",
+          "definition": "谱系节点 settled 且 type=strategy → 自动触发 skill-crystallizer"
+        },
+        {
+          "term": "元编排自动加载",
+          "definition": "新 skill 注册到 manifest → 下次 ceremony 自动加载"
+        },
+        {
+          "term": "驱动力",
+          "definition": "session 结束（post-session hook）"
+        },
+        {
+          "term": "制动力",
+          "definition": "效用背驰——新 skill 效率提升不再覆盖复杂度增加时停止生长（系统的\"第一类卖点\"）"
+        },
+        {
+          "term": "手动结晶（靠 Lead 记得去结晶）",
+          "definition": "已失败多次。016号的核心发现——\"知道规则 ≠ 执行规则\"——同样适用于结晶。Lead 知道应该结晶，但在任务压力下会跳过。"
+        },
+        {
+          "term": "手动谱系记录（靠 genealogist 工位手动写入）",
+          "definition": "无自动检测机制。重复模式必须被人注意到才能进入谱系，遗漏率高。"
+        },
+        {
+          "term": "静态 skill 系统（预定义所有能力）",
+          "definition": "不能生长。020号已结算\"编排能力在 skill 网络中流动\"——静态预定义与此矛盾。"
+        }
+      ],
+      "references": [
+        "012",
+        "016",
+        "020",
+        "041",
+        "042"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [
+        {
+          "target_id": "",
+          "target_desc": "手动结晶（靠 Lead 记得去结晶）",
+          "negation_type": "rejected_plan"
+        },
+        {
+          "target_id": "",
+          "target_desc": "手动谱系记录（靠 genealogist 工位手动写入）",
+          "negation_type": "rejected_plan"
+        },
+        {
+          "target_id": "",
+          "target_desc": "静态 skill 系统（预定义所有能力）",
+          "negation_type": "rejected_plan"
+        }
+      ],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "561c66209a364c22832954a0d71a82153c003a6a1f74b169c00177c7914c2a91"
+  ],
+  "git_ref": ""
+}

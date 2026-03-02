@@ -1,0 +1,54 @@
+{
+  "id": "5f9e7edf7e86e2828d398cba1b5e05613be5b709dbe859035d24354b459043dd",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.680544+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "c02ee0001bfbfb7ef468f4c5d0b0d5a115aa68df7dc16568e6167b4dd5d0ac77",
+    "content_analysis": {
+      "genealogy_id": "192",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "来源标注"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "结算"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系引用"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "吸收",
+          "definition": "这是 191号审计的精确重复。191号已完成："
+        }
+      ],
+      "references": [
+        "191",
+        "192"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "c02ee0001bfbfb7ef468f4c5d0b0d5a115aa68df7dc16568e6167b4dd5d0ac77"
+  ],
+  "git_ref": ""
+}

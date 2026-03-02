@@ -1,0 +1,67 @@
+{
+  "id": "a32c27729ddd6cf62751b81df67deaec3d4f3de2fc289007ef0d079f81a8efae",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.703206+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "a9b0d4ece504624e430135176ef72d19132643d31c2d51d3df75c551b69f0244",
+    "content_analysis": {
+      "genealogy_id": "201",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "观察摘要"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "规则触发/违反模式"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "模式观察"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "自主 session 的结构债务"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "元规则一致性"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "自环检查"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "判定",
+          "definition": "收敛信号。200号已记录此类模式。不写新规则，但标记："
+        }
+      ],
+      "references": [
+        "016",
+        "137",
+        "198",
+        "200",
+        "201"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "a9b0d4ece504624e430135176ef72d19132643d31c2d51d3df75c551b69f0244"
+  ],
+  "git_ref": ""
+}

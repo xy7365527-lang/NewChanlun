@@ -1,0 +1,58 @@
+{
+  "id": "b515ce10ccbac76b87cd2b68871b8fe8437a4053f131db3fec5c8c17435953a2",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.231923+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "f652431c70d12056d521e1d463de2193593c1d795898f3ce6cdf55683d570ab3",
+    "content_analysis": {
+      "genealogy_id": "035",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "矛盾/发现"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "当前产出"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "来源 PDF 清单"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "结算条件"
+        }
+      ],
+      "concepts": [],
+      "references": [
+        "011"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "f652431c70d12056d521e1d463de2193593c1d795898f3ce6cdf55683d570ab3"
+  ],
+  "git_ref": ""
+}

@@ -1,0 +1,142 @@
+{
+  "id": "71579a5cfe8e9fb40d5ec17055b8c2a963542a2f76b83a66c108c6f9caf41ffc",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.604829+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "ce399e174a4c85b28c0b36b8adc3dba752e15245ca9fd657ef211d5a50bf0065",
+    "content_analysis": {
+      "genealogy_id": "164",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "来源"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "内容"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "定义"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "在蜂群中的对应"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "同构的边界：三个形式条件 vs 动力学特征"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "Gemini 讨论结果"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "Gemini 否定（部分成立）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "判定"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "Gemini 否定（不成立部分）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系依据"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "恒星聚变递归",
+          "definition": "以 H → He → C → O → Ne → Si → Fe 为物理原型的递归模型。每阶段的三个形式条件："
+        },
+        {
+          "term": "输出→输入链",
+          "definition": "前阶段的产物是后阶段的燃料"
+        },
+        {
+          "term": "否定链",
+          "definition": "每阶段否定前一稳态——前阶段燃料耗尽，引力压缩突破库仑壁垒，开启新的聚变模式"
+        },
+        {
+          "term": "结构性断裂点",
+          "definition": "递归链终止于铁壁垒（163号），之后递归性质突变"
+        },
+        {
+          "term": "加速 vs 减速",
+          "definition": "物理中加速是因为引力压缩（向内的力），蜂群中减速是因为审查成本增长（向外的阻力）。两者的力学方向确实相反。但结构同构不要求力学方向一致——它只要求形式条件（输出→输入、否定、断裂）的满足。类比：两个群的同构不要求群元素的\"大小\"关系一致，只要求运算结构保持。"
+        },
+        {
+          "term": "必然 vs 偶然",
+          "definition": "物理阶段由核物理唯一确定（H 必须先于 He），蜂群阶段由递归规则和输入质料共同确定（不是唯一的）。这是正确的差异——蜂群递归的具体阶段序列是偶然的，但\"存在离散阶段且每阶段否定前一阶段\"这个形式特征是必然的（递归规则保证）。"
+        },
+        {
+          "term": "\"分阶段\"不是表层",
+          "definition": "形式条件的满足是严格的充要判据。\"加速\"和\"阶段顺序唯一性\"不在充要条件中。"
+        },
+        {
+          "term": "阶段顺序偶然性",
+          "definition": "蜂群递归的具体阶段序列不由\"核物理\"唯一确定——不同的输入质料（不同的书、不同的数据流）产生不同的阶段序列。这是与物理原型的正当差异，不是缺陷"
+        },
+        {
+          "term": "动力学方向",
+          "definition": "蜂群递归可能减速（审查成本累积）而非加速。如果蜂群的减速完全阻止了铁壁垒的到达（系统在到达 bootstrap 破缺前因 OOM 而终止），则铁壁垒不是运动的上限而是铁笼子——同构关系在此破裂"
+        },
+        {
+          "term": "能量递减",
+          "definition": "蜂群没有与\"聚变能量\"对应的度量。如果建立这样的度量（例如\"每次否定的信息差\"），且度量显示不递减，则物理类比的适用范围进一步缩小"
+        },
+        {
+          "term": "已执行",
+          "definition": "—引用恒星聚变递归模型时应明确标注：**形式结构同构，动力学不同构**（执行位置：`.claude/skills/swarm-architecture/SKILL.md` 恒星聚变递归模型引用附注；165号谱系引用处已标注）"
+        }
+      ],
+      "references": [
+        "139",
+        "161",
+        "163",
+        "164",
+        "165"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "ce399e174a4c85b28c0b36b8adc3dba752e15245ca9fd657ef211d5a50bf0065"
+  ],
+  "git_ref": ""
+}

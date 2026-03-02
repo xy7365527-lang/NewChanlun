@@ -1,0 +1,89 @@
+{
+  "id": "06b47c3d284b586078155980dd3a53feeae34ebb6402ea619073d988f2e3ee39",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.543649+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "5fb7c6433488138d8405b1ab39557c3ed0441f5c8ff168864843e20b2f100f83",
+    "content_analysis": {
+      "genealogy_id": "132",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "问题"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "结论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "执行清单"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "121号",
+          "definition": "065张力边失效定理——本条是其 Schema 层实现"
+        },
+        {
+          "term": "120号",
+          "definition": "062引用分类——提供\"历史参照\"概念先例"
+        },
+        {
+          "term": "090号",
+          "definition": "严格性语法规则——排除路径C的依据"
+        },
+        {
+          "term": "068号",
+          "definition": "DAG范式——图谱自足表达要求"
+        }
+      ],
+      "references": [
+        "012",
+        "062",
+        "068",
+        "090",
+        "120",
+        "121",
+        "132"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {
+        "negation_source": "heterogeneous",
+        "negation_form": "选择（从三路径逻辑排除后推导）"
+      },
+      "conclusion_summary": "**选择路径B：在 tensions_with 边中引入 `valid_until` 字段。**"
+    }
+  },
+  "refs": [
+    "5fb7c6433488138d8405b1ab39557c3ed0441f5c8ff168864843e20b2f100f83"
+  ],
+  "git_ref": ""
+}
