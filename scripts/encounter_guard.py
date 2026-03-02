@@ -142,5 +142,7 @@ def check_dag_integrity(
 
     if _dfs(to_id):
         # 构建环路径：from_id -> to_id -> ... -> from_id
+        # path_stack 末尾是 from_id（DFS 找到时 append 了），
+        # 加上开头的 from_id，形成环：C -> A -> B -> C
         cycle_path = [from_id] + path_stack
         raise CircularDependencyError(from_id, to_id, cycle_path)
