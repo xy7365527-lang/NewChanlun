@@ -798,6 +798,95 @@ class TestDirectionalMismatch:
         assert structural[0]["signal"] == "potential_negates"
 
 
+class TestMissingDependencyTriage:
+    """Tests for missing_dependency triage classification (309号裁定)."""
+
+    def test_should_be_depends_on_when_substantive_relation_exists(self, topology_dir):
+        """If from has a substantive relation to target, triage=should_be_depends_on."""
+        base, blocks = topology_dir
+
+        # C references A (creates missing_dependency)
+        append_relation(make_relation(
+            from_id=blocks["c"]["id"], to_id=blocks["a"]["id"],
+            relation="references", order=2, created_by=blocks["genesis"]["id"],
+        ), base)
+        # C also negates A (substantive relation → should_be_depends_on)
+        append_relation(make_relation(
+            from_id=blocks["c"]["id"], to_id=blocks["a"]["id"],
+            relation="negates", order=1, created_by=blocks["genesis"]["id"],
+        ), base)
+
+        result = detect_reference_dependency_mismatch(base)
+        missing = [r for r in result if r["type"] == "missing_dependency"]
+        assert len(missing) == 1
+        assert missing[0]["triage"] == "should_be_depends_on"
+
+    def test_should_be_references_when_no_substantive_relation(self, topology_dir):
+        """No substantive relation but target has genealogy ID → should_be_references."""
+        base, blocks = topology_dir
+
+        # C references A (creates missing_dependency, no substantive relation)
+        append_relation(make_relation(
+            from_id=blocks["c"]["id"], to_id=blocks["a"]["id"],
+            relation="references", order=2, created_by=blocks["genesis"]["id"],
+        ), base)
+
+        result = detect_reference_dependency_mismatch(base)
+        missing = [r for r in result if r["type"] == "missing_dependency"]
+        assert len(missing) == 1
+        assert missing[0]["triage"] == "should_be_references"
+
+    def test_triage_with_modifies_relation(self, topology_dir):
+        """modifies is a substantive relation → should_be_depends_on."""
+        base, blocks = topology_dir
+
+        append_relation(make_relation(
+            from_id=blocks["c"]["id"], to_id=blocks["a"]["id"],
+            relation="references", order=2, created_by=blocks["genesis"]["id"],
+        ), base)
+        append_relation(make_relation(
+            from_id=blocks["c"]["id"], to_id=blocks["a"]["id"],
+            relation="modifies", order=1, created_by=blocks["genesis"]["id"],
+        ), base)
+
+        result = detect_reference_dependency_mismatch(base)
+        missing = [r for r in result if r["type"] == "missing_dependency"]
+        assert len(missing) == 1
+        assert missing[0]["triage"] == "should_be_depends_on"
+
+    def test_triage_with_revises_relation(self, topology_dir):
+        """revises is a substantive relation → should_be_depends_on."""
+        base, blocks = topology_dir
+
+        append_relation(make_relation(
+            from_id=blocks["c"]["id"], to_id=blocks["a"]["id"],
+            relation="references", order=2, created_by=blocks["genesis"]["id"],
+        ), base)
+        append_relation(make_relation(
+            from_id=blocks["c"]["id"], to_id=blocks["a"]["id"],
+            relation="revises", order=1, created_by=blocks["genesis"]["id"],
+        ), base)
+
+        result = detect_reference_dependency_mismatch(base)
+        missing = [r for r in result if r["type"] == "missing_dependency"]
+        assert len(missing) == 1
+        assert missing[0]["triage"] == "should_be_depends_on"
+
+    def test_structural_only_has_no_triage(self, topology_dir):
+        """structural_only mismatches should NOT have triage field."""
+        base, blocks = topology_dir
+
+        append_relation(make_relation(
+            from_id=blocks["c"]["id"], to_id=blocks["a"]["id"],
+            relation="depends_on", order=1, created_by=blocks["genesis"]["id"],
+        ), base)
+
+        result = detect_reference_dependency_mismatch(base)
+        structural = [r for r in result if r["type"] == "structural_only"]
+        assert len(structural) == 1
+        assert "triage" not in structural[0]
+
+
 class TestAnnotationProposal:
     def test_convergent_mismatch_generates_annotation(self, topology_dir):
         base, blocks = topology_dir

@@ -319,15 +319,27 @@ def detect_concept_conflicts(
     return conflicts
 
 
+# 粗筛分类：实质性修正关系类型（表明结构性依赖）
+_SUBSTANTIVE_RELATIONS = frozenset({
+    "modifies", "refines", "revises", "negates", "supersedes",
+    "negated_by", "tensions_with",
+})
+
+
 def detect_reference_dependency_mismatch(
     base: Path = DEFAULT_BASE,
 ) -> list[dict]:
     """Detect mismatches between references (body) and depends_on (frontmatter).
 
     Two types:
-    - missing_reference (warn): body references a block not in depends_on
+    - missing_dependency (warn): body references a block not in depends_on
     - structural_only (info): depends_on declares a block not referenced in body
       (may be a negative/structural dependency)
+
+    missing_dependency items include a ``triage`` field (309号裁定 Phase 2):
+    - should_be_depends_on: from has a substantive relation to target
+    - should_be_references: no substantive relation (pure navigational reference)
+    - info_only: target is not a migration block (no genealogy ID)
     """
     relations, reverse_mapping = _load_topology(base)
 
@@ -335,11 +347,19 @@ def detect_reference_dependency_mismatch(
     references_by_block: dict[str, set[str]] = defaultdict(set)
     depends_by_block: dict[str, set[str]] = defaultdict(set)
 
+    # Index: (from, to) → set of relation types (for triage)
+    relation_types_by_pair: dict[tuple[str, str], set[str]] = defaultdict(set)
+
     for rel in relations:
-        if rel.get("relation") == "references":
-            references_by_block[rel["from"]].add(rel["to"])
-        elif rel.get("relation") == "depends_on":
-            depends_by_block[rel["from"]].add(rel["to"])
+        rtype = rel.get("relation")
+        src = rel.get("from", "")
+        dst = rel.get("to", "")
+        if rtype == "references":
+            references_by_block[src].add(dst)
+        elif rtype == "depends_on":
+            depends_by_block[src].add(dst)
+        if src and dst and rtype:
+            relation_types_by_pair[(src, dst)].add(rtype)
 
     mismatches = []
 
@@ -350,19 +370,32 @@ def detect_reference_dependency_mismatch(
         refs = references_by_block.get(block_id, set())
         deps = depends_by_block.get(block_id, set())
 
-        # missing_reference: referenced in body but not in depends_on
+        # missing_dependency: referenced in body but not in depends_on
         missing = refs - deps
         for m in missing:
+            # Triage: classify missing dependency by evidence strength
+            pair_rels = relation_types_by_pair.get((block_id, m), set())
+            target_gen = reverse_mapping.get(m, m[:16])
+
+            if pair_rels & _SUBSTANTIVE_RELATIONS:
+                triage = "should_be_depends_on"
+            elif target_gen and not target_gen.startswith(m[:16]):
+                # Target has a genealogy ID → it's a known block
+                triage = "should_be_references"
+            else:
+                triage = "info_only"
+
             mismatches.append({
                 "type": "missing_dependency",
                 "severity": "warn",
                 "block": block_id,
                 "block_genealogy": reverse_mapping.get(block_id, block_id[:16]),
                 "target": m,
-                "target_genealogy": reverse_mapping.get(m, m[:16]),
+                "target_genealogy": target_gen,
                 "detail": "正文引用但不在 depends_on 中",
                 "direction": "divergent",
                 "signal": "potential_depends_on",
+                "triage": triage,
             })
 
         # structural_only: in depends_on but not referenced in body
