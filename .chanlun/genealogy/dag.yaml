@@ -1509,6 +1509,11 @@ nodes:
   status: settled
   type: theory
   file: settled/300-measure-fold-integration.md
+- id: '301'
+  title: 元观察——v133-swarm FEM 镜像三谱系 + 编排者分岔修正的覆盖缺口
+  status: 已结算
+  type: meta-rule
+  file: pending/301-meta-observation-v133-swarm.md
 edges:
   depends_on:
   - from: '136'
@@ -3092,6 +3097,20 @@ edges:
   - from: '300'
     to: '298'
   - from: '300'
+    to: '296'
+  - from: '301'
+    to: '291'
+  - from: '301'
+    to: '298'
+  - from: '301'
+    to: '299'
+  - from: '301'
+    to: '300'
+  - from: '301'
+    to: '297'
+  - from: '301'
+    to: '295'
+  - from: '301'
     to: '296'
   triggered:
   - from: '005'
