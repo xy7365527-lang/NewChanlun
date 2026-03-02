@@ -1,0 +1,23 @@
+{
+  "id": "474a2f118258f1ed929f1c01354372c97ab5a778a2b7991ba1580a7473add149",
+  "type": "event",
+  "timestamp": "2026-03-02T09:11:24.452828+00:00",
+  "source": "cc",
+  "content": {
+    "id": "313",
+    "title": "元观察——v134-swarm Phase 3 讨论 + 总方针工作线分析",
+    "status": "已结算",
+    "type": "meta-rule",
+    "date": "2026-03-02",
+    "depends_on": [
+      "312",
+      "311",
+      "218",
+      "137",
+      "090"
+    ],
+    "source_file": "settledË-meta-observation-v134-swarm-phase3-discuss.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}
