@@ -20,6 +20,7 @@ from scripts.concept_extractor import (
     Negation,
     NewConcept,
     Section,
+    _VALUE_ASSIGNMENT_RE,
     analyze_content,
     _extract_sections,
     _extract_concepts,
@@ -286,11 +287,11 @@ class TestExtractConcepts:
     def test_skips_metadata_lines(self):
         body = _strip_frontmatter(SAMPLE_005B)
         concepts = _extract_concepts(body)
-        # Should not include "状态", "创建时间" etc.
+        # "创建时间: 2026-02-17" → date value assignment, filtered
         terms = [c.term for c in concepts]
-        assert "状态" not in terms
         assert "创建时间" not in terms
-        assert "类型" not in terms
+        # "状态: 已结算" and "类型: 语法规则确立..." are descriptive, preserved
+        # (value assignment filter only catches dates, paths, IDs, etc.)
 
     def test_005b_concepts(self):
         body = _strip_frontmatter(SAMPLE_005B)
@@ -838,3 +839,112 @@ class TestFrontmatterNegationAnnotation:
         fm = {"negates": ["086号"]}
         result = _extract_frontmatter_negation(fm)
         assert result["negates"] == ["086"]
+
+
+# --- Phase 2c Tests: Concept Stopwords ---
+
+class TestValueAssignmentFilter:
+    """Tests for value assignment vs concept definition distinction.
+
+    Concept definitions describe what a term means (enter defines relation).
+    Value assignments give a term a concrete value (filtered out).
+    E.g. "结算时间：2026-02-15" is assignment; "结算：承重点出现" is definition.
+    """
+
+    def test_value_assignment_re_is_compiled(self):
+        """_VALUE_ASSIGNMENT_RE must be a compiled regex pattern."""
+        assert hasattr(_VALUE_ASSIGNMENT_RE, 'match')
+
+    def test_date_values_filtered(self):
+        """Date values (2026-02-15, 2026/3/1) are assignments, not definitions."""
+        body = (
+            '**结算时间**：2026-02-15\n'
+            '**日期**：2026-03-01\n'
+        )
+        concepts = _extract_concepts(body)
+        terms = [c.term for c in concepts]
+        assert "结算时间" not in terms
+        assert "日期" not in terms
+
+    def test_code_literal_values_filtered(self):
+        """Code literals (`file.py :: func`) are assignments."""
+        body = '**文件**：`a_segment_v0.py :: segments_from_strokes_v0`\n'
+        concepts = _extract_concepts(body)
+        terms = [c.term for c in concepts]
+        assert "文件" not in terms
+
+    def test_file_path_values_filtered(self):
+        """File paths (scripts/foo.py) are assignments."""
+        body = '**来源**：scripts/concept_extractor.py\n'
+        concepts = _extract_concepts(body)
+        terms = [c.term for c in concepts]
+        assert "来源" not in terms
+
+    def test_id_list_values_filtered(self):
+        """ID lists (041, 089, 116) are assignments."""
+        body = '**depends_on**：041、089、116\n'
+        concepts = _extract_concepts(body)
+        terms = [c.term for c in concepts]
+        assert "depends_on" not in terms
+
+    def test_url_values_filtered(self):
+        """URLs are assignments."""
+        body = '**来源**：https://www.fengmr.com/chanlun.html\n'
+        concepts = _extract_concepts(body)
+        terms = [c.term for c in concepts]
+        assert "来源" not in terms
+
+    def test_descriptive_definitions_preserved(self):
+        """Descriptive text definitions should NOT be filtered."""
+        body = (
+            '**结算**：谱系中出现承重点——否定它会摧毁谱系一致性\n'
+            '**折叠**：同一个对象在不同域中呈现不同的范畴身份\n'
+            '**对象否定对象**：一个对象被否定的唯一来源\n'
+            '**结算依据**：编排者反馈 + 007-011 写作过程的实际经验\n'
+            '**状态**：已结算但存在遗留张力\n'
+        )
+        concepts = _extract_concepts(body)
+        terms = [c.term for c in concepts]
+        assert "结算" in terms
+        assert "折叠" in terms
+        assert "对象否定对象" in terms
+        assert "结算依据" in terms
+        assert "状态" in terms
+
+    def test_mixed_assignments_and_definitions(self):
+        """Value assignments filtered while definitions preserved in same body."""
+        body = (
+            '**结算时间**：2026-03-01\n'
+            '**结算**：谱系中出现承重点\n'
+            '**文件**：`scripts/foo.py`\n'
+            '**中枢**：至少三段次级别走势类型的重叠区域\n'
+        )
+        concepts = _extract_concepts(body)
+        terms = [c.term for c in concepts]
+        assert "结算时间" not in terms  # date assignment
+        assert "文件" not in terms       # code literal assignment
+        assert "结算" in terms           # descriptive definition
+        assert "中枢" in terms           # descriptive definition
+
+    def test_analyze_content_filters_assignments(self):
+        """End-to-end: analyze_content filters value assignments."""
+        text = """---
+id: '999'
+title: "Assignment filter test"
+status: 已结算
+date: 2026-03-01
+---
+
+# 999号：赋值过滤测试
+
+**结算时间**：2026-03-01
+**结算**：谱系中出现承重点——否定它会摧毁谱系一致性
+**文件**：`scripts/foo.py`
+**折叠**：同一个对象在不同域中呈现不同的范畴身份
+"""
+        ca = analyze_content("999", text)
+        terms = [c.term for c in ca.concepts]
+        assert "结算时间" not in terms  # date → filtered
+        assert "文件" not in terms       # code literal → filtered
+        assert "结算" in terms           # descriptive → preserved
+        assert "折叠" in terms           # descriptive → preserved
