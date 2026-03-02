@@ -290,6 +290,31 @@ def detect_concept_conflicts(
                     "modification": mod["modification"],
                 })
 
+    # --- Dedup: fold stale_reference conflicts by source relation ---
+    # Multiple referencing blocks affected by the same (modified, modifier)
+    # pair are folded into a single representative entry.
+    stale = [c for c in conflicts if c["type"] == "stale_reference"]
+    non_stale = [c for c in conflicts if c["type"] != "stale_reference"]
+
+    if stale:
+        grouped: dict[tuple[str, str], list[dict]] = defaultdict(list)
+        for c in stale:
+            key = (c["modified_block"], c["modifier_block"])
+            grouped[key].append(c)
+
+        folded: list[dict] = []
+        for (_modified, _modifier), items in grouped.items():
+            representative = dict(items[0])  # shallow copy of first entry
+            affected_blocks = [
+                reverse_mapping.get(it["referencing_block"], it["referencing_block"][:16])
+                for it in items
+            ]
+            representative["affected_count"] = len(items)
+            representative["affected_blocks"] = affected_blocks
+            folded.append(representative)
+
+        return non_stale + folded
+
     return conflicts
 
 

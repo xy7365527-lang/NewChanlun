@@ -80,6 +80,27 @@ class ContentAnalysis:
     frontmatter_negation: dict = field(default_factory=dict)  # frontmatter negation data
 
 
+# --- Stopwords ---
+
+# Patterns that indicate a concept "definition" is actually a value assignment,
+# not a conceptual definition. E.g. "结算时间：2026-02-15" is assignment;
+# "结算：谱系中出现承重点" is definition.
+# Discovered via Phase 2 enrichment: 105 duplicates were mostly metadata fields
+# with concrete values (dates, paths, IDs) mistaken for concept definitions.
+_VALUE_ASSIGNMENT_RE = re.compile(
+    r'^(?:'
+    r'\d{4}[-/]\d{1,2}[-/]\d{1,2}'   # date: 2026-02-15, 2026/2/17
+    r'|`[^`]+`'                        # code literal: `file.py :: func`
+    r'|\[.*?\]\(.*?\)'                 # markdown link: [text](url)
+    r'|(?:true|false|null|none|yes|no)$'  # boolean/null literals
+    r'|\d{3}[a-z]?(?:\s*[、,]\s*\d{3}[a-z]?)*$'  # ID list: 041, 089, 116
+    r'|[\w./\\-]+\.(?:py|md|yaml|json|sh|txt)' # file path: scripts/foo.py
+    r'|https?://'                      # URL
+    r')',
+    re.IGNORECASE
+)
+
+
 # --- Regex Patterns ---
 
 # Section heading: ## N. Title or ### N.N Title or #### Title
@@ -222,14 +243,8 @@ def _extract_concepts(body: str) -> tuple[ConceptDefinition, ...]:
         if match:
             term = match.group(1).strip()
             definition = match.group(2).strip()
-            # Skip frontmatter-style metadata lines (comprehensive list)
-            if term.lower() in (
-                '状态', '创建时间', '类型', '域', '溯源', '来源',
-                '日期', '前置', '关联', '更新时间', '结论', '结论/判定',
-                'negation_source', 'negation_form',
-                'id', 'title', 'status', 'type', 'date', 'source',
-                'link', 'archive',
-            ):
+            # Skip value assignments (dates, paths, IDs) — not concept definitions
+            if _VALUE_ASSIGNMENT_RE.match(definition):
                 continue
             # Skip table header/separator lines
             if '---' in definition or '|' in definition[:5]:

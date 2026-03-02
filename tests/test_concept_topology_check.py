@@ -1059,6 +1059,163 @@ class TestGraphInvariants:
         assert report["invariant_status"] == "graph_invariants_computed"
 
 
+class TestStaleReferenceDedup:
+    """Stale reference conflicts with same source relation should be folded."""
+
+    def test_same_source_relation_folded(self, topology_dir):
+        """B modifies A; C and D both reference A without depending on B.
+        Two raw stale_reference entries should be folded into one."""
+        base, blocks = topology_dir
+
+        # B(200) modifies A(100)
+        append_relation(make_relation(
+            from_id=blocks["b"]["id"], to_id=blocks["a"]["id"],
+            relation="modifies", order=1, created_by=blocks["genesis"]["id"],
+            target_desc="K4 划分", modification="提升为折叠根据",
+        ), base)
+
+        # C(300) references A(100) — no depends_on B
+        append_relation(make_relation(
+            from_id=blocks["c"]["id"], to_id=blocks["a"]["id"],
+            relation="references", order=2, created_by=blocks["genesis"]["id"],
+        ), base)
+
+        # D(400) references A(100) — no depends_on B
+        append_relation(make_relation(
+            from_id=blocks["d"]["id"], to_id=blocks["a"]["id"],
+            relation="references", order=2, created_by=blocks["genesis"]["id"],
+        ), base)
+
+        result = detect_concept_conflicts(base)
+        # Should be folded into 1 entry (same source relation: B modifies A)
+        assert len(result) == 1
+        entry = result[0]
+        assert entry["type"] == "stale_reference"
+        assert entry["affected_count"] == 2
+        assert len(entry["affected_blocks"]) == 2
+
+    def test_different_source_relations_not_folded(self, topology_dir):
+        """B modifies A, C modifies A independently.
+        D references A — triggers two distinct source relations.
+        Each should remain as a separate entry."""
+        base, blocks = topology_dir
+
+        # B(200) modifies A(100)
+        append_relation(make_relation(
+            from_id=blocks["b"]["id"], to_id=blocks["a"]["id"],
+            relation="modifies", order=1, created_by=blocks["genesis"]["id"],
+            target_desc="K4 划分", modification="修改1",
+        ), base)
+
+        # C(300) modifies A(100) — different modifier
+        append_relation(make_relation(
+            from_id=blocks["c"]["id"], to_id=blocks["a"]["id"],
+            relation="modifies", order=1, created_by=blocks["genesis"]["id"],
+            target_desc="K4 划分", modification="修改2",
+        ), base)
+
+        # D(400) references A(100) — newer than both B(200) and C(300)
+        append_relation(make_relation(
+            from_id=blocks["d"]["id"], to_id=blocks["a"]["id"],
+            relation="references", order=2, created_by=blocks["genesis"]["id"],
+        ), base)
+
+        result = detect_concept_conflicts(base)
+        # Two distinct source relations: (A, B) and (A, C)
+        # D triggers stale_reference for both → 2 folded entries, each with affected_count=1
+        assert len(result) == 2
+        for entry in result:
+            assert entry["type"] == "stale_reference"
+            assert entry["affected_count"] == 1
+            assert len(entry["affected_blocks"]) == 1
+
+    def test_affected_count_and_blocks_correct(self, topology_dir):
+        """Verify affected_count matches len(affected_blocks) and contents are correct."""
+        base, blocks = topology_dir
+
+        # B(200) modifies A(100)
+        append_relation(make_relation(
+            from_id=blocks["b"]["id"], to_id=blocks["a"]["id"],
+            relation="modifies", order=1, created_by=blocks["genesis"]["id"],
+            target_desc="desc", modification="mod",
+        ), base)
+
+        # C(300) references A — stale
+        append_relation(make_relation(
+            from_id=blocks["c"]["id"], to_id=blocks["a"]["id"],
+            relation="references", order=2, created_by=blocks["genesis"]["id"],
+        ), base)
+
+        # D(400) references A — stale
+        append_relation(make_relation(
+            from_id=blocks["d"]["id"], to_id=blocks["a"]["id"],
+            relation="references", order=2, created_by=blocks["genesis"]["id"],
+        ), base)
+
+        result = detect_concept_conflicts(base)
+        assert len(result) == 1
+        entry = result[0]
+        assert entry["affected_count"] == len(entry["affected_blocks"])
+        assert entry["affected_count"] == 2
+        # affected_blocks should contain genealogy ids for C and D
+        assert "300" in entry["affected_blocks"]
+        assert "400" in entry["affected_blocks"]
+
+    def test_non_stale_reference_not_affected(self, topology_dir):
+        """If there were non-stale_reference conflicts, they would not be folded.
+
+        Currently the only conflict type is stale_reference, so we verify that
+        the dedup logic passes through non-stale types unchanged by checking
+        that a single stale_reference still gets affected_count/affected_blocks.
+        """
+        base, blocks = topology_dir
+
+        # B(200) modifies A(100)
+        append_relation(make_relation(
+            from_id=blocks["b"]["id"], to_id=blocks["a"]["id"],
+            relation="modifies", order=1, created_by=blocks["genesis"]["id"],
+            target_desc="desc", modification="mod",
+        ), base)
+
+        # Only C(300) references A — single stale ref
+        append_relation(make_relation(
+            from_id=blocks["c"]["id"], to_id=blocks["a"]["id"],
+            relation="references", order=2, created_by=blocks["genesis"]["id"],
+        ), base)
+
+        result = detect_concept_conflicts(base)
+        assert len(result) == 1
+        entry = result[0]
+        assert entry["type"] == "stale_reference"
+        assert entry["affected_count"] == 1
+        assert entry["affected_blocks"] == ["300"]
+
+    def test_run_all_checks_uses_deduped_count(self, topology_dir):
+        """run_all_checks summary.conflicts should reflect deduped count."""
+        base, blocks = topology_dir
+
+        # B(200) modifies A(100)
+        append_relation(make_relation(
+            from_id=blocks["b"]["id"], to_id=blocks["a"]["id"],
+            relation="modifies", order=1, created_by=blocks["genesis"]["id"],
+            target_desc="desc", modification="mod",
+        ), base)
+
+        # C(300) and D(400) both reference A — 2 raw, 1 deduped
+        append_relation(make_relation(
+            from_id=blocks["c"]["id"], to_id=blocks["a"]["id"],
+            relation="references", order=2, created_by=blocks["genesis"]["id"],
+        ), base)
+        append_relation(make_relation(
+            from_id=blocks["d"]["id"], to_id=blocks["a"]["id"],
+            relation="references", order=2, created_by=blocks["genesis"]["id"],
+        ), base)
+
+        report = run_all_checks(base)
+        assert report["summary"]["conflicts"] == 1
+        assert report["concept_conflicts"]["count"] == 1
+
+
 class TestIsStructurallySignificant:
     def test_returns_none_without_stats(self):
         rel = {"relation": "negates", "from": "a", "to": "b"}
