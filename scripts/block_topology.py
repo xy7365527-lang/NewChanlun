@@ -40,11 +40,26 @@ RELATION_TYPES = frozenset({
     "freezes", "splits", "severs",                         # 拓扑操作
     "records",                                             # rewrite→event 记录关系
     "negated_by",                                          # dag.yaml negated_by
+    "defines",                                             # 区块定义概念（内容级）
+    "modifies",                                            # 区块修正另一区块中的概念（内容级）
+    "references",                                          # 正文引用另一区块（内容级）
 })
 
 DEFAULT_BASE = Path(".chanlun/block-topology")
 
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+
+
+def make_concept_id(term: str) -> str:
+    """Generate a deterministic SHA256 id for a concept term.
+
+    Uses the prefix "concept:" to namespace concept ids and avoid
+    collisions with block ids.  Term is stripped and NFKC-normalized
+    so that stylistic whitespace / Unicode variants map to the same id.
+    """
+    import unicodedata
+    normalized = unicodedata.normalize("NFKC", term.strip())
+    return hashlib.sha256(f"concept:{normalized}".encode("utf-8")).hexdigest()
 
 
 def _validate_sha256(value: str, field_name: str) -> None:

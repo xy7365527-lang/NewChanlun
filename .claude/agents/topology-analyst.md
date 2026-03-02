@@ -53,7 +53,7 @@ model: opus
 {
   "from": "sha256",
   "to": "sha256",
-  "relation": "depends_on | negates | related | tensions_with | supersedes | residue_of | reopens | freezes | splits | severs | records",
+  "relation": "depends_on | negates | related | tensions_with | supersedes | residue_of | reopens | freezes | splits | severs | records | defines | modifies | references",
   "order": 1,
   "created_by": "sha256",
   "timestamp": "ISO8601"
@@ -61,6 +61,11 @@ model: opus
 ```
 
 **阶的区分**：order=1 为实质性关系，order=2 为记录性关系。
+
+**内容级关系**（content enrichment 产生）：
+- `defines`（order=2）：区块定义了概念。`to` 字段是 concept_id（SHA256("concept:{term}")），extra 字段携带 `concept_term` 和 `concept_definition`
+- `modifies`（order=1）：区块修正了另一区块中的概念。extra 字段携带 `target_desc` 和 `modification`
+- `references`（order=2）：正文引用了另一区块（区别于 frontmatter 的 `depends_on`）
 
 ## 核心操作
 
@@ -76,6 +81,10 @@ model: opus
 | **奇点候选** | 多种信号汇聚的区域 | `[奇点] 区域描述 | 信号: {列表}` |
 | **孤岛** | 无关系连接的区块簇 | `[孤岛] 区块{ids}：无入边无出边` |
 | **张力未解** | tensions_with 关系无对应的 supersedes/reopens | `[张力] {from}↔{to}：未解决` |
+| **概念定义密度** | 某区块 defines 关系异常密集 | `[概念密集] 区块{id}：{count}个概念定义` |
+| **修正链长度** | 某概念被多次 modifies，形成长链 | `[修正链] 概念{term}：{count}次修正` |
+| **引用-依赖不一致** | references 存在但 depends_on 缺失（或反之） | `[不一致] {from}→{to}：references有/depends_on无` |
+| **过时引用** | A modifies B 但 C references B 不 depends_on A | `[过时引用] {C}引用{B}但不知{A}的修正` |
 
 ### 2. 图结构分析
 

@@ -1514,6 +1514,11 @@ nodes:
   status: 已结算
   type: meta-rule
   file: pending/301-meta-observation-v133-swarm.md
+- id: '302'
+  title: 元观察——区块拓扑内容级升级 session 二阶观察
+  status: 已结算
+  type: meta-rule
+  file: pending/302-meta-observation-content-topology-session.md
 edges:
   depends_on:
   - from: '136'
@@ -3112,6 +3117,16 @@ edges:
     to: '295'
   - from: '301'
     to: '296'
+  - from: '302'
+    to: '301'
+  - from: '302'
+    to: '218'
+  - from: '302'
+    to: '137'
+  - from: '302'
+    to: 090
+  - from: '302'
+    to: '231'
   triggered:
   - from: '005'
     to: 005a

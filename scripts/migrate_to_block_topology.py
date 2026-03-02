@@ -32,10 +32,46 @@ from scripts.block_topology import (
     append_relation,
     compute_block_id,
     make_block,
+    make_concept_id,
     make_relation,
     write_block,
     write_meta,
 )
+
+
+def _try_content_analysis(genealogy_id: str, text: str) -> dict | None:
+    """Attempt content analysis on a genealogy file.
+
+    Returns content_analysis dict if successful, None otherwise.
+    Does not fail the migration if analysis is unavailable.
+    """
+    try:
+        from scripts.concept_extractor import analyze_content
+        ca = analyze_content(genealogy_id, text)
+        return {
+            "sections": [
+                {"level": s.level, "number": s.number, "title": s.title}
+                for s in ca.sections
+            ],
+            "concepts": [
+                {"term": c.term, "definition": c.definition}
+                for c in ca.concepts
+            ],
+            "references": list(ca.references),
+            "new_concepts": [
+                {"term": nc.term, "qualifier": nc.qualifier,
+                 "definition": nc.definition}
+                for nc in ca.new_concepts
+            ],
+            "modifications": [
+                {"target_id": m.target_id, "target_desc": m.target_desc,
+                 "modification": m.modification}
+                for m in ca.modifications
+            ],
+            "conclusion_summary": ca.conclusion_summary,
+        }
+    except Exception:
+        return None
 
 
 def parse_frontmatter(text: str) -> dict:
@@ -98,8 +134,15 @@ def parse_frontmatter(text: str) -> dict:
 def migrate_settled_files(
     settled_dir: Path,
     base: Path = DEFAULT_BASE,
+    with_content_analysis: bool = False,
 ) -> tuple[dict[str, str], list[dict]]:
     """Migrate settled/*.md → event blocks.
+
+    Args:
+        settled_dir: Path to settled/ directory
+        base: Block topology base directory
+        with_content_analysis: If True, include content_analysis in block
+            content for new files. Existing blocks are unchanged (idempotent).
 
     Returns:
         id_mapping: {old_genealogy_id: block_id}
@@ -135,6 +178,12 @@ def migrate_settled_files(
         # Add source file path
         content["source_file"] = str(md_file.relative_to(
             settled_dir.parent))
+
+        # Content analysis for new files
+        if with_content_analysis:
+            ca = _try_content_analysis(old_id, text)
+            if ca is not None:
+                content["content_analysis"] = ca
 
         block = make_block(
             block_type="event",

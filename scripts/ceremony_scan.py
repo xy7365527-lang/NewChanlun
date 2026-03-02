@@ -574,6 +574,63 @@ def _check_gangju_audit_needed(root):
         return False
 
 
+def compute_concept_topology_health(root):
+    """检测内容级概念拓扑健康状态。
+
+    检查项：
+    1. 未 enrich 的区块（有 event 区块但无 content_enrichment rewrite）
+    2. 概念重复
+    3. 概念冲突（引用了被修正的概念但不知道修正）
+    4. 引用-依赖不一致
+
+    返回健康报告 dict，异常时生成工位建议。
+    """
+    base = os.path.join(root, ".chanlun/block-topology")
+    meta_path = os.path.join(base, "meta.json")
+
+    if not os.path.isfile(meta_path):
+        return None
+
+    try:
+        with open(meta_path, encoding="utf-8") as f:
+            meta = json.load(f)
+    except Exception:
+        return None
+
+    result = {}
+
+    # 1. 未 enrich 的区块检测
+    enrichment = meta.get("content_enrichment")
+    if enrichment is None:
+        total_blocks = meta.get("block_count", 0)
+        if total_blocks > 0:
+            result["unenriched_blocks"] = total_blocks
+            result["enrichment_status"] = "not_run"
+    else:
+        result["enrichment_status"] = "completed"
+        result["enrichment_stats"] = enrichment
+
+    # 2-4. 运行概念拓扑检查（如果 enrichment 已完成）
+    if enrichment is not None:
+        try:
+            import sys
+            from pathlib import Path as _Path
+            sys_path_added = False
+            scripts_dir = os.path.join(root, "scripts")
+            if scripts_dir not in sys.path:
+                sys.path.insert(0, scripts_dir)
+                sys_path_added = True
+            from concept_topology_check import run_all_checks
+            report = run_all_checks(_Path(base))
+            result["concept_health"] = report.get("summary", {})
+            if sys_path_added:
+                sys.path.remove(scripts_dir)
+        except Exception as exc:
+            result["concept_health_error"] = f"{type(exc).__name__}: {exc}"
+
+    return result
+
+
 def detect_genealogy_anomalies(root):
     """检测谱系编号异常：重复编号、文件名编号与内部 id 不一致、dag.yaml 完整性、frontmatter schema。
 
@@ -1025,6 +1082,28 @@ def main():
 
     # 178号下游推论：Δ区块检测——block-topology 是否有新区块
     result["delta_blocks"] = compute_delta_blocks(root)
+
+    # 内容级概念拓扑健康检测
+    concept_health = compute_concept_topology_health(root)
+    if concept_health is not None:
+        result["concept_topology_health"] = concept_health
+        # 异常时生成工位
+        health_status = concept_health.get("concept_health", {}).get("health")
+        if health_status == "issues_found":
+            summary = concept_health.get("concept_health", {})
+            workstations.append({
+                "priority": "P2",
+                "name": f"概念拓扑异常：{summary.get('duplicates', 0)}重复/{summary.get('conflicts', 0)}冲突/{summary.get('missing_dependencies', 0)}遗漏依赖",
+                "status": "concept_topology:issues_found",
+                "source": "concept_topology_check",
+            })
+        elif concept_health.get("enrichment_status") == "not_run":
+            workstations.append({
+                "priority": "P2",
+                "name": f"内容级迁移未执行：{concept_health.get('unenriched_blocks', 0)}个区块待 enrich",
+                "status": "content_enrichment:not_run",
+                "source": "concept_topology_check",
+            })
 
     # 081号下游推论：pattern-buffer 达标模式扫描（分片版）
     pb_dir = os.path.join(root, ".chanlun/pattern-buffer")
