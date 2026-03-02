@@ -1,0 +1,54 @@
+{
+  "id": "e3447b656db8899b14955a150a9e3ed800acbe5c4fc50173d1881ca5fafd6c25",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:57:48.129824+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "4886d33fabc76b0ac2deb09e274da3d9ef24ba3cdd36df6d6869eef89692163b",
+    "content_analysis": {
+      "genealogy_id": "018",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "分离"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "新定义"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "状态",
+          "definition": "已结算"
+        },
+        {
+          "term": "来源",
+          "definition": "maimai v1.0 发布事件。该事件中 escalation 不携带信息差，编排者审查环节为空，暴露了原三分法的盲区。"
+        },
+        {
+          "term": "行动类（l'acte）",
+          "definition": "不携带信息差的操作性事件 → 自动执行，无需编排者审查。"
+        }
+      ],
+      "references": [],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "4886d33fabc76b0ac2deb09e274da3d9ef24ba3cdd36df6d6869eef89692163b"
+  ],
+  "git_ref": ""
+}

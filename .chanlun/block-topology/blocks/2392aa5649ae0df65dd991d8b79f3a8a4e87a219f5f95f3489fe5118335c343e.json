@@ -1,0 +1,129 @@
+{
+  "id": "2392aa5649ae0df65dd991d8b79f3a8a4e87a219f5f95f3489fe5118335c343e",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:57:48.500558+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "df5a0346939c9010c883e73d37ddf838e49bd995fee630104debc1a68d29fc14",
+    "content_analysis": {
+      "genealogy_id": "107",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "目的"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "选择清单"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "C1: 组件选择——线段作为\"次级别走势类型\""
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "C2: 区间法选择——固定区间"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "C3: 延伸边界——弱不等式"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "C4: 续进策略——break_seg - 2"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "C5: 确认状态——只处理 confirmed 段"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "C6: 级别扩张——v1 故意省略"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "六要素"
+        },
+        {
+          "level": 3,
+          "number": "1",
+          "title": "结论"
+        },
+        {
+          "level": 3,
+          "number": "2",
+          "title": "定义依据"
+        },
+        {
+          "level": 3,
+          "number": "3",
+          "title": "边界条件"
+        },
+        {
+          "level": 3,
+          "number": "4",
+          "title": "下游推论"
+        },
+        {
+          "level": 3,
+          "number": "5",
+          "title": "谱系引用"
+        },
+        {
+          "level": 3,
+          "number": "6",
+          "title": "影响声明"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "类型",
+          "definition": "语法记录"
+        },
+        {
+          "term": "状态",
+          "definition": "已结算"
+        },
+        {
+          "term": "域",
+          "definition": "中枢（Zhongshu）"
+        },
+        {
+          "term": "溯源",
+          "definition": "[旧缠论:选择]"
+        },
+        {
+          "term": "原文",
+          "definition": "中枢 = 至少三个连续**次级别走势类型**重叠（第17课）"
+        },
+        {
+          "term": "选择",
+          "definition": "第一递归层级中，线段（Segment）充当\"次级别走势类型\"。输入为 `list[Segment]`。"
+        }
+      ],
+      "references": [
+        "001",
+        "002"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": "中枢实现做了六项选择（C1-C6），均已在 zhongshu.md 中记录但缺乏独立谱系。本条目补齐此缺口。"
+    }
+  },
+  "refs": [
+    "df5a0346939c9010c883e73d37ddf838e49bd995fee630104debc1a68d29fc14"
+  ],
+  "git_ref": ""
+}

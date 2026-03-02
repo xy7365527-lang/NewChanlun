@@ -147,8 +147,8 @@ def detect_duplicate_concepts(
         if len(definitions) <= 1:
             continue  # same definition text, not a real duplicate
 
-        # Folding status: potential_birth when 2nd defines appears
-        folding_status = "potential_birth" if len(defs) == 2 else "confirmed_duplicate"
+        # Folding status: all N≥2 are duplicates needing LLM-assisted review
+        folding_status = "duplicate"
 
         duplicates.append({
             "concept_id": concept_id,
@@ -160,6 +160,7 @@ def detect_duplicate_concepts(
             "definition_count": len(definitions),
             "connected_by_modifies": all_connected_by_modifies,
             "folding_status": folding_status,
+            "needs_review": True,
         })
 
     return duplicates
@@ -459,6 +460,22 @@ TOPOLOGICAL_RELATIONS = frozenset({
     "negated_by", "modifies", "refines", "revises", "references",
 })
 
+# Layer 1（逻辑层）：只有逻辑依赖关系
+# 语义一致性说明：LOGICAL_RELATIONS ⊂ NAVIGATIONAL_RELATIONS ⊂ TOPOLOGICAL_RELATIONS
+# 与 block_topology.py 的 RELATION_TYPES 的关系：RELATION_TYPES 是写入验证集合，
+# 包含所有合法关系类型（含 records, defines 等非拓扑关系）。
+# TOPOLOGICAL_RELATIONS 是 RELATION_TYPES 中参与拓扑计算的子集。
+# LOGICAL_RELATIONS / NAVIGATIONAL_RELATIONS 是 TOPOLOGICAL_RELATIONS 的进一步分层。
+LOGICAL_RELATIONS = frozenset({
+    "depends_on", "negates", "revises", "supersedes",
+})
+
+# Layer 2（导航层）：Layer 1 + 导航性关系
+NAVIGATIONAL_RELATIONS = frozenset({
+    "depends_on", "negates", "revises", "supersedes",
+    "references", "defines", "refines",
+})
+
 
 def compute_graph_invariants(
     base: Path = DEFAULT_BASE,
@@ -477,18 +494,28 @@ def compute_graph_invariants(
     # Filter to topological relations only
     topo_rels = [r for r in relations if r.get("relation") in TOPOLOGICAL_RELATIONS]
 
-    # Build two edge lists: full and active
+    # Build edge lists: full, active, and per-layer
     full_edges: list[tuple[str, str]] = []
     active_edges: list[tuple[str, str]] = []
+    layer1_edges: list[tuple[str, str]] = []
+    layer2_edges: list[tuple[str, str]] = []
 
     for rel in topo_rels:
         src = rel.get("from", "")
         dst = rel.get("to", "")
         if not src or not dst:
             continue
+        rtype = rel.get("relation")
         full_edges.append((src, dst))
+
+        # Layered edge collection (on full graph, no validity filtering)
+        if rtype in LOGICAL_RELATIONS:
+            layer1_edges.append((src, dst))
+        if rtype in NAVIGATIONAL_RELATIONS:
+            layer2_edges.append((src, dst))
+
         # For VALIDITY_CAPABLE_RELATIONS, exclude invalidated edges from active
-        if rel.get("relation") in VALIDITY_CAPABLE_RELATIONS:
+        if rtype in VALIDITY_CAPABLE_RELATIONS:
             if rel.get("validity") == "invalidated":
                 continue
         active_edges.append((src, dst))
@@ -637,12 +664,18 @@ def compute_graph_invariants(
 
     active_beta_0, active_cycle_rank = _compute_invariants(active_edges)
     full_beta_0, full_cycle_rank = _compute_invariants(full_edges)
+    layer1_beta_0, layer1_cycle_rank = _compute_invariants(layer1_edges)
+    layer2_beta_0, layer2_cycle_rank = _compute_invariants(layer2_edges)
 
     return {
         "active_beta_0": active_beta_0,
         "active_cycle_rank": active_cycle_rank,
         "full_beta_0": full_beta_0,
         "full_cycle_rank": full_cycle_rank,
+        "layer1_beta_0": layer1_beta_0,
+        "layer1_cycle_rank": layer1_cycle_rank,
+        "layer2_beta_0": layer2_beta_0,
+        "layer2_cycle_rank": layer2_cycle_rank,
     }
 
 

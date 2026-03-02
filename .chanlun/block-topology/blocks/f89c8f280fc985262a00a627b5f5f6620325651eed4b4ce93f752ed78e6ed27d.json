@@ -1,0 +1,21 @@
+{
+  "id": "f89c8f280fc985262a00a627b5f5f6620325651eed4b4ce93f752ed78e6ed27d",
+  "type": "event",
+  "timestamp": "2026-03-02T07:07:41.905838+00:00",
+  "source": "migration",
+  "content": {
+    "id": "246",
+    "title": "多 TF pipeline 集成——238号架构接入交易管道 + 239号方向性力度替代",
+    "status": "已结算",
+    "type": "工程架构",
+    "date": "2026-02-28",
+    "depends_on": [
+      "238",
+      "237",
+      "239"
+    ],
+    "source_file": "settled\\246-multi-tf-pipeline-integration.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

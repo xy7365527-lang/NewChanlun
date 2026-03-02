@@ -1,0 +1,106 @@
+{
+  "id": "21a7fb70a0cb06ba35b8ef47e1f438ea28bb5f2b26a0d0e9c38ddbd2ea3a5aa0",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:57:48.315975+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "4bc2aadd98dfabfaee53198ff8c97edf4cbd72dbe1cf5ca8aadc2d84a520ee85",
+    "content_analysis": {
+      "genealogy_id": "062",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "矛盾描述"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "扬弃后的架构"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "存在论三环（R.S.I）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "Sinthome（第四环）：异质性"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "异步自指的降级"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "谱系的理论地位"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "Guard 结晶方向"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "异质否定来源"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "类型",
+          "definition": "语法记录"
+        },
+        {
+          "term": "状态",
+          "definition": "已结算"
+        },
+        {
+          "term": "扬弃",
+          "definition": "060（060号保留为历时性拓扑节点，不删除）"
+        }
+      ],
+      "references": [
+        "012",
+        "020",
+        "052",
+        "053",
+        "060",
+        "064"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {
+        "negated_by": [
+          "064",
+          "093"
+        ]
+      },
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "4bc2aadd98dfabfaee53198ff8c97edf4cbd72dbe1cf5ca8aadc2d84a520ee85"
+  ],
+  "git_ref": ""
+}

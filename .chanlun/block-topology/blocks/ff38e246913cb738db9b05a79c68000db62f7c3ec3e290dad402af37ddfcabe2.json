@@ -1,0 +1,69 @@
+{
+  "id": "ff38e246913cb738db9b05a79c68000db62f7c3ec3e290dad402af37ddfcabe2",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:57:48.373552+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "b027ea3858be846156a02523868051ad35462f5b08280af272a4ab8b1983ce80",
+    "content_analysis": {
+      "genealogy_id": "077",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "观察"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "A. ceremony.md TaskOutput/SendMessage 不一致"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "B. 下游行动缺少 `superseded` 状态"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "C. ceremony Bash 禁令边界"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "实际行为",
+          "definition": "4 次 TaskOutput 调用全部失败（agent ID 和数字 ID 均不匹配），最终通过 SendMessage + TaskList 轮询完成监控。"
+        },
+        {
+          "term": "四分法分类",
+          "definition": "行动（文档修正，不携带信息差）。"
+        },
+        {
+          "term": "隐性规则",
+          "definition": "后续谱系结算时，其前置谱系中被取代的下游行动自动失效。"
+        }
+      ],
+      "references": [
+        "077"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {
+        "negation_source": "",
+        "negation_form": ""
+      },
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "b027ea3858be846156a02523868051ad35462f5b08280af272a4ab8b1983ce80"
+  ],
+  "git_ref": ""
+}

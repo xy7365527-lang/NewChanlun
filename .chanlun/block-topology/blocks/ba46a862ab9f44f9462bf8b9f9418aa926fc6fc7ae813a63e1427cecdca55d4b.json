@@ -1,0 +1,85 @@
+{
+  "id": "ba46a862ab9f44f9462bf8b9f9418aa926fc6fc7ae813a63e1427cecdca55d4b",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T06:03:03.502799+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "9cdf5010d9845ddc37b3702ee90e391fb3c19d0ccd99db4a7fcb3f129c4335d1",
+    "content_analysis": {
+      "genealogy_id": "023",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "矛盾/发现"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "产出"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "规范层"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "定义层"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "实现层"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "Schema 层"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "阻塞项（全部解除）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "结算条件（全部满足）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "来源"
+        }
+      ],
+      "concepts": [],
+      "references": [
+        "022",
+        "024",
+        "025"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "9cdf5010d9845ddc37b3702ee90e391fb3c19d0ccd99db4a7fcb3f129c4335d1"
+  ],
+  "git_ref": ""
+}

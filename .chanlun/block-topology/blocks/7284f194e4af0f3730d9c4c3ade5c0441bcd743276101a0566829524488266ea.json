@@ -1,0 +1,21 @@
+{
+  "id": "7284f194e4af0f3730d9c4c3ade5c0441bcd743276101a0566829524488266ea",
+  "type": "event",
+  "timestamp": "2026-03-02T07:07:41.918780+00:00",
+  "source": "migration",
+  "content": {
+    "id": "260",
+    "title": "元观察——v108-swarm 实验蜂群 + context compaction 后 team 状态丢失 + 编排者概念层洞察的嵌入路径",
+    "status": "resolved",
+    "type": "meta-rule",
+    "date": "2026-02-28",
+    "depends_on": [
+      "258",
+      "221",
+      "181"
+    ],
+    "source_file": "settled\\260-meta-observation-v108-swarm.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

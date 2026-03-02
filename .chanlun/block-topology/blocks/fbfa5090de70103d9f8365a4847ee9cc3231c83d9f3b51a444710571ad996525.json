@@ -1,0 +1,21 @@
+{
+  "id": "fbfa5090de70103d9f8365a4847ee9cc3231c83d9f3b51a444710571ad996525",
+  "type": "event",
+  "timestamp": "2026-03-02T07:07:41.936696+00:00",
+  "source": "migration",
+  "content": {
+    "id": "275",
+    "status": "已结算",
+    "type": "语法记录",
+    "date": "2026-02-28",
+    "negation_source": "编排者 INTERRUPT——否定 Lead 全局排序所有工位优先级的行为",
+    "negates": [
+      "218号（扩展：218割掉串行尾巴，275割掉全局排序思维）"
+    ],
+    "topo_effect": "",
+    "tensions_with": [],
+    "source_file": "settled\\275-local-dependency-principle.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

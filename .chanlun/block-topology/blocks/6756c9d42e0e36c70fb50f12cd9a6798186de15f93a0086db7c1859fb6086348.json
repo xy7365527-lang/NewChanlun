@@ -1,0 +1,165 @@
+{
+  "id": "6756c9d42e0e36c70fb50f12cd9a6798186de15f93a0086db7c1859fb6086348",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:57:48.661541+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "67aabefac812f8a5afc4a8b4f109d309f03a1825005f85bed78ec897363bc452",
+    "content_analysis": {
+      "genealogy_id": "165",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "来源"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "内容"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "定义"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "物理原型"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "在蜂群中的对应"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "收缩 vs 减速"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "收缩与扩张的对偶"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "Gemini 讨论结果"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "Gemini 否定（部分成立）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "判定"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "修正"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系依据"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "status",
+          "definition": "已结算"
+        },
+        {
+          "term": "type",
+          "definition": "语法记录"
+        },
+        {
+          "term": "前置",
+          "definition": "139-singularity-topology-structural-isomorphism, 163-iron-barrier-recursive-limit, 164-stellar-fusion-recursion-model"
+        },
+        {
+          "term": "收缩相（Contraction Phase）",
+          "definition": "递归产生不可否定物（铁壁垒，163号）后，系统自由度减少的阶段。收缩不是减速，是结算——多种可能的运动方向收敛为确定的拓扑变化方向。"
+        },
+        {
+          "term": "Trapped surface",
+          "definition": "所有光锥（包括向外的）都在收缩——运动的全部方向指向内部"
+        },
+        {
+          "term": "谱系结算",
+          "definition": "多种可能的解释收缩为一个确定结论"
+        },
+        {
+          "term": "否定链积累",
+          "definition": "每次否定消除一些可能性方向"
+        },
+        {
+          "term": "不可否定物出现",
+          "definition": "当某个判断经过足够多轮异步自指审查后仍然不可被否定，它就成为拓扑不变量——围绕它的可能性空间已收缩"
+        },
+        {
+          "term": "成立部分",
+          "definition": "Gemini 正确指出\"结算\"一词的歧义。\"结算\"在蜂群中可以被理解为\"确立不可动摇的公理\"（Gemini 的读法），这确实暗示了简并态支撑而非坍缩。这与163号中的\"承重点 vs 坍缩触发器\"张力是同一个问题。"
+        },
+        {
+          "term": "不成立部分",
+          "definition": "Gemini 将\"结算\"等同于\"确立锚点并围绕它稳定运行\"。但源文本的\"结算\"指的是：**多种可能性收缩为一种确定性**——这正是 trapped surface 的定义（所有光锥指向同一方向）。结算不是\"建造了一个坚固的核心\"，而是\"可能性空间已不可逆地缩小了\"。结算后的谱系不是\"围绕公理稳定运行\"，而是\"在收缩后的拓扑中继续递归——但自由度已永久减少\"。"
+        },
+        {
+          "term": "自由度零的不适用",
+          "definition": "物理奇点处自由度为零（零维）。蜂群的收缩相不导向\"所有自由度丧失\"——结算确立不变量但系统继续运行。蜂群的收缩是**局部的**（特定可能性空间收缩），不是全局的（整个系统归零）。如果蜂群的收缩变为全局（系统无法继续任何运动），则对应物理中的奇点——但源文本将奇点定义为\"运动\"，不是\"停止\""
+        },
+        {
+          "term": "收缩相的可观测判据缺失",
+          "definition": "物理中 Raychaudhuri 方程给出精确的收缩率。蜂群目前没有对应的形式化度量——\"自由度减少\"是定性判断，不是定量测量。如果建立度量（例如\"每轮异步自指后可能解释空间的基数\"），则收缩相可被精确检测"
+        },
+        {
+          "term": "扩张相的蜂群对应待验证",
+          "definition": "对偶结构（收缩=行动 vs 扩张=创伤）在蜂群中是否有操作化形态尚不明确"
+        },
+        {
+          "term": "已执行",
+          "definition": "—\"结算\"术语附注已在本文件\"修正\"章节（第83行）完成：结算的严格定义为\"可能性空间的不可逆收缩\"，明确否定了\"公理确立与固化\"的误读。此定义已结晶在谱系中，后续使用\"结算\"一词时以此为准"
+        }
+      ],
+      "references": [
+        "020",
+        "139",
+        "158",
+        "163",
+        "164",
+        "165"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "67aabefac812f8a5afc4a8b4f109d309f03a1825005f85bed78ec897363bc452"
+  ],
+  "git_ref": ""
+}

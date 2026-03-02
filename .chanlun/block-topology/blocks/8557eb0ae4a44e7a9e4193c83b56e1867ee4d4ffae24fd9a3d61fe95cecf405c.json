@@ -1,0 +1,104 @@
+{
+  "id": "8557eb0ae4a44e7a9e4193c83b56e1867ee4d4ffae24fd9a3d61fe95cecf405c",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T06:03:03.638678+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "0889e435f4fc9ac9ef57fcdbacfe8b0e171b0f9f7da97b9e4c445f5f217b55f5",
+    "content_analysis": {
+      "genealogy_id": "074",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "背景"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "具体发现"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "发现 A：ceremony-guard 读取已废弃文件"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "发现 B：072号下游推论未执行"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "发现 C：073号谱系编号冲突"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "发现 D：dispatch-dag.yaml 注释与原则0不一致"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "发现 E：Session 遗留项状态过时"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "元模式识别"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "073号编号冲突需解决",
+          "definition": "其中一个文件应重编号（建议 073-trampoline 改为 073b，因 073-swarm-full-mutability 已被 CLAUDE.md 原则0 引用）"
+        },
+        {
+          "term": "dispatch-dag.yaml 第 11 行注释需更新",
+          "definition": "\"仪式门控\" → \"推荐流程\""
+        },
+        {
+          "term": "Session 遗留项需更新",
+          "definition": "标记已完成的 P1 项"
+        },
+        {
+          "term": "语法记录候选",
+          "definition": "谱系结算时，下游推论中的\"行动\"类条目应自动转化为可追踪任务（机制待设计）"
+        }
+      ],
+      "references": [
+        "013",
+        "036",
+        "071",
+        "072",
+        "073"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "0889e435f4fc9ac9ef57fcdbacfe8b0e171b0f9f7da97b9e4c445f5f217b55f5"
+  ],
+  "git_ref": ""
+}

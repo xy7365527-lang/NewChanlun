@@ -1,0 +1,26 @@
+{
+  "id": "ee9c9eea8e942b9f4546b4d47488c20e8d47d50344798569214d53e5b7f3d28d",
+  "type": "event",
+  "timestamp": "2026-03-02T07:07:41.970441+00:00",
+  "source": "migration",
+  "content": {
+    "id": "307",
+    "title": "元观察——Phase 2 regex 扩展 + enrichment 首次执行 session（否定8模式+修正三层策略+KeyError防御+拓扑跃变）",
+    "status": "已结算",
+    "type": "meta-rule",
+    "date": "2026-03-02",
+    "depends_on": [
+      "306",
+      "305",
+      "302",
+      "273",
+      "231",
+      "218",
+      "137",
+      "090"
+    ],
+    "source_file": "settled\\307-meta-observation-phase2-enrichment-session.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

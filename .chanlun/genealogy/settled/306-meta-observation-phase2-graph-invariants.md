@@ -145,3 +145,9 @@ Phase 2 七步实现全部完成。下一步进入 Phase 3 讨论阶段（编排
 - is_structurally_significant 当前返回 None——Phase 3 填充逻辑时需保持接口签名不变（relation: dict, active_graph_stats: dict | None -> bool | None）
 - 117 测试中 TestGraphInvariants 的 8 个测试使用 topology_dir fixture 创建临时目录，不依赖真实谱系文件
 - TOPOLOGICAL_RELATIONS 常量硬编码了 15 种关系类型——如果 block_topology.py 新增 validity-capable 关系，需同步更新 TOPOLOGICAL_RELATIONS
+
+### 下游推论解决记录（v133-swarm session）
+
+- 推论1（图不变量真实数据验证）：**resolved** — 实测结果：active_beta_0=2, active_cycle_rank=1404, full_beta_0=2, full_cycle_rank=1404。active/full 一致表明当前无 invalidated 边。beta_0=2 确认图有 2 个连通分量。cycle_rank=1404 确认环路丰富度。认识论等级：L2（真实数据验证）
+- 推论2（TOPOLOGICAL_RELATIONS 整合）：**delegated** — 已交给 audit-executor 工位处理
+- 推论3（性能问题）：**deferred** — 当前规模（330+ 区块）下 iterative Tarjan O(V+E) 无性能瓶颈

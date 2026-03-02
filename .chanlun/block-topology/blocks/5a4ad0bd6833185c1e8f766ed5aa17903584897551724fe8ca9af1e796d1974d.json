@@ -1,0 +1,110 @@
+{
+  "id": "5a4ad0bd6833185c1e8f766ed5aa17903584897551724fe8ca9af1e796d1974d",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:57:48.166957+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "74d9058492c4a48de9ddaa2c0f39094fd1bb44929598636b02c1432d875c601b",
+    "content_analysis": {
+      "genealogy_id": "022",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "矛盾描述"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "结算理由"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "发现过程"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "产出"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "定义层（/ritual 结算）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "规范层"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "实现层"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "来源"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "状态",
+          "definition": "已结算"
+        },
+        {
+          "term": "类型",
+          "definition": "domain"
+        },
+        {
+          "term": "结算方式",
+          "definition": "/ritual（编排者决断 — 选择类）"
+        },
+        {
+          "term": "溯源",
+          "definition": "[旧缠论] 第9课（比价变动构成独立买卖系统）+ [旧缠论:隐含] + [新缠论]"
+        },
+        {
+          "term": "域",
+          "definition": "比价关系（第二阶段入口）"
+        },
+        {
+          "term": "前置",
+          "definition": "020-constitutive-contradiction（ontology-v1 命题5 是本条的起点）"
+        },
+        {
+          "term": "关联",
+          "definition": "已有实现 src/newchan/synthetic.py::make_ratio()（已整合为委托）"
+        }
+      ],
+      "references": [],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "74d9058492c4a48de9ddaa2c0f39094fd1bb44929598636b02c1432d875c601b"
+  ],
+  "git_ref": ""
+}

@@ -1,0 +1,16 @@
+{
+  "id": "05a82583b58d1f2433851b23e90f2e8989c3c6b2e11f947107ec971adc2d907b",
+  "type": "event",
+  "timestamp": "2026-03-02T07:07:41.859423+00:00",
+  "source": "migration",
+  "content": {
+    "id": "190",
+    "title": "元观察——188号 residue 结构六轮审计的方法论确认",
+    "status": "结算态",
+    "type": "meta-rule",
+    "date": "2026-02-24",
+    "source_file": "settled\\190-meta-observation-residue-structure-audit.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

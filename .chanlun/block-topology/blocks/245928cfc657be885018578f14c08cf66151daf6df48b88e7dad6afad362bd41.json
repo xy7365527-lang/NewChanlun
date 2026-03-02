@@ -1,0 +1,90 @@
+{
+  "id": "245928cfc657be885018578f14c08cf66151daf6df48b88e7dad6afad362bd41",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:57:48.648065+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "e137ed633be72382834c11d82913453f5b91eb19151aa7804773eeddab3cb79d",
+    "content_analysis": {
+      "genealogy_id": "161",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "来源"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "内容"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "否定链"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "与黑洞拓扑的结构对应"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系依据"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "status",
+          "definition": "已结算"
+        },
+        {
+          "term": "type",
+          "definition": "语法记录"
+        },
+        {
+          "term": "前置",
+          "definition": "090-strictness-as-grammar, 136-cost-benefit-dissolution-prohibited"
+        },
+        {
+          "term": "161号",
+          "definition": "否定务实——务实是决策层的补丁思维"
+        }
+      ],
+      "references": [
+        "087",
+        "089",
+        "090",
+        "136",
+        "158",
+        "161"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "e137ed633be72382834c11d82913453f5b91eb19151aa7804773eeddab3cb79d"
+  ],
+  "git_ref": ""
+}

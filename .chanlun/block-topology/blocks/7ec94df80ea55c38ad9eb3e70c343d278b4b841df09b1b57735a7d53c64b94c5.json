@@ -1,0 +1,21 @@
+{
+  "id": "7ec94df80ea55c38ad9eb3e70c343d278b4b841df09b1b57735a7d53c64b94c5",
+  "type": "event",
+  "timestamp": "2026-03-02T07:07:41.902198+00:00",
+  "source": "migration",
+  "content": {
+    "id": "242",
+    "title": "共振回测对比——直积 vs 纤维丛筛选器干净度裁决",
+    "status": "已结算",
+    "type": "经验验证",
+    "date": "2026-02-28",
+    "depends_on": [
+      "236",
+      "240",
+      "241"
+    ],
+    "source_file": "settled\\242-resonance-backtest-comparison.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

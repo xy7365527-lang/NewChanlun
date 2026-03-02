@@ -1,0 +1,22 @@
+{
+  "id": "66dd02ccd5d186b53b761286d4792a8d58e434958281a1161be5011438b9ff9e",
+  "type": "event",
+  "timestamp": "2026-03-02T07:07:41.886954+00:00",
+  "source": "migration",
+  "content": {
+    "id": "225",
+    "title": "ceremony rescan→evaluate 原子性断裂——rescan 完成后被用户消息中断",
+    "status": "已结算",
+    "type": "meta-rule",
+    "date": "2026-02-27",
+    "depends_on": [
+      "224",
+      "137"
+    ],
+    "topo_effect": "post-commit-flow.md 新增 rescan→evaluate 原子性规则 + flow-continuity-guard.sh 覆盖 ceremony_scan.py",
+    "tensions_with": [],
+    "source_file": "settled\\225-ceremony-atomic-rescan-evaluate.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

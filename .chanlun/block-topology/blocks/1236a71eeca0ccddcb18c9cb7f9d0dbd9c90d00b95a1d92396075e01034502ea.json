@@ -1,0 +1,162 @@
+{
+  "id": "1236a71eeca0ccddcb18c9cb7f9d0dbd9c90d00b95a1d92396075e01034502ea",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T06:03:03.682561+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "a200975ac681e81e00606ae7067665a0704fa845989c2a55eb9a0b651572b177",
+    "content_analysis": {
+      "genealogy_id": "086",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "背景"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "五个决断"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "问题 1：递归从未发生（P0）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "问题 2：claude-challenger 完全孤岛（P1）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "问题 3：source-auditor 完全孤岛（P1）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "问题 4：skill-crystallizer 无事件连接（P2）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "问题 5：meta-observer 被降级（P2）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "同质质询总结"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "立即执行项（按优先级）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "P0 级（阻塞结晶链路）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "P1 级（孤岛声明修正）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "P1 级（观察器恢复）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "P2 级（声明注释）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件汇总"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论（建议，078号非阻断）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "边界条件",
+          "definition": "Claude Code 平台原生支持 sub-subagent 嵌套时，立即转选项 A，实现真正调用栈递归。"
+        },
+        {
+          "term": "执行动作",
+          "definition": "在 CLAUDE.md 原则15\"递归拓扑异步自指\"注释中补充\"当前机制为 Trampoline 近似（073b号）\"。"
+        },
+        {
+          "term": "边界条件（强约束）",
+          "definition": "084号 P0 修复（precompact-save.sh）完成后，立即执行选项 A。C 选项的有效期 = P0 修复前。"
+        },
+        {
+          "term": "CLAUDE.md 原则15 注释",
+          "definition": "在\"递归拓扑异步自指\"后补充\"（当前机制：Trampoline 近似，073b号；平台升级后可实现真调用栈递归）\""
+        },
+        {
+          "term": "skill-crystallizer dispatch-dag 记录",
+          "definition": "加注释\"阻塞依赖：084号 P0 修复（precompact-save.sh）\""
+        },
+        {
+          "term": "dispatch-dag.yaml 是当前声明一致性的主要债务来源",
+          "definition": "—本次修正了 2 个触发方式声明（claude-challenger、source-auditor），建议全量审查 event_skill_map 所有条目"
+        },
+        {
+          "term": "advisory 模式是系统成熟后的合理过渡态",
+          "definition": "—若 6 个月内上述边界条件均未触发，可将 advisory 模式定为永久状态（语法记录）"
+        },
+        {
+          "term": "085号、086号共同量化了系统的\"声明债务\"",
+          "definition": "—建议在下次全面审计时以本次基线为参照"
+        }
+      ],
+      "references": [
+        "041",
+        "056",
+        "069",
+        "073b",
+        "076",
+        "077",
+        "078",
+        "082",
+        "084",
+        "085",
+        "086"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {
+        "negation_source": "heterogeneous",
+        "negation_form": "expansion",
+        "negated_by": [
+          "087"
+        ]
+      },
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "a200975ac681e81e00606ae7067665a0704fa845989c2a55eb9a0b651572b177"
+  ],
+  "git_ref": ""
+}

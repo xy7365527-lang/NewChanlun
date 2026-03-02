@@ -1,0 +1,160 @@
+{
+  "id": "f77b395b2c77d3b31c9658d7bf30b3b2f7ef46244fb40c4c47eade3b79897496",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:57:48.432633+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "c2727f2a780826f1c3b0e65182c805de2515869260609d32f4feae2b471a7991",
+    "content_analysis": {
+      "genealogy_id": "088",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "命题"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "发现过程"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "触发事件"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "平台限制确认"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "编排者 INTERRUPT"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "Gemini decide 结果"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "被否定的方案"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "实现"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "新架构（已实现）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "未来演化（边界条件）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "与032号的关系"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "状态",
+          "definition": "已结算（Gemini decide 选项D）"
+        },
+        {
+          "term": "类型",
+          "definition": "选择"
+        },
+        {
+          "term": "negation_source",
+          "definition": "practice（v22-swarm 实践中的死锁事件）+ Gemini decide"
+        },
+        {
+          "term": "negation_form",
+          "definition": "destruction（032号的 deny 列表方案被彻底否定）"
+        },
+        {
+          "term": "剔除阈值否定",
+          "definition": "—选项 C 中\"频次达到阈值\"违反 005b号（对象否定对象语法，不允许超时/阈值的非对象否定）"
+        },
+        {
+          "term": "异常对象化",
+          "definition": "—Lead 违规行为不被阻断，而被实体化为\"拓扑异常对象\"写入 pattern-buffer"
+        },
+        {
+          "term": "对象否定对象",
+          "definition": "—异常对象一旦生成即构成背驰信号。meta-observer（作为另一个对象）读取异常对象后发起结构性否定"
+        },
+        {
+          "term": "递归层级映射",
+          "definition": "—Lead 行为（Level N）被转化为数据对象，由 meta-observer（Level N+1）读取和否定"
+        },
+        {
+          "term": "032号 deny 列表方案",
+          "definition": "全局锁定，导致项目级死锁，违反原则0"
+        },
+        {
+          "term": "进程级权限隔离（选项 B）",
+          "definition": "Claude Code 不支持，当前技术不可行"
+        },
+        {
+          "term": "纯 DAG 路由约束（选项 A）",
+          "definition": "退化为016号\"知道规则≠执行规则\"，无结构性约束"
+        },
+        {
+          "term": "阈值触发审计（选项 C 原版）",
+          "definition": "违反 005b号对象否定对象语法"
+        },
+        {
+          "term": "settings.local.json",
+          "definition": "保持全权限（deny: []），不再修改"
+        }
+      ],
+      "references": [
+        "005b",
+        "016",
+        "032",
+        "043",
+        "069",
+        "073"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {
+        "negates": [
+          "032"
+        ]
+      },
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "c2727f2a780826f1c3b0e65182c805de2515869260609d32f4feae2b471a7991"
+  ],
+  "git_ref": ""
+}

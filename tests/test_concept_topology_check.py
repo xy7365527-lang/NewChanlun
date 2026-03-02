@@ -36,6 +36,8 @@ from scripts.concept_topology_check import (
     _should_check_conflict,
     EVOLUTION_RELATIONS,
     TOPOLOGICAL_RELATIONS,
+    LOGICAL_RELATIONS,
+    NAVIGATIONAL_RELATIONS,
 )
 
 
@@ -731,8 +733,8 @@ class TestEvolutionRelationsInDuplicateDetection:
 
 
 class TestFoldingBirthProxy:
-    def test_potential_birth(self, topology_dir):
-        """Second defines for same concept → potential_birth folding status."""
+    def test_two_defines_is_duplicate(self, topology_dir):
+        """Second defines for same concept → duplicate folding status with needs_review."""
         base, blocks = topology_dir
         concept_id = make_concept_id("跨域概念")
 
@@ -745,10 +747,11 @@ class TestFoldingBirthProxy:
 
         result = detect_duplicate_concepts(base)
         assert len(result) == 1
-        assert result[0]["folding_status"] == "potential_birth"
+        assert result[0]["folding_status"] == "duplicate"
+        assert result[0]["needs_review"] is True
 
-    def test_confirmed_duplicate(self, topology_dir):
-        """Three+ defines for same concept → confirmed_duplicate."""
+    def test_three_defines_is_duplicate(self, topology_dir):
+        """Three+ defines for same concept → duplicate (same as N=2)."""
         base, blocks = topology_dir
         concept_id = make_concept_id("多重概念")
 
@@ -761,7 +764,8 @@ class TestFoldingBirthProxy:
 
         result = detect_duplicate_concepts(base)
         assert len(result) == 1
-        assert result[0]["folding_status"] == "confirmed_duplicate"
+        assert result[0]["folding_status"] == "duplicate"
+        assert result[0]["needs_review"] is True
 
 
 class TestDirectionalMismatch:
@@ -1225,3 +1229,118 @@ class TestIsStructurallySignificant:
         rel = {"relation": "negates", "from": "a", "to": "b"}
         stats = {"active_beta_0": 1, "active_cycle_rank": 0}
         assert is_structurally_significant(rel, stats) is None
+
+
+class TestRelationLayerSets:
+    """Verify LOGICAL_RELATIONS ⊂ NAVIGATIONAL_RELATIONS ⊂ TOPOLOGICAL_RELATIONS."""
+
+    def test_logical_subset_of_navigational(self):
+        assert LOGICAL_RELATIONS <= NAVIGATIONAL_RELATIONS
+
+    def test_navigational_subset_of_topological(self):
+        # NAVIGATIONAL_RELATIONS 中的 "defines" 不在 TOPOLOGICAL_RELATIONS 中
+        # 因为 defines 是拓扑意义上的非拓扑关系，但在导航层有意义
+        # 验证除 defines 外全部在 TOPOLOGICAL_RELATIONS 中
+        nav_topo = NAVIGATIONAL_RELATIONS - {"defines"}
+        assert nav_topo <= TOPOLOGICAL_RELATIONS
+
+    def test_logical_is_strict_subset(self):
+        assert LOGICAL_RELATIONS < NAVIGATIONAL_RELATIONS
+
+    def test_logical_contents(self):
+        assert "depends_on" in LOGICAL_RELATIONS
+        assert "negates" in LOGICAL_RELATIONS
+        assert "revises" in LOGICAL_RELATIONS
+        assert "supersedes" in LOGICAL_RELATIONS
+        assert "references" not in LOGICAL_RELATIONS
+
+    def test_navigational_contents(self):
+        assert "references" in NAVIGATIONAL_RELATIONS
+        assert "defines" in NAVIGATIONAL_RELATIONS
+        assert "refines" in NAVIGATIONAL_RELATIONS
+
+
+class TestLayeredGraphInvariants:
+    """Tests for layer1/layer2 graph invariants."""
+
+    def test_empty_graph_has_zero_layered_invariants(self, topology_dir):
+        """Empty graph → all layered invariants zero."""
+        base, blocks = topology_dir
+        result = compute_graph_invariants(base)
+        assert result["layer1_beta_0"] == 0
+        assert result["layer1_cycle_rank"] == 0
+        assert result["layer2_beta_0"] == 0
+        assert result["layer2_cycle_rank"] == 0
+
+    def test_layer1_only_logical_edges(self, topology_dir):
+        """depends_on + references: layer1 sees only depends_on, layer2 sees both."""
+        base, blocks = topology_dir
+
+        # depends_on: A→B (logical, in both layers)
+        append_relation(make_relation(
+            from_id=blocks["a"]["id"], to_id=blocks["b"]["id"],
+            relation="depends_on", order=1, created_by=blocks["genesis"]["id"],
+        ), base)
+
+        # references: B→C (navigational only, not in layer1)
+        append_relation(make_relation(
+            from_id=blocks["b"]["id"], to_id=blocks["c"]["id"],
+            relation="references", order=2, created_by=blocks["genesis"]["id"],
+        ), base)
+
+        result = compute_graph_invariants(base)
+
+        # Layer 1: only A→B edge → β₀=1, cycle_rank=0
+        assert result["layer1_beta_0"] == 1
+        assert result["layer1_cycle_rank"] == 0
+
+        # Layer 2: A→B + B→C → β₀=1, cycle_rank=0
+        assert result["layer2_beta_0"] == 1
+        assert result["layer2_cycle_rank"] == 0
+
+        # Active (full topo): same as layer2 in this case
+        assert result["active_beta_0"] == 1
+        assert result["active_cycle_rank"] == 0
+
+    def test_layer1_cycle_rank_less_than_active(self, topology_dir):
+        """A→B→C→A cycle via depends_on + extra references edge.
+        Layer1 sees the cycle; active sees cycle + extra edge → higher cycle_rank."""
+        base, blocks = topology_dir
+
+        # Triangle A→B→C→A via depends_on (logical)
+        append_relation(make_relation(
+            from_id=blocks["a"]["id"], to_id=blocks["b"]["id"],
+            relation="depends_on", order=1, created_by=blocks["genesis"]["id"],
+        ), base)
+        append_relation(make_relation(
+            from_id=blocks["b"]["id"], to_id=blocks["c"]["id"],
+            relation="depends_on", order=1, created_by=blocks["genesis"]["id"],
+        ), base)
+        append_relation(make_relation(
+            from_id=blocks["c"]["id"], to_id=blocks["a"]["id"],
+            relation="depends_on", order=1, created_by=blocks["genesis"]["id"],
+        ), base)
+        # Extra edge A→C via references (navigational, not logical)
+        append_relation(make_relation(
+            from_id=blocks["a"]["id"], to_id=blocks["c"]["id"],
+            relation="references", order=2, created_by=blocks["genesis"]["id"],
+        ), base)
+
+        result = compute_graph_invariants(base)
+
+        # Layer 1: 3 edges (depends_on only), 3 vertices → cycle_rank=1
+        assert result["layer1_cycle_rank"] == 1
+        # Active: 4 edges, 3 vertices → cycle_rank=2
+        assert result["active_cycle_rank"] == 2
+        # layer1 < active
+        assert result["layer1_cycle_rank"] < result["active_cycle_rank"]
+
+    def test_run_all_checks_includes_layered_invariants(self, topology_dir):
+        """run_all_checks report should include layer1/layer2 invariants."""
+        base, blocks = topology_dir
+        report = run_all_checks(base)
+        gi = report["graph_invariants"]
+        assert "layer1_beta_0" in gi
+        assert "layer1_cycle_rank" in gi
+        assert "layer2_beta_0" in gi
+        assert "layer2_cycle_rank" in gi

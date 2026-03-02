@@ -1,0 +1,20 @@
+{
+  "id": "8f03f0e0d1f4455858bf362ba17541e5695735acececd713a983b8eea504dd15",
+  "type": "event",
+  "timestamp": "2026-03-02T07:07:41.897134+00:00",
+  "source": "migration",
+  "content": {
+    "id": "236",
+    "title": "纤维丛集成——直积近似 vs 纤维丛精确解的策略偏差量化",
+    "status": "已结算",
+    "type": "工程集成",
+    "date": "2026-02-28",
+    "depends_on": [
+      "232",
+      "235"
+    ],
+    "source_file": "settled\\236-fiber-bundle-integration.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,21 @@
+{
+  "id": "bef6812bddb0aeee908b39f2cbbfe83041e7e45bcdcde1a8b427b77de0bab9ea",
+  "type": "event",
+  "timestamp": "2026-03-02T07:07:41.957981+00:00",
+  "source": "migration",
+  "content": {
+    "id": "295",
+    "title": "操盘主体的第四层——形式系统穷尽后的剩余决断",
+    "status": "settled",
+    "type": "操作方法论",
+    "date": "2026-03-01",
+    "depends_on": [
+      "292",
+      "265",
+      "267"
+    ],
+    "source_file": "settled\\295-subject-fourth-layer.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

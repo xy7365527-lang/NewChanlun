@@ -1,0 +1,22 @@
+{
+  "id": "90f94e636c123c2d081aa3bf474e1911e6b132350121b3d007d834504613a15d",
+  "type": "event",
+  "timestamp": "2026-03-02T07:07:41.940679+00:00",
+  "source": "migration",
+  "content": {
+    "id": "279",
+    "status": "已结算",
+    "type": "概念发现",
+    "date": "2026-03-01",
+    "depends_on": [
+      "269",
+      "277",
+      "254"
+    ],
+    "topo_effect": "OQ5（开放问题5）从'待回测'推进到'数据约束下的诚实落地'",
+    "tensions_with": [],
+    "source_file": "settled\\279-oq5-caliber-a-verification.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

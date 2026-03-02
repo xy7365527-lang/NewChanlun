@@ -1,0 +1,73 @@
+{
+  "id": "3b121af229a802a8729db2e4f0fc960aaba8faecb66e9e6ed82973e4bf8c065e",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:57:48.185819+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "8c5cf4e1f4f38c96aba2574eec47de3ae8c05ac7d9397134f622b42657dcaebe",
+    "content_analysis": {
+      "genealogy_id": "029",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "矛盾"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "修复"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "验证"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "概念溯源"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "状态",
+          "definition": "已结算"
+        },
+        {
+          "term": "类型",
+          "definition": "Bug Fix（行动）"
+        },
+        {
+          "term": "提交",
+          "definition": "1de48c5"
+        },
+        {
+          "term": "关联",
+          "definition": "028-ceremony-default-action（发现过程：ceremony 扫描 → YAML 同步 → 实际审计）"
+        }
+      ],
+      "references": [],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "8c5cf4e1f4f38c96aba2574eec47de3ae8c05ac7d9397134f622b42657dcaebe"
+  ],
+  "git_ref": ""
+}

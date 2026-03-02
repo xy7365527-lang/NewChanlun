@@ -1,0 +1,131 @@
+{
+  "id": "3d34d6d59e659fffcb462860f55574e722d226c2e8687fca475b5cb45557dce6",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:57:48.286113+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "8af3e8ee0b3bd1fc0c23f5e11b0bbe3347e62cee24cb0aa4e4f73db9b3014314",
+    "content_analysis": {
+      "genealogy_id": "053",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "现象"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链（三阶段）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "第一阶段：问题识别（人类编排者）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "第二阶段：初判（Gemini 3.1）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "第三阶段：扬弃（人类修正 + Gemini 重判）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "已结算原则"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "异质审计协议"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "人类角色再定义"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "边界条件（触发人类 INTERRUPT）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "推翻条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "与缠论的同构"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "溯源"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "类型",
+          "definition": "定理（经扬弃）"
+        },
+        {
+          "term": "状态",
+          "definition": "已结算"
+        },
+        {
+          "term": "结算方式",
+          "definition": "三阶段推导（人类直觉 → Gemini初判 → 人类修正 → Gemini扬弃）"
+        },
+        {
+          "term": "negation_source",
+          "definition": "人类编排者 + Gemini 3.1（辩证互否定）"
+        },
+        {
+          "term": "negation_form",
+          "definition": "self-referential → heterogeneous-resolution"
+        },
+        {
+          "term": "前置",
+          "definition": "020-constitutive-contradiction, 030a-gemini-position, 039-single-agent-bypass-pattern, 042-hook-network-pattern, 052-orchestrator-proxy-island"
+        },
+        {
+          "term": "关联",
+          "definition": "005b-object-negates-object, 016-runtime-enforcement-layer, 051-runtime-connection-design"
+        },
+        {
+          "term": "异质性坍塌",
+          "definition": "Claude 和 Gemini 盲点同质化 → 验证失效"
+        },
+        {
+          "term": "信息茧房",
+          "definition": "Claude 过滤给 Gemini 的输入 → 验证失效"
+        },
+        {
+          "term": "无限乒乓",
+          "definition": "否定-修复死循环无法升维 → 需人类打破"
+        }
+      ],
+      "references": [
+        "020",
+        "041",
+        "053"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "8af3e8ee0b3bd1fc0c23f5e11b0bbe3347e62cee24cb0aa4e4f73db9b3014314"
+  ],
+  "git_ref": ""
+}

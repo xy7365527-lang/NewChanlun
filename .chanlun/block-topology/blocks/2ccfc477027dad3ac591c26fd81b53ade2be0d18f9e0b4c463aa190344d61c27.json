@@ -1,0 +1,22 @@
+{
+  "id": "2ccfc477027dad3ac591c26fd81b53ade2be0d18f9e0b4c463aa190344d61c27",
+  "type": "event",
+  "timestamp": "2026-03-02T07:07:41.881229+00:00",
+  "source": "migration",
+  "content": {
+    "id": "218",
+    "title": "Lead 并行化——割掉 RTAS 的串行尾巴",
+    "status": "已结算",
+    "type": "语法记录",
+    "date": "2026-02-26",
+    "depends_on": [
+      "069",
+      "090",
+      "143",
+      "217"
+    ],
+    "source_file": "settled\\218-lead-parallelization.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

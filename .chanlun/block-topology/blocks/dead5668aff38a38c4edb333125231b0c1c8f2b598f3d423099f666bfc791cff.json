@@ -1,0 +1,110 @@
+{
+  "id": "dead5668aff38a38c4edb333125231b0c1c8f2b598f3d423099f666bfc791cff",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T06:04:26.197942+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "6ebe6700473a45ea6badf9946b28a4bccdbebe3cbff187f047c39e7b6cf629f4",
+    "content_analysis": {
+      "genealogy_id": "287",
+      "sections": [
+        {
+          "level": 2,
+          "number": "1",
+          "title": "实验清单"
+        },
+        {
+          "level": 2,
+          "number": "2",
+          "title": "硬结论（经补充实验校正后的定稿）"
+        },
+        {
+          "level": 3,
+          "number": "2",
+          "title": "1 R/$ 先行性成立，\"唯一趋势边\"废除"
+        },
+        {
+          "level": 3,
+          "number": "2",
+          "title": "2 K3 截面完全可操作"
+        },
+        {
+          "level": 3,
+          "number": "2",
+          "title": "3 叙事不一致是常态"
+        },
+        {
+          "level": 3,
+          "number": "2",
+          "title": "4 Au/R 激活状态区分正常震荡和逼近边界"
+        },
+        {
+          "level": 3,
+          "number": "2",
+          "title": "5 沉寂边位置反转"
+        },
+        {
+          "level": 3,
+          "number": "2",
+          "title": "6 对等窗口内全部盘整"
+        },
+        {
+          "level": 2,
+          "number": "3",
+          "title": "跨实验交叉验证（校正后）"
+        },
+        {
+          "level": 2,
+          "number": "4",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "5",
+          "title": "谱系引用"
+        },
+        {
+          "level": 2,
+          "number": "6",
+          "title": "来源"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "成立",
+          "definition": "R/$ 在 OQ1 中是 L1→L2 最强先行指标（R/$ vs SPY p=0.0007，领先 14.6 bars）。这是时序统计结论，不依赖趋势/盘整分类。"
+        },
+        {
+          "term": "废除",
+          "definition": "R/$ \"唯一趋势边\"是全历史累积产物。补充实验确认：2007-09 和 2020-26 两个对等窗口内，12 条边全部盘整、0 趋势。趋势走势仅在跨多个周期累积时出现。"
+        },
+        {
+          "term": "校正后表述",
+          "definition": "R/$ 在时序上领先，但不是当前配置的结构主导者。286号推论1 部分否证。"
+        },
+        {
+          "term": "边界条件",
+          "definition": "Au/R 背驰 = 力度衰竭，但力度衰竭有两种读法：(1) 系统性风险承接能力减弱；(2) 价格已充分反映风险，运动到位。纯结构层面不可区分。区分需要 OQ3（基本面否决权）。"
+        }
+      ],
+      "references": [
+        "254",
+        "279",
+        "283",
+        "284",
+        "286",
+        "287"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "6ebe6700473a45ea6badf9946b28a4bccdbebe3cbff187f047c39e7b6cf629f4"
+  ],
+  "git_ref": ""
+}

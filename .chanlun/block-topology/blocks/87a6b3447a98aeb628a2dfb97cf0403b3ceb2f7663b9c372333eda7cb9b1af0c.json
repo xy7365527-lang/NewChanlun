@@ -1,0 +1,99 @@
+{
+  "id": "87a6b3447a98aeb628a2dfb97cf0403b3ceb2f7663b9c372333eda7cb9b1af0c",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:57:48.751135+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "4be3aa28b1e6006f424a0c2448f904ea8b3f75a3d4409c0724c0c42e50b6476c",
+    "content_analysis": {
+      "genealogy_id": "193",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "来源标注"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "质询参数"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "收敛结果"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "注册 Key（10 个）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "破裂轨迹（9 条）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "三区块写入"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "183号分界线达成"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系引用"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "subject",
+          "definition": "缠论笔（Bi）定义的代码实现忠实度审计"
+        },
+        {
+          "term": "trigger",
+          "definition": "184-2-first-real-inquiry"
+        },
+        {
+          "term": "stability_window",
+          "definition": "3（默认）"
+        },
+        {
+          "term": "Gemini 模型",
+          "definition": "gemini-3.1-pro-preview"
+        },
+        {
+          "term": "Codex 模型",
+          "definition": "gpt-5.2-codex（codex-5.3 不可用，降级）"
+        }
+      ],
+      "references": [
+        "001",
+        "183",
+        "184",
+        "188",
+        "191",
+        "193"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "4be3aa28b1e6006f424a0c2448f904ea8b3f75a3d4409c0724c0c42e50b6476c"
+  ],
+  "git_ref": ""
+}

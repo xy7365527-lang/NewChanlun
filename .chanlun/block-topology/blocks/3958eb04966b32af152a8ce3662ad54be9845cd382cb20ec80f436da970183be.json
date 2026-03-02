@@ -1,0 +1,68 @@
+{
+  "id": "3958eb04966b32af152a8ce3662ad54be9845cd382cb20ec80f436da970183be",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T06:04:25.767484+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "be1f1f5a4392524c92859a300c8fbc752d7805e376b75bc4b797e85e86080751",
+    "content_analysis": {
+      "genealogy_id": "129",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "问题"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "结论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "Gemini 的方法论建议（有价值但不改变判定）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "不可调和分歧记录"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        }
+      ],
+      "concepts": [],
+      "references": [
+        "012",
+        "127",
+        "129"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {
+        "negation_source": "heterogeneous",
+        "negation_form": "定理（三轮Gemini双向讨论消解）"
+      },
+      "conclusion_summary": "**negates 边的稀疏性（8/311）不构成系统缺陷。**"
+    }
+  },
+  "refs": [
+    "be1f1f5a4392524c92859a300c8fbc752d7805e376b75bc4b797e85e86080751"
+  ],
+  "git_ref": ""
+}

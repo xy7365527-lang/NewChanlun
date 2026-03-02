@@ -1,0 +1,20 @@
+{
+  "id": "073c7c3549fbe9f1acb8e84eaf5422d0e434317483391a90d3184fed840d6261",
+  "type": "event",
+  "timestamp": "2026-03-02T07:07:41.903144+00:00",
+  "source": "migration",
+  "content": {
+    "id": "243",
+    "title": "纤维丛管道 scan direction 层间一致性修复",
+    "status": "已结算",
+    "type": "工程修复",
+    "date": "2026-02-28",
+    "depends_on": [
+      "241",
+      "242"
+    ],
+    "source_file": "settled\\243-fiber-scan-consistency.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

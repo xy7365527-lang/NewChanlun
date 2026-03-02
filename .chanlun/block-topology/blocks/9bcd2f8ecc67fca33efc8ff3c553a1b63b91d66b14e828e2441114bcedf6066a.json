@@ -1,0 +1,21 @@
+{
+  "id": "9bcd2f8ecc67fca33efc8ff3c553a1b63b91d66b14e828e2441114bcedf6066a",
+  "type": "event",
+  "timestamp": "2026-03-02T07:07:41.908029+00:00",
+  "source": "migration",
+  "content": {
+    "id": "249",
+    "title": "L78 修复后真实数据重新验证",
+    "status": "settled",
+    "type": "经验验证",
+    "date": "2026-02-28",
+    "depends_on": [
+      "247",
+      "248",
+      "246"
+    ],
+    "source_file": "settled\\249-real-data-revalidation-post-l78-fix.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,23 @@
+{
+  "id": "789c2965fcd0b3ad5774d8c137f77d0b91bf7b3000e631828beb14bfff302d74",
+  "type": "event",
+  "timestamp": "2026-03-02T07:07:41.860273+00:00",
+  "source": "migration",
+  "content": {
+    "id": "191",
+    "title": "空 consensus 区块审计——零让步共识合法性 + refs 悬空节点",
+    "status": "结算态",
+    "type": "矛盾发现",
+    "date": "2026-02-24",
+    "depends_on": [
+      "188",
+      "178"
+    ],
+    "related": [
+      "187"
+    ],
+    "source_file": "settled\\191-empty-consensus-block-audit.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

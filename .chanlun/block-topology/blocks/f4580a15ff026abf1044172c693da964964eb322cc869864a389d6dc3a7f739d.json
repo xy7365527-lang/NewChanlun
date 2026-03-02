@@ -1,0 +1,21 @@
+{
+  "id": "f4580a15ff026abf1044172c693da964964eb322cc869864a389d6dc3a7f739d",
+  "type": "event",
+  "timestamp": "2026-03-02T07:07:41.868737+00:00",
+  "source": "migration",
+  "content": {
+    "id": "202",
+    "status": "已结算",
+    "type": "语法记录",
+    "date": "2026-02-25",
+    "negation_source": "编排者",
+    "negation_form": "INTERRUPT",
+    "depends_on": [
+      "196",
+      "137"
+    ],
+    "source_file": "settled\\202-false-blocked-escalation.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

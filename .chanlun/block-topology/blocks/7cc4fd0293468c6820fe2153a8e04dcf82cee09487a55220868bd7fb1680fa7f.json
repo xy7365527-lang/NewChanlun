@@ -1,0 +1,21 @@
+{
+  "id": "7cc4fd0293468c6820fe2153a8e04dcf82cee09487a55220868bd7fb1680fa7f",
+  "type": "event",
+  "timestamp": "2026-03-02T07:07:41.933188+00:00",
+  "source": "migration",
+  "content": {
+    "id": "272",
+    "title": "RTAS三议题裁定——拓扑检测+否定拓扑代数+递归深度",
+    "status": "settled",
+    "type": "编排者裁定",
+    "date": "2026-02-28",
+    "depends_on": [
+      "271",
+      "270",
+      "030a"
+    ],
+    "source_file": "settled\\272-rtas-three-topic-ruling.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

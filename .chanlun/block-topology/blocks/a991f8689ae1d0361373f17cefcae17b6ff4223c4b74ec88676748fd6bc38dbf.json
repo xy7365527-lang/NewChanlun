@@ -1,0 +1,96 @@
+{
+  "id": "a991f8689ae1d0361373f17cefcae17b6ff4223c4b74ec88676748fd6bc38dbf",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T06:04:25.694963+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "44e3ecfecffd3d1d605682d0b8d66197a089bd5384a2dbb3fc220fcd54533b26",
+    "content_analysis": {
+      "genealogy_id": "103",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "结晶结论：两条定律"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "第一定律：声明-能力缺口的系统性"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "第二定律：缺口的消除二分法"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "结晶来源",
+          "definition": "084 → 085 → 086 → 087 → 088 → 089 号谱系链"
+        },
+        {
+          "term": "审计修复链",
+          "definition": "084 → 085 → 086(被否定) → 087 → 088 → 089"
+        },
+        {
+          "term": "原则支撑",
+          "definition": "016（知道规则≠执行规则）→ 036（声明-能力一致性结晶）→ 090（严格性语法规则）"
+        },
+        {
+          "term": "结构根因",
+          "definition": "093号约束3（执行不可自观性）× 约束2（规则先在性）= 视差 Gap"
+        }
+      ],
+      "references": [
+        "084",
+        "085",
+        "086",
+        "087",
+        "088",
+        "089",
+        "090",
+        "093",
+        "100"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {
+        "negation_source": "内容审计（三份审计报告交叉验证）",
+        "negation_form": "crystallization（六条谱系的审计修复链凝固为两条定律）"
+      },
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "44e3ecfecffd3d1d605682d0b8d66197a089bd5384a2dbb3fc220fcd54533b26"
+  ],
+  "git_ref": ""
+}

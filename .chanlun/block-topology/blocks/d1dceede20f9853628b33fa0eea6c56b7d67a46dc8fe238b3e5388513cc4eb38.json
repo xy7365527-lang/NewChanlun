@@ -1,0 +1,89 @@
+{
+  "id": "d1dceede20f9853628b33fa0eea6c56b7d67a46dc8fe238b3e5388513cc4eb38",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:57:48.585881+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "9eb560256f0ac9f5a431a8999b9dae6c5bc2ee9b582a71e71811039d9bf8899a",
+    "content_analysis": {
+      "genealogy_id": "131",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "问题"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "结论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "类型",
+          "definition": "定理（127号区分1的逻辑必然推论）"
+        },
+        {
+          "term": "状态",
+          "definition": "已结算"
+        },
+        {
+          "term": "来源",
+          "definition": "三轮Gemini双向严格讨论（焦点3）→ 131号生成态重审 → 四分法重分类为定理"
+        },
+        {
+          "term": "005b",
+          "definition": "L62是本条的核心分析对象"
+        },
+        {
+          "term": "020号",
+          "definition": "020号阻断等待的合法性由本定理确认"
+        },
+        {
+          "term": "118号",
+          "definition": "005b元层适用域——与本条共享\"005b语义边界\"问题域"
+        }
+      ],
+      "references": [
+        "020",
+        "118",
+        "127",
+        "131"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {
+        "negation_source": "heterogeneous",
+        "negation_form": "定理（127号区分1的逻辑必然推论）"
+      },
+      "conclusion_summary": "**\"动摇\"≠\"修改\"——005b L62触发条件与原则0/020号路径不矛盾。**"
+    }
+  },
+  "refs": [
+    "9eb560256f0ac9f5a431a8999b9dae6c5bc2ee9b582a71e71811039d9bf8899a"
+  ],
+  "git_ref": ""
+}

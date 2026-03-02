@@ -1,0 +1,65 @@
+{
+  "id": "7431e4ada11c722f0b80ec8abac151b12a33903092e62b3235507db46e342ba3",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T06:03:03.448035+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "4cf246e7cd13dc42cec84c3da6f992244c2b8f14d1fd52943ae7fbe436d4f0b3",
+    "content_analysis": {
+      "genealogy_id": "006",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "分离描述"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "编排者决断（2026-02-16）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "分离后的影响"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "需要实现的 → ✅ 全部完成"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "需要明确的 → ✅ 全部已结算"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "递归级别",
+          "definition": "从最低 K 线递归构造，每层由下层的走势类型组件构成"
+        },
+        {
+          "term": "时间周期级别",
+          "definition": "为不同 TF（5m, 30m, 1h...）独立运行管线"
+        }
+      ],
+      "references": [],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "4cf246e7cd13dc42cec84c3da6f992244c2b8f14d1fd52943ae7fbe436d4f0b3"
+  ],
+  "git_ref": ""
+}

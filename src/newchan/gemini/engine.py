@@ -8,11 +8,16 @@
 from __future__ import annotations
 
 import logging
+import time
 
 logger = logging.getLogger(__name__)
 
 _MODEL = "gemini-3.1-pro-preview"
 _FALLBACK_MODEL = "gemini-2.5-pro"
+
+# 503 重试配置
+_MAX_RETRIES = 3
+_RETRY_BASE_DELAY = 5  # 秒，指数退避基数
 
 
 def call_with_fallback(
@@ -24,7 +29,7 @@ def call_with_fallback(
     genai_module: object,
     genai_errors_module: object,
 ) -> tuple[str, str]:
-    """调用 Gemini API，主模型 503 时自动降级到 fallback。
+    """调用 Gemini API，503 时指数退避重试，重试耗尽后降级到 fallback。
 
     Parameters
     ----------
@@ -39,29 +44,46 @@ def call_with_fallback(
     Returns (response_text, actual_model_used)。
     """
     for m in (model, _FALLBACK_MODEL):
-        try:
-            response = client.models.generate_content(
-                model=m,
-                contents=prompt,
-                config=genai_module.types.GenerateContentConfig(
-                    system_instruction=system_prompt,
-                    temperature=temperature,
-                    thinking_config=genai_module.types.ThinkingConfig(
-                        thinking_budget=8192,
+        last_err = None
+        for attempt in range(_MAX_RETRIES):
+            try:
+                response = client.models.generate_content(
+                    model=m,
+                    contents=prompt,
+                    config=genai_module.types.GenerateContentConfig(
+                        system_instruction=system_prompt,
+                        temperature=temperature,
+                        thinking_config=genai_module.types.ThinkingConfig(
+                            thinking_budget=8192,
+                        ),
                     ),
-                ),
-            )
-            return response.text or "", m
-        except (
-            genai_errors_module.ServerError,
-            genai_errors_module.ClientError,
-        ):
-            if m == model and m != _FALLBACK_MODEL:
-                logger.warning(
-                    "%s 不可用，降级到 %s", m, _FALLBACK_MODEL,
                 )
-                continue
-            raise
+                return response.text or "", m
+            except genai_errors_module.ServerError as e:
+                last_err = e
+                if attempt < _MAX_RETRIES - 1:
+                    delay = _RETRY_BASE_DELAY * (2 ** attempt)
+                    logger.warning(
+                        "%s 503 (attempt %d/%d)，%d秒后重试",
+                        m, attempt + 1, _MAX_RETRIES, delay,
+                    )
+                    time.sleep(delay)
+                    continue
+                # 重试耗尽，尝试下一个模型
+                break
+            except genai_errors_module.ClientError:
+                if m == model and m != _FALLBACK_MODEL:
+                    break
+                raise
+        # 当前模型重试耗尽
+        if m == model and m != _FALLBACK_MODEL:
+            logger.warning(
+                "%s %d次重试后仍不可用，降级到 %s",
+                m, _MAX_RETRIES, _FALLBACK_MODEL,
+            )
+            continue
+        if last_err is not None:
+            raise last_err
     raise RuntimeError("所有模型均不可用")  # pragma: no cover
 
 
@@ -78,42 +100,61 @@ async def call_with_tools_and_fallback(
 ) -> tuple[str, str, tuple[str, ...], tuple[dict, ...]]:
     """Gemini + MCP 自动 function calling 循环。
 
+    503 时指数退避重试，重试耗尽后降级到 fallback。
+
     Returns (response_text, actual_model, tool_call_summaries, reasoning_chain)。
     """
+    import asyncio
+
     for m in (model, _FALLBACK_MODEL):
-        try:
-            response = await client.aio.models.generate_content(
-                model=m,
-                contents=prompt,
-                config=genai_types_module.GenerateContentConfig(
-                    system_instruction=system_prompt,
-                    temperature=temperature,
-                    tools=[session],
-                    automatic_function_calling=genai_types_module.AutomaticFunctionCallingConfig(
-                        maximum_remote_calls=max_tool_calls,
+        last_err = None
+        for attempt in range(_MAX_RETRIES):
+            try:
+                response = await client.aio.models.generate_content(
+                    model=m,
+                    contents=prompt,
+                    config=genai_types_module.GenerateContentConfig(
+                        system_instruction=system_prompt,
+                        temperature=temperature,
+                        tools=[session],
+                        automatic_function_calling=genai_types_module.AutomaticFunctionCallingConfig(
+                            maximum_remote_calls=max_tool_calls,
+                        ),
+                        thinking_config=genai_types_module.ThinkingConfig(
+                            thinking_budget=8192,
+                        ),
                     ),
-                    thinking_config=genai_types_module.ThinkingConfig(
-                        thinking_budget=8192,
-                    ),
-                ),
-            )
-            tool_calls, chain = extract_reasoning_chain(response)
-            return (
-                response.text or "",
-                m,
-                tuple(tool_calls),
-                tuple(chain),
-            )
-        except (
-            genai_errors_module.ServerError,
-            genai_errors_module.ClientError,
-        ):
-            if m == model and m != _FALLBACK_MODEL:
-                logger.warning(
-                    "%s 不可用，降级到 %s", m, _FALLBACK_MODEL,
                 )
-                continue
-            raise
+                tool_calls, chain = extract_reasoning_chain(response)
+                return (
+                    response.text or "",
+                    m,
+                    tuple(tool_calls),
+                    tuple(chain),
+                )
+            except genai_errors_module.ServerError as e:
+                last_err = e
+                if attempt < _MAX_RETRIES - 1:
+                    delay = _RETRY_BASE_DELAY * (2 ** attempt)
+                    logger.warning(
+                        "%s 503 (attempt %d/%d)，%d秒后重试",
+                        m, attempt + 1, _MAX_RETRIES, delay,
+                    )
+                    await asyncio.sleep(delay)
+                    continue
+                break
+            except genai_errors_module.ClientError:
+                if m == model and m != _FALLBACK_MODEL:
+                    break
+                raise
+        if m == model and m != _FALLBACK_MODEL:
+            logger.warning(
+                "%s %d次重试后仍不可用，降级到 %s",
+                m, _MAX_RETRIES, _FALLBACK_MODEL,
+            )
+            continue
+        if last_err is not None:
+            raise last_err
     raise RuntimeError("所有模型均不可用")  # pragma: no cover
 
 

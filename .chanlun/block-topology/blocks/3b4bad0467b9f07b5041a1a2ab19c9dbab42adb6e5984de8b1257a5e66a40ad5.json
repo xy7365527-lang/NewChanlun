@@ -1,0 +1,73 @@
+{
+  "id": "3b4bad0467b9f07b5041a1a2ab19c9dbab42adb6e5984de8b1257a5e66a40ad5",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T06:03:03.460553+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "a0920b87ac88992fcbdf1bc885c54c710a077a4105f0e8e87cb0d993ec6bcabf",
+    "content_analysis": {
+      "genealogy_id": "011",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "矛盾描述"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "原文依据"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "一级权威"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "关联证据"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "结论（语法记录）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "构造 vs 认知的对偶性"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "关键约束"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "对代码的影响"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        }
+      ],
+      "concepts": [],
+      "references": [
+        "008"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": "（语法记录）"
+    }
+  },
+  "refs": [
+    "a0920b87ac88992fcbdf1bc885c54c710a077a4105f0e8e87cb0d993ec6bcabf"
+  ],
+  "git_ref": ""
+}

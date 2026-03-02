@@ -1,0 +1,21 @@
+{
+  "id": "4b0f59def6bde46bbbfe2739c9034aa85ac797b12b247e39850dcb8c6814a066",
+  "type": "event",
+  "timestamp": "2026-03-02T07:07:41.959158+00:00",
+  "source": "migration",
+  "content": {
+    "id": "296",
+    "title": "新域诞生形式条件——质变不可形式化 + 数据作为候选新域 + 局部完备性 vs 全局运动",
+    "status": "已结算",
+    "type": "概念发现",
+    "date": "2026-03-01",
+    "depends_on": [
+      "292"
+    ],
+    "topo_effect": "在折叠拓扑框架上增加生成维度——拓扑本身可以被新域诞生改变；完全分类的完备性被限定为局部性质",
+    "tensions_with": [],
+    "source_file": "settled\\296-new-domain-genesis.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

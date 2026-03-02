@@ -115,3 +115,7 @@ rule_version_baseline:
 
 - 纯理论讨论蜂群的"达标"仅指模式识别的统计显著性，不等于 ceremony_scan 必须立即实现——实现时机由编排者决定
 - MCP 延迟型（~114秒后成功）与卡死型（永不返回）的根因可能不同——延迟可能是 Windows 下 Serena LSP 后端初始化慢，卡死可能是死锁
+
+### 下游推论解决记录（v133-swarm session）
+
+- 推论1（纯讨论型工位识别）：**deferred** — 观察型建议，ceremony_scan 中增加纯讨论型工位识别的实现时机由编排者决定

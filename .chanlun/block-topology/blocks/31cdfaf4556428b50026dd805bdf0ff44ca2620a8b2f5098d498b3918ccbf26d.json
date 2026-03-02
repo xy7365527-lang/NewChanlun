@@ -1,0 +1,65 @@
+{
+  "id": "31cdfaf4556428b50026dd805bdf0ff44ca2620a8b2f5098d498b3918ccbf26d",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:57:48.219743+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "98b57582b8798a56fc08a38ace67c7edbfae5ef63c880b841b5193ae6351aa05",
+    "content_analysis": {
+      "genealogy_id": "037",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "发现"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "结算条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "状态",
+          "definition": "已结算"
+        },
+        {
+          "term": "类型",
+          "definition": "语法记录（已在运作的规则显式化）"
+        }
+      ],
+      "references": [],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "98b57582b8798a56fc08a38ace67c7edbfae5ef63c880b841b5193ae6351aa05"
+  ],
+  "git_ref": ""
+}

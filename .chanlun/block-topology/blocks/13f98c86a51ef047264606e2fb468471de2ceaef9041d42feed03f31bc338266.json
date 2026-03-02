@@ -1,0 +1,224 @@
+{
+  "id": "13f98c86a51ef047264606e2fb468471de2ceaef9041d42feed03f31bc338266",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T06:04:26.216688+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "8e987c182dbeadfd5e906efd90adc10f0dfea772225939e41c5e6966a4f3ac5f",
+    "content_analysis": {
+      "genealogy_id": "292",
+      "sections": [
+        {
+          "level": 2,
+          "number": "1",
+          "title": "核心命题"
+        },
+        {
+          "level": 2,
+          "number": "2",
+          "title": "折叠定义"
+        },
+        {
+          "level": 2,
+          "number": "3",
+          "title": "折叠盘点"
+        },
+        {
+          "level": 3,
+          "number": "3",
+          "title": "1 四组折叠"
+        },
+        {
+          "level": 3,
+          "number": "3",
+          "title": "2 关键发现：E-C 无直接折叠"
+        },
+        {
+          "level": 3,
+          "number": "3",
+          "title": "3 折叠的共享性维度"
+        },
+        {
+          "level": 3,
+          "number": "3",
+          "title": "4 区间套顺序的自然导出"
+        },
+        {
+          "level": 2,
+          "number": "4",
+          "title": "折叠生命周期"
+        },
+        {
+          "level": 3,
+          "number": "4",
+          "title": "1 四阶段"
+        },
+        {
+          "level": 3,
+          "number": "4",
+          "title": "2 生命周期与 289号实验数据的对应"
+        },
+        {
+          "level": 3,
+          "number": "4",
+          "title": "3 OQ3 结算"
+        },
+        {
+          "level": 2,
+          "number": "5",
+          "title": "折叠与同一存在论"
+        },
+        {
+          "level": 2,
+          "number": "6",
+          "title": "边界条件"
+        },
+        {
+          "level": 3,
+          "number": "6",
+          "title": "1 折叠定义的有效域"
+        },
+        {
+          "level": 3,
+          "number": "6",
+          "title": "2 折叠生命周期的有效域"
+        },
+        {
+          "level": 3,
+          "number": "6",
+          "title": "3 OQ3 结算的条件"
+        },
+        {
+          "level": 3,
+          "number": "6",
+          "title": "4 区间套顺序的翻转条件"
+        },
+        {
+          "level": 2,
+          "number": "7",
+          "title": "下游推论"
+        },
+        {
+          "level": 3,
+          "number": "7",
+          "title": "1 对 254号的修正"
+        },
+        {
+          "level": 3,
+          "number": "7",
+          "title": "2 对操作方法论的含义"
+        },
+        {
+          "level": 3,
+          "number": "7",
+          "title": "3 OQ3 结算后的影响"
+        },
+        {
+          "level": 2,
+          "number": "8",
+          "title": "谱系引用"
+        },
+        {
+          "level": 2,
+          "number": "9",
+          "title": "影响声明"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "不修改代码"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "新增概念"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "对现有概念的修正"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "折叠",
+          "definition": "同一个对象在不同域中呈现不同的范畴身份。不是\"既是A又是B\"，是同一个存在在不同截面下的不同相位。"
+        }
+      ],
+      "references": [
+        "254",
+        "255",
+        "283",
+        "284",
+        "287",
+        "289",
+        "292"
+      ],
+      "new_concepts": [
+        {
+          "term": "折叠",
+          "qualifier": "fold",
+          "definition": "同一存在在不同截面下的不同相位"
+        },
+        {
+          "term": "折叠盘点",
+          "qualifier": "",
+          "definition": "四组折叠通道（Au, Oil, Bond, RE）"
+        },
+        {
+          "term": "E-C 无直接折叠",
+          "qualifier": "",
+          "definition": "权益与商品间的中转约束"
+        },
+        {
+          "term": "折叠共享性维度",
+          "qualifier": "",
+          "definition": "全局共享 > 半共享 > 经济体特有 > 地区特有"
+        },
+        {
+          "term": "区间套顺序的折叠根据",
+          "qualifier": "",
+          "definition": "共享折叠=外层，特有折叠=内层"
+        },
+        {
+          "term": "折叠生命周期四阶段",
+          "qualifier": "",
+          "definition": "稳定期/松动期/重新结算期/未结算期"
+        },
+        {
+          "term": "OQ3 结算",
+          "qualifier": "",
+          "definition": "基本面入语法（折叠生命周期阶段判定）"
+        }
+      ],
+      "modifications": [
+        {
+          "target_id": "254",
+          "target_desc": "K4 顶点划分",
+          "modification": "从操作便利驱动提升为折叠根据",
+          "kind": "refine"
+        },
+        {
+          "target_id": "254",
+          "target_desc": "OQ3",
+          "modification": "从\"基本面不入语法\"修正为\"基本面入语法（折叠生命周期阶段判定）\"",
+          "kind": "refine"
+        },
+        {
+          "target_id": "254",
+          "target_desc": "定理3（黄金折叠）",
+          "modification": "获得更基本的折叠本体论解释",
+          "kind": "unknown"
+        }
+      ],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": "分类学处理不了折叠。拓扑应该从折叠出发建，不是从分类出发建。矩阵划分是折叠的推论，不是折叠的前提。"
+    }
+  },
+  "refs": [
+    "8e987c182dbeadfd5e906efd90adc10f0dfea772225939e41c5e6966a4f3ac5f"
+  ],
+  "git_ref": ""
+}

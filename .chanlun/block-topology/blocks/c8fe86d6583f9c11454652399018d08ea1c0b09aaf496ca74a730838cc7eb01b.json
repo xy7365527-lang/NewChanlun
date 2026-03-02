@@ -1,0 +1,88 @@
+{
+  "id": "c8fe86d6583f9c11454652399018d08ea1c0b09aaf496ca74a730838cc7eb01b",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T06:03:03.893059+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "624ea9936082b8a14112dd5850252c4d0bbb8c2e422ddae8a2b703b677fd12d6",
+    "content_analysis": {
+      "genealogy_id": "172",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "命题"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "映射分析"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "Gemini 异质否定（有效部分）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "Gemini 异质否定（需修正部分）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "结算后的精确表述"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "无主体",
+          "definition": "蜂群/计算系统没有\"主体\"可言，\"不可逆性\"退化为纯时间序列依赖。**判定：部分成立。** 蜂群确实不具备人类主体的结构（遗忘、误读、无意识），但\"无主体\"不等于\"无效果差异\"——DAG 偏序关系虽然不是主体历史性，但确实使不同顺序产生不同的推导路径（如：先结算005b再结算090，vs 假设先结算090再结算005b，产出不同的谱系结构）。"
+        },
+        {
+          "term": "无损记忆取消不可逆性",
+          "definition": "蜂群可以完整回溯历史，人类不能\"取消\"读过的书。**判定：成立。** 这是映射在主体历史性层面断裂的精确原因。但需注意：原文讨论的三条路径之一是\"衰变\"（第1362-1375行），如果谱系记忆实现了有损衰变（物质性遗忘），这一否定的前提将被动摇。"
+        },
+        {
+          "term": "谱系不可逆性不等同于主体历史性",
+          "definition": "蜂群无遗忘/误读/无意识重构，不能声称拥有与人类阅读同构的不可逆性"
+        },
+        {
+          "term": "有损记忆作为潜在桥梁",
+          "definition": "如果蜂群实现了物质性衰变（原文路径三），则不可逆性获得新的结构基础——系统无法完美回溯，旧概念在回忆中已经被当前语境扭曲"
+        }
+      ],
+      "references": [
+        "068"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {
+        "negation_source": "heterogeneous",
+        "negation_form": "separation"
+      },
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "624ea9936082b8a14112dd5850252c4d0bbb8c2e422ddae8a2b703b677fd12d6"
+  ],
+  "git_ref": ""
+}

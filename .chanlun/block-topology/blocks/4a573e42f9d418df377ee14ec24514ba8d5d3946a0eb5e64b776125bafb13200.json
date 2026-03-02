@@ -1,0 +1,73 @@
+{
+  "id": "4a573e42f9d418df377ee14ec24514ba8d5d3946a0eb5e64b776125bafb13200",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:57:48.221493+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "ab7ffa0469ddee652f0571646b71b03e4147054c4f49c5935679e9a7ef4539d9",
+    "content_analysis": {
+      "genealogy_id": "038",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "偏差描述"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "为什么是 bias-correction 而非语法记录"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "纠正措施"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "状态",
+          "definition": "已结算"
+        },
+        {
+          "term": "类型",
+          "definition": "bias-correction"
+        },
+        {
+          "term": "Kiro 偏差",
+          "definition": "spawn 了工位但不赋予实质任务（走形式跳实质）"
+        },
+        {
+          "term": "2026-02-19 偏差",
+          "definition": "完全不 spawn 工位（连形式都跳过）"
+        }
+      ],
+      "references": [],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "ab7ffa0469ddee652f0571646b71b03e4147054c4f49c5935679e9a7ef4539d9"
+  ],
+  "git_ref": ""
+}

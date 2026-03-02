@@ -1,0 +1,67 @@
+{
+  "id": "4e3de7109ffd3224434ad0e09567cb374ab2cd1a38ebf0cc2a5e99acb7540a28",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:57:48.215085+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "f652431c70d12056d521e1d463de2193593c1d795898f3ce6cdf55683d570ab3",
+    "content_analysis": {
+      "genealogy_id": "035",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "矛盾/发现"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "当前产出"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "来源 PDF 清单"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "结算条件"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "状态",
+          "definition": "已结算"
+        },
+        {
+          "term": "类型",
+          "definition": "语法记录（已在运作的规则显式化：数学语言与缠论语言的对应关系）"
+        }
+      ],
+      "references": [
+        "011"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "f652431c70d12056d521e1d463de2193593c1d795898f3ce6cdf55683d570ab3"
+  ],
+  "git_ref": ""
+}

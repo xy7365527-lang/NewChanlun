@@ -1,0 +1,118 @@
+{
+  "id": "5c239378b6c63a4fd282c1fa4511482802b9cb7193010dcc13b31da3bb21978b",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T06:03:03.478999+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "fb186b9f23288be4b1484c4dcd5236f407758476e03d1c97357f9f5c357f1a13",
+    "content_analysis": {
+      "genealogy_id": "019b",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "矛盾描述"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "发现过程"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "故障场景"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "关键发现"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "修复方向"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "三层防线"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "阈值为3的依据"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "与016的关系"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "实施记录"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "来源"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "退回循环会造成死锁",
+          "definition": "谱系工位在循环解决前无法介入，但循环可能需要谱系工位的同构性检测才能终止。"
+        },
+        {
+          "term": "上下文消耗严重",
+          "definition": "每轮退回-修正约 7000-13000 tokens，3轮可达 40000 tokens——超过 ceremony 冷启动的 2-4 倍。"
+        },
+        {
+          "term": "父",
+          "definition": "019-loop-breakpoint-coverage（本条是 019 的子发现 G3）"
+        },
+        {
+          "term": "第一轮实施",
+          "definition": "三层防线（阈值=3）"
+        },
+        {
+          "term": "第二轮重构（020号存在论位移）",
+          "definition": "从固定阈值改为**结构完成检测**——质询K线（每轮退回=一根K线，High/Low/实体映射），背驰（净新区分递减）+ 分型（范围先扩后缩）= 循环结构完成。3的身份从\"阈值\"变为\"分型最小数据量\"（结构必然性）。"
+        },
+        {
+          "term": "保留",
+          "definition": "锚定条件要求——无锚定退回=语法不合法（005a同构）"
+        }
+      ],
+      "references": [
+        "020"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "fb186b9f23288be4b1484c4dcd5236f407758476e03d1c97357f9f5c357f1a13"
+  ],
+  "git_ref": ""
+}

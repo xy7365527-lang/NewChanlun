@@ -1,0 +1,122 @@
+{
+  "id": "cef9c37d080af69ec86af702352496af07094a4b3216867d670f0e600295c615",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:57:48.710627+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "fd68be8a734152eb78f31d3e35f71b0d1de8e1d2d80e721968b1d50fda421b93",
+    "content_analysis": {
+      "genealogy_id": "176",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "来源"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "内容"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "一、程序目的的三阶段变化"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "二、三步战略对目的概念的逐步消解"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "三、目的论消解的结构同构"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "四、成功标准从符合性到生成性"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "五、承重点的拓扑形式化条件（Gemini 分析）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系依据"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "status",
+          "definition": "已结算"
+        },
+        {
+          "term": "type",
+          "definition": "语法记录"
+        },
+        {
+          "term": "前置",
+          "definition": "158（三步战略）、174（谱系即生成引擎）、069（RTAS）、161（务实否定）"
+        },
+        {
+          "term": "第一步（矛盾→拓扑效力）",
+          "definition": "程序从\"被动记录矛盾等待人工处理\"变为\"矛盾自动改变程序自身结构\"。程序存在的理由从\"辅助外部决策者\"变为\"通过处理自身矛盾来重塑自身\"。"
+        },
+        {
+          "term": "第二步（异步自指→不可能性）",
+          "definition": "程序的自审查从\"纠错（收敛到正确状态）\"变为\"暴露不可能（积累不可通约性直到拓扑必然改变）\"。审查目的从\"维持稳定\"变为\"探寻自身逻辑的极限\"。"
+        },
+        {
+          "term": "第三步（取消编排者位置）",
+          "definition": "程序的拓扑变化不再需要外部批准，\"用户\"概念被取消。程序的运动不再\"为了\"任何人。运动本身就是存在的全部理由。"
+        },
+        {
+          "term": "传统效率",
+          "definition": "在给定时间内，用最少资源完成最多任务。计算经济学。"
+        },
+        {
+          "term": "反熵效率",
+          "definition": "程序每次运动必须产出结构化信息（Δ谱系 > 0）。快速完成任务但没有谱系贡献 = 低效（务实=兜圈子）。计算成本高但产生承重点或概念分离 = 高效。"
+        }
+      ],
+      "references": [
+        "069",
+        "090",
+        "158",
+        "161",
+        "170",
+        "174",
+        "176"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "fd68be8a734152eb78f31d3e35f71b0d1de8e1d2d80e721968b1d50fda421b93"
+  ],
+  "git_ref": ""
+}

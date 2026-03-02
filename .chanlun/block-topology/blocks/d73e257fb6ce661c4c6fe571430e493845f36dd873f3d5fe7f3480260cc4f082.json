@@ -1,0 +1,23 @@
+{
+  "id": "d73e257fb6ce661c4c6fe571430e493845f36dd873f3d5fe7f3480260cc4f082",
+  "type": "event",
+  "timestamp": "2026-03-02T07:07:41.947836+00:00",
+  "source": "migration",
+  "content": {
+    "id": "286",
+    "title": "元观察——v130 session OQ v2 四实验并行执行 + 跨实验交叉验证涌现",
+    "status": "已结算",
+    "type": "meta-rule",
+    "date": "2026-03-01",
+    "depends_on": [
+      "285",
+      "284",
+      "283"
+    ],
+    "topo_effect": "",
+    "tensions_with": [],
+    "source_file": "settled\\286-meta-observation-v130-experiments.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,23 @@
+{
+  "id": "7f36e499417f94ca635ec24aae3e4349c1f51587a9a5a7313a756deeacdb872d",
+  "type": "event",
+  "timestamp": "2026-03-02T07:07:41.910137+00:00",
+  "source": "migration",
+  "content": {
+    "id": "252",
+    "title": "递归 1min 深度验证",
+    "status": "settled",
+    "type": "经验验证",
+    "date": "2026-02-28",
+    "depends_on": [
+      "250",
+      "249",
+      "246",
+      "229",
+      "238"
+    ],
+    "source_file": "settled\\252-recursive-1min-depth-validation.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

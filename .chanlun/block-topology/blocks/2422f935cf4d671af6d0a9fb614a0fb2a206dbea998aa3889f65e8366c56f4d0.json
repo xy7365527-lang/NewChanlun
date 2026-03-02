@@ -1,0 +1,78 @@
+{
+  "id": "2422f935cf4d671af6d0a9fb614a0fb2a206dbea998aa3889f65e8366c56f4d0",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:57:48.183212+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "39683f0a8a938df8cbcedd6d9473088fc89cd61509a13f1d824bc6724b3bad31",
+    "content_analysis": {
+      "genealogy_id": "028",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "矛盾现象"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "已结算原则"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "类型",
+          "definition": "语法记录"
+        },
+        {
+          "term": "状态",
+          "definition": "已结算"
+        },
+        {
+          "term": "前置",
+          "definition": "027-positive-instruction-over-prohibition"
+        },
+        {
+          "term": "027",
+          "definition": "正面指令优于禁止性规则（本条的前置原则）"
+        },
+        {
+          "term": "020",
+          "definition": "ceremony 本体论定位（ceremony 是相位转换节点）"
+        },
+        {
+          "term": "post-commit-flow",
+          "definition": "同一病灶的 commit 端修复"
+        }
+      ],
+      "references": [
+        "027"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "39683f0a8a938df8cbcedd6d9473088fc89cd61509a13f1d824bc6724b3bad31"
+  ],
+  "git_ref": ""
+}

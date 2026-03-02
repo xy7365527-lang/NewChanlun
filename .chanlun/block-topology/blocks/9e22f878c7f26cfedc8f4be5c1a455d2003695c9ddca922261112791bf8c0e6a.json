@@ -1,0 +1,129 @@
+{
+  "id": "9e22f878c7f26cfedc8f4be5c1a455d2003695c9ddca922261112791bf8c0e6a",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:57:48.266501+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "06bae682967019370083fb93cc49014daee9650abe114d7efeb7fe0963b87afa",
+    "content_analysis": {
+      "genealogy_id": "048",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "现象"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "Gemini 决策"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "已结算原则"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "熔断机制"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "扫描优先级（注入指令时）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "被否定的方案"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "类型",
+          "definition": "语法记录"
+        },
+        {
+          "term": "状态",
+          "definition": "已结算"
+        },
+        {
+          "term": "negation_source",
+          "definition": "heterogeneous（Gemini 编排者代理 decide + 人类编排者观察）"
+        },
+        {
+          "term": "negation_form",
+          "definition": "expansion（044号\"ceremony 专用 Stop hook\"泛化为全场景覆盖）"
+        },
+        {
+          "term": "前置",
+          "definition": "044-phase-transition-runtime, 016-runtime-enforcement-layer, 028-ceremony-default-action"
+        },
+        {
+          "term": "关联",
+          "definition": "045-no-structure-no-task, 046-one-domain-one-role, 027-positive-instruction-over-prohibition"
+        },
+        {
+          "term": "逐场景 hook",
+          "definition": "O(N) 复杂度，每个新场景需要新 hook，\"等待\"会从未覆盖的场景冒出"
+        },
+        {
+          "term": "纯文本规则",
+          "definition": "016号已证明文本层规则不足以对抗生成惯性"
+        },
+        {
+          "term": "CLAUDE.md 规则强化",
+          "definition": "同上，文本层无 runtime 强制力"
+        }
+      ],
+      "references": [
+        "016",
+        "027",
+        "028",
+        "044"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [
+        {
+          "target_id": "",
+          "target_desc": "逐场景 hook",
+          "negation_type": "rejected_plan"
+        },
+        {
+          "target_id": "",
+          "target_desc": "纯文本规则",
+          "negation_type": "rejected_plan"
+        },
+        {
+          "target_id": "",
+          "target_desc": "CLAUDE.md 规则强化",
+          "negation_type": "rejected_plan"
+        }
+      ],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "06bae682967019370083fb93cc49014daee9650abe114d7efeb7fe0963b87afa"
+  ],
+  "git_ref": ""
+}

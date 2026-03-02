@@ -1,0 +1,22 @@
+{
+  "id": "3f5c8e7518c2a37f34cd0603034483ab15724e47448622422ad1ae8ac81f6019",
+  "type": "event",
+  "timestamp": "2026-03-02T07:07:41.926575+00:00",
+  "source": "migration",
+  "content": {
+    "id": "267",
+    "title": "操作方法论 v1——满仓满融降成本体系",
+    "status": "settled",
+    "type": "操作方法论",
+    "date": "2026-02-28",
+    "depends_on": [
+      "254",
+      "265",
+      "235",
+      "232"
+    ],
+    "source_file": "settled\\267-operational-methodology-v1.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}
