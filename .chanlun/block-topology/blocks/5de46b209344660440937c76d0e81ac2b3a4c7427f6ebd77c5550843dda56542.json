@@ -1,0 +1,19 @@
+{
+  "id": "5de46b209344660440937c76d0e81ac2b3a4c7427f6ebd77c5550843dda56542",
+  "type": "event",
+  "timestamp": "2026-03-02T02:00:42.388417+00:00",
+  "source": "cc",
+  "content": {
+    "genealogy_id": "298",
+    "title": "折叠拓扑的有限元对应——镜子不是工具",
+    "type": "theory",
+    "status": "已结算",
+    "depends_on": [
+      "292",
+      "233",
+      "235"
+    ]
+  },
+  "refs": [],
+  "git_ref": ""
+}

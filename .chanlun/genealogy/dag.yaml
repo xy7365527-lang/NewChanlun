@@ -1494,6 +1494,21 @@ nodes:
   status: 已结算
   type: 理论形式化
   file: settled/292-fold-topology-ontology.md
+- id: '298'
+  title: 折叠拓扑的有限元对应——残差分析与网格呼吸
+  status: 已结算
+  type: theory
+  file: settled/298-fold-topology-fem-correspondence.md
+- id: '299'
+  title: 时空有限元与折叠生命周期——Gemini 空间力学类比的时间维度补完
+  status: settled
+  type: theory
+  file: settled/299-spacetime-fem-fold-lifecycle.md
+- id: '300'
+  title: 测度论与折叠拓扑的统一——度量骨架与拓扑骨架的互构
+  status: settled
+  type: theory
+  file: settled/300-measure-fold-integration.md
 edges:
   depends_on:
   - from: '136'
@@ -3058,6 +3073,26 @@ edges:
     to: '284'
   - from: '292'
     to: '287'
+  - from: '298'
+    to: '292'
+  - from: '298'
+    to: '233'
+  - from: '298'
+    to: '235'
+  - from: '299'
+    to: '292'
+  - from: '299'
+    to: '295'
+  - from: '299'
+    to: '298'
+  - from: '300'
+    to: '283'
+  - from: '300'
+    to: '292'
+  - from: '300'
+    to: '298'
+  - from: '300'
+    to: '296'
   triggered:
   - from: '005'
     to: 005a
