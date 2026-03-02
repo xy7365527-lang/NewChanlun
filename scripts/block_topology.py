@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import functools
 import hashlib
 import json
 import re
@@ -55,9 +56,71 @@ RELATION_TYPES = frozenset({
 # supersedes 不纳入：坍缩不可逆，不是有效性变更而是替代
 VALIDITY_CAPABLE_RELATIONS = frozenset({"negates", "revises"})
 
+# --- Layer Classification ---
+
+LAYER_MAP: dict[str, int] = {
+    # Layer 1（逻辑层）
+    "depends_on": 1, "negates": 1, "negated_by": 1, "supersedes": 1,
+    "residue_of": 1, "reopens": 1, "tensions_with": 1,
+    "freezes": 1, "splits": 1, "severs": 1,
+    # Layer 2（导航层）
+    "references": 2, "defines": 2, "modifies": 2,
+    "refines": 2, "revises": 2, "annotates": 2,
+    # Layer 3（元数据层）
+    "records": 3, "related": 3,
+}
+
+
+def classify_layer(relation_type: str) -> int:
+    """关系类型 → 层编号。未知类型抛 ValueError。"""
+    try:
+        return LAYER_MAP[relation_type]
+    except KeyError:
+        raise ValueError(f"Unknown relation type: {relation_type}")
+
+
 DEFAULT_BASE = Path(".chanlun/block-topology")
 
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+
+
+@functools.lru_cache(maxsize=1)
+def get_block_mapping(
+    base: Path = DEFAULT_BASE,
+) -> tuple[dict[str, int], dict[int, str]]:
+    """block_id <-> genealogy_number 双向映射。进程级缓存。
+
+    从 blocks 目录读取所有区块 JSON，提取 genealogy_number。
+    查找顺序：content.genealogy_number → content.number → content.id（数字字符串）。
+    没有 genealogy_number 的区块（如 rewrite 类型）不纳入映射。
+    """
+    id2num: dict[str, int] = {}
+    num2id: dict[int, str] = {}
+    blocks_dir = base / "blocks"
+    if not blocks_dir.exists():
+        return id2num, num2id
+    for f in blocks_dir.iterdir():
+        if f.suffix != ".json":
+            continue
+        blk = json.loads(f.read_text(encoding="utf-8"))
+        bid = blk.get("id", f.stem)
+        content = blk.get("content", {})
+        num = content.get("genealogy_number") or content.get("number")
+        if num is None:
+            # Fallback: content.id that looks numeric (migration blocks)
+            cid = content.get("id")
+            if isinstance(cid, str) and cid.isdigit():
+                num = cid
+            elif isinstance(cid, int):
+                num = cid
+        if num is not None:
+            try:
+                num = int(num)
+            except (ValueError, TypeError):
+                continue
+            id2num[bid] = num
+            num2id[num] = bid
+    return id2num, num2id
 
 
 def make_concept_id(term: str) -> str:
