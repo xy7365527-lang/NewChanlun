@@ -22,6 +22,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from block_topology import (
     DEFAULT_BASE,
+    classify_layer,
     read_all_relations,
     read_block,
     get_block_mapping,
@@ -95,11 +96,26 @@ def query_block(
         if edge_list.get("mark") == "critical":
             critical_in += 1
 
+    # layer（区块的关系层级：基于出边关系类型中最高层级）
+    layers: set[int] = set()
+    for rtype in out_edges:
+        try:
+            layers.add(classify_layer(rtype))
+        except ValueError:
+            pass
+    for rtype in in_edges:
+        try:
+            layers.add(classify_layer(rtype))
+        except ValueError:
+            pass
+    layer = min(layers) if layers else None
+
     return {
         "block_id": block_id,
         "genealogy_number": genealogy_number,
         "title": title,
         "type": block_type,
+        "layer": layer,
         "status": status,
         "out_edges": out_edges,
         "in_edges": in_edges,
@@ -114,6 +130,7 @@ def query_block(
 def query_pair(
     src: str,
     dst: str,
+    morse: MorseLandscape | None = None,
     base: Path = DEFAULT_BASE,
 ) -> dict | None:
     """BFS 最短路径（references 无向图）。不可达返回 None。"""
@@ -155,12 +172,11 @@ def query_pair(
             new_nodes = path_nodes + [neighbor]
             new_edges = path_edges + [edge_key]
             if neighbor == dst:
-                # 构建 morse marks（需要 morse landscape，但签名中无 morse 参数）
-                # 从 relations 中重建 edge_marks
-                morse = build_morse_landscape(
-                    relations_path=base / "relations.jsonl",
-                    cache_path=None,
-                )
+                # 构建 morse marks
+                if morse is None:
+                    morse = build_morse_landscape(
+                        relations_path=base / "relations.jsonl",
+                    )
                 marks = [
                     morse.edge_marks.get(ek, "tree") for ek in new_edges
                 ]
