@@ -1,0 +1,154 @@
+{
+  "id": "7e650cb38efdfe22c8cd11fdb644c394a6864c9236b68e51c024ba25d939f20f",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:57:48.937779+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "e5f5b57688dac651b4bf498cf5400fb1dd7402b5765548adf7570a56e7a76e91",
+    "content_analysis": {
+      "genealogy_id": "262",
+      "sections": [
+        {
+          "level": 2,
+          "number": "1",
+          "title": "结论"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "六条边稳定性分类"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "综合对比表"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "代理敏感性发现"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "石油结论（Step 2）"
+        },
+        {
+          "level": 2,
+          "number": "2",
+          "title": "定义依据"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "方法论"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "阈值敏感性"
+        },
+        {
+          "level": 2,
+          "number": "3",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "4",
+          "title": "下游推论"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "262-1：234号勘误（已执行）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "262-2：E-C 独立是黄金特有属性"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "262-3：层 0 结算通道权重需要非缠论数据源"
+        },
+        {
+          "level": 2,
+          "number": "5",
+          "title": "谱系引用"
+        },
+        {
+          "level": 2,
+          "number": "6",
+          "title": "影响声明"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "修改"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "新增数据"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "不修改"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "数据源",
+          "definition": "yfinance（Alpha Vantage 不提供黄金现货历史数据）"
+        },
+        {
+          "term": "标的",
+          "definition": "SPY(E) / C代理(GLD, GC=F, DBA, BZ=F) / TLT(R) / UUP($)"
+        },
+        {
+          "term": "连续层",
+          "definition": "日对数收益率 Pearson + 偏相关（控制其余两标的）"
+        },
+        {
+          "term": "离散层",
+          "definition": "BiEngine（new笔模式）逐bar方向 → 线性回归 beta"
+        },
+        {
+          "term": "分类器阈值依赖",
+          "definition": "kernel_threshold=0.05 是硬编码常量。如果调高到 0.065，R-$ 和 C-$ 全部变为 amplitude；如果调低到 0.009，全部变为 direction。阈值选择不改变物理现象，但改变分类语义。"
+        },
+        {
+          "term": "数据源差异",
+          "definition": "yfinance vs Alpha Vantage 的日线数据可能有微小差异（除权处理、交易日定义），但不影响分类级别的结论。"
+        },
+        {
+          "term": "时间窗口",
+          "definition": "所有实验使用 2007-03 ~ 2026-02 窗口。不同时间窗口可能改变阈值边界边的分类。"
+        }
+      ],
+      "references": [
+        "231",
+        "232",
+        "234",
+        "235",
+        "259",
+        "262"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {
+        "negation_form": "对象否定——v109 否定的不是 234号结论，而是 234号分类结论的代理无关性假设"
+      },
+      "conclusion_summary": "v109 三步实验（GC=F/DBA/BZ=F 替代 GLD）+ 修正后 234号基线，四组数据综合结论："
+    }
+  },
+  "refs": [
+    "e5f5b57688dac651b4bf498cf5400fb1dd7402b5765548adf7570a56e7a76e91"
+  ],
+  "git_ref": ""
+}

@@ -1,0 +1,156 @@
+{
+  "id": "8ac3a9c7d0e52ae73635e3cc67a18dde8e82a90edd58786d257fdd8e9ca0a001",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T06:04:26.150512+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "86c0729d3439774b8e3098d92cf3b1aae0bc3e54a803a99ab88ebb3e8f35acf4",
+    "content_analysis": {
+      "genealogy_id": "273",
+      "sections": [
+        {
+          "level": 2,
+          "number": "1",
+          "title": "来源"
+        },
+        {
+          "level": 2,
+          "number": "2",
+          "title": "核心概念形式化"
+        },
+        {
+          "level": 3,
+          "number": "2",
+          "title": "1 否定边"
+        },
+        {
+          "level": 3,
+          "number": "2",
+          "title": "2 边有效性标记"
+        },
+        {
+          "level": 3,
+          "number": "2",
+          "title": "3 否定之否定（扬弃的拓扑表达）"
+        },
+        {
+          "level": 3,
+          "number": "2",
+          "title": "4 否定的拓扑分类"
+        },
+        {
+          "level": 3,
+          "number": "2",
+          "title": "5 节点状态推导规则"
+        },
+        {
+          "level": 2,
+          "number": "3",
+          "title": "relations.jsonl Schema 扩展"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "现有 schema（negates 类型边）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "扩展后 schema"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "向后兼容"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "negated_by 反向边"
+        },
+        {
+          "level": 2,
+          "number": "4",
+          "title": "与 089号扬弃的关系"
+        },
+        {
+          "level": 2,
+          "number": "5",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "6",
+          "title": "影响声明"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "修改"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "新增"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "谱系引用"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "定义",
+          "definition": "否定边是有向边 `(source, ¬, target)`，表示源节点 source 对目标节点 target 的否定关系。"
+        },
+        {
+          "term": "默认值",
+          "definition": "所有新创建的否定边，`validity` 默认为 `active`。"
+        },
+        {
+          "term": "不可变性",
+          "definition": "validity 只能从 `active` 变为 `invalidated`，不可反向。这不是\"边反转\"，是边的单向状态转移。"
+        },
+        {
+          "term": "错误表述",
+          "definition": "~~A→¬B 的边方向反转为 B→¬A~~"
+        },
+        {
+          "term": "正确表述",
+          "definition": "A→¬B 的有效性标记从 active 变为 invalidated。B 被动复活，不是 B 主动否定了 A"
+        },
+        {
+          "term": "多重否定链",
+          "definition": "如果 D→¬C，是否 C→¬A 也应该被 invalidated，从而 A→¬B 重新变为 active？答：不自动传播。否定之否定只作用于直接的否定链（A→¬B），不递归传播。如果需要递归传播，需要作为独立的谱系议题讨论"
+        },
+        {
+          "term": "多重否定边指向同一节点",
+          "definition": "如果 A→¬B 和 D→¬B 同时存在且都是 active，C→¬A 只 invalidate A→¬B，D→¬B 仍然 active，B 仍然是 negated。节点状态由所有 active 否定边的并集决定"
+        },
+        {
+          "term": "已经 invalidated 的边不能被再次 invalidated",
+          "definition": "幂等操作，不报错但不改变状态"
+        }
+      ],
+      "references": [
+        "005",
+        "005b",
+        "089",
+        "271",
+        "272",
+        "273"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "86c0729d3439774b8e3098d92cf3b1aae0bc3e54a803a99ab88ebb3e8f35acf4"
+  ],
+  "git_ref": ""
+}

@@ -1,0 +1,99 @@
+{
+  "id": "33cccddc3e6543b58012c1110bef1efb14400f61a8eb37779a93a11b100a88a1",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:57:48.134461+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "658b3a086659a946de4a00f41184c5c022049a6a0a9b445bb701b3723e5c2977",
+    "content_analysis": {
+      "genealogy_id": "019a",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "矛盾描述"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "结算"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "G1 — 已修复"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "G2 — 缺口已识别，方案已记录，等实际触发"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "来源"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "状态",
+          "definition": "已结算"
+        },
+        {
+          "term": "类型",
+          "definition": "meta-rule"
+        },
+        {
+          "term": "溯源",
+          "definition": "[新缠论]"
+        },
+        {
+          "term": "域",
+          "definition": "元编排方法论（状态持久化）"
+        },
+        {
+          "term": "轮次汇总丢失（G1）",
+          "definition": "蜂群每轮完成后的汇总结果只在上下文中，不写文件系统。compact 发生在\"上轮汇总完、下轮未开始\"的间隙时，本轮发现丢失。"
+        },
+        {
+          "term": "形式化进度丢失（G2）",
+          "definition": "概念分离后，两个口径的实现进度没有结构化记录。session 中断点是自由文本，不是可解析的口径状态。"
+        },
+        {
+          "term": "父",
+          "definition": "019-loop-breakpoint-coverage（本条是 019 的子发现 G1+G2）"
+        },
+        {
+          "term": "前置",
+          "definition": "017-session-as-pointer（解决了容量膨胀，未解决时序断点）"
+        }
+      ],
+      "references": [],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "658b3a086659a946de4a00f41184c5c022049a6a0a9b445bb701b3723e5c2977"
+  ],
+  "git_ref": ""
+}

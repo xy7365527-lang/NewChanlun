@@ -1,0 +1,82 @@
+{
+  "id": "8eff7e69e06b07c0b306ef76c816ced96c7783c3d5aef9bdd7117ecee0707eda",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:57:48.635578+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "e48dde4a72680db54e72edbc0f9c8b62ba1c6fe766ec298eaf4e6088af5609b4",
+    "content_analysis": {
+      "genealogy_id": "157",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "矛盾发现"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "决断"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "结算：否定"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系依据"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "status",
+          "definition": "已结算"
+        },
+        {
+          "term": "type",
+          "definition": "语法记录（编排者 INTERRUPT）"
+        },
+        {
+          "term": "negates",
+          "definition": "无（对规则文件中隐含分类的否定）"
+        },
+        {
+          "term": "前置",
+          "definition": "156-negate-ceremony-empty-swarm-path, 055-no-simple-task-exemption"
+        }
+      ],
+      "references": [
+        "055",
+        "156",
+        "157"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "e48dde4a72680db54e72edbc0f9c8b62ba1c6fe766ec298eaf4e6088af5609b4"
+  ],
+  "git_ref": ""
+}

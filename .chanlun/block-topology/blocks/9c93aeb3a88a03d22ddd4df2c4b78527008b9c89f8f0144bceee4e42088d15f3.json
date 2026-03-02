@@ -1,0 +1,73 @@
+{
+  "id": "9c93aeb3a88a03d22ddd4df2c4b78527008b9c89f8f0144bceee4e42088d15f3",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T06:04:25.825557+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "e137ed633be72382834c11d82913453f5b91eb19151aa7804773eeddab3cb79d",
+    "content_analysis": {
+      "genealogy_id": "161",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "来源"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "内容"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "否定链"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "与黑洞拓扑的结构对应"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系依据"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        }
+      ],
+      "concepts": [],
+      "references": [
+        "087",
+        "089",
+        "090",
+        "136",
+        "158",
+        "161"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "e137ed633be72382834c11d82913453f5b91eb19151aa7804773eeddab3cb79d"
+  ],
+  "git_ref": ""
+}

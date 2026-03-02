@@ -1,0 +1,24 @@
+{
+  "id": "9b1b70b1fa5bf0a6a732f3d3d7861e662cf0709fa7bbe1d4bf3860109337b967",
+  "type": "event",
+  "timestamp": "2026-03-02T07:07:41.944717+00:00",
+  "source": "migration",
+  "content": {
+    "id": "283",
+    "title": "测度论作为元语言——资本流转拓扑与缠论动力学的统一阅读",
+    "status": "已结算",
+    "type": "概念发现",
+    "date": "2026-03-01",
+    "depends_on": [
+      "279",
+      "269",
+      "108",
+      "237"
+    ],
+    "topo_effect": "279号推论3修正——旧语言（噪声/降权/前置层/强度）全部替换为缠论内在语法",
+    "tensions_with": [],
+    "source_file": "settled\\283-measure-theory-as-metalanguage.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

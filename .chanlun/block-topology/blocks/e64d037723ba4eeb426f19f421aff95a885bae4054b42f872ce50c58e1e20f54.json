@@ -1,0 +1,20 @@
+{
+  "id": "e64d037723ba4eeb426f19f421aff95a885bae4054b42f872ce50c58e1e20f54",
+  "type": "event",
+  "timestamp": "2026-03-02T07:07:41.880384+00:00",
+  "source": "migration",
+  "content": {
+    "id": "217",
+    "title": "元观察——v56-swarm 并行工位隐式依赖 + ceremony_scan 误报模式",
+    "status": "已结算",
+    "type": "meta-rule",
+    "date": "2026-02-26",
+    "depends_on": [
+      "216",
+      "175"
+    ],
+    "source_file": "settled\\217-meta-observation-v56-swarm.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

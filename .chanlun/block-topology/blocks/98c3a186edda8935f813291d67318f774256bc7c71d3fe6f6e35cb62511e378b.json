@@ -1,0 +1,25 @@
+{
+  "id": "98c3a186edda8935f813291d67318f774256bc7c71d3fe6f6e35cb62511e378b",
+  "type": "event",
+  "timestamp": "2026-03-02T07:07:41.969573+00:00",
+  "source": "migration",
+  "content": {
+    "id": "306",
+    "title": "元观察——Phase 2 图不变量实现 session（compute_graph_invariants + is_structurally_significant 接口预留）",
+    "status": "已结算",
+    "type": "meta-rule",
+    "date": "2026-03-02",
+    "depends_on": [
+      "305",
+      "304",
+      "302",
+      "273",
+      "218",
+      "137",
+      "090"
+    ],
+    "source_file": "settled\\306-meta-observation-phase2-graph-invariants.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -8,6 +8,7 @@
 5. derive() 调用链和返回结构
 6. 模块级便捷函数
 7. CLI 入口参数解析
+8. 503 重试逻辑（指数退避 + 重试耗尽后降级）
 """
 
 from __future__ import annotations
@@ -22,6 +23,7 @@ from newchan.gemini_challenger import (
     ChallengeResult,
     GeminiChallenger,
 )
+from newchan.gemini.engine import _MAX_RETRIES
 
 
 class TestGeminiChallengerInit:
@@ -168,13 +170,15 @@ class TestDecide:
             mock_503 = ServerError(503, {"error": {"message": "unavailable"}})
             mock_ok = MagicMock()
             mock_ok.text = "fallback decide"
+            # 主模型重试 _MAX_RETRIES 次全部 503，然后 fallback 成功
             mock_client.models.generate_content.side_effect = [
-                mock_503,
+                *[mock_503] * _MAX_RETRIES,
                 mock_ok,
             ]
 
-            c = GeminiChallenger(api_key="test")
-            result = c.decide("test subject")
+            with patch("newchan.gemini.engine.time.sleep"):
+                c = GeminiChallenger(api_key="test")
+                result = c.decide("test subject")
 
             assert result.model == "gemini-2.5-pro"
             assert result.response == "fallback decide"
@@ -238,12 +242,13 @@ class TestDerive:
             mock_ok = MagicMock()
             mock_ok.text = "fallback derive"
             mock_client.models.generate_content.side_effect = [
-                mock_503,
+                *[mock_503] * _MAX_RETRIES,
                 mock_ok,
             ]
 
-            c = GeminiChallenger(api_key="test")
-            result = c.derive("test statement")
+            with patch("newchan.gemini.engine.time.sleep"):
+                c = GeminiChallenger(api_key="test")
+                result = c.derive("test statement")
 
             assert result.model == "gemini-2.5-pro"
             assert result.response == "fallback derive"
@@ -346,27 +351,51 @@ class TestModuleLevelFunctions:
 
 
 class TestFallback:
-    """主模型 503 时降级到 fallback。"""
+    """主模型 503 时重试 + 降级到 fallback。"""
 
-    def test_fallback_on_503(self) -> None:
+    def test_retry_then_fallback_on_503(self) -> None:
         with patch("newchan.gemini_challenger.genai") as mock_genai:
             mock_client = mock_genai.Client.return_value
 
-            # 第一次调用（主模型）抛 503
+            # 主模型重试 _MAX_RETRIES 次全部 503，fallback 成功
             mock_503 = ServerError(503, {"error": {"message": "unavailable"}})
-            # 第二次调用（fallback）成功
             mock_ok = MagicMock()
             mock_ok.text = "fallback response"
+            mock_client.models.generate_content.side_effect = [
+                *[mock_503] * _MAX_RETRIES,
+                mock_ok,
+            ]
+
+            with patch("newchan.gemini.engine.time.sleep") as mock_sleep:
+                c = GeminiChallenger(api_key="test")
+                result = c.challenge("test subject")
+
+            assert result.model == "gemini-2.5-pro"
+            assert result.response == "fallback response"
+            # 主模型重试 _MAX_RETRIES 次 + fallback 1 次
+            assert mock_client.models.generate_content.call_count == _MAX_RETRIES + 1
+            # 重试间隔有 sleep 调用（_MAX_RETRIES - 1 次）
+            assert mock_sleep.call_count == _MAX_RETRIES - 1
+
+    def test_retry_succeeds_on_second_attempt(self) -> None:
+        with patch("newchan.gemini_challenger.genai") as mock_genai:
+            mock_client = mock_genai.Client.return_value
+
+            mock_503 = ServerError(503, {"error": {"message": "unavailable"}})
+            mock_ok = MagicMock()
+            mock_ok.text = "retry ok"
+            # 第1次 503，第2次成功
             mock_client.models.generate_content.side_effect = [
                 mock_503,
                 mock_ok,
             ]
 
-            c = GeminiChallenger(api_key="test")
-            result = c.challenge("test subject")
+            with patch("newchan.gemini.engine.time.sleep"):
+                c = GeminiChallenger(api_key="test")
+                result = c.challenge("test")
 
-            assert result.model == "gemini-2.5-pro"
-            assert result.response == "fallback response"
+            assert result.model == "gemini-3.1-pro-preview"
+            assert result.response == "retry ok"
             assert mock_client.models.generate_content.call_count == 2
 
     def test_no_fallback_when_primary_works(self) -> None:
@@ -386,11 +415,12 @@ class TestFallback:
     def test_both_fail_raises(self) -> None:
         with patch("newchan.gemini_challenger.genai") as mock_genai:
             mock_503 = ServerError(503, {"error": {"message": "unavailable"}})
+            # 主模型 _MAX_RETRIES 次 + fallback _MAX_RETRIES 次，全部 503
             mock_genai.Client.return_value.models.generate_content.side_effect = [
-                mock_503,
-                mock_503,
+                *[mock_503] * (_MAX_RETRIES * 2),
             ]
 
-            c = GeminiChallenger(api_key="test")
-            with pytest.raises(ServerError):
-                c.challenge("test")
+            with patch("newchan.gemini.engine.time.sleep"):
+                c = GeminiChallenger(api_key="test")
+                with pytest.raises(ServerError):
+                    c.challenge("test")

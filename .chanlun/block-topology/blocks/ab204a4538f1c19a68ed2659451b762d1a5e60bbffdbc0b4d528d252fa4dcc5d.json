@@ -1,0 +1,24 @@
+{
+  "id": "ab204a4538f1c19a68ed2659451b762d1a5e60bbffdbc0b4d528d252fa4dcc5d",
+  "type": "event",
+  "timestamp": "2026-03-02T07:07:41.954634+00:00",
+  "source": "migration",
+  "content": {
+    "id": "292",
+    "title": "折叠拓扑本体论——分类学之前的存在论结构",
+    "status": "已结算",
+    "type": "理论形式化",
+    "date": "2026-03-01",
+    "depends_on": [
+      "254",
+      "255",
+      "284",
+      "287"
+    ],
+    "topo_effect": "254号 K4 划分获得本体论根据——矩阵划分是折叠的推论，不是折叠的前提；OQ3 结算——基本面入语法（折叠生命周期阶段判定）",
+    "tensions_with": [],
+    "source_file": "settled\\292-fold-topology-ontology.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

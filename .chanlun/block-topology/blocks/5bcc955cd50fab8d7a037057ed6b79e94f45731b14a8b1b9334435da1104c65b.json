@@ -1,0 +1,151 @@
+{
+  "id": "5bcc955cd50fab8d7a037057ed6b79e94f45731b14a8b1b9334435da1104c65b",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:57:48.253768+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "6314bd0a0f6a2fae831c442c83e19348344d9bf5792ab7c3a6e2cfb6161877bf",
+    "content_analysis": {
+      "genealogy_id": "045",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "现象"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "已结算原则"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "规则的三层表达"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "违反时的后果（本 session 实证）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "与 010号的同构"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "被否定的方案"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "类型",
+          "definition": "语法记录"
+        },
+        {
+          "term": "状态",
+          "definition": "已结算"
+        },
+        {
+          "term": "negation_source",
+          "definition": "heterogeneous（Gemini 编排者代理辨认 + 本 session 实证）"
+        },
+        {
+          "term": "negation_form",
+          "definition": "expansion（013号\"结构工位与任务工位二分法\"扩张为显式语法规则）"
+        },
+        {
+          "term": "前置",
+          "definition": "013-swarm-structural-stations, 033-declarative-dispatch-spec, 042-hook-network-pattern"
+        },
+        {
+          "term": "关联",
+          "definition": "016-runtime-enforcement-layer, 044-phase-transition-runtime, 028-ceremony-default-action, 032-divine-madness-lead-self-restriction"
+        },
+        {
+          "term": "语法记录",
+          "definition": "将上述已结算原则的逻辑交集命名为\"无结构不任务\"——任务工位的存在以结构工位的就绪为前提条件，这不是偏好，是蜂群的构成性约束"
+        },
+        {
+          "term": "谱系断裂",
+          "definition": "任务工位的产出（#3 post-session hook、#4 manifest.yaml）在 genealogist 不在场时完成，概念变更可能未被追踪"
+        },
+        {
+          "term": "追赶成本",
+          "definition": "genealogist 需要事后读取已完成任务的产出，判断是否涉及概念变更——这是回溯性工作，效率低于实时监控"
+        },
+        {
+          "term": "meta-observer 缺位",
+          "definition": "元规则合规检查未能在任务执行期间实时进行"
+        },
+        {
+          "term": "quality-guard 缺位",
+          "definition": "结果包六要素检查未能在产出时即时执行"
+        },
+        {
+          "term": "结构工位可延迟启动（先任务后结构）",
+          "definition": "本 session 实证否定。genealogist 延迟启动导致需要追赶，且无法保证追赶的完整性——已完成任务的概念变更可能被遗漏。"
+        },
+        {
+          "term": "结构工位可选（某些 session 不需要）",
+          "definition": "013号已否定。结构工位是常设的，不以任务为转移。即使 session 只有纯技术任务（如大函数重构），meta-observer 仍需监控元规则合规，genealogist 仍需判断产出是否涉及概念变更（判断结果可能是\"不涉及\"，但判断本身不可省略）。"
+        },
+        {
+          "term": "ceremony-guard hook 足够（无需显式命名）",
+          "definition": "042号的 hook 是 runtime 强制，但 hook 可以被绕过（标记文件手动创建、hook 配置被修改）。显式命名为语法规则使其成为可引用的原则，在 hook 失效时仍可作为审计依据。"
+        }
+      ],
+      "references": [
+        "010",
+        "013",
+        "016",
+        "033",
+        "042",
+        "044"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [
+        {
+          "target_id": "",
+          "target_desc": "结构工位可延迟启动（先任务后结构）",
+          "negation_type": "rejected_plan"
+        },
+        {
+          "target_id": "",
+          "target_desc": "结构工位可选（某些 session 不需要）",
+          "negation_type": "rejected_plan"
+        },
+        {
+          "target_id": "",
+          "target_desc": "ceremony-guard hook 足够（无需显式命名）",
+          "negation_type": "rejected_plan"
+        }
+      ],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "6314bd0a0f6a2fae831c442c83e19348344d9bf5792ab7c3a6e2cfb6161877bf"
+  ],
+  "git_ref": ""
+}

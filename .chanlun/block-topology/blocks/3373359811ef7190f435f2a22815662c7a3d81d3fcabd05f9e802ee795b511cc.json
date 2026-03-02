@@ -1,0 +1,126 @@
+{
+  "id": "3373359811ef7190f435f2a22815662c7a3d81d3fcabd05f9e802ee795b511cc",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T06:03:03.671623+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "6c9e1a0a364f1cc76486f3e2485bc04b5ef462ee3ea8e0341798e3a5f60e8ffe",
+    "content_analysis": {
+      "genealogy_id": "083",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "背景"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "决断问题"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "Gemini 决断"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "决断内容"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "否定的方案"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推理链（Gemini 原始推理摘要）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "同质质询判定（Claude 执行）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "执行结果"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "选项 D（混合方案）",
+          "definition": "确认阶段性里程碑合法，但基于对象矛盾（不是阈值）派生 2 个任务。"
+        },
+        {
+          "term": "A（接受干净终止）",
+          "definition": "概念层遗留明确矛盾（递归终止表述不一致）和未完成的状态跃迁（bi mode 切换）。接受 A = 绕过已暴露的矛盾，违反原则 2（no-workaround）"
+        },
+        {
+          "term": "B（扩展 scan 扫描覆盖率/代码质量）",
+          "definition": "覆盖率 80% 和代码行数 800 是阈值否定，违反原则 8（对象否定对象）。系统不能由人为数值阈值驱动工作"
+        },
+        {
+          "term": "C（自动从 TODO 派生）",
+          "definition": "TODO 缺乏严格上下文，会导致系统被低价值琐碎任务淹没，丧失主线方向"
+        },
+        {
+          "term": "为什么拒绝 A",
+          "definition": "概念层还有遗留矛盾（递归终止表述不一致 + bi mode 状态跃迁未完成），接受 A = 绕过矛盾"
+        },
+        {
+          "term": "为什么拒绝 B",
+          "definition": "覆盖率/代码行数是阈值否定，违反\"对象否定对象\"原则"
+        },
+        {
+          "term": "为什么拒绝 C",
+          "definition": "TODO 驱动导致系统方向失控，丧失主线"
+        },
+        {
+          "term": "中期",
+          "definition": "2 个任务完成后，ceremony_scan.py 再次判定 clean_terminate=true。此时为真正的阶段性里程碑，需要人类提供下一战略方向"
+        },
+        {
+          "term": "语法记录候选",
+          "definition": "dispatch-dag 中\"谱系下游行动未执行\"作为强制阻塞来源的表述应修正——根据 076/079，它应为建议来源而非强制阻塞"
+        }
+      ],
+      "references": [
+        "041",
+        "069",
+        "076",
+        "079"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {
+        "negation_source": "heterogeneous",
+        "negation_form": "expansion"
+      },
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "6c9e1a0a364f1cc76486f3e2485bc04b5ef462ee3ea8e0341798e3a5f60e8ffe"
+  ],
+  "git_ref": ""
+}

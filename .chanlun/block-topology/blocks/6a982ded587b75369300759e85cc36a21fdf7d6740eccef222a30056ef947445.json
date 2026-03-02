@@ -1,0 +1,21 @@
+{
+  "id": "6a982ded587b75369300759e85cc36a21fdf7d6740eccef222a30056ef947445",
+  "type": "event",
+  "timestamp": "2026-03-02T07:07:41.953191+00:00",
+  "source": "migration",
+  "content": {
+    "id": "291",
+    "title": "元观察——v132-swarm ceremony 中途编排者任务注入",
+    "status": "settled",
+    "type": "meta-rule",
+    "date": "2026-03-01",
+    "depends_on": [
+      "290",
+      "224",
+      "225"
+    ],
+    "source_file": "settled\\291-meta-observation-v132-swarm.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

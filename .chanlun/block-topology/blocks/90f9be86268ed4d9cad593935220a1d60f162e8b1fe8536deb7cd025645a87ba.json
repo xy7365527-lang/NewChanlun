@@ -1,0 +1,70 @@
+{
+  "id": "90f9be86268ed4d9cad593935220a1d60f162e8b1fe8536deb7cd025645a87ba",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T06:03:03.593346+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "562ad6b9f0ddc622b15f94a6d8398eaab57c83b51caa65fb03dd2de00e758766",
+    "content_analysis": {
+      "genealogy_id": "060",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "语法记录陈述"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "四支柱独立性证明"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "异质否定来源"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        }
+      ],
+      "concepts": [],
+      "references": [
+        "013",
+        "020",
+        "020a",
+        "049",
+        "053",
+        "055",
+        "056",
+        "059"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "562ad6b9f0ddc622b15f94a6d8398eaab57c83b51caa65fb03dd2de00e758766"
+  ],
+  "git_ref": ""
+}

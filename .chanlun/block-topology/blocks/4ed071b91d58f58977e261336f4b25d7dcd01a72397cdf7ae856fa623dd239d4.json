@@ -1,0 +1,73 @@
+{
+  "id": "4ed071b91d58f58977e261336f4b25d7dcd01a72397cdf7ae856fa623dd239d4",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T06:04:26.183542+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "f1da60f8eeaea87c039b42465c8a716e7c9e8c9971396ac4f8404fb41a07635d",
+    "content_analysis": {
+      "genealogy_id": "283",
+      "sections": [
+        {
+          "level": 2,
+          "number": "1",
+          "title": "发现"
+        },
+        {
+          "level": 2,
+          "number": "2",
+          "title": "核心命题"
+        },
+        {
+          "level": 2,
+          "number": "3",
+          "title": "六条边的同步阅读"
+        },
+        {
+          "level": 2,
+          "number": "4",
+          "title": "语言修正（编排者裁定）"
+        },
+        {
+          "level": 2,
+          "number": "5",
+          "title": "关键洞察：扭曲是常态"
+        },
+        {
+          "level": 2,
+          "number": "6",
+          "title": "对 Gemini 分析的回应"
+        },
+        {
+          "level": 2,
+          "number": "7",
+          "title": "谱系引用"
+        },
+        {
+          "level": 2,
+          "number": "8",
+          "title": "来源"
+        }
+      ],
+      "concepts": [],
+      "references": [
+        "108",
+        "237",
+        "254",
+        "269",
+        "279",
+        "283"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": "**测度论是元语言，不是操作工具。**"
+    }
+  },
+  "refs": [
+    "f1da60f8eeaea87c039b42465c8a716e7c9e8c9971396ac4f8404fb41a07635d"
+  ],
+  "git_ref": ""
+}

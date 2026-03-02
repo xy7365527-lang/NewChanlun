@@ -1540,6 +1540,21 @@ nodes:
   status: 已结算
   type: meta-rule
   file: settled/306-meta-observation-phase2-graph-invariants.md
+- id: '307'
+  title: 元观察——Phase 2 regex 扩展 + enrichment 首次执行 session（否定8模式+修正三层策略+KeyError防御+拓扑跃变）
+  status: 已结算
+  type: meta-rule
+  file: settled/307-meta-observation-phase2-enrichment-session.md
+- id: '308'
+  title: 元观察——Phase 2 精度校准三轮 + 审计六信号 + 异质审查启动 session
+  status: 已结算
+  type: meta-rule
+  file: settled/308-meta-observation-phase2-calibration-session.md
+- id: '309'
+  title: Phase 2 异质审查裁定——四议题处置 + 概念注册表提出 + 关系分层引入
+  status: 已结算
+  type: consensus
+  file: settled/309-phase2-heterogeneous-review-ruling.md
 edges:
   depends_on:
   - from: '136'
@@ -3193,6 +3208,44 @@ edges:
   - from: '306'
     to: '137'
   - from: '306'
+    to: 090
+  - from: '307'
+    to: '306'
+  - from: '307'
+    to: '305'
+  - from: '307'
+    to: '302'
+  - from: '307'
+    to: '273'
+  - from: '307'
+    to: '231'
+  - from: '307'
+    to: '218'
+  - from: '307'
+    to: '137'
+  - from: '307'
+    to: 090
+  - from: '308'
+    to: '307'
+  - from: '308'
+    to: '273'
+  - from: '308'
+    to: '231'
+  - from: '308'
+    to: '218'
+  - from: '308'
+    to: '137'
+  - from: '308'
+    to: 090
+  - from: '309'
+    to: '308'
+  - from: '309'
+    to: '307'
+  - from: '309'
+    to: '273'
+  - from: '309'
+    to: '231'
+  - from: '309'
     to: 090
   triggered:
   - from: '005'

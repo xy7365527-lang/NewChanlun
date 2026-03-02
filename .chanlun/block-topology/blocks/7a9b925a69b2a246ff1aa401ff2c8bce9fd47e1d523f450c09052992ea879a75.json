@@ -1,0 +1,132 @@
+{
+  "id": "7a9b925a69b2a246ff1aa401ff2c8bce9fd47e1d523f450c09052992ea879a75",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:57:48.259318+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "f1a9eaf6101faeca94d5292209c4dc0ca79f221897075e05e35e8efc6c74e294",
+    "content_analysis": {
+      "genealogy_id": "046",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "现象"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "已结算原则"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "打包的三个必要条件（全部满足才允许合并）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "本 session 违规分析"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "与 038/039 的关系"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "被否定的方案"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "类型",
+          "definition": "语法记录"
+        },
+        {
+          "term": "状态",
+          "definition": "已结算"
+        },
+        {
+          "term": "negation_source",
+          "definition": "heterogeneous（Gemini decide）"
+        },
+        {
+          "term": "negation_form",
+          "definition": "expansion（037号\"递归蜂群分形\"深化：从\"可 spawn\"到\"应 spawn unless 强耦合\"）"
+        },
+        {
+          "term": "前置",
+          "definition": "037-recursive-swarm-fractal, 005b-object-negates-object-grammar, 013-swarm-structural-stations, 032-divine-madness-lead-self-restriction"
+        },
+        {
+          "term": "关联",
+          "definition": "038-single-agent-bypass-bias, 039-single-agent-bypass-pattern, 045-no-structure-no-task"
+        },
+        {
+          "term": "\"按 API 成本优化打包\"",
+          "definition": "将多个小任务打包给单工位以减少 spawn 开销。被 CLAUDE.md 规则 #1 否定——概念优先于代码，上下文隔离是概念层需求，API 成本是代码层优化"
+        },
+        {
+          "term": "\"按工具集相似性打包\"",
+          "definition": "工具集相似的任务合并。被 005b 否定——工具集相似不等于认知域相同，任务 B 不应被任务 A 的运行状态否定"
+        },
+        {
+          "term": "\"Lead 自行判断是否打包\"",
+          "definition": "Lead 根据经验判断哪些任务可以合并。被 032号否定——Lead 只做路由，不做调度优化。打包决策是调度优化，属于 Lead 越权"
+        }
+      ],
+      "references": [
+        "006",
+        "013",
+        "032",
+        "037",
+        "038",
+        "039",
+        "043"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [
+        {
+          "target_id": "",
+          "target_desc": "按 API 成本优化打包",
+          "negation_type": "rejected_plan"
+        },
+        {
+          "target_id": "",
+          "target_desc": "按工具集相似性打包",
+          "negation_type": "rejected_plan"
+        },
+        {
+          "target_id": "",
+          "target_desc": "Lead 自行判断是否打包",
+          "negation_type": "rejected_plan"
+        }
+      ],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "f1a9eaf6101faeca94d5292209c4dc0ca79f221897075e05e35e8efc6c74e294"
+  ],
+  "git_ref": ""
+}

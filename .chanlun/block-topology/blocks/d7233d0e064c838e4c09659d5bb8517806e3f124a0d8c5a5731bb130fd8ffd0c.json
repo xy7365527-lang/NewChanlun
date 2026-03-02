@@ -1,0 +1,22 @@
+{
+  "id": "d7233d0e064c838e4c09659d5bb8517806e3f124a0d8c5a5731bb130fd8ffd0c",
+  "type": "event",
+  "timestamp": "2026-03-02T07:07:41.921031+00:00",
+  "source": "migration",
+  "content": {
+    "id": "262",
+    "title": "v109 结算通道可观测性实验——代理敏感性与六条边稳定性分类",
+    "status": "已结算",
+    "type": "经验验证",
+    "date": "2026-02-28",
+    "negation_form": "对象否定——v109 否定的不是 234号结论，而是 234号分类结论的代理无关性假设",
+    "depends_on": [
+      "234",
+      "259",
+      "235"
+    ],
+    "source_file": "settled\\262-v109-proxy-sensitivity-experiment.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

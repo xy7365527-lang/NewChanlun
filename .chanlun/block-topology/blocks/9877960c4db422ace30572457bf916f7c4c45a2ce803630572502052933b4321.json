@@ -1,0 +1,72 @@
+{
+  "id": "9877960c4db422ace30572457bf916f7c4c45a2ce803630572502052933b4321",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T06:04:25.776234+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "5fb7c6433488138d8405b1ab39557c3ed0441f5c8ff168864843e20b2f100f83",
+    "content_analysis": {
+      "genealogy_id": "132",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "问题"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "结论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "执行清单"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        }
+      ],
+      "concepts": [],
+      "references": [
+        "012",
+        "062",
+        "068",
+        "090",
+        "120",
+        "121",
+        "132"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {
+        "negation_source": "heterogeneous",
+        "negation_form": "选择（从三路径逻辑排除后推导）"
+      },
+      "conclusion_summary": "**选择路径B：在 tensions_with 边中引入 `valid_until` 字段。**"
+    }
+  },
+  "refs": [
+    "5fb7c6433488138d8405b1ab39557c3ed0441f5c8ff168864843e20b2f100f83"
+  ],
+  "git_ref": ""
+}

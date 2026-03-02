@@ -1,0 +1,22 @@
+{
+  "id": "f5d29c88ac5267c7ed88db718240204525697f8cf0c69e9f6655abc612963816",
+  "type": "event",
+  "timestamp": "2026-03-02T07:07:41.955842+00:00",
+  "source": "migration",
+  "content": {
+    "id": "293",
+    "title": "星形拓扑——霸权的拓扑定义",
+    "status": "settled",
+    "type": "concept",
+    "date": "2026-03-01",
+    "depends_on": [
+      "292",
+      "254"
+    ],
+    "topo_effect": "新增概念节点：星形拓扑、自然化、霸权维持/衰落的拓扑读法",
+    "tensions_with": [],
+    "source_file": "settled\\293-star-topology-hegemony.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

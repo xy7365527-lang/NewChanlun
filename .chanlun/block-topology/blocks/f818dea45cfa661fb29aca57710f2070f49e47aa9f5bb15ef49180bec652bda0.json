@@ -1,0 +1,112 @@
+{
+  "id": "f818dea45cfa661fb29aca57710f2070f49e47aa9f5bb15ef49180bec652bda0",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:57:48.527142+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "8c6383fb7c5f1a86edf347d97a329340f28ba0f9d8743a9d33cd03c90ca0a75b",
+    "content_analysis": {
+      "genealogy_id": "114",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "目的"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "核心概念"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "双条件形式——定义本身而非加强版"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "分型的存在论位置"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "严格不等式"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "结论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "定义依据"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系引用"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "类型",
+          "definition": "语法记录"
+        },
+        {
+          "term": "状态",
+          "definition": "已结算"
+        },
+        {
+          "term": "域",
+          "definition": "分型（Fenxing / Fractal）"
+        },
+        {
+          "term": "溯源",
+          "definition": "[旧缠论]"
+        },
+        {
+          "term": "第82课深化",
+          "definition": "分型的三K线结构对应\"一而再、再而三、三而竭\"的博弈过程。顶分型 = 卖方最终战胜买方的三次博弈。这是分型语义的市场心理基础。"
+        },
+        {
+          "term": "DAG 更新",
+          "definition": "新增 114 节点"
+        },
+        {
+          "term": "无代码变更",
+          "definition": "本谱系是对已确立概念的显式记录，不改变任何实现或定义"
+        }
+      ],
+      "references": [
+        "113"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": "分型的双条件形式是缠论原文第62课创世定义中就确立的，不是后续的加强或选择。在包含处理后的序列上，双条件是逻辑必然——单条件在此语境下不构成独立的替代方案。fenxing.md v1.0 和 `a_fractal.py :: fractals_from_merged` 的实现与此完全对齐。本谱系将这一逻辑关系从定义文件的注释提升为独立可追踪的谱系条目。"
+    }
+  },
+  "refs": [
+    "8c6383fb7c5f1a86edf347d97a329340f28ba0f9d8743a9d33cd03c90ca0a75b"
+  ],
+  "git_ref": ""
+}

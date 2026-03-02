@@ -1,0 +1,23 @@
+{
+  "id": "69301cd7bd313a5c447898926a50e27b16217f2fad8f53483e4c8824c3da5707",
+  "type": "event",
+  "timestamp": "2026-03-02T07:07:41.961455+00:00",
+  "source": "migration",
+  "content": {
+    "id": "298",
+    "title": "折叠拓扑的有限元对应——镜子不是工具",
+    "status": "已结算",
+    "type": "theory",
+    "date": "2026-03-02",
+    "depends_on": [
+      "292",
+      "233",
+      "235"
+    ],
+    "topo_effect": "有限元是折叠拓扑的镜像——证明缠论+折叠+区间套+完全分类+背驰+叙事一致性已经完备；唯一不可替代的外部贡献 = XFEM 断裂增强（缠论预设拓扑不变，XFEM 处理拓扑变化）",
+    "tensions_with": [],
+    "source_file": "settled\\298-fold-topology-fem-correspondence.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,91 @@
+{
+  "id": "eed55239074596b4748e988cfe1dc729cd65b43f17ac0ec36fc1238e8246f967",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:57:48.172245+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "6075d854c3d0981de37891c5025c1eb99c960d119ad130fead2ec8868e5782e0",
+    "content_analysis": {
+      "genealogy_id": "024",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "矛盾/发现"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "实证基础"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "三层架构"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "当前产出"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "MACD 动力层实证"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "结算条件"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "状态",
+          "definition": "已结算"
+        },
+        {
+          "term": "类型",
+          "definition": "定理（从\"对象否定对象\"原则推导）"
+        },
+        {
+          "term": "压力测试（C(5,2)=10 对）",
+          "definition": "9 正例 1 反例。"
+        },
+        {
+          "term": "定理级发现",
+          "definition": "缠论语法在 GLD/IAU 上产出了 15 笔但全部 <0.14%——这是噪音的走势，不是资本流转的走势。C-2 不是管线的前置过滤器，是**语义的门槛**。"
+        },
+        {
+          "term": "退化连锁",
+          "definition": "K线波动小 → 笔力度弱 → MACD面积趋零 → 背驰判定退化为随机。"
+        },
+        {
+          "term": "层间关系",
+          "definition": "预筛是漏斗（快速排除明显退化），结构层和动力层是裁判（语法自判定）。"
+        }
+      ],
+      "references": [],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "6075d854c3d0981de37891c5025c1eb99c960d119ad130fead2ec8868e5782e0"
+  ],
+  "git_ref": ""
+}

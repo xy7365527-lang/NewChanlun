@@ -1,0 +1,16 @@
+{
+  "id": "ebe3b9a1d2202d48433feda2087b050b567e205fe57c0f162c4656dcdb50e397",
+  "type": "event",
+  "timestamp": "2026-03-02T07:07:41.858618+00:00",
+  "source": "migration",
+  "content": {
+    "id": "189",
+    "title": "元观察——十五轮质询的方法论洞察",
+    "status": "结算态",
+    "type": "meta-rule",
+    "date": "2026-02-24",
+    "source_file": "settled\\189-meta-observation-15round-inquiry.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

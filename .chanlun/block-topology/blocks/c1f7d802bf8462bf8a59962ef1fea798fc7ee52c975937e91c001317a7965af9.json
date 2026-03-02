@@ -1,0 +1,159 @@
+{
+  "id": "c1f7d802bf8462bf8a59962ef1fea798fc7ee52c975937e91c001317a7965af9",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:57:48.346753+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "e9c4d9b07c621c2d877d34b0aeb5991818f71a3e2f4f4c082b306c0a6cd28d12",
+    "content_analysis": {
+      "genealogy_id": "071",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "背景"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "脆弱性判定标准"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "已有外部机制清单"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "脆弱点清单"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "CLAUDE.md"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": ".claude/rules/"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": ".claude/agents/"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": ".claude/skills/"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": ".chanlun/dispatch-spec.yaml"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "统计"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "加固建议"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "可用 hook 加固（投入产出比高）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "可用模板形状加固（无需 hook）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "结构性不可加固（需接受为系统特征）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "类型",
+          "definition": "meta-rule"
+        },
+        {
+          "term": "状态",
+          "definition": "已结算"
+        },
+        {
+          "term": "前置",
+          "definition": "070-genesis-gap-engineering-instance, 016-runtime-enforcement-layer, 032-divine-madness-lead-self-restriction, 033-declarative-dispatch-spec, 036-spec-execution-gap-crystallization"
+        },
+        {
+          "term": "关联",
+          "definition": "028-ceremony-default-action, 044-phase-transition-runtime, 048-universal-stop-guard, 058-ceremony-is-swarm-zero, 069-recursive-topology-async-self-referential-swarm"
+        },
+        {
+          "term": "negation_form",
+          "definition": "expansion"
+        },
+        {
+          "term": "negation_source",
+          "definition": "homogeneous（系统性扫描，非异质质询）"
+        },
+        {
+          "term": "结构性不可加固 ≠ 无解",
+          "definition": "—它意味着需要不同层级的解法（如静态分析、事后审计、异质质询），而非更多 hook"
+        },
+        {
+          "term": "spec-execution-gap skill（036号）的适用范围确认",
+          "definition": "本扫描是该 skill 的首次系统性应用实例"
+        },
+        {
+          "term": "agent \"你不做的事\"列表的加固模式已有先例",
+          "definition": "Lead 的物理权限剥夺（032号）。其他 agent 可以复制此模式——通过 tools 字段物理限制 agent 的工具集（但当前 Claude Code 的 agent 系统不支持 per-agent 工具限制，这是平台层约束）"
+        }
+      ],
+      "references": [
+        "016",
+        "032",
+        "036",
+        "058",
+        "070"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "e9c4d9b07c621c2d877d34b0aeb5991818f71a3e2f4f4c082b306c0a6cd28d12"
+  ],
+  "git_ref": ""
+}

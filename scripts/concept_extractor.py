@@ -100,6 +100,32 @@ _VALUE_ASSIGNMENT_RE = re.compile(
     re.IGNORECASE
 )
 
+# Frontmatter metadata field names that appear in every genealogy block.
+# These fields describe block attributes (status, type, domain, etc.),
+# not concepts defined by the block. When these appear as **term**: value,
+# they are property assignments, not concept definitions.
+# Discovered via Phase 2 enrichment audit: 状态(140), 类型(134), etc.
+# appearing as duplicates across nearly all blocks.
+_FRONTMATTER_METADATA_FIELDS = frozenset({
+    # Chinese
+    "状态", "类型", "前置", "关联", "域", "溯源", "来源",
+    "结算方式", "结算依据", "结算时间", "创建时间", "已执行",
+    # English
+    "status", "type",
+    # Negation frontmatter
+    "negation_source", "negation_form", "negation_model",
+})
+
+# 文档结构标签——不是概念实体
+# 这些词描述文档的逻辑结构（"推论"/"结论"/"步骤" 等），
+# 不是谱系定义的概念术语。当 **推论**：XXX 出现时，
+# 它是文档结构标记而非概念定义。
+_STRUCTURAL_MARKERS = frozenset({
+    "推论", "结论", "建议", "步骤", "方法", "备注", "注意",
+    "前提", "假设", "定义", "公理", "引理", "定理",
+    "证明", "命题", "推导", "分析", "总结", "摘要",
+})
+
 
 # --- Regex Patterns ---
 
@@ -243,6 +269,15 @@ def _extract_concepts(body: str) -> tuple[ConceptDefinition, ...]:
         if match:
             term = match.group(1).strip()
             definition = match.group(2).strip()
+            # Skip frontmatter metadata fields — block attributes, not concepts
+            if term in _FRONTMATTER_METADATA_FIELDS:
+                continue
+            # Skip structural markers — document labels, not concept entities
+            if term in _STRUCTURAL_MARKERS:
+                continue
+            # Skip genealogy ID references used as term (e.g. **254号**: ...)
+            if re.match(r'^\d{3}[a-z]?号$', term):
+                continue
             # Skip value assignments (dates, paths, IDs) — not concept definitions
             if _VALUE_ASSIGNMENT_RE.match(definition):
                 continue

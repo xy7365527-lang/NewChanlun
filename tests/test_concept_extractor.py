@@ -21,6 +21,8 @@ from scripts.concept_extractor import (
     NewConcept,
     Section,
     _VALUE_ASSIGNMENT_RE,
+    _FRONTMATTER_METADATA_FIELDS,
+    _STRUCTURAL_MARKERS,
     analyze_content,
     _extract_sections,
     _extract_concepts,
@@ -900,16 +902,12 @@ class TestValueAssignmentFilter:
             '**结算**：谱系中出现承重点——否定它会摧毁谱系一致性\n'
             '**折叠**：同一个对象在不同域中呈现不同的范畴身份\n'
             '**对象否定对象**：一个对象被否定的唯一来源\n'
-            '**结算依据**：编排者反馈 + 007-011 写作过程的实际经验\n'
-            '**状态**：已结算但存在遗留张力\n'
         )
         concepts = _extract_concepts(body)
         terms = [c.term for c in concepts]
         assert "结算" in terms
         assert "折叠" in terms
         assert "对象否定对象" in terms
-        assert "结算依据" in terms
-        assert "状态" in terms
 
     def test_mixed_assignments_and_definitions(self):
         """Value assignments filtered while definitions preserved in same body."""
@@ -948,3 +946,271 @@ date: 2026-03-01
         assert "文件" not in terms       # code literal → filtered
         assert "结算" in terms           # descriptive → preserved
         assert "折叠" in terms           # descriptive → preserved
+
+
+class TestFrontmatterMetadataFilter:
+    """Tests for frontmatter metadata field filtering.
+
+    Frontmatter fields (状态, 类型, 前置, etc.) appear in every genealogy block
+    as block attributes. Their **term**: value pattern matches concept extraction
+    but they describe block properties, not concepts defined by the block.
+    Discovered via Phase 2 enrichment audit: 状态(140), 类型(134), etc.
+    """
+
+    def test_frontmatter_fields_set_exists(self):
+        """_FRONTMATTER_METADATA_FIELDS must be a frozenset."""
+        assert isinstance(_FRONTMATTER_METADATA_FIELDS, frozenset)
+        assert len(_FRONTMATTER_METADATA_FIELDS) > 0
+
+    def test_chinese_metadata_filtered(self):
+        """Chinese frontmatter fields are filtered from concept extraction."""
+        body = (
+            '**状态**：已结算\n'
+            '**类型**：概念分离（自治行为）\n'
+            '**前置**：004、005\n'
+            '**域**：元理论\n'
+            '**溯源**：编排者 INTERRUPT\n'
+        )
+        concepts = _extract_concepts(body)
+        terms = [c.term for c in concepts]
+        assert "状态" not in terms
+        assert "类型" not in terms
+        assert "前置" not in terms
+        assert "域" not in terms
+        assert "溯源" not in terms
+
+    def test_english_metadata_filtered(self):
+        """English frontmatter fields are filtered."""
+        body = (
+            '**status**：settled\n'
+            '**type**：concept_separation\n'
+        )
+        concepts = _extract_concepts(body)
+        terms = [c.term for c in concepts]
+        assert "status" not in terms
+        assert "type" not in terms
+
+    def test_negation_metadata_filtered(self):
+        """Negation frontmatter fields are filtered."""
+        body = (
+            '**negation_source**：heterogeneous_challenge\n'
+            '**negation_form**：separation\n'
+            '**negation_model**：object_negates_object\n'
+        )
+        concepts = _extract_concepts(body)
+        terms = [c.term for c in concepts]
+        assert "negation_source" not in terms
+        assert "negation_form" not in terms
+        assert "negation_model" not in terms
+
+    def test_settlement_metadata_filtered(self):
+        """Settlement-related frontmatter fields are filtered."""
+        body = (
+            '**结算方式**：编排者裁定\n'
+            '**结算依据**：编排者反馈 + 写作过程经验\n'
+            '**结算时间**：2026-02-15\n'
+            '**创建时间**：2026-02-10\n'
+            '**已执行**：是\n'
+        )
+        concepts = _extract_concepts(body)
+        terms = [c.term for c in concepts]
+        assert "结算方式" not in terms
+        assert "结算依据" not in terms
+        assert "结算时间" not in terms
+        assert "创建时间" not in terms
+        assert "已执行" not in terms
+
+    def test_non_metadata_terms_preserved(self):
+        """Terms that look similar but are NOT frontmatter fields are preserved."""
+        body = (
+            '**结算**：谱系中出现承重点\n'
+            '**折叠**：同一对象在不同域的范畴身份\n'
+            '**四分法分类**：定理/行动/选择/语法记录\n'
+        )
+        concepts = _extract_concepts(body)
+        terms = [c.term for c in concepts]
+        assert "结算" in terms
+        assert "折叠" in terms
+        assert "四分法分类" in terms
+
+    def test_metadata_and_concepts_mixed(self):
+        """Metadata filtered while real concepts preserved in same body."""
+        body = (
+            '**状态**：已结算\n'
+            '**类型**：概念分离\n'
+            '**对象否定对象**：一个对象被否定的唯一来源\n'
+            '**negation_source**：heterogeneous_challenge\n'
+            '**中枢**：至少三段次级别走势类型的重叠区域\n'
+            '**关联**：003、004、005\n'
+        )
+        concepts = _extract_concepts(body)
+        terms = [c.term for c in concepts]
+        # Metadata filtered
+        assert "状态" not in terms
+        assert "类型" not in terms
+        assert "negation_source" not in terms
+        assert "关联" not in terms
+        # Concepts preserved
+        assert "对象否定对象" in terms
+        assert "中枢" in terms
+
+    def test_e2e_metadata_filtered_in_analyze_content(self):
+        """End-to-end: analyze_content filters frontmatter metadata fields."""
+        text = """---
+id: '999'
+title: "Metadata filter test"
+status: 已结算
+type: 概念分离
+---
+
+# 999号：元数据过滤测试
+
+**状态**：已结算
+**类型**：概念分离（自治行为）
+**前置**：004、005
+**对象否定对象**：一个对象被否定的唯一来源
+**结算**：谱系中出现承重点
+"""
+        ca = analyze_content("999", text)
+        terms = [c.term for c in ca.concepts]
+        assert "状态" not in terms
+        assert "类型" not in terms
+        assert "前置" not in terms
+        assert "对象否定对象" in terms
+        assert "结算" in terms
+
+
+class TestGenealogyIdTermFilter:
+    """Tests for filtering NNN号 terms used as concept terms.
+
+    Patterns like **254号**: ... are genealogy references in bold format,
+    not concept definitions. They should be filtered from concept extraction.
+    """
+
+    def test_three_digit_id_filtered(self):
+        """Standard NNN号 terms are filtered."""
+        body = (
+            '**254号**：定理依据的概念在曲面类比中没有内禀定义\n'
+            '**233号**：直积退化——有效域≠定义域\n'
+        )
+        concepts = _extract_concepts(body)
+        terms = [c.term for c in concepts]
+        assert "254号" not in terms
+        assert "233号" not in terms
+
+    def test_suffixed_id_filtered(self):
+        """NNN[a-z]号 terms are filtered."""
+        body = '**005b号**：语法规则确立\n'
+        concepts = _extract_concepts(body)
+        terms = [c.term for c in concepts]
+        assert "005b号" not in terms
+
+    def test_non_id_terms_preserved(self):
+        """Terms containing numbers but not matching NNN号 are preserved."""
+        body = (
+            '**Phase 2**：否定/扬弃拓扑升级\n'
+            '**β₁**：1维 Betti 数\n'
+            '**3-单纯形**：四个全序节点\n'
+        )
+        concepts = _extract_concepts(body)
+        terms = [c.term for c in concepts]
+        assert "Phase 2" in terms
+        assert "β₁" in terms
+        assert "3-单纯形" in terms
+
+
+# --- Phase 3 Tests: Structural Markers ---
+
+class TestStructuralMarkersFilter:
+    """Tests for _STRUCTURAL_MARKERS filtering.
+
+    Structural markers (推论, 结论, 步骤, etc.) are document labels,
+    not concept entities. They should be filtered from concept extraction.
+    """
+
+    def test_structural_markers_set_exists(self):
+        """_STRUCTURAL_MARKERS must be a frozenset."""
+        assert isinstance(_STRUCTURAL_MARKERS, frozenset)
+        assert len(_STRUCTURAL_MARKERS) > 0
+
+    def test_structural_markers_filtered(self):
+        """Structural markers are filtered from concept extraction."""
+        body = (
+            '**推论**：inherits 是最危险的依赖形式\n'
+            '**结论**：折叠是比 K4 更基本的本体论层次\n'
+            '**步骤**：先读取谱系目录\n'
+            '**定义**：给出严格的存在论表达\n'
+            '**假设**：走势不创新高\n'
+        )
+        concepts = _extract_concepts(body)
+        terms = [c.term for c in concepts]
+        assert "推论" not in terms
+        assert "结论" not in terms
+        assert "步骤" not in terms
+        assert "定义" not in terms
+        assert "假设" not in terms
+
+    def test_domain_concepts_not_filtered(self):
+        """Real domain concepts (中枢, 笔, 折叠) are NOT structural markers."""
+        body = (
+            '**中枢**：至少三段次级别走势类型的重叠区域\n'
+            '**笔**：相邻顶底之间的最小完整走势单元\n'
+            '**折叠**：同一个对象在不同域中呈现不同的范畴身份\n'
+            '**对象否定对象**：一个对象被否定的唯一来源\n'
+        )
+        concepts = _extract_concepts(body)
+        terms = [c.term for c in concepts]
+        assert "中枢" in terms
+        assert "笔" in terms
+        assert "折叠" in terms
+        assert "对象否定对象" in terms
+
+    def test_structural_and_domain_mixed(self):
+        """Structural markers filtered while domain concepts preserved in same body."""
+        body = (
+            '**推论**：inherits 是最危险的依赖形式\n'
+            '**中枢**：至少三段次级别走势类型的重叠区域\n'
+            '**结论**：折叠是基本层次\n'
+            '**折叠**：同一个对象在不同域中呈现不同的范畴身份\n'
+            '**定理**：已证明的命题\n'
+            '**四分法分类**：定理/行动/选择/语法记录\n'
+        )
+        concepts = _extract_concepts(body)
+        terms = [c.term for c in concepts]
+        # Structural markers filtered
+        assert "推论" not in terms
+        assert "结论" not in terms
+        assert "定理" not in terms
+        # Domain concepts preserved
+        assert "中枢" in terms
+        assert "折叠" in terms
+        assert "四分法分类" in terms
+
+    def test_all_structural_markers_present(self):
+        """All declared structural markers should be in the set."""
+        expected = {
+            "推论", "结论", "建议", "步骤", "方法", "备注", "注意",
+            "前提", "假设", "定义", "公理", "引理", "定理",
+            "证明", "命题", "推导", "分析", "总结", "摘要",
+        }
+        assert expected == _STRUCTURAL_MARKERS
+
+    def test_e2e_structural_markers_in_analyze_content(self):
+        """End-to-end: analyze_content filters structural markers."""
+        text = """---
+id: '999'
+title: "Structural marker test"
+status: 已结算
+---
+
+# 999号：结构标记过滤测试
+
+**推论**：inherits 是最危险的依赖形式
+**中枢**：至少三段次级别走势类型的重叠区域
+**结论**：折叠是基本层次
+"""
+        ca = analyze_content("999", text)
+        terms = [c.term for c in ca.concepts]
+        assert "推论" not in terms
+        assert "结论" not in terms
+        assert "中枢" in terms

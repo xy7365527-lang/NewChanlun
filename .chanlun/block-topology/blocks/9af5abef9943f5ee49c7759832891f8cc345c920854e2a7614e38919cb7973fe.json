@@ -1,0 +1,135 @@
+{
+  "id": "9af5abef9943f5ee49c7759832891f8cc345c920854e2a7614e38919cb7973fe",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:57:48.360162+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "19aedc604692da1a67b8917792d597056a35aed875e1445806cdf5a7d5e2d9db",
+    "content_analysis": {
+      "genealogy_id": "073b",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "背景"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "结论"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "调用栈递归 vs Trampoline"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "Trampoline 的运作机制"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "定义依据"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系引用"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "平台约束清单"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "类型",
+          "definition": "语法记录"
+        },
+        {
+          "term": "状态",
+          "definition": "已结算"
+        },
+        {
+          "term": "前置",
+          "definition": "056-swarm-recursion-default-mode, 069-recursive-topology-async-self-referential-swarm, 072-hook-enforcement-dual-prerequisite"
+        },
+        {
+          "term": "关联",
+          "definition": "033-declarative-dispatch-spec, 037-recursive-swarm-fractal, 058-ceremony-is-swarm-zero, 068-continuous-to-discrete-paradigm-shift"
+        },
+        {
+          "term": "negation_form",
+          "definition": "expansion（056号\"递归是默认模式\"的机制层细化——区分理想递归与实际递归）"
+        },
+        {
+          "term": "negation_source",
+          "definition": "heterogeneous（Gemini 3.1 Pro Thinking 审计产出）"
+        },
+        {
+          "term": "069号\"分形模板实例化\"的退化形式",
+          "definition": "在 Trampoline 下，分形不体现为嵌套 agent 结构，而体现为任务描述中携带的结构模板——每个裂变出的子任务继承父任务的结构约束（结构工位要求、质量标准等）"
+        },
+        {
+          "term": "dispatch-dag 是 Trampoline 的必然产物",
+          "definition": "调用栈递归的状态隐含在栈帧中，Trampoline 的状态必须外化——DAG 就是这个外化的状态。072号→dispatch-dag 的动机不仅是拓扑约束（Dominator Node），还有 Trampoline 的状态管理需求"
+        },
+        {
+          "term": "Lead 是 Trampoline 的求值器",
+          "definition": "Lead 的角色从\"团队领导\"精确化为\"Trampoline 求值器\"——它不做递归展开的决策（那是任务裂变的事），它只做一件事：从队列取任务、spawn agent、收结果、再取任务"
+        },
+        {
+          "term": "结构工位是 Trampoline 的不变量",
+          "definition": "每次弹跳（spawn-execute-fission 循环）中，结构工位始终存在且不参与裂变——它们是 Trampoline 循环的 loop invariant"
+        }
+      ],
+      "references": [
+        "037",
+        "056",
+        "068",
+        "069",
+        "072",
+        "073",
+        "130",
+        "135"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {
+        "negated_by": [
+          "095"
+        ]
+      },
+      "conclusion_summary": "**当前蜂群的递归不是调用栈递归，而是 Trampoline——状态层伪递归。**"
+    }
+  },
+  "refs": [
+    "19aedc604692da1a67b8917792d597056a35aed875e1445806cdf5a7d5e2d9db"
+  ],
+  "git_ref": ""
+}

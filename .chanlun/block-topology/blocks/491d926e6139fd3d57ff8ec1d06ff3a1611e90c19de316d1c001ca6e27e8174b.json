@@ -1,0 +1,122 @@
+{
+  "id": "491d926e6139fd3d57ff8ec1d06ff3a1611e90c19de316d1c001ca6e27e8174b",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T06:03:03.676255+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "36c1a9ebc0f80c0a31a50c6981e48705292880fc02fd96d68783714d9a08bde1",
+    "content_analysis": {
+      "genealogy_id": "084",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "背景"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "Gemini 推理链摘要"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "同质质询（对 Gemini 否定的验证）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "矛盾点 1：权限幻觉 — **判定成立**"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "矛盾点 2：Hook 格式混用 — **部分成立，部分误判**"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "矛盾点 3：自生长回路断裂 — **判定成立**"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "矛盾点 4：拓扑守卫自毁 — **判定成立**"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "全面孤岛清单（结合 Gemini 质询结论）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "Hooks — 逐项状态"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "Agents — 逐项状态"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "Skills — 逐项状态"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "核心矛盾摘要"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系引用"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "否定部分成立",
+          "definition": "hub-node 纯文本问题成立；flow-continuity 和 ceremony-completion 的格式不一致问题成立（但严重性评级需要降一档）。"
+        }
+      ],
+      "references": [
+        "016",
+        "032",
+        "043",
+        "061",
+        "072",
+        "075",
+        "082"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {
+        "negation_source": "heterogeneous",
+        "negation_form": "expansion"
+      },
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "36c1a9ebc0f80c0a31a50c6981e48705292880fc02fd96d68783714d9a08bde1"
+  ],
+  "git_ref": ""
+}

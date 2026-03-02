@@ -1,0 +1,101 @@
+{
+  "id": "36daf3792ed4ffbc048a023ceceed46a5f034ea6806b2fb9020c5d55d5c0ca69",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T06:04:26.143868+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "82604f9d7e74b17bce653f725fc3def164db66a8a7847777fe46c99fdb00d6e9",
+    "content_analysis": {
+      "genealogy_id": "271",
+      "sections": [
+        {
+          "level": 2,
+          "number": "1",
+          "title": "编排者 INTERRUPT"
+        },
+        {
+          "level": 2,
+          "number": "2",
+          "title": "拓扑方法"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "观察"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "\"法医验尸报告\"四轮的拓扑表现"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "优势"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "触发条件"
+        },
+        {
+          "level": 2,
+          "number": "3",
+          "title": "设计升级"
+        },
+        {
+          "level": 2,
+          "number": "4",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "5",
+          "title": "影响声明"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "修改定义"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "待实现"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "谱系引用"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "拓扑层",
+          "definition": "同源同目标的多重边检测（纯结构判据）"
+        },
+        {
+          "term": "canonical form 层",
+          "definition": "不同节点但缺陷本质 ID 相同的语义重复检测"
+        }
+      ],
+      "references": [
+        "005b",
+        "269",
+        "270",
+        "271",
+        "272"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "82604f9d7e74b17bce653f725fc3def164db66a8a7847777fe46c99fdb00d6e9"
+  ],
+  "git_ref": ""
+}

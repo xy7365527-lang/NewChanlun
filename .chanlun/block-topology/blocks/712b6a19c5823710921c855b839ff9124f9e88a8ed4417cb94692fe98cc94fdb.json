@@ -1,0 +1,71 @@
+{
+  "id": "712b6a19c5823710921c855b839ff9124f9e88a8ed4417cb94692fe98cc94fdb",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T06:03:03.472965+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "87e0582198286e141349621696a468d19f73448a171b4c8100418b06e2ce0594",
+    "content_analysis": {
+      "genealogy_id": "017",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "命题"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "发现过程"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "触发事件"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "关键观察"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "具体变更"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "来源"
+        }
+      ],
+      "concepts": [],
+      "references": [],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "87e0582198286e141349621696a468d19f73448a171b4c8100418b06e2ce0594"
+  ],
+  "git_ref": ""
+}

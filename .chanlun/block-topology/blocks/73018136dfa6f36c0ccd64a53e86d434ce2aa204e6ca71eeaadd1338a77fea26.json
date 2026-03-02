@@ -1,0 +1,85 @@
+{
+  "id": "73018136dfa6f36c0ccd64a53e86d434ce2aa204e6ca71eeaadd1338a77fea26",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:57:48.545647+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "9c8c000c9c1b85b82a1246324c80bc00d5a29a63da613de23302c9fa244c124e",
+    "content_analysis": {
+      "genealogy_id": "119",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "张力描述"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "结论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "类型",
+          "definition": "定理"
+        },
+        {
+          "term": "状态",
+          "definition": "已结算"
+        },
+        {
+          "term": "来源",
+          "definition": "v32审计发现 T4 张力——007/009的子类型决断被029/031\"事实上静默否定\""
+        }
+      ],
+      "references": [
+        "007",
+        "009",
+        "010",
+        "029",
+        "031",
+        "099",
+        "119"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {
+        "negation_source": "v32审计发现（T4张力）",
+        "negation_form": "定理（从010号二层架构推导层面独立性）"
+      },
+      "conclusion_summary": "**029/031 与 007/009 之间不存在否定关系。** 它们分别运作在构造层和分类层。"
+    }
+  },
+  "refs": [
+    "9c8c000c9c1b85b82a1246324c80bc00d5a29a63da613de23302c9fa244c124e"
+  ],
+  "git_ref": ""
+}

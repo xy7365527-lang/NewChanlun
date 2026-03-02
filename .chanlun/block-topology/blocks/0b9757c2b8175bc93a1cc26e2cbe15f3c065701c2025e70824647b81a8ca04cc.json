@@ -1,0 +1,171 @@
+{
+  "id": "0b9757c2b8175bc93a1cc26e2cbe15f3c065701c2025e70824647b81a8ca04cc",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:57:48.465226+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "5116f126ac878290f370e883dbea073a5fbd679e167c134e9d6994e0c3e174fe",
+    "content_analysis": {
+      "genealogy_id": "096",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "编排者约束（触发本号的 INTERRUPT）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "决断结论"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "被排除的选项"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "Gemini 推理链（摘要）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "关键分析"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "CLAUDE.md 作为基因组是否已解决分布式规则传递？"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "hooks 是否已解决强制层？"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "\"不要有例外\"的严格含义"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "需要执行的修改"
+        },
+        {
+          "level": 3,
+          "number": "1",
+          "title": "agent-team-enforce.sh"
+        },
+        {
+          "level": 3,
+          "number": "2",
+          "title": "team-structural-inject.sh"
+        },
+        {
+          "level": 3,
+          "number": "3",
+          "title": "CLAUDE.md 原则15"
+        },
+        {
+          "level": 3,
+          "number": "4",
+          "title": "使用模式更新"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "类型",
+          "definition": "选择"
+        },
+        {
+          "term": "状态",
+          "definition": "已结算"
+        },
+        {
+          "term": "前置",
+          "definition": "089-meta-orchestration-aufhebung-audit, 090-strictness-grammar-rule, 093-five-constraints-topology, 095-agent-team-recursive-swarm"
+        },
+        {
+          "term": "negation_source",
+          "definition": "编排者 INTERRUPT(\"写在 prompt 里就不是分布式的\"+\"不要有例外\") + Gemini decide（选项 D）"
+        },
+        {
+          "term": "B",
+          "definition": "编排者直接排除（Explore 例外不允许存在）"
+        },
+        {
+          "term": "A",
+          "definition": "Explore 走完整 team 流程——这仍然是 Task(Explore)，只是加了 team_name。但根本问题不是 team_name，而是 Explore 这种孤立 subagent 架构与 Agent Team 架构的本质差异。"
+        },
+        {
+          "term": "C",
+          "definition": "封装快捷模式——补丁思维（090号），用复杂度掩盖架构问题。"
+        },
+        {
+          "term": "概念优先于代码",
+          "definition": "Agent Team 架构（teammate 拓扑）与 Subagent 架构（孤立 Task 调用）是两种本质不同的结构。编排者已明确\"subagent 的架构跟 agent team 完全不同\"。"
+        },
+        {
+          "term": "语法规则的绝对性",
+          "definition": "在 `agent-team-enforce.sh` 中为 Explore 留下例外，意味着\"必须使用 Team\"从语法规则降级为软性建议。例外是系统拓扑腐化的开始（与 090号同构）。"
+        },
+        {
+          "term": "能力替代的完备性",
+          "definition": "Explore 的\"多轮自主搜索\"能力："
+        },
+        {
+          "term": "倒逼拓扑纯粹",
+          "definition": "禁用 Task(Explore) 彻底切断退回旧 Subagent 架构的退路，强制在面对复杂搜索需求时使用正确蜂群拓扑。"
+        }
+      ],
+      "references": [
+        "005b",
+        "016",
+        "089",
+        "090",
+        "095",
+        "096"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {
+        "negation_source": "编排者 INTERRUPT + Gemini decide（异质决断）",
+        "negation_form": "expansion（095号\"唯一例外\"条款被否定——架构纯粹性优先于实用性）"
+      },
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "5116f126ac878290f370e883dbea073a5fbd679e167c134e9d6994e0c3e174fe"
+  ],
+  "git_ref": ""
+}

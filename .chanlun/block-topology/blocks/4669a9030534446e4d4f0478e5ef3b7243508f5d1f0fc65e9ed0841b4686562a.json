@@ -1,0 +1,166 @@
+{
+  "id": "4669a9030534446e4d4f0478e5ef3b7243508f5d1f0fc65e9ed0841b4686562a",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:57:48.237942+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "311db38e074660e03b02bcf3f83ac5689ec4470b774356b2e85c413a518cbddb",
+    "content_analysis": {
+      "genealogy_id": "042",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "现象"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "已结算原则"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "Hook 网络现状"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "网络的统一结构"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "规则→Hook 的投影原则"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "Gemini 三次决策的收敛"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "编排者代理的输出粒度"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "被否定的方案"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "类型",
+          "definition": "语法记录"
+        },
+        {
+          "term": "状态",
+          "definition": "已结算"
+        },
+        {
+          "term": "negation_source",
+          "definition": "heterogeneous（Gemini 编排者代理三次决策共同识别）"
+        },
+        {
+          "term": "negation_form",
+          "definition": "expansion（016号运行时强制层概念扩张为 hook 网络）"
+        },
+        {
+          "term": "前置",
+          "definition": "016-runtime-enforcement-layer, 028-ceremony-default-action, 037-recursive-swarm-fractal, 041-orchestrator-proxy"
+        },
+        {
+          "term": "关联",
+          "definition": "033-declarative-dispatch-spec, 027-positive-instruction-over-prohibition, 005b-object-negates-object-grammar"
+        },
+        {
+          "term": "语法记录",
+          "definition": "hook 网络不是设计出来的，而是三次独立决策的收敛产物——每次 Gemini 面对\"如何强制规则 X\"时，答案都是\"写一个 hook 读取 dispatch-spec 执行拦截\""
+        },
+        {
+          "term": "触发",
+          "definition": "PreToolUse 或 PostToolUse 事件"
+        },
+        {
+          "term": "读取",
+          "definition": "从 dispatch-spec.yaml 获取参数（工位列表、行数阈值等）"
+        },
+        {
+          "term": "判断",
+          "definition": "当前操作是否违反对应规则"
+        },
+        {
+          "term": "强制",
+          "definition": "block 或注入 systemMessage"
+        },
+        {
+          "term": "边界",
+          "definition": "明确的豁免条件（`[FINAL]` 标记、`#[atomic]` 标记、标记文件等）"
+        },
+        {
+          "term": "纯文本强化（CLAUDE.md 加更强措辞）",
+          "definition": "已失败 5+ 次。016号的核心发现就是\"知道规则 ≠ 执行规则\"。文本强化是在概念层重复概念层已有的内容，不触及 runtime 层。"
+        },
+        {
+          "term": "skill 依赖声明（frontmatter depends_on）",
+          "definition": "依赖 LLM 自觉加载依赖。与016号矛盾——如果 agent 会忘记执行规则，也会忘记加载依赖。"
+        },
+        {
+          "term": "统一入口 skill",
+          "definition": "将所有规则打包进一个巨大的 prompt。违反递归原则（037号），单一 prompt 过大导致注意力稀释，且无法在 tool 调用粒度上拦截。"
+        }
+      ],
+      "references": [
+        "013",
+        "016",
+        "028",
+        "032",
+        "033",
+        "037",
+        "041"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [
+        {
+          "target_id": "",
+          "target_desc": "纯文本强化（CLAUDE.md 加更强措辞）",
+          "negation_type": "rejected_plan"
+        },
+        {
+          "target_id": "",
+          "target_desc": "skill 依赖声明（frontmatter depends_on）",
+          "negation_type": "rejected_plan"
+        },
+        {
+          "target_id": "",
+          "target_desc": "统一入口 skill",
+          "negation_type": "rejected_plan"
+        }
+      ],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "311db38e074660e03b02bcf3f83ac5689ec4470b774356b2e85c413a518cbddb"
+  ],
+  "git_ref": ""
+}

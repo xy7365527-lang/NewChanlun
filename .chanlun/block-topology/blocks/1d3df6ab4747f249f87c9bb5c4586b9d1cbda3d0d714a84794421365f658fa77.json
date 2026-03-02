@@ -1,0 +1,91 @@
+{
+  "id": "1d3df6ab4747f249f87c9bb5c4586b9d1cbda3d0d714a84794421365f658fa77",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T06:03:03.463839+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "4e64990ccbd4b61b4d5a0225b29118906ba96692b4e4c6ef31efd7903d94f753",
+    "content_analysis": {
+      "genealogy_id": "013",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "矛盾描述"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "发现过程"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "结论（语法记录）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "结构工位（Structural Stations）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "任务工位（Task Stations）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "架构规则"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "类比"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "对 agent team 实现的影响"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "操作类型",
+          "definition": "框架建立"
+        },
+        {
+          "term": "根因",
+          "definition": "当前蜂群模型是纯任务驱动——每次只按任务拆工位。谱系写入、元编排进化、Serena 同步等**不以任务为转移的常设功能**没有被编入 agent team 设计，所以每次拉蜂群时自动丢失。"
+        },
+        {
+          "term": "操作系统",
+          "definition": "内核服务（常驻）vs 用户进程（按需）"
+        },
+        {
+          "term": "010号谱系的映射",
+          "definition": "结构工位 = 构造层（始终运行的递归基础设施），任务工位 = 分类层（随具体走势生灭的实体）"
+        }
+      ],
+      "references": [
+        "010",
+        "012"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": "（语法记录）"
+    }
+  },
+  "refs": [
+    "4e64990ccbd4b61b4d5a0225b29118906ba96692b4e4c6ef31efd7903d94f753"
+  ],
+  "git_ref": ""
+}

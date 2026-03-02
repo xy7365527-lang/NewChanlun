@@ -1,0 +1,124 @@
+{
+  "id": "0b20e424f9ea599b528967158ff8c567e256b4bbd7ea7219caca50a1640cffb1",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:57:48.070197+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "f5b815bf79fcff07aaf852831c6569cd5c867ba3b16a32b0579cca389e30f922",
+    "content_analysis": {
+      "genealogy_id": "007",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "矛盾描述"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "搜索范围"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "编排者决断（2026-02-17）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "原文证据链（关键8条）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "趋势独有而盘整不共享的属性/行为"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "趋势的生命周期"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "与第33课\"可省略\"声明的关系"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "对代码的影响"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "状态",
+          "definition": "已结算"
+        },
+        {
+          "term": "结算依据",
+          "definition": "编排者决断 + 原文穷尽搜索（17条证据，16条实体用法）"
+        },
+        {
+          "term": "类型",
+          "definition": "概念澄清 + 编排者决断"
+        },
+        {
+          "term": "域",
+          "definition": "趋势（Qushi）、走势类型（Move）"
+        },
+        {
+          "term": "溯源",
+          "definition": "[旧缠论] + [旧缠论:选择]"
+        },
+        {
+          "term": "问题",
+          "definition": "原文是否支持趋势作为独立实体？还是仅为走势类型的分类标签？"
+        },
+        {
+          "term": "诞生",
+          "definition": "第一中枢后出现第三类买点并形成非背驰类向上（第107课）"
+        },
+        {
+          "term": "形成确认",
+          "definition": "至少两个依次同向走势中枢（第17/18课定义）"
+        },
+        {
+          "term": "存续/延续",
+          "definition": "同向中枢不断产生（第18课）"
+        },
+        {
+          "term": "背驰预警",
+          "definition": "a+A+b+B+c 中 c 段力度弱于 a 段（第24/37课）"
+        },
+        {
+          "term": "终结",
+          "definition": "趋势背驰确认（第29课背驰-转折定理）"
+        },
+        {
+          "term": "中阴阶段",
+          "definition": "趋势死亡后到新走势类型确立前的模糊阶段（第88课）"
+        },
+        {
+          "term": "时机",
+          "definition": "待 `/ritual` 结算后实施"
+        }
+      ],
+      "references": [],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "f5b815bf79fcff07aaf852831c6569cd5c867ba3b16a32b0579cca389e30f922"
+  ],
+  "git_ref": ""
+}

@@ -1,0 +1,69 @@
+{
+  "id": "e535d93b8f93d5cdc2f2033f4ecafe1e01f4e5cf2982acd0a614bda15f87a6ca",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:57:48.049211+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "f3880e58a3c164556474e5a536a88e12ddd5e2692b449e5789e32555746a1b6a",
+    "content_analysis": {
+      "genealogy_id": "002",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "矛盾描述"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "已确认缺口及补录"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "已完成的修正"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "第二阶段待下游工作"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "结算依据"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "状态",
+          "definition": "已结算（第一阶段）"
+        },
+        {
+          "term": "域",
+          "definition": "全局（知识库基础设施）"
+        },
+        {
+          "term": "来源",
+          "definition": "蜂群创世仪式 → 编排者指出\"我们对缠论原文的来源是不准、不对、不完全的\""
+        }
+      ],
+      "references": [],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "f3880e58a3c164556474e5a536a88e12ddd5e2692b449e5789e32555746a1b6a"
+  ],
+  "git_ref": ""
+}

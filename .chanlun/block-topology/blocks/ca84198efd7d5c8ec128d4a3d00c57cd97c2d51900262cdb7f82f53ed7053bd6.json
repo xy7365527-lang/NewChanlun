@@ -1,0 +1,104 @@
+{
+  "id": "ca84198efd7d5c8ec128d4a3d00c57cd97c2d51900262cdb7f82f53ed7053bd6",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T06:03:03.506898+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "d9f6d346a07f4f25cd2c8e96dec607bc95bb6f1ce09b68da9c33837985cb911a",
+    "content_analysis": {
+      "genealogy_id": "025",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "矛盾/发现"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "编排者决断"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "关键属性（编排者确认）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "决断"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "编排者补充"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "产出"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "定义层"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "规范层"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "Schema 层"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "结算条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "来源"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "有方向",
+          "definition": "A/B 上升 = 资本从 B→A。流转是有向的。"
+        },
+        {
+          "term": "一对多",
+          "definition": "一个角的收缩可能对应三条比价线（该角与其他三角各一条）。"
+        },
+        {
+          "term": "共振涌现",
+          "definition": "多条比价走势同方向运动 = 资本从一个角同时向多个角流出。"
+        }
+      ],
+      "references": [],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "d9f6d346a07f4f25cd2c8e96dec607bc95bb6f1ce09b68da9c33837985cb911a"
+  ],
+  "git_ref": ""
+}

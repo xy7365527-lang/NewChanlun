@@ -1,0 +1,139 @@
+{
+  "id": "7be8a2ceb7f32c143dff3f0bc90ebfe3cf94655539c3c79c478f761c52dc0c5a",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T06:03:03.437129+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "39dca675a052f73699930b7204381d7a9637aaae26432dda9a88214c5d3a5d9c",
+    "content_analysis": {
+      "genealogy_id": "003",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "分离描述"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "分离前"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "分离后的两个概念"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "概念 A：三笔重叠线段（v0）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "概念 B：特征序列线段（v1）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "共享结构"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "验证结果（2026-02-16）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "实证数据（3类场景，合成笔序列）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "关键发现"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "已验证项"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "待验证（阻塞于真实数据或编排者决断）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "编排者决断（2026-02-16）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "语境标注（168号下游推论3）"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "定义",
+          "definition": "连续三笔 price range 有交集（`overlap_low < overlap_high`）即成段"
+        },
+        {
+          "term": "算法",
+          "definition": "贪心窗口扫描，成段后跳两笔"
+        },
+        {
+          "term": "方向",
+          "definition": "第一笔方向"
+        },
+        {
+          "term": "原文对应",
+          "definition": "对\"至少三笔\"规则的简化理解"
+        },
+        {
+          "term": "特征",
+          "definition": "无特征序列分析，无分型验证，无结算锚"
+        },
+        {
+          "term": "v0 贪心切割",
+          "definition": "每3笔重叠就成段，段数远多于 v1（比例 2-3:1）"
+        },
+        {
+          "term": "v1 等待分型",
+          "definition": "特征序列未出现分型时不断段，单段覆盖全部笔"
+        },
+        {
+          "term": "退化段归因于笔层",
+          "definition": "在干净笔序列上两口径都不产生退化段。退化段根因在旧笔（谱系 001），非口径差异"
+        },
+        {
+          "term": "决断",
+          "definition": "B — v0 降级为参考实现"
+        },
+        {
+          "term": "理由",
+          "definition": "v0 不符合原文 §67 课特征序列定义，但作为对比工具有价值"
+        }
+      ],
+      "references": [
+        "168"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "39dca675a052f73699930b7204381d7a9637aaae26432dda9a88214c5d3a5d9c"
+  ],
+  "git_ref": ""
+}

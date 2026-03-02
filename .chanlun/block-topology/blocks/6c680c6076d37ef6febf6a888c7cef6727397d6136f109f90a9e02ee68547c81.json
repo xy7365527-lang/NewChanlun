@@ -1,0 +1,24 @@
+{
+  "id": "6c680c6076d37ef6febf6a888c7cef6727397d6136f109f90a9e02ee68547c81",
+  "type": "event",
+  "timestamp": "2026-03-02T07:07:41.941763+00:00",
+  "source": "migration",
+  "content": {
+    "id": "280",
+    "title": "元观察——v123-swarm OQ5完整生命周期模式 + 279号推论执行分派",
+    "status": "已结算",
+    "type": "meta-rule",
+    "date": "2026-03-01",
+    "depends_on": [
+      "278",
+      "279",
+      "204",
+      "189"
+    ],
+    "topo_effect": "",
+    "tensions_with": [],
+    "source_file": "settled\\280-meta-observation-v123-swarm.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

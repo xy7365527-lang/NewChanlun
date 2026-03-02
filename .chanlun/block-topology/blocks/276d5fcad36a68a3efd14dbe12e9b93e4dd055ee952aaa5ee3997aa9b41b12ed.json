@@ -1,0 +1,77 @@
+{
+  "id": "276d5fcad36a68a3efd14dbe12e9b93e4dd055ee952aaa5ee3997aa9b41b12ed",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T06:03:03.621175+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "7550ae94fb4c2c9240034beef0fe6dca22ebb9e4090d0b80143856c0de8db281",
+    "content_analysis": {
+      "genealogy_id": "070",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "现象"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "诊断（Gemini 异质质询）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "决断"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "修复"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "真正的死锁",
+          "definition": "纯文本指令（\"紧跟 tool 调用\"）对抗不了 LLM 的生成惯性（输出完段落自然停止）"
+        },
+        {
+          "term": "创世 Gap 实例",
+          "definition": "你无法用系统内的规则去强制启动系统本身。ceremony 处于 Swarm₀，拓扑约束尚未接管"
+        }
+      ],
+      "references": [
+        "048",
+        "057",
+        "058",
+        "059",
+        "069",
+        "070"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "7550ae94fb4c2c9240034beef0fe6dca22ebb9e4090d0b80143856c0de8db281"
+  ],
+  "git_ref": ""
+}

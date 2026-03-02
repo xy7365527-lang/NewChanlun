@@ -1,0 +1,104 @@
+{
+  "id": "7973b16702cdc3a2fc969eea8a7ca697294aa23254f2e6ccf8d0566464065f0b",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:57:48.548793+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "0fc45c4b042708990c84ca16ab5c3007673de0f1eb1ddd612dc7334e3673f65e",
+    "content_analysis": {
+      "genealogy_id": "120",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "张力描述"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "逐条分析"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "069号 depends_on 062"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "094号 related 062"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "104号 related 062"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "结论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "引用分类规则（语法记录）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "类型",
+          "definition": "语法记录"
+        },
+        {
+          "term": "状态",
+          "definition": "已结算"
+        },
+        {
+          "term": "来源",
+          "definition": "v32审计发现 T5 张力——062被093扬弃后仍被069/094/104引用"
+        }
+      ],
+      "references": [
+        "062",
+        "069",
+        "093",
+        "094",
+        "104",
+        "120"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {
+        "negation_source": "v32审计发现（T5张力）",
+        "negation_form": "语法记录（引用分类规则的显式化）"
+      },
+      "conclusion_summary": "**三个引用均为历史参照，不是活跃依赖。** 这符合谱系的历时性设计——被否定/扬弃的节点不从 DAG 中删除（原则4：谱系必须维护），其引用边保留为演化历史的记录。"
+    }
+  },
+  "refs": [
+    "0fc45c4b042708990c84ca16ab5c3007673de0f1eb1ddd612dc7334e3673f65e"
+  ],
+  "git_ref": ""
+}

@@ -1,0 +1,22 @@
+{
+  "id": "ecbb9471ffe6a81f3f9a22c5b08ca5d142338dddc87b29c0610fe1f111c4a218",
+  "type": "event",
+  "timestamp": "2026-03-02T07:07:41.943736+00:00",
+  "source": "migration",
+  "content": {
+    "id": "282",
+    "title": "元观察——v127-swarm 终止 session（无新发现）",
+    "status": "已结算",
+    "type": "meta-rule",
+    "date": "2026-03-01",
+    "depends_on": [
+      "281",
+      "260"
+    ],
+    "topo_effect": "",
+    "tensions_with": [],
+    "source_file": "settled\\282-meta-observation-v127-swarm.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

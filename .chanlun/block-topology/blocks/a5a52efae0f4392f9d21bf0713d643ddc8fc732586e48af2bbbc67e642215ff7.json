@@ -1,0 +1,25 @@
+{
+  "id": "a5a52efae0f4392f9d21bf0713d643ddc8fc732586e48af2bbbc67e642215ff7",
+  "type": "event",
+  "timestamp": "2026-03-02T07:07:41.946759+00:00",
+  "source": "migration",
+  "content": {
+    "id": "285",
+    "title": "元观察——v129-swarm 编排者语言清洗 + OQ v2 实验脚本重写",
+    "status": "已结算",
+    "type": "meta-rule",
+    "date": "2026-03-01",
+    "depends_on": [
+      "282",
+      "284",
+      "283",
+      "219",
+      "278"
+    ],
+    "topo_effect": "",
+    "tensions_with": [],
+    "source_file": "settled\\285-meta-observation-v129-swarm.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

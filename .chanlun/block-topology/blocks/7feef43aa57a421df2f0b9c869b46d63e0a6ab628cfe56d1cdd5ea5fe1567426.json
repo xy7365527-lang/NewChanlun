@@ -1,0 +1,149 @@
+{
+  "id": "7feef43aa57a421df2f0b9c869b46d63e0a6ab628cfe56d1cdd5ea5fe1567426",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:57:48.112318+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "3cc72fade078447b67d26770c08ee64b34e5aadc22b6da473dee0ffc63da8e51",
+    "content_analysis": {
+      "genealogy_id": "016",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "命题"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "发现过程"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "触发事件"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "关键观察"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "验证"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "被否定的方案"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "新产出"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "来源"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "状态",
+          "definition": "已结算（语法记录）"
+        },
+        {
+          "term": "类型",
+          "definition": "meta-rule"
+        },
+        {
+          "term": "结算依据",
+          "definition": "014实施过程中的实际违反 + hook验证"
+        },
+        {
+          "term": "未写谱系",
+          "definition": "—尽管卡上写着\"每次概念发现后立刻写入谱系\""
+        },
+        {
+          "term": "未跑质量检查",
+          "definition": "—尽管 quality-guard 卡定义了\"每次产出前检查结果包六要素\""
+        },
+        {
+          "term": "未拉蜂群",
+          "definition": "—尽管 CLAUDE.md 原则10说\"蜂群是默认工作模式\""
+        },
+        {
+          "term": "未用 meta-observer",
+          "definition": "—尽管 bootstrap 模式本身是一个方法论洞察"
+        },
+        {
+          "term": "\"写更多规则\"",
+          "definition": "规则本身就是概念层产物，不解决概念→runtime 的翻译缺口。谁来强制执行\"强制执行规则的规则\"？无限回退。"
+        },
+        {
+          "term": "\"CC 应该更认真\"",
+          "definition": "归因于 agent 态度而非系统结构。止步于现象，不触及原因。"
+        },
+        {
+          "term": "runtime 强制层从此存在",
+          "definition": "不再是纯概念系统。第一个 hook 证明了\"代码强制 > 文字要求\""
+        },
+        {
+          "term": "后续 hook 方向",
+          "definition": "产出前质量检查（/commit 内置）、ceremony 后蜂群评估（自动输出）"
+        },
+        {
+          "term": "bootstrap 循环",
+          "definition": "hook 存在 → CC 被迫写谱系 → 写谱系过程产生发现 → 发现催生新 hook → 更多规则被强制执行"
+        },
+        {
+          "term": "前置",
+          "definition": "014（SKILL.md 卡组分解）— 本条是 014 实施过程中的发现"
+        },
+        {
+          "term": "关联",
+          "definition": "005b（对象否定对象）— 在 runtime 层的同构：规则（概念对象）被 hook（runtime 对象）否定其\"可选性\""
+        }
+      ],
+      "references": [],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [
+        {
+          "target_id": "",
+          "target_desc": "写更多规则",
+          "negation_type": "rejected_plan"
+        },
+        {
+          "target_id": "",
+          "target_desc": "CC 应该更认真",
+          "negation_type": "rejected_plan"
+        }
+      ],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "3cc72fade078447b67d26770c08ee64b34e5aadc22b6da473dee0ffc63da8e51"
+  ],
+  "git_ref": ""
+}

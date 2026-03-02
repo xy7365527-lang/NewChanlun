@@ -119,3 +119,8 @@ RELATION_TYPES 同时保留 modifies/refines/revises。检测层通过 `EVOLUTIO
 
 - 107 测试中约 5 个依赖实际谱系文件存在（TestRealFiles 类），CI 环境中会 skip
 - ceremony_scan.py 的修改未被单元测试覆盖（它依赖完整的文件系统布局，属于集成测试范畴）
+
+### 下游推论解决记录（v133-swarm session）
+
+- 推论1（enrichment 执行）：**resolved** — 本 session 三轮校准完成（308号 session：停用词→赋值过滤→元数据字段过滤），duplicates 110→71，concepts 1881→1140
+- 推论2（正则维护性）：**deferred** — 观察型推论，当前正则数量尚在可维护范围内，无紧急行动

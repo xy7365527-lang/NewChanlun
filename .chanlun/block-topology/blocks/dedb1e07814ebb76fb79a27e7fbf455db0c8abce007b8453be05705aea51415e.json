@@ -1,0 +1,92 @@
+{
+  "id": "dedb1e07814ebb76fb79a27e7fbf455db0c8abce007b8453be05705aea51415e",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:57:48.307105+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "66d4db0f88c30ca63a9a32783161f3c48675cad1129d9b5772f8a6ffe63407f2",
+    "content_analysis": {
+      "genealogy_id": "059",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "语法记录陈述"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "审计发现（Gemini 3.1 Pro Preview 异质质询）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "线性问题"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "拓扑问题"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "递归问题"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "修复行动"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "元观察：双速进化模式"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "异质否定来源"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "类型",
+          "definition": "语法记录"
+        },
+        {
+          "term": "状态",
+          "definition": "已结算"
+        }
+      ],
+      "references": [
+        "012",
+        "020",
+        "033",
+        "036",
+        "056",
+        "058"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "66d4db0f88c30ca63a9a32783161f3c48675cad1129d9b5772f8a6ffe63407f2"
+  ],
+  "git_ref": ""
+}

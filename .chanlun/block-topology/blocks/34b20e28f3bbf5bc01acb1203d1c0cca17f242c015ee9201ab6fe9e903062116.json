@@ -1,0 +1,96 @@
+{
+  "id": "34b20e28f3bbf5bc01acb1203d1c0cca17f242c015ee9201ab6fe9e903062116",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:57:48.336711+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "a8f3d16017b0a6694afc4f45a453d5aaf1615fdfcf6f7ea1936481c2fe4df6cf",
+    "content_analysis": {
+      "genealogy_id": "068",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "范式转换"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "被否定的假设"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "新的认识"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "术语替换"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "工程影响"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "异质否定来源"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "类型",
+          "definition": "语法记录"
+        },
+        {
+          "term": "状态",
+          "definition": "已结算"
+        },
+        {
+          "term": "正面",
+          "definition": "离散图论比连续拓扑更容易在计算机中形式化"
+        },
+        {
+          "term": "禁止",
+          "definition": "任何使用浮点数阈值判断\"相变\"或\"背驰\"的逻辑都是非法的"
+        },
+        {
+          "term": "方向",
+          "definition": "走势建模为 DAG/偏序集。背驰和分型是特定子图模式或拓扑排序的断裂"
+        }
+      ],
+      "references": [
+        "065",
+        "066",
+        "067"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {
+        "negates": [
+          "065",
+          "066"
+        ]
+      },
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "a8f3d16017b0a6694afc4f45a453d5aaf1615fdfcf6f7ea1936481c2fe4df6cf"
+  ],
+  "git_ref": ""
+}

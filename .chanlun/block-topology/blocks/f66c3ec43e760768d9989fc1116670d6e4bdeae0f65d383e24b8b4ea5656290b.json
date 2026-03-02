@@ -1,0 +1,63 @@
+{
+  "id": "f66c3ec43e760768d9989fc1116670d6e4bdeae0f65d383e24b8b4ea5656290b",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T06:04:25.765376+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "86e0c59bbb934ef6be045e1136b0905c471bf3a253f57f2c741699c5db371495",
+    "content_analysis": {
+      "genealogy_id": "128",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "问题"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "结论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "执行清单"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        }
+      ],
+      "concepts": [],
+      "references": [
+        "010",
+        "128",
+        "129"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {
+        "negation_source": "heterogeneous",
+        "negation_form": "定理（实地逐一检查后逻辑推导）"
+      },
+      "conclusion_summary": "**19个孤立节点分三类：4个合理孤立 + 12个需加边（17条depends_on） + 3个新建节点。**"
+    }
+  },
+  "refs": [
+    "86e0c59bbb934ef6be045e1136b0905c471bf3a253f57f2c741699c5db371495"
+  ],
+  "git_ref": ""
+}

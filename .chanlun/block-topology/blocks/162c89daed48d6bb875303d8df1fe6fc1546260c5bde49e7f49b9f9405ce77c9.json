@@ -1,0 +1,75 @@
+{
+  "id": "162c89daed48d6bb875303d8df1fe6fc1546260c5bde49e7f49b9f9405ce77c9",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:57:48.601468+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "eceea358582db7e4c9212972ee96a74bc504c37e07bda7dc85ba1a10cee05d96",
+    "content_analysis": {
+      "genealogy_id": "135",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "两个事件"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "事件A：CLAUDE.md 拆分（P0-5 执行）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "事件B：073b 平台约束前提否定"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "修改清单"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "类型",
+          "definition": "行动（l'acte）"
+        },
+        {
+          "term": "状态",
+          "definition": "已结算"
+        }
+      ],
+      "references": [
+        "095",
+        "096",
+        "135"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {
+        "negation_source": "v38-swarm RTAS执行 + 编排者确认平台无限制",
+        "negation_form": "行动（P0-5执行 + 073b前提否定，不携带信息差）",
+        "negates": [
+          "073b"
+        ]
+      },
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "eceea358582db7e4c9212972ee96a74bc504c37e07bda7dc85ba1a10cee05d96"
+  ],
+  "git_ref": ""
+}

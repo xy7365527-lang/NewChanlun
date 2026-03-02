@@ -1,0 +1,21 @@
+{
+  "id": "5dcab30936439c2e9e1489113976d1620b106822bdbd85c942be4c4be654486d",
+  "type": "event",
+  "timestamp": "2026-03-02T07:07:41.861807+00:00",
+  "source": "migration",
+  "content": {
+    "id": "193",
+    "title": "第一次真实多轮质询——缠论笔定义代码忠实度审计",
+    "status": "结算态",
+    "type": "概念发现",
+    "date": "2026-02-25",
+    "depends_on": [
+      "184",
+      "188",
+      "191"
+    ],
+    "source_file": "settled\\193-first-real-inquiry-loop.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

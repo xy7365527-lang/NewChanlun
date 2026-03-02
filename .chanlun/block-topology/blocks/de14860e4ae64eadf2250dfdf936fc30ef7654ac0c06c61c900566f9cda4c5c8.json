@@ -1,0 +1,124 @@
+{
+  "id": "de14860e4ae64eadf2250dfdf936fc30ef7654ac0c06c61c900566f9cda4c5c8",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:57:48.232350+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "d0622b2a7274308963784886847b048f0164f79d7da0bdbee67c28c95a931b98",
+    "content_analysis": {
+      "genealogy_id": "041",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "现象"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "已结算原则"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "被否定的方案"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "类型",
+          "definition": "语法记录"
+        },
+        {
+          "term": "状态",
+          "definition": "已结算"
+        },
+        {
+          "term": "negation_source",
+          "definition": "heterogeneous"
+        },
+        {
+          "term": "negation_form",
+          "definition": "expansion（030a 异质否定源概念扩张为编排者代理）"
+        },
+        {
+          "term": "前置",
+          "definition": "030a-gemini-position, 032-divine-madness-lead-self-restriction, 028-ceremony-default-action, 039-single-agent-bypass-pattern"
+        },
+        {
+          "term": "关联",
+          "definition": "018-four-way-classification, 005b-object-negates-object-grammar, 020-constitutive-contradiction"
+        },
+        {
+          "term": "语法记录",
+          "definition": "编排者代理不是新创造的规则，而是已在运作的实践的显式化——人类编排者事实上已经在用 Gemini 的产出做决策依据"
+        },
+        {
+          "term": "\"继续等待人类\"",
+          "definition": "028号已否定等待。039号证明等待导致 Lead 越权。"
+        },
+        {
+          "term": "\"Claude 自行决策\"",
+          "definition": "选择类决断需要价值判断，同质模型的价值判断缺乏异质性校验。"
+        },
+        {
+          "term": "\"取消选择/语法记录类别\"",
+          "definition": "四分法的分类是结构性的（018号），不能因为执行不便而取消类别。"
+        }
+      ],
+      "references": [
+        "005",
+        "018",
+        "028",
+        "030a",
+        "031",
+        "032",
+        "039",
+        "052"
+      ],
+      "new_concepts": [],
+      "modifications": [
+        {
+          "target_id": "031",
+          "target_desc": "同步决策者（系统等待人类输入）",
+          "modification": "异步审计者（系统自主推进，人类事后审查 + 运行时 INTERRUPT）",
+          "kind": "unknown"
+        }
+      ],
+      "negations": [
+        {
+          "target_id": "",
+          "target_desc": "继续等待人类",
+          "negation_type": "rejected_plan"
+        },
+        {
+          "target_id": "",
+          "target_desc": "Claude 自行决策",
+          "negation_type": "rejected_plan"
+        },
+        {
+          "target_id": "",
+          "target_desc": "取消选择/语法记录类别",
+          "negation_type": "rejected_plan"
+        }
+      ],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "d0622b2a7274308963784886847b048f0164f79d7da0bdbee67c28c95a931b98"
+  ],
+  "git_ref": ""
+}

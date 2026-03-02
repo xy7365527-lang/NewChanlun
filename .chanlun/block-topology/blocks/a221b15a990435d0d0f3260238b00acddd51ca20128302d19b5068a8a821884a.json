@@ -1,0 +1,31 @@
+{
+  "id": "a221b15a990435d0d0f3260238b00acddd51ca20128302d19b5068a8a821884a",
+  "type": "event",
+  "timestamp": "2026-03-02T07:07:41.849256+00:00",
+  "source": "migration",
+  "content": {
+    "id": "178",
+    "title": "区块拓扑建系——177条谱系升格为内容寻址区块",
+    "status": "已结算",
+    "type": "語法記録",
+    "date": "2026-02-24",
+    "negation_form": "",
+    "depends_on": [
+      "069",
+      "147",
+      "174",
+      "177"
+    ],
+    "related": [
+      "058",
+      "162",
+      "176"
+    ],
+    "negates": [],
+    "topo_effect": "",
+    "tensions_with": [],
+    "source_file": "settled\\178-block-topology-migration.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

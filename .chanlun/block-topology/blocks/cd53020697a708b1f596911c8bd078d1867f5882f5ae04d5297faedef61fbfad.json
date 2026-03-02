@@ -1,0 +1,22 @@
+{
+  "id": "cd53020697a708b1f596911c8bd078d1867f5882f5ae04d5297faedef61fbfad",
+  "type": "event",
+  "timestamp": "2026-03-02T07:07:41.957080+00:00",
+  "source": "migration",
+  "content": {
+    "id": "294",
+    "title": "金融折叠与生产折叠——D算子的结构性偏见与M-C...P...C'-M'回路",
+    "status": "settled",
+    "type": "理论形式化",
+    "date": "2026-03-01",
+    "depends_on": [
+      "292",
+      "293"
+    ],
+    "topo_effect": "254号（纯金融拓扑框架）的有效域边界显式化——254号只覆盖金融折叠，生产折叠是其盲区",
+    "tensions_with": [],
+    "source_file": "settled\\294-financial-vs-production-fold.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

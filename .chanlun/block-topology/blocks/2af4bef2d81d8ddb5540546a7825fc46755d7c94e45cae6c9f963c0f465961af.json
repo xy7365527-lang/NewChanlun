@@ -1,0 +1,81 @@
+{
+  "id": "2af4bef2d81d8ddb5540546a7825fc46755d7c94e45cae6c9f963c0f465961af",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T06:03:03.501527+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "74d9058492c4a48de9ddaa2c0f39094fd1bb44929598636b02c1432d875c601b",
+    "content_analysis": {
+      "genealogy_id": "022",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "矛盾描述"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "结算理由"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "发现过程"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "产出"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "定义层（/ritual 结算）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "规范层"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "实现层"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "来源"
+        }
+      ],
+      "concepts": [],
+      "references": [],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "74d9058492c4a48de9ddaa2c0f39094fd1bb44929598636b02c1432d875c601b"
+  ],
+  "git_ref": ""
+}

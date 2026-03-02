@@ -1,0 +1,88 @@
+{
+  "id": "a516f723d841cee663c7ffc3797b852d4154d8cd68ec22ebbf5d4c7623d981e3",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:57:48.263779+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "6d3bf2e7a7ad2ebbcadd9c3a287ac3ba592e6a6632cec3ec81d0c5814204d769",
+    "content_analysis": {
+      "genealogy_id": "047",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "现象"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "Gemini 决策"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "推理链"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "风险"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "待结算条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "溯源"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "类型",
+          "definition": "选择"
+        },
+        {
+          "term": "状态",
+          "definition": "已结算"
+        },
+        {
+          "term": "negation_source",
+          "definition": "heterogeneous（Gemini 编排者代理 decide）"
+        },
+        {
+          "term": "negation_form",
+          "definition": "expansion（026号\"现金角双重身份\"扩张为\"主权信用复合体\"）"
+        },
+        {
+          "term": "前置",
+          "definition": "026-cash-vertex-dual-role"
+        },
+        {
+          "term": "关联",
+          "definition": "025-flow-relation-matrix, 022-ratio-formalization"
+        }
+      ],
+      "references": [
+        "026"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "6d3bf2e7a7ad2ebbcadd9c3a287ac3ba592e6a6632cec3ec81d0c5814204d769"
+  ],
+  "git_ref": ""
+}

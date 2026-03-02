@@ -1,0 +1,119 @@
+{
+  "id": "200381c199b3379738978e06dc695438effe6e147fc3d6ef10f9ef2f466c377d",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T06:03:03.432336+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "5e9eb9e9a6bc35d4facbca6edefc536ec55121e0f898d5161e1dd61f719f4d1b",
+    "content_analysis": {
+      "genealogy_id": "001",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "矛盾描述"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "原文回溯（完整链条）"
+        },
+        {
+          "level": 3,
+          "number": "1",
+          "title": "硬约束（第67课+第78课）"
+        },
+        {
+          "level": 3,
+          "number": "2",
+          "title": "古怪线段的成因（第78课）"
+        },
+        {
+          "level": 3,
+          "number": "3",
+          "title": "缠师的解法——新笔定义（《忽闻台风可休市》2007-09-18）"
+        },
+        {
+          "level": 3,
+          "number": "4",
+          "title": "知识链条（第67→71→77→78课）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "矛盾重新定位"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "验证结果（2026-02-15）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "知识库缺口（已全部补录 ✓）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响范围"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "结算条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "旧笔",
+          "definition": "顶底分型间必须有独立K线（不属于任一分型）"
+        },
+        {
+          "term": "新笔",
+          "definition": "顶分型最高K线与底分型最低K线之间（不含这两K线），至少3根K线"
+        },
+        {
+          "term": "第67课",
+          "definition": "线段划分标准（特征序列法的完整定义）"
+        },
+        {
+          "term": "第71课",
+          "definition": "线段划分标准的再分辨（特征序列包含关系的严格性）"
+        },
+        {
+          "term": "第77课",
+          "definition": "一些概念的再分辨"
+        },
+        {
+          "term": "第78课",
+          "definition": "继续说线段的划分（古怪线段+硬约束）"
+        },
+        {
+          "term": "忽闻台风可休市",
+          "definition": "新笔定义（从笔层面根治古怪线段）"
+        },
+        {
+          "term": "结论",
+          "definition": "退化段根因是旧笔拒绝了应成笔的短促波动，导致笔序列中出现\"回头波动\"，使线段在错误位置终结。新笔消除退化段的假说**成立**。"
+        }
+      ],
+      "references": [],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "5e9eb9e9a6bc35d4facbca6edefc536ec55121e0f898d5161e1dd61f719f4d1b"
+  ],
+  "git_ref": ""
+}

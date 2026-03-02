@@ -1,0 +1,77 @@
+{
+  "id": "caca72d058ea1e49a37c9297afd4533d4ea813f180426e092632d09f2dc3bf7f",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T06:04:25.769428+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "de2c0d938a344b98871bb38e69319001391db5082e53b79140f0b76a51e21d5f",
+    "content_analysis": {
+      "genealogy_id": "130",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "编排者INTERRUPT"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链（修正版）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "结论"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "初始结算的错误"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "编排者INTERRUPT",
+          "definition": "\"蜂群的存在形式也是体系的。这不是有条件的。\""
+        }
+      ],
+      "references": [
+        "036",
+        "056",
+        "069",
+        "073b",
+        "105",
+        "116",
+        "130"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {
+        "negation_source": "heterogeneous",
+        "negation_form": "定理（编排者INTERRUPT修正初始结算方向）"
+      },
+      "conclusion_summary": "**审计递归性是体系存在论要求，当前扁平实现是声明-能力缺口。**"
+    }
+  },
+  "refs": [
+    "de2c0d938a344b98871bb38e69319001391db5082e53b79140f0b76a51e21d5f"
+  ],
+  "git_ref": ""
+}
