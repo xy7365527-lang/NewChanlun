@@ -1,0 +1,97 @@
+{
+  "id": "e5027c0dbbdeb5256c24f26c31bdc580d909e722a3efde85ca99f04a67e9f4ba",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.536993+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "de2c0d938a344b98871bb38e69319001391db5082e53b79140f0b76a51e21d5f",
+    "content_analysis": {
+      "genealogy_id": "130",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "编排者INTERRUPT"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链（修正版）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "结论"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "初始结算的错误"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "105号",
+          "definition": "递归无条件架构要求——本条确认审计也不例外"
+        },
+        {
+          "term": "056号",
+          "definition": "蜂群递归是默认模式——编排者INTERRUPT的谱系根源"
+        },
+        {
+          "term": "069号",
+          "definition": "视差Gap——审计视差从属于此"
+        },
+        {
+          "term": "073b号",
+          "definition": "平台约束——声明-能力缺口的物质原因"
+        },
+        {
+          "term": "116号",
+          "definition": "退化特例需要理由——适用但不改变体系要求"
+        },
+        {
+          "term": "编排者INTERRUPT",
+          "definition": "\"蜂群的存在形式也是体系的。这不是有条件的。\""
+        }
+      ],
+      "references": [
+        "036",
+        "056",
+        "069",
+        "073b",
+        "105",
+        "116",
+        "130"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {
+        "negation_source": "heterogeneous",
+        "negation_form": "定理（编排者INTERRUPT修正初始结算方向）"
+      },
+      "conclusion_summary": "**审计递归性是体系存在论要求，当前扁平实现是声明-能力缺口。**"
+    }
+  },
+  "refs": [
+    "de2c0d938a344b98871bb38e69319001391db5082e53b79140f0b76a51e21d5f"
+  ],
+  "git_ref": ""
+}

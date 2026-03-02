@@ -1,0 +1,119 @@
+{
+  "id": "fbd160c39f10984ec6d781a7a48a8503b4638d5d0b6394461c79ee3d1739550f",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.753163+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "9df3ca7c4296e0ba5ac2bddc3b198ee5e8b5e692c2124502798fb9e72f2eae1f",
+    "content_analysis": {
+      "genealogy_id": "216",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "观察摘要"
+        },
+        {
+          "level": 2,
+          "number": "1",
+          "title": "发散信号：异质诊断相关失败"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "现象"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "与175号的关系"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "四分法分类"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "2",
+          "title": "收敛信号：Lead 接管执行（032号第 N 次复现）"
+        },
+        {
+          "level": 2,
+          "number": "3",
+          "title": "收敛信号：RTAS 停滞 = 205号在 roadmap 层的表现"
+        },
+        {
+          "level": 2,
+          "number": "4",
+          "title": "语法记录候选：任务粒度默认偏小"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "现象"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "暗规则"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "与现有规则的关系"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "判定"
+        },
+        {
+          "level": 2,
+          "number": "5",
+          "title": "自环检查"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "结论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系引用"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "定理",
+          "definition": "—175号的逻辑推论：异质否定的价值来自视角差异，不来自准确性保证。当两个模型都未执行实际验证（grep/read 代码），视角差异为零，相关失败是必然结果。"
+        }
+      ],
+      "references": [
+        "032",
+        "039",
+        "056",
+        "175",
+        "189",
+        "205",
+        "216"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": "一个发散信号（异质诊断相关失败——175号边界条件），一个语法记录候选（任务粒度默认偏小），三个收敛信号。发散信号为定理类（175号逻辑推论），不走 /escalate。语法记录候选待观察。"
+    }
+  },
+  "refs": [
+    "9df3ca7c4296e0ba5ac2bddc3b198ee5e8b5e692c2124502798fb9e72f2eae1f"
+  ],
+  "git_ref": ""
+}

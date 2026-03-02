@@ -1,0 +1,65 @@
+{
+  "id": "9ff2576b751c643093680ea608b49176764b90fdc1792751f2729d4e2a992ea3",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.734667+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "56e6ce7d4e59a0a4b9cab7f96c3b9b3b5b64060f7433e975371471dc4272ba0c",
+    "content_analysis": {
+      "genealogy_id": "211",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "结论"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "语义分歧"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "缠论原文语义"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "定义依据"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系引用"
+        }
+      ],
+      "concepts": [],
+      "references": [
+        "195",
+        "208",
+        "211"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": "合成数据产生 4 中枢 → 3 confirmed trends → 递归引擎尝试 level 2，但 `_try_init_center` 的 direction 检查阻止了中枢形成。"
+    }
+  },
+  "refs": [
+    "56e6ce7d4e59a0a4b9cab7f96c3b9b3b5b64060f7433e975371471dc4272ba0c"
+  ],
+  "git_ref": ""
+}

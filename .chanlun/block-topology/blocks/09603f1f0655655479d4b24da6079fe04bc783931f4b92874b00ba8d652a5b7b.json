@@ -1,0 +1,132 @@
+{
+  "id": "09603f1f0655655479d4b24da6079fe04bc783931f4b92874b00ba8d652a5b7b",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.487565+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "37ea1b2b4dea9ffcc460279a1d96ce6b6d8211f0d5d066c1ada8905c50a22eb6",
+    "content_analysis": {
+      "genealogy_id": "113",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "目的"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "选择清单"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "C1: 方向判定——双条件 vs 单条件"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "C2: 等号问题——严格不等式 vs 非严格不等式"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "C3: 初始方向——None -> UP 默认"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "结论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "定义依据"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系引用"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "代码实现",
+          "definition": "双条件"
+        },
+        {
+          "term": "数学等价性",
+          "definition": "在非包含前提下，单条件与双条件的数学结果相同（baohan.md v1.3 结算）。差异仅在概念路径：原文是\"从定义推论\"，代码是\"直接防御\"。"
+        },
+        {
+          "term": "选择时间",
+          "definition": "初始实现时选定，baohan.md v1.3 结算确认数学等价。"
+        },
+        {
+          "term": "谱系引用",
+          "definition": "baohan.md 差异记录、v1.2 生成态回退与 v1.3 结算过程。"
+        },
+        {
+          "term": "影响分析",
+          "definition": "当相邻非包含K线高点或低点恰好相等时："
+        },
+        {
+          "term": "未结算状态",
+          "definition": "baohan.md 明确标注此问题仍开放。等号场景在实践中极少出现（包含处理后相邻K线高低点完全相等的概率极低），但概念上未最终结算。"
+        },
+        {
+          "term": "原文",
+          "definition": "未明确给出初始方向处理方式。第65课的形式化从\"第n根与第n-1根不是包含关系\"开始，隐含假设在遇到包含关系之前已有方向参考。"
+        },
+        {
+          "term": "依据",
+          "definition": "纯工程选择。必须有一个初始值才能处理序列开头的包含关系。UP 是一个约定，无原文依据。"
+        },
+        {
+          "term": "影响范围",
+          "definition": "仅影响序列最开始若干根K线存在包含关系的场景。在足够长的序列中，初始方向的影响会被后续非包含K线的方向更新覆盖。"
+        },
+        {
+          "term": "新增文件",
+          "definition": "`.chanlun/genealogy/settled/113-baohan-engineering-choices.md`（本文件）"
+        },
+        {
+          "term": "DAG 更新",
+          "definition": "新增 113 节点"
+        },
+        {
+          "term": "无代码变更",
+          "definition": "本谱系是对已有选择的显式记录，不改变任何实现"
+        }
+      ],
+      "references": [
+        "114"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": "三个工程选择（双条件方向判定、严格不等式、初始方向默认UP）均已在代码中稳定运作。其中 C1 已通过数学等价性证明结算，C2 和 C3 在 baohan.md 中标注为未结算/工程选择。本谱系将这些选择从定义文件中的\"差异记录\"提升为独立可追踪的谱系条目。"
+    }
+  },
+  "refs": [
+    "37ea1b2b4dea9ffcc460279a1d96ce6b6d8211f0d5d066c1ada8905c50a22eb6"
+  ],
+  "git_ref": ""
+}

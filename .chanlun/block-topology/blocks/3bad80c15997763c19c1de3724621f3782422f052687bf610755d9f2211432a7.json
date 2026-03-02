@@ -1,0 +1,63 @@
+{
+  "id": "3bad80c15997763c19c1de3724621f3782422f052687bf610755d9f2211432a7",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.268833+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "6d3bf2e7a7ad2ebbcadd9c3a287ac3ba592e6a6632cec3ec81d0c5814204d769",
+    "content_analysis": {
+      "genealogy_id": "047",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "现象"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "Gemini 决策"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "推理链"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "风险"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "待结算条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "溯源"
+        }
+      ],
+      "concepts": [],
+      "references": [
+        "026"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "6d3bf2e7a7ad2ebbcadd9c3a287ac3ba592e6a6632cec3ec81d0c5814204d769"
+  ],
+  "git_ref": ""
+}

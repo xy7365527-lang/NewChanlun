@@ -1,0 +1,88 @@
+{
+  "id": "a0f23ee012af80a2d650208db2595b8dc7848b8bf8ff69bf8dfaac7dfe7fc9cf",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.275434+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "d4e72afff19768e4fb1fab7017575f4693c9326c79b9499e46befdd57e5d2b11",
+    "content_analysis": {
+      "genealogy_id": "050",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "现象"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "已结算原则"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "调用方审查（2026-02-20 ceremony 审计）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "待结算条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "结算提案（definition-lawyer 工位，2026-02-20）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "定理部分（自动结算，无需编排者确认）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "选择部分（需编排者决断）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "推荐路径（definition-lawyer 分析）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "待编排者决断的问题"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "溯源"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "方案 A 是当前最干净的选择",
+          "definition": "删除语义空洞，谱系已记录历史，未来需要时可重建"
+        }
+      ],
+      "references": [
+        "026"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "d4e72afff19768e4fb1fab7017575f4693c9326c79b9499e46befdd57e5d2b11"
+  ],
+  "git_ref": ""
+}

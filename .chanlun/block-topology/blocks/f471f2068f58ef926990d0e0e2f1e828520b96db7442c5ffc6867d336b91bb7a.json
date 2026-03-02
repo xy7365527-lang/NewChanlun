@@ -1,0 +1,105 @@
+{
+  "id": "f471f2068f58ef926990d0e0e2f1e828520b96db7442c5ffc6867d336b91bb7a",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.432335+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "7b601c7dd1b9b1dcd7ef2f8eac05e350443ab7de0f752f3a1c07c0eb0d7e1932",
+    "content_analysis": {
+      "genealogy_id": "094",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "核心命题"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导过程"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "起点：五约束有向依赖图的结构"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "创世 Gap 的重新定位"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "视差 Gap 的重新定位"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "第三个 Gap：审计层断裂 Gap（069号未识别）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "三个 Gap 的统一表"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "069号表述",
+          "definition": "Swarm₀（ceremony）永远游离于拓扑规则之外。它制定了拓扑但自身不受拓扑约束。"
+        },
+        {
+          "term": "视差 Gap",
+          "definition": "系统自身审查自身的时间延迟（约束3 + 约束2的交互）"
+        },
+        {
+          "term": "审计层断裂 Gap",
+          "definition": "外部审计者观察系统的介质限制（约束4必须经过约束1a/1b）"
+        },
+        {
+          "term": "为什么 069号未识别此 Gap",
+          "definition": "069号的框架是 R.S.I + Sinthome，其中 Sinthome（异质碰撞/Gemini）被定位为\"打结补充\"——它的功能是阻止三环散裂。在这个框架下，Sinthome 和三环之间的界面特征没有被单独分析。093号将约束4提升为拓扑地位不同的审计层节点后，审计层与核心环路之间的界面 Gap 才变得可见。"
+        }
+      ],
+      "references": [
+        "069",
+        "093",
+        "094"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {
+        "negation_source": "框架迁移",
+        "negation_form": "重定位（从 R.S.I 拓扑语言迁移到五约束有向依赖图语言）"
+      },
+      "conclusion_summary": "069号定义的两个不可消除的 Gap（创世 Gap、视差 Gap）在 093号五约束有向依赖图框架下可以被精确定位为特定约束节点的结构性破缺。此外，五约束框架揭示了 069号未识别的第三个 Gap。"
+    }
+  },
+  "refs": [
+    "7b601c7dd1b9b1dcd7ef2f8eac05e350443ab7de0f752f3a1c07c0eb0d7e1932"
+  ],
+  "git_ref": ""
+}

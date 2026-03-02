@@ -1,0 +1,66 @@
+{
+  "id": "5615b3ea8b8cc758ccf443dbcc9e913573fa9dc05cc1a400bfbd5fb2f03daab6",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.296110+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "0f19999e932a0d79fea1f89eef7ce0b759c6d22e990f9ec6f0332dc35a0e82db",
+    "content_analysis": {
+      "genealogy_id": "057",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "语法规则"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "发现经过"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "已执行修复"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "异质否定来源"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游开放问题（已决断）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "推论",
+          "definition": "凡是需要状态一致性的操作，应由框架层（hook/脚本/CI）自动执行，agent 只触发信号，不执行状态变更。"
+        }
+      ],
+      "references": [
+        "043",
+        "044",
+        "048",
+        "055"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "0f19999e932a0d79fea1f89eef7ce0b759c6d22e990f9ec6f0332dc35a0e82db"
+  ],
+  "git_ref": ""
+}

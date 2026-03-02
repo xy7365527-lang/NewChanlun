@@ -1,0 +1,70 @@
+{
+  "id": "17826d6d12e1a132112e1cb28510db2a812c27ccf3b61073e6a58da2fafdc093",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.750762+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "0e24fdacb31b6607668fae558830eb6d79184043096569f40da60c8f1eaadac0",
+    "content_analysis": {
+      "genealogy_id": "215",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "结论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "验证数据"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "汇总"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "与 214号的关系"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "根因分析"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系引用"
+        }
+      ],
+      "concepts": [],
+      "references": [
+        "195",
+        "208",
+        "214",
+        "215"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {
+        "negates": [
+          "214"
+        ]
+      },
+      "conclusion_summary": "214号\"递归级别 ≥ 1 结构性不可达\"的结论在 Alpha Vantage 1min 数据下被推翻。20 只美股标的中 11 只（55%）达到 depth=2（Level 1 递归），T8 通过率 53/81 = 65.4%。"
+    }
+  },
+  "refs": [
+    "0e24fdacb31b6607668fae558830eb6d79184043096569f40da60c8f1eaadac0"
+  ],
+  "git_ref": ""
+}

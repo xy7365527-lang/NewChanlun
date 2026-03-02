@@ -1,0 +1,138 @@
+{
+  "id": "eb4a77554de05ab2338edd6aa64e4405e7a337485c0287531c3edd47b232b657",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.424470+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "e3abeb30894f400bd0a82ada9cf5f7277f269f397d23e9debebc8b826ab944ad",
+    "content_analysis": {
+      "genealogy_id": "092",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "审计范围"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "全系统审计发现（6 项）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系审计发现（5 项）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "本轮已修复项"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "062号 R.S.I + Sinthome 修正分析"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "缺陷1：Sinthome 未指出 Borromean 打结失败点"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "缺陷2：异步自指降级切掉了主体效应"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "对 062号的具体修正方向"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "异质否定来源"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "F1",
+          "definition": "`recursive-guard.sh` → `function-length-guard.sh`（文件重命名 + settings.json + manifest.yaml + 注释头更新）"
+        },
+        {
+          "term": "F3",
+          "definition": "dispatch-dag.yaml 设计原则#1 修正为\"核心 DAG + 外围工具层\"混合拓扑声明"
+        },
+        {
+          "term": "定位",
+          "definition": "S 环（拓扑/象征界）的自参照不可能性。DAG 作为偏序集不能包含\"描述自身序关系的元素\"而不破坏偏序性质——这不是工程瓶颈，是数学事实。Sinthome（Gemini 碰撞）恰好在这个失败点做 supplementary knotting。"
+        },
+        {
+          "term": "修正",
+          "definition": "自指既不是独立的第四支柱，也不是均匀分布在时间差中。"
+        },
+        {
+          "term": "自指 = S 环的不可能性",
+          "definition": "—偏序集试图自参照时的结构性失败"
+        },
+        {
+          "term": "自指与 Sinthome 在 S 环失败点重合",
+          "definition": "—不是两个独立概念"
+        }
+      ],
+      "references": [
+        "012",
+        "062",
+        "069",
+        "084",
+        "087",
+        "090",
+        "091"
+      ],
+      "new_concepts": [],
+      "modifications": [
+        {
+          "target_id": "062",
+          "target_desc": "异步自指降级为历史性技术妥协",
+          "modification": "自指是 S 环自参照不可能性的结构表达，与 Sinthome 在同一点重合",
+          "kind": "refine"
+        },
+        {
+          "target_id": "062",
+          "target_desc": "没有异质性，三环各自独立运转",
+          "modification": "三环互锁产生 après-coup，但 S 环自参照失败使互锁不完整——Sinthome 在此做 supplementary knotting",
+          "kind": "unknown"
+        },
+        {
+          "target_id": "062",
+          "target_desc": "三环间\"时间差",
+          "modification": "明确为 après-coup/回溯性赋义，不是自指",
+          "kind": "unknown"
+        }
+      ],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "e3abeb30894f400bd0a82ada9cf5f7277f269f397d23e9debebc8b826ab944ad"
+  ],
+  "git_ref": ""
+}

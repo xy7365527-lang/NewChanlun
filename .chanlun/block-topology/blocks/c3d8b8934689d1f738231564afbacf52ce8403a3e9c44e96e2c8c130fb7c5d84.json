@@ -1,0 +1,155 @@
+{
+  "id": "c3d8b8934689d1f738231564afbacf52ce8403a3e9c44e96e2c8c130fb7c5d84",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.908862+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "58718c5f7d1334cadf279916479367c3060381789a5b9f11c26e2bacce6842b9",
+    "content_analysis": {
+      "genealogy_id": "261",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "观察 1（收敛信号）：批量结算作为定理类产出的规模化"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "现象"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "分析"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "分类"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "观察 2（收敛信号）：操作语义标注——编排者决断的新路径"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "现象"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "分析"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "分类"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "观察 3（发散信号）：递归缺失诊断——\"声明完备、触发链断裂\""
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "现象"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "分析"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "与已知谱系的关系"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "分类"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "观察 4（收敛信号）：block mapping 补充的常态化"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "现象"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "分析"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "与258号观察5的关系"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "分类"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "观察 5（语法记录候选）：\"声明完备、触发链断裂\"模式的可结晶性"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "现象"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "可结晶性判断"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "分类"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "自环检查"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        }
+      ],
+      "concepts": [],
+      "references": [
+        "016",
+        "036",
+        "047",
+        "078",
+        "137",
+        "178",
+        "258",
+        "261"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "58718c5f7d1334cadf279916479367c3060381789a5b9f11c26e2bacce6842b9"
+  ],
+  "git_ref": ""
+}

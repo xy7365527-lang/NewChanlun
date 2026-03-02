@@ -1,0 +1,52 @@
+{
+  "id": "6608090e947972983120a80cc2a7812a4ed1b4e24121978f64ee3db3f70024b7",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.767329+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "ad93ce5ab2c043cf1a64d795b1e1be33fa96b789bc6e8e5a97eff252088ee23b",
+    "content_analysis": {
+      "genealogy_id": "222",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "冲突方"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "范畴错误的精确位置"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "修复"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系引用"
+        }
+      ],
+      "concepts": [],
+      "references": [
+        "025",
+        "115"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {
+        "negation_source": "heterogeneous",
+        "negation_form": "unclassified"
+      },
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "ad93ce5ab2c043cf1a64d795b1e1be33fa96b789bc6e8e5a97eff252088ee23b"
+  ],
+  "git_ref": ""
+}

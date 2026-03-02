@@ -1,0 +1,70 @@
+{
+  "id": "d470f58623b6ddef7456cf233c52bde63d3f0cc6c433a8f4b5df90dc940725c5",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.755991+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "5cd996dda4a0d043c7128fa0147af07b50943519ae966fd0b0d7bf7e59f6c01a",
+    "content_analysis": {
+      "genealogy_id": "217",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "观察 1：并行工位的 API 变更传播超出 relevant_files 声明"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "观察 2：ceremony_scan genealogy_anomaly_detection 误报"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "观察 3：stagnation 检测的语义问题"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "自环检查"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "现象",
+          "definition": "gateway-mtf 工位重构了 TFOrchestrator（timeframes.py），将 snapshot 类型从 BiEngineSnapshot 改为 RecursiveOrchestratorSnapshot。该工位的 relevant_files 声明为 gateway.py / timeframes.py / recursive.py。但实际影响传播到："
+        },
+        {
+          "term": "根因",
+          "definition": "relevant_files 是静态声明，无法捕获 API 接口变更的传播链。当一个工位修改了公共接口（如 TFOrchestrator 的返回类型），所有消费该接口的测试文件都需要适配。"
+        },
+        {
+          "term": "影响",
+          "definition": "Lead 需要在并行工位完成后手动修复回归。当前机制可工作（全量测试会暴露问题），但修复成本随并行度增加而增加。"
+        },
+        {
+          "term": "建议",
+          "definition": "不需要新机制——全量测试已经是充分的安全网。但 roadmap subtask 的 relevant_files 应被理解为\"直接修改的文件\"而非\"影响范围\"。"
+        },
+        {
+          "term": "分类",
+          "definition": "行动类（代码 bug），不是概念层问题。"
+        }
+      ],
+      "references": [
+        "216",
+        "217"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "5cd996dda4a0d043c7128fa0147af07b50943519ae966fd0b0d7bf7e59f6c01a"
+  ],
+  "git_ref": ""
+}

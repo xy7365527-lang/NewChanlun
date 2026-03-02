@@ -1,0 +1,191 @@
+{
+  "id": "f06db8129cc7291f9c0909ad1d03f9368142e5054ee0e97acae5b0131082dc58",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.856990+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "3fdf5a5d27c865cac746f9b231a57315ee01dc71ad584e8d713fb9837def1a37",
+    "content_analysis": {
+      "genealogy_id": "250",
+      "sections": [
+        {
+          "level": 2,
+          "number": "1",
+          "title": "结论"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "三个数据集对比"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "与 v103 对比"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "60min 层大幅增长"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "Daily 层诊断"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "Alpha Vantage 对比"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "力度对比"
+        },
+        {
+          "level": 2,
+          "number": "2",
+          "title": "定义依据"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "246号：T6 可达条件"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "走势形成条件"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "249号：前置结果"
+        },
+        {
+          "level": 2,
+          "number": "3",
+          "title": "边界条件"
+        },
+        {
+          "level": 3,
+          "number": "3",
+          "title": "1 T6 可达的翻转条件"
+        },
+        {
+          "level": 3,
+          "number": "3",
+          "title": "2 AV vs yfinance 差异"
+        },
+        {
+          "level": 2,
+          "number": "4",
+          "title": "下游推论"
+        },
+        {
+          "level": 3,
+          "number": "4",
+          "title": "1 229号仍不可关闭"
+        },
+        {
+          "level": 3,
+          "number": "4",
+          "title": "2 249号结论修正"
+        },
+        {
+          "level": 3,
+          "number": "4",
+          "title": "3 ker(D) 操作意义仍未可验证"
+        },
+        {
+          "level": 3,
+          "number": "4",
+          "title": "4 数据源一致性问题"
+        },
+        {
+          "level": 3,
+          "number": "4",
+          "title": "5 60min 层验证管线健壮性"
+        },
+        {
+          "level": 2,
+          "number": "5",
+          "title": "谱系引用"
+        },
+        {
+          "level": 2,
+          "number": "6",
+          "title": "影响声明"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "新增文件"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "状态变更"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "暴露的新问题"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "Daily 层 seg 3 确认",
+          "definition": "当前 seg 3 (down, s0=34, s1=51) 是 unconfirmed。如果市场继续下跌并在新低产出新的反向段（up），则 seg 3 被确认，走势引擎可能判定一个完整走势"
+        },
+        {
+          "term": "更多数据",
+          "definition": "更长时间窗口可能产出更多 daily 段，使走势有机会完成"
+        },
+        {
+          "term": "不同标的",
+          "definition": "SPY 近 3 年结构为\"大 up + 急跌\"，非典型震荡。其他标的（如个股或非美市场）可能有更丰富的 daily 走势结构"
+        },
+        {
+          "term": "229号",
+          "definition": "不变。T6 仍不可达，瓶颈从\"daily 无段\"→\"daily 走势未完成\""
+        },
+        {
+          "term": "249号",
+          "definition": "结论修正。\"数据量限制\"→\"数据量+走势完整性双重瓶颈\""
+        },
+        {
+          "term": "Daily 走势完整性",
+          "definition": "4 段 1 中枢但 0 走势——离开段 unconfirmed 是关键"
+        },
+        {
+          "term": "数据源差异",
+          "definition": "AV vs yfinance 对同一标的产出不同段结构"
+        },
+        {
+          "term": "SPY 市场结构特殊性",
+          "definition": "近 3 年\"大 up + 急跌\"可能不是验证走势产出的最佳数据"
+        }
+      ],
+      "references": [
+        "229",
+        "233",
+        "246",
+        "248",
+        "249",
+        "250"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": "**将数据窗口从 6 个月扩展到 2-3 年后，daily 层从 3 段 0 中枢进步到 4 段 1 中枢，但仍未产出走势（move_count=0）。T6 仍不可达（active_levels=1）。**"
+    }
+  },
+  "refs": [
+    "3fdf5a5d27c865cac746f9b231a57315ee01dc71ad584e8d713fb9837def1a37"
+  ],
+  "git_ref": ""
+}

@@ -1,0 +1,107 @@
+{
+  "id": "4fd7c96db9598e73cf534e16886085cd0919932fe876389b033f4bd57caad82a",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:07.015612+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "7e7f3aadb4f9260d59ef257d2981e242a203159822ffbb819e0144b24c41cece",
+    "content_analysis": {
+      "genealogy_id": "284",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "前提（适用于所有开放问题）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "OQ1：层间结构事件的时序关系"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "OQ2：权益矩阵内部的拓扑结构"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "OQ3：基本面的形式地位"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "OQ4：K3 截面下的操作完备性"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "OQ5：当前扭曲形式的边界条件阅读"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "数据源"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系引用"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "来源"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "实验",
+          "definition": "在 K4 六条比价边和对应个股/ETF 上同时跑 RecursiveOrchestrator + 背驰判断，记录所有结构事件和背驰事件的时间戳。统计层 1 事件和层 2 事件之间的时序关系。"
+        },
+        {
+          "term": "性质",
+          "definition": "理论问题，不需要实验。"
+        },
+        {
+          "term": "283号",
+          "definition": "测度论作为元语言（背驰是形态和力度的交叉判断，不是两层独立的东西）"
+        },
+        {
+          "term": "279号",
+          "definition": "OQ5 口径A验证（推论3：$双重身份悖论）"
+        },
+        {
+          "term": "269号",
+          "definition": "三重联立判据四轮质询（OQ5 旧框架，本号废除并替代）"
+        },
+        {
+          "term": "254号",
+          "definition": "多经济体资本流转本体论（K4 框架）"
+        },
+        {
+          "term": "237号",
+          "definition": "T6/T7 三态诊断（D 算子大级别吸收效应）"
+        }
+      ],
+      "references": [
+        "237",
+        "254",
+        "269",
+        "279",
+        "283",
+        "284"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "7e7f3aadb4f9260d59ef257d2981e242a203159822ffbb819e0144b24c41cece"
+  ],
+  "git_ref": ""
+}

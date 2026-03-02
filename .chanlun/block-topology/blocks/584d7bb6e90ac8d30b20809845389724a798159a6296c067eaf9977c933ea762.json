@@ -1,0 +1,103 @@
+{
+  "id": "584d7bb6e90ac8d30b20809845389724a798159a6296c067eaf9977c933ea762",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.776532+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "bd829230d535789838383c8c487d085ecbcf28ae6637e41bac66e7ea13d54f02",
+    "content_analysis": {
+      "genealogy_id": "226",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "现象"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "统一根因：三层无状态（Codex 诊断 §2.4）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "根因分类"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "类型 A：Bash 后断裂（已修）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "类型 B：纯文本输出后断裂（平台限制）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "类型 C：角色边界僭越"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "结论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "现象",
+          "definition": "git push / ceremony_scan.py 执行后，Lead 被用户消息吸引走。"
+        },
+        {
+          "term": "根因",
+          "definition": "hook 覆盖不足。"
+        },
+        {
+          "term": "修复",
+          "definition": "224号（push→rescan）+ 225号（rescan→evaluate）。flow-continuity-guard.sh 扩展覆盖。"
+        },
+        {
+          "term": "本质",
+          "definition": "057号推论——LLM 不是状态机，不能保证每次输出都遵守格式约束。规则是概率性的引导，不是确定性的保证。"
+        },
+        {
+          "term": "修复方向",
+          "definition": "在 PreToolUse 阶段检查 Lead 是否在执行白名单外的 Edit/Write 操作。但这需要 hook 能区分 Lead 和工位——当前 hook 无法获取调用者身份。"
+        },
+        {
+          "term": "当前可行缓解",
+          "definition": "ceremony skill 中更强的正面格式约束——\"Lead 遇到需要修改文件的任务时，唯一合法行为是 spawn 工位\"。"
+        }
+      ],
+      "references": [
+        "057",
+        "137",
+        "173",
+        "224",
+        "225",
+        "226"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": "| 类型 | 可修程度 | 当前状态 |\n|------|---------|---------|\n| A: Bash 后断裂 | 完全可修（hook 覆盖） | ✅ 已修 |\n| B: 纯文本后断裂 | 平台限制，只能缓解 | ⚠ Stop hook 部分覆盖 |\n| C: 角色边界僭越 | 规则层可强化，hook 层受限 | ⚠ 需要 ceremony skill 强化 |"
+    }
+  },
+  "refs": [
+    "bd829230d535789838383c8c487d085ecbcf28ae6637e41bac66e7ea13d54f02"
+  ],
+  "git_ref": ""
+}

@@ -1,0 +1,65 @@
+{
+  "id": "bfab1c6b15bb6faedddd782c0500c176622041d7630f9f85354fa290c60ec4cd",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.717487+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "b8032f443696054d167312454bb8643afe69f6f35108a98d5f01d5eca07a214b",
+    "content_analysis": {
+      "genealogy_id": "209",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "结论"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "层级解读"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "物理类比"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "定义依据"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系引用"
+        }
+      ],
+      "concepts": [],
+      "references": [
+        "195",
+        "208",
+        "209"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": "5 个强不变量候选在 3 种模式对（wide→new, wide→strict, strict→new）× 5 只股票上的保持率揭示了清晰的层级结构："
+    }
+  },
+  "refs": [
+    "b8032f443696054d167312454bb8643afe69f6f35108a98d5f01d5eca07a214b"
+  ],
+  "git_ref": ""
+}

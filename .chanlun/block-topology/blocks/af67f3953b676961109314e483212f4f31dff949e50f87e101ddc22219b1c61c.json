@@ -1,0 +1,80 @@
+{
+  "id": "af67f3953b676961109314e483212f4f31dff949e50f87e101ddc22219b1c61c",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.863368+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "cab458b62dbac0bda78bee4c2bd7b25e518aed37310d739f0f9c92e7206036ad",
+    "content_analysis": {
+      "genealogy_id": "252",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "结论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "定义依据"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系引用"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "级别是递归的产物",
+          "definition": "缠论原义——从最小级别出发，走势完成后构成更高级别的\"线段\"（组件），再从组件构造中枢和走势。RecursiveOrchestrator 实现了这一递归。"
+        },
+        {
+          "term": "达到 level 3 所需数据量估算",
+          "definition": "level 2 至少需要 3 个走势 → level 2 至少需要 4+ 个中枢 → level 1 至少需要 ~27+ 个走势 → level 1 至少需要 ~81+ 段 → 约需要 40-50 个交易日的 1min 数据。yfinance 1min 数据上限约 30 天（通过分段拉取），因此纯 yfinance 路径难以达到 level 3。"
+        },
+        {
+          "term": "市场阶段影响",
+          "definition": "本验证期间（2026-02-02 至 2026-02-27）SPY 处于窄幅震荡，所有 level-1 走势均为盘整型（无趋势），这意味着中枢之间没有同向延续。不同市场阶段（单边趋势）可能产生不同的递归结构。"
+        },
+        {
+          "term": "L78 违规",
+          "definition": "1min 级别产生了大量 L78 warning（segment top-above-bottom violation），这在小级别数据中是预期现象——1min 级别的价格波动极小，特征序列分型的方向约束容易被微小价差违反。这些 warning 不影响递归深度判定，但记录为已知边界。"
+        }
+      ],
+      "references": [
+        "229",
+        "238",
+        "246",
+        "249",
+        "250",
+        "252"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": "SPY 1min 数据（7409 根 bar，约 28 个交易日）通过 RecursiveOrchestrator 从底层递归，**实际达到 2 级递归深度**。"
+    }
+  },
+  "refs": [
+    "cab458b62dbac0bda78bee4c2bd7b25e518aed37310d739f0f9c92e7206036ad"
+  ],
+  "git_ref": ""
+}

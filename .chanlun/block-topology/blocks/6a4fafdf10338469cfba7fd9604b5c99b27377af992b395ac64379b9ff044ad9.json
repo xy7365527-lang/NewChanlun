@@ -1,0 +1,117 @@
+{
+  "id": "6a4fafdf10338469cfba7fd9604b5c99b27377af992b395ac64379b9ff044ad9",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:07.070977+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "5835e426386ef4eb81ab81bfc50d9d675e1df3cc1885cea958876afcbae68866",
+    "content_analysis": {
+      "genealogy_id": "297",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "结论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "定义依据"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "四域折叠的呼吸结构"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "存在论根据"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "资本的存在论定义"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "危机的存在论定义"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系引用"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "概念生成记录"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "改动范围"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "折叠 = 存在论呼吸",
+          "definition": "每条折叠都有扩张面（进入物理世界/信用创造/物质展开）和收缩面（退出物理世界/信用湮灭/物质退回符号）"
+        },
+        {
+          "term": "资本 = 耦合运动本身",
+          "definition": "不是先有资本再有流动，资本就是所有折叠呼吸的耦合运动本身"
+        },
+        {
+          "term": "危机 = 失同步",
+          "definition": "多条折叠呼吸的失同步即为危机"
+        },
+        {
+          "term": "四域分类不是穷尽的",
+          "definition": "当前四域（Au/Oil/Bond/RE）是254号 K4 框架的四顶点，如果 K4 拓扑本身被扩展（如加入新资产类别），折叠呼吸的枚举需要同步更新"
+        },
+        {
+          "term": "呼吸隐喻的严格性边界",
+          "definition": "扩张-收缩是结构性描述（每个域的两面），不是时间序列预测——不能从\"当前处于扩张面\"直接推导\"下一步必然收缩\"，因为折叠生命周期的时间尺度依赖公理0的历史条件"
+        },
+        {
+          "term": "\"域不能安息于域\"的有效域",
+          "definition": "此命题在资本范畴层面成立，是否可以推广到资本之外的范畴（如知识生产、政治权力）需要独立论证"
+        }
+      ],
+      "references": [
+        "254",
+        "255",
+        "259",
+        "292",
+        "297"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": "折叠不是偶然的跨域现象，而是域自身不自足性的必然产物。\"域不能安息于域\"是\"虚无不能安息于虚无\"在范畴层面的表现。折叠的两面等于存在论呼吸的扩张面和收缩面——这不是比喻，是同一个存在论运动在资本范畴层面的展开。"
+    }
+  },
+  "refs": [
+    "5835e426386ef4eb81ab81bfc50d9d675e1df3cc1885cea958876afcbae68866"
+  ],
+  "git_ref": ""
+}

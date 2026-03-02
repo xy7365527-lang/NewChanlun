@@ -1,0 +1,99 @@
+{
+  "id": "a23c782f1b9da373ed77ab9afcd65a16b081f39135b893397037252c97a23db4",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:07.039285+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "5fa55b08ddcd3ec92e59295528483283197e81fa237e3fcfbdea9264ecfca8e5",
+    "content_analysis": {
+      "genealogy_id": "289",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "递归判断"
+        },
+        {
+          "level": 2,
+          "number": "1",
+          "title": "实验设计"
+        },
+        {
+          "level": 2,
+          "number": "2",
+          "title": "核心发现"
+        },
+        {
+          "level": 3,
+          "number": "2",
+          "title": "1 Au/R 只在系统性危机窗口激活"
+        },
+        {
+          "level": 3,
+          "number": "2",
+          "title": "2 六窗口全部 0 趋势"
+        },
+        {
+          "level": 3,
+          "number": "2",
+          "title": "3 活跃度梯度"
+        },
+        {
+          "level": 3,
+          "number": "2",
+          "title": "4 沉寂边位置变化"
+        },
+        {
+          "level": 2,
+          "number": "3",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "4",
+          "title": "谱系引用"
+        },
+        {
+          "level": 2,
+          "number": "5",
+          "title": "来源"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "287号",
+          "definition": "OQ v2 综合结论——本实验验证其推论1和推论3"
+        },
+        {
+          "term": "284号",
+          "definition": "OQ v2 最终版（D 算子 + 背驰判断联合阅读）"
+        },
+        {
+          "term": "283号",
+          "definition": "测度论元语言"
+        },
+        {
+          "term": "279号",
+          "definition": "OQ5 口径A验证"
+        }
+      ],
+      "references": [
+        "279",
+        "283",
+        "284",
+        "287",
+        "289"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "5fa55b08ddcd3ec92e59295528483283197e81fa237e3fcfbdea9264ecfca8e5"
+  ],
+  "git_ref": ""
+}

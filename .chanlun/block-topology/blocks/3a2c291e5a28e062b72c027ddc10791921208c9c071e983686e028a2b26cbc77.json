@@ -1,0 +1,107 @@
+{
+  "id": "3a2c291e5a28e062b72c027ddc10791921208c9c071e983686e028a2b26cbc77",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.521072+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "ffc00265df36b4f19070114b73bfdbdf9693799884bc2a98b11805a2c43504c8",
+    "content_analysis": {
+      "genealogy_id": "124",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "概念描述"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "生成史追溯"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "来源1：020号的\"脉动\"概念"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "来源2：075号的结晶机制"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "来源3：017号的 session 定位"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "交汇点"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "扩张期",
+          "definition": "知识频繁被引用、被修改、产出新区分"
+        },
+        {
+          "term": "收缩期",
+          "definition": "引用时的净新区分量递减（背驰信号）"
+        },
+        {
+          "term": "结晶",
+          "definition": "收缩完成后，知识析出为外部文件"
+        },
+        {
+          "term": "重新加载",
+          "definition": "需要时通过读取结晶物恢复"
+        }
+      ],
+      "references": [
+        "012",
+        "017",
+        "020",
+        "075",
+        "124"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {
+        "negation_source": "v32审计发现（G-09缺口）",
+        "negation_form": "语法记录（已在运作的原则的生成史追溯）"
+      },
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "ffc00265df36b4f19070114b73bfdbdf9693799884bc2a98b11805a2c43504c8"
+  ],
+  "git_ref": ""
+}

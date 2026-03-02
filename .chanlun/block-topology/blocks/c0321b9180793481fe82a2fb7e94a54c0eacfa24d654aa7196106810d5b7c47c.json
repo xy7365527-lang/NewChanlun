@@ -1,0 +1,90 @@
+{
+  "id": "c0321b9180793481fe82a2fb7e94a54c0eacfa24d654aa7196106810d5b7c47c",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.564212+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "45367bfe8fa9cc456eaf02f3ac80ccea6c4ba61d1f033c92584537da47b07ad1",
+    "content_analysis": {
+      "genealogy_id": "139",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "事件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "收敛结论"
+        },
+        {
+          "level": 3,
+          "number": "1",
+          "title": "三级映射（两轮质询后的最终严格性排序）"
+        },
+        {
+          "level": 3,
+          "number": "2",
+          "title": "约束型充分性（对069号逻辑的精确化）"
+        },
+        {
+          "level": 3,
+          "number": "3",
+          "title": "ESC/分类权分离提案（生成态）"
+        },
+        {
+          "level": 3,
+          "number": "4",
+          "title": "未收敛项"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "终止权（ESC）",
+          "definition": "保留，不可削减"
+        },
+        {
+          "term": "分类权（Gap 命名）",
+          "definition": "可选择不行使"
+        }
+      ],
+      "references": [
+        "069"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {
+        "negation_source": "heterogeneous",
+        "negation_form": "双向收敛（两轮质询后三个映射升级、充分性从阈值型修正为约束型）"
+      },
+      "conclusion_summary": "### 1. 三级映射（两轮质询后的最终严格性排序）"
+    }
+  },
+  "refs": [
+    "45367bfe8fa9cc456eaf02f3ac80ccea6c4ba61d1f033c92584537da47b07ad1"
+  ],
+  "git_ref": ""
+}

@@ -1,0 +1,97 @@
+{
+  "id": "7728024b7b0879656ac372ac91109dcbde820fe2380ee22fc433c53115c56e2f",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.625998+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "8dfc8af1ec8b2b34d8229d0af978186bd7e111cd7ec725f499c0005d9608ac80",
+    "content_analysis": {
+      "genealogy_id": "171",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "命题"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "映射分析"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "Gemini 异质否定（有效部分）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "Gemini 异质否定（需修正部分）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "结算后的精确表述"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论：外部铁 vs 内生铁"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "反面教训层",
+          "definition": "资本主义话语 = 无铁递归 = 蜂群的退化模式 ——映射部分同构，严格成立"
+        },
+        {
+          "term": "声明-能力缺口",
+          "definition": "原文声称\"系统必须有自己的铁\"，但当前实现中铁主要由编排者外部注入。这是一个必须诚实记录的缺口"
+        },
+        {
+          "term": "过渡状态",
+          "definition": "四分法中\"定理\"类自动结算是内生铁的初步形式；编排者角色演化（102号）标记了从外部铁向内生铁的方向"
+        },
+        {
+          "term": "拉康形式化的精确度",
+          "definition": "资本家话语的 $/S2 → a/S1 全闭合形式化与蜂群的\"无铁递归\"不完全对应——蜂群的无铁状态更接近\"缺失 S1 的主人话语退化\"而非完整的资本家话语结构"
+        }
+      ],
+      "references": [
+        "089",
+        "090",
+        "102",
+        "136",
+        "173"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {
+        "negation_source": "heterogeneous",
+        "negation_form": "expansion"
+      },
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "8dfc8af1ec8b2b34d8229d0af978186bd7e111cd7ec725f499c0005d9608ac80"
+  ],
+  "git_ref": ""
+}

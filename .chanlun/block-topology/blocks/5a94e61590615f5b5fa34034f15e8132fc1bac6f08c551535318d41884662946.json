@@ -1,0 +1,85 @@
+{
+  "id": "5a94e61590615f5b5fa34034f15e8132fc1bac6f08c551535318d41884662946",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.222682+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "914e17bbc882c6fd457e06a77a1d63cf31f4ab79412d08d78a6e137592b97407",
+    "content_analysis": {
+      "genealogy_id": "031",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "矛盾描述"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "发现来源"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "决断"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "实施"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "被否定的方案"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "030a 推进"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "结算日期",
+          "definition": "2026-02-19"
+        },
+        {
+          "term": "B（维持 ZD/ZG）",
+          "definition": "自同构性破缺不可接受。离开段是走势类型的结构性组件（定义中枢是否终结），不是噪音。"
+        },
+        {
+          "term": "C（双范围）",
+          "definition": "过度工程化。当前无场景需要同时使用两种范围。"
+        }
+      ],
+      "references": [],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [
+        {
+          "target_id": "",
+          "target_desc": "B（维持 ZD/ZG）",
+          "negation_type": "rejected_plan"
+        },
+        {
+          "target_id": "",
+          "target_desc": "C（双范围）",
+          "negation_type": "rejected_plan"
+        }
+      ],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "914e17bbc882c6fd457e06a77a1d63cf31f4ab79412d08d78a6e137592b97407"
+  ],
+  "git_ref": ""
+}

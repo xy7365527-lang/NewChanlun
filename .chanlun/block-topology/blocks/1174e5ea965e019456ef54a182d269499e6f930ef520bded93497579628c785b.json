@@ -1,0 +1,57 @@
+{
+  "id": "1174e5ea965e019456ef54a182d269499e6f930ef520bded93497579628c785b",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.708983+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "cef41c0e865071b3e4c016bcd0656d1f95879cd5c1bb87c5c5aa4f52f6a90066",
+    "content_analysis": {
+      "genealogy_id": "204",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "结论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "模式结构"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "严格性分析"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系引用"
+        }
+      ],
+      "concepts": [],
+      "references": [
+        "090",
+        "157",
+        "196",
+        "202",
+        "204"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": "蜂群存在系统性的\"搁置模式\"：当任务涉及较高复杂度时，用\"前提未满足\"、\"工程基础设施不存在\"、\"数学研究课题\"等理由将任务降格为搁置，而非在约束条件下寻找可执行的严格形式。"
+    }
+  },
+  "refs": [
+    "cef41c0e865071b3e4c016bcd0656d1f95879cd5c1bb87c5c5aa4f52f6a90066"
+  ],
+  "git_ref": ""
+}

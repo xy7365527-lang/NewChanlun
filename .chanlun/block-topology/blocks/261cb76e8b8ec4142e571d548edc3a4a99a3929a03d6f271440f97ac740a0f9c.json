@@ -1,0 +1,61 @@
+{
+  "id": "261cb76e8b8ec4142e571d548edc3a4a99a3929a03d6f271440f97ac740a0f9c",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.215227+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "8c5cf4e1f4f38c96aba2574eec47de3ae8c05ac7d9397134f622b42657dcaebe",
+    "content_analysis": {
+      "genealogy_id": "029",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "矛盾"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "修复"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "验证"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "概念溯源"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "提交",
+          "definition": "1de48c5"
+        }
+      ],
+      "references": [],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "8c5cf4e1f4f38c96aba2574eec47de3ae8c05ac7d9397134f622b42657dcaebe"
+  ],
+  "git_ref": ""
+}

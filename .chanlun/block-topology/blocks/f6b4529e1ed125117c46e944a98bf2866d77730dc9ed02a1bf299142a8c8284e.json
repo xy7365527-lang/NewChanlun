@@ -1,0 +1,73 @@
+{
+  "id": "f6b4529e1ed125117c46e944a98bf2866d77730dc9ed02a1bf299142a8c8284e",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.764162+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "824d12a8b6a59414c0b2b3e5f31791554a645291b8991bfdc2ba67d975f6f270",
+    "content_analysis": {
+      "genealogy_id": "220",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "发现"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "溯源结果"
+        },
+        {
+          "level": 3,
+          "number": "1",
+          "title": "退出条件（替代\"止损\"）"
+        },
+        {
+          "level": 3,
+          "number": "2",
+          "title": "资金管理——成本归零策略"
+        },
+        {
+          "level": 3,
+          "number": "3",
+          "title": "短差程序"
+        },
+        {
+          "level": 3,
+          "number": "4",
+          "title": "区间套精确定位"
+        },
+        {
+          "level": 3,
+          "number": "5",
+          "title": "操作级别与风控的统一"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        }
+      ],
+      "concepts": [],
+      "references": [
+        "220"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "824d12a8b6a59414c0b2b3e5f31791554a645291b8991bfdc2ba67d975f6f270"
+  ],
+  "git_ref": ""
+}

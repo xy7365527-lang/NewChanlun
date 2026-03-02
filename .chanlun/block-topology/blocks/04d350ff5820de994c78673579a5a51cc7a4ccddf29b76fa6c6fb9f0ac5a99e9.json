@@ -1,0 +1,179 @@
+{
+  "id": "04d350ff5820de994c78673579a5a51cc7a4ccddf29b76fa6c6fb9f0ac5a99e9",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.405756+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "c1b6864221ce56c40afcb7fd07a23e8b78127a78b13fb4cf972a889e304cd4e2",
+    "content_analysis": {
+      "genealogy_id": "087",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "编排者 INTERRUPT 原因"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "五个决断（重新 Gemini decide + 同质质询）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "问题 1：递归从未发生（P0）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "问题 2：claude-challenger 完全孤岛（P1）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "问题 3：source-auditor 完全孤岛（P1）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "问题 4：skill-crystallizer 无事件连接（P2）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "问题 5：meta-observer 被降级（P2）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "五个决断汇总"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "立即执行项"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "P0 级（声明诚实化）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "P1 级（消除虚假声明）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "P1 级（修复 advisory 输出）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "P2 级（实现结晶事件连接）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件汇总"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "同质质询总结"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "negation_model",
+          "definition": "gemini-3.1-pro-preview"
+        },
+        {
+          "term": "A",
+          "definition": "实现能力（能力升级到声明水平）"
+        },
+        {
+          "term": "B",
+          "definition": "降低声明（声明降级到能力水平）"
+        },
+        {
+          "term": "边界条件",
+          "definition": "Claude Code 平台支持 subagent 嵌套时，立即实现真正调用栈递归，本决断失效。"
+        },
+        {
+          "term": "实际问题",
+          "definition": "pattern-buffer 有数据，但 skill-crystallizer 没有被触发——这不是链路断裂，是事件检测缺失："
+        },
+        {
+          "term": "CLAUDE.md 原则15 修改",
+          "definition": "去掉\"递归（蜂群→子蜂群→子子蜂群）\"声明，改为\"当前实现为扁平 Trampoline，子蜂群嵌套为设计意图（未实现）\""
+        },
+        {
+          "term": "CLAUDE.md 原则0 修改",
+          "definition": "去掉\"Gemini decide 方案C + 073号谱系\"（该注释引用了已被推翻的决断），改为引用 087号"
+        },
+        {
+          "term": "修改 `.claude/hooks/meta-observer-guard.sh`",
+          "definition": "advisory 模式产生 JSON 格式提示"
+        },
+        {
+          "term": "修改 `.claude/hooks/crystallization-guard.sh`",
+          "definition": "检查 pattern-buffer 中的 promoted 模式"
+        },
+        {
+          "term": "否定",
+          "definition": "086号（全C决断被本谱系推翻）"
+        }
+      ],
+      "references": [
+        "036",
+        "041",
+        "069",
+        "073",
+        "073b",
+        "082",
+        "085",
+        "086",
+        "087"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [
+        {
+          "target_id": "",
+          "target_desc": "A",
+          "negation_type": "rejected_plan"
+        },
+        {
+          "target_id": "",
+          "target_desc": "B",
+          "negation_type": "rejected_plan"
+        }
+      ],
+      "frontmatter_negation": {
+        "negation_source": "heterogeneous",
+        "negation_form": "expansion",
+        "negates": [
+          "086"
+        ]
+      },
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "c1b6864221ce56c40afcb7fd07a23e8b78127a78b13fb4cf972a889e304cd4e2"
+  ],
+  "git_ref": ""
+}

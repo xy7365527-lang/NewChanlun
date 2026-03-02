@@ -1,0 +1,66 @@
+{
+  "id": "fe11961c445fb51d9e35d7be019cfd2811228b83c44973b53727b991f62dfb7f",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.742023+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "8df303618370d11f9e595b7b24ae06ad8dc7a9c38433527face563722f466c0d",
+    "content_analysis": {
+      "genealogy_id": "214",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "结论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "验证数据"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "根因分析"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "与 208号的关系"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系引用"
+        }
+      ],
+      "concepts": [],
+      "references": [
+        "195",
+        "202",
+        "208",
+        "214"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": "递归级别 ≥ 1 的 T8 验证在当前可获取的数据范围内结构性不可达。"
+    }
+  },
+  "refs": [
+    "8df303618370d11f9e595b7b24ae06ad8dc7a9c38433527face563722f466c0d"
+  ],
+  "git_ref": ""
+}

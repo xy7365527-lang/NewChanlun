@@ -1,0 +1,89 @@
+{
+  "id": "e3e78e60912b011cbe6860106f0d8861523a868ab02d5a0897e5f1271bca45ee",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:07.046450+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "c4cdc4381083ab110e689503d797ac2a6bac71b00599ddb953f8a05c9e2e7f5a",
+    "content_analysis": {
+      "genealogy_id": "291",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "观察"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "观察1（收敛）：ceremony 序列正常执行"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "观察2（发散信号）：编排者中途注入 vs ceremony 中断"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "观察3（收敛）：Lead 平台约束的合理降级"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "观察4（收敛）：广播使用"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "自环检查"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "总结"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "中断",
+          "definition": "改变序列流程（如跳过 rescan、中止 ceremony）"
+        },
+        {
+          "term": "注入",
+          "definition": "在 RTAS 循环中追加新工位，但不改变序列流程（ceremony 仍然继续到不动点）"
+        },
+        {
+          "term": "语法记录候选",
+          "definition": "ceremony 中途编排者任务注入的合法性和边界。已在实践中运作（本 session 即实例），但未在 ceremony 序列定义中显式化。"
+        }
+      ],
+      "references": [
+        "218",
+        "224",
+        "225",
+        "282",
+        "285",
+        "286",
+        "288",
+        "290",
+        "291"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "c4cdc4381083ab110e689503d797ac2a6bac71b00599ddb953f8a05c9e2e7f5a"
+  ],
+  "git_ref": ""
+}

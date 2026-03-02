@@ -1,0 +1,166 @@
+{
+  "id": "6ef8dd957fba63f8dbbb61444a7e1787182734558344fb5d29b748b5e75f4569",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.958781+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "c5a7782c5b099f570eba18b53308b9d48ff1a1071482dcccc050defe36883027",
+    "content_analysis": {
+      "genealogy_id": "269",
+      "sections": [
+        {
+          "level": 2,
+          "number": "1",
+          "title": "结论"
+        },
+        {
+          "level": 2,
+          "number": "2",
+          "title": "四轮质询完整记录"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "Round 1（v117-swarm）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "Round 2"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "Round 3（2002-2007 反例轮）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "Round 4（区间套轮）"
+        },
+        {
+          "level": 2,
+          "number": "3",
+          "title": "已驳回的攻击（不可重复）"
+        },
+        {
+          "level": 2,
+          "number": "4",
+          "title": "未解决问题（待回测）"
+        },
+        {
+          "level": 2,
+          "number": "5",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "6",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "7",
+          "title": "谱系引用"
+        },
+        {
+          "level": 2,
+          "number": "8",
+          "title": "影响声明"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "不修改代码"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "修改定义"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "Gemini 原始输出"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "保留概念"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "收敛",
+          "definition": "双方论证穷尽。理论层面无法进一步推进，需要历史数据回测"
+        },
+        {
+          "term": "编排者 INTERRUPT",
+          "definition": "法医验尸报告推翻。三层论证：(1) 空间/时间维度分离；(2) \"有延迟的观测\"≠\"不可观测\"；(3) 级别同构——缠论所有操作都是次级别先确认、主级别后确认。"
+        },
+        {
+          "term": "2002-2007 反例",
+          "definition": "美元120→70（中心失构），套息交叉盘独立方向态（外围升构），黄金300→1000（法币/黄金共振）。月线级别三重联立完美满足，但2008证明美元霸权完好。"
+        },
+        {
+          "term": "2002-2007 在季线/年线上的 D 算子读数",
+          "definition": "美元从120跌到70跌破1992年低点80，D 算子在年线上是否读出结构破坏？如果是，级别匹配论证失败"
+        },
+        {
+          "term": "1971 前后的三重联立模式",
+          "definition": "互测网络各边在不同级别上的 D 算子产出，三重联立是否在更大级别上满足？"
+        },
+        {
+          "term": "多序列级别对齐",
+          "definition": "三个资产分别在不同级别触发时，联合状态级别如何判定？"
+        },
+        {
+          "term": "数据需求",
+          "definition": "1960-2024 主要汇率对年线/月线数据（USD/GBP、USD/DEM→EUR、XAU/USD、USD/JPY 等）。"
+        },
+        {
+          "term": "历史回测是 L2→L3 升级的唯一路径",
+          "definition": "—理论审讯已穷尽"
+        },
+        {
+          "term": "254号",
+          "definition": "多经济体资本流转本体论（开放问题5，已同步更新）"
+        },
+        {
+          "term": "233号",
+          "definition": "离散化算子 D 的核结构（ker(D) 定义，非线性）"
+        },
+        {
+          "term": "235号",
+          "definition": "三态分类（吸收/保留/放大）"
+        },
+        {
+          "term": "257号",
+          "definition": "代理变量范畴错误（OPEC 反例）"
+        },
+        {
+          "term": "231号",
+          "definition": "形式化有效域规则（L2 认识论等级标注）"
+        }
+      ],
+      "references": [
+        "231",
+        "233",
+        "235",
+        "254",
+        "257",
+        "269"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": "经过四轮 Gemini 质询，开放问题5从\"系统内部不可观测\"演进为\"三重联立候选判据，数学合法性已确立，经验有效性待历史数据回测\"。"
+    }
+  },
+  "refs": [
+    "c5a7782c5b099f570eba18b53308b9d48ff1a1071482dcccc050defe36883027"
+  ],
+  "git_ref": ""
+}

@@ -1,0 +1,95 @@
+{
+  "id": "c3dc150590a383527293287161aba3ef2ecac20fe6de6f9196275ee97645173d",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.618878+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "36608324248c8495132eaced9d0b7580da9462237c63377aa222e4d846aceb14",
+    "content_analysis": {
+      "genealogy_id": "168",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "来源"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "内容"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "核心命题"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "重要区分"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "原文核心论述"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "Gemini质询结果与反质询"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "在蜂群中的存在形式"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系引用"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "Gemini判定",
+          "definition": "隐喻/逻辑断裂"
+        }
+      ],
+      "references": [
+        "003",
+        "089",
+        "139",
+        "167",
+        "168"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {
+        "negation_source": "heterogeneous",
+        "negation_form": "双向收敛（Gemini否定了数学操作精确性和辩证前提，收敛于重定义路径）"
+      },
+      "conclusion_summary": "Separation（拉康义）是两个不完整性叠合产生的拓扑剩余——主体诞生于两个亏格的不可消除重叠处。在蜂群中，这对应于系统内部逻辑缺失与外部不可预测性在DAG中形成的不可解析孤立节点。"
+    }
+  },
+  "refs": [
+    "36608324248c8495132eaced9d0b7580da9462237c63377aa222e4d846aceb14"
+  ],
+  "git_ref": ""
+}

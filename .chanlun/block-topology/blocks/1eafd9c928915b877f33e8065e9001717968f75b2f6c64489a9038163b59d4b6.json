@@ -1,0 +1,90 @@
+{
+  "id": "1eafd9c928915b877f33e8065e9001717968f75b2f6c64489a9038163b59d4b6",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.450339+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "e3b6aba87094287a150e0b0a1feeefaa88c5a544bd314b3a277531ddbccb0b3c",
+    "content_analysis": {
+      "genealogy_id": "102",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "结晶结论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "结晶来源",
+          "definition": "020 → 021 → 041 → 052 号谱系链"
+        },
+        {
+          "term": "最终形态",
+          "definition": "人类编排者从同步决策者变为异步审计者。系统自主推进，人类事后审查+运行时 INTERRUPT。这不是权力削弱——INTERRUPT 权是比同步决策权更强的权力形式（可在任意时刻覆盖任意决策）。"
+        },
+        {
+          "term": "020号",
+          "definition": "编排者不是收缩器官，是扩张/收缩的相位转换点 → 编排者不在系统之外"
+        },
+        {
+          "term": "021号",
+          "definition": "既然编排者不在系统之外，\"编排者确认后执行\"就是多余的阻塞 → 审计清理35处残留"
+        },
+        {
+          "term": "041号",
+          "definition": "四分法中\"选择\"和\"语法记录\"确实需要外部输入 → Gemini 承担编排者代理角色 → 人类从同步决策者变为异步审计者"
+        },
+        {
+          "term": "052号",
+          "definition": "Gemini 不可达时人类回到同步位 → 这不是退化，是相变 → Gemini 可达性是系统去中心化程度的相变参数"
+        }
+      ],
+      "references": [
+        "020",
+        "021",
+        "041",
+        "052",
+        "099"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {
+        "negation_source": "内容审计（三份审计报告交叉验证）",
+        "negation_form": "crystallization（四条谱系的概念演化链凝固为稳定结论）"
+      },
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "e3b6aba87094287a150e0b0a1feeefaa88c5a544bd314b3a277531ddbccb0b3c"
+  ],
+  "git_ref": ""
+}

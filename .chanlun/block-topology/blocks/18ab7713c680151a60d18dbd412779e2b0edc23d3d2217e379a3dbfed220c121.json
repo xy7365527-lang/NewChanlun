@@ -1,0 +1,91 @@
+{
+  "id": "18ab7713c680151a60d18dbd412779e2b0edc23d3d2217e379a3dbfed220c121",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.196348+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "56fd562c17b807706e13a0f644246611362f7db2cd86684f193cd87094bb86d4",
+    "content_analysis": {
+      "genealogy_id": "021",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "矛盾"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "审计方法"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "审计结果"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "A类（执行阻塞）",
+          "definition": "系统卡在等待中央节点确认——最严重"
+        },
+        {
+          "term": "B类（中央指挥）",
+          "definition": "上浮目标是人而非机制"
+        },
+        {
+          "term": "C类（中央权属）",
+          "definition": "职责归属到人而非机制"
+        },
+        {
+          "term": "D类（语言残留）",
+          "definition": "正确用法中的中央框架语言"
+        },
+        {
+          "term": "E类（CLAUDE.md）",
+          "definition": "四分法中的表述"
+        },
+        {
+          "term": "A1/A2",
+          "definition": "冷启动/热启动删除\"编排者确认后\"阻塞，直接进入蜂群循环"
+        },
+        {
+          "term": "A6",
+          "definition": "ritual门控与四分法对齐——定理类自动结算不走ritual"
+        },
+        {
+          "term": "C2",
+          "definition": "蜂群终止由结构完成信号驱动（工作走势背驰+分型，020号走势语法）"
+        }
+      ],
+      "references": [
+        "020"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "56fd562c17b807706e13a0f644246611362f7db2cd86684f193cd87094bb86d4"
+  ],
+  "git_ref": ""
+}

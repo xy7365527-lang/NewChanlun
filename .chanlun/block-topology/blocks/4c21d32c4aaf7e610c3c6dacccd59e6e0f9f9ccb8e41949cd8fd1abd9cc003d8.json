@@ -1,0 +1,84 @@
+{
+  "id": "4c21d32c4aaf7e610c3c6dacccd59e6e0f9f9ccb8e41949cd8fd1abd9cc003d8",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.159834+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "023614ff008ddbf1dd2a52abad077c49dec0f51d72a7dfd8e631b8bedae02419",
+    "content_analysis": {
+      "genealogy_id": "014",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "矛盾描述"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "解决方案"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "Lead 退化为薄路由层"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "指令卡组架构"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "附带决断：放弃 subagent 模式兼容"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "来源"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "前提变更",
+          "definition": "Agent Teams 提供共享文件系统 + SendMessage + rules/skills 继承"
+        },
+        {
+          "term": "推论",
+          "definition": "全局视野不再是某个 agent 的特权，而是文件系统提供的公共基础设施"
+        },
+        {
+          "term": "不可逆",
+          "definition": "放弃 subagent 模式兼容"
+        }
+      ],
+      "references": [],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "023614ff008ddbf1dd2a52abad077c49dec0f51d72a7dfd8e631b8bedae02419"
+  ],
+  "git_ref": ""
+}

@@ -1,0 +1,167 @@
+{
+  "id": "397cd59a0f3ef047425aa70de6c70c41c82a7468b769ae0c631aa7af396f9279",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.841705+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "9564947db0e8b159849cff1236fff7d3a55857920eaa8499b650e57948efdeb9",
+    "content_analysis": {
+      "genealogy_id": "245",
+      "sections": [
+        {
+          "level": 2,
+          "number": "1",
+          "title": "结论"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "核心数据"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "236号假设验证：通过"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "分歧事件的结构特征"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "分歧配置列表"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "sign 组合分布（分歧事件）"
+        },
+        {
+          "level": 2,
+          "number": "2",
+          "title": "定义依据"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "polarity_index（直积版）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "fiber_polarity（纤维丛版）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "decision divergence"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "C-R 方向不一致"
+        },
+        {
+          "level": 2,
+          "number": "3",
+          "title": "边界条件"
+        },
+        {
+          "level": 3,
+          "number": "3",
+          "title": "1 合成数据局限性"
+        },
+        {
+          "level": 3,
+          "number": "3",
+          "title": "2 充分条件缺失"
+        },
+        {
+          "level": 3,
+          "number": "3",
+          "title": "3 翻转条件"
+        },
+        {
+          "level": 3,
+          "number": "3",
+          "title": "4 β_cr=0.688 的直接含义"
+        },
+        {
+          "level": 2,
+          "number": "4",
+          "title": "下游推论"
+        },
+        {
+          "level": 3,
+          "number": "4",
+          "title": "1 裁决问题缩小"
+        },
+        {
+          "level": 3,
+          "number": "4",
+          "title": "2 实盘验证策略"
+        },
+        {
+          "level": 3,
+          "number": "4",
+          "title": "3 非分歧事件中的 sign 不一致（80 个）"
+        },
+        {
+          "level": 2,
+          "number": "5",
+          "title": "谱系引用"
+        },
+        {
+          "level": 2,
+          "number": "6",
+          "title": "影响声明"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "新增的文件"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "DAG 变更"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "概念影响"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "C-R 方向不一致是决策分歧的必要条件",
+          "definition": "120/120 = 100%"
+        },
+        {
+          "term": "C-R 方向不一致不是充分条件",
+          "definition": "非分歧事件中有 80 个 sign 不一致但两管道决策相同（共振检查结果一致）"
+        }
+      ],
+      "references": [
+        "236",
+        "241",
+        "242",
+        "243",
+        "244",
+        "245"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": "244号修复后（两管道各自内部一致），对 540 个事件（27配置 × 20 BSP 交替序列）执行分歧事件结构特征分析。"
+    }
+  },
+  "refs": [
+    "9564947db0e8b159849cff1236fff7d3a55857920eaa8499b650e57948efdeb9"
+  ],
+  "git_ref": ""
+}

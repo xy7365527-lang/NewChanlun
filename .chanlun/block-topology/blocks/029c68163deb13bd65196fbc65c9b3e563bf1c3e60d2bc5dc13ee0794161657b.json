@@ -1,0 +1,82 @@
+{
+  "id": "029c68163deb13bd65196fbc65c9b3e563bf1c3e60d2bc5dc13ee0794161657b",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.572266+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "80c9271cd54242a3ba47222daaadad4e4b9f1e2157c1392a7126be66e39358a0",
+    "content_analysis": {
+      "genealogy_id": "145",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "事件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "线1：Lead 停顿 Round 2（5个反质询全部有响应）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "线2：Stop-Guard + meta-observer"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "线3：Context Limit"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "关键区分"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "同时修复"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        }
+      ],
+      "concepts": [],
+      "references": [
+        "016",
+        "069",
+        "087"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {
+        "negation_form": "expansion"
+      },
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "80c9271cd54242a3ba47222daaadad4e4b9f1e2157c1392a7126be66e39358a0"
+  ],
+  "git_ref": ""
+}

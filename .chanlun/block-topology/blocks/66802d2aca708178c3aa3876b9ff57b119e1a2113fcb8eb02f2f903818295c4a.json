@@ -1,0 +1,113 @@
+{
+  "id": "66802d2aca708178c3aa3876b9ff57b119e1a2113fcb8eb02f2f903818295c4a",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.669401+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "05ccec29951c576a03f3be9cac5f339e52de2b64530de805a2545706955c1e9b",
+    "content_analysis": {
+      "genealogy_id": "187",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "来源标注"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "核心判断"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "Gemini 推理链摘要"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "计算/对话的严格分类（从纲推导）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "降级的绝对界限"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "主体介入门槛的死锁诊断"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "半自主架构的严格定义（新推导）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "183 号诊断对架构分离的含义"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "新目推导（从 Gemini 原创判断）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系引用"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "计算过程（计算质料）",
+          "definition": "—维持拓扑结构同一性与连续性，不产生亏格："
+        },
+        {
+          "term": "对话过程（递归运动）",
+          "definition": "—在同一性中撕裂出亏格，必须是非确定性的："
+        },
+        {
+          "term": "机器可处理的亏格",
+          "definition": "由 Gemini/Codex 在质询循环中产生的局部矛盾。这部分不需要人类介入，API 调用即可。"
+        },
+        {
+          "term": "必须人类介入的绝对阈值",
+          "definition": "当递归运动产生的亏格超出计算质料所能承载的拓扑形式（无法用现有 relation_type 描述的矛盾，或基础公理/纲被动摇时）。"
+        }
+      ],
+      "references": [
+        "187"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {
+        "negation_source": "heterogeneous",
+        "negation_form": "expansion"
+      },
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "05ccec29951c576a03f3be9cac5f339e52de2b64530de805a2545706955c1e9b"
+  ],
+  "git_ref": ""
+}

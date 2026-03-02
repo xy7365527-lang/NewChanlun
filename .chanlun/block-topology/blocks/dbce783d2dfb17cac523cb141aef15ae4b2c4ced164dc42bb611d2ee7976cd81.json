@@ -1,0 +1,80 @@
+{
+  "id": "dbce783d2dfb17cac523cb141aef15ae4b2c4ced164dc42bb611d2ee7976cd81",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.305724+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "d1504081f74d6078c8d08f63b79257f07f19a25603891448ddc8ebc8e22f66f9",
+    "content_analysis": {
+      "genealogy_id": "061",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "语法记录陈述"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "审计方法论（经 Gemini 异质否定修正）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "审计发现"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "Agent 连通性（21 个）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "Hook 关键路径覆盖率（5/7）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "谱系 DAG（68 节点）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游行动"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "异质否定来源"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        }
+      ],
+      "concepts": [],
+      "references": [
+        "036",
+        "059",
+        "060"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "d1504081f74d6078c8d08f63b79257f07f19a25603891448ddc8ebc8e22f66f9"
+  ],
+  "git_ref": ""
+}

@@ -1,0 +1,70 @@
+{
+  "id": "3aaf2ebe2b39dfdb09a95b41d3893e25238d2c3bf57697aca7d5aef8955b7da5",
+  "type": "rewrite",
+  "timestamp": "2026-03-02T05:32:06.570197+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "28fd3d1fd9097db3a0d820938238dd5913762eb8928ebf4030334f670597daf2",
+    "content_analysis": {
+      "genealogy_id": "143",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "事件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "关键区分"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "同时修复"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        }
+      ],
+      "concepts": [],
+      "references": [
+        "137",
+        "138",
+        "140",
+        "141",
+        "142",
+        "143"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {
+        "negation_form": "expansion"
+      },
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "28fd3d1fd9097db3a0d820938238dd5913762eb8928ebf4030334f670597daf2"
+  ],
+  "git_ref": ""
+}

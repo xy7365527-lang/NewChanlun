@@ -48,7 +48,11 @@ def _build_existing_keys(base: Path) -> set[tuple]:
         existing = read_all_relations(base)
     except FileNotFoundError:
         return set()
-    return {_relation_dedup_key(r) for r in existing}
+    keys = set()
+    for r in existing:
+        if r.get("from") and r.get("to") and r.get("relation"):
+            keys.add(_relation_dedup_key(r))
+    return keys
 
 
 def _content_analysis_to_dict(ca) -> dict:
