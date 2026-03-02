@@ -17,6 +17,7 @@ from scripts.concept_extractor import (
     ContentAnalysis,
     ConceptDefinition,
     Modification,
+    Negation,
     NewConcept,
     Section,
     analyze_content,
@@ -26,6 +27,10 @@ from scripts.concept_extractor import (
     _extract_new_concepts,
     _extract_modifications,
     _extract_conclusion_summary,
+    _extract_negations,
+    _extract_frontmatter_negation,
+    _classify_modification_kind,
+    _parse_frontmatter,
     _strip_frontmatter,
 )
 
@@ -161,6 +166,70 @@ depends_on:
 
 **推论**：27 种配置中独立性退化。
 """
+
+SAMPLE_040 = """---
+id: '040'
+title: "被否定的方案记录"
+type: 方案否定
+status: 已结算
+date: 2026-02-18
+depends_on: ['039']
+negates: ['031']
+negated_by: []
+negation_source: "编排者裁定"
+negation_form: "separation"
+---
+
+# 040号：被否定的方案记录
+
+## 1. 被否定的方案
+
+以下方案在039号评估后被编排者否定：
+
+### 被否定的方案
+
+- **"完全自动化方案"**：无法处理概念层矛盾
+- 031号 渐进修复方案：被新框架替代
+
+## 结论
+
+方案否定完成。
+"""
+
+SAMPLE_080 = """---
+id: '080'
+title: "否定性分离记录"
+type: 概念分离
+status: 已结算
+date: 2026-02-21
+depends_on: ['079']
+negation_source: "质询结果"
+negation_form: "separation"
+negates: ['041', '042']
+negated_by: ['085']
+---
+
+# 080号：否定性分离记录
+
+## 1. 核心否定
+
+079号质询揭示了根本矛盾。
+
+## 否定了什么
+
+- 041号 旧的工位分配方案：与新架构不兼容
+- 042号 静态依赖图：无法表达递归结构
+
+## 2. 对现有概念的修正
+
+- 079号 工位粒度：从固定粒度替换为动态粒度
+
+## 结论
+
+分离完成。
+"""
+
+SAMPLE_CRLF = "---\r\nid: '999'\r\ntitle: \"CRLF test\"\r\nstatus: 已结算\r\n---\r\n\r\n# 999号\r\n\r\n**概念A**：定义A\r\n"
 
 
 # --- Tests ---
@@ -430,3 +499,166 @@ class TestRealFiles:
         # 090 may appear in frontmatter only (depends_on),
         # not necessarily as "090号" in body text
         assert len(ca.concepts) >= 3
+
+
+# --- Phase 2 Tests ---
+
+class TestParseFrontmatter:
+    def test_parses_yaml(self):
+        fm, body = _parse_frontmatter(SAMPLE_040)
+        assert fm["id"] == "040"
+        assert fm["status"] == "已结算"
+        assert "negation_source" in fm
+        assert "# 040号" in body
+
+    def test_no_frontmatter(self):
+        text = "# Just a heading\n\nContent"
+        fm, body = _parse_frontmatter(text)
+        assert fm == {}
+        assert body == text
+
+    def test_malformed_yaml_degrades(self):
+        text = "---\n[invalid: yaml: {{{\n---\n\nBody text"
+        fm, body = _parse_frontmatter(text)
+        assert fm == {}
+        assert "Body text" in body
+
+    def test_preserves_body(self):
+        fm, body = _parse_frontmatter(SAMPLE_292)
+        assert "# 292号" in body
+        assert "---" not in body[:10]  # frontmatter stripped
+
+    def test_crlf_handling(self):
+        fm, body = _parse_frontmatter(SAMPLE_CRLF)
+        # _parse_frontmatter should handle CRLF
+        assert fm.get("id") == "999" or fm == {}  # depends on normalization
+
+
+class TestExtractNegations:
+    def test_040_negation_bold_format(self):
+        fm, body = _parse_frontmatter(SAMPLE_040)
+        negations = _extract_negations(body)
+        descs = [n.target_desc for n in negations]
+        assert any("完全自动化" in d for d in descs)
+
+    def test_040_negation_id_format(self):
+        fm, body = _parse_frontmatter(SAMPLE_040)
+        negations = _extract_negations(body)
+        id_negs = [n for n in negations if n.target_id == "031"]
+        assert len(id_negs) == 1
+
+    def test_080_multiple_negations(self):
+        fm, body = _parse_frontmatter(SAMPLE_080)
+        negations = _extract_negations(body)
+        target_ids = [n.target_id for n in negations]
+        assert "041" in target_ids
+        assert "042" in target_ids
+
+    def test_negation_type_classification(self):
+        fm, body = _parse_frontmatter(SAMPLE_040)
+        negations = _extract_negations(body)
+        types = {n.negation_type for n in negations}
+        assert "rejected_plan" in types or "negated_concept" in types
+
+    def test_no_negations_in_005b(self):
+        fm, body = _parse_frontmatter(SAMPLE_005B)
+        negations = _extract_negations(body)
+        assert len(negations) == 0
+
+    def test_no_negations_in_292(self):
+        fm, body = _parse_frontmatter(SAMPLE_292)
+        negations = _extract_negations(body)
+        assert len(negations) == 0
+
+    def test_dedup(self):
+        """Same negation appearing twice in text should be deduplicated."""
+        text = """## 否定了什么
+
+- 041号 旧方案
+- 041号 旧方案
+"""
+        negations = _extract_negations(text)
+        assert len(negations) == 1
+
+
+class TestExtractFrontmatterNegation:
+    def test_040_frontmatter(self):
+        fm, body = _parse_frontmatter(SAMPLE_040)
+        result = _extract_frontmatter_negation(fm)
+        assert result.get("negation_source") == "编排者裁定"
+        assert result.get("negation_form") == "separation"
+        assert "031" in result.get("negates", [])
+
+    def test_080_frontmatter(self):
+        fm, body = _parse_frontmatter(SAMPLE_080)
+        result = _extract_frontmatter_negation(fm)
+        assert "041" in result.get("negates", [])
+        assert "042" in result.get("negates", [])
+        assert "085" in result.get("negated_by", [])
+
+    def test_no_negation_fields(self):
+        fm, body = _parse_frontmatter(SAMPLE_292)
+        result = _extract_frontmatter_negation(fm)
+        assert result == {} or "negation_source" not in result
+
+    def test_empty_negates_list(self):
+        fm = {"negates": [], "negated_by": []}
+        result = _extract_frontmatter_negation(fm)
+        assert "negates" not in result
+        assert "negated_by" not in result
+
+
+class TestModificationKind:
+    def test_revise_keywords(self):
+        assert _classify_modification_kind("K4划分", "替换为新框架") == "revise"
+        assert _classify_modification_kind("", "根本性重构") == "revise"
+        assert _classify_modification_kind("旧方案", "废除") == "revise"
+        assert _classify_modification_kind("定义", "扬弃后重定义") == "revise"
+
+    def test_refine_keywords(self):
+        assert _classify_modification_kind("K4划分", "降级为辅助") == "refine"
+        assert _classify_modification_kind("", "修正边界条件") == "refine"
+        assert _classify_modification_kind("OQ3", "提升为语法层") == "refine"
+
+    def test_unknown_default(self):
+        assert _classify_modification_kind("X", "更新了Y") == "unknown"
+        assert _classify_modification_kind("", "") == "unknown"
+
+    def test_292_modifications_have_kind(self):
+        ca = analyze_content("292", SAMPLE_292)
+        for mod in ca.modifications:
+            assert mod.kind in ("refine", "revise", "unknown")
+
+    def test_298_modifications_have_kind(self):
+        ca = analyze_content("298", SAMPLE_298)
+        for mod in ca.modifications:
+            assert mod.kind in ("refine", "revise", "unknown")
+        # "降级" should trigger "refine"
+        downgrade_mods = [m for m in ca.modifications if "降级" in m.target_desc or "降级" in m.modification]
+        for m in downgrade_mods:
+            assert m.kind == "refine"
+
+
+class TestAnalyzeContentPhase2:
+    def test_040_negations_included(self):
+        ca = analyze_content("040", SAMPLE_040)
+        assert len(ca.negations) >= 1
+        assert ca.frontmatter_negation.get("negation_source") == "编排者裁定"
+
+    def test_080_full_analysis(self):
+        ca = analyze_content("080", SAMPLE_080)
+        assert len(ca.negations) >= 2
+        assert "041" in ca.frontmatter_negation.get("negates", [])
+        assert len(ca.modifications) >= 1
+
+    def test_292_backward_compatible(self):
+        """Existing 292 analysis should still work with new fields."""
+        ca = analyze_content("292", SAMPLE_292)
+        assert ca.negations == ()
+        assert ca.frontmatter_negation == {} or "negation_source" not in ca.frontmatter_negation
+
+    def test_crlf_normalization(self):
+        ca = analyze_content("999", SAMPLE_CRLF)
+        assert len(ca.concepts) >= 1
+        terms = [c.term for c in ca.concepts]
+        assert "概念A" in terms

@@ -28,6 +28,7 @@ from pathlib import Path
 
 BLOCK_TYPES = frozenset({
     "event", "consensus", "residue", "tension", "rewrite",
+    "annotation",   # Phase 2 预留，Phase 3 自动生成
 })
 
 SOURCES = frozenset({
@@ -41,9 +42,18 @@ RELATION_TYPES = frozenset({
     "records",                                             # rewrite→event 记录关系
     "negated_by",                                          # dag.yaml negated_by
     "defines",                                             # 区块定义概念（内容级）
-    "modifies",                                            # 区块修正另一区块中的概念（内容级）
+    "modifies",                                            # 向后兼容（Phase 1 已写入，双栈过渡期保留）
+    "refines",                                             # 折叠保持：局部修正（order=2）
+    "revises",                                             # 折叠变形：实质性修改（order=1）
     "references",                                          # 正文引用另一区块（内容级）
+    "annotates",                                           # annotation → 被注解 block（Phase 2 预留）
 })
+
+# 边有效性能力矩阵：哪些关系类型改变边有效性
+# negates（撕裂）：改变有效性
+# revises（变形）：改变有效性
+# supersedes 不纳入：坍缩不可逆，不是有效性变更而是替代
+VALIDITY_CAPABLE_RELATIONS = frozenset({"negates", "revises"})
 
 DEFAULT_BASE = Path(".chanlun/block-topology")
 
@@ -132,8 +142,8 @@ def make_relation(from_id: str, to_id: str, relation: str, order: int,
     created_by must be a SHA256 hex digest — enforces type consistency
     (编排者决断: created_by 字段类型始终为 SHA256).
 
-    For negates relations, the following optional fields are supported
-    (273号 schema 扩展):
+    For relations in VALIDITY_CAPABLE_RELATIONS (negates, revises),
+    the following optional fields are supported (273号 schema 扩展):
       - validity: "active" | "invalidated", defaults to "active"
       - invalidated_by: SHA256 of the block that invalidated this edge
       - invalidated_at: ISO 8601 timestamp of invalidation
@@ -152,8 +162,8 @@ def make_relation(from_id: str, to_id: str, relation: str, order: int,
         "created_by": created_by,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
-    # 273号: negates 边默认 validity="active"
-    if relation == "negates":
+    # 273号: VALIDITY_CAPABLE_RELATIONS 边默认 validity="active"
+    if relation in VALIDITY_CAPABLE_RELATIONS:
         rec["validity"] = extra.pop("validity", "active")
         rec["invalidated_by"] = extra.pop("invalidated_by", None)
         rec["invalidated_at"] = extra.pop("invalidated_at", None)
@@ -169,13 +179,13 @@ def make_relation(from_id: str, to_id: str, relation: str, order: int,
 def _normalize_relation(rec: dict) -> dict:
     """Normalize a relation dict for backward compatibility (273号).
 
-    Adds default validity fields to negates relations that lack them.
+    Adds default validity fields to VALIDITY_CAPABLE_RELATIONS that lack them.
     Returns a new dict — does not mutate the input.
     """
-    if rec.get("relation") != "negates":
-        return rec
+    if rec.get("relation") not in VALIDITY_CAPABLE_RELATIONS:
+        return dict(rec)
     if "validity" in rec:
-        return rec
+        return dict(rec)
     normalized = dict(rec)
     normalized["validity"] = "active"
     normalized["invalidated_by"] = None
@@ -184,7 +194,7 @@ def _normalize_relation(rec: dict) -> dict:
 
 
 def invalidate_relation(relation: dict, invalidated_by_block_id: str) -> dict:
-    """Mark a negates relation as invalidated (273号).
+    """Mark a validity-capable relation as invalidated (273号).
 
     Returns a new dict with validity="invalidated", invalidated_by and
     invalidated_at set. Does not mutate the input dict. Does not write
@@ -193,9 +203,10 @@ def invalidate_relation(relation: dict, invalidated_by_block_id: str) -> dict:
     Idempotent: if the relation is already invalidated, returns a copy
     without changing the state (273号边界条件3).
     """
-    if relation.get("relation") != "negates":
+    if relation.get("relation") not in VALIDITY_CAPABLE_RELATIONS:
         raise ValueError(
-            "invalidate_relation only applies to negates relations, "
+            "invalidate_relation only applies to "
+            f"{sorted(VALIDITY_CAPABLE_RELATIONS)} relations, "
             f"got relation={relation.get('relation')!r}"
         )
     result = dict(relation)

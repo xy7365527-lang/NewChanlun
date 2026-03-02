@@ -70,9 +70,15 @@ def _content_analysis_to_dict(ca) -> dict:
         ],
         "modifications": [
             {"target_id": m.target_id, "target_desc": m.target_desc,
-             "modification": m.modification}
+             "modification": m.modification, "kind": m.kind}
             for m in ca.modifications
         ],
+        "negations": [
+            {"target_id": n.target_id, "target_desc": n.target_desc,
+             "negation_type": n.negation_type}
+            for n in ca.negations
+        ],
+        "frontmatter_negation": ca.frontmatter_negation,
         "conclusion_summary": ca.conclusion_summary,
     }
 
@@ -86,6 +92,7 @@ def _analysis_stats(ca) -> dict:
         "references": len(ca.references),
         "new_concepts": len(ca.new_concepts),
         "modifications": len(ca.modifications),
+        "negations": len(ca.negations),
         "has_conclusion": bool(ca.conclusion_summary),
     }
 
@@ -192,7 +199,7 @@ def enrich_single_file(
         )
         _write_rel(defines_rel)
 
-    # modifies relations: original → target_block (for each modification)
+    # modifies → refines/revises dispatch (保守方向原则: unknown → refines)
     for mod in ca.modifications:
         if not mod.target_id:
             continue
@@ -204,16 +211,44 @@ def enrich_single_file(
                 pass
         if target_sha is None:
             continue
-        modifies_rel = make_relation(
+        # Based on kind: revise → revises(order=1), else → refines(order=2)
+        if mod.kind == "revise":
+            relation_type, order = "revises", 1
+        else:
+            relation_type, order = "refines", 2  # unknown and refine → refines
+        rel = make_relation(
             from_id=original_sha,
             to_id=target_sha,
-            relation="modifies",
-            order=2,
+            relation=relation_type,
+            order=order,
             created_by=rewrite_block["id"],
             target_desc=mod.target_desc,
             modification=mod.modification,
+            modification_kind=mod.kind,
         )
-        _write_rel(modifies_rel)
+        _write_rel(rel)
+
+    # Body-extracted negates (order=2)
+    for neg in ca.negations:
+        if not neg.target_id:
+            continue
+        neg_target_sha = id_mapping.get(neg.target_id)
+        if neg_target_sha is None:
+            try:
+                neg_target_sha = id_mapping.get(str(int(neg.target_id)))
+            except ValueError:
+                pass
+        if neg_target_sha is None:
+            continue
+        negates_rel = make_relation(
+            from_id=original_sha,
+            to_id=neg_target_sha,
+            relation="negates",
+            order=2,
+            created_by=rewrite_block["id"],
+            negation_type=neg.negation_type,
+        )
+        _write_rel(negates_rel)
 
     # references relations: original → referenced_block (for each body reference)
     for ref_id in ca.references:
@@ -332,6 +367,22 @@ def run_enrichment(
     return summary
 
 
+def audit_modifies(
+    base: Path | None = None,
+) -> list[dict]:
+    """Scan relations.jsonl for old modifies relations, output audit list.
+
+    Returns list of dicts with relation details for human review.
+    """
+    if base is None:
+        base = PROJECT_ROOT / ".chanlun" / "block-topology"
+    relations = read_all_relations(base)
+    modifies_rels = [
+        r for r in relations if r.get("relation") == "modifies"
+    ]
+    return modifies_rels
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Content enrichment migration for block topology"
@@ -344,7 +395,21 @@ def main():
         "--json", action="store_true",
         help="Output as JSON"
     )
+    parser.add_argument(
+        "--audit-modifies", action="store_true",
+        help="Scan and output all old modifies relations for human review"
+    )
     args = parser.parse_args()
+
+    if args.audit_modifies:
+        results = audit_modifies()
+        if args.json:
+            print(json.dumps(results, ensure_ascii=False, indent=2))
+        else:
+            print(f"[audit-modifies] found {len(results)} modifies relations")
+            for r in results:
+                print(json.dumps(r, ensure_ascii=False))
+        return
 
     result = run_enrichment(dry_run=args.dry_run)
 

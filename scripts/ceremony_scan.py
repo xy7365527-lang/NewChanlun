@@ -623,6 +623,13 @@ def compute_concept_topology_health(root):
             from concept_topology_check import run_all_checks
             report = run_all_checks(_Path(base))
             result["concept_health"] = report.get("summary", {})
+            # Phase 2: negation 一致性 + annotation 建议
+            negation_data = report.get("negation_consistency", {})
+            if negation_data.get("warn_count", 0) > 0:
+                result["negation_issues"] = negation_data["warn_count"]
+            annotations = report.get("proposed_annotations", [])
+            if annotations:
+                result["proposed_annotations"] = len(annotations)
             if sys_path_added:
                 sys.path.remove(scripts_dir)
         except Exception as exc:
@@ -1093,7 +1100,7 @@ def main():
             summary = concept_health.get("concept_health", {})
             workstations.append({
                 "priority": "P2",
-                "name": f"概念拓扑异常：{summary.get('duplicates', 0)}重复/{summary.get('conflicts', 0)}冲突/{summary.get('missing_dependencies', 0)}遗漏依赖",
+                "name": f"概念拓扑异常：{summary.get('duplicates', 0)}重复/{summary.get('conflicts', 0)}冲突/{summary.get('missing_dependencies', 0)}遗漏依赖/{summary.get('undeclared_negations', 0)}未声明否定",
                 "status": "concept_topology:issues_found",
                 "source": "concept_topology_check",
             })
@@ -1102,6 +1109,16 @@ def main():
                 "priority": "P2",
                 "name": f"内容级迁移未执行：{concept_health.get('unenriched_blocks', 0)}个区块待 enrich",
                 "status": "content_enrichment:not_run",
+                "source": "concept_topology_check",
+            })
+        # Phase 2: 否定一致性 warn 级异常生成工位
+        negation_warn_count = concept_health.get("negation_issues", 0)
+        if negation_warn_count > 0 and health_status != "issues_found":
+            # 如果 issues_found 已经生成工位，不重复。否则单独生成
+            workstations.append({
+                "priority": "P3",
+                "name": f"否定一致性异常：{negation_warn_count}条未声明否定",
+                "status": "negation_consistency:warn",
                 "source": "concept_topology_check",
             })
 
