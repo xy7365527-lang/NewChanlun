@@ -1605,6 +1605,11 @@ nodes:
   status: 已结算
   type: event
   file: settled/319-fold-intra-layer-negation.md
+- id: '320'
+  title: 元观察——v140-swarm 折叠第三轮实验数据就绪 + 319号推论结算 + stagnation 误报模式三样本
+  status: 已结算
+  type: meta-rule
+  file: settled/320-meta-observation-v140-swarm.md
 edges:
   depends_on:
   - from: '136'
@@ -3377,6 +3382,16 @@ edges:
     to: '292'
   - from: '319'
     to: 090
+  - from: '320'
+    to: '319'
+  - from: '320'
+    to: '318'
+  - from: '320'
+    to: '315'
+  - from: '320'
+    to: '314'
+  - from: '320'
+    to: 090
   triggered:
   - from: '005'
     to: 005a
@@ -4903,9 +4918,11 @@ edges:
   - target: '158'
     by: '162'
     scope: partial:下游推论1被否定，三步战略本身保留
-
 '319':
-  title: '层内折叠否定——断裂事件统计独立，ratio序列不折回自身'
-  depends_on: ['317', '292', '090']
+  title: 层内折叠否定——断裂事件统计独立，ratio序列不折回自身
+  depends_on:
+  - '317'
+  - '292'
+  - 090
   status: 已结算
   type: event
