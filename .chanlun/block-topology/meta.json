@@ -1,8 +1,8 @@
 {
   "version": "1.0.0",
   "genesis_block_id": "4731eec2bd9959ccb6baffd17ff2df17688b6ab31065e972f543af366e357fcf",
-  "block_count": 314,
-  "relation_count": 6524,
+  "block_count": 318,
+  "relation_count": 6541,
   "id_mapping": {
     "001": "5e9eb9e9a6bc35d4facbca6edefc536ec55121e0f898d5161e1dd61f719f4d1b",
     "002": "f3880e58a3c164556474e5a536a88e12ddd5e2692b449e5789e32555746a1b6a",
@@ -317,12 +317,16 @@
     "311": "7409fcbdbfa5eb3cec026be5a8b17445c4cd602bea6c35cc89df495e21084601",
     "312": "9891fc20d9a66490dbbe81742b1ce3b556d9c8ee6ff46f27dbb974f229c8b578",
     "313": "474a2f118258f1ed929f1c01354372c97ab5a778a2b7991ba1580a7473add149",
-    "314": "916af054a843a6385c18bc5c8e0e8c2ad62b6928c04ca31f7417bbe4b4fa534e"
+    "314": "916af054a843a6385c18bc5c8e0e8c2ad62b6928c04ca31f7417bbe4b4fa534e",
+    "315": "7741295ad4c3233ea89722d81ee0fd72689b5fc09fdc1ea3ae95f120b51af0be",
+    "316": "7b7eae16a2d0ca2fdae5a9d50fe47229007091bdf464d01eede391d8aac7dae6",
+    "317": "7313f97d6fa13afa96572e9cefb4f14b620712c014dd895905d4d6cd1ba7e618"
   },
   "migrated_at": "2026-03-02T07:07:41.973292+00:00",
   "content_enrichment": {
     "blocks_created": 313,
     "relations_written": 1309,
     "concepts_defined": 1148
-  }
+  },
+  "last_mapped_genealogy": 318
 }
