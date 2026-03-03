@@ -1625,6 +1625,11 @@ nodes:
   status: 已结算
   type: event
   file: settled/323-fold-theory-settlement.md
+- id: '324'
+  title: 元观察——v141-swarm $节点复制实验：命题一方向反转 + 阈值两节点汇合 + scan 排除逻辑合理
+  status: 已结算
+  type: meta-rule
+  file: settled/324-meta-observation-v141-swarm.md
 edges:
   depends_on:
   - from: '136'
@@ -3437,6 +3442,16 @@ edges:
     to: '292'
   - from: '323'
     to: 090
+  - from: '324'
+    to: '323'
+  - from: '324'
+    to: '322'
+  - from: '324'
+    to: '321'
+  - from: '324'
+    to: '320'
+  - from: '324'
+    to: 090
   triggered:
   - from: '005'
     to: 005a
@@ -4971,3 +4986,52 @@ edges:
   - 090
   status: 已结算
   type: event
+'320':
+  title: "元观察——v140-swarm 折叠第三轮实验数据就绪 + 319号推论结算 + stagnation 误报模式三样本"
+  depends_on:
+  - '319'
+  - '318'
+  - '315'
+  - '314'
+  - '090'
+  status: 已结算
+  type: meta-rule
+'321':
+  title: "折叠第三轮判决——事件外注入，易感性内生产"
+  depends_on:
+  - '319'
+  - '317'
+  - '292'
+  status: 已结算
+  type: event
+'322':
+  title: "元观察——R3附加检验 session：编排者理论洞察即时验证 + context compaction 恢复"
+  depends_on:
+  - '321'
+  - '320'
+  - '290'
+  - '260'
+  - '137'
+  - '090'
+  status: 已结算
+  type: meta-rule
+'323':
+  title: "折叠内在性检验：理论结算——触发外在/条件内在/基本面是事后命名"
+  depends_on:
+  - '321'
+  - '319'
+  - '317'
+  - '292'
+  - '090'
+  status: 已结算
+  type: event
+'324':
+  title: "元观察——v141-swarm $节点复制实验：命题一方向反转 + 阈值两节点汇合"
+  depends_on:
+  - '323'
+  - '322'
+  - '321'
+  - '320'
+  - '090'
+  status: 已结算
+  type: meta-rule
