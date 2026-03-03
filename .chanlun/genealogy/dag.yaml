@@ -1595,6 +1595,11 @@ nodes:
   status: 已结算
   type: 否定事件
   file: settled/317-fold-intrinsic-negation-l2.md
+- id: '318'
+  title: 元观察——v138-swarm block-topology 映射修复 + 下游推论批量结算 + stagnation 误报确认
+  status: 已结算
+  type: meta-rule
+  file: settled/318-meta-observation-v138-swarm.md
 edges:
   depends_on:
   - from: '136'
@@ -3351,6 +3356,16 @@ edges:
     to: '231'
   - from: '317'
     to: '290'
+  - from: '318'
+    to: '317'
+  - from: '318'
+    to: '316'
+  - from: '318'
+    to: '315'
+  - from: '318'
+    to: '314'
+  - from: '318'
+    to: 090
   triggered:
   - from: '005'
     to: 005a
