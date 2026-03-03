@@ -1,0 +1,21 @@
+{
+  "id": "7313f97d6fa13afa96572e9cefb4f14b620712c014dd895905d4d6cd1ba7e618",
+  "type": "event",
+  "timestamp": "2026-03-03T03:35:50.666920+00:00",
+  "source": "cc",
+  "content": {
+    "id": "317",
+    "title": "折叠内在性检验——Cu/Au × FCX 日线 L2 否定（0/3）",
+    "status": "已结算",
+    "type": "否定事件",
+    "date": "2026-03-03",
+    "depends_on": [
+      "315",
+      "231",
+      "290"
+    ],
+    "source_file": "settled/317-fold-intrinsic-negation-l2.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

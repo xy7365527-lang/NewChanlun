@@ -1600,6 +1600,11 @@ nodes:
   status: 已结算
   type: meta-rule
   file: settled/318-meta-observation-v138-swarm.md
+- id: '319'
+  title: 层内折叠否定——断裂事件统计独立，ratio序列不折回自身
+  status: 已结算
+  type: event
+  file: settled/319-fold-intra-layer-negation.md
 edges:
   depends_on:
   - from: '136'
@@ -3366,6 +3371,12 @@ edges:
     to: '314'
   - from: '318'
     to: 090
+  - from: '319'
+    to: '317'
+  - from: '319'
+    to: '292'
+  - from: '319'
+    to: 090
   triggered:
   - from: '005'
     to: 005a
@@ -4892,3 +4903,9 @@ edges:
   - target: '158'
     by: '162'
     scope: partial:下游推论1被否定，三步战略本身保留
+
+'319':
+  title: '层内折叠否定——断裂事件统计独立，ratio序列不折回自身'
+  depends_on: ['317', '292', '090']
+  status: 已结算
+  type: event
