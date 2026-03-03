@@ -1,0 +1,82 @@
+{
+  "id": "84cf49878dbe702159059c2ab30d8cbce985cbd80d138911e206dc5d9f326115",
+  "type": "rewrite",
+  "timestamp": "2026-03-03T02:18:12.965020+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "2bc9213ccb125f1beef763601c1ab1627705b3e50a745c7b531861bf1a28aa3b",
+    "content_analysis": {
+      "genealogy_id": "289",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "递归判断"
+        },
+        {
+          "level": 2,
+          "number": "1",
+          "title": "实验设计"
+        },
+        {
+          "level": 2,
+          "number": "2",
+          "title": "核心发现"
+        },
+        {
+          "level": 3,
+          "number": "2",
+          "title": "1 Au/R 只在系统性危机窗口激活"
+        },
+        {
+          "level": 3,
+          "number": "2",
+          "title": "2 六窗口全部 0 趋势"
+        },
+        {
+          "level": 3,
+          "number": "2",
+          "title": "3 活跃度梯度"
+        },
+        {
+          "level": 3,
+          "number": "2",
+          "title": "4 沉寂边位置变化"
+        },
+        {
+          "level": 2,
+          "number": "3",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "4",
+          "title": "谱系引用"
+        },
+        {
+          "level": 2,
+          "number": "5",
+          "title": "来源"
+        }
+      ],
+      "concepts": [],
+      "references": [
+        "279",
+        "283",
+        "284",
+        "287",
+        "289"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "2bc9213ccb125f1beef763601c1ab1627705b3e50a745c7b531861bf1a28aa3b"
+  ],
+  "git_ref": ""
+}

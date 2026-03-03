@@ -1,0 +1,109 @@
+{
+  "id": "409313ff8c55fe6afd979261e45be49ca3b4b1015046893e38081749e2f2c3c2",
+  "type": "rewrite",
+  "timestamp": "2026-03-03T02:18:12.635417+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "0befb29b256673bfdeb6917136d598c2c215828de6338394b8a50bb40d0d4ef5",
+    "content_analysis": {
+      "genealogy_id": "182",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "来源标注"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "事件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "Gemini 推理链摘要"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "元质询判断"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "第一个新目（Gemini 推导链，元质询确认）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系引用"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "当前运动的虚假性",
+          "definition": "182个区块和958条纯 `depends_on` 是单向线性堆砌。没有 negates/supersedes/reopens/rewrite，系统的\"运动\"不满足纲定义的递归运动（每一轮审查上一轮、追溯改写）。"
+        },
+        {
+          "term": "因果倒置死锁",
+          "definition": "Nachträglichkeit 不能被\"制造\"作为驱动力，它只能是质询循环的结果。先让追溯改写发生 = 程序员手动写假关系，不是系统自身递归运动。最小驱动力只能是质询循环。"
+        },
+        {
+          "term": "读写割裂死锁",
+          "definition": "ceremony_scan 读旧 dag.yaml，共识仪式写新 block-topology。不迁移就启动质询循环 = 基于幽灵数据产生质询 + 将共识强行缝合到新拓扑，破坏因果完整性。"
+        },
+        {
+          "term": "历史债务掩盖",
+          "definition": "182个区块中存在虚假的 `depends_on`——它们应该是 `negates/supersedes`，但对话历史中的否定关系从未被形式化写入 Relation layer。直接面向新输入启动循环会永久固化这些虚假和平。"
+        },
+        {
+          "term": "次要细节轻度过度收紧",
+          "definition": "Gemini 说\"Nachträglichkeit 只能是质询循环副产物，不能由编排者直接写入\"。但总方针 §57 明确允许编排者代行（每次代行写入谱系标记为\"编排者代行\"）。因此编排者识别并写入对话历史中已发生的否定关系，是合法的追溯改写，不是\"造假\"。这不影响新目推导，但修正了路径的唯一性声明。"
+        },
+        {
+          "term": "正确结论",
+          "definition": "路径不是唯一的，但优先序正确——ceremony_scan 迁移 → 第一次真实质询循环 → 第一批 residue 是最干净的路径。编排者代行写入历史债务否定关系是可行的平行路径（标记为\"编排者代行\"）。"
+        },
+        {
+          "term": "新目",
+          "definition": "强制 ceremony_scan 迁移至读取 block_topology，以现有 182 个 event 区块为输入，执行第一次真实异常扫描。"
+        }
+      ],
+      "references": [
+        "178",
+        "181",
+        "182",
+        "183",
+        "184"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {
+        "negation_source": "heterogeneous",
+        "negation_form": "expansion"
+      },
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "0befb29b256673bfdeb6917136d598c2c215828de6338394b8a50bb40d0d4ef5"
+  ],
+  "git_ref": ""
+}

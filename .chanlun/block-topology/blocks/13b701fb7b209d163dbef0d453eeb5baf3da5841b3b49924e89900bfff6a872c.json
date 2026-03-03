@@ -1,0 +1,56 @@
+{
+  "id": "13b701fb7b209d163dbef0d453eeb5baf3da5841b3b49924e89900bfff6a872c",
+  "type": "rewrite",
+  "timestamp": "2026-03-03T02:18:12.632233+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "14f72dc2efb00d1ff114185d46ddaefb5244eee8ccddb8a8a6cea966dd2852c0",
+    "content_analysis": {
+      "genealogy_id": "180",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "张力描述"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "来处"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "为什么当前不显现"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "何时显现"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "结算条件"
+        }
+      ],
+      "concepts": [],
+      "references": [
+        "178",
+        "180"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {
+        "negation_form": "无——这是未解决张力的标记，不是否定"
+      },
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "14f72dc2efb00d1ff114185d46ddaefb5244eee8ccddb8a8a6cea966dd2852c0"
+  ],
+  "git_ref": ""
+}

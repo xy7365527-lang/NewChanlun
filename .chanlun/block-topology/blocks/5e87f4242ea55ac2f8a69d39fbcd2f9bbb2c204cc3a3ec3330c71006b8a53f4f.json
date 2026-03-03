@@ -1,0 +1,259 @@
+{
+  "id": "5e87f4242ea55ac2f8a69d39fbcd2f9bbb2c204cc3a3ec3330c71006b8a53f4f",
+  "type": "rewrite",
+  "timestamp": "2026-03-03T02:18:13.010355+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "8e6dcb575f053bd73f44e1fd3910dfc779758bf49e84d6cd07467e2c42931ceb",
+    "content_analysis": {
+      "genealogy_id": "300",
+      "sections": [
+        {
+          "level": 2,
+          "number": "1",
+          "title": "核心命题"
+        },
+        {
+          "level": 2,
+          "number": "2",
+          "title": "折叠的测度论表达"
+        },
+        {
+          "level": 3,
+          "number": "2",
+          "title": "1 双测度结构"
+        },
+        {
+          "level": 3,
+          "number": "2",
+          "title": "2 折叠存在的测度论等价条件"
+        },
+        {
+          "level": 3,
+          "number": "2",
+          "title": "3 四组折叠的双测度结构"
+        },
+        {
+          "level": 2,
+          "number": "3",
+          "title": "折叠生命周期的测度论签名"
+        },
+        {
+          "level": 3,
+          "number": "3",
+          "title": "1 四阶段的测度论表达"
+        },
+        {
+          "level": 3,
+          "number": "3",
+          "title": "2 这是新推论"
+        },
+        {
+          "level": 2,
+          "number": "4",
+          "title": "残差的测度论解释"
+        },
+        {
+          "level": 3,
+          "number": "4",
+          "title": "1 组装残差的测度论翻译"
+        },
+        {
+          "level": 3,
+          "number": "4",
+          "title": "2 三角无套利条件的精确含义"
+        },
+        {
+          "level": 3,
+          "number": "4",
+          "title": "3 残差与折叠生命周期的关系"
+        },
+        {
+          "level": 2,
+          "number": "5",
+          "title": "互构关系总结"
+        },
+        {
+          "level": 2,
+          "number": "6",
+          "title": "两个分岔的测度论闭合（296号 → 300号）"
+        },
+        {
+          "level": 3,
+          "number": "6",
+          "title": "1 分岔1：语法永恒 vs 对象历史"
+        },
+        {
+          "level": 3,
+          "number": "6",
+          "title": "2 分岔2：局部完备 vs 全局运动"
+        },
+        {
+          "level": 3,
+          "number": "6",
+          "title": "3 测度论如何统一两个分岔"
+        },
+        {
+          "level": 2,
+          "number": "7",
+          "title": "边界条件"
+        },
+        {
+          "level": 3,
+          "number": "7",
+          "title": "1 测度论签名的有效域"
+        },
+        {
+          "level": 3,
+          "number": "7",
+          "title": "2 残差=无套利偏离的有效域"
+        },
+        {
+          "level": 3,
+          "number": "7",
+          "title": "3 283号修正的边界"
+        },
+        {
+          "level": 3,
+          "number": "7",
+          "title": "4 分岔闭合的有效域"
+        },
+        {
+          "level": 2,
+          "number": "8",
+          "title": "下游推论"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "300-1：折叠松动的测度论判据（可操作）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "300-2：残差 = 无套利偏离的可交易含义"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "300-3：283号判断修正（已部分回答）"
+        },
+        {
+          "level": 2,
+          "number": "9",
+          "title": "谱系引用"
+        },
+        {
+          "level": 2,
+          "number": "10",
+          "title": "影响声明"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "不修改代码"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "新增概念"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "对现有概念的修正"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "稳定期",
+          "definition": "残差小且稳定（三角无套利近似成立）——所有折叠通道畅通，度量转换自洽"
+        },
+        {
+          "term": "松动期",
+          "definition": "残差增大且方向性持续（无套利条件系统性偏离）——某些折叠通道淤塞，度量转换开始不自洽"
+        },
+        {
+          "term": "重新结算期",
+          "definition": "残差剧烈且不连续（无套利条件大面积失效）——旧折叠解体，度量体系断裂"
+        },
+        {
+          "term": "未结算期",
+          "definition": "残差无稳定模式（无套利条件不可定义）——新折叠尚未结晶，度量体系本身不存在"
+        }
+      ],
+      "references": [
+        "254",
+        "283",
+        "287",
+        "289",
+        "292",
+        "296",
+        "297",
+        "298",
+        "300"
+      ],
+      "new_concepts": [
+        {
+          "term": "折叠的双测度结构",
+          "qualifier": "",
+          "definition": "同一对象在两个不同测度下的被测元素"
+        },
+        {
+          "term": "折叠存在的测度论等价条件",
+          "qualifier": "",
+          "definition": "RN 导数非平凡性"
+        },
+        {
+          "term": "折叠生命周期的测度论签名",
+          "qualifier": "",
+          "definition": "RN 导数的收敛/发散/奇异/不存在四态"
+        },
+        {
+          "term": "残差 = 三角无套利条件偏离",
+          "qualifier": "",
+          "definition": "RN 导数链式法则的偏离程度"
+        },
+        {
+          "term": "公理0 = 当前哪些测度对绝对连续是历史给定的",
+          "qualifier": "",
+          "definition": "两个分岔的测度论共同根"
+        }
+      ],
+      "modifications": [
+        {
+          "target_id": "283",
+          "target_desc": "\"无新定理\"判断",
+          "modification": "修正为\"测度论+折叠结合产出新推论\"",
+          "kind": "refine"
+        },
+        {
+          "target_id": "292",
+          "target_desc": "折叠生命周期",
+          "modification": "从 D 算子定性签名扩展为测度论定量签名",
+          "kind": "unknown"
+        },
+        {
+          "target_id": "298",
+          "target_desc": "组装残差",
+          "modification": "从\"D 算子读数不一致\"扩展为\"三角无套利条件偏离\"",
+          "kind": "unknown"
+        },
+        {
+          "target_id": "296",
+          "target_desc": "两个分岔",
+          "modification": "在测度论中获得精确表达——RN定理(永恒) vs 绝对连续性清单(历史)；测度空间内部完备(局部) vs 测度空间可扩张(全局)",
+          "kind": "unknown"
+        }
+      ],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": "**测度论给折叠提供度量结构，折叠给测度论提供拓扑骨架。两者结合产出了各自单独不能产出的新推论。**"
+    }
+  },
+  "refs": [
+    "8e6dcb575f053bd73f44e1fd3910dfc779758bf49e84d6cd07467e2c42931ceb"
+  ],
+  "git_ref": ""
+}

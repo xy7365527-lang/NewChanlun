@@ -1,0 +1,85 @@
+{
+  "id": "eb464e5d06284322d893cb6485f196b02fbc1103ff928192f52794c98cd1d459",
+  "type": "rewrite",
+  "timestamp": "2026-03-03T02:18:12.935828+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "b2112eaa23b40e0d8db661e9d31b4e860a2321c4d0a498c0d7ab0d9e3dbf9734",
+    "content_analysis": {
+      "genealogy_id": "281",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "递归判断"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "观察对象"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "观察结果"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "观察1（收敛信号）：框架搭建遵循编排者指令"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "观察2（收敛信号）：递归判断合规"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "观察3（收敛信号）：测试覆盖"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "观察4（收敛信号）：规则触发/违反模式"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "观察5（注意信号）：meta-observer 工位无产出"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "观察6：与历史观察的对比"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        }
+      ],
+      "concepts": [],
+      "references": [
+        "090",
+        "217",
+        "218",
+        "226",
+        "267",
+        "278",
+        "280",
+        "281"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "b2112eaa23b40e0d8db661e9d31b4e860a2321c4d0a498c0d7ab0d9e3dbf9734"
+  ],
+  "git_ref": ""
+}

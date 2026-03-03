@@ -1,0 +1,70 @@
+{
+  "id": "2c54f5207f4901961d933d7be36c7ab5a0dc1dff0095893e870490cc2b787716",
+  "type": "rewrite",
+  "timestamp": "2026-03-03T02:18:12.509278+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "b2e3ce0af55a13790ec2b44512dabf252965d368a7fef52e721f73fb5ecd0676",
+    "content_analysis": {
+      "genealogy_id": "036",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "矛盾/发现"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "结晶信号"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "结晶产物"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "结算条件（全部满足）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "背驰",
+          "definition": "034 的净新区分量 < 033 的净新区分量（发现力度衰竭）"
+        },
+        {
+          "term": "分型",
+          "definition": "范围序列 032(权限) < 033(路由+分派) > 034(工具层) → 顶分型成立"
+        }
+      ],
+      "references": [],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "b2e3ce0af55a13790ec2b44512dabf252965d368a7fef52e721f73fb5ecd0676"
+  ],
+  "git_ref": ""
+}

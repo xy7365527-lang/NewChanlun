@@ -1,0 +1,56 @@
+{
+  "id": "5f002598399bddee88eebed8999b7b60d6e3cb8899324374e18872d6b0783569",
+  "type": "rewrite",
+  "timestamp": "2026-03-03T02:18:12.686358+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "9f34fe3553159d0e4368cb662d1c6b878a36b33974f97834b3a2632fa3ddc80b",
+    "content_analysis": {
+      "genealogy_id": "207",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "结论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "修正"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系引用"
+        }
+      ],
+      "concepts": [],
+      "references": [
+        "204",
+        "205",
+        "207",
+        "211"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": "T6 原始设计假设\"粗粒化后 W₁ 单调递减\"（W₁(B_{k+1}) ≤ W₁(B_k)）。\nGemini Round 1 审核指出：缠论高级别中枢价格跨度更大，W₁ 可以增加。"
+    }
+  },
+  "refs": [
+    "9f34fe3553159d0e4368cb662d1c6b878a36b33974f97834b3a2632fa3ddc80b"
+  ],
+  "git_ref": ""
+}

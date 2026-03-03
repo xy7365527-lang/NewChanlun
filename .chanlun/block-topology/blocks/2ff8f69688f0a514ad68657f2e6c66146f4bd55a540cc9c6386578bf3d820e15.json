@@ -1,0 +1,65 @@
+{
+  "id": "2ff8f69688f0a514ad68657f2e6c66146f4bd55a540cc9c6386578bf3d820e15",
+  "type": "rewrite",
+  "timestamp": "2026-03-03T02:18:12.691076+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "f18d8efde7ad1b0affaf408ab37f5c2ec2a303ea1038808d2e9ef53cae882607",
+    "content_analysis": {
+      "genealogy_id": "210",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "结论"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "分歧根因"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "缠论语义"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "定义依据"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系引用"
+        }
+      ],
+      "concepts": [],
+      "references": [
+        "208",
+        "209",
+        "210"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": "T8 验证中 5/18 个案例 passed=False。所有失败案例呈现同一模式："
+    }
+  },
+  "refs": [
+    "f18d8efde7ad1b0affaf408ab37f5c2ec2a303ea1038808d2e9ef53cae882607"
+  ],
+  "git_ref": ""
+}

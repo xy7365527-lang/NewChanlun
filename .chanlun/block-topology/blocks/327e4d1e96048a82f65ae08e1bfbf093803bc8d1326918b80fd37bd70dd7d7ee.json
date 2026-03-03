@@ -1,0 +1,64 @@
+{
+  "id": "327e4d1e96048a82f65ae08e1bfbf093803bc8d1326918b80fd37bd70dd7d7ee",
+  "type": "rewrite",
+  "timestamp": "2026-03-03T02:18:12.830590+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "bab4cc89e6318ce8b16dea2fee75207800e6fc91f4990664a487e84c7bdcc571",
+    "content_analysis": {
+      "genealogy_id": "256",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "矛盾描述"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "形式化跳跃（第一轮：理论层）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "代码层脱节（第二轮：gemini-2.5-pro 新增）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "反例（第一轮）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "待完备内容"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系引用"
+        }
+      ],
+      "concepts": [],
+      "references": [
+        "233",
+        "235",
+        "254",
+        "256"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {
+        "negation_source": "heterogeneous",
+        "negation_form": "选择类（完备化方向需编排者决断：补推导链/降级启发式/删除定理1）"
+      },
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "bab4cc89e6318ce8b16dea2fee75207800e6fc91f4990664a487e84c7bdcc571"
+  ],
+  "git_ref": ""
+}

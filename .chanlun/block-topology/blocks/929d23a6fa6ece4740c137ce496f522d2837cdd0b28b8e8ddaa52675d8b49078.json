@@ -1,0 +1,79 @@
+{
+  "id": "929d23a6fa6ece4740c137ce496f522d2837cdd0b28b8e8ddaa52675d8b49078",
+  "type": "rewrite",
+  "timestamp": "2026-03-03T02:18:12.707265+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "2ccfc477027dad3ac591c26fd81b53ade2be0d18f9e0b4c463aa190344d61c27",
+    "content_analysis": {
+      "genealogy_id": "218",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "核心命题"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "编排者洞见"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "诊断结果（Gemini + Codex 一致）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "RLHF 串行惯性（已识别 5 种）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "可并行化（3 项）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "必须串行（2 项）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "落地变更"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "Lead 最小自举形式（目标，未完全落地）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        }
+      ],
+      "concepts": [],
+      "references": [
+        "143",
+        "218"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": "Lead 是 RTAS 的一环，不是 RTAS 之外的串行瓶颈。Lead 的一切操作遵守与工位相同的并行原则——独立操作一律并行，只有严格数据依赖才允许串行。"
+    }
+  },
+  "refs": [
+    "2ccfc477027dad3ac591c26fd81b53ade2be0d18f9e0b4c463aa190344d61c27"
+  ],
+  "git_ref": ""
+}

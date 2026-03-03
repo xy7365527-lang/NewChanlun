@@ -1,0 +1,124 @@
+{
+  "id": "3eefe6b11cdf38459452f7fc94fd131d81218018328d91262c95e2ce37b44d9c",
+  "type": "rewrite",
+  "timestamp": "2026-03-03T02:18:13.016515+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "7f9186b40c641565404d09364453954c797660a0ccc38aa8a17b53ecbe88fdb8",
+    "content_analysis": {
+      "genealogy_id": "301",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "递归判断"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "观察对象"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "观察结果"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "观察1（收敛）：298/299/300 内容一致性和认识论等级标注"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "观察2（发散信号）：编排者分岔修正的覆盖缺口"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "观察3（收敛）：编排者中途指令的模式延续"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "观察4（收敛）：218号并行默认遵守"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "观察5（微观发散）：status 字段标签不一致"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "观察6：block-topology 299号异常已修复"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "规则触发/违反模式"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "历史候选状态检查"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "自环检查"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "总结"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "四分法分类",
+          "definition": "选择——编排者修正的\"两个分岔\"是指 (a) 对296号两个分岔的重新解读（那么300号已覆盖），还是 (b) 一个新的分岔对（297号同一存在论 vs 295号操盘主体），需要新谱系来显式论述其张力？需编排者裁定。"
+        }
+      ],
+      "references": [
+        "189",
+        "216",
+        "217",
+        "218",
+        "278",
+        "282",
+        "283",
+        "288",
+        "290",
+        "291",
+        "295",
+        "296",
+        "297",
+        "298",
+        "299",
+        "300",
+        "301"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "7f9186b40c641565404d09364453954c797660a0ccc38aa8a17b53ecbe88fdb8"
+  ],
+  "git_ref": ""
+}

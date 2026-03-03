@@ -135,9 +135,10 @@ Morse 地形的生成树构建算法选择时序 Kruskal（按时间戳排序的
 
 代码验证：`scripts/morse_landscape.py:42-73` — `UnionFind` 类实现 path compression + union by rank。`scripts/morse_landscape.py:116` — 边按 `(timestamp, from, to)` 排序后顺序处理，标准 Kruskal 流程。
 
-### 推论1-3：临界边数量 862 — **verified**
+### 推论1-3：临界边数量 862 — **verified**（数值已随数据增长变化）
 
-运行验证：`build_morse_landscape(cache_path=None)` 返回 `stats.critical = 862`，`stats.tree = 294`，`stats.edges = 1156`，`stats.nodes = 296`。
+运行验证（初次）：`build_morse_landscape(cache_path=None)` 返回 `stats.critical = 862`，`stats.tree = 294`，`stats.edges = 1156`，`stats.nodes = 296`。
+运行验证（v137-swarm 复验）：`stats.critical = 1400`，`stats.tree = 425`，`stats.edges = 1825`，`stats.nodes = 427`，`stats.components = 2`。数值变化是谱系增长的正常结果，机制（references-only + 时序 Kruskal）不变。862 是 312号裁定时的快照值。
 
 ### 推论1-4：tie-breaking 按 (from_block_id, to_block_id) 字典序 — **verified**
 
@@ -147,14 +148,16 @@ Morse 地形的生成树构建算法选择时序 Kruskal（按时间戳排序的
 
 运行验证：连续两次调用 `build_morse_landscape(cache_path=None)`，`edge_marks` 和 `stats` 完全一致。确定性排序 + 确定性 UnionFind 保证同一数据集的输出唯一。
 
-### 推论2-1：全量 997 个唯一概念目标 — **verified**
+### 推论2-1：全量 997 个唯一概念目标 — **verified**（数值已随数据增长变化）
 
-运行验证：`load_registry()` 返回 `len(entries) = 997`。
+运行验证（初次）：`load_registry()` 返回 `len(entries) = 997`。
+运行验证（v137-swarm 复验）：`build_concept_registry()` 返回 `len(entries) = 1016`。数值变化是谱系增长的正常结果，全量入注册表机制不变。
 
 ### 推论2-2：15 个 type: definition 区块加 authoritative: true — **rejected**
 
-运行验证：`sum(e.authoritative for e in entries.values()) = 981`（非 15）。
-原因分析：当前代码中 `authoritative` 判定基于 defines 边是否携带非空 `concept_definition` 字段（`scripts/concept_registry.py:95`），实测 1106/1123 条 defines 边携带该字段，导致 981/997 概念被标记 authoritative。区块拓扑中不存在 `type: definition` 的区块（0 个）。312号裁定描述的"15 个 type: definition 区块"在当前数据中不存在——要么是设计意图尚未实现，要么 authoritative 判定逻辑需要修正为基于区块 type 而非边属性。
+运行验证（初次）：`sum(e.authoritative for e in entries.values()) = 981`（非 15）。
+运行验证（v137-swarm 复验）：`authoritative = 1000`，`non-authoritative = 16`，`total = 1016`。区块拓扑中 `type: definition` 的区块数量仍为 0（1171 个区块中无此类型）。
+原因分析：当前代码中 `authoritative` 判定基于 defines 边是否携带非空 `concept_definition` 字段（`scripts/concept_registry.py:95`），与 312号裁定描述的"15 个 type: definition 区块"设计意图不一致。312号裁定的 authoritative 设计意图（基于区块 type 字段）从未实现——实际实现基于边属性。此推论的 rejected 状态是设计-实现偏差，不是代码 bug。
 
 ### 推论2-3：偶遇催化基于完整注册表触发 — **rejected**
 
@@ -170,8 +173,8 @@ Morse 地形的生成树构建算法选择时序 Kruskal（按时间戳排序的
 
 ## 边界条件
 
-1. references-only 子图的 cycle_rank = 862 是当前数据快照。随着谱系增长，新 references 边的加入会改变 cycle_rank 值和 Morse 地形结构
-2. 997 概念全量入注册表假设偶遇催化需要广覆盖面。如果后续发现高频噪声概念污染偶遇记录，可能需要引入频率过滤或权重衰减
+1. references-only 子图的 cycle_rank = 862 是裁定时数据快照。v137-swarm 复验时已增长至 1400（nodes 427, edges 1825）。随着谱系增长，新 references 边的加入会持续改变 cycle_rank 值和 Morse 地形结构
+2. 概念全量入注册表（裁定时 997，复验时 1016）。如果后续发现高频噪声概念污染偶遇记录，可能需要引入频率过滤或权重衰减
 3. DAG 守护范围缩减到 depends_on 子图后，negates/revises/supersedes 中的环不再被检测。如果某些环是错误数据（如 A depends_on B 被误标为 A negates B），该错误将不被 DAG 守护捕获
 4. tie-breaking 依赖 block_id 的字典序稳定性。如果 block_id 生成规则变更，生成树唯一性保证可能失效
 

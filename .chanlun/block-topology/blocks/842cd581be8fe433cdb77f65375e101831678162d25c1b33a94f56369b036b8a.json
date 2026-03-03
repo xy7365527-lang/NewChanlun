@@ -1,0 +1,91 @@
+{
+  "id": "842cd581be8fe433cdb77f65375e101831678162d25c1b33a94f56369b036b8a",
+  "type": "rewrite",
+  "timestamp": "2026-03-03T02:18:13.051729+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "111f1c586ecd183035b152f481e216f10f610d275e8921baa13009cf106d8182",
+    "content_analysis": {
+      "genealogy_id": "308",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "递归判断"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "观察对象"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "关键文件变更"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "观察结果"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "观察1（语法记录候选）：编排者否定的模式识别——从 term 到 definition 的焦点转移"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "观察2（收敛信号）：审计 agent 并行化的持续一致性"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "观察3（发散信号）：精度校准的三轮迭代暴露声明偏差候选模式"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "观察4（收敛信号）：Gemini/Codex 异质审查的触发时机"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "观察5（自环检查）：与历史 meta-observation 的交叉对比"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "结论"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "四分法分类",
+          "definition": "语法记录候选——\"过滤操作的合法性取决于判断依据的层级：结构语义 > 统计频率 > 无判断依据\"。这条规则已在实践中运作（编排者否定停用词、接受元数据字段过滤），但未显式化。"
+        }
+      ],
+      "references": [
+        "005b",
+        "090",
+        "137",
+        "218",
+        "250",
+        "305",
+        "306",
+        "307",
+        "308"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": "本 session 的核心产出是三轮精度校准（duplicates 110→71, concepts 1881→1140）和六项审计信号的完整调查。两个语法记录候选识别：\n1. 过滤操作的判断依据层级（结构语义 > 统计频率）\n2. 数据质量校准的分层剥离模式"
+    }
+  },
+  "refs": [
+    "111f1c586ecd183035b152f481e216f10f610d275e8921baa13009cf106d8182"
+  ],
+  "git_ref": ""
+}

@@ -1,0 +1,63 @@
+{
+  "id": "997c890f8dd3f810c7f4b68b169f961737bcdbf411b20734af447ef66480f233",
+  "type": "rewrite",
+  "timestamp": "2026-03-03T02:18:12.668133+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "48cc264a8b3b09a741d2a3fccff9dd02e0b7f2a23e01d6ca404716823e5583c5",
+    "content_analysis": {
+      "genealogy_id": "197",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "来源标注"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "待质询目标"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "Layer 2 T8 就绪"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "触发原因",
+          "definition": "Layer 1 审核共识 + gauge 经验验证均 filled → T8 背驰拓扑化可启动"
+        },
+        {
+          "term": "质询结果",
+          "definition": "T8 已实现并通过 Gemini×Codex 2轮严格审核。"
+        }
+      ],
+      "references": [
+        "195",
+        "197"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "48cc264a8b3b09a741d2a3fccff9dd02e0b7f2a23e01d6ca404716823e5583c5"
+  ],
+  "git_ref": ""
+}

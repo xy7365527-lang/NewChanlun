@@ -1,0 +1,64 @@
+{
+  "id": "6f80ff4b67ce758d434754c30708fbb43a43e81e5233c15e5b551e4425dde207",
+  "type": "rewrite",
+  "timestamp": "2026-03-03T02:18:12.938423+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "ecbb9471ffe6a81f3f9a22c5b08ca5d142338dddc87b29c0610fe1f111c4a218",
+    "content_analysis": {
+      "genealogy_id": "282",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "递归判断"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "观察对象"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "观察结果"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "观察1（收敛信号）：team 目录残留积累"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "观察2（收敛信号）：编排者直接执行决断"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "观察3：无规则违反、无语法记录候选、无新发散信号"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "结论"
+        }
+      ],
+      "concepts": [],
+      "references": [
+        "260",
+        "282"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": "全部收敛。无需 `/escalate`。"
+    }
+  },
+  "refs": [
+    "ecbb9471ffe6a81f3f9a22c5b08ca5d142338dddc87b29c0610fe1f111c4a218"
+  ],
+  "git_ref": ""
+}

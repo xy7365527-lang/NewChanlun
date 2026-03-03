@@ -1,0 +1,106 @@
+{
+  "id": "b86bb75d1c4c6d3fa47efc7537bdc452d8571501fcd92cd98bd75de0422c9cb2",
+  "type": "rewrite",
+  "timestamp": "2026-03-03T02:18:12.638983+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "5cf32a6cb06fb24725be41d8c0520a260d4697dfe52a0c68f894510f2c77789e",
+    "content_analysis": {
+      "genealogy_id": "183",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "来源标注"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "纲"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "审计收敛判断"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "Gemini 概念层否定"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "Codex 代码层否定"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "从纲推导的新目"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "已填的目（有物质证据）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "声明填了但实质为空的目"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "新涌现的目（从纲的逻辑必然性推导）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系引用"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "致命",
+          "definition": "异步自指（§5-9: t 审查 t-1）完全没有代码实现"
+        },
+        {
+          "term": "重要",
+          "definition": "多轮 stance 序列收集管道不完整——_extract_stance_sequence_from_review 只从单文件提取单轮，永远得不到跨轮差分"
+        }
+      ],
+      "references": [
+        "182",
+        "183"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {
+        "negation_source": "heterogeneous",
+        "negation_form": "expansion"
+      },
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "5cf32a6cb06fb24725be41d8c0520a260d4697dfe52a0c68f894510f2c77789e"
+  ],
+  "git_ref": ""
+}

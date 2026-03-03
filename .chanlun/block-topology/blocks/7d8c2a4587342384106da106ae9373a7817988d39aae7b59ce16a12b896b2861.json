@@ -1,0 +1,121 @@
+{
+  "id": "7d8c2a4587342384106da106ae9373a7817988d39aae7b59ce16a12b896b2861",
+  "type": "rewrite",
+  "timestamp": "2026-03-03T02:18:13.037328+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "2effb93fb8daee1929d667a86c002fc3133798186a840afa35f79516d3656631",
+    "content_analysis": {
+      "genealogy_id": "305",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "递归判断"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "观察对象"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "观察结果"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "观察1（收敛信号）：并行默认模式稳定执行"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "观察2（收敛信号）：context compaction 恢复链完整——样本 N+1"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "观察3（微观收敛）：测试数量从 58 → 107 的增长比例合理"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "观察4（收敛信号）：保守方向原则在代码层完整贯彻"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "观察5（微观收敛）：双栈策略（modifies + refines/revises 共存）无摩擦"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "规则触发/违反模式"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "历史候选状态检查"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "自环检查"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "总结"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "下游推论解决记录（v133-swarm session）"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "四分法分类",
+          "definition": "行动——并行是默认模式（218号），不携带信息差。"
+        }
+      ],
+      "references": [
+        "090",
+        "137",
+        "189",
+        "216",
+        "218",
+        "258",
+        "273",
+        "278",
+        "288",
+        "302",
+        "303",
+        "304",
+        "305",
+        "308"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "2effb93fb8daee1929d667a86c002fc3133798186a840afa35f79516d3656631"
+  ],
+  "git_ref": ""
+}

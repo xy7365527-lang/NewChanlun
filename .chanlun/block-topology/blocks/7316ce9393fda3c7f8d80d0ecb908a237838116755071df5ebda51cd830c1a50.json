@@ -1,0 +1,78 @@
+{
+  "id": "7316ce9393fda3c7f8d80d0ecb908a237838116755071df5ebda51cd830c1a50",
+  "type": "rewrite",
+  "timestamp": "2026-03-03T02:18:12.795943+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "6817452c1ce179e2e64bb969b92bbdf3579e4cbb6a64e1659f2476464e662a06",
+    "content_analysis": {
+      "genealogy_id": "248",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "结论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "定义依据"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系引用"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "诊断脚本"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "结构化结果"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "bug 发生机制详解"
+        }
+      ],
+      "concepts": [],
+      "references": [
+        "003",
+        "237",
+        "247",
+        "248",
+        "249",
+        "250"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": "71 strokes → 1 segment 压缩是 **bug**，不是缠论定义的自然结果。"
+    }
+  },
+  "refs": [
+    "6817452c1ce179e2e64bb969b92bbdf3579e4cbb6a64e1659f2476464e662a06"
+  ],
+  "git_ref": ""
+}

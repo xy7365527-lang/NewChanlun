@@ -1,0 +1,97 @@
+{
+  "id": "ec0fadbdad0855958f74052ed88154314c1a4ca92a4815f7c965246edb5ab29f",
+  "type": "rewrite",
+  "timestamp": "2026-03-03T02:18:12.628309+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "d90254ac99fb813893bca06dcd4ca95112f4d7d69735f7f3327464e256ce005d",
+    "content_analysis": {
+      "genealogy_id": "179",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "事件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "四角结构"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "工程产出"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系影响"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "拓扑分析家 = Claude隔离实例",
+          "definition": "—同一模型家族，上下文隔离保证位置区分"
+        },
+        {
+          "term": "上下文隔离是结构性要求",
+          "definition": "—分析家不接收CC编排上下文，冷读区块拓扑"
+        },
+        {
+          "term": "Gemini做图计算前处理",
+          "definition": "—社区检测/密度计算管道，结果交给分析家诠释"
+        },
+        {
+          "term": "上下文隔离失效时退化",
+          "definition": "如果隔离被破坏（比如CC的session信息泄漏到分析家），分析家退化为CC的延伸——失去发现盲点的能力"
+        },
+        {
+          "term": "区块数量过少时无意义",
+          "definition": "当前178个迁移区块 + 少量运行时区块，模式可能不显著。分析家在区块积累到一定密度后才有有效输出"
+        },
+        {
+          "term": "Gemini前处理管道未实现",
+          "definition": "图计算前处理（社区检测等）需要额外脚本，当前未实现"
+        },
+        {
+          "term": "ceremony 需增加分析家调用点",
+          "definition": "RTAS循环的扫描阶段增加 topology-analyst spawn，冷读拓扑后报告交给CC"
+        },
+        {
+          "term": "dispatch-dag 需注册事件",
+          "definition": "topology-analyst 的触发事件（区块数量阈值 / 循环间隔 / 编排者指令）"
+        },
+        {
+          "term": "Gemini前处理脚本需实现",
+          "definition": "networkx图计算 + 结果格式化为分析家可读输入"
+        }
+      ],
+      "references": [
+        "178"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {
+        "negation_form": ""
+      },
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "d90254ac99fb813893bca06dcd4ca95112f4d7d69735f7f3327464e256ce005d"
+  ],
+  "git_ref": ""
+}
