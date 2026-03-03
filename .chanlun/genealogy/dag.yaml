@@ -1640,6 +1640,11 @@ nodes:
   status: 已结算
   type: meta-rule
   file: settled/326-meta-observation-v142-swarm.md
+- id: '327'
+  title: 元观察——v143-swarm 五工位并行：有效一维部分解释 + QE方向性PARTIAL_PASS + P0映射修复 + 拓扑工具结构性伪影
+  status: 已结算
+  type: meta-rule
+  file: pending/327-meta-observation-v143-swarm.md
 edges:
   depends_on:
   - from: '136'
@@ -3481,6 +3486,14 @@ edges:
   - from: '326'
     to: '231'
   - from: '326'
+    to: 090
+  - from: '327'
+    to: '326'
+  - from: '327'
+    to: '325'
+  - from: '327'
+    to: '231'
+  - from: '327'
     to: 090
   triggered:
   - from: '005'
