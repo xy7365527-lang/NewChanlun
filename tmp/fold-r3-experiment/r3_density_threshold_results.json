@@ -1,0 +1,186 @@
+{
+  "check_1_event_density": {
+    "T_days": 4206,
+    "N_days": 1956,
+    "T_events": 19,
+    "N_events": 8,
+    "T_rate_per_1000d": 4.52,
+    "N_rate_per_1000d": 4.09,
+    "ratio_N_over_T": 0.91,
+    "fisher_exact_p": 0.6634,
+    "chi2_p": 0.9767
+  },
+  "check_2_threshold": {
+    "event_effdims": [
+      {
+        "event_start": "2001-09-17",
+        "max_mahal": 7.491692653078975,
+        "eff_dim_at_event": 2.312,
+        "label": "T"
+      },
+      {
+        "event_start": "2002-07-24",
+        "max_mahal": 5.192777968523967,
+        "eff_dim_at_event": 2.083,
+        "label": "T"
+      },
+      {
+        "event_start": "2004-10-13",
+        "max_mahal": 7.082131387218698,
+        "eff_dim_at_event": 2.354,
+        "label": "T"
+      },
+      {
+        "event_start": "2005-01-04",
+        "max_mahal": 5.693460445934856,
+        "eff_dim_at_event": 2.356,
+        "label": "T"
+      },
+      {
+        "event_start": "2005-05-27",
+        "max_mahal": 5.486429455341759,
+        "eff_dim_at_event": 2.365,
+        "label": "T"
+      },
+      {
+        "event_start": "2006-05-23",
+        "max_mahal": 6.7369570876479425,
+        "eff_dim_at_event": 2.294,
+        "label": "T"
+      },
+      {
+        "event_start": "2006-06-13",
+        "max_mahal": 6.209989725377819,
+        "eff_dim_at_event": 2.307,
+        "label": "T"
+      },
+      {
+        "event_start": "2008-09-17",
+        "max_mahal": 9.922264361145173,
+        "eff_dim_at_event": 2.243,
+        "label": "T"
+      },
+      {
+        "event_start": "2008-11-13",
+        "max_mahal": 8.265147323383848,
+        "eff_dim_at_event": 2.386,
+        "label": "T"
+      },
+      {
+        "event_start": "2008-12-16",
+        "max_mahal": 5.989571608997052,
+        "eff_dim_at_event": 2.449,
+        "label": "T"
+      },
+      {
+        "event_start": "2009-01-20",
+        "max_mahal": 5.894612955334362,
+        "eff_dim_at_event": 2.481,
+        "label": "T"
+      },
+      {
+        "event_start": "2009-02-06",
+        "max_mahal": 5.196636030892832,
+        "eff_dim_at_event": 2.476,
+        "label": "T"
+      },
+      {
+        "event_start": "2009-02-17",
+        "max_mahal": 6.938863571177511,
+        "eff_dim_at_event": 2.467,
+        "label": "T"
+      },
+      {
+        "event_start": "2009-03-03",
+        "max_mahal": 5.635511026859995,
+        "eff_dim_at_event": 2.444,
+        "label": "T"
+      },
+      {
+        "event_start": "2009-03-19",
+        "max_mahal": 6.917578518102269,
+        "eff_dim_at_event": 2.42,
+        "label": "T"
+      },
+      {
+        "event_start": "2011-08-08",
+        "max_mahal": 6.917296006028635,
+        "eff_dim_at_event": 2.569,
+        "label": "T"
+      },
+      {
+        "event_start": "2013-04-15",
+        "max_mahal": 7.764221092857084,
+        "eff_dim_at_event": 2.386,
+        "label": "N"
+      },
+      {
+        "event_start": "2013-06-20",
+        "max_mahal": 5.415743909369181,
+        "eff_dim_at_event": 2.242,
+        "label": "T"
+      },
+      {
+        "event_start": "2016-06-24",
+        "max_mahal": 5.650356830530425,
+        "eff_dim_at_event": 2.104,
+        "label": "T"
+      },
+      {
+        "event_start": "2020-03-09",
+        "max_mahal": 9.359714812964887,
+        "eff_dim_at_event": 1.894,
+        "label": "N"
+      },
+      {
+        "event_start": "2020-04-06",
+        "max_mahal": 5.364555269273755,
+        "eff_dim_at_event": 2.182,
+        "label": "N"
+      },
+      {
+        "event_start": "2020-06-11",
+        "max_mahal": 5.36999507535951,
+        "eff_dim_at_event": 2.152,
+        "label": "N"
+      },
+      {
+        "event_start": "2022-11-10",
+        "max_mahal": 5.974088778180941,
+        "eff_dim_at_event": 2.748,
+        "label": "T"
+      },
+      {
+        "event_start": "2025-04-04",
+        "max_mahal": 7.30673452345224,
+        "eff_dim_at_event": 2.525,
+        "label": "N"
+      },
+      {
+        "event_start": "2025-07-08",
+        "max_mahal": 8.2527844405803,
+        "eff_dim_at_event": 2.389,
+        "label": "N"
+      },
+      {
+        "event_start": "2025-07-31",
+        "max_mahal": 15.91823870396236,
+        "eff_dim_at_event": 2.438,
+        "label": "N"
+      },
+      {
+        "event_start": "2026-01-30",
+        "max_mahal": 9.558309781956403,
+        "eff_dim_at_event": 2.29,
+        "label": "N"
+      }
+    ],
+    "min_event_effdim": 1.894,
+    "max_event_effdim": 2.748,
+    "mean_event_effdim": 2.347,
+    "overall_mean_effdim": 2.297,
+    "frac_days_below_min_event": 0.0692,
+    "welch_t_p_one_sided": 0.0729,
+    "mann_whitney_p": 0.1418
+  }
+}

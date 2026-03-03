@@ -324,7 +324,8 @@
     "318": "d9606fb6ae4af15eaadf911fe9fb066c0ae54430a42960c751fdf22df9bd1a85",
     "319": "2619e4fc741adeb12f8464045d5cbdb8398fea1eb206964d8c3ee53b5b0ecce2",
     "320": "2c799b1540d92672d66cd798960cbe95059cbc9998320e5720484ab1d3ecd176",
-    "321": "831e4540fe8f89d4e37144930e1cb34561f712b63e4070100ebab0d5de48970a"
+    "321": "831e4540fe8f89d4e37144930e1cb34561f712b63e4070100ebab0d5de48970a",
+    "322": "f0fea4e32fcdf590b4f115f2c0502ac0e8758d7ba141129a92c36ced50fb4d50"
   },
   "migrated_at": "2026-03-02T07:07:41.973292+00:00",
   "content_enrichment": {
@@ -332,5 +333,6 @@
     "relations_written": 1309,
     "concepts_defined": 1148
   },
-  "last_mapped_genealogy": 321
+  "block_count": 322,
+  "last_mapped_genealogy": 322
 }
