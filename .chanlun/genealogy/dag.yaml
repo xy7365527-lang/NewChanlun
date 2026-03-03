@@ -1610,6 +1610,21 @@ nodes:
   status: 已结算
   type: meta-rule
   file: settled/320-meta-observation-v140-swarm.md
+- id: '321'
+  title: 折叠第三轮——历史性的位置：事件外注入，易感性内生产
+  status: 已结算
+  type: event
+  file: settled/321-fold-r3-historicity-verdict.md
+- id: '322'
+  title: 元观察——R3附加检验 session：编排者理论洞察→即时实验验证 + context compaction 后状态恢复
+  status: 已结算
+  type: meta-rule
+  file: settled/322-meta-observation-r3-addendum-session.md
+- id: '323'
+  title: 折叠内在性检验：理论结算——触发外在/条件内在/基本面是事后命名
+  status: 已结算
+  type: event
+  file: settled/323-fold-theory-settlement.md
 edges:
   depends_on:
   - from: '136'
@@ -3391,6 +3406,36 @@ edges:
   - from: '320'
     to: '314'
   - from: '320'
+    to: 090
+  - from: '321'
+    to: '319'
+  - from: '321'
+    to: '317'
+  - from: '321'
+    to: '292'
+  - from: '321'
+    to: 090
+  - from: '322'
+    to: '321'
+  - from: '322'
+    to: '320'
+  - from: '322'
+    to: '290'
+  - from: '322'
+    to: '260'
+  - from: '322'
+    to: '137'
+  - from: '322'
+    to: 090
+  - from: '323'
+    to: '321'
+  - from: '323'
+    to: '319'
+  - from: '323'
+    to: '317'
+  - from: '323'
+    to: '292'
+  - from: '323'
     to: 090
   triggered:
   - from: '005'
