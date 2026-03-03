@@ -196,3 +196,24 @@ resolved_by: downstream-resolver 工位
 | 304-1 讨论型工位识别 | 选择 | needs_orchestrator_decision |
 
 **额外发现**：306-1 无法执行的根因——318号谱系 dag.yaml 写入时 depends_on 未强制字符串化，导致 relations.jsonl 中出现 int 类型的 from/to 字段（5条）。修复路径：`block_topology.py:read_all_relations` 对 from/to 做 `str()` 强制转换。
+
+---
+
+## v140 re-check（2026-03-03）
+
+v140-swarm downstream-resolver 重新扫描确认：以上所有推论状态未变。
+
+| 推论 | v138 状态 | v140 re-check |
+|------|-----------|---------------|
+| 306-1 | deferred（int bug） | 未变——bug 修复路径已明确但未执行 |
+| 306-2 | resolved | 未变 |
+| 305-1 | resolved | 未变 |
+| 302-3 | deferred_until_condition | 未变 |
+| 306-3 | deferred_until_condition | 未变 |
+| 305-2 | deferred_until_condition | 未变 |
+| 304-2 | deferred_until_condition | 未变 |
+| 302-1 | deferred_until_condition | 未变 |
+| 302-2 | deferred_until_condition | 未变 |
+| 304-1 | needs_orchestrator_decision | 未变 |
+
+scan 重复报出这些推论是因为 scan 不区分 deferred_until_condition 和 unresolved。无需进一步操作。

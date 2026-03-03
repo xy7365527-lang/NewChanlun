@@ -64,3 +64,23 @@ ratio序列的断裂事件不是独立发生的——后一次断裂的动力学
 - 分析脚本：`tmp/fold-intrinsic-experiment/intra_layer_analysis.py`
 - 结果数据：`tmp/fold-intrinsic-experiment/intra_layer_results.json`
 - 实验摘要：`tmp/fold-intrinsic-experiment/intra_layer_summary.md`
+
+## 下游推论结算（v140-swarm downstream-resolver）
+
+### 319-1：折叠定义不能改为"自折叠结构的拓扑同构"
+
+**四分法分类**：定理——319号判决"层内折叠不存在"的逻辑必然推论。自折叠结构不存在 → 以它为基础的定义修改无意义。
+
+**结算状态**：resolved
+
+### 319-2：FCX/Cu-Au 数据上两条可检验路径被封死
+
+**四分法分类**：定理——317号（层间否定 0/3）+ 319号（层内否定 0/3）的事实汇总。
+
+**结算状态**：resolved
+
+### 319-3：新实验必须先操作化逻辑级别
+
+**四分法分类**：定理——317号推论2 的重申。操作化"逻辑级别"仍是新实验的前置条件，当前无新实验计划。
+
+**结算状态**：deferred_until_condition — 触发条件：新折叠实验提案时
