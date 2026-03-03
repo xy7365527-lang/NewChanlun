@@ -1,0 +1,307 @@
+{
+  "proposition_1": {
+    "T_group": {
+      "n": 4182,
+      "median": 2.301,
+      "mean": 2.269,
+      "iqr": [
+        2.054,
+        2.436
+      ]
+    },
+    "N_group": {
+      "n": 1956,
+      "median": 2.378,
+      "mean": 2.356,
+      "iqr": [
+        2.231,
+        2.497
+      ]
+    },
+    "welch_t": {
+      "t": -15.4405,
+      "p_one_sided": 0.0
+    },
+    "mann_whitney_u": {
+      "U": 3163964.0,
+      "p_one_sided": 0.0
+    },
+    "cohens_d": -0.3908,
+    "verdict": "PASS"
+  },
+  "proposition_2": {
+    "n_events": 27,
+    "events": [
+      {
+        "event_start": "2001-09-17",
+        "event_end": "2001-09-17",
+        "days": 1,
+        "max_mahal": 7.49,
+        "eff_dim_pre5d": 2.335,
+        "eff_dim_pre10d": null,
+        "eff_dim_pre20d": null
+      },
+      {
+        "event_start": "2002-07-24",
+        "event_end": "2002-07-24",
+        "days": 1,
+        "max_mahal": 5.19,
+        "eff_dim_pre5d": 2.075,
+        "eff_dim_pre10d": 2.072,
+        "eff_dim_pre20d": 2.058
+      },
+      {
+        "event_start": "2004-10-13",
+        "event_end": "2004-10-13",
+        "days": 1,
+        "max_mahal": 7.08,
+        "eff_dim_pre5d": 2.343,
+        "eff_dim_pre10d": 2.357,
+        "eff_dim_pre20d": 2.338
+      },
+      {
+        "event_start": "2005-01-04",
+        "event_end": "2005-01-04",
+        "days": 1,
+        "max_mahal": 5.69,
+        "eff_dim_pre5d": 2.363,
+        "eff_dim_pre10d": 2.362,
+        "eff_dim_pre20d": 2.374
+      },
+      {
+        "event_start": "2005-05-27",
+        "event_end": "2005-05-27",
+        "days": 1,
+        "max_mahal": 5.49,
+        "eff_dim_pre5d": 2.371,
+        "eff_dim_pre10d": 2.375,
+        "eff_dim_pre20d": 2.372
+      },
+      {
+        "event_start": "2006-05-23",
+        "event_end": "2006-05-23",
+        "days": 1,
+        "max_mahal": 6.74,
+        "eff_dim_pre5d": 2.292,
+        "eff_dim_pre10d": 2.287,
+        "eff_dim_pre20d": 2.299
+      },
+      {
+        "event_start": "2006-06-13",
+        "event_end": "2006-06-13",
+        "days": 1,
+        "max_mahal": 6.21,
+        "eff_dim_pre5d": 2.307,
+        "eff_dim_pre10d": 2.292,
+        "eff_dim_pre20d": 2.295
+      },
+      {
+        "event_start": "2008-09-17",
+        "event_end": "2008-11-04",
+        "days": 19,
+        "max_mahal": 9.92,
+        "eff_dim_pre5d": 2.287,
+        "eff_dim_pre10d": 2.259,
+        "eff_dim_pre20d": 2.262
+      },
+      {
+        "event_start": "2008-11-13",
+        "event_end": "2008-12-08",
+        "days": 8,
+        "max_mahal": 8.27,
+        "eff_dim_pre5d": 2.345,
+        "eff_dim_pre10d": 2.311,
+        "eff_dim_pre20d": 2.227
+      },
+      {
+        "event_start": "2008-12-16",
+        "event_end": "2008-12-16",
+        "days": 1,
+        "max_mahal": 5.99,
+        "eff_dim_pre5d": 2.456,
+        "eff_dim_pre10d": 2.428,
+        "eff_dim_pre20d": 2.367
+      },
+      {
+        "event_start": "2009-01-20",
+        "event_end": "2009-01-21",
+        "days": 2,
+        "max_mahal": 5.89,
+        "eff_dim_pre5d": 2.474,
+        "eff_dim_pre10d": 2.461,
+        "eff_dim_pre20d": 2.46
+      },
+      {
+        "event_start": "2009-02-06",
+        "event_end": "2009-02-06",
+        "days": 1,
+        "max_mahal": 5.2,
+        "eff_dim_pre5d": 2.484,
+        "eff_dim_pre10d": 2.484,
+        "eff_dim_pre20d": 2.466
+      },
+      {
+        "event_start": "2009-02-17",
+        "event_end": "2009-02-17",
+        "days": 1,
+        "max_mahal": 6.94,
+        "eff_dim_pre5d": 2.477,
+        "eff_dim_pre10d": 2.481,
+        "eff_dim_pre20d": 2.48
+      },
+      {
+        "event_start": "2009-03-03",
+        "event_end": "2009-03-10",
+        "days": 2,
+        "max_mahal": 5.64,
+        "eff_dim_pre5d": 2.452,
+        "eff_dim_pre10d": 2.467,
+        "eff_dim_pre20d": 2.481
+      },
+      {
+        "event_start": "2009-03-19",
+        "event_end": "2009-03-23",
+        "days": 2,
+        "max_mahal": 6.92,
+        "eff_dim_pre5d": 2.416,
+        "eff_dim_pre10d": 2.438,
+        "eff_dim_pre20d": 2.452
+      },
+      {
+        "event_start": "2011-08-08",
+        "event_end": "2011-08-08",
+        "days": 1,
+        "max_mahal": 6.92,
+        "eff_dim_pre5d": 2.538,
+        "eff_dim_pre10d": 2.525,
+        "eff_dim_pre20d": 2.545
+      },
+      {
+        "event_start": "2013-04-15",
+        "event_end": "2013-04-15",
+        "days": 1,
+        "max_mahal": 7.76,
+        "eff_dim_pre5d": 2.397,
+        "eff_dim_pre10d": 2.424,
+        "eff_dim_pre20d": 2.404
+      },
+      {
+        "event_start": "2013-06-20",
+        "event_end": "2013-06-20",
+        "days": 1,
+        "max_mahal": 5.42,
+        "eff_dim_pre5d": 2.24,
+        "eff_dim_pre10d": 2.252,
+        "eff_dim_pre20d": 2.211
+      },
+      {
+        "event_start": "2016-06-24",
+        "event_end": "2016-06-24",
+        "days": 1,
+        "max_mahal": 5.65,
+        "eff_dim_pre5d": 2.104,
+        "eff_dim_pre10d": 2.102,
+        "eff_dim_pre20d": 2.104
+      },
+      {
+        "event_start": "2020-03-09",
+        "event_end": "2020-03-26",
+        "days": 9,
+        "max_mahal": 9.36,
+        "eff_dim_pre5d": 1.883,
+        "eff_dim_pre10d": 1.867,
+        "eff_dim_pre20d": 1.903
+      },
+      {
+        "event_start": "2020-04-06",
+        "event_end": "2020-04-06",
+        "days": 1,
+        "max_mahal": 5.36,
+        "eff_dim_pre5d": 2.166,
+        "eff_dim_pre10d": 2.125,
+        "eff_dim_pre20d": 1.894
+      },
+      {
+        "event_start": "2020-06-11",
+        "event_end": "2020-06-11",
+        "days": 1,
+        "max_mahal": 5.37,
+        "eff_dim_pre5d": 2.17,
+        "eff_dim_pre10d": 2.167,
+        "eff_dim_pre20d": 2.17
+      },
+      {
+        "event_start": "2022-11-10",
+        "event_end": "2022-11-10",
+        "days": 1,
+        "max_mahal": 5.97,
+        "eff_dim_pre5d": 2.711,
+        "eff_dim_pre10d": 2.702,
+        "eff_dim_pre20d": 2.651
+      },
+      {
+        "event_start": "2025-04-04",
+        "event_end": "2025-04-09",
+        "days": 2,
+        "max_mahal": 7.31,
+        "eff_dim_pre5d": 2.521,
+        "eff_dim_pre10d": 2.526,
+        "eff_dim_pre20d": 2.503
+      },
+      {
+        "event_start": "2025-07-08",
+        "event_end": "2025-07-08",
+        "days": 1,
+        "max_mahal": 8.25,
+        "eff_dim_pre5d": 2.386,
+        "eff_dim_pre10d": 2.403,
+        "eff_dim_pre20d": 2.41
+      },
+      {
+        "event_start": "2025-07-31",
+        "event_end": "2025-07-31",
+        "days": 1,
+        "max_mahal": 15.92,
+        "eff_dim_pre5d": 2.431,
+        "eff_dim_pre10d": 2.436,
+        "eff_dim_pre20d": 2.388
+      },
+      {
+        "event_start": "2026-01-30",
+        "event_end": "2026-01-30",
+        "days": 1,
+        "max_mahal": 9.56,
+        "eff_dim_pre5d": 2.297,
+        "eff_dim_pre10d": 2.314,
+        "eff_dim_pre20d": 2.31
+      }
+    ],
+    "correlations": {
+      "pre_5d": {
+        "spearman_rho": 0.0898,
+        "spearman_p_one": 0.3281,
+        "pearson_r": 0.0007,
+        "pearson_p_one": 0.4986
+      },
+      "pre_10d": {
+        "spearman_rho": 0.1224,
+        "spearman_p_one": 0.2757,
+        "pearson_r": 0.0087,
+        "pearson_p_one": 0.4831
+      },
+      "pre_20d": {
+        "spearman_rho": 0.1344,
+        "spearman_p_one": 0.2564,
+        "pearson_r": 0.0218,
+        "pearson_p_one": 0.4579
+      }
+    },
+    "median_split": {
+      "median_effdim": 2.363,
+      "high_group_mean_mahal": 7.13,
+      "low_group_mean_mahal": 7.05
+    },
+    "verdict": "FAIL"
+  },
+  "combined_verdict": "有效维度是级别的度量，但级别不调制折叠深度。走势和折叠之间的关系不经过易感性机制。"
+}
