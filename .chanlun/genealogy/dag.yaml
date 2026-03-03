@@ -1580,6 +1580,16 @@ nodes:
   status: 已结算
   type: meta-rule
   file: settled/314-stagnation-audit-v136-codex-review-phase.md
+- id: '315'
+  title: 元观察——v137-swarm 三工位产出 + 折叠内在性检验启动 + meta.json 计数漂移
+  status: 已结算
+  type: meta-rule
+  file: settled/315-meta-observation-v137-swarm.md
+- id: '316'
+  title: 元观察——上下文丢失中断恢复 + 蜂群残留状态处理模式
+  status: 已结算
+  type: meta-rule
+  file: settled/316-meta-observation-context-loss-recovery.md
 edges:
   depends_on:
   - from: '136'
@@ -3312,6 +3322,24 @@ edges:
     to: 090
   - from: '314'
     to: '313'
+  - from: '315'
+    to: '314'
+  - from: '315'
+    to: '313'
+  - from: '315'
+    to: '312'
+  - from: '315'
+    to: '137'
+  - from: '315'
+    to: 090
+  - from: '316'
+    to: '315'
+  - from: '316'
+    to: '226'
+  - from: '316'
+    to: '137'
+  - from: '316'
+    to: 090
   triggered:
   - from: '005'
     to: 005a

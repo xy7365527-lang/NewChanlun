@@ -73,9 +73,11 @@ Morse 地形的生成树构建算法选择时序 Kruskal（按时间戳排序的
 
 **分歧**：概念注册表应该只包含 15 个 `type: definition` 高权重概念，还是包含全部 997 个唯一概念目标。
 
-**裁定**：997 个唯一概念目标全部入注册表。15 个 `type: definition` 区块加 `authoritative: true` 标记，不排除其余 982 个。
+**裁定**：997 个唯一概念目标全部入注册表。authoritative 标记基于 defines 边是否携带非空 `concept_definition` 字段（实现于 `concept_registry.py:108-110`），不依赖区块 type 字段。
 
-理由：偶遇催化需要完整概念词覆盖面。仅 15 个概念的注册表过于稀疏，无法支撑偶遇记录的触发频率。
+理由：偶遇催化需要完整概念词覆盖面。仅少数概念的注册表过于稀疏，无法支撑偶遇记录的触发频率。
+
+> **v137-swarm 修正**：原裁定描述"15 个 type: definition 区块加 authoritative: true"与实现不符——区块拓扑中无 type:definition 区块，authoritative 判定基于边属性。此处修正为实现的实际逻辑。偶遇催化机制同样修正：encounter_guard 基于 Morse 地形重算检测 critical 边，不依赖概念注册表查询。两个组件独立运作。
 
 ### D3：生成树唯一性
 
@@ -107,9 +109,9 @@ Morse 地形的生成树构建算法选择时序 Kruskal（按时间戳排序的
 
 ### 推论2：概念注册表范围确定
 
-- 全量：997 个唯一概念目标
-- 高权重标记：15 个 `type: definition` 区块加 `authoritative: true`
-- 偶遇催化基于完整注册表触发
+- 全量：997 个唯一概念目标（v137-swarm 复验：1016）
+- authoritative 标记：基于 defines 边的 concept_definition 字段（v137-swarm 复验：1000/1016 为 authoritative）
+- 偶遇检测基于 Morse 地形 critical 边判定，与概念注册表独立
 
 ### 推论3：DAG 守护范围缩减到 depends_on 子图
 
@@ -153,15 +155,15 @@ Morse 地形的生成树构建算法选择时序 Kruskal（按时间戳排序的
 运行验证（初次）：`load_registry()` 返回 `len(entries) = 997`。
 运行验证（v137-swarm 复验）：`build_concept_registry()` 返回 `len(entries) = 1016`。数值变化是谱系增长的正常结果，全量入注册表机制不变。
 
-### 推论2-2：15 个 type: definition 区块加 authoritative: true — **rejected**
+### 推论2-2：authoritative 标记机制 — **resolved**（裁定描述已修正）
 
 运行验证（初次）：`sum(e.authoritative for e in entries.values()) = 981`（非 15）。
 运行验证（v137-swarm 复验）：`authoritative = 1000`，`non-authoritative = 16`，`total = 1016`。区块拓扑中 `type: definition` 的区块数量仍为 0（1171 个区块中无此类型）。
-原因分析：当前代码中 `authoritative` 判定基于 defines 边是否携带非空 `concept_definition` 字段（`scripts/concept_registry.py:95`），与 312号裁定描述的"15 个 type: definition 区块"设计意图不一致。312号裁定的 authoritative 设计意图（基于区块 type 字段）从未实现——实际实现基于边属性。此推论的 rejected 状态是设计-实现偏差，不是代码 bug。
+原因分析：当前代码中 `authoritative` 判定基于 defines 边是否携带非空 `concept_definition` 字段（`scripts/concept_registry.py:95`），与 312号原裁定描述的"15 个 type: definition 区块"设计意图不一致。v137-swarm 已修正裁定 D2 描述，使其与实现一致。实现逻辑正确——authoritative 基于边属性比基于区块类型更精确。
 
-### 推论2-3：偶遇催化基于完整注册表触发 — **rejected**
+### 推论2-3：偶遇催化机制 — **resolved**（裁定描述已修正）
 
-代码验证：`scripts/encounter_guard.py:39-70` — `check_encounter()` 调用 `build_morse_landscape()` 全量重算 Morse 地形，根据新边是否为 critical 判断偶遇。偶遇检测不依赖概念注册表——它依赖 Morse 地形的 edge_marks。概念注册表（组件四）和偶遇记录（组件二）是独立组件，偶遇催化基于 Morse 地形重算而非注册表查询。
+代码验证：`scripts/encounter_guard.py:39-70` — `check_encounter()` 调用 `build_morse_landscape()` 全量重算 Morse 地形，根据新边是否为 critical 判断偶遇。偶遇检测不依赖概念注册表——它依赖 Morse 地形的 edge_marks。v137-swarm 已修正裁定 D2 描述，明确两个组件独立运作。
 
 ### 推论3-1：DAG 守护范围仅 depends_on 子图 — **verified**
 

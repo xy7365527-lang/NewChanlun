@@ -1,0 +1,414 @@
+{
+  "experiment": "折叠内在性检验 - Agent A/B 交叉比对",
+  "epistemological_level": "L2",
+  "significance_level": 0.05,
+  "agent_a": {
+    "n_breakpoints": 24,
+    "n_clusters": 4,
+    "silhouette": 0.19951764163978794
+  },
+  "agent_b": {
+    "n_zhongshus": 7,
+    "n_transitions": 12
+  },
+  "alignments": [
+    {
+      "breakpoint_date": "2001-06-12",
+      "cluster": 1,
+      "nearest_transition_date": "2002-09-30",
+      "nearest_transition_type": "extending→expanding",
+      "nearest_transition_zhongshu": 0,
+      "delta_days": 475,
+      "abs_delta_days": 475
+    },
+    {
+      "breakpoint_date": "2002-07-17",
+      "cluster": 0,
+      "nearest_transition_date": "2002-09-30",
+      "nearest_transition_type": "extending→expanding",
+      "nearest_transition_zhongshu": 0,
+      "delta_days": 75,
+      "abs_delta_days": 75
+    },
+    {
+      "breakpoint_date": "2004-01-16",
+      "cluster": 0,
+      "nearest_transition_date": "2004-01-09",
+      "nearest_transition_type": "expanding→newborn",
+      "nearest_transition_zhongshu": 0,
+      "delta_days": -7,
+      "abs_delta_days": 7
+    },
+    {
+      "breakpoint_date": "2005-05-23",
+      "cluster": 0,
+      "nearest_transition_date": "2005-04-26",
+      "nearest_transition_type": "extending→expanding",
+      "nearest_transition_zhongshu": 1,
+      "delta_days": -27,
+      "abs_delta_days": 27
+    },
+    {
+      "breakpoint_date": "2006-04-10",
+      "cluster": 0,
+      "nearest_transition_date": "2006-04-19",
+      "nearest_transition_type": "expanding→newborn",
+      "nearest_transition_zhongshu": 1,
+      "delta_days": 9,
+      "abs_delta_days": 9
+    },
+    {
+      "breakpoint_date": "2006-12-20",
+      "cluster": 1,
+      "nearest_transition_date": "2007-01-04",
+      "nearest_transition_type": "extending→expanding",
+      "nearest_transition_zhongshu": 2,
+      "delta_days": 15,
+      "abs_delta_days": 15
+    },
+    {
+      "breakpoint_date": "2007-03-20",
+      "cluster": 1,
+      "nearest_transition_date": "2007-01-04",
+      "nearest_transition_type": "extending→expanding",
+      "nearest_transition_zhongshu": 2,
+      "delta_days": -75,
+      "abs_delta_days": 75
+    },
+    {
+      "breakpoint_date": "2007-10-29",
+      "cluster": 0,
+      "nearest_transition_date": "2007-06-26",
+      "nearest_transition_type": "expanding→newborn",
+      "nearest_transition_zhongshu": 2,
+      "delta_days": -125,
+      "abs_delta_days": 125
+    },
+    {
+      "breakpoint_date": "2008-10-03",
+      "cluster": 2,
+      "nearest_transition_date": "2007-06-26",
+      "nearest_transition_type": "expanding→newborn",
+      "nearest_transition_zhongshu": 2,
+      "delta_days": -465,
+      "abs_delta_days": 465
+    },
+    {
+      "breakpoint_date": "2009-04-03",
+      "cluster": 1,
+      "nearest_transition_date": "2010-05-04",
+      "nearest_transition_type": "extending→expanding",
+      "nearest_transition_zhongshu": 3,
+      "delta_days": 396,
+      "abs_delta_days": 396
+    },
+    {
+      "breakpoint_date": "2009-07-22",
+      "cluster": 1,
+      "nearest_transition_date": "2010-05-04",
+      "nearest_transition_type": "extending→expanding",
+      "nearest_transition_zhongshu": 3,
+      "delta_days": 286,
+      "abs_delta_days": 286
+    },
+    {
+      "breakpoint_date": "2011-08-05",
+      "cluster": 3,
+      "nearest_transition_date": "2010-05-04",
+      "nearest_transition_type": "extending→expanding",
+      "nearest_transition_zhongshu": 3,
+      "delta_days": -458,
+      "abs_delta_days": 458
+    },
+    {
+      "breakpoint_date": "2013-05-08",
+      "cluster": 1,
+      "nearest_transition_date": "2015-08-26",
+      "nearest_transition_type": "expanding→newborn",
+      "nearest_transition_zhongshu": 3,
+      "delta_days": 840,
+      "abs_delta_days": 840
+    },
+    {
+      "breakpoint_date": "2015-01-07",
+      "cluster": 0,
+      "nearest_transition_date": "2015-08-26",
+      "nearest_transition_type": "expanding→newborn",
+      "nearest_transition_zhongshu": 3,
+      "delta_days": 231,
+      "abs_delta_days": 231
+    },
+    {
+      "breakpoint_date": "2016-01-05",
+      "cluster": 1,
+      "nearest_transition_date": "2015-08-26",
+      "nearest_transition_type": "expanding→newborn",
+      "nearest_transition_zhongshu": 3,
+      "delta_days": -132,
+      "abs_delta_days": 132
+    },
+    {
+      "breakpoint_date": "2016-11-10",
+      "cluster": 1,
+      "nearest_transition_date": "2016-09-15",
+      "nearest_transition_type": "extending→expanding",
+      "nearest_transition_zhongshu": 4,
+      "delta_days": -56,
+      "abs_delta_days": 56
+    },
+    {
+      "breakpoint_date": "2019-06-04",
+      "cluster": 1,
+      "nearest_transition_date": "2021-03-04",
+      "nearest_transition_type": "expanding→newborn",
+      "nearest_transition_zhongshu": 4,
+      "delta_days": 639,
+      "abs_delta_days": 639
+    },
+    {
+      "breakpoint_date": "2020-01-29",
+      "cluster": 1,
+      "nearest_transition_date": "2021-03-04",
+      "nearest_transition_type": "expanding→newborn",
+      "nearest_transition_zhongshu": 4,
+      "delta_days": 400,
+      "abs_delta_days": 400
+    },
+    {
+      "breakpoint_date": "2020-11-18",
+      "cluster": 0,
+      "nearest_transition_date": "2021-03-04",
+      "nearest_transition_type": "expanding→newborn",
+      "nearest_transition_zhongshu": 4,
+      "delta_days": 106,
+      "abs_delta_days": 106
+    },
+    {
+      "breakpoint_date": "2021-02-17",
+      "cluster": 1,
+      "nearest_transition_date": "2021-03-04",
+      "nearest_transition_type": "expanding→newborn",
+      "nearest_transition_zhongshu": 4,
+      "delta_days": 15,
+      "abs_delta_days": 15
+    },
+    {
+      "breakpoint_date": "2022-06-15",
+      "cluster": 0,
+      "nearest_transition_date": "2021-11-04",
+      "nearest_transition_type": "extending→expanding",
+      "nearest_transition_zhongshu": 5,
+      "delta_days": -223,
+      "abs_delta_days": 223
+    },
+    {
+      "breakpoint_date": "2023-04-25",
+      "cluster": 1,
+      "nearest_transition_date": "2024-07-10",
+      "nearest_transition_type": "expanding→newborn",
+      "nearest_transition_zhongshu": 5,
+      "delta_days": 442,
+      "abs_delta_days": 442
+    },
+    {
+      "breakpoint_date": "2024-07-26",
+      "cluster": 1,
+      "nearest_transition_date": "2024-07-10",
+      "nearest_transition_type": "expanding→newborn",
+      "nearest_transition_zhongshu": 5,
+      "delta_days": -16,
+      "abs_delta_days": 16
+    },
+    {
+      "breakpoint_date": "2025-07-31",
+      "cluster": 1,
+      "nearest_transition_date": "2024-07-10",
+      "nearest_transition_type": "expanding→newborn",
+      "nearest_transition_zhongshu": 5,
+      "delta_days": -386,
+      "abs_delta_days": 386
+    }
+  ],
+  "delta_statistics": {
+    "n": 24,
+    "min": -465,
+    "max": 840,
+    "mean": 81.625,
+    "median": 12.0,
+    "p25": -87.5,
+    "p75": 313.5,
+    "abs_mean": 245.79166666666666,
+    "abs_median": 177.5,
+    "abs_p25": 48.75,
+    "abs_p75": 410.5,
+    "n_positive": 13,
+    "n_negative": 11,
+    "n_zero": 0,
+    "fraction_positive": 0.5416666666666666
+  },
+  "criterion_1": {
+    "name": "聚类数量",
+    "expected": 3,
+    "observed": 4,
+    "passed": false,
+    "silhouette_score": 0.19951764163978794,
+    "clustering_confidence": "low",
+    "analysis": "N_clusters = 4，不等于预期的 3。判据一未通过。\n轮廓系数 = 0.200，聚类置信度 = low。\n单例聚类：2 个（Cluster 2, 3）\n非单例聚类：2 个（Cluster 0, 1）\n轮廓系数 0.20 表明数据不支持离散聚类——断裂后行为更接近连续谱。4 个聚类中 2 个是单例（极端事件：2008 金融危机、2011 欧债危机），实质上有意义的聚类只有 2 个（Cluster 0 和 Cluster 1）。这既否定了 N=3 的理论预期，也否定了 N=4 的实质性——数据更可能是连续谱上的人为切割。"
+  },
+  "criterion_2": {
+    "name": "聚类特征与中枢状态转换对应",
+    "natural_window_days": 410.5,
+    "contingency_table_full": {
+      "rows": [
+        "Cluster 0",
+        "Cluster 1",
+        "Cluster 2",
+        "Cluster 3"
+      ],
+      "cols": [
+        "expanding→newborn",
+        "extending→expanding"
+      ],
+      "data": [
+        [
+          5,
+          3
+        ],
+        [
+          8,
+          6
+        ],
+        [
+          1,
+          0
+        ],
+        [
+          0,
+          1
+        ]
+      ]
+    },
+    "contingency_table_windowed": {
+      "rows": [
+        "Cluster 0",
+        "Cluster 1",
+        "Cluster 2",
+        "Cluster 3"
+      ],
+      "cols": [
+        "expanding→newborn",
+        "extending→expanding"
+      ],
+      "data": [
+        [
+          5,
+          3
+        ],
+        [
+          5,
+          5
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ]
+      ],
+      "n_observations": 18
+    },
+    "test_full": {
+      "method": "Monte Carlo permutation (100k perms); chi2 p=0.5360",
+      "p_value": 0.79517,
+      "significant": false,
+      "warning": "WARNING: min expected cell count = 0.42 < 5; chi-squared approximation unreliable"
+    },
+    "test_windowed": {
+      "method": "Fisher exact (2x2)",
+      "p_value": 0.6640614287673111,
+      "significant": false,
+      "warning": ""
+    },
+    "simplified_2x2": {
+      "rows": [
+        "high_vol",
+        "stable"
+      ],
+      "cols": [
+        "ext→exp",
+        "exp→new"
+      ],
+      "data": [
+        [
+          4,
+          6
+        ],
+        [
+          6,
+          8
+        ]
+      ],
+      "p_value_fisher": 1.0,
+      "significant": false
+    },
+    "passed": false,
+    "analysis": "自然对齐窗口（|delta| 75th percentile）：410 天\n全量列联表 p = 0.7952（不显著，alpha=0.05）\n窗口内列联表 p = 0.6641（不显著）\n简化 2x2 表 Fisher p = 1.0000（不显著）\n所有检验均不显著。聚类类型与中枢状态转换类型之间不存在统计显著的对应关系。这是预期内的否定性结果——Agent A 的聚类本身就不稳定（轮廓系数 0.20），且 24 个断点对 12 个转换的匹配本身就是多对一映射，信息损失大。"
+  },
+  "criterion_3": {
+    "name": "时间方向性",
+    "directed_deltas": [
+      475,
+      75,
+      -7,
+      -27,
+      9,
+      15,
+      -75,
+      -125,
+      -465,
+      396,
+      286,
+      -458,
+      840,
+      231,
+      -132,
+      -56,
+      639,
+      400,
+      106,
+      15,
+      -223,
+      442,
+      -16,
+      -386
+    ],
+    "delta_distribution": {
+      "n": 24,
+      "min": -465,
+      "max": 840,
+      "mean": 81.625,
+      "median": 12.0,
+      "p25": -87.5,
+      "p75": 313.5,
+      "fraction_positive": 0.5416666666666666,
+      "fraction_negative": 0.4583333333333333,
+      "n_positive": 13,
+      "n_negative": 11,
+      "n_zero": 0
+    },
+    "sign_test_p_value": 0.4194098711013794,
+    "passed": false,
+    "analysis": "delta 中位数 = 12.0 天（> 0）\n正侧比例 = 54.17%（< 75%）\n符号检验 p = 0.4194（不显著，单侧 H1: median > 0）\n中位数为正但正侧比例仅 54.2%，不满足 75% 阈值。方向性部分存在但不稳定。"
+  },
+  "overall": {
+    "criterion_1_passed": false,
+    "criterion_2_passed": false,
+    "criterion_3_passed": false,
+    "n_passed": 0,
+    "overall_verdict": "三个判据全部未通过。在当前数据（单标的/单时段）下，Layer 1（Cu/Au比值统计断裂）与 Layer 2（FCX日线中枢状态转换）之间不存在可检测的内在对应。这是有信息量的否定性结果。",
+    "epistemological_level": "L2",
+    "validity_domain": "FCX daily / Cu-Au ratio, 2000-08-30 to 2026-03-02"
+  }
+}
