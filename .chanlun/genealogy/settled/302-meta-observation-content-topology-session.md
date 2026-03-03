@@ -159,3 +159,9 @@ Codex 审查 prompt 中的 concept_extractor.py 代码（codex-review-20260302-0
 - 如果 Lead 的串行选择有未记录的理由（如上下文窗口已接近耗尽、并行 spawn 在当时触发平台限制），则观察1的违反判定需降级为"有理由的退化"
 - 如果谱系文件的格式在未来趋于统一（如通过模板强制），观察2的语法记录候选价值降低
 - 如果 Codex 审查 prompt 构造流程已有代码版本锁定机制但本次未使用，观察6 是操作遗漏而非流程缺陷
+
+### 下游推论解决记录（v138-swarm downstream-resolver）
+
+- 推论1（218号违反回归）：**deferred_until_condition** — 回归计数 1/3，触发条件：218号违反累计 >= 3 次时 /escalate。后续303-309号均显示"遵守"，当前无回归信号
+- 推论2（正则格式覆盖率）：**deferred_until_condition** — 样本 2/3（302号 +1，305号 +1），触发条件：样本 >= 3 时显式化为 domain-conventions 工作流步骤
+- 推论3（Codex prompt 版本锁定）：**deferred_until_condition** — 规则已结算（093号约束1b推论），触发条件：下次构造 Codex 审查 prompt 时执行

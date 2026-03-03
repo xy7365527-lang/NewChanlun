@@ -1,0 +1,22 @@
+{
+  "id": "7b7eae16a2d0ca2fdae5a9d50fe47229007091bdf464d01eede391d8aac7dae6",
+  "type": "event",
+  "timestamp": "2026-03-03T03:35:50.666920+00:00",
+  "source": "cc",
+  "content": {
+    "id": "316",
+    "title": "元观察——上下文丢失中断恢复 + 蜂群残留状态处理模式",
+    "status": "已结算",
+    "type": "meta-rule",
+    "date": "2026-03-03",
+    "depends_on": [
+      "315",
+      "226",
+      "137",
+      "090"
+    ],
+    "source_file": "settled/316-meta-observation-context-loss-recovery.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

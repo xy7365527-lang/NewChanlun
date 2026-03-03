@@ -1,0 +1,556 @@
+{
+  "experiment": "层内折叠检验",
+  "epistemological_level": "L2",
+  "data_source": "317号谱系实验一的真实数据",
+  "agent_a_intra_layer": {
+    "n_events": 24,
+    "analyses": {
+      "scheme_1_4cluster": {
+        "description": "原始4-cluster标签的转移矩阵",
+        "states": [
+          0,
+          1,
+          2,
+          3
+        ],
+        "state_counts": {
+          "1": 14,
+          "0": 8,
+          "2": 1,
+          "3": 1
+        },
+        "transition_matrix": [
+          [
+            3,
+            4,
+            1,
+            0
+          ],
+          [
+            5,
+            7,
+            0,
+            1
+          ],
+          [
+            0,
+            1,
+            0,
+            0
+          ],
+          [
+            0,
+            1,
+            0,
+            0
+          ]
+        ],
+        "chi_square": {
+          "per_row": [
+            {
+              "from_state": 0,
+              "row_sum": 8,
+              "observed": [
+                3,
+                4,
+                1,
+                0
+              ],
+              "expected": 2.0,
+              "chi2": 5.0,
+              "df": 3,
+              "p_value": 0.169987
+            },
+            {
+              "from_state": 1,
+              "row_sum": 13,
+              "observed": [
+                5,
+                7,
+                0,
+                1
+              ],
+              "expected": 3.25,
+              "chi2": 10.0769,
+              "df": 3,
+              "p_value": 0.01784
+            },
+            {
+              "from_state": 2,
+              "row_sum": 1,
+              "observed": [
+                0,
+                1,
+                0,
+                0
+              ],
+              "expected": 0.25,
+              "chi2": 3.0,
+              "df": 3,
+              "p_value": 0.392747
+            },
+            {
+              "from_state": 3,
+              "row_sum": 1,
+              "observed": [
+                0,
+                1,
+                0,
+                0
+              ],
+              "expected": 0.25,
+              "chi2": 3.0,
+              "df": 3,
+              "p_value": 0.392747
+            }
+          ],
+          "total_chi2": 21.0769,
+          "total_df": 12,
+          "total_p_value": 0.04908
+        },
+        "cycles": [
+          {
+            "type": "multi_state_cycle",
+            "states": [
+              0,
+              1,
+              2,
+              3
+            ],
+            "size": 4
+          }
+        ],
+        "note": "cluster 2/3 各仅1个成员，转移矩阵稀疏度高——统计力不足"
+      },
+      "scheme_2_direction": {
+        "description": "level_shift 方向二分类 (up/down)",
+        "states": [
+          "down",
+          "up"
+        ],
+        "sequence": [
+          "down",
+          "down",
+          "up",
+          "up",
+          "up",
+          "down",
+          "up",
+          "down",
+          "down",
+          "up",
+          "up",
+          "down",
+          "up",
+          "down",
+          "down",
+          "up",
+          "down",
+          "down",
+          "up",
+          "up",
+          "down",
+          "down",
+          "down",
+          "down"
+        ],
+        "state_counts": {
+          "down": 14,
+          "up": 10
+        },
+        "transition_matrix": [
+          [
+            7,
+            6
+          ],
+          [
+            6,
+            4
+          ]
+        ],
+        "chi_square": {
+          "per_row": [
+            {
+              "from_state": "down",
+              "row_sum": 13,
+              "observed": [
+                7,
+                6
+              ],
+              "expected": 6.5,
+              "chi2": 0.0769,
+              "df": 1,
+              "p_value": 0.772691
+            },
+            {
+              "from_state": "up",
+              "row_sum": 10,
+              "observed": [
+                6,
+                4
+              ],
+              "expected": 5.0,
+              "chi2": 0.4,
+              "df": 1,
+              "p_value": 0.53463
+            }
+          ],
+          "total_chi2": 0.4769,
+          "total_df": 2,
+          "total_p_value": 0.789971
+        },
+        "cycles": [
+          {
+            "type": "multi_state_cycle",
+            "states": [
+              "down",
+              "up"
+            ],
+            "size": 2
+          }
+        ],
+        "runs_test": {
+          "runs": 13,
+          "expected": 12.667,
+          "variance": 5.4106,
+          "z": 0.1433,
+          "p_value": 0.886051
+        }
+      },
+      "scheme_3_intensity": {
+        "description": "level_shift 强度三分类 (large_down/moderate/large_up)",
+        "states": [
+          "large_down",
+          "moderate",
+          "large_up"
+        ],
+        "sequence": [
+          "large_down",
+          "moderate",
+          "large_up",
+          "moderate",
+          "large_up",
+          "large_down",
+          "large_up",
+          "large_down",
+          "large_down",
+          "large_up",
+          "large_up",
+          "large_down",
+          "moderate",
+          "moderate",
+          "moderate",
+          "large_up",
+          "large_down",
+          "large_down",
+          "large_up",
+          "large_up",
+          "moderate",
+          "moderate",
+          "large_down",
+          "large_down"
+        ],
+        "state_counts": {
+          "large_down": 9,
+          "moderate": 7,
+          "large_up": 8
+        },
+        "transition_matrix": [
+          [
+            3,
+            2,
+            3
+          ],
+          [
+            1,
+            3,
+            3
+          ],
+          [
+            4,
+            2,
+            2
+          ]
+        ],
+        "chi_square": {
+          "per_row": [
+            {
+              "from_state": "large_down",
+              "row_sum": 8,
+              "observed": [
+                3,
+                2,
+                3
+              ],
+              "expected": 2.667,
+              "chi2": 0.25,
+              "df": 2,
+              "p_value": 0.878327
+            },
+            {
+              "from_state": "moderate",
+              "row_sum": 7,
+              "observed": [
+                1,
+                3,
+                3
+              ],
+              "expected": 2.333,
+              "chi2": 1.1429,
+              "df": 2,
+              "p_value": 0.570319
+            },
+            {
+              "from_state": "large_up",
+              "row_sum": 8,
+              "observed": [
+                4,
+                2,
+                2
+              ],
+              "expected": 2.667,
+              "chi2": 1.0,
+              "df": 2,
+              "p_value": 0.612394
+            }
+          ],
+          "total_chi2": 2.3929,
+          "total_df": 6,
+          "total_p_value": 0.88079
+        },
+        "cycles": [
+          {
+            "type": "multi_state_cycle",
+            "states": [
+              "large_down",
+              "moderate",
+              "large_up"
+            ],
+            "size": 3
+          }
+        ]
+      },
+      "scheme_4_volatility": {
+        "description": "volatility_ratio 三分类 (calm/elevated/surge)",
+        "states": [
+          "calm",
+          "elevated",
+          "surge"
+        ],
+        "sequence": [
+          "surge",
+          "elevated",
+          "elevated",
+          "surge",
+          "elevated",
+          "calm",
+          "calm",
+          "elevated",
+          "surge",
+          "calm",
+          "calm",
+          "surge",
+          "elevated",
+          "elevated",
+          "elevated",
+          "calm",
+          "elevated",
+          "surge",
+          "elevated",
+          "calm",
+          "elevated",
+          "calm",
+          "calm",
+          "calm"
+        ],
+        "state_counts": {
+          "surge": 5,
+          "elevated": 10,
+          "calm": 9
+        },
+        "transition_matrix": [
+          [
+            4,
+            3,
+            1
+          ],
+          [
+            4,
+            3,
+            3
+          ],
+          [
+            1,
+            4,
+            0
+          ]
+        ],
+        "chi_square": {
+          "per_row": [
+            {
+              "from_state": "calm",
+              "row_sum": 8,
+              "observed": [
+                4,
+                3,
+                1
+              ],
+              "expected": 2.667,
+              "chi2": 1.75,
+              "df": 2,
+              "p_value": 0.419673
+            },
+            {
+              "from_state": "elevated",
+              "row_sum": 10,
+              "observed": [
+                4,
+                3,
+                3
+              ],
+              "expected": 3.333,
+              "chi2": 0.2,
+              "df": 2,
+              "p_value": 0.898702
+            },
+            {
+              "from_state": "surge",
+              "row_sum": 5,
+              "observed": [
+                1,
+                4,
+                0
+              ],
+              "expected": 1.667,
+              "chi2": 5.2,
+              "df": 2,
+              "p_value": 0.072346
+            }
+          ],
+          "total_chi2": 7.15,
+          "total_df": 6,
+          "total_p_value": 0.306701
+        },
+        "cycles": [
+          {
+            "type": "multi_state_cycle",
+            "states": [
+              "calm",
+              "elevated",
+              "surge"
+            ],
+            "size": 3
+          }
+        ]
+      }
+    },
+    "continuous_autocorrelations": {
+      "level_shift": -0.1597,
+      "volatility_ratio": 0.1316,
+      "post_trend_slope": -0.2081,
+      "departure_speed": 0.2583,
+      "mean_reversion_corr": -0.2849,
+      "oscillation_rate": -0.136,
+      "stabilization_days": -0.0781,
+      "new_regime_distance": 0.0327
+    },
+    "autocorrelation_critical_value_95pct": 0.4082
+  },
+  "agent_b_intra_layer": {
+    "n_transitions": 12,
+    "transition_types": [
+      "extending→expanding",
+      "expanding→newborn",
+      "extending→expanding",
+      "expanding→newborn",
+      "extending→expanding",
+      "expanding→newborn",
+      "extending→expanding",
+      "expanding→newborn",
+      "extending→expanding",
+      "expanding→newborn",
+      "extending→expanding",
+      "expanding→newborn"
+    ],
+    "is_deterministic_alternation": true,
+    "transition_matrix": [
+      [
+        0,
+        6
+      ],
+      [
+        5,
+        0
+      ]
+    ],
+    "zhongshu_lifecycles": [
+      {
+        "index": 0,
+        "ext_to_exp_segs": 3,
+        "exp_to_new_segs": 1,
+        "total_segs": 3
+      },
+      {
+        "index": 1,
+        "ext_to_exp_segs": 3,
+        "exp_to_new_segs": 1,
+        "total_segs": 3
+      },
+      {
+        "index": 2,
+        "ext_to_exp_segs": 3,
+        "exp_to_new_segs": 1,
+        "total_segs": 3
+      },
+      {
+        "index": 3,
+        "ext_to_exp_segs": 5,
+        "exp_to_new_segs": 11,
+        "total_segs": 14
+      },
+      {
+        "index": 4,
+        "ext_to_exp_segs": 3,
+        "exp_to_new_segs": 7,
+        "total_segs": 9
+      },
+      {
+        "index": 5,
+        "ext_to_exp_segs": 4,
+        "exp_to_new_segs": 5,
+        "total_segs": 8
+      }
+    ],
+    "lifecycle_autocorrelations": {
+      "total_segs": 0.2395,
+      "ext_to_exp_segs": -0.4286,
+      "exp_to_new_segs": 0.275,
+      "critical_value_95pct": 0.8165
+    },
+    "note": "转换序列是完全确定性的交替（extending→expanding→newborn循环），不是随机过程。chi-square 检验不适用。"
+  },
+  "step3_cross_layer_isomorphism": {
+    "applicable": false,
+    "reason": "Agent B 层内结构是确定性的（非随机），Agent A 层内结构需先确认是否显著偏离均匀——两层性质根本不同，同构检验无意义"
+  },
+  "verdict": {
+    "per_layer_verdicts": [
+      {
+        "layer": "Agent A (ratio 断裂)",
+        "direction_chi2_p": 0.789971,
+        "direction_runs_p": 0.886051,
+        "significant_autocorrelations": {},
+        "conclusion": "无显著层内结构——断裂事件之间统计独立",
+        "fold_detected": false
+      },
+      {
+        "layer": "Agent B (中枢转换)",
+        "is_deterministic": true,
+        "conclusion": "转换序列是完全确定性交替，不存在随机性——这不是'折叠'而是'定义'（中枢生命周期是 extending→expanding→newborn 的确定性路径）",
+        "fold_detected": "trivial_deterministic"
+      }
+    ],
+    "overall": "两层都不存在非平凡层内折叠。Agent A 断裂事件统计独立，Agent B 转换是确定性的。ratio 序列不折回自身。",
+    "fold_hypothesis_result": "否定"
+  }
+}
