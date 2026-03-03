@@ -1,0 +1,105 @@
+{
+  "id": "2cfd277533cb0db2d9fc59dec7d428419f804e4f509dfb0082518edd4be70313",
+  "type": "rewrite",
+  "timestamp": "2026-03-03T02:18:12.732199+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "f2c108612edc82f77131ecdcaaa890f406e9f3196b58f532715dfecebd002d60",
+    "content_analysis": {
+      "genealogy_id": "228",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "观察对象"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "观察 1（发散信号）：ceremony-step-guard 对非 Lead 工位产生误阻断"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "现象"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "根因"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "分类"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "严重程度"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "修复方向（行动类）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "与 226号/057号的关系"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "观察 2（收敛信号）：stagnation-auditor 诊断质量"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "观察 3（收敛信号）：227号集成缺口已部分修复"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "观察 4（收敛信号）：蜂群规模收缩模式"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "自环检查"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        }
+      ],
+      "concepts": [],
+      "references": [
+        "036",
+        "057",
+        "137",
+        "217",
+        "224",
+        "226",
+        "227",
+        "228"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "f2c108612edc82f77131ecdcaaa890f406e9f3196b58f532715dfecebd002d60"
+  ],
+  "git_ref": ""
+}

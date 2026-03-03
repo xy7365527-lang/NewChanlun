@@ -1,0 +1,148 @@
+{
+  "id": "e37e6f45bda85be2d348a873d51fb15495cabecf1a62b47c90c655fe79b01187",
+  "type": "rewrite",
+  "timestamp": "2026-03-03T02:18:12.536502+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "df8df30b83902db05b15379e7cb42c72bf9a84f4740979d33f6d86841a00e47c",
+    "content_analysis": {
+      "genealogy_id": "066",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "洞见分类总览"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "Gemini 质询（3条）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "质询1：静态路由 vs 话语旋转（致命）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "质询2：异质双引擎伪平权（重要）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "质询3：062号非法残留（重要）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "遗漏补全（Gemini 发现）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "Top 5 ROI（投入最小、改进最大）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "Top 3 理论深度"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "Top 3 架构影响（需要重构）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "依赖关系"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "异质否定来源"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "特殊性",
+          "definition": "从两份异质对话（Claude 33页 + Gemini 30页）中穷尽提取 50+ 条洞见，经 Gemini 3.1 Pro（thinking 模式）逐条评估。"
+        },
+        {
+          "term": "统一异质审计协议的缺位",
+          "definition": "062号要求 Guard 结晶为统一协议（StateSlice + NegationObject），提取中遗漏了整个 Guard 体系重构"
+        },
+        {
+          "term": "话语位置漂移的动态监控",
+          "definition": "064号警告 Gemini 可能从癔症话语滑向大学话语，缺乏监控机制"
+        },
+        {
+          "term": "C15 修正 NegationObject 定义",
+          "definition": "改 prompt + 验证逻辑，消除德勒兹式残留"
+        },
+        {
+          "term": "A5 反向 Challenge 机制",
+          "definition": "dispatch-spec 增加 claude-challenger 路由，打破单向霸权"
+        },
+        {
+          "term": "B8 幽灵计算",
+          "definition": "genealogist 低频后台扫描被否定节点，成本极低收益极高"
+        },
+        {
+          "term": "G2 代码与谱系交织",
+          "definition": "commit 强制附带谱系节点 ID"
+        },
+        {
+          "term": "C7 度量 vs 拓扑区分",
+          "definition": "dispatch-spec 修改提案强制声明变更类型"
+        },
+        {
+          "term": "话语旋转引擎",
+          "definition": "废除静态事件路由，重构为拓扑信号驱动（A1/A4 + 质询1）"
+        },
+        {
+          "term": "统一异质审计协议",
+          "definition": "废除零散 Guard 脚本，重构为标准交换协议（062号推论 + 遗漏1）"
+        },
+        {
+          "term": "双向质询网络",
+          "definition": "打破 Master-Worker，建立对等互质询拓扑（A5 + 质询2）"
+        }
+      ],
+      "references": [
+        "020",
+        "053",
+        "062",
+        "064",
+        "065",
+        "067",
+        "068"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {
+        "negated_by": [
+          "068"
+        ]
+      },
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "df8df30b83902db05b15379e7cb42c72bf9a84f4740979d33f6d86841a00e47c"
+  ],
+  "git_ref": ""
+}

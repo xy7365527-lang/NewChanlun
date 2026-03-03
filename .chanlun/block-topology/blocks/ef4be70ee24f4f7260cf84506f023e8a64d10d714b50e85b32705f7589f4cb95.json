@@ -1,0 +1,70 @@
+{
+  "id": "ef4be70ee24f4f7260cf84506f023e8a64d10d714b50e85b32705f7589f4cb95",
+  "type": "rewrite",
+  "timestamp": "2026-03-03T02:18:12.499419+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "7f90cf628eb34c3b0d1be9cf0e18febdc8f372a4bd51d2a9aab888aa88a5d854",
+    "content_analysis": {
+      "genealogy_id": "026",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "矛盾/发现"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "推导链"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "实例"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "与卢麒元分析的关联"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "对当前实现的影响"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "前置谱系"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "结算条件（全部满足）"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "图内顶点",
+          "definition": "与其他三个资产类别之间有资本流转关系"
+        },
+        {
+          "term": "度量基准",
+          "definition": "其他三个顶点的\"价格\"都是以 CASH 为分母计价的"
+        }
+      ],
+      "references": [],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "7f90cf628eb34c3b0d1be9cf0e18febdc8f372a4bd51d2a9aab888aa88a5d854"
+  ],
+  "git_ref": ""
+}

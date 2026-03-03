@@ -1,0 +1,174 @@
+{
+  "id": "ff7e2f26a422208b0eddd55570abfd7c54e28a8cc783b81ed711a50b48e8adae",
+  "type": "rewrite",
+  "timestamp": "2026-03-03T02:18:12.752287+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "c44c3859ef8079f67f55b954ca818f314832eb42c4a9fc1a153b7c32cc3a4934",
+    "content_analysis": {
+      "genealogy_id": "233",
+      "sections": [
+        {
+          "level": 2,
+          "number": "1",
+          "title": "结论"
+        },
+        {
+          "level": 2,
+          "number": "2",
+          "title": "定义依据"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "公理来源"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "数据特征满足定理条件"
+        },
+        {
+          "level": 2,
+          "number": "3",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "4",
+          "title": "下游推论"
+        },
+        {
+          "level": 3,
+          "number": "4",
+          "title": "1 缠论离散化是信息重组，非信息损失"
+        },
+        {
+          "level": 3,
+          "number": "4",
+          "title": "2 E-R 跷跷板的\"消失\"是结构性的"
+        },
+        {
+          "level": 3,
+          "number": "4",
+          "title": "3 C-R 避险同向性的\"放大\"是结构性的"
+        },
+        {
+          "level": 3,
+          "number": "4",
+          "title": "4 纤维丛联络 = D 的余像结构"
+        },
+        {
+          "level": 3,
+          "number": "4",
+          "title": "5 FLAT 态是 ker(D) 的\"容器\""
+        },
+        {
+          "level": 2,
+          "number": "5",
+          "title": "谱系引用"
+        },
+        {
+          "level": 2,
+          "number": "6",
+          "title": "影响声明"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "新增代码"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "不修改的结构"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "新增概念"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "操作语义标注（260-3 决断）"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "D1（bar → 笔）",
+          "definition": "包含处理 + 分型 → 笔只编码方向（up/down），丢弃幅度"
+        },
+        {
+          "term": "D2（笔 → 线段）",
+          "definition": "特征序列分型 → 短促振荡被合并，弱方向信号被吸收"
+        },
+        {
+          "term": "D3（线段 → 中枢 → 走势方向）",
+          "definition": "中枢 [ZD,ZG] 吸收区间内振荡，走势方向仅由中枢间位置关系决定"
+        },
+        {
+          "term": "幅度耦合携带方向信息",
+          "definition": "如果某资产对的幅度共振同时伴随方向同步（如：大涨时同涨，大跌时同跌，小幅时独立），则 D1 不完全吸收，部分幅度耦合可能穿透到离散层面。当前 E-R 数据显示这不成立（β ≈ 0）。"
+        },
+        {
+          "term": "缠论参数改变",
+          "definition": "如果笔的间距阈值、中枢的重叠条件等参数改变，ker(D) 的边界会平移。例如更宽松的笔定义（保留更多短促波动）可能使 D1 的幅度吸收减弱。"
+        },
+        {
+          "term": "时间尺度变化",
+          "definition": "ker(D) 的结构在不同级别（1分钟/日线/周线）可能不同，因为不同时间尺度下幅度耦合和方向耦合的相对强度可能改变。"
+        },
+        {
+          "term": "非线性耦合",
+          "definition": "当前分析假设耦合以线性偏相关度量。强非线性耦合（如尾部依赖）可能在线性度量中被低估，在离散层面显现。"
+        },
+        {
+          "term": "bi.md, xianduan.md, zhongshu.md, qushi.md",
+          "definition": "ker(D) 推导的公理来源。"
+        },
+        {
+          "term": "离散化算子 D = D3 ∘ D2 ∘ D1",
+          "definition": "缠论管线的形式化抽象"
+        },
+        {
+          "term": "ker(D) = 纯幅度耦合",
+          "definition": "缠论离散化的内在选择性原理"
+        }
+      ],
+      "references": [
+        "230",
+        "232",
+        "233",
+        "251",
+        "259"
+      ],
+      "new_concepts": [
+        {
+          "term": "离散化算子 D = D3 ∘ D2 ∘ D1",
+          "qualifier": "",
+          "definition": "缠论管线的形式化抽象"
+        },
+        {
+          "term": "ker(D) = 纯幅度耦合",
+          "qualifier": "",
+          "definition": "缠论离散化的内在选择性原理"
+        },
+        {
+          "term": "吸收率",
+          "qualifier": "",
+          "definition": "1 - |β|/|偏相关|，度量耦合被 D 吸收的程度"
+        }
+      ],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": "缠论的离散化不是对连续动力学的近似，而是**拓扑滤波器**。"
+    }
+  },
+  "refs": [
+    "c44c3859ef8079f67f55b954ca818f314832eb42c4a9fc1a153b7c32cc3a4934"
+  ],
+  "git_ref": ""
+}

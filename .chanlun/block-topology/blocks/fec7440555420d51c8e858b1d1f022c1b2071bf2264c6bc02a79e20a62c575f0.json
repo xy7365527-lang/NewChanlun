@@ -1,0 +1,57 @@
+{
+  "id": "fec7440555420d51c8e858b1d1f022c1b2071bf2264c6bc02a79e20a62c575f0",
+  "type": "rewrite",
+  "timestamp": "2026-03-03T02:18:12.683221+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "70fdb7abbdd1134bdd002a97c206c41dd485b88bda2fd342ee75470d06c59ef4",
+    "content_analysis": {
+      "genealogy_id": "205",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "结论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "根因分析"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "与 143号的关系"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系引用"
+        }
+      ],
+      "concepts": [],
+      "references": [
+        "143",
+        "196",
+        "202",
+        "204",
+        "205"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": "蜂群在 ceremony_scan 返回 clean_terminate=true 后输出格式B并停止，而不是主动寻找下一步可推进方向。"
+    }
+  },
+  "refs": [
+    "70fdb7abbdd1134bdd002a97c206c41dd485b88bda2fd342ee75470d06c59ef4"
+  ],
+  "git_ref": ""
+}

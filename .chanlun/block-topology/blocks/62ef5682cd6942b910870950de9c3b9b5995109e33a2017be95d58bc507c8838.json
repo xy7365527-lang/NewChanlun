@@ -1,0 +1,166 @@
+{
+  "id": "62ef5682cd6942b910870950de9c3b9b5995109e33a2017be95d58bc507c8838",
+  "type": "rewrite",
+  "timestamp": "2026-03-03T02:18:12.761599+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "419f8fdc3054d943136d7064286b318b5231950914cdef8bff7eca208777d36e",
+    "content_analysis": {
+      "genealogy_id": "235",
+      "sections": [
+        {
+          "level": 2,
+          "number": "1",
+          "title": "结论"
+        },
+        {
+          "level": 2,
+          "number": "2",
+          "title": "定义依据"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "理论推导（L0）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "公理来源"
+        },
+        {
+          "level": 2,
+          "number": "3",
+          "title": "边界条件"
+        },
+        {
+          "level": 3,
+          "number": "3",
+          "title": "1 放大比阈值"
+        },
+        {
+          "level": 3,
+          "number": "3",
+          "title": "2 单层数据的局限"
+        },
+        {
+          "level": 3,
+          "number": "3",
+          "title": "3 放大是相对的"
+        },
+        {
+          "level": 3,
+          "number": "3",
+          "title": "4 R-$ 边界行为"
+        },
+        {
+          "level": 2,
+          "number": "4",
+          "title": "下游推论"
+        },
+        {
+          "level": 3,
+          "number": "4",
+          "title": "1 缠论离散化是信息重组的精确表述"
+        },
+        {
+          "level": 3,
+          "number": "4",
+          "title": "2 C-R 避险通道的递归构造性"
+        },
+        {
+          "level": 3,
+          "number": "4",
+          "title": "3 R-$ 边界的物理意义"
+        },
+        {
+          "level": 2,
+          "number": "5",
+          "title": "谱系引用"
+        },
+        {
+          "level": 2,
+          "number": "6",
+          "title": "影响声明"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "修改代码"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "不修改的结构"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "新增概念"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "操作语义标注（260-3 决断）"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "bi.md, xianduan.md, zhongshu.md, qushi.md",
+          "definition": "放大机制推导的公理来源。"
+        },
+        {
+          "term": "三态分类",
+          "definition": "D 对耦合的作用从二元（吸收/保留）扩展为三态（吸收/保留/放大）"
+        },
+        {
+          "term": "放大（amplification）",
+          "definition": "方向耦合通过噪声滤除被相对放大，不是绝对放大"
+        },
+        {
+          "term": "共振层",
+          "definition": "产生放大效应的 D 的组成层（D2 线段滤噪 + D3 中枢吸收）"
+        }
+      ],
+      "references": [
+        "231",
+        "232",
+        "233",
+        "234",
+        "235",
+        "259"
+      ],
+      "new_concepts": [
+        {
+          "term": "三态分类",
+          "qualifier": "",
+          "definition": "D 对耦合的作用从二元（吸收/保留）扩展为三态（吸收/保留/放大）"
+        },
+        {
+          "term": "放大（amplification）",
+          "qualifier": "",
+          "definition": "方向耦合通过噪声滤除被相对放大，不是绝对放大"
+        },
+        {
+          "term": "放大比",
+          "qualifier": "",
+          "definition": "|β_d3| / |β_d1|，度量 D1→D3 过程中方向信号信噪比的增幅"
+        },
+        {
+          "term": "共振层",
+          "qualifier": "",
+          "definition": "产生放大效应的 D 的组成层（D2 线段滤噪 + D3 中枢吸收）"
+        }
+      ],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": "233号定义了 ker(D) = 纯幅度耦合（D 吸收的部分）。234号 L2 验证发现 D 的作用不是二元的（ker/非ker），而是**三态的**："
+    }
+  },
+  "refs": [
+    "419f8fdc3054d943136d7064286b318b5231950914cdef8bff7eca208777d36e"
+  ],
+  "git_ref": ""
+}

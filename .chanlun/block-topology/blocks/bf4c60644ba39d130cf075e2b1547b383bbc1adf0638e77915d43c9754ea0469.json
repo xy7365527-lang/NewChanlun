@@ -1,0 +1,53 @@
+{
+  "id": "bf4c60644ba39d130cf075e2b1547b383bbc1adf0638e77915d43c9754ea0469",
+  "type": "rewrite",
+  "timestamp": "2026-03-03T02:18:12.633786+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "fd6bee843d578226a654911acbc78fa04ff47496cd5d607b515a837569cbed99",
+    "content_analysis": {
+      "genealogy_id": "181",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "原始观察"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "原始判断（已修正）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "编排者修正"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "附加观察（保留）"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "Lead 从 session 读取决断启动工位不是\"绕过\"ceremony_scan",
+          "definition": "—这就是正确路径。编排者决断是人类行为，通过人类可读通道（session 文件）传递，由 CC 在下一轮启动时读取。"
+        }
+      ],
+      "references": [
+        "181"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "fd6bee843d578226a654911acbc78fa04ff47496cd5d607b515a837569cbed99"
+  ],
+  "git_ref": ""
+}

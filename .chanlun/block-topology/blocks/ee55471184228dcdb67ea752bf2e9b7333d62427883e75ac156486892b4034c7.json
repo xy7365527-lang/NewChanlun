@@ -1,0 +1,61 @@
+{
+  "id": "ee55471184228dcdb67ea752bf2e9b7333d62427883e75ac156486892b4034c7",
+  "type": "rewrite",
+  "timestamp": "2026-03-03T02:18:12.528822+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "0f19999e932a0d79fea1f89eef7ce0b759c6d22e990f9ec6f0332dc35a0e82db",
+    "content_analysis": {
+      "genealogy_id": "057",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "语法规则"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "发现经过"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "已执行修复"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "异质否定来源"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游开放问题（已决断）"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系链接"
+        }
+      ],
+      "concepts": [],
+      "references": [
+        "043",
+        "044",
+        "048",
+        "055"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "0f19999e932a0d79fea1f89eef7ce0b759c6d22e990f9ec6f0332dc35a0e82db"
+  ],
+  "git_ref": ""
+}

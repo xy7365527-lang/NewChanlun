@@ -1,0 +1,59 @@
+{
+  "id": "29255d382d22ca763bce234fd30bcd3441ecce9923f3de14f61ebd0c5d875aa5",
+  "type": "rewrite",
+  "timestamp": "2026-03-03T02:18:12.674278+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "5d29c2b7b28d0f9a774c8f7a397bbcabb832898eb58a615e34e1a55bf95b4799",
+    "content_analysis": {
+      "genealogy_id": "200",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "结论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "定义依据"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "修复"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系引用"
+        }
+      ],
+      "concepts": [],
+      "references": [
+        "186",
+        "200"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": "Plan 阶段（ExitPlanMode 前）创建的 TaskCreate 任务在实现完成后不会自动标记为 completed。\n这导致 Stop-Guard 持续检测到\"活跃任务\"并阻断停止，即使所有工作已完成。"
+    }
+  },
+  "refs": [
+    "5d29c2b7b28d0f9a774c8f7a397bbcabb832898eb58a615e34e1a55bf95b4799"
+  ],
+  "git_ref": ""
+}

@@ -1,0 +1,135 @@
+{
+  "id": "e0be873fc35c93cddaecc1b3b040ba14637036c3c0a79e1e181b18f98e355a91",
+  "type": "rewrite",
+  "timestamp": "2026-03-03T02:18:13.046900+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "ee9c9eea8e942b9f4546b4d47488c20e8d47d50344798569214d53e5b7f3d28d",
+    "content_analysis": {
+      "genealogy_id": "307",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "递归判断"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "观察对象"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "关键文件变更"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "观察结果"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "观察1（收敛信号）：两个并行 agent 的 spawn 合理性——独立文件无数据依赖"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "观察2（发散信号）：enrichment 首次执行引发拓扑度量跃变——有效域从 L0 到 L2 的跨越"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "观察3（收敛信号）：KeyError 防御修复——边界数据的防御性处理"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "观察4（收敛信号）：修正提取三层策略——概念层级的逐步降级"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "观察5（收敛信号）：commit 规模与产出比——305 文件 +35781 行的结构"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "观察6（发散信号）：12 conflicts 中 10 条来自同一 refines 关系的连锁——enrichment 精度问题"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "规则触发/违反模式"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "历史候选状态检查"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "自环检查"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "总结"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "下游推论解决记录（v133-swarm session）"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "四分法分类",
+          "definition": "定理——218号的并行/串行判断规则在三轮中一致适用。"
+        }
+      ],
+      "references": [
+        "090",
+        "116",
+        "137",
+        "189",
+        "216",
+        "218",
+        "231",
+        "258",
+        "273",
+        "278",
+        "288",
+        "302",
+        "303",
+        "304",
+        "305",
+        "306",
+        "307",
+        "308"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "ee9c9eea8e942b9f4546b4d47488c20e8d47d50344798569214d53e5b7f3d28d"
+  ],
+  "git_ref": ""
+}

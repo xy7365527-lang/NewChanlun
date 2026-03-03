@@ -1,0 +1,106 @@
+{
+  "id": "ec9a0de555bd8f37682e844fc5df3ae63129e9fc33cac74e5d99fb0e95496ab3",
+  "type": "rewrite",
+  "timestamp": "2026-03-03T02:18:12.742424+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "8f73573f35983cb8457b90aa75db44ded77df06f9cb47f9d6be6c2787d08aae1",
+    "content_analysis": {
+      "genealogy_id": "231",
+      "sections": [
+        {
+          "level": 2,
+          "number": "1",
+          "title": "结论"
+        },
+        {
+          "level": 2,
+          "number": "2",
+          "title": "定义依据"
+        },
+        {
+          "level": 2,
+          "number": "3",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "4",
+          "title": "下游推论"
+        },
+        {
+          "level": 2,
+          "number": "5",
+          "title": "谱系引用"
+        },
+        {
+          "level": 2,
+          "number": "6",
+          "title": "影响声明"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "新增"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "修改"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "影响范围"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "规则",
+          "definition": "任何形式化操作的有效域可能严格小于其定义域。每次形式化操作必须标注认识论等级（L0-L3）。"
+        },
+        {
+          "term": "纯代数产出不受影响",
+          "definition": "如果产出声明仅限 L0（如\"圈秩=3\"），则有效域=定义域，无需额外验证——这是定义，不是假设。"
+        },
+        {
+          "term": "规则翻转条件",
+          "definition": "如果发现某类形式化操作的有效域恒等于定义域（即不存在 domain gap），该类操作可豁免标注。目前未发现此类操作。"
+        },
+        {
+          "term": "等级体系扩展",
+          "definition": "如果出现 L0-L3 无法分类的验证类型，需要扩展体系而非降级标注。"
+        },
+        {
+          "term": "结果包格式影响",
+          "definition": "涉及形式化操作的结果包应在\"定义依据\"或\"边界条件\"中包含认识论等级标注。这不是结果包六要素的新增字段，而是对现有字段的具体化要求——\"定义依据\"已要求说明\"输入数据的哪些特征满足了定义的哪些条件\"，认识论等级是这一要求的操作化。"
+        },
+        {
+          "term": "审计标准",
+          "definition": "后续审计中，未标注认识论等级的形式化声明视为不合格（等同于结果包缺失要素）。"
+        },
+        {
+          "term": "合成验证的定位",
+          "definition": "L1 验证仍有价值（确认管线正确性），但不能声称\"已验证假设\"。"
+        }
+      ],
+      "references": [
+        "090",
+        "222",
+        "223",
+        "230",
+        "231"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": "222/223/230 三例构成稳定模式，固化为蜂群语法规则："
+    }
+  },
+  "refs": [
+    "8f73573f35983cb8457b90aa75db44ded77df06f9cb47f9d6be6c2787d08aae1"
+  ],
+  "git_ref": ""
+}

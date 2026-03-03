@@ -1,0 +1,135 @@
+{
+  "id": "3c64479d102ee25e1dae1c905284f62ef00bd206c7cdba8c95b6bbde503bc3fc",
+  "type": "rewrite",
+  "timestamp": "2026-03-03T02:18:12.777307+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "aa2e95befe78c9c29e553034ad35a5737e52af3ef88e6396a4aadf627ffcefd0",
+    "content_analysis": {
+      "genealogy_id": "241",
+      "sections": [
+        {
+          "level": 2,
+          "number": "1",
+          "title": "结论"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "原始实现（双层简化）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "修复后实现（真实共振构建）"
+        },
+        {
+          "level": 2,
+          "number": "2",
+          "title": "定义依据"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "共振的精确定义（levels-bsp-v2 §5）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "FiberSignalFilter 覆盖逻辑（240号）"
+        },
+        {
+          "level": 2,
+          "number": "3",
+          "title": "边界条件"
+        },
+        {
+          "level": 3,
+          "number": "3",
+          "title": "1 中心点退化"
+        },
+        {
+          "level": 3,
+          "number": "3",
+          "title": "2 polarity 与 BSP 方向一致时"
+        },
+        {
+          "level": 3,
+          "number": "3",
+          "title": "3 polarity 与 BSP 方向相反时"
+        },
+        {
+          "level": 3,
+          "number": "3",
+          "title": "4 纤维丛高阈值退化"
+        },
+        {
+          "level": 2,
+          "number": "4",
+          "title": "下游推论"
+        },
+        {
+          "level": 3,
+          "number": "4",
+          "title": "1 对比回测可行"
+        },
+        {
+          "level": 3,
+          "number": "4",
+          "title": "2 纤维丛版入场可选启用"
+        },
+        {
+          "level": 2,
+          "number": "5",
+          "title": "谱系引用"
+        },
+        {
+          "level": 2,
+          "number": "6",
+          "title": "影响声明"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "修改的文件"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "新增的文件"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "不修改的文件"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "向后兼容性"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "meta-observer-v88",
+          "definition": "首次观测到双层简化绕过共振筛选的问题。"
+        }
+      ],
+      "references": [
+        "236",
+        "240",
+        "241"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": "`pipeline_backtest.py::_build_resonance_signals` 从双层简化升级为双模型并行共振构建。"
+    }
+  },
+  "refs": [
+    "aa2e95befe78c9c29e553034ad35a5737e52af3ef88e6396a4aadf627ffcefd0"
+  ],
+  "git_ref": ""
+}

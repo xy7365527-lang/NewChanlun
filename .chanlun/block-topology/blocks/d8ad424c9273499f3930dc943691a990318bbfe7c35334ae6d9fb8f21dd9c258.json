@@ -1,0 +1,178 @@
+{
+  "id": "d8ad424c9273499f3930dc943691a990318bbfe7c35334ae6d9fb8f21dd9c258",
+  "type": "rewrite",
+  "timestamp": "2026-03-03T02:18:12.884160+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "147efe2a32066661a6b993a72d24e44e6dd84f9a453a73fdb2688afb7ae92baa",
+    "content_analysis": {
+      "genealogy_id": "268",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "观察对象"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "观察 1（发散信号）：252号引用错位——谱系编号与实体不一致"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "现象"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "根因"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "与历史模式的关系"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "分类"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "观察 2（收敛信号）：267号对254号定义引用的正确性"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "检查结果"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "分类"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "观察 3（收敛信号）：概率论框架扬弃推导链的完整性"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "推导链重建"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "与265号的对比"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "分类"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "观察 4（收敛信号）：与265号帕萨卡利亚关系标注的正确性"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "检查结果"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "分类"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "观察 5（收敛信号）：认识论等级标注的正确性"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "检查结果"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "分类"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "观察 6（待观察）：267号与265号降成本公式的继承关系未显式化"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "现象"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "分类"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "自环检查"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "新发现摘要"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "边界条件"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "影响声明"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "前提否定",
+          "definition": "三个独立程序（缠论走势、比价关系、基本面）在254号本体论中已统一为资本流在不同尺度上的读数（254号开放问题3，第128-130行）"
+        },
+        {
+          "term": "替代方案",
+          "definition": "完全分类的二值判断（不测而测原则的操作化）"
+        }
+      ],
+      "references": [
+        "016",
+        "076",
+        "232",
+        "235",
+        "252",
+        "254",
+        "255",
+        "263",
+        "265",
+        "266",
+        "267",
+        "268"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "147efe2a32066661a6b993a72d24e44e6dd84f9a453a73fdb2688afb7ae92baa"
+  ],
+  "git_ref": ""
+}

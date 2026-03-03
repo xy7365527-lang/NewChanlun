@@ -1,0 +1,46 @@
+{
+  "id": "b82e7309c3d7f90ee1ebb1e4dcb3b485bca1ed15bcc9769d59fe67cce4695e42",
+  "type": "rewrite",
+  "timestamp": "2026-03-03T02:18:12.717266+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "e1815e9cd7d50697fcd034932ff3a9eee1956ef17263bfb856c793ba781d650f",
+    "content_analysis": {
+      "genealogy_id": "223",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "反例构造"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "修复"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "谱系引用"
+        }
+      ],
+      "concepts": [],
+      "references": [
+        "115"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {
+        "negation_source": "heterogeneous",
+        "negation_form": "unclassified"
+      },
+      "conclusion_summary": ""
+    }
+  },
+  "refs": [
+    "e1815e9cd7d50697fcd034932ff3a9eee1956ef17263bfb856c793ba781d650f"
+  ],
+  "git_ref": ""
+}

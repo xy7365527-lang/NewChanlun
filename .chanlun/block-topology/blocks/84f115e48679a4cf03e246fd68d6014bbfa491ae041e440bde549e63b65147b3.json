@@ -1,0 +1,129 @@
+{
+  "id": "84f115e48679a4cf03e246fd68d6014bbfa491ae041e440bde549e63b65147b3",
+  "type": "rewrite",
+  "timestamp": "2026-03-03T02:18:12.774409+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "1bb3f98ca6c8ac095375dfff6592a0077d120a03e316181bcafb1110b43595a4",
+    "content_analysis": {
+      "genealogy_id": "240",
+      "sections": [
+        {
+          "level": 2,
+          "number": "1",
+          "title": "结论"
+        },
+        {
+          "level": 2,
+          "number": "2",
+          "title": "定义依据"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "FiberTradingContext（包装模式）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "FiberSignalFilter（覆盖决策）"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "polarity 分歧的策略含义"
+        },
+        {
+          "level": 2,
+          "number": "3",
+          "title": "边界条件"
+        },
+        {
+          "level": 3,
+          "number": "3",
+          "title": "1 底空间中心退化"
+        },
+        {
+          "level": 3,
+          "number": "3",
+          "title": "2 平坦联络退化"
+        },
+        {
+          "level": 3,
+          "number": "3",
+          "title": "3 覆盖不是替代"
+        },
+        {
+          "level": 2,
+          "number": "4",
+          "title": "下游推论"
+        },
+        {
+          "level": 3,
+          "number": "4",
+          "title": "1 37% 方向翻转的策略影响"
+        },
+        {
+          "level": 3,
+          "number": "4",
+          "title": "2 高分歧区域集中在底空间边缘"
+        },
+        {
+          "level": 3,
+          "number": "4",
+          "title": "3 PipelineBacktestEngine 可选集成"
+        },
+        {
+          "level": 2,
+          "number": "5",
+          "title": "谱系引用"
+        },
+        {
+          "level": 2,
+          "number": "6",
+          "title": "影响声明"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "新增代码"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "不修改的结构"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "FiberTradingContext",
+          "definition": "包装 TradingContext + 纤维丛修正，使策略层可以同时看到直积 polarity 和纤维丛 polarity"
+        },
+        {
+          "term": "create_fiber_context()",
+          "definition": "从 TradingContext 创建纤维丛增强版"
+        },
+        {
+          "term": "FiberSignalFilter",
+          "definition": "polarity 分歧检测 + 覆盖决策 + 修正报告"
+        }
+      ],
+      "references": [
+        "230",
+        "232",
+        "236",
+        "240"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": "236号建立了 FiberPipelineAdapter + FiberCorrection，量化了直积 vs 纤维丛的偏差。\n240号将纤维丛修正从\"度量层\"提升到\"策略层\"："
+    }
+  },
+  "refs": [
+    "1bb3f98ca6c8ac095375dfff6592a0077d120a03e316181bcafb1110b43595a4"
+  ],
+  "git_ref": ""
+}

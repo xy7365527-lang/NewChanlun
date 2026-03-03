@@ -1,0 +1,96 @@
+{
+  "id": "d6f6572539342815683e7b626f5e0be5a7a78c7fca35d16253c20de3680d5cd1",
+  "type": "rewrite",
+  "timestamp": "2026-03-03T02:18:13.058387+00:00",
+  "source": "migration",
+  "content": {
+    "action": "content_enrichment",
+    "original_block": "c5a20868f01f084b168a785586fc8c1bee0a44aafb090192ded70d344acc60a5",
+    "content_analysis": {
+      "genealogy_id": "310",
+      "sections": [
+        {
+          "level": 2,
+          "number": "",
+          "title": "递归判断"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "规则版本基线"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "观察对象"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "观察结果"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "观察1（收敛信号）：裁定→代码的执行闭环"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "观察2（收敛信号）：结构标记过滤的判断依据层级验证"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "观察3（发散信号）：LOGICAL_RELATIONS ⊄ TOPOLOGICAL_RELATIONS 的集合关系异常"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "观察4（收敛信号）：并行工位分派持续一致"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "观察5（自环检查）：与历史 meta-observation 的交叉对比"
+        },
+        {
+          "level": 2,
+          "number": "",
+          "title": "结论"
+        },
+        {
+          "level": 3,
+          "number": "",
+          "title": "补充记录（session_end guard 触发）"
+        }
+      ],
+      "concepts": [
+        {
+          "term": "四分法分类",
+          "definition": "定理——090号在裁定执行场景下的逻辑推论。"
+        }
+      ],
+      "references": [
+        "090",
+        "137",
+        "218",
+        "304",
+        "305",
+        "307",
+        "308",
+        "309",
+        "310"
+      ],
+      "new_concepts": [],
+      "modifications": [],
+      "negations": [],
+      "frontmatter_negation": {},
+      "conclusion_summary": "本轮核心产出是 309号裁定的忠实代码实现——四议题逐条对应，无范围膨胀。195 测试全通过。一个发散信号（观察3：`NAVIGATIONAL ⊄ TOPOLOGICAL` 的集合关系异常）是定理类，标注备查。308号语法记录候选（过滤判断依据层级）第二次收敛确认。"
+    }
+  },
+  "refs": [
+    "c5a20868f01f084b168a785586fc8c1bee0a44aafb090192ded70d344acc60a5"
+  ],
+  "git_ref": ""
+}
