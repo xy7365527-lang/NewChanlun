@@ -1685,6 +1685,11 @@ nodes:
   status: 已结算
   type: audit
   file: settled/348-stagnation-diagnosis-v153-v155.md
+- id: '349'
+  title: 赋格状态机形式化定义——267号第七节的状态集/转移函数/输入输出显式化
+  status: settled
+  type: theorem
+  file: settled/349-fugue-state-machine-definition.md
 edges:
   depends_on:
   - from: '136'
@@ -3561,6 +3566,16 @@ edges:
     to: '314'
   - from: '348'
     to: 090
+  - from: '349'
+    to: '267'
+  - from: '349'
+    to: '265'
+  - from: '349'
+    to: '338'
+  - from: '349'
+    to: '295'
+  - from: '349'
+    to: '264'
   triggered:
   - from: '005'
     to: 005a
@@ -5037,3 +5052,13 @@ edges:
     to: '344'
   - from: '346'
     to: '345'
+  - from: '349'
+    to: '267'
+  - from: '349'
+    to: '265'
+  - from: '349'
+    to: '338'
+  - from: '349'
+    to: '295'
+  - from: '349'
+    to: '264'
