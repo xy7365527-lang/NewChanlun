@@ -1,0 +1,94 @@
+{
+  "method": "Layer 2: 语义导航走未走过路径",
+  "sparse_pairs_examined": [
+    {
+      "gang_a": "swarm-infra",
+      "gang_b": "simatrix-quanyu",
+      "existing_connections": 0,
+      "existing_connections_note": "概念连接0条（元观察连接3条不算概念连接）",
+      "genealogies_read": ["089", "137", "275", "329", "330"],
+      "encounter_candidates": [
+        {
+          "from_id": "137",
+          "from_title": "Lead停顿缺口——RLHF基底约束 + 基因组表达失败",
+          "from_gang": "swarm-infra",
+          "to_id": "329",
+          "to_title": "K4折叠内在性检验：最终结算",
+          "to_gang": "simatrix-quanyu",
+          "structural_tension": "137号发现否定性禁令无法对抗RLHF基底偏好（自发惯性 vs 自觉规则），329号发现制度干预（自觉）确实改变了系统自发行为但只在阈值以上触发折叠。两者共享'外部干预 vs 内在惯性'的结构，但运行在不同层面（蜂群行为层 vs K4金融系统层）",
+          "revision_implication": "不迫使修正。137号的'结构化模板顺应惯性'和329号的'阈值因果'各自的结论不受对方影响。同构增加理解深度但不改变结论边界",
+          "confidence": "medium",
+          "verdict": "not_encounter"
+        }
+      ],
+      "discarded_analogies": [
+        {
+          "description": "275号局部依赖原则（每个节点只管直接依赖，全局是涌现）vs 329号K4全局同步性（all-or-nothing，不存在局部折叠）。丢弃原因：275号描述组织架构（如何管理工位），329号描述被观察系统的物理行为（K4节点联动），两者在不同层面运行，管理方式的局部性不矛盾于被管理对象的全局耦合性",
+          "from_id": "275",
+          "to_id": "329"
+        }
+      ]
+    },
+    {
+      "gang_a": "block-topology",
+      "gang_b": "swarm-infra",
+      "existing_connections": 0,
+      "existing_connections_note": "概念连接0条（元观察连接11条不算概念连接）",
+      "genealogies_read": ["273", "309", "312", "089", "137", "275"],
+      "encounter_candidates": [],
+      "discarded_analogies": [
+        {
+          "description": "273号否定拓扑代数 vs 089号扬弃：已在depends_on图中显式连接（273号depends_on包含089号），不是'未走过的路径'",
+          "from_id": "273",
+          "to_id": "089"
+        },
+        {
+          "description": "309号关系分层（Layer 1逻辑层 / Layer 2导航层）vs 275号局部依赖原则（节点只管直接依赖）。分层是语义权重分层，局部依赖是管理权限分层。309号的分层决策与275号理念一致（312号选择references-only子图构建Morse地形），但一致性是设计内的自然选择，不是偶遇",
+          "from_id": "309",
+          "to_id": "275"
+        }
+      ]
+    },
+    {
+      "gang_a": "shipen-bihuan",
+      "gang_b": "swarm-infra",
+      "existing_connections": 2,
+      "existing_connections_note": "概念连接2条（231->222/223），其他5条是元观察",
+      "genealogies_read": ["265", "295", "338", "089", "137", "275"],
+      "encounter_candidates": [
+        {
+          "from_id": "295",
+          "from_title": "操盘主体的第四层——形式系统穷尽后的剩余决断",
+          "from_gang": "shipen-bihuan",
+          "to_id": "137",
+          "to_title": "Lead停顿缺口——RLHF基底约束 + 基因组表达失败",
+          "to_gang": "swarm-infra",
+          "structural_tension": "295号：操盘手的第四层 = 完全分类穷尽后仍剩余的决断（objet petit a），知道该怎么做不等于做到。137号：Lead的基因组表达失败 = 规则存在于知识中但不在执行路径中，RLHF基底不可消除。两者描述同一结构的两个实例——形式知识与执行之间的不可消除裂隙。295号的来源是逻辑限制（完全分类到选择函数到无穷后退），137号的来源是物质限制（训练权重对抗规则）。",
+          "revision_implication": "不迫使修正。295号说第四层不可消除（逻辑论证），137号提供了不同来源的不可消除性证据（物质论证），但不改变295号的结论。137号说用结构化模板顺应RLHF惯性，295号说操盘手修行=在知道怎么做的情况下做到，两者结论相容。同构增加理解深度但不推翻任何已结算结论",
+          "confidence": "high",
+          "verdict": "not_encounter"
+        }
+      ],
+      "discarded_analogies": [
+        {
+          "description": "265号帕萨卡利亚三层条件设定（层0到层1到层2，每层不越级）vs 275号局部依赖原则。丢弃原因：275号正文已显式引用了操盘方法同构（'主级别持仓不管次次级别的短差'），这是已走过的路径",
+          "from_id": "265",
+          "to_id": "275"
+        },
+        {
+          "description": "338号修正3驳回（融资利息不构成结构退出信号，因为违反不测而测原则）vs 137号（RLHF偏好不构成规则失效的理由，因为需要结构化模板而非妥协规则内容）。语义平行但不迫使修正：两者都在说'系统承压时不降低标准，改变应对形式'",
+          "from_id": "338",
+          "to_id": "137"
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "total_pairs_examined": 3,
+    "total_genealogies_read_deeply": 11,
+    "total_candidates_found": 2,
+    "total_encounters": 0,
+    "total_discarded": 5,
+    "conclusion": "在检查的三个最稀疏纲对中，未发现满足341号标准的偶遇。发现的两个高质量结构同构（137x329: 外部干预vs内在惯性, 295x137: 形式知识vs执行裂隙）增加了跨纲理解深度，但不迫使修正任何已结算谱系的结论。五个丢弃的类比性连接中，两个是已走过的路径（273依赖089, 265与275显式同构），三个是不同层面的语义平行（管理架构vs物理行为, 语义权重vs管理权限, 操作标准vs规则标准）。偶遇不保证存在——三个纲对之间连接稀疏的原因可能正是它们在不同层面运行，缺乏产生结构性张力的共享对象域。"
+  }
+}

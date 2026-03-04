@@ -1,0 +1,62 @@
+{
+  "total_cross_gang": 107,
+  "classified": {
+    "design_internal": 107,
+    "encounter": 0,
+    "analogy": 0,
+    "uncertain": 0
+  },
+  "encounters": [],
+  "design_internal_summary": {
+    "meta_observation_refs": 32,
+    "block_topology_mapping": 9,
+    "k4_research_chain_cross_gang": 39,
+    "operational_methodology_to_k4_ontology": 14,
+    "grammar_rule_crystallization": 4,
+    "fold_experiment_to_fold_ontology": 6,
+    "swarm_meta_obs_chain": 3
+  },
+  "uncertain_edges": [],
+  "classification_rationale": {
+    "summary": "107条跨纲边全部为设计内引用。跨纲依赖反映的是组织分类学（谱系在哪个纲被创建），不是概念边界碰撞。没有任何边迫使修正已有理解或改变推进方向。",
+    "major_patterns": [
+      {
+        "pattern": "meta_observation_refs",
+        "count": 32,
+        "description": "元观察(301-313, 316, 322, 326-328号等)引用其他纲的谱系。元观察的功能就是观察所有纲的蜂群行为，跨纲引用是其设计功能。包括: block-topology元观察引用shipen-bihuan概念定义(273/231/292等), block-topology元观察引用swarm-infra架构规则(218/226), shipen-bihuan元观察引用swarm-infra元观察(216/219/224/225/228/221), simatrix-quanyu元观察引用block-topology元观察(327/328/314), simatrix-quanyu元观察引用swarm-infra元观察(228/221)"
+      },
+      {
+        "pattern": "k4_research_chain_cross_gang",
+        "count": 39,
+        "description": "K4研究链横跨shipen-bihuan/k4-independence-fiber(229-252号闭合目)和simatrix-quanyu/k4-engineering(253号起)。同一研究程序在两个纲之间的依赖——k4-engineering使用k4-independence-fiber的结果(253→252/241/244/233, 254→231/232/233/234/235/245, 255→252/241/232/233/234/235, 256→233/235, 257→233/234, 259→234/235/232, 262→234/235)。这是研究的自然推进链，不是偶遇。"
+      },
+      {
+        "pattern": "operational_methodology_to_k4_ontology",
+        "count": 14,
+        "description": "操作方法论(265/267/268/269/279/282/284/292/293/297号)引用K4本体论(254/255/257/260/263/264号)。操作方法论从K4框架推导而来，依赖关系是架构设计。包括: 265→254/264/255(帕萨卡利亚从K4推导), 267→254(v1建立在K4上), 268→254(元观察引用K4), 269→254/257(OQ5质询建立在K4上), 279→254(OQ5验证), 282→260(元观察链), 284→254(D算子阅读), 292→254/255(折叠本体论从K4推导), 293→254(星形拓扑), 297→255(统一论)"
+      },
+      {
+        "pattern": "block_topology_mapping",
+        "count": 9,
+        "description": "区块拓扑Phase 2/3工程(302-312号)引用领域概念(273号否定拓扑代数, 231号有效域规则)。区块拓扑的功能就是编码所有谱系的拓扑结构，引用被编码的概念是设计功能。"
+      },
+      {
+        "pattern": "fold_experiment_to_fold_ontology",
+        "count": 6,
+        "description": "折叠实验线(317/319/321/323号, block-topology)引用折叠本体论(292号, shipen-bihuan)和K4框架(231/290号)。实验验证理论——设计内依赖。以及329号(simatrix-quanyu/k4-regime-analysis)引用292/231号, 330号(simatrix-quanyu)引用292/231号——K4体制分析引用折叠理论和有效域规则。"
+      },
+      {
+        "pattern": "grammar_rule_crystallization",
+        "count": 4,
+        "description": "语法规则结晶跨纲: 231号(shipen-bihuan)→222/223号(swarm-infra, K4错误发现于蜂群会话中), 338号(simatrix-quanyu)→267/295号(shipen-bihuan, 方法论修正链), 341号(simatrix-quanyu)→301号(block-topology, 穿越基础设施工程来源). 规则从具体案例泛化，案例可能分布在不同纲——这是结晶机制的设计功能。"
+      },
+      {
+        "pattern": "swarm_meta_obs_chain",
+        "count": 3,
+        "description": "蜂群元观察(278/285号, shipen-bihuan)引用先前元观察(216/219号, swarm-infra)作为模式前例。元观察链天然跨纲。以及291号(shipen-bihuan)引用224/225号(swarm-infra)ceremony原子性规则——元观察检查规则合规性。"
+      }
+    ],
+    "why_no_encounters": "所有跨纲边都可追溯到以下设计机制之一: (1)元观察观察所有纲, (2)K4研究链是同一程序跨两个纲, (3)操作方法论从K4推导, (4)区块拓扑编码所有谱系, (5)折叠实验验证折叠理论, (6)语法规则从多纲案例结晶, (7)元观察链引用先前元观察。没有任何边表现出'在做A时意外撞上B并迫使修正A'的偶遇特征。跨纲边密集但全部是架构必然的——五个纲不是孤立的概念岛，而是同一研究程序的不同维度。",
+    "gangmu_taxonomy_observation": "跨纲边数量(107/907=11.8%)低于预期。大量同纲边(272条)和未映射边(528条)表明纲内聚合度高。107条跨纲边集中在少数高连接度节点: 254号(被引12次), 231号(被引10次), 292号(被引5次), 273号(被引6次), 218号(被引10次)——这些是'轴谱系'(hub genealogy)，在纲间提供连接，但连接方式是设计预期的。"
+  }
+}
