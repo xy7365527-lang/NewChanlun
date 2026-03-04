@@ -1,0 +1,15 @@
+{
+  "id": "337",
+  "title": "329号最终结算修订版：四项修正 + 自发/自觉体制动力学签名",
+  "type": "theorem",
+  "status": "已结算",
+  "date": "2026-03-04",
+  "depends_on": [
+    "329",
+    "330",
+    "334",
+    "335"
+  ],
+  "epistemological_level": "L2",
+  "file": "settled/337-329-final-settlement-revision.md"
+}

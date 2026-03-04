@@ -1,0 +1,14 @@
+{
+  "id": "331",
+  "title": "Stagnation审计——ceremony外编排者直驱产出不触发stagnation信号",
+  "type": "audit",
+  "status": "已结算",
+  "date": "2026-03-04",
+  "depends_on": [
+    "327",
+    "314",
+    "090"
+  ],
+  "epistemological_level": "L0",
+  "file": "settled/331-stagnation-audit-false-positive-dismiss.md"
+}

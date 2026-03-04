@@ -1,0 +1,13 @@
+{
+  "id": "334",
+  "title": "同步压缩是体制不是事件：329号三项修正 + 分析框架转换",
+  "type": "event",
+  "status": "已结算",
+  "date": "2026-03-04",
+  "depends_on": [
+    "329",
+    "330"
+  ],
+  "epistemological_level": "L2",
+  "file": "settled/334-sync-compression-is-regime.md"
+}

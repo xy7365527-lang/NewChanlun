@@ -1,0 +1,14 @@
+{
+  "id": "333",
+  "title": "元观察——Au basis 实验 session：编排者直驱模式第三次出现 + ceremony 外实验执行模式",
+  "type": "meta-rule",
+  "status": "已结算",
+  "date": "2026-03-04",
+  "depends_on": [
+    "332",
+    "329",
+    "330"
+  ],
+  "epistemological_level": "L2",
+  "file": "settled/333-meta-observation-au-basis-session.md"
+}
