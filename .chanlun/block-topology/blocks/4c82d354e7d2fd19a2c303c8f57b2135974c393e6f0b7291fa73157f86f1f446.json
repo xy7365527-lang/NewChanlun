@@ -1,0 +1,12 @@
+{
+  "id": "4c82d354e7d2fd19a2c303c8f57b2135974c393e6f0b7291fa73157f86f1f446",
+  "genealogy_id": "344",
+  "title": "元观察——v151-swarm 六线并行 session（编排者自主授权 + ceremony_scan 接口破坏）",
+  "type": "meta-rule",
+  "status": "已结算",
+  "depends_on": [
+    "342",
+    "343"
+  ],
+  "content_hash": "4c82d354e7d2fd19a2c303c8f57b2135974c393e6f0b7291fa73157f86f1f446"
+}
