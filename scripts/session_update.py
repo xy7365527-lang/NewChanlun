@@ -23,12 +23,25 @@ def get_root() -> Path:
 
 
 def get_latest_session(root: Path) -> Path | None:
-    """找到最新的 session 文件。"""
+    """找到最新的 session 文件（按修改时间，排除非日期格式的遗留文件）。"""
     sessions_dir = root / ".chanlun" / "sessions"
     if not sessions_dir.exists():
         return None
-    files = sorted(sessions_dir.glob("*.md"), reverse=True)
-    return files[0] if files else None
+    # 优先匹配 YYYY-MM-DD 格式的 session 文件（排除 v*-swarm-session.md 等遗留文件）
+    dated_files = sorted(
+        sessions_dir.glob("20*-session.md"),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    if dated_files:
+        return dated_files[0]
+    # fallback：所有 .md 文件按修改时间
+    all_files = sorted(
+        sessions_dir.glob("*.md"),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    return all_files[0] if all_files else None
 
 
 def get_head() -> str:
