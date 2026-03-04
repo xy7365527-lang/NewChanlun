@@ -52,3 +52,219 @@ records:
     to_title: 操作方法论——帕萨卡利亚模型（三层条件设定 + 多重赋格）
     to_gang: shipen-bihuan
     to_mu: operational-methodology
+- detected_at: '2026-03-04T22:34:45.857267+00:00'
+  genealogy_id: '351'
+  status: candidate
+  edge:
+    from_id: '351'
+    from_title: 离散Morse理论研究线建立
+    from_gang: morse-topology
+    from_mu: discrete-morse-experiment
+    to_id: '292'
+    to_title: 折叠拓扑本体论——分类学之前的存在论结构
+    to_gang: shipen-bihuan
+    to_mu: operational-methodology
+- detected_at: '2026-03-04T22:34:45.868715+00:00'
+  genealogy_id: '352'
+  status: candidate
+  edge:
+    from_id: '352'
+    from_title: 多标的扫描器设计——递归区间套 × 资本流转拓扑折叠 × 商空间排序
+    from_gang: simatrix-quanyu
+    from_mu: multi-target-scanner
+    to_id: '267'
+    to_title: 操作方法论 v1——满仓满融降成本体系
+    to_gang: shipen-bihuan
+    to_mu: operational-methodology
+- detected_at: '2026-03-04T22:34:45.868715+00:00'
+  genealogy_id: '352'
+  status: candidate
+  edge:
+    from_id: '352'
+    from_title: 多标的扫描器设计——递归区间套 × 资本流转拓扑折叠 × 商空间排序
+    from_gang: simatrix-quanyu
+    from_mu: multi-target-scanner
+    to_id: '265'
+    to_title: 操作方法论——帕萨卡利亚模型（三层条件设定 + 多重赋格）
+    to_gang: shipen-bihuan
+    to_mu: operational-methodology
+- detected_at: '2026-03-04T22:34:53.151565+00:00'
+  genealogy_id: '351'
+  status: candidate
+  edge:
+    from_id: '351'
+    from_title: 离散Morse理论研究线建立
+    from_gang: morse-topology
+    from_mu: discrete-morse-experiment
+    to_id: '292'
+    to_title: 折叠拓扑本体论——分类学之前的存在论结构
+    to_gang: shipen-bihuan
+    to_mu: operational-methodology
+- detected_at: '2026-03-04T22:34:53.162353+00:00'
+  genealogy_id: '352'
+  status: candidate
+  edge:
+    from_id: '352'
+    from_title: 多标的扫描器设计——递归区间套 × 资本流转拓扑折叠 × 商空间排序
+    from_gang: simatrix-quanyu
+    from_mu: multi-target-scanner
+    to_id: '267'
+    to_title: 操作方法论 v1——满仓满融降成本体系
+    to_gang: shipen-bihuan
+    to_mu: operational-methodology
+- detected_at: '2026-03-04T22:34:53.162353+00:00'
+  genealogy_id: '352'
+  status: candidate
+  edge:
+    from_id: '352'
+    from_title: 多标的扫描器设计——递归区间套 × 资本流转拓扑折叠 × 商空间排序
+    from_gang: simatrix-quanyu
+    from_mu: multi-target-scanner
+    to_id: '265'
+    to_title: 操作方法论——帕萨卡利亚模型（三层条件设定 + 多重赋格）
+    to_gang: shipen-bihuan
+    to_mu: operational-methodology
+- detected_at: '2026-03-04T22:34:53.669677+00:00'
+  genealogy_id: '351'
+  status: candidate
+  edge:
+    from_id: '351'
+    from_title: 离散Morse理论研究线建立
+    from_gang: morse-topology
+    from_mu: discrete-morse-experiment
+    to_id: '292'
+    to_title: 折叠拓扑本体论——分类学之前的存在论结构
+    to_gang: shipen-bihuan
+    to_mu: operational-methodology
+- detected_at: '2026-03-04T22:34:53.684047+00:00'
+  genealogy_id: '352'
+  status: candidate
+  edge:
+    from_id: '352'
+    from_title: 多标的扫描器设计——递归区间套 × 资本流转拓扑折叠 × 商空间排序
+    from_gang: simatrix-quanyu
+    from_mu: multi-target-scanner
+    to_id: '267'
+    to_title: 操作方法论 v1——满仓满融降成本体系
+    to_gang: shipen-bihuan
+    to_mu: operational-methodology
+- detected_at: '2026-03-04T22:34:53.684047+00:00'
+  genealogy_id: '352'
+  status: candidate
+  edge:
+    from_id: '352'
+    from_title: 多标的扫描器设计——递归区间套 × 资本流转拓扑折叠 × 商空间排序
+    from_gang: simatrix-quanyu
+    from_mu: multi-target-scanner
+    to_id: '265'
+    to_title: 操作方法论——帕萨卡利亚模型（三层条件设定 + 多重赋格）
+    to_gang: shipen-bihuan
+    to_mu: operational-methodology
+- detected_at: '2026-03-04T22:35:02.292226+00:00'
+  genealogy_id: '351'
+  status: candidate
+  edge:
+    from_id: '351'
+    from_title: 离散Morse理论研究线建立
+    from_gang: morse-topology
+    from_mu: discrete-morse-experiment
+    to_id: '292'
+    to_title: 折叠拓扑本体论——分类学之前的存在论结构
+    to_gang: shipen-bihuan
+    to_mu: operational-methodology
+- detected_at: '2026-03-04T22:35:02.307211+00:00'
+  genealogy_id: '352'
+  status: candidate
+  edge:
+    from_id: '352'
+    from_title: 多标的扫描器设计——递归区间套 × 资本流转拓扑折叠 × 商空间排序
+    from_gang: simatrix-quanyu
+    from_mu: multi-target-scanner
+    to_id: '267'
+    to_title: 操作方法论 v1——满仓满融降成本体系
+    to_gang: shipen-bihuan
+    to_mu: operational-methodology
+- detected_at: '2026-03-04T22:35:02.307211+00:00'
+  genealogy_id: '352'
+  status: candidate
+  edge:
+    from_id: '352'
+    from_title: 多标的扫描器设计——递归区间套 × 资本流转拓扑折叠 × 商空间排序
+    from_gang: simatrix-quanyu
+    from_mu: multi-target-scanner
+    to_id: '265'
+    to_title: 操作方法论——帕萨卡利亚模型（三层条件设定 + 多重赋格）
+    to_gang: shipen-bihuan
+    to_mu: operational-methodology
+- detected_at: '2026-03-04T22:35:08.418953+00:00'
+  genealogy_id: '351'
+  status: candidate
+  edge:
+    from_id: '351'
+    from_title: 离散Morse理论研究线建立
+    from_gang: morse-topology
+    from_mu: discrete-morse-experiment
+    to_id: '292'
+    to_title: 折叠拓扑本体论——分类学之前的存在论结构
+    to_gang: shipen-bihuan
+    to_mu: operational-methodology
+- detected_at: '2026-03-04T22:35:08.434445+00:00'
+  genealogy_id: '352'
+  status: candidate
+  edge:
+    from_id: '352'
+    from_title: 多标的扫描器设计——递归区间套 × 资本流转拓扑折叠 × 商空间排序
+    from_gang: simatrix-quanyu
+    from_mu: multi-target-scanner
+    to_id: '267'
+    to_title: 操作方法论 v1——满仓满融降成本体系
+    to_gang: shipen-bihuan
+    to_mu: operational-methodology
+- detected_at: '2026-03-04T22:35:08.434445+00:00'
+  genealogy_id: '352'
+  status: candidate
+  edge:
+    from_id: '352'
+    from_title: 多标的扫描器设计——递归区间套 × 资本流转拓扑折叠 × 商空间排序
+    from_gang: simatrix-quanyu
+    from_mu: multi-target-scanner
+    to_id: '265'
+    to_title: 操作方法论——帕萨卡利亚模型（三层条件设定 + 多重赋格）
+    to_gang: shipen-bihuan
+    to_mu: operational-methodology
+- detected_at: '2026-03-04T22:35:15.304886+00:00'
+  genealogy_id: '351'
+  status: candidate
+  edge:
+    from_id: '351'
+    from_title: 离散Morse理论研究线建立
+    from_gang: morse-topology
+    from_mu: discrete-morse-experiment
+    to_id: '292'
+    to_title: 折叠拓扑本体论——分类学之前的存在论结构
+    to_gang: shipen-bihuan
+    to_mu: operational-methodology
+- detected_at: '2026-03-04T22:35:15.322605+00:00'
+  genealogy_id: '352'
+  status: candidate
+  edge:
+    from_id: '352'
+    from_title: 多标的扫描器设计——递归区间套 × 资本流转拓扑折叠 × 商空间排序
+    from_gang: simatrix-quanyu
+    from_mu: multi-target-scanner
+    to_id: '267'
+    to_title: 操作方法论 v1——满仓满融降成本体系
+    to_gang: shipen-bihuan
+    to_mu: operational-methodology
+- detected_at: '2026-03-04T22:35:15.322605+00:00'
+  genealogy_id: '352'
+  status: candidate
+  edge:
+    from_id: '352'
+    from_title: 多标的扫描器设计——递归区间套 × 资本流转拓扑折叠 × 商空间排序
+    from_gang: simatrix-quanyu
+    from_mu: multi-target-scanner
+    to_id: '265'
+    to_title: 操作方法论——帕萨卡利亚模型（三层条件设定 + 多重赋格）
+    to_gang: shipen-bihuan
+    to_mu: operational-methodology
