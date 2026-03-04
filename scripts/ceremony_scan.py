@@ -756,12 +756,28 @@ def _scan_research_lines(root):
             all_completed = True
             all_blocked = True
 
+            # 预先构建已完成 action 集合（completed_at 已设置 或 completion_check 已满足）
+            completed_targets: set = set()
+            for _action in next_actions:
+                if not isinstance(_action, dict):
+                    continue
+                _target = _action.get("target", "")
+                if _action.get("completed_at"):
+                    completed_targets.add(_target)
+                elif _check_completion(root, _action.get("completion_check")):
+                    completed_targets.add(_target)
+
             for action in next_actions:
                 if not isinstance(action, dict):
                     continue
 
                 action_blocked_by = action.get("blocked_by")
-                is_blocked = action_blocked_by is not None and action_blocked_by != ""
+                # 若 blocked_by 引用的前置 action 已完成，视为未阻塞
+                is_blocked = (
+                    action_blocked_by is not None
+                    and action_blocked_by != ""
+                    and action_blocked_by not in completed_targets
+                )
 
                 if is_blocked:
                     all_completed = False
