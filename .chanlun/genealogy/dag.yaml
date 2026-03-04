@@ -1705,6 +1705,11 @@ nodes:
   status: settled
   type: 概念定义
   file: settled/352-multi-target-scanner-design.md
+- id: '353'
+  title: 消费断裂与声明缺口的等价性——036号定义域扩展
+  status: settled
+  type: meta-rule（知识结晶）
+  file: settled/353-consumption-declaration-equivalence.md
 edges:
   depends_on:
   - from: '136'
@@ -3615,6 +3620,12 @@ edges:
     to: '300'
   - from: '352'
     to: '349'
+  - from: '353'
+    to: '036'
+  - from: '353'
+    to: '016'
+  - from: '353'
+    to: 082
   triggered:
   - from: '005'
     to: 005a
