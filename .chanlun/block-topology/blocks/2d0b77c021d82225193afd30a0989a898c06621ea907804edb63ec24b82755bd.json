@@ -1,0 +1,13 @@
+{
+  "id": "340",
+  "title": "元观察——v149 纲目结构实装 session",
+  "type": "meta-rule",
+  "status": "已结算",
+  "date": "2026-03-04",
+  "depends_on": [
+    "339",
+    "338"
+  ],
+  "epistemological_level": "L0",
+  "file": "settled/340-meta-observation-v149-gangmu-session.md"
+}

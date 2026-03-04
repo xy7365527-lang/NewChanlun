@@ -1640,6 +1640,16 @@ nodes:
   status: 已结算
   type: meta-rule
   file: settled/339-meta-observation-v148-progress-summary-session.md
+- id: '340'
+  title: 元观察——v149 纲目结构实装 session
+  status: 已结算
+  type: meta-rule
+  file: settled/340-meta-observation-v149-gangmu-session.md
+- id: '341'
+  title: 偶遇定义精化：从时间性绑定到结构性标准
+  status: 已结算
+  type: event
+  file: settled/341-encounter-definition-refinement.md
 edges:
   depends_on:
   - from: '136'
@@ -3478,6 +3488,14 @@ edges:
     to: '337'
   - from: '339'
     to: '338'
+  - from: '340'
+    to: '339'
+  - from: '340'
+    to: '338'
+  - from: '341'
+    to: '339'
+  - from: '341'
+    to: '301'
   triggered:
   - from: '005'
     to: 005a
