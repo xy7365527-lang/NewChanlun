@@ -1,0 +1,15 @@
+{
+  "id": "19d9998658ac506e0b343b5e066fce9fbe3b40249f9b198d584adbdb5bf988c2",
+  "genealogy_id": "346",
+  "title": "元观察——v152-swarm 四线并行（区块完整性验证 + 活跃边辨识 + 持存修复）",
+  "type": "meta-rule",
+  "content_hash": "19d9998658ac506e0b343b5e066fce9fbe3b40249f9b198d584adbdb5bf988c2",
+  "depends_on": [
+    "344",
+    "345"
+  ],
+  "content": {
+    "source_file": "settled/346-meta-observation-v152-swarm.md",
+    "id": "346"
+  }
+}
