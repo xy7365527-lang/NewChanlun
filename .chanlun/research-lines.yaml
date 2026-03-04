@@ -96,13 +96,15 @@ lines:
         completion_check:
           type: file_exists
           path: "scripts/position_manager.py"
+        completed_at: '2026-03-04'
       - type: engineering
         target: "G2-fugue-state-machine"
         description: "G2赋格状态机——帕萨卡利亚结构的状态机编码"
-        blocked_by: "谱系定义未结算：赋格状态机的形式化定义尚未写入谱系"
+        blocked_by: null
         completion_check:
           type: file_exists
           path: "src/newchan/fugue_engine.py"
+        completed_at: '2026-03-04'
       - type: integration
         target: "I1-xiaozhuan-da-orchestration"
         description: "I1小转大编排——跨级别联动的实盘集成"
@@ -110,6 +112,7 @@ lines:
         completion_check:
           type: test_pass
           pattern: "tests/test_xiaozhuan_da_integration.py"
+        completed_at: '2026-03-04'
 
   - id: block-topology
     name: "区块拓扑"
@@ -123,11 +126,14 @@ lines:
         completion_check:
           type: genealogy_settled
           keyword: "encounter-record"
+        completed_at: '2026-03-04'
 
   - id: k4-engineering
     name: "K4工程化"
-    status: active
+    status: closed
     opened_at: "253"
+    closed_at: '2026-03-04'
+    closed_reason: "所有 next_actions 的 completion_check 均已满足"
     next_actions:
       - type: engineering
         target: "k4-monitor-vps-deploy"

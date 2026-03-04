@@ -44,6 +44,7 @@ gang:
       completion_check:
         type: file_exists
         path: src/newchan/fugue_engine.py
+      completed_at: '2026-03-04'
     - type: integration
       target: I1-xiaozhuan-da-orchestration
       description: I1小转大编排——跨级别联动的实盘集成
@@ -66,6 +67,7 @@ gang:
       completion_check:
         type: test_file_exists
         pattern: tests/test_backtest_*.py
+      completed_at: '2026-03-04'
     - type: engineering
       target: G5-convergence-metric
       description: G5区间套收敛量化——定义收敛紧度的三项量化方式：嵌套层数x级别大小x各层一致性（来源：267号下游推论3）
@@ -73,6 +75,7 @@ gang:
       completion_check:
         type: genealogy_settled
         keyword: convergence-metric
+      completed_at: '2026-03-04'
 - id: simatrix-quanyu
   name: 四矩阵全域
   zongfangzhen_section: §三.2全域层 + §八.七阶段I-1
@@ -144,6 +147,7 @@ gang:
       completion_check:
         type: test_file_exists
         pattern: tests/test_fold_equivalence.py
+      completed_at: '2026-03-04'
     - type: engineering
       target: scanner-quotient-rank
       description: 商空间排序器——在折叠等价类上计算rank([S])=T([S])*W(fold([S]))（来源：352号§4）
@@ -175,6 +179,7 @@ gang:
       completion_check:
         type: script_exists
         path: scripts/migrate_to_content_addressed.py
+      completed_at: '2026-03-04'
     - type: engineering
       target: BT2-reflexive-layer
       description: BT2反身层实现——关系变更自动回写为type=rewrite的事件区块，rewrite区块的id可出现在后续关系记录的created_by字段，递归自动闭合（来源：总方针§八.二第三层Reflexive
@@ -190,6 +195,7 @@ gang:
       completion_check:
         type: file_exists
         path: scripts/traverse_mcp.py
+      completed_at: '2026-03-04'
     - type: engineering
       target: BT4-topo-event-detection
       description: BT4拓扑事件检测——ceremony写入后检测Layer2 cycle_rank变化标记为拓扑事件，同时检测Layer1环标记为逻辑层拓扑事件（来源：总方针§八.五穿越基础设施组件二偶遇记录 + 组件三Morse地形导航）
@@ -197,6 +203,7 @@ gang:
       completion_check:
         type: test_file_exists
         pattern: tests/test_topo_event_detection.py
+      completed_at: '2026-03-04'
   - id: fold-topology-ontology
     name: 折叠拓扑本体论
     status: closed
