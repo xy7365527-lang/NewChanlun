@@ -1,0 +1,384 @@
+{
+  "experiment": "relative_threshold_test",
+  "description": "四节点 eff.dim 阈值的 z-score / percentile 标准化收敛检验",
+  "epistemological_level": "L2",
+  "data_range": "2000-08-30 to 2026-03-02",
+  "n_common_obs": 6391,
+  "methodology_notes": {
+    "unified_data": "本实验使用四个 ticker (GC=F, DX-Y.NYB, ^GSPC, CL=F) 的时间交集，与之前各节点独立实验的差异：(1) $ 节点之前用 HG=F(铜) 作为 commodity 代理，这里统一用 CL=F(原油)；(2) Mahalanobis 距离对每个节点独立计算（各自三条 ratio return），但时间范围一致。",
+    "prior_results_comparison": {
+      "Au_prior": {
+        "min_event_effdim": "1.894 (HG=F代理)",
+        "frac_below": "6.92%"
+      },
+      "Dollar_prior": {
+        "min_event_effdim": "1.894 (HG=F代理)",
+        "frac_below": "6.73%"
+      },
+      "Equity_prior": {
+        "min_event_effdim": "1.817",
+        "frac_below": "0.77%"
+      },
+      "Commodity_prior": {
+        "min_event_effdim": "1.146",
+        "frac_below": "0.81%"
+      },
+      "note": "Au和$节点之前用铜(HG=F)作为commodity代理，本实验统一用原油(CL=F)，导致绝对阈值不同"
+    }
+  },
+  "per_node_stats": {
+    "Au": {
+      "mean": 2.162,
+      "std": 0.235,
+      "min": 1.448,
+      "max": 2.59,
+      "n_pts": 6138
+    },
+    "Dollar": {
+      "mean": 2.132,
+      "std": 0.238,
+      "min": 1.403,
+      "max": 2.711,
+      "n_pts": 6138
+    },
+    "Equity": {
+      "mean": 2.213,
+      "std": 0.246,
+      "min": 1.525,
+      "max": 2.833,
+      "n_pts": 6138
+    },
+    "Commodity": {
+      "mean": 1.536,
+      "std": 0.23,
+      "min": 1.112,
+      "max": 2.221,
+      "n_pts": 6138
+    }
+  },
+  "absolute_threshold": {
+    "Au": {
+      "n_events": 23,
+      "min_event_effdim": 1.534,
+      "frac_below": 0.0077
+    },
+    "Dollar": {
+      "n_events": 23,
+      "min_event_effdim": 1.493,
+      "frac_below": 0.006
+    },
+    "Equity": {
+      "n_events": 23,
+      "min_event_effdim": 1.684,
+      "frac_below": 0.0078
+    },
+    "Commodity": {
+      "n_events": 23,
+      "min_event_effdim": 1.146,
+      "frac_below": 0.0081
+    }
+  },
+  "zscore_threshold": {
+    "Au": {
+      "mu": 2.162,
+      "sigma": 0.235,
+      "min_event_zscore": -2.6686,
+      "mean_event_zscore": 0.265,
+      "median_event_zscore": 0.7248,
+      "frac_below_z": 0.0077,
+      "all_event_zscores": [
+        0.6314,
+        0.3426,
+        0.7843,
+        1.1623,
+        1.2642,
+        1.4001,
+        1.3449,
+        1.158,
+        1.0306,
+        1.0094,
+        0.8989,
+        1.5997,
+        0.7545,
+        0.5294,
+        -1.5134,
+        -0.8848,
+        -0.8296,
+        -2.6686,
+        -2.5284,
+        -0.3455,
+        0.6314,
+        0.7248,
+        -0.4007
+      ]
+    },
+    "Dollar": {
+      "mu": 2.132,
+      "sigma": 0.238,
+      "min_event_zscore": -2.6822,
+      "mean_event_zscore": -0.0056,
+      "median_event_zscore": 0.4395,
+      "frac_below_z": 0.006,
+      "all_event_zscores": [
+        0.8716,
+        -0.0347,
+        0.4604,
+        0.6409,
+        0.5947,
+        0.473,
+        0.5108,
+        0.5402,
+        0.4856,
+        0.5024,
+        0.4395,
+        -0.8234,
+        -0.6598,
+        -0.5549,
+        -1.1801,
+        -0.1647,
+        -0.2193,
+        -2.6822,
+        -2.4975,
+        -0.2109,
+        -0.2193,
+        1.3919,
+        2.2059
+      ]
+    },
+    "Equity": {
+      "mu": 2.213,
+      "sigma": 0.246,
+      "min_event_zscore": -2.1474,
+      "mean_event_zscore": -0.0526,
+      "median_event_zscore": 0.0004,
+      "frac_below_z": 0.0078,
+      "all_event_zscores": [
+        -1.0918,
+        0.0369,
+        -1.0268,
+        -0.4584,
+        -0.227,
+        0.0004,
+        -0.0605,
+        0.0329,
+        0.1303,
+        0.1019,
+        0.2034,
+        1.0601,
+        1.9452,
+        2.1685,
+        -0.4421,
+        0.2156,
+        -0.0037,
+        -2.1474,
+        -1.9322,
+        -0.1579,
+        -0.7304,
+        0.1547,
+        1.0195
+      ]
+    },
+    "Commodity": {
+      "mu": 1.536,
+      "sigma": 0.23,
+      "min_event_zscore": -1.6976,
+      "mean_event_zscore": 0.0647,
+      "median_event_zscore": 0.3539,
+      "frac_below_z": 0.0081,
+      "all_event_zscores": [
+        -0.4562,
+        0.1231,
+        0.6501,
+        1.1685,
+        1.2251,
+        0.6153,
+        0.5717,
+        0.4236,
+        0.3714,
+        0.3583,
+        0.3539,
+        0.1666,
+        0.6893,
+        1.2338,
+        -1.1183,
+        -0.6522,
+        -0.6435,
+        -1.6976,
+        -1.641,
+        -0.735,
+        -0.6261,
+        0.1361,
+        0.9724
+      ]
+    }
+  },
+  "percentile_threshold": {
+    "Au": {
+      "min_event_percentile": 0.77,
+      "mean_event_percentile": 61.44,
+      "median_event_percentile": 72.55,
+      "all_event_percentiles": [
+        68.87,
+        58.13,
+        75.33,
+        90.81,
+        93.6,
+        95.99,
+        95.1,
+        90.57,
+        86.41,
+        85.92,
+        82.0,
+        98.35,
+        73.9,
+        65.84,
+        9.51,
+        17.4,
+        19.16,
+        0.77,
+        2.59,
+        31.56,
+        68.87,
+        72.55,
+        29.91
+      ]
+    },
+    "Dollar": {
+      "min_event_percentile": 0.6,
+      "mean_event_percentile": 52.89,
+      "median_event_percentile": 70.72,
+      "all_event_percentiles": [
+        84.59,
+        46.71,
+        71.31,
+        77.66,
+        76.51,
+        71.99,
+        73.53,
+        74.85,
+        72.53,
+        73.2,
+        70.72,
+        16.78,
+        22.25,
+        26.9,
+        9.53,
+        41.38,
+        38.06,
+        0.6,
+        2.62,
+        38.53,
+        38.06,
+        91.02,
+        97.17
+      ]
+    },
+    "Equity": {
+      "min_event_percentile": 0.78,
+      "mean_event_percentile": 49.32,
+      "median_event_percentile": 53.52,
+      "all_event_percentiles": [
+        14.29,
+        54.06,
+        15.59,
+        33.85,
+        43.71,
+        53.52,
+        51.52,
+        54.01,
+        56.4,
+        55.46,
+        58.39,
+        86.84,
+        95.89,
+        97.44,
+        34.52,
+        58.93,
+        53.36,
+        0.78,
+        2.67,
+        47.72,
+        22.53,
+        56.91,
+        86.04
+      ]
+    },
+    "Commodity": {
+      "min_event_percentile": 0.81,
+      "mean_event_percentile": 55.57,
+      "median_event_percentile": 68.43,
+      "all_event_percentiles": [
+        39.56,
+        61.37,
+        75.84,
+        88.07,
+        89.1,
+        74.62,
+        73.26,
+        69.94,
+        68.77,
+        68.49,
+        68.43,
+        62.59,
+        76.49,
+        89.21,
+        6.68,
+        29.96,
+        30.45,
+        0.81,
+        2.62,
+        24.5,
+        31.54,
+        61.88,
+        83.85
+      ]
+    }
+  },
+  "convergence_analysis": {
+    "zscore": {
+      "values": {
+        "Au": -2.6686,
+        "Dollar": -2.6822,
+        "Equity": -2.1474,
+        "Commodity": -1.6976
+      },
+      "max_pairwise_diff": 0.9846,
+      "mean": -2.299,
+      "std": 0.4087,
+      "threshold": 0.3,
+      "converged": false
+    },
+    "percentile": {
+      "values": {
+        "Au": 0.77,
+        "Dollar": 0.6,
+        "Equity": 0.78,
+        "Commodity": 0.81
+      },
+      "max_pairwise_diff_pp": 0.21,
+      "mean": 0.74,
+      "std": 0.08,
+      "threshold_pp": 5.0,
+      "converged": true
+    },
+    "frac_below_z": {
+      "values": {
+        "Au": 0.0077,
+        "Dollar": 0.006,
+        "Equity": 0.0078,
+        "Commodity": 0.0081
+      },
+      "mean": 0.0074,
+      "std": 0.0008,
+      "max_diff": 0.0021
+    },
+    "frac_below_absolute": {
+      "Au": 0.0077,
+      "Dollar": 0.006,
+      "Equity": 0.0078,
+      "Commodity": 0.0081
+    }
+  },
+  "convergence_verdict": "PARTIAL_CONVERGENCE",
+  "interpretation": "percentile 视角收敛但 z-score 视角不收敛。全局约束可能存在但形式依赖度量方式。"
+}

@@ -1,0 +1,38 @@
+[
+  {
+    "bar_idx": 2387,
+    "bar_ts": "2014-05-15T00:00:00",
+    "action": "short_sell",
+    "price": 27.707712173461914,
+    "quantity": 7166.11224728642,
+    "cost_basis_after": 27.909135818481445,
+    "trigger": "sub_sell_type3_L1"
+  },
+  {
+    "bar_idx": 3394,
+    "bar_ts": "2018-05-15T00:00:00",
+    "action": "short_cover",
+    "price": 48.495975494384766,
+    "quantity": 7166.11224728642,
+    "cost_basis_after": 29.98796215057373,
+    "trigger": "sub_buy_type3_L1"
+  },
+  {
+    "bar_idx": 4366,
+    "bar_ts": "2022-03-24T00:00:00",
+    "action": "short_cover",
+    "price": 88.88957214355469,
+    "quantity": 7166.11224728642,
+    "cost_basis_after": 29.98796215057373,
+    "trigger": "sub_buy_type3_L1"
+  },
+  {
+    "bar_idx": 4367,
+    "bar_ts": "2022-03-25T00:00:00",
+    "action": "short_cover",
+    "price": 88.7347183227539,
+    "quantity": 7166.11224728642,
+    "cost_basis_after": 29.98796215057373,
+    "trigger": "sub_buy_type3_L1"
+  }
+]

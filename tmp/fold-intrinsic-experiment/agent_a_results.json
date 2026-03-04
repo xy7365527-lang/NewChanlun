@@ -1,0 +1,543 @@
+{
+  "metadata": {
+    "data_range": "2000-08-30 to 2026-03-02",
+    "n_observations": 6397,
+    "n_breakpoints": 24,
+    "n_clusters": 4,
+    "clustering_method": "hierarchical (Ward) with GMM cross-validation",
+    "clustering_confidence": "low",
+    "average_silhouette": 0.19951764163978794,
+    "spectrum_assessment": "The clustering is weak, suggesting the post-breakpoint behaviors form more of a continuous spectrum than discrete types. Cluster assignments should be treated as approximate groupings rather than definitive categories.",
+    "detection_methods": {
+      "primary": "PELT (rbf kernel, pen=20)",
+      "cross_validation": [
+        "BinSeg (l2, pen=20)",
+        "rolling variance shift (120-day window)"
+      ]
+    }
+  },
+  "breakpoints": [
+    {
+      "timestamp": "2001-06-12",
+      "ratio_value": 0.0026721914828811,
+      "description": "large downward level shift (-0.1725 in log-ratio); moderate initial departure speed; volatility surged (2.2x pre-breakpoint); continued downward drift (slope=-0.001198/day); diverging behavior (distance from prior level increasing over time); low oscillation (trending or stable); rapid stabilization (~19 trading days); established a clearly distinct new regime",
+      "cluster": 1,
+      "breakpoint_confidence": "low",
+      "cluster_confidence": "medium",
+      "features": {
+        "level_shift": -0.1725337802345317,
+        "volatility_ratio": 2.175475325514593,
+        "post_trend_slope": -0.0011978806576607272,
+        "departure_speed": 0.02468462966242857,
+        "mean_reversion_corr": 0.61618589907527,
+        "oscillation_rate": 0.03333333333333333,
+        "stabilization_days": 19,
+        "new_regime_distance": 6.773131657972405
+      }
+    },
+    {
+      "timestamp": "2002-07-17",
+      "ratio_value": 0.0023030876504594,
+      "description": "moderate downward level shift (-0.0794 in log-ratio); rapid initial departure; volatility increased (2.0x); continued downward drift (slope=-0.000084/day); neither clearly mean-reverting nor diverging; low oscillation (trending or stable); gradual stabilization (~28 trading days); established a clearly distinct new regime",
+      "cluster": 0,
+      "breakpoint_confidence": "low",
+      "cluster_confidence": "low",
+      "features": {
+        "level_shift": -0.07940952918613586,
+        "volatility_ratio": 1.9700026667186459,
+        "post_trend_slope": -8.427742549360097e-05,
+        "departure_speed": 0.03956405061219037,
+        "mean_reversion_corr": 0.07810163040094742,
+        "oscillation_rate": 0.09166666666666666,
+        "stabilization_days": 28,
+        "new_regime_distance": 3.5514228540647323
+      }
+    },
+    {
+      "timestamp": "2004-01-16",
+      "ratio_value": 0.0026825668260466,
+      "description": "large upward level shift (+0.2522 in log-ratio); rapid initial departure; volatility increased (1.5x); continued upward drift (slope=0.000324/day); neither clearly mean-reverting nor diverging; low oscillation (trending or stable); gradual stabilization (~38 trading days); established a clearly distinct new regime",
+      "cluster": 0,
+      "breakpoint_confidence": "high",
+      "cluster_confidence": "medium",
+      "features": {
+        "level_shift": 0.2521893118628782,
+        "volatility_ratio": 1.5491850094671826,
+        "post_trend_slope": 0.00032439873232004585,
+        "departure_speed": 0.03136537772822656,
+        "mean_reversion_corr": 0.20140625925665864,
+        "oscillation_rate": 0.125,
+        "stabilization_days": 38,
+        "new_regime_distance": 6.863127091784651
+      }
+    },
+    {
+      "timestamp": "2005-05-23",
+      "ratio_value": 0.003572971620832,
+      "description": "moderate upward level shift (+0.1206 in log-ratio); rapid initial departure; volatility surged (2.4x pre-breakpoint); continued upward drift (slope=0.000863/day); diverging behavior (distance from prior level increasing over time); low oscillation (trending or stable); gradual stabilization (~24 trading days); established a clearly distinct new regime",
+      "cluster": 0,
+      "breakpoint_confidence": "low",
+      "cluster_confidence": "low",
+      "features": {
+        "level_shift": 0.1206097340143053,
+        "volatility_ratio": 2.363406364308055,
+        "post_trend_slope": 0.0008632439614061275,
+        "departure_speed": 0.08692458543970805,
+        "mean_reversion_corr": 0.7726256480407003,
+        "oscillation_rate": 0.075,
+        "stabilization_days": 24,
+        "new_regime_distance": 9.347470930080757
+      }
+    },
+    {
+      "timestamp": "2006-04-10",
+      "ratio_value": 0.0045833336578209,
+      "description": "large upward level shift (+0.3095 in log-ratio); rapid initial departure; volatility increased (1.3x); continued upward drift (slope=0.000915/day); diverging behavior (distance from prior level increasing over time); low oscillation (trending or stable); gradual stabilization (~26 trading days); established a clearly distinct new regime",
+      "cluster": 0,
+      "breakpoint_confidence": "medium",
+      "cluster_confidence": "medium",
+      "features": {
+        "level_shift": 0.3095089368544386,
+        "volatility_ratio": 1.3063730281763513,
+        "post_trend_slope": 0.0009153896641232618,
+        "departure_speed": 0.057519637446165284,
+        "mean_reversion_corr": 0.577650504333675,
+        "oscillation_rate": 0.225,
+        "stabilization_days": 26,
+        "new_regime_distance": 7.850358458936463
+      }
+    },
+    {
+      "timestamp": "2006-12-20",
+      "ratio_value": 0.0047365456156919,
+      "description": "large downward level shift (-0.2570 in log-ratio); rapid initial departure; volatility roughly unchanged; continued downward drift (slope=-0.000470/day); neither clearly mean-reverting nor diverging; low oscillation (trending or stable); rapid stabilization (~19 trading days); partial regime shift (new level distinguishable but not far)",
+      "cluster": 1,
+      "breakpoint_confidence": "low",
+      "cluster_confidence": "medium",
+      "features": {
+        "level_shift": -0.25697888956150283,
+        "volatility_ratio": 0.8257616302477157,
+        "post_trend_slope": -0.00047000852500526724,
+        "departure_speed": 0.06795366093299826,
+        "mean_reversion_corr": 0.12494483878594755,
+        "oscillation_rate": 0.06666666666666667,
+        "stabilization_days": 19,
+        "new_regime_distance": 2.9411864299705317
+      }
+    },
+    {
+      "timestamp": "2007-03-20",
+      "ratio_value": 0.0046070828187154,
+      "description": "large upward level shift (+0.2176 in log-ratio); rapid initial departure; volatility roughly unchanged; continued upward drift (slope=0.000214/day); neither clearly mean-reverting nor diverging; low oscillation (trending or stable); rapid stabilization (~19 trading days); established a clearly distinct new regime",
+      "cluster": 1,
+      "breakpoint_confidence": "low",
+      "cluster_confidence": "medium",
+      "features": {
+        "level_shift": 0.21759670463081715,
+        "volatility_ratio": 0.7144734228598624,
+        "post_trend_slope": 0.0002135194313711542,
+        "departure_speed": 0.04436147178832783,
+        "mean_reversion_corr": 0.15890558229203883,
+        "oscillation_rate": 0.08333333333333333,
+        "stabilization_days": 19,
+        "new_regime_distance": 3.323634003655702
+      }
+    },
+    {
+      "timestamp": "2007-10-29",
+      "ratio_value": 0.0044519073883325,
+      "description": "large downward level shift (-0.2317 in log-ratio); rapid initial departure; volatility increased (1.7x); continued upward drift (slope=0.000653/day); mean-reverting behavior (distance from prior level decreasing over time); low oscillation (trending or stable); gradual stabilization (~26 trading days); established a clearly distinct new regime",
+      "cluster": 0,
+      "breakpoint_confidence": "low",
+      "cluster_confidence": "medium",
+      "features": {
+        "level_shift": -0.23170419995244096,
+        "volatility_ratio": 1.7231999990893894,
+        "post_trend_slope": 0.0006529694615896573,
+        "departure_speed": 0.056053040146575306,
+        "mean_reversion_corr": -0.36156808984967076,
+        "oscillation_rate": 0.1,
+        "stabilization_days": 26,
+        "new_regime_distance": 4.9619414361399325
+      }
+    },
+    {
+      "timestamp": "2008-10-03",
+      "ratio_value": 0.0032633608927906,
+      "description": "large downward level shift (-0.7113 in log-ratio); rapid initial departure; volatility surged (2.7x pre-breakpoint); continued downward drift (slope=-0.004233/day); diverging behavior (distance from prior level increasing over time); low oscillation (trending or stable); gradual stabilization (~20 trading days); established a clearly distinct new regime",
+      "cluster": 2,
+      "breakpoint_confidence": "high",
+      "cluster_confidence": "low",
+      "features": {
+        "level_shift": -0.7113353687714792,
+        "volatility_ratio": 2.6762361764696183,
+        "post_trend_slope": -0.004232823431370129,
+        "departure_speed": 0.11717992160354473,
+        "mean_reversion_corr": 0.7427858921605179,
+        "oscillation_rate": 0.05,
+        "stabilization_days": 20,
+        "new_regime_distance": 11.272990840007974
+      }
+    },
+    {
+      "timestamp": "2009-04-03",
+      "ratio_value": 0.0022325816109267,
+      "description": "large upward level shift (+0.3068 in log-ratio); rapid initial departure; volatility compressed (0.5x); continued upward drift (slope=0.001187/day); diverging behavior (distance from prior level increasing over time); low oscillation (trending or stable); rapid stabilization (~19 trading days); established a clearly distinct new regime",
+      "cluster": 1,
+      "breakpoint_confidence": "medium",
+      "cluster_confidence": "medium",
+      "features": {
+        "level_shift": 0.3068405799711451,
+        "volatility_ratio": 0.5327302301734287,
+        "post_trend_slope": 0.0011867710522197278,
+        "departure_speed": 0.060598210059697344,
+        "mean_reversion_corr": 0.5470271855186397,
+        "oscillation_rate": 0.14666666666666667,
+        "stabilization_days": 19,
+        "new_regime_distance": 3.8947657695000566
+      }
+    },
+    {
+      "timestamp": "2009-07-22",
+      "ratio_value": 0.0026421824632386,
+      "description": "large upward level shift (+0.1732 in log-ratio); rapid initial departure; volatility roughly unchanged; continued downward drift (slope=-0.000042/day); neither clearly mean-reverting nor diverging; low oscillation (trending or stable); gradual stabilization (~20 trading days); established a clearly distinct new regime",
+      "cluster": 1,
+      "breakpoint_confidence": "low",
+      "cluster_confidence": "medium",
+      "features": {
+        "level_shift": 0.17323654210464223,
+        "volatility_ratio": 0.9189344701122193,
+        "post_trend_slope": -4.155942755029759e-05,
+        "departure_speed": 0.039977230770869454,
+        "mean_reversion_corr": -0.032514351702747274,
+        "oscillation_rate": 0.075,
+        "stabilization_days": 20,
+        "new_regime_distance": 3.587959894850622
+      }
+    },
+    {
+      "timestamp": "2011-08-05",
+      "ratio_value": 0.0024945413599423,
+      "description": "large downward level shift (-0.2578 in log-ratio); rapid initial departure; volatility surged (2.2x pre-breakpoint); continued downward drift (slope=-0.000265/day); neither clearly mean-reverting nor diverging; low oscillation (trending or stable); gradual stabilization (~52 trading days); established a clearly distinct new regime",
+      "cluster": 3,
+      "breakpoint_confidence": "medium",
+      "cluster_confidence": "low",
+      "features": {
+        "level_shift": -0.25775961547404425,
+        "volatility_ratio": 2.15803344357638,
+        "post_trend_slope": -0.0002648325749974208,
+        "departure_speed": 0.07510267487059963,
+        "mean_reversion_corr": 0.15970120583161027,
+        "oscillation_rate": 0.05,
+        "stabilization_days": 52,
+        "new_regime_distance": 9.048003149357728
+      }
+    },
+    {
+      "timestamp": "2013-05-08",
+      "ratio_value": 0.0022871293816814,
+      "description": "moderate upward level shift (+0.0931 in log-ratio); rapid initial departure; volatility roughly unchanged; continued upward drift (slope=0.000450/day); diverging behavior (distance from prior level increasing over time); low oscillation (trending or stable); rapid stabilization (~19 trading days); established a clearly distinct new regime",
+      "cluster": 1,
+      "breakpoint_confidence": "low",
+      "cluster_confidence": "medium",
+      "features": {
+        "level_shift": 0.09313187969286307,
+        "volatility_ratio": 1.0584285858058629,
+        "post_trend_slope": 0.0004496262878112101,
+        "departure_speed": 0.04104907040197414,
+        "mean_reversion_corr": 0.5061414226347721,
+        "oscillation_rate": 0.1,
+        "stabilization_days": 19,
+        "new_regime_distance": 3.732653086459425
+      }
+    },
+    {
+      "timestamp": "2015-01-07",
+      "ratio_value": 0.0023095985959039,
+      "description": "moderate downward level shift (-0.0937 in log-ratio); rapid initial departure; volatility increased (1.7x); continued upward drift (slope=0.001000/day); mean-reverting behavior (distance from prior level decreasing over time); low oscillation (trending or stable); gradual stabilization (~23 trading days); partial regime shift (new level distinguishable but not far)",
+      "cluster": 0,
+      "breakpoint_confidence": "low",
+      "cluster_confidence": "low",
+      "features": {
+        "level_shift": -0.09372008253871744,
+        "volatility_ratio": 1.655610025567497,
+        "post_trend_slope": 0.0009996549953617101,
+        "departure_speed": 0.04825542025824525,
+        "mean_reversion_corr": -0.6080542979261663,
+        "oscillation_rate": 0.10833333333333334,
+        "stabilization_days": 23,
+        "new_regime_distance": 1.7008853589823518
+      }
+    },
+    {
+      "timestamp": "2016-01-05",
+      "ratio_value": 0.0019366654076468,
+      "description": "moderate downward level shift (-0.1333 in log-ratio); rapid initial departure; volatility increased (1.5x); continued downward drift (slope=-0.000849/day); diverging behavior (distance from prior level increasing over time); low oscillation (trending or stable); rapid stabilization (~19 trading days); established a clearly distinct new regime",
+      "cluster": 1,
+      "breakpoint_confidence": "low",
+      "cluster_confidence": "medium",
+      "features": {
+        "level_shift": -0.13333043530934408,
+        "volatility_ratio": 1.5436176631500078,
+        "post_trend_slope": -0.0008490158938723929,
+        "departure_speed": 0.04610728677083831,
+        "mean_reversion_corr": 0.6648870911563663,
+        "oscillation_rate": 0.075,
+        "stabilization_days": 19,
+        "new_regime_distance": 6.15145131731525
+      }
+    },
+    {
+      "timestamp": "2016-11-10",
+      "ratio_value": 0.0020146187187324,
+      "description": "large upward level shift (+0.2630 in log-ratio); rapid initial departure; volatility roughly unchanged; continued downward drift (slope=-0.000566/day); mean-reverting behavior (distance from prior level decreasing over time); low oscillation (trending or stable); gradual stabilization (~22 trading days); established a clearly distinct new regime",
+      "cluster": 1,
+      "breakpoint_confidence": "low",
+      "cluster_confidence": "medium",
+      "features": {
+        "level_shift": 0.26303825235920186,
+        "volatility_ratio": 0.85454518754356,
+        "post_trend_slope": -0.0005659624587605184,
+        "departure_speed": 0.04291836840794616,
+        "mean_reversion_corr": -0.5230195637693178,
+        "oscillation_rate": 0.16666666666666666,
+        "stabilization_days": 22,
+        "new_regime_distance": 5.267826454822491
+      }
+    },
+    {
+      "timestamp": "2019-06-04",
+      "ratio_value": 0.0020201753148817,
+      "description": "large downward level shift (-0.2001 in log-ratio); moderate initial departure speed; volatility increased (1.7x); continued downward drift (slope=-0.001033/day); diverging behavior (distance from prior level increasing over time); low oscillation (trending or stable); rapid stabilization (~19 trading days); established a clearly distinct new regime",
+      "cluster": 1,
+      "breakpoint_confidence": "low",
+      "cluster_confidence": "medium",
+      "features": {
+        "level_shift": -0.20005709996270582,
+        "volatility_ratio": 1.658543475578525,
+        "post_trend_slope": -0.0010327849269008492,
+        "departure_speed": 0.025033511003579534,
+        "mean_reversion_corr": 0.6424127900644282,
+        "oscillation_rate": 0.041666666666666664,
+        "stabilization_days": 19,
+        "new_regime_distance": 6.610521089852535
+      }
+    },
+    {
+      "timestamp": "2020-01-29",
+      "ratio_value": 0.0016266402456565,
+      "description": "large downward level shift (-0.2077 in log-ratio); rapid initial departure; volatility surged (2.2x pre-breakpoint); continued downward drift (slope=-0.000406/day); neither clearly mean-reverting nor diverging; low oscillation (trending or stable); rapid stabilization (~19 trading days); established a clearly distinct new regime",
+      "cluster": 1,
+      "breakpoint_confidence": "medium",
+      "cluster_confidence": "medium",
+      "features": {
+        "level_shift": -0.20771095911840032,
+        "volatility_ratio": 2.1530841752188468,
+        "post_trend_slope": -0.00040584231265622324,
+        "departure_speed": 0.030773295981391335,
+        "mean_reversion_corr": 0.1996665053002098,
+        "oscillation_rate": 0.03333333333333333,
+        "stabilization_days": 19,
+        "new_regime_distance": 5.7369780496945255
+      }
+    },
+    {
+      "timestamp": "2020-11-18",
+      "ratio_value": 0.0017069655480243,
+      "description": "large upward level shift (+0.1833 in log-ratio); rapid initial departure; volatility increased (1.4x); continued upward drift (slope=0.001834/day); diverging behavior (distance from prior level increasing over time); low oscillation (trending or stable); gradual stabilization (~21 trading days); established a clearly distinct new regime",
+      "cluster": 0,
+      "breakpoint_confidence": "low",
+      "cluster_confidence": "low",
+      "features": {
+        "level_shift": 0.1832932535406,
+        "volatility_ratio": 1.3536090890857033,
+        "post_trend_slope": 0.0018337288811910738,
+        "departure_speed": 0.03934415984588391,
+        "mean_reversion_corr": 0.7842192675363823,
+        "oscillation_rate": 0.18333333333333332,
+        "stabilization_days": 21,
+        "new_regime_distance": 7.275142232615082
+      }
+    },
+    {
+      "timestamp": "2021-02-17",
+      "ratio_value": 0.0021658856182856,
+      "description": "large upward level shift (+0.2267 in log-ratio); rapid initial departure; volatility roughly unchanged; continued upward drift (slope=0.000248/day); neither clearly mean-reverting nor diverging; low oscillation (trending or stable); rapid stabilization (~19 trading days); established a clearly distinct new regime",
+      "cluster": 1,
+      "breakpoint_confidence": "low",
+      "cluster_confidence": "medium",
+      "features": {
+        "level_shift": 0.22672493772141422,
+        "volatility_ratio": 0.8068367860544621,
+        "post_trend_slope": 0.0002481597781391354,
+        "departure_speed": 0.04360457677716578,
+        "mean_reversion_corr": 0.2631015018247648,
+        "oscillation_rate": 0.15833333333333333,
+        "stabilization_days": 19,
+        "new_regime_distance": 5.560918541398401
+      }
+    },
+    {
+      "timestamp": "2022-06-15",
+      "ratio_value": 0.0022957637343555,
+      "description": "moderate downward level shift (-0.1338 in log-ratio); rapid initial departure; volatility increased (1.3x); continued upward drift (slope=0.000465/day); mean-reverting behavior (distance from prior level decreasing over time); low oscillation (trending or stable); gradual stabilization (~29 trading days); established a clearly distinct new regime",
+      "cluster": 0,
+      "breakpoint_confidence": "low",
+      "cluster_confidence": "medium",
+      "features": {
+        "level_shift": -0.13380240530216447,
+        "volatility_ratio": 1.3456039184253397,
+        "post_trend_slope": 0.0004645365708531159,
+        "departure_speed": 0.04537575462747423,
+        "mean_reversion_corr": -0.44241172286422886,
+        "oscillation_rate": 0.16666666666666666,
+        "stabilization_days": 29,
+        "new_regime_distance": 4.0729584840225135
+      }
+    },
+    {
+      "timestamp": "2023-04-25",
+      "ratio_value": 0.0019287863370767,
+      "description": "moderate downward level shift (-0.0892 in log-ratio); rapid initial departure; volatility compressed (0.5x); continued upward drift (slope=0.000263/day); mean-reverting behavior (distance from prior level decreasing over time); low oscillation (trending or stable); rapid stabilization (~19 trading days); partial regime shift (new level distinguishable but not far)",
+      "cluster": 1,
+      "breakpoint_confidence": "low",
+      "cluster_confidence": "medium",
+      "features": {
+        "level_shift": -0.08915303075946923,
+        "volatility_ratio": 0.5273122212774608,
+        "post_trend_slope": 0.00026314330035299424,
+        "departure_speed": 0.03323173177793226,
+        "mean_reversion_corr": -0.393868238705888,
+        "oscillation_rate": 0.11666666666666667,
+        "stabilization_days": 19,
+        "new_regime_distance": 1.9128612208565376
+      }
+    },
+    {
+      "timestamp": "2024-07-26",
+      "ratio_value": 0.0017245797549977,
+      "description": "large downward level shift (-0.1870 in log-ratio); moderate initial departure speed; volatility compressed (0.7x); continued downward drift (slope=-0.000765/day); diverging behavior (distance from prior level increasing over time); low oscillation (trending or stable); rapid stabilization (~19 trading days); established a clearly distinct new regime",
+      "cluster": 1,
+      "breakpoint_confidence": "medium",
+      "cluster_confidence": "high",
+      "features": {
+        "level_shift": -0.18699745541010504,
+        "volatility_ratio": 0.6709231896615203,
+        "post_trend_slope": -0.0007650710086549653,
+        "departure_speed": 0.02622917967423266,
+        "mean_reversion_corr": 0.7765695904592224,
+        "oscillation_rate": 0.09166666666666666,
+        "stabilization_days": 19,
+        "new_regime_distance": 4.3619820069598045
+      }
+    },
+    {
+      "timestamp": "2025-07-31",
+      "ratio_value": 0.0013149824456738,
+      "description": "large downward level shift (-0.1773 in log-ratio); moderate initial departure speed; volatility compressed (0.5x); continued downward drift (slope=-0.000283/day); neither clearly mean-reverting nor diverging; low oscillation (trending or stable); rapid stabilization (~19 trading days); partial regime shift (new level distinguishable but not far)",
+      "cluster": 1,
+      "breakpoint_confidence": "low",
+      "cluster_confidence": "medium",
+      "features": {
+        "level_shift": -0.1772509913116993,
+        "volatility_ratio": 0.45701658306466086,
+        "post_trend_slope": -0.0002832127988430549,
+        "departure_speed": 0.020286689873248775,
+        "mean_reversion_corr": 0.2994784548589281,
+        "oscillation_rate": 0.19166666666666668,
+        "stabilization_days": 19,
+        "new_regime_distance": 2.4995203252580924
+      }
+    }
+  ],
+  "clusters": {
+    "0": {
+      "cluster_id": 0,
+      "n_members": 8,
+      "member_dates": [
+        "2002-07-17",
+        "2004-01-16",
+        "2005-05-23",
+        "2006-04-10",
+        "2007-10-29",
+        "2015-01-07",
+        "2020-11-18",
+        "2022-06-15"
+      ],
+      "avg_level_shift": 0.04087062741159542,
+      "std_level_shift": 0.1873680660491105,
+      "avg_volatility_ratio": 1.6583737626047705,
+      "avg_departure_speed": 0.05055025326305862,
+      "avg_mean_reversion": 0.12524614986603722,
+      "avg_oscillation": 0.134375,
+      "avg_stabilization_days": 26.875,
+      "avg_new_regime_distance": 5.7029133558283105,
+      "avg_post_trend_slope": 0.0007462056051689239,
+      "description": "moderate upward shift, elevated volatility, fast departure, strong new regime established"
+    },
+    "1": {
+      "cluster_id": 1,
+      "n_members": 14,
+      "member_dates": [
+        "2001-06-12",
+        "2006-12-20",
+        "2007-03-20",
+        "2009-04-03",
+        "2009-07-22",
+        "2013-05-08",
+        "2016-01-05",
+        "2016-11-10",
+        "2019-06-04",
+        "2020-01-29",
+        "2021-02-17",
+        "2023-04-25",
+        "2024-07-26",
+        "2025-07-31"
+      ],
+      "avg_level_shift": -0.010245981799119619,
+      "std_level_shift": 0.20184709248324548,
+      "avg_volatility_ratio": 1.0641202104473375,
+      "avg_departure_speed": 0.03905777956304503,
+      "avg_mean_reversion": 0.27499419341375964,
+      "avg_oscillation": 0.09857142857142855,
+      "avg_stabilization_days": 19.285714285714285,
+      "avg_new_regime_distance": 4.453956417754741,
+      "avg_post_trend_slope": -0.00023215129714357675,
+      "description": "mixed/neutral direction, stable volatility, fast departure, new regime partially established"
+    },
+    "2": {
+      "cluster_id": 2,
+      "n_members": 1,
+      "member_dates": [
+        "2008-10-03"
+      ],
+      "avg_level_shift": -0.7113353687714792,
+      "std_level_shift": 0.0,
+      "avg_volatility_ratio": 2.6762361764696183,
+      "avg_departure_speed": 0.11717992160354473,
+      "avg_mean_reversion": 0.7427858921605179,
+      "avg_oscillation": 0.05,
+      "avg_stabilization_days": 20.0,
+      "avg_new_regime_distance": 11.272990840007974,
+      "avg_post_trend_slope": -0.004232823431370129,
+      "description": "extreme downward shift, volatility explosion, fast departure, persistently diverging, strong new regime established"
+    },
+    "3": {
+      "cluster_id": 3,
+      "n_members": 1,
+      "member_dates": [
+        "2011-08-05"
+      ],
+      "avg_level_shift": -0.25775961547404425,
+      "std_level_shift": 0.0,
+      "avg_volatility_ratio": 2.15803344357638,
+      "avg_departure_speed": 0.07510267487059963,
+      "avg_mean_reversion": 0.15970120583161027,
+      "avg_oscillation": 0.05,
+      "avg_stabilization_days": 52.0,
+      "avg_new_regime_distance": 9.048003149357728,
+      "avg_post_trend_slope": -0.0002648325749974208,
+      "description": "strong downward shift, volatility explosion, fast departure, strong new regime established"
+    }
+  }
+}

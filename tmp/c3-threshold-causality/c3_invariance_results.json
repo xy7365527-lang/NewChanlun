@@ -1,0 +1,160 @@
+{
+  "meta": {
+    "description": "C3-invariance: percentile 阈值的 QE/非QE 不变性检验",
+    "hypothesis": "阈值 (~0.8th percentile) 在 QE 和非 QE 期间相同 → K4 拓扑不变量",
+    "qe_period": "2008-11-25 to 2022-03-16",
+    "effdim_source": "252d rolling covariance matrix",
+    "mahalanobis_source": "Full-sample covariance matrix",
+    "extreme_threshold": "top 1% Mahalanobis",
+    "epistemological_level": "L2",
+    "data_range": "2000-08-30 to 2026-03-02",
+    "n_obs_raw": 6391,
+    "convergence_criterion": "±0.5% floor percentile diff across all 4 nodes",
+    "divergence_criterion": "any node > 2% floor percentile diff"
+  },
+  "per_node": {
+    "Au": {
+      "n_total": 6138,
+      "effdim_stats": {
+        "mean": 2.16234,
+        "std": 0.235457,
+        "min": 1.447797,
+        "max": 2.590023
+      },
+      "mahal_threshold_99pct": 5.265768,
+      "qe": {
+        "n_days": 3345,
+        "n_extreme": 40,
+        "effdim_mean": 2.090466,
+        "effdim_std": 0.278733,
+        "event_floor_effdim": 1.534096,
+        "event_floor_percentile_in_qe": 1.435,
+        "extreme_effdim_median": 1.924021,
+        "extreme_percentile_median": 26.5172,
+        "extreme_percentile_mean": 44.9851
+      },
+      "nonqe": {
+        "n_days": 2793,
+        "n_extreme": 24,
+        "effdim_mean": 2.248419,
+        "effdim_std": 0.123316,
+        "event_floor_effdim": 2.068199,
+        "event_floor_percentile_in_nonqe": 3.8668,
+        "extreme_effdim_median": 2.363213,
+        "extreme_percentile_median": 82.2413,
+        "extreme_percentile_mean": 76.9961
+      },
+      "percentile_diff": -2.4318
+    },
+    "Dollar": {
+      "n_total": 6138,
+      "effdim_stats": {
+        "mean": 2.132259,
+        "std": 0.238338,
+        "min": 1.403083,
+        "max": 2.711263
+      },
+      "mahal_threshold_99pct": 5.265768,
+      "qe": {
+        "n_days": 3345,
+        "n_extreme": 40,
+        "effdim_mean": 2.046115,
+        "effdim_std": 0.248669,
+        "event_floor_effdim": 1.493445,
+        "event_floor_percentile_in_qe": 1.1659,
+        "extreme_effdim_median": 1.949646,
+        "extreme_percentile_median": 34.0359,
+        "extreme_percentile_mean": 42.1196
+      },
+      "nonqe": {
+        "n_days": 2793,
+        "n_extreme": 24,
+        "effdim_mean": 2.235429,
+        "effdim_std": 0.176808,
+        "event_floor_effdim": 2.080474,
+        "event_floor_percentile_in_nonqe": 17.0068,
+        "extreme_effdim_median": 2.311819,
+        "extreme_percentile_median": 72.3237,
+        "extreme_percentile_mean": 68.7164
+      },
+      "percentile_diff": -15.8409
+    },
+    "Equity": {
+      "n_total": 6138,
+      "effdim_stats": {
+        "mean": 2.212903,
+        "std": 0.246303,
+        "min": 1.524903,
+        "max": 2.832977
+      },
+      "mahal_threshold_99pct": 5.265768,
+      "qe": {
+        "n_days": 3345,
+        "n_extreme": 40,
+        "effdim_mean": 2.3059,
+        "effdim_std": 0.264661,
+        "event_floor_effdim": 1.683551,
+        "event_floor_percentile_in_qe": 1.435,
+        "extreme_effdim_median": 2.184854,
+        "extreme_percentile_median": 31.7339,
+        "extreme_percentile_mean": 30.5852
+      },
+      "nonqe": {
+        "n_days": 2793,
+        "n_extreme": 24,
+        "effdim_mean": 2.101526,
+        "effdim_std": 0.163343,
+        "event_floor_effdim": 1.923858,
+        "event_floor_percentile_in_nonqe": 16.3265,
+        "extreme_effdim_median": 2.055175,
+        "extreme_percentile_median": 43.5374,
+        "extreme_percentile_mean": 46.9194
+      },
+      "percentile_diff": -14.8915
+    },
+    "Commodity": {
+      "n_total": 6138,
+      "effdim_stats": {
+        "mean": 1.535744,
+        "std": 0.229582,
+        "min": 1.111659,
+        "max": 2.221231
+      },
+      "mahal_threshold_99pct": 5.265768,
+      "qe": {
+        "n_days": 3345,
+        "n_extreme": 40,
+        "effdim_mean": 1.556392,
+        "effdim_std": 0.280623,
+        "event_floor_effdim": 1.145796,
+        "event_floor_percentile_in_qe": 1.435,
+        "extreme_effdim_median": 1.359217,
+        "extreme_percentile_median": 32.8102,
+        "extreme_percentile_mean": 38.4619
+      },
+      "nonqe": {
+        "n_days": 2793,
+        "n_extreme": 24,
+        "effdim_mean": 1.511014,
+        "effdim_std": 0.142879,
+        "event_floor_effdim": 1.39247,
+        "event_floor_percentile_in_nonqe": 22.3774,
+        "extreme_effdim_median": 1.729822,
+        "extreme_percentile_median": 89.2052,
+        "extreme_percentile_mean": 82.4024
+      },
+      "percentile_diff": -20.9424
+    }
+  },
+  "verdict": {
+    "overall": "NOT_CONVERGENT",
+    "max_abs_diff": 20.9424,
+    "per_node_diffs": {
+      "Au": -2.4318,
+      "Dollar": -15.8409,
+      "Equity": -14.8915,
+      "Commodity": -20.9424
+    },
+    "interpretation": "存在节点 QE/非QE 地板 percentile 差值超过 2% (max |diff| = 20.9424%)。制度干预移动了阈值，阈值不是拓扑不变量。"
+  }
+}

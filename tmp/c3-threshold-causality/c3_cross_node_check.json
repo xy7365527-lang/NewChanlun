@@ -1,0 +1,121 @@
+{
+  "meta": {
+    "description": "C3 cross-node check: node eff.dim percentiles at Mahalanobis extreme days",
+    "question": "Is the unfoldable phase (eff.dim < 0.8pct) a node-local or K4-global state?",
+    "n_extreme_days": 64,
+    "mahal_threshold_99pct": 5.265768,
+    "node_0.8pct_thresholds": {
+      "Au": 1.53453,
+      "Dollar": 1.497461,
+      "Equity": 1.684552,
+      "Commodity": 1.145963
+    }
+  },
+  "below_08_events": [
+    {
+      "date": "2020-06-11",
+      "mahalanobis": 5.813096700700571,
+      "below_nodes": [
+        "Au",
+        "Dollar",
+        "Equity",
+        "Commodity"
+      ],
+      "all_pcts": {
+        "Au": {
+          "value": 1.5340960305012084,
+          "percentile": 0.765721733463669
+        },
+        "Dollar": {
+          "value": 1.4934445765018192,
+          "percentile": 0.6190941674812642
+        },
+        "Equity": {
+          "value": 1.6835510648762144,
+          "percentile": 0.765721733463669
+        },
+        "Commodity": {
+          "value": 1.1457958974332967,
+          "percentile": 0.765721733463669
+        }
+      }
+    }
+  ],
+  "n_below_08_of_total": "1/64",
+  "percentile_distribution_at_extreme": {
+    "Au": {
+      "mean_pct": 53.42,
+      "median_pct": 70.32,
+      "min_pct": 0.77,
+      "max_pct": 98.35,
+      "n_below_1pct": 1,
+      "n_below_5pct": 8,
+      "n_below_10pct": 10,
+      "n_below_20pct": 24,
+      "n_total": 64
+    },
+    "Dollar": {
+      "mean_pct": 49.67,
+      "median_pct": 70.38,
+      "min_pct": 0.62,
+      "max_pct": 97.17,
+      "n_below_1pct": 1,
+      "n_below_5pct": 8,
+      "n_below_10pct": 12,
+      "n_below_20pct": 20,
+      "n_total": 64
+    },
+    "Equity": {
+      "mean_pct": 38.79,
+      "median_pct": 36.22,
+      "min_pct": 0.77,
+      "max_pct": 97.44,
+      "n_below_1pct": 2,
+      "n_below_5pct": 8,
+      "n_below_10pct": 8,
+      "n_below_20pct": 13,
+      "n_total": 64
+    },
+    "Commodity": {
+      "mean_pct": 51.22,
+      "median_pct": 66.72,
+      "min_pct": 0.77,
+      "max_pct": 90.34,
+      "n_below_1pct": 2,
+      "n_below_5pct": 8,
+      "n_below_10pct": 10,
+      "n_below_20pct": 18,
+      "n_total": 64
+    }
+  },
+  "cross_node_synchrony": {
+    "below_1pct": {
+      "0": 62,
+      "1": 0,
+      "2": 1,
+      "3": 0,
+      "4": 1
+    },
+    "below_5pct": {
+      "0": 56,
+      "1": 0,
+      "2": 0,
+      "3": 0,
+      "4": 8
+    },
+    "below_10pct": {
+      "0": 52,
+      "1": 2,
+      "2": 0,
+      "3": 2,
+      "4": 8
+    },
+    "below_20pct": {
+      "0": 34,
+      "1": 11,
+      "2": 1,
+      "3": 10,
+      "4": 8
+    }
+  }
+}

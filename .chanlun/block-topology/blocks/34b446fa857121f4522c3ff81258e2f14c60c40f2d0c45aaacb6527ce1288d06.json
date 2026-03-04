@@ -1,0 +1,14 @@
+{
+  "id": "330",
+  "title": "K4拓扑与资本循环映射：金融循环的拓扑，不是资本循环的拓扑",
+  "type": "event",
+  "status": "已结算",
+  "date": "2026-03-04",
+  "depends_on": [
+    "329",
+    "292",
+    "231"
+  ],
+  "epistemological_level": "L0",
+  "file": "settled/330-k4-capital-circuit-mapping.md"
+}

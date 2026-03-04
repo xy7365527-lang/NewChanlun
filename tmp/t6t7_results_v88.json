@@ -1,0 +1,41 @@
+{
+  "data_source": "AAPL_20260209_20260213_1m.csv",
+  "pipeline_summary": {
+    "total_bars_rth": 1646,
+    "L1_strokes": 130,
+    "L1_segments": 10,
+    "L1_zhongshus": 1,
+    "L1_moves": 1,
+    "recursive_levels": 1
+  },
+  "T6_nested_divergence": {
+    "total_signals": 0,
+    "trigger_bar_count": 0,
+    "trigger_rate_pct": 0.0,
+    "chain_depth_distribution": {},
+    "direction_distribution": {},
+    "confirmed_count": 0,
+    "unconfirmed_count": 0,
+    "avg_chain_depth": 0.0,
+    "avg_bar_range_width": 0.0,
+    "max_chain_depth": 0,
+    "kind_distribution": {}
+  },
+  "T7_buysellpoints": {
+    "total_buysellpoints": 1,
+    "kind_distribution": {
+      "type3": 1
+    },
+    "side_distribution": {
+      "sell": 1
+    },
+    "confirmed_count": 0,
+    "settled_count": 0,
+    "overlap_count": 0,
+    "level_distribution": {
+      "1": 1
+    },
+    "new_bsp_event_bar_count": 1,
+    "new_bsp_event_rate_pct": 0.06
+  }
+}

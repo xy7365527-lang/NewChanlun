@@ -1,0 +1,130 @@
+tensions_with:
+- from: '013'
+  to: '012'
+  evidence: '| 谱系工位 | 每次概念发现后 | 立即写入谱系，检查张力 | 012号谱系 |'
+- from: 019d
+  to: '020'
+  evidence: '**结算方式**: 020号谱系子发现结算（020的直接触发源，012↔013→构成性矛盾）'
+- from: 019d
+  to: '012'
+  evidence: 012号谱系确立了"张力碰撞是核心发现来源"的原则，但未配套终止条件和范围策略：
+- from: 019d
+  to: '013'
+  evidence: 3. 012 和 013 之间存在构成性张力（构成性矛盾）：无限发现 vs 有限预算（见020号谱系）
+- from: '020'
+  to: 019d
+  evidence: 019族循环断点审计中，019d 识别出 012 与 013 之间存在"未辨认的张力"，并提出了范围策略（递归深度=2，检查范围=同轮∪1-hop∪Hub）作为"平衡点的工程实现"。
+- from: '020'
+  to: '012'
+  evidence: 019族循环断点审计中，019d 识别出 012 与 013 之间存在"未辨认的张力"，并提出了范围策略（递归深度=2，检查范围=同轮∪1-hop∪Hub）作为"平衡点的工程实现"。
+- from: '020'
+  to: '013'
+  evidence: 019族循环断点审计中，019d 识别出 012 与 013 之间存在"未辨认的张力"，并提出了范围策略（递归深度=2，检查范围=同轮∪1-hop∪Hub）作为"平衡点的工程实现"。
+- from: '020'
+  to: '010'
+  evidence: '**裂开**（012运作）：谱系碰撞产生张力，东西闪现。010号谱系就是007/008/009碰撞裂开瞬间闪现的产物。'
+- from: '020'
+  to: '007'
+  evidence: '**裂开**（012运作）：谱系碰撞产生张力，东西闪现。010号谱系就是007/008/009碰撞裂开瞬间闪现的产物。'
+- from: '020'
+  to: 008
+  evidence: '**裂开**（012运作）：谱系碰撞产生张力，东西闪现。010号谱系就是007/008/009碰撞裂开瞬间闪现的产物。'
+- from: '065'
+  to: '064'
+  evidence: '**特殊性**: 064号异质对话的递归深化。Claude 提出六条张力，Gemini 逐条质询并识别统一矛盾。'
+- from: '065'
+  to: '062'
+  evidence: '- 062号（heterogeneity-as-sinthome）：Sinthome 架构 vs 外部撕裂的张力'
+- from: '066'
+  to: '065'
+  evidence: '- 065号（six-tensions-topology-discourse）：六条张力的前置分析'
+- from: 068
+  to: '065'
+  evidence: '- 065号（张力1-6）：部分使用连续流形语言，已被本条否定'
+triggered:
+- from: '005'
+  to: 005b
+  evidence: '子条目: 005 → 005b'
+- from: '005'
+  to: 005a
+  evidence: '子条目: 005 → 005a'
+- from: 005a
+  to: '005'
+  evidence: 本记录是从 `pending/005-object-negation-principle.md` 概念分离而来。
+- from: 005b
+  to: '005'
+  evidence: 本记录是从 `pending/005-object-negation-principle.md` 概念分离而来。
+- from: '007'
+  to: '003'
+  evidence: '- 前置：003-segment-concept-separation.md（Move[0] = 线段的概念分离）'
+- from: 019
+  to: 019a
+  evidence: '- **子发现**: 019a, 019b, 019c, 019d（全部已结算）'
+- from: 019
+  to: 019b
+  evidence: '- **子发现**: 019a, 019b, 019c, 019d（全部已结算）'
+- from: 019
+  to: 019c
+  evidence: '- **子发现**: 019a, 019b, 019c, 019d（全部已结算）'
+- from: 019
+  to: 019d
+  evidence: '子条目: 019 → 019d'
+- from: 019a
+  to: 019
+  evidence: '- **父**: 019-loop-breakpoint-coverage（本条是 019 的子发现 G1+G2）'
+- from: 019b
+  to: '020'
+  evidence: '**结算方式**: 020号谱系子发现结算（G3子发现，阈值→结构完成检测）'
+- from: 019b
+  to: 019
+  evidence: '- **父**: 019-loop-breakpoint-coverage（本条是 019 的子发现 G3）'
+- from: 019c
+  to: '020'
+  evidence: '**结算方式**: 020号谱系子发现结算（G4子发现，仪式=收缩相位）'
+- from: 019c
+  to: 019
+  evidence: '- **父**: 019-loop-breakpoint-coverage（本条是 019 的子发现 G4）'
+- from: 019d
+  to: '020'
+  evidence: '**结算方式**: 020号谱系子发现结算（020的直接触发源，012↔013→构成性矛盾）'
+- from: 019d
+  to: 019
+  evidence: '- **父**: 019-loop-breakpoint-coverage（本条是 019 的子发现 G5+G6）'
+- from: '030'
+  to: 030a
+  evidence: '子条目: 030 → 030a'
+- from: '042'
+  to: '041'
+  evidence: 041号的自然推论：Gemini 作为编排者代理，其决策输出不仅是方向选择，还包含可执行的实现细节——文件结构、代码逻辑、边界处理。三次 hook
+    决策的实践验证了这一点：每次 Gemini 不仅选择了"用 hook"，还输出了 hook 的触发条件、拦截逻辑、豁免机制等具体方案，Lead 无需二次
+- from: '062'
+  to: '060'
+  evidence: '# 062: 异质性作为 Sinthome——对 060号 3+1 架构的扬弃'
+derived:
+- from: '010'
+  to: '007'
+  evidence: '**结算依据**: 007/008/009号谱系的交叉推论 + 第33课终极断言'
+- from: '010'
+  to: 008
+  evidence: '**结算依据**: 007/008/009号谱系的交叉推论 + 第33课终极断言'
+- from: '010'
+  to: 009
+  evidence: '**结算依据**: 007/008/009号谱系的交叉推论 + 第33课终极断言'
+- from: '011'
+  to: 008
+  evidence: '**结算依据**: 第17课答疑（一级权威）+ 008号谱系推论'
+- from: '024'
+  to: 005a
+  evidence: 4. ✅ **定理级自动结算**：三层退化连锁是005a/005b的逻辑必然推论 — 退化=非对象，检测退化=检测"是否存在对象"，三层在三个独立投影面上做同一件事（CV→统计投影，笔力度→语法投影，MACD→动力学投影）
+- from: '036'
+  to: '034'
+  evidence: '# 036 — 声明-能力一致性原则结晶：约束链 016→032→033→034 的模式识别'
+- from: '036'
+  to: '016'
+  evidence: '- 前置: 016-runtime-enforcement-layer（约束链起点）'
+- from: '063'
+  to: '020'
+  evidence: '[type=定理（级别口径公理的逻辑必然推论）] derived from 020'
+- from: '063'
+  to: '062'
+  evidence: '[type=定理（级别口径公理的逻辑必然推论）] derived from 062'

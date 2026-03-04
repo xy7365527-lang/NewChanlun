@@ -1,0 +1,122 @@
+{
+  "config": {
+    "initial_capital": 1000000.0,
+    "margin_ratio": 1.0,
+    "short_diff_ratio": 0.1,
+    "k4_symbols": [
+      "SPY",
+      "GLD",
+      "TLT"
+    ],
+    "candidate_symbols": [
+      "XLK",
+      "XLF",
+      "XLE",
+      "XLV",
+      "XLY"
+    ],
+    "max_capital": 2000000.0
+  },
+  "summary": {
+    "total_bars": 5352,
+    "total_actions": 5,
+    "k4_changes": 3,
+    "stock_changes": 1,
+    "final_cost_basis": 29.98796215057373,
+    "total_recovered": 0.0
+  },
+  "k4_changes": [
+    {
+      "bar_idx": 0,
+      "config_label": "(0,0,0)"
+    },
+    {
+      "bar_idx": 4286,
+      "config_label": "(0,0,+)"
+    },
+    {
+      "bar_idx": 4920,
+      "config_label": "(0,0,0)"
+    }
+  ],
+  "stock_changes": [
+    {
+      "bar_idx": 2386,
+      "symbol": "XLY"
+    }
+  ],
+  "actions": [
+    {
+      "bar_idx": 2386,
+      "action": "buy",
+      "price": 27.909135818481445,
+      "quantity": 71661.1224728642,
+      "cost_basis": 27.909135818481445,
+      "trigger": "buy_type3_L1"
+    },
+    {
+      "bar_idx": 2387,
+      "action": "short_sell",
+      "price": 27.707712173461914,
+      "quantity": 7166.11224728642,
+      "cost_basis": 27.909135818481445,
+      "trigger": "sub_sell_type3_L1"
+    },
+    {
+      "bar_idx": 3394,
+      "action": "short_cover",
+      "price": 48.495975494384766,
+      "quantity": 7166.11224728642,
+      "cost_basis": 29.98796215057373,
+      "trigger": "sub_buy_type3_L1"
+    },
+    {
+      "bar_idx": 4366,
+      "action": "short_cover",
+      "price": 88.88957214355469,
+      "quantity": 7166.11224728642,
+      "cost_basis": 29.98796215057373,
+      "trigger": "sub_buy_type3_L1"
+    },
+    {
+      "bar_idx": 4367,
+      "action": "short_cover",
+      "price": 88.7347183227539,
+      "quantity": 7166.11224728642,
+      "cost_basis": 29.98796215057373,
+      "trigger": "sub_buy_type3_L1"
+    }
+  ],
+  "cost_curve": [
+    {
+      "bar_idx": 2386,
+      "cost_basis": 27.909135818481445,
+      "total_shares": 71661.1224728642,
+      "cumulative_recovered": 0.0
+    },
+    {
+      "bar_idx": 2387,
+      "cost_basis": 27.909135818481445,
+      "total_shares": 71661.1224728642,
+      "cumulative_recovered": 0.0
+    },
+    {
+      "bar_idx": 3394,
+      "cost_basis": 29.98796215057373,
+      "total_shares": 71661.1224728642,
+      "cumulative_recovered": 0.0
+    },
+    {
+      "bar_idx": 4366,
+      "cost_basis": 29.98796215057373,
+      "total_shares": 71661.1224728642,
+      "cumulative_recovered": 0.0
+    },
+    {
+      "bar_idx": 4367,
+      "cost_basis": 29.98796215057373,
+      "total_shares": 71661.1224728642,
+      "cumulative_recovered": 0.0
+    }
+  ]
+}

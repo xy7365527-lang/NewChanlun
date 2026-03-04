@@ -1,0 +1,425 @@
+{
+  "meta": {
+    "description": "C3 线二: 坍缩质量分析 — 安静压缩 vs 震荡压缩",
+    "question": "向心坍缩事件中, 压缩是安静的还是震荡的?",
+    "collapse_event_definition": "Mahalanobis > 99th percentile AND all 4 nodes eff.dim < 5th percentile",
+    "cluster_gap_days": 7,
+    "effdim_window": 252,
+    "vol_baseline": "Full-sample rolling N-day window volatility distribution",
+    "epistemological_level": "L2",
+    "data_range": "2000-08-30 to 2026-03-03",
+    "n_obs_raw": 6392,
+    "n_extreme_days_mahal": 64,
+    "n_sync_days": 8,
+    "n_nonsync_days": 56,
+    "n_clusters": 3,
+    "mahal_99pct_threshold": 5.2623
+  },
+  "clusters": [
+    {
+      "id": 1,
+      "start": "2020-04-22",
+      "end": "2020-05-05",
+      "n_days": 6,
+      "sync_dates": [
+        "2020-04-22",
+        "2020-04-23",
+        "2020-04-27",
+        "2020-04-29",
+        "2020-04-30",
+        "2020-05-05"
+      ],
+      "effdim_depth": {
+        "Au": 1.593868,
+        "Dollar": 1.552726,
+        "Equity": 1.758529,
+        "Commodity": 1.16684
+      },
+      "effdim_depth_zscore": {
+        "Au": -2.4143,
+        "Dollar": -2.4313,
+        "Equity": -1.8449,
+        "Commodity": -1.607
+      },
+      "effdim_per_day": {
+        "Au": [
+          1.654686,
+          1.618769,
+          1.603996,
+          1.580244,
+          1.562148,
+          1.543366
+        ],
+        "Dollar": [
+          1.624494,
+          1.573567,
+          1.559618,
+          1.535553,
+          1.519326,
+          1.503798
+        ],
+        "Equity": [
+          1.846413,
+          1.792048,
+          1.772886,
+          1.72951,
+          1.718298,
+          1.692018
+        ],
+        "Commodity": [
+          1.19199,
+          1.175288,
+          1.169905,
+          1.159975,
+          1.155094,
+          1.148787
+        ]
+      },
+      "edge_measure_type": "vol",
+      "edge_volatility": {
+        "Au": {
+          "Au/DXY": 0.01283654,
+          "Au/SPX": 0.01459186,
+          "Au/OIL": 0.20563886
+        },
+        "Dollar": {
+          "DXY/Au": 0.01283654,
+          "DXY/SPX": 0.01314204,
+          "DXY/OIL": 0.21082352
+        },
+        "Equity": {
+          "SPX/DXY": 0.01314204,
+          "SPX/Au": 0.01459186,
+          "SPX/OIL": 0.21304239
+        },
+        "Commodity": {
+          "OIL/DXY": 0.21082352,
+          "OIL/Au": 0.20563886,
+          "OIL/SPX": 0.21304239
+        }
+      },
+      "edge_vol_zscore": {
+        "Au": {
+          "Au/DXY": 0.0702,
+          "Au/SPX": 0.0456,
+          "Au/OIL": 11.1909
+        },
+        "Dollar": {
+          "DXY/Au": 0.0702,
+          "DXY/SPX": 0.2491,
+          "DXY/OIL": 11.2219
+        },
+        "Equity": {
+          "SPX/DXY": 0.2491,
+          "SPX/Au": 0.0456,
+          "SPX/OIL": 11.6406
+        },
+        "Commodity": {
+          "OIL/DXY": 11.2219,
+          "OIL/Au": 11.1909,
+          "OIL/SPX": 11.6406
+        }
+      },
+      "mahalanobis": {
+        "values": [
+          11.6224,
+          6.9653,
+          11.2028,
+          7.6207,
+          9.1133,
+          7.1047
+        ],
+        "mean": 8.9382,
+        "max": 11.6224,
+        "min": 6.9653
+      },
+      "Q_value": "Q_not_applicable"
+    },
+    {
+      "id": 2,
+      "start": "2020-06-11",
+      "end": "2020-06-11",
+      "n_days": 1,
+      "sync_dates": [
+        "2020-06-11"
+      ],
+      "effdim_depth": {
+        "Au": 1.534096,
+        "Dollar": 1.493445,
+        "Equity": 1.683551,
+        "Commodity": 1.145796
+      },
+      "effdim_depth_zscore": {
+        "Au": -2.6681,
+        "Dollar": -2.6799,
+        "Equity": -2.1493,
+        "Commodity": -1.6986
+      },
+      "effdim_per_day": {
+        "Au": [
+          1.534096
+        ],
+        "Dollar": [
+          1.493445
+        ],
+        "Equity": [
+          1.683551
+        ],
+        "Commodity": [
+          1.145796
+        ]
+      },
+      "edge_measure_type": "abs_return",
+      "edge_volatility": {
+        "Au": {
+          "Au/DXY": 0.00286325,
+          "Au/SPX": 0.07160814,
+          "Au/OIL": 0.09676546
+        },
+        "Dollar": {
+          "DXY/Au": 0.00286325,
+          "DXY/SPX": 0.06874489,
+          "DXY/OIL": 0.09390221
+        },
+        "Equity": {
+          "SPX/DXY": 0.06874489,
+          "SPX/Au": 0.07160814,
+          "SPX/OIL": 0.02515732
+        },
+        "Commodity": {
+          "OIL/DXY": 0.09390221,
+          "OIL/Au": 0.09676546,
+          "OIL/SPX": 0.02515732
+        }
+      },
+      "edge_vol_zscore": {
+        "Au": {
+          "Au/DXY": -0.7681,
+          "Au/SPX": 5.0919,
+          "Au/OIL": 3.8754
+        },
+        "Dollar": {
+          "DXY/Au": -0.7681,
+          "DXY/SPX": 5.9918,
+          "DXY/OIL": 3.6205
+        },
+        "Equity": {
+          "SPX/DXY": 5.9918,
+          "SPX/Au": 5.0919,
+          "SPX/OIL": 0.3607
+        },
+        "Commodity": {
+          "OIL/DXY": 3.6205,
+          "OIL/Au": 3.8754,
+          "OIL/SPX": 0.3607
+        }
+      },
+      "mahalanobis": {
+        "values": [
+          5.8134
+        ],
+        "mean": 5.8134,
+        "max": 5.8134,
+        "min": 5.8134
+      },
+      "Q_value": "Q_not_applicable"
+    },
+    {
+      "id": 3,
+      "start": "2020-11-09",
+      "end": "2020-11-09",
+      "n_days": 1,
+      "sync_dates": [
+        "2020-11-09"
+      ],
+      "effdim_depth": {
+        "Au": 1.566687,
+        "Dollar": 1.536842,
+        "Equity": 1.736634,
+        "Commodity": 1.158756
+      },
+      "effdim_depth_zscore": {
+        "Au": -2.5297,
+        "Dollar": -2.4979,
+        "Equity": -1.9338,
+        "Commodity": -1.6422
+      },
+      "effdim_per_day": {
+        "Au": [
+          1.566687
+        ],
+        "Dollar": [
+          1.536842
+        ],
+        "Equity": [
+          1.736634
+        ],
+        "Commodity": [
+          1.158756
+        ]
+      },
+      "edge_measure_type": "abs_return",
+      "edge_volatility": {
+        "Au": {
+          "Au/DXY": 0.05647597,
+          "Au/SPX": 0.06270136,
+          "Au/OIL": 0.13247817
+        },
+        "Dollar": {
+          "DXY/Au": 0.05647597,
+          "DXY/SPX": 0.00622539,
+          "DXY/OIL": 0.0760022
+        },
+        "Equity": {
+          "SPX/DXY": 0.00622539,
+          "SPX/Au": 0.06270136,
+          "SPX/OIL": 0.06977681
+        },
+        "Commodity": {
+          "OIL/DXY": 0.0760022,
+          "OIL/Au": 0.13247817,
+          "OIL/SPX": 0.06977681
+        }
+      },
+      "edge_vol_zscore": {
+        "Au": {
+          "Au/DXY": 4.896,
+          "Au/SPX": 4.3368,
+          "Au/OIL": 5.6343
+        },
+        "Dollar": {
+          "DXY/Au": 4.896,
+          "DXY/SPX": -0.3004,
+          "DXY/OIL": 2.7569
+        },
+        "Equity": {
+          "SPX/DXY": -0.3004,
+          "SPX/Au": 4.3368,
+          "SPX/OIL": 2.5796
+        },
+        "Commodity": {
+          "OIL/DXY": 2.7569,
+          "OIL/Au": 5.6343,
+          "OIL/SPX": 2.5796
+        }
+      },
+      "mahalanobis": {
+        "values": [
+          5.8825
+        ],
+        "mean": 5.8825,
+        "max": 5.8825,
+        "min": 5.8825
+      },
+      "Q_value": "Q_not_applicable"
+    }
+  ],
+  "nonsync_comparison": {
+    "n_nonsync_days": 56,
+    "nonsync_edge_volatility": {
+      "Au": {
+        "Au/DXY": 0.04745294,
+        "Au/SPX": 0.07121939,
+        "Au/OIL": 0.12380623
+      },
+      "Dollar": {
+        "DXY/Au": 0.04745294,
+        "DXY/SPX": 0.06519234,
+        "DXY/OIL": 0.12987614
+      },
+      "Equity": {
+        "SPX/DXY": 0.06519234,
+        "SPX/Au": 0.07121939,
+        "SPX/OIL": 0.12350823
+      },
+      "Commodity": {
+        "OIL/DXY": 0.12987614,
+        "OIL/Au": 0.12380623,
+        "OIL/SPX": 0.12350823
+      }
+    },
+    "sync_nonsync_vol_ratios": {
+      "Au_Au/DXY": 0.4971,
+      "Au_Au/SPX": 0.5401,
+      "Au_Au/OIL": 1.5531,
+      "Dollar_DXY/Au": 0.4971,
+      "Dollar_DXY/SPX": 0.4657,
+      "Dollar_DXY/OIL": 1.511,
+      "Equity_SPX/DXY": 0.4657,
+      "Equity_SPX/Au": 0.5401,
+      "Equity_SPX/OIL": 1.524,
+      "Commodity_OIL/DXY": 1.511,
+      "Commodity_OIL/Au": 1.5531,
+      "Commodity_OIL/SPX": 1.524
+    }
+  },
+  "effdim_depth_variation": {
+    "per_node": {
+      "Au": {
+        "zscores": [
+          -2.4143,
+          -2.6681,
+          -2.5297
+        ],
+        "mean": -2.5374,
+        "std": 0.1271,
+        "cv": 0.0501
+      },
+      "Dollar": {
+        "zscores": [
+          -2.4313,
+          -2.6799,
+          -2.4979
+        ],
+        "mean": -2.5364,
+        "std": 0.1287,
+        "cv": 0.0507
+      },
+      "Equity": {
+        "zscores": [
+          -1.8449,
+          -2.1493,
+          -1.9338
+        ],
+        "mean": -1.976,
+        "std": 0.1565,
+        "cv": 0.0792
+      },
+      "Commodity": {
+        "zscores": [
+          -1.607,
+          -1.6986,
+          -1.6422
+        ],
+        "mean": -1.6493,
+        "std": 0.0462,
+        "cv": 0.028
+      }
+    },
+    "cv_mean": 0.052,
+    "verdict": "uniform"
+  },
+  "dollar_specificity": "no",
+  "dollar_specificity_detail": [
+    {
+      "cluster_id": 1,
+      "dollar_mean_z": 3.8471,
+      "other_mean_z": 6.3662,
+      "dollar_minus_other": -2.5191
+    },
+    {
+      "cluster_id": 2,
+      "dollar_mean_z": 2.9481,
+      "other_mean_z": 3.0556,
+      "dollar_minus_other": -0.1075
+    },
+    {
+      "cluster_id": 3,
+      "dollar_mean_z": 2.4508,
+      "other_mean_z": 3.606,
+      "dollar_minus_other": -1.1552
+    }
+  ],
+  "verdict": "DIFFERENTIATED",
+  "verdict_reason": "Edge vol z-scores extreme (max |z|=11.64, mean |z|=4.15). OIL edges: mean |z|=5.88, non-OIL edges: mean |z|=2.42."
+}

@@ -3,12 +3,18 @@
 # Status 枚举: observed → candidate → settled → promoted/rejected
 version: "1.0"
 patterns:
-  - id: "anomaly-437b36fb"
-    signature: "lead-direct-Bash"
-    frequency: 61
-    first_seen: "2026-02-23T21:07:22Z"
-    last_seen: "2026-02-23T22:14:17Z"
-    sources: ["2026-02-23T21:07:22Z"]
-    description: "Lead 直接执行 Bash（应委派工位）——拓扑异常对象"
-    status: "settled"
-    anomaly_type: "lead_direct_execution"
+  - id: "pat-gemini-completion-defense"
+    signature: "gemini-challenger: declares-completion-after-summary"
+    frequency: 3
+    first_seen: "2026-02-20T20:00:00Z"
+    last_seen: "2026-02-20T22:10:00Z"
+    sources: ["064-lacan-topology", "067-round2-insights"]
+    description: "Gemini 在输出长篇总结后宣布'理论彻底穷尽'或'执行最后一次切断'。这是大学话语防御——用分析家话语的形式包装大学话语的内容。已出现3次。"
+    status: "promoted"
+  - id: "pat-ed3ef9b3"
+    signature: "session-summary: TaskList(1)"
+    frequency: 1
+    first_seen: "2026-02-23T06:03:30Z"
+    last_seen: "2026-02-23T06:03:30Z"
+    sources: ["2026-02-23-0508-session"]
+    status: "observed"

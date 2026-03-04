@@ -1,0 +1,72 @@
+{
+  "XLK/XLF": {
+    "transitions": [],
+    "num_transitions": 0,
+    "flat_ratio": 1.0,
+    "flat_bars": 6837,
+    "total_bars": 6837
+  },
+  "XLK/XLE": {
+    "transitions": [],
+    "num_transitions": 0,
+    "flat_ratio": 1.0,
+    "flat_bars": 6837,
+    "total_bars": 6837
+  },
+  "XLK/XLV": {
+    "transitions": [],
+    "num_transitions": 0,
+    "flat_ratio": 1.0,
+    "flat_bars": 6837,
+    "total_bars": 6837
+  },
+  "XLK/XLY": {
+    "transitions": [],
+    "num_transitions": 0,
+    "flat_ratio": 1.0,
+    "flat_bars": 6837,
+    "total_bars": 6837
+  },
+  "XLF/XLE": {
+    "transitions": [],
+    "num_transitions": 0,
+    "flat_ratio": 1.0,
+    "flat_bars": 6837,
+    "total_bars": 6837
+  },
+  "XLF/XLV": {
+    "transitions": [],
+    "num_transitions": 0,
+    "flat_ratio": 1.0,
+    "flat_bars": 6837,
+    "total_bars": 6837
+  },
+  "XLF/XLY": {
+    "transitions": [],
+    "num_transitions": 0,
+    "flat_ratio": 1.0,
+    "flat_bars": 6837,
+    "total_bars": 6837
+  },
+  "XLE/XLV": {
+    "transitions": [],
+    "num_transitions": 0,
+    "flat_ratio": 1.0,
+    "flat_bars": 6837,
+    "total_bars": 6837
+  },
+  "XLE/XLY": {
+    "transitions": [],
+    "num_transitions": 0,
+    "flat_ratio": 1.0,
+    "flat_bars": 6837,
+    "total_bars": 6837
+  },
+  "XLV/XLY": {
+    "transitions": [],
+    "num_transitions": 0,
+    "flat_ratio": 1.0,
+    "flat_bars": 6837,
+    "total_bars": 6837
+  }
+}

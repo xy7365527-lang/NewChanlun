@@ -1,0 +1,10 @@
+[
+  {
+    "symbol": "COIN",
+    "error": "'list' object has no attribute 'get'"
+  },
+  {
+    "symbol": "AMC",
+    "error": "'list' object has no attribute 'get'"
+  }
+]

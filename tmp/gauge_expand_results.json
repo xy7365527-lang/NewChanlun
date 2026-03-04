@@ -1,0 +1,187 @@
+[
+  {
+    "symbol": "sh600519",
+    "name": "贵州茅台",
+    "category": "大盘股-白酒",
+    "source": "yfinance",
+    "n_bars": 1244,
+    "date_range": "2021-01-04 ~ 2026-02-25",
+    "strong_summary": {
+      "n_centers": {
+        "rate": 0.3333333333333333,
+        "preserved": 1,
+        "total": 3
+      },
+      "trend_kinds": {
+        "rate": 0.3333333333333333,
+        "preserved": 1,
+        "total": 3
+      },
+      "beta1_tau": {
+        "rate": 0.3333333333333333,
+        "preserved": 1,
+        "total": 3
+      }
+    },
+    "tier_weighted": {
+      "overall_weighted": 0.3333,
+      "per_tier": {
+        "1": 0.3333,
+        "2": 0.3333
+      }
+    },
+    "t8_passed": 1,
+    "t8_total": 1,
+    "t8_inconclusive": 0,
+    "t8_consensus": 1,
+    "gauge_rate": 0.39
+  },
+  {
+    "symbol": "sz000333",
+    "name": "美的集团",
+    "category": "大盘股-家电",
+    "source": "yfinance",
+    "n_bars": 1244,
+    "date_range": "2021-01-04 ~ 2026-02-25",
+    "strong_summary": {
+      "n_centers": {
+        "rate": 0.3333333333333333,
+        "preserved": 1,
+        "total": 3
+      },
+      "trend_kinds": {
+        "rate": 0.3333333333333333,
+        "preserved": 1,
+        "total": 3
+      },
+      "beta1_tau": {
+        "rate": 0.3333333333333333,
+        "preserved": 1,
+        "total": 3
+      }
+    },
+    "tier_weighted": {
+      "overall_weighted": 0.3333,
+      "per_tier": {
+        "1": 0.3333,
+        "2": 0.3333
+      }
+    },
+    "t8_passed": 0,
+    "t8_total": 0,
+    "t8_inconclusive": 0,
+    "t8_consensus": 0,
+    "gauge_rate": 0.33
+  },
+  {
+    "symbol": "sh601012",
+    "name": "隆基绿能",
+    "category": "中盘股-新能源",
+    "source": "yfinance",
+    "n_bars": 1244,
+    "date_range": "2021-01-04 ~ 2026-02-25",
+    "strong_summary": {
+      "n_centers": {
+        "rate": 1.0,
+        "preserved": 3,
+        "total": 3
+      },
+      "trend_kinds": {
+        "rate": 0.3333333333333333,
+        "preserved": 1,
+        "total": 3
+      },
+      "beta1_tau": {
+        "rate": 1.0,
+        "preserved": 3,
+        "total": 3
+      }
+    },
+    "tier_weighted": {
+      "overall_weighted": 0.8333,
+      "per_tier": {
+        "1": 1.0,
+        "2": 0.3333
+      }
+    },
+    "t8_passed": 1,
+    "t8_total": 2,
+    "t8_inconclusive": 0,
+    "t8_consensus": 1,
+    "gauge_rate": 0.39
+  },
+  {
+    "symbol": "sz002594",
+    "name": "比亚迪",
+    "category": "大盘股-新能源车",
+    "source": "yfinance",
+    "n_bars": 1244,
+    "date_range": "2021-01-04 ~ 2026-02-25",
+    "strong_summary": {
+      "n_centers": {
+        "rate": 1.0,
+        "preserved": 3,
+        "total": 3
+      },
+      "trend_kinds": {
+        "rate": 1.0,
+        "preserved": 3,
+        "total": 3
+      },
+      "beta1_tau": {
+        "rate": 1.0,
+        "preserved": 3,
+        "total": 3
+      }
+    },
+    "tier_weighted": {
+      "overall_weighted": 1.0,
+      "per_tier": {
+        "1": 1.0,
+        "2": 1.0
+      }
+    },
+    "t8_passed": 1,
+    "t8_total": 1,
+    "t8_inconclusive": 0,
+    "t8_consensus": 1,
+    "gauge_rate": 0.5
+  },
+  {
+    "symbol": "sh688981",
+    "name": "中芯国际",
+    "category": "大盘股-半导体",
+    "source": "yfinance",
+    "n_bars": 1244,
+    "date_range": "2021-01-04 ~ 2026-02-25",
+    "strong_summary": {
+      "n_centers": {
+        "rate": 1.0,
+        "preserved": 3,
+        "total": 3
+      },
+      "trend_kinds": {
+        "rate": 1.0,
+        "preserved": 3,
+        "total": 3
+      },
+      "beta1_tau": {
+        "rate": 1.0,
+        "preserved": 3,
+        "total": 3
+      }
+    },
+    "tier_weighted": {
+      "overall_weighted": 1.0,
+      "per_tier": {
+        "1": 1.0,
+        "2": 1.0
+      }
+    },
+    "t8_passed": 0,
+    "t8_total": 0,
+    "t8_inconclusive": 0,
+    "t8_consensus": 0,
+    "gauge_rate": 0.39
+  }
+]

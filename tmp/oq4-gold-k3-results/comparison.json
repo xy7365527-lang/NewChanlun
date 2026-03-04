@@ -1,0 +1,62 @@
+{
+  "shared_edge_agreement": {
+    "SPY_GLD": {
+      "agree": 5352,
+      "disagree": 0,
+      "total": 5352,
+      "agreement_pct": 100.0
+    },
+    "TLT_GLD": {
+      "agree": 5352,
+      "disagree": 0,
+      "total": 5352,
+      "agreement_pct": 100.0
+    },
+    "SPY_TLT": {
+      "agree": 5352,
+      "disagree": 0,
+      "total": 5352,
+      "agreement_pct": 100.0
+    }
+  },
+  "disagreement_samples": {
+    "SPY_GLD": [],
+    "TLT_GLD": [],
+    "SPY_TLT": []
+  },
+  "k4_vertex_info": {
+    "SPY": {
+      "direction_distribution": {
+        "UP": 0,
+        "DOWN": 0,
+        "FLAT": 5352
+      },
+      "transitions": 0,
+      "total_bars": 5352
+    },
+    "GLD": {
+      "direction_distribution": {
+        "UP": 0,
+        "DOWN": 0,
+        "FLAT": 5352
+      },
+      "transitions": 0,
+      "total_bars": 5352
+    },
+    "TLT": {
+      "direction_distribution": {
+        "UP": 634,
+        "DOWN": 0,
+        "FLAT": 4718
+      },
+      "transitions": 2,
+      "total_bars": 5352
+    }
+  },
+  "active_edge_stats": {
+    "k3_mean_active": 0.0,
+    "k4_mean_active": 0.118,
+    "k3_max_active": 0,
+    "k4_max_active": 1
+  }
+}

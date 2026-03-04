@@ -1,0 +1,385 @@
+{
+  "meta": {
+    "description": "C1: effective-1D condition — mathematical derivation and cross-validation",
+    "matrix_basis": "COVARIANCE (consistent with prior experiments)",
+    "epistemological_levels": {
+      "theory": "L0",
+      "data_verification": "L3 (four-node cross-validation)"
+    },
+    "data_range": "2000-08-30 to 2026-03-02",
+    "n_common_obs": 6391,
+    "window": 252
+  },
+  "theory": {
+    "eff_dim_formula": "exp(-sum(p_i * log(p_i))), p_i = lambda_i / sum(lambda_j)",
+    "scale_invariance": "eff.dim depends only on eigenvalue ratios; but cov and corr have different ratios",
+    "boundaries_d3": {
+      "complete_1d": {
+        "eff_dim": 1.0,
+        "pc1_share": 1.0
+      },
+      "complete_3d": {
+        "eff_dim": 3.0,
+        "pc1_share": 0.3333
+      }
+    },
+    "pc1_share_to_effdim": [
+      {
+        "pc1_share": 0.5,
+        "eff_dim": 2.828427
+      },
+      {
+        "pc1_share": 0.55,
+        "eff_dim": 2.718431
+      },
+      {
+        "pc1_share": 0.6,
+        "eff_dim": 2.586409
+      },
+      {
+        "pc1_share": 0.65,
+        "eff_dim": 2.435247
+      },
+      {
+        "pc1_share": 0.7,
+        "eff_dim": 2.267796
+      },
+      {
+        "pc1_share": 0.75,
+        "eff_dim": 2.086779
+      },
+      {
+        "pc1_share": 0.8,
+        "eff_dim": 1.894646
+      },
+      {
+        "pc1_share": 0.85,
+        "eff_dim": 1.693303
+      },
+      {
+        "pc1_share": 0.9,
+        "eff_dim": 1.48349
+      },
+      {
+        "pc1_share": 0.95,
+        "eff_dim": 1.262599
+      },
+      {
+        "pc1_share": 0.99,
+        "eff_dim": 1.064955
+      }
+    ],
+    "effdim_to_pc1_share": [
+      {
+        "eff_dim": 1.1,
+        "pc1_share": 0.983544
+      },
+      {
+        "eff_dim": 1.2,
+        "pc1_share": 0.963408
+      },
+      {
+        "eff_dim": 1.3,
+        "pc1_share": 0.941789
+      },
+      {
+        "eff_dim": 1.4,
+        "pc1_share": 0.919281
+      },
+      {
+        "eff_dim": 1.5,
+        "pc1_share": 0.896143
+      },
+      {
+        "eff_dim": 1.6,
+        "pc1_share": 0.872492
+      },
+      {
+        "eff_dim": 1.7,
+        "pc1_share": 0.84837
+      },
+      {
+        "eff_dim": 1.8,
+        "pc1_share": 0.823768
+      },
+      {
+        "eff_dim": 1.9,
+        "pc1_share": 0.79864
+      },
+      {
+        "eff_dim": 2.0,
+        "pc1_share": 0.772908
+      },
+      {
+        "eff_dim": 2.2,
+        "pc1_share": 0.71913
+      },
+      {
+        "eff_dim": 2.4,
+        "pc1_share": 0.66091
+      },
+      {
+        "eff_dim": 2.6,
+        "pc1_share": 0.595186
+      },
+      {
+        "eff_dim": 2.8,
+        "pc1_share": 0.514007
+      }
+    ]
+  },
+  "node_distributions": {
+    "Au": {
+      "eff_dim": {
+        "mean": 2.1623,
+        "std": 0.2355,
+        "min": 1.4478,
+        "max": 2.59
+      },
+      "pc1_share": {
+        "mean": 0.6804,
+        "std": 0.0805,
+        "min": 0.5049,
+        "max": 0.9019
+      }
+    },
+    "Dollar": {
+      "eff_dim": {
+        "mean": 2.1323,
+        "std": 0.2383,
+        "min": 1.4031,
+        "max": 2.7113
+      },
+      "pc1_share": {
+        "mean": 0.7226,
+        "std": 0.0716,
+        "min": 0.515,
+        "max": 0.9177
+      }
+    },
+    "Equity": {
+      "eff_dim": {
+        "mean": 2.2129,
+        "std": 0.2463,
+        "min": 1.5249,
+        "max": 2.833
+      },
+      "pc1_share": {
+        "mean": 0.6758,
+        "std": 0.0868,
+        "min": 0.4475,
+        "max": 0.8808
+      }
+    },
+    "Commodity": {
+      "eff_dim": {
+        "mean": 1.5357,
+        "std": 0.2296,
+        "min": 1.1117,
+        "max": 2.2212
+      },
+      "pc1_share": {
+        "mean": 0.8813,
+        "std": 0.0604,
+        "min": 0.6702,
+        "max": 0.9812
+      }
+    }
+  },
+  "event_floor_analysis": {
+    "event_floors": {
+      "Au": 1.534,
+      "Dollar": 1.493,
+      "Equity": 1.684,
+      "Commodity": 1.146
+    },
+    "percentiles": {
+      "Au": {
+        "event_floor_effdim": 1.534,
+        "percentile_of_score": 0.7657,
+        "frac_below_pct": 0.7657,
+        "n_days_below": 47
+      },
+      "Dollar": {
+        "event_floor_effdim": 1.493,
+        "percentile_of_score": 0.6028,
+        "frac_below_pct": 0.6028,
+        "n_days_below": 37
+      },
+      "Equity": {
+        "event_floor_effdim": 1.684,
+        "percentile_of_score": 0.782,
+        "frac_below_pct": 0.782,
+        "n_days_below": 48
+      },
+      "Commodity": {
+        "event_floor_effdim": 1.146,
+        "percentile_of_score": 0.8146,
+        "frac_below_pct": 0.8146,
+        "n_days_below": 50
+      }
+    },
+    "convergence": {
+      "mean_pct": 0.7413,
+      "std_pct": 0.0819,
+      "spread_pp": 0.2118
+    }
+  },
+  "tail_analysis": {
+    "Au": {
+      "mean": 2.1623,
+      "std": 0.2355,
+      "event_floor": 1.534,
+      "z_of_floor": -2.6686,
+      "normal_cdf_at_floor_pct": 0.3808,
+      "z_for_0.7pct": -2.4573
+    },
+    "Dollar": {
+      "mean": 2.1323,
+      "std": 0.2383,
+      "event_floor": 1.493,
+      "z_of_floor": -2.6822,
+      "normal_cdf_at_floor_pct": 0.3657,
+      "z_for_0.7pct": -2.4573
+    },
+    "Equity": {
+      "mean": 2.2129,
+      "std": 0.2463,
+      "event_floor": 1.684,
+      "z_of_floor": -2.1474,
+      "normal_cdf_at_floor_pct": 1.5882,
+      "z_for_0.7pct": -2.4573
+    },
+    "Commodity": {
+      "mean": 1.5357,
+      "std": 0.2296,
+      "event_floor": 1.146,
+      "z_of_floor": -1.6976,
+      "normal_cdf_at_floor_pct": 4.4789,
+      "z_for_0.7pct": -2.4573
+    }
+  },
+  "z_score_convergence": {
+    "z_scores": {
+      "Au": -2.6686,
+      "Dollar": -2.6822,
+      "Equity": -2.1474,
+      "Commodity": -1.6976
+    },
+    "mean_z": -2.299,
+    "std_z": 0.4087,
+    "spread_z": 0.9846,
+    "normal_approx_percentiles": {
+      "Au": 0.3808,
+      "Dollar": 0.3657,
+      "Equity": 1.5881,
+      "Commodity": 4.4792
+    }
+  },
+  "tail_pc1_share": {
+    "Au": {
+      "0.7%": {
+        "eff_dim_at_pct": 1.5313,
+        "pc1_share": 0.8903,
+        "residual_share": 0.1107,
+        "n_days": 43
+      },
+      "1.0%": {
+        "eff_dim_at_pct": 1.5365,
+        "pc1_share": 0.8871,
+        "residual_share": 0.1138,
+        "n_days": 62
+      },
+      "2.0%": {
+        "eff_dim_at_pct": 1.5582,
+        "pc1_share": 0.8822,
+        "residual_share": 0.1184,
+        "n_days": 123
+      },
+      "5.0%": {
+        "eff_dim_at_pct": 1.7104,
+        "pc1_share": 0.87,
+        "residual_share": 0.1254,
+        "n_days": 307
+      }
+    },
+    "Dollar": {
+      "0.7%": {
+        "eff_dim_at_pct": 1.4942,
+        "pc1_share": 0.9024,
+        "residual_share": 0.0987,
+        "n_days": 43
+      },
+      "1.0%": {
+        "eff_dim_at_pct": 1.4989,
+        "pc1_share": 0.8997,
+        "residual_share": 0.1013,
+        "n_days": 62
+      },
+      "2.0%": {
+        "eff_dim_at_pct": 1.5221,
+        "pc1_share": 0.8954,
+        "residual_share": 0.1053,
+        "n_days": 123
+      },
+      "5.0%": {
+        "eff_dim_at_pct": 1.7979,
+        "pc1_share": 0.8777,
+        "residual_share": 0.1152,
+        "n_days": 307
+      }
+    },
+    "Equity": {
+      "0.7%": {
+        "eff_dim_at_pct": 1.6792,
+        "pc1_share": 0.8524,
+        "residual_share": 0.1511,
+        "n_days": 43
+      },
+      "1.0%": {
+        "eff_dim_at_pct": 1.7013,
+        "pc1_share": 0.843,
+        "residual_share": 0.1603,
+        "n_days": 62
+      },
+      "2.0%": {
+        "eff_dim_at_pct": 1.7236,
+        "pc1_share": 0.8288,
+        "residual_share": 0.1735,
+        "n_days": 123
+      },
+      "5.0%": {
+        "eff_dim_at_pct": 1.8531,
+        "pc1_share": 0.8124,
+        "residual_share": 0.186,
+        "n_days": 307
+      }
+    },
+    "Commodity": {
+      "0.7%": {
+        "eff_dim_at_pct": 1.1451,
+        "pc1_share": 0.9772,
+        "residual_share": 0.0232,
+        "n_days": 43
+      },
+      "1.0%": {
+        "eff_dim_at_pct": 1.1492,
+        "pc1_share": 0.976,
+        "residual_share": 0.0243,
+        "n_days": 62
+      },
+      "2.0%": {
+        "eff_dim_at_pct": 1.1554,
+        "pc1_share": 0.9743,
+        "residual_share": 0.026,
+        "n_days": 123
+      },
+      "5.0%": {
+        "eff_dim_at_pct": 1.2757,
+        "pc1_share": 0.9679,
+        "residual_share": 0.0289,
+        "n_days": 307
+      }
+    }
+  }
+}
