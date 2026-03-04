@@ -154,33 +154,35 @@ gang:
         closed_reason: "287号定稿"
         next_actions: []
 
+      # 折叠内在性检验——315-337号，产出喂进K4工程化（eff.dim、体制识别）和操作方法论（两相框架、阈值因果）
+      - id: fold-intrinsic-test
+        name: "折叠内在性检验"
+        status: closed
+        opened_at: "315"
+        closed_at: "337"
+        closed_reason: "337号关闭"
+        next_actions: []
+
   # ─────────────────────────────────────────────────────────────────
-  # 纲三：区块拓扑（总方针 §八 + §八.七 阶段B/B-T/B-M）
+  # 纲三：区块拓扑（总方针 §八 + §八.七 阶段B）
   # ─────────────────────────────────────────────────────────────────
   # 谱系的物质形式。Event layer不可变 + Relation layer追溯改写 +
-  # Reflexive layer自指。穿越基础设施四组件。离散Morse理论数学路径。
+  # Reflexive layer自指。三层架构的工程实现。
 
   - id: block-topology
     name: "区块拓扑"
-    zongfangzhen_section: "§八实现架构 + §八.七阶段B/B-T/B-M"
-    description: "谱系的物质形式——区块拓扑三层架构+穿越基础设施+Morse数学"
+    zongfangzhen_section: "§八实现架构 + §八.七阶段B"
+    description: "谱系的物质形式——区块拓扑三层架构（Event/Relation/Reflexive）"
 
     mu:
-      # 区块拓扑工程——Phase 1/2/3 + ceremony集成
+      # 区块拓扑工程——Phase 1/2/3 三层架构
       - id: block-topology-eng
         name: "区块拓扑"
         status: active
         opened_at: "301"
-        next_actions:
-          - type: integration
-            target: "encounter-record-mechanism"
-            description: "偶遇记录机制集成——区块拓扑的偶遇写入协议"
-            blocked_by: null
-            completion_check:
-              type: genealogy_settled
-              keyword: "encounter-record"
+        next_actions: []
 
-      # 折叠拓扑本体论——292-300号
+      # 折叠拓扑本体论——292-300号，折叠区块是区块拓扑的组件
       - id: fold-topology-ontology
         name: "折叠拓扑本体论"
         status: closed
@@ -217,23 +219,28 @@ gang:
         next_actions: []
 
   # ─────────────────────────────────────────────────────────────────
-  # 纲五：知识谱系（总方针 §四.2 + §八.七 阶段I-2预备）
+  # 纲五：知识谱系（总方针 §四.2 + §八.五 + §八.七 阶段B-T/B-M/I-2预备）
   # ─────────────────────────────────────────────────────────────────
-  # 知识生产不从属于交易。折叠、内在性检验、OQ实验——
-  # 系统在递归运动中遭遇的理论问题。I-2的触发条件是
+  # 知识生产不从属于交易。穿越基础设施管理知识的导航和偶遇记录。
+  # Morse数学路径是知识生产的数学维度。I-2的触发条件是
   # "理论问题积累到无法仅作为交易谱系附注存在"。
 
   - id: knowledge-genealogy
     name: "知识谱系"
-    zongfangzhen_section: "§四.2知识维度 + §八.七阶段I-2预备"
-    description: "知识生产维度——折叠/内在性/本体论，不从属于交易维度"
+    zongfangzhen_section: "§四.2知识维度 + §八.五穿越基础设施 + §八.七阶段B-T/B-M/I-2预备"
+    description: "知识生产维度——穿越基础设施（导航+偶遇记录）+ Morse数学 + 知识谱系独立运行预备"
 
     mu:
-      # 折叠内在性检验——315-337号
-      - id: fold-intrinsic-test
-        name: "折叠内在性检验"
-        status: closed
-        opened_at: "315"
-        closed_at: "337"
-        closed_reason: "337号关闭"
-        next_actions: []
+      # 穿越基础设施——查询接口、偶遇记录、Morse地形导航、概念注册表
+      - id: traverse-infra
+        name: "穿越基础设施"
+        status: active
+        opened_at: "301"
+        next_actions:
+          - type: integration
+            target: "encounter-record-mechanism"
+            description: "偶遇记录机制集成——穿越基础设施组件二（ceremony写入后cycle_rank增量检测）"
+            blocked_by: null
+            completion_check:
+              type: genealogy_settled
+              keyword: "encounter-record"
