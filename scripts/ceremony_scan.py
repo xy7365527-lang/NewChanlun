@@ -21,6 +21,256 @@ import json, os, glob, yaml, sys, argparse, subprocess, re
 
 BACKGROUND_NOISE_STATUSES = {"background_noise", "观察项", "背景噪音"}
 TERMINAL_STATUSES = {"已修复", "resolved", "background_noise"}
+VALID_TOPO_TYPES = frozenset({"freeze", "split", "sever"})
+
+
+def get_frozen_nodes(root):
+    """从 block-topology 读取 frozen 节点集合（147号 + 178号-2 迁移）。
+
+    查询 freezes 关系的 target，对 scope=downstream 的 freeze 做 BFS 展开
+    下游依赖。通过 meta.json 反查回旧谱系编号（下游 workstation 过滤用旧编号）。
+
+    downstream 语义由查询方保证（topology_operator 写入时只记录一条 freezes
+    关系 + content.scope="downstream"，不展开）。本函数就是那个查询方。
+    """
+    base = os.path.join(root, ".chanlun/block-topology")
+    relations_path = os.path.join(base, "relations.jsonl")
+    meta_path = os.path.join(base, "meta.json")
+
+    if not os.path.isfile(relations_path):
+        return set()
+
+    # 1. 读取所有关系
+    all_rels = []
+    try:
+        with open(relations_path, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    all_rels.append(json.loads(line))
+    except Exception:
+        return set()
+
+    # 2. 提取 freezes 关系的 direct targets + 对应的 event 区块 id
+    frozen_sha_ids = set()
+    freeze_events = []  # (event_block_id, target_sha)
+    for rel in all_rels:
+        if rel.get("relation") == "freezes":
+            frozen_sha_ids.add(rel["to"])
+            freeze_events.append((rel["from"], rel["to"]))
+
+    if not frozen_sha_ids:
+        return set()
+
+    # 3. 对 scope=downstream 的 freeze，BFS 展开 target 的所有下游
+    blocks_dir = os.path.join(base, "blocks")
+    downstream_targets = set()
+    for event_id, target_sha in freeze_events:
+        event_path = os.path.join(blocks_dir, f"{event_id}.json")
+        if not os.path.isfile(event_path):
+            continue
+        try:
+            with open(event_path, encoding="utf-8") as f:
+                event_block = json.load(f)
+            if event_block.get("content", {}).get("scope") == "downstream":
+                downstream_targets.add(target_sha)
+        except Exception:
+            continue
+
+    if downstream_targets:
+        children_of = {}
+        for rel in all_rels:
+            if rel.get("relation") == "depends_on" and rel.get("order") == 1:
+                parent = rel["to"]
+                child = rel["from"]
+                children_of.setdefault(parent, set()).add(child)
+
+        for target_sha in downstream_targets:
+            queue = list(children_of.get(target_sha, set()))
+            while queue:
+                current = queue.pop()
+                if current not in frozen_sha_ids:
+                    frozen_sha_ids.add(current)
+                    queue.extend(
+                        children_of.get(current, set()) - frozen_sha_ids
+                    )
+
+    # 4. 反查 id_mapping: sha → 旧编号
+    reverse_mapping = {}
+    if os.path.isfile(meta_path):
+        try:
+            with open(meta_path, encoding="utf-8") as f:
+                meta = json.load(f)
+            for old_id, sha in meta.get("id_mapping", {}).items():
+                reverse_mapping[sha] = old_id
+        except Exception:
+            pass
+
+    frozen_ids = set()
+    for sha in frozen_sha_ids:
+        old_id = reverse_mapping.get(sha)
+        if old_id:
+            frozen_ids.add(str(old_id))
+        else:
+            frozen_ids.add(sha)
+
+    return frozen_ids
+
+
+def detect_pending_topo_effects(root):
+    """177号：扫描含结构化 topo_effect 但未执行的谱系文件。
+
+    结构化格式：type:target:scope（如 freeze:062:downstream）。
+    已有 topo_executed_at 的文件跳过（已执行）。
+    非结构化的描述性 topo_effect 不纳入（不是可执行的拓扑操作）。
+
+    返回 pending topo_effect 列表，供 RTAS 循环执行。
+    """
+    pending = []
+    for settled_file in glob.glob(os.path.join(root, ".chanlun/genealogy/settled/*.md")):
+        try:
+            with open(settled_file, encoding="utf-8") as f:
+                head = f.read(2000)
+            fm_match = re.match(r"^---\s*\n(.+?)\n---", head, re.DOTALL)
+            if not fm_match:
+                continue
+            fm = yaml.safe_load(fm_match.group(1))
+            if not isinstance(fm, dict):
+                continue
+            if fm.get("topo_executed_at"):
+                continue
+            te = str(fm.get("topo_effect", "")).strip().strip('"').strip("'")
+            if not te:
+                continue
+            parts = te.split(":")
+            if len(parts) != 3 or parts[0] not in VALID_TOPO_TYPES:
+                continue
+            pending.append({
+                "file": os.path.basename(settled_file),
+                "topo_effect": te,
+                "id": str(fm.get("id", "unknown")),
+            })
+        except Exception:
+            pass
+    return pending
+
+
+def detect_genealogy_anomalies(root):
+    """检测谱系编号异常：重复编号、文件名编号与内部 id 不一致、block-topology 完整性、frontmatter schema。
+
+    返回异常列表，每个元素包含 type、files、detail 字段。
+    空列表 = 无异常。
+    """
+    settled_dir = os.path.join(root, ".chanlun/genealogy/settled/")
+    if not os.path.isdir(settled_dir):
+        return []
+
+    anomalies = []
+    num_to_files = {}
+    required_frontmatter = {"id", "status", "type", "date"}
+
+    for filepath in glob.glob(os.path.join(settled_dir, "*.md")):
+        basename = os.path.basename(filepath)
+        m = re.match(r'^(\d+)-(.+)\.md$', basename)
+        if not m:
+            continue
+        file_num = int(m.group(1))
+        num_to_files.setdefault(file_num, []).append(basename)
+
+        try:
+            with open(filepath, encoding="utf-8") as f:
+                head = f.read(1500)
+            id_match = re.search(r'(?:^|\n)\s*\*?\*?id\*?\*?:\s*["\']?(\d+)["\']?', head)
+            if id_match:
+                internal_id = int(id_match.group(1))
+                if internal_id != file_num:
+                    anomalies.append({
+                        "type": "id_mismatch",
+                        "file": basename,
+                        "detail": f"filename={file_num}, internal_id={internal_id}",
+                    })
+
+            found_fields = set()
+            for line in head.split("\n")[:20]:
+                for field in required_frontmatter:
+                    if re.match(rf'^\s*\*?\*?{field}\*?\*?\s*:', line, re.IGNORECASE):
+                        found_fields.add(field)
+            missing = required_frontmatter - found_fields
+            if missing:
+                anomalies.append({
+                    "type": "missing_frontmatter",
+                    "file": basename,
+                    "detail": f"缺少字段: {', '.join(sorted(missing))}",
+                })
+        except Exception:
+            pass
+
+    for num, files in sorted(num_to_files.items()):
+        if len(files) > 1:
+            anomalies.append({
+                "type": "duplicate_number",
+                "number": num,
+                "files": files,
+                "detail": f"编号 {num} 被 {len(files)} 个文件使用",
+            })
+
+    # Block-topology completeness check: every settled file should have a
+    # corresponding entry in meta.json id_mapping (178号-2 迁移：dag.yaml → block-topology)
+    meta_path = os.path.join(root, ".chanlun/block-topology/meta.json")
+    if os.path.isfile(meta_path):
+        try:
+            with open(meta_path, encoding="utf-8") as f:
+                meta = json.load(f)
+            mapped_ids = set()
+            for key in meta.get("id_mapping", {}).keys():
+                try:
+                    mapped_ids.add(str(int(key)))
+                except ValueError:
+                    mapped_ids.add(key)
+
+            for file_num_str, filenames in num_to_files.items():
+                if str(file_num_str) not in mapped_ids:
+                    anomalies.append({
+                        "type": "missing_block_mapping",
+                        "file": filenames[0],
+                        "detail": f"编号 {file_num_str} 在 settled/ 中存在但 block-topology 无对应映射",
+                    })
+        except Exception:
+            pass
+
+    return anomalies
+
+
+def compute_delta_blocks(root):
+    """178号下游推论：检测 block-topology 区块变化。
+
+    从 meta.json 读取迁移时区块数，与当前 blocks/ 目录下 *.json 文件数比较。
+    区块系统是谱系的补充/升格，与 delta_genealogy 并存。
+    """
+    block_dir = os.path.join(root, ".chanlun/block-topology/blocks")
+    meta_path = os.path.join(root, ".chanlun/block-topology/meta.json")
+
+    if os.path.isdir(block_dir):
+        current_blocks = len(glob.glob(os.path.join(block_dir, "*.json")))
+    else:
+        current_blocks = 0
+
+    migration_block_count = 0
+    if os.path.isfile(meta_path):
+        try:
+            with open(meta_path, "r", encoding="utf-8") as f:
+                meta = json.load(f)
+            migration_block_count = meta.get("block_count", 0)
+        except Exception:
+            pass
+
+    delta = current_blocks - migration_block_count
+    return {
+        "migration_block_count": migration_block_count,
+        "current_block_count": current_blocks,
+        "delta": delta,
+        "warning": "区块拓扑无新区块" if delta == 0 and current_blocks > 0 else None,
+    }
 
 
 def get_required_skills(root):
@@ -725,12 +975,74 @@ def main():
     except Exception as exc:
         result["research_lines_error"] = f"{type(exc).__name__}: {exc}"
 
+    # 2f. 谱系编号异常检测（编号冲突自动发现 + 修复工位生成）
+    genealogy_anomalies = detect_genealogy_anomalies(root)
+    if genealogy_anomalies:
+        result["genealogy_anomalies"] = genealogy_anomalies
+        workstations.append({
+            "priority": "P0",
+            "name": f"谱系编号异常：{len(genealogy_anomalies)}项",
+            "status": "; ".join(a["detail"] for a in genealogy_anomalies),
+            "source": "genealogy_anomaly_detection",
+        })
+
+    # 2g. 183号目B：异步自指审计（t 审查 t-1）
+    try:
+        try:
+            import scripts.async_self_reference as _asr_mod
+        except ImportError:
+            import async_self_reference as _asr_mod
+        asr = _asr_mod.audit(root)
+        result["async_self_ref"] = {
+            "t_minus_1_summary": asr.get("t_minus_1_summary"),
+            "findings_count": len(asr.get("self_audit_findings", [])),
+            "genealogy_needed": asr.get("genealogy_needed", False),
+            "findings": asr.get("self_audit_findings", []),
+        }
+        for finding in asr.get("self_audit_findings", []):
+            if finding["type"] in ("stagnation", "anomaly"):
+                workstations.append({
+                    "priority": "P1",
+                    "name": f"异步自指审计：{finding['type']}",
+                    "status": finding["detail"][:120],
+                    "source": "async_self_ref",
+                })
+        if asr.get("genealogy_needed") and not any(
+            w.get("source") == "async_self_ref" for w in workstations
+        ):
+            workstations.append({
+                "priority": "P2",
+                "name": "异步自指审计：需要新谱系",
+                "status": "genealogy_needed=true",
+                "source": "async_self_ref",
+            })
+    except Exception as exc:
+        result["async_self_ref_error"] = f"{type(exc).__name__}: {exc}"
+
     # 3. 079号：如果无任何工位，执行 no_work_fallback
     if not workstations:
         workstations = discover_business_tasks(root)
         result["fallback_triggered"] = True
 
     result["workstations"] = workstations
+
+    # 270号：suspended 工位过滤——从 ceremony_state 读取 suspended 列表
+    try:
+        from scripts.ceremony_state import get_suspended_workstations
+    except ImportError:
+        from ceremony_state import get_suspended_workstations
+    suspended = get_suspended_workstations()
+    if suspended:
+        result["suspended_workstations"] = suspended
+        pre_suspend_count = len(workstations)
+        workstations = [
+            w for w in workstations
+            if w.get("name", "") not in suspended
+        ]
+        suspended_filtered = pre_suspend_count - len(workstations)
+        if suspended_filtered > 0:
+            result["suspended_filtered_count"] = suspended_filtered
+        result["workstations"] = workstations
 
     # 081号：清晰报告干净终止条件
     # 真阴性干净终止 = roadmap 为空 AND session 遗留为空 AND fallback 为空
