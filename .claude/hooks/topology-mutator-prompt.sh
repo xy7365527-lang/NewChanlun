@@ -1,11 +1,18 @@
 #!/usr/bin/env bash
-# PostToolUse Hook — topology-mutator 触发提示（147号谱系下游推论1 + 178号-2 升格）
+# [已废弃] PostToolUse Hook — topology-mutator 触发提示
 #
+# 功能已内联到 post-write-edit-dispatcher.sh（Guard 4: topology-mutator-prompt）。
+# 本文件保留仅作历史参考。不再由 settings.json 注册。
+#
+# 原始描述：
 # 触发：PostToolUse on Write/Edit
 # 逻辑：settled 谱系写入后，检测 topo_effect 字段，
 #       若存在则通过 systemMessage 提示 Lead 执行 topology_operator.py
 # 设计：D策略（082号）——hooks 提示 + Lead 认领
 # 原则0：只提示，不阻断
+#
+# 异质审计缺口13修复：标注废弃状态，消除与 dispatcher 的功能重复歧义。
+exit 0
 
 set -euo pipefail
 

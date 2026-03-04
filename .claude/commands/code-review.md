@@ -41,5 +41,6 @@ Comprehensive security and quality review of uncommitted changes:
    - 如果有 Python 代码变更，触发 codex-challenger 的 review 模式
    - 执行：spawn codex-challenger agent（subagent_type="codex-challenger"），传入变更文件列表
    - Codex 审查结果中 CRITICAL/HIGH 问题同样阻塞 commit
+   - **触发方式**：执行 /code-review 的 agent 必须主动 spawn codex-challenger（353号标注：无 hook 自动触发——Claude Code 平台不支持语义级事件，此步为 D策略手动认领）
 
 Never approve code with security vulnerabilities!

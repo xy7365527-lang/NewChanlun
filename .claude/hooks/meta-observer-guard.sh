@@ -8,14 +8,10 @@
 #        若未执行，阻止一次并注入二阶观察指令。
 # 熔断：仅阻止 1 次（二阶反馈是观察性的，不阻塞关键路径）
 #
-# 2026-02-21 hotfix:
-# 默认改为"自动落标+放行"模式，避免在某些会话里触发
-# Invalid `signature` in `thinking` block 的上游错误。
-# 如需恢复强制阻断，设置环境变量 META_OBSERVER_GUARD_STRICT=1。
-#
-# 2026-02-21 087号谱系修复:
-# advisory 模式现在产生实际的 systemMessage 提示（D策略要求：hooks 提示 + Lead 认领）
-# 原始 hotfix 直接 exit 0 不产生任何输出——这不是 advisory，是完全失效。
+# 2026-02-21 hotfix → 087号谱系修复:
+# 默认模式为 STRICT=1（强制阻断一次）。设置 META_OBSERVER_GUARD_STRICT=0 切换为 advisory 模式。
+# advisory 模式产生 systemMessage 提示但不阻断（D策略：hooks 提示 + Lead 认领）。
+# 原始 hotfix 曾将默认改为 advisory，087号修复后恢复 STRICT=1 为默认值。
 
 set -uo pipefail
 

@@ -1,4 +1,4 @@
-"""Fugue engine tests -- TDD RED phase.
+"""Fugue engine tests.
 
 Epistemology: L0 (derived from 349 spec + 267 section 7 definitions).
 Genealogy: 349 (fugue state machine formal definition).
@@ -16,6 +16,7 @@ from newchan.fugue_engine import (
     FugueState,
     FugueVoiceInfo,
     IllegalFugueTransition,
+    ShortDiff,
 )
 
 
@@ -60,6 +61,23 @@ def _close_short(engine: FugueEngine, price: float = 9.0) -> FugueEngine:
         event_type=FugueEventType.SUB_LEVEL_BUY_POINT,
         price=price,
         level="5min",
+    ))
+
+
+def _reach_principal_withdrawn() -> FugueEngine:
+    """Reach PRINCIPAL_WITHDRAWN via extreme profit short-diff."""
+    engine = _buy_in(_make_engine(equity=10.0, margin=10.0), price=1.0)
+    engine = _start_reducing(engine, price=100.0)
+    engine = _close_short(engine, price=0.1)
+    return engine
+
+
+def _reach_stopped_out() -> FugueEngine:
+    """Reach STOPPED_OUT via buy point negation."""
+    engine = _buy_in(_make_engine())
+    return engine.apply(FugueEvent(
+        event_type=FugueEventType.BUY_POINT_NEGATED,
+        price=8.0, level="30min",
     ))
 
 
@@ -212,18 +230,12 @@ class TestCostReduction:
 class TestPrincipalWithdrawn:
     """Cumulative recovered >= own_capital triggers state change."""
 
-    def _reach_withdrawn(self) -> FugueEngine:
-        engine = _buy_in(_make_engine(equity=10.0, margin=10.0), price=1.0)
-        engine = _start_reducing(engine, price=100.0)
-        engine = _close_short(engine, price=0.1)
-        return engine
-
     def test_state_is_principal_withdrawn(self) -> None:
-        engine = self._reach_withdrawn()
+        engine = _reach_principal_withdrawn()
         assert engine.state == FugueState.PRINCIPAL_WITHDRAWN
 
     def test_can_continue_short_diff_on_free_position(self) -> None:
-        engine = self._reach_withdrawn()
+        engine = _reach_principal_withdrawn()
         engine = engine.apply(FugueEvent(
             event_type=FugueEventType.SUB_LEVEL_SELL_POINT,
             price=50.0,
@@ -232,7 +244,7 @@ class TestPrincipalWithdrawn:
         assert engine.state == FugueState.COST_REDUCING
 
     def test_main_sell_point_exits(self) -> None:
-        engine = self._reach_withdrawn()
+        engine = _reach_principal_withdrawn()
         engine = engine.apply(FugueEvent(
             event_type=FugueEventType.MAIN_LEVEL_SELL_POINT,
             price=50.0,
@@ -472,3 +484,561 @@ class TestSnapshot:
         snap = engine.snapshot()
         assert snap.voice_count == 2
         assert snap.entry_level == "daily"
+
+
+# =============================================================================
+# 12. Illegal transitions per state (349 spec section 4 completeness)
+# =============================================================================
+
+
+class TestIllegalTransitions:
+    """Each state rejects events not in its transition row."""
+
+    def test_scanning_rejects_sub_level_buy(self) -> None:
+        engine = _make_engine()
+        with pytest.raises(IllegalFugueTransition):
+            engine.apply(FugueEvent(
+                event_type=FugueEventType.SUB_LEVEL_BUY_POINT,
+                price=10.0, level="5min",
+            ))
+
+    def test_scanning_rejects_buy_point_negated(self) -> None:
+        engine = _make_engine()
+        with pytest.raises(IllegalFugueTransition):
+            engine.apply(FugueEvent(
+                event_type=FugueEventType.BUY_POINT_NEGATED,
+                price=10.0, level="30min",
+            ))
+
+    def test_scanning_rejects_main_sell(self) -> None:
+        engine = _make_engine()
+        with pytest.raises(IllegalFugueTransition):
+            engine.apply(FugueEvent(
+                event_type=FugueEventType.MAIN_LEVEL_SELL_POINT,
+                price=10.0, level="30min",
+            ))
+
+    def test_scanning_rejects_level_upgrade(self) -> None:
+        engine = _make_engine()
+        with pytest.raises(IllegalFugueTransition):
+            engine.apply(FugueEvent(
+                event_type=FugueEventType.LEVEL_UPGRADE,
+                price=10.0, level="daily",
+            ))
+
+    def test_scanning_rejects_reset(self) -> None:
+        engine = _make_engine()
+        with pytest.raises(IllegalFugueTransition):
+            engine.apply(FugueEvent(
+                event_type=FugueEventType.RESET,
+                price=0.0, level="",
+            ))
+
+    def test_position_open_rejects_buy_point_confirmed(self) -> None:
+        engine = _buy_in(_make_engine())
+        with pytest.raises(IllegalFugueTransition):
+            engine.apply(FugueEvent(
+                event_type=FugueEventType.BUY_POINT_CONFIRMED,
+                price=10.0, level="30min",
+            ))
+
+    def test_position_open_rejects_sub_level_buy(self) -> None:
+        engine = _buy_in(_make_engine())
+        with pytest.raises(IllegalFugueTransition):
+            engine.apply(FugueEvent(
+                event_type=FugueEventType.SUB_LEVEL_BUY_POINT,
+                price=9.0, level="5min",
+            ))
+
+    def test_position_open_rejects_main_sell(self) -> None:
+        engine = _buy_in(_make_engine())
+        with pytest.raises(IllegalFugueTransition):
+            engine.apply(FugueEvent(
+                event_type=FugueEventType.MAIN_LEVEL_SELL_POINT,
+                price=12.0, level="30min",
+            ))
+
+    def test_position_open_rejects_level_upgrade(self) -> None:
+        engine = _buy_in(_make_engine())
+        with pytest.raises(IllegalFugueTransition):
+            engine.apply(FugueEvent(
+                event_type=FugueEventType.LEVEL_UPGRADE,
+                price=12.0, level="daily",
+            ))
+
+    def test_position_open_rejects_reset(self) -> None:
+        engine = _buy_in(_make_engine())
+        with pytest.raises(IllegalFugueTransition):
+            engine.apply(FugueEvent(
+                event_type=FugueEventType.RESET,
+                price=0.0, level="",
+            ))
+
+    def test_cost_reducing_rejects_buy_point_confirmed(self) -> None:
+        engine = _start_reducing(_buy_in(_make_engine()))
+        with pytest.raises(IllegalFugueTransition):
+            engine.apply(FugueEvent(
+                event_type=FugueEventType.BUY_POINT_CONFIRMED,
+                price=10.0, level="30min",
+            ))
+
+    def test_cost_reducing_rejects_reset(self) -> None:
+        engine = _start_reducing(_buy_in(_make_engine()))
+        with pytest.raises(IllegalFugueTransition):
+            engine.apply(FugueEvent(
+                event_type=FugueEventType.RESET,
+                price=0.0, level="",
+            ))
+
+    def test_principal_withdrawn_rejects_buy_point_confirmed(self) -> None:
+        engine = _reach_principal_withdrawn()
+        with pytest.raises(IllegalFugueTransition):
+            engine.apply(FugueEvent(
+                event_type=FugueEventType.BUY_POINT_CONFIRMED,
+                price=10.0, level="30min",
+            ))
+
+    def test_principal_withdrawn_rejects_sub_level_buy(self) -> None:
+        engine = _reach_principal_withdrawn()
+        with pytest.raises(IllegalFugueTransition):
+            engine.apply(FugueEvent(
+                event_type=FugueEventType.SUB_LEVEL_BUY_POINT,
+                price=5.0, level="5min",
+            ))
+
+    def test_principal_withdrawn_rejects_level_upgrade(self) -> None:
+        engine = _reach_principal_withdrawn()
+        with pytest.raises(IllegalFugueTransition):
+            engine.apply(FugueEvent(
+                event_type=FugueEventType.LEVEL_UPGRADE,
+                price=50.0, level="daily",
+            ))
+
+    def test_principal_withdrawn_rejects_reset(self) -> None:
+        engine = _reach_principal_withdrawn()
+        with pytest.raises(IllegalFugueTransition):
+            engine.apply(FugueEvent(
+                event_type=FugueEventType.RESET,
+                price=0.0, level="",
+            ))
+
+    def test_stopped_out_rejects_buy_point_confirmed(self) -> None:
+        engine = _reach_stopped_out()
+        with pytest.raises(IllegalFugueTransition):
+            engine.apply(FugueEvent(
+                event_type=FugueEventType.BUY_POINT_CONFIRMED,
+                price=10.0, level="30min",
+            ))
+
+    def test_stopped_out_rejects_sub_level_sell(self) -> None:
+        engine = _reach_stopped_out()
+        with pytest.raises(IllegalFugueTransition):
+            engine.apply(FugueEvent(
+                event_type=FugueEventType.SUB_LEVEL_SELL_POINT,
+                price=10.0, level="5min",
+            ))
+
+    def test_stopped_out_rejects_sub_level_buy(self) -> None:
+        engine = _reach_stopped_out()
+        with pytest.raises(IllegalFugueTransition):
+            engine.apply(FugueEvent(
+                event_type=FugueEventType.SUB_LEVEL_BUY_POINT,
+                price=10.0, level="5min",
+            ))
+
+    def test_stopped_out_rejects_main_sell(self) -> None:
+        engine = _reach_stopped_out()
+        with pytest.raises(IllegalFugueTransition):
+            engine.apply(FugueEvent(
+                event_type=FugueEventType.MAIN_LEVEL_SELL_POINT,
+                price=10.0, level="30min",
+            ))
+
+    def test_stopped_out_rejects_level_upgrade(self) -> None:
+        engine = _reach_stopped_out()
+        with pytest.raises(IllegalFugueTransition):
+            engine.apply(FugueEvent(
+                event_type=FugueEventType.LEVEL_UPGRADE,
+                price=10.0, level="daily",
+            ))
+
+    def test_stopped_out_rejects_buy_point_negated(self) -> None:
+        engine = _reach_stopped_out()
+        with pytest.raises(IllegalFugueTransition):
+            engine.apply(FugueEvent(
+                event_type=FugueEventType.BUY_POINT_NEGATED,
+                price=10.0, level="30min",
+            ))
+
+
+# =============================================================================
+# 13. ShortDiff data structure
+# =============================================================================
+
+
+class TestShortDiff:
+    """ShortDiff profit calculation and immutability."""
+
+    def test_open_short_profit_is_zero(self) -> None:
+        sd = ShortDiff(level="5min", shares=100.0, sell_price=11.0)
+        assert sd.is_open is True
+        assert sd.profit == 0.0
+
+    def test_closed_short_profit_calculation(self) -> None:
+        sd = ShortDiff(
+            level="5min", shares=100.0,
+            sell_price=11.0, buy_price=9.0, is_open=False,
+        )
+        assert sd.profit == pytest.approx(200.0)
+
+    def test_closed_short_negative_profit(self) -> None:
+        sd = ShortDiff(
+            level="5min", shares=100.0,
+            sell_price=9.0, buy_price=11.0, is_open=False,
+        )
+        assert sd.profit == pytest.approx(-200.0)
+
+    def test_short_diff_is_frozen(self) -> None:
+        sd = ShortDiff(level="5min", shares=100.0, sell_price=11.0)
+        with pytest.raises(AttributeError):
+            sd.is_open = False  # type: ignore[misc]
+
+
+# =============================================================================
+# 14. FugueVoiceInfo data structure
+# =============================================================================
+
+
+class TestFugueVoiceInfo:
+    """Voice info data integrity."""
+
+    def test_voice_defaults(self) -> None:
+        v = FugueVoiceInfo(level="30min", shares=1000.0, is_profit_floor=False)
+        assert v.cumulative_profit == 0.0
+
+    def test_voice_is_frozen(self) -> None:
+        v = FugueVoiceInfo(level="30min", shares=1000.0, is_profit_floor=False)
+        with pytest.raises(AttributeError):
+            v.level = "daily"  # type: ignore[misc]
+
+
+# =============================================================================
+# 15. Factory defaults and reset preservation
+# =============================================================================
+
+
+class TestFactoryAndReset:
+    """create() defaults and reset field preservation."""
+
+    def test_create_default_margin_zero(self) -> None:
+        engine = FugueEngine.create(own_capital=100_000.0)
+        assert engine.margin_amount == 0.0
+
+    def test_create_default_sub_ratio(self) -> None:
+        engine = FugueEngine.create(own_capital=100_000.0)
+        assert engine.sub_ratio == pytest.approx(0.3)
+
+    def test_create_custom_sub_ratio(self) -> None:
+        engine = FugueEngine.create(own_capital=100_000.0, sub_ratio=0.5)
+        assert engine.sub_ratio == pytest.approx(0.5)
+
+    def test_reset_preserves_margin_and_sub_ratio(self) -> None:
+        engine = FugueEngine.create(
+            own_capital=100_000.0, margin_amount=50_000.0, sub_ratio=0.4,
+        )
+        engine = _buy_in(engine)
+        engine = engine.apply(FugueEvent(
+            event_type=FugueEventType.BUY_POINT_NEGATED,
+            price=8.0, level="30min",
+        ))
+        engine = engine.apply(FugueEvent(
+            event_type=FugueEventType.RESET,
+            price=0.0, level="",
+        ))
+        assert engine.margin_amount == pytest.approx(50_000.0)
+        assert engine.sub_ratio == pytest.approx(0.4)
+
+    def test_reset_without_new_capital_preserves_old(self) -> None:
+        engine = FugueEngine.create(own_capital=100_000.0)
+        engine = _buy_in(engine)
+        engine = engine.apply(FugueEvent(
+            event_type=FugueEventType.BUY_POINT_NEGATED,
+            price=8.0, level="30min",
+        ))
+        engine = engine.apply(FugueEvent(
+            event_type=FugueEventType.RESET,
+            price=0.0, level="",
+        ))
+        assert engine.own_capital == pytest.approx(100_000.0)
+
+
+# =============================================================================
+# 16. Stop-out side effects
+# =============================================================================
+
+
+class TestStopOutSideEffects:
+    """Stop-out clears voices and active short."""
+
+    def test_stop_out_clears_active_short(self) -> None:
+        engine = _start_reducing(_buy_in(_make_engine()), price=11.0)
+        assert engine.has_active_short_diff is True
+        engine = engine.apply(FugueEvent(
+            event_type=FugueEventType.BUY_POINT_NEGATED,
+            price=7.0, level="30min",
+        ))
+        assert engine.has_active_short_diff is False
+        assert engine.active_short is None
+
+    def test_principal_withdrawn_buy_point_negated_stops_out(self) -> None:
+        engine = _reach_principal_withdrawn()
+        engine = engine.apply(FugueEvent(
+            event_type=FugueEventType.BUY_POINT_NEGATED,
+            price=0.5, level="30min",
+        ))
+        assert engine.state == FugueState.STOPPED_OUT
+        assert engine.voice_count == 0
+
+
+# =============================================================================
+# 17. Multi-cycle cost reduction
+# =============================================================================
+
+
+class TestMultiCycleCostReduction:
+    """Multiple short-diff cycles progressively lower cost basis."""
+
+    def test_two_profitable_cycles_lower_cost_twice(self) -> None:
+        engine = _buy_in(_make_engine(equity=100_000, margin=100_000), price=10.0)
+        cost_0 = engine.cost_basis
+
+        engine = _start_reducing(engine, price=11.0)
+        engine = _close_short(engine, price=9.0)
+        cost_1 = engine.cost_basis
+        assert cost_1 < cost_0
+
+        engine = engine.apply(FugueEvent(
+            event_type=FugueEventType.SUB_LEVEL_SELL_POINT,
+            price=12.0, level="5min",
+        ))
+        engine = _close_short(engine, price=8.0)
+        cost_2 = engine.cost_basis
+        assert cost_2 < cost_1
+
+    def test_completed_shorts_accumulate(self) -> None:
+        engine = _buy_in(_make_engine(), price=10.0)
+
+        engine = _start_reducing(engine, price=11.0)
+        engine = _close_short(engine, price=9.0)
+        assert len(engine.completed_shorts) == 1
+        assert engine.completed_shorts[0].is_open is False
+
+        engine = engine.apply(FugueEvent(
+            event_type=FugueEventType.SUB_LEVEL_SELL_POINT,
+            price=12.0, level="5min",
+        ))
+        engine = _close_short(engine, price=8.0)
+        assert len(engine.completed_shorts) == 2
+
+    def test_cumulative_recovered_sums_all_profits(self) -> None:
+        engine = _buy_in(_make_engine(equity=100_000, margin=100_000), price=10.0)
+        total = engine.total_shares  # 20_000
+
+        engine = _start_reducing(engine, price=11.0)
+        engine = _close_short(engine, price=9.0)
+        short_shares = total * 0.3
+        profit_1 = (11.0 - 9.0) * short_shares
+
+        engine = engine.apply(FugueEvent(
+            event_type=FugueEventType.SUB_LEVEL_SELL_POINT,
+            price=12.0, level="5min",
+        ))
+        engine = _close_short(engine, price=8.0)
+        profit_2 = (12.0 - 8.0) * short_shares
+
+        assert engine.cumulative_recovered == pytest.approx(profit_1 + profit_2)
+
+
+# =============================================================================
+# 18. Shallow callback continuation
+# =============================================================================
+
+
+class TestShallowCallbackContinuation:
+    """After shallow callback skip, normal operations still work."""
+
+    def test_can_still_close_normally_after_shallow_skip(self) -> None:
+        engine = _start_reducing(_buy_in(_make_engine(), price=10.0), price=11.0)
+        # Shallow callback -- skipped
+        engine = engine.apply(FugueEvent(
+            event_type=FugueEventType.SUB_LEVEL_BUY_POINT,
+            price=12.0, level="5min",
+        ))
+        assert engine.has_active_short_diff is True
+        # Now a real buy-back below sell price
+        engine = engine.apply(FugueEvent(
+            event_type=FugueEventType.SUB_LEVEL_BUY_POINT,
+            price=9.0, level="5min",
+        ))
+        assert engine.has_active_short_diff is False
+        assert engine.cost_basis < 10.0
+
+    def test_shallow_callback_exact_equal_price(self) -> None:
+        """buy_price == sell_price also triggers skip (>= condition)."""
+        engine = _start_reducing(_buy_in(_make_engine(), price=10.0), price=11.0)
+        before_cost = engine.cost_basis
+        engine = engine.apply(FugueEvent(
+            event_type=FugueEventType.SUB_LEVEL_BUY_POINT,
+            price=11.0, level="5min",
+        ))
+        assert engine.cost_basis == pytest.approx(before_cost)
+        assert engine.has_active_short_diff is True
+
+
+# =============================================================================
+# 19. Complete fugue lifecycle
+# =============================================================================
+
+
+class TestFugueLifecycle:
+    """Full lifecycle: scan -> buy -> reduce -> split -> withdraw -> exit."""
+
+    def test_full_lifecycle_to_principal_withdrawn_after_split(self) -> None:
+        engine = FugueEngine.create(own_capital=10.0, margin_amount=10.0)
+        # Scan -> position open
+        engine = engine.apply(FugueEvent(
+            event_type=FugueEventType.BUY_POINT_CONFIRMED,
+            price=1.0, level="30min",
+        ))
+        assert engine.state == FugueState.POSITION_OPEN
+        # Start reducing
+        engine = engine.apply(FugueEvent(
+            event_type=FugueEventType.SUB_LEVEL_SELL_POINT,
+            price=10.0, level="5min",
+        ))
+        assert engine.state == FugueState.COST_REDUCING
+        # Level upgrade -> fugue split
+        engine = engine.apply(FugueEvent(
+            event_type=FugueEventType.LEVEL_UPGRADE,
+            price=15.0, level="daily",
+        ))
+        assert engine.voice_count == 2
+        # New short diff at new level
+        engine = engine.apply(FugueEvent(
+            event_type=FugueEventType.SUB_LEVEL_SELL_POINT,
+            price=100.0, level="4h",
+        ))
+        # Close short with massive profit -> principal withdrawn
+        engine = engine.apply(FugueEvent(
+            event_type=FugueEventType.SUB_LEVEL_BUY_POINT,
+            price=0.1, level="4h",
+        ))
+        assert engine.state == FugueState.PRINCIPAL_WITHDRAWN
+        # Main sell point exits
+        engine = engine.apply(FugueEvent(
+            event_type=FugueEventType.MAIN_LEVEL_SELL_POINT,
+            price=50.0, level="daily",
+        ))
+        assert engine.state == FugueState.STOPPED_OUT
+        # Reset
+        engine = engine.apply(FugueEvent(
+            event_type=FugueEventType.RESET,
+            price=0.0, level="",
+            new_own_capital=100.0,
+        ))
+        assert engine.state == FugueState.SCANNING
+        assert engine.own_capital == pytest.approx(100.0)
+
+    def test_principal_withdrawn_continues_reducing_after_new_sell(self) -> None:
+        """PRINCIPAL_WITHDRAWN + SUB_LEVEL_SELL_POINT -> COST_REDUCING."""
+        engine = _reach_principal_withdrawn()
+        engine = engine.apply(FugueEvent(
+            event_type=FugueEventType.SUB_LEVEL_SELL_POINT,
+            price=50.0, level="5min",
+        ))
+        assert engine.state == FugueState.COST_REDUCING
+        assert engine.has_active_short_diff is True
+
+
+# =============================================================================
+# 20. Close short edge cases
+# =============================================================================
+
+
+class TestCloseShortEdgeCases:
+    """Edge cases in _close_short."""
+
+    def test_sub_level_buy_in_cost_reducing_with_no_active_short(self) -> None:
+        """SUB_LEVEL_BUY_POINT when active_short=None returns engine unchanged."""
+        engine = _start_reducing(_buy_in(_make_engine(), price=10.0), price=11.0)
+        engine = _close_short(engine, price=9.0)
+        assert engine.has_active_short_diff is False
+        cost_before = engine.cost_basis
+        # Try close again -- no active short
+        engine_after = engine.apply(FugueEvent(
+            event_type=FugueEventType.SUB_LEVEL_BUY_POINT,
+            price=8.0, level="5min",
+        ))
+        assert engine_after.cost_basis == pytest.approx(cost_before)
+
+    def test_short_diff_shares_use_sub_ratio(self) -> None:
+        """Short-diff shares = total_shares * sub_ratio."""
+        engine = _buy_in(_make_engine(equity=100_000, margin=100_000, sub_ratio=0.4), price=10.0)
+        total = engine.total_shares
+        engine = _start_reducing(engine, price=11.0)
+        assert engine.active_short is not None
+        assert engine.active_short.shares == pytest.approx(total * 0.4)
+
+
+# =============================================================================
+# 21. Event type completeness
+# =============================================================================
+
+
+class TestEventTypeCompleteness:
+    """All seven event types from 349 spec section 3 exist."""
+
+    def test_all_seven_event_types_exist(self) -> None:
+        names = {e.name for e in FugueEventType}
+        assert names == {
+            "BUY_POINT_CONFIRMED",
+            "SUB_LEVEL_SELL_POINT",
+            "SUB_LEVEL_BUY_POINT",
+            "BUY_POINT_NEGATED",
+            "MAIN_LEVEL_SELL_POINT",
+            "LEVEL_UPGRADE",
+            "RESET",
+        }
+
+    def test_event_count_is_seven(self) -> None:
+        assert len(FugueEventType) == 7
+
+
+# =============================================================================
+# 22. Snapshot completeness
+# =============================================================================
+
+
+class TestSnapshotCompleteness:
+    """Snapshot captures all relevant engine state."""
+
+    def test_snapshot_fields_after_cost_reduction(self) -> None:
+        engine = _buy_in(_make_engine(equity=100_000, margin=100_000), price=10.0)
+        engine = _start_reducing(engine, price=11.0)
+        engine = _close_short(engine, price=9.0)
+        snap = engine.snapshot()
+        assert snap.state == FugueState.COST_REDUCING
+        assert snap.own_capital == pytest.approx(100_000.0)
+        assert snap.margin_amount == pytest.approx(100_000.0)
+        assert snap.total_shares == pytest.approx(20_000.0)
+        assert snap.cost_basis < 10.0
+        assert snap.cumulative_recovered > 0.0
+        assert snap.entry_price == pytest.approx(10.0)
+        assert snap.entry_level == "30min"
+        assert snap.voice_count == 1
+
+    def test_snapshot_after_principal_withdrawn(self) -> None:
+        engine = _reach_principal_withdrawn()
+        snap = engine.snapshot()
+        assert snap.state == FugueState.PRINCIPAL_WITHDRAWN
+        assert snap.cumulative_recovered >= snap.own_capital

@@ -264,6 +264,7 @@ gang:
       completion_check:
         type: file_exists
         path: scripts/morse_temporal.py
+      completed_at: '2026-03-04'
     - type: experiment
       target: DM3-validation
       description: 将 Morse 跳跃点与编排者直觉判断的"关键否定"对比验证

@@ -10,7 +10,7 @@ genealogy_source: "160"
 
 ## 触发条件
 
-蜂群工位在 Plan 阶段（使用 planner agent 或 EnterPlanMode 后）产出方案时自动激活。
+蜂群工位在 Plan 阶段（使用 planner agent 或 EnterPlanMode 后）产出方案时手动激活——执行者读取此 skill 并按以下工作流程执行对审。无 hook 自动触发路径（缺口7修复：声明与实际一致）。
 
 ## 工作流程
 
