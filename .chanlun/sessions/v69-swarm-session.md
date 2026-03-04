@@ -13,6 +13,10 @@ swarm persistence gap：v69-swarm 有谱系产出但无 session 文件。v120-sw
 
 ## 产出记录
 
+- block-content-enrich(最终报告): 347/347谱系CA完成，1148区块(347CA+801结构性)，73测试通过，迁移脚本2处bug修复+1新测试，id_mapping 100%一致
+
+- block-content-enrich: (重复确认)谱系区块内容enrichment完成，372文件变更，66测试全绿，工位context耗尽静默退出已手动关闭
+
 - block-content-enrich: 谱系内容区块拓扑化完成——372文件变更(block content从stub引用→结构化内容)，66测试全绿(含27新增)，工位因context耗尽静默退出
 
 - k4-vps-deploy: 完整VPS部署包 deploy/k4-monitor/(6文件)，零外部凭证，bash setup.sh一键部署
