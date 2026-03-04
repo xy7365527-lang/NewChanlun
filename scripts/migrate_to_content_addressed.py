@@ -87,6 +87,16 @@ def plan_migration(root: Path) -> dict:
         old_id = get_block_id(block)
         gen_num = get_genealogy_number(block)
 
+        # Skip blocks with no id field (orphan blocks)
+        if not old_id:
+            report["no_source"] += 1
+            report["details"].append({
+                "action": "skip_no_id",
+                "old_id": old_id,
+                "genealogy": gen_num,
+            })
+            continue
+
         # Already content-addressed?
         if _is_already_content_addressed(block):
             report["already_migrated"] += 1
@@ -163,6 +173,13 @@ def execute_migration(root: Path) -> dict:
     for block in blocks:
         old_id = get_block_id(block)
 
+        # Skip blocks with no id field — these are orphan blocks from
+        # a different code path. If a proper content-addressed version
+        # exists, we delete the orphan; otherwise skip it.
+        if not old_id:
+            skipped_no_source += 1
+            continue
+
         # Already content-addressed?
         if _is_already_content_addressed(block):
             skipped_already += 1
@@ -193,8 +210,10 @@ def execute_migration(root: Path) -> dict:
         new_block.pop("content_hash", None)
 
         # Write new block file
+        # When old_id == new_id (block already has correct hash but lacks
+        # full_text), the file exists but needs updating with embedded content.
         new_path = blocks_dir / f"{new_id}.json"
-        if not new_path.is_file():
+        if not new_path.is_file() or old_id == new_id:
             new_path.write_text(
                 json.dumps(new_block, ensure_ascii=False, indent=2),
                 encoding="utf-8",

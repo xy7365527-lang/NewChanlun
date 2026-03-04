@@ -1,0 +1,23 @@
+{
+  "id": "5523c3e34ec877f3a2876cac51adcce4b80090fc6f580976791e82a21af7488f",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.197798+00:00",
+  "source": "migration",
+  "content": {
+    "id": "156",
+    "status": "已结算",
+    "type": "语法记录（编排者 INTERRUPT）",
+    "date": "2026-02-23",
+    "depends_on": [
+      "055-no-simple-task-exemption",
+      "154-ceremony-empty-swarm-path"
+    ],
+    "negates": [
+      "154"
+    ],
+    "source_file": "settled\\156-negate-ceremony-empty-swarm-path.md",
+    "full_text": "# 156号：否定 ceremony 定理/行动类直接执行路径\n\n**id**: 156\n**status**: 已结算\n**type**: 语法记录（编排者 INTERRUPT）\n**date**: 2026-02-23\n**negates**: 154\n**前置**: 055-no-simple-task-exemption, 154-ceremony-empty-swarm-path\n\n## 矛盾发现\n\n154号谱系结算了\"Lead 判断全部工位为定理/行动类时不 TeamCreate 直接执行\"的退出路径。\n编排者否定：Lead 跳过蜂群直接执行 = 蜂群无法循环和持存。\n\n蜂群通过递归 spawn 维持自身的存在——Lead 自行消化工位是对蜂群循环的短路。\n这与 055号\"无简单任务豁免——≥1 个任务即拉蜂群\"直接矛盾。\n\n\"长期/可选\"也不是合法的排除分类——rtas 蜂群可以处理任何工位。\n\n## 决断\n\n编排者 INTERRUPT：\n> \"team lead必须得用蜂群 除非特殊情况\"\n> \"我们没有长期可选项这么一说，拉rtas蜂群都可以做\"\n> \"要否定，不然蜂群无法循环和持存\"\n\n## 结算：否定\n\n删除 ceremony skill 中的第四条退出路径（定理/行动类直接执行）。\nLead 对所有工位无论四分法分类都必须 spawn 蜂群。\n\n## 边界条件\n\n如果平台物理限制（如 token 耗尽、API 不可用）导致无法 spawn，此为物理约束而非逻辑豁免。\n\n## 下游推论\n\n1. ceremony skill（.claude/commands/ceremony.md）删除定理/行动类直接执行路径\n2. ceremony skill 删除 Read/Glob 禁令的\"定理/行动类判断\"例外\n3. \"长期/可选\"不是合法的排除分类——从 ceremony 退出路径中删除\n\n## 谱系依据\n\n- 055号：无简单任务豁免\n- 154号（被否定）：ceremony 空蜂群退出路径\n\n## 影响声明\n\n- 新增谱系 156号（negates 154号）\n- 修改 `.claude/commands/ceremony.md`：删除第四条退出路径\n"
+  },
+  "refs": [],
+  "git_ref": ""
+}

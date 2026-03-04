@@ -1,0 +1,23 @@
+{
+  "id": "bb45e3b6f160252ce4dcd936cc5cb0cc0ad1f350570581460eb4bc1a14ea7a52",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.198314+00:00",
+  "source": "migration",
+  "content": {
+    "id": "157",
+    "status": "已结算",
+    "type": "语法记录（编排者 INTERRUPT）",
+    "date": "2026-02-23",
+    "depends_on": [
+      "156-negate-ceremony-empty-swarm-path",
+      "055-no-simple-task-exemption"
+    ],
+    "negates": [
+      "无（对规则文件中隐含分类的否定）"
+    ],
+    "source_file": "settled\\157-negate-longterm-exclusion.md",
+    "full_text": "# 157号：否定 long_term 排除分类\n\n**id**: 157\n**status**: 已结算\n**type**: 语法记录（编排者 INTERRUPT）\n**date**: 2026-02-23\n**negates**: 无（对规则文件中隐含分类的否定）\n**前置**: 156-negate-ceremony-empty-swarm-path, 055-no-simple-task-exemption\n\n## 矛盾发现\n\n`no-unnecessary-escalation.md` 格式B排除分类中包含 `long_term（附具体重新激活条件）`。\n这意味着蜂群可以将某些工位标记为\"长期搁置\"——即承认存在蜂群当前不处理的合法工位。\n\n156号已结算：Lead 必须用蜂群处理所有工位，\"长期/可选\"不是合法排除。\n但 `long_term` 分类仍残留在格式B的排除分类列表中，与156号的下游推论直接矛盾。\n\n## 决断\n\n编排者 INTERRUPT（与156号同源）：\n> 所有工位都应该被蜂群处理，不存在\"长期搁置\"的合法性。\n\n## 结算：否定\n\n从 `no-unnecessary-escalation.md` 格式B排除分类中删除 `long_term`。\n排除分类仅接受：resolved（已完成）、blocked（附具体阻塞项）。\n\n## 边界条件\n\n如果某工位因外部物理约束（API不可用、权限缺失等）无法推进，应分类为 `blocked` 而非 `long_term`。\nblocked 必须附具体阻塞项，阻塞解除后蜂群自动处理。\n\n## 下游推论\n\n1. 格式B排除分类从三元（resolved/long_term/blocked）收缩为二元（resolved/blocked）\n2. 任何之前被标记为 long_term 的工位应重新分类为 blocked（附具体阻塞项）或直接处理\n\n## 谱系依据\n\n- 156号：Lead 必须用蜂群，\"长期/可选\"不是合法排除\n- 055号：无简单任务豁免\n\n## 影响声明\n\n- 新增谱系 157号\n- 修改 `.claude/rules/no-unnecessary-escalation.md`：格式B排除分类删除 `long_term`\n"
+  },
+  "refs": [],
+  "git_ref": ""
+}

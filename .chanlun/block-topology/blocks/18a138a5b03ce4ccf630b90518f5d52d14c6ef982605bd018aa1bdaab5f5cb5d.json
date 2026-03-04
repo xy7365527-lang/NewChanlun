@@ -1,0 +1,22 @@
+{
+  "id": "18a138a5b03ce4ccf630b90518f5d52d14c6ef982605bd018aa1bdaab5f5cb5d",
+  "type": "event",
+  "timestamp": "2026-03-02T07:07:41.907283+00:00",
+  "source": "migration",
+  "content": {
+    "id": "248",
+    "title": "段引擎 71→1 压缩诊断",
+    "status": "settled",
+    "type": "诊断",
+    "date": "2026-02-28",
+    "depends_on": [
+      "247",
+      "237",
+      "3"
+    ],
+    "source_file": "settled\\248-segment-engine-diagnosis.md",
+    "full_text": "---\nid: 248\ntitle: 段引擎 71→1 压缩诊断\ntype: 诊断\nstatus: settled\ndepends_on: [247, 237, 003]\ndate: 2026-02-28\n---\n\n# 248号: 段引擎 71→1 压缩诊断\n\n## 结论\n\n71 strokes → 1 segment 压缩是 **bug**，不是缠论定义的自然结果。\n\nbug 位置：`src/newchan/a_segment_v1.py:segments_from_strokes_v1`，第 488 行。\n\n引擎用 `strokes[seg_start].direction` 作为初始段方向。当第一笔方向为 down 且该笔位于整个序列的绝对底部时，引擎承诺构建一个 down 段（从顶到底），但后续市场持续上涨，所有候选底点都高于初始顶点。L78 约束（第 78 课\"顶高于底\"硬约束）正确拒绝每一个触发，但引擎没有机制检测初始方向的不可行性或回退到替代起点。\n\n对比实验：从笔 1（up 方向）开始，70 笔产出 7 个线段——段引擎的核心逻辑（特征序列构建、包含处理、分型检测、L78 验证、结算锚验证）全部正确。\n\n## 定义依据\n\n- **第 67 课**（线段划分标准）：特征序列法的两种情况定义。引擎正确实现了这两种情况。\n- **第 78 课**（硬约束）：\"同一线段中，两端的一顶一底，顶肯定要高于底\"。引擎的 L78 检查正确实施了此约束。\n- **第 78 课**（起始选择）：缠师答疑\"一般都是从图K线中近期的最高或最低点开始\"，暗示段构造不必从绝对第一笔开始。\n\nSPY 60min 数据的笔 0 是 down 笔（649.48→634.92），634.92 是整个 71 笔序列的绝对最低点。从此处开始构建 down 段在物理上不可能完成（没有更低的底可达）。\n\n## 边界条件\n\n此 bug 在以下条件下触发：\n\n1. 第一笔方向与后续主趋势方向相反\n2. 第一笔终点是序列的极值点（绝对高/低点）\n3. 导致 L78 在整个序列中持续拒绝所有分型触发\n\n如果第一笔不在绝对极值，或后续趋势有回调低于起始价格，bug 不触发。\n\nDaily 案例（36→3）的最后一段是此 bug 的较轻形式：未确认 down 段 ep0=606.11(top) < ep1=675.78(bottom)，违反 L78 但引擎对未确认段仅警告不阻断。\n\n## 下游推论\n\n1. **D2 压缩率结论需修正** `[resolved: confirmed by 249]`：247号验证的\"60min: 71 strokes → 1 segment → 0 zhongshu → 0 moves\"不是 D2 弱方向吸收的证据，而是初始方向 bug 的表现。修复后 D2 压缩率会显著改善（对比实验：70→7）。249号验证：修复后 71→8（+1 因笔 0 参与构建），完全确认本诊断。\n2. **T6 可达性结论可能需要重新评估** `[resolved: confirmed by 250, T6 仍不可达]`：如果 60min 产出 7 段而非 1 段，将产生中枢和走势，可能改变 T6 可达性判断。250号验证：60min 恢复后产出走势（active_levels=1），但 daily 层 4 seg → 1 zs → 0 moves，T6 仍不可达。\n3. **TAIL_WINDOW=7 是独立缺陷** `[acknowledged: 不在本轮处理范围]`：标准特征序列长度 25 > TAIL_WINDOW 7，意味着只扫描最近 7 个元素。本案例中不影响结果（所有分型都被 L78 拒绝），但在其他数据上可能导致合法分型被遗漏。\n\n## 谱系引用\n\n- 003号：段概念分离（v0/v1 差异 4.72 倍）\n- 237号：D2 递归压缩根因三态诊断\n- 247号：SPY 真实数据验证发现 71→1 压缩\n\n## 影响声明\n\n- `src/newchan/a_segment_v1.py`：`segments_from_strokes_v1` 需要增加初始方向不可行性检测/回退机制\n- `src/newchan/a_segment_v1.py`：`_FeatureSeqState.TAIL_WINDOW=7` 需要评估是否应该增大或移除\n- 247号结论中\"D2 压缩是结构性瓶颈\"需要区分\"真实的 D2 压缩\"与\"初始方向 bug 导致的虚假压缩\"\n- 不修改代码（本谱系仅做诊断）\n\n## 诊断脚本\n\n`scripts/segment_engine_diagnosis.py`：可重复运行的诊断脚本。\n\n## 结构化结果\n\n`tmp/segment-engine-diagnosis.json`：包含 71 笔完整序列、特征序列详细分析、6 次触发拒绝记录、对比实验结果。\n\n## bug 发生机制详解\n\n```\n1. _find_overlap_start(strokes, 0) → 0 (笔0,1,2有重叠)\n2. seg_dir = strokes[0].direction = \"down\"  ← 此处决定了段方向\n3. 特征序列取 up 笔（反向笔），寻找底分型（下降段看底分型）\n4. 底分型被找到 6 次（元素[5,6,7], [8,9,10], [12,13,14], [15,16,17], [19,20,21], [22,23,24]）\n5. _try_trigger_segment → L78 检查:\n     down 段: ep0_price(top) 必须 > ep1_price(bottom)\n     ep0 = strokes[0] 的 top = 649.48\n     但所有候选 bottom 价格都 > 649.48:\n       笔12 bottom = 654.41\n       笔18 bottom = 652.84\n       笔34 bottom = 650.85\n       笔46 bottom = 671.20\n       笔56 bottom = 676.57\n       笔66 bottom = 675.78\n6. 全部拒绝 → 无断段 → 71 笔 = 1 未确认段\n\n对比: strokes[1:] (从 up 笔开始):\n  70 strokes → 7 segments (4 confirmed + 1 unconfirmed)\n```\n"
+  },
+  "refs": [],
+  "git_ref": ""
+}

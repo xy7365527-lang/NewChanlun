@@ -1,0 +1,21 @@
+{
+  "id": "3ef108c94c93c9bbd1ed60fac68ac50bddb983c482dc31d51dda33a16cb7934a",
+  "type": "event",
+  "timestamp": "2026-02-25T19:23:01.928512+00:00",
+  "source": "cc",
+  "content": {
+    "id": "203",
+    "title": "真实市场数据验证——gauge 不变量的笔定义敏感性",
+    "status": "已结算",
+    "type": "概念发现",
+    "date": "2026-02-25",
+    "depends_on": [
+      "195",
+      "199"
+    ],
+    "source_file": "settled/203-real-data-gauge-sensitivity.md",
+    "full_text": "---\nid: \"203\"\nnumber: 203\ntype: 概念发现\nstatus: 已结算\ndate: 2026-02-25\ntrigger: 真实市场数据验证（195号-5）\ndepends_on:\n  - \"195\"\n  - \"199\"\n---\n\n# 203号：真实市场数据验证——gauge 不变量的笔定义敏感性\n\n## 结论\n\n真实 A 股数据（3 只股票，661 根日 K 线）上的 gauge_equivalence_report 验证揭示：\n\n1. T3（中枢数量）、T4（β₁^τ）在三种笔定义间完全一致（9/9 = 100%）\n2. T1（barcode bottleneck）在 wide→strict 和 strict→new 转换时不一致（4/9 失败）\n3. 失败模式集中在 center_zd_zg_pairs 和 barcode_bottleneck 两个子检查\n4. T8 在级别 0 全部 inconclusive（2/2），与 199号一致\n\n## 定义依据\n\n- gauge equivalence 的定义：不同笔定义产生的拓扑不变量应一致（195号）\n- T1 barcode bottleneck 检查：d_B(Dgm_wide, Dgm_strict) ≤ ε\n- center_zd_zg_pairs：中枢的 (ZD, ZG) 对在不同笔定义下应相同\n\n## 边界条件\n\n- 招商银行（600036）三种转换全部通过（9/9）——说明不一致不是普遍现象\n- 平安银行和五粮液的 wide→strict 转换 bottleneck 非零（0.79 和 23.63）\n- wide→new 转换全部通过——说明宽笔和新笔的结构差异小于宽笔和严格笔\n\n## 下游推论\n\n1. T1 barcode 不一致的根因是笔定义差异导致线段数量不同（stroke_diff 非零），进而影响中枢边界 → [resolved: 203号结论本身]\n2. T3/T4 的完全一致说明中枢数量和 β₁ 是真正的强不变量——对笔定义不敏感 → [resolved: 203号结论本身]\n3. T1 barcode bottleneck 的阈值 ε 可能需要根据真实数据校准 → [resolved: 15只A股校准完成——strict ε=3.38(73.3%), moderate ε=8.19(86.7%), lenient ε=16.65(95.6%)]\n4. 需要更多股票样本验证 T1 不一致的频率和分布 → [resolved: 扩展到15只A股（大/中/小盘+多行业），25/45非零bottleneck，wide→new最稳定(11/15零)，strict→new最不稳定(12/15非零)]\n\n## 经验证据\n\n- 000001 平安银行：wide→strict bottleneck=0.79, wide→new bottleneck=0.00\n- 600036 招商银行：全部 bottleneck=0.00（完全一致）\n- 000858 五粮液：wide→strict bottleneck=23.63, wide→new bottleneck=0.00\n\n## 谱系引用\n\n- 195号：缠论代码拓扑化\n- 199号：T8 在级别 0 天然 inconclusive\n"
+  },
+  "refs": [],
+  "git_ref": "07af972"
+}

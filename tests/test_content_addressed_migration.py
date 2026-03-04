@@ -412,6 +412,35 @@ def test_execute_migration_no_source_blocks_unchanged(mock_repo):
     assert (blocks / f"{no_source_id}.json").is_file()
 
 
+def test_execute_migration_same_hash_embeds_full_text(mock_repo):
+    """Block whose id already equals SHA256(full_text) but lacks full_text gets updated."""
+    text = "# Same hash, no full_text"
+    same_id = compute_content_hash(text)
+    _write_md(mock_repo, 50, "same-hash", text)
+    blocks = mock_repo / ".chanlun" / "block-topology" / "blocks"
+    block = {
+        "id": same_id,
+        "type": "event",
+        "content": {
+            "id": "050",
+            "source_file": "settled/050-same-hash.md",
+        },
+    }
+    (blocks / f"{same_id}.json").write_text(
+        json.dumps(block, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+    result = execute_migration(mock_repo)
+    assert result["migrated"] >= 1
+
+    updated = json.loads(
+        (blocks / f"{same_id}.json").read_text(encoding="utf-8")
+    )
+    assert updated["content"]["full_text"] == text
+    assert updated["id"] == same_id
+
+
 def test_execute_migration_removes_content_hash_field(mock_repo):
     """Legacy content_hash field is removed during migration."""
     text = "# Remove content_hash"

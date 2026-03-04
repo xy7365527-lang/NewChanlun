@@ -1,0 +1,23 @@
+{
+  "id": "b24ab7e53d8824da8113ca9179b45499e12d0be44a6ab98095340ed753af104d",
+  "type": "event",
+  "timestamp": "2026-02-27T00:38:03.845580+00:00",
+  "source": "ceremony",
+  "content": {
+    "id": "223",
+    "title": "v4 §5.4 模式D派生边分类不完备——遗漏混合状态",
+    "status": "已结算",
+    "type": "矛盾发现",
+    "date": "2026-02-27",
+    "depends_on": [
+      "115"
+    ],
+    "source_file": "settled\\223-v4-pattern-d-incomplete-classification.md",
+    "negation_source": "heterogeneous",
+    "negation_form": "unclassified",
+    "negation_model": "gemini-3.1-pro-preview",
+    "full_text": "---\nid: '223'\nnumber: 223\ntitle: v4 §5.4 模式D派生边分类不完备——遗漏混合状态\ntype: 矛盾发现\nstatus: 已结算\ndate: 2026-02-27\nnegation_source: heterogeneous\nnegation_form: unclassified\nnegation_model: gemini-3.1-pro-preview\ndepends_on:\n  - '115'   # 流转关系形式化\ntensions_with: []\ntopo_effect: \"\"\n---\n\n# 矛盾描述\n\nv4 §5.4 模式D（独立边同向正）的派生边观测后分类初版只有两种：\n\n> 若派生边均≈0：现金角在贬值。\n> 若派生边有方向：资产间确实有差异化流转。\n\n这个分类不完备，遗漏了混合状态。\n\n## 反例构造\n\n设 E/$=+（涨幅20%），C/$=+（涨幅15%），R/$=+（涨幅15%）。\n\n则：\n- E/C = E/$ ÷ C/$ → E 涨幅 > C 涨幅 → E/C = +（有方向）\n- E/R = E/$ ÷ R/$ → E 涨幅 > R 涨幅 → E/R = +（有方向）\n- C/R = C/$ ÷ R/$ → C 涨幅 ≈ R 涨幅 → C/R ≈ 0（盘整）\n\n此时派生边状态为 (+, +, 0)——既不是\"均≈0\"，也不是统一的\"有方向\"。\n\n## 修复\n\nv4 §5.4 模式D和模式E已补充第三种情况：\n\n> 若派生边部分有方向、部分≈0（混合状态）：局部差异化流转。例如E/C=+、E/R=+、C/R≈0，说明动产相对商品和房地产都在走强，但商品和房地产之间没有流转——动产是唯一的相对赢家，商品和房地产同步贬值。需要逐条派生边读取，不能笼统归类。\n\n## 谱系引用\n\n- 115号：流转关系形式化\n"
+  },
+  "refs": [],
+  "git_ref": "cf18e1d"
+}

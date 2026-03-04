@@ -1,0 +1,29 @@
+{
+  "id": "7c0667e0dffa564de52473edf1f3351f23a0c9224f2739c4b62c2f41068986bc",
+  "type": "event",
+  "timestamp": "2026-02-24T07:16:18.254185+00:00",
+  "source": "migration",
+  "content": {
+    "id": "186",
+    "title": "clean_terminate 计算时序缺陷——在 workstations 追加完成前计算导致假阳性终止",
+    "status": "settled",
+    "type": "meta-rule",
+    "date": "2026-02-24",
+    "negation_source": "meta-observer",
+    "negation_form": "expansion",
+    "depends_on": [
+      "185",
+      "081"
+    ],
+    "related": [
+      "154",
+      "181"
+    ],
+    "negates": [],
+    "tensions_with": [],
+    "source_file": "settled\\186-clean-terminate-computation-order.md",
+    "full_text": "---\nid: '186'\ntitle: clean_terminate 计算时序缺陷——在 workstations 追加完成前计算导致假阳性终止\ntype: meta-rule\nstatus: settled\ndate: 2026-02-24\nnegation_source: meta-observer\nnegation_form: expansion\ndepends_on:\n  - '185'   # 纲举目张分析在 RTAS 循环中的缺位（同类假阳性终止问题）\n  - '081'   # ceremony_scan 干净终止条件定义\nrelated:\n  - '154'   # ceremony 空蜂群退出路径\n  - '181'   # ceremony_scan 职责边界\ntensions_with: []\nnegates: []\nrule_version_baseline:\n  claude_md_commit: \"97f3ba3186f1919ff6abf02dea4247724d47c79a\"\n  rules_dir_mtime: \"2026-02-23 21:10:15 +0000\"\n---\n\n# 186号：clean_terminate 计算时序缺陷\n\n## 来源标注\n\n[meta-observer 二阶观察] Plan 验证 session\n观察 ceremony_scan.py 端到端输出时发现 `clean_terminate: true` 与 `workstations` 非空同时存在。\n\n## 观察\n\n`ceremony_scan.py` 中 `clean_terminate` 的计算位于 line 654（原始位置），在以下 workstations 追加步骤**之前**：\n\n1. `genealogy_anomalies` 检测（line 723-731）→ 追加 P0 异常工位\n2. `downstream_actions` 审计（line 760-780）→ 追加 P2 下游推论工位\n3. `pattern_buffer_candidates`（line 706-711）→ 追加 P1 结晶工位\n\n这导致 `clean_terminate: true` 但 `workstations` 含 10 个工位——ceremony skill 如果只看 `clean_terminate` 就会错误地宣布干净终止。\n\n## 与 185号的关系\n\n185号记录的\"纲举目张分析缺位\"也是假阳性终止的一种形式——ceremony_scan 扫描范围不覆盖纲举目张推导。186号是同类问题的另一个实例——ceremony_scan 自身的 `clean_terminate` 计算有时序缺陷。两者都指向同一个结构性问题：RTAS 循环的终止判断需要在所有信息源汇聚后才能做出。\n\n## 修复\n\n将 `clean_terminate` 的计算从 line 654 移到 `print(json.dumps(...))` 之前，即所有 workstations 追加步骤完成之后。这是定理类修复（代码逻辑 bug），已直接执行。\n\n修复后验证：`clean_terminate=False, workstations=10`（一致）。\n\n## 下游推论\n\n1. ~~ceremony_scan.py 修复~~ → **已解决**（本次修复）\n2. ~~测试覆盖：端到端测试验证 `clean_terminate` 与 `workstations` 的一致性~~ **已执行**——ddbe43a 添加 TestCleanTerminateConsistency 测试类\n\n## 影响声明\n\n- 修复 ceremony_scan.py 的 clean_terminate 计算时序\n- 防止 RTAS 循环在有待处理工位时假阳性终止\n- 不涉及已结算定义修改\n"
+  },
+  "refs": [],
+  "git_ref": ""
+}

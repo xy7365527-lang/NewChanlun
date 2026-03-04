@@ -1,0 +1,19 @@
+{
+  "id": "94bc01cf5e06cd99d05d454e6956b470bb898b0ce638d77d520f4e8f25f45d08",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.199556+00:00",
+  "source": "migration",
+  "content": {
+    "id": "159",
+    "status": "已结算",
+    "type": "语法记录",
+    "date": "2026-02-23",
+    "depends_on": [
+      "155-codex-heterogeneous-code-review"
+    ],
+    "source_file": "settled\\159-codex-discussion-persistence.md",
+    "full_text": "# 159号谱系：Codex 持久化调用——写代码标配\n\n**id**: 159\n**status**: 已结算\n**type**: 语法记录\n**date**: 2026-02-23\n**前置**: 155-codex-heterogeneous-code-review\n\n## 来源\n\n编排者指令：\"codex 的讨论在写代码或用蜂群的时候应该持久化调用，因为这个是让代码可行的关键，这样后面不需要改那么多 bug\"\n\n## 内容\n\nCodex 异质审查从\"条件触发\"提升为\"蜂群写代码标配\"：\n1. **持久化调用**：dispatch-dag codex-challenger 增加 `file_write` 触发（`src/**/*.py`），蜂群工位写入 Python 代码后自动触发 Codex review\n2. **结果持久化**：每次 Codex 调用的完整交互自动写入 `.chanlun/review-results/codex-{mode}-{timestamp}.md`\n3. **前置守卫**：Codex 审查不再是事后可选项，而是代码产出流程的标配步骤——减少后续 bug\n\n### 实现\n\n- `ReviewResult` 增加 `to_markdown()` 方法（frozen dataclass，返回新字符串）\n- `ReviewResult` 增加可选字段 `context_file: str | None`\n- CLI (`__main__.py`) 执行结束后自动将结果写入 `.chanlun/review-results/codex-{mode}-{YYYYMMDD-HHmm}.md`\n- 持久化内容包含：元数据头（mode, subject, model, timestamp）、完整 response、context-file 路径（如有）\n- 持久化是自动的，无需额外 CLI flag\n\n### 格式\n\n```\n# Codex {mode} — {timestamp}\n\n## 元数据\n\n- **mode**: {mode}\n- **subject**: {subject}\n- **model**: {model}\n- **timestamp**: {timestamp}\n- **context-file**: {path}  (如有)\n\n## Response\n\n{response}\n```\n\n## 边界条件\n\n- 如果同一分钟内多次调用同模式，文件名会重复覆盖——当前接受此约束（实际使用中不太可能同一分钟对同模式调用两次）\n- 如果 `.chanlun/review-results/` 目录不存在，`_save_result` 会自动创建\n\n## 下游推论\n\n1. **dispatch-dag plan_review 触发**：codex-challenger 的触发从 `file_write`（原始设计）修正为 `plan_review`（160号修正：编排者进一步澄清——重点不是写完代码后审查，而是 Plan 阶段多模型对审，修改循环前移到纯文本阶段）\n2. `.chanlun/review-results/` 成为异质审查的结构化档案（Codex 审查结果的持久化存储）\n3. 蜂群标准工作流：Plan（多模型对审）→ 方案定稿 → Execute → Verify\n\n## 谱系依据\n\n- 155号：Codex 代码层异质审查（Codex challenger 的引入）\n- 062号：异质性作为结构性要素（异质审查的持久化 = 保存异质性的生成史）\n\n## 影响声明\n\n- 修改 `.chanlun/dispatch-dag.yaml`：codex-challenger 触发事件（原 `file_write`，后被 160号修正为 `plan_review`）\n- 修改 `src/newchan/codex/modes.py`：ReviewResult 增加 `context_file` 字段和 `to_markdown()` 方法\n- 修改 `src/newchan/codex/__main__.py`：CLI 执行后自动持久化结果\n- 修改 `.claude/agents/codex-challenger.md`：产出部分增加持久化要求\n- 修改 `.claude/hooks/lead-audit.sh`：扩展白名单消除合法 Bash 误报\n- 修改 `tests/test_codex_challenger.py`：增加 to_markdown 和 CLI 持久化测试\n- 新增谱系 159号\n"
+  },
+  "refs": [],
+  "git_ref": ""
+}

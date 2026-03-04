@@ -1,0 +1,18 @@
+{
+  "id": "460c51559be3dadaa90282b5840a04b00783e7fceb712142f8dc1dd6776f8603",
+  "type": "event",
+  "timestamp": "2026-03-02T07:07:41.852641+00:00",
+  "source": "migration",
+  "content": {
+    "id": "181",
+    "title": "ceremony_scan 与 session 结晶的职责边界确认",
+    "status": "已结算",
+    "type": "meta-rule",
+    "date": "2026-02-24",
+    "topo_effect": "无——现有设计正确，不需要变更",
+    "source_file": "settled\\181-ceremony-scan-orchestrator-gap.md",
+    "full_text": "---\nid: \"181\"\nnumber: 181\ntype: meta-rule\nstatus: 已结算\ndate: 2026-02-24\ntitle: ceremony_scan 与 session 结晶的职责边界确认\nrule_version_baseline:\n  claude_md_commit: \"97f3ba3186f1919ff6abf02dea4247724d47c79a\"\n  rules_dir_mtime: \"2026-02-23 21:10:15 +0000\"\ngenealogy_refs:\n  - 154  # ceremony 空蜂群退出路径\n  - 162  # RTAS 持久化由 session 结晶保证\n  - 174  # 谱系即生成引擎\ntopo_effect: \"无——现有设计正确，不需要变更\"\ndownstream:\n  - \"ceremony_scan 不扩展：它是文件系统扫描器，不是对话理解器\"\n  - \"session 结晶继续作为编排者决断的独立传递通道\"\n---\n\n# 181号: ceremony_scan 与 session 结晶的职责边界确认\n\n## 原始观察\n\nv43-swarm session 中，ceremony_scan 返回 `clean_terminate=true`（无工位），但编排者在 v42-swarm 结束时给出了明确的架构决断（立场差分架构），session 恢复指引的\"待处理\"段记录了具体的实现任务。Lead 从 session 文件手动读取编排者决断，手动创建蜂群和工位。\n\n## 原始判断（已修正）\n\n~~原始判断将此视为\"接口缺口\"和\"语法记录候选\"。~~\n\n## 编排者修正\n\n这不是缺口，不是张力，不需要谱系化为语法记录。原始判断犯了角色越界的错误：\n\n1. **ceremony_scan 的输入是物质变化（文件系统）**，不是对话历史。让它读 session 恢复指引来推导工位 = 让文件系统扫描器变成对话理解器 = 职责膨胀。\n2. **两条独立信息通道各自正确运作**：\n   - ceremony_scan：从谱系/区块增量自动推导工位\n   - session 结晶：传递编排者决断给下一轮 CC\n3. **Lead 从 session 读取决断启动工位不是\"绕过\"ceremony_scan**——这就是正确路径。编排者决断是人类行为，通过人类可读通道（session 文件）传递，由 CC 在下一轮启动时读取。\n\n结论：两个系统的正确分工被误读为\"接口缺口\"。无遗漏，无张力。\n\n## 附加观察（保留）\n\nv43-swarm 的 stance-diff-impl 工位从编排者决断中自主推导出未显式列出的工作项（stance_parser.py + registry.py 修改）。四分法\"定理\"类的正确执行。\n"
+  },
+  "refs": [],
+  "git_ref": ""
+}

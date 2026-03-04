@@ -1,0 +1,23 @@
+{
+  "id": "b151daa8bed1f484c96a7696cddf03710b360cc8cea4d079ccdcafd5a6e47a5e",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.064612+00:00",
+  "source": "migration",
+  "content": {
+    "id": "018",
+    "title": "四分法扩展：行动类（l'acte）",
+    "status": "已结算",
+    "type": "矛盾记录",
+    "date": "2026-02-17",
+    "depends_on": [],
+    "related": [
+      "017"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled\\018-four-way-classification.md",
+    "full_text": "---\nid: \"018\"\ntitle: \"四分法扩展：行动类（l'acte）\"\nstatus: \"已结算\"\ntype: \"矛盾记录\"\ndate: \"2026-02-17\"\ndepends_on: []\nrelated: [\"017\"]\nnegated_by: []\nnegates: []\n---\n\n# 018 — 四分法扩展：行动类（l'acte）\n\n**状态**: 已结算\n**日期**: 2026-02-17\n**来源**: maimai v1.0 发布事件。该事件中 escalation 不携带信息差，编排者审查环节为空，暴露了原三分法的盲区。\n\n## 分离\n\n原三分法（定理 / 选择 / 语法记录）无法分类以下产出：\n- 不推导新知（非定理）\n- 不在多条路中选（非选择）\n- 不把隐性规则显式化（非语法记录）\n- 纯粹是操作性事件（版本升级、状态迁移、发布）\n\n## 新定义\n\n**行动类（l'acte）**：不携带信息差的操作性事件 → 自动执行，无需编排者审查。\n\n四分法：\n1. **定理** → 自动结算\n2. **选择** → 编排者决断\n3. **语法记录** → 编排者辨认\n4. **行动** → 自动执行\n\n## 谱系链接\n\n- 前置：元编排核心原则 #6（三分法）\n- 关联：017-session-as-pointer（session 也是行动类产出）\n"
+  },
+  "refs": [],
+  "git_ref": ""
+}

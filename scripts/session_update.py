@@ -104,7 +104,7 @@ def create_session(root: Path, scan: dict) -> Path:
 
 
 def append_output(session_path: Path, output_line: str):
-    """增量追加工位产出到 session 文件。"""
+    """增量追加工位产出到 session 文件。同时更新 .last-session-append 标记。"""
     content = session_path.read_text(encoding="utf-8")
     marker = "## 产出记录"
     if marker in content:
@@ -115,6 +115,12 @@ def append_output(session_path: Path, output_line: str):
     else:
         content += f"\n\n## 产出记录\n\n- {output_line}\n"
     session_path.write_text(content, encoding="utf-8")
+
+    # 更新追加时间戳标记（completion-session-guard 检测用）
+    import time
+    marker_file = session_path.parent.parent / ".last-session-append"
+    marker_file.parent.mkdir(parents=True, exist_ok=True)
+    marker_file.write_text(str(time.time()), encoding="utf-8")
 
 
 def finalize_session(session_path: Path):

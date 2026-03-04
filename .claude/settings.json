@@ -190,6 +190,15 @@
             "command": ".claude/hooks/lead-audit.sh"
           }
         ]
+      },
+      {
+        "matcher": "SendMessage",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/completion-session-guard.sh"
+          }
+        ]
       }
     ]
   },

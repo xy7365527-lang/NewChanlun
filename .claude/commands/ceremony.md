@@ -35,10 +35,15 @@ scan 输出什么就 spawn 什么。Lead 不做实质认知工作。
    context window 耗尽 → 触发 compaction → 下一轮恢复继续（暂停，不是终止）。
 6. RTAS 循环（consume）：
    - `TaskList` 查看状态
-   - 完成的工位：汇报 + `shutdown_request`（批量并行，不逐个串行）
-   - 每条 completion 到达时增量写 session（不等 consume_all）
+   - 完成的工位 → **原子三步序列**（不可重排，不可省略任何步骤）：
+     1. `bash scripts/session_append.sh "工位名: 产出摘要"`（增量写 session）
+     2. 汇报产出
+     3. `shutdown_request`
+   - 多个工位同时完成 → 每个工位独立执行原子三步序列（不批量合并 session 写入）
    - 空闲工位无新任务：`shutdown_request`
    - 仍有 in_progress：`SendMessage` 询问 + `TaskList` 轮询
+   - **completion-session-guard.sh**（PostToolUse hook）运行时强制：
+     shutdown_request 时检测 .last-session-append 标记，缺失则注入提醒
 7. 全部完成 → 写 session → `bash scripts/ceremony_push_and_rescan.sh "commit message"` （原子链：commit→push→rescan，消除 LLM 决策间隙）
 8. 解析 rescan JSON 输出
 9. rescan.workstations[] 非空且与上轮不同 → 回到步骤 5 spawn 新工位
