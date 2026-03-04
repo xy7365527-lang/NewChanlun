@@ -49,7 +49,7 @@ gang:
       description: I1小转大编排——跨级别联动的实盘集成
       blocked_by: null
       completion_check:
-        type: test_pass
+        type: test_file_exists
         pattern: tests/test_xiaozhuan_da_integration.py
       completed_at: '2026-03-04'
     - type: engineering
@@ -64,7 +64,7 @@ gang:
       description: G4回测框架——逐bar展开验证满仓满融降成本速度、区间套收敛排序效果、不换仓原则机会成本（来源：267号下游推论1 + 总方针§八.七阶段B回测）
       blocked_by: G3-fugue-state-machine-genealogy
       completion_check:
-        type: test_pass
+        type: test_file_exists
         pattern: tests/test_backtest_*.py
     - type: engineering
       target: G5-convergence-metric
@@ -142,14 +142,14 @@ gang:
       description: 折叠等价类构造器——从标的属性映射到292号折叠通道等价关系，输出商空间F/~（来源：352号§3）
       blocked_by: null
       completion_check:
-        type: test_pass
+        type: test_file_exists
         pattern: tests/test_fold_equivalence.py
     - type: engineering
       target: scanner-quotient-rank
       description: 商空间排序器——在折叠等价类上计算rank([S])=T([S])*W(fold([S]))（来源：352号§4）
       blocked_by: scanner-fold-equivalence
       completion_check:
-        type: test_pass
+        type: test_file_exists
         pattern: tests/test_quotient_rank.py
     - type: experiment
       target: scanner-l2-validation
@@ -181,7 +181,7 @@ gang:
         layer）
       blocked_by: BT1-content-addressed-migration
       completion_check:
-        type: test_pass
+        type: test_file_exists
         pattern: tests/test_reflexive_layer.py
     - type: integration
       target: BT3-traverse-mcp-integration
@@ -195,7 +195,7 @@ gang:
       description: BT4拓扑事件检测——ceremony写入后检测Layer2 cycle_rank变化标记为拓扑事件，同时检测Layer1环标记为逻辑层拓扑事件（来源：总方针§八.五穿越基础设施组件二偶遇记录 + 组件三Morse地形导航）
       blocked_by: null
       completion_check:
-        type: test_pass
+        type: test_file_exists
         pattern: tests/test_topo_event_detection.py
   - id: fold-topology-ontology
     name: 折叠拓扑本体论
@@ -254,7 +254,7 @@ gang:
       description: 从 relations.jsonl 构造单纯复形，计算同调群（β₀, β₁），在复形上构造离散 Morse 函数，找到临界集
       blocked_by: null
       completion_check:
-        type: test_pass
+        type: test_file_exists
         pattern: tests/test_discrete_morse.py
     - type: experiment
       target: DM2-temporal-evolution

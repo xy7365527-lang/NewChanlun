@@ -1,179 +1,236 @@
-# 声明-能力一致性二次审查（异质视角）
+# 声明-能力一致性二次审查报告（异质视角）
 
-**审计方法**：从能力层出发反查声明层——不问"声明了什么"，问"实际能做什么"。
+**审查方法**：从能力层反查声明层。Part 1 从 agent 声明出发正向追踪，本审查反向——从平台实际能力（commands、skills、hooks、ceremony_scan 输出字段）出发，检查每一项能力是否有匹配的消费者。
 
-## 一、Commands 审查（`.claude/commands/*.md`）
+**与 Part 1 的关系**：Part 1 发现 17 项缺口。本审查补充以下 Part 1 未覆盖的维度：
+1. Commands 声称做什么 vs 实际做什么
+2. Skills 声称的触发条件 vs 实际触发路径
+3. ceremony_scan.py 输出字段的消费状态
+4. Hooks 声称检查什么 vs 实际检查什么
+5. gangmu.yaml completion_check 类型 vs _check_completion 实现
 
-| 命令 | 声称功能 | 实际能力 | 缺口 |
-|------|---------|---------|------|
-| /ceremony | Lead 最小自举序列（10步） | ceremony_scan.py + TeamCreate + Task spawn | **消费缺口**：步骤中无 required_skills 消费步骤 |
-| /challenge | 调用 Gemini 异质质询 | 需 GOOGLE_API_KEY + Serena MCP | **一致**（手动触发） |
-| /inquire | 四步质询序列 | 纯指令，agent 按步骤执行 | **一致** |
-| /escalate | 矛盾上浮 | 写入 pending/ 谱系 | **一致** |
-| /ritual | 定义广播仪式 | 写定义 + 写谱系 + 回溯扫描 + 通知 | **一致** |
-| /plan | 调用 planner agent | spawn planner subagent | **一致** |
-| /tdd | 调用 tdd-guide agent | spawn tdd-guide subagent | **一致** |
-| /code-review | 代码审查 + Codex | 代码审查逻辑 + 声称触发 codex-challenger | **部分缺口**：Codex 触发声明在命令文档中但无自动 spawn 机制 |
-| /build-fix | 构建错误修复 | 通用构建修复流程 | **一致** |
-| /refactor-clean | 死代码清理 | 通用清理流程 | **一致** |
-| /update-docs | 文档更新 | 通用文档流程 | **一致** |
-| /verify | 综合验证 | 构建+类型+lint+测试 | **一致** |
-| /checkpoint | 工作点检查 | git stash/commit + 日志 | **一致** |
+---
 
-### 命令层缺口汇总
+## 一、Commands 声称 vs 实际
 
-1. `/ceremony` 不消费 `required_skills`——这是最严重的缺口，意味着结构工位永远不会被 ceremony 自动 spawn。
-2. `/code-review` 声称触发 codex-challenger 但无自动 spawn 机制——需要 Lead 手动认领。
+### 审查范围
 
-## 二、Skills 审查（`.claude/skills/*/SKILL.md`）
+13 个命令文件（`.claude/commands/*.md`）。
 
-| Skill | 声称触发条件 | 实际触发路径 | 缺口 |
-|-------|------------|------------|------|
-| core-principles | ceremony 后（所有工位） | CLAUDE.md 索引列出，agent 自行读取 | **一致**（被动加载） |
-| domain-conventions | 处理缠论内容时 | agent 自行读取 | **一致** |
-| domain-principles | 走势建模/分析时 | agent 自行读取 | **一致** |
-| swarm-architecture | 蜂群创建/架构决策时 | agent 自行读取 | **一致** |
-| project-topology | 定位文件/查 agent 职责时 | agent 自行读取 | **一致** |
-| meta-orchestration | 所有 agent | agent 自行读取 | **一致** |
-| orchestrator-proxy | 选择/语法记录决断时 | 声称通过 Gemini decide | **缺口**：orchestrator_proxy 在 dag 中定义了路由但无 hook 自动触发 |
-| sub-swarm-ceremony | teammate 创建子蜂群时 | 递归判断块注入引用 | **一致** |
-| knowledge-crystallization | 检测到稳定信号时 | crystallization-guard.sh 检测 | **部分实现** |
-| spec-execution-gap | 声明与能力不匹配时 | 无自动检测 | **缺口**：无触发机制 |
-| math-tools | 等价关系封闭后 | 手动引用 | **一致**（被动资料） |
-| gemini-math | 形式化证明时 | 手动引用 | **一致** |
-| plan-review | Plan 阶段产出方案时 | 声称 Opus 方案 + Codex 评审 | **缺口**：无自动触发 Codex 评审的机制 |
-| consensus-ceremony-trigger | 质询循环收敛时 | consensus-ceremony-trigger.sh（PostToolUse/Write+Edit） | **部分实现**：hook 存在且注册，但仅检测 review-results 写入 |
+### 完全一致
 
-### Skill 层缺口汇总
+| 命令 | 声称 | 实际 | 状态 |
+|------|------|------|------|
+| /ceremony | Lead 最小自举序列 | ceremony_scan.py → spawn workstations | **一致** |
+| /plan | 调用 planner agent | 由 planner agent 执行 | **一致** |
+| /tdd | 调用 tdd-guide agent | 由 tdd-guide agent 执行 | **一致** |
+| /escalate | 生成矛盾报告写入 pending/ | 任何 agent 可调用 | **一致** |
+| /inquire | 四步质询序列 | 任何 agent 可执行 | **一致** |
+| /ritual | 定义广播仪式 | 任何 agent 可执行 | **一致** |
+| /build-fix | 修复构建错误 | 由 build-error-resolver agent 执行 | **一致** |
+| /refactor-clean | 死代码清理 | 由 refactor-cleaner agent 执行 | **一致** |
+| /verify | 综合验证 | 直接执行构建/类型/测试检查 | **一致** |
+| /update-docs | 文档同步 | 由 doc-updater agent 执行 | **一致** |
+| /checkpoint | 创建/验证检查点 | 直接执行 git 操作 | **一致** |
 
-1. **orchestrator-proxy**：声称在遇到"选择/语法记录"决断时路由到 Gemini decide，但无 hook 或代码自动检测这两类决断并路由。
-2. **spec-execution-gap**：声称在"声明与能力不匹配"时触发，但这正是本次审计暴露的问题——工具本身没有自动检测机制。
-3. **plan-review**：声称 Plan 阶段自动触发 Codex 评审（160号），但无 hook 或 ceremony 步骤实现此触发。
+### 有缺口
 
-## 三、ceremony_scan.py 输出字段消费审查
+| 命令 | 声称 | 实际 | 缺口 |
+|------|------|------|------|
+| /challenge | "调用 Gemini 通过 MCP/Serena 自主导航代码库" | 执行 `python -m newchan.gemini_challenger challenge ...` | **缺口1**：前置条件声称需要 Serena MCP server 可用（`.serena/serena_config.yml`），但 gemini_challenger 实际是否依赖 Serena 需验证——settings.json 中 serena plugin 已启用，但 gemini_challenger CLI 可能独立于 Serena 运行 |
+| /code-review | "触发 codex-challenger 异质审查" | 155号声称 "如果有 Python 代码变更，触发 codex-challenger" | **缺口2**：/code-review 声称自动触发 codex-challenger，但实际 spawn 机制依赖 Lead 手动执行（无 hook 自动调度）。code-review.md 第5步描述了 spawn 流程但无自动化触发路径 |
 
-| 输出字段 | 有消费者? | 消费者 | 状态 |
-|---------|----------|--------|------|
-| `required_skills` | **无** | 应由 Lead 消费但 ceremony.md 无此步骤 | **死数据** |
-| `workstations` | 有 | Lead spawn 工位 | **活跃** |
-| `mode` | 有 | Lead 输出摘要 | **活跃** |
-| `session` | 有 | Lead 输出摘要 | **活跃** |
-| `roadmap_tasks_found` | 有 | Lead 输出摘要 | **活跃** |
-| `pattern_buffer_candidates` | 有 | 生成工位到 workstations | **活跃** |
-| `review_results` | 有 | 生成工位到 workstations | **活跃** |
-| `topo_context` | 有 | 生成工位到 workstations | **活跃** |
-| `encounter_context` | 有 | 生成工位到 workstations | **活跃** |
-| `research_lines` | 有 | 生成工位到 workstations | **活跃** |
-| `genealogy_anomalies` | 有 | 生成工位到 workstations | **活跃** |
-| `async_self_ref` | 有 | 生成工位到 workstations | **活跃** |
-| `clean_terminate` | 有 | Lead 终止判断 | **活跃** |
-| `definitions` | 有 | Lead 输出摘要 | **活跃** |
-| `pending` | 有 | Lead 输出摘要 | **活跃** |
-| `settled` | 有 | Lead 输出摘要 | **活跃** |
-| `tensions_count` | 弱 | Lead 输出摘要（如有） | **弱活跃** |
-| `downstream_actions` | 有 | 生成工位到 workstations | **活跃** |
-| `head` | 有 | 元数据 | **活跃** |
-| `fallback_triggered` | 有 | Lead 判断 | **活跃** |
-| `suspended_workstations` | 有 | 工位过滤 | **活跃** |
-| `suspended_filtered_count` | 弱 | 信息性 | **弱活跃** |
+### 缺口 2 详解
 
-### 关键发现
+`/code-review` 第 5 步声称：
+> 如果有 Python 代码变更，触发 codex-challenger 的 review 模式
 
-`required_skills` 是唯一的死数据字段。所有其他字段要么直接消费，要么转化为 workstations 间接消费。
+但这需要执行 /code-review 的 agent **主动** spawn codex-challenger。如果执行者不知道或忽略第 5 步，Codex 审查不会发生。这是 spec-execution gap（036号模式）：声明了行为但执行不受约束。
 
-## 四、Hooks 声称 vs 实际审查
+---
 
-### 已注册且工作的 hooks
+## 二、Skills 声称触发条件 vs 实际触发路径
 
-| Hook | Matcher | 实际检查内容 | 声称 vs 实际 |
-|------|---------|-------------|-------------|
-| session-start-ceremony.sh | SessionStart | ceremony 状态初始化 | **一致** |
-| agent-team-bootstrap.sh | SessionStart | 读 team-topology.json 输出提示 | **一致** |
-| precompact-save.sh | PreCompact | 保存上下文到 session | **一致** |
-| agent-team-enforce.sh | PreToolUse/Task | 强制使用 Agent Team（禁孤立 subagent） | **一致** |
-| double-helix-verify.sh | PreToolUse/Bash | 双螺旋验证（git 操作前检查） | **一致** |
-| pre-write-edit-dispatcher.sh | PreToolUse/Write+Edit | 分派到 definition/genealogy/spec/hub-node 守卫 | **一致** |
-| ceremony-completion-guard.sh | Stop | 检查 ceremony 是否正常完成 | **一致** |
-| post-session-pattern-detect.sh | Stop | session 结束时模式检测 | **一致** |
-| meta-observer-guard.sh | Stop | 提醒 meta-observer 执行 | **一致**（但只是提醒，不 spawn） |
-| function-length-guard.sh | PostToolUse/TaskUpdate | 检查函数行数 | **一致** |
-| flow-continuity-guard.sh | PostToolUse/Bash | 流程连续性检查 | **一致** |
-| crystallization-guard.sh | PostToolUse/Bash | pattern-buffer 候选检测 | **一致**（检测+警告，不 spawn） |
-| topology-guard.sh | PostToolUse/Bash | 拓扑变更检查 | **一致** |
-| post-write-edit-dispatcher.sh | PostToolUse/Write+Edit | 分派到 result-package/downstream/dag-validation/topo-mutator | **一致** |
-| consensus-ceremony-trigger.sh | PostToolUse/Write+Edit | 检测 review-results 写入触发共识仪式 | **一致** |
-| lead-audit.sh | PostToolUse/Bash | Lead 操作审计 | **一致** |
-| completion-session-guard.sh | PostToolUse/SendMessage | shutdown 前检查 session 写入 | **一致** |
+### 审查范围
 
-### 存在但未注册的 hooks
+14 个 skill（SKILL.md），检查 `description` 中声称的触发条件是否有实际触发路径。
 
-| Hook 文件 | 声称功能 | 状态 |
-|-----------|---------|------|
-| source-auditor-prompt.sh | 文档写入时提示 source-auditor 审查 | **死代码**——文件存在但未注册到 settings.json |
-| ceremony-step-guard.sh | ceremony 步骤守卫 | **死代码**——文件存在但未注册到 settings.json |
+### 一致
 
-### Hooks 层缺口汇总
+| Skill | 声称触发 | 实际路径 | 状态 |
+|-------|---------|---------|------|
+| core-principles | ceremony 后所有工位 | CLAUDE.md 指向此 skill | **一致** |
+| domain-conventions | 处理缠论内容时 | CLAUDE.md 指向此 skill | **一致** |
+| domain-principles | 走势建模/分析时 | CLAUDE.md 指向此 skill | **一致** |
+| swarm-architecture | 蜂群创建/架构决策时 | CLAUDE.md 指向此 skill | **一致** |
+| project-topology | 定位文件/查 agent 职责时 | CLAUDE.md 指向此 skill | **一致** |
+| meta-orchestration | 所有 agent | CLAUDE.md 指向此 skill | **一致** |
+| sub-swarm-ceremony | teammate 创建子蜂群时 | ceremony.md 步骤 5 递归判断块指向此 skill | **一致** |
+| knowledge-crystallization | 检测到稳定信号时 | crystallization-guard.sh（PostToolUse/Bash）+ ceremony_scan pattern_buffer | **一致** |
+| consensus-ceremony-trigger | 质询循环收敛时 | consensus-ceremony-trigger.sh（PostToolUse/Write+Edit） | **一致** |
 
-1. `source-auditor-prompt.sh` 未注册——source-auditor agent 的文件触发路径完全断裂。
-2. `ceremony-step-guard.sh` 未注册——ceremony 步骤检查无效。
-3. 多个 hooks（meta-observer-guard、crystallization-guard）只做**提醒/警告**但不 spawn agent——D策略082号的"Lead 认领"步骤在 Lead 指令（ceremony.md）中无明确对应。
+### 有缺口
 
-## 五、gangmu.yaml completion_check 审查
+| Skill | 声称触发 | 实际路径 | 缺口 |
+|-------|---------|---------|------|
+| spec-execution-gap | "声明了 X 但实际能力不匹配时触发" | **无自动触发路径** | **缺口3**：此 skill 描述了检测模式和修复模式，但无 hook、无 ceremony_scan 消费、无命令触发。完全依赖 agent 手动读取 |
+| orchestrator-proxy | "选择和语法记录类决断委托给 Gemini 时激活" | **无自动触发路径**。SKILL.md 自身声明 "Task #2 负责将 decide 加入 CLI"，"在运行时就绪前，本 skill 的调用部分处于待激活状态" | **缺口4**：orchestrator-proxy decide 模式声称处理选择/语法记录类路由，但 CLI 尚未实现 `decide` 子命令。整个 decide 流程不可执行 |
+| math-tools | 等价关系封闭后 | **无自动触发路径** | **缺口5**：按需读取，无 hook/scan 消费。但此 skill 是参考型（对照表），无需自动触发——标注为设计意图一致 |
+| gemini-math | 形式化证明时 | **无自动触发路径** | **缺口6**：同上，参考型 skill。但 SKILL.md description 中的"形式化证明时"暗示条件触发——实际无条件检测机制 |
+| plan-review | "Plan 阶段产出方案时自动激活" | **无自动触发路径** | **缺口7**：plan-review 声称"自动激活"，但无 hook 检测"Plan 阶段产出方案"事件。实际依赖使用 /plan 的 agent 主动读取此 skill 并执行多轮对审。如果 agent 不知道 plan-review skill，对审不会发生 |
 
-gangmu.yaml 中使用了以下 completion_check 类型：
+### 缺口 4 详解（orchestrator-proxy decide）
 
-| check 类型 | _check_completion 实现? | 使用次数 | 状态 |
-|-----------|------------------------|---------|------|
-| file_exists | 有（line 614） | 多处 | **一致** |
-| script_exists | 有（与 file_exists 等同，line 614） | 1处 | **一致** |
-| genealogy_settled | 有（line 617-625） | 多处 | **一致** |
-| test_pass | 有（line 626-629，只检查文件存在不执行测试） | 多处 | **声明膨胀**：名为 test_pass 但实际只检查文件是否存在 |
+这是系统中最严重的声明-能力缺口之一：
+1. SKILL.md 第 102 行明确声明："截至当前，CLI 的 choices 参数尚未包含 decide"
+2. 但 dispatch-dag.yaml 的 `orchestrator_proxy` section（第 585-596 行）声称 decide 已可路由
+3. CLAUDE.md 的 SKILL 索引中列出 orchestrator-proxy "选择/语法记录决断时"
+4. 四分法路由协议将"选择"和"语法记录"两类路由到 Gemini decide()
 
-### gangmu 缺口
+**结论**：四分法中 50% 的路由目标（选择/语法记录 → Gemini decide）在技术上不可执行。这不是"未来功能"——dispatch-dag 和 CLAUDE.md 声称它已在运作。
 
-1. **test_pass 语义偏差**：`_check_completion` 中 `test_pass` 类型只检查测试文件是否存在（`os.path.isfile`），不执行测试。名为"test_pass"暗示测试通过，但实际只验证文件存在。这是声明膨胀（090号）。
-   - 注释中已说明"只检查测试文件存在（不执行——避免扫描阻塞）"，但 check 类型名 `test_pass` 与实际行为不符。
+---
 
-## 六、跨系统一致性缺口
+## 三、ceremony_scan.py 输出字段消费状态
 
-### dispatch-dag 事件 vs 实际事件产生
+### 审查方法
 
-dispatch-dag.yaml 的 `event_edges` 定义了大量事件触发边，但以下事件**没有 hook 或代码产生**：
+逐字段检查 ceremony_scan.py 的 JSON 输出中，哪些字段被 ceremony.md（Lead 指令）消费，哪些无消费者。
 
-| 事件 | 声称触发 | 产生者 | 状态 |
+### 有消费者的字段
+
+| 字段 | 消费者 | 消费方式 |
+|------|--------|---------|
+| `workstations` | ceremony.md 步骤 5 | 全部并行 spawn |
+| `mode` | ceremony.md 步骤 3 | 输出摘要 |
+| `session` | ceremony.md 步骤 3 | 输出摘要 |
+| `settled` | ceremony.md 步骤 3 | 输出摘要 |
+| `pending` | ceremony.md 步骤 3 | 输出摘要 |
+| `clean_terminate` | ceremony.md 步骤 2/10 | 终止判断 |
+| `head` | ceremony.md | commit 引用 |
+
+### 无消费者的字段（死数据）
+
+| 字段 | 产出函数 | 消费者 | 状态 |
 |------|---------|--------|------|
-| task_complete | genealogist skill | 无——Task 完成没有 hook 产生此事件 | **无产生者** |
-| file_change(spec/theorems/*) | gemini-challenger verify | 无——settings.json 中无此路径的 hook | **无产生者** |
-| escalate_choice | gemini-challenger decide | 无——/escalate 写谱系但不产生此事件 | **无产生者** |
-| genealogy_settlement | gemini-challenger + topology-mutator | 谱系写入到 settled/ 时无自动事件 | **无产生者** |
-| test_failure | codex-challenger diagnose | 无——测试失败没有 hook 产生此事件 | **无产生者** |
-| genealogy_count_threshold | topology-manager | 无——ceremony_scan 不检查此阈值 | **无产生者** |
-| build_failure(>=3) | build_resolver | 无——构建失败没有计数器 | **无产生者** |
-| swarm_cycle_end | meta-observer + topology-analyst | 无——蜂群循环结束没有产生此事件的 hook | **无产生者** |
-| pattern_buffer_ready | skill-crystallizer | crystallization-guard.sh 检测到但不产生正式事件 | **弱产生** |
+| `required_skills` | `get_required_skills()` | **无** | **缺口8**（Part 1 已识别） |
+| `pattern_buffer_candidates` | `get_pattern_buffer_candidate_count()` | **间接**：转化为 workstation | 半消费 |
+| `review_results` | `get_review_results()` | **间接**：conflict/warning → workstation | 半消费 |
+| `topo_context` | `get_topo_context()` | **间接**：unmapped → workstation | 半消费 |
+| `encounter_context` | `get_encounter_context()` | **间接**：candidates → workstation | 半消费 |
+| `research_lines` | `_scan_research_lines()` | **间接**：unblocked actions → workstation | 半消费：proposed_transitions 无消费者 |
+| `genealogy_anomalies` | `detect_genealogy_anomalies()` | **间接**：anomalies → workstation | 半消费 |
+| `async_self_ref` | async_self_reference 模块 | **间接**：findings → workstation | 半消费 |
+| `tensions_count` | 谱系张力扫描 | **无** | **缺口9**：不转化为 workstation |
+| `downstream_actions` | `downstream_audit` | **间接**：unresolved → workstation | 半消费 |
+| `definitions` | definitions.yaml 读取 | **无** | **缺口10**：仅信息输出 |
+| `roadmap_tasks_found` | roadmap 计数 | **无** | 信息字段 |
+| `fallback_triggered` | fallback 标志 | **无** | 信息字段 |
+| `suspended_workstations` | suspended 过滤 | **间接**：过滤 workstations | 有消费 |
+| `suspended_filtered_count` | 过滤计数 | **无** | 信息字段 |
 
-### 核心诊断
+### 特别关注：proposed_transitions
 
-**事件驱动架构的根本性缺口**：dispatch-dag.yaml 声明了事件驱动的 skill 触发机制，但 Claude Code 平台的 hook 系统**只支持工具调用级别的事件**（PreToolUse/PostToolUse/Stop/SessionStart/PreCompact），不支持语义级别的事件（task_complete、genealogy_settlement、test_failure 等）。
+`research_lines.proposed_transitions` 提出状态转换提议（active→blocked、active→closed），但无消费者执行这些转换。gangmu.yaml 的状态更新依赖 gangmu_update.py 手动调用。
 
-这意味着 dispatch-dag.yaml 中声明的大部分事件→skill 映射是**声明层的理想设计**，但在当前 Claude Code 平台约束下无法自动执行。D策略（082号）的"Lead 手动认领"是对这一平台限制的 workaround，但 Lead 指令（ceremony.md）中缺少系统化的认领步骤。
+**缺口11**：proposed_transitions 是诊断信号但无自动执行路径。
 
-## 七、审计结论
+---
 
-### 严重缺口（3个）
+## 四、Hooks 声称检查什么 vs 实际检查什么
 
-1. **required_skills 字段无消费者**：ceremony_scan 输出了 required_skills 但 ceremony 序列不消费
-2. **事件产生链断裂**：dispatch-dag 声明的 10+ 个语义事件中 9 个无产生者
-3. **source-auditor-prompt.sh 未注册**：hook 文件存在但永远不执行
+### 已注册 PostToolUse hooks 深度审查
 
-### 中等缺口（5个）
+| Hook | Matcher | 声称 | 实际行为 | 状态 |
+|------|---------|------|---------|------|
+| crystallization-guard.sh | Bash | git commit 时检查结晶债务 | 拦截 `git commit`，检查 `.crystallization-debt.json` 和 pattern-buffer freq>=3 | **一致** |
+| post-write-edit-dispatcher.sh | Write/Edit | 5合1调度器 | result-package + downstream-action + dag-validation + topo-mutator-prompt + lead-audit | **一致** |
+| consensus-ceremony-trigger.sh | Write/Edit | 质询收敛检测 | 检测 `.chanlun/review-results/*.md` 写入中的收敛信号 | **一致** |
+| completion-session-guard.sh | SendMessage | shutdown 前 session 检查 | shutdown_request 时检查 `.last-session-append` 标记 | **一致** |
 
-4. code-verifier 从未被自动触发
-5. topology-manager 阈值触发无实现
-6. topology-analyst swarm_cycle_end 触发无实现
-7. test_pass completion_check 语义偏差
-8. orchestrator-proxy 自动路由无实现
+### 已注册 Stop hooks 深度审查
 
-### 设计层问题（1个）
+| Hook | 声称 | 实际行为 | 状态 |
+|------|------|---------|------|
+| meta-observer-guard.sh | 二阶反馈强制 | 检查 `.meta-observer-executed`，STRICT=1 阻断一次 | **缺口14**：注释说默认 advisory，代码默认 STRICT=1 |
 
-9. D策略（082号）"Lead 认领"需要 ceremony.md 中的系统化消费步骤——当前缺失
+### 未注册但存在的 Hooks
+
+| Hook | 声称 | settings.json | 缺口 |
+|------|------|----|------|
+| source-auditor-prompt.sh | docs/ 写入时提示 | **未注册** | **缺口12**（Part 1 已识别） |
+| ceremony-step-guard.sh | ceremony 步骤检查 | **已废弃** | 非缺口（文件标注已移除） |
+| topology-mutator-prompt.sh | topo_effect 提示 | **未注册** | **缺口13**：功能已内联 dispatcher，但独立文件未标注废弃 |
+
+---
+
+## 五、gangmu.yaml completion_check 类型 vs _check_completion 实现
+
+### gangmu.yaml 中使用的类型
+
+| type | 使用次数 | 示例 |
+|------|---------|------|
+| `file_exists` | 5 | path: scripts/position_manager.py |
+| `script_exists` | 2 | path: deploy/k4-monitor/setup.sh |
+| `test_pass` | 6 | pattern: tests/test_xiaozhuan_da_integration.py |
+| `genealogy_settled` | 5 | keyword: fugue-state-machine |
+
+### _check_completion 支持的类型
+
+| type | 实际行为 | 一致？ |
+|------|---------|--------|
+| `file_exists` | `os.path.isfile(root/path)` | **一致** |
+| `script_exists` | 等同于 file_exists | **一致** |
+| `test_pass` | `os.path.isfile(root/pattern)` — 只检查文件存在，**不执行测试** | **缺口15** |
+| `genealogy_settled` | settled/ 目录中搜索 keyword | **一致** |
+
+### 缺口 15 详解（test_pass 语义膨胀）
+
+- **声称**：`test_pass` 暗示"测试通过"
+- **实际**：仅检查测试文件是否存在（代码注释："只检查测试文件存在（不执行——避免扫描阻塞）"）
+- **影响**：测试文件存在但全部失败时，`_check_completion` 仍返回 True
+- 这是声明膨胀（090号）：type 名称声称了代码不具备的能力
+
+---
+
+## 六、新发现汇总（Part 2 独有）
+
+| 编号 | 缺口 | 严重度 | 来源 |
+|------|------|--------|------|
+| 缺口1 | /challenge 前置条件声称需 Serena，实际待验证 | 低 | Commands |
+| 缺口2 | /code-review 声称自动触发 codex-challenger，实际需手动 | 中 | Commands |
+| 缺口3 | spec-execution-gap skill 无自动触发 | 低 | Skills |
+| **缺口4** | **orchestrator-proxy decide 不可执行** | **高** | **Skills** |
+| 缺口5 | math-tools 无自动触发（设计意图一致） | 无 | Skills |
+| 缺口6 | gemini-math 无自动触发 | 低 | Skills |
+| **缺口7** | **plan-review 声称自动激活无触发路径** | **中** | **Skills** |
+| 缺口8 | required_skills 无消费者（Part 1 已知） | 高 | scan |
+| **缺口9** | **tensions_count 死数据** | **中** | **scan** |
+| 缺口10 | definitions 仅信息输出 | 低 | scan |
+| **缺口11** | **proposed_transitions 无执行路径** | **中** | **scan** |
+| 缺口12 | source-auditor hook 未注册（Part 1 已知） | 中 | Hooks |
+| 缺口13 | topology-mutator-prompt 与 dispatcher 重复未标注 | 低 | Hooks |
+| **缺口14** | **meta-observer-guard 注释与代码不一致** | **低** | **Hooks** |
+| **缺口15** | **test_pass 只检查文件存在（声明膨胀）** | **中** | **gangmu** |
+
+---
+
+## 七、系统性模式归纳
+
+### 模式 A：声明了自动触发但实际需手动（7 个缺口）
+
+缺口 2, 4, 7, 8, 12 + Part 1 的 code-verifier/topology-manager/topology-analyst 等。
+
+**根因**：dispatch-dag.yaml 声明了事件→skill 映射，但 Claude Code 平台只支持工具级 hook 事件（PreToolUse/PostToolUse），不支持语义级事件（task_complete/genealogy_settlement 等）。
+
+### 模式 B：产出了数据但无消费者（4 个缺口）
+
+缺口 8, 9, 10, 11。
+
+**根因**：ceremony_scan.py 输出字段持续增长，消费端（ceremony.md）不跟踪新增字段。生产者和消费者演化速度不同步。
+
+### 模式 C：名称/注释声称超出实际能力（4 个缺口）
+
+缺口 1, 14, 15 + orchestrator-proxy SKILL.md 声称 decide 可路由。
+
+**根因**：命名和注释在设计阶段写入，实现阶段变更后未同步更新。

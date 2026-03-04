@@ -15,6 +15,13 @@ scan 输出什么就 spawn 什么。Lead 不做实质认知工作。
         mode="bypassPermissions", run_in_background=true, prompt="...")
    ```
    无 depends_on 的工位并行，有 depends_on 的按序。
+5b. JSON.required_skills[] 中 spawn_condition=true 的 skill：
+   并行 spawn 对应 agent（subagent_type 从 required_skills 记录中读取）。
+   spawn 规则：
+   - genealogist：workstations 中有非纯结构工位时
+   - quality-guard / code-verifier：workstations 中有代码修改工位时
+   - meta-observer：仅在步骤 10（终止阶段）spawn
+   - topology-mutator：topo_effects 非空时
 
    **递归判断注入（强制，不可省略）**：每个工位的 prompt 开头必须包含以下递归判断块。
    Lead 在构建 prompt 时将模板变量替换为实际值后注入。
@@ -47,7 +54,11 @@ scan 输出什么就 spawn 什么。Lead 不做实质认知工作。
 7. 全部完成 → 写 session → `bash scripts/ceremony_push_and_rescan.sh "commit message"` （原子链：commit→push→rescan，消除 LLM 决策间隙）
 8. 解析 rescan JSON 输出
 9. rescan.workstations[] 非空且与上轮不同 → 回到步骤 5 spawn 新工位
-10. rescan.workstations[] 为空或与上轮相同（不动点） → `python scripts/ceremony_state.py clear` → `TeamDelete` → 停止
+10. rescan.workstations[] 为空或与上轮相同（不动点）：
+   10a. spawn meta-observer agent 执行二阶观察。
+        meta-observer 完成后其产出写入谱系。
+        下一轮 ceremony_scan 消费谱系中的 meta-rule 类型记录。
+   10b. `python scripts/ceremony_state.py clear` → `TeamDelete` → 停止
 11. （274号废除 max_rescan_depth）rescan 循环终止条件仅为不动点（步骤10）。无外部计数器
 
 ## 白名单（Lead 只执行这三类操作）

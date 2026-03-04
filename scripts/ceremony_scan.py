@@ -274,7 +274,10 @@ def compute_delta_blocks(root):
 
 
 def get_required_skills(root):
-    """从 dispatch-dag 的 event_skill_map 读取 structural skill 列表。"""
+    """从 dispatch-dag 的 event_skill_map 读取 structural skill 列表。
+
+    每个 skill 附带 spawn_condition 字段，由 _evaluate_spawn_condition() 计算。
+    """
     dag_path = os.path.join(root, ".chanlun/dispatch-dag.yaml")
     skills = []
     if os.path.isfile(dag_path):
@@ -285,9 +288,37 @@ def get_required_skills(root):
                 skills.append({
                     "id": skill["id"],
                     "agent": skill.get("agent", f".claude/agents/{skill['id']}.md"),
-                    "triggers": [t.get("event", "") for t in skill.get("triggers", [])]
+                    "triggers": [t.get("event", "") for t in skill.get("triggers", [])],
+                    "spawn_condition": False,  # 默认 False，由 main() 中调用 evaluate 填充
                 })
     return skills
+
+
+def _evaluate_spawn_condition(skill_id, workstations, topo_effects):
+    """评估 structural skill 的 spawn 条件。
+
+    spawn 规则：
+    - genealogist：workstations 中有非纯结构工位时
+    - quality-guard / code-verifier：workstations 中有代码修改工位时
+    - meta-observer：False（仅在步骤 10 终止阶段 spawn，不在扫描时）
+    - topology-mutator：topo_effects 非空时
+    """
+    if skill_id == "genealogist":
+        # 非纯结构工位 = source 不是 structural 的工位
+        return any(
+            w.get("source") not in ("structural", "genealogy_anomaly_detection")
+            for w in workstations
+        )
+    if skill_id in ("quality-guard", "code-verifier"):
+        # 代码修改工位 = source 包含 roadmap/research_lines/test_failures 等
+        code_sources = {"roadmap", "research_lines", "test_failures", "review_results"}
+        return any(w.get("source") in code_sources for w in workstations)
+    if skill_id == "meta-observer":
+        # meta-observer 仅在步骤 10 终止阶段 spawn，扫描时始终 False
+        return False
+    if skill_id == "topology-mutator":
+        return len(topo_effects) > 0
+    return False
 
 
 def get_roadmap_workstations(root):
@@ -627,6 +658,10 @@ def _check_completion(root, check):
         # 只检查测试文件存在（不执行——避免扫描阻塞）
         pattern = check.get("pattern", "")
         return os.path.isfile(os.path.join(root, pattern))
+    if check_type == "test_file_exists":
+        # test_file_exists：语义明确版——只检查测试文件存在
+        pattern = check.get("pattern", "")
+        return os.path.isfile(os.path.join(root, pattern))
     return False
 
 
@@ -777,6 +812,86 @@ def _scan_research_lines(root):
         context["proposed_transitions"] = proposed_transitions
 
     return context, new_workstations
+
+
+def scan_meta_rule_genealogies(root):
+    """扫描 settled/ 中 type=meta-rule 的最近谱系。
+
+    meta-observer 产出写入谱系后，下一轮 ceremony_scan 消费其中的
+    "语法记录候选"或"发散信号"观察项，转化为 workstations。
+
+    返回 (meta_rule_context, new_workstations) 元组。
+    meta-rule 谱系扫描失败不阻塞主流程。
+    """
+    settled_dir = os.path.join(root, ".chanlun/genealogy/settled")
+    if not os.path.isdir(settled_dir):
+        return None, []
+
+    meta_rules = []
+    new_workstations = []
+
+    for filepath in sorted(
+        glob.glob(os.path.join(settled_dir, "*.md")),
+        key=os.path.getmtime,
+        reverse=True,
+    ):
+        try:
+            with open(filepath, encoding="utf-8") as f:
+                head = f.read(2000)
+            fm_match = re.match(r"^---\s*\n(.+?)\n---", head, re.DOTALL)
+            if not fm_match:
+                continue
+            fm = yaml.safe_load(fm_match.group(1))
+            if not isinstance(fm, dict):
+                continue
+            if fm.get("type") != "meta-rule":
+                continue
+
+            basename = os.path.basename(filepath)
+            meta_id = str(fm.get("id", "unknown"))
+            status = fm.get("status", "")
+
+            meta_rules.append({
+                "file": basename,
+                "id": meta_id,
+                "status": status,
+            })
+
+            # 已消费或已处理的跳过
+            if fm.get("meta_consumed"):
+                continue
+
+            # 提取 observations 中的候选项
+            observations = fm.get("observations", [])
+            if not isinstance(observations, list):
+                continue
+
+            for obs in observations:
+                if not isinstance(obs, dict):
+                    continue
+                obs_type = obs.get("type", "")
+                if obs_type in ("grammar_record_candidate", "divergence_signal"):
+                    new_workstations.append({
+                        "priority": "P1" if obs_type == "divergence_signal" else "P2",
+                        "name": f"meta-rule:{meta_id}-{obs.get('label', obs_type)}",
+                        "status": f"meta-rule:{obs_type}",
+                        "source": "meta_observer",
+                        "description": obs.get("description", ""),
+                    })
+        except Exception:
+            continue
+
+        # 只扫描最近 10 个 meta-rule 谱系，避免全量遍历
+        if len(meta_rules) >= 10:
+            break
+
+    if not meta_rules:
+        return None, []
+
+    return {
+        "count": len(meta_rules),
+        "recent": meta_rules[:5],
+    }, new_workstations
 
 
 def get_encounter_context(root):
@@ -1021,6 +1136,15 @@ def main():
     except Exception as exc:
         result["async_self_ref_error"] = f"{type(exc).__name__}: {exc}"
 
+    # 2h. meta-observer 产出消费：扫描 type=meta-rule 的谱系，提取语法记录候选/发散信号
+    try:
+        mr_context, mr_workstations = scan_meta_rule_genealogies(root)
+        if mr_context is not None:
+            result["meta_rule_genealogies"] = mr_context
+            workstations.extend(mr_workstations)
+    except Exception as exc:
+        result["meta_rule_error"] = f"{type(exc).__name__}: {exc}"
+
     # 3. 079号：如果无任何工位，执行 no_work_fallback
     if not workstations:
         workstations = discover_business_tasks(root)
@@ -1045,6 +1169,15 @@ def main():
         if suspended_filtered > 0:
             result["suspended_filtered_count"] = suspended_filtered
         result["workstations"] = workstations
+
+    # spawn_condition 评估：基于最终 workstations 列表和 topo_effects
+    topo_effects = detect_pending_topo_effects(root)
+    if topo_effects:
+        result["pending_topo_effects"] = topo_effects
+    for skill in result["required_skills"]:
+        skill["spawn_condition"] = _evaluate_spawn_condition(
+            skill["id"], workstations, topo_effects,
+        )
 
     # 081号：清晰报告干净终止条件
     # 真阴性干净终止 = roadmap 为空 AND session 遗留为空 AND fallback 为空
