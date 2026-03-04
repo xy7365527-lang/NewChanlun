@@ -168,6 +168,7 @@ event_skill_map:
     purpose: "谱系写入、张力检查、回溯扫描、结晶检测与执行"
     triggers:
       - event: task_complete
+        platform_support: false
         description: "业务工位完成时触发谱系检查"
       - event: command
         pattern: "/escalate"
@@ -198,6 +199,7 @@ event_skill_map:
       - event: session_end
         description: "session 结束时执行二阶观察"
       - event: swarm_cycle_end
+        platform_support: false
         description: "蜂群循环结束时检查元规则一致性"
 
   - id: code-verifier
@@ -218,6 +220,7 @@ event_skill_map:
     purpose: "pattern-buffer 达标模式结晶为 skill（043号谱系）"
     triggers:
       - event: pattern_buffer_ready
+        platform_support: partial  # 353号：弱实现——pattern-buffer 检测由 post-session hook 触发，非实时事件
         condition: "status=candidate 且 frequency >= promotion_threshold"
         description: "模式达标时触发结晶"
     invariant: "所有经过 quality-guard 验证的结晶候选必须且只能流向此 skill"
@@ -233,10 +236,13 @@ event_skill_map:
       - event: file_change
         pattern: "spec/theorems/*"
         mode: "verify"
+        platform_support: false
         description: "定理文件变更时验证"
       - event: escalate_choice
+        platform_support: false
         description: "选择/语法记录类决断路由到 Gemini decide"
       - event: genealogy_settlement
+        platform_support: false
         description: "谱系结算时触发 Gemini 概念层异质否定——对新结算谱系条目做概念层质询（175号：谱系驱动架构下谱系质量=蜂群行动质量）"
 
   - id: claude-challenger
@@ -258,6 +264,7 @@ event_skill_map:
         pattern: "/code-review"
         description: "代码审查后触发 Codex 异质审查"
       - event: test_failure
+        platform_support: false
         description: "测试失败时自动触发 diagnose（对象否定对象，005b号）"
       - event: plan_review
         description: "Plan 阶段多模型对审——Opus 出方案后 Codex 评审（160号：修改循环前移）"
@@ -270,6 +277,7 @@ event_skill_map:
     purpose: "拓扑分析家——冷读区块拓扑，标点重复/积累/奇点模式（179号：第四位置）"
     triggers:
       - event: swarm_cycle_end
+        platform_support: false
         condition: "block-topology/blocks/ 存在且区块数 > 0"
         description: "蜂群循环结束时 spawn 隔离实例冷读拓扑——上下文隔离是结构性要求，不传递 CC 编排上下文"
       - event: manual_invocation
@@ -290,6 +298,7 @@ event_skill_map:
     purpose: "谱系拓扑分析、hub 节点监控、蜂群收缩信号"
     triggers:
       - event: genealogy_count_threshold
+        platform_support: false
         condition: "谱系总数 > 30 或 pending 谱系 > 5"
 
   - id: topology-mutator
@@ -298,6 +307,7 @@ event_skill_map:
     purpose: "检测到否定事件时执行拓扑操作"
     triggers:
       - event: genealogy_settlement
+        platform_support: false
         condition: "新结算谱系包含 negates 边或 topo_effect 标注"
         description: "谱系结算时检查是否携带否定边或拓扑效果，若有则执行相应拓扑变更"
     # 否定形式→拓扑操作映射（040号 + 147号谱系）
@@ -542,6 +552,7 @@ edges:
 
     - event: build_failure
       condition: "consecutive_failures >= 3"
+      platform_support: false
       activates_edge: "system → build_resolver"
       action: "auto_fix_build"
       priority: medium

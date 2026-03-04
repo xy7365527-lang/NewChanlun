@@ -196,3 +196,14 @@ negation_form: "[视情况标注]"
 - INTERRUPT 是正常运作，不是异常。
 - 质询（找问题）和决策（做选择）使用不同的 system prompt，不可混用。
 - 本 skill 依赖 Task #2 完成 decide() 运行时实现后才能实际调用。
+
+-----
+
+## 当前限制（353号消费断裂标注）
+
+| 声明 | 当前状态 | 替代路径 |
+|------|---------|---------|
+| decide 子命令自动路由 | **未实现**——CLI 仅支持 challenge/verify 模式 | 手动 `/challenge` 调用 Gemini，人工判断决策语境 |
+| escalate_choice 事件自动触发 | **平台不支持**——Claude Code 无语义事件总线 | Lead 在 `/escalate` 流程中手动识别"选择/语法记录"类型并手动调用 Gemini |
+
+**触发条件降级**：dispatch-dag.yaml 中 `escalate_choice → gemini-challenger decide` 的声明当前为手动触发，非自动路由。待 decide 子命令实现后恢复自动路由声明。

@@ -274,17 +274,21 @@ def compute_delta_blocks(root):
 
 
 def get_required_skills(root):
-    """从 dispatch-dag 的 event_skill_map 读取 structural skill 列表。
+    """从 dispatch-dag 的 event_skill_map 读取 structural + 条件触发 skill 列表。
 
     每个 skill 附带 spawn_condition 字段，由 _evaluate_spawn_condition() 计算。
+    353号消费断裂修复：topology-manager 和 topology-analyst 作为条件触发 skill 纳入。
     """
     dag_path = os.path.join(root, ".chanlun/dispatch-dag.yaml")
     skills = []
+    # 条件触发 skill 中需要 ceremony_scan 评估 spawn_condition 的 id 集合
+    condition_evaluated_skills = {"topology-manager", "topology-analyst"}
     if os.path.isfile(dag_path):
         with open(dag_path, encoding="utf-8") as f:
             dag = yaml.safe_load(f)
         for skill in dag.get("event_skill_map", []):
-            if skill.get("skill_type") == "structural":
+            if (skill.get("skill_type") == "structural"
+                    or skill.get("id") in condition_evaluated_skills):
                 skills.append({
                     "id": skill["id"],
                     "agent": skill.get("agent", f".claude/agents/{skill['id']}.md"),
@@ -294,14 +298,16 @@ def get_required_skills(root):
     return skills
 
 
-def _evaluate_spawn_condition(skill_id, workstations, topo_effects):
-    """评估 structural skill 的 spawn 条件。
+def _evaluate_spawn_condition(skill_id, workstations, topo_effects, root=None):
+    """评估 skill 的 spawn 条件。
 
     spawn 规则：
     - genealogist：workstations 中有非纯结构工位时
     - quality-guard / code-verifier：workstations 中有代码修改工位时
     - meta-observer：False（仅在步骤 10 终止阶段 spawn，不在扫描时）
     - topology-mutator：topo_effects 非空时
+    - topology-manager：谱系总数每增 50 条或 pending > 5 时（353号消费断裂修复）
+    - topology-analyst：block-topology 中有区块时（353号消费断裂修复）
     """
     if skill_id == "genealogist":
         # 非纯结构工位 = source 不是 structural 的工位
@@ -318,6 +324,19 @@ def _evaluate_spawn_condition(skill_id, workstations, topo_effects):
         return False
     if skill_id == "topology-mutator":
         return len(topo_effects) > 0
+    if skill_id == "topology-manager" and root:
+        # 353号消费断裂修复：条件驱动替代事件驱动
+        # 触发条件：谱系总数达到 50 的整数倍阈值 或 pending 谱系 > 5
+        settled_count = len(glob.glob(os.path.join(root, ".chanlun/genealogy/settled/*.md")))
+        pending_count = len(glob.glob(os.path.join(root, ".chanlun/genealogy/pending/*.md")))
+        return pending_count > 5 or (settled_count > 0 and settled_count % 50 == 0)
+    if skill_id == "topology-analyst" and root:
+        # 353号消费断裂修复：条件驱动替代事件驱动
+        # 触发条件：block-topology/blocks/ 目录存在且包含区块文件
+        blocks_dir = os.path.join(root, ".chanlun/block-topology/blocks")
+        if os.path.isdir(blocks_dir):
+            return len(os.listdir(blocks_dir)) > 0
+        return False
     return False
 
 
@@ -1176,7 +1195,7 @@ def main():
         result["pending_topo_effects"] = topo_effects
     for skill in result["required_skills"]:
         skill["spawn_condition"] = _evaluate_spawn_condition(
-            skill["id"], workstations, topo_effects,
+            skill["id"], workstations, topo_effects, root=root,
         )
 
     # 081号：清晰报告干净终止条件

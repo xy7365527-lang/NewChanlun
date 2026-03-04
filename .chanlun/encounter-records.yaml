@@ -1,33 +1,54 @@
-# .chanlun/encounter-records.yaml
-# 偶遇记录——穿越基础设施组件二
-#
-# 341号偶遇标准：迫使修正已结算理解的关联（不绑定时间性）
-# v150首次扫描：Layer 1 = 107跨纲边全设计内(0偶遇)，Layer 2 = 0偶遇
-#
-# 记录格式：
-#   status: candidate | confirmed | rejected
-#   candidate: check_encounter.py 自动检测，未匹配设计内模式
-#   confirmed: 编排者/蜂群审计后判定为真实偶遇
-#   rejected: 审计后判定为设计内引用或类比性连接
-
-version: "1.0"
-last_checked: "342"
-
-# v150 基线：342号之前全部已检测，0偶遇
+version: '1.0'
+last_checked: '352'
 baseline:
-  scan_date: "2026-03-04"
-  session: "v150-encounter-scan"
+  scan_date: '2026-03-04'
+  session: v150-encounter-scan
   layer1_total: 107
   layer1_encounters: 0
   layer2_total: 11
   layer2_encounters: 0
   design_internal_patterns:
-    - meta_observation_refs: 32
-    - k4_research_chain_cross_gang: 39
-    - operational_methodology_to_k4: 14
-    - block_topology_mapping: 9
-    - fold_experiment_to_theory: 6
-    - grammar_rule_crystallization: 4
-    - swarm_meta_obs_chain: 3
-
-records: []
+  - meta_observation_refs: 32
+  - k4_research_chain_cross_gang: 39
+  - operational_methodology_to_k4: 14
+  - block_topology_mapping: 9
+  - fold_experiment_to_theory: 6
+  - grammar_rule_crystallization: 4
+  - swarm_meta_obs_chain: 3
+records:
+- detected_at: '2026-03-04T21:55:54.695320+00:00'
+  genealogy_id: '351'
+  status: candidate
+  edge:
+    from_id: '351'
+    from_title: 离散Morse理论研究线建立
+    from_gang: morse-topology
+    from_mu: discrete-morse-experiment
+    to_id: '292'
+    to_title: 折叠拓扑本体论——分类学之前的存在论结构
+    to_gang: shipen-bihuan
+    to_mu: operational-methodology
+- detected_at: '2026-03-04T21:55:54.704467+00:00'
+  genealogy_id: '352'
+  status: candidate
+  edge:
+    from_id: '352'
+    from_title: 多标的扫描器设计——递归区间套 × 资本流转拓扑折叠 × 商空间排序
+    from_gang: simatrix-quanyu
+    from_mu: multi-target-scanner
+    to_id: '267'
+    to_title: 操作方法论 v1——满仓满融降成本体系
+    to_gang: shipen-bihuan
+    to_mu: operational-methodology
+- detected_at: '2026-03-04T21:55:54.704467+00:00'
+  genealogy_id: '352'
+  status: candidate
+  edge:
+    from_id: '352'
+    from_title: 多标的扫描器设计——递归区间套 × 资本流转拓扑折叠 × 商空间排序
+    from_gang: simatrix-quanyu
+    from_mu: multi-target-scanner
+    to_id: '265'
+    to_title: 操作方法论——帕萨卡利亚模型（三层条件设定 + 多重赋格）
+    to_gang: shipen-bihuan
+    to_mu: operational-methodology
