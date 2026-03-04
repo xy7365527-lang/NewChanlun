@@ -63,7 +63,7 @@ if is_ceremony_scan:
 elif is_push:
     reason = (
         "[224号谱系 · 运行时强制] Push 成功。立即执行 rescan：\n"
-        "python scripts/ceremony_scan.py --phase rescan\n\n"
+        "python scripts/ceremony_scan.py\n\n"
         "push→rescan 是原子操作，中间不允许插入任何其他操作（包括回应编排者消息）。\n"
         "如果不在 ceremony 序列中，执行扫描（TODO/覆盖率/spec合规/谱系张力）。"
     )

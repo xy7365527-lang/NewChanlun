@@ -1,209 +1,203 @@
-# 声明-能力缺口全面审计
+# Spec-Execution Gap 全面审计报告
 
-## 审计方法
-
-逐一读取以下文件集合，提取所有声明性规则（"应该做X"/"不允许做Y"/"必须Z"），然后检查每条声明是否有对应的运行时强制机制（hook/ceremony_scan/skill触发条件）。
-
-**审计覆盖范围**：
-- `.claude/rules/` 全部 11 个规则文件
-- `.claude/skills/` 全部 14 个 SKILL.md
-- `CLAUDE.md` 中的所有原则声明
-- `.chanlun/dispatch-dag.yaml` 中的行为规范
-- `.claude/settings.json` 中的 hooks 注册
-- `.claude/hooks/` 全部 27 个 hook 脚本
-
-**强制机制分类**：
-- **Hook 阻断（H-block）**：hook 输出 `decision: block` 阻止操作
-- **Hook 警告（H-warn）**：hook 输出 `systemMessage` 提示但不阻断
-- **Hook 拒绝（H-deny）**：hook 输出 `permissionDecision: deny` 拒绝工具调用
-- **平台加载（P-load）**：Claude Code 平台自动加载 rules/CLAUDE.md（仅靠 LLM 内化）
-- **Skill 触发（S-trig）**：skill 有明确触发条件
-- **无强制（None）**：声明无任何运行时强制
+**审计日期**: 2026-03-04
+**审计范围**: CLAUDE.md、ceremony.md、settings.json hooks、gangmu.yaml、scripts/、谱系下游推论
+**审计工位**: v155-swarm/spec-gap-audit
 
 ---
 
-## 缺口清单
+## 审计结果总表
 
-| # | 声明位置 | 声明内容摘要 | 强制机制 | 缺口类型 | 严重度 |
-|---|---------|------------|---------|---------|--------|
-| 1 | result-package.md | 所有概念产出必须含六要素 | H-warn（post-write-edit-dispatcher 仅检查谱系文件三要素） | 检测范围不足 | P1 |
-| 2 | formalization-validity-domain.md | 每次形式化操作必须标注认识论等级 L0-L3 | P-load（无 hook/无 scan） | 仅靠内化 | P1 |
-| 3 | no-unnecessary-escalation.md | 输出必须以格式 A/B/C 结尾 | H-block（ceremony-completion-guard 检查四分法违规模式） | 部分覆盖——仅检测"确认请求"模式，不检测"无格式结尾" | P1 |
-| 4 | lead-parallel-dispatch.md | 禁止串行执行独立操作 | P-load（无 hook/无 scan） | 仅靠内化——137号模式 | P2 |
-| 5 | no-patch-mentality.md | 禁止补丁思维/声明膨胀等7种模式 | P-load（无 hook/无 scan） | 仅靠内化——137号模式 | P2 |
-| 6 | no-workaround.md | 遇到概念矛盾不绕过，必须停下 | P-load（无 hook/无 scan） | 仅靠内化 | P2 |
-| 7 | post-commit-flow.md | commit/push 后必须格式A（总结+行动一体） | H-block（flow-continuity-guard 注入继续指令） | **已覆盖** | -- |
-| 8 | post-commit-flow.md | ceremony 中 push→rescan→evaluate 原子链 | H-block（flow-continuity-guard 覆盖 push+rescan） | **已覆盖** | -- |
-| 9 | core-principles 原则1 | 概念优先于代码——定义不清楚时不写代码 | P-load | 仅靠内化 | P2 |
-| 10 | core-principles 原则3 | 所有产出必须可质询（结果包） | H-warn（post-write-edit-dispatcher 部分检查） | 同缺口#1 | P1 |
-| 11 | core-principles 原则4 | 谱系必须维护，先写谱系再汇总 | P-load | 仅靠内化 | P2 |
-| 12 | core-principles 原则5 | 定义变更推荐通过仪式 | H-warn（pre-write-edit-dispatcher spec-write-guard） | **已覆盖（advisory）** | -- |
-| 13 | core-principles 原则7 | 输出必须以格式 A/B/C 结尾（137号） | H-block（ceremony-completion-guard 四分法检测） | 同缺口#3 | P1 |
-| 14 | swarm-architecture 原则10 | 蜂群是默认工作模式（≥2 即拉蜂群） | P-load | 仅靠内化 | P2 |
-| 15 | swarm-architecture 原则15 | Task 调用必须携带 team_name | H-deny（agent-team-enforce） | **已覆盖** | -- |
-| 16 | swarm-architecture 原则15 | 子蜂群必须是真递归蜂群（097号五特征） | P-load（spawn prompt 无递归指令） | **已知缺口——递归缺失** | P0 |
-| 17 | swarm-architecture 原则17 | 严格性是蜂群语法规则 | P-load | 仅靠内化——meta 级声明 | P2 |
-| 18 | dispatch-dag task_template | Lead 不自行执行任务 | H-warn（lead-audit 记录异常，不阻断） | 记录但不阻断 | P1 |
-| 19 | dispatch-dag task_template | spawn 三基因（topo_address/depth_budget/parent_callback） | P-load（spawn prompt 无强制注入模板） | 仅靠内化 | P0 |
-| 20 | dispatch-dag fractal_template | 子蜂群复制父蜂群完整结构（097号五特征） | P-load | 同缺口#16 | P0 |
-| 21 | dispatch-dag validation | quality_gate_reachability：所有产出经 quality-guard | H-warn（post-write-edit-dispatcher 部分） | advisory 不保证执行 | P1 |
-| 22 | dispatch-dag validation | crystallization_check：结晶检测已执行 | H-block（crystallization-guard on git commit） | **已覆盖** | -- |
-| 23 | meta-orchestration | 质询序列四步（定义回溯→反例→推论→谱系比对） | P-load + S-trig（/inquire 命令触发） | 命令需手动调用，非自动 | P2 |
-| 24 | meta-orchestration | 谱系写入必填字段（类型/状态/日期/前置） | H-warn（pre-write-edit-dispatcher genealogy-write-guard） | **已覆盖** | -- |
-| 25 | meta-orchestration | 谱系 negation_form 必须标注 | P-load（genealogy-write-guard 不检查 negation_form） | 缺失检测 | P1 |
-| 26 | meta-orchestration | 否定形式审计（每10条新谱系） | P-load（无自动计数/触发机制） | 仅靠内化 | P2 |
-| 27 | knowledge-crystallization | 背驰+分型 = 结晶时机 | H-block（crystallization-guard 检查 pattern-buffer） | **已覆盖** | -- |
-| 28 | domain-conventions | 级别=递归层级，禁止时间周期替代 | P-load | 仅靠内化 | P2 |
-| 29 | domain-principles 原则8 | 对象否定对象——禁止超时/阈值否定 | P-load | 仅靠内化 | P2 |
-| 30 | dispatch-dag ceremony | ceremony_scan.py 结果驱动工位 spawn | ceremony_scan.py（脚本实现） | **已覆盖** | -- |
-| 31 | dispatch-dag event_edges | genealogy_settlement → gemini-challenger 概念层质询 | P-load（D策略：hooks 提示+Lead 认领） | advisory 不保证执行 | P1 |
-| 32 | dispatch-dag event_edges | topology-mutator 否定事件触发拓扑操作 | H-warn（topology-mutator-prompt via post-write-edit-dispatcher） | advisory 不保证执行 | P1 |
-| 33 | testing-override.md | TDD流程+80%覆盖率 | P-load | 仅靠内化 | P2 |
-| 34 | dispatch-dag task_template | 子工位局部作用域（不修改全局 hook/谱系/定义） | P-load（无 hook 检查子工位写入范围） | 仅靠内化 | P1 |
+| # | 位置 | 声明内容 | 实际状态 | 严重程度 | 修复建议 |
+|---|------|---------|---------|---------|---------|
+| 1 | `.claude/commands/ceremony.md:8` | `ceremony_scan.py --phase initial` | ceremony_scan.py 无 `--phase` 参数（344号已记录：被 v151 移除，声明未同步） | **CRITICAL** | 将 `--phase initial` 从 ceremony.md 步骤1中移除 |
+| 2 | `.claude/rules/post-commit-flow.md:23` | `python scripts/ceremony_scan.py --phase rescan` | 同上，`--phase` 已不存在 | **CRITICAL** | 将 `--phase rescan` 改为 `python scripts/ceremony_scan.py` |
+| 3 | `.claude/rules/post-commit-flow.md:38` | `ceremony_scan.py --phase rescan 执行完成后` | 同上 | **HIGH** | 文档措辞更新：移除 `--phase rescan` |
+| 4 | `.claude/hooks/flow-continuity-guard.sh:66` | hook 注入消息包含 `python scripts/ceremony_scan.py --phase rescan` | hook 指导 LLM 执行不存在的参数，会导致 argparse 报错 | **CRITICAL** | 修改 flow-continuity-guard.sh 第66行，移除 `--phase rescan` |
+| 5 | `.claude/hooks/ceremony-step-guard.sh` | 文件存在于磁盘但未注册于 settings.json | 已有注释说明"从 settings.json 移除"（228-4）——设计意图，非缺口 | **LOW** | 无需修复（文档性保留，谱系记录完整） |
+| 6-15 | `.claude/hooks/{10个未注册hook}` | hook 存在但未注册于 settings.json | 不活跃——无调用路径 | **LOW** | 确认是否需要注册或可清理（见下方详表） |
+| 16 | `ceremony_scan.py:546-548` | 声明"只读扫描"（ceremony.md 不变量第5条） | review-results 写入 consumed 标记 | **MEDIUM** | 要么更新不变量声明，要么将 consumed 标记移到扫描外部 |
+| 17 | `.chanlun/gangmu.yaml:21` | `test_pass: <pattern> — 匹配模式的测试文件存在且通过` | ceremony_scan.py `_check_completion` 只检查文件存在，不执行测试 | **MEDIUM** | 要么更新注释为"文件存在即满足"，要么增强 _check_completion 实现 |
 
 ---
 
-## 详细诊断
+## 分区详述
 
-### P0 缺口（结构性断裂——声明的核心能力完全缺失）
+### 1. CLAUDE.md 声明审计
 
-#### 缺口 #16/#20：子蜂群递归缺失
+**命令（7个）**: 全部有对应的 `.claude/commands/*.md` 文件。
 
-**声明**：原则15 + dispatch-dag fractal_template 声明"真递归蜂群是默认架构"，子蜂群必须满足五特征。
+| 命令 | 文件 | 存在 |
+|------|------|------|
+| /ceremony | `.claude/commands/ceremony.md` | YES |
+| /inquire | `.claude/commands/inquire.md` | YES |
+| /escalate | `.claude/commands/escalate.md` | YES |
+| /ritual | `.claude/commands/ritual.md` | YES |
+| /plan | `.claude/commands/plan.md` | YES |
+| /tdd | `.claude/commands/tdd.md` | YES |
+| /code-review | `.claude/commands/code-review.md` | YES |
 
-**断裂点**：spawn teammate 时，prompt 不包含递归指令。teammate 无从知道自己应该创建子蜂群。sub-swarm-ceremony skill 存在但从未被 spawn prompt 引用。
+**Skill（14个）**: 全部有对应的 `.claude/skills/*/SKILL.md` 文件。
 
-**强制机制**：无。仅靠 CLAUDE.md 中原则15的自然语言声明。
+| Skill | 路径 | SKILL.md 存在 |
+|-------|------|--------------|
+| core-principles | `.claude/skills/core-principles/` | YES |
+| domain-conventions | `.claude/skills/domain-conventions/` | YES |
+| domain-principles | `.claude/skills/domain-principles/` | YES |
+| swarm-architecture | `.claude/skills/swarm-architecture/` | YES |
+| project-topology | `.claude/skills/project-topology/` | YES |
+| meta-orchestration | `.claude/skills/meta-orchestration/` | YES |
+| orchestrator-proxy | `.claude/skills/orchestrator-proxy/` | YES |
+| sub-swarm-ceremony | `.claude/skills/sub-swarm-ceremony/` | YES |
+| knowledge-crystallization | `.claude/skills/knowledge-crystallization/` | YES |
+| spec-execution-gap | `.claude/skills/spec-execution-gap/` | YES |
+| math-tools | `.claude/skills/math-tools/` | YES |
+| gemini-math | `.claude/skills/gemini-math/` | YES |
+| plan-review | `.claude/skills/plan-review/` | YES |
+| consensus-ceremony-trigger | `.claude/skills/consensus-ceremony-trigger/` | YES |
 
-**已有诊断**：`tmp/codex-recursion-diagnosis.md`
+**缠论资料路径（5个）**: 全部存在。
 
-**修复方案**：见下方修复执行。
+| 路径 | 存在 |
+|------|------|
+| `缠论知识库.md` | YES |
+| `docs/chanlun/text/blog/INDEX.md` | YES |
+| `docs/chanlun/text/chan99/INDEX.md` | YES |
+| `docs/chanlun/text/mindmaps/INDEX.md` | YES |
+| `docs/chanlun/README.md` | YES |
 
-#### 缺口 #19：spawn 三基因缺失
+**结论**: CLAUDE.md 无 CRITICAL/HIGH 缺口。
 
-**声明**：dispatch-dag task_template 声明每个衍生节点必须携带三基因（topo_address、depth_budget、parent_callback）。
+### 2. ceremony.md 声明审计
 
-**断裂点**：spawn prompt 模板中无三基因注入模板。Lead spawn teammate 时不会自动携带三基因。
+**CRITICAL 发现: `--phase` 幽灵参数**
 
-**强制机制**：dispatch-dag 声明了 `enforcement: "spawn 时 Lead 必须在 prompt 中注入"`，但无 hook 检查 Task 调用是否包含三基因。agent-team-enforce.sh 仅检查 team_name 存在性。
+ceremony.md 步骤1声明:
+```
+python scripts/ceremony_scan.py --phase initial
+```
 
-**修复方案**：扩展 agent-team-enforce.sh 检查 Task prompt 中是否包含三基因关键字。
+但 `ceremony_scan.py` 的 argparse 只接受 `--skills`、`--structural`、`--workstations`。`--phase` 参数在 v151-swarm 的 encounter-record 工位修改中被移除（344号谱系记录），但以下位置未同步更新:
 
-### P1 缺口（声明有部分强制但存在漏洞）
+1. `ceremony.md:8` — `--phase initial`
+2. `post-commit-flow.md:23` — `--phase rescan`
+3. `post-commit-flow.md:38` — `--phase rescan`
+4. `flow-continuity-guard.sh:66` — hook 注入消息包含 `--phase rescan`
 
-#### 缺口 #1/#10：结果包六要素检测范围不足
+**影响路径**: flow-continuity-guard.sh 会在 git push 成功后注入 block 消息，要求 LLM 执行 `ceremony_scan.py --phase rescan`。如果 LLM 严格遵循 hook 指令，会导致 `argparse` 报 `unrecognized arguments` 错误。实际上 ceremony_push_and_rescan.sh 中的调用已正确更新（不带 `--phase`），但 hook 的误导性指令在非原子链路径中仍然存在。
 
-**声明**：result-package.md 要求所有概念产出包含六要素。
+**不变量声明审计**:
 
-**现状**：post-write-edit-dispatcher 的 result-package-guard 仅检查谱系文件（`.chanlun/genealogy/`），且仅检查三要素（边界条件、下游推论、影响声明）。不检查非谱系文件的概念产出，不检查结论、定义依据、谱系引用。
+| 不变量 | 声明 | 实际 | 状态 |
+|--------|------|------|------|
+| 确定性 | 相同文件系统 → 相同输出 | ceremony_scan.py 是确定性的 | OK |
+| 并行默认 | 无依赖工位并行 spawn | LLM 层约束，无 hook 强制 | OK |
+| 增量持久化 | 每条 completion 写 session | session_append.sh 实现 | OK |
+| 不动点终止 | rescan 输出与上轮相同 → 终止 | ceremony_push_and_rescan.sh 输出 JSON 供 Lead 解析 | OK |
+| 只读扫描 | scan 不写文件 | review-results consumed 标记写入（行546-548） | **MEDIUM 偏差** |
+| 持久化不变量 | 每条退出路径以 session+commit+push 结束 | ceremony_push_and_rescan.sh 原子链实现 | OK |
 
-**修复方案**：result-package-guard 已覆盖关键路径（谱系文件）。非谱系概念产出（如定义文件）由 definition-write-guard 部分覆盖。当前覆盖度可接受——扩展为全概念产出检测的成本高于收益。保持现状，标注已知边界。
+**"绝对禁止"列表**: 6条禁止项均无自动化检测机制，依赖 LLM 内化。这是设计意图（057号：LLM 不是状态机），不构成缺口。
 
-#### 缺口 #2：认识论等级标注无检测
+### 3. settings.json hooks 审计
 
-**声明**：formalization-validity-domain.md 要求每次形式化操作标注 L0-L3 等级。
+**已注册 hooks（20条注册，全部文件存在）**: 一致。
 
-**现状**：无任何 hook 或 scan 检测。完全依赖 LLM 内化。
+**未注册但磁盘上存在的 hooks（11个）**:
 
-**修复方案**：此规则主要约束人类可读的分析产出（谱系、审计报告），难以用 hook 自动检测。137号模式——否定性禁令对行为执行层无效。建议在 result-package-guard 中增加对谱系文件的 L0-L3 标注检测（仅警告）。
+| Script | 状态说明 |
+|--------|---------|
+| ceremony-step-guard.sh | 228-4 明确注释"从 settings.json 移除"，保留为谱系文档 |
+| dag-validation-guard.sh | 无注册，无调用路径 |
+| definition-write-guard.sh | 无注册，无调用路径 |
+| downstream-action-guard.sh | 无注册，无调用路径 |
+| genealogy-gemini-verify.sh | 无注册，无调用路径 |
+| genealogy-write-guard.sh | 无注册，无调用路径 |
+| hub-node-impact-guard.sh | 无注册，无调用路径 |
+| result-package-guard.sh | 无注册，无调用路径 |
+| source-auditor-prompt.sh | 无注册，无调用路径 |
+| spec-write-guard.sh | 无注册，无调用路径 |
+| topology-mutator-prompt.sh | 无注册，无调用路径 |
 
-#### 缺口 #3/#13：输出格式 A/B/C 检测不完整
+**分析**: `ceremony-step-guard.sh` 有完整谱系解释。其余10个需要确认是待注册还是可清理。不构成声明-能力缺口（无处声称这些 hook 是活跃的）。
 
-**声明**：no-unnecessary-escalation.md + 原则7 要求输出以格式 A/B/C 结尾。
+### 4. gangmu.yaml 声明审计
 
-**现状**：ceremony-completion-guard 的四分法检测（检查5）仅匹配"确认请求"模式（待确认、是否现在处理等正则）。不检测"无格式结尾"（输出不以 A/B/C 任何一种结尾的情况）。
+**completion_check 引用验证**:
 
-**修复方案**：Stop hook 无法读取 agent 的完整输出内容——`stop_hook_content` 字段的可靠性取决于平台实现。当前的正则匹配是最佳近似。保持现状。
+| 目 | check type | 路径/关键词 | 文件存在 | blocked_by | 结论 |
+|----|-----------|------------|---------|-----------|------|
+| G1-position-management | file_exists | `scripts/position_manager.py` | YES | null | check 通过 |
+| G2-fugue-state-machine | file_exists | `src/newchan/fugue_engine.py` | NO | 有阻塞 | 正常——被阻塞 |
+| I1-xiaozhuan-da | test_pass | `tests/test_xiaozhuan_da_integration.py` | YES | null | check 通过（但只检查存在） |
+| k4-monitor-vps-deploy | script_exists | `deploy/k4-monitor/setup.sh` | YES | null | check 通过 |
+| k4-config-encoder | file_exists | `src/newchan/k4_config.py` | YES | null | check 通过 |
+| fourth-regime-id | genealogy_settled | keyword "fourth-regime" | N/A | 有阻塞 | 正常——被阻塞 |
+| encounter-record | genealogy_settled | keyword "encounter-record" | N/A | null | 待检查 |
 
-#### 缺口 #18：Lead 直接执行记录但不阻断
+**MEDIUM 发现: test_pass 语义偏差**
 
-**声明**：task_template 声明"Lead 不自行执行任务，只分派和汇总"。
+gangmu.yaml 第21行注释声明:
+```
+test_pass: <pattern> — 匹配模式的测试文件存在且通过
+```
 
-**现状**：lead-audit.sh 记录 Lead 直接执行 Write/Edit/Bash 到 pattern-buffer 的 topo-anomalies.yaml，但不阻断。088号+173号设计决策：记录异常而非阻断（Lead 阻断导致项目级死锁——032号历史教训）。
+但 ceremony_scan.py 的 `_check_completion()` 对 `test_pass` 只检查文件存在:
+```python
+if check_type == "test_pass":
+    pattern = check.get("pattern", "")
+    return os.path.isfile(os.path.join(root, pattern))
+```
 
-**修复方案**：当前设计合理（记录而非阻断是经过谱系验证的设计决策）。保持现状。
+声明说"存在**且通过**"，实现只检查"存在"。
 
-#### 缺口 #25：谱系 negation_form 未检测
+### 5. scripts/ 工具脚本审计
 
-**声明**：meta-orchestration SKILL.md 要求每条谱系标注 negation_form。
+| 脚本 | 声明的接口 | 实际接口 | 一致性 |
+|------|-----------|---------|--------|
+| ceremony_scan.py | `--phase` (ceremony.md) | 不支持 `--phase` | **CRITICAL 不一致** |
+| ceremony_scan.py | `--skills` / `--workstations` | 支持 | OK |
+| session_update.py | `--append` / `--finalize` / 无参数 | 支持 | OK |
+| ceremony_push_and_rescan.sh | 原子链 commit→push→rescan | 实现一致 | OK |
+| ceremony_state.py | write/read/clear/check + WAL 操作 | 实现一致 | OK |
+| session_append.sh | 包装 session_update.py --append | 实现一致 | OK |
 
-**现状**：genealogy-write-guard 检查类型/状态/日期/前置四个字段，不检查 negation_form。
+### 6. 谱系下游推论审计
 
-**修复方案**：在 pre-write-edit-dispatcher 的 genealogy-write-guard 中添加 negation_form 字段检测（警告级别）。
+**227号 观察1（ceremony_state.py 集成缺口）**:
+- 声明: status: resolved
+- 验证: ceremony.md 步骤1调用 `ceremony_state.py write 1 initial`，ceremony_push_and_rescan.sh 步骤7/8写入，步骤2/10调用 clear
+- 结论: **resolved 属实**
 
-#### 缺口 #31/#32：D策略 advisory 不保证执行
-
-**声明**：多处声明 genealogy_settlement → gemini-challenger 质询、topology-mutator 拓扑操作。
-
-**现状**：D策略（082号）设计为 hooks 提示 + Lead 认领。advisory 提示可能被 Lead 忽略。
-
-**修复方案**：D策略是经过 Gemini decide 确认的架构决策——不是缺口，是设计权衡（阻断 vs advisory 的平衡）。保持现状。
-
-#### 缺口 #34：子工位写入范围无强制
-
-**声明**：task_template 声明子工位为局部作用域。
-
-**现状**：无 hook 检查子工位（`CLAUDE_AGENT_NAME` 存在时）是否写入了全局文件。lead-audit.sh 在 `CLAUDE_AGENT_NAME` 存在时直接 exit 0（跳过审计）。
-
-**修复方案**：在 lead-audit.sh 中为子工位添加反向检查——子工位写入 .claude/hooks/、.claude/rules/、CLAUDE.md 时记录为拓扑异常。
-
-### P2 缺口（仅靠自然语言内化，无运行时强制）
-
-以下声明仅依赖 CLAUDE.md / rules 的平台加载，无 hook 或 scan 强制：
-
-| # | 声明 | 性质 | 是否可自动化 |
-|---|------|------|------------|
-| 4 | 串行禁止 | 行为模式 | 难——需要分析多步操作间的依赖关系 |
-| 5 | 补丁思维禁止 | 认知模式 | 不可——需要理解代码语义 |
-| 6 | 矛盾不绕过 | 认知模式 | 不可——需要识别概念矛盾 |
-| 9 | 概念优先代码 | 认知模式 | 不可——需要判断定义清晰度 |
-| 11 | 先写谱系再汇总 | 行为顺序 | 可部分——检测 commit 中谱系文件是否在汇总之前 |
-| 14 | 蜂群默认模式 | 行为模式 | 部分覆盖——agent-team-enforce 已强制 team_name |
-| 17 | 严格性语法规则 | meta 级声明 | 不可——严格性是所有其他规则的前提 |
-| 23 | 质询四步序列 | 流程 | /inquire 命令已存在，非强制执行 |
-| 26 | 否定形式审计 | 周期任务 | 可——在 ceremony_scan 中添加谱系计数检测 |
-| 28/29 | 缠论域语法 | 领域规则 | 不可——需要理解缠论语义 |
-| 33 | TDD 流程 | 工程流程 | 可部分——检测 commit 中是否有测试文件 |
-
-**结论**：P2 缺口大多是认知层面规则，无法用 hook 自动化。这些规则的有效形式是 CLAUDE.md 平台加载+137号强制输出格式（而非否定性禁令）。保持现状。
+**344号（v151 --phase 移除）**:
+- 记录: `ceremony_scan.py 的 --phase 参数被移除——ceremony_push_and_rescan.sh 需要同步更新`
+- ceremony_push_and_rescan.sh: 已更新（不带 `--phase`）
+- ceremony.md / post-commit-flow.md / flow-continuity-guard.sh: **未更新**
+- 结论: **部分 resolved——脚本修复了，声明层3处未同步**
 
 ---
 
-## 可立即修复的缺口（定理类/行动类）
+## 严重程度统计
 
-### 修复 1：spawn 三基因注入 — 扩展 agent-team-enforce.sh
+| 严重程度 | 数量 | 说明 |
+|---------|------|------|
+| **CRITICAL** | 3 | ceremony.md `--phase initial`、post-commit-flow.md `--phase rescan`、flow-continuity-guard.sh `--phase rescan` |
+| **HIGH** | 1 | post-commit-flow.md 文档描述包含 `--phase rescan` |
+| **MEDIUM** | 2 | ceremony_scan.py 只读声明偏差、gangmu.yaml test_pass 语义偏差 |
+| **LOW** | 11 | 11个未注册但存在的 hook 文件 |
+| **OK** | 26+ | 命令、skill、资料路径、gangmu 文件引用、227号 resolved 下游推论 |
 
-**缺口**：#19（P0）
-**修复方式**：在 agent-team-enforce.sh 中，对非 Explore 类型的 Task 调用，检查 prompt 中是否包含三基因关键字（topo_address/depth_budget/parent_callback）。缺失时输出 systemMessage 警告（不阻断——避免032号死锁重演）。
+## 根因分析
 
-### 修复 2：negation_form 检测 — 扩展 pre-write-edit-dispatcher
-
-**缺口**：#25（P1）
-**修复方式**：在 genealogy-write-guard 的 required 字段列表中添加 negation_form 检测。缺失时输出警告。
-
-### 修复 3：子工位写入范围检测 — 扩展 lead-audit.sh
-
-**缺口**：#34（P1）
-**修复方式**：lead-audit.sh 当前在 `CLAUDE_AGENT_NAME` 存在时跳过。修改为：子工位写入基因组文件（.claude/hooks/、.claude/rules/、CLAUDE.md、.chanlun/dispatch-dag.yaml）时记录异常。
-
-### 修复 4：否定形式审计周期触发 — ceremony_scan 谱系计数
-
-**缺口**：#26（P2→P1）
-**修复方式**：此修复需修改 ceremony_scan.py，涉及面较大。标记为建议修复。
+CRITICAL 缺口的共同根因: **344号谱系记录的代码变更（v151 移除 `--phase`）在 ceremony_push_and_rescan.sh 上做了同步，但在声明层（ceremony.md、规则文件、hook 注入消息）上未同步**。这是036号模式（声明-能力一致性缺口）的传播不完整实例。
 
 ---
 
-## 需要编排者决断的缺口
+## 结果包六要素
 
-### 缺口 #16/#20：子蜂群递归缺失
-
-已有独立诊断（`tmp/codex-recursion-diagnosis.md`）。修复涉及 sub-swarm-ceremony skill 的 spawn prompt 注入机制——这是架构层变更，需要确认修复方向：
-- 选项A：在 ceremony_scan.py 的 workstation prompt 模板中注入递归指令
-- 选项B：在 agent-team-enforce.sh 中对 depth_budget > 0 的 spawn 注入递归引导
-- 选项C：修改 sub-swarm-ceremony SKILL.md 的触发条件从"手动读取"改为 hook 自动检测
-
-### 认识论等级标注强制化
-
-formalization-validity-domain.md 的 L0-L3 标注当前无任何检测。是否需要：
-- 在 genealogy-write-guard 中添加 L 等级检测？
-- 仅对特定类型谱系（type: formalization / math-proof）强制？
+1. **结论**: 3个 CRITICAL + 1个 HIGH + 2个 MEDIUM 缺口。CRITICAL 全部围绕 `--phase` 幽灵参数——344号代码变更未完整传播到声明层
+2. **定义依据**: 036号谱系（声明-能力一致性原则）定义了声明与实现不匹配为缺口；344号谱系记录了 `--phase` 移除事件
+3. **边界条件**: 如果 ceremony_scan.py 重新引入 `--phase` 参数（不太可能），CRITICAL 发现会翻转。如果 gangmu.yaml test_pass 的注释改为"文件存在"，MEDIUM 发现会消除
+4. **下游推论**: (a) flow-continuity-guard.sh 的误导性指令在非原子链路径中会导致 ceremony 中断（LLM 尝试执行不存在的参数 → argparse 报错 → ceremony 卡住）; (b) gangmu.yaml test_pass 语义偏差意味着 I1-xiaozhuan-da 可能被误判为已完成（文件存在但测试可能失败）
+5. **谱系引用**: 036号（声明-能力一致性）、227号（ceremony_state 集成缺口 resolved）、344号（--phase 移除，传播不完整）
+6. **影响声明**: 本审计不修改任何代码。需要更新的文件: `.claude/commands/ceremony.md`、`.claude/rules/post-commit-flow.md`、`.claude/hooks/flow-continuity-guard.sh`
