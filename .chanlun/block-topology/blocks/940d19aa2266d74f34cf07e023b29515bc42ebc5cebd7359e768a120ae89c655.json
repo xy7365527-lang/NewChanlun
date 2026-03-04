@@ -1,0 +1,13 @@
+{
+  "id": "341",
+  "title": "偶遇定义精化：从时间性绑定到结构性标准",
+  "type": "event",
+  "status": "已结算",
+  "date": "2026-03-04",
+  "depends_on": [
+    "339",
+    "301"
+  ],
+  "epistemological_level": "L0",
+  "file": "settled/341-encounter-definition-refinement.md"
+}

@@ -1,0 +1,13 @@
+{
+  "id": "342",
+  "title": "元观察——v150 偶遇扫描 session（编排者三轮自否定 + 双层扫描启动）",
+  "type": "meta-rule",
+  "status": "已结算",
+  "date": "2026-03-04",
+  "depends_on": [
+    "340",
+    "341"
+  ],
+  "epistemological_level": "L0",
+  "file": "settled/342-meta-observation-v150-encounter-scan.md"
+}
