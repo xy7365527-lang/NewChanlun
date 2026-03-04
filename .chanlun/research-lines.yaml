@@ -1,0 +1,163 @@
+# .chanlun/research-lines.yaml
+# 研究线索引文件——活跃研究线的持存结构
+#
+# 设计约束（编排者确认）：
+#   1. 状态转换：ceremony_scan.py 提议转换，编排者确认。ceremony 不越权。
+#   2. next_action 必须结构化：ceremony_scan.py 能机器读取，不是自由文本备忘录。
+#   3. 与275号局部依赖一致：每条谱系只管自己属于哪条线，全局视图是局部标注的聚合。
+#
+# 状态枚举：active | blocked | closed
+# next_actions.type 枚举：engineering | experiment | theory | integration
+# completion_check 类型：
+#   - file_exists: <path>           — 文件存在即完成
+#   - genealogy_settled: <keyword>  — 谱系 settled 目录中存在包含关键词的文件
+#   - script_exists: <path>         — 脚本存在即完成
+#   - test_pass: <pattern>          — 匹配模式的测试文件存在且通过
+
+version: "1.0"
+
+lines:
+  # ═══════════════════════════════════════════════════════════════════
+  # 已关闭的线
+  # ═══════════════════════════════════════════════════════════════════
+
+  - id: code-pipeline
+    name: "缠论代码管线"
+    status: closed
+    opened_at: "189"
+    closed_at: "215"
+    next_actions: []
+
+  - id: swarm-architecture-v2
+    name: "蜂群架构修复"
+    status: closed
+    opened_at: "216"
+    closed_at: "228"
+    next_actions: []
+
+  - id: k4-independence-fiber
+    name: "K4独立性+纤维丛+多TF"
+    status: closed
+    opened_at: "229"
+    closed_at: "253"
+    closed_reason: "管线完成态，22.2%是结构常数"
+    next_actions: []
+
+  - id: multi-economy-ontology
+    name: "多经济体本体论+定理撤销"
+    status: closed
+    opened_at: "254"
+    closed_at: "264"
+    next_actions: []
+
+  - id: swarm-architecture-v3
+    name: "蜂群架构补充"
+    status: closed
+    opened_at: "269"
+    closed_at: "275"
+    next_actions: []
+
+  - id: oq-v2
+    name: "OQ v2实验线"
+    status: closed
+    opened_at: "277"
+    closed_at: "287"
+    closed_reason: "287号定稿"
+    next_actions: []
+
+  - id: fold-topology-ontology
+    name: "折叠拓扑本体论"
+    status: closed
+    opened_at: "292"
+    closed_at: "300"
+    next_actions: []
+
+  - id: fold-intrinsic-test
+    name: "折叠内在性检验"
+    status: closed
+    opened_at: "315"
+    closed_at: "337"
+    closed_reason: "337号关闭"
+    next_actions: []
+
+  # ═══════════════════════════════════════════════════════════════════
+  # 活跃的线
+  # ═══════════════════════════════════════════════════════════════════
+
+  - id: operational-methodology
+    name: "操作方法论"
+    status: active
+    opened_at: "265"
+    next_actions:
+      - type: engineering
+        target: "G1-position-management"
+        description: "G1仓位管理模块——缠论体系风控的工程化实现"
+        blocked_by: null
+        completion_check:
+          type: file_exists
+          path: "scripts/position_manager.py"
+      - type: engineering
+        target: "G2-fugue-state-machine"
+        description: "G2赋格状态机——帕萨卡利亚结构的状态机编码"
+        blocked_by: "谱系定义未结算：赋格状态机的形式化定义尚未写入谱系"
+        completion_check:
+          type: file_exists
+          path: "src/newchan/fugue_engine.py"
+      - type: integration
+        target: "I1-xiaozhuan-da-orchestration"
+        description: "I1小转大编排——跨级别联动的实盘集成"
+        blocked_by: null
+        completion_check:
+          type: test_pass
+          pattern: "tests/test_xiaozhuan_da_integration.py"
+
+  - id: block-topology
+    name: "区块拓扑"
+    status: active
+    opened_at: "301"
+    next_actions:
+      - type: integration
+        target: "encounter-record-mechanism"
+        description: "偶遇记录机制集成——区块拓扑的偶遇写入协议"
+        blocked_by: null
+        completion_check:
+          type: genealogy_settled
+          keyword: "encounter-record"
+
+  - id: k4-engineering
+    name: "K4工程化"
+    status: active
+    opened_at: "253"
+    next_actions:
+      - type: engineering
+        target: "k4-monitor-vps-deploy"
+        description: "k4_monitor.py VPS部署——实盘监控脚本的生产环境部署"
+        blocked_by: null
+        completion_check:
+          type: script_exists
+          path: "scripts/k4_monitor_deploy.sh"
+      - type: engineering
+        target: "k4-config-encoder"
+        description: "K4配置编码器——将K4参数编码为可序列化配置"
+        blocked_by: null
+        completion_check:
+          type: file_exists
+          path: "src/newchan/k4_config.py"
+
+  # ═══════════════════════════════════════════════════════════════════
+  # 阻塞的线
+  # ═══════════════════════════════════════════════════════════════════
+
+  - id: k4-regime-analysis
+    name: "K4体制分析"
+    status: blocked
+    opened_at: "329"
+    blocked_by: "第四个全图同步压缩体制（新数据事件）"
+    next_actions:
+      - type: experiment
+        target: "fourth-regime-identification"
+        description: "识别并验证第四个全图同步压缩体制"
+        blocked_by: "等待新的全图同步压缩数据事件发生"
+        completion_check:
+          type: genealogy_settled
+          keyword: "fourth-regime"
