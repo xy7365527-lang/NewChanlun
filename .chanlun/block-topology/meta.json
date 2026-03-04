@@ -1,8 +1,8 @@
 {
   "version": "1.0.0",
   "genesis_block_id": "4731eec2bd9959ccb6baffd17ff2df17688b6ab31065e972f543af366e357fcf",
-  "block_count": 1150,
-  "relation_count": 6667,
+  "block_count": 1151,
+  "relation_count": 6668,
   "id_mapping": {
     "001": "d288fedd6eb715a747a5b7059f89dbb650e0d8a23e82dd508caade3045dcc748",
     "002": "bf1ab849bdb1758a2257132a754f5b0b0e7af3f14323c8ab9bd1f614e8efeef4",
@@ -352,7 +352,8 @@
     "346": "19d9998658ac506e0b343b5e066fce9fbe3b40249f9b198d584adbdb5bf988c2",
     "347": "66d69bb6713c04e3db736dd4de74e64f07178e906e7e2bf86c41ec51309ce372",
     "348": "fb1e7fb6d236f819e4d3a6571f0678080e31b947e18f6a08d3e9ee0dcc687977",
-    "349": "637021bf1ed34a0320c792dc99d17f45ce1a6f965c9196efe8762a4ff4eef633"
+    "349": "637021bf1ed34a0320c792dc99d17f45ce1a6f965c9196efe8762a4ff4eef633",
+    "350": "881747c779ad0726fa8700f82d614bfa6a5affb5e35450bb1168f85c9e887bb1"
   },
   "migrated_at": "2026-03-02T07:07:41.973292+00:00",
   "content_enrichment": {
@@ -360,5 +361,5 @@
     "relations_written": 1309,
     "concepts_defined": 1148
   },
-  "last_mapped_genealogy": 349
+  "last_mapped_genealogy": 350
 }

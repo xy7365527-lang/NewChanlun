@@ -132,6 +132,32 @@ gang:
     closed_at: '337'
     closed_reason: 337号关闭
     next_actions: []
+  - id: multi-target-scanner
+    name: 多标的扫描器（递归+折叠+商空间）
+    status: active
+    opened_at: '352'
+    next_actions:
+    - type: engineering
+      target: scanner-fold-equivalence
+      description: 折叠等价类构造器——从标的属性映射到292号折叠通道等价关系，输出商空间F/~（来源：352号§3）
+      blocked_by: null
+      completion_check:
+        type: test_pass
+        pattern: tests/test_fold_equivalence.py
+    - type: engineering
+      target: scanner-quotient-rank
+      description: 商空间排序器——在折叠等价类上计算rank([S])=T([S])*W(fold([S]))（来源：352号§4）
+      blocked_by: scanner-fold-equivalence
+      completion_check:
+        type: test_pass
+        pattern: tests/test_quotient_rank.py
+    - type: experiment
+      target: scanner-l2-validation
+      description: 商空间排序 vs 扁平排序对比验证——真实多标的数据上验证折叠合并和W权重的选股效果（来源：352号下游推论4）
+      blocked_by: scanner-quotient-rank
+      completion_check:
+        type: genealogy_settled
+        keyword: scanner-validation
 - id: block-topology
   name: 区块拓扑
   zongfangzhen_section: §八实现架构 + §八.七阶段B
@@ -213,3 +239,34 @@ gang:
         keyword: encounter-record
     closed_at: '2026-03-04'
     closed_reason: 所有 next_actions 的 completion_check 均已满足
+- id: morse-topology
+  name: 离散Morse拓扑
+  zongfangzhen_section: §四.2知识维度 + §八.二区块拓扑 + Morse理论扩展
+  description: 区块拓扑上的离散Morse理论——折叠操作的数学框架+连续-离散界面
+  mu:
+  - id: discrete-morse-experiment
+    name: 离散Morse计算实验
+    status: active
+    opened_at: '351'
+    next_actions:
+    - type: experiment
+      target: DM1-simplex-construction
+      description: 从 relations.jsonl 构造单纯复形，计算同调群（β₀, β₁），在复形上构造离散 Morse 函数，找到临界集
+      blocked_by: null
+      completion_check:
+        type: test_pass
+        pattern: tests/test_discrete_morse.py
+    - type: experiment
+      target: DM2-temporal-evolution
+      description: 按谱系编号递增构造子复形序列，记录临界集变化的时间序列——跳跃点对应关键否定事件
+      blocked_by: DM1-simplex-construction
+      completion_check:
+        type: file_exists
+        path: scripts/morse_temporal.py
+    - type: experiment
+      target: DM3-validation
+      description: 将 Morse 跳跃点与编排者直觉判断的"关键否定"对比验证
+      blocked_by: DM2-temporal-evolution
+      completion_check:
+        type: genealogy_settled
+        keyword: morse-validation
