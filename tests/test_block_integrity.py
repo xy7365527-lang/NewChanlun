@@ -320,3 +320,102 @@ def test_stamp_verify_tamper_detect(mock_repo):
     result2 = verify_all(mock_repo)
     assert len(result2["mismatched"]) == 1
     assert result2["verified"] == 0
+
+
+# --- Content-addressed block verification ---
+
+def _write_content_addressed_block(root, text, genealogy_num=None, source_file=None):
+    """Helper: write a content-addressed block (id = SHA256(full_text))."""
+    blocks = root / ".chanlun" / "block-topology" / "blocks"
+    block_id = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    block = {
+        "id": block_id,
+        "content": {"full_text": text},
+    }
+    if genealogy_num:
+        block["genealogy_id"] = str(genealogy_num)
+    if source_file:
+        block["content"]["source_file"] = source_file
+        block["content"]["id"] = str(genealogy_num)
+    fpath = blocks / f"{block_id}.json"
+    fpath.write_text(json.dumps(block, ensure_ascii=False, indent=2), encoding="utf-8")
+    return block_id
+
+
+def test_verify_content_addressed_pass(mock_repo):
+    """Content-addressed block with valid id = SHA256(full_text) passes."""
+    text = "# Content-addressed block"
+    _write_content_addressed_block(mock_repo, text)
+
+    result = verify_all(mock_repo)
+    assert result["verified"] == 1
+    assert result["mismatched"] == []
+
+
+def test_verify_content_addressed_tampered_full_text(mock_repo):
+    """Content-addressed block with id != SHA256(full_text) fails."""
+    blocks = mock_repo / ".chanlun" / "block-topology" / "blocks"
+    block_id = "a" * 64
+    block = {
+        "id": block_id,
+        "content": {"full_text": "# This text doesn't match the id"},
+    }
+    (blocks / f"{block_id}.json").write_text(
+        json.dumps(block, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+
+    result = verify_all(mock_repo)
+    assert len(result["mismatched"]) == 1
+    assert "SHA256(full_text)" in result["mismatched"][0]["reason"]
+
+
+def test_verify_content_addressed_working_copy_drift(mock_repo):
+    """Content-addressed block passes but working copy has drifted."""
+    text = "# Original content"
+    _write_genealogy(mock_repo, 50, "drift", text)
+    _write_content_addressed_block(
+        mock_repo, text, genealogy_num=50, source_file="settled/050-drift.md"
+    )
+
+    # Now modify the .md file (working copy drifts)
+    settled = mock_repo / ".chanlun" / "genealogy" / "settled"
+    (settled / "050-drift.md").write_text("# Modified content", encoding="utf-8")
+
+    result = verify_all(mock_repo)
+    assert result["verified"] == 0
+    assert len(result.get("working_copy_drift", [])) == 1
+    assert "working copy differs" in result["working_copy_drift"][0]["reason"]
+
+
+def test_verify_content_addressed_with_matching_working_copy(mock_repo):
+    """Content-addressed block with matching working copy passes fully."""
+    text = "# Matching working copy"
+    _write_genealogy(mock_repo, 51, "match", text)
+    _write_content_addressed_block(
+        mock_repo, text, genealogy_num=51, source_file="settled/051-match.md"
+    )
+
+    result = verify_all(mock_repo)
+    assert result["verified"] == 1
+    assert result.get("working_copy_drift", []) == []
+
+
+def test_verify_mixed_legacy_and_content_addressed(mock_repo):
+    """Mix of legacy and content-addressed blocks both verified correctly."""
+    # Legacy block with content_hash
+    legacy_text = "# Legacy"
+    _, file_hash = _write_genealogy(mock_repo, 60, "legacy", legacy_text)
+    _write_block(mock_repo, {
+        "id": "b" * 64,
+        "type": "event",
+        "content": {"source_file": "settled/060-legacy.md", "id": "060"},
+        "content_hash": file_hash,
+    })
+
+    # Content-addressed block
+    ca_text = "# Content-addressed"
+    _write_content_addressed_block(mock_repo, ca_text)
+
+    result = verify_all(mock_repo)
+    assert result["verified"] == 2
+    assert result["mismatched"] == []
