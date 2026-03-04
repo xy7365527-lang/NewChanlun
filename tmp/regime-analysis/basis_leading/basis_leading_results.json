@@ -1,0 +1,2422 @@
+{
+  "metadata": {
+    "analysis": "Basis leading signal test: 2020-21 synchronous compression regime",
+    "run_time": "2026-03-04T12:18:14.952775",
+    "epistemological_level": "L2 (real data, single regime event, falsifiable)",
+    "regime": {
+      "entry_date": "2020-04-03",
+      "exit_date": "2021-04-23",
+      "duration_days": 385,
+      "source": "fred_k4_cluster_report.md (263 sync days, single cluster)"
+    },
+    "data_sources": {
+      "au_basis": "GC=F (gold futures) - GLD*10 (gold ETF proxy for spot)",
+      "oil_basis": "CL=F (crude futures) - DCOILWTICO (WTI spot from FRED)",
+      "effdim": "4-node K4 (Au=GC=F, DXY, SPX, WTI=DCOILWTICO), 252d rolling"
+    },
+    "parameters": {
+      "rolling_window": 20,
+      "z_threshold": 2.0,
+      "effdim_window": 252,
+      "effdim_threshold_percentile": 5.0
+    }
+  },
+  "entry_window_analysis": {
+    "window": "2020-01-01 to 2020-06-01",
+    "regime_entry_date": "2020-04-03",
+    "au_basis_pre_entry": {
+      "found": true,
+      "first_date": "2020-01-30",
+      "first_zscore": 2.5839549230701775,
+      "max_abs_zscore": 3.4351354441966278,
+      "days_above": 6,
+      "total_days": 64
+    },
+    "oil_basis_pre_entry": {
+      "found": true,
+      "first_date": "2020-01-21",
+      "first_zscore": 2.1800909581211463,
+      "max_abs_zscore": 4.199327088821815,
+      "days_above": 9,
+      "total_days": 64
+    },
+    "effdim_first_sync": {
+      "found": true,
+      "first_date": "2020-04-03",
+      "total_sync_days_in_window": 38
+    },
+    "au_lead_days": 64,
+    "oil_lead_days": 73,
+    "au_basis_full_window": {
+      "found": true,
+      "first_date": "2020-01-30",
+      "first_zscore": 2.5839549230701775,
+      "max_abs_zscore": 3.4351354441966278,
+      "days_above": 7,
+      "total_days": 104
+    },
+    "oil_basis_full_window": {
+      "found": true,
+      "first_date": "2020-01-21",
+      "first_zscore": 2.1800909581211463,
+      "max_abs_zscore": 4.199327088821815,
+      "days_above": 9,
+      "total_days": 104
+    }
+  },
+  "exit_window_analysis": {
+    "window": "2021-02-01 to 2021-07-01",
+    "regime_exit_date": "2021-04-23",
+    "effdim_last_sync": {
+      "found": true,
+      "last_date": "2021-04-23",
+      "total_sync_days_in_window": 58
+    },
+    "au_basis_normalization": {
+      "last_extreme_date": "2021-06-16",
+      "normalization_date": "2021-06-17",
+      "run_length": 5
+    },
+    "oil_basis_normalization": {
+      "last_extreme_date": "2021-06-25",
+      "normalization_date": null,
+      "detail": "z-score did not normalize in window"
+    },
+    "au_exit_lead_days": -55,
+    "oil_exit_lead_days": null
+  },
+  "period_comparison": {
+    "au_basis": {
+      "normal_2019": {
+        "label": "normal_2019",
+        "n": 252,
+        "mean": 77.55277827429393,
+        "std": 7.721578094941435,
+        "min": 56.79998779296875,
+        "max": 100.39993286132812,
+        "median": 77.2000503540039,
+        "extreme_zscore_days": 21,
+        "extreme_zscore_freq": 0.0833
+      },
+      "pre_entry_2020": {
+        "label": "pre_entry_2020",
+        "n": 64,
+        "mean": 94.27656745910645,
+        "std": 10.456664973903521,
+        "min": 69.50003051757812,
+        "max": 126.20001220703125,
+        "median": 92.05006408691406,
+        "extreme_zscore_days": 6,
+        "extreme_zscore_freq": 0.0938
+      },
+      "during_regime": {
+        "label": "during_regime",
+        "n": 266,
+        "mean": 110.86842369136954,
+        "std": 8.24196259347344,
+        "min": 77.5999755859375,
+        "max": 149.2999267578125,
+        "median": 110.60000610351562,
+        "extreme_zscore_days": 15,
+        "extreme_zscore_freq": 0.0564
+      }
+    },
+    "oil_basis": {
+      "normal_2019": {
+        "label": "normal_2019",
+        "n": 250,
+        "mean": 0.052360038452148504,
+        "std": 0.22085379439072858,
+        "min": -2.950001831054685,
+        "max": 0.40000061035156165,
+        "median": 0.029999084472656534,
+        "extreme_zscore_days": 18,
+        "extreme_zscore_freq": 0.072
+      },
+      "pre_entry_2020": {
+        "label": "pre_entry_2020",
+        "n": 64,
+        "mean": 0.4310938382148737,
+        "std": 1.4268025509332436,
+        "min": -0.2599992370605477,
+        "max": 6.0300002288818355,
+        "median": 0.009998474121093892,
+        "extreme_zscore_days": 9,
+        "extreme_zscore_freq": 0.1406
+      },
+      "during_regime": {
+        "label": "during_regime",
+        "n": 265,
+        "mean": 0.056452830044728584,
+        "std": 0.18368159054956423,
+        "min": -1.2500016784667949,
+        "max": 1.4399999999999995,
+        "median": 0.039999084472654545,
+        "extreme_zscore_days": 14,
+        "extreme_zscore_freq": 0.0528
+      }
+    }
+  },
+  "negative_oil_annotation": {
+    "date": "2020-04-20",
+    "in_data": true,
+    "basis_value": -0.6500010681152375,
+    "basis_zscore": -0.7986171623966031,
+    "note": "2020-04-20: WTI May futures (CL=F) closed at approximately -$37.63, DCOILWTICO spot at approximately -$36.98. This is a real market event (storage cost exceeding commodity value), NOT a data artifact. The extreme basis value reflects genuine market dislocation.",
+    "daily_context": [
+      {
+        "date": "2020-04-15",
+        "cl_close": 19.8700008392334,
+        "wti_spot": 19.96,
+        "basis": -0.08999916076660242,
+        "basis_zscore": -0.6385559012069889
+      },
+      {
+        "date": "2020-04-16",
+        "cl_close": 19.8700008392334,
+        "wti_spot": 19.82,
+        "basis": 0.05000083923339815,
+        "basis_zscore": -0.5827549747154224
+      },
+      {
+        "date": "2020-04-17",
+        "cl_close": 18.270000457763672,
+        "wti_spot": 18.31,
+        "basis": -0.039999542236326846,
+        "basis_zscore": -0.6166999270912188
+      },
+      {
+        "date": "2020-04-20",
+        "cl_close": -37.630001068115234,
+        "wti_spot": -36.98,
+        "basis": -0.6500010681152375,
+        "basis_zscore": -0.7986171623966031
+      },
+      {
+        "date": "2020-04-21",
+        "cl_close": 10.010000228881836,
+        "wti_spot": 8.91,
+        "basis": 1.1000002288818358,
+        "basis_zscore": -0.06891573717688596
+      },
+      {
+        "date": "2020-04-22",
+        "cl_close": 13.779999732971191,
+        "wti_spot": 13.64,
+        "basis": 0.13999973297119084,
+        "basis_zscore": -0.4279580463458853
+      },
+      {
+        "date": "2020-04-23",
+        "cl_close": 16.5,
+        "wti_spot": 15.06,
+        "basis": 1.4399999999999995,
+        "basis_zscore": 0.19906521428885512
+      },
+      {
+        "date": "2020-04-24",
+        "cl_close": 16.940000534057617,
+        "wti_spot": 15.99,
+        "basis": 0.950000534057617,
+        "basis_zscore": 0.10779686778969526
+      }
+    ]
+  },
+  "effdim_thresholds": {
+    "Au": 1.709588,
+    "$": 1.781095,
+    "Equity": 1.835656,
+    "Commodity": 1.261593
+  },
+  "verdict": {
+    "au_basis": {
+      "entry_classification": "LEADING_SIGNAL",
+      "entry_lead_days": 64,
+      "exit_leads": false,
+      "exit_lead_days": -55,
+      "regime_change": {
+        "normal_extreme_freq": 0.0833,
+        "pre_entry_extreme_freq": 0.0938,
+        "during_regime_extreme_freq": 0.0564
+      }
+    },
+    "oil_basis": {
+      "entry_classification": "LEADING_SIGNAL",
+      "entry_lead_days": 73,
+      "exit_leads": false,
+      "exit_lead_days": null,
+      "regime_change": {
+        "normal_extreme_freq": 0.072,
+        "pre_entry_extreme_freq": 0.1406,
+        "during_regime_extreme_freq": 0.0528
+      }
+    },
+    "combined_assessment": "Au basis is a LEADING signal (leads eff.dim sync by 64 calendar days at entry); OIL basis is a LEADING signal (leads eff.dim sync by 73 calendar days at entry)"
+  },
+  "daily_timeseries": {
+    "entry_window": [
+      {
+        "date": "2020-01-01",
+        "au_basis": null,
+        "au_basis_zscore": null,
+        "oil_basis": null,
+        "oil_basis_zscore": null,
+        "all_below_5pct": null
+      },
+      {
+        "date": "2020-01-02",
+        "au_basis": 85.0,
+        "au_basis_zscore": 0.118,
+        "oil_basis": 0.01,
+        "oil_basis_zscore": 0.508,
+        "all_below_5pct": false,
+        "au_effdim": 1.8916,
+        "commodity_effdim": 1.3207
+      },
+      {
+        "date": "2020-01-03",
+        "au_basis": 90.6,
+        "au_basis_zscore": 1.784,
+        "oil_basis": 0.05,
+        "oil_basis_zscore": 1.401,
+        "all_below_5pct": false,
+        "au_effdim": 1.8935,
+        "commodity_effdim": 1.3223
+      },
+      {
+        "date": "2020-01-06",
+        "au_basis": 92.3,
+        "au_basis_zscore": 1.995,
+        "oil_basis": 0.0,
+        "oil_basis_zscore": 0.141,
+        "all_below_5pct": false,
+        "au_effdim": 1.9025,
+        "commodity_effdim": 1.3246
+      },
+      {
+        "date": "2020-01-07",
+        "au_basis": 92.1,
+        "au_basis_zscore": 1.681,
+        "oil_basis": 0.0,
+        "oil_basis_zscore": 0.141,
+        "all_below_5pct": false,
+        "au_effdim": 1.9064,
+        "commodity_effdim": 1.3262
+      },
+      {
+        "date": "2020-01-08",
+        "au_basis": 88.8,
+        "au_basis_zscore": 0.743,
+        "oil_basis": -0.04,
+        "oil_basis_zscore": -0.797,
+        "all_below_5pct": false,
+        "au_effdim": 1.8924,
+        "commodity_effdim": 1.3203
+      },
+      {
+        "date": "2020-01-09",
+        "au_basis": 91.4,
+        "au_basis_zscore": 1.271,
+        "oil_basis": 0.0,
+        "oil_basis_zscore": 0.261,
+        "all_below_5pct": false,
+        "au_effdim": 1.8876,
+        "commodity_effdim": 1.307
+      },
+      {
+        "date": "2020-01-10",
+        "au_basis": 88.4,
+        "au_basis_zscore": 0.438,
+        "oil_basis": 0.02,
+        "oil_basis_zscore": 0.782,
+        "all_below_5pct": false,
+        "au_effdim": 1.8869,
+        "commodity_effdim": 1.3069
+      },
+      {
+        "date": "2020-01-13",
+        "au_basis": 90.2,
+        "au_basis_zscore": 0.836,
+        "oil_basis": -0.09,
+        "oil_basis_zscore": -1.788,
+        "all_below_5pct": false,
+        "au_effdim": 1.8899,
+        "commodity_effdim": 1.3077
+      },
+      {
+        "date": "2020-01-14",
+        "au_basis": 85.5,
+        "au_basis_zscore": -0.468,
+        "oil_basis": -0.11,
+        "oil_basis_zscore": -1.954,
+        "all_below_5pct": false,
+        "au_effdim": 1.8931,
+        "commodity_effdim": 1.313
+      },
+      {
+        "date": "2020-01-15",
+        "au_basis": 86.7,
+        "au_basis_zscore": -0.167,
+        "oil_basis": -0.05,
+        "oil_basis_zscore": -0.622,
+        "all_below_5pct": false,
+        "au_effdim": 1.893,
+        "commodity_effdim": 1.3127
+      },
+      {
+        "date": "2020-01-16",
+        "au_basis": 85.9,
+        "au_basis_zscore": -0.416,
+        "oil_basis": 0.0,
+        "oil_basis_zscore": 0.536,
+        "all_below_5pct": false,
+        "au_effdim": 1.8937,
+        "commodity_effdim": 1.3137
+      },
+      {
+        "date": "2020-01-17",
+        "au_basis": 93.0,
+        "au_basis_zscore": 1.446,
+        "oil_basis": -0.01,
+        "oil_basis_zscore": 0.321,
+        "all_below_5pct": false,
+        "au_effdim": 1.8953,
+        "commodity_effdim": 1.3148
+      },
+      {
+        "date": "2020-01-20",
+        "au_basis": null,
+        "au_basis_zscore": null,
+        "oil_basis": null,
+        "oil_basis_zscore": null,
+        "all_below_5pct": null
+      },
+      {
+        "date": "2020-01-21",
+        "au_basis": 89.0,
+        "au_basis_zscore": 0.254,
+        "oil_basis": 0.09,
+        "oil_basis_zscore": 2.18,
+        "all_below_5pct": false,
+        "au_effdim": 1.8997,
+        "commodity_effdim": 1.3157
+      },
+      {
+        "date": "2020-01-22",
+        "au_basis": 87.4,
+        "au_basis_zscore": -0.401,
+        "oil_basis": -0.02,
+        "oil_basis_zscore": -0.062,
+        "all_below_5pct": false,
+        "au_effdim": 1.8996,
+        "commodity_effdim": 1.3157
+      },
+      {
+        "date": "2020-01-23",
+        "au_basis": 93.4,
+        "au_basis_zscore": 1.631,
+        "oil_basis": 0.08,
+        "oil_basis_zscore": 1.783,
+        "all_below_5pct": false,
+        "au_effdim": 1.8974,
+        "commodity_effdim": 1.3139
+      },
+      {
+        "date": "2020-01-24",
+        "au_basis": 91.3,
+        "au_basis_zscore": 0.762,
+        "oil_basis": 0.1,
+        "oil_basis_zscore": 1.851,
+        "all_below_5pct": false,
+        "au_effdim": 1.9022,
+        "commodity_effdim": 1.3132
+      },
+      {
+        "date": "2020-01-27",
+        "au_basis": 86.9,
+        "au_basis_zscore": -0.961,
+        "oil_basis": 0.05,
+        "oil_basis_zscore": 0.884,
+        "all_below_5pct": false,
+        "au_effdim": 1.8991,
+        "commodity_effdim": 1.3116
+      },
+      {
+        "date": "2020-01-28",
+        "au_basis": 92.6,
+        "au_basis_zscore": 1.187,
+        "oil_basis": 0.15,
+        "oil_basis_zscore": 2.145,
+        "all_below_5pct": false,
+        "au_effdim": 1.8996,
+        "commodity_effdim": 1.3134
+      },
+      {
+        "date": "2020-01-29",
+        "au_basis": 85.2,
+        "au_basis_zscore": -1.467,
+        "oil_basis": 0.04,
+        "oil_basis_zscore": 0.46,
+        "all_below_5pct": false,
+        "au_effdim": 1.9004,
+        "commodity_effdim": 1.3142
+      },
+      {
+        "date": "2020-01-30",
+        "au_basis": 98.8,
+        "au_basis_zscore": 2.584,
+        "oil_basis": -0.05,
+        "oil_basis_zscore": -0.946,
+        "all_below_5pct": false,
+        "au_effdim": 1.8922,
+        "commodity_effdim": 1.3108
+      },
+      {
+        "date": "2020-01-31",
+        "au_basis": 89.6,
+        "au_basis_zscore": -0.107,
+        "oil_basis": -0.02,
+        "oil_basis_zscore": -0.455,
+        "all_below_5pct": false,
+        "au_effdim": 1.8947,
+        "commodity_effdim": 1.3118
+      },
+      {
+        "date": "2020-02-03",
+        "au_basis": 93.6,
+        "au_basis_zscore": 1.019,
+        "oil_basis": 0.05,
+        "oil_basis_zscore": 0.625,
+        "all_below_5pct": false,
+        "au_effdim": 1.896,
+        "commodity_effdim": 1.3145
+      },
+      {
+        "date": "2020-02-04",
+        "au_basis": 86.1,
+        "au_basis_zscore": -1.056,
+        "oil_basis": 0.02,
+        "oil_basis_zscore": 0.147,
+        "all_below_5pct": false,
+        "au_effdim": 1.8966,
+        "commodity_effdim": 1.3116
+      },
+      {
+        "date": "2020-02-05",
+        "au_basis": 91.7,
+        "au_basis_zscore": 0.552,
+        "oil_basis": -0.12,
+        "oil_basis_zscore": -1.751,
+        "all_below_5pct": false,
+        "au_effdim": 1.9052,
+        "commodity_effdim": 1.317
+      },
+      {
+        "date": "2020-02-06",
+        "au_basis": 91.1,
+        "au_basis_zscore": 0.347,
+        "oil_basis": 0.01,
+        "oil_basis_zscore": 0.043,
+        "all_below_5pct": false,
+        "au_effdim": 1.9067,
+        "commodity_effdim": 1.318
+      },
+      {
+        "date": "2020-02-07",
+        "au_basis": 90.7,
+        "au_basis_zscore": 0.243,
+        "oil_basis": -0.02,
+        "oil_basis_zscore": -0.368,
+        "all_below_5pct": false,
+        "au_effdim": 1.9052,
+        "commodity_effdim": 1.3181
+      },
+      {
+        "date": "2020-02-10",
+        "au_basis": 93.0,
+        "au_basis_zscore": 0.826,
+        "oil_basis": -0.02,
+        "oil_basis_zscore": -0.339,
+        "all_below_5pct": false,
+        "au_effdim": 1.9045,
+        "commodity_effdim": 1.3187
+      },
+      {
+        "date": "2020-02-11",
+        "au_basis": 89.0,
+        "au_basis_zscore": -0.29,
+        "oil_basis": -0.06,
+        "oil_basis_zscore": -0.95,
+        "all_below_5pct": false,
+        "au_effdim": 1.9039,
+        "commodity_effdim": 1.3178
+      },
+      {
+        "date": "2020-02-12",
+        "au_basis": 92.0,
+        "au_basis_zscore": 0.486,
+        "oil_basis": 0.04,
+        "oil_basis_zscore": 0.424,
+        "all_below_5pct": false,
+        "au_effdim": 1.904,
+        "commodity_effdim": 1.3181
+      },
+      {
+        "date": "2020-02-13",
+        "au_basis": 91.3,
+        "au_basis_zscore": 0.219,
+        "oil_basis": 0.01,
+        "oil_basis_zscore": -0.097,
+        "all_below_5pct": false,
+        "au_effdim": 1.902,
+        "commodity_effdim": 1.3172
+      },
+      {
+        "date": "2020-02-14",
+        "au_basis": 92.7,
+        "au_basis_zscore": 0.569,
+        "oil_basis": 0.02,
+        "oil_basis_zscore": 0.049,
+        "all_below_5pct": false,
+        "au_effdim": 1.901,
+        "commodity_effdim": 1.3168
+      },
+      {
+        "date": "2020-02-17",
+        "au_basis": null,
+        "au_basis_zscore": null,
+        "oil_basis": null,
+        "oil_basis_zscore": null,
+        "all_below_5pct": null
+      },
+      {
+        "date": "2020-02-18",
+        "au_basis": 90.9,
+        "au_basis_zscore": 0.028,
+        "oil_basis": -0.05,
+        "oil_basis_zscore": -1.026,
+        "all_below_5pct": false,
+        "au_effdim": 1.8993,
+        "commodity_effdim": 1.3154
+      },
+      {
+        "date": "2020-02-19",
+        "au_basis": 89.6,
+        "au_basis_zscore": -0.405,
+        "oil_basis": -0.02,
+        "oil_basis_zscore": -0.482,
+        "all_below_5pct": false,
+        "au_effdim": 1.9005,
+        "commodity_effdim": 1.3165
+      },
+      {
+        "date": "2020-02-20",
+        "au_basis": 92.5,
+        "au_basis_zscore": 0.469,
+        "oil_basis": 0.01,
+        "oil_basis_zscore": -0.016,
+        "all_below_5pct": false,
+        "au_effdim": 1.9,
+        "commodity_effdim": 1.316
+      },
+      {
+        "date": "2020-02-21",
+        "au_basis": 97.6,
+        "au_basis_zscore": 1.914,
+        "oil_basis": 0.02,
+        "oil_basis_zscore": 0.204,
+        "all_below_5pct": false,
+        "au_effdim": 1.9004,
+        "commodity_effdim": 1.3164
+      },
+      {
+        "date": "2020-02-24",
+        "au_basis": 111.5,
+        "au_basis_zscore": 3.435,
+        "oil_basis": 0.07,
+        "oil_basis_zscore": 1.122,
+        "all_below_5pct": false,
+        "au_effdim": 1.8973,
+        "commodity_effdim": 1.3181
+      },
+      {
+        "date": "2020-02-25",
+        "au_basis": 113.9,
+        "au_basis_zscore": 2.799,
+        "oil_basis": 0.12,
+        "oil_basis_zscore": 1.792,
+        "all_below_5pct": false,
+        "au_effdim": 1.8936,
+        "commodity_effdim": 1.3283
+      },
+      {
+        "date": "2020-02-26",
+        "au_basis": 100.3,
+        "au_basis_zscore": 0.847,
+        "oil_basis": 0.06,
+        "oil_basis_zscore": 1.021,
+        "all_below_5pct": false,
+        "au_effdim": 1.9012,
+        "commodity_effdim": 1.3311
+      },
+      {
+        "date": "2020-02-27",
+        "au_basis": 100.0,
+        "au_basis_zscore": 0.725,
+        "oil_basis": -0.08,
+        "oil_basis_zscore": -1.421,
+        "all_below_5pct": false,
+        "au_effdim": 1.9008,
+        "commodity_effdim": 1.3301
+      },
+      {
+        "date": "2020-02-28",
+        "au_basis": 80.3,
+        "au_basis_zscore": -1.74,
+        "oil_basis": -0.07,
+        "oil_basis_zscore": -1.201,
+        "all_below_5pct": false,
+        "au_effdim": 1.9112,
+        "commodity_effdim": 1.3435
+      },
+      {
+        "date": "2020-03-02",
+        "au_basis": 100.3,
+        "au_basis_zscore": 0.75,
+        "oil_basis": -0.03,
+        "oil_basis_zscore": -0.489,
+        "all_below_5pct": false,
+        "au_effdim": 1.9423,
+        "commodity_effdim": 1.3553
+      },
+      {
+        "date": "2020-03-03",
+        "au_basis": 103.2,
+        "au_basis_zscore": 1.027,
+        "oil_basis": -0.09,
+        "oil_basis_zscore": -1.37,
+        "all_below_5pct": false,
+        "au_effdim": 1.9752,
+        "commodity_effdim": 1.3721
+      },
+      {
+        "date": "2020-03-04",
+        "au_basis": 99.5,
+        "au_basis_zscore": 0.501,
+        "oil_basis": -0.0,
+        "oil_basis_zscore": 0.17,
+        "all_below_5pct": false,
+        "au_effdim": 1.9929,
+        "commodity_effdim": 1.3888
+      },
+      {
+        "date": "2020-03-05",
+        "au_basis": 91.5,
+        "au_basis_zscore": -0.513,
+        "oil_basis": 0.0,
+        "oil_basis_zscore": 0.076,
+        "all_below_5pct": false,
+        "au_effdim": 2.0077,
+        "commodity_effdim": 1.399
+      },
+      {
+        "date": "2020-03-06",
+        "au_basis": 95.3,
+        "au_basis_zscore": -0.058,
+        "oil_basis": 0.14,
+        "oil_basis_zscore": 2.225,
+        "all_below_5pct": false,
+        "au_effdim": 2.0099,
+        "commodity_effdim": 1.4098
+      },
+      {
+        "date": "2020-03-09",
+        "au_basis": 96.4,
+        "au_basis_zscore": 0.047,
+        "oil_basis": 0.08,
+        "oil_basis_zscore": 1.135,
+        "all_below_5pct": false,
+        "au_effdim": 1.9717,
+        "commodity_effdim": 1.3829
+      },
+      {
+        "date": "2020-03-10",
+        "au_basis": 114.3,
+        "au_basis_zscore": 1.978,
+        "oil_basis": -0.11,
+        "oil_basis_zscore": -1.64,
+        "all_below_5pct": false,
+        "au_effdim": 1.7617,
+        "commodity_effdim": 1.2793
+      },
+      {
+        "date": "2020-03-11",
+        "au_basis": 102.1,
+        "au_basis_zscore": 0.508,
+        "oil_basis": -0.15,
+        "oil_basis_zscore": -1.958,
+        "all_below_5pct": false,
+        "au_effdim": 1.7276,
+        "commodity_effdim": 1.2735
+      },
+      {
+        "date": "2020-03-12",
+        "au_basis": 111.4,
+        "au_basis_zscore": 1.417,
+        "oil_basis": -0.06,
+        "oil_basis_zscore": -0.702,
+        "all_below_5pct": false,
+        "au_effdim": 1.7412,
+        "commodity_effdim": 1.2818
+      },
+      {
+        "date": "2020-03-13",
+        "au_basis": 82.9,
+        "au_basis_zscore": -1.623,
+        "oil_basis": 0.01,
+        "oil_basis_zscore": 0.216,
+        "all_below_5pct": false,
+        "au_effdim": 1.8194,
+        "commodity_effdim": 1.3241
+      },
+      {
+        "date": "2020-03-16",
+        "au_basis": 69.5,
+        "au_basis_zscore": -2.418,
+        "oil_basis": -0.26,
+        "oil_basis_zscore": -2.531,
+        "all_below_5pct": false,
+        "au_effdim": 1.8822,
+        "commodity_effdim": 1.3787
+      },
+      {
+        "date": "2020-03-17",
+        "au_basis": 89.3,
+        "au_basis_zscore": -0.677,
+        "oil_basis": -0.01,
+        "oil_basis_zscore": 0.09,
+        "all_below_5pct": false,
+        "au_effdim": 1.9143,
+        "commodity_effdim": 1.4196
+      },
+      {
+        "date": "2020-03-18",
+        "au_basis": 70.3,
+        "au_basis_zscore": -2.005,
+        "oil_basis": -0.11,
+        "oil_basis_zscore": -0.901,
+        "all_below_5pct": false,
+        "au_effdim": 1.934,
+        "commodity_effdim": 1.4151
+      },
+      {
+        "date": "2020-03-19",
+        "au_basis": 98.2,
+        "au_basis_zscore": 0.141,
+        "oil_basis": 0.13,
+        "oil_basis_zscore": 1.437,
+        "all_below_5pct": false,
+        "au_effdim": 1.9004,
+        "commodity_effdim": 1.3429
+      },
+      {
+        "date": "2020-03-20",
+        "au_basis": 82.9,
+        "au_basis_zscore": -0.967,
+        "oil_basis": 2.95,
+        "oil_basis_zscore": 4.199,
+        "all_below_5pct": false,
+        "au_effdim": 1.8595,
+        "commodity_effdim": 1.311
+      },
+      {
+        "date": "2020-03-23",
+        "au_basis": 104.0,
+        "au_basis_zscore": 0.68,
+        "oil_basis": 0.03,
+        "oil_basis_zscore": -0.145,
+        "all_below_5pct": false,
+        "au_effdim": 1.7774,
+        "commodity_effdim": 1.2712
+      },
+      {
+        "date": "2020-03-24",
+        "au_basis": 126.2,
+        "au_basis_zscore": 2.164,
+        "oil_basis": 2.98,
+        "oil_basis_zscore": 2.925,
+        "all_below_5pct": false,
+        "au_effdim": 1.8331,
+        "commodity_effdim": 1.2715
+      },
+      {
+        "date": "2020-03-25",
+        "au_basis": 119.3,
+        "au_basis_zscore": 1.504,
+        "oil_basis": 3.74,
+        "oil_basis_zscore": 2.725,
+        "all_below_5pct": false,
+        "au_effdim": 1.8651,
+        "commodity_effdim": 1.2836
+      },
+      {
+        "date": "2020-03-26",
+        "au_basis": 117.7,
+        "au_basis_zscore": 1.277,
+        "oil_basis": 6.0,
+        "oil_basis_zscore": 3.047,
+        "all_below_5pct": false,
+        "au_effdim": 1.8671,
+        "commodity_effdim": 1.2843
+      },
+      {
+        "date": "2020-03-27",
+        "au_basis": 101.4,
+        "au_basis_zscore": 0.173,
+        "oil_basis": 6.03,
+        "oil_basis_zscore": 2.398,
+        "all_below_5pct": false,
+        "au_effdim": 1.8541,
+        "commodity_effdim": 1.2689
+      },
+      {
+        "date": "2020-03-30",
+        "au_basis": 92.8,
+        "au_basis_zscore": -0.37,
+        "oil_basis": 5.99,
+        "oil_basis_zscore": 1.989,
+        "all_below_5pct": false,
+        "au_effdim": 1.8533,
+        "commodity_effdim": 1.2686
+      },
+      {
+        "date": "2020-03-31",
+        "au_basis": 102.9,
+        "au_basis_zscore": 0.297,
+        "oil_basis": -0.03,
+        "oil_basis_zscore": -0.601,
+        "all_below_5pct": false,
+        "au_effdim": 1.8555,
+        "commodity_effdim": 1.2661
+      },
+      {
+        "date": "2020-04-01",
+        "au_basis": 83.7,
+        "au_basis_zscore": -0.897,
+        "oil_basis": 0.03,
+        "oil_basis_zscore": -0.577,
+        "all_below_5pct": false,
+        "au_effdim": 1.7182,
+        "commodity_effdim": 1.2114
+      },
+      {
+        "date": "2020-04-02",
+        "au_basis": 106.7,
+        "au_basis_zscore": 0.536,
+        "oil_basis": 0.14,
+        "oil_basis_zscore": -0.533,
+        "all_below_5pct": false,
+        "au_effdim": 1.725,
+        "commodity_effdim": 1.2145
+      },
+      {
+        "date": "2020-04-03",
+        "au_basis": 107.2,
+        "au_basis_zscore": 0.526,
+        "oil_basis": -0.02,
+        "oil_basis_zscore": -0.597,
+        "all_below_5pct": true,
+        "au_effdim": 1.7073,
+        "commodity_effdim": 1.2045
+      },
+      {
+        "date": "2020-04-06",
+        "au_basis": 108.2,
+        "au_basis_zscore": 0.548,
+        "oil_basis": -0.13,
+        "oil_basis_zscore": -0.638,
+        "all_below_5pct": true,
+        "au_effdim": 1.7015,
+        "commodity_effdim": 1.2014
+      },
+      {
+        "date": "2020-04-07",
+        "au_basis": 104.4,
+        "au_basis_zscore": 0.346,
+        "oil_basis": 0.09,
+        "oil_basis_zscore": -0.55,
+        "all_below_5pct": true,
+        "au_effdim": 1.7077,
+        "commodity_effdim": 1.2035
+      },
+      {
+        "date": "2020-04-08",
+        "au_basis": 118.9,
+        "au_basis_zscore": 1.183,
+        "oil_basis": 0.12,
+        "oil_basis_zscore": -0.545,
+        "all_below_5pct": true,
+        "au_effdim": 1.7025,
+        "commodity_effdim": 1.2012
+      },
+      {
+        "date": "2020-04-09",
+        "au_basis": 149.3,
+        "au_basis_zscore": 2.451,
+        "oil_basis": -0.14,
+        "oil_basis_zscore": -0.655,
+        "all_below_5pct": true,
+        "au_effdim": 1.7023,
+        "commodity_effdim": 1.202
+      },
+      {
+        "date": "2020-04-10",
+        "au_basis": null,
+        "au_basis_zscore": null,
+        "oil_basis": null,
+        "oil_basis_zscore": null,
+        "all_below_5pct": null
+      },
+      {
+        "date": "2020-04-13",
+        "au_basis": 130.7,
+        "au_basis_zscore": 1.335,
+        "oil_basis": 0.05,
+        "oil_basis_zscore": -0.574,
+        "all_below_5pct": true,
+        "au_effdim": 1.6993,
+        "commodity_effdim": 1.2022
+      },
+      {
+        "date": "2020-04-14",
+        "au_basis": 129.9,
+        "au_basis_zscore": 1.202,
+        "oil_basis": -0.04,
+        "oil_basis_zscore": -0.619,
+        "all_below_5pct": true,
+        "au_effdim": 1.699,
+        "commodity_effdim": 1.2022
+      },
+      {
+        "date": "2020-04-15",
+        "au_basis": 108.7,
+        "au_basis_zscore": 0.029,
+        "oil_basis": -0.09,
+        "oil_basis_zscore": -0.639,
+        "all_below_5pct": true,
+        "au_effdim": 1.6963,
+        "commodity_effdim": 1.2006
+      },
+      {
+        "date": "2020-04-16",
+        "au_basis": 103.3,
+        "au_basis_zscore": -0.403,
+        "oil_basis": 0.05,
+        "oil_basis_zscore": -0.583,
+        "all_below_5pct": true,
+        "au_effdim": 1.697,
+        "commodity_effdim": 1.2011
+      },
+      {
+        "date": "2020-04-17",
+        "au_basis": 103.5,
+        "au_basis_zscore": -0.411,
+        "oil_basis": -0.04,
+        "oil_basis_zscore": -0.617,
+        "all_below_5pct": true,
+        "au_effdim": 1.6976,
+        "commodity_effdim": 1.2012
+      },
+      {
+        "date": "2020-04-20",
+        "au_basis": 104.6,
+        "au_basis_zscore": -0.445,
+        "oil_basis": -0.65,
+        "oil_basis_zscore": -0.799,
+        "all_below_5pct": null
+      },
+      {
+        "date": "2020-04-21",
+        "au_basis": 92.1,
+        "au_basis_zscore": -1.207,
+        "oil_basis": 1.1,
+        "oil_basis_zscore": -0.069,
+        "all_below_5pct": null
+      },
+      {
+        "date": "2020-04-22",
+        "au_basis": 111.4,
+        "au_basis_zscore": 0.105,
+        "oil_basis": 0.14,
+        "oil_basis_zscore": -0.428,
+        "all_below_5pct": true,
+        "au_effdim": 1.7041,
+        "commodity_effdim": 1.202
+      },
+      {
+        "date": "2020-04-23",
+        "au_basis": 99.9,
+        "au_basis_zscore": -0.604,
+        "oil_basis": 1.44,
+        "oil_basis_zscore": 0.199,
+        "all_below_5pct": true,
+        "au_effdim": 1.6268,
+        "commodity_effdim": 1.1709
+      },
+      {
+        "date": "2020-04-24",
+        "au_basis": 97.1,
+        "au_basis_zscore": -0.72,
+        "oil_basis": 0.95,
+        "oil_basis_zscore": 0.108,
+        "all_below_5pct": true,
+        "au_effdim": 1.6222,
+        "commodity_effdim": 1.1693
+      },
+      {
+        "date": "2020-04-27",
+        "au_basis": 96.3,
+        "au_basis_zscore": -0.748,
+        "oil_basis": 0.61,
+        "oil_basis_zscore": 0.095,
+        "all_below_5pct": true,
+        "au_effdim": 1.6203,
+        "commodity_effdim": 1.169
+      },
+      {
+        "date": "2020-04-28",
+        "au_basis": 102.1,
+        "au_basis_zscore": -0.403,
+        "oil_basis": -0.06,
+        "oil_basis_zscore": -0.486,
+        "all_below_5pct": true,
+        "au_effdim": 1.5944,
+        "commodity_effdim": 1.1591
+      },
+      {
+        "date": "2020-04-29",
+        "au_basis": 86.1,
+        "au_basis_zscore": -1.361,
+        "oil_basis": 0.02,
+        "oil_basis_zscore": -0.327,
+        "all_below_5pct": true,
+        "au_effdim": 1.5939,
+        "commodity_effdim": 1.1589
+      },
+      {
+        "date": "2020-04-30",
+        "au_basis": 96.2,
+        "au_basis_zscore": -0.789,
+        "oil_basis": -0.39,
+        "oil_basis_zscore": -1.094,
+        "all_below_5pct": true,
+        "au_effdim": 1.5776,
+        "commodity_effdim": 1.155
+      },
+      {
+        "date": "2020-05-01",
+        "au_basis": 96.7,
+        "au_basis_zscore": -0.711,
+        "oil_basis": 0.06,
+        "oil_basis_zscore": -0.187,
+        "all_below_5pct": true,
+        "au_effdim": 1.552,
+        "commodity_effdim": 1.1471
+      },
+      {
+        "date": "2020-05-04",
+        "au_basis": 103.5,
+        "au_basis_zscore": -0.243,
+        "oil_basis": -0.08,
+        "oil_basis_zscore": -0.459,
+        "all_below_5pct": true,
+        "au_effdim": 1.5549,
+        "commodity_effdim": 1.1479
+      },
+      {
+        "date": "2020-05-05",
+        "au_basis": 94.2,
+        "au_basis_zscore": -0.803,
+        "oil_basis": -0.0,
+        "oil_basis_zscore": -0.315,
+        "all_below_5pct": true,
+        "au_effdim": 1.5545,
+        "commodity_effdim": 1.1477
+      },
+      {
+        "date": "2020-05-06",
+        "au_basis": 94.7,
+        "au_basis_zscore": -0.728,
+        "oil_basis": 0.11,
+        "oil_basis_zscore": -0.096,
+        "all_below_5pct": true,
+        "au_effdim": 1.5419,
+        "commodity_effdim": 1.1442
+      },
+      {
+        "date": "2020-05-07",
+        "au_basis": 107.9,
+        "au_basis_zscore": 0.164,
+        "oil_basis": -0.13,
+        "oil_basis_zscore": -0.548,
+        "all_below_5pct": true,
+        "au_effdim": 1.5427,
+        "commodity_effdim": 1.1443
+      },
+      {
+        "date": "2020-05-08",
+        "au_basis": 105.7,
+        "au_basis_zscore": 0.222,
+        "oil_basis": 0.01,
+        "oil_basis_zscore": -0.286,
+        "all_below_5pct": true,
+        "au_effdim": 1.5436,
+        "commodity_effdim": 1.1446
+      },
+      {
+        "date": "2020-05-11",
+        "au_basis": 101.1,
+        "au_basis_zscore": -0.072,
+        "oil_basis": 0.12,
+        "oil_basis_zscore": -0.073,
+        "all_below_5pct": true,
+        "au_effdim": 1.5433,
+        "commodity_effdim": 1.1447
+      },
+      {
+        "date": "2020-05-12",
+        "au_basis": 104.0,
+        "au_basis_zscore": 0.568,
+        "oil_basis": 0.02,
+        "oil_basis_zscore": -0.28,
+        "all_below_5pct": true,
+        "au_effdim": 1.5441,
+        "commodity_effdim": 1.1448
+      },
+      {
+        "date": "2020-05-13",
+        "au_basis": 98.1,
+        "au_basis_zscore": -0.307,
+        "oil_basis": -0.08,
+        "oil_basis_zscore": -0.482,
+        "all_below_5pct": true,
+        "au_effdim": 1.5441,
+        "commodity_effdim": 1.1444
+      },
+      {
+        "date": "2020-05-14",
+        "au_basis": 108.0,
+        "au_basis_zscore": 1.27,
+        "oil_basis": 0.16,
+        "oil_basis_zscore": -0.011,
+        "all_below_5pct": true,
+        "au_effdim": 1.545,
+        "commodity_effdim": 1.1447
+      },
+      {
+        "date": "2020-05-15",
+        "au_basis": 114.1,
+        "au_basis_zscore": 1.947,
+        "oil_basis": -0.01,
+        "oil_basis_zscore": -0.356,
+        "all_below_5pct": true,
+        "au_effdim": 1.5441,
+        "commodity_effdim": 1.1443
+      },
+      {
+        "date": "2020-05-18",
+        "au_basis": 104.9,
+        "au_basis_zscore": 0.608,
+        "oil_basis": -0.01,
+        "oil_basis_zscore": -0.454,
+        "all_below_5pct": true,
+        "au_effdim": 1.543,
+        "commodity_effdim": 1.1439
+      },
+      {
+        "date": "2020-05-19",
+        "au_basis": 101.6,
+        "au_basis_zscore": 0.064,
+        "oil_basis": 0.2,
+        "oil_basis_zscore": 0.113,
+        "all_below_5pct": true,
+        "au_effdim": 1.541,
+        "commodity_effdim": 1.1439
+      },
+      {
+        "date": "2020-05-20",
+        "au_basis": 104.1,
+        "au_basis_zscore": 0.531,
+        "oil_basis": -0.07,
+        "oil_basis_zscore": -0.518,
+        "all_below_5pct": true,
+        "au_effdim": 1.5415,
+        "commodity_effdim": 1.1439
+      },
+      {
+        "date": "2020-05-21",
+        "au_basis": 98.0,
+        "au_basis_zscore": -0.437,
+        "oil_basis": -0.38,
+        "oil_basis_zscore": -1.467,
+        "all_below_5pct": true,
+        "au_effdim": 1.5415,
+        "commodity_effdim": 1.144
+      },
+      {
+        "date": "2020-05-22",
+        "au_basis": 102.5,
+        "au_basis_zscore": 0.245,
+        "oil_basis": -0.24,
+        "oil_basis_zscore": -1.095,
+        "all_below_5pct": true,
+        "au_effdim": 1.5416,
+        "commodity_effdim": 1.1441
+      },
+      {
+        "date": "2020-05-25",
+        "au_basis": null,
+        "au_basis_zscore": null,
+        "oil_basis": null,
+        "oil_basis_zscore": null,
+        "all_below_5pct": null
+      },
+      {
+        "date": "2020-05-26",
+        "au_basis": 95.9,
+        "au_basis_zscore": -0.82,
+        "oil_basis": -0.35,
+        "oil_basis_zscore": -1.732,
+        "all_below_5pct": true,
+        "au_effdim": 1.5409,
+        "commodity_effdim": 1.1439
+      },
+      {
+        "date": "2020-05-27",
+        "au_basis": 98.5,
+        "au_basis_zscore": -0.369,
+        "oil_basis": 0.01,
+        "oil_basis_zscore": 0.36,
+        "all_below_5pct": true,
+        "au_effdim": 1.5414,
+        "commodity_effdim": 1.1443
+      },
+      {
+        "date": "2020-05-28",
+        "au_basis": 96.1,
+        "au_basis_zscore": -0.98,
+        "oil_basis": 0.04,
+        "oil_basis_zscore": 0.528,
+        "all_below_5pct": true,
+        "au_effdim": 1.5404,
+        "commodity_effdim": 1.1439
+      },
+      {
+        "date": "2020-05-29",
+        "au_basis": 107.8,
+        "au_basis_zscore": 1.11,
+        "oil_basis": -0.08,
+        "oil_basis_zscore": -0.296,
+        "all_below_5pct": true,
+        "au_effdim": 1.5407,
+        "commodity_effdim": 1.1439
+      },
+      {
+        "date": "2020-06-01",
+        "au_basis": 101.2,
+        "au_basis_zscore": -0.172,
+        "oil_basis": -0.05,
+        "oil_basis_zscore": -0.063,
+        "all_below_5pct": true,
+        "au_effdim": 1.5421,
+        "commodity_effdim": 1.144
+      }
+    ],
+    "exit_window": [
+      {
+        "date": "2021-02-01",
+        "au_basis": 118.5,
+        "au_basis_zscore": 0.545,
+        "oil_basis": -0.0,
+        "oil_basis_zscore": -1.434,
+        "all_below_5pct": true,
+        "au_effdim": 1.6097,
+        "commodity_effdim": 1.1688
+      },
+      {
+        "date": "2021-02-02",
+        "au_basis": 109.4,
+        "au_basis_zscore": -0.836,
+        "oil_basis": -0.01,
+        "oil_basis_zscore": -1.42,
+        "all_below_5pct": true,
+        "au_effdim": 1.6093,
+        "commodity_effdim": 1.1687
+      },
+      {
+        "date": "2021-02-03",
+        "au_basis": 113.7,
+        "au_basis_zscore": -0.054,
+        "oil_basis": 0.02,
+        "oil_basis_zscore": -0.861,
+        "all_below_5pct": true,
+        "au_effdim": 1.6108,
+        "commodity_effdim": 1.1692
+      },
+      {
+        "date": "2021-02-04",
+        "au_basis": 107.4,
+        "au_basis_zscore": -1.147,
+        "oil_basis": 0.04,
+        "oil_basis_zscore": -0.47,
+        "all_below_5pct": true,
+        "au_effdim": 1.611,
+        "commodity_effdim": 1.1693
+      },
+      {
+        "date": "2021-02-05",
+        "au_basis": 112.8,
+        "au_basis_zscore": -0.167,
+        "oil_basis": 0.05,
+        "oil_basis_zscore": -0.202,
+        "all_below_5pct": true,
+        "au_effdim": 1.6138,
+        "commodity_effdim": 1.17
+      },
+      {
+        "date": "2021-02-08",
+        "au_basis": 116.7,
+        "au_basis_zscore": 0.447,
+        "oil_basis": 0.02,
+        "oil_basis_zscore": -0.728,
+        "all_below_5pct": true,
+        "au_effdim": 1.6144,
+        "commodity_effdim": 1.1702
+      },
+      {
+        "date": "2021-02-09",
+        "au_basis": 114.5,
+        "au_basis_zscore": 0.044,
+        "oil_basis": 0.02,
+        "oil_basis_zscore": -0.654,
+        "all_below_5pct": true,
+        "au_effdim": 1.6122,
+        "commodity_effdim": 1.1697
+      },
+      {
+        "date": "2021-02-10",
+        "au_basis": 113.5,
+        "au_basis_zscore": -0.383,
+        "oil_basis": -0.01,
+        "oil_basis_zscore": -1.166,
+        "all_below_5pct": true,
+        "au_effdim": 1.6124,
+        "commodity_effdim": 1.1697
+      },
+      {
+        "date": "2021-02-11",
+        "au_basis": 112.8,
+        "au_basis_zscore": -0.503,
+        "oil_basis": 0.02,
+        "oil_basis_zscore": -0.46,
+        "all_below_5pct": true,
+        "au_effdim": 1.6124,
+        "commodity_effdim": 1.1697
+      },
+      {
+        "date": "2021-02-12",
+        "au_basis": 114.7,
+        "au_basis_zscore": 0.092,
+        "oil_basis": -0.03,
+        "oil_basis_zscore": -1.401,
+        "all_below_5pct": true,
+        "au_effdim": 1.6129,
+        "commodity_effdim": 1.1698
+      },
+      {
+        "date": "2021-02-15",
+        "au_basis": null,
+        "au_basis_zscore": null,
+        "oil_basis": null,
+        "oil_basis_zscore": null,
+        "all_below_5pct": null
+      },
+      {
+        "date": "2021-02-16",
+        "au_basis": 114.8,
+        "au_basis_zscore": 0.175,
+        "oil_basis": -0.02,
+        "oil_basis_zscore": -1.092,
+        "all_below_5pct": true,
+        "au_effdim": 1.6129,
+        "commodity_effdim": 1.1698
+      },
+      {
+        "date": "2021-02-17",
+        "au_basis": 107.8,
+        "au_basis_zscore": -1.719,
+        "oil_basis": 0.05,
+        "oil_basis_zscore": 0.626,
+        "all_below_5pct": true,
+        "au_effdim": 1.6133,
+        "commodity_effdim": 1.1699
+      },
+      {
+        "date": "2021-02-18",
+        "au_basis": 110.2,
+        "au_basis_zscore": -1.001,
+        "oil_basis": 0.12,
+        "oil_basis_zscore": 2.13,
+        "all_below_5pct": true,
+        "au_effdim": 1.6143,
+        "commodity_effdim": 1.1702
+      },
+      {
+        "date": "2021-02-19",
+        "au_basis": 105.7,
+        "au_basis_zscore": -1.919,
+        "oil_basis": 0.12,
+        "oil_basis_zscore": 2.202,
+        "all_below_5pct": true,
+        "au_effdim": 1.6142,
+        "commodity_effdim": 1.1702
+      },
+      {
+        "date": "2021-02-22",
+        "au_basis": 111.6,
+        "au_basis_zscore": -0.411,
+        "oil_basis": -0.18,
+        "oil_basis_zscore": -3.17,
+        "all_below_5pct": true,
+        "au_effdim": 1.6139,
+        "commodity_effdim": 1.1701
+      },
+      {
+        "date": "2021-02-23",
+        "au_basis": 113.2,
+        "au_basis_zscore": 0.003,
+        "oil_basis": 0.01,
+        "oil_basis_zscore": -0.145,
+        "all_below_5pct": true,
+        "au_effdim": 1.6159,
+        "commodity_effdim": 1.1704
+      },
+      {
+        "date": "2021-02-24",
+        "au_basis": 106.4,
+        "au_basis_zscore": -1.496,
+        "oil_basis": 0.01,
+        "oil_basis_zscore": -0.153,
+        "all_below_5pct": true,
+        "au_effdim": 1.616,
+        "commodity_effdim": 1.1704
+      },
+      {
+        "date": "2021-02-25",
+        "au_basis": 116.2,
+        "au_basis_zscore": 0.89,
+        "oil_basis": 0.1,
+        "oil_basis_zscore": 1.202,
+        "all_below_5pct": true,
+        "au_effdim": 1.6159,
+        "commodity_effdim": 1.1704
+      },
+      {
+        "date": "2021-02-26",
+        "au_basis": 110.0,
+        "au_basis_zscore": -0.629,
+        "oil_basis": -0.05,
+        "oil_basis_zscore": -1.017,
+        "all_below_5pct": true,
+        "au_effdim": 1.6149,
+        "commodity_effdim": 1.1703
+      },
+      {
+        "date": "2021-03-01",
+        "au_basis": 107.2,
+        "au_basis_zscore": -1.264,
+        "oil_basis": 0.1,
+        "oil_basis_zscore": 1.201,
+        "all_below_5pct": true,
+        "au_effdim": 1.6161,
+        "commodity_effdim": 1.1697
+      },
+      {
+        "date": "2021-03-02",
+        "au_basis": 109.0,
+        "au_basis_zscore": -0.704,
+        "oil_basis": 0.05,
+        "oil_basis_zscore": 0.422,
+        "all_below_5pct": true,
+        "au_effdim": 1.6166,
+        "commodity_effdim": 1.1696
+      },
+      {
+        "date": "2021-03-03",
+        "au_basis": 109.1,
+        "au_basis_zscore": -0.668,
+        "oil_basis": -0.05,
+        "oil_basis_zscore": -1.005,
+        "all_below_5pct": true,
+        "au_effdim": 1.6168,
+        "commodity_effdim": 1.1698
+      },
+      {
+        "date": "2021-03-04",
+        "au_basis": 109.8,
+        "au_basis_zscore": -0.407,
+        "oil_basis": 0.02,
+        "oil_basis_zscore": 0.007,
+        "all_below_5pct": true,
+        "au_effdim": 1.6136,
+        "commodity_effdim": 1.1684
+      },
+      {
+        "date": "2021-03-05",
+        "au_basis": 106.6,
+        "au_basis_zscore": -1.327,
+        "oil_basis": 0.01,
+        "oil_basis_zscore": -0.116,
+        "all_below_5pct": true,
+        "au_effdim": 1.6058,
+        "commodity_effdim": 1.167
+      },
+      {
+        "date": "2021-03-08",
+        "au_basis": 102.8,
+        "au_basis_zscore": -2.029,
+        "oil_basis": 0.02,
+        "oil_basis_zscore": 0.051,
+        "all_below_5pct": true,
+        "au_effdim": 1.6022,
+        "commodity_effdim": 1.1655
+      },
+      {
+        "date": "2021-03-09",
+        "au_basis": 108.2,
+        "au_basis_zscore": -0.554,
+        "oil_basis": -0.01,
+        "oil_basis_zscore": -0.363,
+        "all_below_5pct": true,
+        "au_effdim": 1.5944,
+        "commodity_effdim": 1.1634
+      },
+      {
+        "date": "2021-03-10",
+        "au_basis": 104.9,
+        "au_basis_zscore": -1.321,
+        "oil_basis": -0.01,
+        "oil_basis_zscore": -0.34,
+        "all_below_5pct": true,
+        "au_effdim": 1.5917,
+        "commodity_effdim": 1.1626
+      },
+      {
+        "date": "2021-03-11",
+        "au_basis": 107.1,
+        "au_basis_zscore": -0.643,
+        "oil_basis": -0.0,
+        "oil_basis_zscore": -0.203,
+        "all_below_5pct": true,
+        "au_effdim": 1.587,
+        "commodity_effdim": 1.1611
+      },
+      {
+        "date": "2021-03-12",
+        "au_basis": 104.6,
+        "au_basis_zscore": -1.206,
+        "oil_basis": 0.02,
+        "oil_basis_zscore": 0.087,
+        "all_below_5pct": true,
+        "au_effdim": 1.5918,
+        "commodity_effdim": 1.1622
+      },
+      {
+        "date": "2021-03-15",
+        "au_basis": 106.9,
+        "au_basis_zscore": -0.5,
+        "oil_basis": 0.03,
+        "oil_basis_zscore": 0.191,
+        "all_below_5pct": true,
+        "au_effdim": 1.6165,
+        "commodity_effdim": 1.1659
+      },
+      {
+        "date": "2021-03-16",
+        "au_basis": 107.1,
+        "au_basis_zscore": -0.362,
+        "oil_basis": -0.02,
+        "oil_basis_zscore": -0.542,
+        "all_below_5pct": true,
+        "au_effdim": 1.6152,
+        "commodity_effdim": 1.1646
+      },
+      {
+        "date": "2021-03-17",
+        "au_basis": 91.7,
+        "au_basis_zscore": -3.259,
+        "oil_basis": 0.05,
+        "oil_basis_zscore": 0.484,
+        "all_below_5pct": true,
+        "au_effdim": 1.6108,
+        "commodity_effdim": 1.1626
+      },
+      {
+        "date": "2021-03-18",
+        "au_basis": 106.6,
+        "au_basis_zscore": -0.133,
+        "oil_basis": 0.05,
+        "oil_basis_zscore": 0.567,
+        "all_below_5pct": true,
+        "au_effdim": 1.5898,
+        "commodity_effdim": 1.1538
+      },
+      {
+        "date": "2021-03-19",
+        "au_basis": 109.0,
+        "au_basis_zscore": 0.335,
+        "oil_basis": -0.01,
+        "oil_basis_zscore": -0.286,
+        "all_below_5pct": true,
+        "au_effdim": 1.5397,
+        "commodity_effdim": 1.1409
+      },
+      {
+        "date": "2021-03-22",
+        "au_basis": 107.8,
+        "au_basis_zscore": 0.126,
+        "oil_basis": 0.07,
+        "oil_basis_zscore": 1.214,
+        "all_below_5pct": true,
+        "au_effdim": 1.508,
+        "commodity_effdim": 1.1284
+      },
+      {
+        "date": "2021-03-23",
+        "au_basis": 106.6,
+        "au_basis_zscore": -0.063,
+        "oil_basis": 0.01,
+        "oil_basis_zscore": -0.228,
+        "all_below_5pct": true,
+        "au_effdim": 1.5079,
+        "commodity_effdim": 1.1284
+      },
+      {
+        "date": "2021-03-24",
+        "au_basis": 109.2,
+        "au_basis_zscore": 0.485,
+        "oil_basis": 0.06,
+        "oil_basis_zscore": 0.894,
+        "all_below_5pct": true,
+        "au_effdim": 1.5163,
+        "commodity_effdim": 1.1306
+      },
+      {
+        "date": "2021-03-25",
+        "au_basis": 107.1,
+        "au_basis_zscore": 0.136,
+        "oil_basis": 0.09,
+        "oil_basis_zscore": 1.647,
+        "all_below_5pct": true,
+        "au_effdim": 1.5309,
+        "commodity_effdim": 1.1344
+      },
+      {
+        "date": "2021-03-26",
+        "au_basis": 109.8,
+        "au_basis_zscore": 0.826,
+        "oil_basis": 0.04,
+        "oil_basis_zscore": 0.367,
+        "all_below_5pct": true,
+        "au_effdim": 1.5541,
+        "commodity_effdim": 1.1385
+      },
+      {
+        "date": "2021-03-29",
+        "au_basis": 109.0,
+        "au_basis_zscore": 0.594,
+        "oil_basis": 0.07,
+        "oil_basis_zscore": 1.278,
+        "all_below_5pct": true,
+        "au_effdim": 1.5249,
+        "commodity_effdim": 1.1355
+      },
+      {
+        "date": "2021-03-30",
+        "au_basis": 108.2,
+        "au_basis_zscore": 0.404,
+        "oil_basis": -0.0,
+        "oil_basis_zscore": -0.62,
+        "all_below_5pct": true,
+        "au_effdim": 1.5177,
+        "commodity_effdim": 1.1309
+      },
+      {
+        "date": "2021-03-31",
+        "au_basis": 114.2,
+        "au_basis_zscore": 1.72,
+        "oil_basis": -0.03,
+        "oil_basis_zscore": -1.579,
+        "all_below_5pct": true,
+        "au_effdim": 1.5172,
+        "commodity_effdim": 1.1307
+      },
+      {
+        "date": "2021-04-01",
+        "au_basis": 106.7,
+        "au_basis_zscore": -0.001,
+        "oil_basis": 0.04,
+        "oil_basis_zscore": 0.474,
+        "all_below_5pct": true,
+        "au_effdim": 1.527,
+        "commodity_effdim": 1.1337
+      },
+      {
+        "date": "2021-04-02",
+        "au_basis": null,
+        "au_basis_zscore": null,
+        "oil_basis": null,
+        "oil_basis_zscore": null,
+        "all_below_5pct": null
+      },
+      {
+        "date": "2021-04-05",
+        "au_basis": 107.8,
+        "au_basis_zscore": 0.245,
+        "oil_basis": -0.08,
+        "oil_basis_zscore": -2.428,
+        "all_below_5pct": true,
+        "au_effdim": 1.5277,
+        "commodity_effdim": 1.1336
+      },
+      {
+        "date": "2021-04-06",
+        "au_basis": 109.3,
+        "au_basis_zscore": 0.533,
+        "oil_basis": -0.01,
+        "oil_basis_zscore": -0.675,
+        "all_below_5pct": true,
+        "au_effdim": 1.5262,
+        "commodity_effdim": 1.134
+      },
+      {
+        "date": "2021-04-07",
+        "au_basis": 112.5,
+        "au_basis_zscore": 1.204,
+        "oil_basis": 0.0,
+        "oil_basis_zscore": -0.449,
+        "all_below_5pct": true,
+        "au_effdim": 1.6111,
+        "commodity_effdim": 1.1586
+      },
+      {
+        "date": "2021-04-08",
+        "au_basis": 111.7,
+        "au_basis_zscore": 0.925,
+        "oil_basis": -0.01,
+        "oil_basis_zscore": -0.692,
+        "all_below_5pct": true,
+        "au_effdim": 1.6016,
+        "commodity_effdim": 1.1547
+      },
+      {
+        "date": "2021-04-09",
+        "au_basis": 110.6,
+        "au_basis_zscore": 0.628,
+        "oil_basis": 0.03,
+        "oil_basis_zscore": 0.244,
+        "all_below_5pct": true,
+        "au_effdim": 1.6169,
+        "commodity_effdim": 1.1619
+      },
+      {
+        "date": "2021-04-12",
+        "au_basis": 108.4,
+        "au_basis_zscore": 0.089,
+        "oil_basis": 0.0,
+        "oil_basis_zscore": -0.46,
+        "all_below_5pct": true,
+        "au_effdim": 1.6214,
+        "commodity_effdim": 1.1641
+      },
+      {
+        "date": "2021-04-13",
+        "au_basis": 111.9,
+        "au_basis_zscore": 0.82,
+        "oil_basis": -0.02,
+        "oil_basis_zscore": -0.867,
+        "all_below_5pct": true,
+        "au_effdim": 1.613,
+        "commodity_effdim": 1.161
+      },
+      {
+        "date": "2021-04-14",
+        "au_basis": 107.7,
+        "au_basis_zscore": -0.133,
+        "oil_basis": 0.0,
+        "oil_basis_zscore": -0.423,
+        "all_below_5pct": true,
+        "au_effdim": 1.6205,
+        "commodity_effdim": 1.1638
+      },
+      {
+        "date": "2021-04-15",
+        "au_basis": 111.9,
+        "au_basis_zscore": 1.189,
+        "oil_basis": 0.04,
+        "oil_basis_zscore": 0.56,
+        "all_below_5pct": true,
+        "au_effdim": 1.6178,
+        "commodity_effdim": 1.1623
+      },
+      {
+        "date": "2021-04-16",
+        "au_basis": 115.5,
+        "au_basis_zscore": 2.308,
+        "oil_basis": -0.03,
+        "oil_basis_zscore": -1.035,
+        "all_below_5pct": true,
+        "au_effdim": 1.625,
+        "commodity_effdim": 1.1625
+      },
+      {
+        "date": "2021-04-19",
+        "au_basis": 110.5,
+        "au_basis_zscore": 0.273,
+        "oil_basis": 0.05,
+        "oil_basis_zscore": 0.81,
+        "all_below_5pct": true,
+        "au_effdim": 1.6253,
+        "commodity_effdim": 1.1624
+      },
+      {
+        "date": "2021-04-20",
+        "au_basis": 112.5,
+        "au_basis_zscore": 0.973,
+        "oil_basis": -0.17,
+        "oil_basis_zscore": -3.039,
+        "all_below_5pct": true,
+        "au_effdim": 1.629,
+        "commodity_effdim": 1.1639
+      },
+      {
+        "date": "2021-04-21",
+        "au_basis": 111.0,
+        "au_basis_zscore": 0.304,
+        "oil_basis": 0.01,
+        "oil_basis_zscore": 0.105,
+        "all_below_5pct": true,
+        "au_effdim": 1.6251,
+        "commodity_effdim": 1.1626
+      },
+      {
+        "date": "2021-04-22",
+        "au_basis": 110.8,
+        "au_basis_zscore": 0.188,
+        "oil_basis": -0.02,
+        "oil_basis_zscore": -0.358,
+        "all_below_5pct": true,
+        "au_effdim": 1.6237,
+        "commodity_effdim": 1.1624
+      },
+      {
+        "date": "2021-04-23",
+        "au_basis": 113.0,
+        "au_basis_zscore": 1.016,
+        "oil_basis": -0.04,
+        "oil_basis_zscore": -0.64,
+        "all_below_5pct": true,
+        "au_effdim": 1.6148,
+        "commodity_effdim": 1.1615
+      },
+      {
+        "date": "2021-04-26",
+        "au_basis": 110.8,
+        "au_basis_zscore": 0.043,
+        "oil_basis": -0.11,
+        "oil_basis_zscore": -1.716,
+        "all_below_5pct": false,
+        "au_effdim": 1.7225,
+        "commodity_effdim": 1.2154
+      },
+      {
+        "date": "2021-04-27",
+        "au_basis": 113.8,
+        "au_basis_zscore": 1.208,
+        "oil_basis": -0.09,
+        "oil_basis_zscore": -1.242,
+        "all_below_5pct": false,
+        "au_effdim": 1.7289,
+        "commodity_effdim": 1.2192
+      },
+      {
+        "date": "2021-04-28",
+        "au_basis": 104.1,
+        "au_basis_zscore": -2.403,
+        "oil_basis": 0.05,
+        "oil_basis_zscore": 1.222,
+        "all_below_5pct": false,
+        "au_effdim": 1.7333,
+        "commodity_effdim": 1.2202
+      },
+      {
+        "date": "2021-04-29",
+        "au_basis": 105.9,
+        "au_basis_zscore": -1.558,
+        "oil_basis": 0.01,
+        "oil_basis_zscore": 0.481,
+        "all_below_5pct": false,
+        "au_effdim": 1.7883,
+        "commodity_effdim": 1.263
+      },
+      {
+        "date": "2021-04-30",
+        "au_basis": 110.7,
+        "au_basis_zscore": 0.067,
+        "oil_basis": 0.08,
+        "oil_basis_zscore": 1.593,
+        "all_below_5pct": false,
+        "au_effdim": 1.7877,
+        "commodity_effdim": 1.263
+      },
+      {
+        "date": "2021-05-03",
+        "au_basis": 113.3,
+        "au_basis_zscore": 0.93,
+        "oil_basis": 0.03,
+        "oil_basis_zscore": 0.681,
+        "all_below_5pct": false,
+        "au_effdim": 1.842,
+        "commodity_effdim": 1.2905
+      },
+      {
+        "date": "2021-05-04",
+        "au_basis": 110.0,
+        "au_basis_zscore": -0.31,
+        "oil_basis": -0.03,
+        "oil_basis_zscore": -0.322,
+        "all_below_5pct": false,
+        "au_effdim": 1.9212,
+        "commodity_effdim": 1.3619
+      },
+      {
+        "date": "2021-05-05",
+        "au_basis": 111.4,
+        "au_basis_zscore": 0.236,
+        "oil_basis": -0.0,
+        "oil_basis_zscore": 0.187,
+        "all_below_5pct": false,
+        "au_effdim": 1.9089,
+        "commodity_effdim": 1.3576
+      },
+      {
+        "date": "2021-05-06",
+        "au_basis": 114.9,
+        "au_basis_zscore": 1.414,
+        "oil_basis": -0.02,
+        "oil_basis_zscore": -0.144,
+        "all_below_5pct": false,
+        "au_effdim": 1.9085,
+        "commodity_effdim": 1.3583
+      },
+      {
+        "date": "2021-05-07",
+        "au_basis": 115.2,
+        "au_basis_zscore": 1.363,
+        "oil_basis": -0.06,
+        "oil_basis_zscore": -0.745,
+        "all_below_5pct": false,
+        "au_effdim": 1.9506,
+        "commodity_effdim": 1.411
+      },
+      {
+        "date": "2021-05-10",
+        "au_basis": 116.4,
+        "au_basis_zscore": 1.558,
+        "oil_basis": -0.0,
+        "oil_basis_zscore": 0.271,
+        "all_below_5pct": false,
+        "au_effdim": 1.9488,
+        "commodity_effdim": 1.4123
+      },
+      {
+        "date": "2021-05-11",
+        "au_basis": 114.5,
+        "au_basis_zscore": 0.884,
+        "oil_basis": -0.03,
+        "oil_basis_zscore": -0.228,
+        "all_below_5pct": false,
+        "au_effdim": 1.9514,
+        "commodity_effdim": 1.4123
+      },
+      {
+        "date": "2021-05-12",
+        "au_basis": 118.3,
+        "au_basis_zscore": 1.814,
+        "oil_basis": 0.12,
+        "oil_basis_zscore": 1.962,
+        "all_below_5pct": false,
+        "au_effdim": 1.9588,
+        "commodity_effdim": 1.415
+      },
+      {
+        "date": "2021-05-13",
+        "au_basis": 112.5,
+        "au_basis_zscore": 0.073,
+        "oil_basis": -0.0,
+        "oil_basis_zscore": 0.191,
+        "all_below_5pct": false,
+        "au_effdim": 1.9619,
+        "commodity_effdim": 1.4195
+      },
+      {
+        "date": "2021-05-14",
+        "au_basis": 111.0,
+        "au_basis_zscore": -0.315,
+        "oil_basis": 0.05,
+        "oil_basis_zscore": 0.875,
+        "all_below_5pct": false,
+        "au_effdim": 1.9486,
+        "commodity_effdim": 1.4216
+      },
+      {
+        "date": "2021-05-17",
+        "au_basis": 120.5,
+        "au_basis_zscore": 2.124,
+        "oil_basis": 0.03,
+        "oil_basis_zscore": 0.598,
+        "all_below_5pct": false,
+        "au_effdim": 1.9505,
+        "commodity_effdim": 1.4207
+      },
+      {
+        "date": "2021-05-18",
+        "au_basis": 117.4,
+        "au_basis_zscore": 1.184,
+        "oil_basis": -0.0,
+        "oil_basis_zscore": 0.018,
+        "all_below_5pct": false,
+        "au_effdim": 1.9511,
+        "commodity_effdim": 1.4304
+      },
+      {
+        "date": "2021-05-19",
+        "au_basis": 129.7,
+        "au_basis_zscore": 2.956,
+        "oil_basis": 0.08,
+        "oil_basis_zscore": 1.357,
+        "all_below_5pct": false,
+        "au_effdim": 1.9476,
+        "commodity_effdim": 1.4385
+      },
+      {
+        "date": "2021-05-20",
+        "au_basis": 122.2,
+        "au_basis_zscore": 1.394,
+        "oil_basis": 0.1,
+        "oil_basis_zscore": 1.505,
+        "all_below_5pct": false,
+        "au_effdim": 1.9645,
+        "commodity_effdim": 1.4441
+      },
+      {
+        "date": "2021-05-21",
+        "au_basis": 116.3,
+        "au_basis_zscore": 0.326,
+        "oil_basis": -0.03,
+        "oil_basis_zscore": -0.645,
+        "all_below_5pct": false,
+        "au_effdim": 1.9629,
+        "commodity_effdim": 1.4424
+      },
+      {
+        "date": "2021-05-24",
+        "au_basis": 121.1,
+        "au_basis_zscore": 1.057,
+        "oil_basis": -0.08,
+        "oil_basis_zscore": -1.57,
+        "all_below_5pct": false,
+        "au_effdim": 1.9628,
+        "commodity_effdim": 1.4428
+      },
+      {
+        "date": "2021-05-25",
+        "au_basis": 118.6,
+        "au_basis_zscore": 0.581,
+        "oil_basis": -0.2,
+        "oil_basis_zscore": -2.874,
+        "all_below_5pct": false,
+        "au_effdim": 1.965,
+        "commodity_effdim": 1.4406
+      },
+      {
+        "date": "2021-05-26",
+        "au_basis": 124.9,
+        "au_basis_zscore": 1.54,
+        "oil_basis": -0.2,
+        "oil_basis_zscore": -2.296,
+        "all_below_5pct": false,
+        "au_effdim": 1.9679,
+        "commodity_effdim": 1.4435
+      },
+      {
+        "date": "2021-05-27",
+        "au_basis": 118.6,
+        "au_basis_zscore": 0.339,
+        "oil_basis": -0.02,
+        "oil_basis_zscore": -0.131,
+        "all_below_5pct": false,
+        "au_effdim": 1.9766,
+        "commodity_effdim": 1.4457
+      },
+      {
+        "date": "2021-05-28",
+        "au_basis": 118.7,
+        "au_basis_zscore": 0.292,
+        "oil_basis": 0.01,
+        "oil_basis_zscore": 0.277,
+        "all_below_5pct": false,
+        "au_effdim": 1.9733,
+        "commodity_effdim": 1.4536
+      },
+      {
+        "date": "2021-05-31",
+        "au_basis": null,
+        "au_basis_zscore": null,
+        "oil_basis": null,
+        "oil_basis_zscore": null,
+        "all_below_5pct": null
+      },
+      {
+        "date": "2021-06-01",
+        "au_basis": 123.9,
+        "au_basis_zscore": 1.218,
+        "oil_basis": -0.08,
+        "oil_basis_zscore": -0.756,
+        "all_below_5pct": false,
+        "au_effdim": 1.9709,
+        "commodity_effdim": 1.4544
+      },
+      {
+        "date": "2021-06-02",
+        "au_basis": 119.8,
+        "au_basis_zscore": 0.322,
+        "oil_basis": 0.04,
+        "oil_basis_zscore": 0.657,
+        "all_below_5pct": false,
+        "au_effdim": 1.9651,
+        "commodity_effdim": 1.4571
+      },
+      {
+        "date": "2021-06-03",
+        "au_basis": 118.5,
+        "au_basis_zscore": -0.034,
+        "oil_basis": -0.0,
+        "oil_basis_zscore": 0.175,
+        "all_below_5pct": false,
+        "au_effdim": 1.9649,
+        "commodity_effdim": 1.4566
+      },
+      {
+        "date": "2021-06-04",
+        "au_basis": 118.2,
+        "au_basis_zscore": -0.143,
+        "oil_basis": 0.05,
+        "oil_basis_zscore": 0.725,
+        "all_below_5pct": false,
+        "au_effdim": 1.9729,
+        "commodity_effdim": 1.4633
+      },
+      {
+        "date": "2021-06-07",
+        "au_basis": 118.1,
+        "au_basis_zscore": -0.204,
+        "oil_basis": 0.02,
+        "oil_basis_zscore": 0.323,
+        "all_below_5pct": false,
+        "au_effdim": 1.9759,
+        "commodity_effdim": 1.4619
+      },
+      {
+        "date": "2021-06-08",
+        "au_basis": 119.0,
+        "au_basis_zscore": -0.022,
+        "oil_basis": -0.06,
+        "oil_basis_zscore": -0.592,
+        "all_below_5pct": false,
+        "au_effdim": 1.9745,
+        "commodity_effdim": 1.4601
+      },
+      {
+        "date": "2021-06-09",
+        "au_basis": 123.4,
+        "au_basis_zscore": 0.937,
+        "oil_basis": 0.06,
+        "oil_basis_zscore": 0.764,
+        "all_below_5pct": false,
+        "au_effdim": 1.9991,
+        "commodity_effdim": 1.4611
+      },
+      {
+        "date": "2021-06-10",
+        "au_basis": 116.8,
+        "au_basis_zscore": -0.639,
+        "oil_basis": -0.05,
+        "oil_basis_zscore": -0.445,
+        "all_below_5pct": false,
+        "au_effdim": 2.0027,
+        "commodity_effdim": 1.4645
+      },
+      {
+        "date": "2021-06-11",
+        "au_basis": 120.0,
+        "au_basis_zscore": 0.043,
+        "oil_basis": -0.09,
+        "oil_basis_zscore": -0.866,
+        "all_below_5pct": false,
+        "au_effdim": 1.9978,
+        "commodity_effdim": 1.4633
+      },
+      {
+        "date": "2021-06-14",
+        "au_basis": 116.9,
+        "au_basis_zscore": -0.979,
+        "oil_basis": -0.06,
+        "oil_basis_zscore": -0.442,
+        "all_below_5pct": false,
+        "au_effdim": 1.9965,
+        "commodity_effdim": 1.4644
+      },
+      {
+        "date": "2021-06-15",
+        "au_basis": 114.0,
+        "au_basis_zscore": -1.626,
+        "oil_basis": 0.06,
+        "oil_basis_zscore": 0.997,
+        "all_below_5pct": false,
+        "au_effdim": 2.0095,
+        "commodity_effdim": 1.4572
+      },
+      {
+        "date": "2021-06-16",
+        "au_basis": 148.4,
+        "au_basis_zscore": 3.717,
+        "oil_basis": 0.12,
+        "oil_basis_zscore": 1.541,
+        "all_below_5pct": false,
+        "au_effdim": 2.006,
+        "commodity_effdim": 1.4559
+      },
+      {
+        "date": "2021-06-17",
+        "au_basis": 115.3,
+        "au_basis_zscore": -0.749,
+        "oil_basis": -0.02,
+        "oil_basis_zscore": 0.018,
+        "all_below_5pct": false,
+        "au_effdim": 2.0087,
+        "commodity_effdim": 1.4575
+      },
+      {
+        "date": "2021-06-18",
+        "au_basis": 118.6,
+        "au_basis_zscore": -0.26,
+        "oil_basis": -0.0,
+        "oil_basis_zscore": 0.327,
+        "all_below_5pct": false,
+        "au_effdim": 2.0193,
+        "commodity_effdim": 1.4744
+      },
+      {
+        "date": "2021-06-21",
+        "au_basis": 112.3,
+        "au_basis_zscore": -1.09,
+        "oil_basis": 0.02,
+        "oil_basis_zscore": 0.539,
+        "all_below_5pct": false,
+        "au_effdim": 2.0225,
+        "commodity_effdim": 1.4762
+      },
+      {
+        "date": "2021-06-22",
+        "au_basis": 113.8,
+        "au_basis_zscore": -0.819,
+        "oil_basis": -0.09,
+        "oil_basis_zscore": -0.799,
+        "all_below_5pct": false,
+        "au_effdim": 2.0261,
+        "commodity_effdim": 1.4775
+      },
+      {
+        "date": "2021-06-23",
+        "au_basis": 120.9,
+        "au_basis_zscore": 0.12,
+        "oil_basis": -0.03,
+        "oil_basis_zscore": -0.197,
+        "all_below_5pct": false,
+        "au_effdim": 2.0221,
+        "commodity_effdim": 1.4763
+      },
+      {
+        "date": "2021-06-24",
+        "au_basis": 115.2,
+        "au_basis_zscore": -0.583,
+        "oil_basis": -0.01,
+        "oil_basis_zscore": -0.062,
+        "all_below_5pct": false,
+        "au_effdim": 2.0198,
+        "commodity_effdim": 1.4765
+      },
+      {
+        "date": "2021-06-25",
+        "au_basis": 110.7,
+        "au_basis_zscore": -1.098,
+        "oil_basis": -0.16,
+        "oil_basis_zscore": -2.227,
+        "all_below_5pct": false,
+        "au_effdim": 2.0208,
+        "commodity_effdim": 1.4765
+      },
+      {
+        "date": "2021-06-28",
+        "au_basis": 113.8,
+        "au_basis_zscore": -0.654,
+        "oil_basis": -0.07,
+        "oil_basis_zscore": -0.787,
+        "all_below_5pct": false,
+        "au_effdim": 2.0245,
+        "commodity_effdim": 1.4833
+      },
+      {
+        "date": "2021-06-29",
+        "au_basis": 114.5,
+        "au_basis_zscore": -0.506,
+        "oil_basis": -0.16,
+        "oil_basis_zscore": -1.903,
+        "all_below_5pct": false,
+        "au_effdim": 2.0254,
+        "commodity_effdim": 1.4821
+      },
+      {
+        "date": "2021-06-30",
+        "au_basis": 114.5,
+        "au_basis_zscore": -0.469,
+        "oil_basis": -0.05,
+        "oil_basis_zscore": -0.335,
+        "all_below_5pct": false,
+        "au_effdim": 2.0186,
+        "commodity_effdim": 1.4768
+      },
+      {
+        "date": "2021-07-01",
+        "au_basis": 113.9,
+        "au_basis_zscore": -0.513,
+        "oil_basis": -0.1,
+        "oil_basis_zscore": -0.944,
+        "all_below_5pct": false,
+        "au_effdim": 2.0201,
+        "commodity_effdim": 1.4778
+      }
+    ]
+  }
+}

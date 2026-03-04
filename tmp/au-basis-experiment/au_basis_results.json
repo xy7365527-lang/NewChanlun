@@ -1,0 +1,860 @@
+{
+  "experiment": "Au edge internal structure: basis leading signal test",
+  "epistemological_level": "L2",
+  "data": {
+    "futures": "GC=F (gold futures, continuous contract)",
+    "spot_proxy": "GLD * 10 (SPDR Gold Trust ETF, 1 share ≈ 1/10 oz)",
+    "period": "2019-07-01 to 2020-12-31",
+    "rolling_window": 20,
+    "z_threshold": 2.0
+  },
+  "cluster_1_analysis": {
+    "label": "Cluster 1 (2020-04-22 to 2020-05-05)",
+    "cluster_start": "2020-04-22",
+    "cluster_end": "2020-05-05",
+    "cluster_days_count": 6,
+    "pre_cluster": {
+      "phase": "pre",
+      "n": 13,
+      "basis_mean": 112.88460129957933,
+      "basis_std": 15.361635911296602,
+      "basis_min": 92.09994506835938,
+      "basis_max": 149.2999267578125,
+      "basis_pct_mean": 7.13855147554363,
+      "basis_pct_max": 9.408275534745115,
+      "zscore_mean": 0.4377708059266228,
+      "zscore_max_abs": 2.4511756538607132
+    },
+    "during_cluster": {
+      "phase": "during",
+      "n": 6,
+      "basis_mean": 97.35001627604167,
+      "basis_std": 8.28026508022396,
+      "basis_min": 86.10006713867188,
+      "basis_max": 111.39999389648438,
+      "basis_pct_mean": 6.032761202581671,
+      "basis_pct_max": 6.8880230531976325,
+      "zscore_mean": -0.700020945449992,
+      "zscore_max_abs": 1.3612637086252586
+    },
+    "post_cluster": {
+      "phase": "post",
+      "n": 13,
+      "basis_mean": 103.43848830003004,
+      "basis_std": 5.054322624314444,
+      "basis_min": 94.69998168945312,
+      "basis_max": 114.10009765625,
+      "basis_pct_mean": 6.385040745178246,
+      "basis_pct_max": 6.960294195944716,
+      "zscore_mean": 0.3134024930027944,
+      "zscore_max_abs": 1.9467271230494396
+    },
+    "basis_peak": {
+      "date": "2020-04-09",
+      "value": 149.3,
+      "phase": "pre"
+    },
+    "daily_detail": [
+      {
+        "date": "2020-04-07",
+        "gc_close": 1664.8,
+        "gld_oz": 1560.4,
+        "basis": 104.4,
+        "basis_pct": 6.6906,
+        "zscore": 0.346,
+        "is_cluster_day": false
+      },
+      {
+        "date": "2020-04-08",
+        "gc_close": 1665.4,
+        "gld_oz": 1546.5,
+        "basis": 118.9,
+        "basis_pct": 7.6883,
+        "zscore": 1.183,
+        "is_cluster_day": false
+      },
+      {
+        "date": "2020-04-09",
+        "gc_close": 1736.2,
+        "gld_oz": 1586.9,
+        "basis": 149.3,
+        "basis_pct": 9.4083,
+        "zscore": 2.451,
+        "is_cluster_day": false
+      },
+      {
+        "date": "2020-04-13",
+        "gc_close": 1744.8,
+        "gld_oz": 1614.1,
+        "basis": 130.7,
+        "basis_pct": 8.0974,
+        "zscore": 1.335,
+        "is_cluster_day": false
+      },
+      {
+        "date": "2020-04-14",
+        "gc_close": 1756.7,
+        "gld_oz": 1626.8,
+        "basis": 129.9,
+        "basis_pct": 7.985,
+        "zscore": 1.202,
+        "is_cluster_day": false
+      },
+      {
+        "date": "2020-04-15",
+        "gc_close": 1727.2,
+        "gld_oz": 1618.5,
+        "basis": 108.7,
+        "basis_pct": 6.7161,
+        "zscore": 0.029,
+        "is_cluster_day": false
+      },
+      {
+        "date": "2020-04-16",
+        "gc_close": 1720.4,
+        "gld_oz": 1617.1,
+        "basis": 103.3,
+        "basis_pct": 6.388,
+        "zscore": -0.403,
+        "is_cluster_day": false
+      },
+      {
+        "date": "2020-04-17",
+        "gc_close": 1689.2,
+        "gld_oz": 1585.7,
+        "basis": 103.5,
+        "basis_pct": 6.5271,
+        "zscore": -0.411,
+        "is_cluster_day": false
+      },
+      {
+        "date": "2020-04-20",
+        "gc_close": 1701.6,
+        "gld_oz": 1597.0,
+        "basis": 104.6,
+        "basis_pct": 6.5498,
+        "zscore": -0.445,
+        "is_cluster_day": false
+      },
+      {
+        "date": "2020-04-21",
+        "gc_close": 1678.2,
+        "gld_oz": 1586.1,
+        "basis": 92.1,
+        "basis_pct": 5.8067,
+        "zscore": -1.207,
+        "is_cluster_day": false
+      },
+      {
+        "date": "2020-04-22",
+        "gc_close": 1728.7,
+        "gld_oz": 1617.3,
+        "basis": 111.4,
+        "basis_pct": 6.888,
+        "zscore": 0.105,
+        "is_cluster_day": true
+      },
+      {
+        "date": "2020-04-23",
+        "gc_close": 1733.3,
+        "gld_oz": 1633.4,
+        "basis": 99.9,
+        "basis_pct": 6.1161,
+        "zscore": -0.604,
+        "is_cluster_day": true
+      },
+      {
+        "date": "2020-04-24",
+        "gc_close": 1723.5,
+        "gld_oz": 1626.4,
+        "basis": 97.1,
+        "basis_pct": 5.9702,
+        "zscore": -0.72,
+        "is_cluster_day": false
+      },
+      {
+        "date": "2020-04-27",
+        "gc_close": 1711.9,
+        "gld_oz": 1615.6,
+        "basis": 96.3,
+        "basis_pct": 5.9606,
+        "zscore": -0.748,
+        "is_cluster_day": true
+      },
+      {
+        "date": "2020-04-28",
+        "gc_close": 1710.5,
+        "gld_oz": 1608.4,
+        "basis": 102.1,
+        "basis_pct": 6.3479,
+        "zscore": -0.403,
+        "is_cluster_day": false
+      },
+      {
+        "date": "2020-04-29",
+        "gc_close": 1703.4,
+        "gld_oz": 1617.3,
+        "basis": 86.1,
+        "basis_pct": 5.3237,
+        "zscore": -1.361,
+        "is_cluster_day": true
+      },
+      {
+        "date": "2020-04-30",
+        "gc_close": 1684.2,
+        "gld_oz": 1588.0,
+        "basis": 96.2,
+        "basis_pct": 6.0579,
+        "zscore": -0.789,
+        "is_cluster_day": true
+      },
+      {
+        "date": "2020-05-01",
+        "gc_close": 1694.5,
+        "gld_oz": 1597.8,
+        "basis": 96.7,
+        "basis_pct": 6.0521,
+        "zscore": -0.711,
+        "is_cluster_day": false
+      },
+      {
+        "date": "2020-05-04",
+        "gc_close": 1706.9,
+        "gld_oz": 1603.4,
+        "basis": 103.5,
+        "basis_pct": 6.455,
+        "zscore": -0.243,
+        "is_cluster_day": false
+      },
+      {
+        "date": "2020-05-05",
+        "gc_close": 1704.4,
+        "gld_oz": 1610.2,
+        "basis": 94.2,
+        "basis_pct": 5.8502,
+        "zscore": -0.803,
+        "is_cluster_day": true
+      },
+      {
+        "date": "2020-05-06",
+        "gc_close": 1684.2,
+        "gld_oz": 1589.5,
+        "basis": 94.7,
+        "basis_pct": 5.9578,
+        "zscore": -0.728,
+        "is_cluster_day": false
+      },
+      {
+        "date": "2020-05-07",
+        "gc_close": 1721.8,
+        "gld_oz": 1613.9,
+        "basis": 107.9,
+        "basis_pct": 6.6857,
+        "zscore": 0.164,
+        "is_cluster_day": false
+      },
+      {
+        "date": "2020-05-08",
+        "gc_close": 1709.9,
+        "gld_oz": 1604.2,
+        "basis": 105.7,
+        "basis_pct": 6.589,
+        "zscore": 0.222,
+        "is_cluster_day": false
+      },
+      {
+        "date": "2020-05-11",
+        "gc_close": 1695.3,
+        "gld_oz": 1594.2,
+        "basis": 101.1,
+        "basis_pct": 6.3417,
+        "zscore": -0.072,
+        "is_cluster_day": false
+      },
+      {
+        "date": "2020-05-12",
+        "gc_close": 1704.4,
+        "gld_oz": 1600.4,
+        "basis": 104.0,
+        "basis_pct": 6.4984,
+        "zscore": 0.568,
+        "is_cluster_day": false
+      },
+      {
+        "date": "2020-05-13",
+        "gc_close": 1713.9,
+        "gld_oz": 1615.8,
+        "basis": 98.1,
+        "basis_pct": 6.0713,
+        "zscore": -0.307,
+        "is_cluster_day": false
+      },
+      {
+        "date": "2020-05-14",
+        "gc_close": 1738.1,
+        "gld_oz": 1630.1,
+        "basis": 108.0,
+        "basis_pct": 6.6254,
+        "zscore": 1.27,
+        "is_cluster_day": false
+      },
+      {
+        "date": "2020-05-15",
+        "gc_close": 1753.4,
+        "gld_oz": 1639.3,
+        "basis": 114.1,
+        "basis_pct": 6.9603,
+        "zscore": 1.947,
+        "is_cluster_day": false
+      }
+    ]
+  },
+  "cluster_2_analysis": {
+    "label": "Cluster 2 (2020-06-11)",
+    "cluster_start": "2020-06-11",
+    "cluster_end": "2020-06-11",
+    "cluster_days_count": 1,
+    "pre_cluster": {
+      "phase": "pre",
+      "n": 13,
+      "basis_mean": 98.92308161808894,
+      "basis_std": 7.367740597769573,
+      "basis_min": 77.5999755859375,
+      "basis_max": 107.79998779296875,
+      "basis_pct_mean": 6.126175914858247,
+      "basis_pct_max": 6.617149675876015,
+      "zscore_mean": -0.432077987459058,
+      "zscore_max_abs": 3.239699426923701
+    },
+    "during_cluster": {
+      "phase": "during",
+      "n": 1,
+      "basis_mean": 108.10000610351562,
+      "basis_std": 0.0,
+      "basis_min": 108.10000610351562,
+      "basis_max": 108.10000610351562,
+      "basis_pct_mean": 6.656814244092328,
+      "basis_pct_max": 6.656814244092328,
+      "zscore_mean": 0.9401795871790068,
+      "zscore_max_abs": 0.9401795871790068
+    },
+    "post_cluster": {
+      "phase": "post",
+      "n": 14,
+      "basis_mean": 106.05002049037388,
+      "basis_std": 4.81021203187205,
+      "basis_min": 97.00003051757812,
+      "basis_max": 119.300048828125,
+      "basis_pct_mean": 6.43578701778191,
+      "basis_pct_max": 7.1279233021781865,
+      "zscore_mean": 0.6489193915401109,
+      "zscore_max_abs": 2.0326371187563965
+    },
+    "basis_peak": {
+      "date": "2020-06-30",
+      "value": 119.3,
+      "phase": "post"
+    },
+    "daily_detail": [
+      {
+        "date": "2020-05-27",
+        "gc_close": 1710.3,
+        "gld_oz": 1611.8,
+        "basis": 98.5,
+        "basis_pct": 6.1112,
+        "zscore": -0.369,
+        "is_cluster_day": false
+      },
+      {
+        "date": "2020-05-28",
+        "gc_close": 1713.3,
+        "gld_oz": 1617.2,
+        "basis": 96.1,
+        "basis_pct": 5.9424,
+        "zscore": -0.98,
+        "is_cluster_day": false
+      },
+      {
+        "date": "2020-05-29",
+        "gc_close": 1736.9,
+        "gld_oz": 1629.1,
+        "basis": 107.8,
+        "basis_pct": 6.6171,
+        "zscore": 1.11,
+        "is_cluster_day": false
+      },
+      {
+        "date": "2020-06-01",
+        "gc_close": 1737.8,
+        "gld_oz": 1636.6,
+        "basis": 101.2,
+        "basis_pct": 6.1836,
+        "zscore": -0.172,
+        "is_cluster_day": false
+      },
+      {
+        "date": "2020-06-02",
+        "gc_close": 1725.2,
+        "gld_oz": 1626.0,
+        "basis": 99.2,
+        "basis_pct": 6.1009,
+        "zscore": -0.512,
+        "is_cluster_day": false
+      },
+      {
+        "date": "2020-06-03",
+        "gc_close": 1697.8,
+        "gld_oz": 1596.0,
+        "basis": 101.8,
+        "basis_pct": 6.3784,
+        "zscore": -0.094,
+        "is_cluster_day": false
+      },
+      {
+        "date": "2020-06-04",
+        "gc_close": 1718.9,
+        "gld_oz": 1612.8,
+        "basis": 106.1,
+        "basis_pct": 6.5786,
+        "zscore": 0.704,
+        "is_cluster_day": false
+      },
+      {
+        "date": "2020-06-05",
+        "gc_close": 1676.2,
+        "gld_oz": 1580.1,
+        "basis": 96.1,
+        "basis_pct": 6.0819,
+        "zscore": -1.302,
+        "is_cluster_day": false
+      },
+      {
+        "date": "2020-06-08",
+        "gc_close": 1698.3,
+        "gld_oz": 1597.2,
+        "basis": 101.1,
+        "basis_pct": 6.3298,
+        "zscore": -0.196,
+        "is_cluster_day": false
+      },
+      {
+        "date": "2020-06-09",
+        "gc_close": 1714.7,
+        "gld_oz": 1612.6,
+        "basis": 102.1,
+        "basis_pct": 6.3314,
+        "zscore": 0.009,
+        "is_cluster_day": false
+      },
+      {
+        "date": "2020-06-10",
+        "gc_close": 1713.3,
+        "gld_oz": 1635.7,
+        "basis": 77.6,
+        "basis_pct": 4.7441,
+        "zscore": -3.24,
+        "is_cluster_day": false
+      },
+      {
+        "date": "2020-06-11",
+        "gc_close": 1732.0,
+        "gld_oz": 1623.9,
+        "basis": 108.1,
+        "basis_pct": 6.6568,
+        "zscore": 0.94,
+        "is_cluster_day": true
+      },
+      {
+        "date": "2020-06-12",
+        "gc_close": 1729.3,
+        "gld_oz": 1626.2,
+        "basis": 103.1,
+        "basis_pct": 6.3399,
+        "zscore": 0.295,
+        "is_cluster_day": false
+      },
+      {
+        "date": "2020-06-15",
+        "gc_close": 1720.3,
+        "gld_oz": 1623.3,
+        "basis": 97.0,
+        "basis_pct": 5.9755,
+        "zscore": -0.485,
+        "is_cluster_day": false
+      },
+      {
+        "date": "2020-06-16",
+        "gc_close": 1729.6,
+        "gld_oz": 1622.5,
+        "basis": 107.1,
+        "basis_pct": 6.6009,
+        "zscore": 1.041,
+        "is_cluster_day": false
+      },
+      {
+        "date": "2020-06-17",
+        "gc_close": 1729.2,
+        "gld_oz": 1625.6,
+        "basis": 103.6,
+        "basis_pct": 6.373,
+        "zscore": 0.491,
+        "is_cluster_day": false
+      },
+      {
+        "date": "2020-06-18",
+        "gc_close": 1724.8,
+        "gld_oz": 1622.4,
+        "basis": 102.4,
+        "basis_pct": 6.3116,
+        "zscore": 0.325,
+        "is_cluster_day": false
+      },
+      {
+        "date": "2020-06-19",
+        "gc_close": 1745.9,
+        "gld_oz": 1640.3,
+        "basis": 105.6,
+        "basis_pct": 6.4378,
+        "zscore": 0.744,
+        "is_cluster_day": false
+      }
+    ]
+  },
+  "cluster_3_analysis": {
+    "label": "Cluster 3 (2020-11-09)",
+    "cluster_start": "2020-11-09",
+    "cluster_end": "2020-11-09",
+    "cluster_days_count": 1,
+    "pre_cluster": {
+      "phase": "pre",
+      "n": 14,
+      "basis_mean": 115.28570556640625,
+      "basis_std": 3.6549100932808942,
+      "basis_min": 106.39990234375,
+      "basis_max": 119.30001831054688,
+      "basis_pct_mean": 6.444715928222925,
+      "basis_pct_max": 6.667785576316504,
+      "zscore_mean": -0.08299050025453956,
+      "zscore_max_abs": 2.085320449855638
+    },
+    "during_cluster": {
+      "phase": "during",
+      "n": 1,
+      "basis_mean": 102.39993286132812,
+      "basis_std": 0.0,
+      "basis_min": 102.39993286132812,
+      "basis_max": 102.39993286132812,
+      "basis_pct_mean": 5.848750959012442,
+      "basis_pct_max": 5.848750959012442,
+      "zscore_mean": -2.6695717535889827,
+      "zscore_max_abs": 2.6695717535889827
+    },
+    "post_cluster": {
+      "phase": "post",
+      "n": 13,
+      "basis_mean": 113.51538790189304,
+      "basis_std": 4.508277213257568,
+      "basis_min": 104.00009155273438,
+      "basis_max": 119.5,
+      "basis_pct_mean": 6.520377455748406,
+      "basis_pct_max": 6.770538243626062,
+      "zscore_mean": -0.18019857813826212,
+      "zscore_max_abs": 1.8231210833113256
+    },
+    "basis_peak": {
+      "date": "2020-11-17",
+      "value": 119.5,
+      "phase": "post"
+    },
+    "daily_detail": [
+      {
+        "date": "2020-10-26",
+        "gc_close": 1902.7,
+        "gld_oz": 1785.5,
+        "basis": 117.2,
+        "basis_pct": 6.564,
+        "zscore": 0.208,
+        "is_cluster_day": false
+      },
+      {
+        "date": "2020-10-27",
+        "gc_close": 1908.8,
+        "gld_oz": 1790.2,
+        "basis": 118.6,
+        "basis_pct": 6.625,
+        "zscore": 0.45,
+        "is_cluster_day": false
+      },
+      {
+        "date": "2020-10-28",
+        "gc_close": 1876.2,
+        "gld_oz": 1761.3,
+        "basis": 114.9,
+        "basis_pct": 6.5236,
+        "zscore": -0.346,
+        "is_cluster_day": false
+      },
+      {
+        "date": "2020-10-29",
+        "gc_close": 1865.6,
+        "gld_oz": 1754.0,
+        "basis": 111.6,
+        "basis_pct": 6.3626,
+        "zscore": -0.967,
+        "is_cluster_day": false
+      },
+      {
+        "date": "2020-10-30",
+        "gc_close": 1877.4,
+        "gld_oz": 1762.0,
+        "basis": 115.4,
+        "basis_pct": 6.5494,
+        "zscore": -0.137,
+        "is_cluster_day": false
+      },
+      {
+        "date": "2020-11-02",
+        "gc_close": 1890.4,
+        "gld_oz": 1779.1,
+        "basis": 111.3,
+        "basis_pct": 6.256,
+        "zscore": -0.946,
+        "is_cluster_day": false
+      },
+      {
+        "date": "2020-11-03",
+        "gc_close": 1908.5,
+        "gld_oz": 1789.2,
+        "basis": 119.3,
+        "basis_pct": 6.6678,
+        "zscore": 1.103,
+        "is_cluster_day": false
+      },
+      {
+        "date": "2020-11-04",
+        "gc_close": 1894.6,
+        "gld_oz": 1788.2,
+        "basis": 106.4,
+        "basis_pct": 5.9501,
+        "zscore": -2.085,
+        "is_cluster_day": false
+      },
+      {
+        "date": "2020-11-05",
+        "gc_close": 1945.3,
+        "gld_oz": 1829.3,
+        "basis": 116.0,
+        "basis_pct": 6.3412,
+        "zscore": 0.185,
+        "is_cluster_day": false
+      },
+      {
+        "date": "2020-11-06",
+        "gc_close": 1950.3,
+        "gld_oz": 1831.9,
+        "basis": 118.4,
+        "basis_pct": 6.4632,
+        "zscore": 0.717,
+        "is_cluster_day": false
+      },
+      {
+        "date": "2020-11-09",
+        "gc_close": 1853.2,
+        "gld_oz": 1750.8,
+        "basis": 102.4,
+        "basis_pct": 5.8488,
+        "zscore": -2.67,
+        "is_cluster_day": true
+      },
+      {
+        "date": "2020-11-10",
+        "gc_close": 1875.4,
+        "gld_oz": 1756.6,
+        "basis": 118.8,
+        "basis_pct": 6.7631,
+        "zscore": 0.72,
+        "is_cluster_day": false
+      },
+      {
+        "date": "2020-11-11",
+        "gc_close": 1860.7,
+        "gld_oz": 1749.0,
+        "basis": 111.7,
+        "basis_pct": 6.3865,
+        "zscore": -0.711,
+        "is_cluster_day": false
+      },
+      {
+        "date": "2020-11-12",
+        "gc_close": 1872.6,
+        "gld_oz": 1759.6,
+        "basis": 113.0,
+        "basis_pct": 6.4219,
+        "zscore": -0.424,
+        "is_cluster_day": false
+      },
+      {
+        "date": "2020-11-13",
+        "gc_close": 1885.7,
+        "gld_oz": 1771.6,
+        "basis": 114.1,
+        "basis_pct": 6.4405,
+        "zscore": -0.154,
+        "is_cluster_day": false
+      },
+      {
+        "date": "2020-11-16",
+        "gc_close": 1887.3,
+        "gld_oz": 1771.5,
+        "basis": 115.8,
+        "basis_pct": 6.5368,
+        "zscore": 0.301,
+        "is_cluster_day": false
+      },
+      {
+        "date": "2020-11-17",
+        "gc_close": 1884.5,
+        "gld_oz": 1765.0,
+        "basis": 119.5,
+        "basis_pct": 6.7705,
+        "zscore": 1.113,
+        "is_cluster_day": false
+      },
+      {
+        "date": "2020-11-18",
+        "gc_close": 1873.5,
+        "gld_oz": 1754.9,
+        "basis": 118.6,
+        "basis_pct": 6.7582,
+        "zscore": 0.91,
+        "is_cluster_day": false
+      },
+      {
+        "date": "2020-11-19",
+        "gc_close": 1861.1,
+        "gld_oz": 1751.6,
+        "basis": 109.5,
+        "basis_pct": 6.2514,
+        "zscore": -1.076,
+        "is_cluster_day": false
+      }
+    ]
+  },
+  "leading_signal_check": {
+    "lead_5d": {
+      "trading_days": 3,
+      "max_abs_zscore": 1.2067424858028033,
+      "any_above_threshold": false,
+      "days_above_threshold": 0,
+      "first_breach_date": null
+    },
+    "lead_10d": {
+      "trading_days": 7,
+      "max_abs_zscore": 1.3345742187387681,
+      "any_above_threshold": false,
+      "days_above_threshold": 0,
+      "first_breach_date": null
+    },
+    "lead_15d": {
+      "trading_days": 10,
+      "max_abs_zscore": 2.4511756538607132,
+      "any_above_threshold": true,
+      "days_above_threshold": 1,
+      "first_breach_date": "2020-04-09"
+    },
+    "lead_20d": {
+      "trading_days": 13,
+      "max_abs_zscore": 2.4511756538607132,
+      "any_above_threshold": true,
+      "days_above_threshold": 1,
+      "first_breach_date": "2020-04-09"
+    },
+    "lead_30d": {
+      "trading_days": 21,
+      "max_abs_zscore": 2.4511756538607132,
+      "any_above_threshold": true,
+      "days_above_threshold": 2,
+      "first_breach_date": "2020-03-24"
+    }
+  },
+  "regime_change": {
+    "regime_change_detected": true,
+    "long_term_mean": 99.2,
+    "long_term_std": 11.41,
+    "elevated_threshold": 110.61,
+    "sustained_elevated_runs": [
+      {
+        "start": "2020-03-24",
+        "days": 3
+      },
+      {
+        "start": "2020-04-08",
+        "days": 4
+      }
+    ],
+    "first_sustained_elevation": "2020-03-24"
+  },
+  "non_sync_extreme_days": {
+    "total_extreme_basis_days": 9,
+    "extreme_in_cluster": 0,
+    "extreme_not_in_cluster": 9,
+    "non_cluster_extreme_dates": [
+      {
+        "date": "2020-01-30",
+        "basis": 98.8,
+        "zscore": 2.584
+      },
+      {
+        "date": "2020-02-24",
+        "basis": 111.5,
+        "zscore": 3.435
+      },
+      {
+        "date": "2020-02-25",
+        "basis": 113.9,
+        "zscore": 2.799
+      },
+      {
+        "date": "2020-03-16",
+        "basis": 69.5,
+        "zscore": -2.418
+      },
+      {
+        "date": "2020-03-18",
+        "basis": 70.3,
+        "zscore": -2.005
+      },
+      {
+        "date": "2020-03-24",
+        "basis": 126.2,
+        "zscore": 2.164
+      },
+      {
+        "date": "2020-04-09",
+        "basis": 149.3,
+        "zscore": 2.451
+      },
+      {
+        "date": "2020-06-10",
+        "basis": 77.6,
+        "zscore": -3.24
+      },
+      {
+        "date": "2020-06-30",
+        "basis": 119.3,
+        "zscore": 2.033
+      }
+    ]
+  },
+  "verdict": {
+    "classification": "LEADING_SIGNAL",
+    "detail": "Basis z-score first breached 2.0σ on 2020-03-16, 37 calendar days (25 trading days) before cluster start.",
+    "during_cluster_max_abs_zscore": 1.3612637086252586,
+    "criteria": {
+      "LEADING_SIGNAL": "basis |z| > 2.0 at least 5 days before cluster",
+      "SYNC_SIGNAL": "basis |z| > 2.0 only during cluster",
+      "NO_SIGNAL": "basis |z| < 2.0 throughout"
+    }
+  },
+  "text_timeseries": "        Date     GC=F   GLD*10    Basis   Basis%  Z-score    \n-----------------------------------------------------------------\n  2020-03-02  1592.30  1492.00   100.30   6.7225     0.75\n  2020-03-03  1642.10  1538.90   103.20   6.7061     1.03\n  2020-03-04  1641.10  1541.60    99.50   6.4543     0.50\n  2020-03-05  1666.40  1574.90    91.50   5.8099    -0.51\n  2020-03-06  1670.80  1575.50    95.30   6.0489    -0.06\n  2020-03-09  1674.50  1578.10    96.40   6.1086     0.05\n  2020-03-10  1659.10  1544.80   114.30   7.3990     1.98\n  2020-03-11  1641.40  1539.30   102.10   6.6329     0.51\n  2020-03-12  1589.30  1477.90   111.40   7.5377     1.42\n  2020-03-13  1515.70  1432.80    82.90   5.7859    -1.62\n  2020-03-16  1485.90  1416.40    69.50   4.9068    -2.42\n  2020-03-17  1524.90  1435.60    89.30   6.2204    -0.68\n  2020-03-18  1477.30  1407.00    70.30   4.9965    -2.00\n  2020-03-19  1478.60  1380.40    98.20   7.1139     0.14\n  2020-03-20  1484.00  1401.10    82.90   5.9168    -0.97\n  2020-03-23  1567.00  1463.00   104.00   7.1087     0.68\n  2020-03-24  1660.20  1534.00   126.20   8.2269     2.16\n  2020-03-25  1632.30  1513.00   119.30   7.8850     1.50\n  2020-03-26  1650.10  1532.40   117.70   7.6808     1.28\n  2020-03-27  1623.90  1522.50   101.40   6.6601     0.17\n  2020-03-30  1622.00  1529.20    92.80   6.0685    -0.37\n  2020-03-31  1583.40  1480.50   102.90   6.9504     0.30\n  2020-04-01  1578.20  1494.50    83.70   5.6005    -0.90\n  2020-04-02  1625.70  1519.00   106.70   7.0244     0.54\n  2020-04-03  1633.70  1526.50   107.20   7.0226     0.53\n  2020-04-06  1677.00  1568.80   108.20   6.8970     0.55\n  2020-04-07  1664.80  1560.40   104.40   6.6906     0.35\n  2020-04-08  1665.40  1546.50   118.90   7.6883     1.18\n  2020-04-09  1736.20  1586.90   149.30   9.4083     2.45\n  2020-04-13  1744.80  1614.10   130.70   8.0974     1.33\n  2020-04-14  1756.70  1626.80   129.90   7.9850     1.20\n  2020-04-15  1727.20  1618.50   108.70   6.7161     0.03\n  2020-04-16  1720.40  1617.10   103.30   6.3880    -0.40\n  2020-04-17  1689.20  1585.70   103.50   6.5271    -0.41\n  2020-04-20  1701.60  1597.00   104.60   6.5498    -0.44\n  2020-04-21  1678.20  1586.10    92.10   5.8067    -1.21\n  2020-04-22  1728.70  1617.30   111.40   6.8880     0.11 **\n  2020-04-23  1733.30  1633.40    99.90   6.1161    -0.60 **\n  2020-04-24  1723.50  1626.40    97.10   5.9702    -0.72\n  2020-04-27  1711.90  1615.60    96.30   5.9606    -0.75 **\n  2020-04-28  1710.50  1608.40   102.10   6.3479    -0.40\n  2020-04-29  1703.40  1617.30    86.10   5.3237    -1.36 **\n  2020-04-30  1684.20  1588.00    96.20   6.0579    -0.79 **\n  2020-05-01  1694.50  1597.80    96.70   6.0521    -0.71\n  2020-05-04  1706.90  1603.40   103.50   6.4550    -0.24\n  2020-05-05  1704.40  1610.20    94.20   5.8502    -0.80 **\n  2020-05-06  1684.20  1589.50    94.70   5.9578    -0.73\n  2020-05-07  1721.80  1613.90   107.90   6.6857     0.16\n  2020-05-08  1709.90  1604.20   105.70   6.5890     0.22\n  2020-05-11  1695.30  1594.20   101.10   6.3417    -0.07\n  2020-05-12  1704.40  1600.40   104.00   6.4984     0.57\n  2020-05-13  1713.90  1615.80    98.10   6.0713    -0.31\n  2020-05-14  1738.10  1630.10   108.00   6.6254     1.27\n  2020-05-15  1753.40  1639.30   114.10   6.9603     1.95\n  2020-05-18  1731.80  1626.90   104.90   6.4478     0.61\n  2020-05-19  1744.20  1642.60   101.60   6.1853     0.06\n  2020-05-20  1750.60  1646.50   104.10   6.3225     0.53\n  2020-05-21  1720.50  1622.50    98.00   6.0401    -0.44\n  2020-05-22  1734.60  1632.10   102.50   6.2802     0.24\n  2020-05-26  1704.80  1608.90    95.90   5.9606    -0.82\n  2020-05-27  1710.30  1611.80    98.50   6.1112    -0.37\n  2020-05-28  1713.30  1617.20    96.10   5.9424    -0.98\n  2020-05-29  1736.90  1629.10   107.80   6.6171     1.11\n  2020-06-01  1737.80  1636.60   101.20   6.1836    -0.17\n  2020-06-02  1725.20  1626.00    99.20   6.1009    -0.51\n  2020-06-03  1697.80  1596.00   101.80   6.3784    -0.09\n  2020-06-04  1718.90  1612.80   106.10   6.5786     0.70\n  2020-06-05  1676.20  1580.10    96.10   6.0819    -1.30\n  2020-06-08  1698.30  1597.20   101.10   6.3298    -0.20\n  2020-06-09  1714.70  1612.60   102.10   6.3314     0.01\n  2020-06-10  1713.30  1635.70    77.60   4.7441    -3.24\n  2020-06-11  1732.00  1623.90   108.10   6.6568     0.94 **\n  2020-06-12  1729.30  1626.20   103.10   6.3399     0.29\n  2020-06-15  1720.30  1623.30    97.00   5.9755    -0.48"
+}
