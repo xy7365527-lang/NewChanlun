@@ -1675,6 +1675,11 @@ nodes:
   status: 已结算
   type: meta-rule
   file: settled/346-meta-observation-v152-swarm.md
+- id: '347'
+  title: Content-Addressed Block Topology
+  status: 已结算
+  type: 工程决策
+  file: settled/347-content-addressed-block-topology.md
 edges:
   depends_on:
   - from: '136'
@@ -3541,6 +3546,8 @@ edges:
     to: '344'
   - from: '346'
     to: '345'
+  - from: '347'
+    to: '345'
   triggered:
   - from: '005'
     to: 005a
@@ -4916,6 +4923,9 @@ edges:
   - between:
     - '187'
     - '191'
+  - between:
+    - 090
+    - '347'
   tensions_with:
   - between:
     - '007'

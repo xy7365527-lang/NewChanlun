@@ -99,17 +99,64 @@ def get_genealogy_number(block: dict) -> str:
     return ""
 
 
+def _is_content_addressed(block: dict) -> bool:
+    """Check if a block uses content-addressed format (has content.full_text)."""
+    content = block.get("content", {})
+    return isinstance(content, dict) and "full_text" in content
+
+
+def _verify_content_addressed_block(
+    block: dict, block_id: str, gen_num: str, source_file, root: Path
+) -> tuple[str, dict | None]:
+    """Verify a content-addressed block.
+
+    Returns (status, detail_or_none) where status is one of:
+    "verified", "mismatched", "working_copy_drift"
+    """
+    full_text = block["content"]["full_text"]
+    expected_id = hashlib.sha256(full_text.encode("utf-8")).hexdigest()
+
+    if block_id != expected_id:
+        return "mismatched", {
+            "block_id": block_id,
+            "genealogy": gen_num,
+            "file": str(source_file.relative_to(root)) if source_file else "",
+            "stored_hash": block_id,
+            "computed_hash": expected_id,
+            "reason": "block_id != SHA256(full_text)",
+        }
+
+    # If there's a working copy, check drift
+    if source_file is not None and source_file.is_file():
+        file_hash = compute_file_hash(source_file)
+        text_hash = hashlib.sha256(full_text.encode("utf-8")).hexdigest()
+        if file_hash != text_hash:
+            return "working_copy_drift", {
+                "block_id": block_id,
+                "genealogy": gen_num,
+                "file": str(source_file.relative_to(root)),
+                "block_text_hash": text_hash,
+                "file_hash": file_hash,
+                "reason": "working copy differs from block full_text",
+            }
+
+    return "verified", None
+
+
 def verify_all(
     root: Path,
 ) -> dict:
     """Verify content integrity of all blocks with source files.
 
+    Handles both legacy (content_hash) and content-addressed (full_text) blocks.
+
     Returns a result dict:
     {
         "verified": int,       # blocks with matching hash
         "mismatched": [...],   # blocks where hash != file content
-        "missing_hash": [...], # blocks without content_hash (stampable)
+        "missing_hash": [...], # blocks without content_hash (stampable) — legacy only
         "missing_file": [...], # blocks pointing to nonexistent files
+        "working_copy_drift": [...], # content-addressed blocks where .md != full_text
         "skipped": int,        # blocks without source files
         "total": int,
     }
@@ -122,6 +169,7 @@ def verify_all(
         "mismatched": [],
         "missing_hash": [],
         "missing_file": [],
+        "working_copy_drift": [],
         "skipped": 0,
         "total": 0,
     }
@@ -133,6 +181,21 @@ def verify_all(
         source_file = resolve_source_file(block, genealogy_dir)
         block_id = get_block_id(block)
         gen_num = get_genealogy_number(block)
+
+        # Content-addressed block: verify full_text integrity
+        if _is_content_addressed(block):
+            status, detail = _verify_content_addressed_block(
+                block, block_id, gen_num, source_file, root
+            )
+            if status == "verified":
+                result["verified"] += 1
+            elif status == "mismatched":
+                result["mismatched"].append(detail)
+            elif status == "working_copy_drift":
+                result["working_copy_drift"].append(detail)
+            continue
+
+        # Legacy block verification below
 
         # No source file reference — skip (rewrite/tension/consensus blocks)
         if source_file is None:
@@ -303,6 +366,7 @@ def format_report(result: dict) -> str:
     lines.append(f"跳过 (无源文件引用): {result['skipped']}")
     lines.append(f"缺少 content_hash: {len(result['missing_hash'])}")
     lines.append(f"hash 不匹配: {len(result['mismatched'])}")
+    lines.append(f"工作副本漂移: {len(result.get('working_copy_drift', []))}")
     lines.append(f"源文件缺失: {len(result['missing_file'])}")
     lines.append("")
 
@@ -322,6 +386,16 @@ def format_report(result: dict) -> str:
             lines.append(f"  [{m['genealogy']}] {m['reason']}")
         lines.append("")
 
+    drift = result.get("working_copy_drift", [])
+    if drift:
+        lines.append(f"--- 工作副本漂移 ({len(drift)} 个) ---")
+        for d in drift:
+            lines.append(
+                f"  [{d['genealogy']}] {d['file']}"
+                f"  reason={d['reason']}"
+            )
+        lines.append("")
+
     if result["missing_hash"]:
         lines.append(
             f"--- 缺少 content_hash ({len(result['missing_hash'])} 个) ---"
@@ -332,6 +406,8 @@ def format_report(result: dict) -> str:
     # Summary verdict
     if result["mismatched"]:
         lines.append("结论: FAIL — 存在 hash 不匹配的区块")
+    elif result.get("working_copy_drift"):
+        lines.append("结论: WARN — 工作副本与区块内容不一致（可能需要 rebuild）")
     elif result["missing_hash"]:
         lines.append("结论: WARN — 部分区块缺少 content_hash，需要 --stamp")
     else:
