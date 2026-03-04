@@ -1635,6 +1635,11 @@ nodes:
   status: settled
   type: theorem
   file: settled/338-operational-methodology-v2.md
+- id: '339'
+  title: 元观察——v148 compaction恢复 + 两周进展合成 session
+  status: 已结算
+  type: meta-rule
+  file: settled/339-meta-observation-v148-progress-summary-session.md
 edges:
   depends_on:
   - from: '136'
@@ -3467,6 +3472,12 @@ edges:
     to: 268a
   - from: '338'
     to: '295'
+  - from: '339'
+    to: '336'
+  - from: '339'
+    to: '337'
+  - from: '339'
+    to: '338'
   triggered:
   - from: '005'
     to: 005a

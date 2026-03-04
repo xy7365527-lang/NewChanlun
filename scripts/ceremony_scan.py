@@ -16,7 +16,7 @@
     DAG 的 ceremony_sequence 由 LLM 解释执行（057号推论：LLM 不是状态机）。
     未来演化路径：重写为真正读取 ceremony_sequence 的 DAG 拓扑排序（选项 C 边界条件）。
 """
-import json, os, glob, yaml, sys, argparse, subprocess
+import json, os, glob, yaml, sys, argparse, subprocess, re
 
 
 BACKGROUND_NOISE_STATUSES = {"background_noise", "观察项", "背景噪音"}
@@ -304,6 +304,51 @@ def get_review_results(root):
     return results, consumed_files
 
 
+def get_topo_context(root):
+    """扫描区块拓扑映射缺口：已结算谱系 vs block-topology 中已有映射。
+
+    返回 topo_context dict，包含 unmapped_count, unmapped_ids, last_mapped。
+    拓扑扫描失败不阻塞 ceremony 主流程。
+    """
+    try:
+        meta_path = os.path.join(root, ".chanlun/block-topology/meta.json")
+        settled_dir = os.path.join(root, ".chanlun/genealogy/settled")
+
+        if not os.path.isfile(meta_path) or not os.path.isdir(settled_dir):
+            return None
+
+        with open(meta_path, encoding="utf-8") as f:
+            meta = json.load(f)
+
+        id_mapping = meta.get("id_mapping", {})
+        last_mapped = meta.get("last_mapped_genealogy", 0)
+        mapped_ids = set(id_mapping.keys())
+
+        # 从已结算谱系文件名提取编号（格式：NNN-title.md 或 NNNa-title.md）
+        settled_ids = set()
+        for fname in os.listdir(settled_dir):
+            if not fname.endswith(".md"):
+                continue
+            m = re.match(r'^(\d+[a-z]?)-', fname)
+            if m:
+                settled_ids.add(m.group(1))
+
+        unmapped_ids = sorted(
+            settled_ids - mapped_ids,
+            key=lambda x: (int(re.match(r'\d+', x).group()), x),
+        )
+
+        return {
+            "unmapped_count": len(unmapped_ids),
+            "unmapped_ids": unmapped_ids,
+            "last_mapped": last_mapped,
+            "total_settled": len(settled_ids),
+            "total_mapped": len(mapped_ids),
+        }
+    except Exception as exc:
+        return {"error": f"{type(exc).__name__}: {exc}"}
+
+
 def main():
     parser = argparse.ArgumentParser(description="蜂群 spawn 通用工具")
     parser.add_argument("--skills", action="store_true", help="只输出 required_skills")
@@ -387,6 +432,19 @@ def main():
                     "source": "review_results",
                     "review_file": review["file"],
                 })
+
+    # 2c. 区块拓扑映射缺口扫描：已结算谱系 vs block-topology 映射
+    topo_context = get_topo_context(root)
+    if topo_context is not None:
+        result["topo_context"] = topo_context
+        unmapped_count = topo_context.get("unmapped_count", 0)
+        if unmapped_count > 0:
+            workstations.append({
+                "priority": "P2",
+                "name": f"拓扑映射：{unmapped_count}个未映射谱系",
+                "status": f"unmapped:{','.join(topo_context['unmapped_ids'][:10])}",
+                "source": "topo_mapper",
+            })
 
     # 3. 079号：如果无任何工位，执行 no_work_fallback
     if not workstations:
