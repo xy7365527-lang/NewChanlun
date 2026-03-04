@@ -40,6 +40,7 @@ def _target(
     sector: str = "",
     tri_state: DTriState = DTriState.RETAIN,
     tightness: float = 1.0,
+    level_magnitude: float = 1.0,
     liquidity: float = 100.0,
 ) -> TargetAttributes:
     """快速构造 TargetAttributes。"""
@@ -49,6 +50,7 @@ def _target(
         sector=sector,
         d_tri_state=tri_state,
         tightness=tightness,
+        level_magnitude=level_magnitude,
         liquidity=liquidity,
     )
 

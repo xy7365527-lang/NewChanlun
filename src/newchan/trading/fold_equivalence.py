@@ -86,6 +86,9 @@ class TargetAttributes:
     tightness : float
         收敛紧度 T(S)（350号定义）。T(S) = 0 的标的不应进入此模块
         （二值筛选在上游已完成）。
+    level_magnitude : float
+        级别大小 L(S)（350号定义）。T(S) 的分量之一，用于同 rank 同 T 时
+        的第三级打破（352号 §4.3 第3条：大级别优先——267号）。
     liquidity : float
         流动性度量（日均成交量或等价代理）。用于代表元同 T 打破。
     """
@@ -95,6 +98,7 @@ class TargetAttributes:
     sector: str
     d_tri_state: DTriState
     tightness: float
+    level_magnitude: float
     liquidity: float
 
 
@@ -145,6 +149,9 @@ class EquivalenceClass:
         类内所有标的（含代表元），按 (tightness desc, liquidity desc) 排序。
     max_tightness : float
         类内最大 T 值：T([S]) = max{T(S') : S' in [S]}。
+    max_level : float
+        类内最大 L 值：L([S]) = max{L(S') : S' in [S]}。
+        用于 352号 §4.3 第3条打破：rank 和 T 相等时大级别优先。
     fold_channel : FoldChannel
         折叠通道标记。
     """
@@ -152,6 +159,7 @@ class EquivalenceClass:
     representative: TargetAttributes
     members: tuple[TargetAttributes, ...]
     max_tightness: float
+    max_level: float
     fold_channel: FoldChannel
 
     @property
@@ -202,7 +210,7 @@ def build_quotient_space(
     -------
     tuple[EquivalenceClass, ...]
         排序后的商空间 F/~。按 352号 §4.3 排序规则：
-        rank desc → T desc → size desc。
+        rank desc → T desc → L desc → size desc。
     """
     if not targets:
         return ()
@@ -224,21 +232,23 @@ def build_quotient_space(
         )
         representative = _select_representative(sorted_members)
         max_t = sorted_members[0].tightness  # 排序后第一个就是最大 T
+        max_l = max(m.level_magnitude for m in sorted_members)
 
         classes.append(
             EquivalenceClass(
                 representative=representative,
                 members=sorted_members,
                 max_tightness=max_t,
+                max_level=max_l,
                 fold_channel=key[0],
             )
         )
 
-    # 商空间排序（352号 §4.3）：rank desc → T desc → size desc
+    # 商空间排序（352号 §4.3）：rank desc → T desc → L desc → size desc
     return tuple(
         sorted(
             classes,
-            key=lambda c: (-c.rank, -c.max_tightness, -c.size),
+            key=lambda c: (-c.rank, -c.max_tightness, -c.max_level, -c.size),
         )
     )
 

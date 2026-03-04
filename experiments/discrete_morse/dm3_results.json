@@ -1,0 +1,324 @@
+{
+  "experiment": "DM3",
+  "description": "Morse 跳跃点 vs 编排者'关键否定'对比验证",
+  "epistemological_level": "L2",
+  "epistemological_note": "真实拓扑数据（谱系 DAG 的 Morse 临界集变化）vs 编排者直觉判断（哪些谱系号是'关键否定'）。L2 因为：(1) 数据是真实谱系拓扑，非合成; (2) ground truth 是编排者主观标注，有否证可能; (3) 单标的验证（本谱系 DAG），未交叉验证。",
+  "ground_truth": {
+    "total_key_negations": 22,
+    "key_negation_ids": [
+      "064",
+      "068",
+      "087",
+      "088",
+      "089",
+      "090",
+      "096",
+      "097",
+      "105",
+      "136",
+      "137",
+      "143",
+      "147",
+      "156",
+      "157",
+      "161",
+      "162",
+      "173",
+      "218",
+      "274",
+      "275",
+      "277"
+    ],
+    "sources": [
+      "genealogy frontmatter negates 非空",
+      "CLAUDE.md/rules 显式引用",
+      "session 记录的编排者 INTERRUPT"
+    ]
+  },
+  "total_jumps": 260,
+  "precision_recall_by_threshold": [
+    {
+      "n": 5,
+      "hits": [],
+      "precision": 0.0,
+      "recall": 0.0,
+      "top_n_size": 5,
+      "ground_truth_size": 22
+    },
+    {
+      "n": 10,
+      "hits": [
+        "087"
+      ],
+      "precision": 0.1,
+      "recall": 0.0455,
+      "top_n_size": 10,
+      "ground_truth_size": 22
+    },
+    {
+      "n": 15,
+      "hits": [
+        "087"
+      ],
+      "precision": 0.0667,
+      "recall": 0.0455,
+      "top_n_size": 15,
+      "ground_truth_size": 22
+    },
+    {
+      "n": 20,
+      "hits": [
+        "087",
+        "089"
+      ],
+      "precision": 0.1,
+      "recall": 0.0909,
+      "top_n_size": 20,
+      "ground_truth_size": 22
+    },
+    {
+      "n": 30,
+      "hits": [
+        "087",
+        "088",
+        "089",
+        "097",
+        "147"
+      ],
+      "precision": 0.1667,
+      "recall": 0.2273,
+      "top_n_size": 30,
+      "ground_truth_size": 22
+    },
+    {
+      "n": 50,
+      "hits": [
+        "087",
+        "088",
+        "089",
+        "097",
+        "105",
+        "147"
+      ],
+      "precision": 0.12,
+      "recall": 0.2727,
+      "top_n_size": 50,
+      "ground_truth_size": 22
+    },
+    {
+      "n": 260,
+      "hits": [
+        "064",
+        "068",
+        "087",
+        "088",
+        "089",
+        "090",
+        "096",
+        "097",
+        "105",
+        "136",
+        "137",
+        "143",
+        "147",
+        "156",
+        "161",
+        "173",
+        "218",
+        "274"
+      ],
+      "precision": 0.0692,
+      "recall": 0.8182,
+      "top_n_size": 260,
+      "ground_truth_size": 22
+    }
+  ],
+  "negation_details_in_jumps": [
+    {
+      "genealogy_key": "087",
+      "rank": 6,
+      "magnitude": 53,
+      "description": "否定 086（编排者 INTERRUPT：五问题诚实修复）"
+    },
+    {
+      "genealogy_key": "089",
+      "rank": 16,
+      "magnitude": 34,
+      "description": "补丁思维第二次否定（编排者 INTERRUPT：'没有严格的方案吗？'）"
+    },
+    {
+      "genealogy_key": "088",
+      "rank": 22,
+      "magnitude": 28,
+      "description": "否定 032（权限死锁拓扑异常重设计）"
+    },
+    {
+      "genealogy_key": "097",
+      "rank": 24,
+      "magnitude": 27,
+      "description": "严格 RTAS 架构（编排者 INTERRUPT：最强方案）"
+    },
+    {
+      "genealogy_key": "147",
+      "rank": 30,
+      "magnitude": 26,
+      "description": "矛盾具有拓扑效力（编排者 INTERRUPT 三选项全否定）"
+    },
+    {
+      "genealogy_key": "105",
+      "rank": 41,
+      "magnitude": 23,
+      "description": "递归从功能选择升级为无条件架构要求（编排者 INTERRUPT）"
+    },
+    {
+      "genealogy_key": "064",
+      "rank": 88,
+      "magnitude": 15,
+      "description": "部分否定 062（NegationObject 定义修正）"
+    },
+    {
+      "genealogy_key": "096",
+      "rank": 144,
+      "magnitude": 10,
+      "description": "分布式规则无例外（编排者 INTERRUPT）"
+    },
+    {
+      "genealogy_key": "090",
+      "rank": 158,
+      "magnitude": 9,
+      "description": "严格性永久化为语法规则（从个案否定到永久原则）"
+    },
+    {
+      "genealogy_key": "143",
+      "rank": 160,
+      "magnitude": 9,
+      "description": "commit 后总结是 RLHF 停顿点（第三模式识别）"
+    },
+    {
+      "genealogy_key": "068",
+      "rank": 177,
+      "magnitude": 8,
+      "description": "否定 065+066（连续→离散范式转移）"
+    },
+    {
+      "genealogy_key": "136",
+      "rank": 186,
+      "magnitude": 7,
+      "description": "成本收益消解禁止（ceremony 持久化修复）"
+    },
+    {
+      "genealogy_key": "137",
+      "rank": 187,
+      "magnitude": 7,
+      "description": "RLHF 基底约束发现（基因组表达失败）"
+    },
+    {
+      "genealogy_key": "218",
+      "rank": 212,
+      "magnitude": 5,
+      "description": "Lead 并行化（割掉 RTAS 串行尾巴）"
+    },
+    {
+      "genealogy_key": "161",
+      "rank": 223,
+      "magnitude": 4,
+      "description": "否定务实（编排者 INTERRUPT：'你不需要务实，你只需要严格'）"
+    },
+    {
+      "genealogy_key": "173",
+      "rank": 225,
+      "magnitude": 4,
+      "description": "否定 088（hook 反馈循环）"
+    },
+    {
+      "genealogy_key": "156",
+      "rank": 247,
+      "magnitude": 3,
+      "description": "否定 ceremony 空蜂群路径（编排者 INTERRUPT）"
+    },
+    {
+      "genealogy_key": "274",
+      "rank": 256,
+      "magnitude": 3,
+      "description": "否定 073a（depth_budget 废除）"
+    }
+  ],
+  "negations_not_in_jumps": [
+    "157",
+    "162",
+    "275",
+    "277"
+  ],
+  "top_10_composition": [
+    {
+      "rank": 1,
+      "genealogy_key": "307",
+      "magnitude": 85,
+      "is_key_negation": false,
+      "negation_description": ""
+    },
+    {
+      "rank": 2,
+      "genealogy_key": "306",
+      "magnitude": 66,
+      "is_key_negation": false,
+      "negation_description": ""
+    },
+    {
+      "rank": 3,
+      "genealogy_key": "285",
+      "magnitude": 57,
+      "is_key_negation": false,
+      "negation_description": ""
+    },
+    {
+      "rank": 4,
+      "genealogy_key": "305",
+      "magnitude": 56,
+      "is_key_negation": false,
+      "negation_description": ""
+    },
+    {
+      "rank": 5,
+      "genealogy_key": "301",
+      "magnitude": 55,
+      "is_key_negation": false,
+      "negation_description": ""
+    },
+    {
+      "rank": 6,
+      "genealogy_key": "087",
+      "magnitude": 53,
+      "is_key_negation": true,
+      "negation_description": "否定 086（编排者 INTERRUPT：五问题诚实修复）"
+    },
+    {
+      "rank": 7,
+      "genealogy_key": "288",
+      "magnitude": 49,
+      "is_key_negation": false,
+      "negation_description": ""
+    },
+    {
+      "rank": 8,
+      "genealogy_key": "310",
+      "magnitude": 44,
+      "is_key_negation": false,
+      "negation_description": ""
+    },
+    {
+      "rank": 9,
+      "genealogy_key": "086",
+      "magnitude": 42,
+      "is_key_negation": false,
+      "negation_description": ""
+    },
+    {
+      "rank": 10,
+      "genealogy_key": "082",
+      "magnitude": 38,
+      "is_key_negation": false,
+      "negation_description": ""
+    }
+  ]
+}
