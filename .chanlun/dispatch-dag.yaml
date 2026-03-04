@@ -267,7 +267,8 @@ event_skill_map:
         platform_support: false
         description: "测试失败时自动触发 diagnose（对象否定对象，005b号）"
       - event: plan_review
-        description: "Plan 阶段多模型对审——Opus 出方案后 Codex 评审（160号：修改循环前移）"
+        platform_support: false
+        description: "Plan 阶段多模型对审——Opus 出方案后 Codex 评审（160号：修改循环前移）。触发方式：planner agent 主动加载 plan-review skill（D策略手动认领）"
       - event: manual_invocation
         description: "Lead 手动调用"
 

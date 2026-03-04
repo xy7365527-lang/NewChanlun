@@ -1124,6 +1124,14 @@ def main():
         if rl_context is not None:
             result["research_lines"] = rl_context
             workstations.extend(rl_workstations)
+            # 缺口11修复（异质审计）：proposed_transitions 转化为工位，消除死数据
+            for pt in rl_context.get("proposed_transitions", []):
+                workstations.append({
+                    "priority": "P2",
+                    "name": f"纲目状态转换：{pt['line']} {pt['from']}→{pt['to']}",
+                    "status": f"proposed:{pt['reason'][:80]}",
+                    "source": "gangmu_transition",
+                })
     except Exception as exc:
         result["research_lines_error"] = f"{type(exc).__name__}: {exc}"
 
@@ -1251,6 +1259,13 @@ def main():
             pass
     if tensions_found:
         result["tensions_count"] = len(tensions_found)
+        # 缺口9修复（异质审计）：tensions_count 转化为工位，消除死数据
+        workstations.append({
+            "priority": "P3",
+            "name": f"谱系张力：{len(tensions_found)}条 tensions_with 边",
+            "status": "tensions_detected",
+            "source": "tension_scan",
+        })
 
     # 二阶反馈：下游推论执行审计
     try:

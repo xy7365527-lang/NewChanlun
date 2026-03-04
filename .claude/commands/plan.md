@@ -100,6 +100,16 @@ If you want changes, respond with:
 - "different approach: [alternative]"
 - "skip phase 2 and do phase 3 first"
 
+## Plan 对审（160号谱系：多模型协作）
+
+planner agent 产出方案后，**必须**加载 plan-review skill 执行多模型对审：
+1. 读取 `.claude/skills/plan-review/SKILL.md`
+2. 将方案传给 Codex（codex-challenger review 模式）进行评审
+3. 严格对审直到达成共识（详见 skill 文档）
+4. 6 轮未共识 → `/escalate`
+
+**触发方式**：planner agent 在产出方案后主动加载 plan-review skill（353号标注：无 hook 自动触发——D策略手动认领）。
+
 ## Integration with Other Commands
 
 After planning:

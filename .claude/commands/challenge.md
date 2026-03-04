@@ -46,8 +46,10 @@
 ## 前置条件
 
 - `GOOGLE_API_KEY` 在 `.env` 中设置
-- Serena MCP server 可用（`.serena/serena_config.yml` 已配置）
+- Serena MCP server 可用（`.serena/serena_config.yml` 已配置）——Gemini 通过 Serena 工具导航代码库（`--tools` 模式）
 - `uvx` 可用（用于启动 Serena）
+
+> 注意：`gemini_challenger.py` 本身不直接依赖 Serena——Serena 是 MCP server，由 Gemini 的工具调用层使用。无 Serena 时可用 `--no-tools` 模式运行（仅传入上下文文件，无代码库导航能力）。
 
 ## 谱系关联
 
