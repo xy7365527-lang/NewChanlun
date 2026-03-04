@@ -61,8 +61,16 @@ def build_id_to_gang_map(gangs):
         for mu in gang.get("mu", []):
             mu_id = mu["id"]
             status = mu.get("status", "active")
-            opened_at = int(mu["opened_at"])
-            closed_at = int(mu["closed_at"]) if "closed_at" in mu else None
+            try:
+                opened_at = int(mu["opened_at"])
+            except (ValueError, TypeError):
+                continue  # 无法解析 opened_at，跳过此 mu
+            closed_at = None
+            if "closed_at" in mu:
+                try:
+                    closed_at = int(mu["closed_at"])
+                except (ValueError, TypeError):
+                    pass  # 日期格式等非数字值——视为无上界
             mu_entries.append({
                 "gang_id": gang_id,
                 "mu_id": mu_id,

@@ -1,246 +1,163 @@
 # .chanlun/gangmu.yaml
 # 纲目——总方针的展开结构
 #
-# 存在论位置：
-#   纲目是编排者定义的，不是谱系的聚合。
-#   研究线到战略方向的归属是判断，不是计算。
-#   ceremony 读取/追踪/提议，不定义结构。
-#
-# 设计约束：
-#   1. 状态转换：ceremony_scan.py 提议转换，编排者确认。ceremony 不越权。
-#   2. next_action 必须结构化：ceremony_scan.py 能机器读取，不是自由文本备忘录。
-#   3. 与275号局部依赖一致：每条谱系只管自己属于哪条线，全局视图是局部标注的聚合。
-#   4. 纲是编排者能数得过来的（4-6个），目是研究线（当前12条）。
-#
-# 状态枚举：active | blocked | closed
-# next_actions.type 枚举：engineering | experiment | theory | integration
-# completion_check 类型：
-#   - file_exists: <path>           — 文件存在即完成
-#   - genealogy_settled: <keyword>  — 谱系 settled 目录中存在包含关键词的文件
-#   - script_exists: <path>         — 脚本存在即完成
-#   - test_pass: <pattern>          — 匹配模式的测试文件存在且通过
+# 由 gangmu_update.py 自动更新
 
-version: "1.0"
-zongfangzhen_ref: "docs/architecture/总方针-v8.md"
-
-# ═══════════════════════════════════════════════════════════════════
-# 纲（战略方向，从总方针展开）
-# ═══════════════════════════════════════════════════════════════════
-
+version: '1.0'
+zongfangzhen_ref: docs/architecture/总方针-v8.md
 gang:
-
-  # ─────────────────────────────────────────────────────────────────
-  # 纲一：实盘闭环（总方针 §三 核心回路 + §八.七 阶段C）
-  # ─────────────────────────────────────────────────────────────────
-  # 让核心回路闭合：缠论识别→四矩阵判断→实盘行动→利润/亏损→回路继续。
-  # 编排者当前是执行层（阶段C），系统提供信号+操作编排。
-  # 这是总方针的铰链——没有实盘，缠论和四矩阵是悬挂的分析工具。
-
-  - id: shipen-bihuan
-    name: "实盘闭环"
-    zongfangzhen_section: "§三核心回路 + §八.七阶段C"
-    description: "核心回路的闭合：缠论管线→操作方法论→K4监控→实盘交易"
-
-    mu:
-      # 缠论代码管线——五层引擎链，Layer 2 单标的操作信号的物质基础
-      - id: code-pipeline
-        name: "缠论代码管线"
-        status: closed
-        opened_at: "189"
-        closed_at: "215"
-        next_actions: []
-
-      # K4独立性+纤维丛+多TF——双管道架构，22.2%结构常数确认
-      - id: k4-independence-fiber
-        name: "K4独立性+纤维丛+多TF"
-        status: closed
-        opened_at: "229"
-        closed_at: "253"
-        closed_reason: "管线完成态，22.2%是结构常数"
-        next_actions: []
-
-      # 操作方法论——267号v1+338号v2，从信号到操作决策的闭环
-      - id: operational-methodology
-        name: "操作方法论"
-        status: active
-        opened_at: "265"
-        next_actions:
-          - type: engineering
-            target: "G1-position-management"
-            description: "G1仓位管理模块——缠论体系风控的工程化实现"
-            blocked_by: null
-            completion_check:
-              type: file_exists
-              path: "scripts/position_manager.py"
-          - type: engineering
-            target: "G2-fugue-state-machine"
-            description: "G2赋格状态机——帕萨卡利亚结构的状态机编码"
-            blocked_by: "谱系定义未结算：赋格状态机的形式化定义尚未写入谱系"
-            completion_check:
-              type: file_exists
-              path: "src/newchan/fugue_engine.py"
-          - type: integration
-            target: "I1-xiaozhuan-da-orchestration"
-            description: "I1小转大编排——跨级别联动的实盘集成"
-            blocked_by: null
-            completion_check:
-              type: test_pass
-              pattern: "tests/test_xiaozhuan_da_integration.py"
-
-  # ─────────────────────────────────────────────────────────────────
-  # 纲二：四矩阵全域（总方针 §三.2 + §八.七 阶段I-1）
-  # ─────────────────────────────────────────────────────────────────
-  # 从单标的扩展到全域配置判断。K4四节点 eff.dim、比价关系、
-  # 配置编码、区间套收敛排序、标的池扫描。
-  # 阶段C和I-1同时服务——当前K4监控已部分可用（阶段C），
-  # 全域选股链路是I-1的预备。
-
-  - id: simatrix-quanyu
-    name: "四矩阵全域"
-    zongfangzhen_section: "§三.2全域层 + §八.七阶段I-1"
-    description: "K4配置→板块→个股：从单标的信号扩展到全域资本流转配置判断"
-
-    mu:
-      # 多经济体本体论——254号四矩阵本体论+定理撤销
-      - id: multi-economy-ontology
-        name: "多经济体本体论+定理撤销"
-        status: closed
-        opened_at: "254"
-        closed_at: "264"
-        next_actions: []
-
-      # K4工程化——监控脚本VPS部署+配置编码器
-      - id: k4-engineering
-        name: "K4工程化"
-        status: active
-        opened_at: "253"
-        next_actions:
-          - type: engineering
-            target: "k4-monitor-vps-deploy"
-            description: "k4_monitor.py VPS部署——实盘监控脚本的生产环境部署"
-            blocked_by: null
-            completion_check:
-              type: script_exists
-              path: "deploy/k4-monitor/setup.sh"
-          - type: engineering
-            target: "k4-config-encoder"
-            description: "K4配置编码器——将K4参数编码为可序列化配置（G4）"
-            blocked_by: null
-            completion_check:
-              type: file_exists
-              path: "src/newchan/k4_config.py"
-
-      # K4体制分析——第四个全图同步压缩体制
-      - id: k4-regime-analysis
-        name: "K4体制分析"
-        status: blocked
-        opened_at: "329"
-        blocked_by: "第四个全图同步压缩体制（新数据事件）"
-        next_actions:
-          - type: experiment
-            target: "fourth-regime-identification"
-            description: "识别并验证第四个全图同步压缩体制"
-            blocked_by: "等待新的全图同步压缩数据事件发生"
-            completion_check:
-              type: genealogy_settled
-              keyword: "fourth-regime"
-
-      # OQ v2 实验线——287号定稿
-      - id: oq-v2
-        name: "OQ v2实验线"
-        status: closed
-        opened_at: "277"
-        closed_at: "287"
-        closed_reason: "287号定稿"
-        next_actions: []
-
-      # 折叠内在性检验——315-337号，产出喂进K4工程化（eff.dim、体制识别）和操作方法论（两相框架、阈值因果）
-      - id: fold-intrinsic-test
-        name: "折叠内在性检验"
-        status: closed
-        opened_at: "315"
-        closed_at: "337"
-        closed_reason: "337号关闭"
-        next_actions: []
-
-  # ─────────────────────────────────────────────────────────────────
-  # 纲三：区块拓扑（总方针 §八 + §八.七 阶段B）
-  # ─────────────────────────────────────────────────────────────────
-  # 谱系的物质形式。Event layer不可变 + Relation layer追溯改写 +
-  # Reflexive layer自指。三层架构的工程实现。
-
-  - id: block-topology
-    name: "区块拓扑"
-    zongfangzhen_section: "§八实现架构 + §八.七阶段B"
-    description: "谱系的物质形式——区块拓扑三层架构（Event/Relation/Reflexive）"
-
-    mu:
-      # 区块拓扑工程——Phase 1/2/3 三层架构
-      - id: block-topology-eng
-        name: "区块拓扑"
-        status: active
-        opened_at: "301"
-        next_actions: []
-
-      # 折叠拓扑本体论——292-300号，折叠区块是区块拓扑的组件
-      - id: fold-topology-ontology
-        name: "折叠拓扑本体论"
-        status: closed
-        opened_at: "292"
-        closed_at: "300"
-        next_actions: []
-
-  # ─────────────────────────────────────────────────────────────────
-  # 纲四：蜂群基础设施（总方针 §八.三 多主体拓扑）
-  # ─────────────────────────────────────────────────────────────────
-  # CC/Gemini/Codex 三主体的 ceremony、RTAS、质询循环、
-  # 共识仪式、规则结晶。蜂群自身的递归运行能力。
-
-  - id: swarm-infra
-    name: "蜂群基础设施"
-    zongfangzhen_section: "§八.三多主体拓扑 + §八.四共识仪式"
-    description: "ceremony/RTAS/质询循环/共识仪式/规则结晶——蜂群自身的递归运行能力"
-
-    mu:
-      # 蜂群架构修复——216-228号
-      - id: swarm-architecture-v2
-        name: "蜂群架构修复"
-        status: closed
-        opened_at: "216"
-        closed_at: "228"
-        next_actions: []
-
-      # 蜂群架构补充——269-275号
-      - id: swarm-architecture-v3
-        name: "蜂群架构补充"
-        status: closed
-        opened_at: "269"
-        closed_at: "275"
-        next_actions: []
-
-  # ─────────────────────────────────────────────────────────────────
-  # 纲五：知识谱系（总方针 §四.2 + §八.五 + §八.七 阶段B-T/B-M/I-2预备）
-  # ─────────────────────────────────────────────────────────────────
-  # 知识生产不从属于交易。穿越基础设施管理知识的导航和偶遇记录。
-  # Morse数学路径是知识生产的数学维度。I-2的触发条件是
-  # "理论问题积累到无法仅作为交易谱系附注存在"。
-
-  - id: knowledge-genealogy
-    name: "知识谱系"
-    zongfangzhen_section: "§四.2知识维度 + §八.五穿越基础设施 + §八.七阶段B-T/B-M/I-2预备"
-    description: "知识生产维度——穿越基础设施（导航+偶遇记录）+ Morse数学 + 知识谱系独立运行预备"
-
-    mu:
-      # 穿越基础设施——查询接口、偶遇记录、Morse地形导航、概念注册表
-      - id: traverse-infra
-        name: "穿越基础设施"
-        status: active
-        opened_at: "301"
-        next_actions:
-          - type: integration
-            target: "encounter-record-mechanism"
-            description: "偶遇记录机制集成——穿越基础设施组件二（ceremony写入后cycle_rank增量检测）"
-            blocked_by: null
-            completion_check:
-              type: genealogy_settled
-              keyword: "encounter-record"
+- id: shipen-bihuan
+  name: 实盘闭环
+  zongfangzhen_section: §三核心回路 + §八.七阶段C
+  description: 核心回路的闭合：缠论管线→操作方法论→K4监控→实盘交易
+  mu:
+  - id: code-pipeline
+    name: 缠论代码管线
+    status: closed
+    opened_at: '189'
+    closed_at: '215'
+    next_actions: []
+  - id: k4-independence-fiber
+    name: K4独立性+纤维丛+多TF
+    status: closed
+    opened_at: '229'
+    closed_at: '253'
+    closed_reason: 管线完成态，22.2%是结构常数
+    next_actions: []
+  - id: operational-methodology
+    name: 操作方法论
+    status: active
+    opened_at: '265'
+    next_actions:
+    - type: engineering
+      target: G1-position-management
+      description: G1仓位管理模块——缠论体系风控的工程化实现
+      blocked_by: null
+      completion_check:
+        type: file_exists
+        path: scripts/position_manager.py
+    - type: engineering
+      target: G2-fugue-state-machine
+      description: G2赋格状态机——帕萨卡利亚结构的状态机编码
+      blocked_by: 谱系定义未结算：赋格状态机的形式化定义尚未写入谱系
+      completion_check:
+        type: file_exists
+        path: src/newchan/fugue_engine.py
+    - type: integration
+      target: I1-xiaozhuan-da-orchestration
+      description: I1小转大编排——跨级别联动的实盘集成
+      blocked_by: null
+      completion_check:
+        type: test_pass
+        pattern: tests/test_xiaozhuan_da_integration.py
+- id: simatrix-quanyu
+  name: 四矩阵全域
+  zongfangzhen_section: §三.2全域层 + §八.七阶段I-1
+  description: K4配置→板块→个股：从单标的信号扩展到全域资本流转配置判断
+  mu:
+  - id: multi-economy-ontology
+    name: 多经济体本体论+定理撤销
+    status: closed
+    opened_at: '254'
+    closed_at: '264'
+    next_actions: []
+  - id: k4-engineering
+    name: K4工程化
+    status: closed
+    opened_at: '253'
+    next_actions:
+    - type: engineering
+      target: k4-monitor-vps-deploy
+      description: k4_monitor.py VPS部署——实盘监控脚本的生产环境部署
+      blocked_by: null
+      completion_check:
+        type: script_exists
+        path: deploy/k4-monitor/setup.sh
+    - type: engineering
+      target: k4-config-encoder
+      description: K4配置编码器——将K4参数编码为可序列化配置（G4）
+      blocked_by: null
+      completion_check:
+        type: file_exists
+        path: src/newchan/k4_config.py
+    closed_at: '2026-03-04'
+    closed_reason: 所有 next_actions 的 completion_check 均已满足
+  - id: k4-regime-analysis
+    name: K4体制分析
+    status: blocked
+    opened_at: '329'
+    blocked_by: 第四个全图同步压缩体制（新数据事件）
+    next_actions:
+    - type: experiment
+      target: fourth-regime-identification
+      description: 识别并验证第四个全图同步压缩体制
+      blocked_by: 等待新的全图同步压缩数据事件发生
+      completion_check:
+        type: genealogy_settled
+        keyword: fourth-regime
+  - id: oq-v2
+    name: OQ v2实验线
+    status: closed
+    opened_at: '277'
+    closed_at: '287'
+    closed_reason: 287号定稿
+    next_actions: []
+  - id: fold-intrinsic-test
+    name: 折叠内在性检验
+    status: closed
+    opened_at: '315'
+    closed_at: '337'
+    closed_reason: 337号关闭
+    next_actions: []
+- id: block-topology
+  name: 区块拓扑
+  zongfangzhen_section: §八实现架构 + §八.七阶段B
+  description: 谱系的物质形式——区块拓扑三层架构（Event/Relation/Reflexive）
+  mu:
+  - id: block-topology-eng
+    name: 区块拓扑
+    status: active
+    opened_at: '301'
+    next_actions: []
+  - id: fold-topology-ontology
+    name: 折叠拓扑本体论
+    status: closed
+    opened_at: '292'
+    closed_at: '300'
+    next_actions: []
+- id: swarm-infra
+  name: 蜂群基础设施
+  zongfangzhen_section: §八.三多主体拓扑 + §八.四共识仪式
+  description: ceremony/RTAS/质询循环/共识仪式/规则结晶——蜂群自身的递归运行能力
+  mu:
+  - id: swarm-architecture-v2
+    name: 蜂群架构修复
+    status: closed
+    opened_at: '216'
+    closed_at: '228'
+    next_actions: []
+  - id: swarm-architecture-v3
+    name: 蜂群架构补充
+    status: closed
+    opened_at: '269'
+    closed_at: '275'
+    next_actions: []
+- id: knowledge-genealogy
+  name: 知识谱系
+  zongfangzhen_section: §四.2知识维度 + §八.五穿越基础设施 + §八.七阶段B-T/B-M/I-2预备
+  description: 知识生产维度——穿越基础设施（导航+偶遇记录）+ Morse数学 + 知识谱系独立运行预备
+  mu:
+  - id: traverse-infra
+    name: 穿越基础设施
+    status: closed
+    opened_at: '301'
+    next_actions:
+    - type: integration
+      target: encounter-record-mechanism
+      description: 偶遇记录机制集成——穿越基础设施组件二（ceremony写入后cycle_rank增量检测）
+      blocked_by: null
+      completion_check:
+        type: genealogy_settled
+        keyword: encounter-record
+    closed_at: '2026-03-04'
+    closed_reason: 所有 next_actions 的 completion_check 均已满足
