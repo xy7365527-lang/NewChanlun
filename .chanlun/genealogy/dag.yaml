@@ -1620,6 +1620,21 @@ nodes:
   status: 已结算
   type: experiment
   file: settled/335-three-regime-internal-analysis.md
+- id: '336'
+  title: 元观察——三体制分析结果呈现 session（compaction 恢复 + 335号写入）
+  status: 已结算
+  type: meta-rule
+  file: settled/336-meta-observation-regime-analysis-results.md
+- id: '337'
+  title: 329号最终结算修订版：四项修正 + 自发/自觉体制动力学签名
+  status: 已结算
+  type: theorem
+  file: settled/337-329-final-settlement-revision.md
+- id: '338'
+  title: 操作方法论 v2——267号四项否定修正
+  status: settled
+  type: theorem
+  file: settled/338-operational-methodology-v2.md
 edges:
   depends_on:
   - from: '136'
@@ -3432,6 +3447,26 @@ edges:
     to: '330'
   - from: '335'
     to: '334'
+  - from: '336'
+    to: '333'
+  - from: '336'
+    to: '334'
+  - from: '336'
+    to: '335'
+  - from: '337'
+    to: '329'
+  - from: '337'
+    to: '330'
+  - from: '337'
+    to: '334'
+  - from: '337'
+    to: '335'
+  - from: '338'
+    to: '267'
+  - from: '338'
+    to: 268a
+  - from: '338'
+    to: '295'
   triggered:
   - from: '005'
     to: 005a
