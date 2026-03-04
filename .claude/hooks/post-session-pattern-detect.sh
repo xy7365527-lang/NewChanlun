@@ -23,7 +23,7 @@
 set -euo pipefail
 
 resolve_python() {
-  for candidate in python3 python; do
+  for candidate in python python3; do
     if command -v "$candidate" >/dev/null 2>&1; then
       if "$candidate" -c "import sys" >/dev/null 2>&1; then
         echo "$candidate"

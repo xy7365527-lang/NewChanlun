@@ -11,7 +11,7 @@ set -euo pipefail
 
 resolve_python() {
   local bin
-  for bin in python3 python; do
+  for bin in python python3; do
     if command -v "$bin" >/dev/null 2>&1 && "$bin" -c "import sys" >/dev/null 2>&1; then
       echo "$bin"
       return 0
@@ -25,7 +25,7 @@ PYTHON_BIN="$(resolve_python || true)"
 
 python() { command "$PYTHON_BIN" "$@"; }
 
-INPUT=$(cat)
+INPUT=$(timeout 3 cat 2>/dev/null || echo "{}")
 
 # 只处理 Bash 工具
 TOOL_NAME=$(echo "$INPUT" | python -c "import sys,json; print(json.load(sys.stdin).get('tool_name',''))" 2>/dev/null || echo "")

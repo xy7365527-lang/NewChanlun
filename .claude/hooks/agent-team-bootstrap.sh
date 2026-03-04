@@ -17,10 +17,10 @@ set -uo pipefail
 # 将 stdin 保存到临时文件，通过环境变量传递给 python
 HOOK_TMPFILE=$(mktemp)
 trap 'rm -f "$HOOK_TMPFILE"' EXIT
-cat > "$HOOK_TMPFILE"
+timeout 3 cat > "$HOOK_TMPFILE" 2>/dev/null || echo "{}" > "$HOOK_TMPFILE"
 
 # 全部逻辑在 python 中完成（通过环境变量传递临时文件路径）
-HOOK_INPUT="$HOOK_TMPFILE" python3 << 'PYEOF'
+HOOK_INPUT="$HOOK_TMPFILE" python << 'PYEOF'
 import json, sys, os
 
 tmpfile = os.environ['HOOK_INPUT']

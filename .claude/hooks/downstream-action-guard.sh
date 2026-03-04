@@ -10,7 +10,7 @@ set -uo pipefail
 
 resolve_python() {
   local bin
-  for bin in python3 python; do
+  for bin in python python3; do
     if command -v "$bin" >/dev/null 2>&1 && "$bin" -c "import sys" >/dev/null 2>&1; then
       echo "$bin"
       return 0
@@ -26,7 +26,7 @@ fi
 
 python() { command "$PYTHON_BIN" "$@"; }
 
-INPUT=$(cat)
+INPUT=$(timeout 3 cat 2>/dev/null || echo "{}")
 
 TOOL_NAME=$(echo "$INPUT" | python -c "
 import sys, json

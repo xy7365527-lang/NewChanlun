@@ -11,7 +11,7 @@
 
 set -euo pipefail
 
-INPUT=$(cat)
+INPUT=$(timeout 3 cat 2>/dev/null || echo "{}")
 
 # 快速短路：非 git commit 命令直接放行，避免每次 Bash 都启动 Python
 if ! printf '%s' "$INPUT" | grep -q "git commit"; then
@@ -20,7 +20,7 @@ fi
 
 resolve_python() {
   local bin
-  for bin in python3 python; do
+  for bin in python python3; do
     if command -v "$bin" >/dev/null 2>&1 && "$bin" -c "import sys" >/dev/null 2>&1; then
       echo "$bin"
       return 0
