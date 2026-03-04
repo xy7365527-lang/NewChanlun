@@ -1,0 +1,573 @@
+{
+  "1987": {
+    "regime_name": "1987_pre_crash",
+    "regime_start": "1987-01-06",
+    "regime_end": "1987-02-04",
+    "baseline_end": "1987-01-06",
+    "nodes": [
+      "USD",
+      "Equity",
+      "Commodity"
+    ],
+    "edges": [
+      "USD/Equity",
+      "USD/Commodity",
+      "Equity/Commodity"
+    ],
+    "regime_trading_days": 22,
+    "baseline_trading_days": 60,
+    "entry_phase_days": 22,
+    "sustained_phase_days": 0,
+    "baseline_means": {
+      "USD/Equity": 0.009304,
+      "USD/Commodity": 0.022617,
+      "Equity/Commodity": 0.024638
+    },
+    "baseline_stds": {
+      "USD/Equity": 0.001825,
+      "USD/Commodity": 0.006352,
+      "Equity/Commodity": 0.005271
+    },
+    "entry_vol_ratios": {
+      "USD/Equity": 1.1944,
+      "USD/Commodity": 0.6561,
+      "Equity/Commodity": 0.6422
+    },
+    "entry_vol_zscores": {
+      "USD/Equity": 0.99,
+      "USD/Commodity": -1.22,
+      "Equity/Commodity": -1.67
+    },
+    "sustained_vol_ratios": null,
+    "regime_full_vol_ratios": {
+      "USD/Equity": 1.1944,
+      "USD/Commodity": 0.6561,
+      "Equity/Commodity": 0.6422
+    },
+    "post_vol_ratios": {
+      "USD/Equity": 1.3385,
+      "USD/Commodity": 0.807,
+      "Equity/Commodity": 0.7652
+    },
+    "node_divergence": {
+      "USD": {
+        "avg_ratio_with": 0.9253,
+        "avg_ratio_without": 0.6422,
+        "divergence": 0.2831,
+        "edges_with": [
+          "USD/Equity",
+          "USD/Commodity"
+        ],
+        "edges_without": [
+          "Equity/Commodity"
+        ]
+      },
+      "Equity": {
+        "avg_ratio_with": 0.9183,
+        "avg_ratio_without": 0.6561,
+        "divergence": 0.2622,
+        "edges_with": [
+          "USD/Equity",
+          "Equity/Commodity"
+        ],
+        "edges_without": [
+          "USD/Commodity"
+        ]
+      },
+      "Commodity": {
+        "avg_ratio_with": 0.6491,
+        "avg_ratio_without": 1.1944,
+        "divergence": -0.5453,
+        "edges_with": [
+          "USD/Commodity",
+          "Equity/Commodity"
+        ],
+        "edges_without": [
+          "USD/Equity"
+        ]
+      }
+    },
+    "sequence_analysis": {
+      "riot_sequence": [
+        {
+          "edge": "USD/Equity",
+          "date": "1987-01-27"
+        }
+      ],
+      "freeze_sequence": [
+        {
+          "edge": "Equity/Commodity",
+          "date": "1987-01-06"
+        },
+        {
+          "edge": "USD/Commodity",
+          "date": "1987-01-14"
+        }
+      ],
+      "first_rioting_edge": "USD/Equity",
+      "first_riot_date": "1987-01-27",
+      "first_freezing_edge": "Equity/Commodity",
+      "first_freeze_date": "1987-01-06",
+      "inferred_rupture_node": "USD",
+      "prediction_check": {
+        "rupture_node": "USD",
+        "divergence": 0.2831,
+        "edges_with_rupture": {
+          "edges": [
+            "USD/Equity",
+            "USD/Commodity"
+          ],
+          "entry_vol_ratios": {
+            "USD/Equity": 1.1944,
+            "USD/Commodity": 0.6561
+          },
+          "mean_ratio": 0.9253,
+          "all_above_1": false
+        },
+        "edges_without_rupture": {
+          "edges": [
+            "Equity/Commodity"
+          ],
+          "entry_vol_ratios": {
+            "Equity/Commodity": 0.6422
+          },
+          "mean_ratio": 0.6422,
+          "all_below_1": true
+        },
+        "sustained_with_mean_ratio": null,
+        "sustained_without_mean_ratio": null
+      },
+      "prediction_verdict": "DIRECTIONAL_CONFIRM",
+      "exit_recovery_sequence": [
+        {
+          "edge": "USD/Equity",
+          "first_normal_date": "1987-02-25",
+          "post_normal_fraction": 0.5666666666666667
+        },
+        {
+          "edge": "USD/Commodity",
+          "first_normal_date": "1987-02-26",
+          "post_normal_fraction": 0.5333333333333333
+        },
+        {
+          "edge": "Equity/Commodity",
+          "first_normal_date": "1987-02-27",
+          "post_normal_fraction": 0.5
+        }
+      ]
+    }
+  },
+  "1990_91": {
+    "regime_name": "1990_91_gulf_war",
+    "regime_start": "1990-10-23",
+    "regime_end": "1991-09-06",
+    "baseline_end": "1990-10-23",
+    "nodes": [
+      "USD",
+      "Equity",
+      "Commodity"
+    ],
+    "edges": [
+      "USD/Equity",
+      "USD/Commodity",
+      "Equity/Commodity"
+    ],
+    "regime_trading_days": 221,
+    "baseline_trading_days": 60,
+    "entry_phase_days": 30,
+    "sustained_phase_days": 191,
+    "baseline_means": {
+      "USD/Equity": 0.012689,
+      "USD/Commodity": 0.048977,
+      "Equity/Commodity": 0.056205
+    },
+    "baseline_stds": {
+      "USD/Equity": 0.00212,
+      "USD/Commodity": 0.010718,
+      "Equity/Commodity": 0.013183
+    },
+    "entry_vol_ratios": {
+      "USD/Equity": 1.1226,
+      "USD/Commodity": 1.2209,
+      "Equity/Commodity": 1.1873
+    },
+    "entry_vol_zscores": {
+      "USD/Equity": 0.73,
+      "USD/Commodity": 1.01,
+      "Equity/Commodity": 0.8
+    },
+    "sustained_vol_ratios": {
+      "USD/Equity": 0.9763,
+      "USD/Commodity": 0.6744,
+      "Equity/Commodity": 0.6275
+    },
+    "regime_full_vol_ratios": {
+      "USD/Equity": 0.9962,
+      "USD/Commodity": 0.7486,
+      "Equity/Commodity": 0.7035
+    },
+    "post_vol_ratios": {
+      "USD/Equity": 0.7244,
+      "USD/Commodity": 0.2152,
+      "Equity/Commodity": 0.2617
+    },
+    "node_divergence": {
+      "USD": {
+        "avg_ratio_with": 1.1717,
+        "avg_ratio_without": 1.1873,
+        "divergence": -0.0155,
+        "edges_with": [
+          "USD/Equity",
+          "USD/Commodity"
+        ],
+        "edges_without": [
+          "Equity/Commodity"
+        ]
+      },
+      "Equity": {
+        "avg_ratio_with": 1.1549,
+        "avg_ratio_without": 1.2209,
+        "divergence": -0.0659,
+        "edges_with": [
+          "USD/Equity",
+          "Equity/Commodity"
+        ],
+        "edges_without": [
+          "USD/Commodity"
+        ]
+      },
+      "Commodity": {
+        "avg_ratio_with": 1.2041,
+        "avg_ratio_without": 1.1226,
+        "divergence": 0.0815,
+        "edges_with": [
+          "USD/Commodity",
+          "Equity/Commodity"
+        ],
+        "edges_without": [
+          "USD/Equity"
+        ]
+      }
+    },
+    "sequence_analysis": {
+      "riot_sequence": [
+        {
+          "edge": "USD/Commodity",
+          "date": "1990-10-29"
+        }
+      ],
+      "freeze_sequence": [],
+      "first_rioting_edge": "USD/Commodity",
+      "first_riot_date": "1990-10-29",
+      "first_freezing_edge": null,
+      "first_freeze_date": null,
+      "inferred_rupture_node": "Commodity",
+      "prediction_check": {
+        "rupture_node": "Commodity",
+        "divergence": 0.0815,
+        "edges_with_rupture": {
+          "edges": [
+            "USD/Commodity",
+            "Equity/Commodity"
+          ],
+          "entry_vol_ratios": {
+            "USD/Commodity": 1.2209,
+            "Equity/Commodity": 1.1873
+          },
+          "mean_ratio": 1.2041,
+          "all_above_1": true
+        },
+        "edges_without_rupture": {
+          "edges": [
+            "USD/Equity"
+          ],
+          "entry_vol_ratios": {
+            "USD/Equity": 1.1226
+          },
+          "mean_ratio": 1.1226,
+          "all_below_1": false
+        },
+        "sustained_with_mean_ratio": 0.6509,
+        "sustained_without_mean_ratio": 0.9763
+      },
+      "prediction_verdict": "DIRECTIONAL_CONFIRM",
+      "exit_recovery_sequence": [
+        {
+          "edge": "USD/Equity",
+          "first_normal_date": "1991-09-17",
+          "post_normal_fraction": 0.06666666666666667
+        },
+        {
+          "edge": "USD/Commodity",
+          "first_normal_date": null,
+          "post_normal_fraction": 0.0
+        },
+        {
+          "edge": "Equity/Commodity",
+          "first_normal_date": null,
+          "post_normal_fraction": 0.0
+        }
+      ]
+    }
+  },
+  "2020_21": {
+    "regime_name": "2020_21_covid_qe",
+    "regime_start": "2020-04-03",
+    "regime_end": "2021-04-23",
+    "baseline_end": "2020-02-15",
+    "nodes": [
+      "Au",
+      "USD",
+      "Equity",
+      "Commodity"
+    ],
+    "edges": [
+      "Au/USD",
+      "Au/Equity",
+      "Au/Commodity",
+      "USD/Equity",
+      "USD/Commodity",
+      "Equity/Commodity"
+    ],
+    "regime_trading_days": 263,
+    "baseline_trading_days": 60,
+    "entry_phase_days": 30,
+    "sustained_phase_days": 233,
+    "baseline_means": {
+      "Au/USD": 0.007132,
+      "Au/Equity": 0.009458,
+      "Au/Commodity": 0.016558,
+      "USD/Equity": 0.004978,
+      "USD/Commodity": 0.016096,
+      "Equity/Commodity": 0.015947
+    },
+    "baseline_stds": {
+      "Au/USD": 0.000909,
+      "Au/Equity": 0.001224,
+      "Au/Commodity": 0.0041,
+      "USD/Equity": 0.001328,
+      "USD/Commodity": 0.002272,
+      "Equity/Commodity": 0.002199
+    },
+    "entry_vol_ratios": {
+      "Au/USD": 2.8867,
+      "Au/Equity": 3.2029,
+      "Au/Commodity": 9.4006,
+      "USD/Equity": 6.5643,
+      "USD/Commodity": 9.6792,
+      "Equity/Commodity": 10.1604
+    },
+    "entry_vol_zscores": {
+      "Au/USD": 14.81,
+      "Au/Equity": 17.03,
+      "Au/Commodity": 33.92,
+      "USD/Equity": 20.85,
+      "USD/Commodity": 61.48,
+      "Equity/Commodity": 66.43
+    },
+    "sustained_vol_ratios": {
+      "Au/USD": 1.8161,
+      "Au/Equity": 1.6276,
+      "Au/Commodity": 1.7454,
+      "USD/Equity": 2.5168,
+      "USD/Commodity": 1.6708,
+      "Equity/Commodity": 1.4944
+    },
+    "regime_full_vol_ratios": {
+      "Au/USD": 1.9382,
+      "Au/Equity": 1.8073,
+      "Au/Commodity": 2.6186,
+      "USD/Equity": 2.9785,
+      "USD/Commodity": 2.5843,
+      "Equity/Commodity": 2.4829
+    },
+    "post_vol_ratios": {
+      "Au/USD": 1.3177,
+      "Au/Equity": 0.8711,
+      "Au/Commodity": 1.2309,
+      "USD/Equity": 2.0632,
+      "USD/Commodity": 1.1541,
+      "Equity/Commodity": 1.2481
+    },
+    "node_divergence": {
+      "Au": {
+        "avg_ratio_with": 5.1634,
+        "avg_ratio_without": 8.8013,
+        "divergence": -3.6379,
+        "edges_with": [
+          "Au/USD",
+          "Au/Equity",
+          "Au/Commodity"
+        ],
+        "edges_without": [
+          "USD/Equity",
+          "USD/Commodity",
+          "Equity/Commodity"
+        ]
+      },
+      "USD": {
+        "avg_ratio_with": 6.3767,
+        "avg_ratio_without": 7.588,
+        "divergence": -1.2113,
+        "edges_with": [
+          "Au/USD",
+          "USD/Equity",
+          "USD/Commodity"
+        ],
+        "edges_without": [
+          "Au/Equity",
+          "Au/Commodity",
+          "Equity/Commodity"
+        ]
+      },
+      "Equity": {
+        "avg_ratio_with": 6.6426,
+        "avg_ratio_without": 7.3222,
+        "divergence": -0.6796,
+        "edges_with": [
+          "Au/Equity",
+          "USD/Equity",
+          "Equity/Commodity"
+        ],
+        "edges_without": [
+          "Au/USD",
+          "Au/Commodity",
+          "USD/Commodity"
+        ]
+      },
+      "Commodity": {
+        "avg_ratio_with": 9.7468,
+        "avg_ratio_without": 4.218,
+        "divergence": 5.5288,
+        "edges_with": [
+          "Au/Commodity",
+          "USD/Commodity",
+          "Equity/Commodity"
+        ],
+        "edges_without": [
+          "Au/USD",
+          "Au/Equity",
+          "USD/Equity"
+        ]
+      }
+    },
+    "sequence_analysis": {
+      "riot_sequence": [
+        {
+          "edge": "Au/Equity",
+          "date": "2020-02-21"
+        },
+        {
+          "edge": "USD/Equity",
+          "date": "2020-02-21"
+        },
+        {
+          "edge": "Au/USD",
+          "date": "2020-02-25"
+        },
+        {
+          "edge": "USD/Commodity",
+          "date": "2020-03-02"
+        },
+        {
+          "edge": "Equity/Commodity",
+          "date": "2020-03-04"
+        },
+        {
+          "edge": "Au/Commodity",
+          "date": "2020-03-06"
+        }
+      ],
+      "freeze_sequence": [],
+      "first_rioting_edge": "Au/Equity",
+      "first_riot_date": "2020-02-21",
+      "first_freezing_edge": null,
+      "first_freeze_date": null,
+      "inferred_rupture_node": "Commodity",
+      "prediction_check": {
+        "rupture_node": "Commodity",
+        "divergence": 5.5288,
+        "edges_with_rupture": {
+          "edges": [
+            "Au/Commodity",
+            "USD/Commodity",
+            "Equity/Commodity"
+          ],
+          "entry_vol_ratios": {
+            "Au/Commodity": 9.4006,
+            "USD/Commodity": 9.6792,
+            "Equity/Commodity": 10.1604
+          },
+          "mean_ratio": 9.7468,
+          "all_above_1": true
+        },
+        "edges_without_rupture": {
+          "edges": [
+            "Au/USD",
+            "Au/Equity",
+            "USD/Equity"
+          ],
+          "entry_vol_ratios": {
+            "Au/USD": 2.8867,
+            "Au/Equity": 3.2029,
+            "USD/Equity": 6.5643
+          },
+          "mean_ratio": 4.218,
+          "all_below_1": false
+        },
+        "sustained_with_mean_ratio": 1.6369,
+        "sustained_without_mean_ratio": 1.9868
+      },
+      "prediction_verdict": "DIRECTIONAL_CONFIRM",
+      "exit_recovery_sequence": [
+        {
+          "edge": "Au/Equity",
+          "first_normal_date": "2021-04-26",
+          "post_normal_fraction": 0.5666666666666667
+        },
+        {
+          "edge": "Au/Commodity",
+          "first_normal_date": "2021-04-26",
+          "post_normal_fraction": 1.0
+        },
+        {
+          "edge": "USD/Commodity",
+          "first_normal_date": "2021-04-26",
+          "post_normal_fraction": 0.8
+        },
+        {
+          "edge": "Au/USD",
+          "first_normal_date": "2021-04-28",
+          "post_normal_fraction": 0.26666666666666666
+        },
+        {
+          "edge": "USD/Equity",
+          "first_normal_date": "2021-04-28",
+          "post_normal_fraction": 0.1
+        },
+        {
+          "edge": "Equity/Commodity",
+          "first_normal_date": "2021-05-03",
+          "post_normal_fraction": 0.43333333333333335
+        }
+      ]
+    }
+  },
+  "overall_verdict": {
+    "verdicts": {
+      "1987": "DIRECTIONAL_CONFIRM",
+      "1990_91": "DIRECTIONAL_CONFIRM",
+      "2020_21": "DIRECTIONAL_CONFIRM"
+    },
+    "rupture_nodes": {
+      "1987": "USD",
+      "1990_91": "Commodity",
+      "2020_21": "Commodity"
+    },
+    "unique_rupture_nodes": [
+      "USD",
+      "Commodity"
+    ],
+    "conclusion": "PARTIAL: 方向符合但断裂节点未分异（相同节点）"
+  }
+}

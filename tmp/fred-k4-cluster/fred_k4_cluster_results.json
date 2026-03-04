@@ -1,0 +1,108 @@
+{
+  "metadata": {
+    "analysis": "FRED WTI spot + Yahoo Finance K4 eff.dim cluster analysis",
+    "run_time": "2026-03-04T12:11:03.672310",
+    "data_sources": {
+      "Au": "Yahoo Finance GC=F (gold futures, NOT LBMA spot)",
+      "WTI": "FRED DCOILWTICO (WTI spot price, via Playwright download)",
+      "SPX": "Yahoo Finance ^GSPC (S&P 500)",
+      "DXY": "Yahoo Finance DX-Y.NYB (US Dollar Index)"
+    },
+    "data_window": {
+      "aligned_start": "2000-08-30",
+      "aligned_end": "2026-02-23",
+      "aligned_count": 6373
+    },
+    "note": "FRED GOLDAMGBD228NLBM (LBMA London Fix gold) 于 2022-01-31 被删除 (ICE Benchmark Administration 数据全部移除)。黄金用 GC=F 期货替代，公共窗口因此从 ~2000-09 开始而非 1986。",
+    "epistemological_level": "L2 (real data, falsifiable)"
+  },
+  "parameters": {
+    "effdim_window": 252,
+    "phase_threshold_percentile": 5.0,
+    "cluster_gap_days": 5
+  },
+  "effdim_statistics": {
+    "Au": {
+      "count": 6118,
+      "mean": 2.162658,
+      "std": 0.233129,
+      "min": 1.507936,
+      "p5": 1.709588,
+      "p25": 2.032674,
+      "median": 2.194936,
+      "p75": 2.339435,
+      "p95": 2.479971,
+      "max": 2.590172
+    },
+    "$": {
+      "count": 6118,
+      "mean": 2.120031,
+      "std": 0.230236,
+      "min": 1.508191,
+      "p5": 1.781095,
+      "p25": 1.976734,
+      "median": 2.128332,
+      "p75": 2.242863,
+      "p95": 2.560632,
+      "max": 2.726359
+    },
+    "Equity": {
+      "count": 6118,
+      "mean": 2.200244,
+      "std": 0.253295,
+      "min": 1.540612,
+      "p5": 1.835656,
+      "p25": 2.027527,
+      "median": 2.174454,
+      "p75": 2.383104,
+      "p95": 2.64933,
+      "max": 2.825979
+    },
+    "Commodity": {
+      "count": 6118,
+      "mean": 1.524859,
+      "std": 0.230451,
+      "min": 1.12839,
+      "p5": 1.261593,
+      "p25": 1.352895,
+      "median": 1.479282,
+      "p75": 1.667787,
+      "p95": 2.016121,
+      "max": 2.225444
+    }
+  },
+  "sync_compression": {
+    "thresholds": {
+      "Au": 1.709588,
+      "$": 1.781095,
+      "Equity": 1.835656,
+      "Commodity": 1.261593
+    },
+    "n_sync_days": 263,
+    "n_clusters": 1,
+    "effdim_window": 252,
+    "phase_threshold_percentile": 5.0,
+    "cluster_gap_days": 5,
+    "mahalanobis_global": {
+      "mean": 1.3893,
+      "p95": 3.0787,
+      "p99": 5.3376
+    }
+  },
+  "clusters": [
+    {
+      "cluster_id": 1,
+      "start_date": "2020-04-03",
+      "end_date": "2021-04-23",
+      "duration_days": 386,
+      "n_sync_days": 263,
+      "au_effdim_min": 1.507936,
+      "dollar_effdim_min": 1.508191,
+      "equity_effdim_min": 1.540612,
+      "commodity_effdim_min": 1.12839,
+      "mahalanobis_mean": 1.6886,
+      "mahalanobis_max": 15.488,
+      "historical_context": "COVID crash + massive QE/fiscal; V-shaped recovery"
+    }
+  ]
+}
