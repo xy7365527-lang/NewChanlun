@@ -713,8 +713,10 @@ def _scan_research_lines(root):
                     all_completed = False
                     continue
 
-                # unblocked action——检查 completion_check
+                # unblocked action——检查 completed_at（gangmu_update.py 标记）或 completion_check
                 all_blocked = False
+                if action.get("completed_at"):
+                    continue
                 completion_check = action.get("completion_check")
                 completed = _check_completion(root, completion_check)
 

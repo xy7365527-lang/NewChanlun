@@ -121,7 +121,7 @@ gang:
             blocked_by: null
             completion_check:
               type: script_exists
-              path: "scripts/k4_monitor_deploy.sh"
+              path: "deploy/k4-monitor/setup.sh"
           - type: engineering
             target: "k4-config-encoder"
             description: "K4配置编码器——将K4参数编码为可序列化配置（G4）"
