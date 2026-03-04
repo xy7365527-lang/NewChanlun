@@ -1690,6 +1690,11 @@ nodes:
   status: settled
   type: theorem
   file: settled/349-fugue-state-machine-definition.md
+- id: '350'
+  title: 区间套收敛紧度量化指标
+  status: settled
+  type: 概念定义
+  file: settled/350-convergence-metric.md
 edges:
   depends_on:
   - from: '136'
@@ -3576,6 +3581,8 @@ edges:
     to: '295'
   - from: '349'
     to: '264'
+  - from: '350'
+    to: '267'
   triggered:
   - from: '005'
     to: 005a
