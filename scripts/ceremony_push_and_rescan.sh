@@ -72,7 +72,37 @@ print(json.dumps({'error': 'ceremony_scan.py rescan 失败', 'phase': 'rescan', 
     exit 1
 fi
 
-# --- Step 5: 输出结果 ---
+# --- Step 5b: 应用 gangmu proposed_transitions（自动状态转换）---
+# 从 scan 输出中提取 proposed_transitions，调用 gangmu_update.py 执行
+python -c "
+import json, sys, subprocess, os
+
+scan_file = sys.argv[1]
+script_dir = sys.argv[2]
+
+with open(scan_file, encoding='utf-8') as f:
+    raw = f.read()
+try:
+    data = json.loads(raw)
+except Exception:
+    sys.exit(0)
+
+rl = data.get('research_lines')
+if not rl or not isinstance(rl, dict):
+    sys.exit(0)
+proposed = rl.get('proposed_transitions', [])
+if not proposed:
+    sys.exit(0)
+
+# 调用 gangmu_update.py apply-proposed
+subprocess.run(
+    [sys.executable, os.path.join(script_dir, 'gangmu_update.py'),
+     'apply-proposed', '--json', json.dumps(proposed, ensure_ascii=False)],
+    capture_output=True, text=True
+)
+" "$RESCAN_TMPFILE" "$SCRIPT_DIR" 2>/dev/null
+
+# --- Step 6: 输出结果 ---
 # 通过环境变量 + stdin 传递数据给 python，避免 shell 注入
 ATOMIC_COMMITTED="$COMMITTED" \
 ATOMIC_PUSH_OK="$PUSH_OK" \
