@@ -19,14 +19,18 @@ ceremony 写入谱系后调用。检测新增谱系的跨纲 depends_on 边
   - 设计内引用不是偶遇（元观察观察所有纲、K4研究链跨纲等）
   - 类比性连接不是偶遇（语义相近但不迫使修正）
 
-设计内引用的七个模式（v150 Layer 1 结晶）：
+设计内引用的十一个模式（v150 Layer 1 结晶 + v158 审计扩展）：
   1. 元观察引用（标题含"元观察"）
   2. K4研究链跨纲（from/to 涉及 k4-* 目）
   3. 操作方法论→K4本体论
   4. 区块拓扑映射（from block-topology-eng）
   5. 折叠实验→折叠理论
   6. 语法规则结晶
-  7. 元观察链
+  7. K4体制分析跨纲
+  8. 蜂群架构跨纲引用
+  9. 扫描器→操作方法论
+  10. 数学工具研究→折叠本体论
+  11. 研究验证链（验证报告→研究线）
 """
 
 import argparse
@@ -183,6 +187,21 @@ def classify_cross_gang_edge(from_id, from_title, from_gang, from_mu,
            "ceremony" in from_title or "ceremony" in to_title or \
            "并行" in from_title or "并行" in to_title:
             return "design_internal", "swarm_architecture_refs"
+
+    # 模式9：扫描器→操作方法论（multi-target-scanner 引用 operational-methodology）
+    if from_mu == "multi-target-scanner" and to_mu == "operational-methodology":
+        return "design_internal", "scanner_to_operational_methodology"
+
+    # 模式10：数学工具研究→折叠本体论（morse-topology 引用折叠拓扑基础概念）
+    if from_gang == "morse-topology":
+        if "折叠" in to_title or "拓扑" in to_title or \
+           to_mu == "fold-topology-ontology" or to_mu == "operational-methodology":
+            return "design_internal", "math_tools_to_fold_ontology"
+
+    # 模式11：研究验证链（验证报告引用其所验证的研究线）
+    if from_mu == "multi-target-scanner" and to_mu == "discrete-morse-experiment":
+        if "验证" in from_title or "DM" in from_title:
+            return "design_internal", "research_validation_chain"
 
     # 不匹配任何已知设计内模式 → 候选偶遇
     return "encounter_candidate", None

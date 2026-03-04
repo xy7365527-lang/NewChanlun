@@ -26,8 +26,10 @@ gang:
     next_actions: []
   - id: operational-methodology
     name: 操作方法论
-    status: active
+    status: closed
     opened_at: '265'
+    closed_at: '2026-03-04'
+    closed_reason: 所有 next_actions 的 completion_check 均已满足
     next_actions:
     - type: engineering
       target: G1-position-management
@@ -60,6 +62,7 @@ gang:
       completion_check:
         type: genealogy_settled
         keyword: fugue-state-machine
+      completed_at: '2026-03-04'
     - type: engineering
       target: G4-backtest-framework
       description: G4回测框架——逐bar展开验证满仓满融降成本速度、区间套收敛排序效果、不换仓原则机会成本（来源：267号下游推论1 + 总方针§八.七阶段B回测）
@@ -169,8 +172,10 @@ gang:
   mu:
   - id: block-topology-eng
     name: 区块拓扑
-    status: active
+    status: closed
     opened_at: '301'
+    closed_at: '2026-03-04'
+    closed_reason: 所有 next_actions 的 completion_check 均已满足
     next_actions:
     - type: engineering
       target: BT1-content-addressed-migration
@@ -188,6 +193,7 @@ gang:
       completion_check:
         type: test_file_exists
         pattern: tests/test_reflexive_layer.py
+      completed_at: '2026-03-04'
     - type: integration
       target: BT3-traverse-mcp-integration
       description: BT3穿越基础设施MCP集成——将查询接口(traverse.py)接入LLM对话流，编排者提到索引号或概念词时LLM直接查询谱系拓扑带入对话语境（来源：总方针§八.五穿越基础设施组件一 + §八.七阶段B-T）
@@ -253,8 +259,10 @@ gang:
   mu:
   - id: discrete-morse-experiment
     name: 离散Morse计算实验
-    status: active
+    status: closed
     opened_at: '351'
+    closed_at: '2026-03-04'
+    closed_reason: DM3验证完成（355号L2否定性结果），所有 next_actions 的 completion_check 均已满足
     next_actions:
     - type: experiment
       target: DM1-simplex-construction
@@ -279,3 +287,4 @@ gang:
       completion_check:
         type: genealogy_settled
         keyword: morse-validation
+      completed_at: '2026-03-04'
