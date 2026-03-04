@@ -1,0 +1,38 @@
+{
+  "id": "ed525eaa4dc20813499a8208c85a14e56b5f84e37039693a42dd40f6c9912c8d",
+  "type": "event",
+  "timestamp": "2026-02-24T01:53:23.185897+00:00",
+  "source": "migration",
+  "content": {
+    "id": "135",
+    "title": "CLAUDE.md 单体→skill 集合结晶 + 073b平台约束前提否定",
+    "status": "已结算",
+    "type": "行动",
+    "date": "2026-02-22",
+    "negation_source": "v38-swarm RTAS执行 + 编排者确认平台无限制",
+    "negation_form": "行动（P0-5执行 + 073b前提否定，不携带信息差）",
+    "depends_on": [
+      "089",
+      "095",
+      "096",
+      "097",
+      "134"
+    ],
+    "related": [
+      "014",
+      "073b",
+      "075",
+      "105",
+      "117"
+    ],
+    "negates": [
+      "073b"
+    ],
+    "negated_by": [],
+    "provenance": "[新缠论]",
+    "source_file": "settled\\135-claude-md-skill-crystallization.md",
+    "full_text": "---\nid: '135'\ntitle: CLAUDE.md 单体→skill 集合结晶 + 073b平台约束前提否定\ntype: 行动\nstatus: 已结算\ndate: 2026-02-22\ndepends_on:\n  - '089'   # 存在论位置（扬弃）\n  - '095'   # 真递归是默认模式\n  - '096'   # 统一约束\n  - '097'   # 五特征 DAG 模板\n  - '134'   # v37审计 P0修复（P0-5 = 本号执行对象）\nrelated:\n  - '014'   # 分布式指令架构\n  - '073b'  # 被否定的 Trampoline 前提\n  - '075'   # 结构能力→skill 事件驱动\n  - '105'   # 递归无条件架构要求\n  - '117'   # 三框架组合理解\nnegation_source: v38-swarm RTAS执行 + 编排者确认平台无限制\nnegation_form: 行动（P0-5执行 + 073b前提否定，不携带信息差）\nnegates:\n  - '073b'  # 编排者确认：Agent Teams 平台支持子蜂群递归，073b \"subagent不能spawn sub-subagent\" 前提为假\nnegated_by: []\nprovenance: \"[新缠论]\"\n---\n\n# 135号：CLAUDE.md 单体→skill 集合结晶 + 073b平台约束前提否定\n\n**类型**: 行动（l'acte）\n**状态**: 已结算\n**日期**: 2026-02-22\n\n## 两个事件\n\n### 事件A：CLAUDE.md 拆分（P0-5 执行）\n\nCLAUDE.md 从 259 行单体文件→~80 行最小引导文件。\n原则11推论的实现：\"元编排本身也是 skill 的集合\"。\n\n**新增 5 个 skill**：\n\n| Skill | 内容 | 行数 |\n|-------|------|------|\n| core-principles | 原则0-7：蜂群基础语法 | 19 |\n| domain-conventions | 检索/级别/溯源/输出风格 | 34 |\n| domain-principles | 原则8/13/14：缠论域语法 | 14 |\n| swarm-architecture | 原则9-12/15-17 + 五约束 + 递归行为 + 热启动 | 122 |\n| project-topology | 知识仓库/谱系目录/指令架构 | 35 |\n\nCLAUDE.md 保留：存在论位置 + Language + 资料入口 + 三级权威链 + skill索引表 + 可用命令。\n\n规则的三层分布式存在形式（096号）现在完全实现：\n- CLAUDE.md = 基因组声明层（含 skill 路径索引）\n- hooks = 免疫系统强制层\n- skills = 可执行知识结晶知识层\n\n### 事件B：073b 平台约束前提否定\n\n编排者明确确认：\"我们用的就是 agent team，平台根本没有这个限制。\"\n并补充：\"这就是为什么我直接取消了 subagent 的接口。\"\n\n073b 号谱系的核心前提——\"Claude Code 平台：subagent 不能 spawn sub-subagent\"——**被事实否定**。\n\n**影响**：\n- 073b Trampoline 模式不是\"平台约束下的退化\"，而是**早期误判**\n- 095号\"真递归是默认模式\"的前提更加坚实：不仅是存在论要求，平台也完全支持\n- dispatch-dag.yaml recursion_rules 中残留的 Trampoline 表述已修正\n\n## 修改清单\n\n| 文件 | 改动 |\n|------|------|\n| CLAUDE.md | 259行→~80行，保留引导 + skill索引 |\n| .claude/skills/core-principles/SKILL.md | 新建 |\n| .claude/skills/domain-conventions/SKILL.md | 新建 |\n| .claude/skills/domain-principles/SKILL.md | 新建 |\n| .claude/skills/swarm-architecture/SKILL.md | 新建 |\n| .claude/skills/project-topology/SKILL.md | 新建 |\n| .chanlun/dispatch-dag.yaml | recursion_rules 修正（Trampoline→真递归） |\n\n## 边界条件\n\n- 如果 skill 加载机制失败（Claude Code 平台变更）→ skill 内容需回迁 CLAUDE.md\n- 如果新 skill 之间出现内容重叠或矛盾 → 需要重新划分边界\n\n## 下游推论\n\n1. 蜂群的每个新会话不再加载 259 行基因组，而是按需加载相关 skill\n2. 073b 否定后，所有引用 \"Trampoline\" 或 \"平台限制\" 的文档需清理\n3. 子蜂群递归的实现障碍从\"平台不支持\"变为\"执行模式选择\"——没有技术障碍\n"
+  },
+  "refs": [],
+  "git_ref": ""
+}

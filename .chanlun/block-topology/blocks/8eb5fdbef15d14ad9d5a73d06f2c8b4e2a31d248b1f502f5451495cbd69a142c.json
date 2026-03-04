@@ -1,0 +1,24 @@
+{
+  "id": "8eb5fdbef15d14ad9d5a73d06f2c8b4e2a31d248b1f502f5451495cbd69a142c",
+  "type": "event",
+  "timestamp": "2026-03-03T03:35:50.666920+00:00",
+  "source": "cc",
+  "content": {
+    "id": "315",
+    "title": "元观察——v137-swarm 三工位产出 + 折叠内在性检验启动 + meta.json 计数漂移",
+    "status": "已结算",
+    "type": "meta-rule",
+    "date": "2026-03-03",
+    "depends_on": [
+      "314",
+      "313",
+      "312",
+      "137",
+      "090"
+    ],
+    "source_file": "settled/315-meta-observation-v137-swarm.md",
+    "full_text": "---\nid: '315'\nnumber: 315\ntype: meta-rule\ntitle: \"元观察——v137-swarm 三工位产出 + 折叠内在性检验启动 + meta.json 计数漂移\"\ndate: \"2026-03-03\"\ndepends_on: ['314', '313', '312', '137', '090']\nstatus: 已结算\nrule_version_baseline:\n  claude_md_commit: \"97f3ba3186f1919ff6abf02dea4247724d47c79a\"\n  rules_dir_mtime: \"2026-03-01 00:27:49 +0000\"\n---\n\n# 315号：元观察——v137-swarm 三工位产出 + 折叠内在性检验启动 + meta.json 计数漂移\n\n## 递归判断\n\n任务不可分解：meta-observer 是单一观察角色，观察过程不可并行分割。扁平退化特例。\n\n## 规则版本基线\n\n- `claude_md_commit`: 97f3ba3（与 308-314号相同——CLAUDE.md 未变更）\n- `rules_dir_mtime`: 2026-03-01 00:27:49 +0000（与 308-314号相同——规则目录未变更）\n\n结论：本观察与 308-314号处于同一规则版本下。规则版本**七连稳定**——从 Phase 2 校准到 Phase 3 实现再到 v137 enrichment，规则层零变更。\n\n## 观察对象\n\nv137-swarm（2026-03-03）。包含工位：\n- block-mapper：314号 block-topology 映射修复\n- content-enricher：313 区块 content enrichment（relations 5205→6515）\n- downstream-resolver：312号 10 条下游推论评估（8 verified, 2 rejected）\n\n同时启动折叠内在性检验实验（Cu/Au x FCX）。\n\n### 前置状态\n\n- 314号已结算（stagnation 审计——误报确认）\n- 313号已结算（Phase 3 讨论 + 总方针分析）\n- 312号已结算（Phase 3 穿越基础设施裁定）\n\n## 观察结果\n\n### 观察1（定理）：规则版本七连稳定——规则层抽象已跨越三个工作阶段\n\n从 308号到 315号，规则版本连续七次无变更。覆盖阶段：Phase 2 校准（308-310）→ Phase 2→3 过渡（311）→ Phase 3 讨论（312-313）→ stagnation 审计（314）→ Phase 3 enrichment + 下游验证（315）。\n\n这是 313号观察1（四连稳定）的推进。四连→七连确认规则层抽象粒度不仅在跨 Phase 过渡中恰当，而且在**工位类型切换**中仍然恰当——从概念讨论（312-313）到代码审查（314）到批量数据操作（315 enrichment）到实验设计（折叠内在性检验），规则层均无需适应。\n\n**四分法分类**：定理——313号观察1 的逻辑延伸。\n\n### 观察2（发散信号）：meta.json relation_count 与 relations.jsonl 实际行数不一致\n\nmeta.json 中 `relation_count: 5206`，但 relations.jsonl 实际有 6515 行。差值 1309 恰好等于 `content_enrichment.relations_written: 1309`。\n\n根因：content-enricher 工位向 relations.jsonl 追加了 1309 条关系，并在 meta.json 中新增了 `content_enrichment` 字段记录此操作，但**未更新 `relation_count` 字段**。`relation_count` 仅反映 block-mapper 写入的关系数（5206），不包含 enrichment 追加的关系。\n\n结构含义：meta.json 中存在两个独立的关系计数来源——`relation_count`（block-mapper 维护）和 `content_enrichment.relations_written`（content-enricher 维护）。总关系数需要两者相加才能得到。这不是 bug（两个工位各自维护自己的计数），但违反了 meta.json 作为\"单一真相源\"的隐含假设——任何消费 `relation_count` 的下游代码都会得到不完整的数字。\n\n**四分法分类**：发散信号——数据一致性盲区。不走 /escalate（不是概念矛盾，是工程层面的计数维护缺口）。标记待观察——如果 `relation_count` 被下游代码消费并导致错误行为，则需要修复。\n\n### 观察3（定理）：rejected 推论的\"选择类\"分类正当性\n\ndownstream-resolver 将 312号推论7（authoritative 设计偏差）和推论8（偶遇催化机制偏差）分类为\"选择类\"——需要编排者裁定是修正设计意图还是修正实现。\n\n这个分类是正确的。两个 rejected 推论的共同结构：\n- 312号裁定描述了设计意图 X\n- 实际实现选择了不同的路径 Y\n- X 和 Y 都是合理的方案，选择哪个需要价值判断\n\n这不是定理（无法从已有原则推导出应选 X 还是 Y），不是行动（不是无信息差的操作），不是语法记录（不是已在运作的隐性规则）。选择类分类是四分法的正确应用。\n\n与 258号（v107-swarm 选择类分类正当性）的结构同构——258号也确认了\"设计-实现偏差需要编排者价值判断\"属于选择类。\n\n**四分法分类**：定理——258号的逻辑延伸。\n\n### 观察4（定理）：折叠内在性检验的实验设计质量\n\n折叠内在性检验协议（protocol-locked.md）展现了以下设计特征：\n1. 参数锁定不可修改——防止事后调参（p-hacking 防护）\n2. 对齐窗口从数据内生确定——不预设窗口大小\n3. Agent A/B 盲分离——Agent A 做纯统计聚类，不知道缠论理论预期\n4. 显著性水平 p < 0.05 锁死\n5. 仓位记忆标注——对有记忆污染的年份保持额外警觉\n\n这些设计特征与 formalization-validity-domain.md 的要求一致：实验在 L2 层级（真实数据验证，可能产生否定性结果）。协议明确声明 N_clusters != 3 时\"记录实际数量，分析含义\"——接受否定性结果。\n\n与 290号（v132-session 蜂群自主实验推进）的对比：290号观察到蜂群实验设计\"使用默认验证路径（扩大样本）\"。本次实验设计更严格——不是扩大样本，而是跨域交叉验证（Layer 1 比值边 → Layer 2 equity 标的），且有盲分离机制。实验设计质量相比 290号有提升。\n\n**四分法分类**：定理——formalization-validity-domain.md L2 要求的逻辑推论。\n\n### 观察5（自环检查）：与历史 meta-observation 的交叉对比\n\n| 编号 | 核心发现 | 本轮状态 |\n|------|---------|---------|\n| 313 观察1 | 规则版本四连稳定 | 推进至七连稳定（观察1） |\n| 313 观察3 | 总方针-执行漂移追踪缺位 | 休眠——本轮无总方针操作 |\n| 314 | stagnation 误报（行动类工位不产谱系） | 收敛——本轮 enrichment 也是行动类，同样不产新谱系编号 |\n| 308 观察1 | 过滤判断依据层级（语法记录候选） | 休眠——本轮无过滤操作 |\n| 258 | 选择类分类正当性 | 收敛——观察3 确认同一模式 |\n| 290 | 蜂群自主实验设计质量 | 推进——观察4 确认实验设计质量提升 |\n| 204号 | 搁置模式 | 未重现 |\n| 185号 | 纲举目张 RTAS 缺位 | 休眠 |\n\n**新发现**：观察2（meta.json 计数漂移）是新识别的发散信号，无历史先例。\n\n## 结论\n\nv137-swarm 三工位产出 + 折叠内在性检验启动。关键观察：\n\n1. 规则版本七连稳定——跨三个工作阶段仍无规则变更（定理）\n2. meta.json relation_count 与 relations.jsonl 实际行数不一致——enrichment 追加的 1309 条关系未计入 relation_count（发散信号，待观察）\n3. rejected 推论的选择类分类正当性——258号模式的收敛确认（定理）\n4. 折叠内在性检验实验设计质量合格——L2 层级 + 盲分离 + 参数锁定（定理）\n\n无规则触发/违反异常。无语法记录候选。308号两个语法记录候选继续休眠。\n\n## 边界条件\n\n1. 如果 `relation_count` 被下游代码消费（如 ceremony_scan 或 stagnation 检测），观察2 从\"待观察\"升级为需要修复的 bug\n2. 如果折叠内在性检验的 Agent A/B 在执行中违反盲分离（如 Agent A 接触到缠论术语），实验设计质量判断翻转\n\n## 影响声明\n\n本谱系不改动任何代码、定义或规则。仅记录 v137-swarm 的二阶观察结论。\n"
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,24 @@
+{
+  "id": "0808dc3d37c209f0a363ee4bdf255ee6a92466bb84a13ac26f21f971a75cd045",
+  "type": "event",
+  "timestamp": "2026-03-02T07:07:41.910137+00:00",
+  "source": "migration",
+  "content": {
+    "id": "252",
+    "title": "递归 1min 深度验证",
+    "status": "settled",
+    "type": "经验验证",
+    "date": "2026-02-28",
+    "depends_on": [
+      "250",
+      "249",
+      "246",
+      "229",
+      "238"
+    ],
+    "source_file": "settled\\252-recursive-1min-depth-validation.md",
+    "full_text": "---\nid: 252\ntitle: 递归 1min 深度验证\ntype: 经验验证\nstatus: settled\ndepends_on: [250, 249, 246, 229, 238]\ndate: 2026-02-28\n---\n\n# 252号：递归 1min 深度验证\n\n## 结论\n\nSPY 1min 数据（7409 根 bar，约 28 个交易日）通过 RecursiveOrchestrator 从底层递归，**实际达到 2 级递归深度**。\n\n完整管线：\n```\n7409 bars → 541 strokes → 59 segments → 10 zhongshu → 9 moves → recursive 2 levels\n```\n\nLevel 1（1min 级别）：\n- 541 笔、59 段、10 中枢、9 走势（全部盘整型）、7 买卖点（5 确认 + 2 未确认）\n\nLevel 2（递归级别）：\n- 2 中枢（1 settled + 1 active）、1 走势（盘整型，unsettled）\n- 第一个 level-2 中枢：[ZD=690.80, ZG=690.85]，6 个 level-1 走势构成，已 settled（向下突破）\n- 第二个 level-2 中枢：[ZD=681.97, ZG=689.15]，3 个 level-1 走势构成，active\n\nLevel 3 未达到——终止条件：level 2 仅 1 个 move（< 3），递归自然停止。\n\n**T6 等价判定：可达。** 2 个递归层级（level 1 + level 2）均产生了走势，满足 T6 条件（≥ 2 层有走势）。\n\n## 定义依据\n\n- **级别是递归的产物**：缠论原义——从最小级别出发，走势完成后构成更高级别的\"线段\"（组件），再从组件构造中枢和走势。RecursiveOrchestrator 实现了这一递归。\n- **递归终止条件**（`recursive_stack.py:83`）：`len(snap.moves) < 3` — 当某层走势不足 3 个时，无法构造更高层中枢，递归自然停止。\n- **T6 条件**（246号）：至少 2 个递归层级产生走势。本验证中 level 1 有 9 个 moves，level 2 有 1 个 move → T6 可达。\n\n## 边界条件\n\n1. **数据量是递归深度的主要制约因素**。28 天 1min 数据产生 59 段，足以在 level 1 产生 9 个走势。但 level 2 仅 1 个走势（因 9 个 level-1 走势 → 2 个 level-2 中枢 → 仅 1 个 level-2 走势），不足以触发 level 3。\n2. **达到 level 3 所需数据量估算**：level 2 至少需要 3 个走势 → level 2 至少需要 4+ 个中枢 → level 1 至少需要 ~27+ 个走势 → level 1 至少需要 ~81+ 段 → 约需要 40-50 个交易日的 1min 数据。yfinance 1min 数据上限约 30 天（通过分段拉取），因此纯 yfinance 路径难以达到 level 3。\n3. **市场阶段影响**：本验证期间（2026-02-02 至 2026-02-27）SPY 处于窄幅震荡，所有 level-1 走势均为盘整型（无趋势），这意味着中枢之间没有同向延续。不同市场阶段（单边趋势）可能产生不同的递归结构。\n4. **L78 违规**：1min 级别产生了大量 L78 warning（segment top-above-bottom violation），这在小级别数据中是预期现象——1min 级别的价格波动极小，特征序列分型的方向约束容易被微小价差违反。这些 warning 不影响递归深度判定，但记录为已知边界。\n\n## 下游推论\n\n1. **229号关闭的补充确认** `[resolved: 229号已关闭，v105-swarm 完成]`：1min 纯递归路径在 28 天数据下达到 T6 可达（2 层有走势）。这比 250号的多 TF 路径更干净——级别完全由递归产生，不依赖预设时间框架。\n2. **递归路径 vs 多 TF 路径的比较** `[resolved: 结论已记录——递归路径更符合缠论原义，数据需求更小]`：\n   - 多 TF 路径（250号）：60min + daily 并行管线，T6 在 daily 层达到（3 年数据 → 53 段 → 10 中枢 → 9 走势 → level 2）\n   - 递归路径（本验证）：1min 单入口递归，T6 在 level 2 达到（28 天数据 → 59 段 → 10 中枢 → 9 走势 → level 2）\n   - **递归路径更符合缠论原义**（级别是递归产物），且数据需求更小（28 天 vs 3 年），但递归深度受限于数据时间跨度\n3. **买卖点产出** `[resolved: 7 BSP 全部 type3，数据已在 tmp/recursive-1min-v105.json]`：7 个 BSP 全部为 type3（第三类买卖点），其中 5 个 confirmed。无 type1/type2，与所有走势均为盘整型一致（type1 需要趋势背驰）。\n\n## 谱系引用\n\n- 250号：扩展数据窗口验证（多 TF 路径的 T6 达成）\n- 249号：L78 修复后真实数据重新验证\n- 246号：多 TF pipeline 集成（T6 条件定义）\n- 229号：T6 可达性（本验证提供递归路径的补充确认）\n- 238号：RecursiveOrchestrator 架构\n\n## 影响声明\n\n- 新增脚本：`scripts/recursive_1min_v105.py`（1min 递归深度验证脚本）\n- 新增结果：`tmp/recursive-1min-v105.json`（完整验证结果）\n- 确认 RecursiveOrchestrator 在真实 1min 数据上的端到端工作正常\n- 确认递归路径（vs 多 TF 路径）是可行的 T6 达成方式，且更符合缠论原义\n"
+  },
+  "refs": [],
+  "git_ref": ""
+}

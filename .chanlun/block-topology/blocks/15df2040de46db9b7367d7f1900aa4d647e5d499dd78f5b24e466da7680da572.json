@@ -1,0 +1,32 @@
+{
+  "id": "15df2040de46db9b7367d7f1900aa4d647e5d499dd78f5b24e466da7680da572",
+  "type": "event",
+  "timestamp": "2026-03-02T07:07:41.849256+00:00",
+  "source": "migration",
+  "content": {
+    "id": "178",
+    "title": "区块拓扑建系——177条谱系升格为内容寻址区块",
+    "status": "已结算",
+    "type": "語法記録",
+    "date": "2026-02-24",
+    "negation_form": "",
+    "depends_on": [
+      "069",
+      "147",
+      "174",
+      "177"
+    ],
+    "related": [
+      "058",
+      "162",
+      "176"
+    ],
+    "negates": [],
+    "topo_effect": "",
+    "tensions_with": [],
+    "source_file": "settled\\178-block-topology-migration.md",
+    "full_text": "---\nid: '178'\ntitle: 区块拓扑建系——177条谱系升格为内容寻址区块\ntype: 語法記録\nstatus: 已结算\ndate: 2026-02-24\ndepends_on:\n  - '069'   # 递归拓扑异步自指蜂群（架构源头）\n  - '147'   # 矛盾具有拓扑效力（拓扑操作需要区块层）\n  - '174'   # RTAS循环定义（谱系驱动）\n  - '177'   # RTAS循环内拓扑操作落地（前序工程）\nnegates: []\nrelated:\n  - '058'   # ceremony = Swarm0\n  - '162'   # 持久化由 RTAS 保证\n  - '176'   # delta谱系>0 检测\ntensions_with: []\ntopo_effect: \"\"\nnegation_form: \"\"\n---\n\n## 事件\n\n177条已结算谱系 + dag.yaml 边一次性升格为区块拓扑（content-addressed block topology）。\n\n三项编排者决断：\n- **Q2（递归终止）**：阶的区分——一阶关系触发 rewrite 回写，二阶关系只记录不触发。递归恰好走一步停\n- **Q3（寻址空间）**：独立 SHA256，不用 git objects。概念谱系和代码谱系保持独立寻址空间\n- **Q1（迁移路径）**：升格——不是包装旧系统，是一次性转换。建系后只有一套系统\n\n## 工程产出\n\n### 1. scripts/block_topology.py — Schema + 核心函数\n\n区块 JSON schema：\n```json\n{\n  \"id\": \"sha256(canonical_json({type, source, content, refs}))\",\n  \"type\": \"event | consensus | residue | tension | rewrite\",\n  \"timestamp\": \"ISO8601（不参与 hash）\",\n  \"source\": \"cc | gemini | codex | migration\",\n  \"content\": {},\n  \"refs\": [\"sha256...\"],\n  \"git_ref\": \"（不参与 hash）\"\n}\n```\n\n关系记录（relations.jsonl）：\n```json\n{\n  \"from\": \"sha256\", \"to\": \"sha256\",\n  \"relation\": \"depends_on | negates | related | ...\",\n  \"order\": 1,\n  \"created_by\": \"sha256（genesis block id）\",\n  \"timestamp\": \"ISO8601\"\n}\n```\n\n核心函数：compute_block_id, make_block, write_block, make_relation, append_relation, write_block_with_relations, read_block, query_relations, list_blocks, read_all_relations\n\n类型/来源/关系类型均为 frozenset 封闭集合，make_block/make_relation 强制验证。created_by 类型始终为 SHA256（_validate_sha256 校验）。\n\n### 2. scripts/migrate_to_block_topology.py — 一次性迁移\n\n迁移逻辑：\n1. 扫描 settled/*.md → 每条谱系一个 event 区块（refs 一律为空——迁移区块没有直接因果）\n2. 解析 dag.yaml edges → relations.jsonl（5种边类型全覆盖）\n3. 创建 genesis 区块作为迁移封印（不是开幕）——写在迁移之后，content 包含 count\n4. genesis 区块 id 作为所有迁移关系的 created_by\n\nparse_frontmatter() 支持两种格式：YAML frontmatter（--- 分隔）和 Markdown bold metadata（**key**: value），覆盖 155-165号谱系的非标格式。\n\n### 3. .chanlun/block-topology/ — 迁移产出\n\n- blocks/：178 个 JSON 区块文件（177 谱系 + 1 genesis）\n- relations.jsonl：943 条关系记录\n- meta.json：版本、genesis_block_id、id_mapping（旧id→区块id）\n\n### 4. 测试\n\n- tests/test_block_topology.py：11 测试（确定性 hash、时间戳排除、幂等写入、关系追加、rewrite 创建、order-2 终止、查询、SHA256 验证）\n- tests/test_migrate_to_block_topology.py：11 测试（frontmatter 解析、谱系迁移、5种边类型、id_mapping 完备性、端到端迁移）\n- 全部 22 测试绿灯\n\n## 边界条件\n\n1. **refs vs relations 语义区分**：refs = 区块创建时的直接因果指向；relations = 谱系拓扑中的结构关系。迁移区块 refs 为空（无直接因果——从旧系统平移）\n2. **幂等性**：相同内容产生相同 SHA256，重复迁移不产生重复区块\n3. **genesis 作为封印**：genesis 写在迁移之后（content 包含 count），是迁移的封印不是开幕\n4. **created_by 类型一致性**：始终为 SHA256 hex digest，不接受字符串如 \"migration\"\n\n## 下游推论\n\n1. **ceremony_scan 需扩展检测范围**：当前 compute_delta_genealogy() 仅扫描 settled/*.md 文件数变化，block-topology/blocks/ 的新区块对其不可见。区块系统是谱系的补充/升格，不是替代——两套检测需并存\n2. **topology_operator 需改造**：当前直接操作 dag.yaml，建系后应通过区块拓扑的 relation layer 执行拓扑操作\n3. **共识仪式需实现**：区块拓扑的 consensus/residue/tension 类型区块 + 共识仪式流程尚未实现\n\n## 谱系影响\n\n- 区块拓扑系统建立——事件不可变，拓扑可变\n- Q2 决断凝固——递归终止由阶的区分保证，不是任意切断\n- Q3 决断凝固——概念谱系独立于 git，交叉引用但不混合\n- Q1 决断凝固——升格路径，不是包装，建系后单一系统\n"
+  },
+  "refs": [],
+  "git_ref": ""
+}

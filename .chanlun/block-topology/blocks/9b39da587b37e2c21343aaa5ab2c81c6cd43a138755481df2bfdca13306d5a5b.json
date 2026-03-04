@@ -1,0 +1,23 @@
+{
+  "id": "9b39da587b37e2c21343aaa5ab2c81c6cd43a138755481df2bfdca13306d5a5b",
+  "type": "event",
+  "timestamp": "2026-03-02T07:07:41.942783+00:00",
+  "source": "migration",
+  "content": {
+    "id": "281",
+    "title": "元观察——v124-swarm 回测主线框架搭建 + 280号 block-topology 修复",
+    "status": "已结算",
+    "type": "meta-rule",
+    "date": "2026-03-01",
+    "depends_on": [
+      "280",
+      "267"
+    ],
+    "topo_effect": "",
+    "tensions_with": [],
+    "source_file": "settled\\281-meta-observation-v124-swarm.md",
+    "full_text": "---\nid: '281'\nnumber: 281\ntitle: 元观察——v124-swarm 回测主线框架搭建 + 280号 block-topology 修复\ntype: meta-rule\nstatus: 已结算\ndate: 2026-03-01\nsource: meta-observer 二阶观察（Lead 接手）\nsession: v124-swarm\ndepends_on:\n  - '280'   # v123-swarm 元观察\n  - '267'   # 操作方法论 v1\ntensions_with: []\ntopo_effect: \"\"\ndownstream_inferences:\n  - id: 1\n    description: \"回测框架的D算子读数（方向态/幅度态/吸收态）是否能有效区分市场状态——待L2真实数据验证\"\n    status: open（行动类——待L2验证）\n---\n\n# 281号：v124-swarm 元观察——回测主线框架搭建\n\n## 递归判断\n\n任务不可分解，因为：二阶观察是单一分析任务，需要对蜂群全局行为进行整体评估。Lead 接手执行（meta-observer 工位无产出）。\n\n## 观察对象\n\nv124-swarm：两条线路——\n1. backtest-framework：回测主线框架搭建（4模块+测试）\n2. topo-fix：280号 block-topology 映射修复\n\n## 观察结果\n\n### 观察1（收敛信号）：框架搭建遵循编排者指令\n\n编排者给出了明确的四模块结构（K4配置→选股扫描→状态机→全流程编排）。backtest-framework 工位严格按此结构实现，未自行添加额外模块或修改架构。\n\n与267号（操作方法论v1：满仓满融降成本体系）的对应关系：\n- 状态机5状态映射正确对齐267号的操作阶段\n- 短差比例n%=10%参数已纳入\n\n### 观察2（收敛信号）：递归判断合规\n\nbacktest-framework 工位记录了递归判断：\"任务不可分解，原因：四个模块之间有严格的依赖链\"。判断合理——types是所有模块的基础，orchestrator依赖前三个模块，拆分会产生大量接口协调开销。\n\n### 观察3（收敛信号）：测试覆盖\n\n46新测试 + 全量3281通过/0失败。测试先行模式遵守。向后兼容处理（backtest.py→backtest/engine.py迁移，旧API重导出）合理。\n\n### 观察4（收敛信号）：规则触发/违反模式\n\n| 规则 | 触发/违反 | 实例 |\n|------|----------|------|\n| no-patch-mentality（090号） | 遵守 | 完整框架搭建，非补丁式添加 |\n| result-package | 遵守 | 六要素齐全（结论/定义依据/边界条件/下游推论/谱系引用/影响声明） |\n| formalization-validity-domain | 遵守 | 标注L2待验证（D算子读数、区间套紧度、止损阈值） |\n| lead-parallel-dispatch（218号） | 遵守 | backtest-framework与topo-fix并行spawn |\n\n未观察到规则违反。\n\n### 观察5（注意信号）：meta-observer 工位无产出\n\nmeta-observer 工位运行时间较长但未产出文件。可能原因：工位在读取大量谱系文件时上下文耗尽。Lead 接手完成二阶观察——这不违反226号角色边界，因为元观察是Lead白名单中\"持久化\"类操作的合法延伸（产出是谱系记录，不是代码修改）。\n\n### 观察6：与历史观察的对比\n\n| 本次观察 | 历史对应 | 关系 |\n|---------|---------|------|\n| 观察1（框架遵循指令） | 278号观察4（工位分派合理） | 收敛信号 |\n| 观察2（递归判断合规） | 280号观察2（推论执行合规） | 收敛信号 |\n| 观察3（测试覆盖） | 无直接先例（首次大规模框架搭建） | 新实例 |\n| 观察4（规则遵守） | 217号以来持续 | 收敛信号 |\n| 观察5（工位无产出） | 226号（Lead中断问题） | 注意——但不同机制（非中断，是上下文耗尽） |\n\n## 边界条件\n\n- 如果D算子读数L2验证失败 → 框架的信号源需要重新设计\n- 如果meta-observer工位的无产出问题反复出现 → 需要诊断工位的上下文管理\n"
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,20 @@
+{
+  "id": "aa48446bc4d0d4165e9b2822b7790fa39233a1823788cb53cc6c2e455ba7f97b",
+  "type": "event",
+  "timestamp": "2026-03-02T07:07:41.874808+00:00",
+  "source": "migration",
+  "content": {
+    "id": "210",
+    "status": "已结算",
+    "type": "概念发现",
+    "date": "2026-02-25",
+    "depends_on": [
+      "208",
+      "209"
+    ],
+    "source_file": "settled\\210-t8-force-divergence.md",
+    "full_text": "---\nid: \"210\"\nnumber: 210\ntype: 概念发现\nstatus: 已结算\ndate: 2026-02-25\ntrigger: T8 失败案例分析——MACD force 与 W₁ 笔振荡的力度定义分歧\ndepends_on:\n  - \"208\"\n  - \"209\"\naudit_targets:\n  - \"T8 力度定义分歧\"\n---\n\n# 210号：MACD force 与 W₁ 笔振荡的力度定义分歧\n\n## 结论\n\nT8 验证中 5/18 个案例 passed=False。所有失败案例呈现同一模式：\n\n| 指标 | A 段 | C 段 | 判定 |\n|------|------|------|------|\n| MACD force | 大 | 小 | 背驰（传统判定成立） |\n| W₁ 笔振荡 | 小 | 大 | 非背驰（拓扑判定不成立） |\n\n典型案例（sh600036 wide）：force_a=1435 > force_c=376（背驰），但 w1_a=1.30 < w1_c=1.76（非背驰）。\n\n### 分歧根因\n\n两种\"力度\"衡量不同的物理量：\n\n- MACD force = 价格变化的动量积分（DIF/HIST 面积）→ 衡量\"趋势的持续性\"\n- W₁ 笔振荡 = Σ(high-low)/2 归一化后的总量 → 衡量\"价格区间的总振荡\"\n\n当 C 段笔数少但每根笔振幅大时（如 sh600036：C 段 8 笔但振幅大），W₁(C) > W₁(A)。\nMACD 看到的是\"动量衰减\"（背驰），W₁ 看到的是\"振荡增大\"（非背驰）。\n\n### 缠论语义\n\n缠论原文的\"力度\"是多维度的（MACD 面积、价格区间、时间跨度）。T8 的 W₁ 笔振荡是第四种力度维度——与 MACD 三维度互补而非替代。\n\nT8 passed=False 不意味着\"背驰判定错误\"，而是\"拓扑维度不支持背驰\"——这是有价值的信息，说明该背驰的力竭主要体现在动量维度而非振荡维度。\n\n## 定义依据\n\n- T8 共识（Layer 2）：W₁ 带容差单调下降\n- 208号：T8 Dgm 构造从中枢条形码改为笔振荡条形码\n- 缠论原文：力度是多维度概念（MACD 面积 + 价格区间 + 时间跨度）\n\n## 边界条件\n\n- 如果 W₁ 改用\"笔的动量\"（如 |close-open|）而非\"笔的区间\"（high-low），分歧可能减少\n- 仿射规范化已启用——分歧不是尺度问题\n- 5 个失败案例的 W₁ drop 都在 -0.56 ~ -0.31 范围内（小幅反向），不是极端分歧\n\n## 下游推论\n\n1. T8 应报告为\"拓扑维度力度判定\"，与 MACD 三维度并列而非替代 → [resolved: 208号已定义为\"后验验证层\"]\n2. 多维度力度综合判定（MACD + W₁ 投票）→ [resolved: 210号-2 gauge_equivalence_report T8 summary 已实现]\n3. W₁ 的 bar 构造可探索其他定义（|close-open| vs high-low）→ [resolved: 210号-3 实验证明线性缩放不改变 W₁ 排序]\n\n## 谱系引用\n\n- 208号：T8 笔振荡 fallback\n- 209号：gauge 不变量层级结构\n- 缠论原文力度定义：`docs/chanlun/text/blog/INDEX.md`（第37课等）\n"
+  },
+  "refs": [],
+  "git_ref": ""
+}

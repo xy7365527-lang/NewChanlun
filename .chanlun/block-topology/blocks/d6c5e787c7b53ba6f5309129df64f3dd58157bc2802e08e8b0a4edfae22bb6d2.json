@@ -1,0 +1,20 @@
+{
+  "id": "d6c5e787c7b53ba6f5309129df64f3dd58157bc2802e08e8b0a4edfae22bb6d2",
+  "type": "event",
+  "timestamp": "2026-03-02T07:07:41.861012+00:00",
+  "source": "migration",
+  "content": {
+    "id": "192",
+    "title": "纲举目张重复检测——191号审计的重复信号",
+    "status": "结算态",
+    "type": "语法记录",
+    "date": "2026-02-24",
+    "depends_on": [
+      "191"
+    ],
+    "source_file": "settled\\192-gangju-duplicate-detection.md",
+    "full_text": "---\nid: '192'\ntitle: 纲举目张重复检测——191号审计的重复信号\ntype: 语法记录\nstatus: 结算态\ndate: 2026-02-24\nsource: gangju_analysis.py（自动生成）→ CC 判定为重复\nsettlement: 吸收\ndepends_on:\n  - '191'\n---\n\n# 192号：纲举目张重复检测——191号审计的重复信号\n\n## 来源标注\n\ngangju_analysis.py 再次检测到 `audit_needed: true, new_mu: \"多轮质询管道——consensus 区块 1 个但 residue 内容全为空\"`。\n\n## 结算\n\n**吸收**：这是 191号审计的精确重复。191号已完成：\n- 191号-1：根因确认（bc6d1a4 旧代码写入，代码演进时间差）\n- 191号-2：零让步共识不触发仪式（§21 定理类推导）\n- 191号-3：refs 修复 + 悬空防护代码\n\ngangju_analysis.py 重复检测的根因：脚本没有记忆已审计过的 new_mu，每次运行都会重新检测到同一个空 residue 区块。\n\n## 下游推论\n\n1. ~~gangju_analysis.py 需要审计历史记忆——避免对已审计的 new_mu 重复生成 pending 谱系~~ **已完成**（_already_audited_targets 函数）\n2. ~~或者：修复空 residue 区块本身（删除或填充），使检测条件不再触发~~ **已结算**——192号-1 已选择去重方案，此替代方案不执行\n\n## 谱系引用\n\n- 191号：空 consensus 区块审计（本条的源审计）\n"
+  },
+  "refs": [],
+  "git_ref": ""
+}

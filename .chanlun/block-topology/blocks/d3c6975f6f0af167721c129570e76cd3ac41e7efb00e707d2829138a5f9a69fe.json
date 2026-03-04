@@ -1,0 +1,28 @@
+{
+  "id": "d3c6975f6f0af167721c129570e76cd3ac41e7efb00e707d2829138a5f9a69fe",
+  "type": "event",
+  "timestamp": "2026-02-24T07:16:18.252113+00:00",
+  "source": "migration",
+  "content": {
+    "id": "185",
+    "title": "语法记录——纲举目张分析在 RTAS 循环中的缺位（步骤7→步骤1之间的空白）",
+    "status": "settled",
+    "type": "meta-rule",
+    "date": "2026-02-24",
+    "negation_source": "orchestrator",
+    "negation_form": "expansion",
+    "depends_on": [
+      "183",
+      "174"
+    ],
+    "related": [
+      "058"
+    ],
+    "negates": [],
+    "tensions_with": [],
+    "source_file": "settled\\185-gangju-analysis-rtas-gap.md",
+    "full_text": "---\nid: '185'\ntitle: 语法记录——纲举目张分析在 RTAS 循环中的缺位（步骤7→步骤1之间的空白）\ntype: meta-rule\nstatus: settled\ndate: 2026-02-24\nnegation_source: orchestrator\nnegation_form: expansion\ndepends_on:\n  - '183'   # 动力学机制缺失诊断\n  - '174'   # 谱系即生成引擎\nrelated:\n  - '058'   # ceremony 是 Swarm₀\ntensions_with: []\nnegates: []\nrule_version_baseline:\n  claude_md_commit: \"97f3ba3186f1919ff6abf02dea4247724d47c79a\"\n  rules_dir_mtime: \"2026-02-23 21:10:15 +0000\"\n---\n\n# 185号：语法记录——纲举目张分析在 RTAS 循环中的缺位\n\n## 来源标注\n\n[meta-observer 二阶观察] v47-swarm session\n编排者指出：ceremony_scan 报告\"干净终止\"但纲举目张分析未执行，导致假阳性终止\n\n## 观察\n\nRTAS 循环当前结构：\n\n```\n步骤1: ceremony_scan.py（文件系统扫描）\n步骤2-6: spawn 工位 → 执行 → 汇报\n步骤7: commit + push\n→ 回到步骤1\n```\n\n缺失的环节在步骤7和步骤1之间：\n\n```\n步骤7: commit + push\n步骤7.5: 纲举目张分析（缺失！）\n  - 从总方针纲推导：当前谱系状态 vs 纲的四个结构条件\n  - Gemini verify（概念层）+ Codex review（代码层）双向审计\n  - 审计产出写入谱系 pending/\n  - commit + push\n步骤1: ceremony_scan.py（此时新 pending 会被检测到）\n```\n\n## 已在运作的隐性规则\n\n\"纲举目张分析是 RTAS 循环的必要环节\"这条规则已在实践中运作：\n- v45-swarm 手动执行了纲举目张（Gemini+Codex 对总方针的审计）\n- v47-swarm 再次手动执行\n- 编排者在两次执行之间指出缺失\n\n但这条规则没有被显式化——ceremony skill 中没有这个步骤，没有自动化脚本。\n\n## 语法记录\n\n**规则**：RTAS 循环在工位全部完成后、重新 ceremony_scan 之前，必须执行纲举目张分析——从纲推导新目 + Gemini/Codex 双向审计。\n\n**自动化形式**：`scripts/gangju_analysis.py` 脚本，ceremony skill 白名单加一条调用。\n\n**循环位置**：步骤7（commit+push）之后，步骤1（ceremony_scan.py）之前。\n\n## 下游推论\n\n1. ~~ceremony skill 需要更新——增加步骤7.5~~ **已执行**——ddbe43a 更新 ceremony.md\n2. ~~gangju_analysis.py 需要实现~~ **已执行**——ddbe43a 创建 scripts/gangju_analysis.py（确定性部分；Gemini/Codex API 调用是 187号目E）\n3. ~~ceremony skill 白名单需要增加 `python scripts/gangju_analysis.py`~~ **已执行**——ddbe43a 更新 ceremony.md 白名单\n\n## 影响声明\n\n- 修正 RTAS 循环的结构性缺口\n- 防止\"假干净终止\"——ceremony_scan 无工位但纲仍有未推导的目\n"
+  },
+  "refs": [],
+  "git_ref": ""
+}
