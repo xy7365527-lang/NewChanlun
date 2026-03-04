@@ -1650,6 +1650,16 @@ nodes:
   status: 已结算
   type: event
   file: settled/341-encounter-definition-refinement.md
+- id: '342'
+  title: 元观察——v150 偶遇扫描 session（编排者三轮自否定 + 双层扫描启动）
+  status: 已结算
+  type: meta-rule
+  file: settled/342-meta-observation-v150-encounter-scan.md
+- id: '343'
+  title: 偶遇记录机制集成——穿越基础设施组件二 ceremony 实时检测
+  status: 已结算
+  type: engineering
+  file: settled/343-encounter-record-mechanism.md
 edges:
   depends_on:
   - from: '136'
@@ -3496,6 +3506,16 @@ edges:
     to: '339'
   - from: '341'
     to: '301'
+  - from: '342'
+    to: '340'
+  - from: '342'
+    to: '341'
+  - from: '343'
+    to: '341'
+  - from: '343'
+    to: '301'
+  - from: '343'
+    to: '339'
   triggered:
   - from: '005'
     to: 005a

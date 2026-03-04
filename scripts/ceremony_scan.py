@@ -527,6 +527,85 @@ def _scan_research_lines(root):
     return context, new_workstations
 
 
+def get_encounter_context(root):
+    """偶遇检测：检查最近写入的谱系是否有跨纲偶遇候选。
+
+    341号偶遇标准：迫使修正已结算理解的关联（不绑定时间性）。
+    v150 Layer 1 结果：107条跨纲边全部设计内引用，0偶遇。
+
+    增量检测逻辑：
+    1. 读取 encounter-records.yaml 的 last_checked_id
+    2. 对 last_checked_id 之后的所有谱系执行跨纲边检测
+    3. 已知设计内模式自动过滤，未匹配模式标记为 encounter_candidate
+    4. 候选追加到 encounter-records.yaml
+
+    偶遇检测失败不阻塞 ceremony 主流程。
+    """
+    try:
+        settled_dir = os.path.join(root, ".chanlun/genealogy/settled")
+        records_path = os.path.join(root, ".chanlun/encounter-records.yaml")
+        gangmu_path = os.path.join(root, ".chanlun/gangmu.yaml")
+
+        if not os.path.isdir(settled_dir) or not os.path.isfile(gangmu_path):
+            return None
+
+        # 读取上次检测位置
+        last_checked = 0
+        if os.path.isfile(records_path):
+            with open(records_path, encoding="utf-8") as f:
+                records_data = yaml.safe_load(f) or {}
+            lc = records_data.get("last_checked")
+            if lc is not None:
+                try:
+                    last_checked = int(lc)
+                except (ValueError, TypeError):
+                    last_checked = 0
+
+        # 找到 last_checked 之后的谱系
+        new_ids = []
+        for fname in os.listdir(settled_dir):
+            if not fname.endswith(".md"):
+                continue
+            m = re.match(r'^(\d+)', fname)
+            if m:
+                nid = int(m.group(1))
+                if nid > last_checked:
+                    new_ids.append(nid)
+
+        if not new_ids:
+            return {
+                "last_checked": last_checked,
+                "new_genealogies": 0,
+                "total_cross_gang_edges": 0,
+                "total_encounter_candidates": 0,
+                "status": "up_to_date",
+            }
+
+        # 调用 check_encounter.py 的逻辑（内联避免 subprocess 开销）
+        result = subprocess.run(
+            [sys.executable, os.path.join(root, "scripts/check_encounter.py"),
+             "--since", str(last_checked)],
+            cwd=root, capture_output=True, text=True, timeout=10,
+        )
+
+        if result.returncode not in (0, 1):
+            return {"error": f"check_encounter.py failed: {result.stderr[:200]}"}
+
+        check_output = json.loads(result.stdout)
+
+        return {
+            "last_checked": last_checked,
+            "new_genealogies": check_output.get("checked_count", 0),
+            "total_cross_gang_edges": check_output.get("total_cross_gang_edges", 0),
+            "total_design_internal": check_output.get("total_design_internal", 0),
+            "total_encounter_candidates": check_output.get("total_encounter_candidates", 0),
+            "status": "candidates_found" if check_output.get("total_encounter_candidates", 0) > 0 else "no_encounters",
+        }
+
+    except Exception as exc:
+        return {"error": f"{type(exc).__name__}: {exc}"}
+
+
 def main():
     parser = argparse.ArgumentParser(description="蜂群 spawn 通用工具")
     parser.add_argument("--skills", action="store_true", help="只输出 required_skills")
@@ -624,7 +703,20 @@ def main():
                 "source": "topo_mapper",
             })
 
-    # 2d. 研究线扫描：active 线的 unblocked next_actions 生成工位
+    # 2d. 偶遇检测：检查最近谱系的跨纲边是否有偶遇候选
+    encounter_context = get_encounter_context(root)
+    if encounter_context is not None:
+        result["encounter_context"] = encounter_context
+        candidate_count = encounter_context.get("total_encounter_candidates", 0)
+        if candidate_count > 0:
+            workstations.append({
+                "priority": "P1",
+                "name": f"偶遇候选：{candidate_count}条跨纲边待审",
+                "status": f"encounter_candidates:{candidate_count}",
+                "source": "encounter_detection",
+            })
+
+    # 2e. 研究线扫描：active 线的 unblocked next_actions 生成工位
     try:
         rl_context, rl_workstations = _scan_research_lines(root)
         if rl_context is not None:
