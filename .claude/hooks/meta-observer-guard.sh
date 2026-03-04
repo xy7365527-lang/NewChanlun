@@ -20,7 +20,7 @@
 set -uo pipefail
 
 resolve_python() {
-    for candidate in python3 python; do
+    for candidate in python python3; do
         if command -v "$candidate" >/dev/null 2>&1; then
             if "$candidate" -c "import sys" >/dev/null 2>&1; then
                 echo "$candidate"
@@ -38,7 +38,7 @@ fi
 
 python() { command "$PYTHON_BIN" "$@"; }
 
-input=$(cat)
+input=$(timeout 3 cat 2>/dev/null || echo "{}")
 cwd=$(echo "$input" | python -c "import sys,json; print(json.loads(sys.stdin.read()).get('cwd', '.'))" 2>/dev/null || echo ".")
 cd "$cwd" 2>/dev/null || true
 
