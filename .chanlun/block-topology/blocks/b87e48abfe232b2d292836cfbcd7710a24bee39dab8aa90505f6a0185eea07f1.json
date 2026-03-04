@@ -1,0 +1,14 @@
+{
+  "id": "336",
+  "title": "元观察——三体制分析结果呈现 session（compaction 恢复 + 335号写入）",
+  "type": "meta-rule",
+  "status": "已结算",
+  "date": "2026-03-04",
+  "depends_on": [
+    "333",
+    "334",
+    "335"
+  ],
+  "epistemological_level": "L0",
+  "file": "settled/336-meta-observation-regime-analysis-results.md"
+}
