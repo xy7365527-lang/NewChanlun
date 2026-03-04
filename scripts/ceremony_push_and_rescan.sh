@@ -6,7 +6,7 @@
 # 1. git add 已知文件类型（.py .md .yaml .sh .json .jsonl）
 # 2. git commit（如果有 staged changes）
 # 3. git push（失败则 fetch+rebase+push）
-# 4. python scripts/ceremony_scan.py --phase rescan
+# 4. python scripts/ceremony_scan.py
 # 5. 输出 rescan JSON 结果（供 Lead 解析）
 #
 # 整个序列在一次 Bash 调用中完成，消除 LLM 决策间隙。
@@ -58,7 +58,7 @@ python "$SCRIPT_DIR/ceremony_state.py" write 8 rescan
 
 # --- Step 5: ceremony rescan ---
 RESCAN_TMPFILE=$(mktemp)
-python "$SCRIPT_DIR/ceremony_scan.py" --phase rescan >"$RESCAN_TMPFILE" 2>&1
+python "$SCRIPT_DIR/ceremony_scan.py" >"$RESCAN_TMPFILE" 2>&1
 RESCAN_EXIT=$?
 
 if [ $RESCAN_EXIT -ne 0 ]; then
@@ -66,7 +66,7 @@ if [ $RESCAN_EXIT -ne 0 ]; then
     python -c "
 import json, sys
 detail = sys.stdin.read()
-print(json.dumps({'error': 'ceremony_scan.py --phase rescan 失败', 'phase': 'rescan', 'detail': detail}, ensure_ascii=False))
+print(json.dumps({'error': 'ceremony_scan.py rescan 失败', 'phase': 'rescan', 'detail': detail}, ensure_ascii=False))
 " < "$RESCAN_TMPFILE"
     rm -f "$RESCAN_TMPFILE"
     exit 1
