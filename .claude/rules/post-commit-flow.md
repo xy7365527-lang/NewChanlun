@@ -20,7 +20,7 @@ push 成功后的**唯一合法输出格式**：
 ```
 已 push。→ 接下来：rescan
 ```
-紧跟 `python scripts/ceremony_scan.py --phase rescan` 调用。
+紧跟 `python scripts/ceremony_scan.py` 调用。
 
 **不存在其他格式。** 以下都是违规：
 - push 后输出格式B（"无待做行动"）——rescan 就是待做行动
@@ -35,7 +35,7 @@ rescan（步骤8）和 evaluate/spawn/terminate（步骤9-10）是**同一个原
 
 **正面规则**（137号要求）：
 
-ceremony_scan.py --phase rescan 执行完成后的**唯一合法行为**：
+ceremony_scan.py 执行完成后的**唯一合法行为**：
 1. 解析 JSON 输出
 2. workstations 非空且与上轮不同 → 回到步骤5 spawn 新工位
 3. workstations 为空或与上轮相同 → TeamDelete → 停止

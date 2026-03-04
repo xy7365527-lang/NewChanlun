@@ -5,7 +5,7 @@ scan 输出什么就 spawn 什么。Lead 不做实质认知工作。
 
 ## 序列（不可委托，不可重排）
 
-1. `python scripts/ceremony_state.py write 1 initial` → `python scripts/ceremony_scan.py --phase initial` → JSON
+1. `python scripts/ceremony_state.py write 1 initial` → `python scripts/ceremony_scan.py` → JSON
 2. JSON.workstations 为空 → `python scripts/ceremony_state.py clear` → `[020号反转] 干净终止` → 写 session → commit → push → 停止
 3. 输出摘要：`[ceremony] {mode} | 谱系 {settled}s/{pending}p | 工位 {len(workstations)}`
 4. `TeamCreate(team_name="v{N}-swarm")`
