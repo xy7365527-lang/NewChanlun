@@ -1680,6 +1680,11 @@ nodes:
   status: 已结算
   type: 工程决策
   file: settled/347-content-addressed-block-topology.md
+- id: '348'
+  title: Stagnation诊断——v153→v155基础设施轮次正常停滞
+  status: 已结算
+  type: audit
+  file: settled/348-stagnation-diagnosis-v153-v155.md
 edges:
   depends_on:
   - from: '136'
@@ -3548,6 +3553,14 @@ edges:
     to: '345'
   - from: '347'
     to: '345'
+  - from: '348'
+    to: '347'
+  - from: '348'
+    to: '331'
+  - from: '348'
+    to: '314'
+  - from: '348'
+    to: 090
   triggered:
   - from: '005'
     to: 005a

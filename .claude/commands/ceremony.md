@@ -64,7 +64,7 @@ scan 输出什么就 spawn 什么。Lead 不做实质认知工作。
 - **并行默认**（218号）：无依赖的工位全部并行 spawn，Lead 的独立操作并行执行
 - **增量持久化**：每条 completion 到达时写 session，不等 consume_all
 - **不动点终止**：rescan 输出与上轮相同 → 循环终止
-- **只读扫描**：scan 不写文件、不运行测试（VDW 除外）
+- **只读扫描**：scan 不写业务文件、不运行测试（例外：review-results consumed 标记、VDW 自动验证）
 - **持久化不变量**：每条退出路径都以 session + commit + push 结束，无例外
 
 ## 中断处理
