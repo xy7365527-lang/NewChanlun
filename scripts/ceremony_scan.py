@@ -349,6 +349,161 @@ def get_topo_context(root):
         return {"error": f"{type(exc).__name__}: {exc}"}
 
 
+def _check_completion(root, check):
+    """检查单个 completion_check 条件是否满足。
+
+    支持的 check 类型：
+    - file_exists: 文件是否存在
+    - script_exists: 脚本文件是否存在（等同于 file_exists）
+    - genealogy_settled: settled 目录中是否存在包含关键词的文件
+    - test_pass: 测试文件是否存在（不执行测试，避免阻塞扫描）
+    """
+    if not isinstance(check, dict):
+        return False
+    check_type = check.get("type", "")
+    if check_type in ("file_exists", "script_exists"):
+        path = check.get("path", "")
+        return os.path.isfile(os.path.join(root, path))
+    if check_type == "genealogy_settled":
+        keyword = check.get("keyword", "")
+        settled_dir = os.path.join(root, ".chanlun/genealogy/settled")
+        if not os.path.isdir(settled_dir):
+            return False
+        for fname in os.listdir(settled_dir):
+            if keyword in fname:
+                return True
+        return False
+    if check_type == "test_pass":
+        # 只检查测试文件存在（不执行——避免扫描阻塞）
+        pattern = check.get("pattern", "")
+        return os.path.isfile(os.path.join(root, pattern))
+    return False
+
+
+def _scan_research_lines(root):
+    """扫描 research-lines.yaml，为 active 线的 unblocked next_actions 生成工位。
+
+    返回 (research_lines_context, new_workstations) 元组。
+    research_lines_context 包含 active/blocked/proposed_transitions 信息。
+    new_workstations 包含需要追加到工位列表的项。
+
+    研究线扫描失败不阻塞主流程。
+    """
+    rl_path = os.path.join(root, ".chanlun/research-lines.yaml")
+    if not os.path.isfile(rl_path):
+        return None, []
+
+    with open(rl_path, encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+
+    if not isinstance(data, dict):
+        return None, []
+
+    lines = data.get("lines", [])
+    if not isinstance(lines, list):
+        return None, []
+
+    active_lines = []
+    blocked_lines = []
+    proposed_transitions = []
+    new_workstations = []
+
+    for line in lines:
+        if not isinstance(line, dict):
+            continue
+        line_id = line.get("id", "")
+        line_name = line.get("name", line_id)
+        status = line.get("status", "")
+
+        if status == "blocked":
+            blocked_lines.append({
+                "id": line_id,
+                "name": line_name,
+                "blocked_by": line.get("blocked_by", ""),
+            })
+            continue
+
+        if status != "active":
+            continue
+
+        # 处理 active 线
+        next_actions = line.get("next_actions", [])
+        if not isinstance(next_actions, list):
+            continue
+
+        unblocked_count = 0
+        all_completed = True
+        all_blocked = True
+
+        for action in next_actions:
+            if not isinstance(action, dict):
+                continue
+
+            action_blocked_by = action.get("blocked_by")
+            is_blocked = action_blocked_by is not None and action_blocked_by != ""
+
+            if is_blocked:
+                all_completed = False
+                continue
+
+            # unblocked action——检查 completion_check
+            all_blocked = False
+            completion_check = action.get("completion_check")
+            completed = _check_completion(root, completion_check)
+
+            if completed:
+                continue
+
+            # 未完成的 unblocked action → 生成工位
+            all_completed = False
+            unblocked_count += 1
+            action_type = action.get("type", "engineering")
+            target = action.get("target", "未命名")
+            description = action.get("description", "")
+
+            new_workstations.append({
+                "priority": "P2",
+                "name": f"研究线[{line_id}]：{target}",
+                "status": f"research_line:{action_type}",
+                "source": "research_lines",
+                "description": description,
+                "research_line": line_id,
+            })
+
+        active_lines.append({
+            "id": line_id,
+            "name": line_name,
+            "unblocked_actions": unblocked_count,
+        })
+
+        # 状态转换提议：所有 next_actions 都 blocked → 提议 active→blocked
+        if next_actions and all_blocked:
+            proposed_transitions.append({
+                "line": line_id,
+                "from": "active",
+                "to": "blocked",
+                "reason": f"所有 next_actions 均被阻塞",
+            })
+
+        # 状态转换提议：所有 next_actions 都完成 → 提议 active→closed
+        if next_actions and all_completed and not all_blocked:
+            proposed_transitions.append({
+                "line": line_id,
+                "from": "active",
+                "to": "closed",
+                "reason": f"所有 next_actions 的 completion_check 均已满足",
+            })
+
+    context = {
+        "active": active_lines,
+        "blocked": blocked_lines,
+    }
+    if proposed_transitions:
+        context["proposed_transitions"] = proposed_transitions
+
+    return context, new_workstations
+
+
 def main():
     parser = argparse.ArgumentParser(description="蜂群 spawn 通用工具")
     parser.add_argument("--skills", action="store_true", help="只输出 required_skills")
@@ -445,6 +600,15 @@ def main():
                 "status": f"unmapped:{','.join(topo_context['unmapped_ids'][:10])}",
                 "source": "topo_mapper",
             })
+
+    # 2d. 研究线扫描：active 线的 unblocked next_actions 生成工位
+    try:
+        rl_context, rl_workstations = _scan_research_lines(root)
+        if rl_context is not None:
+            result["research_lines"] = rl_context
+            workstations.extend(rl_workstations)
+    except Exception as exc:
+        result["research_lines_error"] = f"{type(exc).__name__}: {exc}"
 
     # 3. 079号：如果无任何工位，执行 no_work_fallback
     if not workstations:
