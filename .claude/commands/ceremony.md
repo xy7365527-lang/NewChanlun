@@ -56,7 +56,9 @@ scan 输出什么就 spawn 什么。Lead 不做实质认知工作。
 9. rescan.workstations[] 非空且与上轮不同 → 回到步骤 5 spawn 新工位
 10. rescan.workstations[] 为空或与上轮相同（不动点）：
    10a. spawn meta-observer agent 执行二阶观察。
+        同时 spawn topology-analyst agent 冷读区块拓扑（条件：block-topology/blocks/ 非空）。
         meta-observer 完成后其产出写入谱系。
+        topology-analyst 完成后其产出写入谱系。
         下一轮 ceremony_scan 消费谱系中的 meta-rule 类型记录。
    10b. `python scripts/ceremony_state.py clear` → `TeamDelete` → 停止
 11. （274号废除 max_rescan_depth）rescan 循环终止条件仅为不动点（步骤10）。无外部计数器
