@@ -1,0 +1,13 @@
+{
+  "id": "fa3828762d6b1473d78c97b672c3756b1eeb2eeb9a2418e809ab5f57a825862b",
+  "genealogy_id": "343",
+  "title": "偶遇记录机制集成——穿越基础设施组件二 ceremony 实时检测",
+  "type": "engineering",
+  "status": "已结算",
+  "depends_on": [
+    "341",
+    "301",
+    "339"
+  ],
+  "content_hash": "fa3828762d6b1473d78c97b672c3756b1eeb2eeb9a2418e809ab5f57a825862b"
+}
