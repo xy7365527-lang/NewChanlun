@@ -381,26 +381,31 @@ def _check_completion(root, check):
 
 
 def _scan_research_lines(root):
-    """扫描 research-lines.yaml，为 active 线的 unblocked next_actions 生成工位。
+    """扫描 gangmu.yaml（纲目），为 active 目的 unblocked next_actions 生成工位。
+
+    gangmu.yaml 结构：gang[] → mu[] 两层嵌套。
+    每个 mu（目）等价于旧 research-lines.yaml 中的一条 line。
+    纲（gang）提供战略方向归属信息。
 
     返回 (research_lines_context, new_workstations) 元组。
-    research_lines_context 包含 active/blocked/proposed_transitions 信息。
+    research_lines_context 包含 active/blocked/proposed_transitions 信息，
+    每个条目增加 gang_id 和 gang_name 字段。
     new_workstations 包含需要追加到工位列表的项。
 
-    研究线扫描失败不阻塞主流程。
+    纲目扫描失败不阻塞主流程。
     """
-    rl_path = os.path.join(root, ".chanlun/research-lines.yaml")
-    if not os.path.isfile(rl_path):
+    gm_path = os.path.join(root, ".chanlun/gangmu.yaml")
+    if not os.path.isfile(gm_path):
         return None, []
 
-    with open(rl_path, encoding="utf-8") as f:
+    with open(gm_path, encoding="utf-8") as f:
         data = yaml.safe_load(f)
 
     if not isinstance(data, dict):
         return None, []
 
-    lines = data.get("lines", [])
-    if not isinstance(lines, list):
+    gangs = data.get("gang", [])
+    if not isinstance(gangs, list):
         return None, []
 
     active_lines = []
@@ -408,91 +413,109 @@ def _scan_research_lines(root):
     proposed_transitions = []
     new_workstations = []
 
-    for line in lines:
-        if not isinstance(line, dict):
+    for gang in gangs:
+        if not isinstance(gang, dict):
             continue
-        line_id = line.get("id", "")
-        line_name = line.get("name", line_id)
-        status = line.get("status", "")
+        gang_id = gang.get("id", "")
+        gang_name = gang.get("name", gang_id)
 
-        if status == "blocked":
-            blocked_lines.append({
-                "id": line_id,
-                "name": line_name,
-                "blocked_by": line.get("blocked_by", ""),
-            })
+        mus = gang.get("mu", [])
+        if not isinstance(mus, list):
             continue
 
-        if status != "active":
-            continue
+        for mu in mus:
+            if not isinstance(mu, dict):
+                continue
+            mu_id = mu.get("id", "")
+            mu_name = mu.get("name", mu_id)
+            status = mu.get("status", "")
 
-        # 处理 active 线
-        next_actions = line.get("next_actions", [])
-        if not isinstance(next_actions, list):
-            continue
-
-        unblocked_count = 0
-        all_completed = True
-        all_blocked = True
-
-        for action in next_actions:
-            if not isinstance(action, dict):
+            if status == "blocked":
+                blocked_lines.append({
+                    "id": mu_id,
+                    "name": mu_name,
+                    "gang_id": gang_id,
+                    "gang_name": gang_name,
+                    "blocked_by": mu.get("blocked_by", ""),
+                })
                 continue
 
-            action_blocked_by = action.get("blocked_by")
-            is_blocked = action_blocked_by is not None and action_blocked_by != ""
+            if status != "active":
+                continue
 
-            if is_blocked:
+            # 处理 active 目
+            next_actions = mu.get("next_actions", [])
+            if not isinstance(next_actions, list):
+                continue
+
+            unblocked_count = 0
+            all_completed = True
+            all_blocked = True
+
+            for action in next_actions:
+                if not isinstance(action, dict):
+                    continue
+
+                action_blocked_by = action.get("blocked_by")
+                is_blocked = action_blocked_by is not None and action_blocked_by != ""
+
+                if is_blocked:
+                    all_completed = False
+                    continue
+
+                # unblocked action——检查 completion_check
+                all_blocked = False
+                completion_check = action.get("completion_check")
+                completed = _check_completion(root, completion_check)
+
+                if completed:
+                    continue
+
+                # 未完成的 unblocked action → 生成工位
                 all_completed = False
-                continue
+                unblocked_count += 1
+                action_type = action.get("type", "engineering")
+                target = action.get("target", "未命名")
+                description = action.get("description", "")
 
-            # unblocked action——检查 completion_check
-            all_blocked = False
-            completion_check = action.get("completion_check")
-            completed = _check_completion(root, completion_check)
+                new_workstations.append({
+                    "priority": "P2",
+                    "name": f"纲[{gang_name}]目[{mu_id}]：{target}",
+                    "status": f"research_line:{action_type}",
+                    "source": "research_lines",
+                    "description": description,
+                    "research_line": mu_id,
+                    "gang_id": gang_id,
+                    "gang_name": gang_name,
+                })
 
-            if completed:
-                continue
-
-            # 未完成的 unblocked action → 生成工位
-            all_completed = False
-            unblocked_count += 1
-            action_type = action.get("type", "engineering")
-            target = action.get("target", "未命名")
-            description = action.get("description", "")
-
-            new_workstations.append({
-                "priority": "P2",
-                "name": f"研究线[{line_id}]：{target}",
-                "status": f"research_line:{action_type}",
-                "source": "research_lines",
-                "description": description,
-                "research_line": line_id,
+            active_lines.append({
+                "id": mu_id,
+                "name": mu_name,
+                "gang_id": gang_id,
+                "gang_name": gang_name,
+                "unblocked_actions": unblocked_count,
             })
 
-        active_lines.append({
-            "id": line_id,
-            "name": line_name,
-            "unblocked_actions": unblocked_count,
-        })
+            # 状态转换提议：所有 next_actions 都 blocked → 提议 active→blocked
+            if next_actions and all_blocked:
+                proposed_transitions.append({
+                    "line": mu_id,
+                    "gang": gang_id,
+                    "from": "active",
+                    "to": "blocked",
+                    "reason": "所有 next_actions 均被阻塞",
+                })
 
-        # 状态转换提议：所有 next_actions 都 blocked → 提议 active→blocked
-        if next_actions and all_blocked:
-            proposed_transitions.append({
-                "line": line_id,
-                "from": "active",
-                "to": "blocked",
-                "reason": f"所有 next_actions 均被阻塞",
-            })
-
-        # 状态转换提议：所有 next_actions 都完成 → 提议 active→closed
-        if next_actions and all_completed and not all_blocked:
-            proposed_transitions.append({
-                "line": line_id,
-                "from": "active",
-                "to": "closed",
-                "reason": f"所有 next_actions 的 completion_check 均已满足",
-            })
+            # 状态转换提议：所有 next_actions 都完成 → 提议 active→closed
+            if next_actions and all_completed and not all_blocked:
+                proposed_transitions.append({
+                    "line": mu_id,
+                    "gang": gang_id,
+                    "from": "active",
+                    "to": "closed",
+                    "reason": "所有 next_actions 的 completion_check 均已满足",
+                })
 
     context = {
         "active": active_lines,
