@@ -1,0 +1,12 @@
+{
+  "id": "a8c15675a36ea615c54b7882e22fba8156a4005d63fde54c028dbac8e7cb8db4",
+  "genealogy_id": "345",
+  "title": "区块拓扑内容完整性验证机制",
+  "type": "工程决策",
+  "content_hash": "a8c15675a36ea615c54b7882e22fba8156a4005d63fde54c028dbac8e7cb8db4",
+  "depends_on": [],
+  "content": {
+    "source_file": "settled/345-block-integrity-verification.md",
+    "id": "345"
+  }
+}
