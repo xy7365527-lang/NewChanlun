@@ -1,0 +1,14 @@
+{
+  "id": "66d69bb6713c04e3db736dd4de74e64f07178e906e7e2bf86c41ec51309ce372",
+  "genealogy_id": "347",
+  "title": "Content-Addressed Block Topology",
+  "type": "工程决策",
+  "content_hash": "66d69bb6713c04e3db736dd4de74e64f07178e906e7e2bf86c41ec51309ce372",
+  "depends_on": [
+    "345"
+  ],
+  "content": {
+    "source_file": "settled/347-content-addressed-block-topology.md",
+    "id": "347"
+  }
+}
