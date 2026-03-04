@@ -10,14 +10,14 @@
 
 | # | 位置 | 声明内容 | 实际状态 | 严重程度 | 修复建议 |
 |---|------|---------|---------|---------|---------|
-| 1 | `.claude/commands/ceremony.md:8` | `ceremony_scan.py --phase initial` | ceremony_scan.py 无 `--phase` 参数（344号已记录：被 v151 移除，声明未同步） | **CRITICAL** | 将 `--phase initial` 从 ceremony.md 步骤1中移除 |
-| 2 | `.claude/rules/post-commit-flow.md:23` | `python scripts/ceremony_scan.py --phase rescan` | 同上，`--phase` 已不存在 | **CRITICAL** | 将 `--phase rescan` 改为 `python scripts/ceremony_scan.py` |
-| 3 | `.claude/rules/post-commit-flow.md:38` | `ceremony_scan.py --phase rescan 执行完成后` | 同上 | **HIGH** | 文档措辞更新：移除 `--phase rescan` |
-| 4 | `.claude/hooks/flow-continuity-guard.sh:66` | hook 注入消息包含 `python scripts/ceremony_scan.py --phase rescan` | hook 指导 LLM 执行不存在的参数，会导致 argparse 报错 | **CRITICAL** | 修改 flow-continuity-guard.sh 第66行，移除 `--phase rescan` |
-| 5 | `.claude/hooks/ceremony-step-guard.sh` | 文件存在于磁盘但未注册于 settings.json | 已有注释说明"从 settings.json 移除"（228-4）——设计意图，非缺口 | **LOW** | 无需修复（文档性保留，谱系记录完整） |
-| 6-15 | `.claude/hooks/{10个未注册hook}` | hook 存在但未注册于 settings.json | 不活跃——无调用路径 | **LOW** | 确认是否需要注册或可清理（见下方详表） |
-| 16 | `ceremony_scan.py:546-548` | 声明"只读扫描"（ceremony.md 不变量第5条） | review-results 写入 consumed 标记 | **MEDIUM** | 要么更新不变量声明，要么将 consumed 标记移到扫描外部 |
-| 17 | `.chanlun/gangmu.yaml:21` | `test_pass: <pattern> — 匹配模式的测试文件存在且通过` | ceremony_scan.py `_check_completion` 只检查文件存在，不执行测试 | **MEDIUM** | 要么更新注释为"文件存在即满足"，要么增强 _check_completion 实现 |
+| 1 | `.claude/commands/ceremony.md:8` | `ceremony_scan.py --phase initial` | ~~ceremony_scan.py 无 `--phase` 参数~~ | ~~CRITICAL~~ **RESOLVED** | a4e1e06 已修复 |
+| 2 | `.claude/rules/post-commit-flow.md:23` | `python scripts/ceremony_scan.py --phase rescan` | ~~`--phase` 已不存在~~ | ~~CRITICAL~~ **RESOLVED** | a4e1e06 已修复 |
+| 3 | `.claude/rules/post-commit-flow.md:38` | `ceremony_scan.py --phase rescan 执行完成后` | ~~同上~~ | ~~HIGH~~ **RESOLVED** | a4e1e06 已修复 |
+| 4 | `.claude/hooks/flow-continuity-guard.sh:66` | hook 注入消息包含 `python scripts/ceremony_scan.py --phase rescan` | ~~hook 指导 LLM 执行不存在的参数~~ | ~~CRITICAL~~ **RESOLVED** | a4e1e06 已修复 |
+| 5 | `.claude/hooks/ceremony-step-guard.sh` | 文件存在于磁盘但未注册于 settings.json | 已有注释说明"从 settings.json 移除"（228-4）——设计意图，非缺口 | **LOW（设计意图）** | 无需修复 |
+| 6-15 | `.claude/hooks/{10个未注册hook}` | hook 存在但未注册于 settings.json | 不活跃——无调用路径，无声明-能力缺口 | **LOW（无缺口）** | 确认：无处声称活跃 |
+| 16 | `ceremony_scan.py:546-548` | 声明"只读扫描"（ceremony.md 不变量第5条） | ~~review-results 写入 consumed 标记~~ | ~~MEDIUM~~ **RESOLVED** | ceremony.md 第67行已更新：添加例外声明 |
+| 17 | `.chanlun/gangmu.yaml:21` | `test_pass: <pattern> — 匹配模式的测试文件存在且通过` | ~~ceremony_scan.py `_check_completion` 只检查文件存在~~ | ~~MEDIUM~~ **RESOLVED** | ceremony_scan.py 第609行注释已与实现一致 |
 
 ---
 
@@ -181,10 +181,10 @@ if check_type == "test_pass":
 
 | 严重程度 | 数量 | 说明 |
 |---------|------|------|
-| **CRITICAL** | 3 | ceremony.md `--phase initial`、post-commit-flow.md `--phase rescan`、flow-continuity-guard.sh `--phase rescan` |
-| **HIGH** | 1 | post-commit-flow.md 文档描述包含 `--phase rescan` |
-| **MEDIUM** | 2 | ceremony_scan.py 只读声明偏差、gangmu.yaml test_pass 语义偏差 |
-| **LOW** | 11 | 11个未注册但存在的 hook 文件 |
+| ~~**CRITICAL**~~ | ~~3~~ → **0 RESOLVED** | ceremony.md、post-commit-flow.md、flow-continuity-guard.sh 的 `--phase` 幽灵参数（a4e1e06 修复） |
+| ~~**HIGH**~~ | ~~1~~ → **0 RESOLVED** | post-commit-flow.md 文档描述（a4e1e06 修复） |
+| ~~**MEDIUM**~~ | ~~2~~ → **0 RESOLVED** | ceremony.md 只读声明偏差（例外声明已添加）、gangmu.yaml test_pass 语义（注释已一致） |
+| **LOW** | 11 | 11个未注册但存在的 hook 文件（设计意图，无声明-能力缺口） |
 | **OK** | 26+ | 命令、skill、资料路径、gangmu 文件引用、227号 resolved 下游推论 |
 
 ## 根因分析

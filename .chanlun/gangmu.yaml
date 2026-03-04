@@ -36,10 +36,11 @@ gang:
       completion_check:
         type: file_exists
         path: scripts/position_manager.py
+      completed_at: '2026-03-04'
     - type: engineering
       target: G2-fugue-state-machine
       description: G2赋格状态机——帕萨卡利亚结构的状态机编码
-      blocked_by: 谱系定义未结算：赋格状态机的形式化定义尚未写入谱系
+      blocked_by: null  # 349号谱系已结算赋格状态机定义
       completion_check:
         type: file_exists
         path: src/newchan/fugue_engine.py
@@ -50,6 +51,28 @@ gang:
       completion_check:
         type: test_pass
         pattern: tests/test_xiaozhuan_da_integration.py
+      completed_at: '2026-03-04'
+    - type: engineering
+      target: G3-fugue-state-machine-genealogy
+      description: G3赋格状态机谱系定义——将267号第七节赋格定义扩展为完整状态机形式化，写入谱系，解除G2的blocked状态（来源：267号下游推论2 + 总方针§三.3）
+      blocked_by: null
+      completion_check:
+        type: genealogy_settled
+        keyword: fugue-state-machine
+    - type: engineering
+      target: G4-backtest-framework
+      description: G4回测框架——逐bar展开验证满仓满融降成本速度、区间套收敛排序效果、不换仓原则机会成本（来源：267号下游推论1 + 总方针§八.七阶段B回测）
+      blocked_by: G3-fugue-state-machine-genealogy
+      completion_check:
+        type: test_pass
+        pattern: tests/test_backtest_*.py
+    - type: engineering
+      target: G5-convergence-metric
+      description: G5区间套收敛量化——定义收敛紧度的三项量化方式：嵌套层数x级别大小x各层一致性（来源：267号下游推论3）
+      blocked_by: null
+      completion_check:
+        type: genealogy_settled
+        keyword: convergence-metric
 - id: simatrix-quanyu
   name: 四矩阵全域
   zongfangzhen_section: §三.2全域层 + §八.七阶段I-1
@@ -118,7 +141,36 @@ gang:
     name: 区块拓扑
     status: active
     opened_at: '301'
-    next_actions: []
+    next_actions:
+    - type: engineering
+      target: BT1-content-addressed-migration
+      description: BT1内容寻址迁移执行——运行migrate_to_content_addressed.py --execute将1149个区块迁移为content-addressed格式（来源：347号迁移策略 + 总方针§八.二事件层不可变性）
+      blocked_by: null
+      completion_check:
+        type: script_exists
+        path: scripts/migrate_to_content_addressed.py
+    - type: engineering
+      target: BT2-reflexive-layer
+      description: BT2反身层实现——关系变更自动回写为type=rewrite的事件区块，rewrite区块的id可出现在后续关系记录的created_by字段，递归自动闭合（来源：总方针§八.二第三层Reflexive
+        layer）
+      blocked_by: BT1-content-addressed-migration
+      completion_check:
+        type: test_pass
+        pattern: tests/test_reflexive_layer.py
+    - type: integration
+      target: BT3-traverse-mcp-integration
+      description: BT3穿越基础设施MCP集成——将查询接口(traverse.py)接入LLM对话流，编排者提到索引号或概念词时LLM直接查询谱系拓扑带入对话语境（来源：总方针§八.五穿越基础设施组件一 + §八.七阶段B-T）
+      blocked_by: null
+      completion_check:
+        type: file_exists
+        path: scripts/traverse_mcp.py
+    - type: engineering
+      target: BT4-topo-event-detection
+      description: BT4拓扑事件检测——ceremony写入后检测Layer2 cycle_rank变化标记为拓扑事件，同时检测Layer1环标记为逻辑层拓扑事件（来源：总方针§八.五穿越基础设施组件二偶遇记录 + 组件三Morse地形导航）
+      blocked_by: null
+      completion_check:
+        type: test_pass
+        pattern: tests/test_topo_event_detection.py
   - id: fold-topology-ontology
     name: 折叠拓扑本体论
     status: closed
