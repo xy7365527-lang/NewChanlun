@@ -86,8 +86,10 @@ lines:
 
   - id: operational-methodology
     name: "操作方法论"
-    status: active
+    status: closed
     opened_at: "265"
+    closed_at: '2026-03-04'
+    closed_reason: "所有 next_actions 的 completion_check 均已满足"
     next_actions:
       - type: engineering
         target: "G1-position-management"
@@ -116,8 +118,10 @@ lines:
 
   - id: block-topology
     name: "区块拓扑"
-    status: active
+    status: closed
     opened_at: "301"
+    closed_at: '2026-03-04'
+    closed_reason: "所有 next_actions 的 completion_check 均已满足"
     next_actions:
       - type: integration
         target: "encounter-record-mechanism"
