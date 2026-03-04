@@ -1695,6 +1695,16 @@ nodes:
   status: settled
   type: 概念定义
   file: settled/350-convergence-metric.md
+- id: '351'
+  title: 离散Morse理论研究线建立
+  status: 已结算
+  type: 研究线建立
+  file: settled/351-morse-theory-research-line.md
+- id: '352'
+  title: 多标的扫描器设计——递归区间套 × 资本流转拓扑折叠 × 商空间排序
+  status: settled
+  type: 概念定义
+  file: settled/352-multi-target-scanner-design.md
 edges:
   depends_on:
   - from: '136'
@@ -3583,6 +3593,28 @@ edges:
     to: '264'
   - from: '350'
     to: '267'
+  - from: '351'
+    to: '347'
+  - from: '351'
+    to: '301'
+  - from: '351'
+    to: '292'
+  - from: '352'
+    to: '350'
+  - from: '352'
+    to: '267'
+  - from: '352'
+    to: '265'
+  - from: '352'
+    to: '292'
+  - from: '352'
+    to: '254'
+  - from: '352'
+    to: '330'
+  - from: '352'
+    to: '300'
+  - from: '352'
+    to: '349'
   triggered:
   - from: '005'
     to: 005a
@@ -4961,6 +4993,12 @@ edges:
   - between:
     - 090
     - '347'
+  - between:
+    - 090
+    - '351'
+  - between:
+    - 069
+    - '351'
   tensions_with:
   - between:
     - '007'

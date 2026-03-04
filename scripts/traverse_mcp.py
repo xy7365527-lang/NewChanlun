@@ -99,6 +99,14 @@ def _normalize_number(raw: str) -> str:
     return num_part + suffix
 
 
+def _relative_path(path: Path) -> str:
+    """Return path relative to REPO_ROOT if possible, otherwise absolute."""
+    try:
+        return str(path.relative_to(REPO_ROOT))
+    except ValueError:
+        return str(path)
+
+
 # --- Command: query ---
 
 
@@ -140,7 +148,7 @@ def cmd_query(
         "related": fm.get("related", []),
         "negates": fm.get("negates", []),
         "negated_by": fm.get("negated_by", []),
-        "file": str(path.relative_to(REPO_ROOT)),
+        "file": _relative_path(path),
         "block_id": block_id,
         "summary": "\n".join(summary_lines).strip(),
     }
@@ -173,7 +181,7 @@ def cmd_search(
             "status": fm.get("status", ""),
             "type": fm.get("type", ""),
             "title_match": title_match,
-            "file": str(path.relative_to(REPO_ROOT)),
+            "file": _relative_path(path),
         })
         if len(results) >= max_results:
             break
@@ -402,7 +410,7 @@ def main(argv: list[str] | None = None) -> None:
         sys.exit(1)
 
     if args.command == "query":
-        result = cmd_query(args.number)
+        result = cmd_query(args.number, settled_dir=SETTLED_DIR, topo_base=TOPO_BASE)
         if result is None:
             print(f"Genealogy #{args.number} not found", file=sys.stderr)
             sys.exit(1)
@@ -412,21 +420,21 @@ def main(argv: list[str] | None = None) -> None:
             print(_format_query(result))
 
     elif args.command == "search":
-        results = cmd_search(args.keyword, max_results=args.max)
+        results = cmd_search(args.keyword, settled_dir=SETTLED_DIR, max_results=args.max)
         if args.format == "json":
             print(json.dumps(results, ensure_ascii=False, indent=2))
         else:
             print(_format_search(results))
 
     elif args.command == "deps":
-        result = cmd_deps(args.number, max_depth=args.max_depth)
+        result = cmd_deps(args.number, settled_dir=SETTLED_DIR, max_depth=args.max_depth)
         if args.format == "json":
             print(json.dumps(result, ensure_ascii=False, indent=2))
         else:
             print(_format_deps(result))
 
     elif args.command == "block":
-        result = cmd_block(args.block_id)
+        result = cmd_block(args.block_id, topo_base=TOPO_BASE)
         if result is None:
             print(f"Block not found: {args.block_id}", file=sys.stderr)
             sys.exit(1)
