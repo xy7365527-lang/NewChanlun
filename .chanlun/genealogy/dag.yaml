@@ -1710,6 +1710,11 @@ nodes:
   status: settled
   type: meta-rule（知识结晶）
   file: settled/353-consumption-declaration-equivalence.md
+- id: '354'
+  title: 元观察 v158——极简 session + Stop-Guard 中断模式分析
+  status: pending
+  type: meta-rule
+  file: pending/354-meta-observation-v158-minimal-session.md
 edges:
   depends_on:
   - from: '136'
@@ -3626,6 +3631,14 @@ edges:
     to: '016'
   - from: '353'
     to: 082
+  - from: '354'
+    to: '016'
+  - from: '354'
+    to: 048
+  - from: '354'
+    to: '353'
+  - from: '354'
+    to: '351'
   triggered:
   - from: '005'
     to: 005a
@@ -5118,3 +5131,13 @@ edges:
     to: '295'
   - from: '349'
     to: '264'
+- id: '354'
+  title: 元观察 v158——极简 session + Stop-Guard 中断处理
+  type: meta-rule
+  date: 2026-03-04
+  file: settled/354-meta-observation-v158-minimal-session.md
+  depends_on:
+  - '016'
+  - '048'
+  - '351'
+  - '353'

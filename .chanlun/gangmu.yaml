@@ -40,7 +40,7 @@ gang:
     - type: engineering
       target: G2-fugue-state-machine
       description: G2赋格状态机——帕萨卡利亚结构的状态机编码
-      blocked_by: null  # 349号谱系已结算赋格状态机定义
+      blocked_by: null
       completion_check:
         type: file_exists
         path: src/newchan/fugue_engine.py
@@ -256,6 +256,7 @@ gang:
       completion_check:
         type: test_file_exists
         pattern: tests/test_discrete_morse.py
+      completed_at: '2026-03-04'
     - type: experiment
       target: DM2-temporal-evolution
       description: 按谱系编号递增构造子复形序列，记录临界集变化的时间序列——跳跃点对应关键否定事件

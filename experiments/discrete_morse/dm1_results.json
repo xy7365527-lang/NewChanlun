@@ -1,0 +1,48 @@
+{
+  "complex": {
+    "vertices": 2182,
+    "edges": 4432,
+    "triangles": 2906,
+    "dimension": 2
+  },
+  "betti": {
+    "beta_0": 4,
+    "beta_1": 607,
+    "beta_2": 1259,
+    "euler_characteristic": 656
+  },
+  "morse": {
+    "num_pairs": 1580,
+    "critical_0": 853,
+    "critical_1": 2852,
+    "critical_2": 2655
+  },
+  "verification": {
+    "weak_morse_0": {
+      "holds": true,
+      "m0": 853,
+      "beta_0": 4
+    },
+    "weak_morse_1": {
+      "holds": true,
+      "m1": 2852,
+      "beta_1": 607
+    },
+    "weak_morse_2": {
+      "holds": true,
+      "m2": 2655,
+      "beta_2": 1259
+    },
+    "strong_morse_1": {
+      "holds": true,
+      "m0_minus_m1": -1999,
+      "beta_0_minus_beta_1": -603
+    },
+    "euler_equality": {
+      "holds": true,
+      "chi_morse": 656,
+      "chi_betti": 656
+    },
+    "all_pass": true
+  }
+}
