@@ -1,0 +1,14 @@
+{
+  "id": "328",
+  "title": "元观察——C3 三线并行 session：阈值非不变量 + 坍缩质量分化 + 可逆/不可逆初步形式化",
+  "type": "meta-rule",
+  "status": "已结算",
+  "date": "2026-03-04",
+  "depends_on": [
+    "327",
+    "231",
+    "090"
+  ],
+  "epistemological_level": "L2",
+  "file": "settled/328-meta-observation-c3-three-lines-session.md"
+}

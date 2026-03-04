@@ -1,0 +1,607 @@
+{
+  "node": "equity",
+  "edges": [
+    "SPX/DXY (Equity/$)",
+    "SPX/GC=F (Equity/Au)",
+    "SPX/CL=F (Equity/Commodity)"
+  ],
+  "data_range": "2000-08-31 to 2026-02-27",
+  "n_obs": 6388,
+  "eff_dim_summary": {
+    "n_pts": 6136,
+    "mean": 2.219,
+    "std": 0.235,
+    "min": 1.689,
+    "max": 2.833
+  },
+  "proposition_1": {
+    "method_a_ma_crossover": {
+      "T_group": {
+        "n": 5190,
+        "median": 2.198,
+        "mean": 2.233,
+        "iqr": [
+          2.056,
+          2.396
+        ]
+      },
+      "N_group": {
+        "n": 695,
+        "median": 2.265,
+        "mean": 2.225,
+        "iqr": [
+          2.085,
+          2.383
+        ]
+      },
+      "welch_t": {
+        "t": 0.9343,
+        "p_one_sided": 0.824818
+      },
+      "mann_whitney_u": {
+        "U": 1788599.0,
+        "p_one_sided": 0.361355
+      },
+      "cohens_d": 0.0351,
+      "verdict": "FAIL"
+    },
+    "method_b_manual": {
+      "T_group": {
+        "n": 5879,
+        "median": 2.175,
+        "mean": 2.213,
+        "iqr": [
+          2.04,
+          2.381
+        ]
+      },
+      "N_group": {
+        "n": 257,
+        "median": 2.379,
+        "mean": 2.36,
+        "iqr": [
+          2.308,
+          2.421
+        ]
+      },
+      "welch_t": {
+        "t": -24.208,
+        "p_one_sided": 0.0
+      },
+      "mann_whitney_u": {
+        "U": 402166.0,
+        "p_one_sided": 0.0
+      },
+      "cohens_d": -0.8255,
+      "verdict": "PASS"
+    },
+    "robustness": "SENSITIVE_TO_METHOD"
+  },
+  "asymmetry": {
+    "rising_spx": {
+      "n": 5034,
+      "mean": 2.243,
+      "median": 2.228
+    },
+    "falling_spx": {
+      "n": 845,
+      "mean": 2.033,
+      "median": 2.012
+    },
+    "welch_t": 40.8974,
+    "welch_p": 0.0,
+    "cohens_d": 1.1217,
+    "drift_by_segment": [
+      {
+        "segment": "上升趋势1",
+        "direction": "rising",
+        "n": 1245,
+        "first_half_mean": 1.99,
+        "second_half_mean": 2.132,
+        "spearman_r": 0.6997,
+        "spearman_p": 0.0
+      },
+      {
+        "segment": "上升趋势2",
+        "direction": "rising",
+        "n": 2753,
+        "first_half_mean": 2.531,
+        "second_half_mean": 2.192,
+        "spearman_r": -0.5573,
+        "spearman_p": 0.0
+      },
+      {
+        "segment": "上升趋势3",
+        "direction": "rising",
+        "n": 447,
+        "first_half_mean": 1.891,
+        "second_half_mean": 2.269,
+        "spearman_r": 0.6971,
+        "spearman_p": 0.0
+      },
+      {
+        "segment": "上升趋势4",
+        "direction": "rising",
+        "n": 589,
+        "first_half_mean": 2.239,
+        "second_half_mean": 2.158,
+        "spearman_r": 0.0521,
+        "spearman_p": 0.2067
+      },
+      {
+        "segment": "下降趋势1",
+        "direction": "falling",
+        "n": 271,
+        "first_half_mean": 1.929,
+        "second_half_mean": 1.921,
+        "spearman_r": 0.0729,
+        "spearman_p": 0.2315
+      },
+      {
+        "segment": "下降趋势2",
+        "direction": "falling",
+        "n": 355,
+        "first_half_mean": 2.101,
+        "second_half_mean": 2.066,
+        "spearman_r": 0.0283,
+        "spearman_p": 0.5949
+      },
+      {
+        "segment": "下降趋势3",
+        "direction": "falling",
+        "n": 23,
+        "first_half_mean": 2.163,
+        "second_half_mean": 2.207,
+        "spearman_r": 0.582,
+        "spearman_p": 0.0036
+      },
+      {
+        "segment": "下降趋势4",
+        "direction": "falling",
+        "n": 196,
+        "first_half_mean": 2.135,
+        "second_half_mean": 2.01,
+        "spearman_r": -0.752,
+        "spearman_p": 0.0
+      }
+    ],
+    "verdict": "SAME_AS_AU",
+    "description": "上升散开/下降压缩：与Au节点同向 -> K4一般性质",
+    "au_dollar_comparison": {
+      "au_pattern": "rising_gold=散开(higher eff.dim), falling_gold=压缩(lower eff.dim)",
+      "dollar_pattern": "rising_dxy=散开(higher eff.dim), falling_dxy=压缩(lower eff.dim) [SAME_AS_AU]",
+      "equity_pattern": "rising_spx mean=2.243, falling_spx mean=2.033"
+    }
+  },
+  "proposition_2": {
+    "n_events": 24,
+    "events": [
+      {
+        "event_start": "2001-09-17",
+        "event_end": "2001-09-24",
+        "days": 2,
+        "max_mahal": 7.99,
+        "eff_dim_pre5d": 1.95,
+        "eff_dim_pre10d": null,
+        "eff_dim_pre20d": null
+      },
+      {
+        "event_start": "2006-06-13",
+        "event_end": "2006-06-13",
+        "days": 1,
+        "max_mahal": 6.04,
+        "eff_dim_pre5d": 2.202,
+        "eff_dim_pre10d": 2.213,
+        "eff_dim_pre20d": 2.171
+      },
+      {
+        "event_start": "2008-09-17",
+        "event_end": "2008-11-04",
+        "days": 12,
+        "max_mahal": 9.59,
+        "eff_dim_pre5d": 1.922,
+        "eff_dim_pre10d": 1.911,
+        "eff_dim_pre20d": 1.93
+      },
+      {
+        "event_start": "2008-11-13",
+        "event_end": "2008-12-01",
+        "days": 6,
+        "max_mahal": 7.49,
+        "eff_dim_pre5d": 2.073,
+        "eff_dim_pre10d": 2.041,
+        "eff_dim_pre20d": 2.06
+      },
+      {
+        "event_start": "2008-12-16",
+        "event_end": "2008-12-22",
+        "days": 3,
+        "max_mahal": 7.03,
+        "eff_dim_pre5d": 2.153,
+        "eff_dim_pre10d": 2.159,
+        "eff_dim_pre20d": 2.093
+      },
+      {
+        "event_start": "2009-01-20",
+        "event_end": "2009-01-21",
+        "days": 2,
+        "max_mahal": 6.68,
+        "eff_dim_pre5d": 2.209,
+        "eff_dim_pre10d": 2.192,
+        "eff_dim_pre20d": 2.172
+      },
+      {
+        "event_start": "2009-02-17",
+        "event_end": "2009-02-19",
+        "days": 2,
+        "max_mahal": 5.73,
+        "eff_dim_pre5d": 2.197,
+        "eff_dim_pre10d": 2.2,
+        "eff_dim_pre20d": 2.209
+      },
+      {
+        "event_start": "2009-03-02",
+        "event_end": "2009-03-02",
+        "days": 1,
+        "max_mahal": 5.49,
+        "eff_dim_pre5d": 2.217,
+        "eff_dim_pre10d": 2.207,
+        "eff_dim_pre20d": 2.202
+      },
+      {
+        "event_start": "2009-03-10",
+        "event_end": "2009-03-10",
+        "days": 1,
+        "max_mahal": 5.9,
+        "eff_dim_pre5d": 2.23,
+        "eff_dim_pre10d": 2.217,
+        "eff_dim_pre20d": 2.197
+      },
+      {
+        "event_start": "2009-03-19",
+        "event_end": "2009-03-23",
+        "days": 2,
+        "max_mahal": 7.05,
+        "eff_dim_pre5d": 2.235,
+        "eff_dim_pre10d": 2.24,
+        "eff_dim_pre20d": 2.218
+      },
+      {
+        "event_start": "2009-04-20",
+        "event_end": "2009-04-20",
+        "days": 1,
+        "max_mahal": 5.48,
+        "eff_dim_pre5d": 2.261,
+        "eff_dim_pre10d": 2.256,
+        "eff_dim_pre20d": 2.233
+      },
+      {
+        "event_start": "2011-08-08",
+        "event_end": "2011-08-08",
+        "days": 1,
+        "max_mahal": 6.95,
+        "eff_dim_pre5d": 2.46,
+        "eff_dim_pre10d": 2.448,
+        "eff_dim_pre20d": 2.453
+      },
+      {
+        "event_start": "2013-04-15",
+        "event_end": "2013-04-15",
+        "days": 1,
+        "max_mahal": 7.33,
+        "eff_dim_pre5d": 2.688,
+        "eff_dim_pre10d": 2.686,
+        "eff_dim_pre20d": 2.7
+      },
+      {
+        "event_start": "2016-06-24",
+        "event_end": "2016-06-24",
+        "days": 1,
+        "max_mahal": 5.66,
+        "eff_dim_pre5d": 2.113,
+        "eff_dim_pre10d": 2.117,
+        "eff_dim_pre20d": 2.103
+      },
+      {
+        "event_start": "2019-09-16",
+        "event_end": "2019-09-16",
+        "days": 1,
+        "max_mahal": 5.49,
+        "eff_dim_pre5d": 2.272,
+        "eff_dim_pre10d": 2.266,
+        "eff_dim_pre20d": 2.269
+      },
+      {
+        "event_start": "2020-03-09",
+        "event_end": "2020-04-14",
+        "days": 13,
+        "max_mahal": 11.31,
+        "eff_dim_pre5d": 2.184,
+        "eff_dim_pre10d": 2.107,
+        "eff_dim_pre20d": 2.119
+      },
+      {
+        "event_start": "2020-04-22",
+        "event_end": "2020-05-05",
+        "days": 6,
+        "max_mahal": 12.11,
+        "eff_dim_pre5d": 2.093,
+        "eff_dim_pre10d": 2.143,
+        "eff_dim_pre20d": 2.165
+      },
+      {
+        "event_start": "2020-06-11",
+        "event_end": "2020-06-11",
+        "days": 1,
+        "max_mahal": 5.89,
+        "eff_dim_pre5d": 1.812,
+        "eff_dim_pre10d": 1.812,
+        "eff_dim_pre20d": 1.812
+      },
+      {
+        "event_start": "2020-11-09",
+        "event_end": "2020-11-09",
+        "days": 1,
+        "max_mahal": 6.0,
+        "eff_dim_pre5d": 1.878,
+        "eff_dim_pre10d": 1.871,
+        "eff_dim_pre20d": 1.872
+      },
+      {
+        "event_start": "2021-11-26",
+        "event_end": "2021-11-26",
+        "days": 1,
+        "max_mahal": 5.4,
+        "eff_dim_pre5d": 2.384,
+        "eff_dim_pre10d": 2.384,
+        "eff_dim_pre20d": 2.435
+      },
+      {
+        "event_start": "2022-03-09",
+        "event_end": "2022-03-09",
+        "days": 1,
+        "max_mahal": 6.18,
+        "eff_dim_pre5d": 2.207,
+        "eff_dim_pre10d": 2.259,
+        "eff_dim_pre20d": 2.27
+      },
+      {
+        "event_start": "2022-11-10",
+        "event_end": "2022-11-10",
+        "days": 1,
+        "max_mahal": 5.94,
+        "eff_dim_pre5d": 2.005,
+        "eff_dim_pre10d": 2.015,
+        "eff_dim_pre20d": 2.014
+      },
+      {
+        "event_start": "2025-04-04",
+        "event_end": "2025-04-09",
+        "days": 2,
+        "max_mahal": 6.77,
+        "eff_dim_pre5d": 2.211,
+        "eff_dim_pre10d": 2.204,
+        "eff_dim_pre20d": 2.182
+      },
+      {
+        "event_start": "2026-01-30",
+        "event_end": "2026-01-30",
+        "days": 1,
+        "max_mahal": 9.72,
+        "eff_dim_pre5d": 2.462,
+        "eff_dim_pre10d": 2.478,
+        "eff_dim_pre20d": 2.446
+      }
+    ],
+    "correlations": {
+      "pre_5d": {
+        "spearman_rho": -0.1722,
+        "spearman_p_one": 0.7895,
+        "pearson_r": -0.0302,
+        "pearson_p_one": 0.5557
+      },
+      "pre_10d": {
+        "spearman_rho": -0.1147,
+        "spearman_p_one": 0.6988,
+        "pearson_r": -0.0139,
+        "pearson_p_one": 0.525
+      },
+      "pre_20d": {
+        "spearman_rho": -0.1127,
+        "spearman_p_one": 0.6956,
+        "pearson_r": 0.0066,
+        "pearson_p_one": 0.4881
+      }
+    },
+    "median_split": {
+      "median_effdim": 2.204,
+      "high_group_mean_mahal": 6.54,
+      "low_group_mean_mahal": 7.57
+    },
+    "verdict": "FAIL"
+  },
+  "event_density": {
+    "T_days": 6130,
+    "N_days": 257,
+    "T_events": 22,
+    "N_events": 2,
+    "T_rate_per_1000d": 3.59,
+    "N_rate_per_1000d": 7.78,
+    "ratio_N_over_T": 2.17,
+    "fisher_exact_p": 0.2513,
+    "chi2_p": 0.5782
+  },
+  "threshold_effect": {
+    "event_effdims": [
+      {
+        "event_start": "2001-09-17",
+        "max_mahal": 7.991509875651277,
+        "eff_dim_at_event": 1.944,
+        "label": "T"
+      },
+      {
+        "event_start": "2006-06-13",
+        "max_mahal": 6.038673972234982,
+        "eff_dim_at_event": 2.222,
+        "label": "T"
+      },
+      {
+        "event_start": "2008-09-17",
+        "max_mahal": 9.587240812399857,
+        "eff_dim_at_event": 1.96,
+        "label": "T"
+      },
+      {
+        "event_start": "2008-11-13",
+        "max_mahal": 7.490195274118186,
+        "eff_dim_at_event": 2.1,
+        "label": "T"
+      },
+      {
+        "event_start": "2008-12-16",
+        "max_mahal": 7.032370298663704,
+        "eff_dim_at_event": 2.157,
+        "label": "T"
+      },
+      {
+        "event_start": "2009-01-20",
+        "max_mahal": 6.681602105697119,
+        "eff_dim_at_event": 2.213,
+        "label": "T"
+      },
+      {
+        "event_start": "2009-02-17",
+        "max_mahal": 5.732683818910229,
+        "eff_dim_at_event": 2.209,
+        "label": "T"
+      },
+      {
+        "event_start": "2009-03-02",
+        "max_mahal": 5.487916201534049,
+        "eff_dim_at_event": 2.221,
+        "label": "T"
+      },
+      {
+        "event_start": "2009-03-10",
+        "max_mahal": 5.897050464302949,
+        "eff_dim_at_event": 2.245,
+        "label": "T"
+      },
+      {
+        "event_start": "2009-03-19",
+        "max_mahal": 7.049228652646822,
+        "eff_dim_at_event": 2.238,
+        "label": "T"
+      },
+      {
+        "event_start": "2009-04-20",
+        "max_mahal": 5.4793830525543985,
+        "eff_dim_at_event": 2.263,
+        "label": "T"
+      },
+      {
+        "event_start": "2011-08-08",
+        "max_mahal": 6.950983767015377,
+        "eff_dim_at_event": 2.474,
+        "label": "T"
+      },
+      {
+        "event_start": "2013-04-15",
+        "max_mahal": 7.327956458542045,
+        "eff_dim_at_event": 2.692,
+        "label": "T"
+      },
+      {
+        "event_start": "2016-06-24",
+        "max_mahal": 5.661597538658908,
+        "eff_dim_at_event": 2.104,
+        "label": "T"
+      },
+      {
+        "event_start": "2019-09-16",
+        "max_mahal": 5.49128271931873,
+        "eff_dim_at_event": 2.266,
+        "label": "T"
+      },
+      {
+        "event_start": "2020-03-09",
+        "max_mahal": 11.310063270585061,
+        "eff_dim_at_event": 2.212,
+        "label": "T"
+      },
+      {
+        "event_start": "2020-04-22",
+        "max_mahal": 12.106288469943308,
+        "eff_dim_at_event": 2.062,
+        "label": "T"
+      },
+      {
+        "event_start": "2020-06-11",
+        "max_mahal": 5.888313798726358,
+        "eff_dim_at_event": 1.817,
+        "label": "T"
+      },
+      {
+        "event_start": "2020-11-09",
+        "max_mahal": 6.0006698642875556,
+        "eff_dim_at_event": 1.881,
+        "label": "T"
+      },
+      {
+        "event_start": "2021-11-26",
+        "max_mahal": 5.400090179430121,
+        "eff_dim_at_event": 2.373,
+        "label": "T"
+      },
+      {
+        "event_start": "2022-03-09",
+        "max_mahal": 6.182646775235763,
+        "eff_dim_at_event": 2.174,
+        "label": "T"
+      },
+      {
+        "event_start": "2022-11-10",
+        "max_mahal": 5.9422141532115855,
+        "eff_dim_at_event": 2.033,
+        "label": "T"
+      },
+      {
+        "event_start": "2025-04-04",
+        "max_mahal": 6.771564564032325,
+        "eff_dim_at_event": 2.251,
+        "label": "N"
+      },
+      {
+        "event_start": "2026-01-30",
+        "max_mahal": 9.715715655285042,
+        "eff_dim_at_event": 2.464,
+        "label": "N"
+      }
+    ],
+    "min_event_effdim": 1.817,
+    "max_event_effdim": 2.692,
+    "mean_event_effdim": 2.191,
+    "overall_mean_effdim": 2.219,
+    "frac_days_below_min_event": 0.0077,
+    "welch_t_p_one_sided": 0.7582,
+    "mann_whitney_p": 0.6547,
+    "three_node_comparison": {
+      "au_min_event_effdim": 1.894,
+      "au_frac_below": 0.0692,
+      "dollar_min_event_effdim": 1.894,
+      "dollar_frac_below": 0.0673,
+      "equity_min_event_effdim": 1.817,
+      "equity_frac_below": 0.0077
+    }
+  },
+  "final_verdicts": {
+    "asymmetry": "SAME_AS_AU",
+    "asymmetry_description": "上升散开/下降压缩：与Au节点同向 -> K4一般性质",
+    "threshold_min_event_effdim": 1.817,
+    "threshold_convergence": "EQUITY_NO_THRESHOLD",
+    "proposition_1": "PARTIAL (MA=FAIL, Manual=PASS)",
+    "proposition_2": "FAIL",
+    "question_1_answer": "K4一般性质（三节点一致）",
+    "question_2_answer": "Au/$特有，Equity不具备"
+  }
+}

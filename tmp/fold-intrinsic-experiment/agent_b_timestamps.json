@@ -1,0 +1,86 @@
+[
+  {
+    "zhongshu_index": 0,
+    "from_status": "extending",
+    "to_status": "expanding",
+    "date": "2002-09-30",
+    "trigger_seg_idx": 3
+  },
+  {
+    "zhongshu_index": 0,
+    "from_status": "expanding",
+    "to_status": "newborn",
+    "date": "2004-01-09",
+    "trigger_seg_idx": 4
+  },
+  {
+    "zhongshu_index": 1,
+    "from_status": "extending",
+    "to_status": "expanding",
+    "date": "2005-04-26",
+    "trigger_seg_idx": 7
+  },
+  {
+    "zhongshu_index": 1,
+    "from_status": "expanding",
+    "to_status": "newborn",
+    "date": "2006-04-19",
+    "trigger_seg_idx": 8
+  },
+  {
+    "zhongshu_index": 2,
+    "from_status": "extending",
+    "to_status": "expanding",
+    "date": "2007-01-04",
+    "trigger_seg_idx": 11
+  },
+  {
+    "zhongshu_index": 2,
+    "from_status": "expanding",
+    "to_status": "newborn",
+    "date": "2007-06-26",
+    "trigger_seg_idx": 12
+  },
+  {
+    "zhongshu_index": 3,
+    "from_status": "extending",
+    "to_status": "expanding",
+    "date": "2010-05-04",
+    "trigger_seg_idx": 17
+  },
+  {
+    "zhongshu_index": 3,
+    "from_status": "expanding",
+    "to_status": "newborn",
+    "date": "2015-08-26",
+    "trigger_seg_idx": 28
+  },
+  {
+    "zhongshu_index": 4,
+    "from_status": "extending",
+    "to_status": "expanding",
+    "date": "2016-09-15",
+    "trigger_seg_idx": 31
+  },
+  {
+    "zhongshu_index": 4,
+    "from_status": "expanding",
+    "to_status": "newborn",
+    "date": "2021-03-04",
+    "trigger_seg_idx": 38
+  },
+  {
+    "zhongshu_index": 5,
+    "from_status": "extending",
+    "to_status": "expanding",
+    "date": "2021-11-04",
+    "trigger_seg_idx": 42
+  },
+  {
+    "zhongshu_index": 5,
+    "from_status": "expanding",
+    "to_status": "newborn",
+    "date": "2024-07-10",
+    "trigger_seg_idx": 47
+  }
+]

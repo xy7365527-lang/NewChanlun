@@ -1,0 +1,186 @@
+{
+  "hypothesis": "共享边假说：eff.dim时间序列相关性高的节点对，frac_below更接近",
+  "frac_below": {
+    "Au": 0.0692,
+    "$": 0.0673,
+    "Equity": 0.0077,
+    "Commodity": 0.0081
+  },
+  "frac_below_distance_matrix": {
+    "Au-$": 0.0019,
+    "Au-Equity": 0.0615,
+    "Au-Commodity": 0.0611,
+    "$-Equity": 0.0596,
+    "$-Commodity": 0.0592,
+    "Equity-Commodity": 0.0004
+  },
+  "effdim_summary": {
+    "Au": {
+      "n_pts": 6138,
+      "mean": 2.162,
+      "std": 0.235,
+      "min": 1.448,
+      "max": 2.59
+    },
+    "$": {
+      "n_pts": 6138,
+      "mean": 2.312,
+      "std": 0.269,
+      "min": 1.719,
+      "max": 2.894
+    },
+    "Equity": {
+      "n_pts": 6138,
+      "mean": 2.213,
+      "std": 0.246,
+      "min": 1.525,
+      "max": 2.833
+    },
+    "Commodity": {
+      "n_pts": 6138,
+      "mean": 1.536,
+      "std": 0.23,
+      "min": 1.112,
+      "max": 2.221
+    }
+  },
+  "effdim_pearson_correlation": {
+    "Au-$": -0.3019,
+    "Au-Equity": 0.2696,
+    "Au-Commodity": 0.2989,
+    "$-Equity": -0.5208,
+    "$-Commodity": -0.3485,
+    "Equity-Commodity": 0.6952
+  },
+  "effdim_spearman_correlation": {
+    "Au-$": -0.3237,
+    "Au-Equity": 0.2179,
+    "Au-Commodity": 0.5037,
+    "$-Equity": -0.5044,
+    "$-Commodity": -0.4169,
+    "Equity-Commodity": 0.6771
+  },
+  "pair_details": [
+    {
+      "pair": "Au-$",
+      "frac_below_distance": 0.0019,
+      "pearson_r": -0.3019,
+      "pearson_p": 0.0,
+      "spearman_r": -0.3237,
+      "spearman_p": 0.0
+    },
+    {
+      "pair": "Au-Equity",
+      "frac_below_distance": 0.0615,
+      "pearson_r": 0.2696,
+      "pearson_p": 0.0,
+      "spearman_r": 0.2179,
+      "spearman_p": 0.0
+    },
+    {
+      "pair": "Au-Commodity",
+      "frac_below_distance": 0.0611,
+      "pearson_r": 0.2989,
+      "pearson_p": 0.0,
+      "spearman_r": 0.5037,
+      "spearman_p": 0.0
+    },
+    {
+      "pair": "$-Equity",
+      "frac_below_distance": 0.0596,
+      "pearson_r": -0.5208,
+      "pearson_p": 0.0,
+      "spearman_r": -0.5044,
+      "spearman_p": 0.0
+    },
+    {
+      "pair": "$-Commodity",
+      "frac_below_distance": 0.0592,
+      "pearson_r": -0.3485,
+      "pearson_p": 0.0,
+      "spearman_r": -0.4169,
+      "spearman_p": 0.0
+    },
+    {
+      "pair": "Equity-Commodity",
+      "frac_below_distance": 0.0004,
+      "pearson_r": 0.6952,
+      "pearson_p": 0.0,
+      "spearman_r": 0.6771,
+      "spearman_p": 0.0
+    }
+  ],
+  "hypothesis_test": {
+    "method": "Spearman rank correlation between eff.dim correlation and frac_below distance (6 pairs)",
+    "spearman_pearson_r_vs_frac": {
+      "rho": -0.1429,
+      "p": 0.7872
+    },
+    "spearman_spearman_r_vs_frac": {
+      "rho": -0.1429,
+      "p": 0.7872
+    },
+    "verdict": "WEAK_SUPPORT",
+    "note": "6个数据点（6对节点）统计功效低，结论谨慎解读"
+  },
+  "cluster_analysis": {
+    "group_a": {
+      "nodes": [
+        "Au",
+        "$"
+      ],
+      "frac_below_mean": 0.0683
+    },
+    "group_b": {
+      "nodes": [
+        "Equity",
+        "Commodity"
+      ],
+      "frac_below_mean": 0.0079
+    },
+    "within_group_a_corr": -0.3019,
+    "within_group_b_corr": 0.6952,
+    "between_group_mean_corr": -0.0752,
+    "within_vs_between": 0.2719,
+    "verdict": "2-GROUP_CONFIRMED",
+    "description": "eff.dim共变结构与frac_below分群一致：Au-$高相关+高frac_below，Equity-Commodity另成一群"
+  },
+  "rolling_correlation_summary": {
+    "Au-$": {
+      "mean": -0.1046,
+      "std": 0.6302,
+      "min": -0.9877,
+      "max": 0.9868
+    },
+    "Au-Equity": {
+      "mean": 0.1844,
+      "std": 0.6545,
+      "min": -0.9276,
+      "max": 0.9966
+    },
+    "Au-Commodity": {
+      "mean": 0.2808,
+      "std": 0.7269,
+      "min": -0.9914,
+      "max": 0.9977
+    },
+    "$-Equity": {
+      "mean": -0.2505,
+      "std": 0.6048,
+      "min": -0.9771,
+      "max": 0.9365
+    },
+    "$-Commodity": {
+      "mean": -0.0773,
+      "std": 0.5904,
+      "min": -0.9577,
+      "max": 0.9309
+    },
+    "Equity-Commodity": {
+      "mean": 0.489,
+      "std": 0.5731,
+      "min": -0.9176,
+      "max": 0.9957
+    }
+  }
+}

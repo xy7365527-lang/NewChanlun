@@ -1,0 +1,330 @@
+{
+  "experiment": "OQ2 E矩阵内部拓扑",
+  "pipeline": "口径A（RecursiveOrchestrator 从日线递归）",
+  "epistemology_level": "L2",
+  "genealogy_ref": "279号",
+  "timestamp": "2026-03-01T07:29:18.334140",
+  "data_range": "1998-12-22 ~ 2026-02-27",
+  "symbols": [
+    "XLK",
+    "XLF",
+    "XLE",
+    "XLV",
+    "XLY"
+  ],
+  "edges": [
+    {
+      "edge_label": "XLK/XLF",
+      "sym_a": "XLK",
+      "sym_b": "XLF",
+      "total_bars": 6837,
+      "num_strokes": 472,
+      "num_segments": 45,
+      "num_zhongshus": 9,
+      "num_moves": 8,
+      "num_settled_moves": 7,
+      "num_bsp": 6,
+      "final_direction": "up",
+      "final_amplitude": 1.010036532928734,
+      "final_absorption": true
+    },
+    {
+      "edge_label": "XLK/XLE",
+      "sym_a": "XLK",
+      "sym_b": "XLE",
+      "total_bars": 6837,
+      "num_strokes": 497,
+      "num_segments": 51,
+      "num_zhongshus": 8,
+      "num_moves": 8,
+      "num_settled_moves": 7,
+      "num_bsp": 7,
+      "final_direction": "down",
+      "final_amplitude": 1.1342625111768188,
+      "final_absorption": false
+    },
+    {
+      "edge_label": "XLK/XLV",
+      "sym_a": "XLK",
+      "sym_b": "XLV",
+      "total_bars": 6837,
+      "num_strokes": 443,
+      "num_segments": 52,
+      "num_zhongshus": 8,
+      "num_moves": 7,
+      "num_settled_moves": 6,
+      "num_bsp": 6,
+      "final_direction": "up",
+      "final_amplitude": 1.069651688286467,
+      "final_absorption": true
+    },
+    {
+      "edge_label": "XLK/XLY",
+      "sym_a": "XLK",
+      "sym_b": "XLY",
+      "total_bars": 6837,
+      "num_strokes": 422,
+      "num_segments": 43,
+      "num_zhongshus": 7,
+      "num_moves": 6,
+      "num_settled_moves": 5,
+      "num_bsp": 5,
+      "final_direction": "up",
+      "final_amplitude": 1.3217640889393028,
+      "final_absorption": true
+    },
+    {
+      "edge_label": "XLF/XLE",
+      "sym_a": "XLF",
+      "sym_b": "XLE",
+      "total_bars": 6837,
+      "num_strokes": 488,
+      "num_segments": 57,
+      "num_zhongshus": 12,
+      "num_moves": 12,
+      "num_settled_moves": 11,
+      "num_bsp": 9,
+      "final_direction": "down",
+      "final_amplitude": 1.0286991514077237,
+      "final_absorption": false
+    },
+    {
+      "edge_label": "XLF/XLV",
+      "sym_a": "XLF",
+      "sym_b": "XLV",
+      "total_bars": 6837,
+      "num_strokes": 485,
+      "num_segments": 58,
+      "num_zhongshus": 8,
+      "num_moves": 7,
+      "num_settled_moves": 6,
+      "num_bsp": 5,
+      "final_direction": "up",
+      "final_amplitude": 1.5641957526748842,
+      "final_absorption": true
+    },
+    {
+      "edge_label": "XLF/XLY",
+      "sym_a": "XLF",
+      "sym_b": "XLY",
+      "total_bars": 6837,
+      "num_strokes": 436,
+      "num_segments": 47,
+      "num_zhongshus": 5,
+      "num_moves": 4,
+      "num_settled_moves": 3,
+      "num_bsp": 2,
+      "final_direction": "down",
+      "final_amplitude": 0.9859070819446178,
+      "final_absorption": true
+    },
+    {
+      "edge_label": "XLE/XLV",
+      "sym_a": "XLE",
+      "sym_b": "XLV",
+      "total_bars": 6837,
+      "num_strokes": 507,
+      "num_segments": 61,
+      "num_zhongshus": 9,
+      "num_moves": 8,
+      "num_settled_moves": 7,
+      "num_bsp": 6,
+      "final_direction": "down",
+      "final_amplitude": 1.4219673326817357,
+      "final_absorption": true
+    },
+    {
+      "edge_label": "XLE/XLY",
+      "sym_a": "XLE",
+      "sym_b": "XLY",
+      "total_bars": 6837,
+      "num_strokes": 489,
+      "num_segments": 43,
+      "num_zhongshus": 9,
+      "num_moves": 8,
+      "num_settled_moves": 7,
+      "num_bsp": 7,
+      "final_direction": "up",
+      "final_amplitude": 0.9972865764827932,
+      "final_absorption": true
+    },
+    {
+      "edge_label": "XLV/XLY",
+      "sym_a": "XLV",
+      "sym_b": "XLY",
+      "total_bars": 6837,
+      "num_strokes": 464,
+      "num_segments": 58,
+      "num_zhongshus": 3,
+      "num_moves": 2,
+      "num_settled_moves": 1,
+      "num_bsp": 1,
+      "final_direction": "down",
+      "final_amplitude": 0.0,
+      "final_absorption": true
+    }
+  ],
+  "topology": {
+    "active_edges": [
+      "XLK/XLF",
+      "XLK/XLE",
+      "XLK/XLV",
+      "XLK/XLY",
+      "XLF/XLE",
+      "XLF/XLV",
+      "XLF/XLY",
+      "XLE/XLV",
+      "XLE/XLY",
+      "XLV/XLY"
+    ],
+    "ker_d_edges": [],
+    "num_active": 10,
+    "num_ker_d": 0,
+    "vertices_in_active": [
+      "XLE",
+      "XLF",
+      "XLK",
+      "XLV",
+      "XLY"
+    ],
+    "adjacency": {
+      "XLK": [
+        "XLE",
+        "XLF",
+        "XLV",
+        "XLY"
+      ],
+      "XLF": [
+        "XLE",
+        "XLK",
+        "XLV",
+        "XLY"
+      ],
+      "XLE": [
+        "XLF",
+        "XLK",
+        "XLV",
+        "XLY"
+      ],
+      "XLV": [
+        "XLE",
+        "XLF",
+        "XLK",
+        "XLY"
+      ],
+      "XLY": [
+        "XLE",
+        "XLF",
+        "XLK",
+        "XLV"
+      ]
+    },
+    "topology_type": "complete_K5",
+    "vertex_degrees": {
+      "XLE": 4,
+      "XLF": 4,
+      "XLK": 4,
+      "XLV": 4,
+      "XLY": 4
+    }
+  },
+  "ker_d_boundary": {
+    "XLK/XLF": {
+      "num_transitions": 4,
+      "flat_ratio": 0.3673,
+      "flat_bars": 2511,
+      "total_bars": 6837
+    },
+    "XLK/XLE": {
+      "num_transitions": 3,
+      "flat_ratio": 0.257,
+      "flat_bars": 1757,
+      "total_bars": 6837
+    },
+    "XLK/XLV": {
+      "num_transitions": 4,
+      "flat_ratio": 0.148,
+      "flat_bars": 1012,
+      "total_bars": 6837
+    },
+    "XLK/XLY": {
+      "num_transitions": 2,
+      "flat_ratio": 0.167,
+      "flat_bars": 1142,
+      "total_bars": 6837
+    },
+    "XLF/XLE": {
+      "num_transitions": 7,
+      "flat_ratio": 0.216,
+      "flat_bars": 1477,
+      "total_bars": 6837
+    },
+    "XLF/XLV": {
+      "num_transitions": 3,
+      "flat_ratio": 0.3624,
+      "flat_bars": 2478,
+      "total_bars": 6837
+    },
+    "XLF/XLY": {
+      "num_transitions": 2,
+      "flat_ratio": 0.3895,
+      "flat_bars": 2663,
+      "total_bars": 6837
+    },
+    "XLE/XLV": {
+      "num_transitions": 2,
+      "flat_ratio": 0.3289,
+      "flat_bars": 2249,
+      "total_bars": 6837
+    },
+    "XLE/XLY": {
+      "num_transitions": 3,
+      "flat_ratio": 0.3779,
+      "flat_bars": 2584,
+      "total_bars": 6837
+    },
+    "XLV/XLY": {
+      "num_transitions": 1,
+      "flat_ratio": 0.8369,
+      "flat_bars": 5722,
+      "total_bars": 6837
+    }
+  },
+  "k4_comparison": {
+    "e_matrix": {
+      "vertices": 5,
+      "total_edges": 10,
+      "active_edges": 10,
+      "active_ratio": 1.0,
+      "topology_type": "complete_K5",
+      "is_complete": true
+    },
+    "k4": {
+      "vertices": 4,
+      "total_edges": 6,
+      "description": "K4完全图（E/Au/R/$四顶点）"
+    },
+    "structural_comparison": {
+      "same_graph_type": false,
+      "reason": "E矩阵是5顶点图（最多K5=10边），K4是4顶点图（6边）。顶点数不同，不可能图同构。E矩阵当前活跃边10条（complete_K5），与K4的6条边在结构上不可比。但两者的D算子读数语义一致：方向态=资本流向。",
+      "active_comparison": "E矩阵所有10条边均为活跃态 → 行业间比价全部有方向性走势，无ker(D)边"
+    }
+  },
+  "direction_classification": {
+    "up": [
+      "XLK/XLF",
+      "XLK/XLV",
+      "XLK/XLY",
+      "XLF/XLV",
+      "XLE/XLY"
+    ],
+    "down": [
+      "XLK/XLE",
+      "XLF/XLE",
+      "XLF/XLY",
+      "XLE/XLV",
+      "XLV/XLY"
+    ],
+    "flat": []
+  }
+}

@@ -1,0 +1,29 @@
+[
+  {
+    "bar_idx": 0,
+    "bar_ts": "2004-11-18T00:00:00",
+    "config_label": "(0,0,0)",
+    "polarity": 0,
+    "e_direction": "flat",
+    "au_direction": "flat",
+    "r_direction": "flat"
+  },
+  {
+    "bar_idx": 4286,
+    "bar_ts": "2021-11-29T00:00:00",
+    "config_label": "(0,0,+)",
+    "polarity": 1,
+    "e_direction": "up",
+    "au_direction": "down",
+    "r_direction": "up"
+  },
+  {
+    "bar_idx": 4920,
+    "bar_ts": "2024-06-07T00:00:00",
+    "config_label": "(0,0,0)",
+    "polarity": 0,
+    "e_direction": "up",
+    "au_direction": "down",
+    "r_direction": "up"
+  }
+]

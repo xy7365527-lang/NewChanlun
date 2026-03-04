@@ -1,0 +1,367 @@
+{
+  "meta": {
+    "description": "C2: QE期间Group A是否被推入有效一维区间，Group B是否被推出",
+    "c1_thresholds": {
+      "effective_1d": 1.483,
+      "strict_1d": 1.263,
+      "effective_1d_meaning": "PC1 EVR > 90%",
+      "strict_1d_meaning": "PC1 EVR > 95%"
+    },
+    "qe_period": {
+      "start": "2008-11-25",
+      "end": "2022-03-16"
+    },
+    "data_range": "2000-08-30 to 2026-03-02",
+    "n_obs": 6391,
+    "window": 252,
+    "epistemological_level": "L2"
+  },
+  "per_node": {
+    "Au": {
+      "qe": {
+        "n": 3345,
+        "mean": 2.0905,
+        "std": 0.2787,
+        "median": 2.0566,
+        "min": 1.4478,
+        "max": 2.5768,
+        "percentiles": {
+          "p1": 1.5301,
+          "p5": 1.5727,
+          "p10": 1.7274,
+          "p25": 1.8999,
+          "p50": 2.0566,
+          "p75": 2.3541,
+          "p90": 2.4344,
+          "p95": 2.4797,
+          "p99": 2.5489
+        },
+        "frac_below_eff1d": 0.005381,
+        "frac_below_strict1d": 0.0,
+        "n_below_eff1d": 18,
+        "n_below_strict1d": 0
+      },
+      "nonqe": {
+        "n": 2793,
+        "mean": 2.2484,
+        "std": 0.1233,
+        "median": 2.2366,
+        "min": 1.954,
+        "max": 2.59,
+        "percentiles": {
+          "p1": 2.0141,
+          "p5": 2.077,
+          "p10": 2.0953,
+          "p25": 2.1548,
+          "p50": 2.2366,
+          "p75": 2.3212,
+          "p90": 2.4307,
+          "p95": 2.4742,
+          "p99": 2.5729
+        },
+        "frac_below_eff1d": 0.0,
+        "frac_below_strict1d": 0.0,
+        "n_below_eff1d": 0,
+        "n_below_strict1d": 0
+      },
+      "welch_t": -29.4992,
+      "welch_p": 0.0,
+      "cohens_d": -0.7329,
+      "fisher_exact": {
+        "table": [
+          [
+            18,
+            3327
+          ],
+          [
+            0,
+            2793
+          ]
+        ],
+        "odds_ratio": "inf",
+        "p": 3.301e-05
+      },
+      "ratio_eff1d_qe_over_nonqe": "inf"
+    },
+    "Dollar": {
+      "qe": {
+        "n": 3345,
+        "mean": 2.0461,
+        "std": 0.2487,
+        "median": 2.0271,
+        "min": 1.4031,
+        "max": 2.6962,
+        "percentiles": {
+          "p1": 1.4913,
+          "p5": 1.546,
+          "p10": 1.8074,
+          "p25": 1.8856,
+          "p50": 2.0271,
+          "p75": 2.2082,
+          "p90": 2.3186,
+          "p95": 2.42,
+          "p99": 2.6805
+        },
+        "frac_below_eff1d": 0.00568,
+        "frac_below_strict1d": 0.0,
+        "n_below_eff1d": 19,
+        "n_below_strict1d": 0
+      },
+      "nonqe": {
+        "n": 2793,
+        "mean": 2.2354,
+        "std": 0.1768,
+        "median": 2.1834,
+        "min": 1.9555,
+        "max": 2.7113,
+        "percentiles": {
+          "p1": 1.9732,
+          "p5": 2.0036,
+          "p10": 2.0494,
+          "p25": 2.1161,
+          "p50": 2.1834,
+          "p75": 2.3374,
+          "p90": 2.5254,
+          "p95": 2.6162,
+          "p99": 2.6935
+        },
+        "frac_below_eff1d": 0.0,
+        "frac_below_strict1d": 0.0,
+        "n_below_eff1d": 0,
+        "n_below_strict1d": 0
+      },
+      "welch_t": -34.7503,
+      "welch_p": 0.0,
+      "cohens_d": -0.8775,
+      "fisher_exact": {
+        "table": [
+          [
+            19,
+            3326
+          ],
+          [
+            0,
+            2793
+          ]
+        ],
+        "odds_ratio": "inf",
+        "p": 1.693e-05
+      },
+      "ratio_eff1d_qe_over_nonqe": "inf"
+    },
+    "Equity": {
+      "qe": {
+        "n": 3345,
+        "mean": 2.3059,
+        "std": 0.2647,
+        "median": 2.3166,
+        "min": 1.5249,
+        "max": 2.833,
+        "percentiles": {
+          "p1": 1.6781,
+          "p5": 1.7416,
+          "p10": 2.0381,
+          "p25": 2.128,
+          "p50": 2.3166,
+          "p75": 2.4634,
+          "p90": 2.6336,
+          "p95": 2.7458,
+          "p99": 2.792
+        },
+        "frac_below_eff1d": 0.0,
+        "frac_below_strict1d": 0.0,
+        "n_below_eff1d": 0,
+        "n_below_strict1d": 0
+      },
+      "nonqe": {
+        "n": 2793,
+        "mean": 2.1015,
+        "std": 0.1633,
+        "median": 2.0987,
+        "min": 1.8331,
+        "max": 2.5043,
+        "percentiles": {
+          "p1": 1.8445,
+          "p5": 1.8683,
+          "p10": 1.889,
+          "p25": 1.9591,
+          "p50": 2.0987,
+          "p75": 2.2071,
+          "p90": 2.325,
+          "p95": 2.3979,
+          "p99": 2.4625
+        },
+        "frac_below_eff1d": 0.0,
+        "frac_below_strict1d": 0.0,
+        "n_below_eff1d": 0,
+        "n_below_strict1d": 0
+      },
+      "welch_t": 37.0105,
+      "welch_p": 0.0,
+      "cohens_d": 0.9293,
+      "fisher_exact": {
+        "table": [
+          [
+            0,
+            3345
+          ],
+          [
+            0,
+            2793
+          ]
+        ],
+        "odds_ratio": "inf",
+        "p": 1.0
+      },
+      "ratio_eff1d_qe_over_nonqe": "inf"
+    },
+    "Commodity": {
+      "qe": {
+        "n": 3345,
+        "mean": 1.5564,
+        "std": 0.2806,
+        "median": 1.517,
+        "min": 1.1117,
+        "max": 2.2212,
+        "percentiles": {
+          "p1": 1.1445,
+          "p5": 1.161,
+          "p10": 1.2767,
+          "p25": 1.3253,
+          "p50": 1.517,
+          "p75": 1.7465,
+          "p90": 2.0127,
+          "p95": 2.0896,
+          "p99": 2.1893
+        },
+        "frac_below_eff1d": 0.480419,
+        "frac_below_strict1d": 0.076532,
+        "n_below_eff1d": 1607,
+        "n_below_strict1d": 256
+      },
+      "nonqe": {
+        "n": 2793,
+        "mean": 1.511,
+        "std": 0.1429,
+        "median": 1.4749,
+        "min": 1.298,
+        "max": 1.8551,
+        "percentiles": {
+          "p1": 1.304,
+          "p5": 1.3226,
+          "p10": 1.3503,
+          "p25": 1.3982,
+          "p50": 1.4749,
+          "p75": 1.6404,
+          "p90": 1.7399,
+          "p95": 1.7729,
+          "p99": 1.8196
+        },
+        "frac_below_eff1d": 0.532044,
+        "frac_below_strict1d": 0.0,
+        "n_below_eff1d": 1486,
+        "n_below_strict1d": 0
+      },
+      "welch_t": 8.1696,
+      "welch_p": 0.0,
+      "cohens_d": 0.2038,
+      "fisher_exact": {
+        "table": [
+          [
+            1607,
+            1738
+          ],
+          [
+            1486,
+            1307
+          ]
+        ],
+        "odds_ratio": 0.8132,
+        "p": 5.716e-05
+      },
+      "ratio_eff1d_qe_over_nonqe": 0.903
+    }
+  },
+  "hypothesis_tests": {
+    "Au": {
+      "group": "A",
+      "hypothesis": "QE pushes toward effective-1D",
+      "qe_mean_effdim": 2.0905,
+      "nonqe_mean_effdim": 2.2484,
+      "direction_lower_in_qe": true,
+      "qe_frac_eff1d": 0.005381,
+      "nonqe_frac_eff1d": 0.0,
+      "frac_higher_in_qe": true,
+      "fisher_p": 3.301e-05,
+      "verdict": "PASS"
+    },
+    "Dollar": {
+      "group": "A",
+      "hypothesis": "QE pushes toward effective-1D",
+      "qe_mean_effdim": 2.0461,
+      "nonqe_mean_effdim": 2.2354,
+      "direction_lower_in_qe": true,
+      "qe_frac_eff1d": 0.00568,
+      "nonqe_frac_eff1d": 0.0,
+      "frac_higher_in_qe": true,
+      "fisher_p": 1.693e-05,
+      "verdict": "PASS"
+    },
+    "Equity": {
+      "group": "B",
+      "hypothesis": "QE pushes away from effective-1D",
+      "qe_mean_effdim": 2.3059,
+      "nonqe_mean_effdim": 2.1015,
+      "direction_higher_in_qe": true,
+      "qe_frac_eff1d": 0.0,
+      "nonqe_frac_eff1d": 0.0,
+      "frac_lower_in_qe": false,
+      "fisher_p": 1.0,
+      "verdict": "PARTIAL"
+    },
+    "Commodity": {
+      "group": "B",
+      "hypothesis": "QE pushes away from effective-1D",
+      "qe_mean_effdim": 1.5564,
+      "nonqe_mean_effdim": 1.511,
+      "direction_higher_in_qe": true,
+      "qe_frac_eff1d": 0.480419,
+      "nonqe_frac_eff1d": 0.532044,
+      "frac_lower_in_qe": true,
+      "fisher_p": 5.716e-05,
+      "verdict": "PASS"
+    }
+  },
+  "overall_frac_eff1d": {
+    "Au": 0.002933,
+    "Dollar": 0.003095,
+    "Equity": 0.0,
+    "Commodity": 0.50391
+  },
+  "overall_frac_strict1d": {
+    "Au": 0.0,
+    "Dollar": 0.0,
+    "Equity": 0.0,
+    "Commodity": 0.041707
+  },
+  "verdict": {
+    "overall": "PARTIAL_PASS",
+    "text": "假说部分成立：方向性一致但有效一维占比条件不完全满足",
+    "group_a_pass": true,
+    "group_b_pass": true,
+    "per_node_verdicts": {
+      "Au": "PASS",
+      "Dollar": "PASS",
+      "Equity": "PARTIAL",
+      "Commodity": "PASS"
+    },
+    "key_findings": [
+      "Group A 方向性强且一致: Au d=-0.73, $ d=-0.88 (QE期eff.dim显著降低)",
+      "Group B 方向性: Equity d=+0.93 (QE期eff.dim显著升高), Commodity d=+0.20 (QE期eff.dim微升)",
+      "  Au: 有效一维占比 QE=0.5381% vs nonQE=0.0000%",
+      "  Dollar: 有效一维占比 QE=0.5680% vs nonQE=0.0000%",
+      "  Equity: 有效一维占比 QE=0.0000% vs nonQE=0.0000%",
+      "  Commodity: 有效一维占比 QE=48.0419% vs nonQE=53.2044%"
+    ]
+  }
+}

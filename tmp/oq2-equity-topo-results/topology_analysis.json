@@ -1,0 +1,64 @@
+{
+  "active_edges": [
+    "XLK/XLF",
+    "XLK/XLE",
+    "XLK/XLV",
+    "XLK/XLY",
+    "XLF/XLE",
+    "XLF/XLV",
+    "XLF/XLY",
+    "XLE/XLV",
+    "XLE/XLY",
+    "XLV/XLY"
+  ],
+  "ker_d_edges": [],
+  "num_active": 10,
+  "num_ker_d": 0,
+  "vertices_in_active": [
+    "XLE",
+    "XLF",
+    "XLK",
+    "XLV",
+    "XLY"
+  ],
+  "adjacency": {
+    "XLK": [
+      "XLE",
+      "XLF",
+      "XLV",
+      "XLY"
+    ],
+    "XLF": [
+      "XLE",
+      "XLK",
+      "XLV",
+      "XLY"
+    ],
+    "XLE": [
+      "XLF",
+      "XLK",
+      "XLV",
+      "XLY"
+    ],
+    "XLV": [
+      "XLE",
+      "XLF",
+      "XLK",
+      "XLY"
+    ],
+    "XLY": [
+      "XLE",
+      "XLF",
+      "XLK",
+      "XLV"
+    ]
+  },
+  "topology_type": "complete_K5",
+  "vertex_degrees": {
+    "XLE": 4,
+    "XLF": 4,
+    "XLK": 4,
+    "XLV": 4,
+    "XLY": 4
+  }
+}

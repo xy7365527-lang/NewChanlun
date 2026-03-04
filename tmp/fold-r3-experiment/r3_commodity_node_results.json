@@ -1,0 +1,595 @@
+{
+  "node": "commodity",
+  "proxy": "CL=F (WTI Crude Oil Futures)",
+  "edges": [
+    "CL=F/DXY (Commodity/$)",
+    "CL=F/GC=F (Commodity/Au)",
+    "CL=F/^GSPC (Commodity/Equity)"
+  ],
+  "data_range": "2000-08-31 to 2026-02-27",
+  "n_obs": 6389,
+  "negative_price_handling": "CL=F <= 0 days dropped (2020-04-20 negative oil price)",
+  "eff_dim_summary": {
+    "n_pts": 6137,
+    "mean": 1.536,
+    "std": 0.23,
+    "min": 1.112,
+    "max": 2.221
+  },
+  "proposition_1": {
+    "method_a_ma_crossover": {
+      "T_group": {
+        "n": 4717,
+        "median": 1.486,
+        "mean": 1.537,
+        "iqr": [
+          1.367,
+          1.681
+        ]
+      },
+      "N_group": {
+        "n": 1169,
+        "median": 1.515,
+        "mean": 1.561,
+        "iqr": [
+          1.389,
+          1.7
+        ]
+      },
+      "welch_t": {
+        "t": -3.0068,
+        "p_one_sided": 0.001339
+      },
+      "mann_whitney_u": {
+        "U": 2575484.0,
+        "p_one_sided": 0.00024
+      },
+      "cohens_d": -0.0993,
+      "verdict": "FAIL"
+    },
+    "method_b_manual": {
+      "T_group": {
+        "n": 5301,
+        "median": 1.467,
+        "mean": 1.517,
+        "iqr": [
+          1.351,
+          1.647
+        ]
+      },
+      "N_group": {
+        "n": 836,
+        "median": 1.656,
+        "mean": 1.653,
+        "iqr": [
+          1.462,
+          1.802
+        ]
+      },
+      "welch_t": {
+        "t": -18.0393,
+        "p_one_sided": 0.0
+      },
+      "mann_whitney_u": {
+        "U": 1338591.0,
+        "p_one_sided": 0.0
+      },
+      "cohens_d": -0.6354,
+      "verdict": "PASS"
+    },
+    "robustness": "SENSITIVE_TO_METHOD"
+  },
+  "asymmetry": {
+    "rising_clf": {
+      "n": 3461,
+      "mean": 1.464,
+      "median": 1.445
+    },
+    "falling_clf": {
+      "n": 1840,
+      "mean": 1.618,
+      "median": 1.513
+    },
+    "welch_t": -21.0815,
+    "welch_p": 0.0,
+    "cohens_d": -0.6529,
+    "drift_by_segment": [
+      {
+        "segment": "上升趋势1(超级商品周期)",
+        "direction": "rising",
+        "n": 1708,
+        "first_half_mean": 1.471,
+        "second_half_mean": 1.537,
+        "spearman_r": 0.396,
+        "spearman_p": 0.0
+      },
+      {
+        "segment": "上升趋势2(QE1反弹)",
+        "direction": "rising",
+        "n": 547,
+        "first_half_mean": 1.564,
+        "second_half_mean": 1.694,
+        "spearman_r": 0.6135,
+        "spearman_p": 0.0
+      },
+      {
+        "segment": "上升趋势3(OPEC减产)",
+        "direction": "rising",
+        "n": 670,
+        "first_half_mean": 1.298,
+        "second_half_mean": 1.443,
+        "spearman_r": 0.9088,
+        "spearman_p": 0.0
+      },
+      {
+        "segment": "上升趋势4(疫后复苏+俄乌)",
+        "direction": "rising",
+        "n": 536,
+        "first_half_mean": 1.171,
+        "second_half_mean": 1.397,
+        "spearman_r": 0.6749,
+        "spearman_p": 0.0
+      },
+      {
+        "segment": "下降趋势1(金融危机暴跌)",
+        "direction": "falling",
+        "n": 157,
+        "first_half_mean": 1.692,
+        "second_half_mean": 1.741,
+        "spearman_r": 0.1256,
+        "spearman_p": 0.117
+      },
+      {
+        "segment": "下降趋势2(页岩革命+OPEC价格战)",
+        "direction": "falling",
+        "n": 910,
+        "first_half_mean": 1.96,
+        "second_half_mean": 1.57,
+        "spearman_r": -0.5693,
+        "spearman_p": 0.0
+      },
+      {
+        "segment": "下降趋势3(COVID暴跌)",
+        "direction": "falling",
+        "n": 386,
+        "first_half_mean": 1.463,
+        "second_half_mean": 1.336,
+        "spearman_r": -0.932,
+        "spearman_p": 0.0
+      },
+      {
+        "segment": "下降趋势4(需求放缓)",
+        "direction": "falling",
+        "n": 387,
+        "first_half_mean": 1.402,
+        "second_half_mean": 1.494,
+        "spearman_r": 0.6729,
+        "spearman_p": 0.0
+      }
+    ],
+    "verdict": "OPPOSITE_TO_AU",
+    "description": "上升压缩/下降散开：与Au节点反向 -> 节点特异性",
+    "cross_node_comparison": {
+      "au_pattern": "rising_gold=散开(higher eff.dim), falling_gold=压缩(lower eff.dim) -- SYMMETRIC",
+      "dollar_pattern": "falling_dxy=压缩, rising_dxy=不散开 -- ASYMMETRIC",
+      "commodity_pattern": "rising_clf mean=1.464, falling_clf mean=1.618"
+    }
+  },
+  "proposition_2": {
+    "n_events": 23,
+    "events": [
+      {
+        "event_start": "2001-09-17",
+        "event_end": "2001-09-24",
+        "days": 2,
+        "max_mahal": 7.76,
+        "eff_dim_pre5d": 1.43,
+        "eff_dim_pre10d": null,
+        "eff_dim_pre20d": null
+      },
+      {
+        "event_start": "2006-06-13",
+        "event_end": "2006-06-13",
+        "days": 1,
+        "max_mahal": 6.04,
+        "eff_dim_pre5d": 1.547,
+        "eff_dim_pre10d": 1.528,
+        "eff_dim_pre20d": 1.461
+      },
+      {
+        "event_start": "2008-09-17",
+        "event_end": "2008-11-04",
+        "days": 12,
+        "max_mahal": 9.58,
+        "eff_dim_pre5d": 1.649,
+        "eff_dim_pre10d": 1.641,
+        "eff_dim_pre20d": 1.677
+      },
+      {
+        "event_start": "2008-11-13",
+        "event_end": "2008-12-01",
+        "days": 6,
+        "max_mahal": 7.46,
+        "eff_dim_pre5d": 1.804,
+        "eff_dim_pre10d": 1.813,
+        "eff_dim_pre20d": 1.779
+      },
+      {
+        "event_start": "2008-12-16",
+        "event_end": "2008-12-22",
+        "days": 2,
+        "max_mahal": 6.79,
+        "eff_dim_pre5d": 1.836,
+        "eff_dim_pre10d": 1.855,
+        "eff_dim_pre20d": 1.831
+      },
+      {
+        "event_start": "2009-01-20",
+        "event_end": "2009-01-20",
+        "days": 1,
+        "max_mahal": 6.66,
+        "eff_dim_pre5d": 1.684,
+        "eff_dim_pre10d": 1.701,
+        "eff_dim_pre20d": 1.824
+      },
+      {
+        "event_start": "2009-02-10",
+        "event_end": "2009-02-19",
+        "days": 3,
+        "max_mahal": 5.66,
+        "eff_dim_pre5d": 1.665,
+        "eff_dim_pre10d": 1.668,
+        "eff_dim_pre20d": 1.684
+      },
+      {
+        "event_start": "2009-03-02",
+        "event_end": "2009-03-02",
+        "days": 1,
+        "max_mahal": 5.36,
+        "eff_dim_pre5d": 1.635,
+        "eff_dim_pre10d": 1.666,
+        "eff_dim_pre20d": 1.663
+      },
+      {
+        "event_start": "2009-03-10",
+        "event_end": "2009-03-10",
+        "days": 1,
+        "max_mahal": 5.89,
+        "eff_dim_pre5d": 1.625,
+        "eff_dim_pre10d": 1.637,
+        "eff_dim_pre20d": 1.664
+      },
+      {
+        "event_start": "2009-03-19",
+        "event_end": "2009-03-23",
+        "days": 2,
+        "max_mahal": 7.04,
+        "eff_dim_pre5d": 1.624,
+        "eff_dim_pre10d": 1.618,
+        "eff_dim_pre20d": 1.655
+      },
+      {
+        "event_start": "2009-04-20",
+        "event_end": "2009-04-20",
+        "days": 1,
+        "max_mahal": 5.36,
+        "eff_dim_pre5d": 1.616,
+        "eff_dim_pre10d": 1.615,
+        "eff_dim_pre20d": 1.621
+      },
+      {
+        "event_start": "2011-08-08",
+        "event_end": "2011-08-08",
+        "days": 1,
+        "max_mahal": 6.9,
+        "eff_dim_pre5d": 1.554,
+        "eff_dim_pre10d": 1.554,
+        "eff_dim_pre20d": 1.557
+      },
+      {
+        "event_start": "2013-04-15",
+        "event_end": "2013-04-15",
+        "days": 1,
+        "max_mahal": 7.32,
+        "eff_dim_pre5d": 1.687,
+        "eff_dim_pre10d": 1.677,
+        "eff_dim_pre20d": 1.694
+      },
+      {
+        "event_start": "2013-06-20",
+        "event_end": "2013-06-20",
+        "days": 1,
+        "max_mahal": 5.27,
+        "eff_dim_pre5d": 1.806,
+        "eff_dim_pre10d": 1.802,
+        "eff_dim_pre20d": 1.8
+      },
+      {
+        "event_start": "2016-06-24",
+        "event_end": "2016-06-24",
+        "days": 1,
+        "max_mahal": 5.6,
+        "eff_dim_pre5d": 1.283,
+        "eff_dim_pre10d": 1.284,
+        "eff_dim_pre20d": 1.279
+      },
+      {
+        "event_start": "2019-09-16",
+        "event_end": "2019-09-16",
+        "days": 1,
+        "max_mahal": 5.29,
+        "eff_dim_pre5d": 1.388,
+        "eff_dim_pre10d": 1.386,
+        "eff_dim_pre20d": 1.38
+      },
+      {
+        "event_start": "2020-03-09",
+        "event_end": "2020-05-05",
+        "days": 20,
+        "max_mahal": 22.58,
+        "eff_dim_pre5d": 1.363,
+        "eff_dim_pre10d": 1.322,
+        "eff_dim_pre20d": 1.324
+      },
+      {
+        "event_start": "2020-06-11",
+        "event_end": "2020-06-11",
+        "days": 1,
+        "max_mahal": 5.81,
+        "eff_dim_pre5d": 1.145,
+        "eff_dim_pre10d": 1.145,
+        "eff_dim_pre20d": 1.145
+      },
+      {
+        "event_start": "2020-11-09",
+        "event_end": "2020-11-09",
+        "days": 1,
+        "max_mahal": 5.89,
+        "eff_dim_pre5d": 1.158,
+        "eff_dim_pre10d": 1.157,
+        "eff_dim_pre20d": 1.156
+      },
+      {
+        "event_start": "2022-03-09",
+        "event_end": "2022-03-09",
+        "days": 1,
+        "max_mahal": 6.04,
+        "eff_dim_pre5d": 1.37,
+        "eff_dim_pre10d": 1.376,
+        "eff_dim_pre20d": 1.365
+      },
+      {
+        "event_start": "2022-11-10",
+        "event_end": "2022-11-10",
+        "days": 1,
+        "max_mahal": 5.94,
+        "eff_dim_pre5d": 1.382,
+        "eff_dim_pre10d": 1.381,
+        "eff_dim_pre20d": 1.374
+      },
+      {
+        "event_start": "2025-04-04",
+        "event_end": "2025-04-09",
+        "days": 2,
+        "max_mahal": 6.77,
+        "eff_dim_pre5d": 1.559,
+        "eff_dim_pre10d": 1.551,
+        "eff_dim_pre20d": 1.533
+      },
+      {
+        "event_start": "2026-01-30",
+        "event_end": "2026-01-30",
+        "days": 1,
+        "max_mahal": 9.7,
+        "eff_dim_pre5d": 1.765,
+        "eff_dim_pre10d": 1.761,
+        "eff_dim_pre20d": 1.759
+      }
+    ],
+    "correlations": {
+      "pre_5d": {
+        "spearman_rho": 0.1805,
+        "spearman_p_one": 0.205,
+        "pearson_r": -0.0709,
+        "pearson_p_one": 0.6261
+      },
+      "pre_10d": {
+        "spearman_rho": 0.2221,
+        "spearman_p_one": 0.1603,
+        "pearson_r": -0.1118,
+        "pearson_p_one": 0.6898
+      },
+      "pre_20d": {
+        "spearman_rho": 0.2238,
+        "spearman_p_one": 0.1584,
+        "pearson_r": -0.1014,
+        "pearson_p_one": 0.6733
+      }
+    },
+    "median_split": {
+      "median_effdim": 1.616,
+      "high_group_mean_mahal": 6.84,
+      "low_group_mean_mahal": 7.69
+    },
+    "verdict": "FAIL"
+  },
+  "event_density": {
+    "T_days": 5470,
+    "N_days": 836,
+    "T_events": 20,
+    "N_events": 3,
+    "T_rate_per_1000d": 3.66,
+    "N_rate_per_1000d": 3.59,
+    "ratio_N_over_T": 0.98,
+    "fisher_exact_p": 0.6046,
+    "chi2_p": 1.0
+  },
+  "threshold_effect": {
+    "event_effdims": [
+      {
+        "event_start": "2001-09-17",
+        "max_mahal": 7.7620840156677025,
+        "eff_dim_at_event": 1.431,
+        "label": "T"
+      },
+      {
+        "event_start": "2006-06-13",
+        "max_mahal": 6.03786290496259,
+        "eff_dim_at_event": 1.564,
+        "label": "T"
+      },
+      {
+        "event_start": "2008-09-17",
+        "max_mahal": 9.578910279637602,
+        "eff_dim_at_event": 1.685,
+        "label": "T"
+      },
+      {
+        "event_start": "2008-11-13",
+        "max_mahal": 7.462463936537056,
+        "eff_dim_at_event": 1.804,
+        "label": "T"
+      },
+      {
+        "event_start": "2008-12-16",
+        "max_mahal": 6.79391421316485,
+        "eff_dim_at_event": 1.817,
+        "label": "T"
+      },
+      {
+        "event_start": "2009-01-20",
+        "max_mahal": 6.656768926122723,
+        "eff_dim_at_event": 1.677,
+        "label": "T"
+      },
+      {
+        "event_start": "2009-02-10",
+        "max_mahal": 5.656809437601848,
+        "eff_dim_at_event": 1.667,
+        "label": "T"
+      },
+      {
+        "event_start": "2009-03-02",
+        "max_mahal": 5.364438806885421,
+        "eff_dim_at_event": 1.633,
+        "label": "T"
+      },
+      {
+        "event_start": "2009-03-10",
+        "max_mahal": 5.888464941503489,
+        "eff_dim_at_event": 1.621,
+        "label": "T"
+      },
+      {
+        "event_start": "2009-03-19",
+        "max_mahal": 7.036377430225016,
+        "eff_dim_at_event": 1.618,
+        "label": "T"
+      },
+      {
+        "event_start": "2009-04-20",
+        "max_mahal": 5.364613042560561,
+        "eff_dim_at_event": 1.617,
+        "label": "T"
+      },
+      {
+        "event_start": "2011-08-08",
+        "max_mahal": 6.901558683254879,
+        "eff_dim_at_event": 1.574,
+        "label": "N"
+      },
+      {
+        "event_start": "2013-04-15",
+        "max_mahal": 7.323753538342823,
+        "eff_dim_at_event": 1.694,
+        "label": "T"
+      },
+      {
+        "event_start": "2013-06-20",
+        "max_mahal": 5.27214449754192,
+        "eff_dim_at_event": 1.819,
+        "label": "T"
+      },
+      {
+        "event_start": "2016-06-24",
+        "max_mahal": 5.600050934837068,
+        "eff_dim_at_event": 1.279,
+        "label": "T"
+      },
+      {
+        "event_start": "2019-09-16",
+        "max_mahal": 5.289306474507792,
+        "eff_dim_at_event": 1.386,
+        "label": "T"
+      },
+      {
+        "event_start": "2020-03-09",
+        "max_mahal": 22.584548495882917,
+        "eff_dim_at_event": 1.388,
+        "label": "T"
+      },
+      {
+        "event_start": "2020-06-11",
+        "max_mahal": 5.812629090651936,
+        "eff_dim_at_event": 1.146,
+        "label": "T"
+      },
+      {
+        "event_start": "2020-11-09",
+        "max_mahal": 5.889601925843313,
+        "eff_dim_at_event": 1.159,
+        "label": "T"
+      },
+      {
+        "event_start": "2022-03-09",
+        "max_mahal": 6.038987992740073,
+        "eff_dim_at_event": 1.367,
+        "label": "T"
+      },
+      {
+        "event_start": "2022-11-10",
+        "max_mahal": 5.941951441566821,
+        "eff_dim_at_event": 1.392,
+        "label": "T"
+      },
+      {
+        "event_start": "2025-04-04",
+        "max_mahal": 6.770431081242491,
+        "eff_dim_at_event": 1.567,
+        "label": "N"
+      },
+      {
+        "event_start": "2026-01-30",
+        "max_mahal": 9.69677999943847,
+        "eff_dim_at_event": 1.759,
+        "label": "N"
+      }
+    ],
+    "min_event_effdim": 1.146,
+    "max_event_effdim": 1.819,
+    "mean_event_effdim": 1.551,
+    "overall_mean_effdim": 1.536,
+    "frac_days_below_min_event": 0.0081,
+    "welch_t_p_one_sided": 0.3606,
+    "mann_whitney_p": 0.1776,
+    "cross_node_comparison": {
+      "au_min_event_effdim": 1.894,
+      "au_frac_below": 0.0692,
+      "dollar_min_event_effdim": 1.894,
+      "dollar_frac_below": 0.0622,
+      "commodity_min_event_effdim": 1.146,
+      "commodity_frac_below": 0.0081
+    },
+    "convergence_verdict": "DIVERGE",
+    "convergence_description": "Commodity阈值偏离 (Au=1.894, $=1.894, Commodity=1.146, delta=0.748)"
+  },
+  "final_verdicts": {
+    "asymmetry": "OPPOSITE_TO_AU",
+    "asymmetry_description": "上升压缩/下降散开：与Au节点反向 -> 节点特异性",
+    "threshold_min_event_effdim": 1.146,
+    "threshold_convergence": "DIVERGE",
+    "proposition_1": "PARTIAL (MA=FAIL, Manual=PASS)",
+    "proposition_2": "FAIL",
+    "hypothesis_test": "Commodity与Au反向"
+  }
+}

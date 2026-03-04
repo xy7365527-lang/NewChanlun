@@ -1,0 +1,32 @@
+[
+  {
+    "bar_idx": 2386,
+    "cost_basis": 27.909135818481445,
+    "total_shares": 71661.1224728642,
+    "cumulative_recovered": 0.0
+  },
+  {
+    "bar_idx": 2387,
+    "cost_basis": 27.909135818481445,
+    "total_shares": 71661.1224728642,
+    "cumulative_recovered": 0.0
+  },
+  {
+    "bar_idx": 3394,
+    "cost_basis": 29.98796215057373,
+    "total_shares": 71661.1224728642,
+    "cumulative_recovered": 0.0
+  },
+  {
+    "bar_idx": 4366,
+    "cost_basis": 29.98796215057373,
+    "total_shares": 71661.1224728642,
+    "cumulative_recovered": 0.0
+  },
+  {
+    "bar_idx": 4367,
+    "cost_basis": 29.98796215057373,
+    "total_shares": 71661.1224728642,
+    "cumulative_recovered": 0.0
+  }
+]

@@ -1,0 +1,163 @@
+{
+  "verification_time": "2026-03-01T07:10:26.731981",
+  "pipeline": "口径A（RecursiveOrchestrator 从日线递归）",
+  "epistemological_level": "L2（真实数据验证）",
+  "genealogy_ref": "279号（OQ5 口径A验证）",
+  "available_edges": [
+    "DXY",
+    "XAU_USD",
+    "USD_JPY",
+    "GBP_USD",
+    "USD_CHF",
+    "GBP_JPY",
+    "EUR_CHF",
+    "XAU_JPY",
+    "XAU_GBP",
+    "XAU_CHF"
+  ],
+  "total_bars_range": "1971-01-04 ~ 2026-03-01",
+  "total_trading_days": 14223,
+  "trilateral_event_count": 0,
+  "window_2002_2007": {
+    "event_count": 0,
+    "expected": "反例（三重联立应不满足）",
+    "actual": "不满足（符合预期）"
+  },
+  "trilateral_conditions": {
+    "center_breakdown": "美元腿多数处于 FLAT 或 DOWN",
+    "periphery_construction": "至少一条交叉盘处于非 FLAT",
+    "gold_resonance": "法币/黄金边半数以上处于非 FLAT"
+  },
+  "edge_summary": {
+    "DXY": {
+      "total_bars": 14006,
+      "move_count_l1": 21,
+      "seg_count_l1": 118,
+      "zs_count_l1": 22,
+      "direction_distribution": {
+        "UP": 0,
+        "DOWN": 642,
+        "FLAT": 13364
+      },
+      "direction_transitions": 2,
+      "date_range": "1971-01-04 ~ 2026-02-27"
+    },
+    "XAU_USD": {
+      "total_bars": 6397,
+      "move_count_l1": 10,
+      "seg_count_l1": 50,
+      "zs_count_l1": 10,
+      "direction_distribution": {
+        "UP": 0,
+        "DOWN": 0,
+        "FLAT": 6397
+      },
+      "direction_transitions": 0,
+      "date_range": "2000-08-30 ~ 2026-02-27"
+    },
+    "USD_JPY": {
+      "total_bars": 7606,
+      "move_count_l1": 11,
+      "seg_count_l1": 68,
+      "zs_count_l1": 12,
+      "direction_distribution": {
+        "UP": 0,
+        "DOWN": 0,
+        "FLAT": 7606
+      },
+      "direction_transitions": 0,
+      "date_range": "1996-10-30 ~ 2026-03-01"
+    },
+    "GBP_USD": {
+      "total_bars": 5784,
+      "move_count_l1": 7,
+      "seg_count_l1": 41,
+      "zs_count_l1": 7,
+      "direction_distribution": {
+        "UP": 0,
+        "DOWN": 0,
+        "FLAT": 5784
+      },
+      "direction_transitions": 0,
+      "date_range": "2003-12-01 ~ 2026-03-01"
+    },
+    "USD_CHF": {
+      "total_bars": 5837,
+      "move_count_l1": 3,
+      "seg_count_l1": 47,
+      "zs_count_l1": 3,
+      "direction_distribution": {
+        "UP": 0,
+        "DOWN": 0,
+        "FLAT": 5837
+      },
+      "direction_transitions": 0,
+      "date_range": "2003-09-17 ~ 2026-02-27"
+    },
+    "GBP_JPY": {
+      "total_bars": 5787,
+      "move_count_l1": 9,
+      "seg_count_l1": 48,
+      "zs_count_l1": 10,
+      "direction_distribution": {
+        "UP": 0,
+        "DOWN": 0,
+        "FLAT": 5787
+      },
+      "direction_transitions": 0,
+      "date_range": "2003-12-01 ~ 2026-02-27"
+    },
+    "EUR_CHF": {
+      "total_bars": 5994,
+      "move_count_l1": 9,
+      "seg_count_l1": 45,
+      "zs_count_l1": 10,
+      "direction_distribution": {
+        "UP": 0,
+        "DOWN": 0,
+        "FLAT": 5994
+      },
+      "direction_transitions": 0,
+      "date_range": "2003-01-23 ~ 2026-02-27"
+    },
+    "XAU_JPY": {
+      "total_bars": 6367,
+      "move_count_l1": 10,
+      "seg_count_l1": 62,
+      "zs_count_l1": 11,
+      "direction_distribution": {
+        "UP": 0,
+        "DOWN": 0,
+        "FLAT": 6367
+      },
+      "direction_transitions": 0,
+      "date_range": "2000-08-30 ~ 2026-02-27"
+    },
+    "XAU_GBP": {
+      "total_bars": 5570,
+      "move_count_l1": 12,
+      "seg_count_l1": 48,
+      "zs_count_l1": 13,
+      "direction_distribution": {
+        "UP": 0,
+        "DOWN": 0,
+        "FLAT": 5570
+      },
+      "direction_transitions": 0,
+      "date_range": "2003-12-01 ~ 2026-02-27"
+    },
+    "XAU_CHF": {
+      "total_bars": 5621,
+      "move_count_l1": 8,
+      "seg_count_l1": 50,
+      "zs_count_l1": 8,
+      "direction_distribution": {
+        "UP": 0,
+        "DOWN": 0,
+        "FLAT": 5621
+      },
+      "direction_transitions": 0,
+      "date_range": "2003-09-17 ~ 2026-02-27"
+    }
+  }
+}

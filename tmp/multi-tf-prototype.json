@@ -1,0 +1,48 @@
+{
+  "ticker": "SPY",
+  "single_tf_recursive": {
+    "daily": {
+      "label": "daily",
+      "bar_count": 502,
+      "l1_strokes": 36,
+      "l1_segments": 3,
+      "l1_zhongshus": 0,
+      "l1_moves": 0,
+      "recursive_levels": 1
+    },
+    "weekly": {
+      "label": "weekly",
+      "bar_count": 261,
+      "l1_strokes": 16,
+      "l1_segments": 2,
+      "l1_zhongshus": 0,
+      "l1_moves": 0,
+      "recursive_levels": 1
+    }
+  },
+  "multi_tf": {
+    "levels": {
+      "daily": {
+        "bar_count": 502,
+        "move_count": 0,
+        "zhongshu_count": 0,
+        "direction": "none",
+        "has_move": false
+      },
+      "weekly": {
+        "bar_count": 261,
+        "move_count": 0,
+        "zhongshu_count": 0,
+        "direction": "none",
+        "has_move": false
+      }
+    },
+    "cross_level_divergences": [],
+    "buysellpoints": []
+  },
+  "comparison": {
+    "single_tf_stuck_at_level_1": true,
+    "multi_tf_cross_divergence_found": false,
+    "multi_tf_buysellpoints_count": 0
+  }
+}

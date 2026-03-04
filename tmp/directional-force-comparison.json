@@ -1,0 +1,85 @@
+{
+  "ticker": "SPY",
+  "date_range": [
+    "2007-03-01",
+    "2026-02-27"
+  ],
+  "pipeline_stats": {
+    "n_bars": 4779,
+    "n_segments": 6,
+    "n_zhongshus": 1,
+    "n_moves": 1,
+    "n_divergences": 1
+  },
+  "summary": {
+    "total": 1,
+    "persistence": {
+      "agreement_count": 0,
+      "agreement_rate": 0.0,
+      "disagreement_count": 1,
+      "only_amplitude_divergent": 1,
+      "only_directional_divergent": 0
+    },
+    "density": {
+      "agreement_count": 1,
+      "agreement_rate": 1.0,
+      "disagreement_count": 0,
+      "only_amplitude_divergent": 0,
+      "only_directional_divergent": 0
+    },
+    "composite": {
+      "agreement_count": 1,
+      "agreement_rate": 1.0,
+      "disagreement_count": 0,
+      "only_amplitude_divergent": 0,
+      "only_directional_divergent": 0
+    }
+  },
+  "comparisons": [
+    {
+      "kind": "consolidation",
+      "direction": "top",
+      "seg_a": [
+        0,
+        0
+      ],
+      "seg_c": [
+        2,
+        2
+      ],
+      "center_idx": 0,
+      "original_force_a": 1926.1481374907162,
+      "original_force_c": 488.3513583659827,
+      "methods": {
+        "persistence": {
+          "amplitude_force_a": 1926.1481374907162,
+          "amplitude_force_c": 488.3513583659827,
+          "amplitude_divergent": true,
+          "directional_force_a": 1.0,
+          "directional_force_c": 1.0,
+          "directional_divergent": false,
+          "agreement": false
+        },
+        "density": {
+          "amplitude_force_a": 1926.1481374907162,
+          "amplitude_force_c": 488.3513583659827,
+          "amplitude_divergent": true,
+          "directional_force_a": 40.333333333333336,
+          "directional_force_c": 12.333333333333332,
+          "directional_divergent": true,
+          "agreement": true
+        },
+        "composite": {
+          "amplitude_force_a": 1926.1481374907162,
+          "amplitude_force_c": 488.3513583659827,
+          "amplitude_divergent": true,
+          "directional_force_a": 20.666666666666668,
+          "directional_force_c": 6.666666666666666,
+          "directional_divergent": true,
+          "agreement": true
+        }
+      }
+    }
+  ],
+  "genealogy": "239号——方向性力度 ∉ ker(D)"
+}

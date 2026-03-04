@@ -1,0 +1,182 @@
+{
+  "metadata": {
+    "raw_bars": 6412,
+    "merged_bars": 5191,
+    "fractals": 2441,
+    "strokes": 524,
+    "segments": 51,
+    "zhongshus": 7,
+    "date_range": "2000-08-30 ~ 2026-03-02"
+  },
+  "zhongshus": [
+    {
+      "index": 0,
+      "zd": 3.4883,
+      "zg": 4.2526,
+      "gg": 13.68,
+      "dd": 1.954,
+      "start_date": "2000-09-13",
+      "end_date": "2004-01-15",
+      "start_seg_idx": 0,
+      "end_seg_idx": 3,
+      "status": "newborn",
+      "transitions": [
+        {
+          "from": "extending",
+          "to": "expanding",
+          "date": "2002-09-30",
+          "trigger_seg_idx": 3
+        },
+        {
+          "from": "expanding",
+          "to": "newborn",
+          "date": "2004-01-09",
+          "trigger_seg_idx": 4
+        }
+      ]
+    },
+    {
+      "index": 1,
+      "zd": 10.3448,
+      "zg": 12.1902,
+      "gg": 20.3384,
+      "dd": 8.2063,
+      "start_date": "2004-01-09",
+      "end_date": "2006-03-08",
+      "start_seg_idx": 4,
+      "end_seg_idx": 7,
+      "status": "newborn",
+      "transitions": [
+        {
+          "from": "extending",
+          "to": "expanding",
+          "date": "2005-04-26",
+          "trigger_seg_idx": 7
+        },
+        {
+          "from": "expanding",
+          "to": "newborn",
+          "date": "2006-04-19",
+          "trigger_seg_idx": 8
+        }
+      ]
+    },
+    {
+      "index": 2,
+      "zd": 18.6576,
+      "zg": 20.7339,
+      "gg": 31.4333,
+      "dd": 14.2645,
+      "start_date": "2006-04-19",
+      "end_date": "2007-07-09",
+      "start_seg_idx": 8,
+      "end_seg_idx": 11,
+      "status": "newborn",
+      "transitions": [
+        {
+          "from": "extending",
+          "to": "expanding",
+          "date": "2007-01-04",
+          "trigger_seg_idx": 11
+        },
+        {
+          "from": "expanding",
+          "to": "newborn",
+          "date": "2007-06-26",
+          "trigger_seg_idx": 12
+        }
+      ]
+    },
+    {
+      "index": 3,
+      "zd": 26.5186,
+      "zg": 42.005,
+      "gg": 45.0874,
+      "dd": 5.6298,
+      "start_date": "2007-06-26",
+      "end_date": "2014-05-28",
+      "start_seg_idx": 12,
+      "end_seg_idx": 26,
+      "status": "newborn",
+      "transitions": [
+        {
+          "from": "extending",
+          "to": "expanding",
+          "date": "2010-05-04",
+          "trigger_seg_idx": 17
+        },
+        {
+          "from": "expanding",
+          "to": "newborn",
+          "date": "2015-08-26",
+          "trigger_seg_idx": 28
+        }
+      ]
+    },
+    {
+      "index": 4,
+      "zd": 8.8852,
+      "zg": 11.9887,
+      "gg": 36.5035,
+      "dd": 3.1849,
+      "start_date": "2015-08-26",
+      "end_date": "2021-03-11",
+      "start_seg_idx": 28,
+      "end_seg_idx": 37,
+      "status": "newborn",
+      "transitions": [
+        {
+          "from": "extending",
+          "to": "expanding",
+          "date": "2016-09-15",
+          "trigger_seg_idx": 31
+        },
+        {
+          "from": "expanding",
+          "to": "newborn",
+          "date": "2021-03-04",
+          "trigger_seg_idx": 38
+        }
+      ]
+    },
+    {
+      "index": 5,
+      "zd": 34.4047,
+      "zg": 36.5287,
+      "gg": 50.665,
+      "dd": 23.5871,
+      "start_date": "2021-03-04",
+      "end_date": "2024-05-06",
+      "start_seg_idx": 38,
+      "end_seg_idx": 46,
+      "status": "newborn",
+      "transitions": [
+        {
+          "from": "extending",
+          "to": "expanding",
+          "date": "2021-11-04",
+          "trigger_seg_idx": 42
+        },
+        {
+          "from": "expanding",
+          "to": "newborn",
+          "date": "2024-07-10",
+          "trigger_seg_idx": 47
+        }
+      ]
+    },
+    {
+      "index": 6,
+      "zd": 38.6811,
+      "zg": 48.6623,
+      "gg": 51.5324,
+      "dd": 27.2805,
+      "start_date": "2024-07-10",
+      "end_date": "2025-11-21",
+      "start_seg_idx": 47,
+      "end_seg_idx": 50,
+      "status": "extending",
+      "transitions": []
+    }
+  ]
+}

@@ -1,0 +1,76 @@
+{
+  "timestamp": "2026-02-26T05:12:59.766742+00:00",
+  "scaling_analysis": {
+    "sizes": [
+      200,
+      500,
+      1000,
+      2000
+    ],
+    "times": [
+      0.2768,
+      1.4243,
+      5.417,
+      21.4844
+    ],
+    "scaling_exponent": 1.89,
+    "scaling_class": "O(n^1.9)",
+    "extrapolated_10k_seconds": 449.9,
+    "target_10k_met": false
+  },
+  "layer_breakdown": {
+    "label": "layer-1k",
+    "total_seconds": 5.4697,
+    "bars_per_second": 182.8,
+    "structure_stats": {
+      "n_bars": 1000,
+      "n_strokes": 198,
+      "n_segments": 22,
+      "n_zhongshu": 1,
+      "n_moves": 0,
+      "n_recursive_levels": 1
+    },
+    "layer_times": {
+      "bi_engine": 5.3011,
+      "segment_engine": 0.0793,
+      "zhongshu_engine": 0.0046,
+      "move_engine": 0.0013,
+      "buysellpoint_engine": 0.002,
+      "recursive_stack": 0.0022
+    }
+  },
+  "pattern_comparison": {
+    "zigzag-500": {
+      "label": "zigzag-500",
+      "total_seconds": 1.429,
+      "bars_per_second": 349.9,
+      "structure_stats": {
+        "n_bars": 500,
+        "n_strokes": 98,
+        "n_segments": 11,
+        "n_zhongshu": 1,
+        "n_moves": 0,
+        "n_recursive_levels": 1
+      }
+    },
+    "multiscale-500": {
+      "label": "multiscale-500",
+      "total_seconds": 1.4389,
+      "bars_per_second": 347.5,
+      "structure_stats": {
+        "n_bars": 500,
+        "n_strokes": 69,
+        "n_segments": 10,
+        "n_zhongshu": 2,
+        "n_moves": 1,
+        "n_recursive_levels": 1
+      }
+    }
+  },
+  "bottleneck_diagnosis": {
+    "root_cause": "BiEngine._run_pipeline() rebuilds full DataFrame on every bar",
+    "location": "src/newchan/bi_engine.py:107-122",
+    "complexity": "O(n^2) — _build_df + merge_inclusion + fractals_from_merged + strokes_from_fractals per bar",
+    "fix_suggestion": "Incremental pipeline: maintain merged bars / fractals / strokes state, only process new/changed tail on each bar"
+  }
+}

@@ -1,0 +1,312 @@
+{
+  "meta": {
+    "description": "C3 v2: 阈值因果检验 — Mahalanobis极端事件 vs eff.dim percentile",
+    "fold_definition": "Mahalanobis distance > 99th percentile (per-node)",
+    "effdim_source": "252d rolling covariance matrix",
+    "mahalanobis_source": "Full-sample covariance matrix",
+    "cluster_gap_days": 7,
+    "epistemological_level": "L2",
+    "data_range": "2000-08-30 to 2026-03-02",
+    "n_obs_raw": 6391,
+    "thresholds_pct": [
+      0.8,
+      1.0,
+      2.0,
+      5.0,
+      10.0,
+      20.0,
+      50.0
+    ],
+    "correction_note": "v1 used 'running minimum of eff.dim' as fold definition — circular. v2 uses Mahalanobis distance (independent of eff.dim) as fold definition."
+  },
+  "per_node": {
+    "Au": {
+      "n_extreme_days": 64,
+      "n_clustered_events": 23,
+      "mahal_threshold_99pct": 5.265768,
+      "below_0.8pct": {
+        "n_below": 50,
+        "n_extreme_below": 1,
+        "p_extreme_given_below": 0.02,
+        "effdim_at_0.8pct": 1.53453
+      },
+      "conditional_probs": {
+        "0.8": {
+          "n_above": 6088,
+          "n_extreme_above": 63,
+          "p_extreme_given_above": 0.01034823,
+          "effdim_at_percentile": 1.53453
+        },
+        "1.0": {
+          "n_above": 6076,
+          "n_extreme_above": 63,
+          "p_extreme_given_above": 0.01036866,
+          "effdim_at_percentile": 1.536474
+        },
+        "2.0": {
+          "n_above": 6015,
+          "n_extreme_above": 62,
+          "p_extreme_given_above": 0.01030756,
+          "effdim_at_percentile": 1.55822
+        },
+        "5.0": {
+          "n_above": 5831,
+          "n_extreme_above": 56,
+          "p_extreme_given_above": 0.00960384,
+          "effdim_at_percentile": 1.710414
+        },
+        "10.0": {
+          "n_above": 5524,
+          "n_extreme_above": 54,
+          "p_extreme_given_above": 0.00977552,
+          "effdim_at_percentile": 1.813449
+        },
+        "20.0": {
+          "n_above": 4910,
+          "n_extreme_above": 40,
+          "p_extreme_given_above": 0.00814664,
+          "effdim_at_percentile": 1.973999
+        },
+        "50.0": {
+          "n_above": 3069,
+          "n_extreme_above": 38,
+          "p_extreme_given_above": 0.01238188,
+          "effdim_at_percentile": 2.214395
+        }
+      },
+      "flatness_test": {
+        "slope": 0.00019751,
+        "intercept": 0.00999485,
+        "r_squared": 0.01117348,
+        "p_value": 0.82155104,
+        "std_err": 0.00083094,
+        "cv": 0.124459,
+        "is_monotonic": false,
+        "n_sign_changes": 4,
+        "n_valid": 7,
+        "verdict": "FLAT",
+        "flat_confidence": "HIGH"
+      }
+    },
+    "Dollar": {
+      "n_extreme_days": 64,
+      "n_clustered_events": 23,
+      "mahal_threshold_99pct": 5.265768,
+      "below_0.8pct": {
+        "n_below": 50,
+        "n_extreme_below": 1,
+        "p_extreme_given_below": 0.02,
+        "effdim_at_0.8pct": 1.497461
+      },
+      "conditional_probs": {
+        "0.8": {
+          "n_above": 6088,
+          "n_extreme_above": 63,
+          "p_extreme_given_above": 0.01034823,
+          "effdim_at_percentile": 1.497461
+        },
+        "1.0": {
+          "n_above": 6076,
+          "n_extreme_above": 63,
+          "p_extreme_given_above": 0.01036866,
+          "effdim_at_percentile": 1.498933
+        },
+        "2.0": {
+          "n_above": 6015,
+          "n_extreme_above": 61,
+          "p_extreme_given_above": 0.01014131,
+          "effdim_at_percentile": 1.522124
+        },
+        "5.0": {
+          "n_above": 5831,
+          "n_extreme_above": 56,
+          "p_extreme_given_above": 0.00960384,
+          "effdim_at_percentile": 1.797852
+        },
+        "10.0": {
+          "n_above": 5524,
+          "n_extreme_above": 52,
+          "p_extreme_given_above": 0.00941347,
+          "effdim_at_percentile": 1.853127
+        },
+        "20.0": {
+          "n_above": 4910,
+          "n_extreme_above": 44,
+          "p_extreme_given_above": 0.0089613,
+          "effdim_at_percentile": 1.960037
+        },
+        "50.0": {
+          "n_above": 3069,
+          "n_extreme_above": 34,
+          "p_extreme_given_above": 0.01107853,
+          "effdim_at_percentile": 2.137633
+        }
+      },
+      "flatness_test": {
+        "slope": -0.000115,
+        "intercept": 0.01006845,
+        "r_squared": 0.01197238,
+        "p_value": 0.81535559,
+        "std_err": 0.00046719,
+        "cv": 0.071023,
+        "is_monotonic": false,
+        "n_sign_changes": 2,
+        "n_valid": 7,
+        "verdict": "FLAT",
+        "flat_confidence": "HIGH"
+      }
+    },
+    "Equity": {
+      "n_extreme_days": 64,
+      "n_clustered_events": 23,
+      "mahal_threshold_99pct": 5.265768,
+      "below_0.8pct": {
+        "n_below": 50,
+        "n_extreme_below": 1,
+        "p_extreme_given_below": 0.02,
+        "effdim_at_0.8pct": 1.684552
+      },
+      "conditional_probs": {
+        "0.8": {
+          "n_above": 6088,
+          "n_extreme_above": 63,
+          "p_extreme_given_above": 0.01034823,
+          "effdim_at_percentile": 1.684552
+        },
+        "1.0": {
+          "n_above": 6076,
+          "n_extreme_above": 62,
+          "p_extreme_given_above": 0.01020408,
+          "effdim_at_percentile": 1.701306
+        },
+        "2.0": {
+          "n_above": 6015,
+          "n_extreme_above": 61,
+          "p_extreme_given_above": 0.01014131,
+          "effdim_at_percentile": 1.723577
+        },
+        "5.0": {
+          "n_above": 5831,
+          "n_extreme_above": 56,
+          "p_extreme_given_above": 0.00960384,
+          "effdim_at_percentile": 1.853084
+        },
+        "10.0": {
+          "n_above": 5524,
+          "n_extreme_above": 56,
+          "p_extreme_given_above": 0.01013758,
+          "effdim_at_percentile": 1.907592
+        },
+        "20.0": {
+          "n_above": 4910,
+          "n_extreme_above": 51,
+          "p_extreme_given_above": 0.01038697,
+          "effdim_at_percentile": 2.007801
+        },
+        "50.0": {
+          "n_above": 3069,
+          "n_extreme_above": 24,
+          "p_extreme_given_above": 0.00782014,
+          "effdim_at_percentile": 2.187012
+        }
+      },
+      "flatness_test": {
+        "slope": -0.00087052,
+        "intercept": 0.01041577,
+        "r_squared": 0.4145368,
+        "p_value": 0.11863964,
+        "std_err": 0.00046266,
+        "cv": 0.093064,
+        "is_monotonic": false,
+        "n_sign_changes": 2,
+        "n_valid": 7,
+        "verdict": "FLAT",
+        "flat_confidence": "HIGH"
+      }
+    },
+    "Commodity": {
+      "n_extreme_days": 64,
+      "n_clustered_events": 23,
+      "mahal_threshold_99pct": 5.265768,
+      "below_0.8pct": {
+        "n_below": 50,
+        "n_extreme_below": 1,
+        "p_extreme_given_below": 0.02,
+        "effdim_at_0.8pct": 1.145963
+      },
+      "conditional_probs": {
+        "0.8": {
+          "n_above": 6088,
+          "n_extreme_above": 63,
+          "p_extreme_given_above": 0.01034823,
+          "effdim_at_percentile": 1.145963
+        },
+        "1.0": {
+          "n_above": 6076,
+          "n_extreme_above": 62,
+          "p_extreme_given_above": 0.01020408,
+          "effdim_at_percentile": 1.149165
+        },
+        "2.0": {
+          "n_above": 6015,
+          "n_extreme_above": 61,
+          "p_extreme_given_above": 0.01014131,
+          "effdim_at_percentile": 1.155448
+        },
+        "5.0": {
+          "n_above": 5831,
+          "n_extreme_above": 56,
+          "p_extreme_given_above": 0.00960384,
+          "effdim_at_percentile": 1.275668
+        },
+        "10.0": {
+          "n_above": 5524,
+          "n_extreme_above": 54,
+          "p_extreme_given_above": 0.00977552,
+          "effdim_at_percentile": 1.300655
+        },
+        "20.0": {
+          "n_above": 4910,
+          "n_extreme_above": 46,
+          "p_extreme_given_above": 0.00936864,
+          "effdim_at_percentile": 1.340721
+        },
+        "50.0": {
+          "n_above": 3069,
+          "n_extreme_above": 37,
+          "p_extreme_given_above": 0.01205604,
+          "effdim_at_percentile": 1.48152
+        }
+      },
+      "flatness_test": {
+        "slope": 0.00041344,
+        "intercept": 0.00992436,
+        "r_squared": 0.0995037,
+        "p_value": 0.49072908,
+        "std_err": 0.00055623,
+        "cv": 0.086613,
+        "is_monotonic": false,
+        "n_sign_changes": 3,
+        "n_valid": 7,
+        "verdict": "FLAT",
+        "flat_confidence": "HIGH"
+      }
+    }
+  },
+  "verdict": {
+    "overall": "THRESHOLD_CAUSAL",
+    "per_node": {
+      "Au": "FLAT",
+      "Dollar": "FLAT",
+      "Equity": "FLAT",
+      "Commodity": "FLAT"
+    },
+    "interpretation": "P(mahal_extreme | eff.dim > t) 在 t 从 0.8% 到 50% 过程中保持平坦——阈值因果成立：一旦进入可折叠相(eff.dim > 阈值)，折叠概率与 eff.dim 具体值无关。",
+    "counts": {
+      "FLAT": 4,
+      "INCREASING": 0,
+      "DECREASING": 0,
+      "INCONCLUSIVE": 0
+    }
+  }
+}

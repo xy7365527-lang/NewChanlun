@@ -1,0 +1,811 @@
+{
+  "meta": {
+    "ticker": "GC=F",
+    "timeframe": "daily",
+    "date_range": [
+      "2000-08-30",
+      "2026-02-27"
+    ],
+    "raw_bars": 6397,
+    "merged_bars": 4780,
+    "strokes": 478,
+    "segments": 80,
+    "zhongshus": 13,
+    "movements": 4
+  },
+  "zhongshus": [
+    {
+      "id": 1,
+      "start_date": "2001-07-31",
+      "end_date": "2002-03-25",
+      "zg": 281.2,
+      "zd": 278.1,
+      "duration_days": 237,
+      "seg_count": 4
+    },
+    {
+      "id": 2,
+      "start_date": "2004-12-02",
+      "end_date": "2005-07-25",
+      "zg": 425.7,
+      "zd": 422.7,
+      "duration_days": 235,
+      "seg_count": 3
+    },
+    {
+      "id": 3,
+      "start_date": "2006-07-17",
+      "end_date": "2007-01-09",
+      "zg": 629.0,
+      "zd": 607.0,
+      "duration_days": 176,
+      "seg_count": 3
+    },
+    {
+      "id": 4,
+      "start_date": "2008-01-30",
+      "end_date": "2009-08-28",
+      "zg": 930.3,
+      "zd": 920.9,
+      "duration_days": 576,
+      "seg_count": 4
+    },
+    {
+      "id": 5,
+      "start_date": "2009-09-29",
+      "end_date": "2010-04-28",
+      "zg": 1109.3,
+      "zd": 1073.2,
+      "duration_days": 211,
+      "seg_count": 3
+    },
+    {
+      "id": 6,
+      "start_date": "2011-05-02",
+      "end_date": "2011-12-29",
+      "zg": 1576.6,
+      "zd": 1562.4,
+      "duration_days": 241,
+      "seg_count": 3
+    },
+    {
+      "id": 7,
+      "start_date": "2013-04-17",
+      "end_date": "2014-02-18",
+      "zg": 1330.6,
+      "zd": 1323.0,
+      "duration_days": 307,
+      "seg_count": 3
+    },
+    {
+      "id": 8,
+      "start_date": "2014-01-31",
+      "end_date": "2015-02-09",
+      "zg": 1282.1,
+      "zd": 1238.4,
+      "duration_days": 374,
+      "seg_count": 3
+    },
+    {
+      "id": 9,
+      "start_date": "2016-02-12",
+      "end_date": "2016-11-15",
+      "zg": 1260.8,
+      "zd": 1258.7,
+      "duration_days": 277,
+      "seg_count": 3
+    },
+    {
+      "id": 10,
+      "start_date": "2017-02-08",
+      "end_date": "2017-12-12",
+      "zg": 1243.9,
+      "zd": 1236.5,
+      "duration_days": 307,
+      "seg_count": 3
+    },
+    {
+      "id": 11,
+      "start_date": "2021-03-08",
+      "end_date": "2021-12-13",
+      "zg": 1758.0,
+      "zd": 1752.1,
+      "duration_days": 280,
+      "seg_count": 3
+    },
+    {
+      "id": 12,
+      "start_date": "2022-01-28",
+      "end_date": "2022-12-09",
+      "zg": 1841.2,
+      "zd": 1787.0,
+      "duration_days": 315,
+      "seg_count": 4
+    },
+    {
+      "id": 13,
+      "start_date": "2023-02-02",
+      "end_date": "2023-11-17",
+      "zg": 1959.1,
+      "zd": 1956.5,
+      "duration_days": 288,
+      "seg_count": 3
+    }
+  ],
+  "movements": [
+    {
+      "id": 1,
+      "kind": "uptrend",
+      "start_date": "2001-07-31",
+      "end_date": "2011-12-29",
+      "duration_days": 3803,
+      "zhongshu_count": 6
+    },
+    {
+      "id": 2,
+      "kind": "downtrend",
+      "start_date": "2013-04-17",
+      "end_date": "2015-02-09",
+      "duration_days": 663,
+      "zhongshu_count": 2
+    },
+    {
+      "id": 3,
+      "kind": "downtrend",
+      "start_date": "2016-02-12",
+      "end_date": "2017-12-12",
+      "duration_days": 669,
+      "zhongshu_count": 2
+    },
+    {
+      "id": 4,
+      "kind": "uptrend",
+      "start_date": "2021-03-08",
+      "end_date": "2023-11-17",
+      "duration_days": 984,
+      "zhongshu_count": 3
+    }
+  ],
+  "segments": [
+    {
+      "direction": "down",
+      "start_date": "2000-09-01",
+      "end_date": "2000-10-30",
+      "start_price": 278.3,
+      "end_price": 264.3,
+      "stroke_count": 5
+    },
+    {
+      "direction": "down",
+      "start_date": "2000-12-07",
+      "end_date": "2001-01-04",
+      "start_price": 276.0,
+      "end_price": 267.3,
+      "stroke_count": 3
+    },
+    {
+      "direction": "up",
+      "start_date": "2001-01-17",
+      "end_date": "2001-04-09",
+      "start_price": 263.2,
+      "end_price": 260.5,
+      "stroke_count": 7
+    },
+    {
+      "direction": "down",
+      "start_date": "2001-05-09",
+      "end_date": "2001-07-26",
+      "start_price": 270.0,
+      "end_price": 266.2,
+      "stroke_count": 5
+    },
+    {
+      "direction": "up",
+      "start_date": "2001-07-31",
+      "end_date": "2001-09-19",
+      "start_price": 264.4,
+      "end_price": 291.5,
+      "stroke_count": 3
+    },
+    {
+      "direction": "up",
+      "start_date": "2001-09-10",
+      "end_date": "2001-11-02",
+      "start_price": 271.6,
+      "end_price": 281.2,
+      "stroke_count": 3
+    },
+    {
+      "direction": "down",
+      "start_date": "2001-12-18",
+      "end_date": "2002-01-24",
+      "start_price": 281.3,
+      "end_price": 278.1,
+      "stroke_count": 3
+    },
+    {
+      "direction": "up",
+      "start_date": "2002-01-24",
+      "end_date": "2002-03-25",
+      "start_price": 278.1,
+      "end_price": 297.4,
+      "stroke_count": 3
+    },
+    {
+      "direction": "up",
+      "start_date": "2002-05-14",
+      "end_date": "2002-09-24",
+      "start_price": 306.8,
+      "end_price": 325.9,
+      "stroke_count": 11
+    },
+    {
+      "direction": "up",
+      "start_date": "2002-10-24",
+      "end_date": "2002-12-09",
+      "start_price": 309.8,
+      "end_price": 328.0,
+      "stroke_count": 3
+    },
+    {
+      "direction": "down",
+      "start_date": "2003-02-05",
+      "end_date": "2003-03-14",
+      "start_price": 388.9,
+      "end_price": 335.9,
+      "stroke_count": 3
+    },
+    {
+      "direction": "down",
+      "start_date": "2003-03-06",
+      "end_date": "2003-04-07",
+      "start_price": 356.8,
+      "end_price": 319.3,
+      "stroke_count": 3
+    },
+    {
+      "direction": "up",
+      "start_date": "2003-08-19",
+      "end_date": "2003-12-10",
+      "start_price": 357.0,
+      "end_price": 412.0,
+      "stroke_count": 9
+    },
+    {
+      "direction": "up",
+      "start_date": "2003-11-25",
+      "end_date": "2004-09-14",
+      "start_price": 389.5,
+      "end_price": 405.1,
+      "stroke_count": 15
+    },
+    {
+      "direction": "down",
+      "start_date": "2004-12-02",
+      "end_date": "2005-01-10",
+      "start_price": 456.5,
+      "end_price": 418.7,
+      "stroke_count": 3
+    },
+    {
+      "direction": "down",
+      "start_date": "2004-12-28",
+      "end_date": "2005-02-08",
+      "start_price": 445.9,
+      "end_price": 410.1,
+      "stroke_count": 3
+    },
+    {
+      "direction": "up",
+      "start_date": "2005-04-05",
+      "end_date": "2005-07-25",
+      "start_price": 422.7,
+      "end_price": 425.7,
+      "stroke_count": 5
+    },
+    {
+      "direction": "down",
+      "start_date": "2005-09-21",
+      "end_date": "2005-10-21",
+      "start_price": 468.9,
+      "end_price": 460.5,
+      "stroke_count": 3
+    },
+    {
+      "direction": "down",
+      "start_date": "2006-02-02",
+      "end_date": "2006-03-10",
+      "start_price": 575.3,
+      "end_price": 539.9,
+      "stroke_count": 3
+    },
+    {
+      "direction": "down",
+      "start_date": "2006-07-17",
+      "end_date": "2006-09-11",
+      "start_price": 677.0,
+      "end_price": 590.0,
+      "stroke_count": 5
+    },
+    {
+      "direction": "down",
+      "start_date": "2006-09-05",
+      "end_date": "2006-10-24",
+      "start_price": 638.5,
+      "end_price": 576.5,
+      "stroke_count": 5
+    },
+    {
+      "direction": "down",
+      "start_date": "2006-11-13",
+      "end_date": "2007-01-09",
+      "start_price": 629.0,
+      "end_price": 607.0,
+      "stroke_count": 5
+    },
+    {
+      "direction": "up",
+      "start_date": "2007-05-10",
+      "end_date": "2007-08-27",
+      "start_price": 651.0,
+      "end_price": 668.8,
+      "stroke_count": 7
+    },
+    {
+      "direction": "down",
+      "start_date": "2007-11-09",
+      "end_date": "2007-12-20",
+      "start_price": 841.3,
+      "end_price": 794.2,
+      "stroke_count": 3
+    },
+    {
+      "direction": "down",
+      "start_date": "2008-01-30",
+      "end_date": "2008-07-24",
+      "start_price": 936.3,
+      "end_price": 920.9,
+      "stroke_count": 9
+    },
+    {
+      "direction": "up",
+      "start_date": "2008-08-15",
+      "end_date": "2009-02-02",
+      "start_price": 780.9,
+      "end_price": 930.3,
+      "stroke_count": 11
+    },
+    {
+      "direction": "up",
+      "start_date": "2009-01-15",
+      "end_date": "2009-05-22",
+      "start_price": 805.6,
+      "end_price": 958.7,
+      "stroke_count": 7
+    },
+    {
+      "direction": "up",
+      "start_date": "2009-05-06",
+      "end_date": "2009-08-28",
+      "start_price": 901.3,
+      "end_price": 962.2,
+      "stroke_count": 7
+    },
+    {
+      "direction": "up",
+      "start_date": "2009-09-29",
+      "end_date": "2009-11-09",
+      "start_price": 984.7,
+      "end_price": 1109.3,
+      "stroke_count": 3
+    },
+    {
+      "direction": "up",
+      "start_date": "2009-10-28",
+      "end_date": "2010-01-07",
+      "start_price": 1028.0,
+      "end_price": 1139.2,
+      "stroke_count": 3
+    },
+    {
+      "direction": "up",
+      "start_date": "2010-01-28",
+      "end_date": "2010-04-28",
+      "start_price": 1073.2,
+      "end_price": 1171.3,
+      "stroke_count": 5
+    },
+    {
+      "direction": "down",
+      "start_date": "2010-10-14",
+      "end_date": "2011-01-18",
+      "start_price": 1383.9,
+      "end_price": 1356.7,
+      "stroke_count": 7
+    },
+    {
+      "direction": "down",
+      "start_date": "2011-03-07",
+      "end_date": "2011-04-01",
+      "start_price": 1445.0,
+      "end_price": 1413.0,
+      "stroke_count": 3
+    },
+    {
+      "direction": "down",
+      "start_date": "2011-05-02",
+      "end_date": "2011-07-01",
+      "start_price": 1576.6,
+      "end_price": 1480.0,
+      "stroke_count": 5
+    },
+    {
+      "direction": "up",
+      "start_date": "2011-09-26",
+      "end_date": "2011-12-08",
+      "start_price": 1562.4,
+      "end_price": 1752.3,
+      "stroke_count": 3
+    },
+    {
+      "direction": "down",
+      "start_date": "2011-12-08",
+      "end_date": "2011-12-29",
+      "start_price": 1752.3,
+      "end_price": 1525.0,
+      "stroke_count": 3
+    },
+    {
+      "direction": "down",
+      "start_date": "2012-02-03",
+      "end_date": "2012-03-15",
+      "start_price": 1761.3,
+      "end_price": 1637.4,
+      "stroke_count": 3
+    },
+    {
+      "direction": "down",
+      "start_date": "2012-02-23",
+      "end_date": "2012-04-25",
+      "start_price": 1786.0,
+      "end_price": 1626.9,
+      "stroke_count": 5
+    },
+    {
+      "direction": "up",
+      "start_date": "2012-06-28",
+      "end_date": "2012-08-07",
+      "start_price": 1548.4,
+      "end_price": 1615.7,
+      "stroke_count": 3
+    },
+    {
+      "direction": "up",
+      "start_date": "2012-11-05",
+      "end_date": "2013-02-06",
+      "start_price": 1674.1,
+      "end_price": 1683.4,
+      "stroke_count": 5
+    },
+    {
+      "direction": "down",
+      "start_date": "2013-02-06",
+      "end_date": "2013-04-04",
+      "start_price": 1683.4,
+      "end_price": 1539.1,
+      "stroke_count": 3
+    },
+    {
+      "direction": "up",
+      "start_date": "2013-04-17",
+      "end_date": "2013-05-31",
+      "start_price": 1323.0,
+      "end_price": 1421.1,
+      "stroke_count": 3
+    },
+    {
+      "direction": "up",
+      "start_date": "2013-06-28",
+      "end_date": "2013-10-29",
+      "start_price": 1183.2,
+      "end_price": 1359.7,
+      "stroke_count": 7
+    },
+    {
+      "direction": "up",
+      "start_date": "2013-12-04",
+      "end_date": "2014-02-18",
+      "start_price": 1212.9,
+      "end_price": 1330.6,
+      "stroke_count": 5
+    },
+    {
+      "direction": "up",
+      "start_date": "2014-01-31",
+      "end_date": "2014-06-16",
+      "start_price": 1238.4,
+      "end_price": 1282.1,
+      "stroke_count": 7
+    },
+    {
+      "direction": "down",
+      "start_date": "2014-07-11",
+      "end_date": "2014-09-15",
+      "start_price": 1343.7,
+      "end_price": 1226.7,
+      "stroke_count": 3
+    },
+    {
+      "direction": "down",
+      "start_date": "2014-08-14",
+      "end_date": "2015-02-09",
+      "start_price": 1316.4,
+      "end_price": 1228.0,
+      "stroke_count": 7
+    },
+    {
+      "direction": "up",
+      "start_date": "2015-02-23",
+      "end_date": "2015-06-16",
+      "start_price": 1191.6,
+      "end_price": 1186.5,
+      "stroke_count": 7
+    },
+    {
+      "direction": "up",
+      "start_date": "2015-07-31",
+      "end_date": "2015-10-15",
+      "start_price": 1079.1,
+      "end_price": 1189.0,
+      "stroke_count": 5
+    },
+    {
+      "direction": "down",
+      "start_date": "2016-02-12",
+      "end_date": "2016-05-10",
+      "start_price": 1260.8,
+      "end_price": 1258.7,
+      "stroke_count": 5
+    },
+    {
+      "direction": "down",
+      "start_date": "2016-07-06",
+      "end_date": "2016-10-12",
+      "start_price": 1374.9,
+      "end_price": 1248.9,
+      "stroke_count": 7
+    },
+    {
+      "direction": "down",
+      "start_date": "2016-09-22",
+      "end_date": "2016-11-15",
+      "start_price": 1340.4,
+      "end_price": 1210.4,
+      "stroke_count": 3
+    },
+    {
+      "direction": "down",
+      "start_date": "2017-02-08",
+      "end_date": "2017-03-10",
+      "start_price": 1243.9,
+      "end_price": 1196.2,
+      "stroke_count": 3
+    },
+    {
+      "direction": "up",
+      "start_date": "2017-05-10",
+      "end_date": "2017-07-24",
+      "start_price": 1214.0,
+      "end_price": 1256.0,
+      "stroke_count": 3
+    },
+    {
+      "direction": "down",
+      "start_date": "2017-09-08",
+      "end_date": "2017-12-12",
+      "start_price": 1355.8,
+      "end_price": 1236.5,
+      "stroke_count": 5
+    },
+    {
+      "direction": "down",
+      "start_date": "2018-01-16",
+      "end_date": "2018-06-08",
+      "start_price": 1338.2,
+      "end_price": 1294.8,
+      "stroke_count": 11
+    },
+    {
+      "direction": "down",
+      "start_date": "2018-08-01",
+      "end_date": "2018-10-01",
+      "start_price": 1223.7,
+      "end_price": 1180.0,
+      "stroke_count": 5
+    },
+    {
+      "direction": "up",
+      "start_date": "2018-10-01",
+      "end_date": "2018-11-29",
+      "start_price": 1180.0,
+      "end_price": 1228.7,
+      "stroke_count": 3
+    },
+    {
+      "direction": "up",
+      "start_date": "2019-01-24",
+      "end_date": "2019-03-13",
+      "start_price": 1278.5,
+      "end_price": 1307.5,
+      "stroke_count": 5
+    },
+    {
+      "direction": "up",
+      "start_date": "2019-04-23",
+      "end_date": "2019-06-05",
+      "start_price": 1266.0,
+      "end_price": 1343.3,
+      "stroke_count": 3
+    },
+    {
+      "direction": "down",
+      "start_date": "2019-06-25",
+      "end_date": "2019-07-25",
+      "start_price": 1433.3,
+      "end_price": 1413.9,
+      "stroke_count": 3
+    },
+    {
+      "direction": "up",
+      "start_date": "2019-07-25",
+      "end_date": "2019-11-29",
+      "start_price": 1413.9,
+      "end_price": 1465.6,
+      "stroke_count": 7
+    },
+    {
+      "direction": "down",
+      "start_date": "2020-01-06",
+      "end_date": "2020-06-08",
+      "start_price": 1580.0,
+      "end_price": 1668.6,
+      "stroke_count": 9
+    },
+    {
+      "direction": "up",
+      "start_date": "2020-07-17",
+      "end_date": "2021-02-01",
+      "start_price": 1794.3,
+      "end_price": 1876.0,
+      "stroke_count": 11
+    },
+    {
+      "direction": "up",
+      "start_date": "2021-03-08",
+      "end_date": "2021-04-08",
+      "start_price": 1673.7,
+      "end_price": 1758.0,
+      "stroke_count": 3
+    },
+    {
+      "direction": "up",
+      "start_date": "2021-06-30",
+      "end_date": "2021-08-30",
+      "start_price": 1752.1,
+      "end_price": 1820.3,
+      "stroke_count": 5
+    },
+    {
+      "direction": "up",
+      "start_date": "2021-09-29",
+      "end_date": "2021-12-13",
+      "start_price": 1721.4,
+      "end_price": 1787.1,
+      "stroke_count": 5
+    },
+    {
+      "direction": "up",
+      "start_date": "2022-01-28",
+      "end_date": "2022-04-13",
+      "start_price": 1778.8,
+      "end_price": 1981.0,
+      "stroke_count": 5
+    },
+    {
+      "direction": "up",
+      "start_date": "2022-05-16",
+      "end_date": "2022-06-23",
+      "start_price": 1787.0,
+      "end_price": 1841.2,
+      "stroke_count": 3
+    },
+    {
+      "direction": "down",
+      "start_date": "2022-06-23",
+      "end_date": "2022-11-03",
+      "start_price": 1841.2,
+      "end_price": 1615.1,
+      "stroke_count": 9
+    },
+    {
+      "direction": "up",
+      "start_date": "2022-11-03",
+      "end_date": "2022-12-09",
+      "start_price": 1615.1,
+      "end_price": 1804.3,
+      "stroke_count": 3
+    },
+    {
+      "direction": "down",
+      "start_date": "2023-02-02",
+      "end_date": "2023-05-18",
+      "start_price": 1959.1,
+      "end_price": 1956.5,
+      "stroke_count": 7
+    },
+    {
+      "direction": "down",
+      "start_date": "2023-07-19",
+      "end_date": "2023-10-06",
+      "start_price": 1978.4,
+      "end_price": 1809.4,
+      "stroke_count": 5
+    },
+    {
+      "direction": "up",
+      "start_date": "2023-10-06",
+      "end_date": "2023-11-17",
+      "start_price": 1809.4,
+      "end_price": 1984.0,
+      "stroke_count": 3
+    },
+    {
+      "direction": "down",
+      "start_date": "2023-12-04",
+      "end_date": "2024-02-14",
+      "start_price": 2130.2,
+      "end_price": 1984.8,
+      "stroke_count": 5
+    },
+    {
+      "direction": "down",
+      "start_date": "2024-04-12",
+      "end_date": "2024-07-25",
+      "start_price": 2429.0,
+      "end_price": 2351.9,
+      "stroke_count": 5
+    },
+    {
+      "direction": "down",
+      "start_date": "2024-09-27",
+      "end_date": "2024-12-06",
+      "start_price": 2672.1,
+      "end_price": 2617.5,
+      "stroke_count": 5
+    },
+    {
+      "direction": "down",
+      "start_date": "2025-04-22",
+      "end_date": "2025-08-15",
+      "start_price": 3485.6,
+      "end_price": 3328.9,
+      "stroke_count": 7
+    },
+    {
+      "direction": "down",
+      "start_date": "2025-10-20",
+      "end_date": "2025-12-08",
+      "start_price": 4358.0,
+      "end_price": 4175.5,
+      "stroke_count": 5
+    },
+    {
+      "direction": "up",
+      "start_date": "2026-01-08",
+      "end_date": "2026-02-23",
+      "start_price": 4418.0,
+      "end_price": 5211.6,
+      "stroke_count": 3
+    }
+  ]
+}

@@ -1,0 +1,796 @@
+{
+  "verification_time": "2026-03-01T08:48:09.579309",
+  "pipeline": "口径A（RecursiveOrchestrator 从日线递归）",
+  "epistemological_level": "L2（真实数据验证）",
+  "genealogy_ref": "279号（OQ5 口径A验证）",
+  "data_sources": {
+    "yfinance": [
+      "DX-Y.NYB (DXY)",
+      "GC=F (XAU/USD)"
+    ],
+    "fred": [
+      "DEXJPUS (USD/JPY)",
+      "DEXUSUK (GBP/USD)",
+      "DEXSZUS (USD/CHF)"
+    ],
+    "synthetic": [
+      "XAU_JPY",
+      "XAU_GBP",
+      "XAU_CHF",
+      "GBP_JPY"
+    ]
+  },
+  "available_edges": [
+    "DXY",
+    "XAU_USD",
+    "USD_JPY",
+    "GBP_USD",
+    "USD_CHF",
+    "XAU_JPY",
+    "XAU_GBP",
+    "XAU_CHF",
+    "GBP_JPY"
+  ],
+  "total_trading_days": 14056,
+  "date_range": "1971-01-04 ~ 2026-02-27",
+  "trilateral_event_count": 0,
+  "window_2002_2007": {
+    "event_count": 0,
+    "expected": "反例（三重联立应不满足 — 279号结论）",
+    "actual": "不满足（符合预期）"
+  },
+  "window_stats_by_year": {},
+  "trilateral_conditions": {
+    "center_breakdown": "美元腿多数处于 FLAT 或 DOWN",
+    "periphery_construction": "至少一条交叉盘处于非 FLAT",
+    "gold_resonance": "法币/黄金边半数以上处于非 FLAT"
+  },
+  "edge_summary": {
+    "DXY": {
+      "total_bars": 14006,
+      "move_count_l1": 21,
+      "seg_count_l1": 118,
+      "zs_count_l1": 22,
+      "direction_distribution": {
+        "UP": 0,
+        "DOWN": 642,
+        "FLAT": 13364
+      },
+      "direction_transitions": 2,
+      "date_range": "1971-01-04 ~ 2026-02-27"
+    },
+    "XAU_USD": {
+      "total_bars": 6397,
+      "move_count_l1": 10,
+      "seg_count_l1": 50,
+      "zs_count_l1": 10,
+      "direction_distribution": {
+        "UP": 0,
+        "DOWN": 0,
+        "FLAT": 6397
+      },
+      "direction_transitions": 0,
+      "date_range": "2000-08-30 ~ 2026-02-27"
+    },
+    "USD_JPY": {
+      "total_bars": 13819,
+      "move_count_l1": 31,
+      "seg_count_l1": 153,
+      "zs_count_l1": 32,
+      "direction_distribution": {
+        "UP": 0,
+        "DOWN": 0,
+        "FLAT": 13819
+      },
+      "direction_transitions": 0,
+      "date_range": "1971-01-04 ~ 2026-02-20"
+    },
+    "GBP_USD": {
+      "total_bars": 13825,
+      "move_count_l1": 19,
+      "seg_count_l1": 143,
+      "zs_count_l1": 20,
+      "direction_distribution": {
+        "UP": 0,
+        "DOWN": 0,
+        "FLAT": 13825
+      },
+      "direction_transitions": 0,
+      "date_range": "1971-01-04 ~ 2026-02-20"
+    },
+    "USD_CHF": {
+      "total_bars": 13825,
+      "move_count_l1": 30,
+      "seg_count_l1": 154,
+      "zs_count_l1": 30,
+      "direction_distribution": {
+        "UP": 0,
+        "DOWN": 0,
+        "FLAT": 13825
+      },
+      "direction_transitions": 0,
+      "date_range": "1971-01-04 ~ 2026-02-20"
+    },
+    "XAU_JPY": {
+      "total_bars": 6333,
+      "move_count_l1": 10,
+      "seg_count_l1": 56,
+      "zs_count_l1": 10,
+      "direction_distribution": {
+        "UP": 0,
+        "DOWN": 0,
+        "FLAT": 6333
+      },
+      "direction_transitions": 0,
+      "date_range": "2000-08-30 ~ 2026-02-20"
+    },
+    "XAU_GBP": {
+      "total_bars": 6333,
+      "move_count_l1": 10,
+      "seg_count_l1": 48,
+      "zs_count_l1": 11,
+      "direction_distribution": {
+        "UP": 0,
+        "DOWN": 0,
+        "FLAT": 6333
+      },
+      "direction_transitions": 0,
+      "date_range": "2000-08-30 ~ 2026-02-20"
+    },
+    "XAU_CHF": {
+      "total_bars": 6333,
+      "move_count_l1": 8,
+      "seg_count_l1": 52,
+      "zs_count_l1": 9,
+      "direction_distribution": {
+        "UP": 228,
+        "DOWN": 0,
+        "FLAT": 6105
+      },
+      "direction_transitions": 2,
+      "date_range": "2000-08-30 ~ 2026-02-20"
+    },
+    "GBP_JPY": {
+      "total_bars": 13819,
+      "move_count_l1": 29,
+      "seg_count_l1": 140,
+      "zs_count_l1": 30,
+      "direction_distribution": {
+        "UP": 0,
+        "DOWN": 0,
+        "FLAT": 13819
+      },
+      "direction_transitions": 0,
+      "date_range": "1971-01-04 ~ 2026-02-20"
+    }
+  },
+  "trilateral_events": [],
+  "diagnostics_sample": [
+    {
+      "bar_idx": 0,
+      "timestamp": "1971-01-04T00:00:00",
+      "center": {
+        "DXY": "FLAT",
+        "USD_JPY": "FLAT",
+        "GBP_USD": "FLAT",
+        "USD_CHF": "FLAT"
+      },
+      "periphery": {
+        "GBP_JPY": "FLAT"
+      },
+      "gold": {},
+      "center_breakdown": true,
+      "periphery_construction": false,
+      "gold_resonance": false,
+      "triple_met": false
+    },
+    {
+      "bar_idx": 500,
+      "timestamp": "1972-12-29T00:00:00",
+      "center": {
+        "DXY": "FLAT",
+        "USD_JPY": "FLAT",
+        "GBP_USD": "FLAT",
+        "USD_CHF": "FLAT"
+      },
+      "periphery": {
+        "GBP_JPY": "FLAT"
+      },
+      "gold": {},
+      "center_breakdown": true,
+      "periphery_construction": false,
+      "gold_resonance": false,
+      "triple_met": false
+    },
+    {
+      "bar_idx": 1000,
+      "timestamp": "1974-12-30T00:00:00",
+      "center": {
+        "DXY": "FLAT",
+        "USD_JPY": "FLAT",
+        "GBP_USD": "FLAT",
+        "USD_CHF": "FLAT"
+      },
+      "periphery": {
+        "GBP_JPY": "FLAT"
+      },
+      "gold": {},
+      "center_breakdown": true,
+      "periphery_construction": false,
+      "gold_resonance": false,
+      "triple_met": false
+    },
+    {
+      "bar_idx": 1500,
+      "timestamp": "1976-12-28T00:00:00",
+      "center": {
+        "DXY": "FLAT",
+        "USD_JPY": "FLAT",
+        "GBP_USD": "FLAT",
+        "USD_CHF": "FLAT"
+      },
+      "periphery": {
+        "GBP_JPY": "FLAT"
+      },
+      "gold": {},
+      "center_breakdown": true,
+      "periphery_construction": false,
+      "gold_resonance": false,
+      "triple_met": false
+    },
+    {
+      "bar_idx": 2000,
+      "timestamp": "1978-12-26T00:00:00",
+      "center": {
+        "DXY": "FLAT",
+        "USD_JPY": "FLAT",
+        "GBP_USD": "FLAT",
+        "USD_CHF": "FLAT"
+      },
+      "periphery": {
+        "GBP_JPY": "FLAT"
+      },
+      "gold": {},
+      "center_breakdown": true,
+      "periphery_construction": false,
+      "gold_resonance": false,
+      "triple_met": false
+    },
+    {
+      "bar_idx": 2500,
+      "timestamp": "1980-12-24T00:00:00",
+      "center": {
+        "DXY": "FLAT",
+        "USD_JPY": "FLAT",
+        "GBP_USD": "FLAT",
+        "USD_CHF": "FLAT"
+      },
+      "periphery": {
+        "GBP_JPY": "FLAT"
+      },
+      "gold": {},
+      "center_breakdown": true,
+      "periphery_construction": false,
+      "gold_resonance": false,
+      "triple_met": false
+    },
+    {
+      "bar_idx": 3000,
+      "timestamp": "1982-12-23T00:00:00",
+      "center": {
+        "DXY": "FLAT",
+        "USD_JPY": "FLAT",
+        "GBP_USD": "FLAT",
+        "USD_CHF": "FLAT"
+      },
+      "periphery": {
+        "GBP_JPY": "FLAT"
+      },
+      "gold": {},
+      "center_breakdown": true,
+      "periphery_construction": false,
+      "gold_resonance": false,
+      "triple_met": false
+    },
+    {
+      "bar_idx": 3500,
+      "timestamp": "1984-12-19T00:00:00",
+      "center": {
+        "DXY": "FLAT",
+        "USD_JPY": "FLAT",
+        "GBP_USD": "FLAT",
+        "USD_CHF": "FLAT"
+      },
+      "periphery": {
+        "GBP_JPY": "FLAT"
+      },
+      "gold": {},
+      "center_breakdown": true,
+      "periphery_construction": false,
+      "gold_resonance": false,
+      "triple_met": false
+    },
+    {
+      "bar_idx": 4000,
+      "timestamp": "1986-12-02T00:00:00",
+      "center": {
+        "DXY": "FLAT",
+        "USD_JPY": "FLAT",
+        "GBP_USD": "FLAT",
+        "USD_CHF": "FLAT"
+      },
+      "periphery": {
+        "GBP_JPY": "FLAT"
+      },
+      "gold": {},
+      "center_breakdown": true,
+      "periphery_construction": false,
+      "gold_resonance": false,
+      "triple_met": false
+    },
+    {
+      "bar_idx": 4500,
+      "timestamp": "1988-11-01T00:00:00",
+      "center": {
+        "DXY": "FLAT",
+        "USD_JPY": "FLAT",
+        "GBP_USD": "FLAT",
+        "USD_CHF": "FLAT"
+      },
+      "periphery": {
+        "GBP_JPY": "FLAT"
+      },
+      "gold": {},
+      "center_breakdown": true,
+      "periphery_construction": false,
+      "gold_resonance": false,
+      "triple_met": false
+    },
+    {
+      "bar_idx": 5000,
+      "timestamp": "1990-10-02T00:00:00",
+      "center": {
+        "DXY": "FLAT",
+        "USD_JPY": "FLAT",
+        "GBP_USD": "FLAT",
+        "USD_CHF": "FLAT"
+      },
+      "periphery": {
+        "GBP_JPY": "FLAT"
+      },
+      "gold": {},
+      "center_breakdown": true,
+      "periphery_construction": false,
+      "gold_resonance": false,
+      "triple_met": false
+    },
+    {
+      "bar_idx": 5500,
+      "timestamp": "1992-09-01T00:00:00",
+      "center": {
+        "DXY": "FLAT",
+        "USD_JPY": "FLAT",
+        "GBP_USD": "FLAT",
+        "USD_CHF": "FLAT"
+      },
+      "periphery": {
+        "GBP_JPY": "FLAT"
+      },
+      "gold": {},
+      "center_breakdown": true,
+      "periphery_construction": false,
+      "gold_resonance": false,
+      "triple_met": false
+    },
+    {
+      "bar_idx": 6000,
+      "timestamp": "1994-08-02T00:00:00",
+      "center": {
+        "DXY": "FLAT",
+        "USD_JPY": "FLAT",
+        "GBP_USD": "FLAT",
+        "USD_CHF": "FLAT"
+      },
+      "periphery": {
+        "GBP_JPY": "FLAT"
+      },
+      "gold": {},
+      "center_breakdown": true,
+      "periphery_construction": false,
+      "gold_resonance": false,
+      "triple_met": false
+    },
+    {
+      "bar_idx": 6500,
+      "timestamp": "1996-07-02T00:00:00",
+      "center": {
+        "DXY": "DOWN",
+        "USD_JPY": "FLAT",
+        "GBP_USD": "FLAT",
+        "USD_CHF": "FLAT"
+      },
+      "periphery": {
+        "GBP_JPY": "FLAT"
+      },
+      "gold": {},
+      "center_breakdown": true,
+      "periphery_construction": false,
+      "gold_resonance": false,
+      "triple_met": false
+    },
+    {
+      "bar_idx": 7000,
+      "timestamp": "1998-06-02T00:00:00",
+      "center": {
+        "DXY": "FLAT",
+        "USD_JPY": "FLAT",
+        "GBP_USD": "FLAT",
+        "USD_CHF": "FLAT"
+      },
+      "periphery": {
+        "GBP_JPY": "FLAT"
+      },
+      "gold": {},
+      "center_breakdown": true,
+      "periphery_construction": false,
+      "gold_resonance": false,
+      "triple_met": false
+    },
+    {
+      "bar_idx": 7500,
+      "timestamp": "2000-05-03T00:00:00",
+      "center": {
+        "DXY": "FLAT",
+        "USD_JPY": "FLAT",
+        "GBP_USD": "FLAT",
+        "USD_CHF": "FLAT"
+      },
+      "periphery": {
+        "GBP_JPY": "FLAT"
+      },
+      "gold": {},
+      "center_breakdown": true,
+      "periphery_construction": false,
+      "gold_resonance": false,
+      "triple_met": false
+    },
+    {
+      "bar_idx": 8000,
+      "timestamp": "2002-04-15T00:00:00",
+      "center": {
+        "DXY": "FLAT",
+        "USD_JPY": "FLAT",
+        "GBP_USD": "FLAT",
+        "USD_CHF": "FLAT"
+      },
+      "periphery": {
+        "XAU_JPY": "FLAT",
+        "XAU_GBP": "FLAT",
+        "XAU_CHF": "FLAT",
+        "GBP_JPY": "FLAT"
+      },
+      "gold": {
+        "XAU_USD": "FLAT",
+        "XAU_JPY": "FLAT",
+        "XAU_GBP": "FLAT",
+        "XAU_CHF": "FLAT"
+      },
+      "center_breakdown": true,
+      "periphery_construction": false,
+      "gold_resonance": false,
+      "triple_met": false
+    },
+    {
+      "bar_idx": 8500,
+      "timestamp": "2004-03-26T00:00:00",
+      "center": {
+        "DXY": "FLAT",
+        "USD_JPY": "FLAT",
+        "GBP_USD": "FLAT",
+        "USD_CHF": "FLAT"
+      },
+      "periphery": {
+        "XAU_JPY": "FLAT",
+        "XAU_GBP": "FLAT",
+        "XAU_CHF": "FLAT",
+        "GBP_JPY": "FLAT"
+      },
+      "gold": {
+        "XAU_USD": "FLAT",
+        "XAU_JPY": "FLAT",
+        "XAU_GBP": "FLAT",
+        "XAU_CHF": "FLAT"
+      },
+      "center_breakdown": true,
+      "periphery_construction": false,
+      "gold_resonance": false,
+      "triple_met": false
+    },
+    {
+      "bar_idx": 9000,
+      "timestamp": "2006-03-08T00:00:00",
+      "center": {
+        "DXY": "FLAT",
+        "USD_JPY": "FLAT",
+        "GBP_USD": "FLAT",
+        "USD_CHF": "FLAT"
+      },
+      "periphery": {
+        "XAU_JPY": "FLAT",
+        "XAU_GBP": "FLAT",
+        "XAU_CHF": "FLAT",
+        "GBP_JPY": "FLAT"
+      },
+      "gold": {
+        "XAU_USD": "FLAT",
+        "XAU_JPY": "FLAT",
+        "XAU_GBP": "FLAT",
+        "XAU_CHF": "FLAT"
+      },
+      "center_breakdown": true,
+      "periphery_construction": false,
+      "gold_resonance": false,
+      "triple_met": false
+    },
+    {
+      "bar_idx": 9500,
+      "timestamp": "2008-02-22T00:00:00",
+      "center": {
+        "DXY": "FLAT",
+        "USD_JPY": "FLAT",
+        "GBP_USD": "FLAT",
+        "USD_CHF": "FLAT"
+      },
+      "periphery": {
+        "XAU_JPY": "FLAT",
+        "XAU_GBP": "FLAT",
+        "XAU_CHF": "FLAT",
+        "GBP_JPY": "FLAT"
+      },
+      "gold": {
+        "XAU_USD": "FLAT",
+        "XAU_JPY": "FLAT",
+        "XAU_GBP": "FLAT",
+        "XAU_CHF": "FLAT"
+      },
+      "center_breakdown": true,
+      "periphery_construction": false,
+      "gold_resonance": false,
+      "triple_met": false
+    },
+    {
+      "bar_idx": 10000,
+      "timestamp": "2010-02-11T00:00:00",
+      "center": {
+        "DXY": "FLAT",
+        "USD_JPY": "FLAT",
+        "GBP_USD": "FLAT",
+        "USD_CHF": "FLAT"
+      },
+      "periphery": {
+        "XAU_JPY": "FLAT",
+        "XAU_GBP": "FLAT",
+        "XAU_CHF": "FLAT",
+        "GBP_JPY": "FLAT"
+      },
+      "gold": {
+        "XAU_USD": "FLAT",
+        "XAU_JPY": "FLAT",
+        "XAU_GBP": "FLAT",
+        "XAU_CHF": "FLAT"
+      },
+      "center_breakdown": true,
+      "periphery_construction": false,
+      "gold_resonance": false,
+      "triple_met": false
+    },
+    {
+      "bar_idx": 10500,
+      "timestamp": "2012-02-02T00:00:00",
+      "center": {
+        "DXY": "FLAT",
+        "USD_JPY": "FLAT",
+        "GBP_USD": "FLAT",
+        "USD_CHF": "FLAT"
+      },
+      "periphery": {
+        "XAU_JPY": "FLAT",
+        "XAU_GBP": "FLAT",
+        "XAU_CHF": "UP",
+        "GBP_JPY": "FLAT"
+      },
+      "gold": {
+        "XAU_USD": "FLAT",
+        "XAU_JPY": "FLAT",
+        "XAU_GBP": "FLAT",
+        "XAU_CHF": "UP"
+      },
+      "center_breakdown": true,
+      "periphery_construction": true,
+      "gold_resonance": false,
+      "triple_met": false
+    },
+    {
+      "bar_idx": 11000,
+      "timestamp": "2014-01-24T00:00:00",
+      "center": {
+        "DXY": "FLAT",
+        "USD_JPY": "FLAT",
+        "GBP_USD": "FLAT",
+        "USD_CHF": "FLAT"
+      },
+      "periphery": {
+        "XAU_JPY": "FLAT",
+        "XAU_GBP": "FLAT",
+        "XAU_CHF": "FLAT",
+        "GBP_JPY": "FLAT"
+      },
+      "gold": {
+        "XAU_USD": "FLAT",
+        "XAU_JPY": "FLAT",
+        "XAU_GBP": "FLAT",
+        "XAU_CHF": "FLAT"
+      },
+      "center_breakdown": true,
+      "periphery_construction": false,
+      "gold_resonance": false,
+      "triple_met": false
+    },
+    {
+      "bar_idx": 11500,
+      "timestamp": "2016-01-15T00:00:00",
+      "center": {
+        "DXY": "FLAT",
+        "USD_JPY": "FLAT",
+        "GBP_USD": "FLAT",
+        "USD_CHF": "FLAT"
+      },
+      "periphery": {
+        "XAU_JPY": "FLAT",
+        "XAU_GBP": "FLAT",
+        "XAU_CHF": "FLAT",
+        "GBP_JPY": "FLAT"
+      },
+      "gold": {
+        "XAU_USD": "FLAT",
+        "XAU_JPY": "FLAT",
+        "XAU_GBP": "FLAT",
+        "XAU_CHF": "FLAT"
+      },
+      "center_breakdown": true,
+      "periphery_construction": false,
+      "gold_resonance": false,
+      "triple_met": false
+    },
+    {
+      "bar_idx": 12000,
+      "timestamp": "2018-01-09T00:00:00",
+      "center": {
+        "DXY": "FLAT",
+        "USD_JPY": "FLAT",
+        "GBP_USD": "FLAT",
+        "USD_CHF": "FLAT"
+      },
+      "periphery": {
+        "XAU_JPY": "FLAT",
+        "XAU_GBP": "FLAT",
+        "XAU_CHF": "FLAT",
+        "GBP_JPY": "FLAT"
+      },
+      "gold": {
+        "XAU_USD": "FLAT",
+        "XAU_JPY": "FLAT",
+        "XAU_GBP": "FLAT",
+        "XAU_CHF": "FLAT"
+      },
+      "center_breakdown": true,
+      "periphery_construction": false,
+      "gold_resonance": false,
+      "triple_met": false
+    },
+    {
+      "bar_idx": 12500,
+      "timestamp": "2020-01-02T00:00:00",
+      "center": {
+        "DXY": "FLAT",
+        "USD_JPY": "FLAT",
+        "GBP_USD": "FLAT",
+        "USD_CHF": "FLAT"
+      },
+      "periphery": {
+        "XAU_JPY": "FLAT",
+        "XAU_GBP": "FLAT",
+        "XAU_CHF": "FLAT",
+        "GBP_JPY": "FLAT"
+      },
+      "gold": {
+        "XAU_USD": "FLAT",
+        "XAU_JPY": "FLAT",
+        "XAU_GBP": "FLAT",
+        "XAU_CHF": "FLAT"
+      },
+      "center_breakdown": true,
+      "periphery_construction": false,
+      "gold_resonance": false,
+      "triple_met": false
+    },
+    {
+      "bar_idx": 13000,
+      "timestamp": "2021-12-22T00:00:00",
+      "center": {
+        "DXY": "FLAT",
+        "USD_JPY": "FLAT",
+        "GBP_USD": "FLAT",
+        "USD_CHF": "FLAT"
+      },
+      "periphery": {
+        "XAU_JPY": "FLAT",
+        "XAU_GBP": "FLAT",
+        "XAU_CHF": "FLAT",
+        "GBP_JPY": "FLAT"
+      },
+      "gold": {
+        "XAU_USD": "FLAT",
+        "XAU_JPY": "FLAT",
+        "XAU_GBP": "FLAT",
+        "XAU_CHF": "FLAT"
+      },
+      "center_breakdown": true,
+      "periphery_construction": false,
+      "gold_resonance": false,
+      "triple_met": false
+    },
+    {
+      "bar_idx": 13500,
+      "timestamp": "2023-12-15T00:00:00",
+      "center": {
+        "DXY": "FLAT",
+        "USD_JPY": "FLAT",
+        "GBP_USD": "FLAT",
+        "USD_CHF": "FLAT"
+      },
+      "periphery": {
+        "XAU_JPY": "FLAT",
+        "XAU_GBP": "FLAT",
+        "XAU_CHF": "FLAT",
+        "GBP_JPY": "FLAT"
+      },
+      "gold": {
+        "XAU_USD": "FLAT",
+        "XAU_JPY": "FLAT",
+        "XAU_GBP": "FLAT",
+        "XAU_CHF": "FLAT"
+      },
+      "center_breakdown": true,
+      "periphery_construction": false,
+      "gold_resonance": false,
+      "triple_met": false
+    },
+    {
+      "bar_idx": 14000,
+      "timestamp": "2025-12-08T00:00:00",
+      "center": {
+        "DXY": "FLAT",
+        "USD_JPY": "FLAT",
+        "GBP_USD": "FLAT",
+        "USD_CHF": "FLAT"
+      },
+      "periphery": {
+        "XAU_JPY": "FLAT",
+        "XAU_GBP": "FLAT",
+        "XAU_CHF": "FLAT",
+        "GBP_JPY": "FLAT"
+      },
+      "gold": {
+        "XAU_USD": "FLAT",
+        "XAU_JPY": "FLAT",
+        "XAU_GBP": "FLAT",
+        "XAU_CHF": "FLAT"
+      },
+      "center_breakdown": true,
+      "periphery_construction": false,
+      "gold_resonance": false,
+      "triple_met": false
+    }
+  ]
+}

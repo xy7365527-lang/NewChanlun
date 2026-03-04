@@ -1,0 +1,676 @@
+{
+  "SPY_GLD": [
+    {
+      "stream_id": "SPY_GLD",
+      "bar_idx": 1250,
+      "timestamp": "2009-11-05T00:00:00",
+      "event_type": "bsp_confirmed",
+      "detail": {
+        "kind": "type3",
+        "side": "sell",
+        "level_id": 1,
+        "price": 1.6998191374009222
+      }
+    },
+    {
+      "stream_id": "SPY_GLD",
+      "bar_idx": 2447,
+      "timestamp": "2014-08-11T00:00:00",
+      "event_type": "bsp_confirmed",
+      "detail": {
+        "kind": "type3",
+        "side": "sell",
+        "level_id": 1,
+        "price": 0.8424820771005865
+      }
+    },
+    {
+      "stream_id": "SPY_GLD",
+      "bar_idx": 2447,
+      "timestamp": "2014-08-11T00:00:00",
+      "event_type": "bsp_confirmed",
+      "detail": {
+        "kind": "type3",
+        "side": "sell",
+        "level_id": 1,
+        "price": 0.8360665321781307
+      }
+    },
+    {
+      "stream_id": "SPY_GLD",
+      "bar_idx": 2654,
+      "timestamp": "2015-06-08T00:00:00",
+      "event_type": "move_reversal",
+      "detail": {
+        "prev_kind": "consolidation",
+        "prev_direction": "down",
+        "curr_kind": "consolidation",
+        "curr_direction": "up"
+      }
+    },
+    {
+      "stream_id": "SPY_GLD",
+      "bar_idx": 4554,
+      "timestamp": "2022-12-21T00:00:00",
+      "event_type": "bsp_confirmed",
+      "detail": {
+        "kind": "type3",
+        "side": "buy",
+        "level_id": 1,
+        "price": 1.2381040184123544
+      }
+    },
+    {
+      "stream_id": "SPY_GLD",
+      "bar_idx": 4554,
+      "timestamp": "2022-12-21T00:00:00",
+      "event_type": "bsp_confirmed",
+      "detail": {
+        "kind": "type3",
+        "side": "buy",
+        "level_id": 1,
+        "price": 1.2701155986465074
+      }
+    }
+  ],
+  "SPY_TLT": [
+    {
+      "stream_id": "SPY_TLT",
+      "bar_idx": 2253,
+      "timestamp": "2013-10-31T00:00:00",
+      "event_type": "move_reversal",
+      "detail": {
+        "prev_kind": "consolidation",
+        "prev_direction": "up",
+        "curr_kind": "consolidation",
+        "curr_direction": "down"
+      }
+    },
+    {
+      "stream_id": "SPY_TLT",
+      "bar_idx": 2253,
+      "timestamp": "2013-10-31T00:00:00",
+      "event_type": "bsp_confirmed",
+      "detail": {
+        "kind": "type3",
+        "side": "buy",
+        "level_id": 1,
+        "price": 1.9019131427908784
+      }
+    },
+    {
+      "stream_id": "SPY_TLT",
+      "bar_idx": 3397,
+      "timestamp": "2018-05-18T00:00:00",
+      "event_type": "move_reversal",
+      "detail": {
+        "prev_kind": "consolidation",
+        "prev_direction": "down",
+        "curr_kind": "consolidation",
+        "curr_direction": "up"
+      }
+    },
+    {
+      "stream_id": "SPY_TLT",
+      "bar_idx": 3397,
+      "timestamp": "2018-05-18T00:00:00",
+      "event_type": "bsp_confirmed",
+      "detail": {
+        "kind": "type3",
+        "side": "sell",
+        "level_id": 1,
+        "price": 1.7583216583175123
+      }
+    },
+    {
+      "stream_id": "SPY_TLT",
+      "bar_idx": 4253,
+      "timestamp": "2021-10-12T00:00:00",
+      "event_type": "bsp_confirmed",
+      "detail": {
+        "kind": "type3",
+        "side": "buy",
+        "level_id": 1,
+        "price": 1.793878844740734
+      }
+    },
+    {
+      "stream_id": "SPY_TLT",
+      "bar_idx": 4459,
+      "timestamp": "2022-08-08T00:00:00",
+      "event_type": "bsp_confirmed",
+      "detail": {
+        "kind": "type3",
+        "side": "buy",
+        "level_id": 1,
+        "price": 2.1117413699132683
+      }
+    }
+  ],
+  "GLD_TLT": [
+    {
+      "stream_id": "GLD_TLT",
+      "bar_idx": 2628,
+      "timestamp": "2015-04-30T00:00:00",
+      "event_type": "move_reversal",
+      "detail": {
+        "prev_kind": "consolidation",
+        "prev_direction": "up",
+        "curr_kind": "consolidation",
+        "curr_direction": "down"
+      }
+    },
+    {
+      "stream_id": "GLD_TLT",
+      "bar_idx": 4576,
+      "timestamp": "2023-01-25T00:00:00",
+      "event_type": "bsp_confirmed",
+      "detail": {
+        "kind": "type3",
+        "side": "sell",
+        "level_id": 1,
+        "price": 1.7174966226720942
+      }
+    },
+    {
+      "stream_id": "GLD_TLT",
+      "bar_idx": 4918,
+      "timestamp": "2024-06-05T00:00:00",
+      "event_type": "move_reversal",
+      "detail": {
+        "prev_kind": "consolidation",
+        "prev_direction": "down",
+        "curr_kind": "consolidation",
+        "curr_direction": "up"
+      }
+    },
+    {
+      "stream_id": "GLD_TLT",
+      "bar_idx": 4918,
+      "timestamp": "2024-06-05T00:00:00",
+      "event_type": "bsp_confirmed",
+      "detail": {
+        "kind": "type3",
+        "side": "sell",
+        "level_id": 1,
+        "price": 1.327249745407105
+      }
+    }
+  ],
+  "SPY": [
+    {
+      "stream_id": "SPY",
+      "bar_idx": 1650,
+      "timestamp": "2011-06-09T00:00:00",
+      "event_type": "move_reversal",
+      "detail": {
+        "prev_kind": "consolidation",
+        "prev_direction": "up",
+        "curr_kind": "consolidation",
+        "curr_direction": "down"
+      }
+    },
+    {
+      "stream_id": "SPY",
+      "bar_idx": 1650,
+      "timestamp": "2011-06-09T00:00:00",
+      "event_type": "bsp_confirmed",
+      "detail": {
+        "kind": "type3",
+        "side": "buy",
+        "level_id": 1,
+        "price": 101.04158715746318
+      }
+    },
+    {
+      "stream_id": "SPY",
+      "bar_idx": 1991,
+      "timestamp": "2012-10-15T00:00:00",
+      "event_type": "move_reversal",
+      "detail": {
+        "prev_kind": "consolidation",
+        "prev_direction": "down",
+        "curr_kind": "consolidation",
+        "curr_direction": "up"
+      }
+    },
+    {
+      "stream_id": "SPY",
+      "bar_idx": 1991,
+      "timestamp": "2012-10-15T00:00:00",
+      "event_type": "bsp_confirmed",
+      "detail": {
+        "kind": "type3",
+        "side": "sell",
+        "level_id": 1,
+        "price": 70.98124580982999
+      }
+    },
+    {
+      "stream_id": "SPY",
+      "bar_idx": 2404,
+      "timestamp": "2014-06-10T00:00:00",
+      "event_type": "bsp_confirmed",
+      "detail": {
+        "kind": "type3",
+        "side": "buy",
+        "level_id": 1,
+        "price": 85.14274750073267
+      }
+    },
+    {
+      "stream_id": "SPY",
+      "bar_idx": 3056,
+      "timestamp": "2017-01-10T00:00:00",
+      "event_type": "bsp_confirmed",
+      "detail": {
+        "kind": "type3",
+        "side": "buy",
+        "level_id": 1,
+        "price": 106.78255736158134
+      }
+    },
+    {
+      "stream_id": "SPY",
+      "bar_idx": 3578,
+      "timestamp": "2019-02-07T00:00:00",
+      "event_type": "bsp_confirmed",
+      "detail": {
+        "kind": "type3",
+        "side": "buy",
+        "level_id": 1,
+        "price": 150.23767911906552
+      }
+    }
+  ],
+  "GLD": [
+    {
+      "stream_id": "GLD",
+      "bar_idx": 1357,
+      "timestamp": "2010-04-13T00:00:00",
+      "event_type": "bsp_confirmed",
+      "detail": {
+        "kind": "type3",
+        "side": "buy",
+        "level_id": 1,
+        "price": 63.7400016784668
+      }
+    },
+    {
+      "stream_id": "GLD",
+      "bar_idx": 4021,
+      "timestamp": "2020-11-09T00:00:00",
+      "event_type": "move_reversal",
+      "detail": {
+        "prev_kind": "consolidation",
+        "prev_direction": "up",
+        "curr_kind": "consolidation",
+        "curr_direction": "down"
+      }
+    },
+    {
+      "stream_id": "GLD",
+      "bar_idx": 4021,
+      "timestamp": "2020-11-09T00:00:00",
+      "event_type": "bsp_confirmed",
+      "detail": {
+        "kind": "type3",
+        "side": "buy",
+        "level_id": 1,
+        "price": 127.80000305175781
+      }
+    },
+    {
+      "stream_id": "GLD",
+      "bar_idx": 4021,
+      "timestamp": "2020-11-09T00:00:00",
+      "event_type": "bsp_confirmed",
+      "detail": {
+        "kind": "type3",
+        "side": "buy",
+        "level_id": 1,
+        "price": 158.38999938964844
+      }
+    },
+    {
+      "stream_id": "GLD",
+      "bar_idx": 5073,
+      "timestamp": "2025-01-17T00:00:00",
+      "event_type": "move_reversal",
+      "detail": {
+        "prev_kind": "consolidation",
+        "prev_direction": "down",
+        "curr_kind": "consolidation",
+        "curr_direction": "up"
+      }
+    },
+    {
+      "stream_id": "GLD",
+      "bar_idx": 5073,
+      "timestamp": "2025-01-17T00:00:00",
+      "event_type": "bsp_confirmed",
+      "detail": {
+        "kind": "type3",
+        "side": "sell",
+        "level_id": 1,
+        "price": 133.69000244140625
+      }
+    }
+  ],
+  "TLT": [
+    {
+      "stream_id": "TLT",
+      "bar_idx": 2811,
+      "timestamp": "2016-01-21T00:00:00",
+      "event_type": "bsp_confirmed",
+      "detail": {
+        "kind": "type3",
+        "side": "buy",
+        "level_id": 1,
+        "price": 52.41940835594329
+      }
+    },
+    {
+      "stream_id": "TLT",
+      "bar_idx": 3280,
+      "timestamp": "2017-11-29T00:00:00",
+      "event_type": "bsp_confirmed",
+      "detail": {
+        "kind": "type3",
+        "side": "buy",
+        "level_id": 1,
+        "price": 74.26617053628686
+      }
+    },
+    {
+      "stream_id": "TLT",
+      "bar_idx": 3822,
+      "timestamp": "2020-01-28T00:00:00",
+      "event_type": "bsp_confirmed",
+      "detail": {
+        "kind": "type3",
+        "side": "buy",
+        "level_id": 1,
+        "price": 89.35153474427376
+      }
+    },
+    {
+      "stream_id": "TLT",
+      "bar_idx": 4286,
+      "timestamp": "2021-11-29T00:00:00",
+      "event_type": "move_reversal",
+      "detail": {
+        "prev_kind": "consolidation",
+        "prev_direction": "up",
+        "curr_kind": "trend",
+        "curr_direction": "up"
+      }
+    },
+    {
+      "stream_id": "TLT",
+      "bar_idx": 4286,
+      "timestamp": "2021-11-29T00:00:00",
+      "event_type": "bsp_confirmed",
+      "detail": {
+        "kind": "type3",
+        "side": "buy",
+        "level_id": 1,
+        "price": 129.48370585115495
+      }
+    },
+    {
+      "stream_id": "TLT",
+      "bar_idx": 4286,
+      "timestamp": "2021-11-29T00:00:00",
+      "event_type": "direction_change",
+      "detail": {
+        "prev_direction": "FLAT",
+        "curr_direction": "UP"
+      }
+    },
+    {
+      "stream_id": "TLT",
+      "bar_idx": 4920,
+      "timestamp": "2024-06-07T00:00:00",
+      "event_type": "move_reversal",
+      "detail": {
+        "prev_kind": "trend",
+        "prev_direction": "up",
+        "curr_kind": "consolidation",
+        "curr_direction": "up"
+      }
+    },
+    {
+      "stream_id": "TLT",
+      "bar_idx": 4920,
+      "timestamp": "2024-06-07T00:00:00",
+      "event_type": "direction_change",
+      "detail": {
+        "prev_direction": "UP",
+        "curr_direction": "FLAT"
+      }
+    }
+  ],
+  "XLK": [
+    {
+      "stream_id": "XLK",
+      "bar_idx": 3516,
+      "timestamp": "2018-11-06T00:00:00",
+      "event_type": "bsp_confirmed",
+      "detail": {
+        "kind": "type3",
+        "side": "buy",
+        "level_id": 1,
+        "price": 9.935096740722656
+      }
+    },
+    {
+      "stream_id": "XLK",
+      "bar_idx": 4106,
+      "timestamp": "2021-03-15T00:00:00",
+      "event_type": "bsp_confirmed",
+      "detail": {
+        "kind": "type3",
+        "side": "buy",
+        "level_id": 1,
+        "price": 11.43590373950561
+      }
+    },
+    {
+      "stream_id": "XLK",
+      "bar_idx": 4106,
+      "timestamp": "2021-03-15T00:00:00",
+      "event_type": "bsp_confirmed",
+      "detail": {
+        "kind": "type3",
+        "side": "buy",
+        "level_id": 1,
+        "price": 16.989702147968323
+      }
+    },
+    {
+      "stream_id": "XLK",
+      "bar_idx": 4821,
+      "timestamp": "2024-01-17T00:00:00",
+      "event_type": "bsp_confirmed",
+      "detail": {
+        "kind": "type3",
+        "side": "buy",
+        "level_id": 1,
+        "price": 26.98262156928092
+      }
+    },
+    {
+      "stream_id": "XLK",
+      "bar_idx": 4997,
+      "timestamp": "2024-09-27T00:00:00",
+      "event_type": "bsp_confirmed",
+      "detail": {
+        "kind": "type3",
+        "side": "buy",
+        "level_id": 1,
+        "price": 59.44851075414616
+      }
+    }
+  ],
+  "XLF": [
+    {
+      "stream_id": "XLF",
+      "bar_idx": 3413,
+      "timestamp": "2018-06-12T00:00:00",
+      "event_type": "move_reversal",
+      "detail": {
+        "prev_kind": "consolidation",
+        "prev_direction": "down",
+        "curr_kind": "consolidation",
+        "curr_direction": "up"
+      }
+    },
+    {
+      "stream_id": "XLF",
+      "bar_idx": 3413,
+      "timestamp": "2018-06-12T00:00:00",
+      "event_type": "bsp_confirmed",
+      "detail": {
+        "kind": "type3",
+        "side": "sell",
+        "level_id": 1,
+        "price": 10.632468004796461
+      }
+    },
+    {
+      "stream_id": "XLF",
+      "bar_idx": 4484,
+      "timestamp": "2022-09-13T00:00:00",
+      "event_type": "bsp_confirmed",
+      "detail": {
+        "kind": "type3",
+        "side": "buy",
+        "level_id": 1,
+        "price": 12.350134730253547
+      }
+    },
+    {
+      "stream_id": "XLF",
+      "bar_idx": 5012,
+      "timestamp": "2024-10-18T00:00:00",
+      "event_type": "bsp_confirmed",
+      "detail": {
+        "kind": "type3",
+        "side": "buy",
+        "level_id": 1,
+        "price": 22.83435514285623
+      }
+    },
+    {
+      "stream_id": "XLF",
+      "bar_idx": 5273,
+      "timestamp": "2025-11-04T00:00:00",
+      "event_type": "bsp_confirmed",
+      "detail": {
+        "kind": "type3",
+        "side": "buy",
+        "level_id": 1,
+        "price": 29.102678896918285
+      }
+    }
+  ],
+  "XLE": [
+    {
+      "stream_id": "XLE",
+      "bar_idx": 1682,
+      "timestamp": "2011-07-26T00:00:00",
+      "event_type": "move_reversal",
+      "detail": {
+        "prev_kind": "consolidation",
+        "prev_direction": "up",
+        "curr_kind": "consolidation",
+        "curr_direction": "down"
+      }
+    },
+    {
+      "stream_id": "XLE",
+      "bar_idx": 2619,
+      "timestamp": "2015-04-17T00:00:00",
+      "event_type": "move_reversal",
+      "detail": {
+        "prev_kind": "consolidation",
+        "prev_direction": "down",
+        "curr_kind": "consolidation",
+        "curr_direction": "up"
+      }
+    },
+    {
+      "stream_id": "XLE",
+      "bar_idx": 2619,
+      "timestamp": "2015-04-17T00:00:00",
+      "event_type": "bsp_confirmed",
+      "detail": {
+        "kind": "type3",
+        "side": "sell",
+        "level_id": 1,
+        "price": 17.801408834709036
+      }
+    },
+    {
+      "stream_id": "XLE",
+      "bar_idx": 2783,
+      "timestamp": "2015-12-09T00:00:00",
+      "event_type": "bsp_confirmed",
+      "detail": {
+        "kind": "type3",
+        "side": "buy",
+        "level_id": 1,
+        "price": 18.724931263091342
+      }
+    },
+    {
+      "stream_id": "XLE",
+      "bar_idx": 3930,
+      "timestamp": "2020-07-01T00:00:00",
+      "event_type": "move_reversal",
+      "detail": {
+        "prev_kind": "consolidation",
+        "prev_direction": "up",
+        "curr_kind": "consolidation",
+        "curr_direction": "down"
+      }
+    },
+    {
+      "stream_id": "XLE",
+      "bar_idx": 4244,
+      "timestamp": "2021-09-29T00:00:00",
+      "event_type": "bsp_confirmed",
+      "detail": {
+        "kind": "type3",
+        "side": "sell",
+        "level_id": 1,
+        "price": 23.570964943942972
+      }
+    },
+    {
+      "stream_id": "XLE",
+      "bar_idx": 4572,
+      "timestamp": "2023-01-19T00:00:00",
+      "event_type": "move_reversal",
+      "detail": {
+        "prev_kind": "consolidation",
+        "prev_direction": "down",
+        "curr_kind": "consolidation",
+        "curr_direction": "up"
+      }
+    },
+    {
+      "stream_id": "XLE",
+      "bar_idx": 4973,
+      "timestamp": "2024-08-23T00:00:00",
+      "event_type": "bsp_confirmed",
+      "detail": {
+        "kind": "type3",
+        "side": "buy",
+        "level_id": 1,
+        "price": 22.381352502099006
+      }
+    }
+  ]
+}

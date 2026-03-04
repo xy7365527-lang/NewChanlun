@@ -32,18 +32,18 @@
       ],
       "continuous": {
         "pearson": -0.316175,
-        "partial_corr": -0.301993
+        "partial_corr": -0.301992
       },
       "discrete": {
-        "discrete_pearson": -0.005374,
-        "beta": -0.005513,
-        "concordance": 0.502062,
+        "discrete_pearson": 0.014191,
+        "beta": 0.014565,
+        "concordance": 0.511856,
         "n_active": 3880
       },
       "classification": {
         "coupling_type": "amplitude",
         "in_kernel": true,
-        "absorption_ratio": 0.981745,
+        "absorption_ratio": 0.95177,
         "dominant_layer": "D1+D3"
       }
     },
@@ -57,20 +57,20 @@
         "C_pure"
       ],
       "continuous": {
-        "pearson": 0.297192,
-        "partial_corr": 0.216831
+        "pearson": 0.297191,
+        "partial_corr": 0.21683
       },
       "discrete": {
-        "discrete_pearson": 0.026932,
-        "beta": 0.027636,
-        "concordance": 0.518047,
-        "n_active": 3851
+        "discrete_pearson": 0.007744,
+        "beta": 0.007954,
+        "concordance": 0.508171,
+        "n_active": 3855
       },
       "classification": {
         "coupling_type": "amplitude",
         "in_kernel": true,
-        "absorption_ratio": 0.872546,
-        "dominant_layer": "D1"
+        "absorption_ratio": 0.963317,
+        "dominant_layer": "D1+D3"
       }
     },
     "E-$": {
@@ -83,19 +83,19 @@
         "$"
       ],
       "continuous": {
-        "pearson": -0.182953,
-        "partial_corr": -0.155666
+        "pearson": -0.182952,
+        "partial_corr": -0.155665
       },
       "discrete": {
-        "discrete_pearson": -0.022459,
-        "beta": -0.023044,
-        "concordance": 0.49343,
+        "discrete_pearson": -0.011808,
+        "beta": -0.012127,
+        "concordance": 0.497295,
         "n_active": 3881
       },
       "classification": {
         "coupling_type": "amplitude",
         "in_kernel": true,
-        "absorption_ratio": 0.851965,
+        "absorption_ratio": 0.922096,
         "dominant_layer": "D1"
       }
     },
@@ -113,15 +113,15 @@
         "partial_corr": -0.10787
       },
       "discrete": {
-        "discrete_pearson": 0.037259,
-        "beta": 0.037264,
-        "concordance": 0.519481,
-        "n_active": 3850
+        "discrete_pearson": 0.037887,
+        "beta": 0.037881,
+        "concordance": 0.51972,
+        "n_active": 3854
       },
       "classification": {
         "coupling_type": "amplitude",
         "in_kernel": true,
-        "absorption_ratio": 0.654547,
+        "absorption_ratio": 0.648827,
         "dominant_layer": "D1"
       }
     },
@@ -139,16 +139,16 @@
         "partial_corr": -0.23019
       },
       "discrete": {
-        "discrete_pearson": -0.010242,
-        "beta": -0.010244,
-        "concordance": 0.495715,
-        "n_active": 3851
+        "discrete_pearson": -0.044989,
+        "beta": -0.045003,
+        "concordance": 0.47808,
+        "n_active": 3855
       },
       "classification": {
         "coupling_type": "amplitude",
         "in_kernel": true,
-        "absorption_ratio": 0.955498,
-        "dominant_layer": "D1+D3"
+        "absorption_ratio": 0.804496,
+        "dominant_layer": "D1"
       }
     },
     "R-$": {
@@ -161,19 +161,19 @@
         "$"
       ],
       "continuous": {
-        "pearson": -0.069121,
-        "partial_corr": -0.156531
+        "pearson": -0.069122,
+        "partial_corr": -0.156532
       },
       "discrete": {
-        "discrete_pearson": 0.022777,
-        "beta": 0.022777,
-        "concordance": 0.512158,
-        "n_active": 3907
+        "discrete_pearson": -0.03289,
+        "beta": -0.032902,
+        "concordance": 0.4842,
+        "n_active": 3924
       },
       "classification": {
         "coupling_type": "amplitude",
         "in_kernel": true,
-        "absorption_ratio": 0.854489,
+        "absorption_ratio": 0.789807,
         "dominant_layer": "D1"
       }
     }
@@ -186,11 +186,11 @@
       "old_type": "amplitude",
       "new_in_kernel": true,
       "old_in_kernel": true,
-      "new_partial_corr": -0.301993,
+      "new_partial_corr": -0.301992,
       "old_partial_corr": -0.317,
-      "new_beta": -0.005513,
+      "new_beta": 0.014565,
       "old_beta": -0.02,
-      "new_absorption": 0.981745,
+      "new_absorption": 0.95177,
       "old_absorption": 0.949,
       "type_match": true
     },
@@ -201,11 +201,11 @@
       "old_type": "amplitude",
       "new_in_kernel": true,
       "old_in_kernel": true,
-      "new_partial_corr": -0.155666,
+      "new_partial_corr": -0.155665,
       "old_partial_corr": -0.183,
-      "new_beta": -0.023044,
+      "new_beta": -0.012127,
       "old_beta": -0.006,
-      "new_absorption": 0.851965,
+      "new_absorption": 0.922096,
       "old_absorption": 0.967,
       "type_match": true
     },
@@ -216,11 +216,11 @@
       "old_type": "amplitude",
       "new_in_kernel": true,
       "old_in_kernel": true,
-      "new_partial_corr": -0.156531,
+      "new_partial_corr": -0.156532,
       "old_partial_corr": -0.065,
-      "new_beta": 0.022777,
+      "new_beta": -0.032902,
       "old_beta": 0.05,
-      "new_absorption": 0.854489,
+      "new_absorption": 0.789807,
       "old_absorption": 0.233,
       "type_match": true
     },
@@ -231,11 +231,11 @@
       "old_type": "independent",
       "new_in_kernel": true,
       "old_in_kernel": false,
-      "new_partial_corr": 0.216831,
+      "new_partial_corr": 0.21683,
       "old_partial_corr": -0.029,
-      "new_beta": 0.027636,
+      "new_beta": 0.007954,
       "old_beta": 0.023,
-      "new_absorption": 0.872546,
+      "new_absorption": 0.963317,
       "old_absorption": null,
       "type_match": false
     },
@@ -248,9 +248,9 @@
       "old_in_kernel": false,
       "new_partial_corr": -0.10787,
       "old_partial_corr": 0.166,
-      "new_beta": 0.037264,
+      "new_beta": 0.037881,
       "old_beta": 0.009,
-      "new_absorption": 0.654547,
+      "new_absorption": 0.648827,
       "old_absorption": null,
       "type_match": false
     },
@@ -263,21 +263,21 @@
       "old_in_kernel": true,
       "new_partial_corr": -0.23019,
       "old_partial_corr": -0.414,
-      "new_beta": -0.010244,
+      "new_beta": -0.045003,
       "old_beta": -0.03,
-      "new_absorption": 0.955498,
+      "new_absorption": 0.804496,
       "old_absorption": 0.928,
       "type_match": true
     }
   },
   "verdict": {
     "scenario": "A",
-    "conclusion": "C_pure(DBA)-$(UUP) 在 ker(D) 中，吸收率=0.955。234号 C-$(GLD-UUP) 吸收率=0.928。黄金折叠是局部奇点（C-$ 吸收是 C 类资产的一般性质，不依赖黄金的 $ 计价自指）。232号底空间 B=E×C 直积结构保持。",
+    "conclusion": "C_pure(DBA)-$(UUP) 在 ker(D) 中，吸收率=0.804。234号 C-$(GLD-UUP) 吸收率=0.928。黄金折叠是局部奇点（C-$ 吸收是 C 类资产的一般性质，不依赖黄金的 $ 计价自指）。232号底空间 B=E×C 直积结构保持。",
     "cpure_dollar_classification": {
       "coupling_type": "amplitude",
       "in_kernel": true,
-      "absorption_ratio": 0.955498,
-      "dominant_layer": "D1+D3"
+      "absorption_ratio": 0.804496,
+      "dominant_layer": "D1"
     },
     "baseline_234_c_dollar": {
       "partial_corr": -0.414,
@@ -297,5 +297,5 @@
     "discrete": "BiEngine（new笔模式）-> 逐bar方向 -> 方向序列线性回归 beta",
     "classification": "classify_coupling(partial_corr, beta) from discretization_kernel.py"
   },
-  "timestamp": "2026-02-28T10:35:27.132763"
+  "timestamp": "2026-02-28T10:48:46.019368"
 }

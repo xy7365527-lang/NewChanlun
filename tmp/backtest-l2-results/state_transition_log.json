@@ -1,0 +1,29 @@
+[
+  {
+    "bar_idx": 0,
+    "bar_ts": "2004-11-18T00:00:00",
+    "new_state": "empty",
+    "held_symbol": null,
+    "cost_basis": 0.0,
+    "cumulative_recovered": 0.0,
+    "trigger": "initial"
+  },
+  {
+    "bar_idx": 2386,
+    "bar_ts": "2014-05-14T00:00:00",
+    "new_state": "base",
+    "held_symbol": "XLY",
+    "cost_basis": 27.909135818481445,
+    "cumulative_recovered": 0.0,
+    "trigger": "buy_type3_L1"
+  },
+  {
+    "bar_idx": 2387,
+    "bar_ts": "2014-05-15T00:00:00",
+    "new_state": "short_trade",
+    "held_symbol": "XLY",
+    "cost_basis": 27.909135818481445,
+    "cumulative_recovered": 0.0,
+    "trigger": "sub_sell_type3_L1"
+  }
+]
