@@ -1665,6 +1665,16 @@ nodes:
   status: 已结算
   type: meta-rule
   file: settled/344-meta-observation-v151-swarm.md
+- id: '345'
+  title: 区块拓扑内容完整性验证机制
+  status: 已结算
+  type: 工程决策
+  file: settled/345-block-integrity-verification.md
+- id: '346'
+  title: 元观察——v152-swarm 四线并行（区块完整性验证 + 活跃边辨识 + 持存修复）
+  status: 已结算
+  type: meta-rule
+  file: settled/346-meta-observation-v152-swarm.md
 edges:
   depends_on:
   - from: '136'
@@ -3525,6 +3535,12 @@ edges:
     to: '342'
   - from: '344'
     to: '343'
+  - from: '345'
+    to: '344'
+  - from: '346'
+    to: '344'
+  - from: '346'
+    to: '345'
   triggered:
   - from: '005'
     to: 005a
@@ -4994,3 +5010,7 @@ edges:
     by: '342'
   - target: '344'
     by: '343'
+  - from: '346'
+    to: '344'
+  - from: '346'
+    to: '345'
