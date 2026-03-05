@@ -42,32 +42,129 @@ logger = logging.getLogger("tightness_selection_l2")
 # 标的配置
 # ═══════════════════════════════════════════════════════════════
 
-SYMBOLS: dict[str, dict] = {
+# 名称/行业查找表——覆盖 fetch_a_shares_daily.py 中的 100+ 标的
+_SYMBOL_META: dict[str, dict] = {
     "600547": {"name": "山东黄金", "sector": "au"},
     "002155": {"name": "湖南黄金", "sector": "au"},
     "600489": {"name": "中金黄金", "sector": "au"},
+    "601899": {"name": "紫金矿业", "sector": "au"},
+    "600362": {"name": "江西铜业", "sector": "metal"},
+    "601600": {"name": "中国铝业", "sector": "metal"},
+    "603993": {"name": "洛阳钼业", "sector": "metal"},
+    "000630": {"name": "铜陵有色", "sector": "metal"},
     "600028": {"name": "中国石化", "sector": "oil"},
     "601857": {"name": "中国石油", "sector": "oil"},
     "600688": {"name": "上海石化", "sector": "oil"},
-    "601398": {"name": "工商银行", "sector": "bond"},
-    "601288": {"name": "农业银行", "sector": "bond"},
+    "601985": {"name": "中国核电", "sector": "energy"},
+    "600900": {"name": "长江电力", "sector": "energy"},
+    "600886": {"name": "国投电力", "sector": "energy"},
+    "600025": {"name": "华能水电", "sector": "energy"},
+    "003816": {"name": "中国广核", "sector": "energy"},
+    "601398": {"name": "工商银行", "sector": "bank"},
+    "601288": {"name": "农业银行", "sector": "bank"},
+    "601988": {"name": "中国银行", "sector": "bank"},
+    "601939": {"name": "建设银行", "sector": "bank"},
+    "600036": {"name": "招商银行", "sector": "bank"},
+    "601166": {"name": "兴业银行", "sector": "bank"},
+    "600016": {"name": "民生银行", "sector": "bank"},
+    "601328": {"name": "交通银行", "sector": "bank"},
+    "000001": {"name": "平安银行", "sector": "bank"},
+    "600000": {"name": "浦发银行", "sector": "bank"},
+    "002142": {"name": "宁波银行", "sector": "bank"},
+    "601318": {"name": "中国平安", "sector": "insurance"},
+    "601628": {"name": "中国人寿", "sector": "insurance"},
+    "601601": {"name": "中国太保", "sector": "insurance"},
+    "600030": {"name": "中信证券", "sector": "broker"},
+    "601211": {"name": "国泰君安", "sector": "broker"},
+    "600837": {"name": "海通证券", "sector": "broker"},
+    "000776": {"name": "广发证券", "sector": "broker"},
+    "601688": {"name": "华泰证券", "sector": "broker"},
     "600048": {"name": "保利发展", "sector": "re"},
     "000002": {"name": "万科A", "sector": "re"},
     "001979": {"name": "招商蛇口", "sector": "re"},
+    "600606": {"name": "绿地控股", "sector": "re"},
+    "002146": {"name": "荣盛发展", "sector": "re"},
+    "002244": {"name": "滨江集团", "sector": "re"},
     "002230": {"name": "科大讯飞", "sector": "tech"},
     "300059": {"name": "东方财富", "sector": "tech"},
     "000725": {"name": "京东方A", "sector": "tech"},
-    "601318": {"name": "中国平安", "sector": "finance"},
-    "600036": {"name": "招商银行", "sector": "finance"},
-    "601166": {"name": "兴业银行", "sector": "finance"},
+    "600588": {"name": "用友网络", "sector": "tech"},
+    "002415": {"name": "海康威视", "sector": "tech"},
+    "000063": {"name": "中兴通讯", "sector": "tech"},
+    "603986": {"name": "兆易创新", "sector": "tech"},
+    "002049": {"name": "紫光国微", "sector": "tech"},
+    "688981": {"name": "中芯国际", "sector": "tech"},
+    "300750": {"name": "宁德时代", "sector": "tech"},
+    "002475": {"name": "立讯精密", "sector": "tech"},
+    "300015": {"name": "爱尔眼科", "sector": "tech"},
     "600519": {"name": "贵州茅台", "sector": "consumer"},
     "000858": {"name": "五粮液", "sector": "consumer"},
     "002304": {"name": "洋河股份", "sector": "consumer"},
+    "000568": {"name": "泸州老窖", "sector": "consumer"},
+    "600809": {"name": "山西汾酒", "sector": "consumer"},
+    "603369": {"name": "今世缘", "sector": "consumer"},
+    "000596": {"name": "古井贡酒", "sector": "consumer"},
+    "600887": {"name": "伊利股份", "sector": "food"},
+    "000895": {"name": "双汇发展", "sector": "food"},
+    "603288": {"name": "海天味业", "sector": "food"},
+    "002714": {"name": "牧原股份", "sector": "food"},
+    "300498": {"name": "温氏股份", "sector": "food"},
+    "000651": {"name": "格力电器", "sector": "appliance"},
+    "000333": {"name": "美的集团", "sector": "appliance"},
+    "600690": {"name": "海尔智家", "sector": "appliance"},
+    "600104": {"name": "上汽集团", "sector": "auto"},
+    "002594": {"name": "比亚迪", "sector": "auto"},
+    "601238": {"name": "广汽集团", "sector": "auto"},
+    "000625": {"name": "长安汽车", "sector": "auto"},
+    "601127": {"name": "赛力斯", "sector": "auto"},
     "300760": {"name": "迈瑞医疗", "sector": "pharma"},
     "600276": {"name": "恒瑞医药", "sector": "pharma"},
-    "601985": {"name": "中国核电", "sector": "energy"},
-    "600900": {"name": "长江电力", "sector": "energy"},
+    "000538": {"name": "云南白药", "sector": "pharma"},
+    "600196": {"name": "复星医药", "sector": "pharma"},
+    "002007": {"name": "华兰生物", "sector": "pharma"},
+    "603259": {"name": "药明康德", "sector": "pharma"},
+    "600585": {"name": "海螺水泥", "sector": "material"},
+    "002271": {"name": "东方雨虹", "sector": "material"},
+    "601668": {"name": "中国建筑", "sector": "infra"},
+    "601390": {"name": "中国中铁", "sector": "infra"},
+    "601186": {"name": "中国铁建", "sector": "infra"},
+    "601800": {"name": "中国交建", "sector": "infra"},
+    "600019": {"name": "宝钢股份", "sector": "steel"},
+    "000709": {"name": "河钢股份", "sector": "steel"},
+    "600010": {"name": "包钢股份", "sector": "steel"},
+    "600309": {"name": "万华化学", "sector": "chemical"},
+    "002601": {"name": "龙蟒佰利", "sector": "chemical"},
+    "600352": {"name": "浙江龙盛", "sector": "chemical"},
+    "601006": {"name": "大秦铁路", "sector": "transport"},
+    "600029": {"name": "南方航空", "sector": "transport"},
+    "601111": {"name": "中国国航", "sector": "transport"},
+    "600115": {"name": "中国东航", "sector": "transport"},
+    "601021": {"name": "春秋航空", "sector": "transport"},
+    "600941": {"name": "中国移动", "sector": "telecom"},
+    "601728": {"name": "中国电信", "sector": "telecom"},
+    "600893": {"name": "航发动力", "sector": "military"},
+    "600760": {"name": "中航沈飞", "sector": "military"},
+    "601989": {"name": "中国重工", "sector": "military"},
+    "000768": {"name": "中航西飞", "sector": "military"},
+    "601012": {"name": "隆基绿能", "sector": "solar"},
+    "600438": {"name": "通威股份", "sector": "solar"},
+    "002459": {"name": "晶澳科技", "sector": "solar"},
+    "601088": {"name": "中国神华", "sector": "coal"},
+    "600188": {"name": "兖矿能源", "sector": "coal"},
+    "601898": {"name": "中煤能源", "sector": "coal"},
+    "300413": {"name": "芒果超媒", "sector": "media"},
+    "002027": {"name": "分众传媒", "sector": "media"},
+    "600398": {"name": "海澜之家", "sector": "apparel"},
 }
+
+
+def _discover_symbols(data_dir: Path) -> dict[str, dict]:
+    """自动发现 data_dir 下所有 {code}_daily.json 文件。"""
+    found: dict[str, dict] = {}
+    for p in sorted(data_dir.glob("*_daily.json")):
+        code = p.stem.replace("_daily", "")
+        found[code] = _SYMBOL_META.get(code, {"name": code, "sector": "unknown"})
+    return found
 
 DATA_DIR = _project_root / "data" / "scanner_l2"
 OUTPUT_DIR = _project_root / "data" / "tightness_selection_l2"
@@ -106,13 +203,13 @@ def _load_bars(symbol: str) -> list[Bar]:
 # ═══════════════════════════════════════════════════════════════
 
 
-def _structural_tightness(snap) -> float:
+def _structural_tightness(snap, exclude_bsp: bool = False) -> float:
     """实时结构紧度——当前 bar 时刻的瞬时 T(S)。
 
     与 scanner_l2 的 max-over-history 不同，这是瞬时值。
 
     分量：
-    - has_confirmed_bsp: +1.0
+    - has_confirmed_bsp: +1.0（exclude_bsp=True 时跳过，避免循环相关）
     - has_moves: +0.5
     - has_zhongshus: +0.3
     - 每个有 moves 的递归层: +1.0
@@ -120,7 +217,7 @@ def _structural_tightness(snap) -> float:
     """
     t = 0.0
 
-    if any(bp.confirmed for bp in snap.bsp_snapshot.buysellpoints):
+    if not exclude_bsp and any(bp.confirmed for bp in snap.bsp_snapshot.buysellpoints):
         t += 1.0
 
     if len(snap.move_snapshot.moves) > 0:
@@ -230,8 +327,9 @@ def collect_signals(symbol: str, bars: list[Bar]) -> list[SignalRecord]:
             continue
 
         t = _structural_tightness(snap)
+        t_no_bsp = _structural_tightness(snap, exclude_bsp=True)
 
-        # 1. BSP 信号
+        # 1. BSP 信号——使用 exclude_bsp tightness 避免循环相关
         for bp in snap.bsp_snapshot.buysellpoints:
             if not bp.confirmed:
                 continue
@@ -247,7 +345,7 @@ def collect_signals(symbol: str, bars: list[Bar]) -> list[SignalRecord]:
             f, m, a = _forward_metrics(bars, i, price, is_bullish, FORWARD_WINDOWS)
             records.append(SignalRecord(
                 symbol=symbol, signal_type=sig_type, bar_idx=i,
-                price=price, tightness=t,
+                price=price, tightness=t_no_bsp,
                 fwd_returns=f, mfe=m, mae=a,
             ))
 
@@ -421,14 +519,15 @@ def _normal_cdf(x: float) -> float:
 
 
 def main() -> None:
-    logger.info("=== T(S) Selection L2 Validation (v2) ===")
+    symbols = _discover_symbols(DATA_DIR)
+    logger.info("=== T(S) Selection L2 Validation (v3 — enhanced sample) ===")
     logger.info("标的数: %d, 前向窗口: %s, 预热期: %d bars",
-                len(SYMBOLS), FORWARD_WINDOWS, MIN_WARMUP_BARS)
+                len(symbols), FORWARD_WINDOWS, MIN_WARMUP_BARS)
 
     # 1. 收集所有信号
     all_records: list[SignalRecord] = []
 
-    for symbol, info in SYMBOLS.items():
+    for symbol, info in symbols.items():
         bars = _load_bars(symbol)
         if len(bars) < MIN_WARMUP_BARS + 50:
             logger.warning("数据不足: %s (%s) — %d bars, 跳过", symbol, info["name"], len(bars))
@@ -446,6 +545,27 @@ def main() -> None:
                     ", ".join(f"{k}={v}" for k, v in sorted(by_type.items())))
 
     logger.info("总信号数: %d", len(all_records))
+
+    # 过滤异常前向收益（>100% 在日线5-40 bar窗口内几乎必然是数据错误）
+    FWD_CAP = 1.0  # ±100%
+    clean_records: list[SignalRecord] = []
+    outlier_count = 0
+    for r in all_records:
+        is_outlier = any(
+            r.fwd_returns.get(k) is not None and abs(r.fwd_returns[k]) > FWD_CAP
+            for k in FORWARD_WINDOWS
+        )
+        if is_outlier:
+            outlier_count += 1
+            logger.info("  剔除异常值: %s %s bar_idx=%d fwd=%s",
+                        r.symbol, r.signal_type, r.bar_idx,
+                        {k: round(v, 4) if v else None for k, v in r.fwd_returns.items()})
+        else:
+            clean_records.append(r)
+    if outlier_count > 0:
+        logger.info("剔除 %d 个异常值信号（|fwd| > %.0f%%），剩余 %d",
+                    outlier_count, FWD_CAP * 100, len(clean_records))
+    all_records = clean_records
 
     if len(all_records) < 10:
         logger.error("信号不足（<10），无法进行有意义的 L2 验证")
@@ -514,7 +634,7 @@ def main() -> None:
             "method": "Rolling Window Forward Return + Wilcoxon rank-sum (v2)",
             "forward_windows": list(FORWARD_WINDOWS),
             "warmup_bars": MIN_WARMUP_BARS,
-            "total_symbols": len(SYMBOLS),
+            "total_symbols": len(symbols),
             "total_signals": len(all_records),
             "t_median_split": round(t_median, 4),
             "epistemology_level": "L2",
@@ -534,7 +654,7 @@ def main() -> None:
         "signal_details": [
             {
                 "symbol": r.symbol,
-                "name": SYMBOLS.get(r.symbol, {}).get("name", "?"),
+                "name": symbols.get(r.symbol, {}).get("name", "?"),
                 "type": r.signal_type,
                 "bar_idx": r.bar_idx,
                 "price": round(r.price, 4),

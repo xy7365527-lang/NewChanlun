@@ -112,9 +112,9 @@ T(S) = D(S) * L(S) * C(S)
 
 ## 下游推论
 
-1. **代码实现**：T(S) 可直接从 NestedDivergence.chain 计算，不需要额外数据源。实现为纯函数 convergence_tightness(nd: NestedDivergence) -> float
-2. **多标的扫描器**：~~scan → filter → rank 扁平管线~~（已被352号替代为：帕萨卡利亚条件设定链 → 递归区间套 + 折叠等价类构造 → 商空间排序）
-3. **收敛事件**：当 T(S) 发生变化（新级别背驰出现或旧级别背驰消失），可产生收敛事件用于实时监控
+1. **代码实现** — resolved（convergence.py已实现）：T(S) 可直接从 NestedDivergence.chain 计算，不需要额外数据源。实现为纯函数 convergence_tightness(nd: NestedDivergence) -> float
+2. **多标的扫描器** — superseded_by: 352号：~~scan → filter → rank 扁平管线~~（已被352号替代为：帕萨卡利亚条件设定链 → 递归区间套 + 折叠等价类构造 → 商空间排序）
+3. **收敛事件** — resolved（convergence_event.py已实现+测试通过）：当 T(S) 发生变化（新级别背驰出现或旧级别背驰消失），可产生收敛事件用于实时监控
 4. **回测验证（L2）**：T(S) 的选股效果需要在真实数据上验证——高 T 标的是否确实产生更高质量的买卖点。这是 L0→L2 的必要跳跃
 
 ## 影响声明
