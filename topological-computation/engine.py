@@ -67,6 +67,12 @@ class Graph:
     ) -> None:
         self._vertices: dict[str, Vertex] = dict(vertices) if vertices else {}
         self._edges: list[Edge] = list(edges) if edges else []
+        # Adjacency index: O(1) lookup by source/target
+        self._adj_out: dict[str, list[Edge]] = {}
+        self._adj_in: dict[str, list[Edge]] = {}
+        for e in self._edges:
+            self._adj_out.setdefault(e.source, []).append(e)
+            self._adj_in.setdefault(e.target, []).append(e)
 
     # -- accessors ----------------------------------------------------------
 
@@ -94,17 +100,17 @@ class Graph:
     def neighbors(self, vid: str) -> list[str]:
         """Return ids of vertices adjacent to vid (outgoing + incoming) among active vertices."""
         active = set(self.active_vertex_ids())
-        out = {e.target for e in self._edges if e.source == vid and e.target in active}
-        inc = {e.source for e in self._edges if e.target == vid and e.source in active}
+        out = {e.target for e in self._adj_out.get(vid, ()) if e.target in active}
+        inc = {e.source for e in self._adj_in.get(vid, ()) if e.source in active}
         return sorted(out | inc)
 
     def out_neighbors(self, vid: str) -> list[str]:
         active = set(self.active_vertex_ids())
-        return sorted({e.target for e in self._edges if e.source == vid and e.target in active})
+        return sorted({e.target for e in self._adj_out.get(vid, ()) if e.target in active})
 
     def in_neighbors(self, vid: str) -> list[str]:
         active = set(self.active_vertex_ids())
-        return sorted({e.source for e in self._edges if e.target == vid and e.source in active})
+        return sorted({e.source for e in self._adj_in.get(vid, ()) if e.source in active})
 
     def has_path(self, source: str, target: str) -> bool:
         """BFS on active subgraph (directed edges only)."""
@@ -120,10 +126,9 @@ class Graph:
             if cur in visited:
                 continue
             visited.add(cur)
-            for e in self._edges:
-                if e.source == cur and e.target in active and e.target not in visited:
+            for e in self._adj_out.get(cur, ()):
+                if e.target in active and e.target not in visited:
                     queue.append(e.target)
-        # Also check source == target (trivial path) — but we want non-trivial
         return False
 
     def local_subgraph(self, center: str, radius: int = 1) -> tuple[list[str], list[Edge]]:
@@ -209,7 +214,8 @@ def _connected_components(vertex_ids: list[str], edges: list[frozenset[str]]) ->
 
     for e in edges:
         pair = sorted(e)
-        union(pair[0], pair[1])
+        if len(pair) >= 2:
+            union(pair[0], pair[1])
 
     return len({find(v) for v in vertex_ids})
 
@@ -305,8 +311,8 @@ def _find_path_edges(graph: Graph, source: str, target: str) -> set[tuple[str, s
         if cur in visited:
             continue
         visited.add(cur)
-        for e in graph.edges:
-            if e.source == cur and e.target in active and e.target not in visited:
+        for e in graph._adj_out.get(cur, ()):
+            if e.target in active and e.target not in visited:
                 parent[e.target] = (e.source, e.target)
                 queue.append(e.target)
 
@@ -429,7 +435,7 @@ def fold(
     if lower_link_vids:
         ll_edges: list[frozenset[str]] = []
         for e in graph.active_edges():
-            if e.source in lower_link_vids and e.target in lower_link_vids:
+            if e.source in lower_link_vids and e.target in lower_link_vids and e.source != e.target:
                 ll_edges.append(frozenset((e.source, e.target)))
         c = _connected_components(sorted(lower_link_vids), ll_edges)
     else:
