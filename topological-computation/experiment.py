@@ -2,16 +2,30 @@
 
 5 vertices, 7 edges, β₁ ≥ 1. Run 30-50 steps.
 Check 5 success criteria.
+
+Phase 1: Topological rules.
+Phase 2: LLM-driven encounter detection (--use-llm).
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from pathlib import Path
 
 from engine import Graph, Vertex, Edge, EdgeType, compute_beta_1
 from traversal import TraversalEngine
+
+
+# Vertex content for Phase 2 LLM experiment
+VERTEX_CONTENT = {
+    "A": "All complex systems exhibit emergent behavior",
+    "B": "Emergence requires interaction between components",
+    "C": "Component interaction follows deterministic rules",
+    "D": "Deterministic rules cannot produce true novelty",
+    "E": "Complex systems produce genuinely novel outcomes",
+}
 
 
 def build_initial_graph() -> Graph:
@@ -24,10 +38,12 @@ def build_initial_graph() -> Graph:
     D --dependency--> E
     E --reference---> B    (cycle 2: B-C-D-E)
     A --reference---> D    (cross-edge)
+
+    Each vertex carries a content proposition for LLM encounter detection.
     """
     g = Graph()
     for vid in ("A", "B", "C", "D", "E"):
-        g = g.add_vertex(Vertex(vid))
+        g = g.add_vertex(Vertex(vid, content=VERTEX_CONTENT[vid]))
 
     edges = [
         Edge("A", "B", EdgeType.DEPENDENCY),
@@ -48,14 +64,21 @@ def run_experiment(
     max_steps: int = 50,
     settlement_threshold: int = 5,
     seed: int = 42,
+    use_llm: bool = False,
 ) -> dict:
     """Run the minimal experiment."""
+    mode = "LLM" if use_llm else "TOPO"
     graph = build_initial_graph()
     initial_beta = compute_beta_1(graph)
-    print(f"Initial graph: {len(graph.active_vertex_ids())} vertices, "
+    print(f"[{mode}] Initial graph: {len(graph.active_vertex_ids())} vertices, "
           f"{len(graph.active_edges())} edges, β₁ = {initial_beta}")
 
-    engine = TraversalEngine(graph, start="A", settlement_threshold=settlement_threshold, seed=seed)
+    engine = TraversalEngine(
+        graph, start="A",
+        settlement_threshold=settlement_threshold,
+        seed=seed,
+        use_llm=use_llm,
+    )
 
     for i in range(max_steps):
         log = engine.run_step()
@@ -67,7 +90,7 @@ def run_experiment(
         if log.settled_count > 0:
             marker += f" [settled={log.settled_count}]"
 
-        print(f"  Step {log.step:3d} @ {log.position:20s} | "
+        print(f"  [{mode}] Step {log.step:3d} @ {log.position:20s} | "
               f"{log.encounter:12s} → {log.operation:16s} | "
               f"β₁={log.beta_1_after} V={log.vertices_active} E={log.edges_active}"
               f"{marker}")
@@ -105,6 +128,7 @@ def run_experiment(
     }
 
     result = {
+        "mode": mode,
         "initial_beta_1": initial_beta,
         "final_beta_1": final_beta,
         "total_steps": len(engine.logs),
@@ -134,8 +158,11 @@ def run_experiment(
         ],
     }
 
+    if use_llm and engine._llm_log:
+        result["llm_log"] = engine._llm_log
+
     print(f"\n{'='*60}")
-    print(f"EXPERIMENT RESULTS")
+    print(f"EXPERIMENT RESULTS [{mode}]")
     print(f"{'='*60}")
     print(f"  β₁: {initial_beta} → {final_beta} (max={max_beta}, Δmax={max_beta - initial_beta})")
     print(f"  Steps: {len(engine.logs)}")
@@ -156,10 +183,114 @@ def run_experiment(
     return result
 
 
-if __name__ == "__main__":
-    result = run_experiment()
+def compare_results(topo: dict, llm: dict) -> dict:
+    """Generate comparison report between Phase 1 (topo) and Phase 2 (LLM) results."""
+    # Operation distribution
+    def op_distribution(result: dict) -> dict[str, int]:
+        dist: dict[str, int] = {}
+        for s in result["steps"]:
+            op = s["operation"]
+            dist[op] = dist.get(op, 0) + 1
+        return dist
 
-    out_path = Path("experiment_result.json")
-    with open(out_path, "w", encoding="utf-8") as f:
-        json.dump(result, f, indent=2, ensure_ascii=False)
-    print(f"\nResults written to {out_path}")
+    # β₁ trajectory
+    def beta_trajectory(result: dict) -> list[int]:
+        return [s["beta_1"] for s in result["steps"]]
+
+    topo_ops = op_distribution(topo)
+    llm_ops = op_distribution(llm)
+    topo_beta = beta_trajectory(topo)
+    llm_beta = beta_trajectory(llm)
+
+    comparison = {
+        "topo_summary": {
+            "final_beta_1": topo["final_beta_1"],
+            "max_beta_1": max(topo_beta) if topo_beta else 0,
+            "settled_cycles": topo["settled_cycles"],
+            "blocked_operations": topo["blocked_operations"],
+            "coverage": topo["coverage"],
+            "all_passed": topo["all_passed"],
+            "operation_distribution": topo_ops,
+        },
+        "llm_summary": {
+            "final_beta_1": llm["final_beta_1"],
+            "max_beta_1": max(llm_beta) if llm_beta else 0,
+            "settled_cycles": llm["settled_cycles"],
+            "blocked_operations": llm["blocked_operations"],
+            "coverage": llm["coverage"],
+            "all_passed": llm["all_passed"],
+            "operation_distribution": llm_ops,
+        },
+        "differences": {
+            "beta_1_final_diff": llm["final_beta_1"] - topo["final_beta_1"],
+            "settled_diff": llm["settled_cycles"] - topo["settled_cycles"],
+            "blocked_diff": llm["blocked_operations"] - topo["blocked_operations"],
+            "coverage_diff": round(llm["coverage"] - topo["coverage"], 3),
+        },
+        "beta_trajectories": {
+            "topo": topo_beta,
+            "llm": llm_beta,
+        },
+    }
+    return comparison
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Topological Computation Experiment")
+    parser.add_argument("--use-llm", action="store_true", help="Use LLM for encounter detection (Phase 2)")
+    parser.add_argument("--compare", action="store_true", help="Run both modes and compare")
+    parser.add_argument("--steps", type=int, default=50, help="Max steps (default: 50)")
+    parser.add_argument("--seed", type=int, default=42, help="Random seed (default: 42)")
+    args = parser.parse_args()
+
+    if args.compare:
+        print("=" * 60)
+        print("PHASE 1: TOPOLOGICAL RULES")
+        print("=" * 60)
+        topo_result = run_experiment(max_steps=args.steps, seed=args.seed, use_llm=False)
+
+        print("\n\n")
+        print("=" * 60)
+        print("PHASE 2: LLM ENCOUNTER DETECTION")
+        print("=" * 60)
+        llm_result = run_experiment(max_steps=args.steps, seed=args.seed, use_llm=True)
+
+        comparison = compare_results(topo_result, llm_result)
+
+        print("\n\n")
+        print("=" * 60)
+        print("PHASE COMPARISON")
+        print("=" * 60)
+        for key in ("topo_summary", "llm_summary"):
+            label = "TOPO" if "topo" in key else "LLM"
+            s = comparison[key]
+            print(f"\n  [{label}]")
+            print(f"    Final β₁: {s['final_beta_1']}, Max β₁: {s['max_beta_1']}")
+            print(f"    Settled: {s['settled_cycles']}, Blocked: {s['blocked_operations']}")
+            print(f"    Coverage: {s['coverage']:.1%}, All passed: {s['all_passed']}")
+            print(f"    Operations: {s['operation_distribution']}")
+
+        diff = comparison["differences"]
+        print(f"\n  [DIFF]")
+        print(f"    β₁ final: {diff['beta_1_final_diff']:+d}")
+        print(f"    Settled: {diff['settled_diff']:+d}")
+        print(f"    Blocked: {diff['blocked_diff']:+d}")
+        print(f"    Coverage: {diff['coverage_diff']:+.3f}")
+
+        # Write results
+        with open("experiment_result_llm.json", "w", encoding="utf-8") as f:
+            json.dump(llm_result, f, indent=2, ensure_ascii=False)
+        with open("phase_comparison.json", "w", encoding="utf-8") as f:
+            json.dump(comparison, f, indent=2, ensure_ascii=False)
+        print(f"\nResults written to experiment_result_llm.json and phase_comparison.json")
+
+    else:
+        result = run_experiment(max_steps=args.steps, seed=args.seed, use_llm=args.use_llm)
+
+        if args.use_llm:
+            out_path = Path("experiment_result_llm.json")
+        else:
+            out_path = Path("experiment_result.json")
+        with open(out_path, "w", encoding="utf-8") as f:
+            json.dump(result, f, indent=2, ensure_ascii=False)
+        print(f"\nResults written to {out_path}")
