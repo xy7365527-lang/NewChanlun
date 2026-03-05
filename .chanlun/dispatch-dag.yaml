@@ -179,7 +179,8 @@ event_skill_map:
   - id: quality-guard
     skill_type: structural
     agent: ".claude/agents/quality-guard.md"
-    purpose: "结果包检查、代码违规扫描"
+    heterogeneous_agent: ".claude/agents/gemini-challenger.md"  # 362号-5：异质审查默认，同质降级为 fallback
+    purpose: "结果包检查、代码违规扫描（默认由 gemini-challenger 异质审查）"
     triggers:
       - event: file_write
         pattern: ".chanlun/genealogy/**"
@@ -207,7 +208,8 @@ event_skill_map:
   - id: code-verifier
     skill_type: structural
     agent: ".claude/agents/code-verifier.md"
-    purpose: "代码验证——pytest运行、import检查、构建验证"
+    heterogeneous_agent: ".claude/agents/codex-challenger.md"  # 362号-5：异质审查默认，同质降级为 fallback
+    purpose: "代码验证——pytest运行、import检查、构建验证（默认由 codex-challenger 异质审查）"
     triggers:
       - event: file_write
         pattern: "src/**/*.py"

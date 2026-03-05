@@ -20,6 +20,7 @@ import pytest
 from newchan.trading.fold_equivalence import (
     DTriState,
     EquivalenceClass,
+    FOLD_WEIGHT,
     FoldChannel,
     TargetAttributes,
     build_quotient_space,
@@ -216,11 +217,11 @@ class TestWeightMapping:
     """折叠共享性权重 W 与通道的映射（352号 §4.2）。"""
 
     def test_weight_values(self) -> None:
-        assert FoldChannel.AU.value == 4
-        assert FoldChannel.OIL.value == 3
-        assert FoldChannel.BOND.value == 2
-        assert FoldChannel.RE.value == 1
-        assert FoldChannel.EQUITY.value == 1
+        assert FOLD_WEIGHT[FoldChannel.AU] == 4
+        assert FOLD_WEIGHT[FoldChannel.OIL] == 3
+        assert FOLD_WEIGHT[FoldChannel.BOND] == 2
+        assert FOLD_WEIGHT[FoldChannel.RE] == 1
+        assert FOLD_WEIGHT[FoldChannel.EQUITY] == 1
 
     def test_weight_via_equivalence_class(self) -> None:
         qs = build_quotient_space((_t("GLD", FoldChannel.AU),))
@@ -228,11 +229,9 @@ class TestWeightMapping:
 
     def test_weight_semantics(self) -> None:
         """外层折叠权重 > 内层折叠权重（292号区间套顺序）。"""
-        weights = [ch.value for ch in FoldChannel]
-        assert max(weights) == FoldChannel.AU.value
-        assert FoldChannel.AU.value > FoldChannel.OIL.value
-        assert FoldChannel.OIL.value > FoldChannel.BOND.value
-        assert FoldChannel.BOND.value > FoldChannel.RE.value
+        assert FOLD_WEIGHT[FoldChannel.AU] > FOLD_WEIGHT[FoldChannel.OIL]
+        assert FOLD_WEIGHT[FoldChannel.OIL] > FOLD_WEIGHT[FoldChannel.BOND]
+        assert FOLD_WEIGHT[FoldChannel.BOND] > FOLD_WEIGHT[FoldChannel.RE]
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -297,7 +296,7 @@ class TestDegenerateCases:
         qs = build_quotient_space(targets)
         assert all(ec.size == 1 for ec in qs)
         flat_sorted = sorted(
-            targets, key=lambda t: -t.tightness * t.fold_channel.value
+            targets, key=lambda t: -t.tightness * FOLD_WEIGHT[t.fold_channel]
         )
         for ec, t in zip(qs, flat_sorted):
             assert ec.representative.symbol == t.symbol

@@ -273,11 +273,27 @@ def compute_delta_blocks(root):
     }
 
 
+def _resolve_agent(skill, root):
+    """解析 skill 的 agent 路径：优先异质 agent，同质降级为 fallback。
+
+    362号-5：审计类工位默认使用异质审查（Gemini/Codex），同质 Claude 审查降级为 fallback。
+    heterogeneous_agent 字段存在且对应文件存在 → 使用异质 agent。
+    heterogeneous_agent 不存在或文件缺失 → 回退到同质 agent。
+    """
+    het_agent = skill.get("heterogeneous_agent")
+    if het_agent:
+        het_path = os.path.join(root, het_agent)
+        if os.path.isfile(het_path):
+            return het_agent
+    return skill.get("agent", f".claude/agents/{skill['id']}.md")
+
+
 def get_required_skills(root):
     """从 dispatch-dag 的 event_skill_map 读取 structural + 条件触发 skill 列表。
 
     每个 skill 附带 spawn_condition 字段，由 _evaluate_spawn_condition() 计算。
     353号消费断裂修复：topology-manager 和 topology-analyst 作为条件触发 skill 纳入。
+    362号-5：审计类工位优先异质 agent（heterogeneous_agent 字段），同质降级为 fallback。
     """
     dag_path = os.path.join(root, ".chanlun/dispatch-dag.yaml")
     skills = []
@@ -289,9 +305,12 @@ def get_required_skills(root):
         for skill in dag.get("event_skill_map", []):
             if (skill.get("skill_type") == "structural"
                     or skill.get("id") in condition_evaluated_skills):
+                resolved_agent = _resolve_agent(skill, root)
                 skills.append({
                     "id": skill["id"],
-                    "agent": skill.get("agent", f".claude/agents/{skill['id']}.md"),
+                    "agent": resolved_agent,
+                    "fallback_agent": skill.get("agent", f".claude/agents/{skill['id']}.md"),
+                    "heterogeneous": resolved_agent != skill.get("agent", f".claude/agents/{skill['id']}.md"),
                     "triggers": [t.get("event", "") for t in skill.get("triggers", [])],
                     "spawn_condition": False,  # 默认 False，由 main() 中调用 evaluate 填充
                 })
@@ -1418,6 +1437,8 @@ def main():
     result["settled"] = len(glob.glob(os.path.join(root, ".chanlun/genealogy/settled/*.md")))
 
     # 081号下游推论：谱系张力扫描（tensions_with 边检查）
+    # v161更新：张力扬弃（Aufhebung）——resolved 张力产出 sublation 事件，
+    #   不是简单计数。ongoing 张力保留为工位。
     tensions_found = []
     for settled_file in glob.glob(os.path.join(root, ".chanlun/genealogy/settled/*.md")):
         try:
@@ -1425,20 +1446,39 @@ def main():
                 first_lines = f.read(2000)
             # 快速检查 YAML frontmatter 中的 tensions_with
             if "tensions_with:" in first_lines and "tensions_with: []" not in first_lines:
-                # 提取文件名作为标识
                 fname = os.path.basename(settled_file)
                 tensions_found.append(fname)
         except Exception:
             pass
     if tensions_found:
         result["tensions_count"] = len(tensions_found)
-        # 缺口9修复（异质审计）：tensions_count 转化为工位，消除死数据
-        workstations.append({
-            "priority": "P3",
-            "name": f"谱系张力：{len(tensions_found)}条 tensions_with 边",
-            "status": "tensions_detected",
-            "source": "tension_scan",
-        })
+
+    # 扬弃感知：区分 ongoing 和 resolved 张力
+    try:
+        from scripts.tension_sublation import (
+            scan_ongoing_tensions,
+            scan_sublation_events,
+        )
+        ongoing = scan_ongoing_tensions(root)
+        sublation_events = scan_sublation_events(root)
+        if ongoing:
+            workstations.append({
+                "priority": "P3",
+                "name": f"谱系张力：{len(ongoing)}条 ongoing 张力",
+                "status": "tensions_ongoing",
+                "source": "tension_scan",
+            })
+        if sublation_events:
+            result["sublation_events_count"] = len(sublation_events)
+    except Exception:
+        # 降级：如果 sublation 模块不可用，回退到原始计数逻辑
+        if tensions_found:
+            workstations.append({
+                "priority": "P3",
+                "name": f"谱系张力：{len(tensions_found)}条 tensions_with 边",
+                "status": "tensions_detected",
+                "source": "tension_scan",
+            })
 
     # 二阶反馈：下游推论执行审计
     try:

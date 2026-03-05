@@ -159,6 +159,13 @@ class TestNonEquivalence:
         """EQUITY 通道与其他折叠通道不等价。"""
         assert not are_fold_equivalent(AAPL_RETAIN, GLD)
 
+    def test_re_vs_equity_not_equivalent(self) -> None:
+        """RE 通道与 EQUITY 通道不等价（L2 发现的别名 bug 回归测试）。"""
+        re_target = _target("XLRE", FoldChannel.RE, tightness=1.0)
+        eq_target = _target("AAPL", FoldChannel.EQUITY, sector="tech",
+                            tri_state=DTriState.RETAIN, tightness=1.0)
+        assert not are_fold_equivalent(re_target, eq_target)
+
 
 # ═══════════════════════════════════════════════════════════════
 # equivalence_key
@@ -287,6 +294,11 @@ class TestQuotientSpaceOrdering:
         assert FOLD_WEIGHT[FoldChannel.RE] == 1
         assert FOLD_WEIGHT[FoldChannel.EQUITY] == 1
 
+    def test_re_and_equity_are_distinct(self) -> None:
+        """RE 和 EQUITY 必须是不同的 enum 成员（L2 发现的别名 bug）。"""
+        assert FoldChannel.RE is not FoldChannel.EQUITY
+        assert FoldChannel.RE != FoldChannel.EQUITY
+
     def test_au_ranks_above_oil_at_equal_tightness(self) -> None:
         """同 T 时，Au (W=4) 排在 Oil (W=3) 前。"""
         au_target = _target("GLD", FoldChannel.AU, tightness=2.0)
@@ -393,7 +405,7 @@ class TestDegenerateCases:
         qs = build_quotient_space(targets)
         assert all(ec.size == 1 for ec in qs)
         # 扁平排序等价于 rank 排序
-        flat_sorted = sorted(targets, key=lambda t: -t.tightness * t.fold_channel.value)
+        flat_sorted = sorted(targets, key=lambda t: -t.tightness * FOLD_WEIGHT[t.fold_channel])
         for ec, t in zip(qs, flat_sorted):
             assert ec.representative.symbol == t.symbol
 
