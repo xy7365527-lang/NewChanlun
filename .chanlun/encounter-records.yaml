@@ -1,5 +1,5 @@
 version: '1.0'
-last_checked: '357'
+last_checked: '367'
 baseline:
   scan_date: '2026-03-04'
   session: v150-encounter-scan
@@ -81,7 +81,10 @@ records:
     to_mu: discrete-morse-experiment
 - detected_at: '2026-03-05T00:51:13.855917+00:00'
   genealogy_id: '357'
-  status: candidate
+  status: design_internal
+  pattern: consumption_declaration_implementation
+  audit_session: v161-swarm-r3
+  audit_rationale: 357号ceremony_scan提议器增强直接实现353号消费断裂等价性的下游推论——增强消费器以解决353号识别的消费断裂问题，是设计链的直接执行
   edge:
     from_id: '357'
     from_title: ceremony_scan 消费器到提议器增强——从被动读取到主动发现
@@ -91,3 +94,33 @@ records:
     to_title: 消费断裂与声明缺口的等价性——036号定义域扩展
     to_gang: simatrix-quanyu
     to_mu: multi-target-scanner
+- detected_at: '2026-03-05T10:55:18.886944+00:00'
+  genealogy_id: '366'
+  status: design_internal
+  pattern: fold_experiment_to_theory
+  audit_session: v161-swarm-r3
+  audit_rationale: 366号L2验证直接使用292号定义的折叠通道+共享性权重W+区间套顺序——验证对象（352号scanner）的设计依据就是292号，验证实验引用设计依据是设计链的直接体现
+  edge:
+    from_id: '366'
+    from_title: Scanner L2 验证——商空间排序 vs 扁平排序真实数据对比
+    from_gang: simatrix-quanyu
+    from_mu: scanner-post-validation
+    to_id: '292'
+    to_title: 折叠拓扑本体论——分类学之前的存在论结构
+    to_gang: block-topology
+    to_mu: fold-topology-ontology
+- detected_at: '2026-03-05T10:55:18.899423+00:00'
+  genealogy_id: '367'
+  status: design_internal
+  pattern: audit_to_mechanism_upgrade
+  audit_session: v161-swarm-r3
+  audit_rationale: 367号张力扬弃机制直接消费359号tension-audit.yaml数据——359号产出审计分类，367号将其升级为扬弃事件处理，是显式依赖链（depends_on已声明359号）
+  edge:
+    from_id: '367'
+    from_title: 张力扬弃（Aufhebung）机制——从调和到跨层级推进
+    from_gang: simatrix-quanyu
+    from_mu: scanner-post-validation
+    to_id: '359'
+    to_title: 区块拓扑张力消化审计
+    to_gang: morse-topology
+    to_mu: weighted-morse-bm
