@@ -3,7 +3,7 @@ id: '368'
 number: 368
 title: "元观察——v161-swarm 三轮推进（三角簇L2肯定 + 商空间L2确认 + 扬弃机制实现 + context耗尽重建 + ceremony中断处理）"
 type: meta-rule
-status: pending
+status: settled
 date: 2026-03-05
 source: meta-observer（二阶观察，v161-swarm 终止阶段触发）
 depends_on:
