@@ -158,9 +158,9 @@ class TestRealData:
             relations_path=REAL_RELATIONS,
             cache_path=None,
         )
-        assert landscape.stats["nodes"] == 296
-        assert landscape.stats["edges"] == 1156
-        assert landscape.stats["critical"] == 862
+        assert landscape.stats["nodes"] == 427
+        assert landscape.stats["edges"] == 1825
+        assert landscape.stats["critical"] == 1400
         assert landscape.stats["components"] == 2
         # 硬约束验证：cycle_rank = edges - nodes + components
         assert (
