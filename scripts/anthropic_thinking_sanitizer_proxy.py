@@ -24,7 +24,7 @@ import posixpath
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Dict, List, Tuple
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit
 
 import requests
 
@@ -142,7 +142,28 @@ class ProxyHandler(BaseHTTPRequestHandler):
             self.wfile.write(body)
 
     def _forward_impl(self) -> None:
-        target_url = _join_upstream(self.upstream_base, self.path)
+        # Prevent full SSRF: disallow absolute URLs in the incoming request line.
+        parsed_path = urlsplit(self.path)
+        if parsed_path.scheme or parsed_path.netloc:
+            body = json.dumps(
+                {
+                    "error": "invalid_request_path",
+                    "detail": "Absolute URLs are not allowed in request path.",
+                }
+            ).encode("utf-8")
+            self.send_response(400)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
+        # Reconstruct path+query to ensure only the path and query components are forwarded.
+        path_with_query = parsed_path.path or "/"
+        if parsed_path.query:
+            path_with_query = f"{path_with_query}?{parsed_path.query}"
+
+        target_url = _join_upstream(self.upstream_base, path_with_query)
 
         content_length = int(self.headers.get("Content-Length", "0"))
         request_body = self.rfile.read(content_length) if content_length > 0 else b""
