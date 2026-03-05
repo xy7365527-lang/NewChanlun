@@ -164,9 +164,11 @@ def extract_downstream_actions(filepath):
                 resolved_inline = True
             elif "**resolved**" in check_text or "status: resolved" in check_text:
                 resolved_inline = True
-            elif "→ [blocked:" in check_text or "`[blocked:" in check_text:
+            elif "→ [blocked:" in check_text or "`[blocked:" in check_text or "status: blocked" in check_text:
                 resolved_inline = "blocked"
-            elif "`[acknowledged:" in check_text or "→ [acknowledged:" in check_text:
+            elif "`[acknowledged:" in check_text or "→ [acknowledged:" in check_text or "status: acknowledged" in check_text:
+                resolved_inline = "blocked"
+            elif "status: amended" in check_text:
                 resolved_inline = "blocked"
             actions.append({"index": i, "text": text, "resolved_inline": resolved_inline})
 

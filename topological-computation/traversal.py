@@ -1,6 +1,7 @@
 """Traversal engine — walk + topological encounter rules.
 
-Pure Python. No LLM in Phase 1 — encounters detected by topological rules.
+Phase 1: encounters detected by topological rules.
+Phase 2: encounters detected by LLM via semantic analysis of vertex content.
 """
 
 from __future__ import annotations
@@ -53,7 +54,14 @@ class StepLog:
 class TraversalEngine:
     """Traversal + encounter detection + operation execution."""
 
-    def __init__(self, graph: Graph, start: str, settlement_threshold: int = 5, seed: int = 42):
+    def __init__(
+        self,
+        graph: Graph,
+        start: str,
+        settlement_threshold: int = 5,
+        seed: int = 42,
+        use_llm: bool = False,
+    ):
         self.k_full = graph
         self.k_active = graph  # initially same
         self.position = start
@@ -66,10 +74,93 @@ class TraversalEngine:
         self._pending_negations: list[tuple[str, str]] = []  # (thesis, antithesis) pairs
         self._nothing_streak = 0  # consecutive "nothing" steps
         self._blocked_at: dict[str, int] = {}  # position -> last blocked step (skip encounter there)
+        self._use_llm = use_llm
+        self._llm_log: list[dict] = []  # LLM call log for debugging
 
     # -- encounter detection (topological rules) ----------------------------
 
     def detect_encounter(self) -> Encounter:
+        """Detect encounter at current position.
+
+        Phase 1 (use_llm=False): topological rules.
+        Phase 2 (use_llm=True): LLM semantic analysis.
+        """
+        if self._use_llm:
+            return self._detect_encounter_llm()
+        return self._detect_encounter_topo()
+
+    def _detect_encounter_llm(self) -> Encounter:
+        """Detect encounter using LLM semantic analysis of vertex content."""
+        from llm_encounter import detect_encounter_llm
+
+        beta_1 = compute_beta_1(self.k_active)
+        settled_count = len(self.settlement.settled_cycles)
+
+        result = detect_encounter_llm(
+            position=self.position,
+            graph=self.k_active,
+            terrain=self.terrain,
+            beta_1=beta_1,
+            settled_count=settled_count,
+            pending_negations=self._pending_negations,
+        )
+
+        self._llm_log.append({
+            "step": self.step + 1,
+            "position": self.position,
+            "action": result.action,
+            "target_a": result.target_a,
+            "target_b": result.target_b,
+            "reasoning": result.reasoning,
+        })
+
+        active = set(self.k_active.active_vertex_ids())
+        neighbors = set(self.k_active.neighbors(self.position))
+
+        if result.action == "SUBLATE" and result.target_a and result.target_b:
+            # Validate: pair must be in pending negations
+            pair_valid = any(
+                (t == result.target_a and a == result.target_b)
+                or (t == result.target_b and a == result.target_a)
+                for t, a in self._pending_negations
+            )
+            if pair_valid:
+                return Encounter(
+                    EncounterType.SUBLATION, result.target_a, result.target_b,
+                    f"LLM sublation: {result.reasoning}",
+                )
+
+        if result.action == "NEGATE" and result.target_a and result.target_b:
+            a, b = result.target_a, result.target_b
+            # Validate: a is current position, b is neighbor (or vice versa)
+            if a in active and b in active and (a == self.position or b == self.position):
+                if a != self.position:
+                    a, b = b, a  # ensure a = current position
+                # Check if b is a neighbor and negation edge doesn't already exist
+                if b in neighbors:
+                    has_neg = any(
+                        e.edge_type == EdgeType.NEGATION
+                        and ((e.source == a and e.target == b) or (e.source == b and e.target == a))
+                        for e in self.k_active.active_edges()
+                    )
+                    if not has_neg:
+                        return Encounter(
+                            EncounterType.NEGATE_A, a, b,
+                            f"LLM negation: {result.reasoning}",
+                        )
+
+        if result.action == "FOLD" and result.target_a and result.target_b:
+            a, b = result.target_a, result.target_b
+            # Validate: both are neighbors
+            if a in neighbors and b in neighbors and a != b:
+                return Encounter(
+                    EncounterType.FOLD, a, b,
+                    f"LLM fold: {result.reasoning}",
+                )
+
+        return Encounter(EncounterType.NOTHING, reason=f"LLM: {result.reasoning}")
+
+    def _detect_encounter_topo(self) -> Encounter:
         """Detect encounter at current position using topological rules.
 
         Priority: Sublation > Negate_A > Fold > Negate_B > Nothing
