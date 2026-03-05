@@ -1,6 +1,7 @@
 ---
 id: "383"
-status: 生成态
+status: 已结算
+resolution: 废弃——基于错误前提("Negate=从K_active移除v")。编排者修正后正题和反题都留在K_active中，Euler-Poincare计算完全不同
 type: 矛盾发现
 negation_source: heterogeneous
 negation_form: unclassified
