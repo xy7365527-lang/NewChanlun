@@ -142,7 +142,7 @@ gang:
     next_actions: []
   - id: multi-target-scanner
     name: 多标的扫描器（递归+折叠+商空间）
-    status: active
+    status: closed
     opened_at: '352'
     next_actions:
     - type: engineering
@@ -207,6 +207,42 @@ gang:
         type: genealogy_settled
         keyword: scanner-validation
       completed_at: '2026-03-05'
+    closed_at: '2026-03-05'
+    closed_reason: 所有 next_actions 的 completion_check 均已满足
+  - id: scanner-post-validation
+    name: 扫描器L2后续（366号推论）
+    status: active
+    opened_at: '366'
+    next_actions:
+    - type: engineering
+      target: quotient-rank-default
+      description: 商空间排序作为默认排序方式——L2确认其与扁平排序产生实质差异，且差异方向与292号区间套顺序一致（外层折叠优先）（来源：366号下游推论1）
+      blocked_by: null
+      completion_check:
+        type: file_contains
+        path: src/newchan/scanner.py
+        pattern: quotient_rank
+    - type: experiment
+      target: w-weight-l3-validation
+      description: W权重敏感度分析L3验证——当前{4,3,2,1,1}有效但最优性未验证，需多标的数据（来源：366号下游推论2）
+      blocked_by: quotient-rank-default
+      completion_check:
+        type: genealogy_settled
+        keyword: w-weight-l3
+    - type: experiment
+      target: tightness-proxy-validation
+      description: 扩展tightness proxy独立验证——与350号严格定义的T(S)的一致性未确认（来源：366号下游推论3）
+      blocked_by: null
+      completion_check:
+        type: genealogy_settled
+        keyword: tightness-proxy-validation
+    - type: experiment
+      target: tightness-selection-l2
+      description: T(S)选股效果L2验证——高T标的是否确实产生更高质量的买卖点（来源：350号下游推论4）
+      blocked_by: null
+      completion_check:
+        type: genealogy_settled
+        keyword: tightness-selection-l2
 - id: block-topology
   name: 区块拓扑
   zongfangzhen_section: §八实现架构 + §八.七阶段B
@@ -365,7 +401,7 @@ gang:
   constraints:
   - id: heterogeneous-math-review
     description: 数学研究（L2验证及后续推导）的正确性判断必须经Gemini/Codex异质审查，不可由同质Claude工位独立完成（来源：362号洞察5，架构性要求，不接受成本收益消解136号）
-    source: "362"
+    source: '362'
     type: process_requirement
     scope: 所有L2+认识论等级的数学验证和证明
   mu:
@@ -431,7 +467,8 @@ gang:
       completed_at: '2026-03-05'
     - type: experiment
       target: cerf-l2-validation
-      description: L2真实数据验证——在真实relations.jsonl上运行Cerf分析。362号洞察4要求两个核心对比：(1)分岔点(特别是权重突变型)与编排者标记的"关键转折"时间对齐(precision/recall)，(2)negates边临界率vs depends_on边临界率(统计显著性)。数学正确性判断须经Gemini/Codex异质审查（来源：360号下游推论1 + 362号洞察4/5）
+      description: L2真实数据验证——在真实relations.jsonl上运行Cerf分析。362号洞察4要求两个核心对比：(1)分岔点(特别是权重突变型)与编排者标记的"关键转折"时间对齐(precision/recall)，(2)negates边临界率vs
+        depends_on边临界率(统计显著性)。数学正确性判断须经Gemini/Codex异质审查（来源：360号下游推论1 + 362号洞察4/5）
       blocked_by: discrete-cerf-bifurcation
       completion_check:
         type: genealogy_settled
@@ -445,6 +482,28 @@ gang:
       completion_check:
         type: test_file_exists
         pattern: tests/test_triangle_cluster.py
+    - type: integration
+      target: triangle-cluster-ceremony-health
+      description: 三角簇密度纳入ceremony_scan健康度指标——新谱系区间的三角簇密度若显著低于历史区间，可能意味着概念未充分互连（来源：365号下游推论1）
+      blocked_by: triangle-cluster-indicator
+      completion_check:
+        type: file_contains
+        path: scripts/ceremony_scan.py
+        pattern: triangle_cluster
+    - type: experiment
+      target: triangle-exclusive-analysis
+      description: triangle-exclusive节点列表是"被忽视的概念群"的发现线索——305-310区间高聚类系数值得后续分析（来源：365号下游推论2）
+      blocked_by: triangle-cluster-indicator
+      completion_check:
+        type: genealogy_settled
+        keyword: triangle-exclusive-analysis
+    - type: integration
+      target: dual-indicator-system
+      description: 三角簇+入度双指标体系——单指标各有盲区，双指标互补覆盖两种核心概念类型（广播式vs团簇式）（来源：365号下游推论4）
+      blocked_by: triangle-cluster-indicator
+      completion_check:
+        type: genealogy_settled
+        keyword: dual-indicator-system
     - type: experiment
       target: weighted-vs-uniform-comparison
       description: 加权Morse vs 均匀Morse对比——L2验证成功后对比precision，确定是否以加权Morse替代均匀Morse作为默认（来源：360号下游推论2）
@@ -463,3 +522,40 @@ gang:
         keyword: cerf-monitoring
       completed_at: '2026-03-05'
       completed_reason: 363号L2否定——前提不成立（分岔与关键转折无强相关），superseded
+- id: world-interface
+  name: 世界接口层（OpenClaw）
+  zongfangzhen_section: §3.4 OpenClaw资源管理层 + §八.六世界接口层 + §八.七阶段G
+  description: 系统与外部世界的接口——资源管理（算力/存储扩张收缩）、交易执行、外化内容发布。OpenClaw是编排者退出的关键环节，没有它回路每个环节只能靠编排者手动执行
+  constraints:
+  - id: security-audit-prerequisite
+    description: 所有 openclaw 工位必须在安全审计完成后才能进入工程实现阶段。接入外部API/管理资源是不可逆的高风险操作，安全审计前置是架构性要求（来源：编排者裁定）
+    source: orchestrator-ruling-v161
+    type: process_requirement
+    scope: 所有 openclaw 相关的工程实现
+  mu:
+  - id: openclaw-integration
+    name: OpenClaw接入与安全审计
+    status: active
+    opened_at: v161-swarm
+    next_actions:
+    - type: engineering
+      target: openclaw-security-audit
+      description: OpenClaw接入安全审计——审查OpenClaw API的认证机制、权限模型、数据传输安全性、密钥管理方案。产出安全审计报告，明确哪些操作可以自动化、哪些需要人工确认门槛（来源：编排者裁定"openclaw线安全最重要——接入openclaw时安全审计前置"）
+      blocked_by: null
+      completion_check:
+        type: file_exists
+        path: docs/architecture/openclaw-security-audit.md
+    - type: engineering
+      target: openclaw-api-design
+      description: OpenClaw API接入架构设计——定义系统与OpenClaw的接口边界、资源管理协议（扩张/收缩的触发条件和执行流程）、错误处理策略。不引入任何API key或credentials，仅做架构设计（来源：总方针§3.4 + §八.七阶段G）
+      blocked_by: openclaw-security-audit
+      completion_check:
+        type: file_exists
+        path: docs/architecture/openclaw-api-design.md
+    - type: engineering
+      target: openclaw-resource-protocol
+      description: 资源管理协议定义——利润→扩张算力/存储、亏损→收缩资源的形式化协议。定义扩张/收缩的触发阈值、执行步骤、回滚机制。与实盘闭环（shipen-bihuan）的利润/亏损信号对接（来源：总方针§3.4"扩张方向/收缩方向"）
+      blocked_by: openclaw-api-design
+      completion_check:
+        type: file_exists
+        path: docs/architecture/openclaw-resource-protocol.md
