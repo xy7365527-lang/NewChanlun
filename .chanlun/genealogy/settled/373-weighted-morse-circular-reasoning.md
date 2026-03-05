@@ -110,13 +110,13 @@ H₁: C_neg/C_all > E_neg/E_all  （negates 在临界集中显著过表达）
 ## 下游推论
 
 1. **正确实验应立即执行**：在 optimal_morse.py 输出的临界集上，统计 negates vs depends_on 边的分布，做 Fisher 检验。这是 B-M 研究线**真正应该做的第一步**——代码已存在（optimal_morse.py + relations.jsonl），是行动类决断，可直接执行。
-   - **status: open（可自主执行）**
+   - **status: resolved** — 379号已执行置换检验（替代 Fisher），结论为否定性（p=0.0927）
 
 2. **362号洞察1状态更新**：工具层主张降级——"加权 Morse 证明 negates 是骨架"不成立（方法论错误）；本体论主张存疑但未被否定。
-   - **status: open（需结合新实验结论后处置）**
+   - **status: resolved** — 379号置换检验否定了本体论主张的实证支持（p=0.0927），工具层已被 373号+363号双重否定
 
 3. **加权 Morse 的认识论等级重标**：加权 Morse（weighted_morse.py）的认识论等级应从"L0（代数定义）"降级为"L0（预设假设的代数形式化）"——它不是对 negates 是骨架这个命题的验证，是对这个命题的代数表达。
-   - **status: open（需修改 weighted_morse.py 文件头注释）**
+   - **status: amended** — DM2 框架错位（交易域思路滑入架构域，381号诊断）；加权 Morse 重定位取消（379号否定了 negates 过表达前提）
 
 ---
 
