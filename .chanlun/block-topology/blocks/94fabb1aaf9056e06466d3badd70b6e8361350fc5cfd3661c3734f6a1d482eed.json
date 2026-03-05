@@ -1,4 +1,5 @@
 {
+  "id": "94fabb1aaf9056e06466d3badd70b6e8361350fc5cfd3661c3734f6a1d482eed",
   "type": "event",
   "timestamp": "2026-02-28T11:30:00.000000+00:00",
   "source": "cc",
@@ -12,5 +13,6 @@
     "c6a3c4c9c6fd0ef28873b5eed2fca811e318b2d620637d4abe1363569cc226b3"
   ],
   "git_ref": "",
-  "id": "94fabb1aaf9056e06466d3badd70b6e8361350fc5cfd3661c3734f6a1d482eed"
+  "genealogy_id": "244",
+  "title": "纤维丛管道自洽后回测对比——矛盾操作归零 + 裁决翻转为平局"
 }

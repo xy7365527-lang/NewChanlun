@@ -7,8 +7,7 @@
     "title": "277号：D算子级别口径修正",
     "summary": "级别=递归深度，不是K线周期。oq5_d_operator.py从口径B重写为口径A"
   },
-  "refs": {
-    "genealogy": "277-d-operator-level-caliber-fix.md"
-  },
-  "git_ref": "f7b2e23"
+  "refs": [],
+  "git_ref": "f7b2e23",
+  "title": "277号：D算子级别口径修正"
 }

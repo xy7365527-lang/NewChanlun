@@ -1,13 +1,18 @@
 {
   "id": "217",
-  "title": "元观察——v56-swarm 并行工位隐式依赖 + ceremony_scan 误报模式",
-  "type": "meta-rule",
-  "status": "已结算",
-  "date": "2026-02-26",
+  "type": "event",
+  "timestamp": "2026-02-26T00:00:00+00:00",
   "source": "cc",
+  "content": {
+    "_migrated_genealogy_file": "217-meta-observation-v56-swarm.md",
+    "original_type": "meta-rule",
+    "status": "已结算"
+  },
+  "refs": [],
+  "git_ref": "",
+  "title": "元观察——v56-swarm 并行工位隐式依赖 + ceremony_scan 误报模式",
   "depends_on": [
     "216",
     "175"
-  ],
-  "genealogy_file": "217-meta-observation-v56-swarm.md"
+  ]
 }

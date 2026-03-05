@@ -16,5 +16,10 @@
     "full_text": "---\nid: '206'\nnumber: 206\ntitle: 纲举目张自动检测——T6 审核信号\ntype: action\nstatus: 已结算\ndate: 2026-02-25\nsource: gangju_analysis.py\ndepends_on:\n  - '205'\nrule_version_baseline:\n  claude_md_commit: \"97f3ba3186f1919ff6abf02dea4247724d47c79a\"\n  rules_dir_mtime: \"2026-02-23 21:10:15 +0000\"\n---\n\n# 206号：纲举目张自动检测——T6 审核信号（吸收到 205号-3）\n\n## 结论\n\ngangju_analysis.py 自动检测到 `audit_needed=true`，new_mu=\"Layer 3 T6 待审核\"。\n\n四分法分类：**行动类**——不携带新的概念发现，是 205号-3（\"T6 应经过 Gemini×Codex 审核\"）的重复记录。\n\n吸收到 205号-3 执行。审核完成后 205号-3 标记 resolved。\n\n## 谱系引用\n\n- 205号-3：T6 应经过 Gemini×Codex 审核（与 Layer 1/2 同等流程）\n"
   },
   "refs": [],
-  "git_ref": ""
+  "git_ref": "",
+  "genealogy_id": "206",
+  "title": "纲举目张自动检测——T6 审核信号",
+  "depends_on": [
+    "205"
+  ]
 }

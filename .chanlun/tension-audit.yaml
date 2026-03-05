@@ -1,0 +1,154 @@
+# Tension Audit — .chanlun/tension-audit.yaml
+# Generated: 2026-03-05
+# Scanned: 14 genealogy entries with tensions_with edges
+# Total unique tension edges: 15
+#
+# Classification:
+#   resolved — tension resolved by subsequent genealogy entry
+#   ongoing — tension still active, no resolution found
+#   historical — tension in negated framework, preserved as record (132号 valid_until)
+
+tensions:
+  # ===== Group 1: 007/008/009 三角形 =====
+  # 概念互补张力（129号确认：非互斥）
+  # 010号综合解决：构造层/分类层二层架构消解表面矛盾
+
+  - from: "007"
+    to: "008"
+    description: "趋势是独立实体 vs 唯一有效的就是中枢"
+    classification: resolved
+    resolved_by: "010"
+    evidence: "010号将007/008/009三条谱系的表面矛盾综合为构造层/分类层二层架构"
+
+  - from: "007"
+    to: "009"
+    description: "趋势是独立实体 vs 盘整理论上可省略"
+    classification: resolved
+    resolved_by: "010"
+    evidence: "010号确立二层架构——构造层中盘整可省略，分类层中盘整是实体，不矛盾"
+
+  - from: "008"
+    to: "009"
+    description: "级别靠中枢不靠趋势 vs 盘整双重性"
+    classification: resolved
+    resolved_by: "010"
+    evidence: "010号确立二层架构，129号确认：概念互补张力，非互斥"
+
+  # ===== Group 2: 012/013/019d 三角形 =====
+  # 谱系发现引擎 vs 蜂群结构工位 vs 张力检查深度
+
+  - from: "012"
+    to: "013"
+    description: "谱系是发现引擎（碰撞产新知）vs 工位是结构性的（不是碰撞产物）"
+    classification: resolved
+    resolved_by: "020"
+    evidence: "020号统一本体论声明中将012/013张力定位为构成性矛盾的运行实例——012驱动碰撞，013驱动汇总，两者是同一过程的两个相位"
+
+  - from: "012"
+    to: "019d"
+    description: "谱系发现引擎（递归无界）vs 张力检查深度限制"
+    classification: resolved
+    resolved_by: "019d"
+    evidence: "019d自身结算了递归深度问题——从固定深度改为结构完成检测（背驰+分型），与012不矛盾"
+
+  - from: "013"
+    to: "012"
+    description: "工位结构 vs 谱系发现引擎（反向边）"
+    classification: resolved
+    resolved_by: "020"
+    evidence: "与012→013同一张力的反向记录，020号同样解决"
+
+  # ===== Group 3: 062/064/065 三角形 =====
+  # 121号已确认065被068否定后张力自动失效
+
+  - from: "062"
+    to: "065"
+    description: "异质性作为Sinthome vs 六条连续流形张力"
+    classification: historical
+    valid_until: "068"
+    evidence: "121号确认：065被068否定后（范式从连续流形转为离散图论），065的tensions_with边自动失效。132号引入valid_until字段规范化此状态"
+
+  - from: "064"
+    to: "065"
+    description: "拉康拓扑异质对话 vs 六条连续流形张力"
+    classification: historical
+    valid_until: "068"
+    evidence: "同上——065被068否定，基于连续流形语言的张力失效。064本身未被否定但其与065的张力基于连续流形框架"
+
+  - from: "065"
+    to: "062"
+    description: "六条张力 vs 异质性Sinthome（反向边）"
+    classification: historical
+    valid_until: "068"
+    evidence: "065自身被068否定。062被064+093部分否定/扬弃，但张力失效的直接原因是065的框架被否定"
+
+  - from: "065"
+    to: "064"
+    description: "六条张力 vs 拉康拓扑异质对话（反向边）"
+    classification: historical
+    valid_until: "068"
+    evidence: "同上——065被068否定，此张力随之失效"
+
+  # ===== Group 4: 139号 — ESC权分离提案 =====
+
+  - from: "139"
+    to: "原则0的ESC权"
+    description: "ESC/分类权分离提案要求编排者可以选择不行使分类权，改变编排者角色定义但不取消ESC权"
+    classification: ongoing
+    notes: "139号的ESC/分类权分离是语法记录候选，目前无后续谱系明确解决此张力。编排者角色定义未因此变更"
+
+  # ===== Group 5: 166-169号 — 拉康拓扑四概念 =====
+  # Gemini异质质询中识别的概念张力
+
+  - from: "166"
+    to: "139号亏格重定义"
+    description: "puncture与genus是不同拓扑操作，DAG节点增加不等同于流形genus增加"
+    classification: ongoing
+    notes: "离散/连续范畴差异未完全解决。139号重定义消除部分混淆但未覆盖全部"
+
+  - from: "167"
+    to: "异步自指=Che vuoi"
+    description: "t审查t-1是想象界时间性自指，不是符号界异质性断裂。Che vuoi需要真正的他者"
+    classification: ongoing
+    notes: "Gemini指出的范畴错误——想象界自指 vs 符号界断裂。未有后续谱系明确回应"
+
+  - from: "168"
+    to: "alienation前提缺失"
+    description: "拉康的separation以alienation为绝对前提。蜂群是否经历过alienation？"
+    classification: ongoing
+    notes: "089号扬弃是否可视为alienation的对应待澄清"
+
+  - from: "169"
+    to: "话语结构判定"
+    description: "蜂群当前是大学话语(S2->a)还是089扬弃后打破了纯大学话语？"
+    classification: ongoing
+    notes: "Gemini指出S2来源从外部法则变为内在先验——是否改变代理位置待澄清"
+
+# ===== Summary =====
+summary:
+  total_tensions: 15
+  resolved: 6
+  historical: 4
+  ongoing: 5
+  escalate: 0
+
+  resolved_list:
+    - "007↔008: by 010号"
+    - "007↔009: by 010号"
+    - "008↔009: by 010号"
+    - "012↔013: by 020号"
+    - "012↔019d: by 019d号"
+    - "013↔012: by 020号"
+
+  historical_list:
+    - "062↔065: valid_until 068号"
+    - "064↔065: valid_until 068号"
+    - "065↔062: valid_until 068号"
+    - "065↔064: valid_until 068号"
+
+  ongoing_list:
+    - "139↔原则0的ESC权"
+    - "166↔139号亏格重定义"
+    - "167↔异步自指=Che vuoi"
+    - "168↔alienation前提缺失"
+    - "169↔话语结构判定"

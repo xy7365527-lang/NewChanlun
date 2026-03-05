@@ -1,4 +1,5 @@
 {
+  "id": "ca8a16bc5244eb5844e32bb0ed16d4d9cdb87a1b84ff3d39dab344803e25082f",
   "type": "event",
   "timestamp": "2026-02-28T20:00:00.000000+00:00",
   "source": "cc",
@@ -13,5 +14,6 @@
     "d26f99fb0721c10e967558aa2f0fd4417e71b0b77f8c1258122ee6736f4e0992"
   ],
   "git_ref": "",
-  "id": "ca8a16bc5244eb5844e32bb0ed16d4d9cdb87a1b84ff3d39dab344803e25082f"
+  "genealogy_id": "265",
+  "title": "操作方法论——帕萨卡利亚模型（三层条件设定 + 多重赋格）"
 }

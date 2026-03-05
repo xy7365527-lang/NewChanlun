@@ -1,4 +1,5 @@
 {
+  "id": "812aec721e445cee9c9fd57783456cb84adeceea86ebb7f9e8c3b6cc81eb588c",
   "type": "event",
   "timestamp": "2026-02-28T09:00:00.000000+00:00",
   "source": "cc",
@@ -11,5 +12,6 @@
     "fa8068d6c73fd4aec1f295e98fa7c2847c50fa22a00f9194d655b4c187406833"
   ],
   "git_ref": "",
-  "id": "812aec721e445cee9c9fd57783456cb84adeceea86ebb7f9e8c3b6cc81eb588c"
+  "genealogy_id": "240",
+  "title": "纤维丛上下文集成——FiberTradingContext 接入策略层"
 }

@@ -1,4 +1,5 @@
 {
+  "id": "5962a412f921f32335c1e9ef2eb96c29d5e3db66e6f5df5d2aa9e66b0cac98a1",
   "type": "event",
   "timestamp": "2026-02-28T06:30:00.000000+00:00",
   "source": "cc",
@@ -12,5 +13,6 @@
     "ec588951a3529a30a5d163fd7645265df3bbc262fffed6a3e3a3d06af82b0786"
   ],
   "git_ref": "",
-  "id": "5962a412f921f32335c1e9ef2eb96c29d5e3db66e6f5df5d2aa9e66b0cac98a1"
+  "genealogy_id": "235",
+  "title": "离散化算子 D 的三态分类——吸收/保留/放大"
 }

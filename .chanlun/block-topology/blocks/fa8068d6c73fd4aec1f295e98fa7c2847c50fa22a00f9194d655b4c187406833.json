@@ -1,4 +1,5 @@
 {
+  "id": "fa8068d6c73fd4aec1f295e98fa7c2847c50fa22a00f9194d655b4c187406833",
   "type": "event",
   "timestamp": "2026-02-28T08:00:00.000000+00:00",
   "source": "cc",
@@ -12,5 +13,6 @@
     "5962a412f921f32335c1e9ef2eb96c29d5e3db66e6f5df5d2aa9e66b0cac98a1"
   ],
   "git_ref": "",
-  "id": "fa8068d6c73fd4aec1f295e98fa7c2847c50fa22a00f9194d655b4c187406833"
+  "genealogy_id": "236",
+  "title": "纤维丛集成——直积近似 vs 纤维丛精确解的策略偏差量化"
 }

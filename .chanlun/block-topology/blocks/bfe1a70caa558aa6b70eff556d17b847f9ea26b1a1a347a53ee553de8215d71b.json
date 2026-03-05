@@ -1,4 +1,5 @@
 {
+  "id": "bfe1a70caa558aa6b70eff556d17b847f9ea26b1a1a347a53ee553de8215d71b",
   "type": "event",
   "timestamp": "2026-02-28T09:00:00.000000+00:00",
   "source": "cc",
@@ -12,5 +13,6 @@
     "be9a52f26ce32237f45c99955ff5cdc2f969ef95187287f40ad7fa597f702986"
   ],
   "git_ref": "",
-  "id": "bfe1a70caa558aa6b70eff556d17b847f9ea26b1a1a347a53ee553de8215d71b"
+  "genealogy_id": "239",
+  "title": "方向性力度——不依赖幅度的走势强度度量（∉ ker(D)）"
 }

@@ -8,5 +8,7 @@
     "genealogy_id": "275"
   },
   "refs": [],
-  "git_ref": "0ef4ae58916f2a9a5b8ced4d49167862489d0c23"
+  "git_ref": "0ef4ae58916f2a9a5b8ced4d49167862489d0c23",
+  "genealogy_id": "275",
+  "title": "局部依赖原则"
 }

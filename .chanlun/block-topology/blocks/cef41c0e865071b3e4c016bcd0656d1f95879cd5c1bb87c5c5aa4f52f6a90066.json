@@ -1,8 +1,12 @@
 {
   "id": "cef41c0e865071b3e4c016bcd0656d1f95879cd5c1bb87c5c5aa4f52f6a90066",
-  "number": 204,
-  "source_file": ".chanlun/genealogy/settled/204-shelving-pattern.md",
   "type": "event",
-  "created": "2026-02-25T20:18:39.553628",
-  "source": "cc"
+  "timestamp": "2026-02-25T20:18:39.553628",
+  "source": "cc",
+  "content": {
+    "source_file": ".chanlun/genealogy/settled/204-shelving-pattern.md"
+  },
+  "refs": [],
+  "git_ref": "",
+  "genealogy_id": "204"
 }

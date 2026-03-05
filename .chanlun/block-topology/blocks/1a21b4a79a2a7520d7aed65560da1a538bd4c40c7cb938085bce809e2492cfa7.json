@@ -19,5 +19,11 @@
     "full_text": "---\nid: '282'\nnumber: 282\ntitle: 元观察——v127-swarm 终止 session（无新发现）\ntype: meta-rule\nstatus: 已结算\ndate: 2026-03-01\nsource: meta-observer 二阶观察（Lead 接手）\nsession: v127-swarm-terminate\ndepends_on:\n  - '281'   # v124-swarm 元观察\n  - '260'   # context compaction 后 team 状态丢失\ntensions_with: []\ntopo_effect: \"\"\ndownstream_inferences: []\nrule_version_baseline:\n  claude_md_commit: \"97f3ba3186f1919ff6abf02dea4247724d47c79a\"\n  rules_dir_mtime: \"2026-03-01 00:27:49 +0000\"\n---\n\n# 282号：v127-swarm 终止 session 元观察——无新发现\n\n## 递归判断\n\n任务不可分解，因为：session 极短（编排者终止指令 + 清理操作），二阶观察是单一分析。\n\n## 观察对象\n\nv127-swarm 终止 session：编排者指令终止蜂群，清理残留 team/task 目录。\n\n## 观察结果\n\n### 观察1（收敛信号）：team 目录残留积累\n\n清理过程中发现 v121-swarm、v125-swarm 两个历史残留 team 目录 + 一个孤立 UUID task 目录。\n\n与260号（context compaction 后 team 状态丢失）是同一模式的文件系统层面表现。team 目录在蜂群终止后未被自动清理。已由260号覆盖。\n\n### 观察2（收敛信号）：编排者直接执行决断\n\n编排者选择\"脚本直接执行\"替代\"蜂群轮询跑实验\"。这是合理的成本收益决断——实验脚本已完成，swarm ceremony 的调度开销大于直接运行。属于选择类，编排者已裁定。\n\n### 观察3：无规则违反、无语法记录候选、无新发散信号\n\nSession 极短，Lead 行为合规（直接执行清理，未提不必要的问题）。无新模式出现。\n\n## 结论\n\n全部收敛。无需 `/escalate`。\n"
   },
   "refs": [],
-  "git_ref": ""
+  "git_ref": "",
+  "genealogy_id": "282",
+  "title": "元观察——v127-swarm 终止 session（无新发现）",
+  "depends_on": [
+    "281",
+    "260"
+  ]
 }

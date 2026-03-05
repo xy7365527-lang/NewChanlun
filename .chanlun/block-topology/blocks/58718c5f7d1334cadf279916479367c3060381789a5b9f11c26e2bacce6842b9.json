@@ -13,5 +13,7 @@
     "6a1ea73e25fde4c15bf5a4f32ca2c2e8a8d5c3ab2b662cc350a9fdfdcc4b2c48",
     "3cc72fade078447b67d26770c08ee64b34e5aadc22b6da473dee0ffc63da8e51"
   ],
-  "git_ref": ""
+  "git_ref": "",
+  "genealogy_id": "261",
+  "title": "元观察——v109-swarm 批量结算 + 操作语义标注 + 递归缺失诊断的方法论信号"
 }

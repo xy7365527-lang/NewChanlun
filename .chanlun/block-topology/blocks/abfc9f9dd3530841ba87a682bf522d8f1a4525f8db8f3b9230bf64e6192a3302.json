@@ -26,5 +26,14 @@
     "full_text": "---\nid: \"073\"\ntitle: \"蜂群能修改一切——全可变性原则与人类本体论锚点\"\ntype: \"语法记录\"\nstatus: \"已结算\"\ndate: \"2026-02-21\"\ndepends_on: [\"069\", \"005a\", \"005b\", \"057\", \"058\"]\nnegation_source: \"\"\nnegation_form: \"\"\nnegates: []\nnegated_by: [\"073a\"]\n---\n\n# 073: 蜂群能修改一切——全可变性原则与人类本体论锚点\n\n## 矛盾\n\n递归拓扑异步自指蜂群声称\"自指\"，但实际上不能修改自己的拓扑（dispatch-dag）、行为定义（agents/）、免疫系统（hooks/）、启动协议（ceremony）。框架不可修改 = 系统在固定轨道上运行 = \"自指\"只是\"自读\"。\n\n## 推导链\n\n1. 005a/005b：对象否定对象。\"绝对不可修改\"= 非对象来源的否定 = 违反语法规则。\n2. 069号：创世 Gap 不可消除。但这说的是 bootstrap 点不可消除，不是 bootstrap 工具不可修改。\n3. 057号：LLM 不是状态机。确定性逻辑由 Python 脚本执行。\n4. 蜂群在 t 时刻修改 ceremony_scan.py，t+1 时刻的蜂群用修改后的版本启动——这就是异步自指。\n\n## 结论（原则 0）\n\n**蜂群能修改一切，包括自身。** 所有递归拓扑异步自指蜂群遵循此原则。\n\n安全保障三机制：\n1. **git**——所有修改可追溯、可回滚\n2. **ESC**——人类随时中断（本体论锚点）\n3. **产出物验证**——hooks 验证格式合规但不阻止\n\n## 三个子决策\n\n### 子决策 1：ceremony_scan.py 的定位\n创世 Gap 的工程实现，处于拓扑之外。蜂群可以修改它（异步自指），但它本身不需要是递归拓扑异步自指的。\n\n### 子决策 2：人类是本体论锚点\n系统内部没有绝对不可变的静态锚点。系统之所以还是\"缠论形式化系统\"，是因为人类在看着它演化并在偏离时按 ESC。\n\n### 子决策 3：拓扑必需节点可修改\n蜂群可以生成新的 dispatch-dag（用新拓扑否定旧拓扑），重新定义什么是\"必需\"的。没有先验不可变结构。\n\n## 边界条件\n\n- 蜂群修改 dispatch-dag 导致 t+1 系统无法启动 → 人类回滚\n- 蜂群\"恶意合规\" → 引入交叉验证（agent 否定 agent）\n- 人类完全退出 → 系统身份退化为不受约束的演化走势\n\n## 下游推论\n\n1. 所有 write-guard hooks 从 block 改为 validate+allow\n2. genealogy-write-guard 和 result-package-guard 也应改为 allow+警告（当前仍在 block）\n3. dispatch-dag 的 mandatory 列表可被蜂群修改——Stop hook 自动适应\n4. 仪式（ritual）从强制门控降为推荐流程\n5. 结构修改提案从\"需人类批准\"改为\"直接执行，ESC 可中断\"\n\n## 影响声明\n\n| 变更 | 之前 | 之后 |\n|------|------|------|\n| spec-write-guard | block | allow + 记录 |\n| definition-write-guard | block | allow + 警告 |\n| CLAUDE.md 原则 0 | 不存在 | 蜂群能修改一切 |\n| 定义变更仪式 | 强制门控 | 推荐流程 |\n| 结构修改提案 | 需人类批准 | 直接执行，ESC 可中断 |\n| dispatch-dag mandatory | 不可修改 | 可修改 |\n"
   },
   "refs": [],
-  "git_ref": ""
+  "git_ref": "",
+  "genealogy_id": "073",
+  "title": "蜂群能修改一切——全可变性原则与人类本体论锚点",
+  "depends_on": [
+    "069",
+    "005a",
+    "005b",
+    "057",
+    "058"
+  ]
 }

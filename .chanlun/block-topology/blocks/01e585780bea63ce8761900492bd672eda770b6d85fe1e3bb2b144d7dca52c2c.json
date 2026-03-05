@@ -13,5 +13,7 @@
     "full_text": "---\nid: '197'\ntitle: 纲举目张自动检测——Layer 2 T8 就绪\ntype: 概念发现\nstatus: 已结算\ndate: 2026-02-25\nsource: gangju_analysis.py\naudit_targets:\n  - 'Layer 2 T8 就绪'\nsettlement_evidence:\n  - 'T8 实现: src/newchan/a_topology.py (check_divergence_topology)'\n  - 'Gemini Round 2 APPROVED: .chanlun/review-results/plan-review-layer2-gemini-round2.md'\n  - 'Codex Round 2 APPROVED: .chanlun/review-results/plan-review-layer2-codex-round2.md'\n  - '1938 测试全通过'\n---\n\n# 197号：纲举目张自动检测——Layer 2 T8 就绪\n\n## 来源标注\n\n[gangju_analysis.py 自动生成] audit_needed=true, new_mu=1 项\n\n## 待质询目标\n\n### Layer 2 T8 就绪\n\n**触发原因**: Layer 1 审核共识 + gauge 经验验证均 filled → T8 背驰拓扑化可启动\n\n**质询结果**: T8 已实现并通过 Gemini×Codex 2轮严格审核。\n\n实现内容：\n- T8Result dataclass + 4 辅助函数 + check_divergence_topology 主函数\n- 背驰 ⇔ W₁(Dgm(C)) ≤ W₁(Dgm(A)) - η（Wasserstein-1 带容差单调下降）\n- inconclusive 判定：任一侧无中枢 → 数据不足（Gemini×Codex 共识：理解B）\n- gauge_equivalence_report 增强：t7_recursive_order + t8_divergence_topology\n\n审核历程：\n- Round 1: NOT APPROVED（inconclusive 判定 and→or + 索引空间一致性）\n- Round 2: 双方 APPROVED\n\n## 边界条件\n\n- T8 是后验验证层，不替代现有 MACD 三维度 OR 判定\n- 任一侧无中枢时标记 inconclusive（非 passed/failed）\n- 仿射规范化 span ≤ 0 时退化为原始条形码\n- 级别 > 0 时索引空间需保持一致（已修复）\n\n## 下游推论\n\n- Layer 2 完成 → 纲举目张体系中 T8 从\"就绪\"变为\"已实现\" → [blocked: gangju-update 工位待实现]\n- 下一阶段：Layer 3 (T6 Leray) 或真实市场数据验证（195号-5 长期项） → [blocked: 长期项]\n"
   },
   "refs": [],
-  "git_ref": ""
+  "git_ref": "",
+  "genealogy_id": "197",
+  "title": "纲举目张自动检测——Layer 2 T8 就绪"
 }

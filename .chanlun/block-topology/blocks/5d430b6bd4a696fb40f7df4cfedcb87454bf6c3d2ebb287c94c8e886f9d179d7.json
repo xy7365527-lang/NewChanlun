@@ -8,5 +8,7 @@
     "genealogy_id": "274"
   },
   "refs": [],
-  "git_ref": "0ef4ae58916f2a9a5b8ced4d49167862489d0c23"
+  "git_ref": "0ef4ae58916f2a9a5b8ced4d49167862489d0c23",
+  "genealogy_id": "274",
+  "title": "废除 depth_budget 和 max_rescan_depth"
 }
