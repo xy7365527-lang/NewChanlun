@@ -158,9 +158,46 @@ gang:
       completion_check:
         type: test_file_exists
         pattern: tests/test_quotient_rank.py
+      completed_at: '2026-03-05'
+    - type: engineering
+      target: convergence-tightness-impl
+      description: 收敛紧度纯函数实现——T(S)=D(S)*L(S)*C(S)从NestedDivergence链计算（来源：350号下游推论1）
+      blocked_by: null
+      completion_check:
+        type: file_exists
+        path: src/newchan/convergence.py
+      completed_at: '2026-03-05'
+    - type: engineering
+      target: scanner-pool-generation
+      description: 标的池生成器——帕萨卡利亚条件设定链（层0→层1→层2），从活跃截面到目标矩阵到标的池（来源：352号下游推论1a + §2）
+      blocked_by: null
+      completion_check:
+        type: test_file_exists
+        pattern: tests/test_pool_generation.py
+    - type: integration
+      target: scanner-fugue-interface
+      description: 扫描器→赋格状态机接口——扫描器输出rep([S])接入349号SCANNING→POSITION_OPEN转移（来源：352号下游推论2）
+      blocked_by: scanner-quotient-rank
+      completion_check:
+        type: test_file_exists
+        pattern: tests/test_scanner_fugue_interface.py
+    - type: engineering
+      target: scanner-fold-lifecycle
+      description: 折叠生命周期监控——等价类折叠通道标记接入300号折叠生命周期测度论签名，折叠重新结算期标注信号可疑（来源：352号下游推论3）
+      blocked_by: scanner-fold-equivalence
+      completion_check:
+        type: test_file_exists
+        pattern: tests/test_fold_lifecycle.py
+    - type: engineering
+      target: convergence-event
+      description: 收敛事件产生器——当T(S)变化（新级别背驰出现/消失）时产生收敛事件用于实时监控（来源：350号下游推论3）
+      blocked_by: convergence-tightness-impl
+      completion_check:
+        type: test_file_exists
+        pattern: tests/test_convergence_event.py
     - type: experiment
       target: scanner-l2-validation
-      description: 商空间排序 vs 扁平排序对比验证——真实多标的数据上验证折叠合并和W权重的选股效果（来源：352号下游推论4）
+      description: 商空间排序 vs 扁平排序对比验证——真实多标的数据上验证折叠合并和W权重的选股效果（来源：352号下游推论4 + 350号下游推论4，两者合并）
       blocked_by: scanner-quotient-rank
       completion_check:
         type: genealogy_settled
@@ -340,7 +377,7 @@ gang:
       completed_at: '2026-03-04'
   - id: weighted-morse-bm
     name: 加权Morse理论（阶段B-M）
-    status: closed
+    status: active
     opened_at: '355'
     next_actions:
     - type: experiment
@@ -350,6 +387,7 @@ gang:
       completion_check:
         type: test_file_exists
         pattern: tests/test_optimal_morse.py
+      completed_at: '2026-03-05'
     - type: experiment
       target: weighted-morse-edges
       description: 按关系类型加权构造 Morse 函数。权重序：negates > supersedes > references > depends_on。验证加权 Morse 是否比均匀 Morse 更好地预测"关键否定"
@@ -357,6 +395,7 @@ gang:
       completion_check:
         type: test_file_exists
         pattern: tests/test_weighted_morse.py
+      completed_at: '2026-03-05'
     - type: experiment
       target: discrete-cerf-bifurcation
       description: 离散 Cerf 理论片段——找到临界集质变的谱系编号 t（分岔点），与编排者标记的关键转折对比
@@ -364,5 +403,25 @@ gang:
       completion_check:
         type: genealogy_settled
         keyword: cerf-bifurcation
-    closed_at: '2026-03-05'
-    closed_reason: 所有 next_actions 的 completion_check 均已满足
+      completed_at: '2026-03-05'
+    - type: experiment
+      target: cerf-l2-validation
+      description: L2真实数据验证——在真实relations.jsonl上运行Cerf分析，分岔点与编排者标记的"关键转折"对比（来源：360号下游推论1）
+      blocked_by: discrete-cerf-bifurcation
+      completion_check:
+        type: genealogy_settled
+        keyword: cerf-l2-validation
+    - type: experiment
+      target: weighted-vs-uniform-comparison
+      description: 加权Morse vs 均匀Morse对比——L2验证成功后对比precision，确定是否以加权Morse替代均匀Morse作为默认（来源：360号下游推论2）
+      blocked_by: cerf-l2-validation
+      completion_check:
+        type: genealogy_settled
+        keyword: weighted-vs-uniform
+    - type: integration
+      target: cerf-monitoring-signal
+      description: Cerf分岔监控信号集成——如果L2确认分岔点与关键转折强相关，将Cerf分岔检测集成到ceremony_scan作为拓扑结构质变预警（来源：360号下游推论3）
+      blocked_by: weighted-vs-uniform-comparison
+      completion_check:
+        type: genealogy_settled
+        keyword: cerf-monitoring
