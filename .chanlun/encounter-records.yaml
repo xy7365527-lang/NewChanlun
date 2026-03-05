@@ -1,5 +1,5 @@
 version: '1.0'
-last_checked: '355'
+last_checked: '357'
 baseline:
   scan_date: '2026-03-04'
   session: v150-encounter-scan
@@ -79,3 +79,15 @@ records:
     to_title: 离散Morse理论研究线建立
     to_gang: morse-topology
     to_mu: discrete-morse-experiment
+- detected_at: '2026-03-05T00:51:13.855917+00:00'
+  genealogy_id: '357'
+  status: candidate
+  edge:
+    from_id: '357'
+    from_title: ceremony_scan 消费器到提议器增强——从被动读取到主动发现
+    from_gang: morse-topology
+    from_mu: weighted-morse-bm
+    to_id: '353'
+    to_title: 消费断裂与声明缺口的等价性——036号定义域扩展
+    to_gang: simatrix-quanyu
+    to_mu: multi-target-scanner
