@@ -340,7 +340,7 @@ gang:
       completed_at: '2026-03-04'
   - id: weighted-morse-bm
     name: 加权Morse理论（阶段B-M）
-    status: active
+    status: closed
     opened_at: '355'
     next_actions:
     - type: experiment
@@ -364,3 +364,5 @@ gang:
       completion_check:
         type: genealogy_settled
         keyword: cerf-bifurcation
+    closed_at: '2026-03-05'
+    closed_reason: 所有 next_actions 的 completion_check 均已满足
