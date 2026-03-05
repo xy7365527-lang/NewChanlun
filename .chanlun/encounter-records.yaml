@@ -1,5 +1,5 @@
 version: '1.0'
-last_checked: '367'
+last_checked: '379'
 baseline:
   scan_date: '2026-03-04'
   session: v150-encounter-scan
@@ -124,3 +124,18 @@ records:
     to_title: 区块拓扑张力消化审计
     to_gang: morse-topology
     to_mu: weighted-morse-bm
+- detected_at: '2026-03-05T13:48:41.697459+00:00'
+  genealogy_id: '377'
+  status: design_internal
+  pattern: fold_experiment_to_theory
+  audit_session: v163-swarm-r3
+  audit_rationale: 377号W权重敏感度分析复用366号数据测试292号折叠共享性权重的鲁棒性——与366号→292号(design_internal)同一设计链，scanner排序公式rank=T*W中W直接来自292号折叠本体论
+  edge:
+    from_id: '377'
+    from_title: W 权重敏感度分析——局部扰动稳定，极端变化翻转，受 tightness 量化效应放大
+    from_gang: simatrix-quanyu
+    from_mu: scanner-post-validation
+    to_id: '292'
+    to_title: 折叠拓扑本体论——分类学之前的存在论结构
+    to_gang: block-topology
+    to_mu: fold-topology-ontology

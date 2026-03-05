@@ -213,8 +213,10 @@ gang:
     closed_reason: 所有 next_actions 的 completion_check 均已满足
   - id: scanner-post-validation
     name: 扫描器L2后续（366号推论）
-    status: active
+    status: closed
     opened_at: '366'
+    closed_at: '2026-03-05'
+    closed_reason: 所有 next_actions 的 completion_check 均已满足——377号(W权重L2)+376号(tightness双重否定)+366号quotient-rank已集成
     next_actions:
     - type: engineering
       target: quotient-rank-default
@@ -232,6 +234,8 @@ gang:
       completion_check:
         type: genealogy_settled
         keyword: w-weight-l3
+      completed_at: '2026-03-05'
+      completed_reason: 377号L2结算——局部扰动稳定(tau<=0.11)，序关系足够，但L3需前置条件(proxy改进+新数据源)
     - type: experiment
       target: tightness-proxy-validation
       description: 扩展tightness proxy独立验证——与350号严格定义的T(S)的一致性未确认（来源：366号下游推论3）
@@ -239,6 +243,8 @@ gang:
       completion_check:
         type: genealogy_settled
         keyword: tightness-proxy-validation
+      completed_at: '2026-03-05'
+      completed_reason: 376号L2双重否定——strict T(S)在日线5年数据上有效域为空集(0/24标的)，proxy与T(S)无法比较(T(S)不存在)
     - type: experiment
       target: tightness-selection-l2
       description: T(S)选股效果L2验证——高T标的是否确实产生更高质量的买卖点（来源：350号下游推论4）
@@ -246,6 +252,8 @@ gang:
       completion_check:
         type: genealogy_settled
         keyword: tightness-selection-l2
+      completed_at: '2026-03-05'
+      completed_reason: 376号L2否定——n=1标的(招商银行)统计效力不足，分组极度不平衡(2vs22)，不可判定
 - id: block-topology
   name: 区块拓扑
   zongfangzhen_section: §八实现架构 + §八.七阶段B
