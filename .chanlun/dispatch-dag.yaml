@@ -183,9 +183,11 @@ event_skill_map:
     triggers:
       - event: file_write
         pattern: ".chanlun/genealogy/**"
+        platform_support: partial  # 353号：PostToolUse advisory hook 检测（D策略），非真实时语义事件
         description: "谱系写入后检查结果包"
       - event: file_write
         pattern: "src/**"
+        platform_support: partial  # 353号：PostToolUse advisory hook 检测（D策略），非真实时语义事件
         description: "代码写入后扫描违规"
       - event: command
         pattern: "/inquire"
@@ -209,9 +211,11 @@ event_skill_map:
     triggers:
       - event: file_write
         pattern: "src/**/*.py"
+        platform_support: partial  # 353号：PostToolUse advisory hook 检测（D策略），非真实时语义事件
         description: "Python 代码变更后验证"
       - event: file_write
         pattern: "tests/**/*.py"
+        platform_support: partial  # 353号：PostToolUse advisory hook 检测（D策略），非真实时语义事件
         description: "测试文件变更后运行"
 
   - id: skill-crystallizer
@@ -291,6 +295,7 @@ event_skill_map:
     triggers:
       - event: file_write
         pattern: "docs/**"
+        platform_support: partial  # 353号：PostToolUse advisory hook 检测（D策略），非真实时语义事件
         description: "文档写入时检查溯源标签"
 
   - id: topology-manager
@@ -510,30 +515,35 @@ edges:
       pattern: "spec/theorems/*"
       activates_edge: "task_node → gemini-challenger"
       mode: "verify"
+      platform_support: false  # 353号：Claude Code 无原生 file_change 语义事件
       priority: high
 
     - event: file_change
       pattern: "docs/chan_spec.md"
       activates_edge: "task_node → genealogist"
       action: "lineage_consistency_check"
+      platform_support: false  # 353号：Claude Code 无原生 file_change 语义事件
       priority: high
 
     - event: file_create
       pattern: "**/*"
       activates_edge: "system → manifest_guard"
       action: "check_manifest_registration"
+      platform_support: partial  # 353号：manifest-guard hook 存在但为 advisory（D策略）
       priority: high
 
     - event: annotation
       pattern: "@proof-required"  # 规则定义：检测到此注解时路由到 gemini-challenger（非待验证标签）
       activates_edge: "task_node → gemini-challenger"
       mode: "challenge --math"
+      platform_support: false  # 353号：Claude Code 无注解检测语义事件
       priority: low_async
 
     - event: task_queue
       condition: "independent_tasks >= 2"
       activates_edge: "system → swarm_manager"
       action: "spawn_recursive_swarm"
+      platform_support: false  # 353号：Claude Code 无 task_queue 计数语义事件，由 Lead 判断实现
       priority: high
 
     - event: session_start
@@ -549,6 +559,7 @@ edges:
       pattern: "gemini_api_*"
       activates_edge: "system → fallback"
       action: "fallback_local_rules"
+      platform_support: false  # 353号：Claude Code 无 tool_error 分类路由语义事件
       priority: critical
 
     - event: build_failure
@@ -576,18 +587,21 @@ edges:
       condition: "settled 谱系包含 negates 边或 topo_effect 标注"
       activates_edge: "genealogist → topology-mutator"
       action: "execute_topo_effect"
+      platform_support: false  # 353号：Claude Code 无 genealogy_settlement 语义事件，由 hook 提示 + Lead 认领（D策略）
       description: "谱系结算时检测 topo_effect，触发拓扑变更（147号：topology-mutator-prompt.sh hook + dag_add_node.py --topo_effect）"
       priority: high
 
     - event: genealogy_settlement
       activates_edge: "genealogist → gemini-challenger"
       action: "genealogy_conceptual_review"
+      platform_support: false  # 353号：Claude Code 无 genealogy_settlement 语义事件，由 hook 提示 + Lead 认领（D策略）
       description: "谱系结算时触发 Gemini 概念层异质否定——对新结算谱系做概念层质询（175号：谱系结晶→异质否定→可能的新矛盾→新谱系）"
       priority: medium
 
     - event: inquiry_cycle_converged
       activates_edge: "gemini-challenger/codex-challenger → consensus-ceremony"
       action: "trigger_consensus_ceremony"
+      platform_support: false  # 353号：Claude Code 无 inquiry_cycle_converged 语义事件，由 consensus-ceremony-trigger.sh advisory hook 检测（D策略）
       description: "质询循环收敛时触发共识仪式三区块写入（§21: consensus/residue/tension 原子写入）。consensus-ceremony-trigger.sh advisory hook 检测 review-results 写入并提示"
       priority: high
 
@@ -622,9 +636,11 @@ fractal_template:
   parent_interface:
     output_events:
       - event: "child_task_complete"
+        platform_support: false  # 353号：Claude Code 无父子蜂群语义事件，由 SendMessage + Lead 认领实现
         triggers: ["quality-guard", "genealogist"]
         description: "子蜂群任务完成时触发父蜂群的质量检查和谱系检查"
       - event: "child_meta_feedback"
+        platform_support: false  # 353号：Claude Code 无父子蜂群语义事件，由 SendMessage + Lead 认领实现
         triggers: ["meta-observer"]
         description: "子蜂群元观察上交父蜂群二阶反馈"
 

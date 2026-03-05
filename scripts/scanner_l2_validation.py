@@ -34,7 +34,6 @@ from newchan.trading.fold_equivalence import (
     build_quotient_space,
     rank_quotient_space,
 )
-from newchan.trading.stock_scanner import compute_nesting_tightness
 from newchan.types import Bar
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
@@ -116,17 +115,12 @@ def _symbol_to_baostock(symbol: str) -> str:
 
 
 def fetch_daily_data(
-    start_date: str = "2025-01-01",
+    start_date: str = "2020-01-01",
     end_date: str = "2026-03-01",
 ) -> dict[str, list[Bar]]:
-    """获取所有标的的日线数据。
+    """获取所有标的的日线数据（5年跨度，确保足够结构深度）。
 
     优先从本地缓存读取，缓存不存在时从 baostock 拉取。
-
-    Returns
-    -------
-    dict[str, list[Bar]]
-        {symbol: [Bar, ...]}
     """
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     result: dict[str, list[Bar]] = {}
@@ -144,7 +138,7 @@ def fetch_daily_data(
             # 尝试读缓存
             if cache_path.exists():
                 bars = _load_bars_from_cache(cache_path)
-                if len(bars) > 50:
+                if len(bars) > 1000:  # 5年数据约1400+bars
                     logger.info("缓存命中: %s (%s) — %d bars", symbol, info["name"], len(bars))
                     result[symbol] = bars
                     continue
@@ -264,6 +258,37 @@ class SymbolAnalysis:
     level_magnitude: float  # 用有买点的最高 level_id 作为 proxy
 
 
+def _compute_structural_tightness(snap) -> tuple[float, str]:
+    """从快照中计算结构紧度。
+
+    不依赖 compute_nesting_tightness（仅检查 buy 方向），
+    而是检查所有已确认的 BSP（buy 和 sell），因为 L2 验证
+    的目标是排序机制，不是交易方向。
+
+    紧度 = level1 有确认 BSP 贡献 1.0 + 每个递归层有 BSP 额外 +1.0。
+    """
+    tightness = 0.0
+    max_level = 0
+
+    # Level 1: 检查所有已确认 BSP
+    for bp in snap.bsp_snapshot.buysellpoints:
+        if bp.confirmed:
+            tightness += 1.0
+            max_level = 1
+            break  # 只计一次
+
+    # 递归层：检查 moves（有 move = 有结构深度）
+    for rs in snap.recursive_snapshots:
+        if len(rs.moves) > 0:
+            tightness += 1.0
+            if rs.level_id > max_level:
+                max_level = rs.level_id
+
+    if max_level == 0:
+        return 0.0, ""
+    return tightness, f"L{max_level}"
+
+
 def run_engine_on_symbol(
     symbol: str,
     bars: list[Bar],
@@ -278,13 +303,10 @@ def run_engine_on_symbol(
 
     max_tightness = 0.0
     max_op_level = ""
-    buy_point_count = 0  # 历史中出现买点的 bar 数量
 
     for bar in bars:
         snap = orch.process_bar(bar)
-        t, op_level = compute_nesting_tightness(snap)
-        if t > 0:
-            buy_point_count += 1
+        t, op_level = _compute_structural_tightness(snap)
         if t > max_tightness:
             max_tightness = t
             max_op_level = op_level
@@ -301,17 +323,13 @@ def run_engine_on_symbol(
         except ValueError:
             pass
 
-    # tightness 使用最大值——反映该标的在观察期内最强的区间套收敛程度
-    # 如果 max_tightness == 0（历史中从未出现买点），使用买点频率的微弱信号
-    effective_tightness = max_tightness if max_tightness > 0 else 0.0
-
     return SymbolAnalysis(
         symbol=symbol,
         name=info["name"],
         channel=info["channel"],
         sector=info.get("sector", ""),
         bar_count=len(bars),
-        tightness=effective_tightness,
+        tightness=max_tightness,
         operation_level=max_op_level,
         avg_daily_volume=avg_vol,
         level_magnitude=level_mag,
