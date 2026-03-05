@@ -155,12 +155,17 @@ class TraversalEngine:
 
         if result.action == "FOLD" and result.target_a and result.target_b:
             a, b = result.target_a, result.target_b
-            # Validate: both are neighbors
-            if a in neighbors and b in neighbors and a != b:
-                return Encounter(
-                    EncounterType.FOLD, a, b,
-                    f"LLM fold: {result.reasoning}",
-                )
+            # Validate: both must be active, distinct vertices.
+            # Accept fold if:
+            #   (1) both are neighbors of current position (original rule), OR
+            #   (2) a is current position and b is any active vertex (LLM history-based fold)
+            if a in active and b in active and a != b:
+                if (a in neighbors and b in neighbors) or \
+                   (a == self.position) or (b == self.position):
+                    return Encounter(
+                        EncounterType.FOLD, a, b,
+                        f"LLM fold: {result.reasoning}",
+                    )
 
         return Encounter(EncounterType.NOTHING, reason=f"LLM: {result.reasoning}")
 
