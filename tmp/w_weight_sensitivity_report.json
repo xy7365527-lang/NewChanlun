@@ -1,0 +1,1325 @@
+{
+  "experiment": "W 权重敏感度分析",
+  "epistemology_level": "L2（真实数据，单时段多标的——复用366号L2数据）",
+  "data_source": "366号 L2 验证缓存（24个A股，2020-2026日线）",
+  "tightness_distribution": {
+    "1.8": 2,
+    "0.8": 17,
+    "0.3": 5
+  },
+  "num_targets": 24,
+  "num_equivalence_classes": 9,
+  "num_weight_schemes": 12,
+  "pairwise_vs_baseline": [
+    {
+      "scheme": "baseline",
+      "description": "当前权重 {AU:4, OIL:3, BOND:2, RE:1, EQUITY:1}",
+      "weights": {
+        "AU": 4,
+        "OIL": 3,
+        "BOND": 2,
+        "RE": 1,
+        "EQUITY": 1
+      },
+      "order": [
+        "600489",
+        "601857",
+        "000002",
+        "600036",
+        "000725",
+        "601985",
+        "600276",
+        "000858",
+        "601288"
+      ],
+      "kendall_tau_discordant": 0,
+      "kendall_tau_total_pairs": 36,
+      "kendall_tau_normalized": 0.0,
+      "top3_jaccard": 1.0,
+      "top5_jaccard": 1.0,
+      "ranking_details": [
+        {
+          "rank_score": 3.2,
+          "symbol": "600489",
+          "name": "中金黄金",
+          "channel": "AU",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 2.4,
+          "symbol": "601857",
+          "name": "中国石油",
+          "channel": "OIL",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 1.8,
+          "symbol": "000002",
+          "name": "万科A",
+          "channel": "RE",
+          "tightness": 1.8
+        },
+        {
+          "rank_score": 1.8,
+          "symbol": "600036",
+          "name": "招商银行",
+          "channel": "EQUITY",
+          "tightness": 1.8
+        },
+        {
+          "rank_score": 0.8,
+          "symbol": "000725",
+          "name": "京东方A",
+          "channel": "EQUITY",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 0.8,
+          "symbol": "601985",
+          "name": "中国核电",
+          "channel": "EQUITY",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 0.8,
+          "symbol": "600276",
+          "name": "恒瑞医药",
+          "channel": "EQUITY",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 0.8,
+          "symbol": "000858",
+          "name": "五粮液",
+          "channel": "EQUITY",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 0.6,
+          "symbol": "601288",
+          "name": "农业银行",
+          "channel": "BOND",
+          "tightness": 0.3
+        }
+      ]
+    },
+    {
+      "scheme": "uniform",
+      "description": "均匀权重 {all:1}——退化为纯 T 排序（商空间仅合并等价类）",
+      "weights": {
+        "AU": 1,
+        "OIL": 1,
+        "BOND": 1,
+        "RE": 1,
+        "EQUITY": 1
+      },
+      "order": [
+        "000002",
+        "600036",
+        "000725",
+        "601857",
+        "601985",
+        "600489",
+        "600276",
+        "000858",
+        "601288"
+      ],
+      "kendall_tau_discordant": 8,
+      "kendall_tau_total_pairs": 36,
+      "kendall_tau_normalized": 0.2222,
+      "top3_jaccard": 0.2,
+      "top5_jaccard": 0.6667,
+      "ranking_details": [
+        {
+          "rank_score": 1.8,
+          "symbol": "000002",
+          "name": "万科A",
+          "channel": "RE",
+          "tightness": 1.8
+        },
+        {
+          "rank_score": 1.8,
+          "symbol": "600036",
+          "name": "招商银行",
+          "channel": "EQUITY",
+          "tightness": 1.8
+        },
+        {
+          "rank_score": 0.8,
+          "symbol": "000725",
+          "name": "京东方A",
+          "channel": "EQUITY",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 0.8,
+          "symbol": "601857",
+          "name": "中国石油",
+          "channel": "OIL",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 0.8,
+          "symbol": "601985",
+          "name": "中国核电",
+          "channel": "EQUITY",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 0.8,
+          "symbol": "600489",
+          "name": "中金黄金",
+          "channel": "AU",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 0.8,
+          "symbol": "600276",
+          "name": "恒瑞医药",
+          "channel": "EQUITY",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 0.8,
+          "symbol": "000858",
+          "name": "五粮液",
+          "channel": "EQUITY",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 0.3,
+          "symbol": "601288",
+          "name": "农业银行",
+          "channel": "BOND",
+          "tightness": 0.3
+        }
+      ]
+    },
+    {
+      "scheme": "uniform-3",
+      "description": "均匀权重 {all:3}——缩放不影响排序（验证缩放不变性）",
+      "weights": {
+        "AU": 3,
+        "OIL": 3,
+        "BOND": 3,
+        "RE": 3,
+        "EQUITY": 3
+      },
+      "order": [
+        "000002",
+        "600036",
+        "000725",
+        "601857",
+        "601985",
+        "600489",
+        "600276",
+        "000858",
+        "601288"
+      ],
+      "kendall_tau_discordant": 8,
+      "kendall_tau_total_pairs": 36,
+      "kendall_tau_normalized": 0.2222,
+      "top3_jaccard": 0.2,
+      "top5_jaccard": 0.6667,
+      "ranking_details": [
+        {
+          "rank_score": 5.4,
+          "symbol": "000002",
+          "name": "万科A",
+          "channel": "RE",
+          "tightness": 1.8
+        },
+        {
+          "rank_score": 5.4,
+          "symbol": "600036",
+          "name": "招商银行",
+          "channel": "EQUITY",
+          "tightness": 1.8
+        },
+        {
+          "rank_score": 2.4,
+          "symbol": "000725",
+          "name": "京东方A",
+          "channel": "EQUITY",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 2.4,
+          "symbol": "601857",
+          "name": "中国石油",
+          "channel": "OIL",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 2.4,
+          "symbol": "601985",
+          "name": "中国核电",
+          "channel": "EQUITY",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 2.4,
+          "symbol": "600489",
+          "name": "中金黄金",
+          "channel": "AU",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 2.4,
+          "symbol": "600276",
+          "name": "恒瑞医药",
+          "channel": "EQUITY",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 2.4,
+          "symbol": "000858",
+          "name": "五粮液",
+          "channel": "EQUITY",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 0.9,
+          "symbol": "601288",
+          "name": "农业银行",
+          "channel": "BOND",
+          "tightness": 0.3
+        }
+      ]
+    },
+    {
+      "scheme": "extreme-au",
+      "description": "AU 极端高权 {AU:10, others:1}",
+      "weights": {
+        "AU": 10,
+        "OIL": 1,
+        "BOND": 1,
+        "RE": 1,
+        "EQUITY": 1
+      },
+      "order": [
+        "600489",
+        "000002",
+        "600036",
+        "000725",
+        "601857",
+        "601985",
+        "600276",
+        "000858",
+        "601288"
+      ],
+      "kendall_tau_discordant": 3,
+      "kendall_tau_total_pairs": 36,
+      "kendall_tau_normalized": 0.0833,
+      "top3_jaccard": 0.5,
+      "top5_jaccard": 1.0,
+      "ranking_details": [
+        {
+          "rank_score": 8.0,
+          "symbol": "600489",
+          "name": "中金黄金",
+          "channel": "AU",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 1.8,
+          "symbol": "000002",
+          "name": "万科A",
+          "channel": "RE",
+          "tightness": 1.8
+        },
+        {
+          "rank_score": 1.8,
+          "symbol": "600036",
+          "name": "招商银行",
+          "channel": "EQUITY",
+          "tightness": 1.8
+        },
+        {
+          "rank_score": 0.8,
+          "symbol": "000725",
+          "name": "京东方A",
+          "channel": "EQUITY",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 0.8,
+          "symbol": "601857",
+          "name": "中国石油",
+          "channel": "OIL",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 0.8,
+          "symbol": "601985",
+          "name": "中国核电",
+          "channel": "EQUITY",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 0.8,
+          "symbol": "600276",
+          "name": "恒瑞医药",
+          "channel": "EQUITY",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 0.8,
+          "symbol": "000858",
+          "name": "五粮液",
+          "channel": "EQUITY",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 0.3,
+          "symbol": "601288",
+          "name": "农业银行",
+          "channel": "BOND",
+          "tightness": 0.3
+        }
+      ]
+    },
+    {
+      "scheme": "extreme-equity",
+      "description": "EQUITY 极端高权 {EQUITY:10, others:1}",
+      "weights": {
+        "AU": 1,
+        "OIL": 1,
+        "BOND": 1,
+        "RE": 1,
+        "EQUITY": 10
+      },
+      "order": [
+        "600036",
+        "000725",
+        "601985",
+        "600276",
+        "000858",
+        "000002",
+        "601857",
+        "600489",
+        "601288"
+      ],
+      "kendall_tau_discordant": 18,
+      "kendall_tau_total_pairs": 36,
+      "kendall_tau_normalized": 0.5,
+      "top3_jaccard": 0.0,
+      "top5_jaccard": 0.25,
+      "ranking_details": [
+        {
+          "rank_score": 18.0,
+          "symbol": "600036",
+          "name": "招商银行",
+          "channel": "EQUITY",
+          "tightness": 1.8
+        },
+        {
+          "rank_score": 8.0,
+          "symbol": "000725",
+          "name": "京东方A",
+          "channel": "EQUITY",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 8.0,
+          "symbol": "601985",
+          "name": "中国核电",
+          "channel": "EQUITY",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 8.0,
+          "symbol": "600276",
+          "name": "恒瑞医药",
+          "channel": "EQUITY",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 8.0,
+          "symbol": "000858",
+          "name": "五粮液",
+          "channel": "EQUITY",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 1.8,
+          "symbol": "000002",
+          "name": "万科A",
+          "channel": "RE",
+          "tightness": 1.8
+        },
+        {
+          "rank_score": 0.8,
+          "symbol": "601857",
+          "name": "中国石油",
+          "channel": "OIL",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 0.8,
+          "symbol": "600489",
+          "name": "中金黄金",
+          "channel": "AU",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 0.3,
+          "symbol": "601288",
+          "name": "农业银行",
+          "channel": "BOND",
+          "tightness": 0.3
+        }
+      ]
+    },
+    {
+      "scheme": "inverted",
+      "description": "内外层反转 {AU:1, OIL:1, BOND:2, RE:3, EQUITY:4}",
+      "weights": {
+        "AU": 1,
+        "OIL": 1,
+        "BOND": 2,
+        "RE": 3,
+        "EQUITY": 4
+      },
+      "order": [
+        "600036",
+        "000002",
+        "000725",
+        "601985",
+        "600276",
+        "000858",
+        "601857",
+        "600489",
+        "601288"
+      ],
+      "kendall_tau_discordant": 14,
+      "kendall_tau_total_pairs": 36,
+      "kendall_tau_normalized": 0.3889,
+      "top3_jaccard": 0.2,
+      "top5_jaccard": 0.4286,
+      "ranking_details": [
+        {
+          "rank_score": 7.2,
+          "symbol": "600036",
+          "name": "招商银行",
+          "channel": "EQUITY",
+          "tightness": 1.8
+        },
+        {
+          "rank_score": 5.4,
+          "symbol": "000002",
+          "name": "万科A",
+          "channel": "RE",
+          "tightness": 1.8
+        },
+        {
+          "rank_score": 3.2,
+          "symbol": "000725",
+          "name": "京东方A",
+          "channel": "EQUITY",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 3.2,
+          "symbol": "601985",
+          "name": "中国核电",
+          "channel": "EQUITY",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 3.2,
+          "symbol": "600276",
+          "name": "恒瑞医药",
+          "channel": "EQUITY",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 3.2,
+          "symbol": "000858",
+          "name": "五粮液",
+          "channel": "EQUITY",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 0.8,
+          "symbol": "601857",
+          "name": "中国石油",
+          "channel": "OIL",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 0.8,
+          "symbol": "600489",
+          "name": "中金黄金",
+          "channel": "AU",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 0.6,
+          "symbol": "601288",
+          "name": "农业银行",
+          "channel": "BOND",
+          "tightness": 0.3
+        }
+      ]
+    },
+    {
+      "scheme": "perturb-au-down",
+      "description": "AU 降 1: {AU:3, OIL:3, BOND:2, RE:1, EQUITY:1}",
+      "weights": {
+        "AU": 3,
+        "OIL": 3,
+        "BOND": 2,
+        "RE": 1,
+        "EQUITY": 1
+      },
+      "order": [
+        "601857",
+        "600489",
+        "000002",
+        "600036",
+        "000725",
+        "601985",
+        "600276",
+        "000858",
+        "601288"
+      ],
+      "kendall_tau_discordant": 1,
+      "kendall_tau_total_pairs": 36,
+      "kendall_tau_normalized": 0.0278,
+      "top3_jaccard": 1.0,
+      "top5_jaccard": 1.0,
+      "ranking_details": [
+        {
+          "rank_score": 2.4,
+          "symbol": "601857",
+          "name": "中国石油",
+          "channel": "OIL",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 2.4,
+          "symbol": "600489",
+          "name": "中金黄金",
+          "channel": "AU",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 1.8,
+          "symbol": "000002",
+          "name": "万科A",
+          "channel": "RE",
+          "tightness": 1.8
+        },
+        {
+          "rank_score": 1.8,
+          "symbol": "600036",
+          "name": "招商银行",
+          "channel": "EQUITY",
+          "tightness": 1.8
+        },
+        {
+          "rank_score": 0.8,
+          "symbol": "000725",
+          "name": "京东方A",
+          "channel": "EQUITY",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 0.8,
+          "symbol": "601985",
+          "name": "中国核电",
+          "channel": "EQUITY",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 0.8,
+          "symbol": "600276",
+          "name": "恒瑞医药",
+          "channel": "EQUITY",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 0.8,
+          "symbol": "000858",
+          "name": "五粮液",
+          "channel": "EQUITY",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 0.6,
+          "symbol": "601288",
+          "name": "农业银行",
+          "channel": "BOND",
+          "tightness": 0.3
+        }
+      ]
+    },
+    {
+      "scheme": "perturb-au-up",
+      "description": "AU 升 1: {AU:5, OIL:3, BOND:2, RE:1, EQUITY:1}",
+      "weights": {
+        "AU": 5,
+        "OIL": 3,
+        "BOND": 2,
+        "RE": 1,
+        "EQUITY": 1
+      },
+      "order": [
+        "600489",
+        "601857",
+        "000002",
+        "600036",
+        "000725",
+        "601985",
+        "600276",
+        "000858",
+        "601288"
+      ],
+      "kendall_tau_discordant": 0,
+      "kendall_tau_total_pairs": 36,
+      "kendall_tau_normalized": 0.0,
+      "top3_jaccard": 1.0,
+      "top5_jaccard": 1.0,
+      "ranking_details": [
+        {
+          "rank_score": 4.0,
+          "symbol": "600489",
+          "name": "中金黄金",
+          "channel": "AU",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 2.4,
+          "symbol": "601857",
+          "name": "中国石油",
+          "channel": "OIL",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 1.8,
+          "symbol": "000002",
+          "name": "万科A",
+          "channel": "RE",
+          "tightness": 1.8
+        },
+        {
+          "rank_score": 1.8,
+          "symbol": "600036",
+          "name": "招商银行",
+          "channel": "EQUITY",
+          "tightness": 1.8
+        },
+        {
+          "rank_score": 0.8,
+          "symbol": "000725",
+          "name": "京东方A",
+          "channel": "EQUITY",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 0.8,
+          "symbol": "601985",
+          "name": "中国核电",
+          "channel": "EQUITY",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 0.8,
+          "symbol": "600276",
+          "name": "恒瑞医药",
+          "channel": "EQUITY",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 0.8,
+          "symbol": "000858",
+          "name": "五粮液",
+          "channel": "EQUITY",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 0.6,
+          "symbol": "601288",
+          "name": "农业银行",
+          "channel": "BOND",
+          "tightness": 0.3
+        }
+      ]
+    },
+    {
+      "scheme": "perturb-oil-down",
+      "description": "OIL 降 1: {AU:4, OIL:2, BOND:2, RE:1, EQUITY:1}",
+      "weights": {
+        "AU": 4,
+        "OIL": 2,
+        "BOND": 2,
+        "RE": 1,
+        "EQUITY": 1
+      },
+      "order": [
+        "600489",
+        "000002",
+        "600036",
+        "601857",
+        "000725",
+        "601985",
+        "600276",
+        "000858",
+        "601288"
+      ],
+      "kendall_tau_discordant": 2,
+      "kendall_tau_total_pairs": 36,
+      "kendall_tau_normalized": 0.0556,
+      "top3_jaccard": 0.5,
+      "top5_jaccard": 1.0,
+      "ranking_details": [
+        {
+          "rank_score": 3.2,
+          "symbol": "600489",
+          "name": "中金黄金",
+          "channel": "AU",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 1.8,
+          "symbol": "000002",
+          "name": "万科A",
+          "channel": "RE",
+          "tightness": 1.8
+        },
+        {
+          "rank_score": 1.8,
+          "symbol": "600036",
+          "name": "招商银行",
+          "channel": "EQUITY",
+          "tightness": 1.8
+        },
+        {
+          "rank_score": 1.6,
+          "symbol": "601857",
+          "name": "中国石油",
+          "channel": "OIL",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 0.8,
+          "symbol": "000725",
+          "name": "京东方A",
+          "channel": "EQUITY",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 0.8,
+          "symbol": "601985",
+          "name": "中国核电",
+          "channel": "EQUITY",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 0.8,
+          "symbol": "600276",
+          "name": "恒瑞医药",
+          "channel": "EQUITY",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 0.8,
+          "symbol": "000858",
+          "name": "五粮液",
+          "channel": "EQUITY",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 0.6,
+          "symbol": "601288",
+          "name": "农业银行",
+          "channel": "BOND",
+          "tightness": 0.3
+        }
+      ]
+    },
+    {
+      "scheme": "perturb-bond-up",
+      "description": "BOND 升 1: {AU:4, OIL:3, BOND:3, RE:1, EQUITY:1}",
+      "weights": {
+        "AU": 4,
+        "OIL": 3,
+        "BOND": 3,
+        "RE": 1,
+        "EQUITY": 1
+      },
+      "order": [
+        "600489",
+        "601857",
+        "000002",
+        "600036",
+        "601288",
+        "000725",
+        "601985",
+        "600276",
+        "000858"
+      ],
+      "kendall_tau_discordant": 4,
+      "kendall_tau_total_pairs": 36,
+      "kendall_tau_normalized": 0.1111,
+      "top3_jaccard": 1.0,
+      "top5_jaccard": 0.6667,
+      "ranking_details": [
+        {
+          "rank_score": 3.2,
+          "symbol": "600489",
+          "name": "中金黄金",
+          "channel": "AU",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 2.4,
+          "symbol": "601857",
+          "name": "中国石油",
+          "channel": "OIL",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 1.8,
+          "symbol": "000002",
+          "name": "万科A",
+          "channel": "RE",
+          "tightness": 1.8
+        },
+        {
+          "rank_score": 1.8,
+          "symbol": "600036",
+          "name": "招商银行",
+          "channel": "EQUITY",
+          "tightness": 1.8
+        },
+        {
+          "rank_score": 0.9,
+          "symbol": "601288",
+          "name": "农业银行",
+          "channel": "BOND",
+          "tightness": 0.3
+        },
+        {
+          "rank_score": 0.8,
+          "symbol": "000725",
+          "name": "京东方A",
+          "channel": "EQUITY",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 0.8,
+          "symbol": "601985",
+          "name": "中国核电",
+          "channel": "EQUITY",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 0.8,
+          "symbol": "600276",
+          "name": "恒瑞医药",
+          "channel": "EQUITY",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 0.8,
+          "symbol": "000858",
+          "name": "五粮液",
+          "channel": "EQUITY",
+          "tightness": 0.8
+        }
+      ]
+    },
+    {
+      "scheme": "log-shared",
+      "description": "对数共享性: {AU:3, OIL:2, BOND:2, RE:1, EQUITY:1}（更平缓梯度）",
+      "weights": {
+        "AU": 3,
+        "OIL": 2,
+        "BOND": 2,
+        "RE": 1,
+        "EQUITY": 1
+      },
+      "order": [
+        "600489",
+        "000002",
+        "600036",
+        "601857",
+        "000725",
+        "601985",
+        "600276",
+        "000858",
+        "601288"
+      ],
+      "kendall_tau_discordant": 2,
+      "kendall_tau_total_pairs": 36,
+      "kendall_tau_normalized": 0.0556,
+      "top3_jaccard": 0.5,
+      "top5_jaccard": 1.0,
+      "ranking_details": [
+        {
+          "rank_score": 2.4,
+          "symbol": "600489",
+          "name": "中金黄金",
+          "channel": "AU",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 1.8,
+          "symbol": "000002",
+          "name": "万科A",
+          "channel": "RE",
+          "tightness": 1.8
+        },
+        {
+          "rank_score": 1.8,
+          "symbol": "600036",
+          "name": "招商银行",
+          "channel": "EQUITY",
+          "tightness": 1.8
+        },
+        {
+          "rank_score": 1.6,
+          "symbol": "601857",
+          "name": "中国石油",
+          "channel": "OIL",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 0.8,
+          "symbol": "000725",
+          "name": "京东方A",
+          "channel": "EQUITY",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 0.8,
+          "symbol": "601985",
+          "name": "中国核电",
+          "channel": "EQUITY",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 0.8,
+          "symbol": "600276",
+          "name": "恒瑞医药",
+          "channel": "EQUITY",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 0.8,
+          "symbol": "000858",
+          "name": "五粮液",
+          "channel": "EQUITY",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 0.6,
+          "symbol": "601288",
+          "name": "农业银行",
+          "channel": "BOND",
+          "tightness": 0.3
+        }
+      ]
+    },
+    {
+      "scheme": "steep-gradient",
+      "description": "陡峭梯度: {AU:8, OIL:4, BOND:2, RE:1, EQUITY:1}（指数增长）",
+      "weights": {
+        "AU": 8,
+        "OIL": 4,
+        "BOND": 2,
+        "RE": 1,
+        "EQUITY": 1
+      },
+      "order": [
+        "600489",
+        "601857",
+        "000002",
+        "600036",
+        "000725",
+        "601985",
+        "600276",
+        "000858",
+        "601288"
+      ],
+      "kendall_tau_discordant": 0,
+      "kendall_tau_total_pairs": 36,
+      "kendall_tau_normalized": 0.0,
+      "top3_jaccard": 1.0,
+      "top5_jaccard": 1.0,
+      "ranking_details": [
+        {
+          "rank_score": 6.4,
+          "symbol": "600489",
+          "name": "中金黄金",
+          "channel": "AU",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 3.2,
+          "symbol": "601857",
+          "name": "中国石油",
+          "channel": "OIL",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 1.8,
+          "symbol": "000002",
+          "name": "万科A",
+          "channel": "RE",
+          "tightness": 1.8
+        },
+        {
+          "rank_score": 1.8,
+          "symbol": "600036",
+          "name": "招商银行",
+          "channel": "EQUITY",
+          "tightness": 1.8
+        },
+        {
+          "rank_score": 0.8,
+          "symbol": "000725",
+          "name": "京东方A",
+          "channel": "EQUITY",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 0.8,
+          "symbol": "601985",
+          "name": "中国核电",
+          "channel": "EQUITY",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 0.8,
+          "symbol": "600276",
+          "name": "恒瑞医药",
+          "channel": "EQUITY",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 0.8,
+          "symbol": "000858",
+          "name": "五粮液",
+          "channel": "EQUITY",
+          "tightness": 0.8
+        },
+        {
+          "rank_score": 0.6,
+          "symbol": "601288",
+          "name": "农业银行",
+          "channel": "BOND",
+          "tightness": 0.3
+        }
+      ]
+    }
+  ],
+  "kendall_tau_matrix": {
+    "scheme_names": [
+      "baseline",
+      "uniform",
+      "uniform-3",
+      "extreme-au",
+      "extreme-equity",
+      "inverted",
+      "perturb-au-down",
+      "perturb-au-up",
+      "perturb-oil-down",
+      "perturb-bond-up",
+      "log-shared",
+      "steep-gradient"
+    ],
+    "matrix": [
+      [
+        0.0,
+        0.2222,
+        0.2222,
+        0.0833,
+        0.5,
+        0.3889,
+        0.0278,
+        0.0,
+        0.0556,
+        0.1111,
+        0.0556,
+        0.0
+      ],
+      [
+        0.2222,
+        0.0,
+        0.0,
+        0.1389,
+        0.2778,
+        0.1667,
+        0.1944,
+        0.2222,
+        0.1667,
+        0.3333,
+        0.1667,
+        0.2222
+      ],
+      [
+        0.2222,
+        0.0,
+        0.0,
+        0.1389,
+        0.2778,
+        0.1667,
+        0.1944,
+        0.2222,
+        0.1667,
+        0.3333,
+        0.1667,
+        0.2222
+      ],
+      [
+        0.0833,
+        0.1389,
+        0.1389,
+        0.0,
+        0.4167,
+        0.3056,
+        0.1111,
+        0.0833,
+        0.0278,
+        0.1944,
+        0.0278,
+        0.0833
+      ],
+      [
+        0.5,
+        0.2778,
+        0.2778,
+        0.4167,
+        0.0,
+        0.1111,
+        0.4722,
+        0.5,
+        0.4444,
+        0.6111,
+        0.4444,
+        0.5
+      ],
+      [
+        0.3889,
+        0.1667,
+        0.1667,
+        0.3056,
+        0.1111,
+        0.0,
+        0.3611,
+        0.3889,
+        0.3333,
+        0.5,
+        0.3333,
+        0.3889
+      ],
+      [
+        0.0278,
+        0.1944,
+        0.1944,
+        0.1111,
+        0.4722,
+        0.3611,
+        0.0,
+        0.0278,
+        0.0833,
+        0.1389,
+        0.0833,
+        0.0278
+      ],
+      [
+        0.0,
+        0.2222,
+        0.2222,
+        0.0833,
+        0.5,
+        0.3889,
+        0.0278,
+        0.0,
+        0.0556,
+        0.1111,
+        0.0556,
+        0.0
+      ],
+      [
+        0.0556,
+        0.1667,
+        0.1667,
+        0.0278,
+        0.4444,
+        0.3333,
+        0.0833,
+        0.0556,
+        0.0,
+        0.1667,
+        0.0,
+        0.0556
+      ],
+      [
+        0.1111,
+        0.3333,
+        0.3333,
+        0.1944,
+        0.6111,
+        0.5,
+        0.1389,
+        0.1111,
+        0.1667,
+        0.0,
+        0.1667,
+        0.1111
+      ],
+      [
+        0.0556,
+        0.1667,
+        0.1667,
+        0.0278,
+        0.4444,
+        0.3333,
+        0.0833,
+        0.0556,
+        0.0,
+        0.1667,
+        0.0,
+        0.0556
+      ],
+      [
+        0.0,
+        0.2222,
+        0.2222,
+        0.0833,
+        0.5,
+        0.3889,
+        0.0278,
+        0.0,
+        0.0556,
+        0.1111,
+        0.0556,
+        0.0
+      ]
+    ]
+  },
+  "stability_classification": {
+    "stable": [
+      "perturb-au-up",
+      "steep-gradient"
+    ],
+    "moderate": [
+      "extreme-au",
+      "perturb-au-down",
+      "perturb-oil-down",
+      "perturb-bond-up",
+      "log-shared"
+    ],
+    "unstable": [
+      "uniform",
+      "uniform-3",
+      "extreme-equity",
+      "inverted"
+    ]
+  },
+  "conclusion": "混合：排序对 W 权重有中等敏感性，局部扰动稳定但极端变化导致排序翻转。但注意：71% 的标的共享同一 tightness 值，排序敏感性可能被 tightness 的低分辨率放大——如果 tightness 有更好的分辨率，W 权重的敏感性可能降低"
+}

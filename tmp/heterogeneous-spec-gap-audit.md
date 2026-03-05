@@ -195,23 +195,23 @@
 
 ## 六、新发现汇总（Part 2 独有）
 
-| 编号 | 缺口 | 严重度 | 来源 |
-|------|------|--------|------|
-| 缺口1 | /challenge 前置条件声称需 Serena，实际待验证 | 低 | Commands |
-| 缺口2 | /code-review 声称自动触发 codex-challenger，实际需手动 | 中 | Commands |
-| 缺口3 | spec-execution-gap skill 无自动触发 | 低 | Skills |
-| **缺口4** | **orchestrator-proxy decide 不可执行** | **高** | **Skills** |
-| 缺口5 | math-tools 无自动触发（设计意图一致） | 无 | Skills |
-| 缺口6 | gemini-math 无自动触发 | 低 | Skills |
-| **缺口7** | **plan-review 声称自动激活无触发路径** | **中** | **Skills** |
-| 缺口8 | required_skills 无消费者（Part 1 已知） | 高 | scan |
-| **缺口9** | **tensions_count 死数据** | **中** | **scan** |
-| 缺口10 | definitions 仅信息输出 | 低 | scan |
-| **缺口11** | **proposed_transitions 无执行路径** | **中** | **scan** |
-| 缺口12 | source-auditor hook 未注册（Part 1 已知） | 中 | Hooks |
-| 缺口13 | topology-mutator-prompt 与 dispatcher 重复未标注 | 低 | Hooks |
-| **缺口14** | **meta-observer-guard 注释与代码不一致** | **低** | **Hooks** |
-| **缺口15** | **test_pass 只检查文件存在（声明膨胀）** | **中** | **gangmu** |
+| 编号 | 缺口 | 严重度 | 来源 | 修复状态 |
+|------|------|--------|------|----------|
+| 缺口1 | /challenge 前置条件声称需 Serena，实际待验证 | 低 | Commands | **已修复**：challenge.md 补充 Serena 使用说明（MCP工具层，非直接依赖） |
+| 缺口2 | /code-review 声称自动触发 codex-challenger，实际需手动 | 中 | Commands | **已修复**：code-review.md 补充 D策略手动认领标注 |
+| 缺口3 | spec-execution-gap skill 无自动触发 | 低 | Skills | **无需修复**：参考型 skill，手动读取是设计意图 |
+| **缺口4** | **orchestrator-proxy decide 不可执行** | **高** | **Skills** | **已修复**（v157-swarm 353号）：SKILL.md 补充当前限制标注 + dispatch-dag platform_support:false |
+| 缺口5 | math-tools 无自动触发（设计意图一致） | 无 | Skills | **无需修复** |
+| 缺口6 | gemini-math 无自动触发 | 低 | Skills | **无需修复**：参考型 skill，手动触发是设计意图 |
+| **缺口7** | **plan-review 声称自动激活无触发路径** | **中** | **Skills** | **已修复**：plan.md 补充 plan-review skill 加载步骤 + D策略标注 |
+| 缺口8 | required_skills 无消费者（Part 1 已知） | 高 | scan | **已修复**（v157-swarm）：ceremony.md 步骤5b 消费 spawn_condition |
+| **缺口9** | **tensions_count 死数据** | **中** | **scan** | **已修复**：tensions_count 转化为 workstation（tension_scan source） |
+| 缺口10 | definitions 仅信息输出 | 低 | scan | **无需修复**：信息字段，由 ceremony 摘要步骤3消费 |
+| **缺口11** | **proposed_transitions 无执行路径** | **中** | **scan** | **已修复**：proposed_transitions 转化为 workstation（gangmu_transition source） |
+| 缺口12 | source-auditor hook 未注册（Part 1 已知） | 中 | Hooks | **已修复**（v157-swarm）：settings.json 已注册 |
+| 缺口13 | topology-mutator-prompt 与 dispatcher 重复未标注 | 低 | Hooks | **已修复**：文件标注废弃（功能已内联 dispatcher） |
+| **缺口14** | **meta-observer-guard 注释与代码不一致** | **低** | **Hooks** | **已修复**：注释对齐代码默认值（STRICT=1） |
+| **缺口15** | **test_pass 只检查文件存在（声明膨胀）** | **中** | **gangmu** | **已修复**（v157-swarm）：gangmu.yaml 全量迁移到 test_file_exists |
 
 ---
 

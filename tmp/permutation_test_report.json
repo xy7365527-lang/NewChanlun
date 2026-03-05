@@ -1,0 +1,54 @@
+{
+  "experiment": "Permutation Test: negates enrichment in Morse critical set",
+  "epistemological_level": "L2",
+  "genealogy": "374号 → 378号方向1",
+  "graph": {
+    "n_edges": 4535,
+    "n_critical": 3691,
+    "critical_rate": 0.8138919514884234
+  },
+  "negates": {
+    "n_total": 20,
+    "n_critical_observed": 19,
+    "critical_rate_observed": 0.95
+  },
+  "type_distribution": {
+    "defines": 1613,
+    "depends_on": 1234,
+    "references": 691,
+    "related": 460,
+    "records": 444,
+    "unknown": 50,
+    "negates": 18,
+    "tensions_with": 9,
+    "splits": 5,
+    "residue_of": 4,
+    "extends": 3,
+    "negated_by": 2,
+    "supersedes": 2
+  },
+  "permutation_test": {
+    "n_permutations": 10000,
+    "p_value_one_sided": 0.0927,
+    "null_mean": 16.3038,
+    "null_median": 16,
+    "null_95_percentile": 19,
+    "null_99_percentile": 20,
+    "null_max": 20,
+    "null_distribution_counts": {
+      "9": 1,
+      "10": 13,
+      "11": 48,
+      "12": 143,
+      "13": 388,
+      "14": 852,
+      "15": 1583,
+      "16": 2184,
+      "17": 2278,
+      "18": 1583,
+      "19": 766,
+      "20": 161
+    }
+  },
+  "conclusion": "negates 过表达不显著（p=0.0927 >= 0.05）。Fisher p=0.0058 为拓扑位置效应导致的伪显著性。373号本体论主张（negates=骨架）被否定。"
+}
