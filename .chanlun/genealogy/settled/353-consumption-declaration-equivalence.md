@@ -96,9 +96,9 @@ epistemology:
 
 ## 5. 下游推论
 
-1. **spec-execution-gap skill 需要更新**：`.claude/skills/spec-execution-gap/SKILL.md` 的检测模式需要增加"产出→消费"方向
-2. **ceremony_scan 增加双向扫描**：不仅检查"声明了什么能力"，还检查"产出了什么字段/文件，是否有消费者"
-3. **dispatch-dag 标注平台边界**：不支持的语义事件标注 `platform_support: false`，消除隐式断裂
+1. **spec-execution-gap skill 需要更新** — resolved（spec-gap-bidirectional已完成，358号结算）：`.claude/skills/spec-execution-gap/SKILL.md` 的检测模式需要增加"产出→消费"方向
+2. **ceremony_scan 增加双向扫描** — resolved（ceremony-scan-bidirectional已完成，358号结算）：不仅检查"声明了什么能力"，还检查"产出了什么字段/文件，是否有消费者"
+3. **dispatch-dag 标注平台边界** — resolved（dispatch-dag-platform-boundary已完成）：不支持的语义事件标注 `platform_support: false`，消除隐式断裂
 
 ## 6. 谱系引用
 

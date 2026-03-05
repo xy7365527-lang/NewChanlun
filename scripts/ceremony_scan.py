@@ -782,6 +782,7 @@ def _scan_genealogy_proposals(root, gangmu_data):
             # 提取 ## 下游推论 节的内容
             in_section = False
             section_items = []
+            section_lines = []
             for line in content.split("\n"):
                 if downstream_section_pattern.match(line):
                     in_section = True
@@ -790,16 +791,33 @@ def _scan_genealogy_proposals(root, gangmu_data):
                     break
                 if not in_section:
                     continue
-                # 解析编号列表项: 1. **标题**：描述
+                section_lines.append(line)
+
+            # 解析编号列表项及其子行（status 标记可能在子行）
+            i = 0
+            while i < len(section_lines):
+                line = section_lines[i]
                 m = numbered_item_pattern.match(line.strip())
                 if m:
                     item_title = m.group(1).strip()
                     item_desc = m.group(2).strip()
+                    # 收集紧随的缩进子行（status 标记）
+                    sub_text = ""
+                    j = i + 1
+                    while j < len(section_lines):
+                        sub_line = section_lines[j]
+                        if sub_line.strip() and not sub_line.startswith("   ") and not sub_line.startswith("\t"):
+                            break
+                        sub_text += " " + sub_line.strip()
+                        j += 1
+                    full_text = f"{item_title}：{item_desc}" if item_desc else item_title
                     section_items.append({
                         "title": item_title,
                         "desc": item_desc,
-                        "full_text": f"{item_title}：{item_desc}" if item_desc else item_title,
+                        "full_text": full_text,
+                        "sub_text": sub_text,
                     })
+                i += 1
 
             if not section_items:
                 continue
@@ -808,9 +826,10 @@ def _scan_genealogy_proposals(root, gangmu_data):
             for idx, item in enumerate(section_items):
                 full_text = item["full_text"]
                 full_lower = full_text.lower()
+                check_text = full_text + item.get("sub_text", "")
 
-                # 已执行标记：包含"已执行"、"resolved"、"已完成"的跳过
-                if any(kw in full_text for kw in ("已执行", "resolved", "已完成", "— **已执行**")):
+                # 已执行标记：包含"已执行"、"resolved"、"已完成"、"superseded"的跳过
+                if any(kw in check_text for kw in ("已执行", "resolved", "已完成", "— **已执行**", "superseded")):
                     continue
 
                 # 精确匹配：推论文本中引用了某个 target
@@ -1479,6 +1498,28 @@ def main():
                 "status": "tensions_detected",
                 "source": "tension_scan",
             })
+
+    # 三角簇密度健康度指标（365号下游推论1）
+    try:
+        tri_script = os.path.join(os.path.dirname(__file__), "triangle_cluster_indicator.py")
+        if os.path.isfile(tri_script):
+            import importlib.util
+            spec = importlib.util.spec_from_file_location("triangle_cluster_indicator", tri_script)
+            tri_mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(tri_mod)
+            tri_result = tri_mod.analyze()
+            if "error" not in tri_result:
+                result["triangle_cluster_health"] = {
+                    "triangle_count": tri_result["triangle_count"],
+                    "global_density": round(tri_result["global_density"], 6),
+                    "avg_clustering_coefficient": round(
+                        tri_result["avg_clustering_coefficient"], 4
+                    ),
+                    "total_nodes": tri_result["total_nodes"],
+                    "total_edges": tri_result["total_edges"],
+                }
+    except Exception:
+        pass  # 降级：三角簇模块不可用时不阻塞主流程
 
     # 二阶反馈：下游推论执行审计
     try:

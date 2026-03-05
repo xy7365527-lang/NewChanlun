@@ -142,25 +142,18 @@ negates: 4, supersedes: 3, references: 2, depends_on: 1
 
 ## 下游推论
 
-1. **scanner-l2-validation 工位**应按洞察4的两个核心对比设计 L2 验证——分岔点×否定对应 + negates 临界性
-   - **status: not_yet_covered**
-   - 审计（v161）：当前 `scanner.py` 是 366号商空间排序模块，不涉及 Morse/Cerf 分岔验证。`tightness_selection_l2.py` 是 350号下游推论4 的 T(S) 选股验证，验证假设为"高 T(S) 信号质量 > 低 T(S)"，使用前向收益 + Wilcoxon 检验——**不是** 362号洞察4要求的"分岔点×否定对应 + negates 临界性"两个核心对比。362号要求的 L2 验证（加权 Morse 分岔点与编排者标记的关键否定的 precision/recall + negates 边临界率统计检验）尚无对应脚本。需新建专用 L2 验证脚本。
+1. **scanner-l2-validation 工位** — superseded_by: 363号（L2否定——加权Cerf未改善均匀Morse）：应按洞察4的两个核心对比设计 L2 验证——分岔点×否定对应 + negates 临界性
+   - 审计（v162）：363号L2否定性结果证明加权Cerf未改善均匀Morse的否定性预测能力。362号洞察4要求的"分岔点×否定对应 + negates 临界性"两个核心对比已由 `scripts/cerf_l2_validation.py` 执行（363号），结论为否定——加权策略的分岔点与关键否定无强相关。L2验证已完成但结论为否定，不再需要新建专用脚本。
 
-2. **weighted_morse.py 当前权重序不需要修改**——洞察1确认方向正确
-   - **status: resolved**
-   - 审计（v161）：`scripts/weighted_morse.py` 第 50-66 行 `DEFAULT_WEIGHTS` 确认权重序为 `negates: 4, supersedes: 3, modifies/refines/tensions_with/reopens: 2, depends_on/references/defines/related/records/extends/residue_of: 1`。配对策略（第 197-265 行）优先配对低权重边、保留高权重边为临界。与洞察1完全一致：negates = 骨架（保留为临界），depends_on = 可消去冗余（优先配对）。无需修改。
+2. **weighted_morse.py 当前权重序不需要修改** — resolved（洞察1确认方向正确，代码验证一致）
+   - 审计（v161）：`scripts/weighted_morse.py` 第 50-66 行 `DEFAULT_WEIGHTS` 确认权重序为 `negates: 4, supersedes: 3, modifies/refines/tensions_with/reopens: 2, depends_on/references/defines/related/records/extends/residue_of: 1`。配对策略（第 197-265 行）优先配对低权重边、保留高权重边为临界。与洞察1完全一致。
 
-3. **cerf_bifurcation.py 的三标准优先级需在 L2 后调整**——如果洞察3的先行性被 L2 确认，权重突变应成为默认首要标准
-   - **status: blocked_by: 362号-1（L2 验证结果）**
-   - 审计（v161）：`scripts/cerf_bifurcation.py` 第 201-342 行 `detect_bifurcations` 实现了三种分岔标准（临界数量变化、权重偏移、Betti 数变化），当前三标准平等触发（任一满足即为分岔点），无优先级排序。洞察3提出权重突变应为先行指标——但此调整需 L2 验证确认先行性假设成立后才能执行。当前代码结构支持后续调整（三标准独立检测，可加排序权重）。
+3. **cerf_bifurcation.py 的三标准优先级需在 L2 后调整** — superseded_by: 363号（L2否定——weight_shift从未独立触发）：如果洞察3的先行性被 L2 确认，权重突变应成为默认首要标准
+   - 审计（v162）：363号L2否定证明加权Cerf的292个分岔中288个是betti_change类型，weight_shift标准从未独立触发。洞察3的先行性假设在L2中未被观察到。三标准优先级调整的前提不成立。
 
-4. **DM1 三角簇分析可作为独立指标**——洞察2暗示三角簇密度本身就是"概念硬核心"的度量，不依赖 Morse 理论
-   - **status: covered_by: Task #46 (triangle-indicator)**
-   - 审计（v161）：Task #46（triangle-indicator）正在实现三角簇密度独立指标，覆盖 362号-4 和 365号下游推论。
+4. **DM1 三角簇分析可作为独立指标** — resolved_by: 365号（L2验证确认，r=0.79，47个triangle-exclusive节点）：洞察2暗示三角簇密度本身就是"概念硬核心"的度量，不依赖 Morse 理论
 
-5. **L2 验证及后续数学推导必须经 Gemini/Codex 异质审查**——洞察5要求数学正确性判断不可由同质 Claude 工位独立完成
-   - **status: process_constraint（架构要求，非代码任务）**
-   - 审计（v161）：这是蜂群 spawn 策略约束——数学研究线工位必须通过 orchestrator-proxy 引入 Gemini/Codex。不产生代码修改，在后续 L2 验证执行时作为流程约束强制执行。不可翻转（136号：无条件要求不接受成本收益消解）。
+5. **L2 验证及后续数学推导必须经 Gemini/Codex 异质审查** — resolved（process_constraint已写入gangmu.yaml morse-topology constraints）：洞察5要求数学正确性判断不可由同质 Claude 工位独立完成
 
 ## 影响声明
 

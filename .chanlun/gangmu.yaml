@@ -192,6 +192,7 @@ gang:
       completion_check:
         type: test_file_exists
         pattern: tests/test_fold_lifecycle.py
+      completed_at: '2026-03-05'
     - type: engineering
       target: convergence-event
       description: 收敛事件产生器——当T(S)变化（新级别背驰出现/消失）时产生收敛事件用于实时监控（来源：350号下游推论3）
@@ -199,6 +200,7 @@ gang:
       completion_check:
         type: test_file_exists
         pattern: tests/test_convergence_event.py
+      completed_at: '2026-03-05'
     - type: experiment
       target: scanner-l2-validation
       description: 商空间排序 vs 扁平排序对比验证——真实多标的数据上验证折叠合并和W权重的选股效果（来源：352号下游推论4 + 350号下游推论4，两者合并）
@@ -222,6 +224,7 @@ gang:
         type: file_contains
         path: src/newchan/scanner.py
         pattern: quotient_rank
+      completed_at: '2026-03-05'
     - type: experiment
       target: w-weight-l3-validation
       description: W权重敏感度分析L3验证——当前{4,3,2,1,1}有效但最优性未验证，需多标的数据（来源：366号下游推论2）
@@ -481,7 +484,9 @@ gang:
       blocked_by: null
       completion_check:
         type: test_file_exists
-        pattern: tests/test_triangle_cluster.py
+        pattern: tests/test_triangle_cluster*.py
+      completed_at: '2026-03-05'
+      completed_reason: 365号L2验证确认——三角簇密度是独立指标（r=0.79，47个triangle-exclusive节点）
     - type: integration
       target: triangle-cluster-ceremony-health
       description: 三角簇密度纳入ceremony_scan健康度指标——新谱系区间的三角簇密度若显著低于历史区间，可能意味着概念未充分互连（来源：365号下游推论1）
@@ -490,6 +495,7 @@ gang:
         type: file_contains
         path: scripts/ceremony_scan.py
         pattern: triangle_cluster
+      completed_at: '2026-03-05'
     - type: experiment
       target: triangle-exclusive-analysis
       description: triangle-exclusive节点列表是"被忽视的概念群"的发现线索——305-310区间高聚类系数值得后续分析（来源：365号下游推论2）
@@ -497,6 +503,8 @@ gang:
       completion_check:
         type: genealogy_settled
         keyword: triangle-exclusive-analysis
+      completed_at: '2026-03-05'
+      completed_reason: 365号L2验证报告已包含triangle-exclusive分析——47个节点（高三角簇>5+低入度<5），305-310区间CC=0.714-0.750
     - type: integration
       target: dual-indicator-system
       description: 三角簇+入度双指标体系——单指标各有盲区，双指标互补覆盖两种核心概念类型（广播式vs团簇式）（来源：365号下游推论4）
@@ -504,6 +512,8 @@ gang:
       completion_check:
         type: genealogy_settled
         keyword: dual-indicator-system
+      completed_at: '2026-03-05'
+      completed_reason: 365号L2验证确立双指标体系——r=0.79（不冗余），广播式枢纽(高入度低CC)vs团簇式核心(高CC高三角簇)
     - type: experiment
       target: weighted-vs-uniform-comparison
       description: 加权Morse vs 均匀Morse对比——L2验证成功后对比precision，确定是否以加权Morse替代均匀Morse作为默认（来源：360号下游推论2）
