@@ -279,7 +279,7 @@
       "Bash(git reset --hard*)"
     ]
   },
-  "model": "claude-opus-4-6-thinking",
+  "model": "claude-opus-4-6-thinking[1m]",
   "betas": [
     "context-1m-2025-08-07"
   ]

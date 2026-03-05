@@ -83,7 +83,7 @@ def _print_result(result: ChallengeResult, *, verbose: bool) -> None:
 
 
 def main() -> None:
-    load_dotenv()
+    load_dotenv(override=True)
     args = _build_parser().parse_args()
 
     ctx = args.context

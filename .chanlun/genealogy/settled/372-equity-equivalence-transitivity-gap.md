@@ -80,8 +80,11 @@ def equivalence_key(target):
 ## 下游推论
 
 1. 352号需补充声明："板块划分是互斥 partition——每个标的有且仅有一个板块标签"
+   - **status: blocked** — 等待 352号文本修正（定义层补充）
 2. fold_equivalence.py 中 sector: str 的单值约束应在注释中明确：这不仅是实现细节，也是等价关系公理成立的前提
+   - **status: blocked** — 等待代码注释更新
 3. 如果未来扩展支持多板块，等价关系需要重新定义（可能需要从等价关系退化为相似关系）
+   - **status: resolved** — 信息性推论，已记录为红线约束
 
 ## 谱系引用
 

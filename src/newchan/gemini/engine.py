@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import time
 
 logger = logging.getLogger(__name__)
@@ -15,9 +16,30 @@ logger = logging.getLogger(__name__)
 _MODEL = "gemini-3.1-pro-preview"
 _FALLBACK_MODEL = "gemini-2.5-pro"
 
+# Thinking budget — 默认无上限，可通过环境变量 GEMINI_THINKING_BUDGET 覆盖
+# -1 表示无上限（Gemini API 自行决定推理深度）
+_DEFAULT_THINKING_BUDGET = -1
+
 # 503 重试配置
 _MAX_RETRIES = 3
 _RETRY_BASE_DELAY = 5  # 秒，指数退避基数
+
+
+def _get_thinking_budget() -> int:
+    """读取 thinking budget 配置。-1 表示无上限。"""
+    raw = os.environ.get("GEMINI_THINKING_BUDGET", "")
+    if raw.strip():
+        return int(raw.strip())
+    return _DEFAULT_THINKING_BUDGET
+
+
+def _make_thinking_config(genai_types):
+    """构造 ThinkingConfig，-1 时不设 budget 限制。"""
+    budget = _get_thinking_budget()
+    if budget < 0:
+        # 无上限：不传 thinking_budget，让 Gemini 自行决定
+        return genai_types.ThinkingConfig()
+    return genai_types.ThinkingConfig(thinking_budget=budget)
 
 
 def call_with_fallback(
@@ -53,9 +75,7 @@ def call_with_fallback(
                     config=genai_module.types.GenerateContentConfig(
                         system_instruction=system_prompt,
                         temperature=temperature,
-                        thinking_config=genai_module.types.ThinkingConfig(
-                            thinking_budget=8192,
-                        ),
+                        thinking_config=_make_thinking_config(genai_module.types),
                     ),
                 )
                 return response.text or "", m
@@ -120,9 +140,7 @@ async def call_with_tools_and_fallback(
                         automatic_function_calling=genai_types_module.AutomaticFunctionCallingConfig(
                             maximum_remote_calls=max_tool_calls,
                         ),
-                        thinking_config=genai_types_module.ThinkingConfig(
-                            thinking_budget=8192,
-                        ),
+                        thinking_config=_make_thinking_config(genai_types_module),
                     ),
                 )
                 tool_calls, chain = extract_reasoning_chain(response)

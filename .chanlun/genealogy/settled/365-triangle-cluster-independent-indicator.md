@@ -108,10 +108,14 @@ v161-swarm 的 triangle-cluster 工位在真实谱系数据上验证了这一预
 
 ## 下游推论
 
-1. **三角簇密度可纳入 ceremony_scan 的健康度指标** — resolved（ceremony_scan.py已集成triangle_cluster_health输出）：新谱系区间的三角簇密度若显著低于历史区间，可能意味着概念未充分互连
-2. **triangle-exclusive 节点列表是"被忽视的概念群"的发现线索** — resolved（本谱系已包含分析）：305-310区间高聚类系数值得后续分析
-3. **聚类系数可对接 Morse 理论的临界点类型判据** — superseded_by: 363号（Morse有效域不含语义角色识别，CC×Morse对接的前提不成立）：高CC = 局部极值（团簇中心），低CC+高度 = 鞍点（桥梁）
-4. **三角簇 + 入度的双指标体系** — resolved（本谱系§独立信号验证已确立）：单指标各有盲区，双指标互补覆盖两种核心概念类型（广播式 vs 团簇式）
+1. **三角簇密度可纳入 ceremony_scan 的健康度指标** — 新谱系区间的三角簇密度若显著低于历史区间，可能意味着概念未充分互连
+   - **status: resolved** — ceremony_scan.py 已集成 triangle_cluster_health 输出
+2. **triangle-exclusive 节点列表是"被忽视的概念群"的发现线索** — 305-310区间高聚类系数值得后续分析
+   - **status: resolved** — 本谱系已包含完整分析
+3. **聚类系数可对接 Morse 理论的临界点类型判据** — 高CC = 局部极值（团簇中心），低CC+高度 = 鞍点（桥梁）
+   - **status: resolved** — superseded_by 363号（Morse有效域不含语义角色识别，CC×Morse对接的前提不成立）
+4. **三角簇 + 入度的双指标体系** — 单指标各有盲区，双指标互补覆盖两种核心概念类型（广播式 vs 团簇式）
+   - **status: resolved** — 本谱系§独立信号验证已确立
 
 ## 谱系链接
 
