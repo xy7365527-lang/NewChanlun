@@ -678,10 +678,160 @@ def _check_completion(root, check):
         pattern = check.get("pattern", "")
         return os.path.isfile(os.path.join(root, pattern))
     if check_type == "test_file_exists":
-        # test_file_exists：语义明确版——只检查测试文件存在
+        # test_file_exists：语义明确版——检查测试文件存在（支持 glob 通配符）
         pattern = check.get("pattern", "")
-        return os.path.isfile(os.path.join(root, pattern))
+        full_pattern = os.path.join(root, pattern)
+        if os.path.isfile(full_pattern):
+            return True
+        return len(glob.glob(full_pattern)) > 0
     return False
+
+
+def _scan_genealogy_proposals(root, gangmu_data):
+    """扫描已结算谱系的下游推论，提议未被 gangmu 覆盖的新目。
+
+    从最近 20 条 settled 谱系中提取 ## 下游推论 节的内容，
+    检查每条推论是否已被 gangmu.yaml 中某个 mu 的 next_actions.target 覆盖。
+    未覆盖的推论 → 生成 proposed_new_mu 列表。
+
+    兼容多种节标题写法：## 下游推论 / ## N. 下游推论 / ## downstream_implications。
+    扫描失败不阻塞主流程。
+    """
+    settled_dir = os.path.join(root, ".chanlun/genealogy/settled")
+    if not os.path.isdir(settled_dir):
+        return []
+
+    # 1. 收集 gangmu 中所有已有的 target 标识
+    existing_targets = set()
+    gangs = gangmu_data.get("gang", []) if isinstance(gangmu_data, dict) else []
+    gang_lookup = {}  # mu_id → gang_id 的映射（建议归属用）
+    for gang in gangs:
+        if not isinstance(gang, dict):
+            continue
+        gang_id = gang.get("id", "")
+        for mu in gang.get("mu", []):
+            if not isinstance(mu, dict):
+                continue
+            mu_id = mu.get("id", "")
+            gang_lookup[mu_id] = gang_id
+            for action in mu.get("next_actions", []):
+                if isinstance(action, dict):
+                    target = action.get("target", "")
+                    if target:
+                        existing_targets.add(target)
+
+    # 2. 收集 gangmu 中所有 mu 的 description 文本（用于模糊匹配覆盖检测）
+    existing_descriptions = set()
+    for gang in gangs:
+        if not isinstance(gang, dict):
+            continue
+        for mu in gang.get("mu", []):
+            if not isinstance(mu, dict):
+                continue
+            for action in mu.get("next_actions", []):
+                if isinstance(action, dict):
+                    desc = action.get("description", "")
+                    if desc:
+                        existing_descriptions.add(desc.lower())
+
+    # 3. 按编号倒序扫描最近 20 条谱系
+    settled_files = []
+    for fname in os.listdir(settled_dir):
+        if not fname.endswith(".md"):
+            continue
+        m = re.match(r'^(\d+)', fname)
+        if m:
+            settled_files.append((int(m.group(1)), fname))
+    settled_files.sort(key=lambda x: x[0], reverse=True)
+    settled_files = settled_files[:20]
+
+    proposals = []
+    downstream_section_pattern = re.compile(
+        r'^##\s*(?:\d+\.?\s*)?(?:下游推论|downstream[_ ]?implications|downstream[_ ]?actions)',
+        re.IGNORECASE,
+    )
+    numbered_item_pattern = re.compile(r'^\d+\.\s+\*\*(.+?)\*\*(?:：|:)?\s*(.*)')
+
+    for file_num, fname in settled_files:
+        filepath = os.path.join(settled_dir, fname)
+        try:
+            with open(filepath, encoding="utf-8") as f:
+                content = f.read()
+
+            # 提取 ## 下游推论 节的内容
+            in_section = False
+            section_items = []
+            for line in content.split("\n"):
+                if downstream_section_pattern.match(line):
+                    in_section = True
+                    continue
+                if in_section and line.startswith("## "):
+                    break
+                if not in_section:
+                    continue
+                # 解析编号列表项: 1. **标题**：描述
+                m = numbered_item_pattern.match(line.strip())
+                if m:
+                    item_title = m.group(1).strip()
+                    item_desc = m.group(2).strip()
+                    section_items.append({
+                        "title": item_title,
+                        "desc": item_desc,
+                        "full_text": f"{item_title}：{item_desc}" if item_desc else item_title,
+                    })
+
+            if not section_items:
+                continue
+
+            # 4. 检查每条推论是否已被覆盖
+            for idx, item in enumerate(section_items):
+                full_text = item["full_text"]
+                full_lower = full_text.lower()
+
+                # 已执行标记：包含"已执行"、"resolved"、"已完成"的跳过
+                if any(kw in full_text for kw in ("已执行", "resolved", "已完成", "— **已执行**")):
+                    continue
+
+                # 精确匹配：推论文本中引用了某个 target
+                covered = False
+                for target in existing_targets:
+                    if target.lower() in full_lower:
+                        covered = True
+                        break
+
+                if covered:
+                    continue
+
+                # 推断建议归属的纲
+                suggested_gang = "swarm-infra"  # 默认
+                # 从谱系的 frontmatter 中尝试读取 depends_on 来推断纲归属
+                fm_match = re.match(r"^---\s*\n(.+?)\n---", content, re.DOTALL)
+                if fm_match:
+                    try:
+                        fm = yaml.safe_load(fm_match.group(1))
+                        if isinstance(fm, dict):
+                            deps = fm.get("depends_on", [])
+                            if isinstance(deps, list):
+                                for dep in deps:
+                                    dep_str = str(dep).strip().strip("'\"")
+                                    for mu_id, g_id in gang_lookup.items():
+                                        if dep_str in mu_id or mu_id in dep_str:
+                                            suggested_gang = g_id
+                                            break
+                    except Exception:
+                        pass
+
+                proposals.append({
+                    "source": f"{file_num}号",
+                    "field": f"downstream_implications[{idx}]",
+                    "text": full_text[:200],
+                    "coverage_status": "not_covered",
+                    "suggested_gang": suggested_gang,
+                })
+        except Exception:
+            continue
+
+    return proposals
 
 
 def _scan_research_lines(root):
@@ -1134,6 +1284,27 @@ def main():
                 })
     except Exception as exc:
         result["research_lines_error"] = f"{type(exc).__name__}: {exc}"
+
+    # 2e-2. 谱系下游推论提议：扫描 settled 谱系的未覆盖下游推论，提议新 gangmu 条目
+    try:
+        gm_path = os.path.join(root, ".chanlun/gangmu.yaml")
+        if os.path.isfile(gm_path):
+            with open(gm_path, encoding="utf-8") as f:
+                gangmu_data = yaml.safe_load(f) or {}
+        else:
+            gangmu_data = {}
+        proposed_new_mu = _scan_genealogy_proposals(root, gangmu_data)
+        if proposed_new_mu:
+            result["proposed_new_mu"] = proposed_new_mu
+            workstations.append({
+                "priority": "P1",
+                "name": f"谱系提议：{len(proposed_new_mu)}条未覆盖下游推论",
+                "status": "genealogy_proposals",
+                "source": "genealogy_proposals",
+                "proposed_new_mu": proposed_new_mu,
+            })
+    except Exception as exc:
+        result["genealogy_proposals_error"] = f"{type(exc).__name__}: {exc}"
 
     # 2f. 谱系编号异常检测（编号冲突自动发现 + 修复工位生成）
     genealogy_anomalies = detect_genealogy_anomalies(root)

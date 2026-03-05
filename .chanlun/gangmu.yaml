@@ -233,6 +233,25 @@ gang:
     opened_at: '269'
     closed_at: '275'
     next_actions: []
+  - id: spec-gap-upgrade
+    name: 声明-能力缺口升级（353号推论）
+    status: active
+    opened_at: '353'
+    next_actions:
+    - type: engineering
+      target: spec-gap-bidirectional
+      description: 更新 .claude/skills/spec-execution-gap/SKILL.md，增加消费断裂（产出→消费）检测方向。当前只检测"声明了X但没实现"，需增加"实现了X但没有消费者"方向
+      blocked_by: null
+      completion_check:
+        type: file_exists
+        path: .claude/skills/spec-execution-gap/SKILL.md
+    - type: engineering
+      target: ceremony-scan-bidirectional
+      description: 修改 ceremony_scan.py，增加"产出端是否有消费者"扫描。当前 scan 只检查"gangmu 有 active mu 吗"，需增加"已结算谱系的下游推论是否被消费"的反向检查
+      blocked_by: spec-gap-bidirectional
+      completion_check:
+        type: genealogy_settled
+        keyword: scan-bidirectional
 - id: knowledge-genealogy
   name: 知识谱系
   zongfangzhen_section: §四.2知识维度 + §八.五穿越基础设施 + §八.七阶段B-T/B-M/I-2预备
@@ -252,6 +271,32 @@ gang:
         keyword: encounter-record
     closed_at: '2026-03-04'
     closed_reason: 所有 next_actions 的 completion_check 均已满足
+  - id: topo-schema-cleanup
+    name: 区块拓扑 schema 统一与张力消化
+    status: active
+    opened_at: '354'
+    next_actions:
+    - type: engineering
+      target: schema-unification
+      description: 统一 block-topology/blocks/ 中三种 schema 格式为单一规范格式。topo-analyst 报告 354号双写已修复，但旧区块格式不统一
+      blocked_by: null
+      completion_check:
+        type: test_file_exists
+        pattern: tests/test_topo_schema.py
+    - type: engineering
+      target: relation-type-completion
+      description: 补全 supersedes/reopens/modifies 关系类型。当前 relations.jsonl 中这三种关系数=0，但谱系中存在大量扬弃/重新打开/修正事件
+      blocked_by: schema-unification
+      completion_check:
+        type: test_file_exists
+        pattern: tests/test_relation_types.py
+    - type: experiment
+      target: tension-resolution-scan
+      description: 消化 51 条悬置张力（tensions_with 边），分类并标记为 resolved/ongoing/escalate
+      blocked_by: null
+      completion_check:
+        type: genealogy_settled
+        keyword: tension-resolution
 - id: morse-topology
   name: 离散Morse拓扑
   zongfangzhen_section: §四.2知识维度 + §八.二区块拓扑 + Morse理论扩展
@@ -288,3 +333,29 @@ gang:
         type: genealogy_settled
         keyword: morse-validation
       completed_at: '2026-03-04'
+  - id: weighted-morse-bm
+    name: 加权Morse理论（阶段B-M）
+    status: active
+    opened_at: '355'
+    next_actions:
+    - type: experiment
+      target: optimal-morse-function
+      description: 构造最优离散 Morse 函数——不依赖 BFS 生成树选择，消除 DM1 的 BFS 偶然性。使用 Forman 的离散梯度向量场理论
+      blocked_by: null
+      completion_check:
+        type: test_file_exists
+        pattern: tests/test_optimal_morse.py
+    - type: experiment
+      target: weighted-morse-edges
+      description: 按关系类型加权构造 Morse 函数。权重序：negates > supersedes > references > depends_on。验证加权 Morse 是否比均匀 Morse 更好地预测"关键否定"
+      blocked_by: optimal-morse-function
+      completion_check:
+        type: test_file_exists
+        pattern: tests/test_weighted_morse.py
+    - type: experiment
+      target: discrete-cerf-bifurcation
+      description: 离散 Cerf 理论片段——找到临界集质变的谱系编号 t（分岔点），与编排者标记的关键转折对比
+      blocked_by: weighted-morse-edges
+      completion_check:
+        type: genealogy_settled
+        keyword: cerf-bifurcation
