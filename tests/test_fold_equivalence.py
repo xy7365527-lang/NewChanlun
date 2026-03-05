@@ -19,6 +19,7 @@ import pytest
 from newchan.trading.fold_equivalence import (
     DTriState,
     EquivalenceClass,
+    FOLD_WEIGHT,
     FoldChannel,
     TargetAttributes,
     are_fold_equivalent,
@@ -280,11 +281,11 @@ class TestQuotientSpaceOrdering:
 
     def test_weight_by_channel(self) -> None:
         """折叠共享性权重 W 正确。"""
-        assert FoldChannel.AU.value == 4
-        assert FoldChannel.OIL.value == 3
-        assert FoldChannel.BOND.value == 2
-        assert FoldChannel.RE.value == 1
-        assert FoldChannel.EQUITY.value == 1
+        assert FOLD_WEIGHT[FoldChannel.AU] == 4
+        assert FOLD_WEIGHT[FoldChannel.OIL] == 3
+        assert FOLD_WEIGHT[FoldChannel.BOND] == 2
+        assert FOLD_WEIGHT[FoldChannel.RE] == 1
+        assert FOLD_WEIGHT[FoldChannel.EQUITY] == 1
 
     def test_au_ranks_above_oil_at_equal_tightness(self) -> None:
         """同 T 时，Au (W=4) 排在 Oil (W=3) 前。"""

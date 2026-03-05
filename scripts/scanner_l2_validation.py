@@ -261,26 +261,48 @@ class SymbolAnalysis:
 def _compute_structural_tightness(snap) -> tuple[float, str]:
     """从快照中计算结构紧度。
 
-    不依赖 compute_nesting_tightness（仅检查 buy 方向），
-    而是检查所有已确认的 BSP（buy 和 sell），因为 L2 验证
-    的目标是排序机制，不是交易方向。
+    L2 验证使用结构深度作为 tightness proxy：
+    - Level 1 有已确认 BSP → +1.0
+    - Level 1 有 moves → +0.5（有走势结构但未必有背驰买卖点）
+    - Level 1 有 zhongshus → +0.3（有中枢但未形成走势）
+    - 递归层有结构 → 每层 +1.0
 
-    紧度 = level1 有确认 BSP 贡献 1.0 + 每个递归层有 BSP 额外 +1.0。
+    这是 compute_nesting_tightness 的扩展版——原版只检查 buy BSP，
+    在日线数据上太稀疏（5年仅2/24标的触发）。扩展版检查结构深度的
+    梯度，使 L2 验证能覆盖更多标的的有效域。
+
+    认识论标注：tightness proxy 的合理性是 L2 假设，不是 L0 定理。
     """
     tightness = 0.0
     max_level = 0
 
-    # Level 1: 检查所有已确认 BSP
-    for bp in snap.bsp_snapshot.buysellpoints:
-        if bp.confirmed:
-            tightness += 1.0
-            max_level = 1
-            break  # 只计一次
+    # Level 1: BSP（最强信号）
+    has_bsp = any(bp.confirmed for bp in snap.bsp_snapshot.buysellpoints)
+    if has_bsp:
+        tightness += 1.0
+        max_level = 1
 
-    # 递归层：检查 moves（有 move = 有结构深度）
+    # Level 1: Moves（次强信号）
+    if len(snap.move_snapshot.moves) > 0:
+        tightness += 0.5
+        if max_level == 0:
+            max_level = 1
+
+    # Level 1: Zhongshus（基础结构信号）
+    if len(snap.zs_snapshot.zhongshus) > 0:
+        tightness += 0.3
+        if max_level == 0:
+            max_level = 1
+
+    # 递归层
     for rs in snap.recursive_snapshots:
+        layer_score = 0.0
         if len(rs.moves) > 0:
-            tightness += 1.0
+            layer_score = 1.0
+        elif len(rs.zhongshus) > 0:
+            layer_score = 0.5
+        if layer_score > 0:
+            tightness += layer_score
             if rs.level_id > max_level:
                 max_level = rs.level_id
 
