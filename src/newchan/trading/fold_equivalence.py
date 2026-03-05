@@ -40,14 +40,26 @@ class FoldChannel(Enum):
     """292号折叠盘点的五类折叠通道。
 
     每个通道对应一个折叠关系（同一对象在不同域中的不同相位）。
-    值 = 该通道的折叠共享性权重 W（352号 §4.2）。
+    值是唯一标识符（不再直接等于 W 权重——因为 RE 和 EQUITY
+    的 W 相同但必须是不同的 enum 成员，Python enum 会将同值
+    成员视为别名，导致 RE ≡ EQUITY 的 bug——L2 验证发现）。
     """
 
-    AU = 4       # Au: C <-> $, 全局共享
-    OIL = 3      # Oil: C <-> $, 半共享
-    BOND = 2     # Bond: $ <-> E, 经济体特有
-    RE = 1       # RE: RE <-> E, RE <-> $, 地区特有
-    EQUITY = 1   # 同板块 Equity, 板块特有
+    AU = "au"          # Au: C <-> $, 全局共享, W=4
+    OIL = "oil"        # Oil: C <-> $, 半共享, W=3
+    BOND = "bond"      # Bond: $ <-> E, 经济体特有, W=2
+    RE = "re"          # RE: RE <-> E, RE <-> $, 地区特有, W=1
+    EQUITY = "equity"  # 同板块 Equity, 板块特有, W=1
+
+
+# 折叠共享性权重 W（352号 §4.2）。从 enum 值分离以避免别名问题。
+FOLD_WEIGHT: dict[FoldChannel, int] = {
+    FoldChannel.AU: 4,
+    FoldChannel.OIL: 3,
+    FoldChannel.BOND: 2,
+    FoldChannel.RE: 1,
+    FoldChannel.EQUITY: 1,
+}
 
 
 class DTriState(Enum):
@@ -170,7 +182,7 @@ class EquivalenceClass:
     @property
     def weight(self) -> int:
         """折叠共享性权重 W(fold([S]))。"""
-        return self.fold_channel.value
+        return FOLD_WEIGHT[self.fold_channel]
 
     @property
     def rank(self) -> float:
