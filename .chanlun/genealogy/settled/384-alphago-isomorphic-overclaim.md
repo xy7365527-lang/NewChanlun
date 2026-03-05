@@ -1,6 +1,7 @@
 ---
 id: "384"
-status: 生成态
+status: 已结算
+resolution: 吸收——"Isomorphic"降级为"structural analogy"，三处断裂分析成立
 type: 矛盾发现
 negation_source: heterogeneous
 negation_form: unclassified

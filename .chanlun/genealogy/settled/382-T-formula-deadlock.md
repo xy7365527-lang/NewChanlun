@@ -1,6 +1,7 @@
 ---
 id: "382"
-status: 生成态
+status: 已结算
+resolution: 待规格v2重写——编排者"否定≠删除"修正改变前提，死锁严重程度需重新评估
 type: 矛盾发现
 negation_source: heterogeneous
 negation_form: unclassified
