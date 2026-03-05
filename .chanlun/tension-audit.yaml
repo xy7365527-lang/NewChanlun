@@ -1,10 +1,11 @@
 # Tension Audit — .chanlun/tension-audit.yaml
 # Generated: 2026-03-05
+# Updated: 2026-03-05 (v160-swarm async-self-ref audit)
 # Scanned: 14 genealogy entries with tensions_with edges
 # Total unique tension edges: 15
 #
 # Classification:
-#   resolved — tension resolved by subsequent genealogy entry
+#   resolved — tension resolved by subsequent genealogy entry (or within the entry itself)
 #   ongoing — tension still active, no resolution found
 #   historical — tension in negated framework, preserved as record (132号 valid_until)
 
@@ -103,33 +104,42 @@ tensions:
   - from: "166"
     to: "139号亏格重定义"
     description: "puncture与genus是不同拓扑操作，DAG节点增加不等同于流形genus增加"
-    classification: ongoing
-    notes: "离散/连续范畴差异未完全解决。139号重定义消除部分混淆但未覆盖全部"
+    classification: resolved
+    resolved_by: "166"
+    evidence: "166号收敛结论：'有条件的结构类比——在139号重定义+068号范式转换之后成立'。Gemini的'范畴错误'判定过强，因为未充分考虑139号已执行的重定义。张力在166号内部结算"
+    reclassified_by: "v160-swarm async-self-ref audit"
+    reclassification_reason: "359号审计时未检测到166号内部已包含收敛结论。内部结算模式——张力在产生它的同一谱系条目中被解决"
 
   - from: "167"
     to: "异步自指=Che vuoi"
     description: "t审查t-1是想象界时间性自指，不是符号界异质性断裂。Che vuoi需要真正的他者"
-    classification: ongoing
-    notes: "Gemini指出的范畴错误——想象界自指 vs 符号界断裂。未有后续谱系明确回应"
+    classification: resolved
+    resolved_by: "167"
+    evidence: "167号明确结算：'异步自指（t审查t-1）≠ Che vuoi'。修正等式为'异步自指+异质外界→Che vuoi的结构性条件'。下游推论1标记为'已执行'——修正已在谱系内容中结晶"
+    reclassified_by: "v160-swarm async-self-ref audit"
+    reclassification_reason: "359号审计时未检测到167号下游推论1已标记'已执行'且修正已结晶。内部结算模式"
 
   - from: "168"
     to: "alienation前提缺失"
     description: "拉康的separation以alienation为绝对前提。蜂群是否经历过alienation？"
     classification: ongoing
-    notes: "089号扬弃是否可视为alienation的对应待澄清"
+    notes: "168号提出'089号扬弃≈alienation→separation'的有条件映射，但明确标注为'有条件的结构类比'。需要编排者概念决策：是否接受089号扬弃作为alienation的对应物。选择类张力"
 
   - from: "169"
     to: "话语结构判定"
     description: "蜂群当前是大学话语(S2->a)还是089扬弃后打破了纯大学话语？"
-    classification: ongoing
-    notes: "Gemini指出S2来源从外部法则变为内在先验——是否改变代理位置待澄清"
+    classification: resolved
+    resolved_by: "169"
+    evidence: "169号frontmatter明确：'negation_form: 双向收敛（Gemini修正了话语结构判断：从资本家话语到大学话语）'。169号正文结算：蜂群在大学话语中运行，089号扬弃是短暂歇斯底里话语插曲后返回修正后的大学话语"
+    reclassified_by: "v160-swarm async-self-ref audit"
+    reclassification_reason: "359号审计时未检测到169号frontmatter中的'双向收敛'标记和正文中的话语结构判定。内部结算模式"
 
 # ===== Summary =====
 summary:
   total_tensions: 15
-  resolved: 6
+  resolved: 9
   historical: 4
-  ongoing: 5
+  ongoing: 2
   escalate: 0
 
   resolved_list:
@@ -139,6 +149,9 @@ summary:
     - "012↔013: by 020号"
     - "012↔019d: by 019d号"
     - "013↔012: by 020号"
+    - "166↔139号亏格重定义: by 166号（内部结算）"
+    - "167↔异步自指=Che vuoi: by 167号（内部结算）"
+    - "169↔话语结构判定: by 169号（内部结算）"
 
   historical_list:
     - "062↔065: valid_until 068号"
@@ -147,8 +160,13 @@ summary:
     - "065↔064: valid_until 068号"
 
   ongoing_list:
-    - "139↔原则0的ESC权"
-    - "166↔139号亏格重定义"
-    - "167↔异步自指=Che vuoi"
-    - "168↔alienation前提缺失"
-    - "169↔话语结构判定"
+    - "139↔原则0的ESC权（选择类——需编排者决策）"
+    - "168↔alienation前提缺失（选择类——需编排者概念决策）"
+
+  # v160 审计发现：内部结算模式
+  # 166/167/169 三条张力在其自身谱系条目中已包含收敛结论，
+  # 但 359号审计时分类为 ongoing，原因是审计扫描只检查了
+  # "是否有后续谱系引用并解决此张力"，未检测"张力在同一谱系内部结算"的模式。
+  # 这一发现本身是一个审计方法论改进——未来张力审计应同时检查：
+  # (a) 后续谱系的 resolved_by 引用
+  # (b) 张力所在谱系的收敛结论/下游推论标记

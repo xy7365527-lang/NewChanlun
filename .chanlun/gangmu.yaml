@@ -102,6 +102,7 @@ gang:
       completion_check:
         type: script_exists
         path: deploy/k4-monitor/setup.sh
+      completed_at: '2026-03-05'
     - type: engineering
       target: k4-config-encoder
       description: K4配置编码器——将K4参数编码为可序列化配置（G4）
@@ -109,6 +110,7 @@ gang:
       completion_check:
         type: file_exists
         path: src/newchan/k4_config.py
+      completed_at: '2026-03-05'
     closed_at: '2026-03-04'
     closed_reason: 所有 next_actions 的 completion_check 均已满足
   - id: k4-regime-analysis
@@ -272,7 +274,7 @@ gang:
     next_actions: []
   - id: spec-gap-upgrade
     name: 声明-能力缺口升级（353号推论）
-    status: closed
+    status: active
     opened_at: '353'
     next_actions:
     - type: engineering
@@ -290,8 +292,15 @@ gang:
       completion_check:
         type: genealogy_settled
         keyword: scan-bidirectional
-    closed_at: '2026-03-05'
-    closed_reason: 所有 next_actions 的 completion_check 均已满足
+      completed_at: '2026-03-05'
+    - type: engineering
+      target: dispatch-dag-platform-boundary
+      description: dispatch-dag.yaml中9个不支持的语义事件标注platform_support:false，消除隐式断裂。当前dispatch-dag声明了Claude Code不支持的语义事件触发（如file_write/genealogy_settlement），应标注平台边界而非留为隐式缺口（来源：353号下游推论3）
+      blocked_by: null
+      completion_check:
+        type: file_contains
+        path: .chanlun/dispatch-dag.yaml
+        pattern: platform_support
 - id: knowledge-genealogy
   name: 知识谱系
   zongfangzhen_section: §四.2知识维度 + §八.五穿越基础设施 + §八.七阶段B-T/B-M/I-2预备
@@ -309,6 +318,7 @@ gang:
       completion_check:
         type: genealogy_settled
         keyword: encounter-record
+      completed_at: '2026-03-05'
     closed_at: '2026-03-04'
     closed_reason: 所有 next_actions 的 completion_check 均已满足
   - id: topo-schema-cleanup
@@ -323,6 +333,7 @@ gang:
       completion_check:
         type: test_file_exists
         pattern: tests/test_topo_schema.py
+      completed_at: '2026-03-05'
     - type: engineering
       target: relation-type-completion
       description: 补全 supersedes/reopens/modifies 关系类型。当前 relations.jsonl 中这三种关系数=0，但谱系中存在大量扬弃/重新打开/修正事件
@@ -330,6 +341,7 @@ gang:
       completion_check:
         type: test_file_exists
         pattern: tests/test_relation_types.py
+      completed_at: '2026-03-05'
     - type: experiment
       target: tension-resolution-scan
       description: 消化 51 条悬置张力（tensions_with 边），分类并标记为 resolved/ongoing/escalate
@@ -337,6 +349,7 @@ gang:
       completion_check:
         type: genealogy_settled
         keyword: tension-resolution
+      completed_at: '2026-03-05'
     closed_at: '2026-03-05'
     closed_reason: 所有 next_actions 的 completion_check 均已满足
 - id: morse-topology
@@ -406,11 +419,18 @@ gang:
       completed_at: '2026-03-05'
     - type: experiment
       target: cerf-l2-validation
-      description: L2真实数据验证——在真实relations.jsonl上运行Cerf分析，分岔点与编排者标记的"关键转折"对比（来源：360号下游推论1）
+      description: L2真实数据验证——在真实relations.jsonl上运行Cerf分析。362号洞察4要求两个核心对比：(1)分岔点(特别是权重突变型)与编排者标记的"关键转折"时间对齐(precision/recall)，(2)negates边临界率vs depends_on边临界率(统计显著性)。数学正确性判断须经Gemini/Codex异质审查（来源：360号下游推论1 + 362号洞察4/5）
       blocked_by: discrete-cerf-bifurcation
       completion_check:
         type: genealogy_settled
         keyword: cerf-l2-validation
+    - type: experiment
+      target: triangle-cluster-indicator
+      description: DM1三角簇密度作为独立指标——三角簇(A→B,B→C,A→C)密度本身是"概念硬核心"的度量，不依赖Morse理论。从relations.jsonl提取三角簇，验证三角簇区域是否对应编排者标记的概念密集区（来源：362号洞察2）
+      blocked_by: null
+      completion_check:
+        type: test_file_exists
+        pattern: tests/test_triangle_cluster.py
     - type: experiment
       target: weighted-vs-uniform-comparison
       description: 加权Morse vs 均匀Morse对比——L2验证成功后对比precision，确定是否以加权Morse替代均匀Morse作为默认（来源：360号下游推论2）
