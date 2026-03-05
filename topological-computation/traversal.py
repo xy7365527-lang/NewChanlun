@@ -61,6 +61,7 @@ class TraversalEngine:
         settlement_threshold: int = 5,
         seed: int = 42,
         use_llm: bool = False,
+        conservative_prompt: bool = False,
     ):
         self.k_full = graph
         self.k_active = graph  # initially same
@@ -75,6 +76,7 @@ class TraversalEngine:
         self._nothing_streak = 0  # consecutive "nothing" steps
         self._blocked_at: dict[str, int] = {}  # position -> last blocked step (skip encounter there)
         self._use_llm = use_llm
+        self._conservative_prompt = conservative_prompt
         self._llm_log: list[dict] = []  # LLM call log for debugging
 
     # -- encounter detection (topological rules) ----------------------------
@@ -103,6 +105,7 @@ class TraversalEngine:
             beta_1=beta_1,
             settled_count=settled_count,
             pending_negations=self._pending_negations,
+            conservative=self._conservative_prompt,
         )
 
         self._llm_log.append({

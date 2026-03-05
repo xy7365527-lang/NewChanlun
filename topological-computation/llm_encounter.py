@@ -32,6 +32,7 @@ def format_prompt(
     beta_1: int,
     settled_count: int,
     pending_negations: list[tuple[str, str]],
+    conservative: bool = False,
 ) -> str:
     """Format local context into LLM prompt.
 
@@ -77,6 +78,17 @@ def format_prompt(
         )
     pending_block = "\n".join(pending_lines) if pending_lines else "  (none)"
 
+    conservative_block = ""
+    if conservative:
+        conservative_block = (
+            "IMPORTANT: Be conservative. If there is no clear structural identity "
+            "or contradiction at this position, report WALK. Do not force connections. "
+            "Most steps should be WALK — only report FOLD/NEGATE/SUBLATE when the "
+            "evidence is strong. Two propositions that are merely related or complementary "
+            "are NOT contradictions. Two propositions that discuss similar topics but make "
+            "different claims are NOT equivalent (not FOLD candidates).\n\n"
+        )
+
     return f"""You are a philosophical observer walking through a graph of propositions.
 
 YOUR CURRENT POSITION:
@@ -106,7 +118,7 @@ Examine the CONTENT of the propositions. Based on their MEANING:
 3. Can you synthesize any pending contradiction? → SUBLATE
 4. Nothing notable? → WALK
 
-Respond with EXACTLY ONE line in one of these formats:
+{conservative_block}Respond with EXACTLY ONE line in one of these formats:
   FOLD(vertexA, vertexB)
   NEGATE(vertexA, vertexB)
   SUBLATE(vertexA, vertexB)
@@ -171,10 +183,12 @@ def detect_encounter_llm(
     settled_count: int,
     pending_negations: list[tuple[str, str]],
     model: str = "claude-sonnet-4-20250514",
+    conservative: bool = False,
 ) -> LLMEncounterResult:
     """Full pipeline: format prompt → call LLM → parse response."""
     prompt = format_prompt(
         position, graph, terrain, beta_1, settled_count, pending_negations,
+        conservative=conservative,
     )
     response_text = call_llm(prompt, model=model)
     return parse_response(response_text)
