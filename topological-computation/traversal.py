@@ -188,16 +188,29 @@ class TraversalEngine:
                     )
 
         # 2. Negate_A: current vertex and a neighbor have circular dependency
+        #    Two filters to reduce false positives:
+        #    (a) Skip synthetic vertices (syn_/anti_ prefixed) — prevents self-referential oscillation
+        #    (b) At least one edge in the bidirectional pair must be critical (non-tree) in Morse terrain
+        #        Tree edges are hub-internal redundancy; critical edges participate in irreducible cycles
+        #        Zero parameters — uses intrinsic topological structure from already-computed terrain
         neighbors = self.k_active.neighbors(pos)
+        pos_is_synthetic = pos.startswith("syn_") or pos.startswith("anti_")
+        out_nbs = self.k_active.out_neighbors(pos)
+        in_nbs = self.k_active.in_neighbors(pos)
         for nb in neighbors:
             if nb == pos:
                 continue
-            # Check: pos depends on nb AND nb depends on something that depends on pos
-            # Simplified: pos→nb and nb→pos paths both exist (not via direct edge)
-            out_nbs = self.k_active.out_neighbors(pos)
-            in_nbs = self.k_active.in_neighbors(pos)
+            # (a) Skip if either vertex is a synthesis/antithesis product
+            nb_is_synthetic = nb.startswith("syn_") or nb.startswith("anti_")
+            if pos_is_synthetic or nb_is_synthetic:
+                continue
             if nb in out_nbs and nb in in_nbs:
-                # Bidirectional relationship — contradiction signal
+                # (b) Morse critical filter: at least one direction must be a critical edge
+                fwd_mark = self.terrain.get((pos, nb), "critical")  # default critical if not in terrain
+                rev_mark = self.terrain.get((nb, pos), "critical")
+                if fwd_mark == "tree" and rev_mark == "tree":
+                    continue  # both tree edges → hub-internal redundancy, not contradiction
+                # Bidirectional relationship with topological weight — contradiction signal
                 # But skip if already negation edge between them
                 has_neg = any(
                     e.edge_type == EdgeType.NEGATION
@@ -207,7 +220,7 @@ class TraversalEngine:
                 if not has_neg:
                     return Encounter(
                         EncounterType.NEGATE_A, pos, nb,
-                        f"Bidirectional relationship {pos}<->{nb} — contradiction signal",
+                        f"Bidirectional {pos}<->{nb} with critical edge ({fwd_mark}/{rev_mark})",
                     )
 
         # 3. Fold: current position shares multiple neighbors with a previously visited vertex
