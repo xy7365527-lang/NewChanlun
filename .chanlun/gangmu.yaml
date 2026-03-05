@@ -295,12 +295,13 @@ gang:
       completed_at: '2026-03-05'
     - type: engineering
       target: dispatch-dag-platform-boundary
-      description: dispatch-dag.yaml中9个不支持的语义事件标注platform_support:false，消除隐式断裂。当前dispatch-dag声明了Claude Code不支持的语义事件触发（如file_write/genealogy_settlement），应标注平台边界而非留为隐式缺口（来源：353号下游推论3）
+      description: dispatch-dag.yaml中不支持的语义事件标注platform_support:false/partial，消除隐式断裂。当前dispatch-dag声明了Claude Code不支持的语义事件触发（如file_write/genealogy_settlement），应标注平台边界而非留为隐式缺口（来源：353号下游推论3）
       blocked_by: null
       completion_check:
         type: file_contains
         path: .chanlun/dispatch-dag.yaml
         pattern: platform_support
+      completed_at: '2026-03-05'
 - id: knowledge-genealogy
   name: 知识谱系
   zongfangzhen_section: §四.2知识维度 + §八.五穿越基础设施 + §八.七阶段B-T/B-M/I-2预备
@@ -424,6 +425,8 @@ gang:
       completion_check:
         type: genealogy_settled
         keyword: cerf-l2-validation
+      completed_at: '2026-03-05'
+      completed_reason: 363号L2否定性结果——加权Cerf未改善均匀Morse
     - type: experiment
       target: triangle-cluster-indicator
       description: DM1三角簇密度作为独立指标——三角簇(A→B,B→C,A→C)密度本身是"概念硬核心"的度量，不依赖Morse理论。从relations.jsonl提取三角簇，验证三角簇区域是否对应编排者标记的概念密集区（来源：362号洞察2）
@@ -438,6 +441,8 @@ gang:
       completion_check:
         type: genealogy_settled
         keyword: weighted-vs-uniform
+      completed_at: '2026-03-05'
+      completed_reason: 363号L2否定——前提不成立（加权未优于均匀），superseded
     - type: integration
       target: cerf-monitoring-signal
       description: Cerf分岔监控信号集成——如果L2确认分岔点与关键转折强相关，将Cerf分岔检测集成到ceremony_scan作为拓扑结构质变预警（来源：360号下游推论3）
@@ -445,3 +450,5 @@ gang:
       completion_check:
         type: genealogy_settled
         keyword: cerf-monitoring
+      completed_at: '2026-03-05'
+      completed_reason: 363号L2否定——前提不成立（分岔与关键转折无强相关），superseded
