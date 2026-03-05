@@ -176,6 +176,7 @@ gang:
       completion_check:
         type: test_file_exists
         pattern: tests/test_pool_generation.py
+      completed_at: '2026-03-05'
     - type: integration
       target: scanner-fugue-interface
       description: 扫描器→赋格状态机接口——扫描器输出rep([S])接入349号SCANNING→POSITION_OPEN转移（来源：352号下游推论2）
@@ -183,6 +184,7 @@ gang:
       completion_check:
         type: test_file_exists
         pattern: tests/test_scanner_fugue_interface.py
+      completed_at: '2026-03-05'
     - type: engineering
       target: scanner-fold-lifecycle
       description: 折叠生命周期监控——等价类折叠通道标记接入300号折叠生命周期测度论签名，折叠重新结算期标注信号可疑（来源：352号下游推论3）
@@ -204,6 +206,7 @@ gang:
       completion_check:
         type: genealogy_settled
         keyword: scanner-validation
+      completed_at: '2026-03-05'
 - id: block-topology
   name: 区块拓扑
   zongfangzhen_section: §八实现架构 + §八.七阶段B
@@ -359,6 +362,12 @@ gang:
   name: 离散Morse拓扑
   zongfangzhen_section: §四.2知识维度 + §八.二区块拓扑 + Morse理论扩展
   description: 区块拓扑上的离散Morse理论——折叠操作的数学框架+连续-离散界面
+  constraints:
+  - id: heterogeneous-math-review
+    description: 数学研究（L2验证及后续推导）的正确性判断必须经Gemini/Codex异质审查，不可由同质Claude工位独立完成（来源：362号洞察5，架构性要求，不接受成本收益消解136号）
+    source: "362"
+    type: process_requirement
+    scope: 所有L2+认识论等级的数学验证和证明
   mu:
   - id: discrete-morse-experiment
     name: 离散Morse计算实验

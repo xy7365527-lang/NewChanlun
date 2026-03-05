@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "claude-audit": {
+      "command": ".venv/Scripts/python",
+      "args": ["-m", "newchan.claude_audit", "serve"],
+      "env": {
+        "ANTHROPIC_API_KEY": "${ANTHROPIC_API_KEY}"
+      }
+    }
+  }
+}
