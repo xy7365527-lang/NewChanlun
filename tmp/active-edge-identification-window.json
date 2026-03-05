@@ -1,0 +1,719 @@
+{
+  "analysis": "K4 active edge identification window",
+  "regime": {
+    "name": "2020-21 COVID/QE sync compression",
+    "regime_start": "2020-04-03",
+    "regime_end": "2021-04-23",
+    "duration_days": 263,
+    "inferred_rupture_node": "Commodity"
+  },
+  "primary_result": {
+    "method": "commodity_vs_non_commodity divergence ratio > 1.5 for 5 consecutive days",
+    "identification_date": "2020-04-09",
+    "blind_window_from_regime_start": {
+      "regime_start": "2020-04-03",
+      "identification_date": "2020-04-09",
+      "calendar_days": 6,
+      "approx_trading_days": 5
+    },
+    "blind_window_from_first_riot": {
+      "regime_start": "2020-02-21",
+      "identification_date": "2020-04-09",
+      "calendar_days": 48,
+      "approx_trading_days": 35
+    }
+  },
+  "sensitivity_analysis": {
+    "thresh_1.3_conf_3": {
+      "threshold": 1.3,
+      "confirmation_days": 3,
+      "first_confirmed_date": "2020-04-03",
+      "blind_window": {
+        "regime_start": "2020-04-03",
+        "identification_date": "2020-04-03",
+        "calendar_days": 0,
+        "approx_trading_days": 1
+      }
+    },
+    "thresh_1.3_conf_5": {
+      "threshold": 1.3,
+      "confirmation_days": 5,
+      "first_confirmed_date": "2020-04-03",
+      "blind_window": {
+        "regime_start": "2020-04-03",
+        "identification_date": "2020-04-03",
+        "calendar_days": 0,
+        "approx_trading_days": 1
+      }
+    },
+    "thresh_1.3_conf_10": {
+      "threshold": 1.3,
+      "confirmation_days": 10,
+      "first_confirmed_date": "2020-04-03",
+      "blind_window": {
+        "regime_start": "2020-04-03",
+        "identification_date": "2020-04-03",
+        "calendar_days": 0,
+        "approx_trading_days": 1
+      }
+    },
+    "thresh_1.5_conf_3": {
+      "threshold": 1.5,
+      "confirmation_days": 3,
+      "first_confirmed_date": "2020-04-09",
+      "blind_window": {
+        "regime_start": "2020-04-03",
+        "identification_date": "2020-04-09",
+        "calendar_days": 6,
+        "approx_trading_days": 5
+      }
+    },
+    "thresh_1.5_conf_5": {
+      "threshold": 1.5,
+      "confirmation_days": 5,
+      "first_confirmed_date": "2020-04-09",
+      "blind_window": {
+        "regime_start": "2020-04-03",
+        "identification_date": "2020-04-09",
+        "calendar_days": 6,
+        "approx_trading_days": 5
+      }
+    },
+    "thresh_1.5_conf_10": {
+      "threshold": 1.5,
+      "confirmation_days": 10,
+      "first_confirmed_date": "2020-04-09",
+      "blind_window": {
+        "regime_start": "2020-04-03",
+        "identification_date": "2020-04-09",
+        "calendar_days": 6,
+        "approx_trading_days": 5
+      }
+    },
+    "thresh_2.0_conf_3": {
+      "threshold": 2.0,
+      "confirmation_days": 3,
+      "first_confirmed_date": "2020-04-22",
+      "blind_window": {
+        "regime_start": "2020-04-03",
+        "identification_date": "2020-04-22",
+        "calendar_days": 19,
+        "approx_trading_days": 14
+      }
+    },
+    "thresh_2.0_conf_5": {
+      "threshold": 2.0,
+      "confirmation_days": 5,
+      "first_confirmed_date": "2020-04-22",
+      "blind_window": {
+        "regime_start": "2020-04-03",
+        "identification_date": "2020-04-22",
+        "calendar_days": 19,
+        "approx_trading_days": 14
+      }
+    },
+    "thresh_2.0_conf_10": {
+      "threshold": 2.0,
+      "confirmation_days": 10,
+      "first_confirmed_date": "2020-04-22",
+      "blind_window": {
+        "regime_start": "2020-04-03",
+        "identification_date": "2020-04-22",
+        "calendar_days": 19,
+        "approx_trading_days": 14
+      }
+    },
+    "thresh_3.0_conf_3": {
+      "threshold": 3.0,
+      "confirmation_days": 3,
+      "first_confirmed_date": "2020-05-04",
+      "blind_window": {
+        "regime_start": "2020-04-03",
+        "identification_date": "2020-05-04",
+        "calendar_days": 31,
+        "approx_trading_days": 22
+      }
+    },
+    "thresh_3.0_conf_5": {
+      "threshold": 3.0,
+      "confirmation_days": 5,
+      "first_confirmed_date": "2020-05-04",
+      "blind_window": {
+        "regime_start": "2020-04-03",
+        "identification_date": "2020-05-04",
+        "calendar_days": 31,
+        "approx_trading_days": 22
+      }
+    },
+    "thresh_3.0_conf_10": {
+      "threshold": 3.0,
+      "confirmation_days": 10,
+      "first_confirmed_date": "2020-05-04",
+      "blind_window": {
+        "regime_start": "2020-04-03",
+        "identification_date": "2020-05-04",
+        "calendar_days": 31,
+        "approx_trading_days": 22
+      }
+    }
+  },
+  "single_edge_breakouts": [
+    {
+      "edge": "Au/USD",
+      "is_commodity_edge": false,
+      "first_breakout_date": "2020-08-11",
+      "mean_z_first_30d": -1.2006,
+      "mean_z_full_regime": 0.0404
+    },
+    {
+      "edge": "Au/Equity",
+      "is_commodity_edge": false,
+      "first_breakout_date": null,
+      "mean_z_first_30d": -1.0987,
+      "mean_z_full_regime": -0.5004
+    },
+    {
+      "edge": "Au/Commodity",
+      "is_commodity_edge": true,
+      "first_breakout_date": null,
+      "mean_z_first_30d": 0.6942,
+      "mean_z_full_regime": -0.0717
+    },
+    {
+      "edge": "USD/Equity",
+      "is_commodity_edge": false,
+      "first_breakout_date": "2020-06-11",
+      "mean_z_first_30d": -0.0874,
+      "mean_z_full_regime": 1.1672
+    },
+    {
+      "edge": "USD/Commodity",
+      "is_commodity_edge": true,
+      "first_breakout_date": null,
+      "mean_z_first_30d": 0.7746,
+      "mean_z_full_regime": -0.2268
+    },
+    {
+      "edge": "Equity/Commodity",
+      "is_commodity_edge": true,
+      "first_breakout_date": null,
+      "mean_z_first_30d": 0.918,
+      "mean_z_full_regime": -0.4088
+    }
+  ],
+  "rolling_divergence": {
+    "rolling_5d": {
+      "window": 5,
+      "first_above_1.5": "2020-04-14"
+    },
+    "rolling_10d": {
+      "window": 10,
+      "first_above_1.5": "2020-04-15"
+    },
+    "rolling_20d": {
+      "window": 20,
+      "first_above_1.5": "2020-04-24"
+    },
+    "rolling_60d": {
+      "window": 60,
+      "first_above_1.5": "2020-05-14"
+    }
+  },
+  "pre_regime_riot_signals": {
+    "riot_period": "2020-02-21 to 2020-04-03",
+    "trading_days": 30,
+    "mean_divergence_ratio": 0.8387,
+    "mean_commodity_ratio": 4.6535,
+    "mean_non_commodity_ratio": 4.9743,
+    "max_divergence_ratio": 1.4225,
+    "max_divergence_date": "2020-04-02"
+  },
+  "first_60d_daily_divergence": [
+    {
+      "date": "2020-04-03",
+      "commodity_mean_ratio": 10.8293,
+      "non_commodity_mean_ratio": 7.515,
+      "divergence_ratio": 1.441,
+      "spread_ratio": 2.7372,
+      "max_edge": "USD/Equity"
+    },
+    {
+      "date": "2020-04-06",
+      "commodity_mean_ratio": 10.375,
+      "non_commodity_mean_ratio": 7.5337,
+      "divergence_ratio": 1.3772,
+      "spread_ratio": 2.7379,
+      "max_edge": "USD/Equity"
+    },
+    {
+      "date": "2020-04-07",
+      "commodity_mean_ratio": 10.348,
+      "non_commodity_mean_ratio": 7.416,
+      "divergence_ratio": 1.3954,
+      "spread_ratio": 2.7494,
+      "max_edge": "USD/Equity"
+    },
+    {
+      "date": "2020-04-08",
+      "commodity_mean_ratio": 10.3867,
+      "non_commodity_mean_ratio": 7.3813,
+      "divergence_ratio": 1.4072,
+      "spread_ratio": 2.7381,
+      "max_edge": "USD/Equity"
+    },
+    {
+      "date": "2020-04-09",
+      "commodity_mean_ratio": 10.4393,
+      "non_commodity_mean_ratio": 6.9523,
+      "divergence_ratio": 1.5016,
+      "spread_ratio": 2.4835,
+      "max_edge": "Equity/Commodity"
+    },
+    {
+      "date": "2020-04-13",
+      "commodity_mean_ratio": 10.4087,
+      "non_commodity_mean_ratio": 6.2273,
+      "divergence_ratio": 1.6714,
+      "spread_ratio": 2.8169,
+      "max_edge": "Equity/Commodity"
+    },
+    {
+      "date": "2020-04-14",
+      "commodity_mean_ratio": 10.461,
+      "non_commodity_mean_ratio": 5.41,
+      "divergence_ratio": 1.9336,
+      "spread_ratio": 2.9698,
+      "max_edge": "Equity/Commodity"
+    },
+    {
+      "date": "2020-04-15",
+      "commodity_mean_ratio": 10.399,
+      "non_commodity_mean_ratio": 5.4157,
+      "divergence_ratio": 1.9202,
+      "spread_ratio": 3.0124,
+      "max_edge": "Equity/Commodity"
+    },
+    {
+      "date": "2020-04-16",
+      "commodity_mean_ratio": 9.8167,
+      "non_commodity_mean_ratio": 5.0413,
+      "divergence_ratio": 1.9472,
+      "spread_ratio": 2.9428,
+      "max_edge": "Equity/Commodity"
+    },
+    {
+      "date": "2020-04-17",
+      "commodity_mean_ratio": 9.4093,
+      "non_commodity_mean_ratio": 5.093,
+      "divergence_ratio": 1.8475,
+      "spread_ratio": 2.8288,
+      "max_edge": "Equity/Commodity"
+    },
+    {
+      "date": "2020-04-22",
+      "commodity_mean_ratio": 10.5537,
+      "non_commodity_mean_ratio": 4.8983,
+      "divergence_ratio": 2.1545,
+      "spread_ratio": 3.2071,
+      "max_edge": "Equity/Commodity"
+    },
+    {
+      "date": "2020-04-23",
+      "commodity_mean_ratio": 10.361,
+      "non_commodity_mean_ratio": 4.4583,
+      "divergence_ratio": 2.324,
+      "spread_ratio": 3.9571,
+      "max_edge": "Equity/Commodity"
+    },
+    {
+      "date": "2020-04-24",
+      "commodity_mean_ratio": 10.1073,
+      "non_commodity_mean_ratio": 3.8653,
+      "divergence_ratio": 2.6149,
+      "spread_ratio": 4.0492,
+      "max_edge": "Equity/Commodity"
+    },
+    {
+      "date": "2020-04-27",
+      "commodity_mean_ratio": 10.887,
+      "non_commodity_mean_ratio": 3.8477,
+      "divergence_ratio": 2.8295,
+      "spread_ratio": 4.3952,
+      "max_edge": "Equity/Commodity"
+    },
+    {
+      "date": "2020-04-28",
+      "commodity_mean_ratio": 10.2733,
+      "non_commodity_mean_ratio": 3.4663,
+      "divergence_ratio": 2.9637,
+      "spread_ratio": 4.2898,
+      "max_edge": "Equity/Commodity"
+    },
+    {
+      "date": "2020-04-29",
+      "commodity_mean_ratio": 10.4747,
+      "non_commodity_mean_ratio": 3.4273,
+      "divergence_ratio": 3.0562,
+      "spread_ratio": 4.3769,
+      "max_edge": "Equity/Commodity"
+    },
+    {
+      "date": "2020-04-30",
+      "commodity_mean_ratio": 10.7103,
+      "non_commodity_mean_ratio": 3.385,
+      "divergence_ratio": 3.1641,
+      "spread_ratio": 4.5648,
+      "max_edge": "Equity/Commodity"
+    },
+    {
+      "date": "2020-05-01",
+      "commodity_mean_ratio": 9.5027,
+      "non_commodity_mean_ratio": 3.4393,
+      "divergence_ratio": 2.7629,
+      "spread_ratio": 4.2283,
+      "max_edge": "Equity/Commodity"
+    },
+    {
+      "date": "2020-05-04",
+      "commodity_mean_ratio": 9.4877,
+      "non_commodity_mean_ratio": 3.099,
+      "divergence_ratio": 3.0615,
+      "spread_ratio": 4.3022,
+      "max_edge": "Equity/Commodity"
+    },
+    {
+      "date": "2020-05-05",
+      "commodity_mean_ratio": 9.4253,
+      "non_commodity_mean_ratio": 3.061,
+      "divergence_ratio": 3.0792,
+      "spread_ratio": 4.4367,
+      "max_edge": "Equity/Commodity"
+    },
+    {
+      "date": "2020-05-06",
+      "commodity_mean_ratio": 9.358,
+      "non_commodity_mean_ratio": 3.024,
+      "divergence_ratio": 3.0946,
+      "spread_ratio": 4.2954,
+      "max_edge": "Equity/Commodity"
+    },
+    {
+      "date": "2020-05-07",
+      "commodity_mean_ratio": 9.1727,
+      "non_commodity_mean_ratio": 2.6823,
+      "divergence_ratio": 3.4197,
+      "spread_ratio": 4.4313,
+      "max_edge": "Equity/Commodity"
+    },
+    {
+      "date": "2020-05-08",
+      "commodity_mean_ratio": 8.9747,
+      "non_commodity_mean_ratio": 2.713,
+      "divergence_ratio": 3.308,
+      "spread_ratio": 4.2426,
+      "max_edge": "Equity/Commodity"
+    },
+    {
+      "date": "2020-05-11",
+      "commodity_mean_ratio": 9.014,
+      "non_commodity_mean_ratio": 2.6447,
+      "divergence_ratio": 3.4084,
+      "spread_ratio": 4.4866,
+      "max_edge": "Equity/Commodity"
+    },
+    {
+      "date": "2020-05-12",
+      "commodity_mean_ratio": 8.8107,
+      "non_commodity_mean_ratio": 2.4863,
+      "divergence_ratio": 3.5436,
+      "spread_ratio": 5.0496,
+      "max_edge": "Equity/Commodity"
+    },
+    {
+      "date": "2020-05-13",
+      "commodity_mean_ratio": 8.799,
+      "non_commodity_mean_ratio": 2.5427,
+      "divergence_ratio": 3.4605,
+      "spread_ratio": 5.0775,
+      "max_edge": "Equity/Commodity"
+    },
+    {
+      "date": "2020-05-14",
+      "commodity_mean_ratio": 8.5033,
+      "non_commodity_mean_ratio": 2.429,
+      "divergence_ratio": 3.5008,
+      "spread_ratio": 4.881,
+      "max_edge": "USD/Commodity"
+    },
+    {
+      "date": "2020-05-15",
+      "commodity_mean_ratio": 8.4743,
+      "non_commodity_mean_ratio": 2.2843,
+      "divergence_ratio": 3.7098,
+      "spread_ratio": 5.239,
+      "max_edge": "Equity/Commodity"
+    },
+    {
+      "date": "2020-05-18",
+      "commodity_mean_ratio": 8.431,
+      "non_commodity_mean_ratio": 2.465,
+      "divergence_ratio": 3.4203,
+      "spread_ratio": 5.2842,
+      "max_edge": "Equity/Commodity"
+    },
+    {
+      "date": "2020-05-19",
+      "commodity_mean_ratio": 8.2093,
+      "non_commodity_mean_ratio": 2.3347,
+      "divergence_ratio": 3.5163,
+      "spread_ratio": 5.4031,
+      "max_edge": "USD/Commodity"
+    },
+    {
+      "date": "2020-05-20",
+      "commodity_mean_ratio": 6.499,
+      "non_commodity_mean_ratio": 2.2457,
+      "divergence_ratio": 2.894,
+      "spread_ratio": 5.0475,
+      "max_edge": "Equity/Commodity"
+    },
+    {
+      "date": "2020-05-21",
+      "commodity_mean_ratio": 6.454,
+      "non_commodity_mean_ratio": 2.3163,
+      "divergence_ratio": 2.7863,
+      "spread_ratio": 4.4685,
+      "max_edge": "Equity/Commodity"
+    },
+    {
+      "date": "2020-05-22",
+      "commodity_mean_ratio": 6.5187,
+      "non_commodity_mean_ratio": 2.2917,
+      "divergence_ratio": 2.8445,
+      "spread_ratio": 4.5358,
+      "max_edge": "Equity/Commodity"
+    },
+    {
+      "date": "2020-05-26",
+      "commodity_mean_ratio": 4.7017,
+      "non_commodity_mean_ratio": 2.3303,
+      "divergence_ratio": 2.0176,
+      "spread_ratio": 3.2553,
+      "max_edge": "USD/Commodity"
+    },
+    {
+      "date": "2020-05-27",
+      "commodity_mean_ratio": 4.95,
+      "non_commodity_mean_ratio": 2.3383,
+      "divergence_ratio": 2.1169,
+      "spread_ratio": 3.4087,
+      "max_edge": "USD/Commodity"
+    },
+    {
+      "date": "2020-05-28",
+      "commodity_mean_ratio": 4.5217,
+      "non_commodity_mean_ratio": 2.2343,
+      "divergence_ratio": 2.0237,
+      "spread_ratio": 3.0388,
+      "max_edge": "Equity/Commodity"
+    },
+    {
+      "date": "2020-05-29",
+      "commodity_mean_ratio": 3.2867,
+      "non_commodity_mean_ratio": 2.248,
+      "divergence_ratio": 1.462,
+      "spread_ratio": 2.1906,
+      "max_edge": "USD/Commodity"
+    },
+    {
+      "date": "2020-06-01",
+      "commodity_mean_ratio": 3.3067,
+      "non_commodity_mean_ratio": 2.0797,
+      "divergence_ratio": 1.59,
+      "spread_ratio": 2.218,
+      "max_edge": "USD/Commodity"
+    },
+    {
+      "date": "2020-06-02",
+      "commodity_mean_ratio": 3.3103,
+      "non_commodity_mean_ratio": 2.0887,
+      "divergence_ratio": 1.5849,
+      "spread_ratio": 2.1955,
+      "max_edge": "USD/Commodity"
+    },
+    {
+      "date": "2020-06-03",
+      "commodity_mean_ratio": 2.4893,
+      "non_commodity_mean_ratio": 2.1553,
+      "divergence_ratio": 1.155,
+      "spread_ratio": 1.8522,
+      "max_edge": "USD/Equity"
+    },
+    {
+      "date": "2020-06-04",
+      "commodity_mean_ratio": 2.4267,
+      "non_commodity_mean_ratio": 2.138,
+      "divergence_ratio": 1.135,
+      "spread_ratio": 1.803,
+      "max_edge": "USD/Equity"
+    },
+    {
+      "date": "2020-06-05",
+      "commodity_mean_ratio": 2.4003,
+      "non_commodity_mean_ratio": 2.2903,
+      "divergence_ratio": 1.048,
+      "spread_ratio": 1.7365,
+      "max_edge": "USD/Equity"
+    },
+    {
+      "date": "2020-06-08",
+      "commodity_mean_ratio": 2.553,
+      "non_commodity_mean_ratio": 2.292,
+      "divergence_ratio": 1.1139,
+      "spread_ratio": 1.661,
+      "max_edge": "USD/Equity"
+    },
+    {
+      "date": "2020-06-09",
+      "commodity_mean_ratio": 2.4533,
+      "non_commodity_mean_ratio": 2.2993,
+      "divergence_ratio": 1.067,
+      "spread_ratio": 1.6966,
+      "max_edge": "USD/Equity"
+    },
+    {
+      "date": "2020-06-10",
+      "commodity_mean_ratio": 2.319,
+      "non_commodity_mean_ratio": 2.1913,
+      "divergence_ratio": 1.0583,
+      "spread_ratio": 1.5901,
+      "max_edge": "USD/Equity"
+    },
+    {
+      "date": "2020-06-11",
+      "commodity_mean_ratio": 2.6133,
+      "non_commodity_mean_ratio": 2.889,
+      "divergence_ratio": 0.9046,
+      "spread_ratio": 2.4709,
+      "max_edge": "USD/Equity"
+    },
+    {
+      "date": "2020-06-12",
+      "commodity_mean_ratio": 2.534,
+      "non_commodity_mean_ratio": 2.8907,
+      "divergence_ratio": 0.8766,
+      "spread_ratio": 2.4715,
+      "max_edge": "USD/Equity"
+    },
+    {
+      "date": "2020-06-15",
+      "commodity_mean_ratio": 2.4103,
+      "non_commodity_mean_ratio": 2.892,
+      "divergence_ratio": 0.8334,
+      "spread_ratio": 2.5167,
+      "max_edge": "USD/Equity"
+    },
+    {
+      "date": "2020-06-16",
+      "commodity_mean_ratio": 2.2367,
+      "non_commodity_mean_ratio": 2.747,
+      "divergence_ratio": 0.8142,
+      "spread_ratio": 2.3789,
+      "max_edge": "USD/Equity"
+    },
+    {
+      "date": "2020-06-17",
+      "commodity_mean_ratio": 2.2413,
+      "non_commodity_mean_ratio": 2.7217,
+      "divergence_ratio": 0.8235,
+      "spread_ratio": 2.4046,
+      "max_edge": "USD/Equity"
+    },
+    {
+      "date": "2020-06-18",
+      "commodity_mean_ratio": 2.2237,
+      "non_commodity_mean_ratio": 2.6997,
+      "divergence_ratio": 0.8237,
+      "spread_ratio": 2.3733,
+      "max_edge": "USD/Equity"
+    },
+    {
+      "date": "2020-06-19",
+      "commodity_mean_ratio": 2.2113,
+      "non_commodity_mean_ratio": 2.67,
+      "divergence_ratio": 0.8282,
+      "spread_ratio": 2.5349,
+      "max_edge": "USD/Equity"
+    },
+    {
+      "date": "2020-06-22",
+      "commodity_mean_ratio": 2.1567,
+      "non_commodity_mean_ratio": 2.6827,
+      "divergence_ratio": 0.8039,
+      "spread_ratio": 2.4863,
+      "max_edge": "USD/Equity"
+    },
+    {
+      "date": "2020-06-23",
+      "commodity_mean_ratio": 2.1167,
+      "non_commodity_mean_ratio": 2.6233,
+      "divergence_ratio": 0.8069,
+      "spread_ratio": 2.4367,
+      "max_edge": "USD/Equity"
+    },
+    {
+      "date": "2020-06-24",
+      "commodity_mean_ratio": 2.057,
+      "non_commodity_mean_ratio": 2.739,
+      "divergence_ratio": 0.751,
+      "spread_ratio": 2.6219,
+      "max_edge": "USD/Equity"
+    },
+    {
+      "date": "2020-06-25",
+      "commodity_mean_ratio": 2.037,
+      "non_commodity_mean_ratio": 2.75,
+      "divergence_ratio": 0.7407,
+      "spread_ratio": 2.6811,
+      "max_edge": "USD/Equity"
+    },
+    {
+      "date": "2020-06-26",
+      "commodity_mean_ratio": 1.9433,
+      "non_commodity_mean_ratio": 2.82,
+      "divergence_ratio": 0.6891,
+      "spread_ratio": 3.0364,
+      "max_edge": "USD/Equity"
+    },
+    {
+      "date": "2020-06-29",
+      "commodity_mean_ratio": 1.9583,
+      "non_commodity_mean_ratio": 2.835,
+      "divergence_ratio": 0.6908,
+      "spread_ratio": 3.0644,
+      "max_edge": "USD/Equity"
+    },
+    {
+      "date": "2020-06-30",
+      "commodity_mean_ratio": 1.928,
+      "non_commodity_mean_ratio": 2.8463,
+      "divergence_ratio": 0.6774,
+      "spread_ratio": 3.0637,
+      "max_edge": "USD/Equity"
+    },
+    {
+      "date": "2020-07-01",
+      "commodity_mean_ratio": 1.928,
+      "non_commodity_mean_ratio": 2.7923,
+      "divergence_ratio": 0.6905,
+      "spread_ratio": 3.0149,
+      "max_edge": "USD/Equity"
+    }
+  ],
+  "epistemological_level": "L2",
+  "genealogy": [
+    "329号",
+    "330号",
+    "335号"
+  ]
+}
