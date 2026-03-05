@@ -1,0 +1,81 @@
+---
+id: "360"
+type: experiment-completion
+title: "离散 Cerf 分岔点检测——阶段 B-M 完成"
+status: 已结算
+date: 2026-03-05
+depends_on: ["355", "357"]
+related: ["351", "068"]
+negated_by: []
+negates: []
+---
+
+# 360 -- 离散 Cerf 分岔点检测（B-M 阶段完成）
+
+**认识论等级**: L0+L1（代数定义 + 合成数据验证）
+
+## 背景
+
+355号 L2 否定性结果表明：均匀 Morse 跳跃幅度不是"关键否定"的强预测器。边界条件中指出"引入加权 Morse（按关系类型加权）可能改善"。这触发了 B-M（Beyond-Morse）三步研究线：
+
+1. **optimal_morse.py**（R3, 27 tests）-- 最优 Morse 函数：在离散 Morse 理论框架下，通过梯度向量场构造最优离散 Morse 函数，最小化临界集大小
+2. **weighted_morse.py**（R4, 20 tests）-- 加权 Morse 函数：按关系类型加权（negates > supersedes > references > depends_on），验证加权 Morse 是否比均匀 Morse 更好地预测"关键否定"
+3. **cerf_bifurcation.py**（R5, 26 tests）-- Cerf 分岔点检测：离散 Cerf 理论片段，找到临界集质变的谱系编号 t（分岔点）
+
+## 三步实现概述
+
+### R3: optimal_morse.py
+
+最优离散 Morse 函数——通过梯度向量场（gradient vector field）消除冗余临界点。核心算法：贪心配对消除 + 持久同调引导。27 个测试覆盖基础构造、配对消除、临界集最小性。
+
+### R4: weighted_morse.py
+
+加权 Morse 函数——关系类型权重序：negates(4) > supersedes(3) > references(2) > depends_on(1)。加权后 Morse 函数值反映语义重要性而非单纯拓扑距离。20 个测试覆盖权重赋值、加权临界集、与均匀 Morse 的对比。
+
+### R5: cerf_bifurcation.py
+
+离散 Cerf 分岔点检测——三种分岔标准：
+
+| 标准 | 检测内容 | 语义 |
+|------|---------|------|
+| 临界数量变化 | \|C(t)\| vs \|C(t-1)\| | 临界点数量突变 = 拓扑结构质变 |
+| Betti 数变化 | beta_k(t) vs beta_k(t-1) | 同调群维数变化 = 拓扑不变量质变 |
+| 权重偏移 | W(t) vs W(t-1) | 加权 Morse 函数值分布突变 |
+
+26 个测试覆盖三种标准的独立检测 + 组合检测 + 边界情况。
+
+## 73 个新测试总计
+
+- tests/test_optimal_morse.py: 27 tests
+- tests/test_weighted_morse.py: 20 tests
+- tests/test_cerf_bifurcation.py: 26 tests
+
+## 边界条件
+
+| 条件 | 当前状态 | 翻转阈值 |
+|------|---------|---------|
+| 认识论等级 | L0+L1（合成验证） | L2 需要在真实 relations.jsonl 上运行 Cerf 分析 |
+| 加权改善 | 未验证（L1 合成确认管线正确） | L2 需要对比加权 vs 均匀 Morse 在真实数据上的 precision/recall |
+| Cerf 分岔有效性 | 合成数据上可检测分岔 | L2 需要分岔点与编排者标记的"关键转折"对比 |
+
+## 下游推论
+
+1. **L2 验证（核心）**：在真实 relations.jsonl 上运行 Cerf 分析，分岔点与编排者标记的"关键转折"对比。这是 B-M 研究线的最终验证
+2. **加权 vs 均匀对比**：如果 L2 验证成功（加权 Morse 的 precision 显著高于均匀 Morse），加权 Morse 可替代均匀 Morse 作为默认
+3. **Cerf 分岔作为蜂群监控信号**：如果 L2 验证确认分岔点与关键转折有强相关，Cerf 分岔检测可集成到 ceremony_scan 中作为"拓扑结构质变预警"
+
+## 谱系位置
+
+| 关联谱系 | 关系 |
+|---------|------|
+| 355号 | 依赖——L2 否定性结果触发 B-M 研究线 |
+| 357号 | 依赖——ceremony_scan 增强使 B-M 研究线注入 gangmu |
+| 351号 | 间接——Morse 理论研究线启动 |
+| 068号 | 间接——连续到离散范式转移（Cerf 理论本身是连续理论的离散化） |
+
+## 影响声明
+
+- **新增代码**：experiments/discrete_morse/ 下 optimal_morse.py, weighted_morse.py, cerf_bifurcation.py
+- **新增测试**：tests/ 下 test_optimal_morse.py, test_weighted_morse.py, test_cerf_bifurcation.py（73 tests）
+- **满足 gangmu completion_check**：`genealogy_settled: cerf-bifurcation` 通过本文件结算
+- **不改动已有代码**：B-M 研究线是增量实验，不修改已有管线
