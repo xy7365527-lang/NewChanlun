@@ -137,6 +137,8 @@ def extract_downstream_actions(filepath):
                 resolved_inline = True
             elif "→ [resolved:" in raw or "`[resolved:" in raw:
                 resolved_inline = True
+            elif "**resolved**" in raw:
+                resolved_inline = True
             elif "→ [blocked:" in raw or "`[blocked:" in raw:
                 resolved_inline = "blocked"
             elif "`[acknowledged:" in raw or "→ [acknowledged:" in raw:

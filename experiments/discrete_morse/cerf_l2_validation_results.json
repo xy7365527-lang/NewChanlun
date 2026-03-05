@@ -1,0 +1,494 @@
+{
+  "experiment": "Cerf L2 Validation (B-M -> L2)",
+  "epistemological_level": "L2",
+  "validity_domain": "单标的（本谱系 DAG），ground truth = 355号22个关键否定",
+  "verdict": "否定",
+  "explanation": "加权 Cerf 未能改善均匀 Morse 的预测能力。平均排名 127.3 vs 123.1，Top-20 precision = 0.1000。",
+  "ground_truth_size": 22,
+  "cerf_bifurcation_count": 292,
+  "uniform_jump_count": 345,
+  "sequence_length": 361,
+  "weighted_precision_recall": [
+    {
+      "top_n": 5,
+      "precision": 0.2,
+      "recall": 0.045454545454545456,
+      "hits": 1,
+      "hit_keys": [
+        "087"
+      ]
+    },
+    {
+      "top_n": 10,
+      "precision": 0.1,
+      "recall": 0.045454545454545456,
+      "hits": 1,
+      "hit_keys": [
+        "087"
+      ]
+    },
+    {
+      "top_n": 15,
+      "precision": 0.13333333333333333,
+      "recall": 0.09090909090909091,
+      "hits": 2,
+      "hit_keys": [
+        "087",
+        "089"
+      ]
+    },
+    {
+      "top_n": 20,
+      "precision": 0.1,
+      "recall": 0.09090909090909091,
+      "hits": 2,
+      "hit_keys": [
+        "087",
+        "089"
+      ]
+    },
+    {
+      "top_n": 30,
+      "precision": 0.1,
+      "recall": 0.13636363636363635,
+      "hits": 3,
+      "hit_keys": [
+        "087",
+        "089",
+        "105"
+      ]
+    },
+    {
+      "top_n": 50,
+      "precision": 0.1,
+      "recall": 0.22727272727272727,
+      "hits": 5,
+      "hit_keys": [
+        "087",
+        "089",
+        "105",
+        "088",
+        "097"
+      ]
+    },
+    {
+      "top_n": 100,
+      "precision": 0.06,
+      "recall": 0.2727272727272727,
+      "hits": 6,
+      "hit_keys": [
+        "087",
+        "089",
+        "105",
+        "088",
+        "097",
+        "147"
+      ]
+    },
+    {
+      "top_n": 292,
+      "precision": 0.05821917808219178,
+      "recall": 0.7727272727272727,
+      "hits": 17,
+      "hit_keys": [
+        "087",
+        "089",
+        "105",
+        "088",
+        "097",
+        "147",
+        "064",
+        "218",
+        "068",
+        "096",
+        "173",
+        "274",
+        "090",
+        "136",
+        "137",
+        "143",
+        "156"
+      ]
+    }
+  ],
+  "uniform_precision_recall": [
+    {
+      "top_n": 5,
+      "precision": 0.0,
+      "recall": 0.0,
+      "hits": 0,
+      "hit_keys": []
+    },
+    {
+      "top_n": 10,
+      "precision": 0.1,
+      "recall": 0.045454545454545456,
+      "hits": 1,
+      "hit_keys": [
+        "087"
+      ]
+    },
+    {
+      "top_n": 15,
+      "precision": 0.06666666666666667,
+      "recall": 0.045454545454545456,
+      "hits": 1,
+      "hit_keys": [
+        "087"
+      ]
+    },
+    {
+      "top_n": 20,
+      "precision": 0.1,
+      "recall": 0.09090909090909091,
+      "hits": 2,
+      "hit_keys": [
+        "087",
+        "089"
+      ]
+    },
+    {
+      "top_n": 30,
+      "precision": 0.16666666666666666,
+      "recall": 0.22727272727272727,
+      "hits": 5,
+      "hit_keys": [
+        "087",
+        "089",
+        "088",
+        "097",
+        "147"
+      ]
+    },
+    {
+      "top_n": 50,
+      "precision": 0.12,
+      "recall": 0.2727272727272727,
+      "hits": 6,
+      "hit_keys": [
+        "087",
+        "089",
+        "088",
+        "097",
+        "147",
+        "105"
+      ]
+    },
+    {
+      "top_n": 100,
+      "precision": 0.07,
+      "recall": 0.3181818181818182,
+      "hits": 7,
+      "hit_keys": [
+        "087",
+        "089",
+        "088",
+        "097",
+        "147",
+        "105",
+        "064"
+      ]
+    },
+    {
+      "top_n": 345,
+      "precision": 0.06086956521739131,
+      "recall": 0.9545454545454546,
+      "hits": 21,
+      "hit_keys": [
+        "087",
+        "089",
+        "088",
+        "097",
+        "147",
+        "105",
+        "064",
+        "096",
+        "274",
+        "090",
+        "143",
+        "068",
+        "136",
+        "137",
+        "218",
+        "161",
+        "173",
+        "156",
+        "157",
+        "162",
+        "277"
+      ]
+    }
+  ],
+  "rank_comparison": {
+    "cerf_better_count": 7,
+    "uniform_better_count": 14,
+    "tie_count": 0,
+    "cerf_miss_count": 4,
+    "uniform_miss_count": 0,
+    "avg_cerf_rank": 127.29411764705883,
+    "avg_uniform_rank": 123.11764705882354,
+    "median_cerf_rank": 152,
+    "median_uniform_rank": 154,
+    "improvement": -4.17647058823529
+  },
+  "bifurcation_type_distribution": {
+    "critical_count": 1,
+    "betti_change": 288,
+    "compound": 3
+  },
+  "bifurcation_type_in_ground_truth": {
+    "betti_change": 17
+  },
+  "top_20_bifurcations": [
+    {
+      "rank": 1,
+      "genealogy_key": "307",
+      "type": "betti_change",
+      "magnitude": 53.0,
+      "description": "Betti 数变化: (1,136,864) -> (1,135,916)",
+      "is_ground_truth": false
+    },
+    {
+      "rank": 2,
+      "genealogy_key": "306",
+      "type": "betti_change",
+      "magnitude": 40.0,
+      "description": "Betti 数变化: (1,137,825) -> (1,136,864)",
+      "is_ground_truth": false
+    },
+    {
+      "rank": 3,
+      "genealogy_key": "305",
+      "type": "betti_change",
+      "magnitude": 28.0,
+      "description": "Betti 数变化: (1,137,797) -> (1,137,825)",
+      "is_ground_truth": false
+    },
+    {
+      "rank": 4,
+      "genealogy_key": "087",
+      "type": "betti_change",
+      "magnitude": 25.0,
+      "description": "Betti 数变化: (1,21,200) -> (1,21,225)",
+      "is_ground_truth": true
+    },
+    {
+      "rank": 5,
+      "genealogy_key": "310",
+      "type": "betti_change",
+      "magnitude": 24.0,
+      "description": "Betti 数变化: (1,135,932) -> (1,135,956)",
+      "is_ground_truth": false
+    },
+    {
+      "rank": 6,
+      "genealogy_key": "288",
+      "type": "betti_change",
+      "magnitude": 19.0,
+      "description": "Betti 数变化: (1,133,667) -> (1,133,686)",
+      "is_ground_truth": false
+    },
+    {
+      "rank": 7,
+      "genealogy_key": "301",
+      "type": "betti_change",
+      "magnitude": 19.0,
+      "description": "Betti 数变化: (1,135,730) -> (1,135,749)",
+      "is_ground_truth": false
+    },
+    {
+      "rank": 8,
+      "genealogy_key": "303",
+      "type": "betti_change",
+      "magnitude": 18.0,
+      "description": "Betti 数变化: (1,135,763) -> (1,137,779)",
+      "is_ground_truth": false
+    },
+    {
+      "rank": 9,
+      "genealogy_key": "304",
+      "type": "betti_change",
+      "magnitude": 18.0,
+      "description": "Betti 数变化: (1,137,779) -> (1,137,797)",
+      "is_ground_truth": false
+    },
+    {
+      "rank": 10,
+      "genealogy_key": "285",
+      "type": "betti_change",
+      "magnitude": 17.0,
+      "description": "Betti 数变化: (1,133,641) -> (1,133,658)",
+      "is_ground_truth": false
+    },
+    {
+      "rank": 11,
+      "genealogy_key": "086",
+      "type": "betti_change",
+      "magnitude": 16.0,
+      "description": "Betti 数变化: (1,21,184) -> (1,21,200)",
+      "is_ground_truth": false
+    },
+    {
+      "rank": 12,
+      "genealogy_key": "082",
+      "type": "betti_change",
+      "magnitude": 14.0,
+      "description": "Betti 数变化: (1,19,153) -> (1,18,166)",
+      "is_ground_truth": false
+    },
+    {
+      "rank": 13,
+      "genealogy_key": "089",
+      "type": "betti_change",
+      "magnitude": 14.0,
+      "description": "Betti 数变化: (1,20,232) -> (1,21,245)",
+      "is_ground_truth": true
+    },
+    {
+      "rank": 14,
+      "genealogy_key": "268",
+      "type": "betti_change",
+      "magnitude": 14.0,
+      "description": "Betti 数变化: (1,118,606) -> (1,119,619)",
+      "is_ground_truth": false
+    },
+    {
+      "rank": 15,
+      "genealogy_key": "302",
+      "type": "betti_change",
+      "magnitude": 14.0,
+      "description": "Betti 数变化: (1,135,749) -> (1,135,763)",
+      "is_ground_truth": false
+    },
+    {
+      "rank": 16,
+      "genealogy_key": "084",
+      "type": "betti_change",
+      "magnitude": 12.0,
+      "description": "Betti 数变化: (1,19,172) -> (1,21,182)",
+      "is_ground_truth": false
+    },
+    {
+      "rank": 17,
+      "genealogy_key": "106",
+      "type": "betti_change",
+      "magnitude": 12.0,
+      "description": "Betti 数变化: (1,27,317) -> (1,26,328)",
+      "is_ground_truth": false
+    },
+    {
+      "rank": 18,
+      "genealogy_key": "168",
+      "type": "betti_change",
+      "magnitude": 12.0,
+      "description": "Betti 数变化: (1,53,428) -> (1,53,440)",
+      "is_ground_truth": false
+    },
+    {
+      "rank": 19,
+      "genealogy_key": "258",
+      "type": "betti_change",
+      "magnitude": 12.0,
+      "description": "Betti 数变化: (1,106,560) -> (1,112,566)",
+      "is_ground_truth": false
+    },
+    {
+      "rank": 20,
+      "genealogy_key": "308",
+      "type": "betti_change",
+      "magnitude": 12.0,
+      "description": "Betti 数变化: (1,135,916) -> (1,135,928)",
+      "is_ground_truth": false
+    }
+  ],
+  "ground_truth_ranks": {
+    "064": {
+      "cerf_rank": 107,
+      "uniform_rank": 88
+    },
+    "068": {
+      "cerf_rank": 152,
+      "uniform_rank": 179
+    },
+    "087": {
+      "cerf_rank": 4,
+      "uniform_rank": 6
+    },
+    "088": {
+      "cerf_rank": 36,
+      "uniform_rank": 22
+    },
+    "089": {
+      "cerf_rank": 13,
+      "uniform_rank": 16
+    },
+    "090": {
+      "cerf_rank": 210,
+      "uniform_rank": 159
+    },
+    "096": {
+      "cerf_rank": 156,
+      "uniform_rank": 144
+    },
+    "097": {
+      "cerf_rank": 45,
+      "uniform_rank": 24
+    },
+    "105": {
+      "cerf_rank": 29,
+      "uniform_rank": 41
+    },
+    "136": {
+      "cerf_rank": 218,
+      "uniform_rank": 188
+    },
+    "137": {
+      "cerf_rank": 219,
+      "uniform_rank": 189
+    },
+    "143": {
+      "cerf_rank": 221,
+      "uniform_rank": 161
+    },
+    "147": {
+      "cerf_rank": 59,
+      "uniform_rank": 30
+    },
+    "156": {
+      "cerf_rank": 223,
+      "uniform_rank": 251
+    },
+    "157": {
+      "cerf_rank": -1,
+      "uniform_rank": 278
+    },
+    "161": {
+      "cerf_rank": -1,
+      "uniform_rank": 225
+    },
+    "162": {
+      "cerf_rank": -1,
+      "uniform_rank": 280
+    },
+    "173": {
+      "cerf_rank": 167,
+      "uniform_rank": 227
+    },
+    "218": {
+      "cerf_rank": 125,
+      "uniform_rank": 214
+    },
+    "274": {
+      "cerf_rank": 180,
+      "uniform_rank": 154
+    },
+    "275": {
+      "cerf_rank": -1,
+      "uniform_rank": -1
+    },
+    "277": {
+      "cerf_rank": -1,
+      "uniform_rank": 300
+    }
+  }
+}
