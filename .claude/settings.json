@@ -8,7 +8,7 @@
     "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
     "MCP_TIMEOUT": "5000",
     "API_TIMEOUT_MS": "120000",
-    "ANTHROPIC_BASE_URL": "https://cc.580ai.net"
+    "ANTHROPIC_BASE_URL": "https://cc1.zhihuiapi.top"
   },
   "hooks": {
     "SessionStart": [
@@ -279,5 +279,5 @@
       "Bash(git reset --hard*)"
     ]
   },
-  "model": "opus[1m]"
+  "model": "claude-opus-4-6"
 }
