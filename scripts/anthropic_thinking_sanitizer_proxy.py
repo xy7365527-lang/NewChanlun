@@ -142,9 +142,10 @@ class ProxyHandler(BaseHTTPRequestHandler):
             self.wfile.write(body)
 
     def _forward_impl(self) -> None:
-        # Prevent full SSRF: disallow absolute URLs in the incoming request line.
+        # Prevent full SSRF: only allow relative paths, never absolute URLs or network-path refs.
         parsed_path = urlsplit(self.path)
-        if parsed_path.scheme or parsed_path.netloc:
+        # Reject if the client attempts to specify a scheme/host or a network-path reference (//host/...).
+        if parsed_path.scheme or parsed_path.netloc or self.path.startswith("//"):
             body = json.dumps(
                 {
                     "error": "invalid_request_path",
