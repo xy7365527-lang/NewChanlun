@@ -274,8 +274,10 @@ gang:
     next_actions: []
   - id: spec-gap-upgrade
     name: 声明-能力缺口升级（353号推论）
-    status: active
+    status: closed
     opened_at: '353'
+    closed_at: '2026-03-05'
+    closed_reason: 全部3个action已完成——spec-gap-bidirectional(358号)+ceremony-scan-bidirectional(358号)+dispatch-dag-platform-boundary
     next_actions:
     - type: engineering
       target: spec-gap-bidirectional
