@@ -33,11 +33,12 @@ def format_prompt(
     settled_count: int,
     pending_negations: list[tuple[str, str]],
     conservative: bool = False,
+    visit_history: list[str] | None = None,
 ) -> str:
     """Format local context into LLM prompt.
 
     The LLM sees vertex content and must decide based on semantic relationships,
-    not graph structure.
+    not graph structure. Includes recent traversal history for fold detection.
     """
     v = graph.vertex(position)
     pos_content = v.content if v and v.content else "(no content)"
@@ -65,6 +66,26 @@ def format_prompt(
         )
 
     neighbor_block = "\n".join(neighbor_lines) if neighbor_lines else "  (none)"
+
+    # Recent traversal history (for fold detection — Nachträglichkeit)
+    history_block = "  (none)"
+    if visit_history:
+        seen: set[str] = set()
+        history_lines = []
+        # Last 15 unique visited vertices (excluding current position and neighbors)
+        neighbor_set = set(neighbors) | {position}
+        for vid in reversed(visit_history):
+            if vid in seen or vid in neighbor_set:
+                continue
+            seen.add(vid)
+            hv = graph.vertex(vid)
+            if hv and hv.status.value != "folded":
+                hv_content = hv.content if hv.content else "(no content)"
+                history_lines.append(f"  - {vid}: \"{hv_content}\"")
+            if len(history_lines) >= 15:
+                break
+        if history_lines:
+            history_block = "\n".join(history_lines)
 
     # Pending negations
     pending_lines = []
@@ -98,6 +119,9 @@ YOUR CURRENT POSITION:
 NEIGHBORS:
 {neighbor_block}
 
+RECENTLY VISITED (traversal history — check for structural identity with current position):
+{history_block}
+
 GLOBAL STATE:
   Betti number (β₁, cycle count): {beta_1}
   Settled cycles: {settled_count}
@@ -106,14 +130,14 @@ PENDING CONTRADICTIONS (awaiting sublation):
 {pending_block}
 
 AVAILABLE ACTIONS:
-  FOLD(a, b) — Identify two vertices as saying essentially the same thing. Use when two propositions are semantically equivalent or one subsumes the other. a and b must be neighbors of your current position.
+  FOLD(a, b) — Identify two vertices as saying essentially the same thing. Use when two propositions are semantically equivalent or one subsumes the other. 'a' must be your current position. 'b' can be a neighbor OR a recently visited vertex from the traversal history above.
   NEGATE(a, b) — Declare a contradiction between two propositions. Use when two vertices make claims that cannot both be true. a must be your current position, b must be a neighbor.
   SUBLATE(a, b) — Synthesize two contradicting propositions into a higher-level insight. Only valid when a and b are in the pending contradictions list above.
   WALK — Move on without taking action. Use when no semantic relationship warrants an operation.
 
 INSTRUCTIONS:
 Examine the CONTENT of the propositions. Based on their MEANING:
-1. Do any two neighbors say essentially the same thing? → FOLD
+1. Does your current position say essentially the same thing as any neighbor OR any recently visited vertex? → FOLD
 2. Does your position contradict a neighbor? → NEGATE
 3. Can you synthesize any pending contradiction? → SUBLATE
 4. Nothing notable? → WALK
@@ -184,11 +208,13 @@ def detect_encounter_llm(
     pending_negations: list[tuple[str, str]],
     model: str = "claude-sonnet-4-20250514",
     conservative: bool = False,
+    visit_history: list[str] | None = None,
 ) -> LLMEncounterResult:
     """Full pipeline: format prompt → call LLM → parse response."""
     prompt = format_prompt(
         position, graph, terrain, beta_1, settled_count, pending_negations,
         conservative=conservative,
+        visit_history=visit_history,
     )
     response_text = call_llm(prompt, model=model)
     return parse_response(response_text)

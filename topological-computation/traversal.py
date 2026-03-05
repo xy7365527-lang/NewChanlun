@@ -106,6 +106,7 @@ class TraversalEngine:
             settled_count=settled_count,
             pending_negations=self._pending_negations,
             conservative=self._conservative_prompt,
+            visit_history=self.visit_history,
         )
 
         self._llm_log.append({
@@ -204,22 +205,24 @@ class TraversalEngine:
                         f"Bidirectional relationship {pos}<->{nb} — contradiction signal",
                     )
 
-        # 3. Fold: two neighbors share a third neighbor but aren't connected to each other
-        # Only fold if there are settled cycles (don't destroy structure prematurely)
-        if self.settlement.settled_cycles:
-            for i, a in enumerate(neighbors):
-                for b in neighbors[i + 1:]:
-                    if a == b:
-                        continue
-                    a_nbs = set(self.k_active.neighbors(a))
-                    if b not in a_nbs:
-                        b_nbs = set(self.k_active.neighbors(b))
-                        shared = (a_nbs & b_nbs) - {pos, a, b}
-                        if shared:
-                            return Encounter(
-                                EncounterType.FOLD, a, b,
-                                f"Vertices {a} and {b} share neighbor(s) {shared} but aren't directly connected",
-                            )
+        # 3. Fold: current position shares multiple neighbors with a previously visited vertex
+        # (Nachträglichkeit — identity detected across traversal history, not local neighborhood)
+        if len(self.visit_history) > 3:
+            pos_nbs = set(self.k_active.neighbors(pos))
+            seen: set[str] = set()
+            for past_vid in reversed(self.visit_history[:-1]):
+                if past_vid in seen or past_vid == pos or past_vid not in active:
+                    continue
+                seen.add(past_vid)
+                past_nbs = set(self.k_active.neighbors(past_vid))
+                shared = (pos_nbs & past_nbs) - {pos, past_vid}
+                if len(shared) >= 2:  # share at least 2 neighbors = structural similarity
+                    return Encounter(
+                        EncounterType.FOLD, pos, past_vid,
+                        f"Current {pos} and historical {past_vid} share {len(shared)} neighbors: {shared}",
+                    )
+                if len(seen) >= 15:
+                    break
 
         # 4. Negate_B: high topological tension (≥2 critical edges at current position)
         crit_nbs = critical_neighbors(self.k_active, pos, self.terrain)
