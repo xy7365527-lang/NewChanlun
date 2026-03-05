@@ -235,7 +235,7 @@ gang:
     next_actions: []
   - id: spec-gap-upgrade
     name: 声明-能力缺口升级（353号推论）
-    status: active
+    status: closed
     opened_at: '353'
     next_actions:
     - type: engineering
@@ -253,6 +253,8 @@ gang:
       completion_check:
         type: genealogy_settled
         keyword: scan-bidirectional
+    closed_at: '2026-03-05'
+    closed_reason: 所有 next_actions 的 completion_check 均已满足
 - id: knowledge-genealogy
   name: 知识谱系
   zongfangzhen_section: §四.2知识维度 + §八.五穿越基础设施 + §八.七阶段B-T/B-M/I-2预备
