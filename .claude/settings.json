@@ -279,5 +279,5 @@
       "Bash(git reset --hard*)"
     ]
   },
-  "model": "claude-opus-4-6"
+  "model": "opus[1m]"
 }

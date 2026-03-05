@@ -112,7 +112,7 @@ epistemological_level: L0
 1. ceremony 每轮自动检测偶遇，偶遇候选以 P1 工位形式进入工位列表 — **已执行**（ceremony_scan.py `get_encounter_context()` L780-852 + P1 工位生成 L960-966）
 2. 偶遇候选需要人工审计（确认/拒绝），不自动结算 — **已执行**（encounter-records.yaml 三态结构 candidate/confirmed/rejected 已实装，records 初始为空，无自动结算路径）
 3. encounter-records.yaml 是穿越基础设施的增量记录，与 cross-gang-refs.json（全量快照）互补 — **已执行**（两文件已共存：encounter-records.yaml 增量游标 last_checked + cross-gang-refs.json 全量快照）
-4. 未来新增设计内模式时，更新 classify_cross_gang_edge() 的模式列表 — **blocked**（前置条件：新的设计内模式出现；当前八模式覆盖全部107条跨纲边）
+4. 未来新增设计内模式时，更新 classify_cross_gang_edge() 的模式列表 — **resolved**（v158-swarm encounter-audit 工位已新增模式9-11：跨纲元观察链变体、Morse研究线跨纲、纲目关闭跨纲引用。check_encounter.py classify_cross_gang_edge() 已更新）
 
 ## 谱系引用
 
