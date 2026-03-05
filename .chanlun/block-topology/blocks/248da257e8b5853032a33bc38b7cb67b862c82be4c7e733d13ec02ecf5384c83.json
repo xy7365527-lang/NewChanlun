@@ -1,4 +1,5 @@
 {
+  "id": "248da257e8b5853032a33bc38b7cb67b862c82be4c7e733d13ec02ecf5384c83",
   "type": "event",
   "timestamp": "2026-02-28T00:51:43.065361+00:00",
   "source": "cc",
@@ -11,5 +12,6 @@
     "eb9e685a73461fe5b0a0a1cdbaff0b7b1d2b23069788104b27647c0fd05c292c"
   ],
   "git_ref": "",
-  "id": "248da257e8b5853032a33bc38b7cb67b862c82be4c7e733d13ec02ecf5384c83"
+  "genealogy_id": "232",
+  "title": "ConfigurationSpace 纤维丛重构——从直积到 B ×_ω F"
 }

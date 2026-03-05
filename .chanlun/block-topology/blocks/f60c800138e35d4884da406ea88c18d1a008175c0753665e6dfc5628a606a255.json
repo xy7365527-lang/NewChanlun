@@ -1,8 +1,12 @@
 {
   "id": "f60c800138e35d4884da406ea88c18d1a008175c0753665e6dfc5628a606a255",
-  "number": 210,
-  "source_file": ".chanlun/genealogy/settled/210-t8-force-divergence.md",
   "type": "event",
-  "created": "2026-02-25T22:15:13.711555",
-  "source": "cc"
+  "timestamp": "2026-02-25T22:15:13.711555",
+  "source": "cc",
+  "content": {
+    "source_file": ".chanlun/genealogy/settled/210-t8-force-divergence.md"
+  },
+  "refs": [],
+  "git_ref": "",
+  "genealogy_id": "210"
 }

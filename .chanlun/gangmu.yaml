@@ -245,6 +245,7 @@ gang:
       completion_check:
         type: file_exists
         path: .claude/skills/spec-execution-gap/SKILL.md
+      completed_at: '2026-03-05'
     - type: engineering
       target: ceremony-scan-bidirectional
       description: 修改 ceremony_scan.py，增加"产出端是否有消费者"扫描。当前 scan 只检查"gangmu 有 active mu 吗"，需增加"已结算谱系的下游推论是否被消费"的反向检查

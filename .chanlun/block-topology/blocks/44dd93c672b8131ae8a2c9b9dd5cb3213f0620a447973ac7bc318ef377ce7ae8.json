@@ -1,4 +1,5 @@
 {
+  "id": "44dd93c672b8131ae8a2c9b9dd5cb3213f0620a447973ac7bc318ef377ce7ae8",
   "type": "event",
   "timestamp": "2026-02-28T09:00:00.000000+00:00",
   "source": "cc",
@@ -12,5 +13,6 @@
     "be9a52f26ce32237f45c99955ff5cdc2f969ef95187287f40ad7fa597f702986"
   ],
   "git_ref": "",
-  "id": "44dd93c672b8131ae8a2c9b9dd5cb3213f0620a447973ac7bc318ef377ce7ae8"
+  "genealogy_id": "238",
+  "title": "多 TF 输入架构——绕过 D2 递归压缩瓶颈"
 }

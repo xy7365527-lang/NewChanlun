@@ -1,8 +1,12 @@
 {
   "id": "ce789344b00d34389824efe86268503c0815c243515cc570df18c61f09117907",
-  "number": 205,
-  "source_file": ".chanlun/genealogy/settled/205-clean-terminate-stall.md",
   "type": "event",
-  "created": "2026-02-25T20:39:53.171005",
-  "source": "cc"
+  "timestamp": "2026-02-25T20:39:53.171005",
+  "source": "cc",
+  "content": {
+    "source_file": ".chanlun/genealogy/settled/205-clean-terminate-stall.md"
+  },
+  "refs": [],
+  "git_ref": "",
+  "genealogy_id": "205"
 }

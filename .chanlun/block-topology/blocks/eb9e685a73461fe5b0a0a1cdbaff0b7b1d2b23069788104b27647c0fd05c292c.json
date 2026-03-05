@@ -1,4 +1,5 @@
 {
+  "id": "eb9e685a73461fe5b0a0a1cdbaff0b7b1d2b23069788104b27647c0fd05c292c",
   "type": "event",
   "timestamp": "2026-02-28T00:17:41.921481+00:00",
   "source": "cc",
@@ -11,5 +12,6 @@
     "dc56f57b672666b4d7e89869683667ac8837f082b3e9f71a44faad3a88bb8774"
   ],
   "git_ref": "",
-  "id": "eb9e685a73461fe5b0a0a1cdbaff0b7b1d2b23069788104b27647c0fd05c292c"
+  "genealogy_id": "230",
+  "title": "K4 独立边独立性——真实数据检验"
 }

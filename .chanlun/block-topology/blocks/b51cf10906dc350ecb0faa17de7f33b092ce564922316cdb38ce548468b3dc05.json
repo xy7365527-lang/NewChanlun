@@ -1,4 +1,5 @@
 {
+  "id": "b51cf10906dc350ecb0faa17de7f33b092ce564922316cdb38ce548468b3dc05",
   "type": "event",
   "timestamp": "2026-02-28T10:30:00.000000+00:00",
   "source": "cc",
@@ -13,5 +14,6 @@
     "0b51ddd95a52204bca794470ab019c99e8718af09eeef270f46d663fd9476db4"
   ],
   "git_ref": "",
-  "id": "b51cf10906dc350ecb0faa17de7f33b092ce564922316cdb38ce548468b3dc05"
+  "genealogy_id": "242",
+  "title": "共振回测对比——直积 vs 纤维丛筛选器干净度裁决"
 }

@@ -22,5 +22,11 @@
     "full_text": "---\nid: '140'\ntitle: ceremony_scan 闭合下游推论→工位的数据通路（蜂群持久化修复）\ntype: 定理\nstatus: 已结算\ndate: 2026-02-22\ndepends_on:\n  - '138'   # 强制输出格式A/B/C\n  - '134'   # 声明-能力缺口同构模式\nrelated:\n  - '137'   # Lead停顿RLHF根因\n  - '139'   # 三级映射+约束型充分性\ntensions_with: []\n---\n\n## 事件\n\n138号修复后 Lead 仍然停顿——输出格式B（\"无待做行动\"）而实际上有三个下游推论可推进。Gemini 诊断：问题不在规则层（Lead 遵守了138号格式），而在数据层（ceremony_scan.py 不把 downstream_audit 的 unresolved 项转化为工位）。\n\n## 推导链\n\n1. 138号修复了输出格式（否定性禁令→结构化模板）\n2. 139号结算后 Lead 选择格式B → ceremony_scan 返回空工位 → Lead 合法判断\"无待做行动\"\n3. ceremony_scan.py 第292行调用了 downstream_audit → 但只将结果写入统计字段，不转化为 workstation\n4. dispatch-dag.yaml ceremony_sequence.scan_sources 声明了\"谱系下游行动未执行\"为扫描来源 → 声明存在，实现缺失\n5. 这是134号声明-能力缺口的又一实例\n6. 修复：ceremony_scan 将 downstream_audit 的 recent unresolved 项（最近20条谱系）转化为 P2 工位\n\n## 关键区分\n\n**两种停顿原因**：\n- RLHF 驱动的停顿：Lead 有信息但不执行 → 需要格式约束（137/138号）\n- 数据源缺口的停顿：Lead 没有信息所以不执行 → 需要工程修复（本号）\n\n蜂群持久化的本质不是\"行为约束\"问题而是\"信息通路\"问题——行动队列已隐式存在于谱系文件的\"下游推论\"节中，只需让 ceremony_scan 正确读取。\n\n## 边界条件\n\n- 如果修复后 Lead 仍在有工位时选择格式B → 问题回归137号（RLHF驱动），需更强格式约束\n- 如果 downstream_audit 误报率过高 → 需调整判定逻辑或 overrides\n- 随谱系增长（147→500+），全量扫描可能变慢 → 性能优化（增量/缓存），不影响正确性\n\n## 下游推论\n\n1. 体系中可能存在其他\"声明了但未实现\"的 scan_sources → 需做完整 spec-execution gap 审计\n2. 未来类似问题应先检查数据流是否闭合，再检查行为规则\n\n## 影响声明\n\n- 修改 `scripts/ceremony_scan.py`：downstream_audit unresolved → workstation 转化\n- 闭合 dispatch-dag.yaml ceremony_sequence.scan_sources 中\"谱系下游行动未执行\"的声明-实现缺口\n"
   },
   "refs": [],
-  "git_ref": ""
+  "git_ref": "",
+  "genealogy_id": "140",
+  "title": "ceremony_scan 闭合下游推论→工位的数据通路（蜂群持久化修复）",
+  "depends_on": [
+    "138",
+    "134"
+  ]
 }

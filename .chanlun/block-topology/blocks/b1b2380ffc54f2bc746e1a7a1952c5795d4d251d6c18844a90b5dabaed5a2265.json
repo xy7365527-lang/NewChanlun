@@ -1,8 +1,13 @@
 {
   "id": "b1b2380ffc54f2bc746e1a7a1952c5795d4d251d6c18844a90b5dabaed5a2265",
-  "number": 219,
-  "source_file": ".chanlun/genealogy/settled/219-meta-observation-v60-swarm.md",
-  "type": "meta-rule",
-  "created": "2026-02-26T06:00:00.000000",
-  "source": "cc"
+  "type": "event",
+  "timestamp": "2026-02-26T06:00:00.000000",
+  "source": "cc",
+  "content": {
+    "original_type": "meta-rule",
+    "source_file": ".chanlun/genealogy/settled/219-meta-observation-v60-swarm.md"
+  },
+  "refs": [],
+  "git_ref": "",
+  "genealogy_id": "219"
 }

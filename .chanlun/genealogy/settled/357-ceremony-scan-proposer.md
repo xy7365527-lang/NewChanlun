@@ -3,7 +3,8 @@ id: '357'
 number: 357
 title: "ceremony_scan 消费器到提议器增强——从被动读取到主动发现"
 type: architectural-insight
-status: 生成态
+status: settled
+settled_at: 2026-03-05
 date: 2026-03-05
 source: codex 诊断 + 编排者批准（v159-swarm session）
 depends_on:
@@ -82,9 +83,14 @@ impact:
     - "提议机制的有效性需要 L2 验证——下一轮 ceremony 观察是否正确发现遗漏"
 
 retroactive_settlement:
-  settled_by: null
-  settlement_date: null
-  settlement_description: "增强实现中，待 v159-swarm 完成后评估是否可结算"
+  settled_by: v159-swarm-r2
+  settlement_date: 2026-03-05
+  settlement_description: |
+    v159-swarm-r2 完成全部实现：
+    1. ceremony_scan.py 增加 _scan_genealogy_proposals（+154行）
+    2. _check_completion glob bug 修复
+    3. gangmu.yaml 注入 3 条新研究线
+    4. 31 tests 全部通过
 
 related_records:
   parent: '353'  # 消费断裂等价性是本增强的理论基础

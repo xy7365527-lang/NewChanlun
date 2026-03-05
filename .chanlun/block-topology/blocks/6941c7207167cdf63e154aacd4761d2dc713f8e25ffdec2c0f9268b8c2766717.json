@@ -21,5 +21,7 @@
     "full_text": "---\nid: \"173\"\ntitle: \"lead-audit hook 恶性循环——观测行为产生观测对象\"\ntype: meta-rule\nstatus: settled\ndate: 2026-02-23\nnegates: [\"088\"]\nrelated: [\"147\", \"043\", \"075\"]\nrule_version_baseline:\n  claude_md_commit: \"6016a8176015a79a8f1c91103c9f4fe3eb701fe8\"\n  rules_dir_mtime: \"2026-02-23 00:29:52 +0000\"\n---\n\n## 结论\n\nlead-audit.sh（088号→147号）存在恶性循环：Lead 的每次 Bash/Write/Edit 操作都触发 hook → hook 往 pattern-buffer.yaml 追加条目 → pattern-buffer 膨胀 → 所有读取 pattern-buffer 的 hook 变慢。\n\n实测数据：\n- 一次 Write 操作触发 9 个 hook，总延迟 1.0-1.3 秒\n- 本 session 中 pattern-buffer.yaml 从 112 行增长到 247 行（翻倍）\n- 每个 hook 启动独立 bash+python 进程，Windows 上进程创建开销 80-360ms/次\n- 幂等机制失效：hash 包含时间戳，同一秒内多次调用生成不同 hash\n\n## 定义依据\n\n- 043号谱系（自生长回路）：pattern-buffer 设计为\"观测→积累→结晶\"的单向流\n- 088号谱系：lead-audit 从阻断改为记录（Gemini decide 选项D）\n- 147号谱系：权限→拓扑转化，\"修改即否定即拓扑操作\"\n\n## 边界条件\n\n当 Lead 的操作全部在非否定性白名单内时，循环不触发。但白名单无法穷举 Lead 的合法操作（诊断、监控、探索）——白名单方法论本身有结构缺陷。\n\n## 下游推论\n\n1. lead-audit.sh 的白名单方法论需要反转：从\"默认否定，白名单放行\"改为\"默认放行，黑名单记录\"——Lead 的大部分操作是合法的，只有少数（直接修改基因组文件 CLAUDE.md/rules/skills）需要记录\n2. pattern-buffer.yaml 不应作为高频写入目标——hook 级写入应改为 session 级汇总\n3. 22 个 hook 脚本各自启动独立 Python 进程的架构需要统一为单一 dispatcher\n\n## 谱系引用\n\n- 088号：拓扑异常对象化审计（lead-audit 的前身）\n- 147号：权限→拓扑转化（lead-audit 当前设计依据）\n- 043号：自生长回路（pattern-buffer 设计依据）\n- 075号：结构工位 skill 化\n\n## 影响声明\n\n- lead-audit.sh 需要重写（白名单→黑名单反转）\n- pattern-buffer.yaml 当前内容需要清理（23 个 anomaly 条目大部分是噪音）\n- hook 架构需要性能优化（合并 Python 进程）\n"
   },
   "refs": [],
-  "git_ref": ""
+  "git_ref": "",
+  "genealogy_id": "173",
+  "title": "lead-audit hook 恶性循环——观测行为产生观测对象"
 }

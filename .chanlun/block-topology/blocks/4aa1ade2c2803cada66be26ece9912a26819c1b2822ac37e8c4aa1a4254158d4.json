@@ -26,5 +26,11 @@
     "full_text": "---\nid: '129'\ntitle: negates边稀疏性审查——三轮Gemini讨论结论：无矛盾降级证据，方法论建议引入needs_review边\ntype: 定理\nstatus: 已结算\ndate: 2026-02-22\ndepends_on:\n  - '127'   # 触发审计的同日谱系\n  - '012'   # 谱系是发现引擎\nrelated:\n  - '128'   # 孤立节点审查（同批次）\n  - '130'   # 审计递归Gap（同批次）\nnegation_source: heterogeneous\nnegation_form: 定理（三轮Gemini双向讨论消解）\nnegation_model: gemini-3.1-pro-preview\nnegates: []\nnegated_by: []\nprovenance: \"[新缠论]\"\n---\n\n# 129号：negates边稀疏性审查\n\n**类型**: 定理（三轮Gemini双向严格讨论消解）\n**状态**: 已结算\n**日期**: 2026-02-22\n**来源**: Gemini异质质询（焦点5）→ 三轮双向严格讨论\n\n## 问题\n\nDAG 拓扑中 negates 边仅8条，vs depends_on 311条、tensions_with 20条。Gemini 判定：系统存在\"矛盾降级\"——将实质否定关系软化为张力。\n\n## 推导链\n\n```\n数据: 8条 negates, 20条 tensions_with, 311条 depends_on\nGemini 假设: 稀疏性 = 矛盾降级（和稀泥）\n\n实地检查（Lead 同步执行）:\n1. 20条 tensions_with 逐一检查——无一条存在逻辑互斥\n   - 007↔008/009, 008↔009: 概念互补张力，非互斥\n   - 020↔005b: 127号已消解（层面不同）\n   - 062↔065/069/094/104: 062已被否定（negated_by: 064, 093），张力边是历史残留\n   - 其余: 从不同角度切入同一问题域的概念张力\n2. 8条 negates 全部是真正的取消/替代关系\n3. 9个\"矛盾记录\"类型节点——矛盾通过概念分离消解，分离产出新节点不产出 negates 边\n4. 概念分离机制（005→005a/005b等）是 negates 稀疏的合理解释\n\nGemini 三轮讨论:\n- 第一轮: \"和稀泥\"判定·致命\n- 第二轮: 给出两个实例，均有逻辑缺陷（循环论证 + 已否定节点）\n- 第三轮: 放弃提供具体互斥实例，转向方法论批评（边类型设计缺失）\n─────────────────────\n结论: \"矛盾降级\"指控不成立——无具体互斥实例支撑。\nnegates 稀疏是系统概念分离机制的正常结果，不是和稀泥。\n```\n\n## 结论\n\n**negates 边的稀疏性（8/311）不构成系统缺陷。**\n\n1. negates 语义 = \"A被B取消/替代\"（强否定），tensions_with = \"A和B有未解决张力\"。两者语义不同，不可直接比较。\n2. 系统中矛盾的主要消解方式是概念分离（产出新节点），不是直接否定（产出 negates 边）。\n3. 20条 tensions_with 边逐一检查，无一条应升级为 negates。\n4. Gemini 三轮讨论未能提供任何不依赖焦点3（127号判定）的互斥实例。\n\n## Gemini 的方法论建议（有价值但不改变判定）\n\nGemini 第三轮提出：系统在\"逻辑未决\"时默认使用 tensions_with，而不是 needs_review——这是方法论层面的合理批评。建议：\n- 考虑引入 `needs_review` 边类型，区分\"确认的持续张力\"和\"未决的待分类关系\"\n- 这是分类学卫生改进，属于建议级别，不影响当前系统功能\n\n## 不可调和分歧记录\n\n| 立场 | Claude | Gemini |\n|------|--------|--------|\n| 核心主张 | 缺乏互斥实例 = 证据不足 | 方法论默认降级 = 结构性证据 |\n| 举证标准 | 需要具体互斥实例 | 系统行为模式就是证据 |\n| 判定 | 不成立（建议级） | 成立·致命 |\n\n两种立场反映不同的举证标准——具体实例 vs 系统模式。在本次讨论中无法统一。\n\n## 边界条件\n\n- 如果未来新增的 tensions_with 边中出现明确的逻辑互斥（有具体实例），则本判定需要复核\n- 如果引入 `needs_review` 边类型后，部分现有 tensions_with 被重分类为 needs_review，则 Gemini 的方法论批评被验证\n\n## 谱系链接\n\n- **Gemini 来源**: gemini-rtas-topology-audit.md（焦点5）+ gemini-bilateral-round2.md（三轮讨论）\n- **012号**: 谱系是发现引擎——negates 稀疏性审查本身就是谱系发现过程\n- **127号**: 020↔005b 张力的消解依赖127号有效性\n"
   },
   "refs": [],
-  "git_ref": ""
+  "git_ref": "",
+  "genealogy_id": "129",
+  "title": "negates边稀疏性审查——三轮Gemini讨论结论：无矛盾降级证据，方法论建议引入needs_review边",
+  "depends_on": [
+    "127",
+    "012"
+  ]
 }

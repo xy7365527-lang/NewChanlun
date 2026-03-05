@@ -1,4 +1,5 @@
 {
+  "id": "f2ea28dbdb8c37fc3607cc926de885858714beb30964c3eac05b1ba039f798b6",
   "type": "event",
   "timestamp": "2026-02-28T00:51:43.065314+00:00",
   "source": "cc",
@@ -14,5 +15,6 @@
     "d5cbaf79256a4a0b5675886bae302d7efc85a599dd21481c64f71b23807b3f54"
   ],
   "git_ref": "",
-  "id": "f2ea28dbdb8c37fc3607cc926de885858714beb30964c3eac05b1ba039f798b6"
+  "genealogy_id": "231",
+  "title": "形式化有效域规则——有效域 ≠ 定义域 + 认识论等级标注"
 }

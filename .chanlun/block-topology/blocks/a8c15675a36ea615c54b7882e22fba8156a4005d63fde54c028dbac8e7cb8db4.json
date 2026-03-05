@@ -1,12 +1,17 @@
 {
   "id": "a8c15675a36ea615c54b7882e22fba8156a4005d63fde54c028dbac8e7cb8db4",
-  "genealogy_id": "345",
-  "title": "区块拓扑内容完整性验证机制",
-  "type": "工程决策",
-  "depends_on": [],
+  "type": "event",
+  "timestamp": "1970-01-01T00:00:00+00:00",
+  "source": "migration",
   "content": {
     "source_file": "settled/345-block-integrity-verification.md",
     "id": "345",
-    "full_text": "---\nid: \"345\"\ntitle: \"区块拓扑内容完整性验证机制\"\nstatus: \"已结算\"\ntype: \"工程决策\"\ndate: \"2026-03-04\"\ndepends_on: []\nrelated: []\nnegated_by: []\nnegates: []\n---\n\n# 工程决策 345：区块拓扑内容完整性验证机制\n\n**类型**: 工程决策\n\n## 问题\n\n区块拓扑作为谱系的索引层，只保证谱系→区块的映射关系，不保证谱系文件内容的不可变更性。\n\n当前缺口：\n1. 谱系文件（.md）是普通文本文件，任何编辑器都能修改\n2. 区块中没有记录文件内容的哈希值（或仅记录了与 block_id 相同的值，不是文件内容哈希）\n3. 修改谱系文件后，区块拓扑无法检测到内容变更\n4. 没有区分\"合法修改\"（如标记下游推论已执行）和\"非法篡改\"\n\n## 解决方案\n\n引入 `content_hash` 字段（SHA256）作为文件内容的指纹：\n\n### 验证脚本 `scripts/verify_block_integrity.py`\n\n三种模式：\n- **验证模式**（默认）：重新计算所有有源文件的区块的 SHA256，与 `content_hash` 比较\n- **盖章模式**（`--stamp`）：为缺少 `content_hash` 的区块写入当前文件哈希\n- **重签名模式**（`--resign NUM`）：合法修改后更新指定区块的 `content_hash`\n\n### 区块格式变更\n\n在现有区块 JSON 中新增顶层 `content_hash` 字段：\n- 旧区块不受影响（向后兼容）\n- `content_hash` 是谱系源文件内容的 SHA256\n- 不同于 `block.id`（后者是 `{type, source, content, refs}` 的 SHA256）\n\n### 合法修改流程\n\n1. 编辑谱系文件\n2. 运行 `python scripts/verify_block_integrity.py --resign <谱系编号>`\n3. 重签名更新 `content_hash`\n4. 提交区块文件变更\n\n### 数据发现\n\n首次运行结果：\n- 1196 个区块中，367 个有源文件引用\n- 364 个缺少 `content_hash`（需要 `--stamp`）\n- 2 个的 `content_hash` 与文件内容不匹配（旧值是 block_id，不是文件哈希）\n- 1 个源文件路径格式损坏（313号，`source_file` 字段中路径分隔符乱码）\n\n## 边界条件\n\n- 此验证是**读时检查**：只在验证脚本运行时检测，不阻止写入\n- `content_hash` 不改变区块的不可变语义——区块本身（`block.id`）仍由内容寻址\n- `content_hash` 是区块之外的元数据，标记源文件的状态\n\n## 影响声明\n\n- 新增 `scripts/verify_block_integrity.py`\n- 新增 `tests/test_block_integrity.py`（22 个测试）\n- 不修改 `scripts/block_topology.py`（核心模块零变更）\n- 不修改现有区块格式定义（`content_hash` 是可选字段）\n"
-  }
+    "full_text": "---\nid: \"345\"\ntitle: \"区块拓扑内容完整性验证机制\"\nstatus: \"已结算\"\ntype: \"工程决策\"\ndate: \"2026-03-04\"\ndepends_on: []\nrelated: []\nnegated_by: []\nnegates: []\n---\n\n# 工程决策 345：区块拓扑内容完整性验证机制\n\n**类型**: 工程决策\n\n## 问题\n\n区块拓扑作为谱系的索引层，只保证谱系→区块的映射关系，不保证谱系文件内容的不可变更性。\n\n当前缺口：\n1. 谱系文件（.md）是普通文本文件，任何编辑器都能修改\n2. 区块中没有记录文件内容的哈希值（或仅记录了与 block_id 相同的值，不是文件内容哈希）\n3. 修改谱系文件后，区块拓扑无法检测到内容变更\n4. 没有区分\"合法修改\"（如标记下游推论已执行）和\"非法篡改\"\n\n## 解决方案\n\n引入 `content_hash` 字段（SHA256）作为文件内容的指纹：\n\n### 验证脚本 `scripts/verify_block_integrity.py`\n\n三种模式：\n- **验证模式**（默认）：重新计算所有有源文件的区块的 SHA256，与 `content_hash` 比较\n- **盖章模式**（`--stamp`）：为缺少 `content_hash` 的区块写入当前文件哈希\n- **重签名模式**（`--resign NUM`）：合法修改后更新指定区块的 `content_hash`\n\n### 区块格式变更\n\n在现有区块 JSON 中新增顶层 `content_hash` 字段：\n- 旧区块不受影响（向后兼容）\n- `content_hash` 是谱系源文件内容的 SHA256\n- 不同于 `block.id`（后者是 `{type, source, content, refs}` 的 SHA256）\n\n### 合法修改流程\n\n1. 编辑谱系文件\n2. 运行 `python scripts/verify_block_integrity.py --resign <谱系编号>`\n3. 重签名更新 `content_hash`\n4. 提交区块文件变更\n\n### 数据发现\n\n首次运行结果：\n- 1196 个区块中，367 个有源文件引用\n- 364 个缺少 `content_hash`（需要 `--stamp`）\n- 2 个的 `content_hash` 与文件内容不匹配（旧值是 block_id，不是文件哈希）\n- 1 个源文件路径格式损坏（313号，`source_file` 字段中路径分隔符乱码）\n\n## 边界条件\n\n- 此验证是**读时检查**：只在验证脚本运行时检测，不阻止写入\n- `content_hash` 不改变区块的不可变语义——区块本身（`block.id`）仍由内容寻址\n- `content_hash` 是区块之外的元数据，标记源文件的状态\n\n## 影响声明\n\n- 新增 `scripts/verify_block_integrity.py`\n- 新增 `tests/test_block_integrity.py`（22 个测试）\n- 不修改 `scripts/block_topology.py`（核心模块零变更）\n- 不修改现有区块格式定义（`content_hash` 是可选字段）\n",
+    "original_type": "工程决策"
+  },
+  "refs": [],
+  "git_ref": "",
+  "genealogy_id": "345",
+  "title": "区块拓扑内容完整性验证机制",
+  "depends_on": []
 }

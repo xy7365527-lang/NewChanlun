@@ -680,6 +680,8 @@ def _check_completion(root, check):
     if check_type == "test_file_exists":
         # test_file_exists：语义明确版——检查测试文件存在（支持 glob 通配符）
         pattern = check.get("pattern", "")
+        if not pattern:
+            return False
         full_pattern = os.path.join(root, pattern)
         if os.path.isfile(full_pattern):
             return True

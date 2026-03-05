@@ -18,5 +18,12 @@
     "full_text": "---\nid: 291\nnumber: 291\ntype: meta-rule\ntitle: 元观察——v132-swarm ceremony 中途编排者任务注入\ndate: \"2026-03-01\"\ndepends_on: [290, 224, 225]\nstatus: settled\nrule_version_baseline:\n  claude_md_commit: \"97f3ba3186f1919ff6abf02dea4247724d47c79a\"\n  rules_dir_mtime: \"2026-03-01 00:27:49 +0000\"\n---\n\n# 291号：元观察——v132-swarm ceremony 中途编排者任务注入\n\n## 观察\n\n### 观察1（收敛）：ceremony 序列正常执行\n- 步骤1→5正常：scan→摘要→TeamCreate→并行spawn 11工位\n- 218号并行默认遵守——11个审计工位全部并行 spawn\n- 审计工位全部完成（11/11 completed）\n\n### 观察2（发散信号）：编排者中途注入 vs ceremony 中断\nceremony 执行中（步骤6 RTAS 循环），编排者注入新任务（PDF 阅读+谱系归档）。\n\nceremony 规则说\"ceremony 序列不可被用户消息中断\"（224号/225号原子链），但编排者的指令不是\"中断\"——是\"注入\"。区分：\n- **中断**：改变序列流程（如跳过 rescan、中止 ceremony）\n- **注入**：在 RTAS 循环中追加新工位，但不改变序列流程（ceremony 仍然继续到不动点）\n\nLead 的处理方式：在当前蜂群中追加4个 PDF 阅读工位（并行），ceremony 流程不变。这是合理的——RTAS 循环本身就支持增量添加工位。\n\n**语法记录候选**：ceremony 中途编排者任务注入的合法性和边界。已在实践中运作（本 session 即实例），但未在 ceremony 序列定义中显式化。\n\n### 观察3（收敛）：Lead 平台约束的合理降级\nLead 只能管理一个 team（平台限制），编排者说\"再开一个蜂群\"。Lead 无法创建第二个 team，选择在现有蜂群中追加工位。这是平台约束下的合理降级，不违反 ceremony 序列。\n\n### 观察4（收敛）：广播使用\nLead 使用 broadcast 查询11个工位状态。广播成本高但信息需求覆盖所有工位，合理。\n\n## 自环检查\n\n与最近5条 meta-rule 对比：\n- 282号（全部收敛）——本轮有1个发散信号\n- 285号（编排者语言清洗模式）——不同维度\n- 286号（R/$ 跨实验一致性）——不同维度\n- 288号（两个发散信号）——不同维度\n- 290号（蜂群自主实验推进）——不同维度\n\n结论：观察2是新维度（ceremony 中途注入），不与历史观察重复。\n\n## 总结\n\n一个发散信号（观察2：ceremony 中途编排者任务注入的语法化）。该信号标记为语法记录候选——待编排者裁定是否将\"注入\"作为 ceremony 序列的合法操作显式写入。\n\n## 下游推论\n\n1. 如果\"注入\"被显式化为合法操作，ceremony 序列步骤6（RTAS 循环）需要增加\"处理编排者注入\"子步骤\n2. 注入的边界条件：只允许追加工位，不允许改变序列流程（不允许跳过 rescan/不动点判定）\n"
   },
   "refs": [],
-  "git_ref": ""
+  "git_ref": "",
+  "genealogy_id": "291",
+  "title": "元观察——v132-swarm ceremony 中途编排者任务注入",
+  "depends_on": [
+    "290",
+    "224",
+    "225"
+  ]
 }

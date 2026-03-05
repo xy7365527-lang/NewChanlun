@@ -1,14 +1,14 @@
 {
   "id": "9cd33f5ac6fcc252d3402feaa0487f932944ac9625c72efb87fce7332e6bb533",
-  "type": "meta-rule",
+  "type": "event",
   "timestamp": "2026-03-01T07:55:53.361622+00:00",
-  "source": "meta-observer",
+  "source": "migration",
   "content": {
     "title": "282号：元观察——v127-swarm 终止 session（无新发现）",
-    "summary": "team目录残留积累（260号已覆盖）+ 编排者直接执行决断（选择类已裁定）+ 无新模式"
+    "summary": "team目录残留积累（260号已覆盖）+ 编排者直接执行决断（选择类已裁定）+ 无新模式",
+    "original_type": "meta-rule"
   },
-  "refs": {
-    "genealogy": "282-meta-observation-v127-swarm.md"
-  },
-  "git_ref": null
+  "refs": [],
+  "git_ref": null,
+  "title": "282号：元观察——v127-swarm 终止 session（无新发现）"
 }

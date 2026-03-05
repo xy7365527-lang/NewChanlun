@@ -1,4 +1,5 @@
 {
+  "id": "0b51ddd95a52204bca794470ab019c99e8718af09eeef270f46d663fd9476db4",
   "type": "event",
   "timestamp": "2026-02-28T10:00:00.000000+00:00",
   "source": "cc",
@@ -12,5 +13,6 @@
     "812aec721e445cee9c9fd57783456cb84adeceea86ebb7f9e8c3b6cc81eb588c"
   ],
   "git_ref": "",
-  "id": "0b51ddd95a52204bca794470ab019c99e8718af09eeef270f46d663fd9476db4"
+  "genealogy_id": "241",
+  "title": "共振双管道——_build_resonance_signals 双模型并行共振构建"
 }

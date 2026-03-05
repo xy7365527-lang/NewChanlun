@@ -16,5 +16,10 @@
     "full_text": "---\nid: \"199\"\nnumber: 199\ntype: 概念发现\nstatus: 已结算\ndate: 2026-02-25\ntrigger: T8 经验验证 100% inconclusive\ndepends_on:\n  - 195\n  - 197\n---\n\n# 199号：T8 在级别 0 天然 inconclusive——递归级别约束\n\n## 结论\n\nT8 背驰拓扑后验验证在递归级别 0 上天然 inconclusive 率极高（经验验证 100%），\n因为级别 0 的 A/C 段是线段区间，段内很少有中枢。\n\nT8 的真正价值在递归级别 ≥ 1：A/C 段是走势类型实例，内部包含中枢，\nDgm(A) 和 Dgm(C) 才有非空条形码。\n\n## 定义依据\n\n- 背驰结构 a+A+b+B+c：A 段和 C 段是同向趋势段\n- 中枢需要 3 段重叠（§7）\n- 级别 0 的 A/C 段 = 线段区间，段内线段数通常 < 3 → 无法形成中枢\n- 级别 ≥ 1 的 A/C 段 = 走势类型实例，内部已包含中枢\n\n## 边界条件\n\n- 如果级别 0 的趋势段非常长（包含多个中枢），T8 可以产生有意义的判定\n- 但这在实践中极少发生——长趋势段通常会被递归引擎提升到更高级别\n\n## 下游推论\n\n1. T8 的主要应用场景是递归级别 ≥ 1 的背驰验证 → [resolved: 199号结论本身]\n2. 级别 0 的 T8 结果应以 inconclusive 为主，这是正确行为而非缺陷 → [resolved: 199号结论本身]\n3. 真实市场数据验证应聚焦于递归级别 ≥ 1 的背驰 → [blocked: 需真实市场数据（195号-5 长期项）]\n4. gauge_equivalence_report 中的 T8 检查在级别 0 上预期为空或全 inconclusive → [resolved: t8-empirical-verification-report.md 已验证]\n\n## 经验证据\n\n- 180 次合成数据运行：27 个背驰全部 inconclusive\n- 更长数据（2000 根 K 线）+ 趋势结构：仍然 100% inconclusive\n- 原因：级别 0 只有 1 个中枢，A/C 段内无中枢\n\n## 谱系引用\n\n- 195号：缠论代码拓扑化\n- 197号：Layer 2 T8 就绪\n"
   },
   "refs": [],
-  "git_ref": ""
+  "git_ref": "",
+  "genealogy_id": "199",
+  "depends_on": [
+    "195",
+    "197"
+  ]
 }
