@@ -3,13 +3,15 @@ id: '373'
 number: 373
 title: "加权Morse循环论证——362号洞察1的方法论根本错误"
 type: 矛盾发现
-status: 生成态
+status: 已结算
 date: 2026-03-05
+settled_date: 2026-03-05
+settled_by: v163-swarm/settler-morse
 session: v162
-source: 编排者洞察 + 本代理同质质询（Gemini API 不可用降级）
+source: 编排者洞察 + 本代理同质质询（Gemini API 不可用降级）+ Gemini 异质验证
 negation_source: orchestrator
-negation_form: waiting
-negation_model: claude-sonnet-4-6（Gemini 不可用降级）
+negation_form: confirmed
+negation_model: claude-sonnet-4-6 + gemini-2.5-pro（异质验证已补充）
 depends_on:
   - '362'   # B-M 研究线方向修正——洞察1"加权方向正确"
   - '360'   # B-M 三步实现完成
@@ -22,9 +24,7 @@ related:
 
 # 373号：加权Morse循环论证——362号洞察1的方法论根本错误
 
-**来源标注**：[编排者洞察] + [本代理同质质询降级]（Gemini API 403 PERMISSION_DENIED，key 泄漏，无法执行异质质询）
-
-**注意**：本谱系按降级协议产出。Gemini 不可用，由本代理执行同质质询替代。等待 Gemini 恢复后重新验证。
+**来源标注**：[编排者洞察] + [本代理同质质询降级] + [Gemini 异质验证已补充]
 
 ---
 
@@ -241,3 +241,41 @@ Gemini 确认循环论证诊断准确，代码证据：`weighted_morse.py:sort_k
 
 5. **Permutation Test 解耦实验**：Gemini 提出设计——保持图结构不变，随机打乱边类型标签（保持各类型总数不变），重复1000次构建零假设分布，判定 negates 过表达是拓扑位置效应还是类型内禀属性。
    - **status: open（行动类，可自主实现）**
+
+---
+
+## 结算意见（v163-swarm/settler-morse）
+
+### 结论
+
+373号循环论证诊断**成立并结算**。
+
+**核心判断**：加权 Morse 将研究产出（类型与临界性的关系）预设为研究输入（权重），构成严格的 begging the question。Gemini 异质验证确认此诊断，并从代码层面（`weighted_morse.py:sort_key`）给出了循环的机械证据。
+
+**Fisher 实验结果的定位**：373号自身已执行编排者建议的替代实验（均匀 Morse + Fisher 检验），获得 p=0.0058。但此 p 值受 374号否定（独立性假设不满足），需要置换检验替代。Fisher 结果降级为"有方法论局限的初步观测"（L2*）。
+
+### 定义依据
+
+- 编排者洞察原文："把范畴差异压缩成量的差异"是循环论证的精确诊断
+- Gemini 确认：`sort_key` 中低权重边优先消除 → 高权重边代数上被迫留在临界集
+- 循环形式：P（negates 权重=4）→ Q（negates 在临界集中过表达）→ "验证"P
+
+### 边界条件
+
+循环论证判断在加权 Morse 框架内无条件成立。唯一翻转条件：如果存在独立于 Morse 框架的先验证据证明 negates 是骨架（如 Fisher/置换检验），则加权 Morse 可重定位为"先验注入工具"（Gemini 建议），但这不改变循环论证本身的成立性。
+
+### 下游推论
+
+1. 362号洞察1工具层主张已降级（循环论证 + 363号实证否定双重封闭）
+2. Fisher p=0.0058 受 374号限定，等待置换检验（376号研究线）
+3. 加权 Morse 重定位为先验注入工具——待置换检验结果后决定
+
+### 谱系引用
+
+362号（被否定工具层）、363号（平行实证否定）、370号（Morse 有效域边界）、374号（Fisher 独立性否定）
+
+### 影响声明
+
+- 373号从生成态 → 已结算
+- 362号洞察1工具层已降级（历史影响，不修改已结算文件）
+- Fisher p=0.0058 认识论等级标注为 L2*（有方法论局限），待 374号+置换检验替代
