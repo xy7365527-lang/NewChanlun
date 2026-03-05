@@ -97,9 +97,13 @@ def extract_downstream_actions(filepath):
     gid = m.group(1) if m else os.path.basename(filepath)[:3]
 
     # 提取下游推论章节
+    # 383号修复：使用 ^#{2,}\s* 匹配任意级别标题（## / ### / ####），
+    # 并用 \n#{2,}\s 作为终止边界，防止 ### 子标题穿透到影响声明等后续章节。
+    # 旧正则 r'##\s*下游推论' 非锚定，导致 '### 下游推论' 在 offset 1 处匹配；
+    # 旧终止边界 r'\n##\s' 不匹配 '\n### '（第三个 # 不是 \s），导致章节范围溢出。
     m = re.search(
-        r'##\s*下游推论\s*\n(.*?)(?=\n##\s|\Z)',
-        content, re.DOTALL
+        r'^#{2,}\s*(?:\d+\.?\s*)?下游推论\s*\n(.*?)(?=\n#{2,}\s|\Z)',
+        content, re.DOTALL | re.MULTILINE
     )
     if not m:
         # P6修复：无 markdown 章节时，尝试从 YAML frontmatter 提取
@@ -107,7 +111,7 @@ def extract_downstream_actions(filepath):
         return gid, yaml_actions
 
     section = m.group(1)
-    # 提取编号条目（1. xxx 或 - xxx）
+    # 提取编号条目（1. xxx 或 - xxx）——只匹配行首无缩进的条目
     items = re.findall(
         r'(?:^\d+\.\s+\*\*(.+?)\*\*[：:]\s*(.+)|^\d+\.\s+(.+)|^-\s+\*\*(.+?)\*\*[：:]\s*(.+)|^-\s+(.+))',
         section, re.MULTILINE
@@ -115,11 +119,29 @@ def extract_downstream_actions(filepath):
 
     actions = []
     # 逐行扫描原始文本，用于检测删除线/已执行标记
-    # 只取顶级编号行（\d+.），排除子列表项（- xxx）避免索引错位
+    section_lines = section.split("\n")
+    # 只取顶级编号行（\d+. 或 行首 -），排除缩进子列表项
     raw_lines = [
-        line for line in section.split("\n")
+        line for line in section_lines
         if re.match(r'^(\d+\.\s+|-\s+)', line)
     ]
+    # 383号修复：为每个顶级条目收集紧随的缩进子行（status 标记可能在子行）
+    sub_lines_map = {}  # {raw_line_index: concatenated_sub_lines}
+    raw_line_indices = [
+        i for i, line in enumerate(section_lines)
+        if re.match(r'^(\d+\.\s+|-\s+)', line)
+    ]
+    for k, line_idx in enumerate(raw_line_indices):
+        sub_text = ""
+        j = line_idx + 1
+        next_boundary = raw_line_indices[k + 1] if k + 1 < len(raw_line_indices) else len(section_lines)
+        while j < next_boundary:
+            sub_line = section_lines[j]
+            if sub_line.strip():
+                sub_text += " " + sub_line.strip()
+            j += 1
+        sub_lines_map[k] = sub_text
+
     for i, groups in enumerate(items, 1):
         # 合并匹配组
         title = groups[0] or groups[2] or groups[3] or groups[5] or ""
@@ -128,20 +150,23 @@ def extract_downstream_actions(filepath):
         if text:
             # 检测内联已解决标记（删除线 / 已执行 / 已确认）
             raw = raw_lines[i - 1].strip() if i - 1 < len(raw_lines) else ""
+            # 383号修复：同时检查子行中的 status 标记
+            sub = sub_lines_map.get(i - 1, "")
+            check_text = raw + sub
             resolved_inline = False
             if raw.lstrip("0123456789.-) ").startswith("~~"):
                 resolved_inline = True
-            elif "**已执行**" in raw or "**已确认**" in raw or "**已完成**" in raw or "**已结算" in raw:
+            elif "**已执行**" in check_text or "**已确认**" in check_text or "**已完成**" in check_text or "**已结算" in check_text:
                 resolved_inline = True
-            elif "已执行——" in raw or "已确认——" in raw or "已完成——" in raw:
+            elif "已执行——" in check_text or "已确认——" in check_text or "已完成——" in check_text:
                 resolved_inline = True
-            elif "→ [resolved:" in raw or "`[resolved:" in raw:
+            elif "→ [resolved:" in check_text or "`[resolved:" in check_text:
                 resolved_inline = True
-            elif "**resolved**" in raw:
+            elif "**resolved**" in check_text or "status: resolved" in check_text:
                 resolved_inline = True
-            elif "→ [blocked:" in raw or "`[blocked:" in raw:
+            elif "→ [blocked:" in check_text or "`[blocked:" in check_text:
                 resolved_inline = "blocked"
-            elif "`[acknowledged:" in raw or "→ [acknowledged:" in raw:
+            elif "`[acknowledged:" in check_text or "→ [acknowledged:" in check_text:
                 resolved_inline = "blocked"
             actions.append({"index": i, "text": text, "resolved_inline": resolved_inline})
 

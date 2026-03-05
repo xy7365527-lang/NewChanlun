@@ -787,7 +787,7 @@ def _scan_genealogy_proposals(root, gangmu_data):
                 if downstream_section_pattern.match(line):
                     in_section = True
                     continue
-                if in_section and line.startswith("## "):
+                if in_section and re.match(r'^#{2,}\s', line) and not downstream_section_pattern.match(line):
                     break
                 if not in_section:
                     continue
