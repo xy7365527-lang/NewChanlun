@@ -535,7 +535,7 @@ gang:
   mu:
   - id: openclaw-integration
     name: OpenClaw接入与安全审计
-    status: active
+    status: closed
     opened_at: v161-swarm
     next_actions:
     - type: engineering
@@ -547,7 +547,8 @@ gang:
         path: docs/architecture/openclaw-security-audit.md
     - type: engineering
       target: openclaw-api-design
-      description: OpenClaw API接入架构设计——定义系统与OpenClaw的接口边界、资源管理协议（扩张/收缩的触发条件和执行流程）、错误处理策略。不引入任何API key或credentials，仅做架构设计（来源：总方针§3.4 + §八.七阶段G）
+      description: OpenClaw API接入架构设计——定义系统与OpenClaw的接口边界、资源管理协议（扩张/收缩的触发条件和执行流程）、错误处理策略。不引入任何API key或credentials，仅做架构设计（来源：总方针§3.4
+        + §八.七阶段G）
       blocked_by: openclaw-security-audit
       completion_check:
         type: file_exists
@@ -559,3 +560,5 @@ gang:
       completion_check:
         type: file_exists
         path: docs/architecture/openclaw-resource-protocol.md
+    closed_at: '2026-03-05'
+    closed_reason: 所有 next_actions 的 completion_check 均已满足
