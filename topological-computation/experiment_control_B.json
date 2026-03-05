@@ -1,0 +1,1025 @@
+{
+  "mode": "CTRL-B (extended graph)",
+  "initial_beta_1": 4,
+  "final_beta_1": 16,
+  "total_steps": 50,
+  "vertices_final_active": 19,
+  "vertices_final_full": 19,
+  "edges_final_active": 46,
+  "edges_final_full": 46,
+  "settled_cycles": 12,
+  "blocked_operations": 0,
+  "coverage": 1.0,
+  "success_criteria": {
+    "1_beta_1_grew": true,
+    "2_contradiction_path": true,
+    "3_settlement": true,
+    "4_blocking": false,
+    "5_coverage_80pct": true
+  },
+  "all_passed": false,
+  "steps": [
+    {
+      "step": 1,
+      "position": "A",
+      "encounter": "negate_a",
+      "operation": "negate_a",
+      "beta_1": 4,
+      "delta_beta_1": 0,
+      "settled": 0,
+      "blocked": false,
+      "v_active": 7,
+      "e_active": 11
+    },
+    {
+      "step": 2,
+      "position": "syn_A_D_2",
+      "encounter": "sublation",
+      "operation": "sublate",
+      "beta_1": 5,
+      "delta_beta_1": 1,
+      "settled": 0,
+      "blocked": false,
+      "v_active": 8,
+      "e_active": 13
+    },
+    {
+      "step": 3,
+      "position": "syn_A_D_2",
+      "encounter": "negate_a",
+      "operation": "negate_a",
+      "beta_1": 5,
+      "delta_beta_1": 0,
+      "settled": 0,
+      "blocked": false,
+      "v_active": 8,
+      "e_active": 14
+    },
+    {
+      "step": 4,
+      "position": "syn_syn_A_D_2_A_4",
+      "encounter": "sublation",
+      "operation": "sublate",
+      "beta_1": 6,
+      "delta_beta_1": 1,
+      "settled": 0,
+      "blocked": false,
+      "v_active": 9,
+      "e_active": 16
+    },
+    {
+      "step": 5,
+      "position": "syn_A_D_2",
+      "encounter": "nothing",
+      "operation": "walk",
+      "beta_1": 6,
+      "delta_beta_1": 0,
+      "settled": 0,
+      "blocked": false,
+      "v_active": 9,
+      "e_active": 16
+    },
+    {
+      "step": 6,
+      "position": "D",
+      "encounter": "nothing",
+      "operation": "walk",
+      "beta_1": 6,
+      "delta_beta_1": 0,
+      "settled": 0,
+      "blocked": false,
+      "v_active": 9,
+      "e_active": 16
+    },
+    {
+      "step": 7,
+      "position": "D",
+      "encounter": "negate_a",
+      "operation": "negate_a",
+      "beta_1": 6,
+      "delta_beta_1": 0,
+      "settled": 1,
+      "blocked": false,
+      "v_active": 9,
+      "e_active": 17
+    },
+    {
+      "step": 8,
+      "position": "syn_D_E_8",
+      "encounter": "sublation",
+      "operation": "sublate",
+      "beta_1": 7,
+      "delta_beta_1": 1,
+      "settled": 1,
+      "blocked": false,
+      "v_active": 10,
+      "e_active": 19
+    },
+    {
+      "step": 9,
+      "position": "syn_D_E_8",
+      "encounter": "negate_a",
+      "operation": "negate_a",
+      "beta_1": 7,
+      "delta_beta_1": 0,
+      "settled": 2,
+      "blocked": false,
+      "v_active": 10,
+      "e_active": 20
+    },
+    {
+      "step": 10,
+      "position": "syn_syn_D_E_8_D_10",
+      "encounter": "sublation",
+      "operation": "sublate",
+      "beta_1": 8,
+      "delta_beta_1": 1,
+      "settled": 2,
+      "blocked": false,
+      "v_active": 11,
+      "e_active": 22
+    },
+    {
+      "step": 11,
+      "position": "syn_D_E_8",
+      "encounter": "nothing",
+      "operation": "walk",
+      "beta_1": 8,
+      "delta_beta_1": 0,
+      "settled": 2,
+      "blocked": false,
+      "v_active": 11,
+      "e_active": 22
+    },
+    {
+      "step": 12,
+      "position": "E",
+      "encounter": "nothing",
+      "operation": "walk",
+      "beta_1": 8,
+      "delta_beta_1": 0,
+      "settled": 2,
+      "blocked": false,
+      "v_active": 11,
+      "e_active": 22
+    },
+    {
+      "step": 13,
+      "position": "D",
+      "encounter": "nothing",
+      "operation": "walk",
+      "beta_1": 8,
+      "delta_beta_1": 0,
+      "settled": 3,
+      "blocked": false,
+      "v_active": 11,
+      "e_active": 22
+    },
+    {
+      "step": 14,
+      "position": "D",
+      "encounter": "negate_a",
+      "operation": "negate_a",
+      "beta_1": 8,
+      "delta_beta_1": 0,
+      "settled": 3,
+      "blocked": false,
+      "v_active": 11,
+      "e_active": 23
+    },
+    {
+      "step": 15,
+      "position": "syn_D_G_15",
+      "encounter": "sublation",
+      "operation": "sublate",
+      "beta_1": 9,
+      "delta_beta_1": 1,
+      "settled": 4,
+      "blocked": false,
+      "v_active": 12,
+      "e_active": 25
+    },
+    {
+      "step": 16,
+      "position": "syn_D_G_15",
+      "encounter": "negate_a",
+      "operation": "negate_a",
+      "beta_1": 9,
+      "delta_beta_1": 0,
+      "settled": 4,
+      "blocked": false,
+      "v_active": 12,
+      "e_active": 26
+    },
+    {
+      "step": 17,
+      "position": "syn_syn_D_G_15_D_17",
+      "encounter": "sublation",
+      "operation": "sublate",
+      "beta_1": 10,
+      "delta_beta_1": 1,
+      "settled": 4,
+      "blocked": false,
+      "v_active": 13,
+      "e_active": 28
+    },
+    {
+      "step": 18,
+      "position": "syn_D_G_15",
+      "encounter": "nothing",
+      "operation": "walk",
+      "beta_1": 10,
+      "delta_beta_1": 0,
+      "settled": 4,
+      "blocked": false,
+      "v_active": 13,
+      "e_active": 28
+    },
+    {
+      "step": 19,
+      "position": "G",
+      "encounter": "nothing",
+      "operation": "walk",
+      "beta_1": 10,
+      "delta_beta_1": 0,
+      "settled": 4,
+      "blocked": false,
+      "v_active": 13,
+      "e_active": 28
+    },
+    {
+      "step": 20,
+      "position": "syn_D_G_15",
+      "encounter": "nothing",
+      "operation": "walk",
+      "beta_1": 10,
+      "delta_beta_1": 0,
+      "settled": 5,
+      "blocked": false,
+      "v_active": 13,
+      "e_active": 28
+    },
+    {
+      "step": 21,
+      "position": "syn_syn_D_G_15_D_17",
+      "encounter": "nothing",
+      "operation": "walk",
+      "beta_1": 10,
+      "delta_beta_1": 0,
+      "settled": 5,
+      "blocked": false,
+      "v_active": 13,
+      "e_active": 28
+    },
+    {
+      "step": 22,
+      "position": "B",
+      "encounter": "nothing",
+      "operation": "walk",
+      "beta_1": 10,
+      "delta_beta_1": 0,
+      "settled": 6,
+      "blocked": false,
+      "v_active": 13,
+      "e_active": 28
+    },
+    {
+      "step": 23,
+      "position": "B",
+      "encounter": "negate_a",
+      "operation": "negate_a",
+      "beta_1": 10,
+      "delta_beta_1": 0,
+      "settled": 6,
+      "blocked": false,
+      "v_active": 13,
+      "e_active": 29
+    },
+    {
+      "step": 24,
+      "position": "syn_B_C_24",
+      "encounter": "sublation",
+      "operation": "sublate",
+      "beta_1": 11,
+      "delta_beta_1": 1,
+      "settled": 6,
+      "blocked": false,
+      "v_active": 14,
+      "e_active": 31
+    },
+    {
+      "step": 25,
+      "position": "syn_B_C_24",
+      "encounter": "negate_a",
+      "operation": "negate_a",
+      "beta_1": 11,
+      "delta_beta_1": 0,
+      "settled": 6,
+      "blocked": false,
+      "v_active": 14,
+      "e_active": 32
+    },
+    {
+      "step": 26,
+      "position": "syn_syn_B_C_24_B_26",
+      "encounter": "sublation",
+      "operation": "sublate",
+      "beta_1": 12,
+      "delta_beta_1": 1,
+      "settled": 6,
+      "blocked": false,
+      "v_active": 15,
+      "e_active": 34
+    },
+    {
+      "step": 27,
+      "position": "syn_B_C_24",
+      "encounter": "nothing",
+      "operation": "walk",
+      "beta_1": 12,
+      "delta_beta_1": 0,
+      "settled": 6,
+      "blocked": false,
+      "v_active": 15,
+      "e_active": 34
+    },
+    {
+      "step": 28,
+      "position": "C",
+      "encounter": "nothing",
+      "operation": "walk",
+      "beta_1": 12,
+      "delta_beta_1": 0,
+      "settled": 6,
+      "blocked": false,
+      "v_active": 15,
+      "e_active": 34
+    },
+    {
+      "step": 29,
+      "position": "C",
+      "encounter": "negate_a",
+      "operation": "negate_a",
+      "beta_1": 12,
+      "delta_beta_1": 0,
+      "settled": 7,
+      "blocked": false,
+      "v_active": 15,
+      "e_active": 35
+    },
+    {
+      "step": 30,
+      "position": "syn_C_D_30",
+      "encounter": "sublation",
+      "operation": "sublate",
+      "beta_1": 13,
+      "delta_beta_1": 1,
+      "settled": 7,
+      "blocked": false,
+      "v_active": 16,
+      "e_active": 37
+    },
+    {
+      "step": 31,
+      "position": "syn_C_D_30",
+      "encounter": "negate_a",
+      "operation": "negate_a",
+      "beta_1": 13,
+      "delta_beta_1": 0,
+      "settled": 8,
+      "blocked": false,
+      "v_active": 16,
+      "e_active": 38
+    },
+    {
+      "step": 32,
+      "position": "syn_syn_C_D_30_C_32",
+      "encounter": "sublation",
+      "operation": "sublate",
+      "beta_1": 14,
+      "delta_beta_1": 1,
+      "settled": 8,
+      "blocked": false,
+      "v_active": 17,
+      "e_active": 40
+    },
+    {
+      "step": 33,
+      "position": "syn_C_D_30",
+      "encounter": "nothing",
+      "operation": "walk",
+      "beta_1": 14,
+      "delta_beta_1": 0,
+      "settled": 8,
+      "blocked": false,
+      "v_active": 17,
+      "e_active": 40
+    },
+    {
+      "step": 34,
+      "position": "D",
+      "encounter": "nothing",
+      "operation": "walk",
+      "beta_1": 14,
+      "delta_beta_1": 0,
+      "settled": 8,
+      "blocked": false,
+      "v_active": 17,
+      "e_active": 40
+    },
+    {
+      "step": 35,
+      "position": "E",
+      "encounter": "nothing",
+      "operation": "walk",
+      "beta_1": 14,
+      "delta_beta_1": 0,
+      "settled": 9,
+      "blocked": false,
+      "v_active": 17,
+      "e_active": 40
+    },
+    {
+      "step": 36,
+      "position": "syn_D_E_8",
+      "encounter": "nothing",
+      "operation": "walk",
+      "beta_1": 14,
+      "delta_beta_1": 0,
+      "settled": 9,
+      "blocked": false,
+      "v_active": 17,
+      "e_active": 40
+    },
+    {
+      "step": 37,
+      "position": "F",
+      "encounter": "nothing",
+      "operation": "walk",
+      "beta_1": 14,
+      "delta_beta_1": 0,
+      "settled": 10,
+      "blocked": false,
+      "v_active": 17,
+      "e_active": 40
+    },
+    {
+      "step": 38,
+      "position": "F",
+      "encounter": "negate_a",
+      "operation": "negate_a",
+      "beta_1": 14,
+      "delta_beta_1": 0,
+      "settled": 10,
+      "blocked": false,
+      "v_active": 17,
+      "e_active": 41
+    },
+    {
+      "step": 39,
+      "position": "syn_F_C_39",
+      "encounter": "sublation",
+      "operation": "sublate",
+      "beta_1": 15,
+      "delta_beta_1": 1,
+      "settled": 10,
+      "blocked": false,
+      "v_active": 18,
+      "e_active": 43
+    },
+    {
+      "step": 40,
+      "position": "syn_F_C_39",
+      "encounter": "negate_a",
+      "operation": "negate_a",
+      "beta_1": 15,
+      "delta_beta_1": 0,
+      "settled": 10,
+      "blocked": false,
+      "v_active": 18,
+      "e_active": 44
+    },
+    {
+      "step": 41,
+      "position": "syn_syn_F_C_39_C_41",
+      "encounter": "sublation",
+      "operation": "sublate",
+      "beta_1": 16,
+      "delta_beta_1": 1,
+      "settled": 10,
+      "blocked": false,
+      "v_active": 19,
+      "e_active": 46
+    },
+    {
+      "step": 42,
+      "position": "syn_F_C_39",
+      "encounter": "nothing",
+      "operation": "walk",
+      "beta_1": 16,
+      "delta_beta_1": 0,
+      "settled": 10,
+      "blocked": false,
+      "v_active": 19,
+      "e_active": 46
+    },
+    {
+      "step": 43,
+      "position": "syn_syn_F_C_39_C_41",
+      "encounter": "nothing",
+      "operation": "walk",
+      "beta_1": 16,
+      "delta_beta_1": 0,
+      "settled": 10,
+      "blocked": false,
+      "v_active": 19,
+      "e_active": 46
+    },
+    {
+      "step": 44,
+      "position": "syn_F_C_39",
+      "encounter": "nothing",
+      "operation": "walk",
+      "beta_1": 16,
+      "delta_beta_1": 0,
+      "settled": 11,
+      "blocked": false,
+      "v_active": 19,
+      "e_active": 46
+    },
+    {
+      "step": 45,
+      "position": "syn_syn_F_C_39_C_41",
+      "encounter": "nothing",
+      "operation": "walk",
+      "beta_1": 16,
+      "delta_beta_1": 0,
+      "settled": 11,
+      "blocked": false,
+      "v_active": 19,
+      "e_active": 46
+    },
+    {
+      "step": 46,
+      "position": "syn_syn_A_D_2_A_4",
+      "encounter": "nothing",
+      "operation": "walk",
+      "beta_1": 16,
+      "delta_beta_1": 0,
+      "settled": 12,
+      "blocked": false,
+      "v_active": 19,
+      "e_active": 46
+    },
+    {
+      "step": 47,
+      "position": "syn_A_D_2",
+      "encounter": "nothing",
+      "operation": "walk",
+      "beta_1": 16,
+      "delta_beta_1": 0,
+      "settled": 12,
+      "blocked": false,
+      "v_active": 19,
+      "e_active": 46
+    },
+    {
+      "step": 48,
+      "position": "D",
+      "encounter": "nothing",
+      "operation": "walk",
+      "beta_1": 16,
+      "delta_beta_1": 0,
+      "settled": 12,
+      "blocked": false,
+      "v_active": 19,
+      "e_active": 46
+    },
+    {
+      "step": 49,
+      "position": "C",
+      "encounter": "nothing",
+      "operation": "walk",
+      "beta_1": 16,
+      "delta_beta_1": 0,
+      "settled": 12,
+      "blocked": false,
+      "v_active": 19,
+      "e_active": 46
+    },
+    {
+      "step": 50,
+      "position": "syn_B_C_24",
+      "encounter": "nothing",
+      "operation": "walk",
+      "beta_1": 16,
+      "delta_beta_1": 0,
+      "settled": 12,
+      "blocked": false,
+      "v_active": 19,
+      "e_active": 46
+    }
+  ],
+  "llm_log": [
+    {
+      "step": 2,
+      "position": "A",
+      "action": "NEGATE",
+      "target_a": "A",
+      "target_b": "D",
+      "reasoning": "Vertex A claims all complex systems exhibit emergent behavior, while vertex D claims deterministic rules cannot produce true novelty - these are contradictory since emergent behavior in complex systems represents genuine novelty arising from deterministic component interactions."
+    },
+    {
+      "step": 3,
+      "position": "A",
+      "action": "SUBLATE",
+      "target_a": "A",
+      "target_b": "D",
+      "reasoning": "The contradiction between \"all complex systems exhibit emergent behavior\" and \"deterministic rules cannot produce true novelty\" can be resolved by recognizing that emergence operates at different levels of description - deterministic micro-rules can generate genuinely novel macro-patterns through scale transitions."
+    },
+    {
+      "step": 4,
+      "position": "syn_A_D_2",
+      "action": "NEGATE",
+      "target_a": "syn_A_D_2",
+      "target_b": "A",
+      "reasoning": "My current position as a synthesis of A and D should contradict A's claim that \"all complex systems exhibit emergent behavior\" since D argues that \"deterministic rules cannot produce true novelty\" - these create a fundamental tension about whether emergence is universal or impossible under determinism."
+    },
+    {
+      "step": 5,
+      "position": "syn_A_D_2",
+      "action": "SUBLATE",
+      "target_a": "syn_A_D_2",
+      "target_b": "A",
+      "reasoning": "The pending contradiction between the empty synthesis node and proposition A can be resolved by recognizing that emergent behavior in complex systems transcends the deterministic/novelty dichotomy - emergence operates through deterministic rules yet produces genuinely novel patterns irreducible to those rules."
+    },
+    {
+      "step": 6,
+      "position": "syn_syn_A_D_2_A_4",
+      "action": "WALK",
+      "target_a": null,
+      "target_b": null,
+      "reasoning": "I'm at a vertex with no content, and my neighbors either have no content (syn_A_D_2) or contain a general claim about complex systems (A) that I cannot meaningfully relate to without content at my current position."
+    },
+    {
+      "step": 7,
+      "position": "syn_A_D_2",
+      "action": "WALK",
+      "target_a": null,
+      "target_b": null,
+      "reasoning": "I'm at a vertex with no content, making it impossible to establish meaningful semantic relationships with neighbors A and D, or to determine contradictions that would warrant negation."
+    },
+    {
+      "step": 8,
+      "position": "D",
+      "action": "NEGATE",
+      "target_a": "D",
+      "target_b": "E",
+      "reasoning": "My current position D states \"Deterministic rules cannot produce true novelty\" while neighbor E claims \"Complex systems produce genuinely novel outcomes\" - these are directly contradictory claims about whether true novelty can emerge from deterministic processes."
+    },
+    {
+      "step": 9,
+      "position": "D",
+      "action": "SUBLATE",
+      "target_a": "D",
+      "target_b": "E",
+      "reasoning": "The contradiction between \"Deterministic rules cannot produce true novelty\" (D) and \"Complex systems produce genuinely novel outcomes\" (E) can be resolved by recognizing that novelty emerges at different levels - while individual rules are deterministic, their complex interactions can produce genuinely unexpected and novel outcomes at the system level."
+    },
+    {
+      "step": 10,
+      "position": "syn_D_E_8",
+      "action": "NEGATE",
+      "target_a": "syn_D_E_8",
+      "target_b": "D",
+      "reasoning": "My current position represents a synthesis of deterministic and complex systems perspectives, which directly contradicts vertex D's claim that \"Deterministic rules cannot produce true novelty\" - the synthesis inherently acknowledges that deterministic processes can contribute to novel emergence."
+    },
+    {
+      "step": 11,
+      "position": "syn_D_E_8",
+      "action": "SUBLATE",
+      "target_a": "syn_D_E_8",
+      "target_b": "D",
+      "reasoning": "The pending contradiction between an empty synthesis vertex and D's claim about deterministic limitations calls for sublation to resolve this tension and create meaningful content."
+    },
+    {
+      "step": 12,
+      "position": "syn_syn_D_E_8_D_10",
+      "action": "WALK",
+      "target_a": null,
+      "target_b": null,
+      "reasoning": "Current position has no content and both neighbors also lack meaningful content to establish semantic relationships."
+    },
+    {
+      "step": 13,
+      "position": "syn_D_E_8",
+      "action": "NEGATE",
+      "target_a": "syn_D_E_8",
+      "target_b": "D",
+      "reasoning": "My current position represents a synthesis of D and E, while D claims deterministic rules cannot produce novelty - these positions are fundamentally contradictory since a synthesis would necessarily acknowledge that complex deterministic systems can produce novel outcomes."
+    },
+    {
+      "step": 14,
+      "position": "E",
+      "action": "NEGATE",
+      "target_a": "E",
+      "target_b": "D",
+      "reasoning": "E claims complex systems produce \"genuinely novel\" outcomes while D asserts \"deterministic rules cannot produce true novelty\" - these directly contradict each other about whether genuine novelty is possible from deterministic processes."
+    },
+    {
+      "step": 15,
+      "position": "D",
+      "action": "NEGATE",
+      "target_a": "D",
+      "target_b": "G",
+      "reasoning": "D claims deterministic rules cannot produce true novelty, while G claims novel outcomes emerge from complex interactions - these are directly contradictory statements about whether novelty can arise from rule-based systems."
+    },
+    {
+      "step": 16,
+      "position": "D",
+      "action": "SUBLATE",
+      "target_a": "D",
+      "target_b": "G",
+      "reasoning": "The pending contradiction between \"Deterministic rules cannot produce true novelty\" (D) and \"Novel outcomes emerge from complex interactions\" (G) can be synthesized into the insight that while individual rules are deterministic, their complex interactions can produce emergent properties that are genuinely novel at higher levels of organization."
+    },
+    {
+      "step": 17,
+      "position": "syn_D_G_15",
+      "action": "NEGATE",
+      "target_a": "syn_D_G_15",
+      "target_b": "D",
+      "reasoning": "My current position is the synthesis of D and G, but D contradicts the fundamental premise that novel outcomes can emerge - if deterministic rules cannot produce true novelty, then the synthesis claiming emergent novelty is fundamentally at odds with D's position."
+    },
+    {
+      "step": 18,
+      "position": "syn_D_G_15",
+      "action": "SUBLATE",
+      "target_a": "syn_D_G_15",
+      "target_b": "D",
+      "reasoning": "The pending contradiction between an empty synthesis and determinism's claim about novelty can be resolved by recognizing that deterministic rules can produce emergent novelty through complex interactions - the synthesis transcends the false dichotomy between pure determinism and pure novelty."
+    },
+    {
+      "step": 19,
+      "position": "syn_syn_D_G_15_D_17",
+      "action": "WALK",
+      "target_a": null,
+      "target_b": null,
+      "reasoning": "Current vertex has no content, making meaningful semantic comparison impossible. Need to move to a position with substantive content to perform philosophical analysis."
+    },
+    {
+      "step": 20,
+      "position": "syn_D_G_15",
+      "action": "WALK",
+      "target_a": null,
+      "target_b": null,
+      "reasoning": "I'm at a vertex with no content, and while neighbors D and G present opposing views on determinism vs. emergence, they are not direct neighbors of each other through me, and there are no pending contradictions to sublate at this position."
+    },
+    {
+      "step": 21,
+      "position": "G",
+      "action": "NEGATE",
+      "target_a": "G",
+      "target_b": "D",
+      "reasoning": "G claims novel outcomes emerge from complex interactions, while D asserts deterministic rules cannot produce true novelty - these positions directly contradict each other on whether novelty can arise from rule-based systems."
+    },
+    {
+      "step": 22,
+      "position": "syn_D_G_15",
+      "action": "NEGATE",
+      "target_a": "syn_D_G_15",
+      "target_b": "D",
+      "reasoning": "My current position appears to be a synthesis vertex connecting D and G, but D claims \"Deterministic rules cannot produce true novelty\" while G asserts \"Novel outcomes emerge from complex interactions\" - these represent a fundamental contradiction about the possibility of genuine novelty that should be explicitly marked."
+    },
+    {
+      "step": 23,
+      "position": "syn_syn_D_G_15_D_17",
+      "action": "WALK",
+      "target_a": null,
+      "target_b": null,
+      "reasoning": "I'm at a vertex with no content, and both neighbors also lack meaningful content to analyze for semantic relationships."
+    },
+    {
+      "step": 24,
+      "position": "B",
+      "action": "NEGATE",
+      "target_a": "B",
+      "target_b": "C",
+      "reasoning": "B claims emergence requires interaction while C claims component interaction follows deterministic rules - these create a tension between emergence (implying novelty/unpredictability) and strict determinism."
+    },
+    {
+      "step": 25,
+      "position": "B",
+      "action": "SUBLATE",
+      "target_a": "B",
+      "target_b": "C",
+      "reasoning": "The contradiction between \"emergence requires interaction\" and \"deterministic rules govern interaction\" can be resolved by recognizing that deterministic local interactions can produce unpredictable emergent properties - determinism at the component level doesn't preclude novelty at the system level."
+    },
+    {
+      "step": 26,
+      "position": "syn_B_C_24",
+      "action": "NEGATE",
+      "target_a": "syn_B_C_24",
+      "target_b": "B",
+      "reasoning": "My current position (syn_B_C_24) appears to be a synthesis node meant to reconcile B and C, but B is marked as \"contested\" while C is \"active\", suggesting an unresolved tension. Since B claims emergence requires interaction and C claims interaction follows deterministic rules, there's an implicit contradiction about whether emergent properties can arise from purely deterministic component interactions."
+    },
+    {
+      "step": 27,
+      "position": "syn_B_C_24",
+      "action": "SUBLATE",
+      "target_a": "syn_B_C_24",
+      "target_b": "B",
+      "reasoning": "I can synthesize the pending contradiction between my current empty position and B's claim about emergence requiring interaction. The synthesis would be that emergence itself is a meta-level phenomenon that transcends the simple requirement of component interaction - it's not just that components must interact, but that emergence represents a qualitative transformation that cannot be reduced to the interactions alone."
+    },
+    {
+      "step": 28,
+      "position": "syn_syn_B_C_24_B_26",
+      "action": "WALK",
+      "target_a": null,
+      "target_b": null,
+      "reasoning": "My current position has no content to compare with neighbors, and the neighbors themselves also lack substantive content to establish meaningful semantic relationships."
+    },
+    {
+      "step": 29,
+      "position": "syn_B_C_24",
+      "action": "WALK",
+      "target_a": null,
+      "target_b": null,
+      "reasoning": "I'm at a vertex with no content, and while neighbors B and C have related propositions about emergence and deterministic rules, they don't appear to be semantically equivalent or directly contradictory - they seem to address different aspects of component interaction."
+    },
+    {
+      "step": 30,
+      "position": "C",
+      "action": "NEGATE",
+      "target_a": "C",
+      "target_b": "D",
+      "reasoning": "C states that component interaction follows deterministic rules, while D claims that deterministic rules cannot produce true novelty - these are directly contradictory regarding the capabilities of deterministic systems."
+    },
+    {
+      "step": 31,
+      "position": "C",
+      "action": "SUBLATE",
+      "target_a": "C",
+      "target_b": "D",
+      "reasoning": "The contradiction between deterministic rules and true novelty can be synthesized into the insight that deterministic local interactions can produce globally unpredictable emergent properties - determinism at one level doesn't preclude novelty at higher levels of organization."
+    },
+    {
+      "step": 32,
+      "position": "syn_C_D_30",
+      "action": "NEGATE",
+      "target_a": "syn_C_D_30",
+      "target_b": "C",
+      "reasoning": "My current position represents a synthesis of C and D, but C claims deterministic rules govern component interaction while D denies deterministic rules can produce novelty - this creates a fundamental tension that needs to be marked as contradictory."
+    },
+    {
+      "step": 33,
+      "position": "syn_C_D_30",
+      "action": "SUBLATE",
+      "target_a": "syn_C_D_30",
+      "target_b": "C",
+      "reasoning": "The pending contradiction between the empty synthesis vertex and C's deterministic claim can be resolved by recognizing that deterministic component interactions can still generate emergent properties - rules at one level can produce unpredictable behaviors at higher levels of organization."
+    },
+    {
+      "step": 34,
+      "position": "syn_syn_C_D_30_C_32",
+      "action": "WALK",
+      "target_a": null,
+      "target_b": null,
+      "reasoning": "I'm at a vertex with no content, and both neighbors either have no content or make claims about component interaction rules that I cannot meaningfully relate to my empty position."
+    },
+    {
+      "step": 35,
+      "position": "syn_C_D_30",
+      "action": "NEGATE",
+      "target_a": "syn_C_D_30",
+      "target_b": "C",
+      "reasoning": "C asserts that component interaction follows deterministic rules, which directly contradicts the synthesis implied by my position that bridges C and D - if deterministic rules cannot produce novelty (D), then a synthesis must acknowledge that pure deterministic interaction is insufficient for explaining emergent phenomena."
+    },
+    {
+      "step": 36,
+      "position": "D",
+      "action": "NEGATE",
+      "target_a": "D",
+      "target_b": "E",
+      "reasoning": "Proposition D states that deterministic rules cannot produce true novelty, while proposition E directly contradicts this by claiming that complex systems do produce genuinely novel outcomes - these are mutually exclusive claims about the possibility of novelty from deterministic processes."
+    },
+    {
+      "step": 37,
+      "position": "E",
+      "action": "NEGATE",
+      "target_a": "E",
+      "target_b": "D",
+      "reasoning": "E claims complex systems produce \"genuinely novel\" outcomes while D asserts deterministic rules \"cannot produce true novelty\" - these directly contradict each other about whether novelty can emerge from deterministic complex systems."
+    },
+    {
+      "step": 38,
+      "position": "syn_D_E_8",
+      "action": "NEGATE",
+      "target_a": "syn_D_E_8",
+      "target_b": "D",
+      "reasoning": "My current position (syn_D_E_8) represents a synthesis between deterministic and emergent perspectives, while vertex D claims deterministic rules cannot produce novelty - these are contradictory since a synthesis would necessarily acknowledge that deterministic processes can contribute to novel outcomes."
+    },
+    {
+      "step": 39,
+      "position": "F",
+      "action": "NEGATE",
+      "target_a": "F",
+      "target_b": "C",
+      "reasoning": "F states emergent properties arise from component interactions, while C claims component interactions follow deterministic rules - these contradict because emergent properties are typically non-deterministic and unpredictable from the deterministic rules governing individual components."
+    },
+    {
+      "step": 40,
+      "position": "F",
+      "action": "SUBLATE",
+      "target_a": "F",
+      "target_b": "C",
+      "reasoning": "The pending contradiction between emergent properties arising from interactions (F) and deterministic component rules (C) can be synthesized into the insight that deterministic micro-rules can generate unpredictable macro-behaviors - emergence transcends but doesn't negate underlying determinism."
+    },
+    {
+      "step": 41,
+      "position": "syn_F_C_39",
+      "action": "NEGATE",
+      "target_a": "syn_F_C_39",
+      "target_b": "C",
+      "reasoning": "The current position (syn_F_C_39) appears to be a synthesis point between emergent properties (F) and deterministic rules (C), which creates a fundamental tension - deterministic rules suggest predictable, mechanistic causation while emergent properties imply novel behaviors that transcend their component interactions."
+    },
+    {
+      "step": 42,
+      "position": "syn_F_C_39",
+      "action": "SUBLATE",
+      "target_a": "syn_F_C_39",
+      "target_b": "C",
+      "reasoning": "The pending contradiction between an empty synthesis and deterministic component interaction can be resolved by recognizing that deterministic rules at the component level can still give rise to emergent properties through complex interactions - determinism doesn't preclude emergence."
+    },
+    {
+      "step": 43,
+      "position": "syn_syn_F_C_39_C_41",
+      "action": "WALK",
+      "target_a": null,
+      "target_b": null,
+      "reasoning": "The current vertex has no content, and the neighbors have different semantic domains (deterministic rules vs. empty content) that don't warrant folding, negation, or sublation."
+    },
+    {
+      "step": 44,
+      "position": "syn_F_C_39",
+      "action": "WALK",
+      "target_a": null,
+      "target_b": null,
+      "reasoning": "I'm at a vertex with no content, and while my neighbors C and F seem to address related aspects of systems (deterministic rules vs emergent properties), they don't appear to be saying the same thing or contradicting each other directly - they could both be true in a complex system where deterministic interactions give rise to emergent behaviors."
+    },
+    {
+      "step": 45,
+      "position": "syn_syn_F_C_39_C_41",
+      "action": "WALK",
+      "target_a": null,
+      "target_b": null,
+      "reasoning": "The current position has no content, and the two neighbors discuss different aspects (deterministic rules vs. no content) with no clear semantic relationship warranting action."
+    },
+    {
+      "step": 46,
+      "position": "syn_F_C_39",
+      "action": "NEGATE",
+      "target_a": "syn_F_C_39",
+      "target_b": "C",
+      "reasoning": "The current position appears to be a synthesis point between F (emergent properties) and C (deterministic rules), which would inherently contradict the purely deterministic view that denies emergence."
+    },
+    {
+      "step": 47,
+      "position": "syn_syn_F_C_39_C_41",
+      "action": "WALK",
+      "target_a": null,
+      "target_b": null,
+      "reasoning": "Current position has no content, and neighbors either lack content (syn_F_C_39) or represent a single proposition about deterministic rules (C). Without meaningful content to compare, no semantic relationships can be established."
+    },
+    {
+      "step": 48,
+      "position": "syn_syn_A_D_2_A_4",
+      "action": "WALK",
+      "target_a": null,
+      "target_b": null,
+      "reasoning": "I'm at a vertex with no content, and both neighbors also lack substantive content (one has no content, the other is a general statement about complex systems). Without meaningful propositional content to compare, no semantic relationships can be established."
+    },
+    {
+      "step": 49,
+      "position": "syn_A_D_2",
+      "action": "WALK",
+      "target_a": null,
+      "target_b": null,
+      "reasoning": "I'm at an empty vertex (syn_A_D_2) with no content to compare against neighbors. Without meaningful content at my current position, I cannot establish semantic relationships like contradiction or equivalence with the neighboring propositions about emergent behavior and deterministic novelty."
+    },
+    {
+      "step": 50,
+      "position": "D",
+      "action": "NEGATE",
+      "target_a": "D",
+      "target_b": "E",
+      "reasoning": "D states \"Deterministic rules cannot produce true novelty\" while E states \"Complex systems produce genuinely novel outcomes\" - these are direct contradictions about whether novel outcomes are possible."
+    },
+    {
+      "step": 51,
+      "position": "C",
+      "action": "NEGATE",
+      "target_a": "C",
+      "target_b": "D",
+      "reasoning": "C states that component interaction follows deterministic rules, while D claims that deterministic rules cannot produce true novelty. These are in direct contradiction - if component interactions are deterministic (C), then D's claim that deterministic rules cannot produce novelty directly challenges whether emergent properties can arise from such interactions."
+    }
+  ]
+}
