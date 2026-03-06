@@ -1,0 +1,1606 @@
+{
+  "experiment": "adorno_complete_works_incremental",
+  "source": "Theodor W. Adorno — complete works, 15 entries (1933-1970)",
+  "methodology": "manual conceptual complex per work, incremental injection, digestion until 50-step beta_1 stability",
+  "work_results": [
+    {
+      "work": "1933: Kierkegaard: Construction of the Aesthetic",
+      "work_index": 1,
+      "vertices_added": 6,
+      "edges_added": 7,
+      "vertices_total": 7,
+      "edges_total": 10,
+      "beta_1_before_injection": 1,
+      "beta_1_after_digestion": 2,
+      "delta_beta_1": 1,
+      "settled_cycles": 1,
+      "blocked_in_work": 0,
+      "steps_to_digest": 52,
+      "converged": true,
+      "cumulative_steps": 52,
+      "operation_counts": {
+        "negate_a": 1,
+        "sublate": 1,
+        "walk": 50
+      }
+    },
+    {
+      "work": "1944/1947: Dialectic of Enlightenment",
+      "work_index": 2,
+      "vertices_added": 12,
+      "edges_added": 18,
+      "vertices_total": 16,
+      "edges_total": 29,
+      "beta_1_before_injection": 7,
+      "beta_1_after_digestion": 5,
+      "delta_beta_1": -2,
+      "settled_cycles": 1,
+      "blocked_in_work": 0,
+      "steps_to_digest": 68,
+      "converged": true,
+      "cumulative_steps": 120,
+      "operation_counts": {
+        "walk": 65,
+        "fold": 3
+      }
+    },
+    {
+      "work": "1949: Philosophy of New Music",
+      "work_index": 3,
+      "vertices_added": 9,
+      "edges_added": 14,
+      "vertices_total": 27,
+      "edges_total": 44,
+      "beta_1_before_injection": 7,
+      "beta_1_after_digestion": 8,
+      "delta_beta_1": 1,
+      "settled_cycles": 2,
+      "blocked_in_work": 0,
+      "steps_to_digest": 55,
+      "converged": true,
+      "cumulative_steps": 175,
+      "operation_counts": {
+        "walk": 53,
+        "negate_b": 1,
+        "sublate": 1
+      }
+    },
+    {
+      "work": "1950: The Authoritarian Personality",
+      "work_index": 4,
+      "vertices_added": 4,
+      "edges_added": 7,
+      "vertices_total": 30,
+      "edges_total": 50,
+      "beta_1_before_injection": 9,
+      "beta_1_after_digestion": 9,
+      "delta_beta_1": 0,
+      "settled_cycles": 2,
+      "blocked_in_work": 0,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 225,
+      "operation_counts": {
+        "walk": 49,
+        "fold": 1
+      }
+    },
+    {
+      "work": "1951: Minima Moralia",
+      "work_index": 5,
+      "vertices_added": 9,
+      "edges_added": 16,
+      "vertices_total": 40,
+      "edges_total": 67,
+      "beta_1_before_injection": 12,
+      "beta_1_after_digestion": 12,
+      "delta_beta_1": 0,
+      "settled_cycles": 2,
+      "blocked_in_work": 0,
+      "steps_to_digest": 62,
+      "converged": true,
+      "cumulative_steps": 287,
+      "operation_counts": {
+        "walk": 59,
+        "negate_b": 1,
+        "sublate": 1,
+        "fold": 1
+      }
+    },
+    {
+      "work": "1955: Prisms",
+      "work_index": 6,
+      "vertices_added": 4,
+      "edges_added": 8,
+      "vertices_total": 49,
+      "edges_total": 82,
+      "beta_1_before_injection": 14,
+      "beta_1_after_digestion": 17,
+      "delta_beta_1": 3,
+      "settled_cycles": 5,
+      "blocked_in_work": 0,
+      "steps_to_digest": 76,
+      "converged": true,
+      "cumulative_steps": 363,
+      "operation_counts": {
+        "walk": 70,
+        "negate_b": 2,
+        "sublate": 3,
+        "negate_a": 1
+      }
+    },
+    {
+      "work": "1956: Against Epistemology",
+      "work_index": 7,
+      "vertices_added": 4,
+      "edges_added": 8,
+      "vertices_total": 53,
+      "edges_total": 88,
+      "beta_1_before_injection": 18,
+      "beta_1_after_digestion": 18,
+      "delta_beta_1": 0,
+      "settled_cycles": 5,
+      "blocked_in_work": 0,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 413,
+      "operation_counts": {
+        "walk": 50
+      }
+    },
+    {
+      "work": "1958-1974: Notes to Literature",
+      "work_index": 8,
+      "vertices_added": 4,
+      "edges_added": 9,
+      "vertices_total": 57,
+      "edges_total": 99,
+      "beta_1_before_injection": 21,
+      "beta_1_after_digestion": 21,
+      "delta_beta_1": 0,
+      "settled_cycles": 6,
+      "blocked_in_work": 2,
+      "steps_to_digest": 83,
+      "converged": true,
+      "cumulative_steps": 496,
+      "operation_counts": {
+        "walk": 77,
+        "negate_b": 1,
+        "sublate": 1,
+        "fold_blocked": 2,
+        "fold": 2
+      }
+    },
+    {
+      "work": "1960: Mahler: A Musical Physiognomy",
+      "work_index": 9,
+      "vertices_added": 4,
+      "edges_added": 8,
+      "vertices_total": 63,
+      "edges_total": 108,
+      "beta_1_before_injection": 23,
+      "beta_1_after_digestion": 24,
+      "delta_beta_1": 1,
+      "settled_cycles": 7,
+      "blocked_in_work": 2,
+      "steps_to_digest": 64,
+      "converged": true,
+      "cumulative_steps": 560,
+      "operation_counts": {
+        "walk": 62,
+        "negate_b": 1,
+        "sublate": 1
+      }
+    },
+    {
+      "work": "1961/1969: The Positivist Dispute",
+      "work_index": 10,
+      "vertices_added": 3,
+      "edges_added": 6,
+      "vertices_total": 66,
+      "edges_total": 112,
+      "beta_1_before_injection": 25,
+      "beta_1_after_digestion": 25,
+      "delta_beta_1": 0,
+      "settled_cycles": 7,
+      "blocked_in_work": 2,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 610,
+      "operation_counts": {
+        "walk": 50
+      }
+    },
+    {
+      "work": "1962: Introduction to the Sociology of Music",
+      "work_index": 11,
+      "vertices_added": 4,
+      "edges_added": 8,
+      "vertices_total": 74,
+      "edges_total": 125,
+      "beta_1_before_injection": 28,
+      "beta_1_after_digestion": 30,
+      "delta_beta_1": 2,
+      "settled_cycles": 9,
+      "blocked_in_work": 2,
+      "steps_to_digest": 71,
+      "converged": true,
+      "cumulative_steps": 681,
+      "operation_counts": {
+        "walk": 67,
+        "negate_b": 2,
+        "sublate": 2
+      }
+    },
+    {
+      "work": "1964: Jargon of Authenticity",
+      "work_index": 12,
+      "vertices_added": 3,
+      "edges_added": 6,
+      "vertices_total": 83,
+      "edges_total": 139,
+      "beta_1_before_injection": 32,
+      "beta_1_after_digestion": 35,
+      "delta_beta_1": 3,
+      "settled_cycles": 12,
+      "blocked_in_work": 2,
+      "steps_to_digest": 98,
+      "converged": true,
+      "cumulative_steps": 779,
+      "operation_counts": {
+        "walk": 92,
+        "negate_b": 3,
+        "sublate": 3
+      }
+    },
+    {
+      "work": "1966: Negative Dialectics",
+      "work_index": 13,
+      "vertices_added": 10,
+      "edges_added": 20,
+      "vertices_total": 95,
+      "edges_total": 156,
+      "beta_1_before_injection": 39,
+      "beta_1_after_digestion": 40,
+      "delta_beta_1": 1,
+      "settled_cycles": 13,
+      "blocked_in_work": 17,
+      "steps_to_digest": 65,
+      "converged": true,
+      "cumulative_steps": 844,
+      "operation_counts": {
+        "walk": 48,
+        "negate_b": 1,
+        "sublate": 1,
+        "fold_blocked": 15
+      }
+    },
+    {
+      "work": "1963-1969: Critical Models",
+      "work_index": 14,
+      "vertices_added": 4,
+      "edges_added": 9,
+      "vertices_total": 99,
+      "edges_total": 164,
+      "beta_1_before_injection": 44,
+      "beta_1_after_digestion": 44,
+      "delta_beta_1": 0,
+      "settled_cycles": 13,
+      "blocked_in_work": 34,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 894,
+      "operation_counts": {
+        "fold_blocked": 17,
+        "walk": 33
+      }
+    },
+    {
+      "work": "1970 (posth.): Aesthetic Theory",
+      "work_index": 15,
+      "vertices_added": 8,
+      "edges_added": 18,
+      "vertices_total": 112,
+      "edges_total": 189,
+      "beta_1_before_injection": 52,
+      "beta_1_after_digestion": 54,
+      "delta_beta_1": 2,
+      "settled_cycles": 16,
+      "blocked_in_work": 48,
+      "steps_to_digest": 79,
+      "converged": true,
+      "cumulative_steps": 973,
+      "operation_counts": {
+        "negate_b": 3,
+        "walk": 58,
+        "sublate": 3,
+        "fold_blocked": 14,
+        "fold": 1
+      }
+    }
+  ],
+  "beta_1_curve": [
+    {
+      "work_index": 1,
+      "work_name": "1933: Kierkegaard: Construction of the Aesthetic",
+      "beta_1": 2,
+      "cumulative_steps": 52
+    },
+    {
+      "work_index": 2,
+      "work_name": "1944/1947: Dialectic of Enlightenment",
+      "beta_1": 5,
+      "cumulative_steps": 120
+    },
+    {
+      "work_index": 3,
+      "work_name": "1949: Philosophy of New Music",
+      "beta_1": 8,
+      "cumulative_steps": 175
+    },
+    {
+      "work_index": 4,
+      "work_name": "1950: The Authoritarian Personality",
+      "beta_1": 9,
+      "cumulative_steps": 225
+    },
+    {
+      "work_index": 5,
+      "work_name": "1951: Minima Moralia",
+      "beta_1": 12,
+      "cumulative_steps": 287
+    },
+    {
+      "work_index": 6,
+      "work_name": "1955: Prisms",
+      "beta_1": 17,
+      "cumulative_steps": 363
+    },
+    {
+      "work_index": 7,
+      "work_name": "1956: Against Epistemology",
+      "beta_1": 18,
+      "cumulative_steps": 413
+    },
+    {
+      "work_index": 8,
+      "work_name": "1958-1974: Notes to Literature",
+      "beta_1": 21,
+      "cumulative_steps": 496
+    },
+    {
+      "work_index": 9,
+      "work_name": "1960: Mahler: A Musical Physiognomy",
+      "beta_1": 24,
+      "cumulative_steps": 560
+    },
+    {
+      "work_index": 10,
+      "work_name": "1961/1969: The Positivist Dispute",
+      "beta_1": 25,
+      "cumulative_steps": 610
+    },
+    {
+      "work_index": 11,
+      "work_name": "1962: Introduction to the Sociology of Music",
+      "beta_1": 30,
+      "cumulative_steps": 681
+    },
+    {
+      "work_index": 12,
+      "work_name": "1964: Jargon of Authenticity",
+      "beta_1": 35,
+      "cumulative_steps": 779
+    },
+    {
+      "work_index": 13,
+      "work_name": "1966: Negative Dialectics",
+      "beta_1": 40,
+      "cumulative_steps": 844
+    },
+    {
+      "work_index": 14,
+      "work_name": "1963-1969: Critical Models",
+      "beta_1": 44,
+      "cumulative_steps": 894
+    },
+    {
+      "work_index": 15,
+      "work_name": "1970 (posth.): Aesthetic Theory",
+      "beta_1": 54,
+      "cumulative_steps": 973
+    }
+  ],
+  "final_complex": {
+    "vertices_active": 112,
+    "edges_active": 189,
+    "beta_1": 54,
+    "settled_cycles": 16,
+    "edge_type_distribution": {
+      "dependency": 85,
+      "negation": 46,
+      "sublation": 38,
+      "fold": 3,
+      "reference": 17
+    },
+    "terrain_distribution": {
+      "tree": 120,
+      "critical": 52
+    },
+    "critical_edge_ratio": 0.3023255813953488,
+    "negation_density": 0.24338624338624337
+  },
+  "total_steps": 973,
+  "settled_cycles_detail": [
+    {
+      "edges": [
+        [
+          "syn_interiority_mythical_nature_2",
+          "interiority"
+        ],
+        [
+          "syn_interiority_mythical_nature_2",
+          "mythical_nature"
+        ]
+      ],
+      "settled_at_step": 12
+    },
+    {
+      "edges": [
+        [
+          "syn_enlightenment_anti_enlightenment_123_125",
+          "anti_enlightenment_123"
+        ],
+        [
+          "syn_enlightenment_anti_enlightenment_123_125",
+          "enlightenment"
+        ]
+      ],
+      "settled_at_step": 135
+    },
+    {
+      "edges": [
+        [
+          "syn_totality_anti_totality_299_301",
+          "anti_totality_299"
+        ],
+        [
+          "syn_totality_anti_totality_299_301",
+          "totality"
+        ]
+      ],
+      "settled_at_step": 311
+    },
+    {
+      "edges": [
+        [
+          "syn_damaged_life_individual_309",
+          "damaged_life"
+        ],
+        [
+          "syn_damaged_life_individual_309",
+          "individual"
+        ]
+      ],
+      "settled_at_step": 319
+    },
+    {
+      "edges": [
+        [
+          "syn_individual_anti_individual_311_313",
+          "anti_individual_311"
+        ],
+        [
+          "syn_individual_anti_individual_311_313",
+          "individual"
+        ]
+      ],
+      "settled_at_step": 323
+    },
+    {
+      "edges": [
+        [
+          "syn_culture_industry_anti_culture_industry_420_422",
+          "anti_culture_industry_420"
+        ],
+        [
+          "syn_culture_industry_anti_culture_industry_420_422",
+          "culture_industry"
+        ]
+      ],
+      "settled_at_step": 432
+    },
+    {
+      "edges": [
+        [
+          "syn_new_music_anti_new_music_508_510",
+          "anti_new_music_508"
+        ],
+        [
+          "syn_new_music_anti_new_music_508_510",
+          "new_music"
+        ]
+      ],
+      "settled_at_step": 520
+    },
+    {
+      "edges": [
+        [
+          "syn_material_anti_material_614_616",
+          "anti_material_614"
+        ],
+        [
+          "syn_material_anti_material_614_616",
+          "material"
+        ]
+      ],
+      "settled_at_step": 626
+    },
+    {
+      "edges": [
+        [
+          "syn_instrumental_reason_anti_instrumental_reason_629_631",
+          "anti_instrumental_reason_629"
+        ],
+        [
+          "syn_instrumental_reason_anti_instrumental_reason_629_631",
+          "instrumental_reason"
+        ]
+      ],
+      "settled_at_step": 641
+    },
+    {
+      "edges": [
+        [
+          "syn_expression_adorno_anti_expression_adorno_684_686",
+          "anti_expression_adorno_684"
+        ],
+        [
+          "syn_expression_adorno_anti_expression_adorno_684_686",
+          "expression_adorno"
+        ]
+      ],
+      "settled_at_step": 696
+    },
+    {
+      "edges": [
+        [
+          "syn_reification_anti_reification_693_695",
+          "anti_reification_693"
+        ],
+        [
+          "syn_reification_anti_reification_693_695",
+          "reification"
+        ]
+      ],
+      "settled_at_step": 705
+    },
+    {
+      "edges": [
+        [
+          "syn_mediation_anti_mediation_727_729",
+          "anti_mediation_727"
+        ],
+        [
+          "syn_mediation_anti_mediation_727_729",
+          "mediation"
+        ]
+      ],
+      "settled_at_step": 739
+    },
+    {
+      "edges": [
+        [
+          "syn_non_identity_anti_non_identity_792_794",
+          "anti_non_identity_792"
+        ],
+        [
+          "syn_non_identity_anti_non_identity_792_794",
+          "non_identity"
+        ]
+      ],
+      "settled_at_step": 804
+    },
+    {
+      "edges": [
+        [
+          "syn_suffering_anti_suffering_895_897",
+          "anti_suffering_895"
+        ],
+        [
+          "syn_suffering_anti_suffering_895_897",
+          "suffering"
+        ]
+      ],
+      "settled_at_step": 907
+    },
+    {
+      "edges": [
+        [
+          "syn_modernism_anti_modernism_913_915",
+          "anti_modernism_913"
+        ],
+        [
+          "syn_modernism_anti_modernism_913_915",
+          "modernism"
+        ]
+      ],
+      "settled_at_step": 925
+    },
+    {
+      "edges": [
+        [
+          "syn_education_after_auschwitz_anti_education_after_auschwitz_921_923",
+          "anti_education_after_auschwitz_921"
+        ],
+        [
+          "syn_education_after_auschwitz_anti_education_after_auschwitz_921_923",
+          "education_after_auschwitz"
+        ]
+      ],
+      "settled_at_step": 933
+    }
+  ],
+  "blocked_log": [
+    {
+      "step": 428,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "essay_form",
+          "damaged_life"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_damaged_life_individual_309",
+          "damaged_life"
+        ],
+        [
+          "syn_damaged_life_individual_309",
+          "individual"
+        ]
+      ]
+    },
+    {
+      "step": 431,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "aphorism",
+          "totality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_totality_anti_totality_299_301",
+          "anti_totality_299"
+        ],
+        [
+          "syn_totality_anti_totality_299_301",
+          "totality"
+        ]
+      ]
+    },
+    {
+      "step": 800,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "metaphysics_after_auschwitz",
+          "damaged_life"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_damaged_life_individual_309",
+          "damaged_life"
+        ],
+        [
+          "syn_damaged_life_individual_309",
+          "individual"
+        ]
+      ]
+    },
+    {
+      "step": 803,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "metaphysics_after_auschwitz",
+          "damaged_life"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_damaged_life_individual_309",
+          "damaged_life"
+        ],
+        [
+          "syn_damaged_life_individual_309",
+          "individual"
+        ]
+      ]
+    },
+    {
+      "step": 806,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "metaphysics_after_auschwitz",
+          "damaged_life"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_damaged_life_individual_309",
+          "damaged_life"
+        ],
+        [
+          "syn_damaged_life_individual_309",
+          "individual"
+        ]
+      ]
+    },
+    {
+      "step": 809,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "metaphysics_after_auschwitz",
+          "damaged_life"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_damaged_life_individual_309",
+          "damaged_life"
+        ],
+        [
+          "syn_damaged_life_individual_309",
+          "individual"
+        ]
+      ]
+    },
+    {
+      "step": 812,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "metaphysics_after_auschwitz",
+          "damaged_life"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_damaged_life_individual_309",
+          "damaged_life"
+        ],
+        [
+          "syn_damaged_life_individual_309",
+          "individual"
+        ]
+      ]
+    },
+    {
+      "step": 815,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "metaphysics_after_auschwitz",
+          "damaged_life"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_damaged_life_individual_309",
+          "damaged_life"
+        ],
+        [
+          "syn_damaged_life_individual_309",
+          "individual"
+        ]
+      ]
+    },
+    {
+      "step": 818,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "metaphysics_after_auschwitz",
+          "damaged_life"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_damaged_life_individual_309",
+          "damaged_life"
+        ],
+        [
+          "syn_damaged_life_individual_309",
+          "individual"
+        ]
+      ]
+    },
+    {
+      "step": 821,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "metaphysics_after_auschwitz",
+          "damaged_life"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_damaged_life_individual_309",
+          "damaged_life"
+        ],
+        [
+          "syn_damaged_life_individual_309",
+          "individual"
+        ]
+      ]
+    },
+    {
+      "step": 824,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "metaphysics_after_auschwitz",
+          "damaged_life"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_damaged_life_individual_309",
+          "damaged_life"
+        ],
+        [
+          "syn_damaged_life_individual_309",
+          "individual"
+        ]
+      ]
+    },
+    {
+      "step": 827,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "metaphysics_after_auschwitz",
+          "damaged_life"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_damaged_life_individual_309",
+          "damaged_life"
+        ],
+        [
+          "syn_damaged_life_individual_309",
+          "individual"
+        ]
+      ]
+    },
+    {
+      "step": 830,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "metaphysics_after_auschwitz",
+          "damaged_life"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_damaged_life_individual_309",
+          "damaged_life"
+        ],
+        [
+          "syn_damaged_life_individual_309",
+          "individual"
+        ]
+      ]
+    },
+    {
+      "step": 833,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "metaphysics_after_auschwitz",
+          "damaged_life"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_damaged_life_individual_309",
+          "damaged_life"
+        ],
+        [
+          "syn_damaged_life_individual_309",
+          "individual"
+        ]
+      ]
+    },
+    {
+      "step": 836,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "metaphysics_after_auschwitz",
+          "damaged_life"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_damaged_life_individual_309",
+          "damaged_life"
+        ],
+        [
+          "syn_damaged_life_individual_309",
+          "individual"
+        ]
+      ]
+    },
+    {
+      "step": 839,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "metaphysics_after_auschwitz",
+          "damaged_life"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_damaged_life_individual_309",
+          "damaged_life"
+        ],
+        [
+          "syn_damaged_life_individual_309",
+          "individual"
+        ]
+      ]
+    },
+    {
+      "step": 842,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "metaphysics_after_auschwitz",
+          "damaged_life"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_damaged_life_individual_309",
+          "damaged_life"
+        ],
+        [
+          "syn_damaged_life_individual_309",
+          "individual"
+        ]
+      ]
+    },
+    {
+      "step": 845,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "metaphysics_after_auschwitz",
+          "damaged_life"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_damaged_life_individual_309",
+          "damaged_life"
+        ],
+        [
+          "syn_damaged_life_individual_309",
+          "individual"
+        ]
+      ]
+    },
+    {
+      "step": 848,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "metaphysics_after_auschwitz",
+          "damaged_life"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_damaged_life_individual_309",
+          "damaged_life"
+        ],
+        [
+          "syn_damaged_life_individual_309",
+          "individual"
+        ]
+      ]
+    },
+    {
+      "step": 851,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "metaphysics_after_auschwitz",
+          "damaged_life"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_damaged_life_individual_309",
+          "damaged_life"
+        ],
+        [
+          "syn_damaged_life_individual_309",
+          "individual"
+        ]
+      ]
+    },
+    {
+      "step": 854,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "metaphysics_after_auschwitz",
+          "damaged_life"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_damaged_life_individual_309",
+          "damaged_life"
+        ],
+        [
+          "syn_damaged_life_individual_309",
+          "individual"
+        ]
+      ]
+    },
+    {
+      "step": 857,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "metaphysics_after_auschwitz",
+          "damaged_life"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_damaged_life_individual_309",
+          "damaged_life"
+        ],
+        [
+          "syn_damaged_life_individual_309",
+          "individual"
+        ]
+      ]
+    },
+    {
+      "step": 860,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "metaphysics_after_auschwitz",
+          "damaged_life"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_damaged_life_individual_309",
+          "damaged_life"
+        ],
+        [
+          "syn_damaged_life_individual_309",
+          "individual"
+        ]
+      ]
+    },
+    {
+      "step": 863,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "metaphysics_after_auschwitz",
+          "damaged_life"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_damaged_life_individual_309",
+          "damaged_life"
+        ],
+        [
+          "syn_damaged_life_individual_309",
+          "individual"
+        ]
+      ]
+    },
+    {
+      "step": 866,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "metaphysics_after_auschwitz",
+          "damaged_life"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_damaged_life_individual_309",
+          "damaged_life"
+        ],
+        [
+          "syn_damaged_life_individual_309",
+          "individual"
+        ]
+      ]
+    },
+    {
+      "step": 869,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "metaphysics_after_auschwitz",
+          "damaged_life"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_damaged_life_individual_309",
+          "damaged_life"
+        ],
+        [
+          "syn_damaged_life_individual_309",
+          "individual"
+        ]
+      ]
+    },
+    {
+      "step": 872,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "metaphysics_after_auschwitz",
+          "damaged_life"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_damaged_life_individual_309",
+          "damaged_life"
+        ],
+        [
+          "syn_damaged_life_individual_309",
+          "individual"
+        ]
+      ]
+    },
+    {
+      "step": 875,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "metaphysics_after_auschwitz",
+          "damaged_life"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_damaged_life_individual_309",
+          "damaged_life"
+        ],
+        [
+          "syn_damaged_life_individual_309",
+          "individual"
+        ]
+      ]
+    },
+    {
+      "step": 878,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "metaphysics_after_auschwitz",
+          "damaged_life"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_damaged_life_individual_309",
+          "damaged_life"
+        ],
+        [
+          "syn_damaged_life_individual_309",
+          "individual"
+        ]
+      ]
+    },
+    {
+      "step": 881,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "metaphysics_after_auschwitz",
+          "damaged_life"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_damaged_life_individual_309",
+          "damaged_life"
+        ],
+        [
+          "syn_damaged_life_individual_309",
+          "individual"
+        ]
+      ]
+    },
+    {
+      "step": 884,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "metaphysics_after_auschwitz",
+          "damaged_life"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_damaged_life_individual_309",
+          "damaged_life"
+        ],
+        [
+          "syn_damaged_life_individual_309",
+          "individual"
+        ]
+      ]
+    },
+    {
+      "step": 887,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "metaphysics_after_auschwitz",
+          "damaged_life"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_damaged_life_individual_309",
+          "damaged_life"
+        ],
+        [
+          "syn_damaged_life_individual_309",
+          "individual"
+        ]
+      ]
+    },
+    {
+      "step": 890,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "metaphysics_after_auschwitz",
+          "damaged_life"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_damaged_life_individual_309",
+          "damaged_life"
+        ],
+        [
+          "syn_damaged_life_individual_309",
+          "individual"
+        ]
+      ]
+    },
+    {
+      "step": 893,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "metaphysics_after_auschwitz",
+          "damaged_life"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_damaged_life_individual_309",
+          "damaged_life"
+        ],
+        [
+          "syn_damaged_life_individual_309",
+          "individual"
+        ]
+      ]
+    },
+    {
+      "step": 905,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "totality",
+          "mediation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mediation_anti_mediation_727_729",
+          "anti_mediation_727"
+        ],
+        [
+          "syn_mediation_anti_mediation_727_729",
+          "mediation"
+        ]
+      ]
+    },
+    {
+      "step": 908,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "totality",
+          "mediation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mediation_anti_mediation_727_729",
+          "anti_mediation_727"
+        ],
+        [
+          "syn_mediation_anti_mediation_727_729",
+          "mediation"
+        ]
+      ]
+    },
+    {
+      "step": 935,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "expression_adorno",
+          "modernism"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_modernism_anti_modernism_913_915",
+          "anti_modernism_913"
+        ],
+        [
+          "syn_modernism_anti_modernism_913_915",
+          "modernism"
+        ]
+      ]
+    },
+    {
+      "step": 938,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "expression_adorno",
+          "modernism"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_modernism_anti_modernism_913_915",
+          "anti_modernism_913"
+        ],
+        [
+          "syn_modernism_anti_modernism_913_915",
+          "modernism"
+        ]
+      ]
+    },
+    {
+      "step": 941,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "modernism",
+          "expression_adorno"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_expression_adorno_anti_expression_adorno_684_686",
+          "anti_expression_adorno_684"
+        ],
+        [
+          "syn_expression_adorno_anti_expression_adorno_684_686",
+          "expression_adorno"
+        ]
+      ]
+    },
+    {
+      "step": 944,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "modernism",
+          "expression_adorno"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_expression_adorno_anti_expression_adorno_684_686",
+          "anti_expression_adorno_684"
+        ],
+        [
+          "syn_expression_adorno_anti_expression_adorno_684_686",
+          "expression_adorno"
+        ]
+      ]
+    },
+    {
+      "step": 949,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "expression_adorno",
+          "modernism"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_modernism_anti_modernism_913_915",
+          "anti_modernism_913"
+        ],
+        [
+          "syn_modernism_anti_modernism_913_915",
+          "modernism"
+        ]
+      ]
+    },
+    {
+      "step": 952,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "expression_adorno",
+          "modernism"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_modernism_anti_modernism_913_915",
+          "anti_modernism_913"
+        ],
+        [
+          "syn_modernism_anti_modernism_913_915",
+          "modernism"
+        ]
+      ]
+    },
+    {
+      "step": 957,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "modernism",
+          "expression_adorno"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_expression_adorno_anti_expression_adorno_684_686",
+          "anti_expression_adorno_684"
+        ],
+        [
+          "syn_expression_adorno_anti_expression_adorno_684_686",
+          "expression_adorno"
+        ]
+      ]
+    },
+    {
+      "step": 960,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "modernism",
+          "expression_adorno"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_expression_adorno_anti_expression_adorno_684_686",
+          "anti_expression_adorno_684"
+        ],
+        [
+          "syn_expression_adorno_anti_expression_adorno_684_686",
+          "expression_adorno"
+        ]
+      ]
+    },
+    {
+      "step": 963,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "expression_adorno",
+          "modernism"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_modernism_anti_modernism_913_915",
+          "anti_modernism_913"
+        ],
+        [
+          "syn_modernism_anti_modernism_913_915",
+          "modernism"
+        ]
+      ]
+    },
+    {
+      "step": 966,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "expression_adorno",
+          "modernism"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_modernism_anti_modernism_913_915",
+          "anti_modernism_913"
+        ],
+        [
+          "syn_modernism_anti_modernism_913_915",
+          "modernism"
+        ]
+      ]
+    },
+    {
+      "step": 969,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "modernism",
+          "expression_adorno"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_expression_adorno_anti_expression_adorno_684_686",
+          "anti_expression_adorno_684"
+        ],
+        [
+          "syn_expression_adorno_anti_expression_adorno_684_686",
+          "expression_adorno"
+        ]
+      ]
+    },
+    {
+      "step": 972,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "modernism",
+          "expression_adorno"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_expression_adorno_anti_expression_adorno_684_686",
+          "anti_expression_adorno_684"
+        ],
+        [
+          "syn_expression_adorno_anti_expression_adorno_684_686",
+          "expression_adorno"
+        ]
+      ]
+    }
+  ]
+}

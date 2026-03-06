@@ -1,0 +1,1666 @@
+{
+  "experiment": "postman_collected_works_incremental",
+  "source": "Neil Postman — collected works, 11 entries (1969-1999)",
+  "methodology": "manual conceptual complex per work, incremental injection, digestion until 50-step beta_1 stability",
+  "work_results": [
+    {
+      "work": "1969: Teaching as a Subversive Activity",
+      "work_index": 1,
+      "vertices_added": 8,
+      "edges_added": 8,
+      "vertices_total": 8,
+      "edges_total": 8,
+      "beta_1_before_injection": 1,
+      "beta_1_after_digestion": 1,
+      "delta_beta_1": 0,
+      "settled_cycles": 0,
+      "blocked_in_work": 0,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 50,
+      "operation_counts": {
+        "walk": 50
+      }
+    },
+    {
+      "work": "1971: The Soft Revolution",
+      "work_index": 2,
+      "vertices_added": 2,
+      "edges_added": 4,
+      "vertices_total": 10,
+      "edges_total": 12,
+      "beta_1_before_injection": 3,
+      "beta_1_after_digestion": 3,
+      "delta_beta_1": 0,
+      "settled_cycles": 0,
+      "blocked_in_work": 0,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 100,
+      "operation_counts": {
+        "walk": 50
+      }
+    },
+    {
+      "work": "1976: Crazy Talk, Stupid Talk",
+      "work_index": 3,
+      "vertices_added": 4,
+      "edges_added": 7,
+      "vertices_total": 12,
+      "edges_total": 20,
+      "beta_1_before_injection": 6,
+      "beta_1_after_digestion": 6,
+      "delta_beta_1": 0,
+      "settled_cycles": 1,
+      "blocked_in_work": 0,
+      "steps_to_digest": 59,
+      "converged": true,
+      "cumulative_steps": 159,
+      "operation_counts": {
+        "walk": 57,
+        "fold": 2
+      }
+    },
+    {
+      "work": "1979: Teaching as a Conserving Activity",
+      "work_index": 4,
+      "vertices_added": 4,
+      "edges_added": 7,
+      "vertices_total": 14,
+      "edges_total": 29,
+      "beta_1_before_injection": 9,
+      "beta_1_after_digestion": 9,
+      "delta_beta_1": 0,
+      "settled_cycles": 1,
+      "blocked_in_work": 0,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 209,
+      "operation_counts": {
+        "walk": 48,
+        "fold": 2
+      }
+    },
+    {
+      "work": "1982: The Disappearance of Childhood",
+      "work_index": 5,
+      "vertices_added": 6,
+      "edges_added": 9,
+      "vertices_total": 19,
+      "edges_total": 38,
+      "beta_1_before_injection": 12,
+      "beta_1_after_digestion": 11,
+      "delta_beta_1": -1,
+      "settled_cycles": 1,
+      "blocked_in_work": 0,
+      "steps_to_digest": 54,
+      "converged": true,
+      "cumulative_steps": 263,
+      "operation_counts": {
+        "walk": 53,
+        "fold": 1
+      }
+    },
+    {
+      "work": "1985: Amusing Ourselves to Death",
+      "work_index": 6,
+      "vertices_added": 9,
+      "edges_added": 15,
+      "vertices_total": 35,
+      "edges_total": 64,
+      "beta_1_before_injection": 16,
+      "beta_1_after_digestion": 20,
+      "delta_beta_1": 4,
+      "settled_cycles": 5,
+      "blocked_in_work": 14,
+      "steps_to_digest": 84,
+      "converged": true,
+      "cumulative_steps": 347,
+      "operation_counts": {
+        "negate_a": 1,
+        "sublate": 4,
+        "walk": 62,
+        "negate_b": 3,
+        "fold_blocked": 14
+      }
+    },
+    {
+      "work": "1988: Conscientious Objections",
+      "work_index": 7,
+      "vertices_added": 3,
+      "edges_added": 6,
+      "vertices_total": 38,
+      "edges_total": 68,
+      "beta_1_before_injection": 21,
+      "beta_1_after_digestion": 21,
+      "delta_beta_1": 0,
+      "settled_cycles": 5,
+      "blocked_in_work": 30,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 397,
+      "operation_counts": {
+        "walk": 34,
+        "fold_blocked": 16
+      }
+    },
+    {
+      "work": "1992: Technopoly",
+      "work_index": 8,
+      "vertices_added": 7,
+      "edges_added": 14,
+      "vertices_total": 45,
+      "edges_total": 82,
+      "beta_1_before_injection": 28,
+      "beta_1_after_digestion": 28,
+      "delta_beta_1": 0,
+      "settled_cycles": 5,
+      "blocked_in_work": 47,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 447,
+      "operation_counts": {
+        "fold_blocked": 17,
+        "walk": 33
+      }
+    },
+    {
+      "work": "1992: How to Watch TV News",
+      "work_index": 9,
+      "vertices_added": 2,
+      "edges_added": 7,
+      "vertices_total": 43,
+      "edges_total": 101,
+      "beta_1_before_injection": 33,
+      "beta_1_after_digestion": 28,
+      "delta_beta_1": -5,
+      "settled_cycles": 8,
+      "blocked_in_work": 59,
+      "steps_to_digest": 132,
+      "converged": true,
+      "cumulative_steps": 579,
+      "operation_counts": {
+        "negate_b": 3,
+        "walk": 104,
+        "sublate": 3,
+        "fold": 10,
+        "fold_blocked": 12
+      }
+    },
+    {
+      "work": "1995: The End of Education",
+      "work_index": 10,
+      "vertices_added": 4,
+      "edges_added": 8,
+      "vertices_total": 49,
+      "edges_total": 109,
+      "beta_1_before_injection": 29,
+      "beta_1_after_digestion": 30,
+      "delta_beta_1": 1,
+      "settled_cycles": 9,
+      "blocked_in_work": 59,
+      "steps_to_digest": 59,
+      "converged": true,
+      "cumulative_steps": 638,
+      "operation_counts": {
+        "walk": 57,
+        "negate_b": 1,
+        "sublate": 1
+      }
+    },
+    {
+      "work": "1999: Building a Bridge to the 18th Century",
+      "work_index": 11,
+      "vertices_added": 4,
+      "edges_added": 11,
+      "vertices_total": 56,
+      "edges_total": 123,
+      "beta_1_before_injection": 34,
+      "beta_1_after_digestion": 34,
+      "delta_beta_1": 0,
+      "settled_cycles": 11,
+      "blocked_in_work": 60,
+      "steps_to_digest": 86,
+      "converged": true,
+      "cumulative_steps": 724,
+      "operation_counts": {
+        "walk": 80,
+        "fold_blocked": 1,
+        "fold": 1,
+        "negate_b": 2,
+        "sublate": 2
+      }
+    }
+  ],
+  "beta_1_curve": [
+    {
+      "work_index": 1,
+      "work_name": "1969: Teaching as a Subversive Activity",
+      "beta_1": 1,
+      "cumulative_steps": 50
+    },
+    {
+      "work_index": 2,
+      "work_name": "1971: The Soft Revolution",
+      "beta_1": 3,
+      "cumulative_steps": 100
+    },
+    {
+      "work_index": 3,
+      "work_name": "1976: Crazy Talk, Stupid Talk",
+      "beta_1": 6,
+      "cumulative_steps": 159
+    },
+    {
+      "work_index": 4,
+      "work_name": "1979: Teaching as a Conserving Activity",
+      "beta_1": 9,
+      "cumulative_steps": 209
+    },
+    {
+      "work_index": 5,
+      "work_name": "1982: The Disappearance of Childhood",
+      "beta_1": 11,
+      "cumulative_steps": 263
+    },
+    {
+      "work_index": 6,
+      "work_name": "1985: Amusing Ourselves to Death",
+      "beta_1": 20,
+      "cumulative_steps": 347
+    },
+    {
+      "work_index": 7,
+      "work_name": "1988: Conscientious Objections",
+      "beta_1": 21,
+      "cumulative_steps": 397
+    },
+    {
+      "work_index": 8,
+      "work_name": "1992: Technopoly",
+      "beta_1": 28,
+      "cumulative_steps": 447
+    },
+    {
+      "work_index": 9,
+      "work_name": "1992: How to Watch TV News",
+      "beta_1": 28,
+      "cumulative_steps": 579
+    },
+    {
+      "work_index": 10,
+      "work_name": "1995: The End of Education",
+      "beta_1": 30,
+      "cumulative_steps": 638
+    },
+    {
+      "work_index": 11,
+      "work_name": "1999: Building a Bridge to the 18th Century",
+      "beta_1": 34,
+      "cumulative_steps": 724
+    }
+  ],
+  "final_complex": {
+    "vertices_active": 56,
+    "edges_active": 123,
+    "beta_1": 34,
+    "settled_cycles": 11,
+    "edge_type_distribution": {
+      "dependency": 54,
+      "reference": 9,
+      "negation": 30,
+      "fold": 7,
+      "sublation": 23
+    },
+    "terrain_distribution": {
+      "tree": 62,
+      "critical": 25
+    },
+    "critical_edge_ratio": 0.28735632183908044,
+    "negation_density": 0.24390243902439024
+  },
+  "total_steps": 724,
+  "settled_cycles_detail": [
+    {
+      "edges": [
+        [
+          "semantic_environment",
+          "semantic_environment"
+        ]
+      ],
+      "settled_at_step": 119
+    },
+    {
+      "edges": [
+        [
+          "syn_print_culture_childhood_265",
+          "childhood"
+        ],
+        [
+          "syn_print_culture_childhood_265",
+          "print_culture"
+        ]
+      ],
+      "settled_at_step": 275
+    },
+    {
+      "edges": [
+        [
+          "syn_childhood_anti_childhood_270_272",
+          "anti_childhood_270"
+        ],
+        [
+          "syn_childhood_anti_childhood_270_272",
+          "childhood"
+        ]
+      ],
+      "settled_at_step": 282
+    },
+    {
+      "edges": [
+        [
+          "syn_television_anti_television_281_283",
+          "anti_television_281"
+        ],
+        [
+          "syn_television_anti_television_281_283",
+          "television"
+        ]
+      ],
+      "settled_at_step": 293
+    },
+    {
+      "edges": [
+        [
+          "syn_reason_anti_reason_295_297",
+          "anti_reason_295"
+        ],
+        [
+          "syn_reason_anti_reason_295_297",
+          "reason"
+        ]
+      ],
+      "settled_at_step": 307
+    },
+    {
+      "edges": [
+        [
+          "syn_show_business_anti_show_business_448_450",
+          "anti_show_business_448"
+        ],
+        [
+          "syn_show_business_anti_show_business_448_450",
+          "show_business"
+        ]
+      ],
+      "settled_at_step": 460
+    },
+    {
+      "edges": [
+        [
+          "syn_thermostat_anti_thermostat_458_460",
+          "anti_thermostat_458"
+        ],
+        [
+          "syn_thermostat_anti_thermostat_458_460",
+          "thermostat"
+        ]
+      ],
+      "settled_at_step": 470
+    },
+    {
+      "edges": [
+        [
+          "syn_context_anti_context_474_476",
+          "anti_context_474"
+        ],
+        [
+          "syn_context_anti_context_474_476",
+          "context"
+        ]
+      ],
+      "settled_at_step": 486
+    },
+    {
+      "edges": [
+        [
+          "syn_narrative_anti_narrative_586_588",
+          "anti_narrative_586"
+        ],
+        [
+          "syn_narrative_anti_narrative_586_588",
+          "narrative"
+        ]
+      ],
+      "settled_at_step": 598
+    },
+    {
+      "edges": [
+        [
+          "syn_information_glut_anti_information_glut_663_665",
+          "anti_information_glut_663"
+        ],
+        [
+          "syn_information_glut_anti_information_glut_663_665",
+          "information_glut"
+        ]
+      ],
+      "settled_at_step": 675
+    },
+    {
+      "edges": [
+        [
+          "syn_crap_detector_anti_crap_detector_672_674",
+          "anti_crap_detector_672"
+        ],
+        [
+          "syn_crap_detector_anti_crap_detector_672_674",
+          "crap_detector"
+        ]
+      ],
+      "settled_at_step": 684
+    }
+  ],
+  "blocked_log": [
+    {
+      "step": 308,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "public_discourse",
+          "reason"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_reason_anti_reason_295_297",
+          "anti_reason_295"
+        ],
+        [
+          "syn_reason_anti_reason_295_297",
+          "reason"
+        ]
+      ]
+    },
+    {
+      "step": 311,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "public_discourse",
+          "reason"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_reason_anti_reason_295_297",
+          "anti_reason_295"
+        ],
+        [
+          "syn_reason_anti_reason_295_297",
+          "reason"
+        ]
+      ]
+    },
+    {
+      "step": 314,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "public_discourse",
+          "reason"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_reason_anti_reason_295_297",
+          "anti_reason_295"
+        ],
+        [
+          "syn_reason_anti_reason_295_297",
+          "reason"
+        ]
+      ]
+    },
+    {
+      "step": 317,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "public_discourse",
+          "reason"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_reason_anti_reason_295_297",
+          "anti_reason_295"
+        ],
+        [
+          "syn_reason_anti_reason_295_297",
+          "reason"
+        ]
+      ]
+    },
+    {
+      "step": 320,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "public_discourse",
+          "reason"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_reason_anti_reason_295_297",
+          "anti_reason_295"
+        ],
+        [
+          "syn_reason_anti_reason_295_297",
+          "reason"
+        ]
+      ]
+    },
+    {
+      "step": 323,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "public_discourse",
+          "reason"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_reason_anti_reason_295_297",
+          "anti_reason_295"
+        ],
+        [
+          "syn_reason_anti_reason_295_297",
+          "reason"
+        ]
+      ]
+    },
+    {
+      "step": 326,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "public_discourse",
+          "reason"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_reason_anti_reason_295_297",
+          "anti_reason_295"
+        ],
+        [
+          "syn_reason_anti_reason_295_297",
+          "reason"
+        ]
+      ]
+    },
+    {
+      "step": 329,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "public_discourse",
+          "reason"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_reason_anti_reason_295_297",
+          "anti_reason_295"
+        ],
+        [
+          "syn_reason_anti_reason_295_297",
+          "reason"
+        ]
+      ]
+    },
+    {
+      "step": 332,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "public_discourse",
+          "reason"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_reason_anti_reason_295_297",
+          "anti_reason_295"
+        ],
+        [
+          "syn_reason_anti_reason_295_297",
+          "reason"
+        ]
+      ]
+    },
+    {
+      "step": 335,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "public_discourse",
+          "reason"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_reason_anti_reason_295_297",
+          "anti_reason_295"
+        ],
+        [
+          "syn_reason_anti_reason_295_297",
+          "reason"
+        ]
+      ]
+    },
+    {
+      "step": 338,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "public_discourse",
+          "reason"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_reason_anti_reason_295_297",
+          "anti_reason_295"
+        ],
+        [
+          "syn_reason_anti_reason_295_297",
+          "reason"
+        ]
+      ]
+    },
+    {
+      "step": 341,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "public_discourse",
+          "reason"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_reason_anti_reason_295_297",
+          "anti_reason_295"
+        ],
+        [
+          "syn_reason_anti_reason_295_297",
+          "reason"
+        ]
+      ]
+    },
+    {
+      "step": 344,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "public_discourse",
+          "reason"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_reason_anti_reason_295_297",
+          "anti_reason_295"
+        ],
+        [
+          "syn_reason_anti_reason_295_297",
+          "reason"
+        ]
+      ]
+    },
+    {
+      "step": 347,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "public_discourse",
+          "reason"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_reason_anti_reason_295_297",
+          "anti_reason_295"
+        ],
+        [
+          "syn_reason_anti_reason_295_297",
+          "reason"
+        ]
+      ]
+    },
+    {
+      "step": 350,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "public_discourse",
+          "reason"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_reason_anti_reason_295_297",
+          "anti_reason_295"
+        ],
+        [
+          "syn_reason_anti_reason_295_297",
+          "reason"
+        ]
+      ]
+    },
+    {
+      "step": 353,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "public_discourse",
+          "reason"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_reason_anti_reason_295_297",
+          "anti_reason_295"
+        ],
+        [
+          "syn_reason_anti_reason_295_297",
+          "reason"
+        ]
+      ]
+    },
+    {
+      "step": 356,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "public_discourse",
+          "reason"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_reason_anti_reason_295_297",
+          "anti_reason_295"
+        ],
+        [
+          "syn_reason_anti_reason_295_297",
+          "reason"
+        ]
+      ]
+    },
+    {
+      "step": 359,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "public_discourse",
+          "reason"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_reason_anti_reason_295_297",
+          "anti_reason_295"
+        ],
+        [
+          "syn_reason_anti_reason_295_297",
+          "reason"
+        ]
+      ]
+    },
+    {
+      "step": 362,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "public_discourse",
+          "reason"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_reason_anti_reason_295_297",
+          "anti_reason_295"
+        ],
+        [
+          "syn_reason_anti_reason_295_297",
+          "reason"
+        ]
+      ]
+    },
+    {
+      "step": 365,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "public_discourse",
+          "reason"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_reason_anti_reason_295_297",
+          "anti_reason_295"
+        ],
+        [
+          "syn_reason_anti_reason_295_297",
+          "reason"
+        ]
+      ]
+    },
+    {
+      "step": 368,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "public_discourse",
+          "reason"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_reason_anti_reason_295_297",
+          "anti_reason_295"
+        ],
+        [
+          "syn_reason_anti_reason_295_297",
+          "reason"
+        ]
+      ]
+    },
+    {
+      "step": 371,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "public_discourse",
+          "reason"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_reason_anti_reason_295_297",
+          "anti_reason_295"
+        ],
+        [
+          "syn_reason_anti_reason_295_297",
+          "reason"
+        ]
+      ]
+    },
+    {
+      "step": 374,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "public_discourse",
+          "reason"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_reason_anti_reason_295_297",
+          "anti_reason_295"
+        ],
+        [
+          "syn_reason_anti_reason_295_297",
+          "reason"
+        ]
+      ]
+    },
+    {
+      "step": 377,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "public_discourse",
+          "reason"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_reason_anti_reason_295_297",
+          "anti_reason_295"
+        ],
+        [
+          "syn_reason_anti_reason_295_297",
+          "reason"
+        ]
+      ]
+    },
+    {
+      "step": 380,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "public_discourse",
+          "reason"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_reason_anti_reason_295_297",
+          "anti_reason_295"
+        ],
+        [
+          "syn_reason_anti_reason_295_297",
+          "reason"
+        ]
+      ]
+    },
+    {
+      "step": 383,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "public_discourse",
+          "reason"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_reason_anti_reason_295_297",
+          "anti_reason_295"
+        ],
+        [
+          "syn_reason_anti_reason_295_297",
+          "reason"
+        ]
+      ]
+    },
+    {
+      "step": 386,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "public_discourse",
+          "reason"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_reason_anti_reason_295_297",
+          "anti_reason_295"
+        ],
+        [
+          "syn_reason_anti_reason_295_297",
+          "reason"
+        ]
+      ]
+    },
+    {
+      "step": 389,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "public_discourse",
+          "reason"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_reason_anti_reason_295_297",
+          "anti_reason_295"
+        ],
+        [
+          "syn_reason_anti_reason_295_297",
+          "reason"
+        ]
+      ]
+    },
+    {
+      "step": 392,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "public_discourse",
+          "reason"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_reason_anti_reason_295_297",
+          "anti_reason_295"
+        ],
+        [
+          "syn_reason_anti_reason_295_297",
+          "reason"
+        ]
+      ]
+    },
+    {
+      "step": 395,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "public_discourse",
+          "reason"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_reason_anti_reason_295_297",
+          "anti_reason_295"
+        ],
+        [
+          "syn_reason_anti_reason_295_297",
+          "reason"
+        ]
+      ]
+    },
+    {
+      "step": 398,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "public_discourse",
+          "reason"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_reason_anti_reason_295_297",
+          "anti_reason_295"
+        ],
+        [
+          "syn_reason_anti_reason_295_297",
+          "reason"
+        ]
+      ]
+    },
+    {
+      "step": 401,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "public_discourse",
+          "reason"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_reason_anti_reason_295_297",
+          "anti_reason_295"
+        ],
+        [
+          "syn_reason_anti_reason_295_297",
+          "reason"
+        ]
+      ]
+    },
+    {
+      "step": 404,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "public_discourse",
+          "reason"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_reason_anti_reason_295_297",
+          "anti_reason_295"
+        ],
+        [
+          "syn_reason_anti_reason_295_297",
+          "reason"
+        ]
+      ]
+    },
+    {
+      "step": 407,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "public_discourse",
+          "reason"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_reason_anti_reason_295_297",
+          "anti_reason_295"
+        ],
+        [
+          "syn_reason_anti_reason_295_297",
+          "reason"
+        ]
+      ]
+    },
+    {
+      "step": 410,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "public_discourse",
+          "reason"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_reason_anti_reason_295_297",
+          "anti_reason_295"
+        ],
+        [
+          "syn_reason_anti_reason_295_297",
+          "reason"
+        ]
+      ]
+    },
+    {
+      "step": 413,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "public_discourse",
+          "reason"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_reason_anti_reason_295_297",
+          "anti_reason_295"
+        ],
+        [
+          "syn_reason_anti_reason_295_297",
+          "reason"
+        ]
+      ]
+    },
+    {
+      "step": 416,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "public_discourse",
+          "reason"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_reason_anti_reason_295_297",
+          "anti_reason_295"
+        ],
+        [
+          "syn_reason_anti_reason_295_297",
+          "reason"
+        ]
+      ]
+    },
+    {
+      "step": 419,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "public_discourse",
+          "reason"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_reason_anti_reason_295_297",
+          "anti_reason_295"
+        ],
+        [
+          "syn_reason_anti_reason_295_297",
+          "reason"
+        ]
+      ]
+    },
+    {
+      "step": 422,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "public_discourse",
+          "reason"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_reason_anti_reason_295_297",
+          "anti_reason_295"
+        ],
+        [
+          "syn_reason_anti_reason_295_297",
+          "reason"
+        ]
+      ]
+    },
+    {
+      "step": 425,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "public_discourse",
+          "reason"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_reason_anti_reason_295_297",
+          "anti_reason_295"
+        ],
+        [
+          "syn_reason_anti_reason_295_297",
+          "reason"
+        ]
+      ]
+    },
+    {
+      "step": 428,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "public_discourse",
+          "reason"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_reason_anti_reason_295_297",
+          "anti_reason_295"
+        ],
+        [
+          "syn_reason_anti_reason_295_297",
+          "reason"
+        ]
+      ]
+    },
+    {
+      "step": 431,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "public_discourse",
+          "reason"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_reason_anti_reason_295_297",
+          "anti_reason_295"
+        ],
+        [
+          "syn_reason_anti_reason_295_297",
+          "reason"
+        ]
+      ]
+    },
+    {
+      "step": 434,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "public_discourse",
+          "reason"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_reason_anti_reason_295_297",
+          "anti_reason_295"
+        ],
+        [
+          "syn_reason_anti_reason_295_297",
+          "reason"
+        ]
+      ]
+    },
+    {
+      "step": 437,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "public_discourse",
+          "reason"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_reason_anti_reason_295_297",
+          "anti_reason_295"
+        ],
+        [
+          "syn_reason_anti_reason_295_297",
+          "reason"
+        ]
+      ]
+    },
+    {
+      "step": 440,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "public_discourse",
+          "reason"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_reason_anti_reason_295_297",
+          "anti_reason_295"
+        ],
+        [
+          "syn_reason_anti_reason_295_297",
+          "reason"
+        ]
+      ]
+    },
+    {
+      "step": 443,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "public_discourse",
+          "reason"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_reason_anti_reason_295_297",
+          "anti_reason_295"
+        ],
+        [
+          "syn_reason_anti_reason_295_297",
+          "reason"
+        ]
+      ]
+    },
+    {
+      "step": 446,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "public_discourse",
+          "reason"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_reason_anti_reason_295_297",
+          "anti_reason_295"
+        ],
+        [
+          "syn_reason_anti_reason_295_297",
+          "reason"
+        ]
+      ]
+    },
+    {
+      "step": 467,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "advertising",
+          "reason"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_reason_anti_reason_295_297",
+          "anti_reason_295"
+        ],
+        [
+          "syn_reason_anti_reason_295_297",
+          "reason"
+        ]
+      ]
+    },
+    {
+      "step": 470,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "advertising",
+          "reason"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_reason_anti_reason_295_297",
+          "anti_reason_295"
+        ],
+        [
+          "syn_reason_anti_reason_295_297",
+          "reason"
+        ]
+      ]
+    },
+    {
+      "step": 472,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "news",
+          "show_business"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_show_business_anti_show_business_448_450",
+          "anti_show_business_448"
+        ],
+        [
+          "syn_show_business_anti_show_business_448_450",
+          "show_business"
+        ]
+      ]
+    },
+    {
+      "step": 485,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "technopoly",
+          "thermostat"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_thermostat_anti_thermostat_458_460",
+          "anti_thermostat_458"
+        ],
+        [
+          "syn_thermostat_anti_thermostat_458_460",
+          "thermostat"
+        ]
+      ]
+    },
+    {
+      "step": 489,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "technology",
+          "show_business"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_show_business_anti_show_business_448_450",
+          "anti_show_business_448"
+        ],
+        [
+          "syn_show_business_anti_show_business_448_450",
+          "show_business"
+        ]
+      ]
+    },
+    {
+      "step": 492,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "thermostat",
+          "context"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_context_anti_context_474_476",
+          "anti_context_474"
+        ],
+        [
+          "syn_context_anti_context_474_476",
+          "context"
+        ]
+      ]
+    },
+    {
+      "step": 495,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "tradition",
+          "context"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_context_anti_context_474_476",
+          "anti_context_474"
+        ],
+        [
+          "syn_context_anti_context_474_476",
+          "context"
+        ]
+      ]
+    },
+    {
+      "step": 498,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "tradition",
+          "context"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_context_anti_context_474_476",
+          "anti_context_474"
+        ],
+        [
+          "syn_context_anti_context_474_476",
+          "context"
+        ]
+      ]
+    },
+    {
+      "step": 503,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "tradition",
+          "context"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_context_anti_context_474_476",
+          "anti_context_474"
+        ],
+        [
+          "syn_context_anti_context_474_476",
+          "context"
+        ]
+      ]
+    },
+    {
+      "step": 510,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "reason",
+          "television"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_television_anti_television_281_283",
+          "anti_television_281"
+        ],
+        [
+          "syn_television_anti_television_281_283",
+          "television"
+        ]
+      ]
+    },
+    {
+      "step": 513,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "reason",
+          "television"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_television_anti_television_281_283",
+          "anti_television_281"
+        ],
+        [
+          "syn_television_anti_television_281_283",
+          "television"
+        ]
+      ]
+    },
+    {
+      "step": 521,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "information",
+          "context"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_context_anti_context_474_476",
+          "anti_context_474"
+        ],
+        [
+          "syn_context_anti_context_474_476",
+          "context"
+        ]
+      ]
+    },
+    {
+      "step": 646,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "democracy",
+          "reason"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_reason_anti_reason_295_297",
+          "anti_reason_295"
+        ],
+        [
+          "syn_reason_anti_reason_295_297",
+          "reason"
+        ]
+      ]
+    }
+  ]
+}

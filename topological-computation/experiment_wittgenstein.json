@@ -1,0 +1,9627 @@
+{
+  "experiment": "wittgenstein_complete_works_incremental",
+  "source": "Wittgenstein Complete Works — 22 works (1913-1951)",
+  "methodology": "manual conceptual complex per work, incremental injection, digestion until 50-step beta_1 stability",
+  "work_results": [
+    {
+      "work": "Notes on Logic (1913)",
+      "work_index": 1,
+      "vertices_added": 10,
+      "edges_added": 10,
+      "vertices_total": 10,
+      "edges_total": 10,
+      "beta_1_before_injection": 1,
+      "beta_1_after_digestion": 1,
+      "delta_beta_1": 0,
+      "settled_cycles": 0,
+      "blocked_in_work": 0,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 50,
+      "operation_counts": {
+        "walk": 50
+      }
+    },
+    {
+      "work": "Notes Dictated to Moore (1914)",
+      "work_index": 2,
+      "vertices_added": 5,
+      "edges_added": 10,
+      "vertices_total": 12,
+      "edges_total": 22,
+      "beta_1_before_injection": 6,
+      "beta_1_after_digestion": 5,
+      "delta_beta_1": -1,
+      "settled_cycles": 0,
+      "blocked_in_work": 0,
+      "steps_to_digest": 57,
+      "converged": true,
+      "cumulative_steps": 107,
+      "operation_counts": {
+        "walk": 54,
+        "fold": 3
+      }
+    },
+    {
+      "work": "Notebooks 1914-1916 (1914-1916)",
+      "work_index": 3,
+      "vertices_added": 10,
+      "edges_added": 16,
+      "vertices_total": 28,
+      "edges_total": 46,
+      "beta_1_before_injection": 10,
+      "beta_1_after_digestion": 13,
+      "delta_beta_1": 3,
+      "settled_cycles": 3,
+      "blocked_in_work": 0,
+      "steps_to_digest": 81,
+      "converged": true,
+      "cumulative_steps": 188,
+      "operation_counts": {
+        "walk": 75,
+        "negate_b": 3,
+        "sublate": 3
+      }
+    },
+    {
+      "work": "Tractatus Logico-Philosophicus (1921)",
+      "work_index": 4,
+      "vertices_added": 11,
+      "edges_added": 24,
+      "vertices_total": 44,
+      "edges_total": 91,
+      "beta_1_before_injection": 23,
+      "beta_1_after_digestion": 31,
+      "delta_beta_1": 8,
+      "settled_cycles": 10,
+      "blocked_in_work": 1,
+      "steps_to_digest": 136,
+      "converged": true,
+      "cumulative_steps": 324,
+      "operation_counts": {
+        "walk": 115,
+        "negate_b": 4,
+        "sublate": 7,
+        "fold_blocked": 1,
+        "fold": 6,
+        "negate_a": 3
+      }
+    },
+    {
+      "work": "Some Remarks on Logical Form (1929)",
+      "work_index": 5,
+      "vertices_added": 4,
+      "edges_added": 8,
+      "vertices_total": 47,
+      "edges_total": 98,
+      "beta_1_before_injection": 33,
+      "beta_1_after_digestion": 33,
+      "delta_beta_1": 0,
+      "settled_cycles": 10,
+      "blocked_in_work": 2,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 374,
+      "operation_counts": {
+        "walk": 48,
+        "fold_blocked": 1,
+        "fold": 1
+      }
+    },
+    {
+      "work": "Philosophical Remarks (1930)",
+      "work_index": 6,
+      "vertices_added": 7,
+      "edges_added": 15,
+      "vertices_total": 54,
+      "edges_total": 106,
+      "beta_1_before_injection": 34,
+      "beta_1_after_digestion": 34,
+      "delta_beta_1": 0,
+      "settled_cycles": 10,
+      "blocked_in_work": 2,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 424,
+      "operation_counts": {
+        "walk": 50
+      }
+    },
+    {
+      "work": "Philosophical Grammar (1933)",
+      "work_index": 7,
+      "vertices_added": 6,
+      "edges_added": 14,
+      "vertices_total": 66,
+      "edges_total": 131,
+      "beta_1_before_injection": 41,
+      "beta_1_after_digestion": 43,
+      "delta_beta_1": 2,
+      "settled_cycles": 13,
+      "blocked_in_work": 9,
+      "steps_to_digest": 112,
+      "converged": true,
+      "cumulative_steps": 536,
+      "operation_counts": {
+        "negate_b": 4,
+        "walk": 95,
+        "sublate": 4,
+        "fold_blocked": 7,
+        "fold": 2
+      }
+    },
+    {
+      "work": "The Blue Book (1933-1934)",
+      "work_index": 8,
+      "vertices_added": 5,
+      "edges_added": 11,
+      "vertices_total": 73,
+      "edges_total": 147,
+      "beta_1_before_injection": 48,
+      "beta_1_after_digestion": 49,
+      "delta_beta_1": 1,
+      "settled_cycles": 15,
+      "blocked_in_work": 35,
+      "steps_to_digest": 82,
+      "converged": true,
+      "cumulative_steps": 618,
+      "operation_counts": {
+        "walk": 51,
+        "fold_blocked": 26,
+        "negate_b": 1,
+        "sublate": 2,
+        "fold": 1,
+        "negate_a": 1
+      }
+    },
+    {
+      "work": "The Brown Book (1934-1935)",
+      "work_index": 9,
+      "vertices_added": 4,
+      "edges_added": 10,
+      "vertices_total": 80,
+      "edges_total": 164,
+      "beta_1_before_injection": 53,
+      "beta_1_after_digestion": 55,
+      "delta_beta_1": 2,
+      "settled_cycles": 18,
+      "blocked_in_work": 78,
+      "steps_to_digest": 109,
+      "converged": true,
+      "cumulative_steps": 727,
+      "operation_counts": {
+        "walk": 59,
+        "fold_blocked": 43,
+        "negate_b": 1,
+        "sublate": 3,
+        "fold": 1,
+        "negate_a": 2
+      }
+    },
+    {
+      "work": "Remarks on Foundations of Mathematics I-II (1937-1938)",
+      "work_index": 10,
+      "vertices_added": 5,
+      "edges_added": 12,
+      "vertices_total": 86,
+      "edges_total": 178,
+      "beta_1_before_injection": 58,
+      "beta_1_after_digestion": 58,
+      "delta_beta_1": 0,
+      "settled_cycles": 20,
+      "blocked_in_work": 115,
+      "steps_to_digest": 108,
+      "converged": true,
+      "cumulative_steps": 835,
+      "operation_counts": {
+        "walk": 65,
+        "fold_blocked": 37,
+        "negate_b": 1,
+        "sublate": 2,
+        "fold": 2,
+        "negate_a": 1
+      }
+    },
+    {
+      "work": "Lectures on Aesthetics (1938)",
+      "work_index": 11,
+      "vertices_added": 4,
+      "edges_added": 9,
+      "vertices_total": 94,
+      "edges_total": 191,
+      "beta_1_before_injection": 61,
+      "beta_1_after_digestion": 63,
+      "delta_beta_1": 2,
+      "settled_cycles": 22,
+      "blocked_in_work": 137,
+      "steps_to_digest": 82,
+      "converged": true,
+      "cumulative_steps": 917,
+      "operation_counts": {
+        "walk": 56,
+        "fold_blocked": 22,
+        "negate_b": 2,
+        "sublate": 2
+      }
+    },
+    {
+      "work": "Lectures on Foundations of Mathematics (1939)",
+      "work_index": 12,
+      "vertices_added": 3,
+      "edges_added": 6,
+      "vertices_total": 98,
+      "edges_total": 197,
+      "beta_1_before_injection": 66,
+      "beta_1_after_digestion": 66,
+      "delta_beta_1": 0,
+      "settled_cycles": 22,
+      "blocked_in_work": 154,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 967,
+      "operation_counts": {
+        "walk": 32,
+        "fold_blocked": 17,
+        "negate_b": 1
+      }
+    },
+    {
+      "work": "Remarks on Foundations of Mathematics III-VII (1941-1944)",
+      "work_index": 13,
+      "vertices_added": 4,
+      "edges_added": 11,
+      "vertices_total": 107,
+      "edges_total": 221,
+      "beta_1_before_injection": 71,
+      "beta_1_after_digestion": 75,
+      "delta_beta_1": 4,
+      "settled_cycles": 26,
+      "blocked_in_work": 159,
+      "steps_to_digest": 83,
+      "converged": true,
+      "cumulative_steps": 1050,
+      "operation_counts": {
+        "walk": 66,
+        "sublate": 5,
+        "fold": 3,
+        "negate_b": 3,
+        "negate_a": 1,
+        "fold_blocked": 5
+      }
+    },
+    {
+      "work": "Philosophical Investigations (1945-1949)",
+      "work_index": 14,
+      "vertices_added": 13,
+      "edges_added": 34,
+      "vertices_total": 125,
+      "edges_total": 262,
+      "beta_1_before_injection": 89,
+      "beta_1_after_digestion": 92,
+      "delta_beta_1": 3,
+      "settled_cycles": 30,
+      "blocked_in_work": 177,
+      "steps_to_digest": 97,
+      "converged": true,
+      "cumulative_steps": 1147,
+      "operation_counts": {
+        "walk": 68,
+        "fold_blocked": 18,
+        "negate_b": 4,
+        "sublate": 4,
+        "fold": 3
+      }
+    },
+    {
+      "work": "Zettel (1945-1948)",
+      "work_index": 15,
+      "vertices_added": 5,
+      "edges_added": 14,
+      "vertices_total": 132,
+      "edges_total": 279,
+      "beta_1_before_injection": 98,
+      "beta_1_after_digestion": 99,
+      "delta_beta_1": 1,
+      "settled_cycles": 32,
+      "blocked_in_work": 199,
+      "steps_to_digest": 81,
+      "converged": true,
+      "cumulative_steps": 1228,
+      "operation_counts": {
+        "walk": 54,
+        "fold_blocked": 22,
+        "negate_b": 1,
+        "sublate": 2,
+        "fold": 1,
+        "negate_a": 1
+      }
+    },
+    {
+      "work": "Remarks on Philosophy of Psychology I (1946-1947)",
+      "work_index": 16,
+      "vertices_added": 4,
+      "edges_added": 12,
+      "vertices_total": 136,
+      "edges_total": 298,
+      "beta_1_before_injection": 104,
+      "beta_1_after_digestion": 105,
+      "delta_beta_1": 1,
+      "settled_cycles": 36,
+      "blocked_in_work": 241,
+      "steps_to_digest": 104,
+      "converged": true,
+      "cumulative_steps": 1332,
+      "operation_counts": {
+        "fold_blocked": 42,
+        "walk": 52,
+        "fold": 4,
+        "negate_a": 2,
+        "sublate": 3,
+        "negate_b": 1
+      }
+    },
+    {
+      "work": "Remarks on Philosophy of Psychology II (1947-1948)",
+      "work_index": 17,
+      "vertices_added": 2,
+      "edges_added": 6,
+      "vertices_total": 138,
+      "edges_total": 302,
+      "beta_1_before_injection": 107,
+      "beta_1_after_digestion": 107,
+      "delta_beta_1": 0,
+      "settled_cycles": 36,
+      "blocked_in_work": 255,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 1382,
+      "operation_counts": {
+        "walk": 36,
+        "fold_blocked": 14
+      }
+    },
+    {
+      "work": "Last Writings on Phil. of Psychology I (1948-1949)",
+      "work_index": 18,
+      "vertices_added": 3,
+      "edges_added": 9,
+      "vertices_total": 141,
+      "edges_total": 308,
+      "beta_1_before_injection": 110,
+      "beta_1_after_digestion": 110,
+      "delta_beta_1": 0,
+      "settled_cycles": 36,
+      "blocked_in_work": 277,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 1432,
+      "operation_counts": {
+        "fold_blocked": 22,
+        "walk": 28
+      }
+    },
+    {
+      "work": "Last Writings on Phil. of Psychology II (1949-1951)",
+      "work_index": 19,
+      "vertices_added": 2,
+      "edges_added": 6,
+      "vertices_total": 143,
+      "edges_total": 313,
+      "beta_1_before_injection": 113,
+      "beta_1_after_digestion": 113,
+      "delta_beta_1": 0,
+      "settled_cycles": 36,
+      "blocked_in_work": 301,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 1482,
+      "operation_counts": {
+        "walk": 26,
+        "fold_blocked": 24
+      }
+    },
+    {
+      "work": "Remarks on Colour (1950-1951)",
+      "work_index": 20,
+      "vertices_added": 4,
+      "edges_added": 11,
+      "vertices_total": 156,
+      "edges_total": 348,
+      "beta_1_before_injection": 119,
+      "beta_1_after_digestion": 123,
+      "delta_beta_1": 4,
+      "settled_cycles": 42,
+      "blocked_in_work": 352,
+      "steps_to_digest": 198,
+      "converged": true,
+      "cumulative_steps": 1680,
+      "operation_counts": {
+        "walk": 126,
+        "fold_blocked": 51,
+        "negate_b": 6,
+        "sublate": 8,
+        "fold": 5,
+        "negate_a": 2
+      }
+    },
+    {
+      "work": "On Certainty (1950-1951)",
+      "work_index": 21,
+      "vertices_added": 8,
+      "edges_added": 21,
+      "vertices_total": 163,
+      "edges_total": 374,
+      "beta_1_before_injection": 130,
+      "beta_1_after_digestion": 131,
+      "delta_beta_1": 1,
+      "settled_cycles": 44,
+      "blocked_in_work": 402,
+      "steps_to_digest": 170,
+      "converged": true,
+      "cumulative_steps": 1850,
+      "operation_counts": {
+        "walk": 111,
+        "fold_blocked": 50,
+        "negate_b": 2,
+        "sublate": 2,
+        "fold": 5
+      }
+    },
+    {
+      "work": "Culture and Value (1914-1951)",
+      "work_index": 22,
+      "vertices_added": 6,
+      "edges_added": 15,
+      "vertices_total": 169,
+      "edges_total": 384,
+      "beta_1_before_injection": 135,
+      "beta_1_after_digestion": 135,
+      "delta_beta_1": 0,
+      "settled_cycles": 44,
+      "blocked_in_work": 421,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 1900,
+      "operation_counts": {
+        "walk": 31,
+        "fold_blocked": 19
+      }
+    }
+  ],
+  "beta_1_curve": [
+    {
+      "work_index": 1,
+      "work_name": "Notes on Logic (1913)",
+      "beta_1": 1,
+      "cumulative_steps": 50
+    },
+    {
+      "work_index": 2,
+      "work_name": "Notes Dictated to Moore (1914)",
+      "beta_1": 5,
+      "cumulative_steps": 107
+    },
+    {
+      "work_index": 3,
+      "work_name": "Notebooks 1914-1916 (1914-1916)",
+      "beta_1": 13,
+      "cumulative_steps": 188
+    },
+    {
+      "work_index": 4,
+      "work_name": "Tractatus Logico-Philosophicus (1921)",
+      "beta_1": 31,
+      "cumulative_steps": 324
+    },
+    {
+      "work_index": 5,
+      "work_name": "Some Remarks on Logical Form (1929)",
+      "beta_1": 33,
+      "cumulative_steps": 374
+    },
+    {
+      "work_index": 6,
+      "work_name": "Philosophical Remarks (1930)",
+      "beta_1": 34,
+      "cumulative_steps": 424
+    },
+    {
+      "work_index": 7,
+      "work_name": "Philosophical Grammar (1933)",
+      "beta_1": 43,
+      "cumulative_steps": 536
+    },
+    {
+      "work_index": 8,
+      "work_name": "The Blue Book (1933-1934)",
+      "beta_1": 49,
+      "cumulative_steps": 618
+    },
+    {
+      "work_index": 9,
+      "work_name": "The Brown Book (1934-1935)",
+      "beta_1": 55,
+      "cumulative_steps": 727
+    },
+    {
+      "work_index": 10,
+      "work_name": "Remarks on Foundations of Mathematics I-II (1937-1938)",
+      "beta_1": 58,
+      "cumulative_steps": 835
+    },
+    {
+      "work_index": 11,
+      "work_name": "Lectures on Aesthetics (1938)",
+      "beta_1": 63,
+      "cumulative_steps": 917
+    },
+    {
+      "work_index": 12,
+      "work_name": "Lectures on Foundations of Mathematics (1939)",
+      "beta_1": 66,
+      "cumulative_steps": 967
+    },
+    {
+      "work_index": 13,
+      "work_name": "Remarks on Foundations of Mathematics III-VII (1941-1944)",
+      "beta_1": 75,
+      "cumulative_steps": 1050
+    },
+    {
+      "work_index": 14,
+      "work_name": "Philosophical Investigations (1945-1949)",
+      "beta_1": 92,
+      "cumulative_steps": 1147
+    },
+    {
+      "work_index": 15,
+      "work_name": "Zettel (1945-1948)",
+      "beta_1": 99,
+      "cumulative_steps": 1228
+    },
+    {
+      "work_index": 16,
+      "work_name": "Remarks on Philosophy of Psychology I (1946-1947)",
+      "beta_1": 105,
+      "cumulative_steps": 1332
+    },
+    {
+      "work_index": 17,
+      "work_name": "Remarks on Philosophy of Psychology II (1947-1948)",
+      "beta_1": 107,
+      "cumulative_steps": 1382
+    },
+    {
+      "work_index": 18,
+      "work_name": "Last Writings on Phil. of Psychology I (1948-1949)",
+      "beta_1": 110,
+      "cumulative_steps": 1432
+    },
+    {
+      "work_index": 19,
+      "work_name": "Last Writings on Phil. of Psychology II (1949-1951)",
+      "beta_1": 113,
+      "cumulative_steps": 1482
+    },
+    {
+      "work_index": 20,
+      "work_name": "Remarks on Colour (1950-1951)",
+      "beta_1": 123,
+      "cumulative_steps": 1680
+    },
+    {
+      "work_index": 21,
+      "work_name": "On Certainty (1950-1951)",
+      "beta_1": 131,
+      "cumulative_steps": 1850
+    },
+    {
+      "work_index": 22,
+      "work_name": "Culture and Value (1914-1951)",
+      "beta_1": 135,
+      "cumulative_steps": 1900
+    }
+  ],
+  "final_complex": {
+    "vertices_active": 169,
+    "edges_active": 384,
+    "beta_1": 135,
+    "settled_cycles": 44,
+    "edge_type_distribution": {
+      "dependency": 89,
+      "reference": 78,
+      "negation": 94,
+      "fold": 23,
+      "sublation": 100
+    },
+    "terrain_distribution": {
+      "tree": 177,
+      "critical": 126
+    },
+    "critical_edge_ratio": 0.4158415841584158,
+    "negation_density": 0.24479166666666666,
+    "sublation_density": 0.2604166666666667
+  },
+  "total_steps": 1900,
+  "elapsed_seconds": 1.9846317768096924,
+  "settled_cycles_detail": [
+    {
+      "edges": [
+        [
+          "syn_subject_anti_subject_112_114",
+          "anti_subject_112"
+        ],
+        [
+          "syn_subject_anti_subject_112_114",
+          "subject"
+        ]
+      ],
+      "settled_at_step": 124
+    },
+    {
+      "edges": [
+        [
+          "syn_object_anti_object_126_128",
+          "anti_object_126"
+        ],
+        [
+          "syn_object_anti_object_126_128",
+          "object"
+        ]
+      ],
+      "settled_at_step": 138
+    },
+    {
+      "edges": [
+        [
+          "syn_state_of_affairs_anti_state_of_affairs_136_138",
+          "anti_state_of_affairs_136"
+        ],
+        [
+          "syn_state_of_affairs_anti_state_of_affairs_136_138",
+          "state_of_affairs"
+        ]
+      ],
+      "settled_at_step": 148
+    },
+    {
+      "edges": [
+        [
+          "syn_mystical_anti_mystical_190_192",
+          "anti_mystical_190"
+        ],
+        [
+          "syn_mystical_anti_mystical_190_192",
+          "mystical"
+        ]
+      ],
+      "settled_at_step": 202
+    },
+    {
+      "edges": [
+        [
+          "syn_object_state_of_affairs_203",
+          "object"
+        ],
+        [
+          "syn_object_state_of_affairs_203",
+          "state_of_affairs"
+        ]
+      ],
+      "settled_at_step": 213
+    },
+    {
+      "edges": [
+        [
+          "syn_truth_function_anti_truth_function_210_212",
+          "anti_truth_function_210"
+        ],
+        [
+          "syn_truth_function_anti_truth_function_210_212",
+          "truth_function"
+        ]
+      ],
+      "settled_at_step": 222
+    },
+    {
+      "edges": [
+        [
+          "syn_nonsense_anti_nonsense_219_221",
+          "anti_nonsense_219"
+        ],
+        [
+          "syn_nonsense_anti_nonsense_219_221",
+          "nonsense"
+        ]
+      ],
+      "settled_at_step": 231
+    },
+    {
+      "edges": [
+        [
+          "truth_function",
+          "truth_function"
+        ]
+      ],
+      "settled_at_step": 249
+    },
+    {
+      "edges": [
+        [
+          "syn_picture_anti_picture_250_252",
+          "anti_picture_250"
+        ],
+        [
+          "syn_picture_anti_picture_250_252",
+          "picture"
+        ]
+      ],
+      "settled_at_step": 262
+    },
+    {
+      "edges": [
+        [
+          "picture",
+          "picture"
+        ]
+      ],
+      "settled_at_step": 284
+    },
+    {
+      "edges": [
+        [
+          "syn_grammar_anti_grammar_425_427",
+          "anti_grammar_425"
+        ],
+        [
+          "syn_grammar_anti_grammar_425_427",
+          "grammar"
+        ]
+      ],
+      "settled_at_step": 437
+    },
+    {
+      "edges": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ],
+      "settled_at_step": 456
+    },
+    {
+      "edges": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ],
+      "settled_at_step": 464
+    },
+    {
+      "edges": [
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "anti_understanding_554"
+        ],
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "understanding"
+        ]
+      ],
+      "settled_at_step": 566
+    },
+    {
+      "edges": [
+        [
+          "syn_use_language_568",
+          "language"
+        ],
+        [
+          "syn_use_language_568",
+          "use"
+        ]
+      ],
+      "settled_at_step": 578
+    },
+    {
+      "edges": [
+        [
+          "syn_aspect_seeing_anti_aspect_seeing_648_650",
+          "anti_aspect_seeing_648"
+        ],
+        [
+          "syn_aspect_seeing_anti_aspect_seeing_648_650",
+          "aspect_seeing"
+        ]
+      ],
+      "settled_at_step": 660
+    },
+    {
+      "edges": [
+        [
+          "syn_use_rule_667",
+          "rule"
+        ],
+        [
+          "syn_use_rule_667",
+          "use"
+        ]
+      ],
+      "settled_at_step": 677
+    },
+    {
+      "edges": [
+        [
+          "syn_use_understanding_677",
+          "understanding"
+        ],
+        [
+          "syn_use_understanding_677",
+          "use"
+        ]
+      ],
+      "settled_at_step": 687
+    },
+    {
+      "edges": [
+        [
+          "syn_visual_space_anti_visual_space_737_739",
+          "anti_visual_space_737"
+        ],
+        [
+          "syn_visual_space_anti_visual_space_737_739",
+          "visual_space"
+        ]
+      ],
+      "settled_at_step": 749
+    },
+    {
+      "edges": [
+        [
+          "syn_aspect_seeing_visual_space_766",
+          "aspect_seeing"
+        ],
+        [
+          "syn_aspect_seeing_visual_space_766",
+          "visual_space"
+        ]
+      ],
+      "settled_at_step": 776
+    },
+    {
+      "edges": [
+        [
+          "syn_mental_process_anti_mental_process_856_858",
+          "anti_mental_process_856"
+        ],
+        [
+          "syn_mental_process_anti_mental_process_856_858",
+          "mental_process"
+        ]
+      ],
+      "settled_at_step": 868
+    },
+    {
+      "edges": [
+        [
+          "syn_family_resemblance_anti_family_resemblance_865_867",
+          "anti_family_resemblance_865"
+        ],
+        [
+          "syn_family_resemblance_anti_family_resemblance_865_867",
+          "family_resemblance"
+        ]
+      ],
+      "settled_at_step": 877
+    },
+    {
+      "edges": [
+        [
+          "mathematics",
+          "proof"
+        ],
+        [
+          "proof",
+          "mathematics"
+        ]
+      ],
+      "settled_at_step": 1004
+    },
+    {
+      "edges": [
+        [
+          "mathematics",
+          "mathematics"
+        ]
+      ],
+      "settled_at_step": 1004
+    },
+    {
+      "edges": [
+        [
+          "syn_mathematics_proof_996",
+          "mathematics"
+        ],
+        [
+          "syn_mathematics_proof_996",
+          "proof"
+        ]
+      ],
+      "settled_at_step": 1006
+    },
+    {
+      "edges": [
+        [
+          "syn_proof_anti_proof_998_1000",
+          "anti_proof_998"
+        ],
+        [
+          "syn_proof_anti_proof_998_1000",
+          "proof"
+        ]
+      ],
+      "settled_at_step": 1010
+    },
+    {
+      "edges": [
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "anti_private_language_1059"
+        ],
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "private_language"
+        ]
+      ],
+      "settled_at_step": 1071
+    },
+    {
+      "edges": [
+        [
+          "syn_form_of_life_anti_form_of_life_1068_1070",
+          "anti_form_of_life_1068"
+        ],
+        [
+          "syn_form_of_life_anti_form_of_life_1068_1070",
+          "form_of_life"
+        ]
+      ],
+      "settled_at_step": 1080
+    },
+    {
+      "edges": [
+        [
+          "syn_therapy_anti_therapy_1077_1079",
+          "anti_therapy_1077"
+        ],
+        [
+          "syn_therapy_anti_therapy_1077_1079",
+          "therapy"
+        ]
+      ],
+      "settled_at_step": 1089
+    },
+    {
+      "edges": [
+        [
+          "syn_sensation_anti_sensation_1095_1097",
+          "anti_sensation_1095"
+        ],
+        [
+          "syn_sensation_anti_sensation_1095_1097",
+          "sensation"
+        ]
+      ],
+      "settled_at_step": 1107
+    },
+    {
+      "edges": [
+        [
+          "syn_concept_formation_anti_concept_formation_1157_1159",
+          "anti_concept_formation_1157"
+        ],
+        [
+          "syn_concept_formation_anti_concept_formation_1157_1159",
+          "concept_formation"
+        ]
+      ],
+      "settled_at_step": 1169
+    },
+    {
+      "edges": [
+        [
+          "syn_meaning_aspect_seeing_1178",
+          "aspect_seeing"
+        ],
+        [
+          "syn_meaning_aspect_seeing_1178",
+          "meaning"
+        ]
+      ],
+      "settled_at_step": 1188
+    },
+    {
+      "edges": [
+        [
+          "beetle_in_box",
+          "private_language"
+        ],
+        [
+          "private_language",
+          "beetle_in_box"
+        ]
+      ],
+      "settled_at_step": 1253
+    },
+    {
+      "edges": [
+        [
+          "private_language",
+          "private_language"
+        ]
+      ],
+      "settled_at_step": 1253
+    },
+    {
+      "edges": [
+        [
+          "syn_private_language_beetle_in_box_1245",
+          "beetle_in_box"
+        ],
+        [
+          "syn_private_language_beetle_in_box_1245",
+          "private_language"
+        ]
+      ],
+      "settled_at_step": 1255
+    },
+    {
+      "edges": [
+        [
+          "syn_beetle_in_box_anti_beetle_in_box_1247_1249",
+          "anti_beetle_in_box_1247"
+        ],
+        [
+          "syn_beetle_in_box_anti_beetle_in_box_1247_1249",
+          "beetle_in_box"
+        ]
+      ],
+      "settled_at_step": 1259
+    },
+    {
+      "edges": [
+        [
+          "syn_colour_geometry_anti_colour_geometry_1510_1512",
+          "anti_colour_geometry_1510"
+        ],
+        [
+          "syn_colour_geometry_anti_colour_geometry_1510_1512",
+          "colour_geometry"
+        ]
+      ],
+      "settled_at_step": 1522
+    },
+    {
+      "edges": [
+        [
+          "syn_colour_anti_colour_1518_1520",
+          "anti_colour_1518"
+        ],
+        [
+          "syn_colour_anti_colour_1518_1520",
+          "colour"
+        ]
+      ],
+      "settled_at_step": 1530
+    },
+    {
+      "edges": [
+        [
+          "syn_form_of_life_certainty_PI_1531",
+          "certainty_PI"
+        ],
+        [
+          "syn_form_of_life_certainty_PI_1531",
+          "form_of_life"
+        ]
+      ],
+      "settled_at_step": 1541
+    },
+    {
+      "edges": [
+        [
+          "syn_pretending_anti_pretending_1555_1557",
+          "anti_pretending_1555"
+        ],
+        [
+          "syn_pretending_anti_pretending_1555_1557",
+          "pretending"
+        ]
+      ],
+      "settled_at_step": 1567
+    },
+    {
+      "edges": [
+        [
+          "syn_colour_colour_geometry_1596",
+          "colour"
+        ],
+        [
+          "syn_colour_colour_geometry_1596",
+          "colour_geometry"
+        ]
+      ],
+      "settled_at_step": 1606
+    },
+    {
+      "edges": [
+        [
+          "syn_imponderable_evidence_anti_imponderable_evidence_1616_1618",
+          "anti_imponderable_evidence_1616"
+        ],
+        [
+          "syn_imponderable_evidence_anti_imponderable_evidence_1616_1618",
+          "imponderable_evidence"
+        ]
+      ],
+      "settled_at_step": 1628
+    },
+    {
+      "edges": [
+        [
+          "syn_belief_anti_belief_1721_1723",
+          "anti_belief_1721"
+        ],
+        [
+          "syn_belief_anti_belief_1721_1723",
+          "belief"
+        ]
+      ],
+      "settled_at_step": 1733
+    },
+    {
+      "edges": [
+        [
+          "syn_rule_anti_rule_1798_1800",
+          "anti_rule_1798"
+        ],
+        [
+          "syn_rule_anti_rule_1798_1800",
+          "rule"
+        ]
+      ],
+      "settled_at_step": 1810
+    }
+  ],
+  "blocked_log": [
+    {
+      "step": 198,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "elementary_prop",
+          "object"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_object_anti_object_126_128",
+          "anti_object_126"
+        ],
+        [
+          "syn_object_anti_object_126_128",
+          "object"
+        ]
+      ]
+    },
+    {
+      "step": 337,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "logical_form",
+          "picture"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_picture_anti_picture_250_252",
+          "anti_picture_250"
+        ],
+        [
+          "syn_picture_anti_picture_250_252",
+          "picture"
+        ]
+      ]
+    },
+    {
+      "step": 441,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "language",
+          "grammar"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_grammar_anti_grammar_425_427",
+          "anti_grammar_425"
+        ],
+        [
+          "syn_grammar_anti_grammar_425_427",
+          "grammar"
+        ]
+      ]
+    },
+    {
+      "step": 465,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "understanding",
+          "picture"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_picture_anti_picture_250_252",
+          "anti_picture_250"
+        ],
+        [
+          "syn_picture_anti_picture_250_252",
+          "picture"
+        ]
+      ]
+    },
+    {
+      "step": 467,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "verification",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 469,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "understanding",
+          "picture"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_picture_anti_picture_250_252",
+          "anti_picture_250"
+        ],
+        [
+          "syn_picture_anti_picture_250_252",
+          "picture"
+        ]
+      ]
+    },
+    {
+      "step": 477,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "understanding",
+          "picture"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_picture_anti_picture_250_252",
+          "anti_picture_250"
+        ],
+        [
+          "syn_picture_anti_picture_250_252",
+          "picture"
+        ]
+      ]
+    },
+    {
+      "step": 479,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "verification",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 481,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "understanding",
+          "picture"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_picture_anti_picture_250_252",
+          "anti_picture_250"
+        ],
+        [
+          "syn_picture_anti_picture_250_252",
+          "picture"
+        ]
+      ]
+    },
+    {
+      "step": 547,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "language_game",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 562,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "ostensive_definition",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 565,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 569,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_use_language_568",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 571,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "language",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 573,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_use_language_568",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 575,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "language",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 577,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_use_language_568",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 579,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "language",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 581,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "use",
+          "language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_language_568",
+          "language"
+        ],
+        [
+          "syn_use_language_568",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 583,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "understanding",
+          "language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_language_568",
+          "language"
+        ],
+        [
+          "syn_use_language_568",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 586,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "understanding",
+          "language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_language_568",
+          "language"
+        ],
+        [
+          "syn_use_language_568",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 589,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "understanding",
+          "language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_language_568",
+          "language"
+        ],
+        [
+          "syn_use_language_568",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 591,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "use",
+          "language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_language_568",
+          "language"
+        ],
+        [
+          "syn_use_language_568",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 593,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "language",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 595,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_use_language_568",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 597,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "language",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 599,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_use_language_568",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 601,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "language",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 603,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "use",
+          "language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_language_568",
+          "language"
+        ],
+        [
+          "syn_use_language_568",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 605,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "understanding",
+          "language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_language_568",
+          "language"
+        ],
+        [
+          "syn_use_language_568",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 608,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "understanding",
+          "language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_language_568",
+          "language"
+        ],
+        [
+          "syn_use_language_568",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 610,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "use",
+          "language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_language_568",
+          "language"
+        ],
+        [
+          "syn_use_language_568",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 613,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "use",
+          "language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_language_568",
+          "language"
+        ],
+        [
+          "syn_use_language_568",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 615,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 618,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 621,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 623,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "use",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 625,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "language",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 627,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_use_language_568",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 629,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "language",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 631,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_use_language_568",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 633,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "language",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 635,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "use",
+          "language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_language_568",
+          "language"
+        ],
+        [
+          "syn_use_language_568",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 638,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "use",
+          "language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_language_568",
+          "language"
+        ],
+        [
+          "syn_use_language_568",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 640,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 643,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 646,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 661,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "training",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 663,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "rule",
+          "understanding"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "anti_understanding_554"
+        ],
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "understanding"
+        ]
+      ]
+    },
+    {
+      "step": 668,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_use_rule_667",
+          "grammar"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_grammar_anti_grammar_425_427",
+          "anti_grammar_425"
+        ],
+        [
+          "syn_grammar_anti_grammar_425_427",
+          "grammar"
+        ]
+      ]
+    },
+    {
+      "step": 670,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "rule",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 672,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_use_rule_667",
+          "grammar"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_grammar_anti_grammar_425_427",
+          "anti_grammar_425"
+        ],
+        [
+          "syn_grammar_anti_grammar_425_427",
+          "grammar"
+        ]
+      ]
+    },
+    {
+      "step": 674,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "rule",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 678,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_use_understanding_677",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 680,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "understanding",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 682,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_use_understanding_677",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 684,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "understanding",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 687,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "understanding",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 689,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "use",
+          "understanding"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "anti_understanding_554"
+        ],
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "understanding"
+        ]
+      ]
+    },
+    {
+      "step": 691,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "rule",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 693,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_use_rule_667",
+          "grammar"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_grammar_anti_grammar_425_427",
+          "anti_grammar_425"
+        ],
+        [
+          "syn_grammar_anti_grammar_425_427",
+          "grammar"
+        ]
+      ]
+    },
+    {
+      "step": 695,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "rule",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 697,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "use",
+          "rule"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_rule_667",
+          "rule"
+        ],
+        [
+          "syn_use_rule_667",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 699,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "language",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 701,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_use_language_568",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 703,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "language",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 705,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "use",
+          "language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_language_568",
+          "language"
+        ],
+        [
+          "syn_use_language_568",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 707,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "grammar",
+          "syn_use_rule_667"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_rule_667",
+          "rule"
+        ],
+        [
+          "syn_use_rule_667",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 709,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "use",
+          "language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_language_568",
+          "language"
+        ],
+        [
+          "syn_use_language_568",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 711,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "rule",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 713,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_use_rule_667",
+          "grammar"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_grammar_anti_grammar_425_427",
+          "anti_grammar_425"
+        ],
+        [
+          "syn_grammar_anti_grammar_425_427",
+          "grammar"
+        ]
+      ]
+    },
+    {
+      "step": 715,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "rule",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 717,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "use",
+          "rule"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_rule_667",
+          "rule"
+        ],
+        [
+          "syn_use_rule_667",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 719,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "language",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 721,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_use_language_568",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 723,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "language",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 725,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_use_language_568",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 727,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "language",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 729,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "use",
+          "language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_language_568",
+          "language"
+        ],
+        [
+          "syn_use_language_568",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 731,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 734,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 745,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "following_a_rule_math",
+          "grammar"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_grammar_anti_grammar_425_427",
+          "anti_grammar_425"
+        ],
+        [
+          "syn_grammar_anti_grammar_425_427",
+          "grammar"
+        ]
+      ]
+    },
+    {
+      "step": 747,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "rule",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 749,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "use",
+          "rule"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_rule_667",
+          "rule"
+        ],
+        [
+          "syn_use_rule_667",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 751,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 754,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 758,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "phenomenological_language",
+          "aspect_seeing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_aspect_seeing_anti_aspect_seeing_648_650",
+          "anti_aspect_seeing_648"
+        ],
+        [
+          "syn_aspect_seeing_anti_aspect_seeing_648_650",
+          "aspect_seeing"
+        ]
+      ]
+    },
+    {
+      "step": 761,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "phenomenological_language",
+          "aspect_seeing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_aspect_seeing_anti_aspect_seeing_648_650",
+          "anti_aspect_seeing_648"
+        ],
+        [
+          "syn_aspect_seeing_anti_aspect_seeing_648_650",
+          "aspect_seeing"
+        ]
+      ]
+    },
+    {
+      "step": 769,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 772,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 775,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 781,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "logical_compulsion",
+          "rule"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_rule_667",
+          "rule"
+        ],
+        [
+          "syn_use_rule_667",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 783,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "following_a_rule_math",
+          "grammar"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_grammar_anti_grammar_425_427",
+          "anti_grammar_425"
+        ],
+        [
+          "syn_grammar_anti_grammar_425_427",
+          "grammar"
+        ]
+      ]
+    },
+    {
+      "step": 786,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "rule",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 788,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "use",
+          "rule"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_rule_667",
+          "rule"
+        ],
+        [
+          "syn_use_rule_667",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 790,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 797,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "grammar",
+          "syn_use_rule_667"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_rule_667",
+          "rule"
+        ],
+        [
+          "syn_use_rule_667",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 799,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "use",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 801,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "rule",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 803,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_use_rule_667",
+          "grammar"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_grammar_anti_grammar_425_427",
+          "anti_grammar_425"
+        ],
+        [
+          "syn_grammar_anti_grammar_425_427",
+          "grammar"
+        ]
+      ]
+    },
+    {
+      "step": 805,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "rule",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 807,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_use_rule_667",
+          "grammar"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_grammar_anti_grammar_425_427",
+          "anti_grammar_425"
+        ],
+        [
+          "syn_grammar_anti_grammar_425_427",
+          "grammar"
+        ]
+      ]
+    },
+    {
+      "step": 809,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "rule",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 811,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "use",
+          "rule"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_rule_667",
+          "rule"
+        ],
+        [
+          "syn_use_rule_667",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 813,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "grammar",
+          "syn_use_rule_667"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_rule_667",
+          "rule"
+        ],
+        [
+          "syn_use_rule_667",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 816,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "grammar",
+          "syn_use_rule_667"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_rule_667",
+          "rule"
+        ],
+        [
+          "syn_use_rule_667",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 819,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "grammar",
+          "syn_use_rule_667"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_rule_667",
+          "rule"
+        ],
+        [
+          "syn_use_rule_667",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 821,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "use",
+          "rule"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_rule_667",
+          "rule"
+        ],
+        [
+          "syn_use_rule_667",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 823,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "rule",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 825,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_use_rule_667",
+          "grammar"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_grammar_anti_grammar_425_427",
+          "anti_grammar_425"
+        ],
+        [
+          "syn_grammar_anti_grammar_425_427",
+          "grammar"
+        ]
+      ]
+    },
+    {
+      "step": 827,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "rule",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 829,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_use_rule_667",
+          "grammar"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_grammar_anti_grammar_425_427",
+          "anti_grammar_425"
+        ],
+        [
+          "syn_grammar_anti_grammar_425_427",
+          "grammar"
+        ]
+      ]
+    },
+    {
+      "step": 831,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "rule",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 833,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "use",
+          "rule"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_rule_667",
+          "rule"
+        ],
+        [
+          "syn_use_rule_667",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 835,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "grammar",
+          "syn_use_rule_667"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_rule_667",
+          "rule"
+        ],
+        [
+          "syn_use_rule_667",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 838,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "grammar",
+          "syn_use_rule_667"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_rule_667",
+          "rule"
+        ],
+        [
+          "syn_use_rule_667",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 840,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "use",
+          "rule"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_rule_667",
+          "rule"
+        ],
+        [
+          "syn_use_rule_667",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 842,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "language",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 844,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_use_language_568",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 846,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "language",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 848,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "use",
+          "language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_language_568",
+          "language"
+        ],
+        [
+          "syn_use_language_568",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 850,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "understanding",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 852,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_use_understanding_677",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 854,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "understanding",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 873,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "intransitive_use",
+          "understanding"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "anti_understanding_554"
+        ],
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "understanding"
+        ]
+      ]
+    },
+    {
+      "step": 875,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "use",
+          "understanding"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "anti_understanding_554"
+        ],
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "understanding"
+        ]
+      ]
+    },
+    {
+      "step": 877,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 890,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "understanding",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 892,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_use_understanding_677",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 894,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "understanding",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 896,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "use",
+          "understanding"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "anti_understanding_554"
+        ],
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "understanding"
+        ]
+      ]
+    },
+    {
+      "step": 898,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 901,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 904,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 906,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "use",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 914,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 917,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 920,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 922,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "use",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 924,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "understanding",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 926,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_use_understanding_677",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 928,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "understanding",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 933,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "understanding",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 935,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_use_understanding_677",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 937,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "understanding",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 939,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "use",
+          "understanding"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "anti_understanding_554"
+        ],
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "understanding"
+        ]
+      ]
+    },
+    {
+      "step": 941,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "language",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 943,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_use_language_568",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 945,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "language",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 947,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_use_language_568",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 949,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "language",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 951,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "use",
+          "language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_language_568",
+          "language"
+        ],
+        [
+          "syn_use_language_568",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 953,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 956,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1033,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1036,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1039,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1047,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1050,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1052,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "use",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 1086,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "pain",
+          "private_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "anti_private_language_1059"
+        ],
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "private_language"
+        ]
+      ]
+    },
+    {
+      "step": 1089,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "private_language",
+          "grammar"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_grammar_anti_grammar_425_427",
+          "anti_grammar_425"
+        ],
+        [
+          "syn_grammar_anti_grammar_425_427",
+          "grammar"
+        ]
+      ]
+    },
+    {
+      "step": 1092,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "private_language",
+          "grammar"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_grammar_anti_grammar_425_427",
+          "anti_grammar_425"
+        ],
+        [
+          "syn_grammar_anti_grammar_425_427",
+          "grammar"
+        ]
+      ]
+    },
+    {
+      "step": 1112,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "use",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 1114,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "language",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1116,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_use_language_568",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 1118,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "language",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1120,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_use_language_568",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 1122,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "language",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1124,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "use",
+          "language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_language_568",
+          "language"
+        ],
+        [
+          "syn_use_language_568",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1126,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1129,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1135,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "rule_following",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1140,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "psychology_confusion",
+          "sensation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_sensation_anti_sensation_1095_1097",
+          "anti_sensation_1095"
+        ],
+        [
+          "syn_sensation_anti_sensation_1095_1097",
+          "sensation"
+        ]
+      ]
+    },
+    {
+      "step": 1143,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "understanding",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 1145,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_use_understanding_677",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 1147,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "understanding",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 1149,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "use",
+          "understanding"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "anti_understanding_554"
+        ],
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "understanding"
+        ]
+      ]
+    },
+    {
+      "step": 1151,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "grammar",
+          "mental_process"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mental_process_anti_mental_process_856_858",
+          "anti_mental_process_856"
+        ],
+        [
+          "syn_mental_process_anti_mental_process_856_858",
+          "mental_process"
+        ]
+      ]
+    },
+    {
+      "step": 1168,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "rule_following",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1180,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "aspect_seeing",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 1183,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "aspect_seeing",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 1186,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "aspect_seeing",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 1188,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "aspect_seeing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_aspect_seeing_anti_aspect_seeing_648_650",
+          "anti_aspect_seeing_648"
+        ],
+        [
+          "syn_aspect_seeing_anti_aspect_seeing_648_650",
+          "aspect_seeing"
+        ]
+      ]
+    },
+    {
+      "step": 1191,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "aspect_seeing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_aspect_seeing_anti_aspect_seeing_648_650",
+          "anti_aspect_seeing_648"
+        ],
+        [
+          "syn_aspect_seeing_anti_aspect_seeing_648_650",
+          "aspect_seeing"
+        ]
+      ]
+    },
+    {
+      "step": 1193,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "picture",
+          "syn_meaning_aspect_seeing_1178"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_aspect_seeing_1178",
+          "aspect_seeing"
+        ],
+        [
+          "syn_meaning_aspect_seeing_1178",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 1195,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "aspect_seeing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_aspect_seeing_anti_aspect_seeing_648_650",
+          "anti_aspect_seeing_648"
+        ],
+        [
+          "syn_aspect_seeing_anti_aspect_seeing_648_650",
+          "aspect_seeing"
+        ]
+      ]
+    },
+    {
+      "step": 1197,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "use",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 1199,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "rule",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1201,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "rule_following",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1208,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "rule"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_rule_667",
+          "rule"
+        ],
+        [
+          "syn_use_rule_667",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1210,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "aspect_seeing",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 1213,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "aspect_seeing",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 1216,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "aspect_seeing",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 1218,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "aspect_seeing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_aspect_seeing_anti_aspect_seeing_648_650",
+          "anti_aspect_seeing_648"
+        ],
+        [
+          "syn_aspect_seeing_anti_aspect_seeing_648_650",
+          "aspect_seeing"
+        ]
+      ]
+    },
+    {
+      "step": 1220,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "picture",
+          "syn_meaning_aspect_seeing_1178"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_aspect_seeing_1178",
+          "aspect_seeing"
+        ],
+        [
+          "syn_meaning_aspect_seeing_1178",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 1222,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "aspect_seeing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_aspect_seeing_anti_aspect_seeing_648_650",
+          "anti_aspect_seeing_648"
+        ],
+        [
+          "syn_aspect_seeing_anti_aspect_seeing_648_650",
+          "aspect_seeing"
+        ]
+      ]
+    },
+    {
+      "step": 1225,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "aspect_seeing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_aspect_seeing_anti_aspect_seeing_648_650",
+          "anti_aspect_seeing_648"
+        ],
+        [
+          "syn_aspect_seeing_anti_aspect_seeing_648_650",
+          "aspect_seeing"
+        ]
+      ]
+    },
+    {
+      "step": 1227,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "use",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 1229,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "understanding",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1231,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "seeing_as",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 1233,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "understanding",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1235,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "rule_following",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1237,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "private_language",
+          "form_of_life"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_form_of_life_anti_form_of_life_1068_1070",
+          "anti_form_of_life_1068"
+        ],
+        [
+          "syn_form_of_life_anti_form_of_life_1068_1070",
+          "form_of_life"
+        ]
+      ]
+    },
+    {
+      "step": 1255,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "experience_of_meaning",
+          "understanding"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "anti_understanding_554"
+        ],
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "understanding"
+        ]
+      ]
+    },
+    {
+      "step": 1257,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "use",
+          "private_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "anti_private_language_1059"
+        ],
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "private_language"
+        ]
+      ]
+    },
+    {
+      "step": 1259,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "language",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1262,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "thinking",
+          "language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_language_568",
+          "language"
+        ],
+        [
+          "syn_use_language_568",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1264,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mental_process",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1266,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "sensation",
+          "understanding"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "anti_understanding_554"
+        ],
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "understanding"
+        ]
+      ]
+    },
+    {
+      "step": 1268,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "private_language",
+          "mental_process"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mental_process_anti_mental_process_856_858",
+          "anti_mental_process_856"
+        ],
+        [
+          "syn_mental_process_anti_mental_process_856_858",
+          "mental_process"
+        ]
+      ]
+    },
+    {
+      "step": 1270,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "understanding",
+          "sensation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_sensation_anti_sensation_1095_1097",
+          "anti_sensation_1095"
+        ],
+        [
+          "syn_sensation_anti_sensation_1095_1097",
+          "sensation"
+        ]
+      ]
+    },
+    {
+      "step": 1272,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "use",
+          "understanding"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "anti_understanding_554"
+        ],
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "understanding"
+        ]
+      ]
+    },
+    {
+      "step": 1274,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "thinking",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1276,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mental_process",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1278,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "psychology_confusion",
+          "sensation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_sensation_anti_sensation_1095_1097",
+          "anti_sensation_1095"
+        ],
+        [
+          "syn_sensation_anti_sensation_1095_1097",
+          "sensation"
+        ]
+      ]
+    },
+    {
+      "step": 1280,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mental_process",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1283,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "understanding",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1285,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "seeing_as",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 1287,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "understanding",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1289,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "use",
+          "understanding"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "anti_understanding_554"
+        ],
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "understanding"
+        ]
+      ]
+    },
+    {
+      "step": 1291,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1294,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1296,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "aspect_seeing",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 1299,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "aspect_seeing",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 1302,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "aspect_seeing",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 1304,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "aspect_seeing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_aspect_seeing_anti_aspect_seeing_648_650",
+          "anti_aspect_seeing_648"
+        ],
+        [
+          "syn_aspect_seeing_anti_aspect_seeing_648_650",
+          "aspect_seeing"
+        ]
+      ]
+    },
+    {
+      "step": 1306,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "picture",
+          "private_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "anti_private_language_1059"
+        ],
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "private_language"
+        ]
+      ]
+    },
+    {
+      "step": 1308,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "aspect_seeing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_aspect_seeing_anti_aspect_seeing_648_650",
+          "anti_aspect_seeing_648"
+        ],
+        [
+          "syn_aspect_seeing_anti_aspect_seeing_648_650",
+          "aspect_seeing"
+        ]
+      ]
+    },
+    {
+      "step": 1310,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "use",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 1312,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "rule",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1314,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "private_language",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1316,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "sensation",
+          "rule"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_rule_667",
+          "rule"
+        ],
+        [
+          "syn_use_rule_667",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1318,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mental_process",
+          "private_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "anti_private_language_1059"
+        ],
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "private_language"
+        ]
+      ]
+    },
+    {
+      "step": 1320,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "psychology_confusion",
+          "sensation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_sensation_anti_sensation_1095_1097",
+          "anti_sensation_1095"
+        ],
+        [
+          "syn_sensation_anti_sensation_1095_1097",
+          "sensation"
+        ]
+      ]
+    },
+    {
+      "step": 1322,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mental_process",
+          "private_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "anti_private_language_1059"
+        ],
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "private_language"
+        ]
+      ]
+    },
+    {
+      "step": 1324,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "understanding",
+          "sensation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_sensation_anti_sensation_1095_1097",
+          "anti_sensation_1095"
+        ],
+        [
+          "syn_sensation_anti_sensation_1095_1097",
+          "sensation"
+        ]
+      ]
+    },
+    {
+      "step": 1326,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_use_understanding_677",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 1328,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "understanding",
+          "sensation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_sensation_anti_sensation_1095_1097",
+          "anti_sensation_1095"
+        ],
+        [
+          "syn_sensation_anti_sensation_1095_1097",
+          "sensation"
+        ]
+      ]
+    },
+    {
+      "step": 1330,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "use",
+          "understanding"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "anti_understanding_554"
+        ],
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "understanding"
+        ]
+      ]
+    },
+    {
+      "step": 1332,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "grammar",
+          "mental_process"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mental_process_anti_mental_process_856_858",
+          "anti_mental_process_856"
+        ],
+        [
+          "syn_mental_process_anti_mental_process_856_858",
+          "mental_process"
+        ]
+      ]
+    },
+    {
+      "step": 1339,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "inner_outer",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 1341,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "private_language",
+          "grammar"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_grammar_anti_grammar_425_427",
+          "anti_grammar_425"
+        ],
+        [
+          "syn_grammar_anti_grammar_425_427",
+          "grammar"
+        ]
+      ]
+    },
+    {
+      "step": 1343,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "rule",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1345,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "use",
+          "rule"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_rule_667",
+          "rule"
+        ],
+        [
+          "syn_use_rule_667",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1347,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "grammar",
+          "private_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "anti_private_language_1059"
+        ],
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "private_language"
+        ]
+      ]
+    },
+    {
+      "step": 1364,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "private_language",
+          "grammar"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_grammar_anti_grammar_425_427",
+          "anti_grammar_425"
+        ],
+        [
+          "syn_grammar_anti_grammar_425_427",
+          "grammar"
+        ]
+      ]
+    },
+    {
+      "step": 1366,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "sensation",
+          "rule"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_rule_667",
+          "rule"
+        ],
+        [
+          "syn_use_rule_667",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1368,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mental_process",
+          "private_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "anti_private_language_1059"
+        ],
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "private_language"
+        ]
+      ]
+    },
+    {
+      "step": 1370,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "understanding",
+          "sensation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_sensation_anti_sensation_1095_1097",
+          "anti_sensation_1095"
+        ],
+        [
+          "syn_sensation_anti_sensation_1095_1097",
+          "sensation"
+        ]
+      ]
+    },
+    {
+      "step": 1372,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "language",
+          "understanding"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "anti_understanding_554"
+        ],
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "understanding"
+        ]
+      ]
+    },
+    {
+      "step": 1374,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_use_language_568",
+          "understanding"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "anti_understanding_554"
+        ],
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "understanding"
+        ]
+      ]
+    },
+    {
+      "step": 1376,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "language",
+          "understanding"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "anti_understanding_554"
+        ],
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "understanding"
+        ]
+      ]
+    },
+    {
+      "step": 1378,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "use",
+          "language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_language_568",
+          "language"
+        ],
+        [
+          "syn_use_language_568",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1380,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1383,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1385,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "picture",
+          "private_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "anti_private_language_1059"
+        ],
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "private_language"
+        ]
+      ]
+    },
+    {
+      "step": 1387,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1389,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "aspect_seeing",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 1392,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "aspect_seeing",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 1395,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "aspect_seeing",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 1397,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "aspect_seeing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_aspect_seeing_anti_aspect_seeing_648_650",
+          "anti_aspect_seeing_648"
+        ],
+        [
+          "syn_aspect_seeing_anti_aspect_seeing_648_650",
+          "aspect_seeing"
+        ]
+      ]
+    },
+    {
+      "step": 1400,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "aspect_seeing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_aspect_seeing_anti_aspect_seeing_648_650",
+          "anti_aspect_seeing_648"
+        ],
+        [
+          "syn_aspect_seeing_anti_aspect_seeing_648_650",
+          "aspect_seeing"
+        ]
+      ]
+    },
+    {
+      "step": 1402,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "picture",
+          "private_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "anti_private_language_1059"
+        ],
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "private_language"
+        ]
+      ]
+    },
+    {
+      "step": 1404,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "aspect_seeing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_aspect_seeing_anti_aspect_seeing_648_650",
+          "anti_aspect_seeing_648"
+        ],
+        [
+          "syn_aspect_seeing_anti_aspect_seeing_648_650",
+          "aspect_seeing"
+        ]
+      ]
+    },
+    {
+      "step": 1406,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "aspect_seeing",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 1409,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "aspect_seeing",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 1412,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "aspect_seeing",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 1414,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_meaning_aspect_seeing_1178",
+          "picture"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_picture_anti_picture_250_252",
+          "anti_picture_250"
+        ],
+        [
+          "syn_picture_anti_picture_250_252",
+          "picture"
+        ]
+      ]
+    },
+    {
+      "step": 1416,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "aspect_seeing",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 1419,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "aspect_seeing",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 1421,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "aspect_seeing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_aspect_seeing_anti_aspect_seeing_648_650",
+          "anti_aspect_seeing_648"
+        ],
+        [
+          "syn_aspect_seeing_anti_aspect_seeing_648_650",
+          "aspect_seeing"
+        ]
+      ]
+    },
+    {
+      "step": 1424,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "aspect_seeing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_aspect_seeing_anti_aspect_seeing_648_650",
+          "anti_aspect_seeing_648"
+        ],
+        [
+          "syn_aspect_seeing_anti_aspect_seeing_648_650",
+          "aspect_seeing"
+        ]
+      ]
+    },
+    {
+      "step": 1426,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "use",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 1428,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "understanding",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1430,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "private_language",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1432,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "rule",
+          "understanding"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "anti_understanding_554"
+        ],
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "understanding"
+        ]
+      ]
+    },
+    {
+      "step": 1435,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "rule",
+          "understanding"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "anti_understanding_554"
+        ],
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "understanding"
+        ]
+      ]
+    },
+    {
+      "step": 1437,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "use",
+          "rule"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_rule_667",
+          "rule"
+        ],
+        [
+          "syn_use_rule_667",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1439,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "intransitive_use",
+          "understanding"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "anti_understanding_554"
+        ],
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "understanding"
+        ]
+      ]
+    },
+    {
+      "step": 1441,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "use",
+          "rule"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_rule_667",
+          "rule"
+        ],
+        [
+          "syn_use_rule_667",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1443,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "understanding",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1445,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "language",
+          "understanding"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "anti_understanding_554"
+        ],
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "understanding"
+        ]
+      ]
+    },
+    {
+      "step": 1447,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_use_language_568",
+          "understanding"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "anti_understanding_554"
+        ],
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "understanding"
+        ]
+      ]
+    },
+    {
+      "step": 1449,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "language",
+          "understanding"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "anti_understanding_554"
+        ],
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "understanding"
+        ]
+      ]
+    },
+    {
+      "step": 1451,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "use",
+          "language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_language_568",
+          "language"
+        ],
+        [
+          "syn_use_language_568",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1453,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1455,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "picture",
+          "private_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "anti_private_language_1059"
+        ],
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "private_language"
+        ]
+      ]
+    },
+    {
+      "step": 1457,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1460,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1462,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "use",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 1464,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "language",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1466,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_use_language_568",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 1468,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "language",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1470,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "understanding",
+          "language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_language_568",
+          "language"
+        ],
+        [
+          "syn_use_language_568",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1472,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "seeing_as",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 1474,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "understanding",
+          "language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_language_568",
+          "language"
+        ],
+        [
+          "syn_use_language_568",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1476,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_use_understanding_677",
+          "language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_language_568",
+          "language"
+        ],
+        [
+          "syn_use_language_568",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1478,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "understanding",
+          "language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_language_568",
+          "language"
+        ],
+        [
+          "syn_use_language_568",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1480,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mental_process",
+          "private_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "anti_private_language_1059"
+        ],
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "private_language"
+        ]
+      ]
+    },
+    {
+      "step": 1482,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "sensation",
+          "understanding"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "anti_understanding_554"
+        ],
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "understanding"
+        ]
+      ]
+    },
+    {
+      "step": 1485,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "sensation",
+          "understanding"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "anti_understanding_554"
+        ],
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "understanding"
+        ]
+      ]
+    },
+    {
+      "step": 1487,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "private_language",
+          "mental_process"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mental_process_anti_mental_process_856_858",
+          "anti_mental_process_856"
+        ],
+        [
+          "syn_mental_process_anti_mental_process_856_858",
+          "mental_process"
+        ]
+      ]
+    },
+    {
+      "step": 1489,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "inner_outer",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 1491,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "private_language",
+          "mental_process"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mental_process_anti_mental_process_856_858",
+          "anti_mental_process_856"
+        ],
+        [
+          "syn_mental_process_anti_mental_process_856_858",
+          "mental_process"
+        ]
+      ]
+    },
+    {
+      "step": 1496,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "private_language",
+          "mental_process"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mental_process_anti_mental_process_856_858",
+          "anti_mental_process_856"
+        ],
+        [
+          "syn_mental_process_anti_mental_process_856_858",
+          "mental_process"
+        ]
+      ]
+    },
+    {
+      "step": 1498,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "rule",
+          "sensation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_sensation_anti_sensation_1095_1097",
+          "anti_sensation_1095"
+        ],
+        [
+          "syn_sensation_anti_sensation_1095_1097",
+          "sensation"
+        ]
+      ]
+    },
+    {
+      "step": 1500,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "use",
+          "rule"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_rule_667",
+          "rule"
+        ],
+        [
+          "syn_use_rule_667",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1502,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1504,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "aspect_seeing",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 1507,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "aspect_seeing",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 1527,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "certainty_PI",
+          "private_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "anti_private_language_1059"
+        ],
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "private_language"
+        ]
+      ]
+    },
+    {
+      "step": 1532,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_form_of_life_certainty_PI_1531",
+          "private_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "anti_private_language_1059"
+        ],
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "private_language"
+        ]
+      ]
+    },
+    {
+      "step": 1534,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "certainty_PI",
+          "form_of_life"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_form_of_life_anti_form_of_life_1068_1070",
+          "anti_form_of_life_1068"
+        ],
+        [
+          "syn_form_of_life_anti_form_of_life_1068_1070",
+          "form_of_life"
+        ]
+      ]
+    },
+    {
+      "step": 1536,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_form_of_life_certainty_PI_1531",
+          "private_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "anti_private_language_1059"
+        ],
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "private_language"
+        ]
+      ]
+    },
+    {
+      "step": 1538,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "certainty_PI",
+          "form_of_life"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_form_of_life_anti_form_of_life_1068_1070",
+          "anti_form_of_life_1068"
+        ],
+        [
+          "syn_form_of_life_anti_form_of_life_1068_1070",
+          "form_of_life"
+        ]
+      ]
+    },
+    {
+      "step": 1540,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_form_of_life_certainty_PI_1531",
+          "private_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "anti_private_language_1059"
+        ],
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "private_language"
+        ]
+      ]
+    },
+    {
+      "step": 1542,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "certainty_PI",
+          "form_of_life"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_form_of_life_anti_form_of_life_1068_1070",
+          "anti_form_of_life_1068"
+        ],
+        [
+          "syn_form_of_life_anti_form_of_life_1068_1070",
+          "form_of_life"
+        ]
+      ]
+    },
+    {
+      "step": 1544,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "form_of_life",
+          "certainty_PI"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_form_of_life_certainty_PI_1531",
+          "certainty_PI"
+        ],
+        [
+          "syn_form_of_life_certainty_PI_1531",
+          "form_of_life"
+        ]
+      ]
+    },
+    {
+      "step": 1563,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "reddish_green",
+          "colour"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_colour_anti_colour_1518_1520",
+          "anti_colour_1518"
+        ],
+        [
+          "syn_colour_anti_colour_1518_1520",
+          "colour"
+        ]
+      ]
+    },
+    {
+      "step": 1565,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "grammar",
+          "colour_geometry"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_colour_geometry_anti_colour_geometry_1510_1512",
+          "anti_colour_geometry_1510"
+        ],
+        [
+          "syn_colour_geometry_anti_colour_geometry_1510_1512",
+          "colour_geometry"
+        ]
+      ]
+    },
+    {
+      "step": 1568,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1571,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1573,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "aspect_seeing",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 1576,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "aspect_seeing",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 1578,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_meaning_aspect_seeing_1178",
+          "picture"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_picture_anti_picture_250_252",
+          "anti_picture_250"
+        ],
+        [
+          "syn_picture_anti_picture_250_252",
+          "picture"
+        ]
+      ]
+    },
+    {
+      "step": 1580,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "aspect_seeing",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 1583,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "colour_geometry",
+          "grammar"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_grammar_anti_grammar_425_427",
+          "anti_grammar_425"
+        ],
+        [
+          "syn_grammar_anti_grammar_425_427",
+          "grammar"
+        ]
+      ]
+    },
+    {
+      "step": 1598,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "colour",
+          "grammar"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_grammar_anti_grammar_425_427",
+          "anti_grammar_425"
+        ],
+        [
+          "syn_grammar_anti_grammar_425_427",
+          "grammar"
+        ]
+      ]
+    },
+    {
+      "step": 1600,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "grammar",
+          "colour"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_colour_anti_colour_1518_1520",
+          "anti_colour_1518"
+        ],
+        [
+          "syn_colour_anti_colour_1518_1520",
+          "colour"
+        ]
+      ]
+    },
+    {
+      "step": 1607,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "colour",
+          "grammar"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_grammar_anti_grammar_425_427",
+          "anti_grammar_425"
+        ],
+        [
+          "syn_grammar_anti_grammar_425_427",
+          "grammar"
+        ]
+      ]
+    },
+    {
+      "step": 1609,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "grammar",
+          "colour"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_colour_anti_colour_1518_1520",
+          "anti_colour_1518"
+        ],
+        [
+          "syn_colour_anti_colour_1518_1520",
+          "colour"
+        ]
+      ]
+    },
+    {
+      "step": 1626,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "philosophy",
+          "therapy"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_therapy_anti_therapy_1077_1079",
+          "anti_therapy_1077"
+        ],
+        [
+          "syn_therapy_anti_therapy_1077_1079",
+          "therapy"
+        ]
+      ]
+    },
+    {
+      "step": 1638,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mental_process",
+          "grammar"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_grammar_anti_grammar_425_427",
+          "anti_grammar_425"
+        ],
+        [
+          "syn_grammar_anti_grammar_425_427",
+          "grammar"
+        ]
+      ]
+    },
+    {
+      "step": 1640,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "psychology_confusion",
+          "sensation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_sensation_anti_sensation_1095_1097",
+          "anti_sensation_1095"
+        ],
+        [
+          "syn_sensation_anti_sensation_1095_1097",
+          "sensation"
+        ]
+      ]
+    },
+    {
+      "step": 1642,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mental_process",
+          "grammar"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_grammar_anti_grammar_425_427",
+          "anti_grammar_425"
+        ],
+        [
+          "syn_grammar_anti_grammar_425_427",
+          "grammar"
+        ]
+      ]
+    },
+    {
+      "step": 1644,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "understanding",
+          "sensation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_sensation_anti_sensation_1095_1097",
+          "anti_sensation_1095"
+        ],
+        [
+          "syn_sensation_anti_sensation_1095_1097",
+          "sensation"
+        ]
+      ]
+    },
+    {
+      "step": 1646,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "use",
+          "understanding"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "anti_understanding_554"
+        ],
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "understanding"
+        ]
+      ]
+    },
+    {
+      "step": 1648,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "intransitive_use",
+          "understanding"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "anti_understanding_554"
+        ],
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "understanding"
+        ]
+      ]
+    },
+    {
+      "step": 1650,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "use",
+          "understanding"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "anti_understanding_554"
+        ],
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "understanding"
+        ]
+      ]
+    },
+    {
+      "step": 1652,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "language",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1654,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_use_language_568",
+          "understanding"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "anti_understanding_554"
+        ],
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "understanding"
+        ]
+      ]
+    },
+    {
+      "step": 1656,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "language",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1658,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "understanding",
+          "language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_language_568",
+          "language"
+        ],
+        [
+          "syn_use_language_568",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1661,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "understanding",
+          "language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_language_568",
+          "language"
+        ],
+        [
+          "syn_use_language_568",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1663,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "private_language",
+          "language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_language_568",
+          "language"
+        ],
+        [
+          "syn_use_language_568",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1665,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "sensation",
+          "understanding"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "anti_understanding_554"
+        ],
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "understanding"
+        ]
+      ]
+    },
+    {
+      "step": 1667,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mental_process",
+          "private_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "anti_private_language_1059"
+        ],
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "private_language"
+        ]
+      ]
+    },
+    {
+      "step": 1669,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "psychology_confusion",
+          "sensation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_sensation_anti_sensation_1095_1097",
+          "anti_sensation_1095"
+        ],
+        [
+          "syn_sensation_anti_sensation_1095_1097",
+          "sensation"
+        ]
+      ]
+    },
+    {
+      "step": 1671,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mental_process",
+          "private_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "anti_private_language_1059"
+        ],
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "private_language"
+        ]
+      ]
+    },
+    {
+      "step": 1673,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "understanding",
+          "sensation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_sensation_anti_sensation_1095_1097",
+          "anti_sensation_1095"
+        ],
+        [
+          "syn_sensation_anti_sensation_1095_1097",
+          "sensation"
+        ]
+      ]
+    },
+    {
+      "step": 1675,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "private_language",
+          "mental_process"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mental_process_anti_mental_process_856_858",
+          "anti_mental_process_856"
+        ],
+        [
+          "syn_mental_process_anti_mental_process_856_858",
+          "mental_process"
+        ]
+      ]
+    },
+    {
+      "step": 1683,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "private_language",
+          "mental_process"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mental_process_anti_mental_process_856_858",
+          "anti_mental_process_856"
+        ],
+        [
+          "syn_mental_process_anti_mental_process_856_858",
+          "mental_process"
+        ]
+      ]
+    },
+    {
+      "step": 1685,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "sensation",
+          "understanding"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "anti_understanding_554"
+        ],
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "understanding"
+        ]
+      ]
+    },
+    {
+      "step": 1688,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "sensation",
+          "understanding"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "anti_understanding_554"
+        ],
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "understanding"
+        ]
+      ]
+    },
+    {
+      "step": 1690,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mental_process",
+          "private_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "anti_private_language_1059"
+        ],
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "private_language"
+        ]
+      ]
+    },
+    {
+      "step": 1692,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "psychology_confusion",
+          "sensation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_sensation_anti_sensation_1095_1097",
+          "anti_sensation_1095"
+        ],
+        [
+          "syn_sensation_anti_sensation_1095_1097",
+          "sensation"
+        ]
+      ]
+    },
+    {
+      "step": 1694,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mental_process",
+          "private_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "anti_private_language_1059"
+        ],
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "private_language"
+        ]
+      ]
+    },
+    {
+      "step": 1696,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "understanding",
+          "sensation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_sensation_anti_sensation_1095_1097",
+          "anti_sensation_1095"
+        ],
+        [
+          "syn_sensation_anti_sensation_1095_1097",
+          "sensation"
+        ]
+      ]
+    },
+    {
+      "step": 1698,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_use_understanding_677",
+          "language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_language_568",
+          "language"
+        ],
+        [
+          "syn_use_language_568",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1700,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "understanding",
+          "sensation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_sensation_anti_sensation_1095_1097",
+          "anti_sensation_1095"
+        ],
+        [
+          "syn_sensation_anti_sensation_1095_1097",
+          "sensation"
+        ]
+      ]
+    },
+    {
+      "step": 1702,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "language",
+          "understanding"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "anti_understanding_554"
+        ],
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "understanding"
+        ]
+      ]
+    },
+    {
+      "step": 1704,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "use",
+          "language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_language_568",
+          "language"
+        ],
+        [
+          "syn_use_language_568",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1706,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "intransitive_use",
+          "language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_language_568",
+          "language"
+        ],
+        [
+          "syn_use_language_568",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1708,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "use",
+          "language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_language_568",
+          "language"
+        ],
+        [
+          "syn_use_language_568",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1710,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "rule",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1713,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "rule",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1715,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "private_language",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1729,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "certainty",
+          "private_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "anti_private_language_1059"
+        ],
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "private_language"
+        ]
+      ]
+    },
+    {
+      "step": 1732,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "form_of_life",
+          "mental_process"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mental_process_anti_mental_process_856_858",
+          "anti_mental_process_856"
+        ],
+        [
+          "syn_mental_process_anti_mental_process_856_858",
+          "mental_process"
+        ]
+      ]
+    },
+    {
+      "step": 1735,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "form_of_life",
+          "mental_process"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mental_process_anti_mental_process_856_858",
+          "anti_mental_process_856"
+        ],
+        [
+          "syn_mental_process_anti_mental_process_856_858",
+          "mental_process"
+        ]
+      ]
+    },
+    {
+      "step": 1737,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "certainty_PI",
+          "form_of_life"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_form_of_life_anti_form_of_life_1068_1070",
+          "anti_form_of_life_1068"
+        ],
+        [
+          "syn_form_of_life_anti_form_of_life_1068_1070",
+          "form_of_life"
+        ]
+      ]
+    },
+    {
+      "step": 1739,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_form_of_life_certainty_PI_1531",
+          "private_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "anti_private_language_1059"
+        ],
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "private_language"
+        ]
+      ]
+    },
+    {
+      "step": 1741,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "certainty_PI",
+          "form_of_life"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_form_of_life_anti_form_of_life_1068_1070",
+          "anti_form_of_life_1068"
+        ],
+        [
+          "syn_form_of_life_anti_form_of_life_1068_1070",
+          "form_of_life"
+        ]
+      ]
+    },
+    {
+      "step": 1743,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_form_of_life_certainty_PI_1531",
+          "private_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "anti_private_language_1059"
+        ],
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "private_language"
+        ]
+      ]
+    },
+    {
+      "step": 1745,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "certainty_PI",
+          "form_of_life"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_form_of_life_anti_form_of_life_1068_1070",
+          "anti_form_of_life_1068"
+        ],
+        [
+          "syn_form_of_life_anti_form_of_life_1068_1070",
+          "form_of_life"
+        ]
+      ]
+    },
+    {
+      "step": 1747,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "form_of_life",
+          "certainty_PI"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_form_of_life_certainty_PI_1531",
+          "certainty_PI"
+        ],
+        [
+          "syn_form_of_life_certainty_PI_1531",
+          "form_of_life"
+        ]
+      ]
+    },
+    {
+      "step": 1749,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "private_language",
+          "syn_form_of_life_certainty_PI_1531"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_form_of_life_certainty_PI_1531",
+          "certainty_PI"
+        ],
+        [
+          "syn_form_of_life_certainty_PI_1531",
+          "form_of_life"
+        ]
+      ]
+    },
+    {
+      "step": 1751,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "understanding",
+          "rule"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_rule_667",
+          "rule"
+        ],
+        [
+          "syn_use_rule_667",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1753,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "use",
+          "understanding"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "anti_understanding_554"
+        ],
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "understanding"
+        ]
+      ]
+    },
+    {
+      "step": 1755,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1757,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "aspect_seeing",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 1765,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "form_of_life",
+          "certainty_PI"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_form_of_life_certainty_PI_1531",
+          "certainty_PI"
+        ],
+        [
+          "syn_form_of_life_certainty_PI_1531",
+          "form_of_life"
+        ]
+      ]
+    },
+    {
+      "step": 1769,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "form_of_life",
+          "certainty_PI"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_form_of_life_certainty_PI_1531",
+          "certainty_PI"
+        ],
+        [
+          "syn_form_of_life_certainty_PI_1531",
+          "form_of_life"
+        ]
+      ]
+    },
+    {
+      "step": 1779,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "form_of_life",
+          "certainty_PI"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_form_of_life_certainty_PI_1531",
+          "certainty_PI"
+        ],
+        [
+          "syn_form_of_life_certainty_PI_1531",
+          "form_of_life"
+        ]
+      ]
+    },
+    {
+      "step": 1789,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "certainty_PI",
+          "form_of_life"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_form_of_life_anti_form_of_life_1068_1070",
+          "anti_form_of_life_1068"
+        ],
+        [
+          "syn_form_of_life_anti_form_of_life_1068_1070",
+          "form_of_life"
+        ]
+      ]
+    },
+    {
+      "step": 1792,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "certainty_PI",
+          "form_of_life"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_form_of_life_anti_form_of_life_1068_1070",
+          "anti_form_of_life_1068"
+        ],
+        [
+          "syn_form_of_life_anti_form_of_life_1068_1070",
+          "form_of_life"
+        ]
+      ]
+    },
+    {
+      "step": 1794,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "form_of_life",
+          "certainty_PI"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_form_of_life_certainty_PI_1531",
+          "certainty_PI"
+        ],
+        [
+          "syn_form_of_life_certainty_PI_1531",
+          "form_of_life"
+        ]
+      ]
+    },
+    {
+      "step": 1796,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "private_language",
+          "syn_form_of_life_certainty_PI_1531"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_form_of_life_certainty_PI_1531",
+          "certainty_PI"
+        ],
+        [
+          "syn_form_of_life_certainty_PI_1531",
+          "form_of_life"
+        ]
+      ]
+    },
+    {
+      "step": 1808,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "form_of_life",
+          "certainty_PI"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_form_of_life_certainty_PI_1531",
+          "certainty_PI"
+        ],
+        [
+          "syn_form_of_life_certainty_PI_1531",
+          "form_of_life"
+        ]
+      ]
+    },
+    {
+      "step": 1810,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "private_language",
+          "syn_form_of_life_certainty_PI_1531"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_form_of_life_certainty_PI_1531",
+          "certainty_PI"
+        ],
+        [
+          "syn_form_of_life_certainty_PI_1531",
+          "form_of_life"
+        ]
+      ]
+    },
+    {
+      "step": 1816,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "expression",
+          "form_of_life"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_form_of_life_anti_form_of_life_1068_1070",
+          "anti_form_of_life_1068"
+        ],
+        [
+          "syn_form_of_life_anti_form_of_life_1068_1070",
+          "form_of_life"
+        ]
+      ]
+    },
+    {
+      "step": 1818,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "pretending",
+          "private_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "anti_private_language_1059"
+        ],
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "private_language"
+        ]
+      ]
+    },
+    {
+      "step": 1821,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "form_of_life",
+          "private_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "anti_private_language_1059"
+        ],
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "private_language"
+        ]
+      ]
+    },
+    {
+      "step": 1829,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "form_of_life",
+          "private_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "anti_private_language_1059"
+        ],
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "private_language"
+        ]
+      ]
+    },
+    {
+      "step": 1831,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "certainty_PI",
+          "form_of_life"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_form_of_life_anti_form_of_life_1068_1070",
+          "anti_form_of_life_1068"
+        ],
+        [
+          "syn_form_of_life_anti_form_of_life_1068_1070",
+          "form_of_life"
+        ]
+      ]
+    },
+    {
+      "step": 1833,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_form_of_life_certainty_PI_1531",
+          "private_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "anti_private_language_1059"
+        ],
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "private_language"
+        ]
+      ]
+    },
+    {
+      "step": 1835,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "certainty_PI",
+          "form_of_life"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_form_of_life_anti_form_of_life_1068_1070",
+          "anti_form_of_life_1068"
+        ],
+        [
+          "syn_form_of_life_anti_form_of_life_1068_1070",
+          "form_of_life"
+        ]
+      ]
+    },
+    {
+      "step": 1837,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_form_of_life_certainty_PI_1531",
+          "private_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "anti_private_language_1059"
+        ],
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "private_language"
+        ]
+      ]
+    },
+    {
+      "step": 1839,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "certainty_PI",
+          "form_of_life"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_form_of_life_anti_form_of_life_1068_1070",
+          "anti_form_of_life_1068"
+        ],
+        [
+          "syn_form_of_life_anti_form_of_life_1068_1070",
+          "form_of_life"
+        ]
+      ]
+    },
+    {
+      "step": 1841,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "form_of_life",
+          "certainty_PI"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_form_of_life_certainty_PI_1531",
+          "certainty_PI"
+        ],
+        [
+          "syn_form_of_life_certainty_PI_1531",
+          "form_of_life"
+        ]
+      ]
+    },
+    {
+      "step": 1848,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mental_process",
+          "form_of_life"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_form_of_life_anti_form_of_life_1068_1070",
+          "anti_form_of_life_1068"
+        ],
+        [
+          "syn_form_of_life_anti_form_of_life_1068_1070",
+          "form_of_life"
+        ]
+      ]
+    },
+    {
+      "step": 1853,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "private_language",
+          "mental_process"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mental_process_anti_mental_process_856_858",
+          "anti_mental_process_856"
+        ],
+        [
+          "syn_mental_process_anti_mental_process_856_858",
+          "mental_process"
+        ]
+      ]
+    },
+    {
+      "step": 1855,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "understanding",
+          "sensation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_sensation_anti_sensation_1095_1097",
+          "anti_sensation_1095"
+        ],
+        [
+          "syn_sensation_anti_sensation_1095_1097",
+          "sensation"
+        ]
+      ]
+    },
+    {
+      "step": 1857,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "use",
+          "understanding"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "anti_understanding_554"
+        ],
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "understanding"
+        ]
+      ]
+    },
+    {
+      "step": 1859,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "meaning",
+          "use"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_anti_use_444_446",
+          "anti_use_444"
+        ],
+        [
+          "syn_use_anti_use_444_446",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1861,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "aspect_seeing",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 1864,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "aspect_seeing",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 1867,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "aspect_seeing",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 1874,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "form_of_life",
+          "private_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "anti_private_language_1059"
+        ],
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "private_language"
+        ]
+      ]
+    },
+    {
+      "step": 1876,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "pretending",
+          "private_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "anti_private_language_1059"
+        ],
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "private_language"
+        ]
+      ]
+    },
+    {
+      "step": 1878,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "form_of_life",
+          "private_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "anti_private_language_1059"
+        ],
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "private_language"
+        ]
+      ]
+    },
+    {
+      "step": 1880,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "private_language",
+          "form_of_life"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_form_of_life_anti_form_of_life_1068_1070",
+          "anti_form_of_life_1068"
+        ],
+        [
+          "syn_form_of_life_anti_form_of_life_1068_1070",
+          "form_of_life"
+        ]
+      ]
+    },
+    {
+      "step": 1882,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "understanding",
+          "aspect_seeing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_aspect_seeing_anti_aspect_seeing_648_650",
+          "anti_aspect_seeing_648"
+        ],
+        [
+          "syn_aspect_seeing_anti_aspect_seeing_648_650",
+          "aspect_seeing"
+        ]
+      ]
+    },
+    {
+      "step": 1884,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_use_understanding_677",
+          "meaning"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "anti_meaning_452"
+        ],
+        [
+          "syn_meaning_anti_meaning_452_454",
+          "meaning"
+        ]
+      ]
+    },
+    {
+      "step": 1886,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "understanding",
+          "aspect_seeing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_aspect_seeing_anti_aspect_seeing_648_650",
+          "anti_aspect_seeing_648"
+        ],
+        [
+          "syn_aspect_seeing_anti_aspect_seeing_648_650",
+          "aspect_seeing"
+        ]
+      ]
+    },
+    {
+      "step": 1888,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "language",
+          "understanding"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "anti_understanding_554"
+        ],
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "understanding"
+        ]
+      ]
+    },
+    {
+      "step": 1890,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_use_language_568",
+          "understanding"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "anti_understanding_554"
+        ],
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "understanding"
+        ]
+      ]
+    },
+    {
+      "step": 1892,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "language",
+          "understanding"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "anti_understanding_554"
+        ],
+        [
+          "syn_understanding_anti_understanding_554_556",
+          "understanding"
+        ]
+      ]
+    },
+    {
+      "step": 1894,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "use",
+          "language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_use_language_568",
+          "language"
+        ],
+        [
+          "syn_use_language_568",
+          "use"
+        ]
+      ]
+    },
+    {
+      "step": 1896,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "grammar",
+          "private_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "anti_private_language_1059"
+        ],
+        [
+          "syn_private_language_anti_private_language_1059_1061",
+          "private_language"
+        ]
+      ]
+    }
+  ]
+}

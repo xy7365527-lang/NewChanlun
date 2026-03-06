@@ -1,0 +1,6318 @@
+{
+  "experiment": "hegel_full_incremental",
+  "source": "Hegel Collected Works — 23 works (1795-1831)",
+  "methodology": "manual dialectical complex per work, incremental injection, digestion until 50-step beta_1 stability",
+  "work_results": [
+    {
+      "work": "1795: Life of Jesus",
+      "work_index": 1,
+      "vertices_added": 9,
+      "edges_added": 10,
+      "vertices_total": 9,
+      "edges_total": 10,
+      "beta_1_before_injection": 1,
+      "beta_1_after_digestion": 1,
+      "delta_beta_1": 0,
+      "settled_cycles": 0,
+      "blocked_in_work": 0,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 50,
+      "operation_counts": {
+        "walk": 50
+      }
+    },
+    {
+      "work": "1795-96: Positivity of the Christian Religion",
+      "work_index": 2,
+      "vertices_added": 7,
+      "edges_added": 10,
+      "vertices_total": 17,
+      "edges_total": 23,
+      "beta_1_before_injection": 4,
+      "beta_1_after_digestion": 4,
+      "delta_beta_1": 0,
+      "settled_cycles": 1,
+      "blocked_in_work": 0,
+      "steps_to_digest": 63,
+      "converged": true,
+      "cumulative_steps": 113,
+      "operation_counts": {
+        "walk": 60,
+        "negate_b": 1,
+        "sublate": 1,
+        "fold": 1
+      }
+    },
+    {
+      "work": "1798-99: Spirit of Christianity and its Fate",
+      "work_index": 3,
+      "vertices_added": 11,
+      "edges_added": 16,
+      "vertices_total": 27,
+      "edges_total": 42,
+      "beta_1_before_injection": 9,
+      "beta_1_after_digestion": 7,
+      "delta_beta_1": -2,
+      "settled_cycles": 2,
+      "blocked_in_work": 0,
+      "steps_to_digest": 96,
+      "converged": true,
+      "cumulative_steps": 209,
+      "operation_counts": {
+        "walk": 91,
+        "fold": 3,
+        "negate_b": 1,
+        "sublate": 1
+      }
+    },
+    {
+      "work": "1797-98: Fragment on Love",
+      "work_index": 4,
+      "vertices_added": 4,
+      "edges_added": 5,
+      "vertices_total": 31,
+      "edges_total": 46,
+      "beta_1_before_injection": 7,
+      "beta_1_after_digestion": 7,
+      "delta_beta_1": 0,
+      "settled_cycles": 2,
+      "blocked_in_work": 0,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 259,
+      "operation_counts": {
+        "walk": 50
+      }
+    },
+    {
+      "work": "1800: Fragment of a System",
+      "work_index": 5,
+      "vertices_added": 6,
+      "edges_added": 11,
+      "vertices_total": 40,
+      "edges_total": 64,
+      "beta_1_before_injection": 12,
+      "beta_1_after_digestion": 14,
+      "delta_beta_1": 2,
+      "settled_cycles": 3,
+      "blocked_in_work": 0,
+      "steps_to_digest": 68,
+      "converged": true,
+      "cumulative_steps": 327,
+      "operation_counts": {
+        "walk": 63,
+        "negate_b": 2,
+        "sublate": 2,
+        "fold": 1
+      }
+    },
+    {
+      "work": "1801: Difference Essay (Differenzschrift)",
+      "work_index": 6,
+      "vertices_added": 10,
+      "edges_added": 13,
+      "vertices_total": 52,
+      "edges_total": 80,
+      "beta_1_before_injection": 16,
+      "beta_1_after_digestion": 17,
+      "delta_beta_1": 1,
+      "settled_cycles": 4,
+      "blocked_in_work": 0,
+      "steps_to_digest": 60,
+      "converged": true,
+      "cumulative_steps": 387,
+      "operation_counts": {
+        "walk": 58,
+        "negate_b": 1,
+        "sublate": 1
+      }
+    },
+    {
+      "work": "1802: Faith and Knowledge",
+      "work_index": 7,
+      "vertices_added": 9,
+      "edges_added": 17,
+      "vertices_total": 62,
+      "edges_total": 105,
+      "beta_1_before_injection": 25,
+      "beta_1_after_digestion": 26,
+      "delta_beta_1": 1,
+      "settled_cycles": 6,
+      "blocked_in_work": 13,
+      "steps_to_digest": 67,
+      "converged": true,
+      "cumulative_steps": 454,
+      "operation_counts": {
+        "walk": 47,
+        "fold": 3,
+        "negate_b": 2,
+        "sublate": 2,
+        "fold_blocked": 13
+      }
+    },
+    {
+      "work": "1802-03: Natural Law Essay",
+      "work_index": 8,
+      "vertices_added": 7,
+      "edges_added": 11,
+      "vertices_total": 69,
+      "edges_total": 115,
+      "beta_1_before_injection": 28,
+      "beta_1_after_digestion": 28,
+      "delta_beta_1": 0,
+      "settled_cycles": 6,
+      "blocked_in_work": 30,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 504,
+      "operation_counts": {
+        "fold_blocked": 17,
+        "walk": 33
+      }
+    },
+    {
+      "work": "1802-03: System of Ethical Life",
+      "work_index": 9,
+      "vertices_added": 10,
+      "edges_added": 14,
+      "vertices_total": 79,
+      "edges_total": 129,
+      "beta_1_before_injection": 31,
+      "beta_1_after_digestion": 31,
+      "delta_beta_1": 0,
+      "settled_cycles": 6,
+      "blocked_in_work": 47,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 554,
+      "operation_counts": {
+        "walk": 33,
+        "fold_blocked": 17
+      }
+    },
+    {
+      "work": "1805-06: Jena Realphilosophie",
+      "work_index": 10,
+      "vertices_added": 11,
+      "edges_added": 15,
+      "vertices_total": 90,
+      "edges_total": 144,
+      "beta_1_before_injection": 35,
+      "beta_1_after_digestion": 35,
+      "delta_beta_1": 0,
+      "settled_cycles": 6,
+      "blocked_in_work": 63,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 604,
+      "operation_counts": {
+        "walk": 34,
+        "fold_blocked": 16
+      }
+    },
+    {
+      "work": "1807: Phenomenology of Spirit",
+      "work_index": 11,
+      "vertices_added": 20,
+      "edges_added": 29,
+      "vertices_total": 110,
+      "edges_total": 173,
+      "beta_1_before_injection": 44,
+      "beta_1_after_digestion": 44,
+      "delta_beta_1": 0,
+      "settled_cycles": 6,
+      "blocked_in_work": 80,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 654,
+      "operation_counts": {
+        "fold_blocked": 17,
+        "walk": 33
+      }
+    },
+    {
+      "work": "1812: Science of Logic — Doctrine of Being",
+      "work_index": 12,
+      "vertices_added": 18,
+      "edges_added": 25,
+      "vertices_total": 128,
+      "edges_total": 198,
+      "beta_1_before_injection": 50,
+      "beta_1_after_digestion": 50,
+      "delta_beta_1": 0,
+      "settled_cycles": 6,
+      "blocked_in_work": 97,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 704,
+      "operation_counts": {
+        "walk": 33,
+        "fold_blocked": 17
+      }
+    },
+    {
+      "work": "1813: Science of Logic — Doctrine of Essence",
+      "work_index": 13,
+      "vertices_added": 18,
+      "edges_added": 25,
+      "vertices_total": 146,
+      "edges_total": 223,
+      "beta_1_before_injection": 56,
+      "beta_1_after_digestion": 56,
+      "delta_beta_1": 0,
+      "settled_cycles": 6,
+      "blocked_in_work": 113,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 754,
+      "operation_counts": {
+        "walk": 34,
+        "fold_blocked": 16
+      }
+    },
+    {
+      "work": "1816: Science of Logic — Doctrine of the Concept",
+      "work_index": 14,
+      "vertices_added": 16,
+      "edges_added": 25,
+      "vertices_total": 162,
+      "edges_total": 248,
+      "beta_1_before_injection": 65,
+      "beta_1_after_digestion": 65,
+      "delta_beta_1": 0,
+      "settled_cycles": 6,
+      "blocked_in_work": 130,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 804,
+      "operation_counts": {
+        "fold_blocked": 17,
+        "walk": 33
+      }
+    },
+    {
+      "work": "1817/1830: Encyclopedia — Logic",
+      "work_index": 15,
+      "vertices_added": 11,
+      "edges_added": 21,
+      "vertices_total": 173,
+      "edges_total": 268,
+      "beta_1_before_injection": 73,
+      "beta_1_after_digestion": 73,
+      "delta_beta_1": 0,
+      "settled_cycles": 6,
+      "blocked_in_work": 147,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 854,
+      "operation_counts": {
+        "walk": 33,
+        "fold_blocked": 17
+      }
+    },
+    {
+      "work": "1817/1830: Encyclopedia — Philosophy of Nature",
+      "work_index": 16,
+      "vertices_added": 13,
+      "edges_added": 19,
+      "vertices_total": 186,
+      "edges_total": 287,
+      "beta_1_before_injection": 78,
+      "beta_1_after_digestion": 78,
+      "delta_beta_1": 0,
+      "settled_cycles": 6,
+      "blocked_in_work": 163,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 904,
+      "operation_counts": {
+        "walk": 34,
+        "fold_blocked": 16
+      }
+    },
+    {
+      "work": "1817/1830: Encyclopedia — Philosophy of Spirit",
+      "work_index": 17,
+      "vertices_added": 16,
+      "edges_added": 24,
+      "vertices_total": 202,
+      "edges_total": 311,
+      "beta_1_before_injection": 86,
+      "beta_1_after_digestion": 86,
+      "delta_beta_1": 0,
+      "settled_cycles": 6,
+      "blocked_in_work": 180,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 954,
+      "operation_counts": {
+        "fold_blocked": 17,
+        "walk": 33
+      }
+    },
+    {
+      "work": "1820: Philosophy of Right",
+      "work_index": 18,
+      "vertices_added": 25,
+      "edges_added": 35,
+      "vertices_total": 227,
+      "edges_total": 346,
+      "beta_1_before_injection": 96,
+      "beta_1_after_digestion": 96,
+      "delta_beta_1": 0,
+      "settled_cycles": 6,
+      "blocked_in_work": 197,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 1004,
+      "operation_counts": {
+        "walk": 33,
+        "fold_blocked": 17
+      }
+    },
+    {
+      "work": "1820s: Lectures on Aesthetics",
+      "work_index": 19,
+      "vertices_added": 15,
+      "edges_added": 22,
+      "vertices_total": 242,
+      "edges_total": 368,
+      "beta_1_before_injection": 103,
+      "beta_1_after_digestion": 103,
+      "delta_beta_1": 0,
+      "settled_cycles": 6,
+      "blocked_in_work": 213,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 1054,
+      "operation_counts": {
+        "walk": 34,
+        "fold_blocked": 16
+      }
+    },
+    {
+      "work": "1821-31: Lectures on Philosophy of Religion",
+      "work_index": 20,
+      "vertices_added": 17,
+      "edges_added": 25,
+      "vertices_total": 259,
+      "edges_total": 392,
+      "beta_1_before_injection": 110,
+      "beta_1_after_digestion": 110,
+      "delta_beta_1": 0,
+      "settled_cycles": 6,
+      "blocked_in_work": 230,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 1104,
+      "operation_counts": {
+        "fold_blocked": 17,
+        "walk": 33
+      }
+    },
+    {
+      "work": "1819-31: Lectures on History of Philosophy",
+      "work_index": 21,
+      "vertices_added": 19,
+      "edges_added": 26,
+      "vertices_total": 278,
+      "edges_total": 418,
+      "beta_1_before_injection": 117,
+      "beta_1_after_digestion": 117,
+      "delta_beta_1": 0,
+      "settled_cycles": 6,
+      "blocked_in_work": 247,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 1154,
+      "operation_counts": {
+        "walk": 33,
+        "fold_blocked": 17
+      }
+    },
+    {
+      "work": "1822-31: Lectures on Philosophy of World History",
+      "work_index": 22,
+      "vertices_added": 14,
+      "edges_added": 22,
+      "vertices_total": 292,
+      "edges_total": 440,
+      "beta_1_before_injection": 125,
+      "beta_1_after_digestion": 125,
+      "delta_beta_1": 0,
+      "settled_cycles": 6,
+      "blocked_in_work": 263,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 1204,
+      "operation_counts": {
+        "walk": 34,
+        "fold_blocked": 16
+      }
+    },
+    {
+      "work": "1826-31: Berlin Writings",
+      "work_index": 23,
+      "vertices_added": 7,
+      "edges_added": 12,
+      "vertices_total": 299,
+      "edges_total": 452,
+      "beta_1_before_injection": 130,
+      "beta_1_after_digestion": 130,
+      "delta_beta_1": 0,
+      "settled_cycles": 6,
+      "blocked_in_work": 280,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 1254,
+      "operation_counts": {
+        "fold_blocked": 17,
+        "walk": 33
+      }
+    }
+  ],
+  "beta_1_curve": [
+    {
+      "work_index": 1,
+      "work_name": "1795: Life of Jesus",
+      "beta_1": 1,
+      "cumulative_steps": 50
+    },
+    {
+      "work_index": 2,
+      "work_name": "1795-96: Positivity of the Christian Religion",
+      "beta_1": 4,
+      "cumulative_steps": 113
+    },
+    {
+      "work_index": 3,
+      "work_name": "1798-99: Spirit of Christianity and its Fate",
+      "beta_1": 7,
+      "cumulative_steps": 209
+    },
+    {
+      "work_index": 4,
+      "work_name": "1797-98: Fragment on Love",
+      "beta_1": 7,
+      "cumulative_steps": 259
+    },
+    {
+      "work_index": 5,
+      "work_name": "1800: Fragment of a System",
+      "beta_1": 14,
+      "cumulative_steps": 327
+    },
+    {
+      "work_index": 6,
+      "work_name": "1801: Difference Essay (Differenzschrift)",
+      "beta_1": 17,
+      "cumulative_steps": 387
+    },
+    {
+      "work_index": 7,
+      "work_name": "1802: Faith and Knowledge",
+      "beta_1": 26,
+      "cumulative_steps": 454
+    },
+    {
+      "work_index": 8,
+      "work_name": "1802-03: Natural Law Essay",
+      "beta_1": 28,
+      "cumulative_steps": 504
+    },
+    {
+      "work_index": 9,
+      "work_name": "1802-03: System of Ethical Life",
+      "beta_1": 31,
+      "cumulative_steps": 554
+    },
+    {
+      "work_index": 10,
+      "work_name": "1805-06: Jena Realphilosophie",
+      "beta_1": 35,
+      "cumulative_steps": 604
+    },
+    {
+      "work_index": 11,
+      "work_name": "1807: Phenomenology of Spirit",
+      "beta_1": 44,
+      "cumulative_steps": 654
+    },
+    {
+      "work_index": 12,
+      "work_name": "1812: Science of Logic — Doctrine of Being",
+      "beta_1": 50,
+      "cumulative_steps": 704
+    },
+    {
+      "work_index": 13,
+      "work_name": "1813: Science of Logic — Doctrine of Essence",
+      "beta_1": 56,
+      "cumulative_steps": 754
+    },
+    {
+      "work_index": 14,
+      "work_name": "1816: Science of Logic — Doctrine of the Concept",
+      "beta_1": 65,
+      "cumulative_steps": 804
+    },
+    {
+      "work_index": 15,
+      "work_name": "1817/1830: Encyclopedia — Logic",
+      "beta_1": 73,
+      "cumulative_steps": 854
+    },
+    {
+      "work_index": 16,
+      "work_name": "1817/1830: Encyclopedia — Philosophy of Nature",
+      "beta_1": 78,
+      "cumulative_steps": 904
+    },
+    {
+      "work_index": 17,
+      "work_name": "1817/1830: Encyclopedia — Philosophy of Spirit",
+      "beta_1": 86,
+      "cumulative_steps": 954
+    },
+    {
+      "work_index": 18,
+      "work_name": "1820: Philosophy of Right",
+      "beta_1": 96,
+      "cumulative_steps": 1004
+    },
+    {
+      "work_index": 19,
+      "work_name": "1820s: Lectures on Aesthetics",
+      "beta_1": 103,
+      "cumulative_steps": 1054
+    },
+    {
+      "work_index": 20,
+      "work_name": "1821-31: Lectures on Philosophy of Religion",
+      "beta_1": 110,
+      "cumulative_steps": 1104
+    },
+    {
+      "work_index": 21,
+      "work_name": "1819-31: Lectures on History of Philosophy",
+      "beta_1": 117,
+      "cumulative_steps": 1154
+    },
+    {
+      "work_index": 22,
+      "work_name": "1822-31: Lectures on Philosophy of World History",
+      "beta_1": 125,
+      "cumulative_steps": 1204
+    },
+    {
+      "work_index": 23,
+      "work_name": "1826-31: Berlin Writings",
+      "beta_1": 130,
+      "cumulative_steps": 1254
+    }
+  ],
+  "final_complex": {
+    "vertices_active": 299,
+    "edges_active": 452,
+    "beta_1": 130,
+    "settled_cycles": 6,
+    "edge_type_distribution": {
+      "dependency": 210,
+      "negation": 133,
+      "reference": 74,
+      "sublation": 32,
+      "fold": 3
+    },
+    "terrain_distribution": {
+      "tree": 307,
+      "critical": 129
+    },
+    "critical_edge_ratio": 0.2958715596330275,
+    "negation_density": 0.2942477876106195
+  },
+  "total_steps": 1254,
+  "elapsed_seconds": 1.27,
+  "settled_cycles_detail": [
+    {
+      "edges": [
+        [
+          "syn_positive_religion_anti_positive_religion_54_56",
+          "anti_positive_religion_54"
+        ],
+        [
+          "syn_positive_religion_anti_positive_religion_54_56",
+          "positive_religion"
+        ]
+      ],
+      "settled_at_step": 66
+    },
+    {
+      "edges": [
+        [
+          "syn_positivity_anti_positivity_157_159",
+          "anti_positivity_157"
+        ],
+        [
+          "syn_positivity_anti_positivity_157_159",
+          "positivity"
+        ]
+      ],
+      "settled_at_step": 169
+    },
+    {
+      "edges": [
+        [
+          "syn_religion_elevation_anti_religion_elevation_275_277",
+          "anti_religion_elevation_275"
+        ],
+        [
+          "syn_religion_elevation_anti_religion_elevation_275_277",
+          "religion_elevation"
+        ]
+      ],
+      "settled_at_step": 287
+    },
+    {
+      "edges": [
+        [
+          "syn_fichte_subjectivity_anti_fichte_subjectivity_335_337",
+          "anti_fichte_subjectivity_335"
+        ],
+        [
+          "syn_fichte_subjectivity_anti_fichte_subjectivity_335_337",
+          "fichte_subjectivity"
+        ]
+      ],
+      "settled_at_step": 347
+    },
+    {
+      "edges": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ],
+      "settled_at_step": 406
+    },
+    {
+      "edges": [
+        [
+          "syn_faith_knowledge_opposition_anti_faith_knowledge_opposition_402_404",
+          "anti_faith_knowledge_opposition_402"
+        ],
+        [
+          "syn_faith_knowledge_opposition_anti_faith_knowledge_opposition_402_404",
+          "faith_knowledge_opposition"
+        ]
+      ],
+      "settled_at_step": 414
+    }
+  ],
+  "blocked_log": [
+    {
+      "step": 416,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 419,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 422,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 425,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 428,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 431,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 434,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 437,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 440,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 443,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 446,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 449,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 452,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 455,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 458,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 461,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 464,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 467,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 470,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 473,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 476,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 479,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 482,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 485,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 488,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 491,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 494,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 497,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 500,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 503,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 506,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 509,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 512,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 515,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 518,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 521,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 524,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 527,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 530,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 533,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 536,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 539,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 542,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 545,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 548,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 551,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 554,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 557,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 560,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 563,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 566,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 569,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 572,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 575,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 578,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 581,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 584,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 587,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 590,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 593,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 596,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 599,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 602,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 605,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 608,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 611,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 614,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 617,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 620,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 623,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 626,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 629,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 632,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 635,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 638,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 641,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 644,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 647,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 650,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 653,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 656,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 659,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 662,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 665,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 668,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 671,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 674,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 677,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 680,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 683,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 686,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 689,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 692,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 695,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 698,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 701,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 704,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 707,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 710,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 713,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 716,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 719,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 722,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 725,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 728,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 731,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 734,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 737,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 740,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 743,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 746,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 749,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 752,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 755,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 758,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 761,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 764,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 767,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 770,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 773,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 776,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 779,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 782,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 785,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 788,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 791,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 794,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 797,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 800,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 803,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 806,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 809,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 812,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 815,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 818,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 821,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 824,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 827,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 830,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 833,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 836,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 839,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 842,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 845,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 848,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 851,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 854,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 857,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 860,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 863,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 866,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 869,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 872,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 875,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 878,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 881,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 884,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 887,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 890,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 893,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 896,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 899,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 902,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 905,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 908,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 911,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 914,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 917,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 920,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 923,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 926,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 929,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 932,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 935,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 938,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 941,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 944,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 947,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 950,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 953,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 956,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 959,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 962,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 965,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 968,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 971,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 974,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 977,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 980,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 983,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 986,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 989,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 992,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 995,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 998,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1001,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1004,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1007,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1010,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1013,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1016,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1019,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1022,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1025,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1028,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1031,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1034,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1037,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1040,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1043,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1046,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1049,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1052,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1055,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1058,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1061,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1064,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1067,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1070,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1073,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1076,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1079,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1082,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1085,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1088,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1091,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1094,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1097,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1100,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1103,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1106,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1109,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1112,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1115,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1118,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1121,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1124,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1127,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1130,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1133,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1136,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1139,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1142,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1145,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1148,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1151,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1154,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1157,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1160,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1163,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1166,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1169,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1172,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1175,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1178,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1181,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1184,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1187,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1190,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1193,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1196,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1199,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1202,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1205,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1208,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1211,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1214,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1217,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1220,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1223,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1226,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1229,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1232,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1235,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1238,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1241,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1244,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1247,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1250,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    },
+    {
+      "step": 1253,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "highest_totality",
+          "death_of_god_speculative"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "anti_death_of_god_speculative_394"
+        ],
+        [
+          "syn_death_of_god_speculative_anti_death_of_god_speculative_394_396",
+          "death_of_god_speculative"
+        ]
+      ]
+    }
+  ]
+}

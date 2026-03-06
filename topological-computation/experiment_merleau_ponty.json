@@ -1,0 +1,3857 @@
+{
+  "experiment": "merleau_ponty_complete_works_incremental",
+  "source": "Merleau-Ponty — complete works, 15 entries (1942-1961)",
+  "methodology": "manual conceptual complex per work, incremental injection, digestion until 50-step beta_1 stability",
+  "work_results": [
+    {
+      "work": "1942: The Structure of Behavior",
+      "work_index": 1,
+      "vertices_added": 12,
+      "edges_added": 14,
+      "vertices_total": 12,
+      "edges_total": 18,
+      "beta_1_before_injection": 3,
+      "beta_1_after_digestion": 3,
+      "delta_beta_1": 0,
+      "settled_cycles": 0,
+      "blocked_in_work": 0,
+      "steps_to_digest": 64,
+      "converged": true,
+      "cumulative_steps": 64,
+      "operation_counts": {
+        "walk": 60,
+        "fold": 2,
+        "negate_b": 1,
+        "sublate": 1
+      }
+    },
+    {
+      "work": "1945: Phenomenology of Perception",
+      "work_index": 2,
+      "vertices_added": 18,
+      "edges_added": 29,
+      "vertices_total": 28,
+      "edges_total": 59,
+      "beta_1_before_injection": 14,
+      "beta_1_after_digestion": 15,
+      "delta_beta_1": 1,
+      "settled_cycles": 3,
+      "blocked_in_work": 5,
+      "steps_to_digest": 100,
+      "converged": true,
+      "cumulative_steps": 164,
+      "operation_counts": {
+        "walk": 82,
+        "fold": 7,
+        "negate_a": 1,
+        "sublate": 3,
+        "negate_b": 2,
+        "fold_blocked": 5
+      }
+    },
+    {
+      "work": "1946: The Primacy of Perception",
+      "work_index": 3,
+      "vertices_added": 4,
+      "edges_added": 8,
+      "vertices_total": 31,
+      "edges_total": 66,
+      "beta_1_before_injection": 18,
+      "beta_1_after_digestion": 17,
+      "delta_beta_1": -1,
+      "settled_cycles": 3,
+      "blocked_in_work": 7,
+      "steps_to_digest": 66,
+      "converged": true,
+      "cumulative_steps": 230,
+      "operation_counts": {
+        "walk": 63,
+        "fold_blocked": 2,
+        "fold": 1
+      }
+    },
+    {
+      "work": "1947: Humanism and Terror",
+      "work_index": 4,
+      "vertices_added": 8,
+      "edges_added": 12,
+      "vertices_total": 37,
+      "edges_total": 76,
+      "beta_1_before_injection": 19,
+      "beta_1_after_digestion": 17,
+      "delta_beta_1": -2,
+      "settled_cycles": 3,
+      "blocked_in_work": 7,
+      "steps_to_digest": 67,
+      "converged": true,
+      "cumulative_steps": 297,
+      "operation_counts": {
+        "walk": 65,
+        "fold": 2
+      }
+    },
+    {
+      "work": "1948: Sense and Non-Sense",
+      "work_index": 5,
+      "vertices_added": 7,
+      "edges_added": 12,
+      "vertices_total": 44,
+      "edges_total": 82,
+      "beta_1_before_injection": 17,
+      "beta_1_after_digestion": 17,
+      "delta_beta_1": 0,
+      "settled_cycles": 3,
+      "blocked_in_work": 7,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 347,
+      "operation_counts": {
+        "walk": 50
+      }
+    },
+    {
+      "work": "1949-1952 (posth. 2001): Child Psychology lectures",
+      "work_index": 6,
+      "vertices_added": 5,
+      "edges_added": 10,
+      "vertices_total": 53,
+      "edges_total": 96,
+      "beta_1_before_injection": 20,
+      "beta_1_after_digestion": 22,
+      "delta_beta_1": 2,
+      "settled_cycles": 5,
+      "blocked_in_work": 7,
+      "steps_to_digest": 70,
+      "converged": true,
+      "cumulative_steps": 417,
+      "operation_counts": {
+        "walk": 66,
+        "negate_b": 2,
+        "sublate": 2
+      }
+    },
+    {
+      "work": "1951: Phenomenology and the Sciences of Man",
+      "work_index": 7,
+      "vertices_added": 3,
+      "edges_added": 6,
+      "vertices_total": 56,
+      "edges_total": 104,
+      "beta_1_before_injection": 23,
+      "beta_1_after_digestion": 24,
+      "delta_beta_1": 1,
+      "settled_cycles": 6,
+      "blocked_in_work": 22,
+      "steps_to_digest": 53,
+      "converged": true,
+      "cumulative_steps": 470,
+      "operation_counts": {
+        "walk": 35,
+        "negate_a": 1,
+        "sublate": 1,
+        "fold_blocked": 15,
+        "fold": 1
+      }
+    },
+    {
+      "work": "1953: In Praise of Philosophy",
+      "work_index": 8,
+      "vertices_added": 4,
+      "edges_added": 6,
+      "vertices_total": 60,
+      "edges_total": 108,
+      "beta_1_before_injection": 25,
+      "beta_1_after_digestion": 25,
+      "delta_beta_1": 0,
+      "settled_cycles": 6,
+      "blocked_in_work": 44,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 520,
+      "operation_counts": {
+        "fold_blocked": 22,
+        "walk": 28
+      }
+    },
+    {
+      "work": "1954-1955 (posth. 2003): Institution and Passivity",
+      "work_index": 9,
+      "vertices_added": 7,
+      "edges_added": 12,
+      "vertices_total": 67,
+      "edges_total": 118,
+      "beta_1_before_injection": 28,
+      "beta_1_after_digestion": 28,
+      "delta_beta_1": 0,
+      "settled_cycles": 6,
+      "blocked_in_work": 69,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 570,
+      "operation_counts": {
+        "fold_blocked": 25,
+        "walk": 25
+      }
+    },
+    {
+      "work": "1955: Adventures of the Dialectic",
+      "work_index": 10,
+      "vertices_added": 8,
+      "edges_added": 14,
+      "vertices_total": 75,
+      "edges_total": 129,
+      "beta_1_before_injection": 31,
+      "beta_1_after_digestion": 31,
+      "delta_beta_1": 0,
+      "settled_cycles": 6,
+      "blocked_in_work": 94,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 620,
+      "operation_counts": {
+        "fold_blocked": 25,
+        "walk": 25
+      }
+    },
+    {
+      "work": "1956-1960 (posth. 1995): Nature lectures",
+      "work_index": 11,
+      "vertices_added": 7,
+      "edges_added": 15,
+      "vertices_total": 82,
+      "edges_total": 140,
+      "beta_1_before_injection": 35,
+      "beta_1_after_digestion": 35,
+      "delta_beta_1": 0,
+      "settled_cycles": 6,
+      "blocked_in_work": 119,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 670,
+      "operation_counts": {
+        "fold_blocked": 25,
+        "walk": 25
+      }
+    },
+    {
+      "work": "1952-1959 (posth. 1969): The Prose of the World",
+      "work_index": 12,
+      "vertices_added": 8,
+      "edges_added": 15,
+      "vertices_total": 94,
+      "edges_total": 163,
+      "beta_1_before_injection": 41,
+      "beta_1_after_digestion": 42,
+      "delta_beta_1": 1,
+      "settled_cycles": 9,
+      "blocked_in_work": 123,
+      "steps_to_digest": 115,
+      "converged": true,
+      "cumulative_steps": 785,
+      "operation_counts": {
+        "fold_blocked": 4,
+        "walk": 103,
+        "negate_b": 3,
+        "sublate": 3,
+        "fold": 2
+      }
+    },
+    {
+      "work": "1960: Signs",
+      "work_index": 13,
+      "vertices_added": 5,
+      "edges_added": 10,
+      "vertices_total": 99,
+      "edges_total": 173,
+      "beta_1_before_injection": 44,
+      "beta_1_after_digestion": 44,
+      "delta_beta_1": 0,
+      "settled_cycles": 10,
+      "blocked_in_work": 128,
+      "steps_to_digest": 67,
+      "converged": true,
+      "cumulative_steps": 852,
+      "operation_counts": {
+        "walk": 59,
+        "fold": 1,
+        "negate_a": 1,
+        "sublate": 1,
+        "fold_blocked": 5
+      }
+    },
+    {
+      "work": "1961: Eye and Mind",
+      "work_index": 14,
+      "vertices_added": 6,
+      "edges_added": 13,
+      "vertices_total": 108,
+      "edges_total": 187,
+      "beta_1_before_injection": 46,
+      "beta_1_after_digestion": 47,
+      "delta_beta_1": 1,
+      "settled_cycles": 11,
+      "blocked_in_work": 135,
+      "steps_to_digest": 72,
+      "converged": true,
+      "cumulative_steps": 924,
+      "operation_counts": {
+        "walk": 60,
+        "negate_b": 2,
+        "sublate": 2,
+        "fold": 1,
+        "fold_blocked": 7
+      }
+    },
+    {
+      "work": "1959-1961 (posth. 1964): The Visible and the Invisible",
+      "work_index": 15,
+      "vertices_added": 11,
+      "edges_added": 23,
+      "vertices_total": 115,
+      "edges_total": 207,
+      "beta_1_before_injection": 53,
+      "beta_1_after_digestion": 49,
+      "delta_beta_1": -4,
+      "settled_cycles": 12,
+      "blocked_in_work": 163,
+      "steps_to_digest": 90,
+      "converged": true,
+      "cumulative_steps": 1014,
+      "operation_counts": {
+        "walk": 55,
+        "fold_blocked": 28,
+        "fold": 5,
+        "negate_a": 1,
+        "sublate": 1
+      }
+    }
+  ],
+  "beta_1_curve": [
+    {
+      "work_index": 1,
+      "work_name": "1942: The Structure of Behavior",
+      "beta_1": 3,
+      "cumulative_steps": 64
+    },
+    {
+      "work_index": 2,
+      "work_name": "1945: Phenomenology of Perception",
+      "beta_1": 15,
+      "cumulative_steps": 164
+    },
+    {
+      "work_index": 3,
+      "work_name": "1946: The Primacy of Perception",
+      "beta_1": 17,
+      "cumulative_steps": 230
+    },
+    {
+      "work_index": 4,
+      "work_name": "1947: Humanism and Terror",
+      "beta_1": 17,
+      "cumulative_steps": 297
+    },
+    {
+      "work_index": 5,
+      "work_name": "1948: Sense and Non-Sense",
+      "beta_1": 17,
+      "cumulative_steps": 347
+    },
+    {
+      "work_index": 6,
+      "work_name": "1949-1952 (posth. 2001): Child Psychology lectures",
+      "beta_1": 22,
+      "cumulative_steps": 417
+    },
+    {
+      "work_index": 7,
+      "work_name": "1951: Phenomenology and the Sciences of Man",
+      "beta_1": 24,
+      "cumulative_steps": 470
+    },
+    {
+      "work_index": 8,
+      "work_name": "1953: In Praise of Philosophy",
+      "beta_1": 25,
+      "cumulative_steps": 520
+    },
+    {
+      "work_index": 9,
+      "work_name": "1954-1955 (posth. 2003): Institution and Passivity",
+      "beta_1": 28,
+      "cumulative_steps": 570
+    },
+    {
+      "work_index": 10,
+      "work_name": "1955: Adventures of the Dialectic",
+      "beta_1": 31,
+      "cumulative_steps": 620
+    },
+    {
+      "work_index": 11,
+      "work_name": "1956-1960 (posth. 1995): Nature lectures",
+      "beta_1": 35,
+      "cumulative_steps": 670
+    },
+    {
+      "work_index": 12,
+      "work_name": "1952-1959 (posth. 1969): The Prose of the World",
+      "beta_1": 42,
+      "cumulative_steps": 785
+    },
+    {
+      "work_index": 13,
+      "work_name": "1960: Signs",
+      "beta_1": 44,
+      "cumulative_steps": 852
+    },
+    {
+      "work_index": 14,
+      "work_name": "1961: Eye and Mind",
+      "beta_1": 47,
+      "cumulative_steps": 924
+    },
+    {
+      "work_index": 15,
+      "work_name": "1959-1961 (posth. 1964): The Visible and the Invisible",
+      "beta_1": 49,
+      "cumulative_steps": 1014
+    }
+  ],
+  "final_complex": {
+    "vertices_active": 115,
+    "edges_active": 207,
+    "beta_1": 49,
+    "settled_cycles": 12,
+    "edge_type_distribution": {
+      "dependency": 114,
+      "negation": 28,
+      "sublation": 40,
+      "fold": 5,
+      "reference": 20
+    },
+    "terrain_distribution": {
+      "tree": 118,
+      "critical": 44
+    },
+    "critical_edge_ratio": 0.2716049382716049,
+    "negation_density": 0.13526570048309178
+  },
+  "total_steps": 1014,
+  "settled_cycles_detail": [
+    {
+      "edges": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ],
+      "settled_at_step": 86
+    },
+    {
+      "edges": [
+        [
+          "subject",
+          "subject"
+        ]
+      ],
+      "settled_at_step": 86
+    },
+    {
+      "edges": [
+        [
+          "syn_subject_anti_subject_77_79",
+          "anti_subject_77"
+        ],
+        [
+          "syn_subject_anti_subject_77_79",
+          "subject"
+        ]
+      ],
+      "settled_at_step": 89
+    },
+    {
+      "edges": [
+        [
+          "syn_schema_corporel_anti_schema_corporel_354_356",
+          "anti_schema_corporel_354"
+        ],
+        [
+          "syn_schema_corporel_anti_schema_corporel_354_356",
+          "schema_corporel"
+        ]
+      ],
+      "settled_at_step": 366
+    },
+    {
+      "edges": [
+        [
+          "syn_speech_anti_speech_365_367",
+          "anti_speech_365"
+        ],
+        [
+          "syn_speech_anti_speech_365_367",
+          "speech"
+        ]
+      ],
+      "settled_at_step": 377
+    },
+    {
+      "edges": [
+        [
+          "syn_perception_subject_420",
+          "perception"
+        ],
+        [
+          "syn_perception_subject_420",
+          "subject"
+        ]
+      ],
+      "settled_at_step": 430
+    },
+    {
+      "edges": [
+        [
+          "syn_expression_anti_expression_679_681",
+          "anti_expression_679"
+        ],
+        [
+          "syn_expression_anti_expression_679_681",
+          "expression"
+        ]
+      ],
+      "settled_at_step": 691
+    },
+    {
+      "edges": [
+        [
+          "syn_dialectic_anti_dialectic_713_715",
+          "anti_dialectic_713"
+        ],
+        [
+          "syn_dialectic_anti_dialectic_713_715",
+          "dialectic"
+        ]
+      ],
+      "settled_at_step": 725
+    },
+    {
+      "edges": [
+        [
+          "syn_nature_anti_nature_733_735",
+          "anti_nature_733"
+        ],
+        [
+          "syn_nature_anti_nature_733_735",
+          "nature"
+        ]
+      ],
+      "settled_at_step": 745
+    },
+    {
+      "edges": [
+        [
+          "syn_speech_expression_802",
+          "expression"
+        ],
+        [
+          "syn_speech_expression_802",
+          "speech"
+        ]
+      ],
+      "settled_at_step": 812
+    },
+    {
+      "edges": [
+        [
+          "syn_vision_anti_vision_856_858",
+          "anti_vision_856"
+        ],
+        [
+          "syn_vision_anti_vision_856_858",
+          "vision"
+        ]
+      ],
+      "settled_at_step": 868
+    },
+    {
+      "edges": [
+        [
+          "syn_embryology_nature_960",
+          "embryology"
+        ],
+        [
+          "syn_embryology_nature_960",
+          "nature"
+        ]
+      ],
+      "settled_at_step": 970
+    }
+  ],
+  "blocked_log": [
+    {
+      "step": 95,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "intentionality",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 98,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 100,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "phenomenal_field",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 108,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "subject",
+          "perception"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 112,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 175,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perceived_world",
+          "perception"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 178,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perceived_world",
+          "perception"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 421,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_perception_subject_420",
+          "speech"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_speech_anti_speech_365_367",
+          "anti_speech_365"
+        ],
+        [
+          "syn_speech_anti_speech_365_367",
+          "speech"
+        ]
+      ]
+    },
+    {
+      "step": 428,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "structure",
+          "perception"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 431,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "structure",
+          "perception"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 434,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "structure",
+          "perception"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 437,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "structure",
+          "perception"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 440,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "subject",
+          "perception"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 447,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "subject",
+          "perception"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 454,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 456,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_perception_subject_420",
+          "speech"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_speech_anti_speech_365_367",
+          "anti_speech_365"
+        ],
+        [
+          "syn_speech_anti_speech_365_367",
+          "speech"
+        ]
+      ]
+    },
+    {
+      "step": 458,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 460,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "speech",
+          "syn_perception_subject_420"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_perception_subject_420",
+          "perception"
+        ],
+        [
+          "syn_perception_subject_420",
+          "subject"
+        ]
+      ]
+    },
+    {
+      "step": 463,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "speech",
+          "syn_perception_subject_420"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_perception_subject_420",
+          "perception"
+        ],
+        [
+          "syn_perception_subject_420",
+          "subject"
+        ]
+      ]
+    },
+    {
+      "step": 465,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 467,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_perception_subject_420",
+          "speech"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_speech_anti_speech_365_367",
+          "anti_speech_365"
+        ],
+        [
+          "syn_speech_anti_speech_365_367",
+          "speech"
+        ]
+      ]
+    },
+    {
+      "step": 469,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 471,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "speech",
+          "syn_perception_subject_420"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_perception_subject_420",
+          "perception"
+        ],
+        [
+          "syn_perception_subject_420",
+          "subject"
+        ]
+      ]
+    },
+    {
+      "step": 474,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "speech",
+          "syn_perception_subject_420"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_perception_subject_420",
+          "perception"
+        ],
+        [
+          "syn_perception_subject_420",
+          "subject"
+        ]
+      ]
+    },
+    {
+      "step": 477,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "speech",
+          "syn_perception_subject_420"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_perception_subject_420",
+          "perception"
+        ],
+        [
+          "syn_perception_subject_420",
+          "subject"
+        ]
+      ]
+    },
+    {
+      "step": 479,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 481,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_perception_subject_420",
+          "speech"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_speech_anti_speech_365_367",
+          "anti_speech_365"
+        ],
+        [
+          "syn_speech_anti_speech_365_367",
+          "speech"
+        ]
+      ]
+    },
+    {
+      "step": 483,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 485,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_perception_subject_420",
+          "speech"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_speech_anti_speech_365_367",
+          "anti_speech_365"
+        ],
+        [
+          "syn_speech_anti_speech_365_367",
+          "speech"
+        ]
+      ]
+    },
+    {
+      "step": 487,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 489,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "speech",
+          "syn_perception_subject_420"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_perception_subject_420",
+          "perception"
+        ],
+        [
+          "syn_perception_subject_420",
+          "subject"
+        ]
+      ]
+    },
+    {
+      "step": 492,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "speech",
+          "syn_perception_subject_420"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_perception_subject_420",
+          "perception"
+        ],
+        [
+          "syn_perception_subject_420",
+          "subject"
+        ]
+      ]
+    },
+    {
+      "step": 494,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 496,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_perception_subject_420",
+          "speech"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_speech_anti_speech_365_367",
+          "anti_speech_365"
+        ],
+        [
+          "syn_speech_anti_speech_365_367",
+          "speech"
+        ]
+      ]
+    },
+    {
+      "step": 498,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 500,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_perception_subject_420",
+          "speech"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_speech_anti_speech_365_367",
+          "anti_speech_365"
+        ],
+        [
+          "syn_speech_anti_speech_365_367",
+          "speech"
+        ]
+      ]
+    },
+    {
+      "step": 502,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 504,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "speech",
+          "syn_perception_subject_420"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_perception_subject_420",
+          "perception"
+        ],
+        [
+          "syn_perception_subject_420",
+          "subject"
+        ]
+      ]
+    },
+    {
+      "step": 507,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "speech",
+          "syn_perception_subject_420"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_perception_subject_420",
+          "perception"
+        ],
+        [
+          "syn_perception_subject_420",
+          "subject"
+        ]
+      ]
+    },
+    {
+      "step": 510,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "speech",
+          "syn_perception_subject_420"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_perception_subject_420",
+          "perception"
+        ],
+        [
+          "syn_perception_subject_420",
+          "subject"
+        ]
+      ]
+    },
+    {
+      "step": 512,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 514,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_perception_subject_420",
+          "speech"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_speech_anti_speech_365_367",
+          "anti_speech_365"
+        ],
+        [
+          "syn_speech_anti_speech_365_367",
+          "speech"
+        ]
+      ]
+    },
+    {
+      "step": 516,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 518,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "speech",
+          "syn_perception_subject_420"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_perception_subject_420",
+          "perception"
+        ],
+        [
+          "syn_perception_subject_420",
+          "subject"
+        ]
+      ]
+    },
+    {
+      "step": 521,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "speech",
+          "syn_perception_subject_420"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_perception_subject_420",
+          "perception"
+        ],
+        [
+          "syn_perception_subject_420",
+          "subject"
+        ]
+      ]
+    },
+    {
+      "step": 523,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 525,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_perception_subject_420",
+          "speech"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_speech_anti_speech_365_367",
+          "anti_speech_365"
+        ],
+        [
+          "syn_speech_anti_speech_365_367",
+          "speech"
+        ]
+      ]
+    },
+    {
+      "step": 527,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 529,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "subject",
+          "perception"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 531,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 533,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "speech",
+          "syn_perception_subject_420"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_perception_subject_420",
+          "perception"
+        ],
+        [
+          "syn_perception_subject_420",
+          "subject"
+        ]
+      ]
+    },
+    {
+      "step": 535,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 537,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_perception_subject_420",
+          "speech"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_speech_anti_speech_365_367",
+          "anti_speech_365"
+        ],
+        [
+          "syn_speech_anti_speech_365_367",
+          "speech"
+        ]
+      ]
+    },
+    {
+      "step": 539,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 541,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "subject",
+          "perception"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 543,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 545,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "speech",
+          "syn_perception_subject_420"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_perception_subject_420",
+          "perception"
+        ],
+        [
+          "syn_perception_subject_420",
+          "subject"
+        ]
+      ]
+    },
+    {
+      "step": 547,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 549,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_perception_subject_420",
+          "speech"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_speech_anti_speech_365_367",
+          "anti_speech_365"
+        ],
+        [
+          "syn_speech_anti_speech_365_367",
+          "speech"
+        ]
+      ]
+    },
+    {
+      "step": 551,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 553,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "subject",
+          "perception"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 555,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 557,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "speech",
+          "syn_perception_subject_420"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_perception_subject_420",
+          "perception"
+        ],
+        [
+          "syn_perception_subject_420",
+          "subject"
+        ]
+      ]
+    },
+    {
+      "step": 559,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 561,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_perception_subject_420",
+          "speech"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_speech_anti_speech_365_367",
+          "anti_speech_365"
+        ],
+        [
+          "syn_speech_anti_speech_365_367",
+          "speech"
+        ]
+      ]
+    },
+    {
+      "step": 563,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 565,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "subject",
+          "perception"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 567,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 569,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "speech",
+          "syn_perception_subject_420"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_perception_subject_420",
+          "perception"
+        ],
+        [
+          "syn_perception_subject_420",
+          "subject"
+        ]
+      ]
+    },
+    {
+      "step": 571,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 573,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_perception_subject_420",
+          "speech"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_speech_anti_speech_365_367",
+          "anti_speech_365"
+        ],
+        [
+          "syn_speech_anti_speech_365_367",
+          "speech"
+        ]
+      ]
+    },
+    {
+      "step": 575,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 577,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "subject",
+          "perception"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 579,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 581,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "speech",
+          "syn_perception_subject_420"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_perception_subject_420",
+          "perception"
+        ],
+        [
+          "syn_perception_subject_420",
+          "subject"
+        ]
+      ]
+    },
+    {
+      "step": 583,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 585,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_perception_subject_420",
+          "speech"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_speech_anti_speech_365_367",
+          "anti_speech_365"
+        ],
+        [
+          "syn_speech_anti_speech_365_367",
+          "speech"
+        ]
+      ]
+    },
+    {
+      "step": 587,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 589,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "subject",
+          "perception"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 591,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 593,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "speech",
+          "syn_perception_subject_420"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_perception_subject_420",
+          "perception"
+        ],
+        [
+          "syn_perception_subject_420",
+          "subject"
+        ]
+      ]
+    },
+    {
+      "step": 595,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 597,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_perception_subject_420",
+          "speech"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_speech_anti_speech_365_367",
+          "anti_speech_365"
+        ],
+        [
+          "syn_speech_anti_speech_365_367",
+          "speech"
+        ]
+      ]
+    },
+    {
+      "step": 599,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 601,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "subject",
+          "perception"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 603,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 605,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "speech",
+          "syn_perception_subject_420"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_perception_subject_420",
+          "perception"
+        ],
+        [
+          "syn_perception_subject_420",
+          "subject"
+        ]
+      ]
+    },
+    {
+      "step": 607,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 609,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_perception_subject_420",
+          "speech"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_speech_anti_speech_365_367",
+          "anti_speech_365"
+        ],
+        [
+          "syn_speech_anti_speech_365_367",
+          "speech"
+        ]
+      ]
+    },
+    {
+      "step": 611,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 613,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "subject",
+          "perception"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 615,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 617,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "speech",
+          "syn_perception_subject_420"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_perception_subject_420",
+          "perception"
+        ],
+        [
+          "syn_perception_subject_420",
+          "subject"
+        ]
+      ]
+    },
+    {
+      "step": 619,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 621,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_perception_subject_420",
+          "speech"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_speech_anti_speech_365_367",
+          "anti_speech_365"
+        ],
+        [
+          "syn_speech_anti_speech_365_367",
+          "speech"
+        ]
+      ]
+    },
+    {
+      "step": 623,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 625,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "subject",
+          "perception"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 627,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 629,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "speech",
+          "syn_perception_subject_420"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_perception_subject_420",
+          "perception"
+        ],
+        [
+          "syn_perception_subject_420",
+          "subject"
+        ]
+      ]
+    },
+    {
+      "step": 631,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 633,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_perception_subject_420",
+          "speech"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_speech_anti_speech_365_367",
+          "anti_speech_365"
+        ],
+        [
+          "syn_speech_anti_speech_365_367",
+          "speech"
+        ]
+      ]
+    },
+    {
+      "step": 635,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 637,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "subject",
+          "perception"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 639,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 641,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "speech",
+          "syn_perception_subject_420"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_perception_subject_420",
+          "perception"
+        ],
+        [
+          "syn_perception_subject_420",
+          "subject"
+        ]
+      ]
+    },
+    {
+      "step": 643,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 645,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_perception_subject_420",
+          "speech"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_speech_anti_speech_365_367",
+          "anti_speech_365"
+        ],
+        [
+          "syn_speech_anti_speech_365_367",
+          "speech"
+        ]
+      ]
+    },
+    {
+      "step": 647,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 649,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "subject",
+          "perception"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 651,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 653,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "speech",
+          "syn_perception_subject_420"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_perception_subject_420",
+          "perception"
+        ],
+        [
+          "syn_perception_subject_420",
+          "subject"
+        ]
+      ]
+    },
+    {
+      "step": 655,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 657,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_perception_subject_420",
+          "speech"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_speech_anti_speech_365_367",
+          "anti_speech_365"
+        ],
+        [
+          "syn_speech_anti_speech_365_367",
+          "speech"
+        ]
+      ]
+    },
+    {
+      "step": 659,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 661,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "subject",
+          "perception"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 663,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 665,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "speech",
+          "syn_perception_subject_420"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_perception_subject_420",
+          "perception"
+        ],
+        [
+          "syn_perception_subject_420",
+          "subject"
+        ]
+      ]
+    },
+    {
+      "step": 667,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 669,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_perception_subject_420",
+          "speech"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_speech_anti_speech_365_367",
+          "anti_speech_365"
+        ],
+        [
+          "syn_speech_anti_speech_365_367",
+          "speech"
+        ]
+      ]
+    },
+    {
+      "step": 671,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 673,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "subject",
+          "perception"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 675,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 677,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "speech",
+          "syn_perception_subject_420"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_perception_subject_420",
+          "perception"
+        ],
+        [
+          "syn_perception_subject_420",
+          "subject"
+        ]
+      ]
+    },
+    {
+      "step": 811,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "subject",
+          "perception"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 813,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 815,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_perception_subject_420",
+          "speech"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_speech_anti_speech_365_367",
+          "anti_speech_365"
+        ],
+        [
+          "syn_speech_anti_speech_365_367",
+          "speech"
+        ]
+      ]
+    },
+    {
+      "step": 817,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 819,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "speech",
+          "syn_perception_subject_420"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_perception_subject_420",
+          "perception"
+        ],
+        [
+          "syn_perception_subject_420",
+          "subject"
+        ]
+      ]
+    },
+    {
+      "step": 906,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "subject",
+          "nature"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_nature_anti_nature_733_735",
+          "anti_nature_733"
+        ],
+        [
+          "syn_nature_anti_nature_733_735",
+          "nature"
+        ]
+      ]
+    },
+    {
+      "step": 908,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 911,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 913,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "speech",
+          "syn_perception_subject_420"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_perception_subject_420",
+          "perception"
+        ],
+        [
+          "syn_perception_subject_420",
+          "subject"
+        ]
+      ]
+    },
+    {
+      "step": 920,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "speech",
+          "syn_perception_subject_420"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_perception_subject_420",
+          "perception"
+        ],
+        [
+          "syn_perception_subject_420",
+          "subject"
+        ]
+      ]
+    },
+    {
+      "step": 922,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 924,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_perception_subject_420",
+          "speech"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_speech_anti_speech_365_367",
+          "anti_speech_365"
+        ],
+        [
+          "syn_speech_anti_speech_365_367",
+          "speech"
+        ]
+      ]
+    },
+    {
+      "step": 926,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 928,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "subject",
+          "perception"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 930,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "perception",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 932,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "speech",
+          "syn_perception_subject_420"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_perception_subject_420",
+          "perception"
+        ],
+        [
+          "syn_perception_subject_420",
+          "subject"
+        ]
+      ]
+    },
+    {
+      "step": 948,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "flesh",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 951,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "flesh",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 953,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "world",
+          "perception"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 956,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "nature",
+          "perception"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 962,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "nature",
+          "perception"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 966,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "nature",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 969,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "nature",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 971,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "embryology",
+          "perception"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 974,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "embryology",
+          "perception"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 977,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "embryology",
+          "perception"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 979,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "nature",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 982,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "nature",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 985,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "nature",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 987,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "embryology",
+          "perception"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 990,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "embryology",
+          "perception"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 993,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "embryology",
+          "perception"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 995,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "nature",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 998,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "nature",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 1001,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "nature",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 1003,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "embryology",
+          "perception"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 1006,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "embryology",
+          "perception"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 1009,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "embryology",
+          "perception"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 1011,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "nature",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    },
+    {
+      "step": 1014,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "nature",
+          "subject"
+        ]
+      },
+      "blocked_by": [
+        [
+          "perception",
+          "subject"
+        ],
+        [
+          "subject",
+          "perception"
+        ]
+      ]
+    }
+  ]
+}

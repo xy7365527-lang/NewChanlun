@@ -1,0 +1,1516 @@
+{
+  "experiment": "schelling_complete_works_incremental",
+  "source": "F.W.J. Schelling — complete works, 20 entries (1794-1843)",
+  "methodology": "manual conceptual complex per work, incremental injection, digestion until 50-step beta_1 stability",
+  "work_results": [
+    {
+      "work": "1794: On the Possibility of a Form of Philosophy in General",
+      "work_index": 1,
+      "vertices_added": 9,
+      "edges_added": 9,
+      "vertices_total": 9,
+      "edges_total": 9,
+      "beta_1_before_injection": 2,
+      "beta_1_after_digestion": 2,
+      "delta_beta_1": 0,
+      "settled_cycles": 0,
+      "blocked_in_work": 0,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 50,
+      "operation_counts": {
+        "walk": 50
+      }
+    },
+    {
+      "work": "1795: Of the Ego as Principle of Philosophy",
+      "work_index": 2,
+      "vertices_added": 8,
+      "edges_added": 12,
+      "vertices_total": 15,
+      "edges_total": 21,
+      "beta_1_before_injection": 6,
+      "beta_1_after_digestion": 4,
+      "delta_beta_1": -2,
+      "settled_cycles": 0,
+      "blocked_in_work": 0,
+      "steps_to_digest": 57,
+      "converged": true,
+      "cumulative_steps": 107,
+      "operation_counts": {
+        "walk": 55,
+        "fold": 2
+      }
+    },
+    {
+      "work": "1795: Philosophical Letters on Dogmatism and Criticism",
+      "work_index": 3,
+      "vertices_added": 5,
+      "edges_added": 9,
+      "vertices_total": 27,
+      "edges_total": 42,
+      "beta_1_before_injection": 8,
+      "beta_1_after_digestion": 11,
+      "delta_beta_1": 3,
+      "settled_cycles": 3,
+      "blocked_in_work": 0,
+      "steps_to_digest": 90,
+      "converged": true,
+      "cumulative_steps": 197,
+      "operation_counts": {
+        "walk": 81,
+        "negate_b": 4,
+        "sublate": 4,
+        "fold": 1
+      }
+    },
+    {
+      "work": "1797: Ideas for a Philosophy of Nature",
+      "work_index": 4,
+      "vertices_added": 12,
+      "edges_added": 17,
+      "vertices_total": 44,
+      "edges_total": 69,
+      "beta_1_before_injection": 15,
+      "beta_1_after_digestion": 18,
+      "delta_beta_1": 3,
+      "settled_cycles": 6,
+      "blocked_in_work": 0,
+      "steps_to_digest": 90,
+      "converged": true,
+      "cumulative_steps": 287,
+      "operation_counts": {
+        "negate_b": 3,
+        "walk": 83,
+        "sublate": 3,
+        "fold": 1
+      }
+    },
+    {
+      "work": "1798: On the World Soul",
+      "work_index": 5,
+      "vertices_added": 8,
+      "edges_added": 14,
+      "vertices_total": 52,
+      "edges_total": 88,
+      "beta_1_before_injection": 23,
+      "beta_1_after_digestion": 22,
+      "delta_beta_1": -1,
+      "settled_cycles": 8,
+      "blocked_in_work": 0,
+      "steps_to_digest": 86,
+      "converged": true,
+      "cumulative_steps": 373,
+      "operation_counts": {
+        "walk": 79,
+        "fold": 3,
+        "negate_b": 1,
+        "sublate": 2,
+        "negate_a": 1
+      }
+    },
+    {
+      "work": "1799: First Outline of a System of the Philosophy of Nature",
+      "work_index": 6,
+      "vertices_added": 11,
+      "edges_added": 17,
+      "vertices_total": 63,
+      "edges_total": 106,
+      "beta_1_before_injection": 26,
+      "beta_1_after_digestion": 26,
+      "delta_beta_1": 0,
+      "settled_cycles": 9,
+      "blocked_in_work": 2,
+      "steps_to_digest": 87,
+      "converged": true,
+      "cumulative_steps": 460,
+      "operation_counts": {
+        "walk": 81,
+        "fold_blocked": 2,
+        "fold": 2,
+        "negate_b": 1,
+        "sublate": 1
+      }
+    },
+    {
+      "work": "1800: System of Transcendental Idealism",
+      "work_index": 7,
+      "vertices_added": 12,
+      "edges_added": 23,
+      "vertices_total": 78,
+      "edges_total": 131,
+      "beta_1_before_injection": 33,
+      "beta_1_after_digestion": 34,
+      "delta_beta_1": 1,
+      "settled_cycles": 11,
+      "blocked_in_work": 3,
+      "steps_to_digest": 86,
+      "converged": true,
+      "cumulative_steps": 546,
+      "operation_counts": {
+        "walk": 80,
+        "fold_blocked": 1,
+        "fold": 1,
+        "negate_b": 2,
+        "sublate": 2
+      }
+    },
+    {
+      "work": "1802: Bruno, or On the Natural and Divine Principle of Things",
+      "work_index": 8,
+      "vertices_added": 9,
+      "edges_added": 19,
+      "vertices_total": 90,
+      "edges_total": 169,
+      "beta_1_before_injection": 43,
+      "beta_1_after_digestion": 46,
+      "delta_beta_1": 3,
+      "settled_cycles": 15,
+      "blocked_in_work": 3,
+      "steps_to_digest": 102,
+      "converged": true,
+      "cumulative_steps": 648,
+      "operation_counts": {
+        "walk": 83,
+        "fold": 7,
+        "negate_a": 2,
+        "sublate": 6,
+        "negate_b": 4
+      }
+    },
+    {
+      "work": "1802: Further Presentations from the System of Philosophy",
+      "work_index": 9,
+      "vertices_added": 7,
+      "edges_added": 15,
+      "vertices_total": 100,
+      "edges_total": 185,
+      "beta_1_before_injection": 49,
+      "beta_1_after_digestion": 50,
+      "delta_beta_1": 1,
+      "settled_cycles": 17,
+      "blocked_in_work": 3,
+      "steps_to_digest": 85,
+      "converged": true,
+      "cumulative_steps": 733,
+      "operation_counts": {
+        "walk": 80,
+        "fold": 1,
+        "negate_b": 2,
+        "sublate": 2
+      }
+    },
+    {
+      "work": "1802-03: Philosophy of Art",
+      "work_index": 10,
+      "vertices_added": 10,
+      "edges_added": 18,
+      "vertices_total": 111,
+      "edges_total": 204,
+      "beta_1_before_injection": 56,
+      "beta_1_after_digestion": 56,
+      "delta_beta_1": 0,
+      "settled_cycles": 18,
+      "blocked_in_work": 3,
+      "steps_to_digest": 113,
+      "converged": true,
+      "cumulative_steps": 846,
+      "operation_counts": {
+        "walk": 110,
+        "fold": 1,
+        "negate_b": 1,
+        "sublate": 1
+      }
+    },
+    {
+      "work": "1803: On the Method of Academic Study",
+      "work_index": 11,
+      "vertices_added": 5,
+      "edges_added": 9,
+      "vertices_total": 118,
+      "edges_total": 214,
+      "beta_1_before_injection": 58,
+      "beta_1_after_digestion": 59,
+      "delta_beta_1": 1,
+      "settled_cycles": 19,
+      "blocked_in_work": 3,
+      "steps_to_digest": 65,
+      "converged": true,
+      "cumulative_steps": 911,
+      "operation_counts": {
+        "walk": 63,
+        "negate_b": 1,
+        "sublate": 1
+      }
+    },
+    {
+      "work": "1804: Philosophy and Religion",
+      "work_index": 12,
+      "vertices_added": 6,
+      "edges_added": 10,
+      "vertices_total": 128,
+      "edges_total": 228,
+      "beta_1_before_injection": 61,
+      "beta_1_after_digestion": 63,
+      "delta_beta_1": 2,
+      "settled_cycles": 21,
+      "blocked_in_work": 3,
+      "steps_to_digest": 73,
+      "converged": true,
+      "cumulative_steps": 984,
+      "operation_counts": {
+        "walk": 69,
+        "negate_b": 2,
+        "sublate": 2
+      }
+    },
+    {
+      "work": "1810: Stuttgart Seminars",
+      "work_index": 13,
+      "vertices_added": 8,
+      "edges_added": 20,
+      "vertices_total": 146,
+      "edges_total": 260,
+      "beta_1_before_injection": 72,
+      "beta_1_after_digestion": 77,
+      "delta_beta_1": 5,
+      "settled_cycles": 26,
+      "blocked_in_work": 3,
+      "steps_to_digest": 138,
+      "converged": true,
+      "cumulative_steps": 1122,
+      "operation_counts": {
+        "walk": 128,
+        "negate_b": 5,
+        "sublate": 5
+      }
+    },
+    {
+      "work": "1809: Of Human Freedom",
+      "work_index": 14,
+      "vertices_added": 12,
+      "edges_added": 23,
+      "vertices_total": 173,
+      "edges_total": 311,
+      "beta_1_before_injection": 87,
+      "beta_1_after_digestion": 95,
+      "delta_beta_1": 8,
+      "settled_cycles": 33,
+      "blocked_in_work": 5,
+      "steps_to_digest": 157,
+      "converged": true,
+      "cumulative_steps": 1279,
+      "operation_counts": {
+        "walk": 134,
+        "negate_b": 9,
+        "sublate": 9,
+        "fold": 3,
+        "fold_blocked": 2
+      }
+    },
+    {
+      "work": "1811-15: Ages of the World",
+      "work_index": 15,
+      "vertices_added": 10,
+      "edges_added": 21,
+      "vertices_total": 185,
+      "edges_total": 339,
+      "beta_1_before_injection": 102,
+      "beta_1_after_digestion": 104,
+      "delta_beta_1": 2,
+      "settled_cycles": 37,
+      "blocked_in_work": 7,
+      "steps_to_digest": 139,
+      "converged": true,
+      "cumulative_steps": 1418,
+      "operation_counts": {
+        "walk": 127,
+        "negate_b": 3,
+        "sublate": 3,
+        "fold": 4,
+        "fold_blocked": 2
+      }
+    },
+    {
+      "work": "1815: On the Deities of Samothrace",
+      "work_index": 16,
+      "vertices_added": 4,
+      "edges_added": 8,
+      "vertices_total": 194,
+      "edges_total": 356,
+      "beta_1_before_injection": 108,
+      "beta_1_after_digestion": 109,
+      "delta_beta_1": 1,
+      "settled_cycles": 40,
+      "blocked_in_work": 12,
+      "steps_to_digest": 104,
+      "converged": true,
+      "cumulative_steps": 1522,
+      "operation_counts": {
+        "walk": 92,
+        "negate_b": 3,
+        "sublate": 3,
+        "fold_blocked": 5,
+        "fold": 1
+      }
+    },
+    {
+      "work": "1820-21: Erlangen Lectures",
+      "work_index": 17,
+      "vertices_added": 6,
+      "edges_added": 14,
+      "vertices_total": 199,
+      "edges_total": 375,
+      "beta_1_before_injection": 115,
+      "beta_1_after_digestion": 115,
+      "delta_beta_1": 0,
+      "settled_cycles": 42,
+      "blocked_in_work": 12,
+      "steps_to_digest": 84,
+      "converged": true,
+      "cumulative_steps": 1606,
+      "operation_counts": {
+        "walk": 77,
+        "negate_a": 2,
+        "sublate": 2,
+        "fold": 3
+      }
+    },
+    {
+      "work": "1842: Philosophy of Mythology",
+      "work_index": 18,
+      "vertices_added": 10,
+      "edges_added": 20,
+      "vertices_total": 216,
+      "edges_total": 402,
+      "beta_1_before_injection": 120,
+      "beta_1_after_digestion": 123,
+      "delta_beta_1": 3,
+      "settled_cycles": 46,
+      "blocked_in_work": 12,
+      "steps_to_digest": 140,
+      "converged": true,
+      "cumulative_steps": 1746,
+      "operation_counts": {
+        "walk": 131,
+        "negate_b": 4,
+        "sublate": 4,
+        "fold": 1
+      }
+    },
+    {
+      "work": "1842-43: Philosophy of Revelation",
+      "work_index": 19,
+      "vertices_added": 9,
+      "edges_added": 23,
+      "vertices_total": 237,
+      "edges_total": 438,
+      "beta_1_before_injection": 132,
+      "beta_1_after_digestion": 138,
+      "delta_beta_1": 6,
+      "settled_cycles": 52,
+      "blocked_in_work": 12,
+      "steps_to_digest": 130,
+      "converged": true,
+      "cumulative_steps": 1876,
+      "operation_counts": {
+        "walk": 118,
+        "negate_b": 6,
+        "sublate": 6
+      }
+    },
+    {
+      "work": "1842-43: Grounding of Positive Philosophy",
+      "work_index": 20,
+      "vertices_added": 6,
+      "edges_added": 14,
+      "vertices_total": 244,
+      "edges_total": 450,
+      "beta_1_before_injection": 141,
+      "beta_1_after_digestion": 141,
+      "delta_beta_1": 0,
+      "settled_cycles": 53,
+      "blocked_in_work": 12,
+      "steps_to_digest": 78,
+      "converged": true,
+      "cumulative_steps": 1954,
+      "operation_counts": {
+        "walk": 75,
+        "fold": 1,
+        "negate_b": 1,
+        "sublate": 1
+      }
+    }
+  ],
+  "beta_1_curve": [
+    {
+      "work_index": 1,
+      "work_name": "1794: On the Possibility of a Form of Philosophy in General",
+      "beta_1": 2,
+      "cumulative_steps": 50
+    },
+    {
+      "work_index": 2,
+      "work_name": "1795: Of the Ego as Principle of Philosophy",
+      "beta_1": 4,
+      "cumulative_steps": 107
+    },
+    {
+      "work_index": 3,
+      "work_name": "1795: Philosophical Letters on Dogmatism and Criticism",
+      "beta_1": 11,
+      "cumulative_steps": 197
+    },
+    {
+      "work_index": 4,
+      "work_name": "1797: Ideas for a Philosophy of Nature",
+      "beta_1": 18,
+      "cumulative_steps": 287
+    },
+    {
+      "work_index": 5,
+      "work_name": "1798: On the World Soul",
+      "beta_1": 22,
+      "cumulative_steps": 373
+    },
+    {
+      "work_index": 6,
+      "work_name": "1799: First Outline of a System of the Philosophy of Nature",
+      "beta_1": 26,
+      "cumulative_steps": 460
+    },
+    {
+      "work_index": 7,
+      "work_name": "1800: System of Transcendental Idealism",
+      "beta_1": 34,
+      "cumulative_steps": 546
+    },
+    {
+      "work_index": 8,
+      "work_name": "1802: Bruno, or On the Natural and Divine Principle of Things",
+      "beta_1": 46,
+      "cumulative_steps": 648
+    },
+    {
+      "work_index": 9,
+      "work_name": "1802: Further Presentations from the System of Philosophy",
+      "beta_1": 50,
+      "cumulative_steps": 733
+    },
+    {
+      "work_index": 10,
+      "work_name": "1802-03: Philosophy of Art",
+      "beta_1": 56,
+      "cumulative_steps": 846
+    },
+    {
+      "work_index": 11,
+      "work_name": "1803: On the Method of Academic Study",
+      "beta_1": 59,
+      "cumulative_steps": 911
+    },
+    {
+      "work_index": 12,
+      "work_name": "1804: Philosophy and Religion",
+      "beta_1": 63,
+      "cumulative_steps": 984
+    },
+    {
+      "work_index": 13,
+      "work_name": "1810: Stuttgart Seminars",
+      "beta_1": 77,
+      "cumulative_steps": 1122
+    },
+    {
+      "work_index": 14,
+      "work_name": "1809: Of Human Freedom",
+      "beta_1": 95,
+      "cumulative_steps": 1279
+    },
+    {
+      "work_index": 15,
+      "work_name": "1811-15: Ages of the World",
+      "beta_1": 104,
+      "cumulative_steps": 1418
+    },
+    {
+      "work_index": 16,
+      "work_name": "1815: On the Deities of Samothrace",
+      "beta_1": 109,
+      "cumulative_steps": 1522
+    },
+    {
+      "work_index": 17,
+      "work_name": "1820-21: Erlangen Lectures",
+      "beta_1": 115,
+      "cumulative_steps": 1606
+    },
+    {
+      "work_index": 18,
+      "work_name": "1842: Philosophy of Mythology",
+      "beta_1": 123,
+      "cumulative_steps": 1746
+    },
+    {
+      "work_index": 19,
+      "work_name": "1842-43: Philosophy of Revelation",
+      "beta_1": 138,
+      "cumulative_steps": 1876
+    },
+    {
+      "work_index": 20,
+      "work_name": "1842-43: Grounding of Positive Philosophy",
+      "beta_1": 141,
+      "cumulative_steps": 1954
+    }
+  ],
+  "final_complex": {
+    "vertices_active": 244,
+    "edges_active": 450,
+    "beta_1": 141,
+    "settled_cycles": 53,
+    "edge_type_distribution": {
+      "dependency": 127,
+      "negation": 93,
+      "reference": 67,
+      "sublation": 154,
+      "fold": 9
+    },
+    "terrain_distribution": {
+      "tree": 263,
+      "critical": 128
+    },
+    "critical_edge_ratio": 0.3273657289002558,
+    "negation_density": 0.20666666666666667
+  },
+  "total_steps": 1954,
+  "settled_cycles_detail": [
+    {
+      "edges": [
+        [
+          "syn_practical_decision_anti_practical_decision_124_126",
+          "anti_practical_decision_124"
+        ],
+        [
+          "syn_practical_decision_anti_practical_decision_124_126",
+          "practical_decision"
+        ]
+      ],
+      "settled_at_step": 136
+    },
+    {
+      "edges": [
+        [
+          "syn_dogmatism_anti_dogmatism_134_136",
+          "anti_dogmatism_134"
+        ],
+        [
+          "syn_dogmatism_anti_dogmatism_134_136",
+          "dogmatism"
+        ]
+      ],
+      "settled_at_step": 146
+    },
+    {
+      "edges": [
+        [
+          "syn_criticism_anti_criticism_145_147",
+          "anti_criticism_145"
+        ],
+        [
+          "syn_criticism_anti_criticism_145_147",
+          "criticism"
+        ]
+      ],
+      "settled_at_step": 157
+    },
+    {
+      "edges": [
+        [
+          "syn_intellectual_intuition_anti_intellectual_intuition_198_200",
+          "anti_intellectual_intuition_198"
+        ],
+        [
+          "syn_intellectual_intuition_anti_intellectual_intuition_198_200",
+          "intellectual_intuition"
+        ]
+      ],
+      "settled_at_step": 210
+    },
+    {
+      "edges": [
+        [
+          "syn_chemical_process_anti_chemical_process_210_212",
+          "anti_chemical_process_210"
+        ],
+        [
+          "syn_chemical_process_anti_chemical_process_210_212",
+          "chemical_process"
+        ]
+      ],
+      "settled_at_step": 222
+    },
+    {
+      "edges": [
+        [
+          "syn_absolute_ego_anti_absolute_ego_235_237",
+          "absolute_ego"
+        ],
+        [
+          "syn_absolute_ego_anti_absolute_ego_235_237",
+          "anti_absolute_ego_235"
+        ]
+      ],
+      "settled_at_step": 247
+    },
+    {
+      "edges": [
+        [
+          "syn_light_anti_light_305_307",
+          "anti_light_305"
+        ],
+        [
+          "syn_light_anti_light_305_307",
+          "light"
+        ]
+      ],
+      "settled_at_step": 317
+    },
+    {
+      "edges": [
+        [
+          "syn_chemical_process_electricity_322",
+          "chemical_process"
+        ],
+        [
+          "syn_chemical_process_electricity_322",
+          "electricity"
+        ]
+      ],
+      "settled_at_step": 332
+    },
+    {
+      "edges": [
+        [
+          "syn_product_anti_product_394_396",
+          "anti_product_394"
+        ],
+        [
+          "syn_product_anti_product_394_396",
+          "product"
+        ]
+      ],
+      "settled_at_step": 406
+    },
+    {
+      "edges": [
+        [
+          "syn_unconscious_anti_unconscious_486_488",
+          "anti_unconscious_486"
+        ],
+        [
+          "syn_unconscious_anti_unconscious_486_488",
+          "unconscious"
+        ]
+      ],
+      "settled_at_step": 498
+    },
+    {
+      "edges": [
+        [
+          "syn_history_anti_history_494_496",
+          "anti_history_494"
+        ],
+        [
+          "syn_history_anti_history_494_496",
+          "history"
+        ]
+      ],
+      "settled_at_step": 506
+    },
+    {
+      "edges": [
+        [
+          "syn_identity_anti_identity_560_562",
+          "anti_identity_560"
+        ],
+        [
+          "syn_identity_anti_identity_560_562",
+          "identity"
+        ]
+      ],
+      "settled_at_step": 572
+    },
+    {
+      "edges": [
+        [
+          "identity",
+          "syn_absolute_absolute_identity_early_554"
+        ],
+        [
+          "indifference_point",
+          "identity"
+        ],
+        [
+          "syn_absolute_absolute_identity_early_554",
+          "indifference_point"
+        ]
+      ],
+      "settled_at_step": 605
+    },
+    {
+      "edges": [
+        [
+          "indifference_point",
+          "indifference_point"
+        ]
+      ],
+      "settled_at_step": 605
+    },
+    {
+      "edges": [
+        [
+          "syn_indifference_point_anti_indifference_point_596_598",
+          "anti_indifference_point_596"
+        ],
+        [
+          "syn_indifference_point_anti_indifference_point_596_598",
+          "indifference_point"
+        ]
+      ],
+      "settled_at_step": 608
+    },
+    {
+      "edges": [
+        [
+          "syn_syn_chemical_process_electricity_322_anti_syn_chemical_process_electricity_322_670_672",
+          "anti_syn_chemical_process_electricity_322_670"
+        ],
+        [
+          "syn_syn_chemical_process_electricity_322_anti_syn_chemical_process_electricity_322_670_672",
+          "syn_chemical_process_electricity_322"
+        ]
+      ],
+      "settled_at_step": 682
+    },
+    {
+      "edges": [
+        [
+          "syn_spirit_anti_spirit_681_683",
+          "anti_spirit_681"
+        ],
+        [
+          "syn_spirit_anti_spirit_681_683",
+          "spirit"
+        ]
+      ],
+      "settled_at_step": 693
+    },
+    {
+      "edges": [
+        [
+          "syn_ideal_anti_ideal_794_796",
+          "anti_ideal_794"
+        ],
+        [
+          "syn_ideal_anti_ideal_794_796",
+          "ideal"
+        ]
+      ],
+      "settled_at_step": 806
+    },
+    {
+      "edges": [
+        [
+          "syn_mythology_early_anti_mythology_early_859_861",
+          "anti_mythology_early_859"
+        ],
+        [
+          "syn_mythology_early_anti_mythology_early_859_861",
+          "mythology_early"
+        ]
+      ],
+      "settled_at_step": 871
+    },
+    {
+      "edges": [
+        [
+          "syn_self_consciousness_anti_self_consciousness_913_915",
+          "anti_self_consciousness_913"
+        ],
+        [
+          "syn_self_consciousness_anti_self_consciousness_913_915",
+          "self_consciousness"
+        ]
+      ],
+      "settled_at_step": 925
+    },
+    {
+      "edges": [
+        [
+          "syn_practical_philosophy_anti_practical_philosophy_932_934",
+          "anti_practical_philosophy_932"
+        ],
+        [
+          "syn_practical_philosophy_anti_practical_philosophy_932_934",
+          "practical_philosophy"
+        ]
+      ],
+      "settled_at_step": 944
+    },
+    {
+      "edges": [
+        [
+          "syn_creation_as_separation_anti_creation_as_separation_988_990",
+          "anti_creation_as_separation_988"
+        ],
+        [
+          "syn_creation_as_separation_anti_creation_as_separation_988_990",
+          "creation_as_separation"
+        ]
+      ],
+      "settled_at_step": 1000
+    },
+    {
+      "edges": [
+        [
+          "syn_freedom_early_anti_freedom_early_1002_1004",
+          "anti_freedom_early_1002"
+        ],
+        [
+          "syn_freedom_early_anti_freedom_early_1002_1004",
+          "freedom_early"
+        ]
+      ],
+      "settled_at_step": 1014
+    },
+    {
+      "edges": [
+        [
+          "syn_three_potencies_god_anti_three_potencies_god_1011_1013",
+          "anti_three_potencies_god_1011"
+        ],
+        [
+          "syn_three_potencies_god_anti_three_potencies_god_1011_1013",
+          "three_potencies_god"
+        ]
+      ],
+      "settled_at_step": 1023
+    },
+    {
+      "edges": [
+        [
+          "syn_potency_B_anti_potency_B_1031_1033",
+          "anti_potency_B_1031"
+        ],
+        [
+          "syn_potency_B_anti_potency_B_1031_1033",
+          "potency_B"
+        ]
+      ],
+      "settled_at_step": 1043
+    },
+    {
+      "edges": [
+        [
+          "syn_productivity_anti_productivity_1070_1072",
+          "anti_productivity_1070"
+        ],
+        [
+          "syn_productivity_anti_productivity_1070_1072",
+          "productivity"
+        ]
+      ],
+      "settled_at_step": 1082
+    },
+    {
+      "edges": [
+        [
+          "syn_dark_ground_anti_dark_ground_1128_1130",
+          "anti_dark_ground_1128"
+        ],
+        [
+          "syn_dark_ground_anti_dark_ground_1128_1130",
+          "dark_ground"
+        ]
+      ],
+      "settled_at_step": 1140
+    },
+    {
+      "edges": [
+        [
+          "syn_dark_principle_god_anti_dark_principle_god_1161_1163",
+          "anti_dark_principle_god_1161"
+        ],
+        [
+          "syn_dark_principle_god_anti_dark_principle_god_1161_1163",
+          "dark_principle_god"
+        ]
+      ],
+      "settled_at_step": 1173
+    },
+    {
+      "edges": [
+        [
+          "syn_longing_anti_longing_1174_1176",
+          "anti_longing_1174"
+        ],
+        [
+          "syn_longing_anti_longing_1174_1176",
+          "longing"
+        ]
+      ],
+      "settled_at_step": 1186
+    },
+    {
+      "edges": [
+        [
+          "syn_duality_forces_anti_duality_forces_1191_1193",
+          "anti_duality_forces_1191"
+        ],
+        [
+          "syn_duality_forces_anti_duality_forces_1191_1193",
+          "duality_forces"
+        ]
+      ],
+      "settled_at_step": 1203
+    },
+    {
+      "edges": [
+        [
+          "syn_will_anti_will_1200_1202",
+          "anti_will_1200"
+        ],
+        [
+          "syn_will_anti_will_1200_1202",
+          "will"
+        ]
+      ],
+      "settled_at_step": 1212
+    },
+    {
+      "edges": [
+        [
+          "syn_unconditioned_anti_unconditioned_1211_1213",
+          "anti_unconditioned_1211"
+        ],
+        [
+          "syn_unconditioned_anti_unconditioned_1211_1213",
+          "unconditioned"
+        ]
+      ],
+      "settled_at_step": 1223
+    },
+    {
+      "edges": [
+        [
+          "syn_ego_anti_ego_1227_1229",
+          "anti_ego_1227"
+        ],
+        [
+          "syn_ego_anti_ego_1227_1229",
+          "ego"
+        ]
+      ],
+      "settled_at_step": 1239
+    },
+    {
+      "edges": [
+        [
+          "syn_present_anti_present_1301_1303",
+          "anti_present_1301"
+        ],
+        [
+          "syn_present_anti_present_1301_1303",
+          "present"
+        ]
+      ],
+      "settled_at_step": 1313
+    },
+    {
+      "edges": [
+        [
+          "syn_rotary_drive_anti_rotary_drive_1310_1312",
+          "anti_rotary_drive_1310"
+        ],
+        [
+          "syn_rotary_drive_anti_rotary_drive_1310_1312",
+          "rotary_drive"
+        ]
+      ],
+      "settled_at_step": 1322
+    },
+    {
+      "edges": [
+        [
+          "evil",
+          "longing"
+        ],
+        [
+          "longing",
+          "evil"
+        ]
+      ],
+      "settled_at_step": 1378
+    },
+    {
+      "edges": [
+        [
+          "longing",
+          "longing"
+        ]
+      ],
+      "settled_at_step": 1378
+    },
+    {
+      "edges": [
+        [
+          "syn_cabiri_anti_cabiri_1420_1422",
+          "anti_cabiri_1420"
+        ],
+        [
+          "syn_cabiri_anti_cabiri_1420_1422",
+          "cabiri"
+        ]
+      ],
+      "settled_at_step": 1432
+    },
+    {
+      "edges": [
+        [
+          "syn_samothrace_mysteries_anti_samothrace_mysteries_1433_1435",
+          "anti_samothrace_mysteries_1433"
+        ],
+        [
+          "syn_samothrace_mysteries_anti_samothrace_mysteries_1433_1435",
+          "samothrace_mysteries"
+        ]
+      ],
+      "settled_at_step": 1445
+    },
+    {
+      "edges": [
+        [
+          "syn_Naturphilosophie_anti_Naturphilosophie_1470_1472",
+          "Naturphilosophie"
+        ],
+        [
+          "syn_Naturphilosophie_anti_Naturphilosophie_1470_1472",
+          "anti_Naturphilosophie_1470"
+        ]
+      ],
+      "settled_at_step": 1482
+    },
+    {
+      "edges": [
+        [
+          "syn_intellectual_intuition_reason_as_absolute_1530",
+          "intellectual_intuition"
+        ],
+        [
+          "syn_intellectual_intuition_reason_as_absolute_1530",
+          "reason_as_absolute"
+        ]
+      ],
+      "settled_at_step": 1540
+    },
+    {
+      "edges": [
+        [
+          "syn_will_longing_1544",
+          "longing"
+        ],
+        [
+          "syn_will_longing_1544",
+          "will"
+        ]
+      ],
+      "settled_at_step": 1554
+    },
+    {
+      "edges": [
+        [
+          "syn_theogonic_process_proto_anti_theogonic_process_proto_1614_1616",
+          "anti_theogonic_process_proto_1614"
+        ],
+        [
+          "syn_theogonic_process_proto_anti_theogonic_process_proto_1614_1616",
+          "theogonic_process_proto"
+        ]
+      ],
+      "settled_at_step": 1626
+    },
+    {
+      "edges": [
+        [
+          "syn_mythological_consciousness_anti_mythological_consciousness_1632_1634",
+          "anti_mythological_consciousness_1632"
+        ],
+        [
+          "syn_mythological_consciousness_anti_mythological_consciousness_1632_1634",
+          "mythological_consciousness"
+        ]
+      ],
+      "settled_at_step": 1644
+    },
+    {
+      "edges": [
+        [
+          "syn_mythological_consciousness_proto_anti_mythological_consciousness_proto_1647_1649",
+          "anti_mythological_consciousness_proto_1647"
+        ],
+        [
+          "syn_mythological_consciousness_proto_anti_mythological_consciousness_proto_1647_1649",
+          "mythological_consciousness_proto"
+        ]
+      ],
+      "settled_at_step": 1659
+    },
+    {
+      "edges": [
+        [
+          "syn_allegory_anti_allegory_1661_1663",
+          "allegory"
+        ],
+        [
+          "syn_allegory_anti_allegory_1661_1663",
+          "anti_allegory_1661"
+        ]
+      ],
+      "settled_at_step": 1673
+    },
+    {
+      "edges": [
+        [
+          "syn_revelation_anti_revelation_1753_1755",
+          "anti_revelation_1753"
+        ],
+        [
+          "syn_revelation_anti_revelation_1753_1755",
+          "revelation"
+        ]
+      ],
+      "settled_at_step": 1765
+    },
+    {
+      "edges": [
+        [
+          "syn_creation_free_act_anti_creation_free_act_1763_1765",
+          "anti_creation_free_act_1763"
+        ],
+        [
+          "syn_creation_free_act_anti_creation_free_act_1763_1765",
+          "creation_free_act"
+        ]
+      ],
+      "settled_at_step": 1775
+    },
+    {
+      "edges": [
+        [
+          "syn_personality_god_anti_personality_god_1777_1779",
+          "anti_personality_god_1777"
+        ],
+        [
+          "syn_personality_god_anti_personality_god_1777_1779",
+          "personality_god"
+        ]
+      ],
+      "settled_at_step": 1789
+    },
+    {
+      "edges": [
+        [
+          "syn_incarnation_anti_incarnation_1785_1787",
+          "anti_incarnation_1785"
+        ],
+        [
+          "syn_incarnation_anti_incarnation_1785_1787",
+          "incarnation"
+        ]
+      ],
+      "settled_at_step": 1797
+    },
+    {
+      "edges": [
+        [
+          "syn_trinity_anti_trinity_1798_1800",
+          "anti_trinity_1798"
+        ],
+        [
+          "syn_trinity_anti_trinity_1798_1800",
+          "trinity"
+        ]
+      ],
+      "settled_at_step": 1810
+    },
+    {
+      "edges": [
+        [
+          "syn_light_principle_god_anti_light_principle_god_1824_1826",
+          "anti_light_principle_god_1824"
+        ],
+        [
+          "syn_light_principle_god_anti_light_principle_god_1824_1826",
+          "light_principle_god"
+        ]
+      ],
+      "settled_at_step": 1836
+    },
+    {
+      "edges": [
+        [
+          "syn_reason_as_absolute_anti_reason_as_absolute_1902_1904",
+          "anti_reason_as_absolute_1902"
+        ],
+        [
+          "syn_reason_as_absolute_anti_reason_as_absolute_1902_1904",
+          "reason_as_absolute"
+        ]
+      ],
+      "settled_at_step": 1914
+    }
+  ],
+  "blocked_log": [
+    {
+      "step": 380,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "potency_levels",
+          "syn_chemical_process_electricity_322"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_chemical_process_electricity_322",
+          "chemical_process"
+        ],
+        [
+          "syn_chemical_process_electricity_322",
+          "electricity"
+        ]
+      ]
+    },
+    {
+      "step": 407,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "natura_naturans",
+          "product"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_product_anti_product_394_396",
+          "anti_product_394"
+        ],
+        [
+          "syn_product_anti_product_394_396",
+          "product"
+        ]
+      ]
+    },
+    {
+      "step": 476,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "art",
+          "intellectual_intuition"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_intellectual_intuition_anti_intellectual_intuition_198_200",
+          "anti_intellectual_intuition_198"
+        ],
+        [
+          "syn_intellectual_intuition_anti_intellectual_intuition_198_200",
+          "intellectual_intuition"
+        ]
+      ]
+    },
+    {
+      "step": 1186,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "light",
+          "dark_principle_god"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_dark_principle_god_anti_dark_principle_god_1161_1163",
+          "anti_dark_principle_god_1161"
+        ],
+        [
+          "syn_dark_principle_god_anti_dark_principle_god_1161_1163",
+          "dark_principle_god"
+        ]
+      ]
+    },
+    {
+      "step": 1189,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "light",
+          "dark_principle_god"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_dark_principle_god_anti_dark_principle_god_1161_1163",
+          "anti_dark_principle_god_1161"
+        ],
+        [
+          "syn_dark_principle_god_anti_dark_principle_god_1161_1163",
+          "dark_principle_god"
+        ]
+      ]
+    },
+    {
+      "step": 1343,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "understanding",
+          "will"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_will_anti_will_1200_1202",
+          "anti_will_1200"
+        ],
+        [
+          "syn_will_anti_will_1200_1202",
+          "will"
+        ]
+      ]
+    },
+    {
+      "step": 1365,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "freedom",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_longing_anti_longing_1174_1176",
+          "anti_longing_1174"
+        ],
+        [
+          "syn_longing_anti_longing_1174_1176",
+          "longing"
+        ]
+      ]
+    },
+    {
+      "step": 1455,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "three_potencies_god",
+          "cabiri"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_cabiri_anti_cabiri_1420_1422",
+          "anti_cabiri_1420"
+        ],
+        [
+          "syn_cabiri_anti_cabiri_1420_1422",
+          "cabiri"
+        ]
+      ]
+    },
+    {
+      "step": 1457,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "potency_A",
+          "potency_B"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_potency_B_anti_potency_B_1031_1033",
+          "anti_potency_B_1031"
+        ],
+        [
+          "syn_potency_B_anti_potency_B_1031_1033",
+          "potency_B"
+        ]
+      ]
+    },
+    {
+      "step": 1459,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "three_potencies_god",
+          "cabiri"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_cabiri_anti_cabiri_1420_1422",
+          "anti_cabiri_1420"
+        ],
+        [
+          "syn_cabiri_anti_cabiri_1420_1422",
+          "cabiri"
+        ]
+      ]
+    },
+    {
+      "step": 1461,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "potency_A",
+          "potency_B"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_potency_B_anti_potency_B_1031_1033",
+          "anti_potency_B_1031"
+        ],
+        [
+          "syn_potency_B_anti_potency_B_1031_1033",
+          "potency_B"
+        ]
+      ]
+    },
+    {
+      "step": 1463,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "three_potencies_god",
+          "cabiri"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_cabiri_anti_cabiri_1420_1422",
+          "anti_cabiri_1420"
+        ],
+        [
+          "syn_cabiri_anti_cabiri_1420_1422",
+          "cabiri"
+        ]
+      ]
+    }
+  ]
+}
