@@ -1,0 +1,438 @@
+======================================================================
+TOPOLOGICAL NARRATIVE (Morse-Smale Linearization)
+======================================================================
+
+Complex: 210 vertices, 360 edges
+beta_1 = 130 (irreducible cycles)
+Terrain: 217 tree edges, 142 critical edges
+Critical cuts: 143 edges removed for linearization
+Extra cuts: 11 additional edges removed (residual cycles)
+Edge types: {'negation': 94, 'dependency': 187, 'reference': 62, 'sublation': 17}
+
+----------------------------------------------------------------------
+MAIN LINE (topological order)
+----------------------------------------------------------------------
+
+    1. absolute freedom
+    2. Also includes
+    3. appearance as actuality
+    4. asceticism (self-mortification)
+    5. Bacchanalian revel <- depends on: transparent simple repose
+    6. the beautiful soul <- depends on: evil (acting conscience)
+    7. culture/education (Bildung)
+    8. bondsman's freedom through work
+    9. brother-sister relation (pure recognition)
+   10. Calvary of absolute Spirit
+   11. cognition as instrument
+   12. cognition as medium
+        [CONTRADICTION] cognition as instrument (#11) --[negation]--> cognition as medium (#12)
+   13. comedy
+   14. comprehended history
+   15. conscience (Gewissen)
+        [TENSION] the beautiful soul (#6) --[dependency]--> conscience (Gewissen) (#15)
+   16. Creon
+   17. crime becomes punishment
+   18. crusades (here and now of beyond)
+   19. deception/fraud
+   20. determinate Nothing
+   21. devotion
+        [CONTRADICTION] crusades (here and now of beyond) (#18) --[negation]--> devotion (#21)
+   22. dialectic as method
+   23. dissemblance (Verstellung)
+   24. enjoyment
+   25. the Enlightenment <- depends on: faith
+   26. explanation as tautology
+   27. fear of error <- depends on: fear of truth
+   28. force proper
+   29. frenzy of self-conceit
+   30. the fruit
+   31. guilt (ethical action = guilt)
+        [TENSION] guilt (ethical action = guilt) (#31) --[dependency]--> Creon (#16) [back-reference]
+   32. the hard heart
+   33. hidden tendency toward truth
+   34. incarnation
+   35. individuality as real
+   36. inner being of thing
+   37. tranquil kingdom of laws
+   38. language (expresses universal)
+   39. the lord (master)
+        [TENSION] the lord (master) (#39) --[dependency]--> enjoyment (#24) [back-reference]
+   40. lord's truth in bondsman
+        [CONTRADICTION] lord's truth in bondsman (#40) --[negation]--> the lord (master) (#39) [back-reference]
+   41. mediated simplicity
+   42. mediation
+        [TENSION] mediation (#42) --[reference]--> dialectic as method (#22) [back-reference]
+   43. mediating consciousness (priest)
+   44. mutual necessity
+        [TENSION] mutual necessity (#44) --[dependency]--> the fruit (#30) [back-reference]
+   45. noble consciousness <- depends on: base/ignoble consciousness
+   46. Now as universal
+   47. observing reason
+   48. One excludes
+        [CONTRADICTION] One excludes (#48) --[negation]--> Also includes (#2) [back-reference]
+   49. perception
+        [TENSION] perception (#49) --[dependency]--> mediated simplicity (#41) [back-reference]
+   50. plant and animal worship
+   51. postulates (God, immortality)
+        [CONTRADICTION] dissemblance (Verstellung) (#23) --[negation]--> postulates (God, immortality) (#51)
+   52. pure being
+   53. reason as certainty of being all reality
+   54. recollection (Er-Innerung)
+        [TENSION] comprehended history (#14) --[dependency]--> recollection (Er-Innerung) (#54)
+   55. reconciliation projected beyond
+        [TENSION] reconciliation projected beyond (#55) --[reference]--> mediating consciousness (priest) (#43) [back-reference]
+   56. salt (white, pungent, cubical)
+   57. science
+   58. Science of the experience of consciousness
+   59. self-conscious individuality
+   60. singular I <- depends on: universal I
+   61. the skull-bone (being of spirit = bone)
+   62. sound common sense
+   63. speculative proposition
+        [TENSION] speculative proposition (#63) --[dependency]--> dialectic as method (#22) [back-reference]
+   64. spirit knowing itself as spirit
+        [TENSION] spirit knowing itself as spirit (#64) --[dependency]--> science (#57) [back-reference]
+   65. spiritual community
+   66. the state (polis)
+   67. Stoicism
+        [TENSION] Stoicism (#67) --[dependency]--> bondsman's freedom through work (#8) [back-reference]
+        [TENSION] Stoicism (#67) --[reference]--> the lord (master) (#39) [back-reference]
+   68. life-and-death struggle
+   69. substance IS subject (final)
+   70. surface enclosure
+   71. sweet becomes sour
+   72. the Here
+   73. the Now
+   74. tragedy
+        [CONTRADICTION] comedy (#13) --[negation]--> tragedy (#74)
+        [TENSION] tragedy (#74) --[reference]--> guilt (ethical action = guilt) (#31) [back-reference]
+   75. Trinity (immanent dialectic)
+   76. white opposed to black
+   77. woman and man (ethical shapes)
+        [TENSION] woman and man (ethical shapes) (#77) --[dependency]--> the state (polis) (#66) [back-reference]
+   78. work as product/expression
+   79. utility (pure insight's object) <- depends on: absolute freedom
+        [TENSION] utility (pure insight's object) (#79) --[dependency]--> the Enlightenment (#25) [back-reference]
+   80. the Also (general medium) <- depends on: Also includes
+        [TENSION] salt (white, pungent, cubical) (#56) --[reference]--> the Also (general medium) (#80)
+   81. transparent simple repose <- depends on: Bacchanalian revel
+        [CONTRADICTION] transparent simple repose (#81) --[negation]--> Bacchanalian revel (#5) [back-reference]
+   82. self-alienation of spirit <- depends on: culture/education (Bildung)
+   83. destruction of ethical life <- depends on: comedy
+        [TENSION] destruction of ethical life (#83) --[dependency]--> guilt (ethical action = guilt) (#31) [back-reference]
+        [TENSION] self-alienation of spirit (#82) --[dependency]--> destruction of ethical life (#83)
+   84. conviction <- depends on: conscience (Gewissen)
+   85. This as not-This (superseded) <- depends on: determinate Nothing
+        [AUFHEBUNG] mediated simplicity (#41) --[sublation]--> This as not-This (superseded) (#85)
+   86. moral world-view <- depends on: dissemblance (Verstellung), conscience (Gewissen)
+        [TENSION] postulates (God, immortality) (#51) --[dependency]--> moral world-view (#86)
+        [TENSION] moral world-view (#86) --[reference]--> absolute freedom (#1) [back-reference]
+   87. faith <- depends on: the Enlightenment
+        [CONTRADICTION] faith (#87) --[negation]--> the Enlightenment (#25) [back-reference]
+   88. pure insight <- depends on: the Enlightenment
+   89. law (stable image) <- depends on: explanation as tautology
+   90. fear of truth <- depends on: fear of error
+        [CONTRADICTION] fear of truth (#90) --[negation]--> fear of error (#27) [back-reference]
+   91. force <- depends on: expression of force, force proper
+   92. law of the heart <- depends on: frenzy of self-conceit
+   93. the blossom <- depends on: the fruit
+        [TENSION] mutual necessity (#44) --[dependency]--> the blossom (#93)
+   94. Antigone <- depends on: guilt (ethical action = guilt)
+        [CONTRADICTION] Antigone (#94) --[negation]--> Creon (#16) [back-reference]
+        [CONTRADICTION] Creon (#16) --[negation]--> Antigone (#94)
+   95. virtue vs way of the world <- depends on: individuality as real
+   96. concrete universal <- depends on: inner being of thing
+   97. what is meant (das Meinen) <- depends on: language (expresses universal)
+   98. independence <- depends on: the lord (master)
+        [AUFHEBUNG] bondsman's freedom through work (#8) --[sublation]--> independence (#98)
+   99. state power <- depends on: noble consciousness
+  100. Now is Day <- depends on: Now as universal
+        [TENSION] Now is Day (#100) --[dependency]--> the Now (#73) [back-reference]
+  101. Now is Night <- depends on: Now as universal
+        [TENSION] Now is Night (#101) --[dependency]--> the Now (#73) [back-reference]
+        [CONTRADICTION] Now is Night (#101) --[negation]--> Now is Day (#100) [back-reference]
+        [CONTRADICTION] Now is Day (#100) --[negation]--> Now is Night (#101)
+  102. observation of nature <- depends on: observing reason
+  103. the One (excluding unity) <- depends on: One excludes
+        [CONTRADICTION] the One (excluding unity) (#103) --[negation]--> the Also (general medium) (#80) [back-reference]
+        [CONTRADICTION] the Also (general medium) (#80) --[negation]--> the One (excluding unity) (#103)
+  104. light-being (Zoroastrian) <- depends on: plant and animal worship
+  105. duty (Pflicht) <- depends on: nature (amoral world), postulates (God, immortality), conscience (Gewissen)
+        [TENSION] moral world-view (#86) --[dependency]--> duty (Pflicht) (#105)
+  106. the category (unity of being and thinking) <- depends on: reason as certainty of being all reality
+  107. absolute knowing <- depends on: Science of the experience of consciousness, recollection (Er-Innerung), Calvary of absolute Spirit
+        [TENSION] absolute knowing (#107) --[dependency]--> spirit knowing itself as spirit (#64) [back-reference]
+        [TENSION] substance IS subject (final) (#69) --[dependency]--> absolute knowing (#107)
+  108. experience (dialectical movement) <- depends on: hidden tendency toward truth, dialectic as method, mediation, Science of the experience of consciousness
+  109. reason <- depends on: observing reason, self-conscious individuality, individuality as real
+        [TENSION] reason (#109) --[dependency]--> reason as certainty of being all reality (#53) [back-reference]
+        [CONTRADICTION] reason (#109) --[negation]--> reconciliation projected beyond (#55) [back-reference]
+  110. universal I <- depends on: singular I
+        [CONTRADICTION] universal I (#110) --[negation]--> singular I (#60) [back-reference]
+  111. phrenology <- depends on: the skull-bone (being of spirit = bone)
+  112. insofar-as qualification <- depends on: sound common sense
+  113. dogmatism <- depends on: speculative proposition
+  114. death of God <- depends on: spiritual community, Calvary of absolute Spirit
+        [CONTRADICTION] death of God (#114) --[negation]--> incarnation (#34) [back-reference]
+  115. human law (state/polis) <- depends on: the state (polis), Creon
+        [CONTRADICTION] destruction of ethical life (#83) --[negation]--> human law (state/polis) (#115)
+  116. abstract freedom of thought <- depends on: Stoicism
+        [TENSION] abstract freedom of thought (#116) --[reference]--> independence (#98) [back-reference]
+  117. the bondsman (slave) <- depends on: lord's truth in bondsman, Stoicism
+        [CONTRADICTION] the lord (master) (#39) --[negation]--> the bondsman (slave) (#117)
+        [CONTRADICTION] the bondsman (slave) (#117) --[negation]--> the lord (master) (#39) [back-reference]
+  118. fear of death <- depends on: life-and-death struggle
+        [TENSION] bondsman's freedom through work (#8) --[dependency]--> fear of death (#118)
+  119. free matter/property <- depends on: surface enclosure
+  120. inverted world <- depends on: sweet becomes sour, crime becomes punishment
+  121. sense-certainty <- depends on: the Now, the Here, recollection (Er-Innerung)
+        [TENSION] pure being (#52) --[reference]--> sense-certainty (#121)
+        [TENSION] experience (dialectical movement) (#108) --[reference]--> sense-certainty (#121)
+        [TENSION] perception (#49) --[dependency]--> sense-certainty (#121)
+  122. epic (Homer) <- depends on: tragedy
+  123. the family <- depends on: woman and man (ethical shapes)
+        [TENSION] brother-sister relation (pure recognition) (#9) --[dependency]--> the family (#123)
+  124. work (formative activity) <- depends on: enjoyment, bondsman's freedom through work, work as product/expression, culture/education (Bildung)
+        [TENSION] the bondsman (slave) (#117) --[dependency]--> work (formative activity) (#124)
+  125. war (negation of ethical order) <- depends on: destruction of ethical life
+        [CONTRADICTION] war (negation of ethical order) (#125) --[negation]--> the state (polis) (#66) [back-reference]
+  126. language of disruption/wit <- depends on: pure insight
+  127. appearance (flux) <- depends on: law (stable image)
+  128. play of forces <- depends on: law (stable image)
+        [TENSION] appearance (flux) (#127) --[reference]--> play of forces (#128)
+        [TENSION] play of forces (#128) --[reference]--> mediation (#42) [back-reference]
+  129. expression of force <- depends on: force
+        [CONTRADICTION] expression of force (#129) --[negation]--> force proper (#28) [back-reference]
+        [CONTRADICTION] expression of force (#129) --[negation]--> force (#91) [back-reference]
+  130. heart's rebellion against order <- depends on: law of the heart
+        [TENSION] heart's rebellion against order (#130) --[dependency]--> frenzy of self-conceit (#29) [back-reference]
+  131. pleasure and necessity <- depends on: necessity (fate), law of the heart
+  132. the bud <- depends on: the blossom, mutual necessity
+  133. virtue <- depends on: virtue vs way of the world
+  134. the way of the world <- depends on: virtue vs way of the world
+        [CONTRADICTION] virtue (#133) --[negation]--> the way of the world (#134)
+        [CONTRADICTION] the way of the world (#134) --[negation]--> virtue (#133) [back-reference]
+  135. unconditioned universal <- depends on: concrete universal, force
+        [TENSION] inner being of thing (#36) --[reference]--> unconditioned universal (#135)
+  136. logical and psychological laws <- depends on: observation of nature
+  137. organic nature <- depends on: observation of nature
+  138. the thing <- depends on: the One (excluding unity), the Also (general medium)
+        [TENSION] inner being of thing (#36) --[dependency]--> the thing (#138)
+  139. natural religion <- depends on: light-being (Zoroastrian)
+  140. nature (amoral world) <- depends on: duty (Pflicht)
+        [TENSION] moral world-view (#86) --[dependency]--> nature (amoral world) (#140)
+        [CONTRADICTION] nature (amoral world) (#140) --[negation]--> duty (Pflicht) (#105) [back-reference]
+  141. the Concept (Begriff) <- depends on: absolute knowing
+  142. picture-thinking (Vorstellung) <- depends on: absolute knowing
+        [CONTRADICTION] picture-thinking (Vorstellung) (#142) --[negation]--> science (#57) [back-reference]
+  143. reconciliation (moral) <- depends on: absolute knowing
+  144. revealed religion (Christianity) <- depends on: incarnation, Trinity (immanent dialectic), absolute knowing
+        [TENSION] picture-thinking (Vorstellung) (#142) --[dependency]--> revealed religion (Christianity) (#144)
+        [TENSION] revealed religion (Christianity) (#144) --[reference]--> reconciliation (moral) (#143) [back-reference]
+  145. physiognomy <- depends on: phrenology
+  146. fixed result/proposition <- depends on: dogmatism
+  147. the Terror <- depends on: death of God
+        [CONTRADICTION] the Terror (#147) --[negation]--> absolute freedom (#1) [back-reference]
+        [CONTRADICTION] the Terror (#147) --[negation]--> absolute freedom (#1) [back-reference]
+        [TENSION] moral world-view (#86) --[dependency]--> the Terror (#147)
+  148. dependence <- depends on: the bondsman (slave)
+        [CONTRADICTION] independence (#98) --[negation]--> dependence (#148)
+        [CONTRADICTION] dependence (#148) --[negation]--> independence (#98) [back-reference]
+        [AUFHEBUNG] bondsman's freedom through work (#8) --[sublation]--> dependence (#148)
+  149. many properties <- depends on: salt (white, pungent, cubical), free matter/property
+        [TENSION] the thing (#138) --[dependency]--> many properties (#149)
+  150. immediate knowledge <- depends on: sense-certainty
+  151. the I <- depends on: sense-certainty
+        [TENSION] the I (#151) --[dependency]--> singular I (#60) [back-reference]
+  152. the This <- depends on: sense-certainty
+        [CONTRADICTION] This as not-This (superseded) (#85) --[negation]--> the This (#152)
+        [AUFHEBUNG] mediated simplicity (#41) --[sublation]--> the This (#152)
+  153. divine law (family) <- depends on: the family, Antigone, destruction of ethical life
+        [CONTRADICTION] divine law (family) (#153) --[negation]--> human law (state/polis) (#115) [back-reference]
+        [CONTRADICTION] human law (state/polis) (#115) --[negation]--> divine law (family) (#153)
+  154. thinghood (object of desire) <- depends on: work (formative activity)
+        [TENSION] enjoyment (#24) --[dependency]--> thinghood (object of desire) (#154)
+  155. base/ignoble consciousness <- depends on: noble consciousness, language of disruption/wit
+        [CONTRADICTION] base/ignoble consciousness (#155) --[negation]--> noble consciousness (#45) [back-reference]
+  156. language of flattery <- depends on: language of disruption/wit
+        [TENSION] language of flattery (#156) --[dependency]--> noble consciousness (#45) [back-reference]
+  157. incited force <- depends on: play of forces
+  158. inciting force <- depends on: play of forces
+        [CONTRADICTION] inciting force (#158) --[negation]--> incited force (#157) [back-reference]
+        [CONTRADICTION] incited force (#157) --[negation]--> inciting force (#158)
+  159. necessity (fate) <- depends on: pleasure and necessity
+        [CONTRADICTION] necessity (fate) (#159) --[negation]--> pleasure and necessity (#131) [back-reference]
+  160. self-consciousness <- depends on: reason, pleasure and necessity, conscience (Gewissen)
+        [TENSION] incarnation (#34) --[reference]--> self-consciousness (#160)
+        [TENSION] spirit knowing itself as spirit (#64) --[reference]--> self-consciousness (#160)
+  161. contradictory nature of thing <- depends on: unconditioned universal, insofar-as qualification
+        [TENSION] contradictory nature of thing (#161) --[dependency]--> the One (excluding unity) (#103) [back-reference]
+        [TENSION] contradictory nature of thing (#161) --[dependency]--> the Also (general medium) (#80) [back-reference]
+  162. property as self-contradictory <- depends on: white opposed to black, unconditioned universal
+        [TENSION] property as self-contradictory (#162) --[dependency]--> free matter/property (#119) [back-reference]
+        [TENSION] property as self-contradictory (#162) --[reference]--> the One (excluding unity) (#103) [back-reference]
+  163. psychological laws <- depends on: logical and psychological laws
+  164. thinghood (pure essence) <- depends on: the thing
+  165. the universal <- depends on: Now as universal, mediated simplicity, universal I, language (expresses universal), the particular (+7 more)
+  166. religion <- depends on: natural religion
+        [TENSION] revealed religion (Christianity) (#144) --[dependency]--> religion (#166)
+  167. time as history <- depends on: the Concept (Begriff), comprehended history
+        [TENSION] recollection (Er-Innerung) (#54) --[dependency]--> time as history (#167)
+  168. confession <- depends on: the hard heart, reconciliation (moral)
+  169. evil (acting conscience) <- depends on: the beautiful soul, reconciliation (moral)
+        [TENSION] evil (acting conscience) (#169) --[dependency]--> conscience (Gewissen) (#15) [back-reference]
+        [TENSION] confession (#168) --[dependency]--> evil (acting conscience) (#169)
+        [CONTRADICTION] evil (acting conscience) (#169) --[negation]--> the beautiful soul (#6) [back-reference]
+  170. forgiveness <- depends on: reconciliation (moral)
+        [CONTRADICTION] forgiveness (#170) --[negation]--> the hard heart (#32) [back-reference]
+        [TENSION] forgiveness (#170) --[dependency]--> confession (#168) [back-reference]
+  171. judging consciousness <- depends on: reconciliation (moral)
+        [TENSION] judging consciousness (#171) --[dependency]--> the beautiful soul (#6) [back-reference]
+        [CONTRADICTION] judging consciousness (#171) --[negation]--> evil (acting conscience) (#169) [back-reference]
+        [TENSION] the hard heart (#32) --[dependency]--> judging consciousness (#171)
+  172. recognition (Anerkennung) <- depends on: life-and-death struggle, the lord (master), the bondsman (slave), brother-sister relation (pure recognition), reconciliation (moral)
+        [TENSION] recognition (Anerkennung) (#172) --[dependency]--> self-consciousness (#160) [back-reference]
+  173. religion of art (Greek) <- depends on: epic (Homer), revealed religion (Christianity)
+        [CONTRADICTION] religion of art (Greek) (#173) --[negation]--> natural religion (#139) [back-reference]
+  174. unhappy consciousness <- depends on: asceticism (self-mortification), reconciliation projected beyond, faith, revealed religion (Christianity)
+        [TENSION] reason (#109) --[dependency]--> unhappy consciousness (#174)
+  175. inner and outer <- depends on: physiognomy
+        [TENSION] inner and outer (#175) --[dependency]--> self-conscious individuality (#59) [back-reference]
+  176. the false as moment of truth <- depends on: fixed result/proposition
+  177. immediacy <- depends on: immediate knowledge
+        [CONTRADICTION] immediacy (#177) --[negation]--> mediation (#42) [back-reference]
+        [CONTRADICTION] mediation (#42) --[negation]--> immediacy (#177)
+  178. ethical substance (Sittlichkeit) <- depends on: divine law (family), human law (state/polis), culture/education (Bildung)
+        [TENSION] religion (#166) --[reference]--> ethical substance (Sittlichkeit) (#178)
+  179. wealth <- depends on: base/ignoble consciousness
+        [CONTRADICTION] state power (#99) --[negation]--> wealth (#179)
+        [CONTRADICTION] wealth (#179) --[negation]--> state power (#99) [back-reference]
+  180. desire <- depends on: self-consciousness
+        [TENSION] desire (#180) --[dependency]--> thinghood (object of desire) (#154) [back-reference]
+        [TENSION] pleasure and necessity (#131) --[dependency]--> desire (#180)
+  181. life <- depends on: self-consciousness
+        [CONTRADICTION] desire (#180) --[negation]--> life (#181)
+  182. self-consciousness emerges <- depends on: self-consciousness
+  183. the particular <- depends on: the universal, many properties
+        [TENSION] the This (#152) --[dependency]--> the particular (#183)
+        [TENSION] the Here (#72) --[dependency]--> the particular (#183)
+        [TENSION] what is meant (das Meinen) (#97) --[dependency]--> the particular (#183)
+        [TENSION] concrete universal (#96) --[dependency]--> the particular (#183)
+        [CONTRADICTION] the particular (#183) --[negation]--> the universal (#165) [back-reference]
+  184. the artificer (Egyptian) <- depends on: religion of art (Greek)
+        [CONTRADICTION] the artificer (Egyptian) (#184) --[negation]--> plant and animal worship (#50) [back-reference]
+  185. the changeable (finite self) <- depends on: unhappy consciousness, mediating consciousness (priest)
+        [CONTRADICTION] asceticism (self-mortification) (#4) --[negation]--> the changeable (finite self) (#185)
+  186. Scepticism <- depends on: unhappy consciousness
+        [CONTRADICTION] Scepticism (#186) --[negation]--> Stoicism (#67) [back-reference]
+  187. the unchangeable (infinite beyond) <- depends on: unhappy consciousness, devotion, crusades (here and now of beyond)
+        [CONTRADICTION] the changeable (finite self) (#185) --[negation]--> the unchangeable (infinite beyond) (#187)
+        [CONTRADICTION] the unchangeable (infinite beyond) (#187) --[negation]--> the changeable (finite self) (#185) [back-reference]
+        [TENSION] mediating consciousness (priest) (#43) --[dependency]--> the unchangeable (infinite beyond) (#187)
+  188. negative procedure <- depends on: the false as moment of truth, determinate Nothing
+  189. ethical substance (emerging) <- depends on: ethical substance (Sittlichkeit)
+  190. unity of individual and universal <- depends on: ethical substance (Sittlichkeit)
+        [TENSION] ethical substance (emerging) (#189) --[dependency]--> unity of individual and universal (#190)
+  191. the curtain <- depends on: self-consciousness emerges
+  192. nothing behind unless we go there <- depends on: self-consciousness emerges
+        [CONTRADICTION] nothing behind unless we go there (#192) --[negation]--> the curtain (#191) [back-reference]
+  193. simple infinity <- depends on: self-related negation, self-consciousness emerges
+        [TENSION] self-consciousness (#160) --[reference]--> simple infinity (#193)
+  194. spirit <- depends on: science, self-consciousness emerges, the skull-bone (being of spirit = bone), ethical substance (Sittlichkeit), religion (+1 more)
+  195. self-contradictory consciousness <- depends on: Scepticism
+        [CONTRADICTION] self-contradictory consciousness (#195) --[negation]--> abstract freedom of thought (#116) [back-reference]
+  196. natural consciousness <- depends on: negative procedure
+        [TENSION] experience (dialectical movement) (#108) --[dependency]--> natural consciousness (#196)
+        [TENSION] natural consciousness (#196) --[dependency]--> sense-certainty (#121) [back-reference]
+        [TENSION] Science of the experience of consciousness (#58) --[reference]--> natural consciousness (#196)
+  197. law-testing reason <- depends on: ethical substance (emerging)
+  198. die Sache selbst (the matter at hand) <- depends on: deception/fraud, unity of individual and universal
+  199. supersensible world <- depends on: tranquil kingdom of laws, inverted world, the curtain
+        [TENSION] supersensible world (#199) --[dependency]--> law (stable image) (#89) [back-reference]
+  200. internal distinction <- depends on: simple infinity
+        [AUFHEBUNG] internal distinction (#200) --[sublation]--> inverted world (#120) [back-reference]
+        [AUFHEBUNG] internal distinction (#200) --[sublation]--> supersensible world (#199) [back-reference]
+  201. self-related negation <- depends on: simple infinity
+        [TENSION] self-related negation (#201) --[reference]--> the particular (#183) [back-reference]
+        [TENSION] life (#181) --[reference]--> self-related negation (#201)
+        [TENSION] self-related negation (#201) --[reference]--> simple infinity (#193) [back-reference]
+  202. the truth is the whole <- depends on: spirit, the false as moment of truth, appearance as actuality, the Concept (Begriff)
+  203. concept of knowledge <- depends on: natural consciousness
+  204. real knowledge <- depends on: natural consciousness
+        [CONTRADICTION] concept of knowledge (#203) --[negation]--> real knowledge (#204)
+        [TENSION] hidden tendency toward truth (#33) --[reference]--> real knowledge (#204)
+        [CONTRADICTION] real knowledge (#204) --[negation]--> immediate knowledge (#150) [back-reference]
+  205. legislative reason <- depends on: law-testing reason
+        [TENSION] legislative reason (#205) --[dependency]--> die Sache selbst (the matter at hand) (#198) [back-reference]
+  206. honest consciousness <- depends on: die Sache selbst (the matter at hand)
+        [CONTRADICTION] deception/fraud (#19) --[negation]--> honest consciousness (#206)
+  207. spiritual animal kingdom <- depends on: die Sache selbst (the matter at hand)
+        [TENSION] spiritual animal kingdom (#207) --[dependency]--> individuality as real (#35) [back-reference]
+        [TENSION] spiritual animal kingdom (#207) --[dependency]--> work as product/expression (#78) [back-reference]
+        [TENSION] spiritual animal kingdom (#207) --[reference]--> self-conscious individuality (#59) [back-reference]
+  208. the Absolute <- depends on: cognition as instrument, cognition as medium, the truth is the whole
+  209. subject (self-developing) <- depends on: the truth is the whole, the category (unity of being and thinking), substance IS subject (final)
+        [TENSION] self-consciousness emerges (#182) --[reference]--> subject (self-developing) (#209)
+  210. substance <- depends on: the truth is the whole
+        [CONTRADICTION] subject (self-developing) (#209) --[negation]--> substance (#210)
+        [TENSION] substance (#210) --[dependency]--> subject (self-developing) (#209) [back-reference]
+        [AUFHEBUNG] substance IS subject (final) (#69) --[sublation]--> substance (#210)
+
+----------------------------------------------------------------------
+STRUCTURAL SUMMARY
+----------------------------------------------------------------------
+
+Cut type distribution:
+  tension: 87
+  contradiction: 60
+  Aufhebung: 7
+
+Narrative density: 0.733 (cuts per vertex: 154/210)
+  Interpretation: high dialectical tension
+
+Concept connectivity (in main line order):
+  Hub concepts (degree >= 5):
+    the universal: in=12 out=1 total=13
+    sense-certainty: in=7 out=3 total=10
+    self-consciousness: in=6 out=4 total=10
+    absolute knowing: in=4 out=5 total=9
+    revealed religion (Christianity): in=4 out=4 total=8
+    unhappy consciousness: in=5 out=3 total=8
+    the particular: in=7 out=1 total=8
+    the lord (master): in=3 out=4 total=7
+    moral world-view: in=3 out=4 total=7
+    reason: in=3 out=4 total=7
+    the bondsman (slave): in=3 out=4 total=7
+    reconciliation (moral): in=2 out=5 total=7
+    ethical substance (Sittlichkeit): in=4 out=3 total=7
+    spirit: in=6 out=1 total=7
+    the truth is the whole: in=4 out=3 total=7
+    conscience (Gewissen): in=2 out=4 total=6
+    the Also (general medium): in=4 out=2 total=6
+    destruction of ethical life: in=2 out=4 total=6
+    the One (excluding unity): in=4 out=2 total=6
+    experience (dialectical movement): in=4 out=2 total=6
+    human law (state/polis): in=4 out=2 total=6
+    work (formative activity): in=5 out=1 total=6
+    the thing: in=3 out=3 total=6
+    divine law (family): in=4 out=2 total=6
+    evil (acting conscience): in=4 out=2 total=6
+    recognition (Anerkennung): in=5 out=1 total=6
+    self-consciousness emerges: in=1 out=5 total=6
+    the unchangeable (infinite beyond): in=5 out=1 total=6
+    natural consciousness: in=3 out=3 total=6
+    subject (self-developing): in=5 out=1 total=6
+    absolute freedom: in=3 out=2 total=5
+    bondsman's freedom through work: in=1 out=4 total=5
+    mediation: in=2 out=3 total=5
+    Stoicism: in=1 out=4 total=5
+    law (stable image): in=2 out=3 total=5
+    independence: in=4 out=1 total=5
+    duty (Pflicht): in=4 out=1 total=5
+    play of forces: in=2 out=3 total=5
+    pleasure and necessity: in=2 out=3 total=5
+    unconditioned universal: in=3 out=2 total=5
+    the changeable (finite self): in=4 out=1 total=5
+    simple infinity: in=3 out=2 total=5
+    die Sache selbst (the matter at hand): in=3 out=2 total=5
+    supersensible world: in=4 out=1 total=5

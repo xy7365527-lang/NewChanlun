@@ -1,0 +1,337 @@
+======================================================================
+TOPOLOGICAL NARRATIVE (Morse-Smale Linearization)
+======================================================================
+
+Complex: 124 vertices, 264 edges
+beta_1 = 141 (irreducible cycles)
+Terrain: 123 tree edges, 141 critical edges
+Critical cuts: 141 edges removed for linearization
+Edge types: {'dependency': 190, 'negation': 30, 'sublation': 30, 'reference': 14}
+
+----------------------------------------------------------------------
+MAIN LINE (topological order)
+----------------------------------------------------------------------
+
+    1. acquiescentia in se ipso — self-contentment from reason
+    2. adequate knowledge of the body is limited
+    3. affect ceases to be passion when we form clear idea
+    4. active affects — from adequate ideas
+    5. aristocracy — council holds sovereign power
+    6. blessedness (beatitudo) — not reward of virtue, but virtue itself
+    7. body — mode of extension
+    8. political remarks in letters
+    9. communis affectus — shared political affect
+   10. continuous creation (conservatio)
+   11. definition — expresses intimate essence of thing
+   12. democracy — all citizens hold sovereign power
+        [AUFHEBUNG] democracy — all citizens hold sovereign power (#12) --[sublation]--> aristocracy — council holds sovereign power (#5) [back-reference]
+        [TENSION] political remarks in letters (#8) --[reference]--> democracy — all citizens hold sovereign power (#12)
+   13. desire (cupiditas) — conatus with consciousness
+   14. defense of determinism — we are determined but free through understanding
+   15. doubt — suspension due to inadequate ideas
+   16. error arises from inadequate ideas
+   17. something of the mind is eternal
+   18. evil is privation — letter to Blyenbergh
+   19. evil as privation, not positive being
+        [AUFHEBUNG] evil is privation — letter to Blyenbergh (#18) --[sublation]--> evil as privation, not positive being (#19)
+   20. extension — attribute of substance
+        [TENSION] body — mode of extension (#7) --[dependency]--> extension — attribute of substance (#20)
+   21. false idea — imagination without correction
+   22. fear — inconstant sadness from uncertain future
+   23. fictitious idea — joining unconnected ideas
+   24. finite modes determined by other finite modes
+   25. fluctuatio animi — vacillation between contrary affects
+        [TENSION] fluctuatio animi — vacillation between contrary affects (#25) --[dependency]--> fear — inconstant sadness from uncertain future (#22) [back-reference]
+   26. freedom of thought and expression
+   27. generositas — rational desire to aid others
+   28. good and evil as relative to human model
+        [TENSION] evil is privation — letter to Blyenbergh (#18) --[dependency]--> good and evil as relative to human model (#28)
+   29. good and evil as relative to us
+        [TENSION] evil as privation, not positive being (#19) --[reference]--> good and evil as relative to us (#29)
+        [AUFHEBUNG] good and evil as relative to human model (#28) --[sublation]--> good and evil as relative to us (#29)
+   30. hate — sadness with idea of external cause
+   31. the Hebrew theocracy — historical model
+   32. idea of idea — reflexive self-knowledge
+   33. indignatio — political affect of revolt
+   34. infinite — that which is unlimited in its kind
+   35. Letter 12 on the infinite — three kinds of infinity
+        [AUFHEBUNG] Letter 12 on the infinite — three kinds of infinity (#35) --[sublation]--> infinite — that which is unlimited in its kind (#34) [back-reference]
+   36. infinite modes — immediate and mediate
+   37. highest joy from third kind of knowledge
+   38. memory — association of bodily images
+   39. method — reflexive knowledge of the idea of the true
+        [TENSION] definition — expresses intimate essence of thing (#11) --[dependency]--> method — reflexive knowledge of the idea of the true (#39)
+   40. miracles = ignorance of natural causes
+   41. monarchy — one holds sovereign power
+        [AUFHEBUNG] aristocracy — council holds sovereign power (#5) --[sublation]--> monarchy — one holds sovereign power (#41)
+   42. the multitude (multitudo) — collective political subject
+        [TENSION] communis affectus — shared political affect (#9) --[dependency]--> the multitude (multitudo) — collective political subject (#42)
+   43. natura naturata — modes following from God
+   44. theology teaches obedience and piety, not truth
+   45. order of ideas = order of things
+        [TENSION] order of ideas = order of things (#45) --[dependency]--> extension — attribute of substance (#20) [back-reference]
+   46. political science — from affects as they are, not as they should be
+   47. power (potentia) — capacity to act and be affected
+        [TENSION] power (potentia) — capacity to act and be affected (#47) --[dependency]--> active affects — from adequate ideas (#4) [back-reference]
+   48. prophecy — vivid imagination, not intellectual knowledge
+   49. remedies against the affects
+        [TENSION] affect ceases to be passion when we form clear idea (#3) --[dependency]--> remedies against the affects (#49)
+   50. right of the state = its power
+   51. scripture must be interpreted from scripture alone
+        [TENSION] scripture must be interpreted from scripture alone (#51) --[reference]--> method — reflexive knowledge of the idea of the true (#39) [back-reference]
+   52. self-preservation = foundation of virtue
+   53. social contract — transfer of right to sovereign
+        [TENSION] the Hebrew theocracy — historical model (#31) --[reference]--> social contract — transfer of right to sovereign (#53)
+        [AUFHEBUNG] the multitude (multitudo) — collective political subject (#42) --[sublation]--> social contract — transfer of right to sovereign (#53)
+   54. fortitudo — strength of mind
+        [TENSION] fortitudo — strength of mind (#54) --[dependency]--> active affects — from adequate ideas (#4) [back-reference]
+        [TENSION] generositas — rational desire to aid others (#27) --[dependency]--> fortitudo — strength of mind (#54)
+   55. under the aspect of eternity
+   56. defense of substance monism against objections
+   57. superstition as form of bondage
+        [TENSION] superstition as form of bondage (#57) --[dependency]--> fear — inconstant sadness from uncertain future (#22) [back-reference]
+   58. superstition arises from fear and ignorance
+        [AUFHEBUNG] superstition arises from fear and ignorance (#58) --[sublation]--> superstition as form of bondage (#57) [back-reference]
+        [TENSION] superstition arises from fear and ignorance (#58) --[dependency]--> fear — inconstant sadness from uncertain future (#22) [back-reference]
+   59. present affect stronger than future — temporal gradient
+   60. true good — continuous supreme joy
+   61. universals as confused abstractions
+   62. Cartesian distinction of will and intellect (Spinoza rejects)
+   63. will and intellect are one
+        [CONTRADICTION] Cartesian distinction of will and intellect (Spinoza rejects) (#62) --[negation]--> will and intellect are one (#63)
+   64. will cannot be called a free cause
+        [AUFHEBUNG] will cannot be called a free cause (#64) --[sublation]--> will and intellect are one (#63) [back-reference]
+        [CONTRADICTION] will cannot be called a free cause (#64) --[negation]--> Cartesian distinction of will and intellect (Spinoza rejects) (#62) [back-reference]
+   65. worm in blood analogy — part/whole knowledge
+        [TENSION] worm in blood analogy — part/whole knowledge (#65) --[reference]--> adequate knowledge of the body is limited (#2) [back-reference]
+        [TENSION] worm in blood analogy — part/whole knowledge (#65) --[reference]--> order of ideas = order of things (#45) [back-reference]
+   66. mind and body are one and the same thing <- depends on: adequate knowledge of the body is limited
+        [TENSION] mind and body are one and the same thing (#66) --[dependency]--> order of ideas = order of things (#45) [back-reference]
+        [TENSION] mind and body are one and the same thing (#66) --[dependency]--> body — mode of extension (#7) [back-reference]
+   67. imitation of affects — affective mimesis <- depends on: communis affectus — shared political affect
+        [TENSION] indignatio — political affect of revolt (#33) --[dependency]--> imitation of affects — affective mimesis (#67)
+   68. perfection — degree of reality/being <- depends on: evil as privation, not positive being, evil is privation — letter to Blyenbergh
+        [TENSION] good and evil as relative to human model (#28) --[dependency]--> perfection — degree of reality/being (#68)
+   69. hope — inconstant joy from uncertain future <- depends on: fear — inconstant sadness from uncertain future, fluctuatio animi — vacillation between contrary affects
+   70. dictates of reason — what reason prescribes <- depends on: generositas — rational desire to aid others
+        [TENSION] freedom of thought and expression (#26) --[dependency]--> dictates of reason — what reason prescribes (#70)
+        [CONTRADICTION] political science — from affects as they are, not as they should be (#46) --[negation]--> dictates of reason — what reason prescribes (#70)
+   71. love — joy with idea of external cause <- depends on: hate — sadness with idea of external cause
+   72. democracy as most natural form of government <- depends on: the Hebrew theocracy — historical model, democracy — all citizens hold sovereign power
+   73. mind — idea of the body <- depends on: idea of idea — reflexive self-knowledge
+        [TENSION] mind and body are one and the same thing (#66) --[dependency]--> mind — idea of the body (#73)
+        [TENSION] desire (cupiditas) — conatus with consciousness (#13) --[dependency]--> mind — idea of the body (#73)
+        [TENSION] something of the mind is eternal (#17) --[dependency]--> mind — idea of the body (#73)
+   74. sadness (tristitia) — passage to lesser perfection <- depends on: indignatio — political affect of revolt
+        [TENSION] hate — sadness with idea of external cause (#30) --[dependency]--> sadness (tristitia) — passage to lesser perfection (#74)
+        [TENSION] fear — inconstant sadness from uncertain future (#22) --[dependency]--> sadness (tristitia) — passage to lesser perfection (#74)
+        [TENSION] good and evil as relative to human model (#28) --[dependency]--> sadness (tristitia) — passage to lesser perfection (#74)
+   75. eternity — existence conceived under infinite attribute <- depends on: Letter 12 on the infinite — three kinds of infinity
+        [TENSION] eternity — existence conceived under infinite attribute (#75) --[dependency]--> infinite — that which is unlimited in its kind (#34) [back-reference]
+        [TENSION] something of the mind is eternal (#17) --[dependency]--> eternity — existence conceived under infinite attribute (#75)
+        [TENSION] under the aspect of eternity (#55) --[dependency]--> eternity — existence conceived under infinite attribute (#75)
+   76. amor Dei intellectualis — intellectual love of God <- depends on: blessedness (beatitudo) — not reward of virtue, but virtue itself, highest joy from third kind of knowledge
+   77. nothing is contingent — only from ignorance <- depends on: miracles = ignorance of natural causes
+   78. sovereignty — power of the multitude <- depends on: monarchy — one holds sovereign power, aristocracy — council holds sovereign power, political remarks in letters
+        [TENSION] sovereignty — power of the multitude (#78) --[dependency]--> the multitude (multitudo) — collective political subject (#42) [back-reference]
+        [TENSION] democracy — all citizens hold sovereign power (#12) --[dependency]--> sovereignty — power of the multitude (#78)
+        [TENSION] right of the state = its power (#50) --[dependency]--> sovereignty — power of the multitude (#78)
+   79. rational society — agreement by nature <- depends on: the multitude (multitudo) — collective political subject
+        [TENSION] rational society — agreement by nature (#79) --[dependency]--> generositas — rational desire to aid others (#27) [back-reference]
+        [TENSION] democracy as most natural form of government (#72) --[dependency]--> rational society — agreement by nature (#79)
+        [TENSION] social contract — transfer of right to sovereign (#53) --[dependency]--> rational society — agreement by nature (#79)
+   80. natura naturans — God as free cause <- depends on: natura naturata — modes following from God, infinite modes — immediate and mediate
+   81. theology and philosophy have separate domains <- depends on: theology teaches obedience and piety, not truth
+   82. substance has infinite attributes <- depends on: infinite modes — immediate and mediate, order of ideas = order of things
+   83. natural right = power <- depends on: social contract — transfer of right to sovereign
+        [TENSION] natural right = power (#83) --[dependency]--> power (potentia) — capacity to act and be affected (#47) [back-reference]
+   84. virtue — power of acting from adequate ideas <- depends on: fortitudo — strength of mind, blessedness (beatitudo) — not reward of virtue, but virtue itself
+        [TENSION] virtue — power of acting from adequate ideas (#84) --[dependency]--> power (potentia) — capacity to act and be affected (#47) [back-reference]
+        [TENSION] self-preservation = foundation of virtue (#52) --[dependency]--> virtue — power of acting from adequate ideas (#84)
+        [TENSION] dictates of reason — what reason prescribes (#70) --[dependency]--> virtue — power of acting from adequate ideas (#84)
+        [TENSION] acquiescentia in se ipso — self-contentment from reason (#1) --[dependency]--> virtue — power of acting from adequate ideas (#84)
+   85. duration — indefinite continuation of existing <- depends on: under the aspect of eternity
+        [CONTRADICTION] duration — indefinite continuation of existing (#85) --[negation]--> eternity — existence conceived under infinite attribute (#75) [back-reference]
+        [TENSION] present affect stronger than future — temporal gradient (#59) --[dependency]--> duration — indefinite continuation of existing (#85)
+        [TENSION] Letter 12 on the infinite — three kinds of infinity (#35) --[dependency]--> duration — indefinite continuation of existing (#85)
+   86. scientia intuitiva — knowledge of things sub specie aeternitatis <- depends on: under the aspect of eternity, prophecy — vivid imagination, not intellectual knowledge
+        [TENSION] amor Dei intellectualis — intellectual love of God (#76) --[dependency]--> scientia intuitiva — knowledge of things sub specie aeternitatis (#86)
+   87. God necessarily exists (ontological proof) <- depends on: defense of substance monism against objections
+   88. intellectual love of God (early) <- depends on: true good — continuous supreme joy
+        [AUFHEBUNG] amor Dei intellectualis — intellectual love of God (#76) --[sublation]--> intellectual love of God (early) (#88)
+   89. ordinary goods (wealth, honor, pleasure) <- depends on: true good — continuous supreme joy
+   90. thought — attribute of substance <- depends on: will and intellect are one
+        [CONTRADICTION] thought — attribute of substance (#90) --[negation]--> extension — attribute of substance (#20) [back-reference]
+        [TENSION] mind — idea of the body (#73) --[dependency]--> thought — attribute of substance (#90)
+        [TENSION] order of ideas = order of things (#45) --[dependency]--> thought — attribute of substance (#90)
+   91. every thing determined by another to exist and act <- depends on: will cannot be called a free cause
+        [TENSION] every thing determined by another to exist and act (#91) --[dependency]--> natura naturata — modes following from God (#43) [back-reference]
+        [TENSION] finite modes determined by other finite modes (#24) --[dependency]--> every thing determined by another to exist and act (#91)
+        [TENSION] defense of determinism — we are determined but free through understanding (#14) --[reference]--> every thing determined by another to exist and act (#91)
+   92. first kind: imagination/opinion <- depends on: error arises from inadequate ideas, prophecy — vivid imagination, not intellectual knowledge, worm in blood analogy — part/whole knowledge
+        [TENSION] universals as confused abstractions (#61) --[dependency]--> first kind: imagination/opinion (#92)
+   93. Descartes' substance (res cogitans/extensa) <- depends on: Cartesian distinction of will and intellect (Spinoza rejects), mind and body are one and the same thing
+   94. imagination — confused, first kind of knowledge <- depends on: fictitious idea — joining unconnected ideas, false idea — imagination without correction, memory — association of bodily images, universals as confused abstractions, imitation of affects — affective mimesis (+3 more)
+        [TENSION] nothing is contingent — only from ignorance (#77) --[reference]--> imagination — confused, first kind of knowledge (#94)
+        [AUFHEBUNG] first kind: imagination/opinion (#92) --[sublation]--> imagination — confused, first kind of knowledge (#94)
+        [TENSION] hope — inconstant joy from uncertain future (#69) --[dependency]--> imagination — confused, first kind of knowledge (#94)
+        [TENSION] superstition as form of bondage (#57) --[dependency]--> imagination — confused, first kind of knowledge (#94)
+        [TENSION] theology and philosophy have separate domains (#81) --[dependency]--> imagination — confused, first kind of knowledge (#94)
+   95. existence — not distinct from essence in God <- depends on: perfection — degree of reality/being
+        [TENSION] God necessarily exists (ontological proof) (#87) --[dependency]--> existence — not distinct from essence in God (#95)
+   96. purpose of state = freedom, not obedience <- depends on: democracy as most natural form of government
+        [TENSION] purpose of state = freedom, not obedience (#96) --[dependency]--> freedom of thought and expression (#26) [back-reference]
+   97. mode — affection of substance <- depends on: good and evil as relative to us, mind — idea of the body, body — mode of extension
+        [AUFHEBUNG] natura naturata — modes following from God (#43) --[sublation]--> mode — affection of substance (#97)
+   98. joy (laetitia) — passage to greater perfection <- depends on: sadness (tristitia) — passage to lesser perfection, love — joy with idea of external cause, hope — inconstant joy from uncertain future, good and evil as relative to human model, amor Dei intellectualis — intellectual love of God (+1 more)
+        [TENSION] joy (laetitia) — passage to greater perfection (#98) --[dependency]--> perfection — degree of reality/being (#68) [back-reference]
+        [AUFHEBUNG] highest joy from third kind of knowledge (#37) --[sublation]--> joy (laetitia) — passage to greater perfection (#98)
+   99. finite — limited by another of the same nature <- depends on: nothing is contingent — only from ignorance, finite modes determined by other finite modes
+        [CONTRADICTION] finite — limited by another of the same nature (#99) --[negation]--> infinite — that which is unlimited in its kind (#34) [back-reference]
+        [TENSION] finite — limited by another of the same nature (#99) --[dependency]--> mode — affection of substance (#97) [back-reference]
+        [TENSION] duration — indefinite continuation of existing (#85) --[dependency]--> finite — limited by another of the same nature (#99)
+  100. natural right = actual power (jus sive potentia) <- depends on: sovereignty — power of the multitude, right of the state = its power
+        [AUFHEBUNG] natural right = actual power (jus sive potentia) (#100) --[sublation]--> natural right = power (#83) [back-reference]
+        [TENSION] natural right = actual power (jus sive potentia) (#100) --[dependency]--> power (potentia) — capacity to act and be affected (#47) [back-reference]
+  101. the free man — one guided by reason <- depends on: rational society — agreement by nature, freedom of thought and expression
+        [TENSION] the free man — one guided by reason (#101) --[dependency]--> dictates of reason — what reason prescribes (#70) [back-reference]
+        [TENSION] the free man — one guided by reason (#101) --[dependency]--> virtue — power of acting from adequate ideas (#84) [back-reference]
+  102. there can be only one substance <- depends on: natura naturans — God as free cause
+        [CONTRADICTION] there can be only one substance (#102) --[negation]--> Descartes' substance (res cogitans/extensa) (#93) [back-reference]
+        [TENSION] substance has infinite attributes (#82) --[dependency]--> there can be only one substance (#102)
+        [TENSION] God necessarily exists (ontological proof) (#87) --[dependency]--> there can be only one substance (#102)
+        [TENSION] defense of substance monism against objections (#56) --[reference]--> there can be only one substance (#102)
+  103. third kind: intuitive knowledge (scientia intuitiva) <- depends on: something of the mind is eternal, scientia intuitiva — knowledge of things sub specie aeternitatis
+        [TENSION] highest joy from third kind of knowledge (#37) --[dependency]--> third kind: intuitive knowledge (scientia intuitiva) (#103)
+  104. clear knowledge (intuition) — third kind <- depends on: intellectual love of God (early)
+        [AUFHEBUNG] third kind: intuitive knowledge (scientia intuitiva) (#103) --[sublation]--> clear knowledge (intuition) — third kind (#104)
+  105. attribute — what intellect perceives as essence of substance <- depends on: thought — attribute of substance, extension — attribute of substance
+        [TENSION] mode — affection of substance (#97) --[dependency]--> attribute — what intellect perceives as essence of substance (#105)
+        [AUFHEBUNG] substance has infinite attributes (#82) --[sublation]--> attribute — what intellect perceives as essence of substance (#105)
+  106. all things follow from God's nature necessarily <- depends on: every thing determined by another to exist and act, miracles = ignorance of natural causes
+        [TENSION] all things follow from God's nature necessarily (#106) --[dependency]--> God necessarily exists (ontological proof) (#87) [back-reference]
+        [TENSION] all things follow from God's nature necessarily (#106) --[dependency]--> nothing is contingent — only from ignorance (#77) [back-reference]
+  107. sensation — ideas of body's affections <- depends on: first kind: imagination/opinion
+        [TENSION] sensation — ideas of body's affections (#107) --[dependency]--> body — mode of extension (#7) [back-reference]
+        [TENSION] sensation — ideas of body's affections (#107) --[dependency]--> mind — idea of the body (#73) [back-reference]
+        [TENSION] memory — association of bodily images (#38) --[dependency]--> sensation — ideas of body's affections (#107)
+  108. intellect — true ideas, foundation of method <- depends on: imagination — confused, first kind of knowledge
+        [TENSION] method — reflexive knowledge of the idea of the true (#39) --[dependency]--> intellect — true ideas, foundation of method (#108)
+        [TENSION] intellect — true ideas, foundation of method (#108) --[dependency]--> thought — attribute of substance (#90) [back-reference]
+  109. opinion (imaginatio) — first kind of knowledge <- depends on: imagination — confused, first kind of knowledge
+  110. freedom — self-determination through adequate ideas <- depends on: purpose of state = freedom, not obedience, defense of determinism — we are determined but free through understanding
+        [TENSION] blessedness (beatitudo) — not reward of virtue, but virtue itself (#6) --[dependency]--> freedom — self-determination through adequate ideas (#110)
+  111. conatus — striving to persevere in being <- depends on: desire (cupiditas) — conatus with consciousness, active affects — from adequate ideas, power (potentia) — capacity to act and be affected, self-preservation = foundation of virtue, natural right = power (+2 more)
+        [TENSION] conatus — striving to persevere in being (#111) --[dependency]--> natura naturata — modes following from God (#43) [back-reference]
+        [TENSION] conatus — striving to persevere in being (#111) --[dependency]--> every thing determined by another to exist and act (#91) [back-reference]
+        [TENSION] joy (laetitia) — passage to greater perfection (#98) --[dependency]--> conatus — striving to persevere in being (#111)
+        [TENSION] sadness (tristitia) — passage to lesser perfection (#74) --[dependency]--> conatus — striving to persevere in being (#111)
+        [TENSION] virtue — power of acting from adequate ideas (#84) --[dependency]--> conatus — striving to persevere in being (#111)
+  112. human bondage — subjection to passive affects <- depends on: the free man — one guided by reason, superstition as form of bondage
+        [TENSION] human bondage — subjection to passive affects (#112) --[dependency]--> imagination — confused, first kind of knowledge (#94) [back-reference]
+        [CONTRADICTION] freedom — self-determination through adequate ideas (#110) --[negation]--> human bondage — subjection to passive affects (#112)
+  113. second kind: reason (from common notions) <- depends on: third kind: intuitive knowledge (scientia intuitiva), dictates of reason — what reason prescribes, remedies against the affects, theology and philosophy have separate domains
+        [AUFHEBUNG] second kind: reason (from common notions) (#113) --[sublation]--> first kind: imagination/opinion (#92) [back-reference]
+        [TENSION] acquiescentia in se ipso — self-contentment from reason (#1) --[dependency]--> second kind: reason (from common notions) (#113)
+  114. true belief — second kind of knowledge <- depends on: clear knowledge (intuition) — third kind
+        [AUFHEBUNG] true belief — second kind of knowledge (#114) --[sublation]--> opinion (imaginatio) — first kind of knowledge (#109) [back-reference]
+  115. adequate idea — clear and distinct in itself <- depends on: method — reflexive knowledge of the idea of the true, definition — expresses intimate essence of thing, doubt — suspension due to inadequate ideas, freedom — self-determination through adequate ideas, scripture must be interpreted from scripture alone
+        [CONTRADICTION] false idea — imagination without correction (#21) --[negation]--> adequate idea — clear and distinct in itself (#115)
+        [TENSION] second kind: reason (from common notions) (#113) --[dependency]--> adequate idea — clear and distinct in itself (#115)
+        [TENSION] idea of idea — reflexive self-knowledge (#32) --[dependency]--> adequate idea — clear and distinct in itself (#115)
+        [CONTRADICTION] error arises from inadequate ideas (#16) --[negation]--> adequate idea — clear and distinct in itself (#115)
+        [TENSION] active affects — from adequate ideas (#4) --[dependency]--> adequate idea — clear and distinct in itself (#115)
+        [TENSION] virtue — power of acting from adequate ideas (#84) --[dependency]--> adequate idea — clear and distinct in itself (#115)
+        [TENSION] remedies against the affects (#49) --[dependency]--> adequate idea — clear and distinct in itself (#115)
+        [TENSION] affect ceases to be passion when we form clear idea (#3) --[dependency]--> adequate idea — clear and distinct in itself (#115)
+        [TENSION] defense of determinism — we are determined but free through understanding (#14) --[dependency]--> adequate idea — clear and distinct in itself (#115)
+  116. essence — what constitutes a thing <- depends on: conatus — striving to persevere in being, scientia intuitiva — knowledge of things sub specie aeternitatis
+        [TENSION] existence — not distinct from essence in God (#95) --[dependency]--> essence — what constitutes a thing (#116)
+        [TENSION] perfection — degree of reality/being (#68) --[dependency]--> essence — what constitutes a thing (#116)
+        [TENSION] third kind: intuitive knowledge (scientia intuitiva) (#103) --[dependency]--> essence — what constitutes a thing (#116)
+  117. passive affects (passiones) — from inadequate ideas <- depends on: human bondage — subjection to passive affects, affect ceases to be passion when we form clear idea
+        [TENSION] passive affects (passiones) — from inadequate ideas (#117) --[dependency]--> imagination — confused, first kind of knowledge (#94) [back-reference]
+        [CONTRADICTION] passive affects (passiones) — from inadequate ideas (#117) --[negation]--> active affects — from adequate ideas (#4) [back-reference]
+        [TENSION] imitation of affects — affective mimesis (#67) --[dependency]--> passive affects (passiones) — from inadequate ideas (#117)
+        [TENSION] fluctuatio animi — vacillation between contrary affects (#25) --[dependency]--> passive affects (passiones) — from inadequate ideas (#117)
+        [TENSION] present affect stronger than future — temporal gradient (#59) --[dependency]--> passive affects (passiones) — from inadequate ideas (#117)
+        [CONTRADICTION] remedies against the affects (#49) --[negation]--> passive affects (passiones) — from inadequate ideas (#117)
+        [TENSION] political science — from affects as they are, not as they should be (#46) --[dependency]--> passive affects (passiones) — from inadequate ideas (#117)
+        [TENSION] indignatio — political affect of revolt (#33) --[dependency]--> passive affects (passiones) — from inadequate ideas (#117)
+  118. freedom = acting from necessity of own nature <- depends on: human bondage — subjection to passive affects, freedom — self-determination through adequate ideas
+        [TENSION] freedom = acting from necessity of own nature (#118) --[dependency]--> all things follow from God's nature necessarily (#106) [back-reference]
+  119. common notions — basis of reason <- depends on: second kind: reason (from common notions)
+        [TENSION] common notions — basis of reason (#119) --[dependency]--> adequate idea — clear and distinct in itself (#115) [back-reference]
+        [TENSION] common notions — basis of reason (#119) --[dependency]--> body — mode of extension (#7) [back-reference]
+        [TENSION] adequate knowledge of the body is limited (#2) --[dependency]--> common notions — basis of reason (#119)
+        [TENSION] dictates of reason — what reason prescribes (#70) --[dependency]--> common notions — basis of reason (#119)
+  120. falsity — mutilated and confused ideas <- depends on: adequate idea — clear and distinct in itself
+        [TENSION] doubt — suspension due to inadequate ideas (#15) --[dependency]--> falsity — mutilated and confused ideas (#120)
+        [AUFHEBUNG] error arises from inadequate ideas (#16) --[sublation]--> falsity — mutilated and confused ideas (#120)
+  121. truth — idea agreeing with its ideatum <- depends on: adequate idea — clear and distinct in itself
+        [CONTRADICTION] truth — idea agreeing with its ideatum (#121) --[negation]--> falsity — mutilated and confused ideas (#120) [back-reference]
+        [CONTRADICTION] theology teaches obedience and piety, not truth (#44) --[negation]--> truth — idea agreeing with its ideatum (#121)
+  122. causa sui — cause of itself <- depends on: existence — not distinct from essence in God, continuous creation (conservatio), God necessarily exists (ontological proof), freedom = acting from necessity of own nature
+  123. God or Nature — the sole substance <- depends on: intellectual love of God (early), causa sui — cause of itself, natura naturans — God as free cause, amor Dei intellectualis — intellectual love of God, scientia intuitiva — knowledge of things sub specie aeternitatis (+1 more)
+  124. substance — that which is in itself <- depends on: God or Nature — the sole substance, attribute — what intellect perceives as essence of substance, mode — affection of substance, infinite — that which is unlimited in its kind, Descartes' substance (res cogitans/extensa) (+1 more)
+        [TENSION] causa sui — cause of itself (#122) --[dependency]--> substance — that which is in itself (#124)
+        [TENSION] essence — what constitutes a thing (#116) --[dependency]--> substance — that which is in itself (#124)
+        [AUFHEBUNG] there can be only one substance (#102) --[sublation]--> substance — that which is in itself (#124)
+
+----------------------------------------------------------------------
+STRUCTURAL SUMMARY
+----------------------------------------------------------------------
+
+Cut type distribution:
+  tension: 108
+  Aufhebung: 19
+  contradiction: 14
+
+Narrative density: 1.137 (cuts per vertex: 141/124)
+  Interpretation: high dialectical tension
+
+Concept connectivity (in main line order):
+  Hub concepts (degree >= 5):
+    imagination — confused, first kind of knowledge: in=15 out=2 total=17
+    adequate idea — clear and distinct in itself: in=15 out=2 total=17
+    conatus — striving to persevere in being: in=10 out=3 total=13
+    passive affects (passiones) — from inadequate ideas: in=8 out=2 total=10
+    virtue — power of acting from adequate ideas: in=6 out=3 total=9
+    joy (laetitia) — passage to greater perfection: in=7 out=2 total=9
+    substance — that which is in itself: in=9 out=0 total=9
+    second kind: reason (from common notions): in=5 out=3 total=8
+    dictates of reason — what reason prescribes: in=4 out=3 total=7
+    mind — idea of the body: in=5 out=2 total=7
+    sovereignty — power of the multitude: in=5 out=2 total=7
+    first kind: imagination/opinion: in=5 out=2 total=7
+    mode — affection of substance: in=5 out=2 total=7
+    God or Nature — the sole substance: in=6 out=1 total=7
+    perfection — degree of reality/being: in=4 out=2 total=6
+    sadness (tristitia) — passage to lesser perfection: in=4 out=2 total=6
+    eternity — existence conceived under infinite attribute: in=4 out=2 total=6
+    amor Dei intellectualis — intellectual love of God: in=2 out=4 total=6
+    scientia intuitiva — knowledge of things sub specie aeternitatis: in=3 out=3 total=6
+    thought — attribute of substance: in=4 out=2 total=6
+    every thing determined by another to exist and act: in=4 out=2 total=6
+    there can be only one substance: in=4 out=2 total=6
+    third kind: intuitive knowledge (scientia intuitiva): in=3 out=3 total=6
+    freedom — self-determination through adequate ideas: in=3 out=3 total=6
+    human bondage — subjection to passive affects: in=3 out=3 total=6
+    essence — what constitutes a thing: in=5 out=1 total=6
+    causa sui — cause of itself: in=4 out=2 total=6
+    active affects — from adequate ideas: in=3 out=2 total=5
+    body — mode of extension: in=3 out=2 total=5
+    fear — inconstant sadness from uncertain future: in=3 out=2 total=5
+    good and evil as relative to human model: in=1 out=4 total=5
+    order of ideas = order of things: in=2 out=3 total=5
+    power (potentia) — capacity to act and be affected: in=3 out=2 total=5
+    mind and body are one and the same thing: in=1 out=4 total=5
+    rational society — agreement by nature: in=3 out=2 total=5
+    duration — indefinite continuation of existing: in=3 out=2 total=5
+    God necessarily exists (ontological proof): in=2 out=3 total=5
+    finite — limited by another of the same nature: in=3 out=2 total=5
+    natural right = actual power (jus sive potentia): in=2 out=3 total=5
+    the free man — one guided by reason: in=2 out=3 total=5
+    attribute — what intellect perceives as essence of substance: in=4 out=1 total=5
+    all things follow from God's nature necessarily: in=3 out=2 total=5
+    common notions — basis of reason: in=3 out=2 total=5
