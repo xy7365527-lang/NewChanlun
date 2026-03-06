@@ -1,0 +1,3403 @@
+{
+  "experiment": "lacan_seminars_incremental",
+  "source": "Lacan, Seminars I-XXIII (1953-1976)",
+  "methodology": "manual conceptual complex per seminar, incremental injection, digestion until 50-step beta_1 stability",
+  "seminar_results": [
+    {
+      "seminar": "I: Freud's Papers on Technique (1953-54)",
+      "seminar_index": 1,
+      "vertices_added": 13,
+      "edges_added": 16,
+      "vertices_total": 13,
+      "edges_total": 19,
+      "beta_1_before_injection": 4,
+      "beta_1_after_digestion": 3,
+      "delta_beta_1": -1,
+      "settled_cycles": 1,
+      "blocked_in_seminar": 1,
+      "steps_to_digest": 80,
+      "converged": true,
+      "cumulative_steps": 80,
+      "operation_counts": {
+        "walk": 75,
+        "negate_b": 1,
+        "sublate": 1,
+        "fold_blocked": 1,
+        "fold": 2
+      }
+    },
+    {
+      "seminar": "II: The Ego in Freud's Theory (1954-55)",
+      "seminar_index": 2,
+      "vertices_added": 11,
+      "edges_added": 14,
+      "vertices_total": 21,
+      "edges_total": 34,
+      "beta_1_before_injection": 6,
+      "beta_1_after_digestion": 6,
+      "delta_beta_1": 0,
+      "settled_cycles": 3,
+      "blocked_in_seminar": 1,
+      "steps_to_digest": 75,
+      "converged": true,
+      "cumulative_steps": 155,
+      "operation_counts": {
+        "walk": 72,
+        "fold": 3
+      }
+    },
+    {
+      "seminar": "III: The Psychoses (1955-56)",
+      "seminar_index": 3,
+      "vertices_added": 11,
+      "edges_added": 16,
+      "vertices_total": 32,
+      "edges_total": 54,
+      "beta_1_before_injection": 10,
+      "beta_1_after_digestion": 9,
+      "delta_beta_1": -1,
+      "settled_cycles": 4,
+      "blocked_in_seminar": 1,
+      "steps_to_digest": 75,
+      "converged": true,
+      "cumulative_steps": 230,
+      "operation_counts": {
+        "walk": 68,
+        "negate_b": 1,
+        "sublate": 2,
+        "fold": 3,
+        "negate_a": 1
+      }
+    },
+    {
+      "seminar": "IV: The Object Relation (1956-57)",
+      "seminar_index": 4,
+      "vertices_added": 9,
+      "edges_added": 14,
+      "vertices_total": 39,
+      "edges_total": 66,
+      "beta_1_before_injection": 12,
+      "beta_1_after_digestion": 10,
+      "delta_beta_1": -2,
+      "settled_cycles": 4,
+      "blocked_in_seminar": 1,
+      "steps_to_digest": 68,
+      "converged": true,
+      "cumulative_steps": 298,
+      "operation_counts": {
+        "walk": 66,
+        "fold": 2
+      }
+    },
+    {
+      "seminar": "V: Formations of the Unconscious (1957-58)",
+      "seminar_index": 5,
+      "vertices_added": 11,
+      "edges_added": 18,
+      "vertices_total": 49,
+      "edges_total": 82,
+      "beta_1_before_injection": 14,
+      "beta_1_after_digestion": 14,
+      "delta_beta_1": 0,
+      "settled_cycles": 4,
+      "blocked_in_seminar": 1,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 348,
+      "operation_counts": {
+        "walk": 49,
+        "fold": 1
+      }
+    },
+    {
+      "seminar": "VI: Desire and Its Interpretation (1958-59)",
+      "seminar_index": 6,
+      "vertices_added": 9,
+      "edges_added": 15,
+      "vertices_total": 62,
+      "edges_total": 103,
+      "beta_1_before_injection": 19,
+      "beta_1_after_digestion": 21,
+      "delta_beta_1": 2,
+      "settled_cycles": 6,
+      "blocked_in_seminar": 1,
+      "steps_to_digest": 76,
+      "converged": true,
+      "cumulative_steps": 424,
+      "operation_counts": {
+        "walk": 72,
+        "negate_b": 2,
+        "sublate": 2
+      }
+    },
+    {
+      "seminar": "VII: The Ethics of Psychoanalysis (1959-60)",
+      "seminar_index": 7,
+      "vertices_added": 11,
+      "edges_added": 17,
+      "vertices_total": 74,
+      "edges_total": 123,
+      "beta_1_before_injection": 27,
+      "beta_1_after_digestion": 27,
+      "delta_beta_1": 0,
+      "settled_cycles": 7,
+      "blocked_in_seminar": 1,
+      "steps_to_digest": 80,
+      "converged": true,
+      "cumulative_steps": 504,
+      "operation_counts": {
+        "walk": 77,
+        "fold": 1,
+        "negate_b": 1,
+        "sublate": 1
+      }
+    },
+    {
+      "seminar": "VIII: Transference (1960-61)",
+      "seminar_index": 8,
+      "vertices_added": 8,
+      "edges_added": 12,
+      "vertices_total": 84,
+      "edges_total": 140,
+      "beta_1_before_injection": 31,
+      "beta_1_after_digestion": 32,
+      "delta_beta_1": 1,
+      "settled_cycles": 8,
+      "blocked_in_seminar": 1,
+      "steps_to_digest": 76,
+      "converged": true,
+      "cumulative_steps": 580,
+      "operation_counts": {
+        "walk": 72,
+        "fold": 1,
+        "negate_b": 2,
+        "sublate": 1
+      }
+    },
+    {
+      "seminar": "IX: Identification (1961-62)",
+      "seminar_index": 9,
+      "vertices_added": 8,
+      "edges_added": 13,
+      "vertices_total": 97,
+      "edges_total": 159,
+      "beta_1_before_injection": 35,
+      "beta_1_after_digestion": 38,
+      "delta_beta_1": 3,
+      "settled_cycles": 11,
+      "blocked_in_seminar": 1,
+      "steps_to_digest": 75,
+      "converged": true,
+      "cumulative_steps": 655,
+      "operation_counts": {
+        "walk": 70,
+        "sublate": 3,
+        "negate_b": 2
+      }
+    },
+    {
+      "seminar": "X: Anxiety (1962-63)",
+      "seminar_index": 10,
+      "vertices_added": 10,
+      "edges_added": 15,
+      "vertices_total": 111,
+      "edges_total": 182,
+      "beta_1_before_injection": 42,
+      "beta_1_after_digestion": 44,
+      "delta_beta_1": 2,
+      "settled_cycles": 14,
+      "blocked_in_seminar": 3,
+      "steps_to_digest": 106,
+      "converged": true,
+      "cumulative_steps": 761,
+      "operation_counts": {
+        "walk": 97,
+        "negate_b": 2,
+        "sublate": 3,
+        "fold_blocked": 2,
+        "fold": 1,
+        "negate_a": 1
+      }
+    },
+    {
+      "seminar": "XI: The Four Fundamental Concepts (1964)",
+      "seminar_index": 11,
+      "vertices_added": 12,
+      "edges_added": 22,
+      "vertices_total": 137,
+      "edges_total": 224,
+      "beta_1_before_injection": 52,
+      "beta_1_after_digestion": 59,
+      "delta_beta_1": 7,
+      "settled_cycles": 21,
+      "blocked_in_seminar": 3,
+      "steps_to_digest": 127,
+      "converged": true,
+      "cumulative_steps": 888,
+      "operation_counts": {
+        "walk": 113,
+        "negate_b": 7,
+        "sublate": 7
+      }
+    },
+    {
+      "seminar": "XII: Crucial Problems for Psychoanalysis (1964-65)",
+      "seminar_index": 12,
+      "vertices_added": 5,
+      "edges_added": 8,
+      "vertices_total": 142,
+      "edges_total": 231,
+      "beta_1_before_injection": 61,
+      "beta_1_after_digestion": 61,
+      "delta_beta_1": 0,
+      "settled_cycles": 21,
+      "blocked_in_seminar": 3,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 938,
+      "operation_counts": {
+        "walk": 50
+      }
+    },
+    {
+      "seminar": "XIII: The Object of Psychoanalysis (1965-66)",
+      "seminar_index": 13,
+      "vertices_added": 6,
+      "edges_added": 10,
+      "vertices_total": 150,
+      "edges_total": 244,
+      "beta_1_before_injection": 65,
+      "beta_1_after_digestion": 66,
+      "delta_beta_1": 1,
+      "settled_cycles": 22,
+      "blocked_in_seminar": 3,
+      "steps_to_digest": 75,
+      "converged": true,
+      "cumulative_steps": 1013,
+      "operation_counts": {
+        "walk": 73,
+        "negate_b": 1,
+        "sublate": 1
+      }
+    },
+    {
+      "seminar": "XIV: The Logic of Phantasy (1966-67)",
+      "seminar_index": 14,
+      "vertices_added": 5,
+      "edges_added": 10,
+      "vertices_total": 155,
+      "edges_total": 256,
+      "beta_1_before_injection": 69,
+      "beta_1_after_digestion": 69,
+      "delta_beta_1": 0,
+      "settled_cycles": 23,
+      "blocked_in_seminar": 4,
+      "steps_to_digest": 73,
+      "converged": true,
+      "cumulative_steps": 1086,
+      "operation_counts": {
+        "walk": 68,
+        "negate_b": 1,
+        "sublate": 1,
+        "fold": 2,
+        "fold_blocked": 1
+      }
+    },
+    {
+      "seminar": "XV: The Psychoanalytic Act (1967-68)",
+      "seminar_index": 15,
+      "vertices_added": 5,
+      "edges_added": 9,
+      "vertices_total": 159,
+      "edges_total": 264,
+      "beta_1_before_injection": 72,
+      "beta_1_after_digestion": 71,
+      "delta_beta_1": -1,
+      "settled_cycles": 23,
+      "blocked_in_seminar": 4,
+      "steps_to_digest": 66,
+      "converged": true,
+      "cumulative_steps": 1152,
+      "operation_counts": {
+        "walk": 65,
+        "fold": 1
+      }
+    },
+    {
+      "seminar": "XVI: From an Other to the other (1968-69)",
+      "seminar_index": 16,
+      "vertices_added": 7,
+      "edges_added": 12,
+      "vertices_total": 165,
+      "edges_total": 276,
+      "beta_1_before_injection": 76,
+      "beta_1_after_digestion": 75,
+      "delta_beta_1": -1,
+      "settled_cycles": 23,
+      "blocked_in_seminar": 7,
+      "steps_to_digest": 69,
+      "converged": true,
+      "cumulative_steps": 1221,
+      "operation_counts": {
+        "walk": 65,
+        "fold_blocked": 3,
+        "fold": 1
+      }
+    },
+    {
+      "seminar": "XVII: The Other Side of Psychoanalysis (1969-70)",
+      "seminar_index": 17,
+      "vertices_added": 11,
+      "edges_added": 19,
+      "vertices_total": 178,
+      "edges_total": 297,
+      "beta_1_before_injection": 82,
+      "beta_1_after_digestion": 83,
+      "delta_beta_1": 1,
+      "settled_cycles": 24,
+      "blocked_in_seminar": 22,
+      "steps_to_digest": 55,
+      "converged": true,
+      "cumulative_steps": 1276,
+      "operation_counts": {
+        "walk": 38,
+        "negate_b": 1,
+        "sublate": 1,
+        "fold_blocked": 15
+      }
+    },
+    {
+      "seminar": "XVIII: On a Discourse That Might Not Be a Semblance (1971)",
+      "seminar_index": 18,
+      "vertices_added": 6,
+      "edges_added": 11,
+      "vertices_total": 184,
+      "edges_total": 306,
+      "beta_1_before_injection": 86,
+      "beta_1_after_digestion": 86,
+      "delta_beta_1": 0,
+      "settled_cycles": 24,
+      "blocked_in_seminar": 39,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 1326,
+      "operation_counts": {
+        "fold_blocked": 17,
+        "walk": 33
+      }
+    },
+    {
+      "seminar": "XIX: ...or Worse (1971-72)",
+      "seminar_index": 19,
+      "vertices_added": 5,
+      "edges_added": 9,
+      "vertices_total": 189,
+      "edges_total": 315,
+      "beta_1_before_injection": 90,
+      "beta_1_after_digestion": 90,
+      "delta_beta_1": 0,
+      "settled_cycles": 24,
+      "blocked_in_seminar": 56,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 1376,
+      "operation_counts": {
+        "walk": 33,
+        "fold_blocked": 17
+      }
+    },
+    {
+      "seminar": "XX: Encore (1972-73)",
+      "seminar_index": 20,
+      "vertices_added": 10,
+      "edges_added": 20,
+      "vertices_total": 199,
+      "edges_total": 333,
+      "beta_1_before_injection": 98,
+      "beta_1_after_digestion": 98,
+      "delta_beta_1": 0,
+      "settled_cycles": 24,
+      "blocked_in_seminar": 72,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 1426,
+      "operation_counts": {
+        "walk": 34,
+        "fold_blocked": 16
+      }
+    },
+    {
+      "seminar": "XXI: The Names-of-the-Father / Les non-dupes errent (1973-74)",
+      "seminar_index": 21,
+      "vertices_added": 5,
+      "edges_added": 8,
+      "vertices_total": 204,
+      "edges_total": 340,
+      "beta_1_before_injection": 100,
+      "beta_1_after_digestion": 100,
+      "delta_beta_1": 0,
+      "settled_cycles": 24,
+      "blocked_in_seminar": 89,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 1476,
+      "operation_counts": {
+        "fold_blocked": 17,
+        "walk": 33
+      }
+    },
+    {
+      "seminar": "XXII: R.S.I. (1974-75)",
+      "seminar_index": 22,
+      "vertices_added": 7,
+      "edges_added": 13,
+      "vertices_total": 211,
+      "edges_total": 352,
+      "beta_1_before_injection": 105,
+      "beta_1_after_digestion": 105,
+      "delta_beta_1": 0,
+      "settled_cycles": 24,
+      "blocked_in_seminar": 106,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 1526,
+      "operation_counts": {
+        "walk": 33,
+        "fold_blocked": 17
+      }
+    },
+    {
+      "seminar": "XXIII: The Sinthome (1975-76)",
+      "seminar_index": 23,
+      "vertices_added": 8,
+      "edges_added": 16,
+      "vertices_total": 219,
+      "edges_total": 367,
+      "beta_1_before_injection": 112,
+      "beta_1_after_digestion": 112,
+      "delta_beta_1": 0,
+      "settled_cycles": 24,
+      "blocked_in_seminar": 122,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 1576,
+      "operation_counts": {
+        "walk": 34,
+        "fold_blocked": 16
+      }
+    }
+  ],
+  "beta_1_curve": [
+    {
+      "seminar_index": 1,
+      "seminar_name": "I: Freud's Papers on Technique (1953-54)",
+      "beta_1": 3,
+      "cumulative_steps": 80
+    },
+    {
+      "seminar_index": 2,
+      "seminar_name": "II: The Ego in Freud's Theory (1954-55)",
+      "beta_1": 6,
+      "cumulative_steps": 155
+    },
+    {
+      "seminar_index": 3,
+      "seminar_name": "III: The Psychoses (1955-56)",
+      "beta_1": 9,
+      "cumulative_steps": 230
+    },
+    {
+      "seminar_index": 4,
+      "seminar_name": "IV: The Object Relation (1956-57)",
+      "beta_1": 10,
+      "cumulative_steps": 298
+    },
+    {
+      "seminar_index": 5,
+      "seminar_name": "V: Formations of the Unconscious (1957-58)",
+      "beta_1": 14,
+      "cumulative_steps": 348
+    },
+    {
+      "seminar_index": 6,
+      "seminar_name": "VI: Desire and Its Interpretation (1958-59)",
+      "beta_1": 21,
+      "cumulative_steps": 424
+    },
+    {
+      "seminar_index": 7,
+      "seminar_name": "VII: The Ethics of Psychoanalysis (1959-60)",
+      "beta_1": 27,
+      "cumulative_steps": 504
+    },
+    {
+      "seminar_index": 8,
+      "seminar_name": "VIII: Transference (1960-61)",
+      "beta_1": 32,
+      "cumulative_steps": 580
+    },
+    {
+      "seminar_index": 9,
+      "seminar_name": "IX: Identification (1961-62)",
+      "beta_1": 38,
+      "cumulative_steps": 655
+    },
+    {
+      "seminar_index": 10,
+      "seminar_name": "X: Anxiety (1962-63)",
+      "beta_1": 44,
+      "cumulative_steps": 761
+    },
+    {
+      "seminar_index": 11,
+      "seminar_name": "XI: The Four Fundamental Concepts (1964)",
+      "beta_1": 59,
+      "cumulative_steps": 888
+    },
+    {
+      "seminar_index": 12,
+      "seminar_name": "XII: Crucial Problems for Psychoanalysis (1964-65)",
+      "beta_1": 61,
+      "cumulative_steps": 938
+    },
+    {
+      "seminar_index": 13,
+      "seminar_name": "XIII: The Object of Psychoanalysis (1965-66)",
+      "beta_1": 66,
+      "cumulative_steps": 1013
+    },
+    {
+      "seminar_index": 14,
+      "seminar_name": "XIV: The Logic of Phantasy (1966-67)",
+      "beta_1": 69,
+      "cumulative_steps": 1086
+    },
+    {
+      "seminar_index": 15,
+      "seminar_name": "XV: The Psychoanalytic Act (1967-68)",
+      "beta_1": 71,
+      "cumulative_steps": 1152
+    },
+    {
+      "seminar_index": 16,
+      "seminar_name": "XVI: From an Other to the other (1968-69)",
+      "beta_1": 75,
+      "cumulative_steps": 1221
+    },
+    {
+      "seminar_index": 17,
+      "seminar_name": "XVII: The Other Side of Psychoanalysis (1969-70)",
+      "beta_1": 83,
+      "cumulative_steps": 1276
+    },
+    {
+      "seminar_index": 18,
+      "seminar_name": "XVIII: On a Discourse That Might Not Be a Semblance (1971)",
+      "beta_1": 86,
+      "cumulative_steps": 1326
+    },
+    {
+      "seminar_index": 19,
+      "seminar_name": "XIX: ...or Worse (1971-72)",
+      "beta_1": 90,
+      "cumulative_steps": 1376
+    },
+    {
+      "seminar_index": 20,
+      "seminar_name": "XX: Encore (1972-73)",
+      "beta_1": 98,
+      "cumulative_steps": 1426
+    },
+    {
+      "seminar_index": 21,
+      "seminar_name": "XXI: The Names-of-the-Father / Les non-dupes errent (1973-74)",
+      "beta_1": 100,
+      "cumulative_steps": 1476
+    },
+    {
+      "seminar_index": 22,
+      "seminar_name": "XXII: R.S.I. (1974-75)",
+      "beta_1": 105,
+      "cumulative_steps": 1526
+    },
+    {
+      "seminar_index": 23,
+      "seminar_name": "XXIII: The Sinthome (1975-76)",
+      "beta_1": 112,
+      "cumulative_steps": 1576
+    }
+  ],
+  "final_complex": {
+    "vertices_active": 219,
+    "edges_active": 367,
+    "beta_1": 112,
+    "settled_cycles": 24,
+    "edge_type_distribution": {
+      "negation": 57,
+      "dependency": 208,
+      "sublation": 68,
+      "fold": 4,
+      "reference": 30
+    },
+    "terrain_distribution": {
+      "tree": 230,
+      "critical": 110
+    },
+    "critical_edge_ratio": 0.3235294117647059,
+    "negation_density": 0.1553133514986376,
+    "sublation_density": 0.18528610354223432
+  },
+  "total_steps": 1576,
+  "settled_cycles_detail": [
+    {
+      "edges": [
+        [
+          "syn_full_speech_anti_full_speech_4_6",
+          "anti_full_speech_4"
+        ],
+        [
+          "syn_full_speech_anti_full_speech_4_6",
+          "full_speech"
+        ]
+      ],
+      "settled_at_step": 16
+    },
+    {
+      "edges": [
+        [
+          "full_speech",
+          "imaginary"
+        ],
+        [
+          "imaginary",
+          "full_speech"
+        ]
+      ],
+      "settled_at_step": 115
+    },
+    {
+      "edges": [
+        [
+          "imaginary",
+          "imaginary"
+        ]
+      ],
+      "settled_at_step": 115
+    },
+    {
+      "edges": [
+        [
+          "syn_metaphor_failure_psychosis_177",
+          "metaphor_failure"
+        ],
+        [
+          "syn_metaphor_failure_psychosis_177",
+          "psychosis"
+        ]
+      ],
+      "settled_at_step": 187
+    },
+    {
+      "edges": [
+        [
+          "syn_graph_of_desire_anti_graph_of_desire_357_359",
+          "anti_graph_of_desire_357"
+        ],
+        [
+          "syn_graph_of_desire_anti_graph_of_desire_357_359",
+          "graph_of_desire"
+        ]
+      ],
+      "settled_at_step": 369
+    },
+    {
+      "edges": [
+        [
+          "syn_lack_of_object_anti_lack_of_object_372_374",
+          "anti_lack_of_object_372"
+        ],
+        [
+          "syn_lack_of_object_anti_lack_of_object_372_374",
+          "lack_of_object"
+        ]
+      ],
+      "settled_at_step": 384
+    },
+    {
+      "edges": [
+        [
+          "syn_jouissance_anti_jouissance_452_454",
+          "anti_jouissance_452"
+        ],
+        [
+          "syn_jouissance_anti_jouissance_452_454",
+          "jouissance"
+        ]
+      ],
+      "settled_at_step": 464
+    },
+    {
+      "edges": [
+        [
+          "syn_symbolic_phallus_anti_symbolic_phallus_528_530",
+          "anti_symbolic_phallus_528"
+        ],
+        [
+          "syn_symbolic_phallus_anti_symbolic_phallus_528_530",
+          "symbolic_phallus"
+        ]
+      ],
+      "settled_at_step": 540
+    },
+    {
+      "edges": [
+        [
+          "syn_pleasure_principle_anti_pleasure_principle_580_582",
+          "anti_pleasure_principle_580"
+        ],
+        [
+          "syn_pleasure_principle_anti_pleasure_principle_580_582",
+          "pleasure_principle"
+        ]
+      ],
+      "settled_at_step": 592
+    },
+    {
+      "edges": [
+        [
+          "syn_identification_anti_identification_591_593",
+          "anti_identification_591"
+        ],
+        [
+          "syn_identification_anti_identification_591_593",
+          "identification"
+        ]
+      ],
+      "settled_at_step": 603
+    },
+    {
+      "edges": [
+        [
+          "syn_trait_unaire_anti_trait_unaire_603_605",
+          "anti_trait_unaire_603"
+        ],
+        [
+          "syn_trait_unaire_anti_trait_unaire_603_605",
+          "trait_unaire"
+        ]
+      ],
+      "settled_at_step": 615
+    },
+    {
+      "edges": [
+        [
+          "syn_anxiety_anti_anxiety_666_668",
+          "anti_anxiety_666"
+        ],
+        [
+          "syn_anxiety_anti_anxiety_666_668",
+          "anxiety"
+        ]
+      ],
+      "settled_at_step": 678
+    },
+    {
+      "edges": [
+        [
+          "syn_real_anti_real_686_688",
+          "anti_real_686"
+        ],
+        [
+          "syn_real_anti_real_686_688",
+          "real"
+        ]
+      ],
+      "settled_at_step": 698
+    },
+    {
+      "edges": [
+        [
+          "syn_real_anxiety_711",
+          "anxiety"
+        ],
+        [
+          "syn_real_anxiety_711",
+          "real"
+        ]
+      ],
+      "settled_at_step": 721
+    },
+    {
+      "edges": [
+        [
+          "syn_Other_A_anti_Other_A_768_770",
+          "Other_A"
+        ],
+        [
+          "syn_Other_A_anti_Other_A_768_770",
+          "anti_Other_A_768"
+        ]
+      ],
+      "settled_at_step": 780
+    },
+    {
+      "edges": [
+        [
+          "syn_repetition_concept_anti_repetition_concept_777_779",
+          "anti_repetition_concept_777"
+        ],
+        [
+          "syn_repetition_concept_anti_repetition_concept_777_779",
+          "repetition_concept"
+        ]
+      ],
+      "settled_at_step": 789
+    },
+    {
+      "edges": [
+        [
+          "syn_transference_concept_anti_transference_concept_787_789",
+          "anti_transference_concept_787"
+        ],
+        [
+          "syn_transference_concept_anti_transference_concept_787_789",
+          "transference_concept"
+        ]
+      ],
+      "settled_at_step": 799
+    },
+    {
+      "edges": [
+        [
+          "syn_unconscious_concept_anti_unconscious_concept_803_805",
+          "anti_unconscious_concept_803"
+        ],
+        [
+          "syn_unconscious_concept_anti_unconscious_concept_803_805",
+          "unconscious_concept"
+        ]
+      ],
+      "settled_at_step": 815
+    },
+    {
+      "edges": [
+        [
+          "syn_repetition_automatism_anti_repetition_automatism_813_815",
+          "anti_repetition_automatism_813"
+        ],
+        [
+          "syn_repetition_automatism_anti_repetition_automatism_813_815",
+          "repetition_automatism"
+        ]
+      ],
+      "settled_at_step": 825
+    },
+    {
+      "edges": [
+        [
+          "syn_signifier_anti_signifier_825_827",
+          "anti_signifier_825"
+        ],
+        [
+          "syn_signifier_anti_signifier_825_827",
+          "signifier"
+        ]
+      ],
+      "settled_at_step": 837
+    },
+    {
+      "edges": [
+        [
+          "syn_death_drive_sem2_anti_death_drive_sem2_836_838",
+          "anti_death_drive_sem2_836"
+        ],
+        [
+          "syn_death_drive_sem2_anti_death_drive_sem2_836_838",
+          "death_drive_sem2"
+        ]
+      ],
+      "settled_at_step": 848
+    },
+    {
+      "edges": [
+        [
+          "syn_subject_unconscious_anti_subject_unconscious_961_963",
+          "anti_subject_unconscious_961"
+        ],
+        [
+          "syn_subject_unconscious_anti_subject_unconscious_961_963",
+          "subject_unconscious"
+        ]
+      ],
+      "settled_at_step": 973
+    },
+    {
+      "edges": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ],
+      "settled_at_step": 1028
+    },
+    {
+      "edges": [
+        [
+          "syn_das_Ding_anti_das_Ding_1224_1226",
+          "anti_das_Ding_1224"
+        ],
+        [
+          "syn_das_Ding_anti_das_Ding_1224_1226",
+          "das_Ding"
+        ]
+      ],
+      "settled_at_step": 1236
+    }
+  ],
+  "blocked_log": [
+    {
+      "step": 27,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "imaginary",
+          "full_speech"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_full_speech_anti_full_speech_4_6",
+          "anti_full_speech_4"
+        ],
+        [
+          "syn_full_speech_anti_full_speech_4_6",
+          "full_speech"
+        ]
+      ]
+    },
+    {
+      "step": 703,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "uncanny",
+          "real"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_real_anti_real_686_688",
+          "anti_real_686"
+        ],
+        [
+          "syn_real_anti_real_686_688",
+          "real"
+        ]
+      ]
+    },
+    {
+      "step": 706,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "uncanny",
+          "real"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_real_anti_real_686_688",
+          "anti_real_686"
+        ],
+        [
+          "syn_real_anti_real_686_688",
+          "real"
+        ]
+      ]
+    },
+    {
+      "step": 1039,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fantasy",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1163,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "discourse_concept",
+          "unconscious_concept"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_unconscious_concept_anti_unconscious_concept_803_805",
+          "anti_unconscious_concept_803"
+        ],
+        [
+          "syn_unconscious_concept_anti_unconscious_concept_803_805",
+          "unconscious_concept"
+        ]
+      ]
+    },
+    {
+      "step": 1165,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "signifier",
+          "Other_A"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_Other_A_anti_Other_A_768_770",
+          "Other_A"
+        ],
+        [
+          "syn_Other_A_anti_Other_A_768_770",
+          "anti_Other_A_768"
+        ]
+      ]
+    },
+    {
+      "step": 1169,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "signifier",
+          "Other_A"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_Other_A_anti_Other_A_768_770",
+          "Other_A"
+        ],
+        [
+          "syn_Other_A_anti_Other_A_768_770",
+          "anti_Other_A_768"
+        ]
+      ]
+    },
+    {
+      "step": 1232,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1235,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1238,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1241,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1244,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1247,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1250,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1253,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1256,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1259,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1262,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1265,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1268,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1271,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1274,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1277,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1280,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1283,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1286,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1289,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1292,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1295,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1298,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1301,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1304,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1307,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1310,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1313,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1316,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1319,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1322,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1325,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1328,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1331,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1334,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1337,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1340,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1343,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1346,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1349,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1352,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1355,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1358,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1361,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1364,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1367,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1370,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1373,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1376,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1379,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1382,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1385,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1388,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1391,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1394,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1397,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1400,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1403,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1406,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1409,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1412,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1415,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1418,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1421,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1424,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1427,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1430,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1433,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1436,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1439,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1442,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1445,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1448,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1451,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1454,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1457,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1460,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1463,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1466,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1469,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1472,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1475,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1478,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1481,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1484,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1487,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1490,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1493,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1496,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1499,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1502,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1505,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1508,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1511,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1514,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1517,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1520,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1523,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1526,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1529,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1532,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1535,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1538,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1541,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1544,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1547,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1550,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1553,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1556,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1559,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1562,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1565,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1568,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1571,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    },
+    {
+      "step": 1574,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "analyst_discourse",
+          "objet_a"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "anti_objet_a_1016"
+        ],
+        [
+          "syn_objet_a_anti_objet_a_1016_1018",
+          "objet_a"
+        ]
+      ]
+    }
+  ]
+}
