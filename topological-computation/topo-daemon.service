@@ -1,0 +1,16 @@
+[Unit]
+Description=Topological Computation Daemon
+After=network.target
+
+[Service]
+Type=simple
+User=%i
+WorkingDirectory=/opt/topological-computation
+ExecStart=/usr/bin/python3 daemon.py --autonomous --persist --steps 0
+Restart=always
+RestartSec=5
+StandardOutput=append:/var/log/topo-daemon.log
+StandardError=append:/var/log/topo-daemon-error.log
+
+[Install]
+WantedBy=multi-user.target

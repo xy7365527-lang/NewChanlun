@@ -11,6 +11,7 @@ CLI:
     python daemon.py --seed path/to/text.txt --steps 500
     python daemon.py --interactive --load experiment_phenomenology_full.json
     python daemon.py --autonomous --load experiment_phenomenology_full.json --steps 5000
+    python daemon.py --persist --hegel --steps 1000
 
 Pure Python, no external dependencies beyond this project's modules.
 """
@@ -35,6 +36,7 @@ from morse import compute_terrain
 from traversal import TraversalEngine, StepLog
 from concept_registry import Registry, _tokenize
 from psi_L_narrative import generate_narrative, _ENCOUNTER_OPS
+from persistence import PersistentKFull, DEFAULT_PATH
 
 
 # ---------------------------------------------------------------------------
@@ -149,7 +151,20 @@ class TopologicalDaemon:
         seed_text: str | None = None,
         settlement_threshold: int = 15,
         seed: int = 42,
+        persist_path: str | Path | None = None,
     ) -> None:
+        # Persistence: if persist_path given, try to recover from JSONL first
+        self._persist: PersistentKFull | None = None
+        recovered_graph: Graph | None = None
+
+        if persist_path is not None:
+            recovered_graph, _ = PersistentKFull.load(persist_path)
+            if recovered_graph.active_vertex_ids():
+                # Successfully recovered — use recovered graph
+                graph = recovered_graph
+            self._persist = PersistentKFull(persist_path)
+            self._persist.open()
+
         if graph is not None:
             self.k_active = graph
         elif seed_text is not None:
@@ -245,6 +260,15 @@ class TopologicalDaemon:
         self.k_full = self.engine.k_full
         self.terrain = self.engine.terrain
 
+        # Persist significant events
+        if self._persist and self._is_significant(log):
+            self._persist.append_operation(log.step, log.operation, {
+                "position": log.position,
+                "beta_1_before": log.beta_1_before,
+                "beta_1_after": log.beta_1_after,
+                "blocked": log.blocked,
+            })
+
         # Significant event callback
         if self._is_significant(log):
             narrative = format_event(log, self.concept_names)
@@ -317,6 +341,8 @@ class TopologicalDaemon:
                 v = sub_graph.vertex(vid)
                 self.k_active = self.k_active.add_vertex(v)
                 self.k_full = self.k_full.add_vertex(v)
+                if self._persist:
+                    self._persist.append_vertex(v)
 
         for e in sub_graph.active_edges():
             key = (e.source, e.target, e.edge_type.value)
@@ -326,6 +352,8 @@ class TopologicalDaemon:
                     self.k_active = self.k_active.add_edge(e)
                     self.k_full = self.k_full.add_edge(e)
                     existing_edges.add(key)
+                    if self._persist:
+                        self._persist.append_edge(e)
 
         # Rebuild terrain, registry, engine
         self._initialize_engine()
@@ -355,6 +383,11 @@ class TopologicalDaemon:
             "beta_1": compute_beta_1(self.k_active),
             "settled_cycles": len(self.settlement.settled_cycles),
         }
+
+    def close(self):
+        """Close persistence handle if open."""
+        if self._persist:
+            self._persist.close()
 
 
 # ---------------------------------------------------------------------------
@@ -401,6 +434,8 @@ def main() -> None:
     parser.add_argument("--autonomous", action="store_true", help="Full autonomous mode (traverse + gap detect + feed)")
     parser.add_argument("--output", type=str, help="Output file for test results")
     parser.add_argument("--hegel", action="store_true", help="Build from Hegel Phenomenology chapters")
+    parser.add_argument("--persist", type=str, nargs="?", const=str(DEFAULT_PATH),
+                        help="Enable JSONL persistence (optional path, default: ~/.topological-computation/k_full.jsonl)")
     args = parser.parse_args()
 
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -441,7 +476,19 @@ def main() -> None:
         # Default: build from Hegel Phenomenology
         graph, concept_names = _build_graph_from_chapters()
 
-    daemon = TopologicalDaemon(graph=graph, settlement_threshold=15, seed=42)
+    daemon = TopologicalDaemon(
+        graph=graph, settlement_threshold=15, seed=42,
+        persist_path=args.persist,
+    )
+
+    # If persisting with a fresh file (no recovery), write initial graph
+    if args.persist and daemon._persist and graph is not None:
+        recovered, _ = PersistentKFull.load(args.persist)
+        if not recovered.active_vertex_ids():
+            for vid, v in graph.vertices.items():
+                daemon._persist.append_vertex(v)
+            for e in graph.edges:
+                daemon._persist.append_edge(e)
 
     # Event log collector
     event_lines: list[str] = []
@@ -471,6 +518,8 @@ def main() -> None:
         _run_autonomous(daemon, args.steps, event_lines, gap_records, args.output)
     else:
         _run_standard(daemon, args.steps, event_lines, gap_records, args.output)
+
+    daemon.close()
 
 
 def _run_standard(
