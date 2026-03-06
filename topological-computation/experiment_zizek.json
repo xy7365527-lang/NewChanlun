@@ -1,0 +1,3310 @@
+{
+  "experiment": "zizek_collected_works_incremental",
+  "source": "Slavoj Žižek — collected works, 25 entries (1989-2020)",
+  "methodology": "manual conceptual complex per work, incremental injection, digestion until 50-step beta_1 stability",
+  "work_results": [
+    {
+      "work": "1989: The Sublime Object of Ideology",
+      "work_index": 1,
+      "vertices_added": 14,
+      "edges_added": 14,
+      "vertices_total": 13,
+      "edges_total": 14,
+      "beta_1_before_injection": 2,
+      "beta_1_after_digestion": 0,
+      "delta_beta_1": -2,
+      "settled_cycles": 0,
+      "blocked_in_work": 0,
+      "steps_to_digest": 55,
+      "converged": true,
+      "cumulative_steps": 55,
+      "operation_counts": {
+        "walk": 54,
+        "fold": 1
+      }
+    },
+    {
+      "work": "1991: For They Know Not What They Do",
+      "work_index": 2,
+      "vertices_added": 6,
+      "edges_added": 11,
+      "vertices_total": 17,
+      "edges_total": 24,
+      "beta_1_before_injection": 3,
+      "beta_1_after_digestion": 2,
+      "delta_beta_1": -1,
+      "settled_cycles": 0,
+      "blocked_in_work": 0,
+      "steps_to_digest": 51,
+      "converged": true,
+      "cumulative_steps": 106,
+      "operation_counts": {
+        "fold": 2,
+        "walk": 49
+      }
+    },
+    {
+      "work": "1991: Looking Awry",
+      "work_index": 3,
+      "vertices_added": 3,
+      "edges_added": 6,
+      "vertices_total": 20,
+      "edges_total": 30,
+      "beta_1_before_injection": 5,
+      "beta_1_after_digestion": 5,
+      "delta_beta_1": 0,
+      "settled_cycles": 0,
+      "blocked_in_work": 0,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 156,
+      "operation_counts": {
+        "walk": 50
+      }
+    },
+    {
+      "work": "1992: Enjoy Your Symptom!",
+      "work_index": 4,
+      "vertices_added": 2,
+      "edges_added": 4,
+      "vertices_total": 21,
+      "edges_total": 34,
+      "beta_1_before_injection": 7,
+      "beta_1_after_digestion": 7,
+      "delta_beta_1": 0,
+      "settled_cycles": 0,
+      "blocked_in_work": 0,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 206,
+      "operation_counts": {
+        "walk": 49,
+        "fold": 1
+      }
+    },
+    {
+      "work": "1993: Tarrying with the Negative",
+      "work_index": 5,
+      "vertices_added": 4,
+      "edges_added": 10,
+      "vertices_total": 25,
+      "edges_total": 41,
+      "beta_1_before_injection": 10,
+      "beta_1_after_digestion": 10,
+      "delta_beta_1": 0,
+      "settled_cycles": 0,
+      "blocked_in_work": 0,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 256,
+      "operation_counts": {
+        "walk": 50
+      }
+    },
+    {
+      "work": "1997: The Plague of Fantasies",
+      "work_index": 6,
+      "vertices_added": 4,
+      "edges_added": 10,
+      "vertices_total": 32,
+      "edges_total": 53,
+      "beta_1_before_injection": 13,
+      "beta_1_after_digestion": 14,
+      "delta_beta_1": 1,
+      "settled_cycles": 2,
+      "blocked_in_work": 0,
+      "steps_to_digest": 78,
+      "converged": true,
+      "cumulative_steps": 334,
+      "operation_counts": {
+        "walk": 73,
+        "fold": 1,
+        "negate_b": 2,
+        "sublate": 2
+      }
+    },
+    {
+      "work": "1999: The Ticklish Subject",
+      "work_index": 7,
+      "vertices_added": 4,
+      "edges_added": 10,
+      "vertices_total": 37,
+      "edges_total": 64,
+      "beta_1_before_injection": 16,
+      "beta_1_after_digestion": 17,
+      "delta_beta_1": 1,
+      "settled_cycles": 3,
+      "blocked_in_work": 0,
+      "steps_to_digest": 63,
+      "converged": true,
+      "cumulative_steps": 397,
+      "operation_counts": {
+        "walk": 60,
+        "fold": 1,
+        "negate_b": 1,
+        "sublate": 1
+      }
+    },
+    {
+      "work": "2000: The Fragile Absolute",
+      "work_index": 8,
+      "vertices_added": 3,
+      "edges_added": 4,
+      "vertices_total": 40,
+      "edges_total": 68,
+      "beta_1_before_injection": 18,
+      "beta_1_after_digestion": 18,
+      "delta_beta_1": 0,
+      "settled_cycles": 3,
+      "blocked_in_work": 0,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 447,
+      "operation_counts": {
+        "walk": 50
+      }
+    },
+    {
+      "work": "2003: The Puppet and the Dwarf",
+      "work_index": 9,
+      "vertices_added": 2,
+      "edges_added": 4,
+      "vertices_total": 44,
+      "edges_total": 74,
+      "beta_1_before_injection": 19,
+      "beta_1_after_digestion": 20,
+      "delta_beta_1": 1,
+      "settled_cycles": 4,
+      "blocked_in_work": 0,
+      "steps_to_digest": 64,
+      "converged": true,
+      "cumulative_steps": 511,
+      "operation_counts": {
+        "walk": 62,
+        "negate_b": 1,
+        "sublate": 1
+      }
+    },
+    {
+      "work": "2004: Organs without Bodies",
+      "work_index": 10,
+      "vertices_added": 2,
+      "edges_added": 4,
+      "vertices_total": 48,
+      "edges_total": 79,
+      "beta_1_before_injection": 21,
+      "beta_1_after_digestion": 22,
+      "delta_beta_1": 1,
+      "settled_cycles": 5,
+      "blocked_in_work": 0,
+      "steps_to_digest": 59,
+      "converged": true,
+      "cumulative_steps": 570,
+      "operation_counts": {
+        "walk": 57,
+        "negate_b": 1,
+        "sublate": 1
+      }
+    },
+    {
+      "work": "2006: The Parallax View",
+      "work_index": 11,
+      "vertices_added": 4,
+      "edges_added": 9,
+      "vertices_total": 54,
+      "edges_total": 89,
+      "beta_1_before_injection": 25,
+      "beta_1_after_digestion": 26,
+      "delta_beta_1": 1,
+      "settled_cycles": 6,
+      "blocked_in_work": 0,
+      "steps_to_digest": 59,
+      "converged": true,
+      "cumulative_steps": 629,
+      "operation_counts": {
+        "walk": 57,
+        "negate_b": 1,
+        "sublate": 1
+      }
+    },
+    {
+      "work": "2008: In Defense of Lost Causes",
+      "work_index": 12,
+      "vertices_added": 4,
+      "edges_added": 5,
+      "vertices_total": 60,
+      "edges_total": 97,
+      "beta_1_before_injection": 27,
+      "beta_1_after_digestion": 28,
+      "delta_beta_1": 1,
+      "settled_cycles": 7,
+      "blocked_in_work": 0,
+      "steps_to_digest": 57,
+      "converged": true,
+      "cumulative_steps": 686,
+      "operation_counts": {
+        "walk": 55,
+        "negate_b": 1,
+        "sublate": 1
+      }
+    },
+    {
+      "work": "2008: Violence",
+      "work_index": 13,
+      "vertices_added": 3,
+      "edges_added": 6,
+      "vertices_total": 63,
+      "edges_total": 100,
+      "beta_1_before_injection": 28,
+      "beta_1_after_digestion": 28,
+      "delta_beta_1": 0,
+      "settled_cycles": 7,
+      "blocked_in_work": 0,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 736,
+      "operation_counts": {
+        "walk": 50
+      }
+    },
+    {
+      "work": "2009: First as Tragedy, Then as Farce",
+      "work_index": 14,
+      "vertices_added": 3,
+      "edges_added": 4,
+      "vertices_total": 66,
+      "edges_total": 103,
+      "beta_1_before_injection": 28,
+      "beta_1_after_digestion": 28,
+      "delta_beta_1": 0,
+      "settled_cycles": 7,
+      "blocked_in_work": 0,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 786,
+      "operation_counts": {
+        "walk": 50
+      }
+    },
+    {
+      "work": "2009: The Monstrosity of Christ",
+      "work_index": 15,
+      "vertices_added": 1,
+      "edges_added": 3,
+      "vertices_total": 68,
+      "edges_total": 110,
+      "beta_1_before_injection": 30,
+      "beta_1_after_digestion": 31,
+      "delta_beta_1": 1,
+      "settled_cycles": 8,
+      "blocked_in_work": 1,
+      "steps_to_digest": 58,
+      "converged": true,
+      "cumulative_steps": 844,
+      "operation_counts": {
+        "walk": 54,
+        "negate_b": 1,
+        "sublate": 1,
+        "fold_blocked": 1,
+        "fold": 1
+      }
+    },
+    {
+      "work": "2010: Living in the End Times",
+      "work_index": 16,
+      "vertices_added": 4,
+      "edges_added": 8,
+      "vertices_total": 76,
+      "edges_total": 123,
+      "beta_1_before_injection": 34,
+      "beta_1_after_digestion": 36,
+      "delta_beta_1": 2,
+      "settled_cycles": 10,
+      "blocked_in_work": 1,
+      "steps_to_digest": 80,
+      "converged": true,
+      "cumulative_steps": 924,
+      "operation_counts": {
+        "walk": 76,
+        "negate_b": 2,
+        "sublate": 2
+      }
+    },
+    {
+      "work": "2012: Less Than Nothing",
+      "work_index": 17,
+      "vertices_added": 6,
+      "edges_added": 11,
+      "vertices_total": 84,
+      "edges_total": 135,
+      "beta_1_before_injection": 39,
+      "beta_1_after_digestion": 40,
+      "delta_beta_1": 1,
+      "settled_cycles": 11,
+      "blocked_in_work": 1,
+      "steps_to_digest": 79,
+      "converged": true,
+      "cumulative_steps": 1003,
+      "operation_counts": {
+        "walk": 77,
+        "negate_b": 1,
+        "sublate": 1
+      }
+    },
+    {
+      "work": "2014: Absolute Recoil",
+      "work_index": 18,
+      "vertices_added": 3,
+      "edges_added": 7,
+      "vertices_total": 93,
+      "edges_total": 150,
+      "beta_1_before_injection": 43,
+      "beta_1_after_digestion": 46,
+      "delta_beta_1": 3,
+      "settled_cycles": 14,
+      "blocked_in_work": 1,
+      "steps_to_digest": 110,
+      "converged": true,
+      "cumulative_steps": 1113,
+      "operation_counts": {
+        "negate_b": 3,
+        "walk": 104,
+        "sublate": 3
+      }
+    },
+    {
+      "work": "2014: Event",
+      "work_index": 19,
+      "vertices_added": 1,
+      "edges_added": 4,
+      "vertices_total": 96,
+      "edges_total": 156,
+      "beta_1_before_injection": 48,
+      "beta_1_after_digestion": 49,
+      "delta_beta_1": 1,
+      "settled_cycles": 15,
+      "blocked_in_work": 1,
+      "steps_to_digest": 58,
+      "converged": true,
+      "cumulative_steps": 1171,
+      "operation_counts": {
+        "walk": 56,
+        "negate_b": 1,
+        "sublate": 1
+      }
+    },
+    {
+      "work": "2016: Disparities",
+      "work_index": 20,
+      "vertices_added": 2,
+      "edges_added": 6,
+      "vertices_total": 100,
+      "edges_total": 163,
+      "beta_1_before_injection": 51,
+      "beta_1_after_digestion": 52,
+      "delta_beta_1": 1,
+      "settled_cycles": 16,
+      "blocked_in_work": 1,
+      "steps_to_digest": 59,
+      "converged": true,
+      "cumulative_steps": 1230,
+      "operation_counts": {
+        "walk": 57,
+        "negate_b": 1,
+        "sublate": 1
+      }
+    },
+    {
+      "work": "2017: The Courage of Hopelessness",
+      "work_index": 21,
+      "vertices_added": 2,
+      "edges_added": 6,
+      "vertices_total": 106,
+      "edges_total": 173,
+      "beta_1_before_injection": 54,
+      "beta_1_after_digestion": 56,
+      "delta_beta_1": 2,
+      "settled_cycles": 18,
+      "blocked_in_work": 2,
+      "steps_to_digest": 92,
+      "converged": true,
+      "cumulative_steps": 1322,
+      "operation_counts": {
+        "walk": 87,
+        "negate_b": 2,
+        "sublate": 2,
+        "fold_blocked": 1
+      }
+    },
+    {
+      "work": "2017: Incontinence of the Void",
+      "work_index": 22,
+      "vertices_added": 2,
+      "edges_added": 6,
+      "vertices_total": 111,
+      "edges_total": 188,
+      "beta_1_before_injection": 60,
+      "beta_1_after_digestion": 62,
+      "delta_beta_1": 2,
+      "settled_cycles": 21,
+      "blocked_in_work": 26,
+      "steps_to_digest": 78,
+      "converged": true,
+      "cumulative_steps": 1400,
+      "operation_counts": {
+        "walk": 47,
+        "negate_b": 1,
+        "sublate": 3,
+        "fold_blocked": 24,
+        "fold": 1,
+        "negate_a": 2
+      }
+    },
+    {
+      "work": "2020: Sex and the Failed Absolute",
+      "work_index": 23,
+      "vertices_added": 3,
+      "edges_added": 9,
+      "vertices_total": 118,
+      "edges_total": 207,
+      "beta_1_before_injection": 66,
+      "beta_1_after_digestion": 68,
+      "delta_beta_1": 2,
+      "settled_cycles": 25,
+      "blocked_in_work": 58,
+      "steps_to_digest": 136,
+      "converged": true,
+      "cumulative_steps": 1536,
+      "operation_counts": {
+        "walk": 94,
+        "fold_blocked": 32,
+        "fold": 2,
+        "negate_a": 2,
+        "sublate": 4,
+        "negate_b": 2
+      }
+    },
+    {
+      "work": "2020: Hegel in a Wired Brain",
+      "work_index": 24,
+      "vertices_added": 1,
+      "edges_added": 5,
+      "vertices_total": 118,
+      "edges_total": 210,
+      "beta_1_before_injection": 69,
+      "beta_1_after_digestion": 68,
+      "delta_beta_1": -1,
+      "settled_cycles": 25,
+      "blocked_in_work": 89,
+      "steps_to_digest": 69,
+      "converged": true,
+      "cumulative_steps": 1605,
+      "operation_counts": {
+        "fold_blocked": 31,
+        "walk": 37,
+        "fold": 1
+      }
+    },
+    {
+      "work": "2020: Pandemic!",
+      "work_index": 25,
+      "vertices_added": 1,
+      "edges_added": 5,
+      "vertices_total": 119,
+      "edges_total": 213,
+      "beta_1_before_injection": 70,
+      "beta_1_after_digestion": 70,
+      "delta_beta_1": 0,
+      "settled_cycles": 25,
+      "blocked_in_work": 114,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 1655,
+      "operation_counts": {
+        "fold_blocked": 25,
+        "walk": 25
+      }
+    }
+  ],
+  "beta_1_curve": [
+    {
+      "work_index": 1,
+      "work_name": "1989: The Sublime Object of Ideology",
+      "beta_1": 0,
+      "cumulative_steps": 55
+    },
+    {
+      "work_index": 2,
+      "work_name": "1991: For They Know Not What They Do",
+      "beta_1": 2,
+      "cumulative_steps": 106
+    },
+    {
+      "work_index": 3,
+      "work_name": "1991: Looking Awry",
+      "beta_1": 5,
+      "cumulative_steps": 156
+    },
+    {
+      "work_index": 4,
+      "work_name": "1992: Enjoy Your Symptom!",
+      "beta_1": 7,
+      "cumulative_steps": 206
+    },
+    {
+      "work_index": 5,
+      "work_name": "1993: Tarrying with the Negative",
+      "beta_1": 10,
+      "cumulative_steps": 256
+    },
+    {
+      "work_index": 6,
+      "work_name": "1997: The Plague of Fantasies",
+      "beta_1": 14,
+      "cumulative_steps": 334
+    },
+    {
+      "work_index": 7,
+      "work_name": "1999: The Ticklish Subject",
+      "beta_1": 17,
+      "cumulative_steps": 397
+    },
+    {
+      "work_index": 8,
+      "work_name": "2000: The Fragile Absolute",
+      "beta_1": 18,
+      "cumulative_steps": 447
+    },
+    {
+      "work_index": 9,
+      "work_name": "2003: The Puppet and the Dwarf",
+      "beta_1": 20,
+      "cumulative_steps": 511
+    },
+    {
+      "work_index": 10,
+      "work_name": "2004: Organs without Bodies",
+      "beta_1": 22,
+      "cumulative_steps": 570
+    },
+    {
+      "work_index": 11,
+      "work_name": "2006: The Parallax View",
+      "beta_1": 26,
+      "cumulative_steps": 629
+    },
+    {
+      "work_index": 12,
+      "work_name": "2008: In Defense of Lost Causes",
+      "beta_1": 28,
+      "cumulative_steps": 686
+    },
+    {
+      "work_index": 13,
+      "work_name": "2008: Violence",
+      "beta_1": 28,
+      "cumulative_steps": 736
+    },
+    {
+      "work_index": 14,
+      "work_name": "2009: First as Tragedy, Then as Farce",
+      "beta_1": 28,
+      "cumulative_steps": 786
+    },
+    {
+      "work_index": 15,
+      "work_name": "2009: The Monstrosity of Christ",
+      "beta_1": 31,
+      "cumulative_steps": 844
+    },
+    {
+      "work_index": 16,
+      "work_name": "2010: Living in the End Times",
+      "beta_1": 36,
+      "cumulative_steps": 924
+    },
+    {
+      "work_index": 17,
+      "work_name": "2012: Less Than Nothing",
+      "beta_1": 40,
+      "cumulative_steps": 1003
+    },
+    {
+      "work_index": 18,
+      "work_name": "2014: Absolute Recoil",
+      "beta_1": 46,
+      "cumulative_steps": 1113
+    },
+    {
+      "work_index": 19,
+      "work_name": "2014: Event",
+      "beta_1": 49,
+      "cumulative_steps": 1171
+    },
+    {
+      "work_index": 20,
+      "work_name": "2016: Disparities",
+      "beta_1": 52,
+      "cumulative_steps": 1230
+    },
+    {
+      "work_index": 21,
+      "work_name": "2017: The Courage of Hopelessness",
+      "beta_1": 56,
+      "cumulative_steps": 1322
+    },
+    {
+      "work_index": 22,
+      "work_name": "2017: Incontinence of the Void",
+      "beta_1": 62,
+      "cumulative_steps": 1400
+    },
+    {
+      "work_index": 23,
+      "work_name": "2020: Sex and the Failed Absolute",
+      "beta_1": 68,
+      "cumulative_steps": 1536
+    },
+    {
+      "work_index": 24,
+      "work_name": "2020: Hegel in a Wired Brain",
+      "beta_1": 68,
+      "cumulative_steps": 1605
+    },
+    {
+      "work_index": 25,
+      "work_name": "2020: Pandemic!",
+      "beta_1": 70,
+      "cumulative_steps": 1655
+    }
+  ],
+  "final_complex": {
+    "vertices_active": 119,
+    "edges_active": 213,
+    "beta_1": 70,
+    "settled_cycles": 25,
+    "edge_type_distribution": {
+      "dependency": 93,
+      "negation": 36,
+      "reference": 27,
+      "sublation": 53,
+      "fold": 4
+    },
+    "terrain_distribution": {
+      "tree": 119,
+      "critical": 71
+    },
+    "critical_edge_ratio": 0.3736842105263158,
+    "negation_density": 0.16901408450704225
+  },
+  "total_steps": 1655,
+  "settled_cycles_detail": [
+    {
+      "edges": [
+        [
+          "syn_enjoyment_anti_enjoyment_270_272",
+          "anti_enjoyment_270"
+        ],
+        [
+          "syn_enjoyment_anti_enjoyment_270_272",
+          "enjoyment"
+        ]
+      ],
+      "settled_at_step": 282
+    },
+    {
+      "edges": [
+        [
+          "syn_sinthome_anti_sinthome_282_284",
+          "anti_sinthome_282"
+        ],
+        [
+          "syn_sinthome_anti_sinthome_282_284",
+          "sinthome"
+        ]
+      ],
+      "settled_at_step": 294
+    },
+    {
+      "edges": [
+        [
+          "syn_desire_anti_desire_345_347",
+          "anti_desire_345"
+        ],
+        [
+          "syn_desire_anti_desire_345_347",
+          "desire"
+        ]
+      ],
+      "settled_at_step": 357
+    },
+    {
+      "edges": [
+        [
+          "syn_death_of_God_anti_death_of_God_459_461",
+          "anti_death_of_God_459"
+        ],
+        [
+          "syn_death_of_God_anti_death_of_God_459_461",
+          "death_of_God"
+        ]
+      ],
+      "settled_at_step": 471
+    },
+    {
+      "edges": [
+        [
+          "syn_drive_anti_drive_518_520",
+          "anti_drive_518"
+        ],
+        [
+          "syn_drive_anti_drive_518_520",
+          "drive"
+        ]
+      ],
+      "settled_at_step": 530
+    },
+    {
+      "edges": [
+        [
+          "syn_parallax_anti_parallax_577_579",
+          "anti_parallax_577"
+        ],
+        [
+          "syn_parallax_anti_parallax_577_579",
+          "parallax"
+        ]
+      ],
+      "settled_at_step": 589
+    },
+    {
+      "edges": [
+        [
+          "syn_antagonism_anti_antagonism_634_636",
+          "antagonism"
+        ],
+        [
+          "syn_antagonism_anti_antagonism_634_636",
+          "anti_antagonism_634"
+        ]
+      ],
+      "settled_at_step": 646
+    },
+    {
+      "edges": [
+        [
+          "syn_monstrous_Christ_anti_monstrous_Christ_792_794",
+          "anti_monstrous_Christ_792"
+        ],
+        [
+          "syn_monstrous_Christ_anti_monstrous_Christ_792_794",
+          "monstrous_Christ"
+        ]
+      ],
+      "settled_at_step": 804
+    },
+    {
+      "edges": [
+        [
+          "syn_class_struggle_anti_class_struggle_855_857",
+          "anti_class_struggle_855"
+        ],
+        [
+          "syn_class_struggle_anti_class_struggle_855_857",
+          "class_struggle"
+        ]
+      ],
+      "settled_at_step": 867
+    },
+    {
+      "edges": [
+        [
+          "syn_Marx_anti_Marx_872_874",
+          "Marx"
+        ],
+        [
+          "syn_Marx_anti_Marx_872_874",
+          "anti_Marx_872"
+        ]
+      ],
+      "settled_at_step": 884
+    },
+    {
+      "edges": [
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "anti_negation_of_negation_951"
+        ],
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "negation_of_negation"
+        ]
+      ],
+      "settled_at_step": 963
+    },
+    {
+      "edges": [
+        [
+          "syn_less_than_nothing_anti_less_than_nothing_1004_1006",
+          "anti_less_than_nothing_1004"
+        ],
+        [
+          "syn_less_than_nothing_anti_less_than_nothing_1004_1006",
+          "less_than_nothing"
+        ]
+      ],
+      "settled_at_step": 1016
+    },
+    {
+      "edges": [
+        [
+          "syn_absolute_recoil_anti_absolute_recoil_1012_1014",
+          "absolute_recoil"
+        ],
+        [
+          "syn_absolute_recoil_anti_absolute_recoil_1012_1014",
+          "anti_absolute_recoil_1012"
+        ]
+      ],
+      "settled_at_step": 1024
+    },
+    {
+      "edges": [
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "anti_retroactivity_1061"
+        ],
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "retroactivity"
+        ]
+      ],
+      "settled_at_step": 1073
+    },
+    {
+      "edges": [
+        [
+          "syn_event_anti_event_1119_1121",
+          "anti_event_1119"
+        ],
+        [
+          "syn_event_anti_event_1119_1121",
+          "event"
+        ]
+      ],
+      "settled_at_step": 1131
+    },
+    {
+      "edges": [
+        [
+          "syn_den_anti_den_1178_1180",
+          "anti_den_1178"
+        ],
+        [
+          "syn_den_anti_den_1178_1180",
+          "den"
+        ]
+      ],
+      "settled_at_step": 1190
+    },
+    {
+      "edges": [
+        [
+          "syn_hopelessness_anti_hopelessness_1236_1238",
+          "anti_hopelessness_1236"
+        ],
+        [
+          "syn_hopelessness_anti_hopelessness_1236_1238",
+          "hopelessness"
+        ]
+      ],
+      "settled_at_step": 1248
+    },
+    {
+      "edges": [
+        [
+          "syn_revolution_anti_revolution_1270_1272",
+          "anti_revolution_1270"
+        ],
+        [
+          "syn_revolution_anti_revolution_1270_1272",
+          "revolution"
+        ]
+      ],
+      "settled_at_step": 1282
+    },
+    {
+      "edges": [
+        [
+          "syn_incontinence_of_void_anti_incontinence_of_void_1326_1328",
+          "anti_incontinence_of_void_1326"
+        ],
+        [
+          "syn_incontinence_of_void_anti_incontinence_of_void_1326_1328",
+          "incontinence_of_void"
+        ]
+      ],
+      "settled_at_step": 1338
+    },
+    {
+      "edges": [
+        [
+          "syn_negation_of_negation_absolute_recoil_1340",
+          "absolute_recoil"
+        ],
+        [
+          "syn_negation_of_negation_absolute_recoil_1340",
+          "negation_of_negation"
+        ]
+      ],
+      "settled_at_step": 1350
+    },
+    {
+      "edges": [
+        [
+          "syn_retroactivity_negation_of_negation_1350",
+          "negation_of_negation"
+        ],
+        [
+          "syn_retroactivity_negation_of_negation_1350",
+          "retroactivity"
+        ]
+      ],
+      "settled_at_step": 1360
+    },
+    {
+      "edges": [
+        [
+          "syn_death_drive_drive_1413",
+          "death_drive"
+        ],
+        [
+          "syn_death_drive_drive_1413",
+          "drive"
+        ]
+      ],
+      "settled_at_step": 1423
+    },
+    {
+      "edges": [
+        [
+          "syn_retroactivity_absolute_recoil_1452",
+          "absolute_recoil"
+        ],
+        [
+          "syn_retroactivity_absolute_recoil_1452",
+          "retroactivity"
+        ]
+      ],
+      "settled_at_step": 1462
+    },
+    {
+      "edges": [
+        [
+          "syn_not_all_anti_not_all_1474_1476",
+          "anti_not_all_1474"
+        ],
+        [
+          "syn_not_all_anti_not_all_1474_1476",
+          "not_all"
+        ]
+      ],
+      "settled_at_step": 1486
+    },
+    {
+      "edges": [
+        [
+          "syn_ontological_incompleteness_anti_ontological_incompleteness_1484_1486",
+          "anti_ontological_incompleteness_1484"
+        ],
+        [
+          "syn_ontological_incompleteness_anti_ontological_incompleteness_1484_1486",
+          "ontological_incompleteness"
+        ]
+      ],
+      "settled_at_step": 1496
+    }
+  ],
+  "blocked_log": [
+    {
+      "step": 807,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "Christianity",
+          "death_of_God"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_death_of_God_anti_death_of_God_459_461",
+          "anti_death_of_God_459"
+        ],
+        [
+          "syn_death_of_God_anti_death_of_God_459_461",
+          "death_of_God"
+        ]
+      ]
+    },
+    {
+      "step": 1290,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "event",
+          "hopelessness"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_hopelessness_anti_hopelessness_1236_1238",
+          "anti_hopelessness_1236"
+        ],
+        [
+          "syn_hopelessness_anti_hopelessness_1236_1238",
+          "hopelessness"
+        ]
+      ]
+    },
+    {
+      "step": 1336,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "retroactivity",
+          "absolute_recoil"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_absolute_recoil_anti_absolute_recoil_1012_1014",
+          "absolute_recoil"
+        ],
+        [
+          "syn_absolute_recoil_anti_absolute_recoil_1012_1014",
+          "anti_absolute_recoil_1012"
+        ]
+      ]
+    },
+    {
+      "step": 1341,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_negation_of_negation_absolute_recoil_1340",
+          "retroactivity"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "anti_retroactivity_1061"
+        ],
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "retroactivity"
+        ]
+      ]
+    },
+    {
+      "step": 1343,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "absolute_recoil",
+          "negation_of_negation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "anti_negation_of_negation_951"
+        ],
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "negation_of_negation"
+        ]
+      ]
+    },
+    {
+      "step": 1345,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_negation_of_negation_absolute_recoil_1340",
+          "retroactivity"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "anti_retroactivity_1061"
+        ],
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "retroactivity"
+        ]
+      ]
+    },
+    {
+      "step": 1347,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "absolute_recoil",
+          "negation_of_negation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "anti_negation_of_negation_951"
+        ],
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "negation_of_negation"
+        ]
+      ]
+    },
+    {
+      "step": 1351,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_retroactivity_negation_of_negation_1350",
+          "absolute_recoil"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_absolute_recoil_anti_absolute_recoil_1012_1014",
+          "absolute_recoil"
+        ],
+        [
+          "syn_absolute_recoil_anti_absolute_recoil_1012_1014",
+          "anti_absolute_recoil_1012"
+        ]
+      ]
+    },
+    {
+      "step": 1353,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "negation_of_negation",
+          "retroactivity"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "anti_retroactivity_1061"
+        ],
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "retroactivity"
+        ]
+      ]
+    },
+    {
+      "step": 1359,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_retroactivity_negation_of_negation_1350",
+          "absolute_recoil"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_absolute_recoil_anti_absolute_recoil_1012_1014",
+          "absolute_recoil"
+        ],
+        [
+          "syn_absolute_recoil_anti_absolute_recoil_1012_1014",
+          "anti_absolute_recoil_1012"
+        ]
+      ]
+    },
+    {
+      "step": 1361,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "negation_of_negation",
+          "retroactivity"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "anti_retroactivity_1061"
+        ],
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "retroactivity"
+        ]
+      ]
+    },
+    {
+      "step": 1363,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "retroactivity",
+          "negation_of_negation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "anti_negation_of_negation_951"
+        ],
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "negation_of_negation"
+        ]
+      ]
+    },
+    {
+      "step": 1367,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "hopelessness",
+          "event"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_event_anti_event_1119_1121",
+          "anti_event_1119"
+        ],
+        [
+          "syn_event_anti_event_1119_1121",
+          "event"
+        ]
+      ]
+    },
+    {
+      "step": 1373,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_negation_of_negation_absolute_recoil_1340",
+          "retroactivity"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "anti_retroactivity_1061"
+        ],
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "retroactivity"
+        ]
+      ]
+    },
+    {
+      "step": 1375,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "absolute_recoil",
+          "negation_of_negation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "anti_negation_of_negation_951"
+        ],
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "negation_of_negation"
+        ]
+      ]
+    },
+    {
+      "step": 1377,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "retroactivity",
+          "syn_negation_of_negation_absolute_recoil_1340"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_negation_of_negation_absolute_recoil_1340",
+          "absolute_recoil"
+        ],
+        [
+          "syn_negation_of_negation_absolute_recoil_1340",
+          "negation_of_negation"
+        ]
+      ]
+    },
+    {
+      "step": 1379,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "negation_of_negation",
+          "retroactivity"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "anti_retroactivity_1061"
+        ],
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "retroactivity"
+        ]
+      ]
+    },
+    {
+      "step": 1381,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_retroactivity_negation_of_negation_1350",
+          "absolute_recoil"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_absolute_recoil_anti_absolute_recoil_1012_1014",
+          "absolute_recoil"
+        ],
+        [
+          "syn_absolute_recoil_anti_absolute_recoil_1012_1014",
+          "anti_absolute_recoil_1012"
+        ]
+      ]
+    },
+    {
+      "step": 1383,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "negation_of_negation",
+          "retroactivity"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "anti_retroactivity_1061"
+        ],
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "retroactivity"
+        ]
+      ]
+    },
+    {
+      "step": 1388,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "negation_of_negation",
+          "retroactivity"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "anti_retroactivity_1061"
+        ],
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "retroactivity"
+        ]
+      ]
+    },
+    {
+      "step": 1390,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_retroactivity_negation_of_negation_1350",
+          "absolute_recoil"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_absolute_recoil_anti_absolute_recoil_1012_1014",
+          "absolute_recoil"
+        ],
+        [
+          "syn_absolute_recoil_anti_absolute_recoil_1012_1014",
+          "anti_absolute_recoil_1012"
+        ]
+      ]
+    },
+    {
+      "step": 1392,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "negation_of_negation",
+          "retroactivity"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "anti_retroactivity_1061"
+        ],
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "retroactivity"
+        ]
+      ]
+    },
+    {
+      "step": 1394,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "absolute_recoil",
+          "negation_of_negation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "anti_negation_of_negation_951"
+        ],
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "negation_of_negation"
+        ]
+      ]
+    },
+    {
+      "step": 1396,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_negation_of_negation_absolute_recoil_1340",
+          "retroactivity"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "anti_retroactivity_1061"
+        ],
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "retroactivity"
+        ]
+      ]
+    },
+    {
+      "step": 1398,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "absolute_recoil",
+          "negation_of_negation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "anti_negation_of_negation_951"
+        ],
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "negation_of_negation"
+        ]
+      ]
+    },
+    {
+      "step": 1400,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "retroactivity",
+          "syn_negation_of_negation_absolute_recoil_1340"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_negation_of_negation_absolute_recoil_1340",
+          "absolute_recoil"
+        ],
+        [
+          "syn_negation_of_negation_absolute_recoil_1340",
+          "negation_of_negation"
+        ]
+      ]
+    },
+    {
+      "step": 1402,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "event",
+          "hopelessness"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_hopelessness_anti_hopelessness_1236_1238",
+          "anti_hopelessness_1236"
+        ],
+        [
+          "syn_hopelessness_anti_hopelessness_1236_1238",
+          "hopelessness"
+        ]
+      ]
+    },
+    {
+      "step": 1405,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "hopelessness",
+          "event"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_event_anti_event_1119_1121",
+          "anti_event_1119"
+        ],
+        [
+          "syn_event_anti_event_1119_1121",
+          "event"
+        ]
+      ]
+    },
+    {
+      "step": 1416,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "hopelessness",
+          "event"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_event_anti_event_1119_1121",
+          "anti_event_1119"
+        ],
+        [
+          "syn_event_anti_event_1119_1121",
+          "event"
+        ]
+      ]
+    },
+    {
+      "step": 1419,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "event",
+          "hopelessness"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_hopelessness_anti_hopelessness_1236_1238",
+          "anti_hopelessness_1236"
+        ],
+        [
+          "syn_hopelessness_anti_hopelessness_1236_1238",
+          "hopelessness"
+        ]
+      ]
+    },
+    {
+      "step": 1421,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "retroactivity",
+          "syn_negation_of_negation_absolute_recoil_1340"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_negation_of_negation_absolute_recoil_1340",
+          "absolute_recoil"
+        ],
+        [
+          "syn_negation_of_negation_absolute_recoil_1340",
+          "negation_of_negation"
+        ]
+      ]
+    },
+    {
+      "step": 1423,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "negation_of_negation",
+          "retroactivity"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "anti_retroactivity_1061"
+        ],
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "retroactivity"
+        ]
+      ]
+    },
+    {
+      "step": 1425,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_retroactivity_negation_of_negation_1350",
+          "absolute_recoil"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_absolute_recoil_anti_absolute_recoil_1012_1014",
+          "absolute_recoil"
+        ],
+        [
+          "syn_absolute_recoil_anti_absolute_recoil_1012_1014",
+          "anti_absolute_recoil_1012"
+        ]
+      ]
+    },
+    {
+      "step": 1427,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "negation_of_negation",
+          "retroactivity"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "anti_retroactivity_1061"
+        ],
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "retroactivity"
+        ]
+      ]
+    },
+    {
+      "step": 1429,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "absolute_recoil",
+          "negation_of_negation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "anti_negation_of_negation_951"
+        ],
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "negation_of_negation"
+        ]
+      ]
+    },
+    {
+      "step": 1431,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_negation_of_negation_absolute_recoil_1340",
+          "retroactivity"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "anti_retroactivity_1061"
+        ],
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "retroactivity"
+        ]
+      ]
+    },
+    {
+      "step": 1433,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "absolute_recoil",
+          "negation_of_negation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "anti_negation_of_negation_951"
+        ],
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "negation_of_negation"
+        ]
+      ]
+    },
+    {
+      "step": 1435,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "retroactivity",
+          "syn_negation_of_negation_absolute_recoil_1340"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_negation_of_negation_absolute_recoil_1340",
+          "absolute_recoil"
+        ],
+        [
+          "syn_negation_of_negation_absolute_recoil_1340",
+          "negation_of_negation"
+        ]
+      ]
+    },
+    {
+      "step": 1437,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "event",
+          "hopelessness"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_hopelessness_anti_hopelessness_1236_1238",
+          "anti_hopelessness_1236"
+        ],
+        [
+          "syn_hopelessness_anti_hopelessness_1236_1238",
+          "hopelessness"
+        ]
+      ]
+    },
+    {
+      "step": 1440,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "hopelessness",
+          "event"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_event_anti_event_1119_1121",
+          "anti_event_1119"
+        ],
+        [
+          "syn_event_anti_event_1119_1121",
+          "event"
+        ]
+      ]
+    },
+    {
+      "step": 1446,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "failed_absolute",
+          "retroactivity"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "anti_retroactivity_1061"
+        ],
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "retroactivity"
+        ]
+      ]
+    },
+    {
+      "step": 1448,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "absolute_recoil",
+          "negation_of_negation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "anti_negation_of_negation_951"
+        ],
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "negation_of_negation"
+        ]
+      ]
+    },
+    {
+      "step": 1453,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_retroactivity_absolute_recoil_1452",
+          "negation_of_negation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "anti_negation_of_negation_951"
+        ],
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "negation_of_negation"
+        ]
+      ]
+    },
+    {
+      "step": 1455,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "absolute_recoil",
+          "retroactivity"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "anti_retroactivity_1061"
+        ],
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "retroactivity"
+        ]
+      ]
+    },
+    {
+      "step": 1457,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_retroactivity_absolute_recoil_1452",
+          "negation_of_negation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "anti_negation_of_negation_951"
+        ],
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "negation_of_negation"
+        ]
+      ]
+    },
+    {
+      "step": 1459,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "absolute_recoil",
+          "retroactivity"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "anti_retroactivity_1061"
+        ],
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "retroactivity"
+        ]
+      ]
+    },
+    {
+      "step": 1461,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_negation_of_negation_absolute_recoil_1340",
+          "retroactivity"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "anti_retroactivity_1061"
+        ],
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "retroactivity"
+        ]
+      ]
+    },
+    {
+      "step": 1463,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "absolute_recoil",
+          "retroactivity"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "anti_retroactivity_1061"
+        ],
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "retroactivity"
+        ]
+      ]
+    },
+    {
+      "step": 1465,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "retroactivity",
+          "absolute_recoil"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_absolute_recoil_anti_absolute_recoil_1012_1014",
+          "absolute_recoil"
+        ],
+        [
+          "syn_absolute_recoil_anti_absolute_recoil_1012_1014",
+          "anti_absolute_recoil_1012"
+        ]
+      ]
+    },
+    {
+      "step": 1467,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "negation_of_negation",
+          "retroactivity"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "anti_retroactivity_1061"
+        ],
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "retroactivity"
+        ]
+      ]
+    },
+    {
+      "step": 1497,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_retroactivity_absolute_recoil_1452",
+          "negation_of_negation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "anti_negation_of_negation_951"
+        ],
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "negation_of_negation"
+        ]
+      ]
+    },
+    {
+      "step": 1499,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "absolute_recoil",
+          "negation_of_negation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "anti_negation_of_negation_951"
+        ],
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "negation_of_negation"
+        ]
+      ]
+    },
+    {
+      "step": 1501,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "negation_of_negation",
+          "absolute_recoil"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_absolute_recoil_anti_absolute_recoil_1012_1014",
+          "absolute_recoil"
+        ],
+        [
+          "syn_absolute_recoil_anti_absolute_recoil_1012_1014",
+          "anti_absolute_recoil_1012"
+        ]
+      ]
+    },
+    {
+      "step": 1526,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "event",
+          "hopelessness"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_hopelessness_anti_hopelessness_1236_1238",
+          "anti_hopelessness_1236"
+        ],
+        [
+          "syn_hopelessness_anti_hopelessness_1236_1238",
+          "hopelessness"
+        ]
+      ]
+    },
+    {
+      "step": 1528,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "retroactivity",
+          "negation_of_negation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "anti_negation_of_negation_951"
+        ],
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "negation_of_negation"
+        ]
+      ]
+    },
+    {
+      "step": 1530,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "absolute_recoil",
+          "retroactivity"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "anti_retroactivity_1061"
+        ],
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "retroactivity"
+        ]
+      ]
+    },
+    {
+      "step": 1533,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "absolute_recoil",
+          "retroactivity"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "anti_retroactivity_1061"
+        ],
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "retroactivity"
+        ]
+      ]
+    },
+    {
+      "step": 1535,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_negation_of_negation_absolute_recoil_1340",
+          "retroactivity"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "anti_retroactivity_1061"
+        ],
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "retroactivity"
+        ]
+      ]
+    },
+    {
+      "step": 1537,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "absolute_recoil",
+          "retroactivity"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "anti_retroactivity_1061"
+        ],
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "retroactivity"
+        ]
+      ]
+    },
+    {
+      "step": 1539,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "negation_of_negation",
+          "absolute_recoil"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_absolute_recoil_anti_absolute_recoil_1012_1014",
+          "absolute_recoil"
+        ],
+        [
+          "syn_absolute_recoil_anti_absolute_recoil_1012_1014",
+          "anti_absolute_recoil_1012"
+        ]
+      ]
+    },
+    {
+      "step": 1541,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "retroactivity",
+          "negation_of_negation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "anti_negation_of_negation_951"
+        ],
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "negation_of_negation"
+        ]
+      ]
+    },
+    {
+      "step": 1543,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "event",
+          "hopelessness"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_hopelessness_anti_hopelessness_1236_1238",
+          "anti_hopelessness_1236"
+        ],
+        [
+          "syn_hopelessness_anti_hopelessness_1236_1238",
+          "hopelessness"
+        ]
+      ]
+    },
+    {
+      "step": 1546,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "hopelessness",
+          "event"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_event_anti_event_1119_1121",
+          "anti_event_1119"
+        ],
+        [
+          "syn_event_anti_event_1119_1121",
+          "event"
+        ]
+      ]
+    },
+    {
+      "step": 1553,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "Hegel",
+          "negation_of_negation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "anti_negation_of_negation_951"
+        ],
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "negation_of_negation"
+        ]
+      ]
+    },
+    {
+      "step": 1556,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "negation",
+          "retroactivity"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "anti_retroactivity_1061"
+        ],
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "retroactivity"
+        ]
+      ]
+    },
+    {
+      "step": 1558,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "Hegel",
+          "negation_of_negation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "anti_negation_of_negation_951"
+        ],
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "negation_of_negation"
+        ]
+      ]
+    },
+    {
+      "step": 1560,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "negation",
+          "retroactivity"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "anti_retroactivity_1061"
+        ],
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "retroactivity"
+        ]
+      ]
+    },
+    {
+      "step": 1562,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "Hegel",
+          "negation_of_negation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "anti_negation_of_negation_951"
+        ],
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "negation_of_negation"
+        ]
+      ]
+    },
+    {
+      "step": 1564,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "negation",
+          "retroactivity"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "anti_retroactivity_1061"
+        ],
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "retroactivity"
+        ]
+      ]
+    },
+    {
+      "step": 1566,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "Hegel",
+          "negation_of_negation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "anti_negation_of_negation_951"
+        ],
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "negation_of_negation"
+        ]
+      ]
+    },
+    {
+      "step": 1568,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "negation",
+          "retroactivity"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "anti_retroactivity_1061"
+        ],
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "retroactivity"
+        ]
+      ]
+    },
+    {
+      "step": 1570,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "Hegel",
+          "negation_of_negation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "anti_negation_of_negation_951"
+        ],
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "negation_of_negation"
+        ]
+      ]
+    },
+    {
+      "step": 1572,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "negation",
+          "retroactivity"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "anti_retroactivity_1061"
+        ],
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "retroactivity"
+        ]
+      ]
+    },
+    {
+      "step": 1574,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "Hegel",
+          "negation_of_negation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "anti_negation_of_negation_951"
+        ],
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "negation_of_negation"
+        ]
+      ]
+    },
+    {
+      "step": 1576,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "negation",
+          "retroactivity"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "anti_retroactivity_1061"
+        ],
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "retroactivity"
+        ]
+      ]
+    },
+    {
+      "step": 1578,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "Hegel",
+          "negation_of_negation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "anti_negation_of_negation_951"
+        ],
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "negation_of_negation"
+        ]
+      ]
+    },
+    {
+      "step": 1580,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "negation",
+          "retroactivity"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "anti_retroactivity_1061"
+        ],
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "retroactivity"
+        ]
+      ]
+    },
+    {
+      "step": 1582,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "Hegel",
+          "negation_of_negation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "anti_negation_of_negation_951"
+        ],
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "negation_of_negation"
+        ]
+      ]
+    },
+    {
+      "step": 1584,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "negation",
+          "retroactivity"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "anti_retroactivity_1061"
+        ],
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "retroactivity"
+        ]
+      ]
+    },
+    {
+      "step": 1586,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "Hegel",
+          "negation_of_negation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "anti_negation_of_negation_951"
+        ],
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "negation_of_negation"
+        ]
+      ]
+    },
+    {
+      "step": 1588,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "negation",
+          "retroactivity"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "anti_retroactivity_1061"
+        ],
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "retroactivity"
+        ]
+      ]
+    },
+    {
+      "step": 1590,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "Hegel",
+          "negation_of_negation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "anti_negation_of_negation_951"
+        ],
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "negation_of_negation"
+        ]
+      ]
+    },
+    {
+      "step": 1592,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "negation",
+          "retroactivity"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "anti_retroactivity_1061"
+        ],
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "retroactivity"
+        ]
+      ]
+    },
+    {
+      "step": 1594,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "Hegel",
+          "negation_of_negation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "anti_negation_of_negation_951"
+        ],
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "negation_of_negation"
+        ]
+      ]
+    },
+    {
+      "step": 1596,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "negation",
+          "retroactivity"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "anti_retroactivity_1061"
+        ],
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "retroactivity"
+        ]
+      ]
+    },
+    {
+      "step": 1598,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "Hegel",
+          "negation_of_negation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "anti_negation_of_negation_951"
+        ],
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "negation_of_negation"
+        ]
+      ]
+    },
+    {
+      "step": 1600,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "negation",
+          "retroactivity"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "anti_retroactivity_1061"
+        ],
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "retroactivity"
+        ]
+      ]
+    },
+    {
+      "step": 1602,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "Hegel",
+          "negation_of_negation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "anti_negation_of_negation_951"
+        ],
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "negation_of_negation"
+        ]
+      ]
+    },
+    {
+      "step": 1604,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "negation",
+          "retroactivity"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "anti_retroactivity_1061"
+        ],
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "retroactivity"
+        ]
+      ]
+    },
+    {
+      "step": 1606,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "Hegel",
+          "negation_of_negation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "anti_negation_of_negation_951"
+        ],
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "negation_of_negation"
+        ]
+      ]
+    },
+    {
+      "step": 1608,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "negation",
+          "retroactivity"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "anti_retroactivity_1061"
+        ],
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "retroactivity"
+        ]
+      ]
+    },
+    {
+      "step": 1610,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "Hegel",
+          "negation_of_negation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "anti_negation_of_negation_951"
+        ],
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "negation_of_negation"
+        ]
+      ]
+    },
+    {
+      "step": 1612,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "negation",
+          "retroactivity"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "anti_retroactivity_1061"
+        ],
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "retroactivity"
+        ]
+      ]
+    },
+    {
+      "step": 1614,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "Hegel",
+          "negation_of_negation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "anti_negation_of_negation_951"
+        ],
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "negation_of_negation"
+        ]
+      ]
+    },
+    {
+      "step": 1616,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "negation",
+          "retroactivity"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "anti_retroactivity_1061"
+        ],
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "retroactivity"
+        ]
+      ]
+    },
+    {
+      "step": 1618,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "Hegel",
+          "negation_of_negation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "anti_negation_of_negation_951"
+        ],
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "negation_of_negation"
+        ]
+      ]
+    },
+    {
+      "step": 1620,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "negation",
+          "retroactivity"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "anti_retroactivity_1061"
+        ],
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "retroactivity"
+        ]
+      ]
+    },
+    {
+      "step": 1622,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "Hegel",
+          "negation_of_negation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "anti_negation_of_negation_951"
+        ],
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "negation_of_negation"
+        ]
+      ]
+    },
+    {
+      "step": 1624,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "negation",
+          "retroactivity"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "anti_retroactivity_1061"
+        ],
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "retroactivity"
+        ]
+      ]
+    },
+    {
+      "step": 1626,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "Hegel",
+          "negation_of_negation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "anti_negation_of_negation_951"
+        ],
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "negation_of_negation"
+        ]
+      ]
+    },
+    {
+      "step": 1628,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "negation",
+          "retroactivity"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "anti_retroactivity_1061"
+        ],
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "retroactivity"
+        ]
+      ]
+    },
+    {
+      "step": 1630,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "Hegel",
+          "negation_of_negation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "anti_negation_of_negation_951"
+        ],
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "negation_of_negation"
+        ]
+      ]
+    },
+    {
+      "step": 1632,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "negation",
+          "retroactivity"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "anti_retroactivity_1061"
+        ],
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "retroactivity"
+        ]
+      ]
+    },
+    {
+      "step": 1634,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "Hegel",
+          "negation_of_negation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "anti_negation_of_negation_951"
+        ],
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "negation_of_negation"
+        ]
+      ]
+    },
+    {
+      "step": 1636,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "negation",
+          "retroactivity"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "anti_retroactivity_1061"
+        ],
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "retroactivity"
+        ]
+      ]
+    },
+    {
+      "step": 1638,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "Hegel",
+          "negation_of_negation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "anti_negation_of_negation_951"
+        ],
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "negation_of_negation"
+        ]
+      ]
+    },
+    {
+      "step": 1640,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "negation",
+          "retroactivity"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "anti_retroactivity_1061"
+        ],
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "retroactivity"
+        ]
+      ]
+    },
+    {
+      "step": 1642,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "Hegel",
+          "negation_of_negation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "anti_negation_of_negation_951"
+        ],
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "negation_of_negation"
+        ]
+      ]
+    },
+    {
+      "step": 1644,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "negation",
+          "retroactivity"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "anti_retroactivity_1061"
+        ],
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "retroactivity"
+        ]
+      ]
+    },
+    {
+      "step": 1646,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "Hegel",
+          "negation_of_negation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "anti_negation_of_negation_951"
+        ],
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "negation_of_negation"
+        ]
+      ]
+    },
+    {
+      "step": 1648,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "negation",
+          "retroactivity"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "anti_retroactivity_1061"
+        ],
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "retroactivity"
+        ]
+      ]
+    },
+    {
+      "step": 1650,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "Hegel",
+          "negation_of_negation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "anti_negation_of_negation_951"
+        ],
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "negation_of_negation"
+        ]
+      ]
+    },
+    {
+      "step": 1652,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "negation",
+          "retroactivity"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "anti_retroactivity_1061"
+        ],
+        [
+          "syn_retroactivity_anti_retroactivity_1061_1063",
+          "retroactivity"
+        ]
+      ]
+    },
+    {
+      "step": 1654,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "Hegel",
+          "negation_of_negation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "anti_negation_of_negation_951"
+        ],
+        [
+          "syn_negation_of_negation_anti_negation_of_negation_951_953",
+          "negation_of_negation"
+        ]
+      ]
+    }
+  ]
+}

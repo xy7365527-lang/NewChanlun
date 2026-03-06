@@ -1,0 +1,3810 @@
+{
+  "experiment": "holderlin_collected_works_incremental",
+  "source": "Friedrich Hölderlin — collected works, 14 entries (1788-1806)",
+  "methodology": "manual conceptual complex per work, incremental injection, digestion until 50-step beta_1 stability",
+  "work_results": [
+    {
+      "work": "1788-93: Tübingen Hymns",
+      "work_index": 1,
+      "vertices_added": 9,
+      "edges_added": 9,
+      "vertices_total": 9,
+      "edges_total": 9,
+      "beta_1_before_injection": 0,
+      "beta_1_after_digestion": 0,
+      "delta_beta_1": 0,
+      "settled_cycles": 0,
+      "blocked_in_work": 0,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 50,
+      "operation_counts": {
+        "walk": 50
+      }
+    },
+    {
+      "work": "1794: Fragment of Hyperion",
+      "work_index": 2,
+      "vertices_added": 5,
+      "edges_added": 8,
+      "vertices_total": 12,
+      "edges_total": 21,
+      "beta_1_before_injection": 4,
+      "beta_1_after_digestion": 6,
+      "delta_beta_1": 2,
+      "settled_cycles": 2,
+      "blocked_in_work": 0,
+      "steps_to_digest": 60,
+      "converged": true,
+      "cumulative_steps": 110,
+      "operation_counts": {
+        "walk": 55,
+        "fold": 3,
+        "negate_a": 1,
+        "sublate": 1
+      }
+    },
+    {
+      "work": "1795: Judgment and Being (Urteil und Seyn)",
+      "work_index": 3,
+      "vertices_added": 6,
+      "edges_added": 9,
+      "vertices_total": 18,
+      "edges_total": 30,
+      "beta_1_before_injection": 8,
+      "beta_1_after_digestion": 8,
+      "delta_beta_1": 0,
+      "settled_cycles": 2,
+      "blocked_in_work": 0,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 160,
+      "operation_counts": {
+        "walk": 50
+      }
+    },
+    {
+      "work": "1795: On the Operations of the Poetic Spirit",
+      "work_index": 4,
+      "vertices_added": 5,
+      "edges_added": 8,
+      "vertices_total": 26,
+      "edges_total": 45,
+      "beta_1_before_injection": 12,
+      "beta_1_after_digestion": 14,
+      "delta_beta_1": 2,
+      "settled_cycles": 4,
+      "blocked_in_work": 1,
+      "steps_to_digest": 71,
+      "converged": true,
+      "cumulative_steps": 231,
+      "operation_counts": {
+        "walk": 65,
+        "negate_b": 2,
+        "sublate": 2,
+        "fold_blocked": 1,
+        "fold": 1
+      }
+    },
+    {
+      "work": "1797-99: Hyperion",
+      "work_index": 5,
+      "vertices_added": 7,
+      "edges_added": 16,
+      "vertices_total": 38,
+      "edges_total": 68,
+      "beta_1_before_injection": 20,
+      "beta_1_after_digestion": 22,
+      "delta_beta_1": 2,
+      "settled_cycles": 7,
+      "blocked_in_work": 16,
+      "steps_to_digest": 76,
+      "converged": true,
+      "cumulative_steps": 307,
+      "operation_counts": {
+        "walk": 54,
+        "negate_b": 3,
+        "sublate": 3,
+        "fold_blocked": 15,
+        "fold": 1
+      }
+    },
+    {
+      "work": "1798-1800: The Death of Empedocles",
+      "work_index": 6,
+      "vertices_added": 5,
+      "edges_added": 11,
+      "vertices_total": 43,
+      "edges_total": 79,
+      "beta_1_before_injection": 28,
+      "beta_1_after_digestion": 28,
+      "delta_beta_1": 0,
+      "settled_cycles": 7,
+      "blocked_in_work": 32,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 357,
+      "operation_counts": {
+        "walk": 34,
+        "fold_blocked": 16
+      }
+    },
+    {
+      "work": "1799: Ground for Empedocles",
+      "work_index": 7,
+      "vertices_added": 4,
+      "edges_added": 9,
+      "vertices_total": 47,
+      "edges_total": 88,
+      "beta_1_before_injection": 33,
+      "beta_1_after_digestion": 33,
+      "delta_beta_1": 0,
+      "settled_cycles": 7,
+      "blocked_in_work": 49,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 407,
+      "operation_counts": {
+        "fold_blocked": 17,
+        "walk": 33
+      }
+    },
+    {
+      "work": "1803: Remarks on Oedipus",
+      "work_index": 8,
+      "vertices_added": 6,
+      "edges_added": 11,
+      "vertices_total": 53,
+      "edges_total": 99,
+      "beta_1_before_injection": 38,
+      "beta_1_after_digestion": 38,
+      "delta_beta_1": 0,
+      "settled_cycles": 7,
+      "blocked_in_work": 66,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 457,
+      "operation_counts": {
+        "walk": 33,
+        "fold_blocked": 17
+      }
+    },
+    {
+      "work": "1803: Remarks on Antigone",
+      "work_index": 9,
+      "vertices_added": 5,
+      "edges_added": 11,
+      "vertices_total": 58,
+      "edges_total": 108,
+      "beta_1_before_injection": 42,
+      "beta_1_after_digestion": 42,
+      "delta_beta_1": 0,
+      "settled_cycles": 7,
+      "blocked_in_work": 82,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 507,
+      "operation_counts": {
+        "walk": 34,
+        "fold_blocked": 16
+      }
+    },
+    {
+      "work": "1800-03: Late Hymns (Bread and Wine, Rhine, Patmos)",
+      "work_index": 10,
+      "vertices_added": 8,
+      "edges_added": 16,
+      "vertices_total": 66,
+      "edges_total": 124,
+      "beta_1_before_injection": 50,
+      "beta_1_after_digestion": 50,
+      "delta_beta_1": 0,
+      "settled_cycles": 7,
+      "blocked_in_work": 99,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 557,
+      "operation_counts": {
+        "fold_blocked": 17,
+        "walk": 33
+      }
+    },
+    {
+      "work": "1801: Homecoming",
+      "work_index": 11,
+      "vertices_added": 4,
+      "edges_added": 9,
+      "vertices_total": 70,
+      "edges_total": 133,
+      "beta_1_before_injection": 55,
+      "beta_1_after_digestion": 55,
+      "delta_beta_1": 0,
+      "settled_cycles": 7,
+      "blocked_in_work": 116,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 607,
+      "operation_counts": {
+        "walk": 33,
+        "fold_blocked": 17
+      }
+    },
+    {
+      "work": "1801: Celebration of Peace (Friedensfeier)",
+      "work_index": 12,
+      "vertices_added": 3,
+      "edges_added": 9,
+      "vertices_total": 73,
+      "edges_total": 141,
+      "beta_1_before_injection": 60,
+      "beta_1_after_digestion": 60,
+      "delta_beta_1": 0,
+      "settled_cycles": 7,
+      "blocked_in_work": 132,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 657,
+      "operation_counts": {
+        "walk": 34,
+        "fold_blocked": 16
+      }
+    },
+    {
+      "work": "1803-06: In Lovely Blueness",
+      "work_index": 13,
+      "vertices_added": 5,
+      "edges_added": 10,
+      "vertices_total": 78,
+      "edges_total": 151,
+      "beta_1_before_injection": 65,
+      "beta_1_after_digestion": 65,
+      "delta_beta_1": 0,
+      "settled_cycles": 7,
+      "blocked_in_work": 149,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 707,
+      "operation_counts": {
+        "fold_blocked": 17,
+        "walk": 33
+      }
+    },
+    {
+      "work": "1803: Mnemosyne",
+      "work_index": 14,
+      "vertices_added": 4,
+      "edges_added": 11,
+      "vertices_total": 82,
+      "edges_total": 162,
+      "beta_1_before_injection": 72,
+      "beta_1_after_digestion": 72,
+      "delta_beta_1": 0,
+      "settled_cycles": 7,
+      "blocked_in_work": 166,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 757,
+      "operation_counts": {
+        "walk": 33,
+        "fold_blocked": 17
+      }
+    }
+  ],
+  "beta_1_curve": [
+    {
+      "work_index": 1,
+      "work_name": "1788-93: Tübingen Hymns",
+      "beta_1": 0,
+      "cumulative_steps": 50
+    },
+    {
+      "work_index": 2,
+      "work_name": "1794: Fragment of Hyperion",
+      "beta_1": 6,
+      "cumulative_steps": 110
+    },
+    {
+      "work_index": 3,
+      "work_name": "1795: Judgment and Being (Urteil und Seyn)",
+      "beta_1": 8,
+      "cumulative_steps": 160
+    },
+    {
+      "work_index": 4,
+      "work_name": "1795: On the Operations of the Poetic Spirit",
+      "beta_1": 14,
+      "cumulative_steps": 231
+    },
+    {
+      "work_index": 5,
+      "work_name": "1797-99: Hyperion",
+      "beta_1": 22,
+      "cumulative_steps": 307
+    },
+    {
+      "work_index": 6,
+      "work_name": "1798-1800: The Death of Empedocles",
+      "beta_1": 28,
+      "cumulative_steps": 357
+    },
+    {
+      "work_index": 7,
+      "work_name": "1799: Ground for Empedocles",
+      "beta_1": 33,
+      "cumulative_steps": 407
+    },
+    {
+      "work_index": 8,
+      "work_name": "1803: Remarks on Oedipus",
+      "beta_1": 38,
+      "cumulative_steps": 457
+    },
+    {
+      "work_index": 9,
+      "work_name": "1803: Remarks on Antigone",
+      "beta_1": 42,
+      "cumulative_steps": 507
+    },
+    {
+      "work_index": 10,
+      "work_name": "1800-03: Late Hymns (Bread and Wine, Rhine, Patmos)",
+      "beta_1": 50,
+      "cumulative_steps": 557
+    },
+    {
+      "work_index": 11,
+      "work_name": "1801: Homecoming",
+      "beta_1": 55,
+      "cumulative_steps": 607
+    },
+    {
+      "work_index": 12,
+      "work_name": "1801: Celebration of Peace (Friedensfeier)",
+      "beta_1": 60,
+      "cumulative_steps": 657
+    },
+    {
+      "work_index": 13,
+      "work_name": "1803-06: In Lovely Blueness",
+      "beta_1": 65,
+      "cumulative_steps": 707
+    },
+    {
+      "work_index": 14,
+      "work_name": "1803: Mnemosyne",
+      "beta_1": 72,
+      "cumulative_steps": 757
+    }
+  ],
+  "final_complex": {
+    "vertices_active": 82,
+    "edges_active": 162,
+    "beta_1": 72,
+    "settled_cycles": 7,
+    "edge_type_distribution": {
+      "dependency": 78,
+      "reference": 38,
+      "negation": 24,
+      "sublation": 19,
+      "fold": 3
+    },
+    "terrain_distribution": {
+      "tree": 82,
+      "critical": 66
+    },
+    "critical_edge_ratio": 0.44594594594594594,
+    "negation_density": 0.14814814814814814
+  },
+  "total_steps": 757,
+  "settled_cycles_detail": [
+    {
+      "edges": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ],
+      "settled_at_step": 70
+    },
+    {
+      "edges": [
+        [
+          "longing",
+          "longing"
+        ]
+      ],
+      "settled_at_step": 70
+    },
+    {
+      "edges": [
+        [
+          "syn_harmonious_opposition_anti_harmonious_opposition_164_166",
+          "anti_harmonious_opposition_164"
+        ],
+        [
+          "syn_harmonious_opposition_anti_harmonious_opposition_164_166",
+          "harmonious_opposition"
+        ]
+      ],
+      "settled_at_step": 176
+    },
+    {
+      "edges": [
+        [
+          "syn_nature_anti_nature_179_181",
+          "anti_nature_179"
+        ],
+        [
+          "syn_nature_anti_nature_179_181",
+          "nature"
+        ]
+      ],
+      "settled_at_step": 191
+    },
+    {
+      "edges": [
+        [
+          "syn_separation_anti_separation_234_236",
+          "anti_separation_234"
+        ],
+        [
+          "syn_separation_anti_separation_234_236",
+          "separation"
+        ]
+      ],
+      "settled_at_step": 246
+    },
+    {
+      "edges": [
+        [
+          "syn_longing_anti_longing_247_249",
+          "anti_longing_247"
+        ],
+        [
+          "syn_longing_anti_longing_247_249",
+          "longing"
+        ]
+      ],
+      "settled_at_step": 259
+    },
+    {
+      "edges": [
+        [
+          "syn_all_in_one_anti_all_in_one_255_257",
+          "all_in_one"
+        ],
+        [
+          "syn_all_in_one_anti_all_in_one_255_257",
+          "anti_all_in_one_255"
+        ]
+      ],
+      "settled_at_step": 267
+    }
+  ],
+  "blocked_log": [
+    {
+      "step": 177,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "poetic_spirit",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 243,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "Diotima",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 268,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 271,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 274,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 277,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 280,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 283,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 286,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 289,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 292,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 295,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 298,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 301,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 304,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 307,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 310,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 313,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 316,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 319,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 322,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 325,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 328,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 331,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 334,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 337,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 340,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 343,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 346,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 349,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 352,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 355,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 358,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 361,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 364,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 367,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 370,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 373,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 376,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 379,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 382,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 385,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 388,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 391,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 394,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 397,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 400,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 403,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 406,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 409,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 412,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 415,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 418,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 421,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 424,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 427,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 430,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 433,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 436,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 439,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 442,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 445,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 448,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 451,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 454,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 457,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 460,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 463,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 466,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 469,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 472,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 475,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 478,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 481,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 484,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 487,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 490,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 493,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 496,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 499,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 502,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 505,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 508,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 511,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 514,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 517,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 520,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 523,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 526,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 529,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 532,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 535,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 538,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 541,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 544,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 547,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 550,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 553,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 556,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 559,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 562,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 565,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 568,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 571,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 574,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 577,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 580,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 583,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 586,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 589,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 592,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 595,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 598,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 601,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 604,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 607,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 610,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 613,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 616,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 619,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 622,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 625,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 628,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 631,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 634,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 637,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 640,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 643,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 646,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 649,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 652,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 655,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 658,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 661,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 664,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 667,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 670,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 673,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 676,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 679,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 682,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 685,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 688,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 691,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 694,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 697,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 700,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 703,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 706,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 709,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 712,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 715,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 718,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 721,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 724,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 727,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 730,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 733,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 736,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 739,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 742,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 745,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 748,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 751,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 754,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    },
+    {
+      "step": 757,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fate",
+          "longing"
+        ]
+      },
+      "blocked_by": [
+        [
+          "beauty",
+          "longing"
+        ],
+        [
+          "longing",
+          "beauty"
+        ]
+      ]
+    }
+  ]
+}

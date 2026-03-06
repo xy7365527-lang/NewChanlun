@@ -1,0 +1,1935 @@
+{
+  "experiment": "benjamin_complete_works_incremental",
+  "source": "Walter Benjamin — complete works, 17 entries (1916-1940)",
+  "methodology": "manual conceptual complex per work, incremental injection, digestion until 50-step beta_1 stability",
+  "work_results": [
+    {
+      "work": "1916: On Language as Such and on the Language of Man",
+      "work_index": 1,
+      "vertices_added": 8,
+      "edges_added": 10,
+      "vertices_total": 7,
+      "edges_total": 11,
+      "beta_1_before_injection": 3,
+      "beta_1_after_digestion": 3,
+      "delta_beta_1": 0,
+      "settled_cycles": 0,
+      "blocked_in_work": 0,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 50,
+      "operation_counts": {
+        "walk": 49,
+        "fold": 1
+      }
+    },
+    {
+      "work": "1921: Critique of Violence",
+      "work_index": 2,
+      "vertices_added": 8,
+      "edges_added": 11,
+      "vertices_total": 17,
+      "edges_total": 29,
+      "beta_1_before_injection": 7,
+      "beta_1_after_digestion": 8,
+      "delta_beta_1": 1,
+      "settled_cycles": 0,
+      "blocked_in_work": 0,
+      "steps_to_digest": 65,
+      "converged": true,
+      "cumulative_steps": 115,
+      "operation_counts": {
+        "walk": 59,
+        "negate_b": 2,
+        "sublate": 2,
+        "fold": 2
+      }
+    },
+    {
+      "work": "1921: The Task of the Translator",
+      "work_index": 3,
+      "vertices_added": 6,
+      "edges_added": 11,
+      "vertices_total": 24,
+      "edges_total": 42,
+      "beta_1_before_injection": 12,
+      "beta_1_after_digestion": 12,
+      "delta_beta_1": 0,
+      "settled_cycles": 1,
+      "blocked_in_work": 14,
+      "steps_to_digest": 57,
+      "converged": true,
+      "cumulative_steps": 172,
+      "operation_counts": {
+        "walk": 40,
+        "fold": 1,
+        "negate_b": 1,
+        "sublate": 1,
+        "fold_blocked": 14
+      }
+    },
+    {
+      "work": "1928: One-Way Street",
+      "work_index": 4,
+      "vertices_added": 6,
+      "edges_added": 9,
+      "vertices_total": 30,
+      "edges_total": 49,
+      "beta_1_before_injection": 13,
+      "beta_1_after_digestion": 13,
+      "delta_beta_1": 0,
+      "settled_cycles": 1,
+      "blocked_in_work": 30,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 222,
+      "operation_counts": {
+        "walk": 34,
+        "fold_blocked": 16
+      }
+    },
+    {
+      "work": "1928: Origin of German Tragic Drama",
+      "work_index": 5,
+      "vertices_added": 10,
+      "edges_added": 15,
+      "vertices_total": 39,
+      "edges_total": 68,
+      "beta_1_before_injection": 16,
+      "beta_1_after_digestion": 16,
+      "delta_beta_1": 0,
+      "settled_cycles": 2,
+      "blocked_in_work": 31,
+      "steps_to_digest": 56,
+      "converged": true,
+      "cumulative_steps": 278,
+      "operation_counts": {
+        "fold_blocked": 1,
+        "walk": 50,
+        "fold": 3,
+        "negate_b": 1,
+        "sublate": 1
+      }
+    },
+    {
+      "work": "1929: Surrealism",
+      "work_index": 6,
+      "vertices_added": 4,
+      "edges_added": 6,
+      "vertices_total": 42,
+      "edges_total": 74,
+      "beta_1_before_injection": 17,
+      "beta_1_after_digestion": 16,
+      "delta_beta_1": -1,
+      "settled_cycles": 2,
+      "blocked_in_work": 31,
+      "steps_to_digest": 56,
+      "converged": true,
+      "cumulative_steps": 334,
+      "operation_counts": {
+        "walk": 55,
+        "fold": 1
+      }
+    },
+    {
+      "work": "1931: Little History of Photography",
+      "work_index": 7,
+      "vertices_added": 4,
+      "edges_added": 7,
+      "vertices_total": 46,
+      "edges_total": 80,
+      "beta_1_before_injection": 17,
+      "beta_1_after_digestion": 17,
+      "delta_beta_1": 0,
+      "settled_cycles": 2,
+      "blocked_in_work": 31,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 384,
+      "operation_counts": {
+        "walk": 50
+      }
+    },
+    {
+      "work": "1931: Karl Kraus",
+      "work_index": 8,
+      "vertices_added": 3,
+      "edges_added": 6,
+      "vertices_total": 50,
+      "edges_total": 87,
+      "beta_1_before_injection": 18,
+      "beta_1_after_digestion": 18,
+      "delta_beta_1": 0,
+      "settled_cycles": 3,
+      "blocked_in_work": 32,
+      "steps_to_digest": 80,
+      "converged": true,
+      "cumulative_steps": 464,
+      "operation_counts": {
+        "walk": 76,
+        "fold_blocked": 1,
+        "negate_b": 1,
+        "sublate": 1,
+        "fold": 1
+      }
+    },
+    {
+      "work": "1932-1938: A Berlin Childhood around 1900",
+      "work_index": 9,
+      "vertices_added": 6,
+      "edges_added": 11,
+      "vertices_total": 58,
+      "edges_total": 99,
+      "beta_1_before_injection": 21,
+      "beta_1_after_digestion": 22,
+      "delta_beta_1": 1,
+      "settled_cycles": 4,
+      "blocked_in_work": 32,
+      "steps_to_digest": 89,
+      "converged": true,
+      "cumulative_steps": 553,
+      "operation_counts": {
+        "walk": 87,
+        "negate_b": 1,
+        "sublate": 1
+      }
+    },
+    {
+      "work": "1933: Doctrine of the Similar",
+      "work_index": 10,
+      "vertices_added": 4,
+      "edges_added": 7,
+      "vertices_total": 63,
+      "edges_total": 108,
+      "beta_1_before_injection": 24,
+      "beta_1_after_digestion": 24,
+      "delta_beta_1": 0,
+      "settled_cycles": 5,
+      "blocked_in_work": 32,
+      "steps_to_digest": 97,
+      "converged": true,
+      "cumulative_steps": 650,
+      "operation_counts": {
+        "walk": 94,
+        "fold": 1,
+        "negate_b": 1,
+        "sublate": 1
+      }
+    },
+    {
+      "work": "1934: Franz Kafka",
+      "work_index": 11,
+      "vertices_added": 5,
+      "edges_added": 5,
+      "vertices_total": 68,
+      "edges_total": 112,
+      "beta_1_before_injection": 24,
+      "beta_1_after_digestion": 24,
+      "delta_beta_1": 0,
+      "settled_cycles": 5,
+      "blocked_in_work": 32,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 700,
+      "operation_counts": {
+        "walk": 50
+      }
+    },
+    {
+      "work": "1934: The Author as Producer",
+      "work_index": 12,
+      "vertices_added": 3,
+      "edges_added": 3,
+      "vertices_total": 71,
+      "edges_total": 115,
+      "beta_1_before_injection": 24,
+      "beta_1_after_digestion": 24,
+      "delta_beta_1": 0,
+      "settled_cycles": 5,
+      "blocked_in_work": 32,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 750,
+      "operation_counts": {
+        "walk": 50
+      }
+    },
+    {
+      "work": "1935-1939: The Work of Art in the Age of Mechanical Reproduction",
+      "work_index": 13,
+      "vertices_added": 8,
+      "edges_added": 14,
+      "vertices_total": 85,
+      "edges_total": 147,
+      "beta_1_before_injection": 28,
+      "beta_1_after_digestion": 31,
+      "delta_beta_1": 3,
+      "settled_cycles": 8,
+      "blocked_in_work": 34,
+      "steps_to_digest": 98,
+      "converged": true,
+      "cumulative_steps": 848,
+      "operation_counts": {
+        "walk": 81,
+        "negate_a": 3,
+        "sublate": 6,
+        "fold_blocked": 2,
+        "fold": 3,
+        "negate_b": 3
+      }
+    },
+    {
+      "work": "1936: The Storyteller",
+      "work_index": 14,
+      "vertices_added": 7,
+      "edges_added": 11,
+      "vertices_total": 93,
+      "edges_total": 160,
+      "beta_1_before_injection": 34,
+      "beta_1_after_digestion": 34,
+      "delta_beta_1": 0,
+      "settled_cycles": 9,
+      "blocked_in_work": 49,
+      "steps_to_digest": 65,
+      "converged": true,
+      "cumulative_steps": 913,
+      "operation_counts": {
+        "walk": 47,
+        "negate_b": 1,
+        "sublate": 1,
+        "fold": 1,
+        "fold_blocked": 15
+      }
+    },
+    {
+      "work": "1938-1939: Charles Baudelaire",
+      "work_index": 15,
+      "vertices_added": 8,
+      "edges_added": 15,
+      "vertices_total": 104,
+      "edges_total": 180,
+      "beta_1_before_injection": 40,
+      "beta_1_after_digestion": 41,
+      "delta_beta_1": 1,
+      "settled_cycles": 11,
+      "blocked_in_work": 50,
+      "steps_to_digest": 115,
+      "converged": true,
+      "cumulative_steps": 1028,
+      "operation_counts": {
+        "negate_b": 2,
+        "walk": 109,
+        "sublate": 2,
+        "fold_blocked": 1,
+        "fold": 1
+      }
+    },
+    {
+      "work": "1940: Theses on the Philosophy of History",
+      "work_index": 16,
+      "vertices_added": 9,
+      "edges_added": 16,
+      "vertices_total": 116,
+      "edges_total": 201,
+      "beta_1_before_injection": 45,
+      "beta_1_after_digestion": 47,
+      "delta_beta_1": 2,
+      "settled_cycles": 13,
+      "blocked_in_work": 50,
+      "steps_to_digest": 71,
+      "converged": true,
+      "cumulative_steps": 1099,
+      "operation_counts": {
+        "walk": 67,
+        "negate_a": 1,
+        "sublate": 2,
+        "negate_b": 1
+      }
+    },
+    {
+      "work": "1927-1940: The Arcades Project",
+      "work_index": 17,
+      "vertices_added": 10,
+      "edges_added": 21,
+      "vertices_total": 137,
+      "edges_total": 245,
+      "beta_1_before_injection": 57,
+      "beta_1_after_digestion": 61,
+      "delta_beta_1": 4,
+      "settled_cycles": 21,
+      "blocked_in_work": 58,
+      "steps_to_digest": 259,
+      "converged": true,
+      "cumulative_steps": 1358,
+      "operation_counts": {
+        "walk": 231,
+        "negate_b": 7,
+        "sublate": 8,
+        "fold_blocked": 8,
+        "fold": 4,
+        "negate_a": 1
+      }
+    }
+  ],
+  "beta_1_curve": [
+    {
+      "work_index": 1,
+      "work_name": "1916: On Language as Such and on the Language of Man",
+      "beta_1": 3,
+      "cumulative_steps": 50
+    },
+    {
+      "work_index": 2,
+      "work_name": "1921: Critique of Violence",
+      "beta_1": 8,
+      "cumulative_steps": 115
+    },
+    {
+      "work_index": 3,
+      "work_name": "1921: The Task of the Translator",
+      "beta_1": 12,
+      "cumulative_steps": 172
+    },
+    {
+      "work_index": 4,
+      "work_name": "1928: One-Way Street",
+      "beta_1": 13,
+      "cumulative_steps": 222
+    },
+    {
+      "work_index": 5,
+      "work_name": "1928: Origin of German Tragic Drama",
+      "beta_1": 16,
+      "cumulative_steps": 278
+    },
+    {
+      "work_index": 6,
+      "work_name": "1929: Surrealism",
+      "beta_1": 16,
+      "cumulative_steps": 334
+    },
+    {
+      "work_index": 7,
+      "work_name": "1931: Little History of Photography",
+      "beta_1": 17,
+      "cumulative_steps": 384
+    },
+    {
+      "work_index": 8,
+      "work_name": "1931: Karl Kraus",
+      "beta_1": 18,
+      "cumulative_steps": 464
+    },
+    {
+      "work_index": 9,
+      "work_name": "1932-1938: A Berlin Childhood around 1900",
+      "beta_1": 22,
+      "cumulative_steps": 553
+    },
+    {
+      "work_index": 10,
+      "work_name": "1933: Doctrine of the Similar",
+      "beta_1": 24,
+      "cumulative_steps": 650
+    },
+    {
+      "work_index": 11,
+      "work_name": "1934: Franz Kafka",
+      "beta_1": 24,
+      "cumulative_steps": 700
+    },
+    {
+      "work_index": 12,
+      "work_name": "1934: The Author as Producer",
+      "beta_1": 24,
+      "cumulative_steps": 750
+    },
+    {
+      "work_index": 13,
+      "work_name": "1935-1939: The Work of Art in the Age of Mechanical Reproduction",
+      "beta_1": 31,
+      "cumulative_steps": 848
+    },
+    {
+      "work_index": 14,
+      "work_name": "1936: The Storyteller",
+      "beta_1": 34,
+      "cumulative_steps": 913
+    },
+    {
+      "work_index": 15,
+      "work_name": "1938-1939: Charles Baudelaire",
+      "beta_1": 41,
+      "cumulative_steps": 1028
+    },
+    {
+      "work_index": 16,
+      "work_name": "1940: Theses on the Philosophy of History",
+      "beta_1": 47,
+      "cumulative_steps": 1099
+    },
+    {
+      "work_index": 17,
+      "work_name": "1927-1940: The Arcades Project",
+      "beta_1": 61,
+      "cumulative_steps": 1358
+    }
+  ],
+  "final_complex": {
+    "vertices_active": 137,
+    "edges_active": 245,
+    "beta_1": 61,
+    "settled_cycles": 21,
+    "edge_type_distribution": {
+      "dependency": 102,
+      "negation": 53,
+      "reference": 25,
+      "fold": 4,
+      "sublation": 61
+    },
+    "terrain_distribution": {
+      "tree": 149,
+      "critical": 60
+    },
+    "critical_edge_ratio": 0.28708133971291866,
+    "negation_density": 0.2163265306122449
+  },
+  "total_steps": 1358,
+  "settled_cycles_detail": [
+    {
+      "edges": [
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "anti_pure_language_120"
+        ],
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "pure_language"
+        ]
+      ],
+      "settled_at_step": 132
+    },
+    {
+      "edges": [
+        [
+          "syn_translation_anti_translation_226_228",
+          "anti_translation_226"
+        ],
+        [
+          "syn_translation_anti_translation_226_228",
+          "translation"
+        ]
+      ],
+      "settled_at_step": 238
+    },
+    {
+      "edges": [
+        [
+          "syn_montage_anti_montage_398_400",
+          "anti_montage_398"
+        ],
+        [
+          "syn_montage_anti_montage_398_400",
+          "montage"
+        ]
+      ],
+      "settled_at_step": 410
+    },
+    {
+      "edges": [
+        [
+          "syn_aura_proto_anti_aura_proto_501_503",
+          "anti_aura_proto_501"
+        ],
+        [
+          "syn_aura_proto_anti_aura_proto_501_503",
+          "aura_proto"
+        ]
+      ],
+      "settled_at_step": 513
+    },
+    {
+      "edges": [
+        [
+          "syn_childhood_memory_anti_childhood_memory_598_600",
+          "anti_childhood_memory_598"
+        ],
+        [
+          "syn_childhood_memory_anti_childhood_memory_598_600",
+          "childhood_memory"
+        ]
+      ],
+      "settled_at_step": 610
+    },
+    {
+      "edges": [
+        [
+          "syn_mimetic_faculty_anti_mimetic_faculty_764_766",
+          "anti_mimetic_faculty_764"
+        ],
+        [
+          "syn_mimetic_faculty_anti_mimetic_faculty_764_766",
+          "mimetic_faculty"
+        ]
+      ],
+      "settled_at_step": 776
+    },
+    {
+      "edges": [
+        [
+          "syn_distraction_profane_illumination_794",
+          "distraction"
+        ],
+        [
+          "syn_distraction_profane_illumination_794",
+          "profane_illumination"
+        ]
+      ],
+      "settled_at_step": 804
+    },
+    {
+      "edges": [
+        [
+          "syn_profane_illumination_anti_profane_illumination_796_798",
+          "anti_profane_illumination_796"
+        ],
+        [
+          "syn_profane_illumination_anti_profane_illumination_796_798",
+          "profane_illumination"
+        ]
+      ],
+      "settled_at_step": 808
+    },
+    {
+      "edges": [
+        [
+          "syn_experience_erfahrung_anti_experience_erfahrung_855_857",
+          "anti_experience_erfahrung_855"
+        ],
+        [
+          "syn_experience_erfahrung_anti_experience_erfahrung_855_857",
+          "experience_erfahrung"
+        ]
+      ],
+      "settled_at_step": 867
+    },
+    {
+      "edges": [
+        [
+          "syn_experience_erlebnis_anti_experience_erlebnis_914_916",
+          "anti_experience_erlebnis_914"
+        ],
+        [
+          "syn_experience_erlebnis_anti_experience_erlebnis_914_916",
+          "experience_erlebnis"
+        ]
+      ],
+      "settled_at_step": 926
+    },
+    {
+      "edges": [
+        [
+          "syn_shock_anti_shock_952_954",
+          "anti_shock_952"
+        ],
+        [
+          "syn_shock_anti_shock_952_954",
+          "shock"
+        ]
+      ],
+      "settled_at_step": 964
+    },
+    {
+      "edges": [
+        [
+          "syn_redemption_messianic_time_1042",
+          "messianic_time"
+        ],
+        [
+          "syn_redemption_messianic_time_1042",
+          "redemption"
+        ]
+      ],
+      "settled_at_step": 1052
+    },
+    {
+      "edges": [
+        [
+          "syn_messianic_time_anti_messianic_time_1047_1049",
+          "anti_messianic_time_1047"
+        ],
+        [
+          "syn_messianic_time_anti_messianic_time_1047_1049",
+          "messianic_time"
+        ]
+      ],
+      "settled_at_step": 1059
+    },
+    {
+      "edges": [
+        [
+          "syn_phantasmagoria_anti_phantasmagoria_1106_1108",
+          "anti_phantasmagoria_1106"
+        ],
+        [
+          "syn_phantasmagoria_anti_phantasmagoria_1106_1108",
+          "phantasmagoria"
+        ]
+      ],
+      "settled_at_step": 1118
+    },
+    {
+      "edges": [
+        [
+          "syn_spleen_anti_spleen_1120_1122",
+          "anti_spleen_1120"
+        ],
+        [
+          "syn_spleen_anti_spleen_1120_1122",
+          "spleen"
+        ]
+      ],
+      "settled_at_step": 1132
+    },
+    {
+      "edges": [
+        [
+          "syn_commodity_anti_commodity_1129_1131",
+          "anti_commodity_1129"
+        ],
+        [
+          "syn_commodity_anti_commodity_1129_1131",
+          "commodity"
+        ]
+      ],
+      "settled_at_step": 1141
+    },
+    {
+      "edges": [
+        [
+          "syn_dialectical_image_anti_dialectical_image_1137_1139",
+          "anti_dialectical_image_1137"
+        ],
+        [
+          "syn_dialectical_image_anti_dialectical_image_1137_1139",
+          "dialectical_image"
+        ]
+      ],
+      "settled_at_step": 1149
+    },
+    {
+      "edges": [
+        [
+          "syn_wish_image_anti_wish_image_1233_1235",
+          "anti_wish_image_1233"
+        ],
+        [
+          "syn_wish_image_anti_wish_image_1233_1235",
+          "wish_image"
+        ]
+      ],
+      "settled_at_step": 1245
+    },
+    {
+      "edges": [
+        [
+          "syn_flaneur_anti_flaneur_1290_1292",
+          "anti_flaneur_1290"
+        ],
+        [
+          "syn_flaneur_anti_flaneur_1290_1292",
+          "flaneur"
+        ]
+      ],
+      "settled_at_step": 1302
+    },
+    {
+      "edges": [
+        [
+          "syn_homogeneous_empty_time_progress_1304",
+          "homogeneous_empty_time"
+        ],
+        [
+          "syn_homogeneous_empty_time_progress_1304",
+          "progress"
+        ]
+      ],
+      "settled_at_step": 1314
+    },
+    {
+      "edges": [
+        [
+          "syn_progress_anti_progress_1306_1308",
+          "anti_progress_1306"
+        ],
+        [
+          "syn_progress_anti_progress_1306_1308",
+          "progress"
+        ]
+      ],
+      "settled_at_step": 1318
+    }
+  ],
+  "blocked_log": [
+    {
+      "step": 133,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "original",
+          "pure_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "anti_pure_language_120"
+        ],
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "pure_language"
+        ]
+      ]
+    },
+    {
+      "step": 136,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "original",
+          "pure_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "anti_pure_language_120"
+        ],
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "pure_language"
+        ]
+      ]
+    },
+    {
+      "step": 139,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "original",
+          "pure_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "anti_pure_language_120"
+        ],
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "pure_language"
+        ]
+      ]
+    },
+    {
+      "step": 142,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "original",
+          "pure_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "anti_pure_language_120"
+        ],
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "pure_language"
+        ]
+      ]
+    },
+    {
+      "step": 145,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "original",
+          "pure_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "anti_pure_language_120"
+        ],
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "pure_language"
+        ]
+      ]
+    },
+    {
+      "step": 148,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "original",
+          "pure_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "anti_pure_language_120"
+        ],
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "pure_language"
+        ]
+      ]
+    },
+    {
+      "step": 151,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "original",
+          "pure_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "anti_pure_language_120"
+        ],
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "pure_language"
+        ]
+      ]
+    },
+    {
+      "step": 154,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "original",
+          "pure_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "anti_pure_language_120"
+        ],
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "pure_language"
+        ]
+      ]
+    },
+    {
+      "step": 157,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "original",
+          "pure_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "anti_pure_language_120"
+        ],
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "pure_language"
+        ]
+      ]
+    },
+    {
+      "step": 160,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "original",
+          "pure_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "anti_pure_language_120"
+        ],
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "pure_language"
+        ]
+      ]
+    },
+    {
+      "step": 163,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "original",
+          "pure_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "anti_pure_language_120"
+        ],
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "pure_language"
+        ]
+      ]
+    },
+    {
+      "step": 166,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "original",
+          "pure_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "anti_pure_language_120"
+        ],
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "pure_language"
+        ]
+      ]
+    },
+    {
+      "step": 169,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "original",
+          "pure_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "anti_pure_language_120"
+        ],
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "pure_language"
+        ]
+      ]
+    },
+    {
+      "step": 172,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "original",
+          "pure_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "anti_pure_language_120"
+        ],
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "pure_language"
+        ]
+      ]
+    },
+    {
+      "step": 175,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "original",
+          "pure_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "anti_pure_language_120"
+        ],
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "pure_language"
+        ]
+      ]
+    },
+    {
+      "step": 178,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "original",
+          "pure_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "anti_pure_language_120"
+        ],
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "pure_language"
+        ]
+      ]
+    },
+    {
+      "step": 181,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "original",
+          "pure_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "anti_pure_language_120"
+        ],
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "pure_language"
+        ]
+      ]
+    },
+    {
+      "step": 184,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "original",
+          "pure_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "anti_pure_language_120"
+        ],
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "pure_language"
+        ]
+      ]
+    },
+    {
+      "step": 187,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "original",
+          "pure_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "anti_pure_language_120"
+        ],
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "pure_language"
+        ]
+      ]
+    },
+    {
+      "step": 190,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "original",
+          "pure_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "anti_pure_language_120"
+        ],
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "pure_language"
+        ]
+      ]
+    },
+    {
+      "step": 193,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "original",
+          "pure_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "anti_pure_language_120"
+        ],
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "pure_language"
+        ]
+      ]
+    },
+    {
+      "step": 196,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "original",
+          "pure_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "anti_pure_language_120"
+        ],
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "pure_language"
+        ]
+      ]
+    },
+    {
+      "step": 199,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "original",
+          "pure_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "anti_pure_language_120"
+        ],
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "pure_language"
+        ]
+      ]
+    },
+    {
+      "step": 202,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "original",
+          "pure_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "anti_pure_language_120"
+        ],
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "pure_language"
+        ]
+      ]
+    },
+    {
+      "step": 205,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "original",
+          "pure_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "anti_pure_language_120"
+        ],
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "pure_language"
+        ]
+      ]
+    },
+    {
+      "step": 208,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "original",
+          "pure_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "anti_pure_language_120"
+        ],
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "pure_language"
+        ]
+      ]
+    },
+    {
+      "step": 211,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "original",
+          "pure_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "anti_pure_language_120"
+        ],
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "pure_language"
+        ]
+      ]
+    },
+    {
+      "step": 214,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "original",
+          "pure_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "anti_pure_language_120"
+        ],
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "pure_language"
+        ]
+      ]
+    },
+    {
+      "step": 217,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "original",
+          "pure_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "anti_pure_language_120"
+        ],
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "pure_language"
+        ]
+      ]
+    },
+    {
+      "step": 220,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "original",
+          "pure_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "anti_pure_language_120"
+        ],
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "pure_language"
+        ]
+      ]
+    },
+    {
+      "step": 223,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "original",
+          "pure_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "anti_pure_language_120"
+        ],
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "pure_language"
+        ]
+      ]
+    },
+    {
+      "step": 396,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "quotation",
+          "pure_language"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "anti_pure_language_120"
+        ],
+        [
+          "syn_pure_language_anti_pure_language_120_122",
+          "pure_language"
+        ]
+      ]
+    },
+    {
+      "step": 757,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mimetic_faculty",
+          "montage"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_montage_anti_montage_398_400",
+          "anti_montage_398"
+        ],
+        [
+          "syn_montage_anti_montage_398_400",
+          "montage"
+        ]
+      ]
+    },
+    {
+      "step": 760,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mimetic_faculty",
+          "montage"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_montage_anti_montage_398_400",
+          "anti_montage_398"
+        ],
+        [
+          "syn_montage_anti_montage_398_400",
+          "montage"
+        ]
+      ]
+    },
+    {
+      "step": 870,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "novel",
+          "experience_erfahrung"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_experience_erfahrung_anti_experience_erfahrung_855_857",
+          "anti_experience_erfahrung_855"
+        ],
+        [
+          "syn_experience_erfahrung_anti_experience_erfahrung_855_857",
+          "experience_erfahrung"
+        ]
+      ]
+    },
+    {
+      "step": 873,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "novel",
+          "experience_erfahrung"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_experience_erfahrung_anti_experience_erfahrung_855_857",
+          "anti_experience_erfahrung_855"
+        ],
+        [
+          "syn_experience_erfahrung_anti_experience_erfahrung_855_857",
+          "experience_erfahrung"
+        ]
+      ]
+    },
+    {
+      "step": 876,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "novel",
+          "experience_erfahrung"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_experience_erfahrung_anti_experience_erfahrung_855_857",
+          "anti_experience_erfahrung_855"
+        ],
+        [
+          "syn_experience_erfahrung_anti_experience_erfahrung_855_857",
+          "experience_erfahrung"
+        ]
+      ]
+    },
+    {
+      "step": 879,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "novel",
+          "experience_erfahrung"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_experience_erfahrung_anti_experience_erfahrung_855_857",
+          "anti_experience_erfahrung_855"
+        ],
+        [
+          "syn_experience_erfahrung_anti_experience_erfahrung_855_857",
+          "experience_erfahrung"
+        ]
+      ]
+    },
+    {
+      "step": 882,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "novel",
+          "experience_erfahrung"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_experience_erfahrung_anti_experience_erfahrung_855_857",
+          "anti_experience_erfahrung_855"
+        ],
+        [
+          "syn_experience_erfahrung_anti_experience_erfahrung_855_857",
+          "experience_erfahrung"
+        ]
+      ]
+    },
+    {
+      "step": 885,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "novel",
+          "experience_erfahrung"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_experience_erfahrung_anti_experience_erfahrung_855_857",
+          "anti_experience_erfahrung_855"
+        ],
+        [
+          "syn_experience_erfahrung_anti_experience_erfahrung_855_857",
+          "experience_erfahrung"
+        ]
+      ]
+    },
+    {
+      "step": 888,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "novel",
+          "experience_erfahrung"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_experience_erfahrung_anti_experience_erfahrung_855_857",
+          "anti_experience_erfahrung_855"
+        ],
+        [
+          "syn_experience_erfahrung_anti_experience_erfahrung_855_857",
+          "experience_erfahrung"
+        ]
+      ]
+    },
+    {
+      "step": 891,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "novel",
+          "experience_erfahrung"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_experience_erfahrung_anti_experience_erfahrung_855_857",
+          "anti_experience_erfahrung_855"
+        ],
+        [
+          "syn_experience_erfahrung_anti_experience_erfahrung_855_857",
+          "experience_erfahrung"
+        ]
+      ]
+    },
+    {
+      "step": 894,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "novel",
+          "experience_erfahrung"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_experience_erfahrung_anti_experience_erfahrung_855_857",
+          "anti_experience_erfahrung_855"
+        ],
+        [
+          "syn_experience_erfahrung_anti_experience_erfahrung_855_857",
+          "experience_erfahrung"
+        ]
+      ]
+    },
+    {
+      "step": 897,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "novel",
+          "experience_erfahrung"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_experience_erfahrung_anti_experience_erfahrung_855_857",
+          "anti_experience_erfahrung_855"
+        ],
+        [
+          "syn_experience_erfahrung_anti_experience_erfahrung_855_857",
+          "experience_erfahrung"
+        ]
+      ]
+    },
+    {
+      "step": 900,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "novel",
+          "experience_erfahrung"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_experience_erfahrung_anti_experience_erfahrung_855_857",
+          "anti_experience_erfahrung_855"
+        ],
+        [
+          "syn_experience_erfahrung_anti_experience_erfahrung_855_857",
+          "experience_erfahrung"
+        ]
+      ]
+    },
+    {
+      "step": 903,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "novel",
+          "experience_erfahrung"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_experience_erfahrung_anti_experience_erfahrung_855_857",
+          "anti_experience_erfahrung_855"
+        ],
+        [
+          "syn_experience_erfahrung_anti_experience_erfahrung_855_857",
+          "experience_erfahrung"
+        ]
+      ]
+    },
+    {
+      "step": 906,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "novel",
+          "experience_erfahrung"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_experience_erfahrung_anti_experience_erfahrung_855_857",
+          "anti_experience_erfahrung_855"
+        ],
+        [
+          "syn_experience_erfahrung_anti_experience_erfahrung_855_857",
+          "experience_erfahrung"
+        ]
+      ]
+    },
+    {
+      "step": 909,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "novel",
+          "experience_erfahrung"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_experience_erfahrung_anti_experience_erfahrung_855_857",
+          "anti_experience_erfahrung_855"
+        ],
+        [
+          "syn_experience_erfahrung_anti_experience_erfahrung_855_857",
+          "experience_erfahrung"
+        ]
+      ]
+    },
+    {
+      "step": 912,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "novel",
+          "experience_erfahrung"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_experience_erfahrung_anti_experience_erfahrung_855_857",
+          "anti_experience_erfahrung_855"
+        ],
+        [
+          "syn_experience_erfahrung_anti_experience_erfahrung_855_857",
+          "experience_erfahrung"
+        ]
+      ]
+    },
+    {
+      "step": 965,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "storytelling",
+          "experience_erlebnis"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_experience_erlebnis_anti_experience_erlebnis_914_916",
+          "anti_experience_erlebnis_914"
+        ],
+        [
+          "syn_experience_erlebnis_anti_experience_erlebnis_914_916",
+          "experience_erlebnis"
+        ]
+      ]
+    },
+    {
+      "step": 1178,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "constellation",
+          "messianic_time"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_redemption_messianic_time_1042",
+          "messianic_time"
+        ],
+        [
+          "syn_redemption_messianic_time_1042",
+          "redemption"
+        ]
+      ]
+    },
+    {
+      "step": 1181,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "constellation",
+          "messianic_time"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_redemption_messianic_time_1042",
+          "messianic_time"
+        ],
+        [
+          "syn_redemption_messianic_time_1042",
+          "redemption"
+        ]
+      ]
+    },
+    {
+      "step": 1184,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "constellation",
+          "messianic_time"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_redemption_messianic_time_1042",
+          "messianic_time"
+        ],
+        [
+          "syn_redemption_messianic_time_1042",
+          "redemption"
+        ]
+      ]
+    },
+    {
+      "step": 1253,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "dialectical_image_proto",
+          "messianic_time"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_redemption_messianic_time_1042",
+          "messianic_time"
+        ],
+        [
+          "syn_redemption_messianic_time_1042",
+          "redemption"
+        ]
+      ]
+    },
+    {
+      "step": 1255,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "historical_materialism",
+          "dialectical_image"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_dialectical_image_anti_dialectical_image_1137_1139",
+          "anti_dialectical_image_1137"
+        ],
+        [
+          "syn_dialectical_image_anti_dialectical_image_1137_1139",
+          "dialectical_image"
+        ]
+      ]
+    },
+    {
+      "step": 1257,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "dialectical_image_proto",
+          "messianic_time"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_redemption_messianic_time_1042",
+          "messianic_time"
+        ],
+        [
+          "syn_redemption_messianic_time_1042",
+          "redemption"
+        ]
+      ]
+    },
+    {
+      "step": 1259,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "historical_materialism",
+          "dialectical_image"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_dialectical_image_anti_dialectical_image_1137_1139",
+          "anti_dialectical_image_1137"
+        ],
+        [
+          "syn_dialectical_image_anti_dialectical_image_1137_1139",
+          "dialectical_image"
+        ]
+      ]
+    },
+    {
+      "step": 1261,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "dialectical_image_proto",
+          "messianic_time"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_redemption_messianic_time_1042",
+          "messianic_time"
+        ],
+        [
+          "syn_redemption_messianic_time_1042",
+          "redemption"
+        ]
+      ]
+    }
+  ]
+}

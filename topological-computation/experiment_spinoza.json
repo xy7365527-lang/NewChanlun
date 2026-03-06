@@ -1,0 +1,3918 @@
+{
+  "experiment": "spinoza_collected_works_incremental",
+  "source": "Spinoza Collected Works — 11 works/sections (~1660-1677)",
+  "methodology": "manual conceptual complex per work, incremental injection, digestion until 50-step beta_1 stability",
+  "work_results": [
+    {
+      "work": "~1660: Short Treatise on God, Man and His Well-Being",
+      "work_index": 1,
+      "vertices_added": 14,
+      "edges_added": 16,
+      "vertices_total": 15,
+      "edges_total": 19,
+      "beta_1_before_injection": 3,
+      "beta_1_after_digestion": 3,
+      "delta_beta_1": 0,
+      "settled_cycles": 1,
+      "blocked_in_work": 1,
+      "steps_to_digest": 82,
+      "converged": true,
+      "cumulative_steps": 82,
+      "operation_counts": {
+        "walk": 78,
+        "negate_b": 1,
+        "sublate": 1,
+        "fold_blocked": 1,
+        "fold": 1
+      }
+    },
+    {
+      "work": "~1661: Treatise on the Emendation of the Intellect",
+      "work_index": 2,
+      "vertices_added": 12,
+      "edges_added": 17,
+      "vertices_total": 28,
+      "edges_total": 39,
+      "beta_1_before_injection": 8,
+      "beta_1_after_digestion": 8,
+      "delta_beta_1": 0,
+      "settled_cycles": 2,
+      "blocked_in_work": 2,
+      "steps_to_digest": 72,
+      "converged": true,
+      "cumulative_steps": 154,
+      "operation_counts": {
+        "walk": 68,
+        "negate_b": 1,
+        "sublate": 1,
+        "fold_blocked": 1,
+        "fold": 1
+      }
+    },
+    {
+      "work": "1663: Principles of Cartesian Philosophy",
+      "work_index": 3,
+      "vertices_added": 10,
+      "edges_added": 17,
+      "vertices_total": 37,
+      "edges_total": 55,
+      "beta_1_before_injection": 14,
+      "beta_1_after_digestion": 13,
+      "delta_beta_1": -1,
+      "settled_cycles": 2,
+      "blocked_in_work": 2,
+      "steps_to_digest": 71,
+      "converged": true,
+      "cumulative_steps": 225,
+      "operation_counts": {
+        "walk": 70,
+        "fold": 1
+      }
+    },
+    {
+      "work": "Ethics I: Concerning God",
+      "work_index": 4,
+      "vertices_added": 12,
+      "edges_added": 26,
+      "vertices_total": 50,
+      "edges_total": 95,
+      "beta_1_before_injection": 23,
+      "beta_1_after_digestion": 29,
+      "delta_beta_1": 6,
+      "settled_cycles": 7,
+      "blocked_in_work": 27,
+      "steps_to_digest": 125,
+      "converged": true,
+      "cumulative_steps": 350,
+      "operation_counts": {
+        "walk": 83,
+        "negate_b": 3,
+        "sublate": 5,
+        "fold_blocked": 25,
+        "fold": 7,
+        "negate_a": 2
+      }
+    },
+    {
+      "work": "Ethics II: On the Nature and Origin of the Mind",
+      "work_index": 5,
+      "vertices_added": 14,
+      "edges_added": 34,
+      "vertices_total": 64,
+      "edges_total": 127,
+      "beta_1_before_injection": 47,
+      "beta_1_after_digestion": 47,
+      "delta_beta_1": 0,
+      "settled_cycles": 7,
+      "blocked_in_work": 48,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 400,
+      "operation_counts": {
+        "fold_blocked": 21,
+        "walk": 29
+      }
+    },
+    {
+      "work": "Ethics III: On the Origin and Nature of the Affects",
+      "work_index": 6,
+      "vertices_added": 13,
+      "edges_added": 27,
+      "vertices_total": 77,
+      "edges_total": 152,
+      "beta_1_before_injection": 59,
+      "beta_1_after_digestion": 59,
+      "delta_beta_1": 0,
+      "settled_cycles": 7,
+      "blocked_in_work": 70,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 450,
+      "operation_counts": {
+        "fold_blocked": 22,
+        "walk": 28
+      }
+    },
+    {
+      "work": "Ethics IV: Of Human Bondage",
+      "work_index": 7,
+      "vertices_added": 11,
+      "edges_added": 30,
+      "vertices_total": 88,
+      "edges_total": 181,
+      "beta_1_before_injection": 77,
+      "beta_1_after_digestion": 77,
+      "delta_beta_1": 0,
+      "settled_cycles": 7,
+      "blocked_in_work": 91,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 500,
+      "operation_counts": {
+        "fold_blocked": 21,
+        "walk": 29
+      }
+    },
+    {
+      "work": "Ethics V: Of the Power of the Intellect",
+      "work_index": 8,
+      "vertices_added": 10,
+      "edges_added": 31,
+      "vertices_total": 98,
+      "edges_total": 211,
+      "beta_1_before_injection": 97,
+      "beta_1_after_digestion": 97,
+      "delta_beta_1": 0,
+      "settled_cycles": 7,
+      "blocked_in_work": 112,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 550,
+      "operation_counts": {
+        "fold_blocked": 21,
+        "walk": 29
+      }
+    },
+    {
+      "work": "1670: Theological-Political Treatise",
+      "work_index": 9,
+      "vertices_added": 12,
+      "edges_added": 27,
+      "vertices_total": 110,
+      "edges_total": 238,
+      "beta_1_before_injection": 112,
+      "beta_1_after_digestion": 112,
+      "delta_beta_1": 0,
+      "settled_cycles": 7,
+      "blocked_in_work": 133,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 600,
+      "operation_counts": {
+        "fold_blocked": 21,
+        "walk": 29
+      }
+    },
+    {
+      "work": "1677: Political Treatise",
+      "work_index": 10,
+      "vertices_added": 10,
+      "edges_added": 23,
+      "vertices_total": 120,
+      "edges_total": 261,
+      "beta_1_before_injection": 125,
+      "beta_1_after_digestion": 125,
+      "delta_beta_1": 0,
+      "settled_cycles": 7,
+      "blocked_in_work": 154,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 650,
+      "operation_counts": {
+        "walk": 29,
+        "fold_blocked": 21
+      }
+    },
+    {
+      "work": "1661-76: Selected Correspondence",
+      "work_index": 11,
+      "vertices_added": 6,
+      "edges_added": 16,
+      "vertices_total": 126,
+      "edges_total": 275,
+      "beta_1_before_injection": 133,
+      "beta_1_after_digestion": 133,
+      "delta_beta_1": 0,
+      "settled_cycles": 7,
+      "blocked_in_work": 175,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 700,
+      "operation_counts": {
+        "walk": 29,
+        "fold_blocked": 21
+      }
+    }
+  ],
+  "beta_1_curve": [
+    {
+      "work_index": 1,
+      "work_name": "~1660: Short Treatise on God, Man and His Well-Being",
+      "beta_1": 3,
+      "cumulative_steps": 82
+    },
+    {
+      "work_index": 2,
+      "work_name": "~1661: Treatise on the Emendation of the Intellect",
+      "beta_1": 8,
+      "cumulative_steps": 154
+    },
+    {
+      "work_index": 3,
+      "work_name": "1663: Principles of Cartesian Philosophy",
+      "beta_1": 13,
+      "cumulative_steps": 225
+    },
+    {
+      "work_index": 4,
+      "work_name": "Ethics I: Concerning God",
+      "beta_1": 29,
+      "cumulative_steps": 350
+    },
+    {
+      "work_index": 5,
+      "work_name": "Ethics II: On the Nature and Origin of the Mind",
+      "beta_1": 47,
+      "cumulative_steps": 400
+    },
+    {
+      "work_index": 6,
+      "work_name": "Ethics III: On the Origin and Nature of the Affects",
+      "beta_1": 59,
+      "cumulative_steps": 450
+    },
+    {
+      "work_index": 7,
+      "work_name": "Ethics IV: Of Human Bondage",
+      "beta_1": 77,
+      "cumulative_steps": 500
+    },
+    {
+      "work_index": 8,
+      "work_name": "Ethics V: Of the Power of the Intellect",
+      "beta_1": 97,
+      "cumulative_steps": 550
+    },
+    {
+      "work_index": 9,
+      "work_name": "1670: Theological-Political Treatise",
+      "beta_1": 112,
+      "cumulative_steps": 600
+    },
+    {
+      "work_index": 10,
+      "work_name": "1677: Political Treatise",
+      "beta_1": 125,
+      "cumulative_steps": 650
+    },
+    {
+      "work_index": 11,
+      "work_name": "1661-76: Selected Correspondence",
+      "beta_1": 133,
+      "cumulative_steps": 700
+    }
+  ],
+  "final_complex": {
+    "vertices_active": 126,
+    "edges_active": 275,
+    "beta_1": 133,
+    "settled_cycles": 7,
+    "edge_type_distribution": {
+      "dependency": 179,
+      "negation": 37,
+      "sublation": 43,
+      "reference": 13,
+      "fold": 3
+    },
+    "terrain_distribution": {
+      "tree": 129,
+      "critical": 125
+    },
+    "critical_edge_ratio": 0.4921259842519685,
+    "negation_density": 0.13454545454545455,
+    "sublation_density": 0.15636363636363637
+  },
+  "total_steps": 700,
+  "elapsed_seconds": 0.43657755851745605,
+  "settled_cycles_detail": [
+    {
+      "edges": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ],
+      "settled_at_step": 19
+    },
+    {
+      "edges": [
+        [
+          "syn_adequate_idea_anti_adequate_idea_88_90",
+          "adequate_idea"
+        ],
+        [
+          "syn_adequate_idea_anti_adequate_idea_88_90",
+          "anti_adequate_idea_88"
+        ]
+      ],
+      "settled_at_step": 100
+    },
+    {
+      "edges": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ],
+      "settled_at_step": 240
+    },
+    {
+      "edges": [
+        [
+          "substance",
+          "substance"
+        ]
+      ],
+      "settled_at_step": 263
+    },
+    {
+      "edges": [
+        [
+          "God_Nature",
+          "substance"
+        ],
+        [
+          "substance",
+          "God_Nature"
+        ]
+      ],
+      "settled_at_step": 269
+    },
+    {
+      "edges": [
+        [
+          "syn_imagination_anti_imagination_268_270",
+          "anti_imagination_268"
+        ],
+        [
+          "syn_imagination_anti_imagination_268_270",
+          "imagination"
+        ]
+      ],
+      "settled_at_step": 280
+    },
+    {
+      "edges": [
+        [
+          "syn_mode_substance_300",
+          "mode"
+        ],
+        [
+          "syn_mode_substance_300",
+          "substance"
+        ]
+      ],
+      "settled_at_step": 310
+    }
+  ],
+  "blocked_log": [
+    {
+      "step": 30,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "infinite",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 102,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "falsity",
+          "adequate_idea"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_adequate_idea_anti_adequate_idea_88_90",
+          "adequate_idea"
+        ],
+        [
+          "syn_adequate_idea_anti_adequate_idea_88_90",
+          "anti_adequate_idea_88"
+        ]
+      ]
+    },
+    {
+      "step": 245,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "attribute_infinite",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 248,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "attribute",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 251,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "attribute",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 296,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "natura_naturata",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 302,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 305,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 308,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 310,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mode",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 312,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 315,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 317,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mode",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 319,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 321,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mode",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 323,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 326,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 328,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mode",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 330,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 332,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mode",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 334,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 337,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 339,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mode",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 341,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 344,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 347,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 349,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mode",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 351,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 354,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 356,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mode",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 358,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 361,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 363,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mode",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 365,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 368,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 370,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mode",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 372,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 375,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 378,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 380,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mode",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 382,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 385,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 388,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 390,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mode",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 392,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 394,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mode",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 396,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 399,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 401,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mode",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 403,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 406,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 408,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mode",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 410,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 412,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mode",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 414,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 417,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 419,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mode",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 421,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 424,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 426,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mode",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 428,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 431,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 434,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 436,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mode",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 438,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 440,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mode",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 442,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 445,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 447,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mode",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 449,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 451,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mode",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 453,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 456,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 459,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 461,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mode",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 463,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 465,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mode",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 467,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 470,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 473,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 475,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mode",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 477,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 479,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mode",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 481,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 484,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 487,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 489,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mode",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 491,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 493,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mode",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 495,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 498,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 501,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 503,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mode",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 505,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 508,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 510,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mode",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 512,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 514,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mode",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 516,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 519,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 522,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 524,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mode",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 526,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 529,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 531,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mode",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 533,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 536,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 539,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 541,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mode",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 543,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 546,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 549,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 551,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mode",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 553,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 556,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 559,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 561,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mode",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 563,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 566,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 569,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 571,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mode",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 573,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 576,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 579,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 581,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mode",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 583,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 585,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mode",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 587,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 590,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 593,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 595,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mode",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 597,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 600,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 603,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 605,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mode",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 607,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 610,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 613,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 615,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mode",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 617,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 620,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 622,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mode",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 624,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 626,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mode",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 628,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 631,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 633,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mode",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 635,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 638,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 641,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 643,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mode",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 645,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 648,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 650,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mode",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 652,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 654,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mode",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 656,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 659,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 661,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mode",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 663,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 665,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mode",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 667,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 670,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 672,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mode",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 674,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 677,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 680,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 682,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mode",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 684,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 687,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 689,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mode",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    },
+    {
+      "step": 691,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 694,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 697,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "substance",
+          "mode"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_mode_anti_mode_7_9",
+          "anti_mode_7"
+        ],
+        [
+          "syn_mode_anti_mode_7_9",
+          "mode"
+        ]
+      ]
+    },
+    {
+      "step": 699,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "mode",
+          "substance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_substance_anti_substance_228_230",
+          "anti_substance_228"
+        ],
+        [
+          "syn_substance_anti_substance_228_230",
+          "substance"
+        ]
+      ]
+    }
+  ]
+}

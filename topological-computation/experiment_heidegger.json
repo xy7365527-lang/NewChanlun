@@ -1,0 +1,6086 @@
+{
+  "experiment": "heidegger_complete_works_incremental",
+  "source": "Martin Heidegger — complete works, 27 entries (1925-1973)",
+  "methodology": "manual conceptual complex per work, incremental injection, digestion until 50-step beta_1 stability",
+  "work_results": [
+    {
+      "work": "1925: History of the Concept of Time",
+      "work_index": 1,
+      "vertices_added": 12,
+      "edges_added": 12,
+      "vertices_total": 12,
+      "edges_total": 12,
+      "beta_1_before_injection": 1,
+      "beta_1_after_digestion": 1,
+      "delta_beta_1": 0,
+      "settled_cycles": 0,
+      "blocked_in_work": 0,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 50,
+      "operation_counts": {
+        "walk": 50
+      }
+    },
+    {
+      "work": "1927a: Basic Problems of Phenomenology",
+      "work_index": 2,
+      "vertices_added": 9,
+      "edges_added": 12,
+      "vertices_total": 19,
+      "edges_total": 24,
+      "beta_1_before_injection": 3,
+      "beta_1_after_digestion": 1,
+      "delta_beta_1": -2,
+      "settled_cycles": 0,
+      "blocked_in_work": 0,
+      "steps_to_digest": 74,
+      "converged": true,
+      "cumulative_steps": 124,
+      "operation_counts": {
+        "walk": 72,
+        "fold": 2
+      }
+    },
+    {
+      "work": "1927b: Being and Time",
+      "work_index": 3,
+      "vertices_added": 23,
+      "edges_added": 35,
+      "vertices_total": 42,
+      "edges_total": 54,
+      "beta_1_before_injection": 5,
+      "beta_1_after_digestion": 5,
+      "delta_beta_1": 0,
+      "settled_cycles": 0,
+      "blocked_in_work": 0,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 174,
+      "operation_counts": {
+        "walk": 50
+      }
+    },
+    {
+      "work": "1929a: Kant and the Problem of Metaphysics",
+      "work_index": 4,
+      "vertices_added": 7,
+      "edges_added": 11,
+      "vertices_total": 50,
+      "edges_total": 67,
+      "beta_1_before_injection": 8,
+      "beta_1_after_digestion": 9,
+      "delta_beta_1": 1,
+      "settled_cycles": 1,
+      "blocked_in_work": 0,
+      "steps_to_digest": 69,
+      "converged": true,
+      "cumulative_steps": 243,
+      "operation_counts": {
+        "walk": 67,
+        "negate_a": 1,
+        "sublate": 1
+      }
+    },
+    {
+      "work": "1929b: What Is Metaphysics?",
+      "work_index": 5,
+      "vertices_added": 4,
+      "edges_added": 8,
+      "vertices_total": 54,
+      "edges_total": 73,
+      "beta_1_before_injection": 11,
+      "beta_1_after_digestion": 11,
+      "delta_beta_1": 0,
+      "settled_cycles": 1,
+      "blocked_in_work": 0,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 293,
+      "operation_counts": {
+        "walk": 50
+      }
+    },
+    {
+      "work": "1929c: On the Essence of Ground",
+      "work_index": 6,
+      "vertices_added": 3,
+      "edges_added": 8,
+      "vertices_total": 60,
+      "edges_total": 89,
+      "beta_1_before_injection": 15,
+      "beta_1_after_digestion": 15,
+      "delta_beta_1": 0,
+      "settled_cycles": 3,
+      "blocked_in_work": 0,
+      "steps_to_digest": 128,
+      "converged": true,
+      "cumulative_steps": 421,
+      "operation_counts": {
+        "walk": 119,
+        "fold": 3,
+        "negate_b": 3,
+        "sublate": 3
+      }
+    },
+    {
+      "work": "1930/43: On the Essence of Truth",
+      "work_index": 7,
+      "vertices_added": 5,
+      "edges_added": 10,
+      "vertices_total": 65,
+      "edges_total": 96,
+      "beta_1_before_injection": 16,
+      "beta_1_after_digestion": 16,
+      "delta_beta_1": 0,
+      "settled_cycles": 3,
+      "blocked_in_work": 0,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 471,
+      "operation_counts": {
+        "walk": 50
+      }
+    },
+    {
+      "work": "1935: Introduction to Metaphysics",
+      "work_index": 8,
+      "vertices_added": 8,
+      "edges_added": 13,
+      "vertices_total": 73,
+      "edges_total": 105,
+      "beta_1_before_injection": 17,
+      "beta_1_after_digestion": 17,
+      "delta_beta_1": 0,
+      "settled_cycles": 3,
+      "blocked_in_work": 0,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 521,
+      "operation_counts": {
+        "walk": 50
+      }
+    },
+    {
+      "work": "1935/36: The Origin of the Work of Art",
+      "work_index": 9,
+      "vertices_added": 8,
+      "edges_added": 13,
+      "vertices_total": 81,
+      "edges_total": 118,
+      "beta_1_before_injection": 19,
+      "beta_1_after_digestion": 18,
+      "delta_beta_1": -1,
+      "settled_cycles": 3,
+      "blocked_in_work": 0,
+      "steps_to_digest": 64,
+      "converged": true,
+      "cumulative_steps": 585,
+      "operation_counts": {
+        "walk": 60,
+        "fold": 2,
+        "negate_b": 1,
+        "sublate": 1
+      }
+    },
+    {
+      "work": "1936-38: Contributions to Philosophy (Beitrage)",
+      "work_index": 10,
+      "vertices_added": 13,
+      "edges_added": 23,
+      "vertices_total": 94,
+      "edges_total": 134,
+      "beta_1_before_injection": 20,
+      "beta_1_after_digestion": 20,
+      "delta_beta_1": 0,
+      "settled_cycles": 3,
+      "blocked_in_work": 0,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 635,
+      "operation_counts": {
+        "walk": 50
+      }
+    },
+    {
+      "work": "1936-37: Nietzsche I (Will to Power as Art)",
+      "work_index": 11,
+      "vertices_added": 6,
+      "edges_added": 11,
+      "vertices_total": 102,
+      "edges_total": 146,
+      "beta_1_before_injection": 23,
+      "beta_1_after_digestion": 24,
+      "delta_beta_1": 1,
+      "settled_cycles": 4,
+      "blocked_in_work": 0,
+      "steps_to_digest": 69,
+      "converged": true,
+      "cumulative_steps": 704,
+      "operation_counts": {
+        "walk": 67,
+        "negate_b": 1,
+        "sublate": 1
+      }
+    },
+    {
+      "work": "1937: Nietzsche II (Eternal Return of the Same)",
+      "work_index": 12,
+      "vertices_added": 2,
+      "edges_added": 6,
+      "vertices_total": 104,
+      "edges_total": 152,
+      "beta_1_before_injection": 28,
+      "beta_1_after_digestion": 28,
+      "delta_beta_1": 0,
+      "settled_cycles": 4,
+      "blocked_in_work": 15,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 754,
+      "operation_counts": {
+        "walk": 35,
+        "fold_blocked": 15
+      }
+    },
+    {
+      "work": "1940-41: Nietzsche III-IV (Nihilism / History of Being)",
+      "work_index": 13,
+      "vertices_added": 4,
+      "edges_added": 9,
+      "vertices_total": 108,
+      "edges_total": 160,
+      "beta_1_before_injection": 32,
+      "beta_1_after_digestion": 32,
+      "delta_beta_1": 0,
+      "settled_cycles": 4,
+      "blocked_in_work": 32,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 804,
+      "operation_counts": {
+        "fold_blocked": 17,
+        "walk": 33
+      }
+    },
+    {
+      "work": "1942-43: Parmenides",
+      "work_index": 14,
+      "vertices_added": 5,
+      "edges_added": 10,
+      "vertices_total": 113,
+      "edges_total": 167,
+      "beta_1_before_injection": 34,
+      "beta_1_after_digestion": 34,
+      "delta_beta_1": 0,
+      "settled_cycles": 4,
+      "blocked_in_work": 49,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 854,
+      "operation_counts": {
+        "walk": 33,
+        "fold_blocked": 17
+      }
+    },
+    {
+      "work": "1944-45: Discourse on Thinking (Gelassenheit)",
+      "work_index": 15,
+      "vertices_added": 5,
+      "edges_added": 8,
+      "vertices_total": 118,
+      "edges_total": 175,
+      "beta_1_before_injection": 37,
+      "beta_1_after_digestion": 37,
+      "delta_beta_1": 0,
+      "settled_cycles": 4,
+      "blocked_in_work": 65,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 904,
+      "operation_counts": {
+        "walk": 34,
+        "fold_blocked": 16
+      }
+    },
+    {
+      "work": "1946: Letter on Humanism",
+      "work_index": 16,
+      "vertices_added": 7,
+      "edges_added": 14,
+      "vertices_total": 125,
+      "edges_total": 183,
+      "beta_1_before_injection": 38,
+      "beta_1_after_digestion": 38,
+      "delta_beta_1": 0,
+      "settled_cycles": 4,
+      "blocked_in_work": 82,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 954,
+      "operation_counts": {
+        "fold_blocked": 17,
+        "walk": 33
+      }
+    },
+    {
+      "work": "1949/53: The Question Concerning Technology",
+      "work_index": 17,
+      "vertices_added": 7,
+      "edges_added": 14,
+      "vertices_total": 132,
+      "edges_total": 195,
+      "beta_1_before_injection": 43,
+      "beta_1_after_digestion": 43,
+      "delta_beta_1": 0,
+      "settled_cycles": 4,
+      "blocked_in_work": 99,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 1004,
+      "operation_counts": {
+        "walk": 33,
+        "fold_blocked": 17
+      }
+    },
+    {
+      "work": "1950: The Thing",
+      "work_index": 18,
+      "vertices_added": 4,
+      "edges_added": 3,
+      "vertices_total": 136,
+      "edges_total": 198,
+      "beta_1_before_injection": 43,
+      "beta_1_after_digestion": 43,
+      "delta_beta_1": 0,
+      "settled_cycles": 4,
+      "blocked_in_work": 115,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 1054,
+      "operation_counts": {
+        "walk": 34,
+        "fold_blocked": 16
+      }
+    },
+    {
+      "work": "1951: Building Dwelling Thinking",
+      "work_index": 19,
+      "vertices_added": 10,
+      "edges_added": 16,
+      "vertices_total": 146,
+      "edges_total": 214,
+      "beta_1_before_injection": 49,
+      "beta_1_after_digestion": 49,
+      "delta_beta_1": 0,
+      "settled_cycles": 4,
+      "blocked_in_work": 132,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 1104,
+      "operation_counts": {
+        "fold_blocked": 17,
+        "walk": 33
+      }
+    },
+    {
+      "work": "1951-52: What Is Called Thinking?",
+      "work_index": 20,
+      "vertices_added": 5,
+      "edges_added": 10,
+      "vertices_total": 151,
+      "edges_total": 222,
+      "beta_1_before_injection": 52,
+      "beta_1_after_digestion": 52,
+      "delta_beta_1": 0,
+      "settled_cycles": 4,
+      "blocked_in_work": 149,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 1154,
+      "operation_counts": {
+        "walk": 33,
+        "fold_blocked": 17
+      }
+    },
+    {
+      "work": "1955-56: The Principle of Reason",
+      "work_index": 21,
+      "vertices_added": 4,
+      "edges_added": 9,
+      "vertices_total": 155,
+      "edges_total": 228,
+      "beta_1_before_injection": 54,
+      "beta_1_after_digestion": 54,
+      "delta_beta_1": 0,
+      "settled_cycles": 4,
+      "blocked_in_work": 165,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 1204,
+      "operation_counts": {
+        "walk": 34,
+        "fold_blocked": 16
+      }
+    },
+    {
+      "work": "1957: Identity and Difference",
+      "work_index": 22,
+      "vertices_added": 5,
+      "edges_added": 11,
+      "vertices_total": 160,
+      "edges_total": 237,
+      "beta_1_before_injection": 58,
+      "beta_1_after_digestion": 58,
+      "delta_beta_1": 0,
+      "settled_cycles": 4,
+      "blocked_in_work": 182,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 1254,
+      "operation_counts": {
+        "fold_blocked": 17,
+        "walk": 33
+      }
+    },
+    {
+      "work": "1950-59: On the Way to Language",
+      "work_index": 23,
+      "vertices_added": 6,
+      "edges_added": 12,
+      "vertices_total": 166,
+      "edges_total": 247,
+      "beta_1_before_injection": 62,
+      "beta_1_after_digestion": 62,
+      "delta_beta_1": 0,
+      "settled_cycles": 4,
+      "blocked_in_work": 199,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 1304,
+      "operation_counts": {
+        "walk": 33,
+        "fold_blocked": 17
+      }
+    },
+    {
+      "work": "1959-69: Zollikon Seminars",
+      "work_index": 24,
+      "vertices_added": 5,
+      "edges_added": 10,
+      "vertices_total": 171,
+      "edges_total": 254,
+      "beta_1_before_injection": 64,
+      "beta_1_after_digestion": 64,
+      "delta_beta_1": 0,
+      "settled_cycles": 4,
+      "blocked_in_work": 215,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 1354,
+      "operation_counts": {
+        "walk": 34,
+        "fold_blocked": 16
+      }
+    },
+    {
+      "work": "1962: Time and Being",
+      "work_index": 25,
+      "vertices_added": 5,
+      "edges_added": 12,
+      "vertices_total": 176,
+      "edges_total": 265,
+      "beta_1_before_injection": 70,
+      "beta_1_after_digestion": 70,
+      "delta_beta_1": 0,
+      "settled_cycles": 4,
+      "blocked_in_work": 232,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 1404,
+      "operation_counts": {
+        "fold_blocked": 17,
+        "walk": 33
+      }
+    },
+    {
+      "work": "1964: The End of Philosophy and the Task of Thinking",
+      "work_index": 26,
+      "vertices_added": 4,
+      "edges_added": 10,
+      "vertices_total": 180,
+      "edges_total": 274,
+      "beta_1_before_injection": 75,
+      "beta_1_after_digestion": 75,
+      "delta_beta_1": 0,
+      "settled_cycles": 4,
+      "blocked_in_work": 249,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 1454,
+      "operation_counts": {
+        "walk": 33,
+        "fold_blocked": 17
+      }
+    },
+    {
+      "work": "1966-73: Four Seminars (Le Thor, Zahringen)",
+      "work_index": 27,
+      "vertices_added": 3,
+      "edges_added": 8,
+      "vertices_total": 183,
+      "edges_total": 281,
+      "beta_1_before_injection": 79,
+      "beta_1_after_digestion": 79,
+      "delta_beta_1": 0,
+      "settled_cycles": 4,
+      "blocked_in_work": 265,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 1504,
+      "operation_counts": {
+        "walk": 34,
+        "fold_blocked": 16
+      }
+    }
+  ],
+  "beta_1_curve": [
+    {
+      "work_index": 1,
+      "work_name": "1925: History of the Concept of Time",
+      "beta_1": 1,
+      "cumulative_steps": 50
+    },
+    {
+      "work_index": 2,
+      "work_name": "1927a: Basic Problems of Phenomenology",
+      "beta_1": 1,
+      "cumulative_steps": 124
+    },
+    {
+      "work_index": 3,
+      "work_name": "1927b: Being and Time",
+      "beta_1": 5,
+      "cumulative_steps": 174
+    },
+    {
+      "work_index": 4,
+      "work_name": "1929a: Kant and the Problem of Metaphysics",
+      "beta_1": 9,
+      "cumulative_steps": 243
+    },
+    {
+      "work_index": 5,
+      "work_name": "1929b: What Is Metaphysics?",
+      "beta_1": 11,
+      "cumulative_steps": 293
+    },
+    {
+      "work_index": 6,
+      "work_name": "1929c: On the Essence of Ground",
+      "beta_1": 15,
+      "cumulative_steps": 421
+    },
+    {
+      "work_index": 7,
+      "work_name": "1930/43: On the Essence of Truth",
+      "beta_1": 16,
+      "cumulative_steps": 471
+    },
+    {
+      "work_index": 8,
+      "work_name": "1935: Introduction to Metaphysics",
+      "beta_1": 17,
+      "cumulative_steps": 521
+    },
+    {
+      "work_index": 9,
+      "work_name": "1935/36: The Origin of the Work of Art",
+      "beta_1": 18,
+      "cumulative_steps": 585
+    },
+    {
+      "work_index": 10,
+      "work_name": "1936-38: Contributions to Philosophy (Beitrage)",
+      "beta_1": 20,
+      "cumulative_steps": 635
+    },
+    {
+      "work_index": 11,
+      "work_name": "1936-37: Nietzsche I (Will to Power as Art)",
+      "beta_1": 24,
+      "cumulative_steps": 704
+    },
+    {
+      "work_index": 12,
+      "work_name": "1937: Nietzsche II (Eternal Return of the Same)",
+      "beta_1": 28,
+      "cumulative_steps": 754
+    },
+    {
+      "work_index": 13,
+      "work_name": "1940-41: Nietzsche III-IV (Nihilism / History of Being)",
+      "beta_1": 32,
+      "cumulative_steps": 804
+    },
+    {
+      "work_index": 14,
+      "work_name": "1942-43: Parmenides",
+      "beta_1": 34,
+      "cumulative_steps": 854
+    },
+    {
+      "work_index": 15,
+      "work_name": "1944-45: Discourse on Thinking (Gelassenheit)",
+      "beta_1": 37,
+      "cumulative_steps": 904
+    },
+    {
+      "work_index": 16,
+      "work_name": "1946: Letter on Humanism",
+      "beta_1": 38,
+      "cumulative_steps": 954
+    },
+    {
+      "work_index": 17,
+      "work_name": "1949/53: The Question Concerning Technology",
+      "beta_1": 43,
+      "cumulative_steps": 1004
+    },
+    {
+      "work_index": 18,
+      "work_name": "1950: The Thing",
+      "beta_1": 43,
+      "cumulative_steps": 1054
+    },
+    {
+      "work_index": 19,
+      "work_name": "1951: Building Dwelling Thinking",
+      "beta_1": 49,
+      "cumulative_steps": 1104
+    },
+    {
+      "work_index": 20,
+      "work_name": "1951-52: What Is Called Thinking?",
+      "beta_1": 52,
+      "cumulative_steps": 1154
+    },
+    {
+      "work_index": 21,
+      "work_name": "1955-56: The Principle of Reason",
+      "beta_1": 54,
+      "cumulative_steps": 1204
+    },
+    {
+      "work_index": 22,
+      "work_name": "1957: Identity and Difference",
+      "beta_1": 58,
+      "cumulative_steps": 1254
+    },
+    {
+      "work_index": 23,
+      "work_name": "1950-59: On the Way to Language",
+      "beta_1": 62,
+      "cumulative_steps": 1304
+    },
+    {
+      "work_index": 24,
+      "work_name": "1959-69: Zollikon Seminars",
+      "beta_1": 64,
+      "cumulative_steps": 1354
+    },
+    {
+      "work_index": 25,
+      "work_name": "1962: Time and Being",
+      "beta_1": 70,
+      "cumulative_steps": 1404
+    },
+    {
+      "work_index": 26,
+      "work_name": "1964: The End of Philosophy and the Task of Thinking",
+      "beta_1": 75,
+      "cumulative_steps": 1454
+    },
+    {
+      "work_index": 27,
+      "work_name": "1966-73: Four Seminars (Le Thor, Zahringen)",
+      "beta_1": 79,
+      "cumulative_steps": 1504
+    }
+  ],
+  "final_complex": {
+    "vertices_active": 183,
+    "edges_active": 281,
+    "beta_1": 79,
+    "settled_cycles": 4,
+    "edge_type_distribution": {
+      "dependency": 177,
+      "negation": 38,
+      "reference": 33,
+      "sublation": 33
+    },
+    "terrain_distribution": {
+      "tree": 190,
+      "critical": 81
+    },
+    "critical_edge_ratio": 0.2988929889298893,
+    "negation_density": 0.13523131672597866
+  },
+  "total_steps": 1504,
+  "settled_cycles_detail": [
+    {
+      "edges": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ],
+      "settled_at_step": 203
+    },
+    {
+      "edges": [
+        [
+          "syn_transcendence_ground_anti_transcendence_ground_309_311",
+          "anti_transcendence_ground_309"
+        ],
+        [
+          "syn_transcendence_ground_anti_transcendence_ground_309_311",
+          "transcendence_ground"
+        ]
+      ],
+      "settled_at_step": 321
+    },
+    {
+      "edges": [
+        [
+          "syn_nothing_anti_nothing_338_340",
+          "anti_nothing_338"
+        ],
+        [
+          "syn_nothing_anti_nothing_338_340",
+          "nothing"
+        ]
+      ],
+      "settled_at_step": 350
+    },
+    {
+      "edges": [
+        [
+          "syn_das_man_anti_das_man_652_654",
+          "anti_das_man_652"
+        ],
+        [
+          "syn_das_man_anti_das_man_652_654",
+          "das_man"
+        ]
+      ],
+      "settled_at_step": 664
+    }
+  ],
+  "blocked_log": [
+    {
+      "step": 710,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 713,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 716,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 719,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 722,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 725,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 728,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 731,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 734,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 737,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 740,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 743,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 746,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 749,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 752,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 755,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 758,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 761,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 764,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 767,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 770,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 773,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 776,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 779,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 782,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 785,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 788,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 791,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 794,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 797,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 800,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 803,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 806,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 809,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 812,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 815,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 818,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 821,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 824,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 827,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 830,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 833,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 836,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 839,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 842,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 845,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 848,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 851,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 854,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 857,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 860,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 863,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 866,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 869,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 872,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 875,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 878,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 881,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 884,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 887,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 890,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 893,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 896,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 899,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 902,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 905,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 908,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 911,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 914,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 917,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 920,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 923,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 926,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 929,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 932,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 935,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 938,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 941,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 944,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 947,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 950,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 953,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 956,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 959,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 962,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 965,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 968,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 971,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 974,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 977,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 980,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 983,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 986,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 989,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 992,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 995,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 998,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1001,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1004,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1007,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1010,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1013,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1016,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1019,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1022,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1025,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1028,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1031,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1034,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1037,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1040,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1043,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1046,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1049,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1052,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1055,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1058,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1061,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1064,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1067,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1070,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1073,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1076,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1079,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1082,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1085,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1088,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1091,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1094,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1097,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1100,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1103,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1106,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1109,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1112,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1115,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1118,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1121,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1124,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1127,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1130,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1133,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1136,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1139,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1142,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1145,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1148,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1151,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1154,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1157,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1160,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1163,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1166,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1169,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1172,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1175,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1178,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1181,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1184,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1187,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1190,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1193,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1196,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1199,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1202,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1205,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1208,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1211,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1214,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1217,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1220,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1223,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1226,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1229,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1232,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1235,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1238,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1241,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1244,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1247,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1250,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1253,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1256,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1259,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1262,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1265,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1268,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1271,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1274,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1277,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1280,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1283,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1286,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1289,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1292,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1295,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1298,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1301,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1304,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1307,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1310,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1313,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1316,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1319,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1322,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1325,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1328,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1331,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1334,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1337,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1340,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1343,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1346,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1349,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1352,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1355,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1358,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1361,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1364,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1367,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1370,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1373,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1376,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1379,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1382,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1385,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1388,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1391,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1394,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1397,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1400,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1403,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1406,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1409,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1412,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1415,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1418,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1421,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1424,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1427,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1430,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1433,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1436,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1439,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1442,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1445,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1448,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1451,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1454,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1457,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1460,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1463,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1466,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1469,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1472,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1475,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1478,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1481,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1484,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1487,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1490,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1493,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1496,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1499,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    },
+    {
+      "step": 1502,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moment",
+          "temporality"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporal_interpretation"
+        ],
+        [
+          "syn_temporality_temporal_interpretation_193",
+          "temporality"
+        ]
+      ]
+    }
+  ]
+}
