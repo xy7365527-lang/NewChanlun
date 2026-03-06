@@ -13,7 +13,7 @@ from typing import Optional
 
 from engine import (
     Graph, VertexStatus, EdgeType, SettlementTracker, OperationResult,
-    compute_beta_1, fold, negate, sublate,
+    compute_beta_1, fold, negate, sublate, _connected_components,
 )
 from morse import compute_terrain, critical_neighbors
 
@@ -32,6 +32,7 @@ class Encounter:
     target_a: Optional[str] = None
     target_b: Optional[str] = None
     reason: str = ""
+    f_value: int = -99  # terrain annotation: f(target_a, target_b) if applicable
 
 
 @dataclass
@@ -49,6 +50,7 @@ class StepLog:
     edges_active: int
     vertices_full: int
     edges_full: int
+    f_value: int = -99  # f(v,w) terrain annotation: -1=no shared neighbors, 0=topo equivalent, high=topo distant
 
 
 class TraversalEngine:
@@ -78,6 +80,36 @@ class TraversalEngine:
         self._use_llm = use_llm
         self._conservative_prompt = conservative_prompt
         self._llm_log: list[dict] = []  # LLM call log for debugging
+
+    # -- f(v,w) terrain annotation (not a filter, not a trigger) ---------------
+
+    def _compute_f(self, v: str, w: str) -> int:
+        """Compute f(v,w) = (c-1) + n_loop for terrain annotation.
+
+        f annotates the encounter but does NOT decide whether to operate.
+        f = -1: no shared neighbors (topo distant)
+        f = 0: topo nearly equivalent (safe fold zone)
+        f > 0: gray zone to negate zone
+        """
+        active = set(self.k_active.active_vertex_ids())
+        s = {v, w}
+        n_loop = sum(
+            1 for e in self.k_active.active_edges()
+            if e.source in s and e.target in s
+        )
+        lower_link: set[str] = set()
+        for x in s:
+            for n in self.k_active.neighbors(x):
+                if n not in s and n in active:
+                    lower_link.add(n)
+        if not lower_link:
+            return -1 + n_loop  # c=0 → f = -1 + n_loop
+        ll_edges: list[frozenset[str]] = []
+        for e in self.k_active.active_edges():
+            if e.source in lower_link and e.target in lower_link:
+                ll_edges.append(frozenset((e.source, e.target)))
+        c = _connected_components(sorted(lower_link), ll_edges)
+        return (c - 1) + n_loop
 
     # -- encounter detection (topological rules) ----------------------------
 
@@ -218,9 +250,11 @@ class TraversalEngine:
                     for e in self.k_active.active_edges()
                 )
                 if not has_neg:
+                    f_val = self._compute_f(pos, nb)
                     return Encounter(
                         EncounterType.NEGATE_A, pos, nb,
-                        f"Bidirectional {pos}<->{nb} with critical edge ({fwd_mark}/{rev_mark})",
+                        f"Bidirectional {pos}<->{nb} with critical edge ({fwd_mark}/{rev_mark}) f={f_val}",
+                        f_value=f_val,
                     )
 
         # 3. Fold: current position shares multiple neighbors with a previously visited vertex
@@ -235,9 +269,11 @@ class TraversalEngine:
                 past_nbs = set(self.k_active.neighbors(past_vid))
                 shared = (pos_nbs & past_nbs) - {pos, past_vid}
                 if len(shared) >= 2:  # share at least 2 neighbors = structural similarity
+                    f_val = self._compute_f(pos, past_vid)
                     return Encounter(
                         EncounterType.FOLD, pos, past_vid,
-                        f"Current {pos} and historical {past_vid} share {len(shared)} neighbors: {shared}",
+                        f"Current {pos} and historical {past_vid} share {len(shared)} neighbors: {shared} f={f_val}",
+                        f_value=f_val,
                     )
                 if len(seen) >= 15:
                     break
@@ -465,6 +501,7 @@ class TraversalEngine:
             edges_active=len(self.k_active.active_edges()),
             vertices_full=len(self.k_full.vertices),
             edges_full=len(self.k_full.edges),
+            f_value=enc.f_value,
         )
         self.logs.append(log)
         return log
