@@ -1,0 +1,40 @@
+======================================================================
+SWARM INTEGRATION TEST
+======================================================================
+
+Shared directory: C:\Users\hanju\AppData\Local\Temp\swarm_test_5o2aum_q
+
+Initial graph: 210 vertices, 360 edges, beta_1=130
+
+Running 200 steps per instance (interleaved, 20-step chunks)...
+Elapsed: 0.77s
+
+--- Instance A (seed=42) ---
+  Vertices: 240, Edges: 411
+  beta_1: 142, Settled: 13
+  Events: 19
+  Blocks written: 2
+  Blocks injected: 2
+
+--- Instance B (seed=137) ---
+  Vertices: 238, Edges: 408
+  beta_1: 141, Settled: 13
+  Events: 18
+  Blocks written: 2
+  Blocks injected: 2
+
+--- Shared Layer ---
+  Total blocks on disk: 4
+
+--- Verification ---
+  [PASS] Instance A wrote blocks to shared dir
+  [PASS] Instance B wrote blocks to shared dir
+  [PASS] Shared directory contains blocks
+  [PASS] Cross-instance sync occurred (A injected B's blocks or vice versa)
+  [PASS] Instance A completed all steps
+  [PASS] Instance B completed all steps
+  [PASS] Traversal diversity (different outcomes from different seeds)
+
+======================================================================
+OVERALL: ALL PASS
+======================================================================
