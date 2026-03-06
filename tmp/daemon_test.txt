@@ -1,0 +1,46 @@
+======================================================================
+TOPOLOGICAL DAEMON TEST REPORT
+======================================================================
+
+Initial state: 210 vertices, 360 edges, beta_1=130
+Steps run: 200
+Time elapsed: 0.31s
+
+--- Final Status ---
+  Vertices (active): 236
+  Edges (active): 409
+  beta_1: 140
+  Settled cycles: 14
+  Total events: 21
+  Total gaps detected: 6
+
+--- Events (21) ---
+  [step 4] sublate at 'syn_thing_anti_thing_2_4' (f=-99) beta_1 130->131 (+1)
+  [step 17] sublate at 'syn_absolute_freedom_anti_absolute_freedom_15_17' (f=-99) beta_1 131->132 (+1)
+  [step 25] sublate at 'syn_absolute_knowing_anti_absolute_knowing_23_25' (f=-99) beta_1 132->133 (+1)
+  [step 33] sublate at 'syn_abstract_freedom_anti_abstract_freedom_31_33' (f=-99) beta_1 133->134 (+1)
+  [step 47] sublate at 'syn_creon_anti_creon_45_47' (f=-99) beta_1 134->135 (+1)
+  [step 56] sublate at 'syn_play_of_forces_anti_play_of_forces_54_56' (f=-99) beta_1 135->136 (+1)
+  [step 66] sublate at 'syn_substance_anti_substance_64_66' (f=-99) beta_1 136->137 (+1)
+  [step 85] sublate at 'syn_changeable_anti_changeable_83_85' (f=-99) beta_1 137->138 (+1)
+  [step 98] fold at 'language of flattery' (f=2) beta_1 138->137 (-1)
+  [step 106] sublate at 'syn_beautiful_soul_anti_beautiful_soul_104_106' (f=-99) beta_1 137->138 (+1)
+  [step 116] sublate at 'syn_religion_anti_religion_114_116' (f=-99) beta_1 138->139 (+1)
+  [step 131] sublate at 'syn_bondsman_anti_bondsman_129_131' (f=-99) beta_1 139->140 (+1)
+  [step 137] fold at 'bondsman's freedom through work' (f=3) beta_1 140->138 (-2)
+  [step 140] sublate at 'syn_bondsman_freedom_anti_bondsman_freedom_138_140' (f=-99) beta_1 138->139 (+1)
+  [step 155] sublate at 'syn_incarnation_anti_incarnation_153_155' (f=-99) beta_1 139->140 (+1)
+  [step 164] sublate at 'syn_subject_anti_subject_162_164' (f=-99) beta_1 140->141 (+1)
+  [step 173] sublate at 'syn_tragedy_anti_tragedy_171_173' (f=-99) beta_1 141->142 (+1)
+  [step 182] sublate at 'syn_recollection_anti_recollection_180_182' (f=-99) beta_1 142->143 (+1)
+  [step 188] fold at 'the Concept (Begriff)' (f=4) beta_1 143->142 (-1)
+  [step 192] fold at 'the universal' (f=13) beta_1 142->141 (-1)
+  [step 199] fold at 'real knowledge' (f=13) beta_1 141->140 (-1)
+
+--- Gaps Detected (6) ---
+  'Bacchanalian revel' (degree=1, avg_degree=3.19)
+  'transparent simple repose' (degree=1, avg_degree=3.19)
+  'appearance as actuality' (degree=1, avg_degree=3.19)
+  'the bud' (degree=1, avg_degree=3.16)
+  'the fruit' (degree=1, avg_degree=3.16)
+  'pure being' (degree=1, avg_degree=3.14)
