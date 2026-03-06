@@ -1,0 +1,199 @@
+======================================================================
+INTERACTIVE TRAVERSAL TEST
+======================================================================
+Complex: 210 vertices, 360 edges, beta_1=130
+
+----------------------------------------------------------------------
+QUESTION 1: What is sense-certainty?
+----------------------------------------------------------------------
+
+CONCEPT LOCATION:
+  'sense-certainty' -> 'sense-certainty' (10 neighbors, avg_f=8.9, zone=gray_zone, status=active)
+
+TRAVERSAL (100 steps, 47 encounters):
+  Step 1: negate_b at 'anti_sense_certainty_1' (f=-99) beta_1 130->130 (+0)
+  Step 2: negate_b at 'anti_substance_is_subject_2' (f=-99) beta_1 130->130 (+0)
+  Step 4: negate_b at 'anti_absolute_knowing_4' (f=-99) beta_1 130->130 (+0)
+  Step 6: negate_b at 'anti_thing_6' (f=-99) beta_1 130->130 (+0)
+  Step 7: negate_b at 'anti_now_day_7' (f=-99) beta_1 130->130 (+0)
+  Step 8: negate_b at 'anti_self_related_negation_8' (f=-99) beta_1 130->130 (+0)
+  Step 10: negate_b at 'anti_recollection_10' (f=-99) beta_1 130->130 (+0)
+  Step 12: fold at 'the universal' (f=11) beta_1 130->129 (-1)
+  Step 13: fold at 'the universal' (f=16) beta_1 129->128 (-1)
+  Step 14: fold at 'the universal' (f=16) beta_1 128->127 (-1)
+  Step 15: negate_b at 'anti_universal_15' (f=-99) beta_1 127->127 (+0)
+  Step 16: sublate at 'syn_self_related_negation_anti_self_related_negation_8_16' (f=-99) beta_1 127->128 (+1)
+  Step 18: sublate at 'syn_absolute_knowing_anti_absolute_knowing_4_18' (f=-99) beta_1 128->129 (+1)
+  Step 20: fold at 'real knowledge' (f=17) beta_1 129->128 (-1)
+  Step 21: negate_b at 'anti_real_knowledge_21' (f=-99) beta_1 128->128 (+0)
+  Step 28: sublate at 'syn_recollection_anti_recollection_10_28' (f=-99) beta_1 128->129 (+1)
+  Step 30: fold at 'Now is Night' (f=21) beta_1 129->130 (+1)
+  Step 31: negate_b at 'anti_now_night_31' (f=-99) beta_1 130->130 (+0)
+  Step 34: fold_blocked at 'time as history' (f=7) -- BLOCKED (would destroy settled cycle)
+  Step 39: sublate at 'syn_now_night_anti_now_night_31_39' (f=-99) beta_1 130->131 (+1)
+  Step 45: negate_b at 'anti_absolute_freedom_45' (f=-99) beta_1 131->131 (+0)
+  Step 46: fold_blocked at 'what is meant (das Meinen)' (f=23) -- BLOCKED (would destroy settled cycle)
+  Step 48: fold_blocked at 'the particular' (f=29) -- BLOCKED (would destroy settled cycle)
+  Step 51: fold_blocked at 'the Concept (Begriff)' (f=4) -- BLOCKED (would destroy settled cycle)
+  Step 53: fold at 'absolute knowing' (f=7) beta_1 131->130 (-1)
+  Step 55: sublate at 'syn_substance_is_subject_anti_substance_is_subject_2_55' (f=-99) beta_1 130->131 (+1)
+  Step 56: fold_blocked at 'Now is Night' (f=29) -- BLOCKED (would destroy settled cycle)
+  Step 58: fold_blocked at 'natural consciousness' (f=27) -- BLOCKED (would destroy settled cycle)
+  Step 60: fold at 'experience (dialectical movement)' (f=4) beta_1 131->131 (+0)
+  Step 61: fold_blocked at 'experience (dialectical movement)' (f=32) -- BLOCKED (would destroy settled cycle)
+  Step 64: fold_blocked at 'experience (dialectical movement)' (f=32) -- BLOCKED (would destroy settled cycle)
+  Step 67: fold_blocked at 'experience (dialectical movement)' (f=32) -- BLOCKED (would destroy settled cycle)
+  Step 69: fold at 'Now is Night' (f=32) beta_1 131->133 (+2)
+  Step 70: fold_blocked at 'Now is Night' (f=39) -- BLOCKED (would destroy settled cycle)
+  Step 73: fold_blocked at 'Now is Night' (f=39) -- BLOCKED (would destroy settled cycle)
+  Step 75: fold at 'recollection (Er-Innerung)' (f=2) beta_1 133->132 (-1)
+  Step 83: fold_blocked at 'revealed religion (Christianity)' (f=13) -- BLOCKED (would destroy settled cycle)
+  Step 85: fold at 'picture-thinking (Vorstellung)' (f=3) beta_1 132->131 (-1)
+  Step 86: negate_a at 'picture-thinking (Vorstellung)' (f=10) beta_1 131->131 (+0)
+  Step 87: sublate at 'syn_picture_thinking_revealed_religion_87' (f=-99) beta_1 131->132 (+1)
+  Step 88: fold_blocked at 'language (expresses universal)' (f=2) -- BLOCKED (would destroy settled cycle)
+  Step 90: fold_blocked at 'what is meant (das Meinen)' (f=32) -- BLOCKED (would destroy settled cycle)
+  Step 92: fold at 'the particular' (f=2) beta_1 132->131 (-1)
+  Step 93: fold_blocked at 'the particular' (f=39) -- BLOCKED (would destroy settled cycle)
+  Step 95: fold_blocked at 'the This' (f=33) -- BLOCKED (would destroy settled cycle)
+  Step 97: fold_blocked at 'mediated simplicity' (f=2) -- BLOCKED (would destroy settled cycle)
+  Step 99: fold_blocked at 'This as not-This (superseded)' (f=31) -- BLOCKED (would destroy settled cycle)
+  Summary: beta_1 130 -> 131
+
+ANSWER:
+  'sense-certainty' is an active concept in the complex with 10 connections.
+  Connected to: experience (dialectical movement), immediate knowledge, natural consciousness, perception, pure being, recollection (Er-Innerung), the I, the Here, the Now, the This.
+  Traversal found 12 negation(s) in its neighborhood.
+  Traversal found 29 fold(s) (structural equivalences).
+  18 operation(s) were blocked by settled cycles (load-bearing structures).
+
+----------------------------------------------------------------------
+QUESTION 2: What is the relationship between sense-certainty and perception?
+----------------------------------------------------------------------
+
+CONCEPT LOCATION:
+  'sense-certainty' -> 'sense-certainty' (10 neighbors, avg_f=8.9, zone=gray_zone, status=active)
+  'perception' -> 'perception' (3 neighbors, avg_f=6.3, zone=gray_zone, status=active)
+
+RELATIONSHIP:
+  f(sense-certainty, perception) = 7 (gray_zone)
+  Components: c=7, n_loop=1, m=11
+  Direct neighbors: True
+
+TRAVERSAL (100 steps, 45 encounters):
+  Step 1: negate_b at 'anti_sense_certainty_1' (f=-99) beta_1 130->130 (+0)
+  Step 2: negate_b at 'anti_substance_is_subject_2' (f=-99) beta_1 130->130 (+0)
+  Step 4: negate_b at 'anti_absolute_knowing_4' (f=-99) beta_1 130->130 (+0)
+  Step 6: negate_b at 'anti_thing_6' (f=-99) beta_1 130->130 (+0)
+  Step 7: negate_b at 'anti_now_day_7' (f=-99) beta_1 130->130 (+0)
+  Step 8: negate_b at 'anti_self_related_negation_8' (f=-99) beta_1 130->130 (+0)
+  Step 10: negate_b at 'anti_recollection_10' (f=-99) beta_1 130->130 (+0)
+  Step 12: fold at 'the universal' (f=11) beta_1 130->129 (-1)
+  Step 13: fold at 'the universal' (f=16) beta_1 129->128 (-1)
+  Step 14: fold at 'the universal' (f=16) beta_1 128->127 (-1)
+  Step 15: negate_b at 'anti_universal_15' (f=-99) beta_1 127->127 (+0)
+  Step 16: sublate at 'syn_self_related_negation_anti_self_related_negation_8_16' (f=-99) beta_1 127->128 (+1)
+  Step 18: sublate at 'syn_absolute_knowing_anti_absolute_knowing_4_18' (f=-99) beta_1 128->129 (+1)
+  Step 20: fold at 'real knowledge' (f=17) beta_1 129->128 (-1)
+  Step 22: fold at 'mediated simplicity' (f=19) beta_1 128->128 (+0)
+  Step 23: negate_b at 'anti_mediated_simplicity_23' (f=-99) beta_1 128->128 (+0)
+  Step 30: fold at 'Now is Night' (f=24) beta_1 128->129 (+1)
+  Step 31: negate_b at 'anti_now_night_31' (f=-99) beta_1 129->129 (+0)
+  Step 33: sublate at 'syn_recollection_anti_recollection_10_33' (f=-99) beta_1 129->130 (+1)
+  Step 34: negate_b at 'anti_spirit_knowing_itself_34' (f=-99) beta_1 130->130 (+0)
+  Step 35: negate_b at 'anti_play_of_forces_35' (f=-99) beta_1 130->130 (+0)
+  Step 36: sublate at 'syn_now_night_anti_now_night_31_36' (f=-99) beta_1 130->131 (+1)
+  Step 39: fold_blocked at 'experience (dialectical movement)' (f=29) -- BLOCKED (would destroy settled cycle)
+  Step 45: negate_b at 'anti_absolute_freedom_45' (f=-99) beta_1 131->131 (+0)
+  Step 46: fold_blocked at 'what is meant (das Meinen)' (f=26) -- BLOCKED (would destroy settled cycle)
+  Step 48: fold_blocked at 'the particular' (f=32) -- BLOCKED (would destroy settled cycle)
+  Step 51: fold_blocked at 'the Concept (Begriff)' (f=4) -- BLOCKED (would destroy settled cycle)
+  Step 53: fold at 'recollection (Er-Innerung)' (f=4) beta_1 131->130 (-1)
+  Step 59: fold_blocked at 'the particular' (f=32) -- BLOCKED (would destroy settled cycle)
+  Step 62: fold at 'Now is Night' (f=26) beta_1 130->130 (+0)
+  Step 63: fold_blocked at 'Now is Night' (f=34) -- BLOCKED (would destroy settled cycle)
+  Step 65: fold_blocked at 'natural consciousness' (f=31) -- BLOCKED (would destroy settled cycle)
+  Step 67: fold_blocked at 'Science of the experience of consciousness' (f=27) -- BLOCKED (would destroy settled cycle)
+  Step 69: fold at 'experience (dialectical movement)' (f=4) beta_1 130->130 (+0)
+  Step 70: fold_blocked at 'experience (dialectical movement)' (f=36) -- BLOCKED (would destroy settled cycle)
+  Step 72: fold at 'concept of knowledge' (f=0) beta_1 130->129 (-1)
+  Step 73: negate_a at 'concept of knowledge' (f=7) beta_1 129->129 (+0)
+  Step 74: sublate at 'syn_concept_of_knowledge_experience_74' (f=-99) beta_1 129->130 (+1)
+  Step 86: fold_blocked at 'Now is Night' (f=34) -- BLOCKED (would destroy settled cycle)
+  Step 88: fold_blocked at 'experience (dialectical movement)' (f=9) -- BLOCKED (would destroy settled cycle)
+  Step 91: fold_blocked at 'experience (dialectical movement)' (f=9) -- BLOCKED (would destroy settled cycle)
+  Step 93: fold_blocked at 'concept of knowledge' (f=9) -- BLOCKED (would destroy settled cycle)
+  Step 96: fold_blocked at 'the particular' (f=34) -- BLOCKED (would destroy settled cycle)
+  Step 98: fold at 'concrete universal' (f=1) beta_1 130->129 (-1)
+  Step 100: fold_blocked at 'the particular' (f=33) -- BLOCKED (would destroy settled cycle)
+  Summary: beta_1 130 -> 129
+
+ANSWER:
+  'sense-certainty' and 'perception' have moderate topological distance (f=7, gray zone).
+  They are related but not equivalent.
+  Traversal attempted to fold them but was blocked by settled cycle(s) -- their connection is load-bearing.
+  14 negation(s) detected in their shared neighborhood.
+
+----------------------------------------------------------------------
+QUESTION 3: Why does sense-certainty fail?
+----------------------------------------------------------------------
+
+CONCEPT LOCATION:
+  'sense-certainty' -> 'sense-certainty' (10 neighbors, avg_f=8.9, zone=gray_zone, status=active)
+
+TRAVERSAL (100 steps, 47 encounters):
+  Step 1: negate_b at 'anti_sense_certainty_1' (f=-99) beta_1 130->130 (+0)
+  Step 2: negate_b at 'anti_substance_is_subject_2' (f=-99) beta_1 130->130 (+0)
+  Step 4: negate_b at 'anti_absolute_knowing_4' (f=-99) beta_1 130->130 (+0)
+  Step 6: negate_b at 'anti_thing_6' (f=-99) beta_1 130->130 (+0)
+  Step 7: negate_b at 'anti_now_day_7' (f=-99) beta_1 130->130 (+0)
+  Step 8: negate_b at 'anti_self_related_negation_8' (f=-99) beta_1 130->130 (+0)
+  Step 10: negate_b at 'anti_recollection_10' (f=-99) beta_1 130->130 (+0)
+  Step 12: fold at 'the universal' (f=11) beta_1 130->129 (-1)
+  Step 13: fold at 'the universal' (f=16) beta_1 129->128 (-1)
+  Step 14: fold at 'the universal' (f=16) beta_1 128->127 (-1)
+  Step 15: negate_b at 'anti_universal_15' (f=-99) beta_1 127->127 (+0)
+  Step 16: sublate at 'syn_self_related_negation_anti_self_related_negation_8_16' (f=-99) beta_1 127->128 (+1)
+  Step 18: sublate at 'syn_absolute_knowing_anti_absolute_knowing_4_18' (f=-99) beta_1 128->129 (+1)
+  Step 20: fold at 'real knowledge' (f=17) beta_1 129->128 (-1)
+  Step 21: negate_b at 'anti_real_knowledge_21' (f=-99) beta_1 128->128 (+0)
+  Step 28: sublate at 'syn_recollection_anti_recollection_10_28' (f=-99) beta_1 128->129 (+1)
+  Step 30: fold at 'Now is Night' (f=21) beta_1 129->130 (+1)
+  Step 31: negate_b at 'anti_now_night_31' (f=-99) beta_1 130->130 (+0)
+  Step 34: fold_blocked at 'time as history' (f=7) -- BLOCKED (would destroy settled cycle)
+  Step 39: sublate at 'syn_now_night_anti_now_night_31_39' (f=-99) beta_1 130->131 (+1)
+  Step 45: negate_b at 'anti_absolute_freedom_45' (f=-99) beta_1 131->131 (+0)
+  Step 46: fold_blocked at 'what is meant (das Meinen)' (f=23) -- BLOCKED (would destroy settled cycle)
+  Step 48: fold_blocked at 'the particular' (f=29) -- BLOCKED (would destroy settled cycle)
+  Step 51: fold_blocked at 'the Concept (Begriff)' (f=4) -- BLOCKED (would destroy settled cycle)
+  Step 53: fold at 'absolute knowing' (f=7) beta_1 131->130 (-1)
+  Step 55: sublate at 'syn_substance_is_subject_anti_substance_is_subject_2_55' (f=-99) beta_1 130->131 (+1)
+  Step 56: fold_blocked at 'Now is Night' (f=29) -- BLOCKED (would destroy settled cycle)
+  Step 58: fold_blocked at 'natural consciousness' (f=27) -- BLOCKED (would destroy settled cycle)
+  Step 60: fold at 'experience (dialectical movement)' (f=4) beta_1 131->131 (+0)
+  Step 61: fold_blocked at 'experience (dialectical movement)' (f=32) -- BLOCKED (would destroy settled cycle)
+  Step 64: fold_blocked at 'experience (dialectical movement)' (f=32) -- BLOCKED (would destroy settled cycle)
+  Step 67: fold_blocked at 'experience (dialectical movement)' (f=32) -- BLOCKED (would destroy settled cycle)
+  Step 69: fold at 'Now is Night' (f=32) beta_1 131->133 (+2)
+  Step 70: fold_blocked at 'Now is Night' (f=39) -- BLOCKED (would destroy settled cycle)
+  Step 73: fold_blocked at 'Now is Night' (f=39) -- BLOCKED (would destroy settled cycle)
+  Step 75: fold at 'recollection (Er-Innerung)' (f=2) beta_1 133->132 (-1)
+  Step 83: fold_blocked at 'revealed religion (Christianity)' (f=13) -- BLOCKED (would destroy settled cycle)
+  Step 85: fold at 'picture-thinking (Vorstellung)' (f=3) beta_1 132->131 (-1)
+  Step 86: negate_a at 'picture-thinking (Vorstellung)' (f=10) beta_1 131->131 (+0)
+  Step 87: sublate at 'syn_picture_thinking_revealed_religion_87' (f=-99) beta_1 131->132 (+1)
+  Step 88: fold_blocked at 'language (expresses universal)' (f=2) -- BLOCKED (would destroy settled cycle)
+  Step 90: fold_blocked at 'what is meant (das Meinen)' (f=32) -- BLOCKED (would destroy settled cycle)
+  Step 92: fold at 'the particular' (f=2) beta_1 132->131 (-1)
+  Step 93: fold_blocked at 'the particular' (f=39) -- BLOCKED (would destroy settled cycle)
+  Step 95: fold_blocked at 'the This' (f=33) -- BLOCKED (would destroy settled cycle)
+  Step 97: fold_blocked at 'mediated simplicity' (f=2) -- BLOCKED (would destroy settled cycle)
+  Step 99: fold_blocked at 'This as not-This (superseded)' (f=31) -- BLOCKED (would destroy settled cycle)
+  Summary: beta_1 130 -> 131
+
+ANSWER:
+  'sense-certainty' is an active concept in the complex with 10 connections.
+  Connected to: experience (dialectical movement), immediate knowledge, natural consciousness, perception, pure being, recollection (Er-Innerung), the I, the Here, the Now, the This.
+  Traversal found 12 negation(s) in its neighborhood.
+  Traversal found 29 fold(s) (structural equivalences).
+  18 operation(s) were blocked by settled cycles (load-bearing structures).
