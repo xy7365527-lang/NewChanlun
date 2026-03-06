@@ -1,0 +1,310 @@
+{
+  "experiment": "hegel_sense_certainty_v2_manual_complex",
+  "text_source": "Hegel, Phenomenology of Spirit, A.V. Miller translation",
+  "chapter": "Sense-Certainty",
+  "methodology": "Manually constructed simplicial complex encoding dialectical structure",
+  "phi_L_note": "Rule-based NLP parser insufficient for Hegel's prose (81 vertices, 24 edges, 0 critical). Manual construction preserves philosophical content.",
+  "initial_complex": {
+    "vertices": 24,
+    "edges": 43,
+    "beta_1": 15,
+    "edge_type_distribution": {
+      "dependency": 24,
+      "negation": 10,
+      "sublation": 5,
+      "reference": 4
+    }
+  },
+  "traversal": {
+    "total_steps": 2000,
+    "extended": false,
+    "settlement_threshold": 10,
+    "final_beta_1": 9,
+    "final_settled_cycles": 2,
+    "final_vertices_active": 19,
+    "final_edges_active": 54,
+    "encounter_distribution": {
+      "negate_b": 2,
+      "nothing": 1980,
+      "sublation": 3,
+      "fold": 14,
+      "negate_a": 1
+    },
+    "operation_distribution": {
+      "negate_b": 2,
+      "walk": 1980,
+      "sublate": 3,
+      "fold": 10,
+      "fold_blocked": 4,
+      "negate_a": 1
+    },
+    "beta_1_trajectory": [
+      {
+        "step": 100,
+        "beta_1": 9,
+        "settled": 2,
+        "vertices_active": 19,
+        "edges_active": 54
+      },
+      {
+        "step": 200,
+        "beta_1": 9,
+        "settled": 2,
+        "vertices_active": 19,
+        "edges_active": 54
+      },
+      {
+        "step": 300,
+        "beta_1": 9,
+        "settled": 2,
+        "vertices_active": 19,
+        "edges_active": 54
+      },
+      {
+        "step": 400,
+        "beta_1": 9,
+        "settled": 2,
+        "vertices_active": 19,
+        "edges_active": 54
+      },
+      {
+        "step": 500,
+        "beta_1": 9,
+        "settled": 2,
+        "vertices_active": 19,
+        "edges_active": 54
+      },
+      {
+        "step": 600,
+        "beta_1": 9,
+        "settled": 2,
+        "vertices_active": 19,
+        "edges_active": 54
+      },
+      {
+        "step": 700,
+        "beta_1": 9,
+        "settled": 2,
+        "vertices_active": 19,
+        "edges_active": 54
+      },
+      {
+        "step": 800,
+        "beta_1": 9,
+        "settled": 2,
+        "vertices_active": 19,
+        "edges_active": 54
+      },
+      {
+        "step": 900,
+        "beta_1": 9,
+        "settled": 2,
+        "vertices_active": 19,
+        "edges_active": 54
+      },
+      {
+        "step": 1000,
+        "beta_1": 9,
+        "settled": 2,
+        "vertices_active": 19,
+        "edges_active": 54
+      },
+      {
+        "step": 1100,
+        "beta_1": 9,
+        "settled": 2,
+        "vertices_active": 19,
+        "edges_active": 54
+      },
+      {
+        "step": 1200,
+        "beta_1": 9,
+        "settled": 2,
+        "vertices_active": 19,
+        "edges_active": 54
+      },
+      {
+        "step": 1300,
+        "beta_1": 9,
+        "settled": 2,
+        "vertices_active": 19,
+        "edges_active": 54
+      },
+      {
+        "step": 1400,
+        "beta_1": 9,
+        "settled": 2,
+        "vertices_active": 19,
+        "edges_active": 54
+      },
+      {
+        "step": 1500,
+        "beta_1": 9,
+        "settled": 2,
+        "vertices_active": 19,
+        "edges_active": 54
+      },
+      {
+        "step": 1600,
+        "beta_1": 9,
+        "settled": 2,
+        "vertices_active": 19,
+        "edges_active": 54
+      },
+      {
+        "step": 1700,
+        "beta_1": 9,
+        "settled": 2,
+        "vertices_active": 19,
+        "edges_active": 54
+      },
+      {
+        "step": 1800,
+        "beta_1": 9,
+        "settled": 2,
+        "vertices_active": 19,
+        "edges_active": 54
+      },
+      {
+        "step": 1900,
+        "beta_1": 9,
+        "settled": 2,
+        "vertices_active": 19,
+        "edges_active": 54
+      },
+      {
+        "step": 2000,
+        "beta_1": 9,
+        "settled": 2,
+        "vertices_active": 19,
+        "edges_active": 54
+      }
+    ],
+    "negation_events": 3,
+    "sublation_events": 3,
+    "fold_events": 14,
+    "blocked_events": 4,
+    "beta_1_jumps": 3
+  },
+  "analysis": {
+    "negation_density": 0.24074074074074073,
+    "genealogy_negation_density": 0.0164,
+    "negation_density_ratio": 14.679313459801262,
+    "encounter_density": 0.01,
+    "terrain_distribution": {
+      "tree": 26,
+      "critical": 10
+    },
+    "critical_edge_ratio": 0.2777777777777778
+  },
+  "settled_cycles": [
+    {
+      "edges": [
+        [
+          "syn_sense_certainty_anti_sense_certainty_1_3",
+          "anti_sense_certainty_1"
+        ],
+        [
+          "syn_sense_certainty_anti_sense_certainty_1_3",
+          "sense_certainty"
+        ]
+      ],
+      "settled_at_step": 13
+    },
+    {
+      "edges": [
+        [
+          "syn_this_preserved_anti_this_preserved_31_33",
+          "anti_this_preserved_31"
+        ],
+        [
+          "syn_this_preserved_anti_this_preserved_31_33",
+          "this_preserved"
+        ]
+      ],
+      "settled_at_step": 43
+    }
+  ],
+  "blocked_log": [
+    {
+      "step": 14,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "immediacy",
+          "sense_certainty"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_sense_certainty_anti_sense_certainty_1_3",
+          "anti_sense_certainty_1"
+        ],
+        [
+          "syn_sense_certainty_anti_sense_certainty_1_3",
+          "sense_certainty"
+        ]
+      ]
+    },
+    {
+      "step": 17,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "immediacy",
+          "sense_certainty"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_sense_certainty_anti_sense_certainty_1_3",
+          "anti_sense_certainty_1"
+        ],
+        [
+          "syn_sense_certainty_anti_sense_certainty_1_3",
+          "sense_certainty"
+        ]
+      ]
+    },
+    {
+      "step": 23,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "this_preserved",
+          "sense_certainty"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_sense_certainty_anti_sense_certainty_1_3",
+          "anti_sense_certainty_1"
+        ],
+        [
+          "syn_sense_certainty_anti_sense_certainty_1_3",
+          "sense_certainty"
+        ]
+      ]
+    },
+    {
+      "step": 27,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "universal_I",
+          "sense_certainty"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_sense_certainty_anti_sense_certainty_1_3",
+          "anti_sense_certainty_1"
+        ],
+        [
+          "syn_sense_certainty_anti_sense_certainty_1_3",
+          "sense_certainty"
+        ]
+      ]
+    }
+  ]
+}
