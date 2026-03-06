@@ -10,6 +10,7 @@ from dataclasses import dataclass
 
 from engine import Graph, Vertex, Edge, EdgeType, VertexStatus, compute_beta_1
 from nlp_preprocess import preprocess, SentenceTree, Token
+from nlp_preprocess_zh import preprocess_zh, detect_language
 
 
 # ---------------------------------------------------------------------------
@@ -351,8 +352,15 @@ def merge_cross_sentence(
 # ---------------------------------------------------------------------------
 
 def phi_L(text: str) -> Graph:
-    """Complete pipeline: text -> typed directed simplicial complex."""
-    trees = preprocess(text)
+    """Complete pipeline: text -> typed directed simplicial complex.
+
+    Auto-detects language (Chinese/English) and selects the appropriate preprocessor.
+    """
+    lang = detect_language(text)
+    if lang == "zh":
+        trees = preprocess_zh(text)
+    else:
+        trees = preprocess(text)
     vertices, token_to_vertex = extract_vertices(trees)
     edges = extract_edges(trees, token_to_vertex)
     neg_edges = extract_negations(trees, token_to_vertex)
