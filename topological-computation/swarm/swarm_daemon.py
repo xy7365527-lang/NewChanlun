@@ -4,29 +4,172 @@ Adds:
 - Shared event layer read/write
 - Cross-instance sync (every N steps)
 - Operation recording to shared layer
+- PID file management (~/.swarm/daemon.pid)
+- File logging (~/.swarm/output/daemon.log)
+- IPFS background upload thread (graceful degradation)
+- Crash retry wrapper
+- Persistence enabled by default
 
 CLI:
     python swarm/swarm_daemon.py --instance-id inst_0 --seed path/to/text.txt --shared /tmp/swarm --steps 200
     python swarm/swarm_daemon.py --instance-id inst_0 --hegel --shared /tmp/swarm --steps 500
+    python swarm/swarm_daemon.py --instance-id node0 --hegel --shared ~/.swarm --persist --steps 1000
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
+import signal
 import sys
+import threading
 import time
 from pathlib import Path
+from queue import Queue, Empty
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 from engine import Graph, compute_beta_1
 from daemon import TopologicalDaemon, graph_from_dict, _build_graph_from_chapters, format_event
+from persistence import DEFAULT_PATH as PERSIST_DEFAULT_PATH
 from traversal import StepLog
 from swarm.shared_layer import SharedLayer
 from swarm.cross_instance import CrossInstanceSync
 
+
+# ---------------------------------------------------------------------------
+# Logging setup
+# ---------------------------------------------------------------------------
+
+def _setup_logging(log_path: str | Path, instance_id: str) -> logging.Logger:
+    """Create logger that writes to file and stderr."""
+    logger = logging.getLogger(f"swarm.{instance_id}")
+    logger.setLevel(logging.INFO)
+
+    formatter = logging.Formatter(
+        f"[%(asctime)s] [{instance_id}] %(levelname)s: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+
+    # File handler
+    log_dir = Path(log_path).parent
+    log_dir.mkdir(parents=True, exist_ok=True)
+    fh = logging.FileHandler(str(log_path), encoding="utf-8")
+    fh.setLevel(logging.INFO)
+    fh.setFormatter(formatter)
+    logger.addHandler(fh)
+
+    # Stderr handler
+    sh = logging.StreamHandler(sys.stderr)
+    sh.setLevel(logging.INFO)
+    sh.setFormatter(formatter)
+    logger.addHandler(sh)
+
+    return logger
+
+
+# ---------------------------------------------------------------------------
+# PID file management
+# ---------------------------------------------------------------------------
+
+def _write_pid(pid_path: str | Path) -> None:
+    """Write current PID to file."""
+    path = Path(pid_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(str(os.getpid()), encoding="utf-8")
+
+
+def _remove_pid(pid_path: str | Path) -> None:
+    """Remove PID file if it exists."""
+    path = Path(pid_path)
+    if path.exists():
+        path.unlink()
+
+
+def _check_running(pid_path: str | Path) -> int | None:
+    """Check if daemon is already running. Returns PID or None."""
+    path = Path(pid_path)
+    if not path.exists():
+        return None
+    try:
+        pid = int(path.read_text(encoding="utf-8").strip())
+        # Check if process exists (cross-platform)
+        os.kill(pid, 0)
+        return pid
+    except (ValueError, OSError):
+        # Stale PID file
+        return None
+
+
+# ---------------------------------------------------------------------------
+# IPFS background uploader
+# ---------------------------------------------------------------------------
+
+class IPFSUploader:
+    """Background thread that uploads blocks to IPFS when available."""
+
+    def __init__(self, logger: logging.Logger):
+        self._queue: Queue[tuple[str, dict]] = Queue()
+        self._thread: threading.Thread | None = None
+        self._stop = threading.Event()
+        self._logger = logger
+        self._client = None
+        self._uploaded: int = 0
+
+    def start(self) -> None:
+        """Start the upload thread. Attempts to connect to IPFS."""
+        try:
+            from chain.ipfs_client import IPFSClient
+            client = IPFSClient()
+            if client.is_available():
+                self._client = client
+                self._logger.info("IPFS daemon detected — background upload enabled")
+            else:
+                self._logger.info("IPFS daemon not available — uploads disabled, local persistence only")
+        except ImportError:
+            self._logger.info("IPFS client not available — uploads disabled")
+
+        self._thread = threading.Thread(target=self._run, daemon=True, name="ipfs-uploader")
+        self._thread.start()
+
+    def enqueue(self, block_hash: str, block_data: dict) -> None:
+        """Add a block to the upload queue."""
+        self._queue.put((block_hash, block_data))
+
+    def stop(self) -> None:
+        """Signal the upload thread to stop."""
+        self._stop.set()
+        if self._thread:
+            self._thread.join(timeout=5)
+
+    @property
+    def uploaded_count(self) -> int:
+        return self._uploaded
+
+    def _run(self) -> None:
+        """Upload loop: drain queue, upload to IPFS."""
+        while not self._stop.is_set():
+            try:
+                block_hash, block_data = self._queue.get(timeout=1)
+            except Empty:
+                continue
+
+            if self._client and self._client.is_available():
+                try:
+                    data = json.dumps(block_data, sort_keys=True, ensure_ascii=False)
+                    cid = self._client.upload(data)
+                    self._client.pin(cid)
+                    self._uploaded += 1
+                    self._logger.info(f"IPFS uploaded block {block_hash[:12]}... -> {cid}")
+                except Exception as exc:
+                    self._logger.warning(f"IPFS upload failed for {block_hash[:12]}...: {exc}")
+
+
+# ---------------------------------------------------------------------------
+# SwarmDaemon
+# ---------------------------------------------------------------------------
 
 class SwarmDaemon(TopologicalDaemon):
     """TopologicalDaemon extended with shared layer and cross-instance sync."""
@@ -40,15 +183,20 @@ class SwarmDaemon(TopologicalDaemon):
         seed_text: str | None = None,
         settlement_threshold: int = 15,
         seed: int = 42,
+        persist_path: str | Path | None = None,
+        logger: logging.Logger | None = None,
+        ipfs_uploader: IPFSUploader | None = None,
     ):
         super().__init__(
             graph=graph,
             seed_text=seed_text,
             settlement_threshold=settlement_threshold,
             seed=seed,
+            persist_path=persist_path,
         )
         self.instance_id = instance_id
         self.sync_interval = sync_interval
+        self._logger = logger
 
         # Shared layer
         self.shared = SharedLayer(shared_dir)
@@ -59,6 +207,9 @@ class SwarmDaemon(TopologicalDaemon):
 
         # Track blocks written by this instance
         self._blocks_written: int = 0
+
+        # IPFS background uploader
+        self._ipfs_uploader = ipfs_uploader
 
     def _step(self) -> None:
         """Override: after each step, record significant events and periodically sync."""
@@ -123,6 +274,10 @@ class SwarmDaemon(TopologicalDaemon):
         self.syncer.known_blocks.add(block_hash)
         self._blocks_written += 1
 
+        # Enqueue for IPFS upload if available
+        if self._ipfs_uploader:
+            self._ipfs_uploader.enqueue(block_hash, block)
+
     def swarm_status(self) -> dict:
         """Extended status with swarm-specific info."""
         base = self.status()
@@ -130,7 +285,140 @@ class SwarmDaemon(TopologicalDaemon):
         base["blocks_written"] = self._blocks_written
         base["blocks_injected"] = self.syncer.injected_count
         base["known_blocks"] = len(self.syncer.known_blocks)
+        if self._ipfs_uploader:
+            base["ipfs_uploaded"] = self._ipfs_uploader.uploaded_count
         return base
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+def _build_graph(args, parent_dir: str) -> Graph | None:
+    """Build graph from CLI arguments."""
+    if args.load:
+        load_path = args.load
+        if not os.path.isabs(load_path):
+            load_path = os.path.join(parent_dir, load_path)
+        with open(load_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if "graph_data" in data:
+            return graph_from_dict(data["graph_data"])
+        return graph_from_dict(data)
+    elif args.seed:
+        seed_path = args.seed
+        if not os.path.isabs(seed_path):
+            seed_path = os.path.join(parent_dir, seed_path)
+        with open(seed_path, "r", encoding="utf-8") as f:
+            text = f.read()
+        from phi_L import phi_L
+        return phi_L(text)
+    else:
+        # Default: Hegel Phenomenology
+        graph, _ = _build_graph_from_chapters()
+        return graph
+
+
+def _run_once(args, parent_dir: str, logger: logging.Logger) -> dict:
+    """Run one daemon session. Returns status dict."""
+    shared_dir = args.shared
+    if not os.path.isabs(shared_dir):
+        shared_dir = os.path.join(parent_dir, shared_dir)
+
+    # Build graph
+    graph = _build_graph(args, parent_dir)
+
+    # PID file
+    pid_path = Path(shared_dir) / "daemon.pid"
+    existing_pid = _check_running(pid_path)
+    if existing_pid:
+        logger.warning(f"Daemon already running (PID {existing_pid}), proceeding anyway")
+    _write_pid(pid_path)
+
+    # IPFS uploader
+    ipfs_uploader = IPFSUploader(logger)
+    ipfs_uploader.start()
+
+    # Persistence path
+    persist_path = None
+    if args.persist:
+        persist_path = args.persist if isinstance(args.persist, str) and args.persist != "True" else str(PERSIST_DEFAULT_PATH)
+
+    # Use instance_id hash as random seed for diversity
+    instance_seed = hash(args.instance_id) % (2**31)
+
+    daemon = SwarmDaemon(
+        shared_dir=shared_dir,
+        instance_id=args.instance_id,
+        sync_interval=args.sync_interval,
+        graph=graph,
+        settlement_threshold=15,
+        seed=instance_seed,
+        persist_path=persist_path,
+        logger=logger,
+        ipfs_uploader=ipfs_uploader,
+    )
+
+    # If persisting with a fresh file (no recovery), write initial graph
+    if persist_path and daemon._persist and graph is not None:
+        from persistence import PersistentKFull
+        recovered, _ = PersistentKFull.load(persist_path)
+        if not recovered.active_vertex_ids():
+            for vid, v in graph.vertices.items():
+                daemon._persist.append_vertex(v)
+            for e in graph.edges:
+                daemon._persist.append_edge(e)
+
+    # Event logging
+    def on_event(log: StepLog, narrative: str) -> None:
+        logger.info(narrative)
+
+    daemon.register_callback("on_event", on_event)
+
+    n_verts = len(daemon.k_active.active_vertex_ids())
+    n_edges = len(daemon.k_active.active_edges())
+    beta_1 = compute_beta_1(daemon.k_active)
+    logger.info(f"Starting: {n_verts}V {n_edges}E beta_1={beta_1}, {args.steps} steps")
+
+    t0 = time.monotonic()
+    daemon.run(max_steps=args.steps)
+    elapsed = time.monotonic() - t0
+
+    status = daemon.swarm_status()
+    status["elapsed_seconds"] = round(elapsed, 2)
+
+    report_lines = [
+        f"=== SwarmDaemon Report: {args.instance_id} ===",
+        f"Steps: {args.steps}, Time: {elapsed:.2f}s",
+        f"Vertices: {status['vertices_active']}, Edges: {status['edges_active']}",
+        f"beta_1: {status['beta_1']}, Settled: {status['settled_cycles']}",
+        f"Events: {status['total_events']}, Gaps: {status['total_gaps_detected']}",
+        f"Blocks written: {status['blocks_written']}",
+        f"Blocks injected: {status['blocks_injected']}",
+        f"Known blocks: {status['known_blocks']}",
+    ]
+    if "ipfs_uploaded" in status:
+        report_lines.append(f"IPFS uploaded: {status['ipfs_uploaded']}")
+
+    report = "\n".join(report_lines)
+    logger.info(report)
+    print(report)
+
+    if args.output:
+        out_dir = os.path.dirname(args.output)
+        if out_dir:
+            os.makedirs(out_dir, exist_ok=True)
+        with open(args.output, "w", encoding="utf-8") as f:
+            f.write(report + "\n")
+            f.write("\n--- Status JSON ---\n")
+            f.write(json.dumps(status, indent=2, ensure_ascii=False) + "\n")
+
+    # Cleanup
+    ipfs_uploader.stop()
+    daemon.close()
+    _remove_pid(pid_path)
+
+    return status
 
 
 def main() -> None:
@@ -143,89 +431,43 @@ def main() -> None:
     parser.add_argument("--hegel", action="store_true", help="Build from Hegel Phenomenology chapters")
     parser.add_argument("--load", type=str, help="Load graph from JSON file")
     parser.add_argument("--output", type=str, help="Output file for results")
+    parser.add_argument("--persist", type=str, nargs="?", const=str(PERSIST_DEFAULT_PATH),
+                        help="Enable JSONL persistence (default on)")
+    parser.add_argument("--max-retries", type=int, default=3,
+                        help="Maximum crash retries (0 = no retry)")
+    parser.add_argument("--retry-delay", type=int, default=5,
+                        help="Seconds between retries")
+
     args = parser.parse_args()
 
     script_dir = os.path.dirname(os.path.abspath(__file__))
     parent_dir = os.path.dirname(script_dir)
     os.chdir(parent_dir)
 
-    # Build graph
-    graph = None
-    if args.load:
-        load_path = args.load
-        if not os.path.isabs(load_path):
-            load_path = os.path.join(parent_dir, load_path)
-        with open(load_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        if "graph_data" in data:
-            graph = graph_from_dict(data["graph_data"])
-        else:
-            graph = graph_from_dict(data)
-    elif args.seed:
-        seed_path = args.seed
-        if not os.path.isabs(seed_path):
-            seed_path = os.path.join(parent_dir, seed_path)
-        with open(seed_path, "r", encoding="utf-8") as f:
-            text = f.read()
-        from phi_L import phi_L
-        graph = phi_L(text)
-    elif args.hegel:
-        graph, _ = _build_graph_from_chapters()
-    else:
-        graph, _ = _build_graph_from_chapters()
+    # Setup logging
+    shared_dir = args.shared
+    if not os.path.isabs(shared_dir):
+        shared_dir = os.path.join(parent_dir, shared_dir)
+    log_path = Path(shared_dir) / "output" / "daemon.log"
+    logger = _setup_logging(log_path, args.instance_id)
 
-    # Use instance_id hash as random seed for diversity
-    instance_seed = hash(args.instance_id) % (2**31)
-
-    daemon = SwarmDaemon(
-        shared_dir=args.shared,
-        instance_id=args.instance_id,
-        sync_interval=args.sync_interval,
-        graph=graph,
-        settlement_threshold=15,
-        seed=instance_seed,
-    )
-
-    # Event logging
-    def on_event(log: StepLog, narrative: str) -> None:
-        print(f"[{args.instance_id}] {narrative}", file=sys.stderr)
-
-    daemon.register_callback("on_event", on_event)
-
-    n_verts = len(daemon.k_active.active_vertex_ids())
-    n_edges = len(daemon.k_active.active_edges())
-    beta_1 = compute_beta_1(daemon.k_active)
-    print(f"[{args.instance_id}] Starting: {n_verts}V {n_edges}E beta_1={beta_1}, {args.steps} steps", file=sys.stderr)
-
-    t0 = time.monotonic()
-    daemon.run(max_steps=args.steps)
-    elapsed = time.monotonic() - t0
-
-    status = daemon.swarm_status()
-
-    report_lines = [
-        f"=== SwarmDaemon Report: {args.instance_id} ===",
-        f"Steps: {args.steps}, Time: {elapsed:.2f}s",
-        f"Vertices: {status['vertices_active']}, Edges: {status['edges_active']}",
-        f"beta_1: {status['beta_1']}, Settled: {status['settled_cycles']}",
-        f"Events: {status['total_events']}, Gaps: {status['total_gaps_detected']}",
-        f"Blocks written: {status['blocks_written']}",
-        f"Blocks injected: {status['blocks_injected']}",
-        f"Known blocks: {status['known_blocks']}",
-    ]
-    report = "\n".join(report_lines)
-    print(report)
-
-    if args.output:
-        out_dir = os.path.dirname(args.output)
-        if out_dir:
-            os.makedirs(out_dir, exist_ok=True)
-        with open(args.output, "w", encoding="utf-8") as f:
-            f.write(report + "\n")
-            f.write("\n--- Status JSON ---\n")
-            f.write(json.dumps(status, indent=2, ensure_ascii=False) + "\n")
-
-    daemon.close()
+    # Crash retry wrapper
+    retries = 0
+    while True:
+        try:
+            _run_once(args, parent_dir, logger)
+            break  # Clean exit
+        except KeyboardInterrupt:
+            logger.info("Interrupted by user")
+            break
+        except Exception as exc:
+            retries += 1
+            logger.error(f"Daemon crashed: {exc}", exc_info=True)
+            if retries > args.max_retries:
+                logger.error(f"Max retries ({args.max_retries}) exceeded, giving up")
+                sys.exit(1)
+            logger.info(f"Retrying in {args.retry_delay}s (attempt {retries}/{args.max_retries})")
+            time.sleep(args.retry_delay)
 
 
 if __name__ == "__main__":
