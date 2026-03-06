@@ -1,0 +1,47 @@
+======================================================================
+ACADEMIC FEED PIPELINE TEST REPORT
+======================================================================
+
+--- Test 1: Semantic Scholar search ---
+Query: "discrete Morse theory"
+
+  Results: 0 papers
+
+--- Test 2: arXiv search ---
+Query: "discrete Morse theory"
+
+  Results: 3 papers
+  [1] Strong discrete Morse theory
+      arXiv ID: 2504.15729
+      PDF URL: https://arxiv.org/pdf/2504.15729.pdf
+      Abstract: The purpose of this work is to develop a version of Forman's discrete Morse theory for simplicial complexes, based on internal strong collapses. Class...
+
+  [2] Gradient Vector Fields of Discrete Morse Functions and Watershed-cuts
+      arXiv ID: 2203.11512
+      PDF URL: https://arxiv.org/pdf/2203.11512.pdf
+      Abstract: In this paper, we study a class of discrete Morse functions, coming from Discrete Morse Theory, that are equivalent to a class of simplicial stacks, c...
+
+  [3] Variational Approach to Quantum Field Theory: Gaussian Approximation and the Perturbative Expansion around It
+      arXiv ID: 9707234
+      PDF URL: https://arxiv.org/pdf/9707234.pdf
+      Abstract: The functional Schrodinger picture formulation of quantum field theory and the variational Gaussian approximation method based on the formulation are ...
+
+
+--- Test 3: Unpaywall ---
+DOI: 10.1006/aima.1997.1650 (Forman, Morse Theory for Cell Complexes)
+
+  No OA URL found
+
+--- Test 4: PDF extraction ---
+  Available backend: pymupdf
+  Attempting download + extract for arXiv:2504.15729
+  PDF downloaded: 1650798 bytes
+  Extracted text length: 61796 chars
+  First 500 chars: arXiv:2504.15729v2  [math.AT]  22 Jun 2025 STRONG DISCRETE MORSE THEORY XIMENA FERN´ANDEZ Abstract. The purpose of this work is to develop a version of Forman’s discrete Morse theory for simplicial complexes, based on internal strong collapses. Classical discrete Morse theory can be viewed as a generalization of Whitehead’s collapses, where each Morse function on a simplicial complex K defines a sequence of elementary internal collapses. This reduction guarantees the existence of a CW-complex th
+
+--- Test 5: Semantic Scholar get_paper ---
+  Skipping (no papers from search)
+
+======================================================================
+END OF REPORT
+======================================================================

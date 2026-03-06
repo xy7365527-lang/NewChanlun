@@ -66,13 +66,14 @@ def search_by_topology(
     if graph.vertex(target_vertex) is None:
         return []
 
-    target_profile = _vertex_profile(graph, target_vertex)
+    # Pre-compute all profiles in one pass over edges
+    profiles = _batch_vertex_profiles(graph)
+    target_profile = profiles.get(target_vertex, _empty_profile())
     results: list[dict] = []
 
-    for vid in graph.active_vertex_ids():
+    for vid, profile in profiles.items():
         if vid == target_vertex:
             continue
-        profile = _vertex_profile(graph, vid)
         score = _profile_similarity(target_profile, profile)
         v = graph.vertex(vid)
         results.append({
@@ -146,6 +147,51 @@ def _edge_types_for(graph: Graph, vid: str) -> list[str]:
         if e.source == vid or e.target == vid:
             types.add(e.edge_type.value)
     return sorted(types)
+
+
+def _empty_profile() -> dict:
+    return {
+        "in_degree": 0,
+        "out_degree": 0,
+        "total_degree": 0,
+        "in_types": {},
+        "out_types": {},
+    }
+
+
+def _batch_vertex_profiles(graph: Graph) -> dict[str, dict]:
+    """Pre-compute structural profiles for all active vertices in one pass."""
+    active = set(graph.active_vertex_ids())
+    profiles: dict[str, dict] = {
+        vid: {
+            "in_degree": 0,
+            "out_degree": 0,
+            "total_degree": 0,
+            "in_types": {},
+            "out_types": {},
+            "_in_set": set(),
+            "_out_set": set(),
+        }
+        for vid in active
+    }
+
+    for e in graph.edges:
+        if e.source not in active or e.target not in active:
+            continue
+        src_p = profiles[e.source]
+        tgt_p = profiles[e.target]
+        src_p["_out_set"].add(e.target)
+        tgt_p["_in_set"].add(e.source)
+        et = e.edge_type.value
+        src_p["out_types"][et] = src_p["out_types"].get(et, 0) + 1
+        tgt_p["in_types"][et] = tgt_p["in_types"].get(et, 0) + 1
+
+    for vid, p in profiles.items():
+        p["in_degree"] = len(p.pop("_in_set"))
+        p["out_degree"] = len(p.pop("_out_set"))
+        p["total_degree"] = p["in_degree"] + p["out_degree"]
+
+    return profiles
 
 
 def _vertex_profile(graph: Graph, vid: str) -> dict:

@@ -1,0 +1,155 @@
+======================================================================
+FEED REPOS ANALYSIS — Topological Code Ingestion
+======================================================================
+
+
+======================================================================
+REPO: everything-claude-code
+Path: C:\Users\hanju\AppData\Local\Temp\everything-claude-code
+======================================================================
+
+File counts:
+  Python:     2
+  TypeScript: 15
+  JavaScript: 68
+  Markdown:   588
+
+--- Python ingestion (AST-based) ---
+  After Python: 104 vertices, 87 edges
+
+--- TypeScript/JavaScript ingestion (regex-based) ---
+  After TS/JS: 1979 vertices, 1901 edges
+
+--- Markdown ingestion ---
+  After Markdown: 5410 vertices, 5211 edges
+
+--- Simplicial Complex Statistics ---
+  Vertices (V):           5410
+  Directed edges:         5211
+  Undirected edges (E):   5211
+  beta_1 (1-cycles):      33
+  Self-loops:             0
+
+--- Top 15 Hub Vertices (highest degree) ---
+   1. [753] doc:SKILL  (--- name: api-design description: REST A)
+   2. [185] session-manager.test.<module>  (session-manager.test)
+   3. [158] hooks.test.<module>  (hooks.test)
+   4. [130] utils.test.<module>  (utils.test)
+   5. [ 97] session-aliases.test.<module>  (session-aliases.test)
+   6. [ 97] doc:README  (### Plugin Manifest Gotchas  If you plan)
+   7. [ 82] claw.<module>  (claw)
+   8. [ 66] doc:go-build  (--- description: Fix Go build and vet er)
+   9. [ 65] doc:go-test  (--- description: Go TDD workflow with ta)
+  10. [ 62] doc:orchestrate  (--- description: Orchestrate multiple ag)
+  11. [ 62] doc:go-review  (--- description: Go code review for idio)
+  12. [ 60] doc:architect  (--- name: architect description: Softwar)
+  13. [ 60] doc:planner  (--- name: planner description: Expert pl)
+  14. [ 59] utils.<module>  (utils)
+  15. [ 59] doc:evolve  (--- description: Analyze instincts and s)
+
+--- Fold Candidates (high-degree non-module vertices) ---
+
+--- Code Search: fold candidates ---
+  'fold': 4 hits
+    - instinct-cli._validate_file_path (neighbors=2)
+    - doc:tdd.Step 1: Define Interfaces (SCAFFOLD) (neighbors=1)
+    - doc:tdd.Step 1: Define Interface (SCAFFOLD) (neighbors=1)
+  'transform': 1 hits
+    - adapter.transformToClaude (neighbors=1)
+  'merge': 7 hits
+    - hooks.test.mergedEnv (neighbors=1)
+    - doc:security-reviewer.Emergency Response (neighbors=1)
+    - doc:instinct-import.Merge Behavior (neighbors=1)
+  'hook': 264 hits
+    - hooks.test.<module> (neighbors=158)
+    - ecc-hooks.<module> (neighbors=22)
+    - validate-hooks.<module> (neighbors=15)
+  'agent': 136 hits
+    - doc:go-build (neighbors=66)
+    - doc:go-test (neighbors=65)
+    - doc:go-review (neighbors=62)
+  'skill': 938 hits
+    - doc:SKILL (neighbors=753)
+    - doc:skill-create (neighbors=56)
+    - skill-create-output.test.<module> (neighbors=34)
+
+
+======================================================================
+REPO: OpenClaw (src/)
+Path: C:\Users\hanju\AppData\Local\Temp\openclaw\src
+======================================================================
+
+File counts:
+  Python:     0
+  TypeScript: 4517
+  JavaScript: 3
+  Markdown:   7
+
+--- TypeScript/JavaScript ingestion (regex-based) ---
+  After TS/JS: 34721 vertices, 40842 edges
+
+--- Markdown ingestion ---
+  After Markdown: 34760 vertices, 40877 edges
+
+--- Simplicial Complex Statistics ---
+  Vertices (V):           34760
+  Directed edges:         40877
+  Undirected edges (E):   40844
+  beta_1 (1-cycles):      6134
+  Self-loops:             0
+
+--- Top 15 Hub Vertices (highest degree) ---
+   1. [814] vitest.<module>  (vitest)
+   2. [621] config.<module>  (config)
+   3. [417] shared.<module>  (shared)
+   4. [372] types.<module>  (types)
+   5. [309] node:path.<module>  (node:path)
+   6. [284] workspace.<module>  (workspace)
+   7. [284] status.<module>  (status)
+   8. [264] helpers.<module>  (helpers)
+   9. [263] attempt.<module>  (attempt)
+  10. [238] run.<module>  (run)
+  11. [233] runtime.<module>  (runtime)
+  12. [228] doctor-config-flow.<module>  (doctor-config-flow)
+  13. [222] model-selection.<module>  (model-selection)
+  14. [202] models-config.providers.<module>  (models-config.providers)
+  15. [198] subagent-announce.<module>  (subagent-announce)
+
+--- Fold Candidates (high-degree non-module vertices) ---
+
+--- Code Search: fold candidates ---
+  'fold': 1 hits
+    - attempt.folded (neighbors=1)
+  'transform': 9 hits
+    - tool-result-context-guard.test.transformed (neighbors=1)
+    - tool-result-context-guard.test.transformedMessages (neighbors=1)
+    - tool-result-context-guard.originalTransformContext (neighbors=1)
+  'merge': 106 hits
+    - skills.build-workspace-skills-prompt.syncs-merged- (neighbors=31)
+    - sandbox-merge.test.<module> (neighbors=6)
+    - runtime-options.mergeRuntimeOptions (neighbors=1)
+  'hook': 345 hits
+    - hooks-cli.<module> (neighbors=96)
+    - session-tool-result-guard.tool-result-persist-hook (neighbors=25)
+    - sessions-spawn-hooks.test.<module> (neighbors=22)
+  'agent': 3167 hits
+    - subagent-announce.<module> (neighbors=197)
+    - subagent-registry.<module> (neighbors=183)
+    - agent.<module> (neighbors=153)
+  'skill': 740 hits
+    - skills-install.<module> (neighbors=69)
+    - skills-status.<module> (neighbors=60)
+    - skills-install-download.<module> (neighbors=48)
+
+
+======================================================================
+SUMMARY COMPARISON
+======================================================================
+
+Metric                            everything-claude-code                  OpenClaw
+--------------------------------------------------------------------------------
+Vertices......................                      5410                     34760
+Undirected Edges..............                      5211                     40844
+beta_1........................                        33                      6134
+Edge density (E/V)............                      0.96                      1.18
+Cycle density (beta_1/V)......                    0.0061                    0.1765

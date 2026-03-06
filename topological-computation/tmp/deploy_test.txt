@@ -1,0 +1,59 @@
+======================================================================
+DEPLOYMENT INTEGRATION TEST
+======================================================================
+
+Test directory: C:\Users\hanju\AppData\Local\Temp\swarm_deploy_test_z0j1qysp
+Shared directory: C:\Users\hanju\AppData\Local\Temp\swarm_deploy_test_z0j1qysp\swarm
+Persist path: C:\Users\hanju\AppData\Local\Temp\swarm_deploy_test_z0j1qysp\k_full.jsonl
+
+--- Phase 1: Build Initial Graph ---
+  Vertices: 210
+  Edges: 360
+  beta_1: 130
+
+--- Phase 2: First Run (200 steps) ---
+  Time: 0.40s
+  beta_1: 140
+  Blocks written: 16
+  Settled cycles: 14
+  Events: 21
+  Vertices (active): 236
+  Edges (active): 409
+  Daemon stopped.
+
+--- Phase 3: Verify Blocks on Disk ---
+  Block files on disk: 16
+  Valid blocks: 16/16
+  Invalid blocks: []
+  Merkle root: b2ca473a13436e84...
+  [PASS] All blocks have valid content hashes
+
+--- Phase 4: Merkle Tree Verification ---
+  Merkle root from blocks: b2ca473a13436e84...
+  Proof for first block (1766681ea6d0...): VALID
+  [PASS] Merkle proof verified
+
+--- Phase 5: Recovery from Persistence ---
+  Recovered vertices: 210
+  Recovered edges: 360
+  Recovered beta_1: 130
+  Operations in log: 21
+  [PASS] Recovered vertex count >= initial (210 >= 210)
+
+--- Phase 6: Second Run (50 steps from recovered state) ---
+  Time: 0.12s
+  beta_1 before: 130
+  beta_1 after: 135
+  Events: 5
+  Blocks written: 5
+  [PASS] Traversal continues after recovery
+
+--- Phase 7: IPFS Graceful Degradation ---
+  IPFS daemon available: False
+  [PASS] IPFS not running — graceful degradation (local-only mode)
+
+======================================================================
+RESULT: ALL CHECKS PASSED
+======================================================================
+
+Test artifacts in: C:\Users\hanju\AppData\Local\Temp\swarm_deploy_test_z0j1qysp

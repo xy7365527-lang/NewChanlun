@@ -253,6 +253,15 @@ class TopologicalDaemon:
         """One step: traverse -> encounter -> operate -> terrain -> gap detect."""
         self.total_steps += 1
 
+        # Capture pre-step state for persistence diff
+        if self._persist:
+            pre_vids = set(self.k_full.vertices.keys())
+            pre_edges = set(self.k_full.edges)
+            # Track K_active vertex statuses to detect fold state changes
+            pre_active_statuses = {
+                vid: v.status for vid, v in self.k_active.vertices.items()
+            }
+
         log = self.engine.run_step()
 
         # Sync graph state from engine
@@ -260,7 +269,29 @@ class TopologicalDaemon:
         self.k_full = self.engine.k_full
         self.terrain = self.engine.terrain
 
-        # Persist significant events
+        # Persist graph state changes (always, not just for significant events)
+        if self._persist:
+            # Write new vertices created by this step (in K_full)
+            for vid, v in self.k_full.vertices.items():
+                if vid not in pre_vids:
+                    self._persist.append_vertex(v)
+            # Write new edges created by this step (in K_full)
+            for e in self.k_full.edges:
+                if e not in pre_edges:
+                    self._persist.append_edge(e)
+            # Detect and write fold merges (ACTIVE → FOLDED with edge redirect)
+            for vid, v in self.k_active.vertices.items():
+                old_status = pre_active_statuses.get(vid)
+                if old_status is not None and old_status != v.status:
+                    if v.status == VertexStatus.FOLDED:
+                        # Find which vertex absorbed this one:
+                        # the kept vertex is position after fold
+                        self._persist.append_merge(log.position, vid, log.step)
+                    else:
+                        # Other status changes (e.g. CONTESTED)
+                        self._persist.append_vertex_status(vid, v.status.value, log.step)
+
+        # Persist operation log for significant events
         if self._persist and self._is_significant(log):
             self._persist.append_operation(log.step, log.operation, {
                 "position": log.position,

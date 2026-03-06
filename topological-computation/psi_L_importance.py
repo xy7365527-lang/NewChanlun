@@ -100,20 +100,17 @@ def filter_by_importance(
 ) -> list[dict]:
     """Keep only steps with I >= theta.
 
-    theta='auto': use 75th percentile of non-zero importance values.
-                  This typically retains the top ~25% most significant events.
-    theta='mean': use mean of non-zero importance values.
+    theta='auto': use median of significant (I >= 1.0) importance values.
+    theta='mean': use mean of significant importance values.
     """
     if isinstance(theta, str):
-        nonzero = sorted(v for v in importance if v > 0)
-        if not nonzero:
+        significant = sorted(v for v in importance if v >= 1.0)
+        if not significant:
             return [s for s in step_logs if s["operation"] in _ENCOUNTER_OPS]
         if theta == "mean":
-            threshold = statistics.mean(nonzero)
+            threshold = statistics.mean(significant)
         else:
-            # 75th percentile: keep top quarter of events
-            idx = int(len(nonzero) * 0.75)
-            threshold = nonzero[min(idx, len(nonzero) - 1)]
+            threshold = statistics.median(significant)
     else:
         threshold = theta
 
@@ -286,13 +283,12 @@ def generate_narrative_l2(
             filtered_indices[s["step"]] = orig_idx
 
     # Compute actual theta used
-    nonzero_imp = sorted(v for v in importance if v > 0)
+    nonzero_imp = sorted(v for v in importance if v >= 1.0)
     if isinstance(theta, str) and nonzero_imp:
         if theta == "mean":
             actual_theta = statistics.mean(nonzero_imp)
         else:
-            idx = int(len(nonzero_imp) * 0.75)
-            actual_theta = nonzero_imp[min(idx, len(nonzero_imp) - 1)]
+            actual_theta = statistics.median(nonzero_imp)
     elif isinstance(theta, (int, float)):
         actual_theta = theta
     else:
