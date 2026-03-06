@@ -1,0 +1,6277 @@
+{
+  "experiment": "merge_hegel_lacan",
+  "description": "Three-complex merge: Hegel Phenomenology + Lacan Ecrits + Lacan Seminars",
+  "pre_merge": {
+    "hegel_phenomenology": {
+      "vertices": 210,
+      "edges": 360,
+      "beta_1": 130,
+      "edge_type_distribution": {
+        "negation": 94,
+        "dependency": 187,
+        "reference": 62,
+        "sublation": 17
+      }
+    },
+    "lacan_ecrits": {
+      "vertices": 114,
+      "edges": 206,
+      "beta_1": 91,
+      "edge_type_distribution": {
+        "negation": 28,
+        "dependency": 118,
+        "reference": 58,
+        "sublation": 2
+      }
+    },
+    "lacan_seminars": {
+      "vertices": 193,
+      "edges": 317,
+      "beta_1": 124,
+      "edge_type_distribution": {
+        "negation": 37,
+        "dependency": 221,
+        "reference": 33,
+        "sublation": 26
+      }
+    },
+    "independent_beta_1_sum": 345
+  },
+  "merge_info": {
+    "shared_vertices": {
+      "Name_of_Father": [
+        "ecrits",
+        "seminars"
+      ],
+      "Other_barred": [
+        "ecrits",
+        "seminars"
+      ],
+      "alienation": [
+        "ecrits",
+        "seminars"
+      ],
+      "castration": [
+        "ecrits",
+        "seminars"
+      ],
+      "demand": [
+        "ecrits",
+        "seminars"
+      ],
+      "desire": [
+        "hegel",
+        "ecrits",
+        "seminars"
+      ],
+      "ego": [
+        "ecrits",
+        "seminars"
+      ],
+      "empty_speech": [
+        "ecrits",
+        "seminars"
+      ],
+      "fantasy": [
+        "ecrits",
+        "seminars"
+      ],
+      "foreclosure": [
+        "ecrits",
+        "seminars"
+      ],
+      "frustration": [
+        "ecrits",
+        "seminars"
+      ],
+      "full_speech": [
+        "ecrits",
+        "seminars"
+      ],
+      "graph_of_desire": [
+        "ecrits",
+        "seminars"
+      ],
+      "ideal_ego": [
+        "ecrits",
+        "seminars"
+      ],
+      "identification": [
+        "ecrits",
+        "seminars"
+      ],
+      "imaginary": [
+        "ecrits",
+        "seminars"
+      ],
+      "intersubjectivity": [
+        "ecrits",
+        "seminars"
+      ],
+      "jouissance": [
+        "ecrits",
+        "seminars"
+      ],
+      "lamella": [
+        "ecrits",
+        "seminars"
+      ],
+      "law": [
+        "hegel",
+        "ecrits"
+      ],
+      "need": [
+        "ecrits",
+        "seminars"
+      ],
+      "objet_a": [
+        "ecrits",
+        "seminars"
+      ],
+      "paternal_metaphor": [
+        "ecrits",
+        "seminars"
+      ],
+      "pleasure_principle": [
+        "ecrits",
+        "seminars"
+      ],
+      "point_de_capiton": [
+        "ecrits",
+        "seminars"
+      ],
+      "privation": [
+        "ecrits",
+        "seminars"
+      ],
+      "psychosis": [
+        "ecrits",
+        "seminars"
+      ],
+      "real": [
+        "ecrits",
+        "seminars"
+      ],
+      "religion": [
+        "hegel",
+        "ecrits"
+      ],
+      "repetition_automatism": [
+        "ecrits",
+        "seminars"
+      ],
+      "resistance": [
+        "ecrits",
+        "seminars"
+      ],
+      "science": [
+        "hegel",
+        "ecrits"
+      ],
+      "separation": [
+        "ecrits",
+        "seminars"
+      ],
+      "signified": [
+        "ecrits",
+        "seminars"
+      ],
+      "signifier": [
+        "ecrits",
+        "seminars"
+      ],
+      "subject": [
+        "hegel",
+        "ecrits"
+      ],
+      "subject_of_science": [
+        "ecrits",
+        "seminars"
+      ],
+      "symbolic": [
+        "ecrits",
+        "seminars"
+      ],
+      "transference": [
+        "ecrits",
+        "seminars"
+      ]
+    },
+    "shared_vertex_count": 39,
+    "cross_complex_edge_count": 261
+  },
+  "post_merge": {
+    "vertices": 477,
+    "edges": 867,
+    "beta_1": 359,
+    "beta_1_delta_vs_independent": 14,
+    "edge_type_distribution": {
+      "negation": 153,
+      "dependency": 516,
+      "reference": 153,
+      "sublation": 45
+    }
+  },
+  "fold_candidates": [
+    {
+      "v1": "lamella",
+      "v2": "need",
+      "f_value": 0,
+      "origins_v1": [
+        "ecrits",
+        "seminars"
+      ],
+      "origins_v2": [
+        "ecrits",
+        "seminars"
+      ]
+    },
+    {
+      "v1": "frustration",
+      "v2": "need",
+      "f_value": 1,
+      "origins_v1": [
+        "ecrits",
+        "seminars"
+      ],
+      "origins_v2": [
+        "ecrits",
+        "seminars"
+      ]
+    },
+    {
+      "v1": "graph_of_desire",
+      "v2": "lamella",
+      "f_value": 1,
+      "origins_v1": [
+        "ecrits",
+        "seminars"
+      ],
+      "origins_v2": [
+        "ecrits",
+        "seminars"
+      ]
+    },
+    {
+      "v1": "graph_of_desire",
+      "v2": "need",
+      "f_value": 1,
+      "origins_v1": [
+        "ecrits",
+        "seminars"
+      ],
+      "origins_v2": [
+        "ecrits",
+        "seminars"
+      ]
+    },
+    {
+      "v1": "graph_of_desire",
+      "v2": "point_de_capiton",
+      "f_value": 1,
+      "origins_v1": [
+        "ecrits",
+        "seminars"
+      ],
+      "origins_v2": [
+        "ecrits",
+        "seminars"
+      ]
+    },
+    {
+      "v1": "graph_of_desire",
+      "v2": "separation",
+      "f_value": 1,
+      "origins_v1": [
+        "ecrits",
+        "seminars"
+      ],
+      "origins_v2": [
+        "ecrits",
+        "seminars"
+      ]
+    },
+    {
+      "v1": "graph_of_desire",
+      "v2": "signified",
+      "f_value": 1,
+      "origins_v1": [
+        "ecrits",
+        "seminars"
+      ],
+      "origins_v2": [
+        "ecrits",
+        "seminars"
+      ]
+    },
+    {
+      "v1": "need",
+      "v2": "point_de_capiton",
+      "f_value": 1,
+      "origins_v1": [
+        "ecrits",
+        "seminars"
+      ],
+      "origins_v2": [
+        "ecrits",
+        "seminars"
+      ]
+    },
+    {
+      "v1": "need",
+      "v2": "signified",
+      "f_value": 1,
+      "origins_v1": [
+        "ecrits",
+        "seminars"
+      ],
+      "origins_v2": [
+        "ecrits",
+        "seminars"
+      ]
+    },
+    {
+      "v1": "point_de_capiton",
+      "v2": "signified",
+      "f_value": 1,
+      "origins_v1": [
+        "ecrits",
+        "seminars"
+      ],
+      "origins_v2": [
+        "ecrits",
+        "seminars"
+      ]
+    },
+    {
+      "v1": "demand",
+      "v2": "lamella",
+      "f_value": 2,
+      "origins_v1": [
+        "ecrits",
+        "seminars"
+      ],
+      "origins_v2": [
+        "ecrits",
+        "seminars"
+      ]
+    },
+    {
+      "v1": "demand",
+      "v2": "point_de_capiton",
+      "f_value": 2,
+      "origins_v1": [
+        "ecrits",
+        "seminars"
+      ],
+      "origins_v2": [
+        "ecrits",
+        "seminars"
+      ]
+    },
+    {
+      "v1": "demand",
+      "v2": "signified",
+      "f_value": 2,
+      "origins_v1": [
+        "ecrits",
+        "seminars"
+      ],
+      "origins_v2": [
+        "ecrits",
+        "seminars"
+      ]
+    },
+    {
+      "v1": "empty_speech",
+      "v2": "intersubjectivity",
+      "f_value": 2,
+      "origins_v1": [
+        "ecrits",
+        "seminars"
+      ],
+      "origins_v2": [
+        "ecrits",
+        "seminars"
+      ]
+    },
+    {
+      "v1": "empty_speech",
+      "v2": "need",
+      "f_value": 2,
+      "origins_v1": [
+        "ecrits",
+        "seminars"
+      ],
+      "origins_v2": [
+        "ecrits",
+        "seminars"
+      ]
+    },
+    {
+      "v1": "empty_speech",
+      "v2": "privation",
+      "f_value": 2,
+      "origins_v1": [
+        "ecrits",
+        "seminars"
+      ],
+      "origins_v2": [
+        "ecrits",
+        "seminars"
+      ]
+    },
+    {
+      "v1": "frustration",
+      "v2": "graph_of_desire",
+      "f_value": 2,
+      "origins_v1": [
+        "ecrits",
+        "seminars"
+      ],
+      "origins_v2": [
+        "ecrits",
+        "seminars"
+      ]
+    },
+    {
+      "v1": "frustration",
+      "v2": "lamella",
+      "f_value": 2,
+      "origins_v1": [
+        "ecrits",
+        "seminars"
+      ],
+      "origins_v2": [
+        "ecrits",
+        "seminars"
+      ]
+    },
+    {
+      "v1": "frustration",
+      "v2": "point_de_capiton",
+      "f_value": 2,
+      "origins_v1": [
+        "ecrits",
+        "seminars"
+      ],
+      "origins_v2": [
+        "ecrits",
+        "seminars"
+      ]
+    },
+    {
+      "v1": "frustration",
+      "v2": "privation",
+      "f_value": 2,
+      "origins_v1": [
+        "ecrits",
+        "seminars"
+      ],
+      "origins_v2": [
+        "ecrits",
+        "seminars"
+      ]
+    },
+    {
+      "v1": "frustration",
+      "v2": "signified",
+      "f_value": 2,
+      "origins_v1": [
+        "ecrits",
+        "seminars"
+      ],
+      "origins_v2": [
+        "ecrits",
+        "seminars"
+      ]
+    },
+    {
+      "v1": "graph_of_desire",
+      "v2": "ideal_ego",
+      "f_value": 2,
+      "origins_v1": [
+        "ecrits",
+        "seminars"
+      ],
+      "origins_v2": [
+        "ecrits",
+        "seminars"
+      ]
+    },
+    {
+      "v1": "graph_of_desire",
+      "v2": "intersubjectivity",
+      "f_value": 2,
+      "origins_v1": [
+        "ecrits",
+        "seminars"
+      ],
+      "origins_v2": [
+        "ecrits",
+        "seminars"
+      ]
+    },
+    {
+      "v1": "graph_of_desire",
+      "v2": "resistance",
+      "f_value": 2,
+      "origins_v1": [
+        "ecrits",
+        "seminars"
+      ],
+      "origins_v2": [
+        "ecrits",
+        "seminars"
+      ]
+    },
+    {
+      "v1": "ideal_ego",
+      "v2": "need",
+      "f_value": 2,
+      "origins_v1": [
+        "ecrits",
+        "seminars"
+      ],
+      "origins_v2": [
+        "ecrits",
+        "seminars"
+      ]
+    },
+    {
+      "v1": "ideal_ego",
+      "v2": "point_de_capiton",
+      "f_value": 2,
+      "origins_v1": [
+        "ecrits",
+        "seminars"
+      ],
+      "origins_v2": [
+        "ecrits",
+        "seminars"
+      ]
+    },
+    {
+      "v1": "ideal_ego",
+      "v2": "privation",
+      "f_value": 2,
+      "origins_v1": [
+        "ecrits",
+        "seminars"
+      ],
+      "origins_v2": [
+        "ecrits",
+        "seminars"
+      ]
+    },
+    {
+      "v1": "ideal_ego",
+      "v2": "signified",
+      "f_value": 2,
+      "origins_v1": [
+        "ecrits",
+        "seminars"
+      ],
+      "origins_v2": [
+        "ecrits",
+        "seminars"
+      ]
+    },
+    {
+      "v1": "intersubjectivity",
+      "v2": "need",
+      "f_value": 2,
+      "origins_v1": [
+        "ecrits",
+        "seminars"
+      ],
+      "origins_v2": [
+        "ecrits",
+        "seminars"
+      ]
+    },
+    {
+      "v1": "intersubjectivity",
+      "v2": "point_de_capiton",
+      "f_value": 2,
+      "origins_v1": [
+        "ecrits",
+        "seminars"
+      ],
+      "origins_v2": [
+        "ecrits",
+        "seminars"
+      ]
+    }
+  ],
+  "traversal": {
+    "total_steps": 2000,
+    "final_beta_1": 450,
+    "final_vertices_active": 636,
+    "final_edges_active": 1255,
+    "final_settled_cycles": 113,
+    "operation_counts": {
+      "negate_b": 104,
+      "walk": 1405,
+      "sublate": 118,
+      "fold_blocked": 296,
+      "fold": 63,
+      "negate_a": 14
+    },
+    "beta_1_snapshots": [
+      {
+        "step": 100,
+        "beta_1": 367,
+        "vertices_active": 495,
+        "edges_active": 897,
+        "settled_count": 9
+      },
+      {
+        "step": 200,
+        "beta_1": 377,
+        "vertices_active": 515,
+        "edges_active": 927,
+        "settled_count": 19
+      },
+      {
+        "step": 300,
+        "beta_1": 383,
+        "vertices_active": 514,
+        "edges_active": 955,
+        "settled_count": 25
+      },
+      {
+        "step": 400,
+        "beta_1": 389,
+        "vertices_active": 523,
+        "edges_active": 977,
+        "settled_count": 31
+      },
+      {
+        "step": 500,
+        "beta_1": 392,
+        "vertices_active": 530,
+        "edges_active": 1001,
+        "settled_count": 37
+      },
+      {
+        "step": 600,
+        "beta_1": 400,
+        "vertices_active": 543,
+        "edges_active": 1030,
+        "settled_count": 44
+      },
+      {
+        "step": 700,
+        "beta_1": 405,
+        "vertices_active": 554,
+        "edges_active": 1052,
+        "settled_count": 51
+      },
+      {
+        "step": 800,
+        "beta_1": 413,
+        "vertices_active": 569,
+        "edges_active": 1080,
+        "settled_count": 59
+      },
+      {
+        "step": 900,
+        "beta_1": 419,
+        "vertices_active": 568,
+        "edges_active": 1099,
+        "settled_count": 64
+      },
+      {
+        "step": 1000,
+        "beta_1": 421,
+        "vertices_active": 576,
+        "edges_active": 1120,
+        "settled_count": 72
+      },
+      {
+        "step": 1100,
+        "beta_1": 421,
+        "vertices_active": 576,
+        "edges_active": 1126,
+        "settled_count": 74
+      },
+      {
+        "step": 1200,
+        "beta_1": 422,
+        "vertices_active": 576,
+        "edges_active": 1134,
+        "settled_count": 76
+      },
+      {
+        "step": 1300,
+        "beta_1": 425,
+        "vertices_active": 580,
+        "edges_active": 1149,
+        "settled_count": 80
+      },
+      {
+        "step": 1400,
+        "beta_1": 426,
+        "vertices_active": 584,
+        "edges_active": 1160,
+        "settled_count": 83
+      },
+      {
+        "step": 1500,
+        "beta_1": 428,
+        "vertices_active": 586,
+        "edges_active": 1167,
+        "settled_count": 86
+      },
+      {
+        "step": 1600,
+        "beta_1": 431,
+        "vertices_active": 594,
+        "edges_active": 1180,
+        "settled_count": 89
+      },
+      {
+        "step": 1700,
+        "beta_1": 437,
+        "vertices_active": 605,
+        "edges_active": 1197,
+        "settled_count": 96
+      },
+      {
+        "step": 1800,
+        "beta_1": 441,
+        "vertices_active": 615,
+        "edges_active": 1213,
+        "settled_count": 100
+      },
+      {
+        "step": 1900,
+        "beta_1": 445,
+        "vertices_active": 624,
+        "edges_active": 1230,
+        "settled_count": 106
+      },
+      {
+        "step": 2000,
+        "beta_1": 450,
+        "vertices_active": 636,
+        "edges_active": 1255,
+        "settled_count": 113
+      }
+    ],
+    "cross_complex_operations": [
+      {
+        "step": 3,
+        "operation": "sublate",
+        "position": "syn_property_contradiction_anti_property_contradiction_1_3",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 359,
+        "beta_1_after": 360,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 18,
+        "operation": "sublate",
+        "position": "syn_death_drive_sem2_anti_death_drive_sem2_16_18",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 360,
+        "beta_1_after": 361,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 27,
+        "operation": "sublate",
+        "position": "syn_signifier_anti_signifier_25_27",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 361,
+        "beta_1_after": 362,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 40,
+        "operation": "sublate",
+        "position": "syn_Joyce_anti_Joyce_38_40",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 362,
+        "beta_1_after": 363,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 46,
+        "operation": "fold_blocked",
+        "position": "Name_of_Father",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 363,
+        "beta_1_after": 363,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 50,
+        "operation": "sublate",
+        "position": "syn_Names_of_Father_anti_Names_of_Father_48_50",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 363,
+        "beta_1_after": 364,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 56,
+        "operation": "fold",
+        "position": "Other",
+        "position_complexes": [
+          "ecrits"
+        ],
+        "beta_1_before": 364,
+        "beta_1_after": 363,
+        "delta_beta_1": -1
+      },
+      {
+        "step": 61,
+        "operation": "sublate",
+        "position": "syn_transference_anti_transference_59_61",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 363,
+        "beta_1_after": 364,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 67,
+        "operation": "fold",
+        "position": "Other_A",
+        "position_complexes": [
+          "seminars"
+        ],
+        "beta_1_before": 364,
+        "beta_1_after": 363,
+        "delta_beta_1": -1
+      },
+      {
+        "step": 72,
+        "operation": "sublate",
+        "position": "syn_graph_of_desire_anti_graph_of_desire_70_72",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 363,
+        "beta_1_after": 364,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 80,
+        "operation": "sublate",
+        "position": "syn_Other_barred_anti_Other_barred_78_80",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 364,
+        "beta_1_after": 365,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 89,
+        "operation": "sublate",
+        "position": "syn_borromean_knot_anti_borromean_knot_87_89",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 365,
+        "beta_1_after": 366,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 97,
+        "operation": "sublate",
+        "position": "syn_S_of_A_barred_anti_S_of_A_barred_95_97",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 366,
+        "beta_1_after": 367,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 111,
+        "operation": "sublate",
+        "position": "syn_delusional_metaphor_anti_delusional_metaphor_109_111",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 367,
+        "beta_1_after": 368,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 126,
+        "operation": "sublate",
+        "position": "syn_phallus_anti_phallus_124_126",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 368,
+        "beta_1_after": 369,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 135,
+        "operation": "sublate",
+        "position": "syn_truth_whole_anti_truth_whole_133_135",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 369,
+        "beta_1_after": 370,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 143,
+        "operation": "sublate",
+        "position": "syn_absolute_freedom_anti_absolute_freedom_141_143",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 370,
+        "beta_1_after": 371,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 151,
+        "operation": "sublate",
+        "position": "syn_absolute_knowing_anti_absolute_knowing_149_151",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 371,
+        "beta_1_after": 372,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 159,
+        "operation": "sublate",
+        "position": "syn_abstract_freedom_anti_abstract_freedom_157_159",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 372,
+        "beta_1_after": 373,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 167,
+        "operation": "sublate",
+        "position": "syn_act_concept_anti_act_concept_165_167",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 373,
+        "beta_1_after": 374,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 180,
+        "operation": "sublate",
+        "position": "syn_aggressivity_anti_aggressivity_178_180",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 374,
+        "beta_1_after": 375,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 188,
+        "operation": "sublate",
+        "position": "syn_algorithm_S_over_s_anti_algorithm_S_over_s_186_188",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 375,
+        "beta_1_after": 376,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 196,
+        "operation": "sublate",
+        "position": "syn_alienation_anti_alienation_194_196",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 376,
+        "beta_1_after": 377,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 205,
+        "operation": "sublate",
+        "position": "syn_repetition_concept_anti_repetition_concept_203_205",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 377,
+        "beta_1_after": 378,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 213,
+        "operation": "sublate",
+        "position": "syn_all_not_all_anti_all_not_all_211_213",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 378,
+        "beta_1_after": 379,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 225,
+        "operation": "negate_a",
+        "position": "objet_a",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 379,
+        "beta_1_after": 379,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 226,
+        "operation": "sublate",
+        "position": "syn_objet_a_fantasy_226",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 379,
+        "beta_1_after": 380,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 228,
+        "operation": "fold_blocked",
+        "position": "objet_a",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 380,
+        "beta_1_after": 380,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 231,
+        "operation": "fold_blocked",
+        "position": "objet_a",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 380,
+        "beta_1_after": 380,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 233,
+        "operation": "fold",
+        "position": "desire",
+        "position_complexes": [
+          "ecrits",
+          "hegel",
+          "seminars"
+        ],
+        "beta_1_before": 380,
+        "beta_1_after": 380,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 234,
+        "operation": "fold_blocked",
+        "position": "desire",
+        "position_complexes": [
+          "ecrits",
+          "hegel",
+          "seminars"
+        ],
+        "beta_1_before": 380,
+        "beta_1_after": 380,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 236,
+        "operation": "fold",
+        "position": "fantasy",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 380,
+        "beta_1_after": 380,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 237,
+        "operation": "fold_blocked",
+        "position": "fantasy",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 380,
+        "beta_1_after": 380,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 240,
+        "operation": "sublate",
+        "position": "syn_drive_concept_lamella_240",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 380,
+        "beta_1_after": 381,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 266,
+        "operation": "fold",
+        "position": "transference_concept",
+        "position_complexes": [
+          "seminars"
+        ],
+        "beta_1_before": 381,
+        "beta_1_after": 382,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 270,
+        "operation": "fold",
+        "position": "graph_of_desire",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 382,
+        "beta_1_after": 383,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 272,
+        "operation": "fold_blocked",
+        "position": "symbolic",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 383,
+        "beta_1_after": 383,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 274,
+        "operation": "fold_blocked",
+        "position": "full_speech",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 383,
+        "beta_1_after": 383,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 278,
+        "operation": "sublate",
+        "position": "syn_truth_anti_truth_276_278",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 383,
+        "beta_1_after": 384,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 287,
+        "operation": "fold",
+        "position": "desire_of_Other",
+        "position_complexes": [
+          "seminars"
+        ],
+        "beta_1_before": 384,
+        "beta_1_after": 383,
+        "delta_beta_1": -1
+      },
+      {
+        "step": 292,
+        "operation": "sublate",
+        "position": "syn_identification_anti_identification_290_292",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 383,
+        "beta_1_after": 384,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 300,
+        "operation": "fold",
+        "position": "real",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 384,
+        "beta_1_after": 383,
+        "delta_beta_1": -1
+      },
+      {
+        "step": 301,
+        "operation": "fold_blocked",
+        "position": "real",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 383,
+        "beta_1_after": 383,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 307,
+        "operation": "sublate",
+        "position": "syn_uncanny_anxiety_307",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 383,
+        "beta_1_after": 384,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 323,
+        "operation": "sublate",
+        "position": "syn_borromean_anti_borromean_321_323",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 384,
+        "beta_1_after": 385,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 331,
+        "operation": "fold",
+        "position": "subject",
+        "position_complexes": [
+          "ecrits",
+          "hegel"
+        ],
+        "beta_1_before": 385,
+        "beta_1_after": 385,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 334,
+        "operation": "sublate",
+        "position": "syn_subject_anti_subject_332_334",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 385,
+        "beta_1_after": 386,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 342,
+        "operation": "sublate",
+        "position": "syn_antigone_anti_antigone_340_342",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 386,
+        "beta_1_after": 387,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 350,
+        "operation": "fold_blocked",
+        "position": "graph_of_desire",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 387,
+        "beta_1_after": 387,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 370,
+        "operation": "sublate",
+        "position": "syn_picture_thinking_anti_picture_thinking_368_370",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 387,
+        "beta_1_after": 388,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 389,
+        "operation": "sublate",
+        "position": "syn_changeable_anti_changeable_387_389",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 388,
+        "beta_1_after": 389,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 401,
+        "operation": "sublate",
+        "position": "syn_jouissance_anti_jouissance_399_401",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 389,
+        "beta_1_after": 390,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 409,
+        "operation": "sublate",
+        "position": "syn_automaton_anti_automaton_407_409",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 390,
+        "beta_1_after": 391,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 422,
+        "operation": "fold",
+        "position": "signified",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 391,
+        "beta_1_after": 390,
+        "delta_beta_1": -1
+      },
+      {
+        "step": 425,
+        "operation": "sublate",
+        "position": "syn_signified_anti_signified_423_425",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 390,
+        "beta_1_after": 391,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 433,
+        "operation": "fold",
+        "position": "language_flattery",
+        "position_complexes": [
+          "hegel"
+        ],
+        "beta_1_before": 391,
+        "beta_1_after": 390,
+        "delta_beta_1": -1
+      },
+      {
+        "step": 435,
+        "operation": "fold",
+        "position": "wealth",
+        "position_complexes": [
+          "hegel"
+        ],
+        "beta_1_before": 390,
+        "beta_1_after": 389,
+        "delta_beta_1": -1
+      },
+      {
+        "step": 447,
+        "operation": "fold",
+        "position": "evil",
+        "position_complexes": [
+          "hegel"
+        ],
+        "beta_1_before": 389,
+        "beta_1_after": 390,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 452,
+        "operation": "sublate",
+        "position": "syn_reconciliation_moral_anti_reconciliation_moral_450_452",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 390,
+        "beta_1_after": 391,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 466,
+        "operation": "sublate",
+        "position": "syn_ethical_substance_anti_ethical_substance_464_466",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 391,
+        "beta_1_after": 392,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 481,
+        "operation": "sublate",
+        "position": "syn_bondsman_anti_bondsman_479_481",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 392,
+        "beta_1_after": 393,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 487,
+        "operation": "fold",
+        "position": "bondsman_freedom",
+        "position_complexes": [
+          "hegel"
+        ],
+        "beta_1_before": 393,
+        "beta_1_after": 391,
+        "delta_beta_1": -2
+      },
+      {
+        "step": 490,
+        "operation": "sublate",
+        "position": "syn_bondsman_freedom_anti_bondsman_freedom_488_490",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 391,
+        "beta_1_after": 392,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 501,
+        "operation": "sublate",
+        "position": "syn_revealed_religion_anti_revealed_religion_499_501",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 392,
+        "beta_1_after": 393,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 512,
+        "operation": "sublate",
+        "position": "syn_religion_anti_religion_510_512",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 393,
+        "beta_1_after": 394,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 520,
+        "operation": "sublate",
+        "position": "syn_castration_anti_castration_518_520",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 394,
+        "beta_1_after": 395,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 528,
+        "operation": "sublate",
+        "position": "syn_category_anti_category_526_528",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 395,
+        "beta_1_after": 396,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 535,
+        "operation": "fold_blocked",
+        "position": "graph_of_desire",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 396,
+        "beta_1_after": 396,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 537,
+        "operation": "fold_blocked",
+        "position": "signifier",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 396,
+        "beta_1_after": 396,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 540,
+        "operation": "fold_blocked",
+        "position": "signifier",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 396,
+        "beta_1_after": 396,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 547,
+        "operation": "fold_blocked",
+        "position": "paternal_metaphor",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 396,
+        "beta_1_after": 396,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 549,
+        "operation": "fold",
+        "position": "phallus",
+        "position_complexes": [
+          "ecrits"
+        ],
+        "beta_1_before": 396,
+        "beta_1_after": 395,
+        "delta_beta_1": -1
+      },
+      {
+        "step": 554,
+        "operation": "negate_a",
+        "position": "ego",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 395,
+        "beta_1_after": 395,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 555,
+        "operation": "sublate",
+        "position": "syn_ego_ideal_ego_555",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 395,
+        "beta_1_after": 396,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 560,
+        "operation": "sublate",
+        "position": "syn_ego_as_function_anti_ego_as_function_558_560",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 396,
+        "beta_1_after": 397,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 574,
+        "operation": "sublate",
+        "position": "syn_subject_decentered_anti_subject_decentered_572_574",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 397,
+        "beta_1_after": 398,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 588,
+        "operation": "sublate",
+        "position": "syn_ethical_destruction_anti_ethical_destruction_586_588",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 398,
+        "beta_1_after": 399,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 597,
+        "operation": "sublate",
+        "position": "syn_time_history_anti_time_history_595_597",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 399,
+        "beta_1_after": 400,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 607,
+        "operation": "sublate",
+        "position": "syn_substance_anti_substance_605_607",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 400,
+        "beta_1_after": 401,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 616,
+        "operation": "sublate",
+        "position": "syn_real_knowledge_anti_real_knowledge_614_616",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 401,
+        "beta_1_after": 402,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 625,
+        "operation": "sublate",
+        "position": "syn_particular_anti_particular_623_625",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 402,
+        "beta_1_after": 403,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 643,
+        "operation": "fold",
+        "position": "conscience",
+        "position_complexes": [
+          "hegel"
+        ],
+        "beta_1_before": 403,
+        "beta_1_after": 402,
+        "delta_beta_1": -1
+      },
+      {
+        "step": 645,
+        "operation": "fold_blocked",
+        "position": "graph_of_desire",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 402,
+        "beta_1_after": 402,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 650,
+        "operation": "fold",
+        "position": "signifier",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 402,
+        "beta_1_after": 401,
+        "delta_beta_1": -1
+      },
+      {
+        "step": 651,
+        "operation": "fold_blocked",
+        "position": "signifier",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 401,
+        "beta_1_after": 401,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 655,
+        "operation": "fold_blocked",
+        "position": "signifier",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 401,
+        "beta_1_after": 401,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 659,
+        "operation": "sublate",
+        "position": "syn_metaphor_failure_anti_metaphor_failure_657_659",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 401,
+        "beta_1_after": 402,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 667,
+        "operation": "sublate",
+        "position": "syn_contradictory_thing_anti_contradictory_thing_665_667",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 402,
+        "beta_1_after": 403,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 679,
+        "operation": "sublate",
+        "position": "syn_divine_law_anti_divine_law_677_679",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 403,
+        "beta_1_after": 404,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 696,
+        "operation": "sublate",
+        "position": "syn_tragedy_anti_tragedy_694_696",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 404,
+        "beta_1_after": 405,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 706,
+        "operation": "sublate",
+        "position": "syn_internal_distinction_anti_internal_distinction_704_706",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 405,
+        "beta_1_after": 406,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 716,
+        "operation": "sublate",
+        "position": "syn_unconscious_concept_anti_unconscious_concept_714_716",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 406,
+        "beta_1_after": 407,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 729,
+        "operation": "sublate",
+        "position": "syn_curtain_anti_curtain_727_729",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 407,
+        "beta_1_after": 408,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 739,
+        "operation": "sublate",
+        "position": "syn_repetition_automatism_anti_repetition_automatism_737_739",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 408,
+        "beta_1_after": 409,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 747,
+        "operation": "sublate",
+        "position": "syn_das_Ding_anti_das_Ding_745_747",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 409,
+        "beta_1_after": 410,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 755,
+        "operation": "sublate",
+        "position": "syn_death_of_god_anti_death_of_god_753_755",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 410,
+        "beta_1_after": 411,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 779,
+        "operation": "sublate",
+        "position": "syn_independence_anti_independence_777_779",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 411,
+        "beta_1_after": 412,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 794,
+        "operation": "fold",
+        "position": "subject",
+        "position_complexes": [
+          "ecrits",
+          "hegel"
+        ],
+        "beta_1_before": 412,
+        "beta_1_after": 411,
+        "delta_beta_1": -1
+      },
+      {
+        "step": 795,
+        "operation": "negate_a",
+        "position": "subject",
+        "position_complexes": [
+          "ecrits",
+          "hegel"
+        ],
+        "beta_1_before": 411,
+        "beta_1_after": 411,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 796,
+        "operation": "sublate",
+        "position": "syn_subject_signifier_796",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 411,
+        "beta_1_after": 412,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 799,
+        "operation": "negate_a",
+        "position": "subject",
+        "position_complexes": [
+          "ecrits",
+          "hegel"
+        ],
+        "beta_1_before": 412,
+        "beta_1_after": 412,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 800,
+        "operation": "sublate",
+        "position": "syn_subject_subject_of_unconscious_800",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 412,
+        "beta_1_after": 413,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 810,
+        "operation": "fold",
+        "position": "signifier",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 413,
+        "beta_1_after": 412,
+        "delta_beta_1": -1
+      },
+      {
+        "step": 811,
+        "operation": "negate_a",
+        "position": "signifier",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 412,
+        "beta_1_after": 412,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 812,
+        "operation": "sublate",
+        "position": "syn_signifier_unconscious_structured_812",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 412,
+        "beta_1_after": 413,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 817,
+        "operation": "fold",
+        "position": "subject",
+        "position_complexes": [
+          "ecrits",
+          "hegel"
+        ],
+        "beta_1_before": 413,
+        "beta_1_after": 415,
+        "delta_beta_1": 2
+      },
+      {
+        "step": 818,
+        "operation": "fold_blocked",
+        "position": "subject",
+        "position_complexes": [
+          "ecrits",
+          "hegel"
+        ],
+        "beta_1_before": 415,
+        "beta_1_after": 415,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 822,
+        "operation": "fold",
+        "position": "separation",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 415,
+        "beta_1_after": 415,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 823,
+        "operation": "fold_blocked",
+        "position": "separation",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 415,
+        "beta_1_after": 415,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 827,
+        "operation": "fold",
+        "position": "Other_barred",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 415,
+        "beta_1_after": 415,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 828,
+        "operation": "fold_blocked",
+        "position": "Other_barred",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 415,
+        "beta_1_after": 415,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 830,
+        "operation": "fold",
+        "position": "alienation",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 415,
+        "beta_1_after": 414,
+        "delta_beta_1": -1
+      },
+      {
+        "step": 831,
+        "operation": "fold_blocked",
+        "position": "alienation",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 414,
+        "beta_1_after": 414,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 833,
+        "operation": "fold_blocked",
+        "position": "castration",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 414,
+        "beta_1_after": 414,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 842,
+        "operation": "sublate",
+        "position": "syn_not_all_anti_not_all_840_842",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 414,
+        "beta_1_after": 415,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 850,
+        "operation": "fold_blocked",
+        "position": "transference",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 415,
+        "beta_1_after": 415,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 852,
+        "operation": "fold_blocked",
+        "position": "subject",
+        "position_complexes": [
+          "ecrits",
+          "hegel"
+        ],
+        "beta_1_before": 415,
+        "beta_1_after": 415,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 862,
+        "operation": "fold",
+        "position": "subject",
+        "position_complexes": [
+          "ecrits",
+          "hegel"
+        ],
+        "beta_1_before": 415,
+        "beta_1_after": 415,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 863,
+        "operation": "fold_blocked",
+        "position": "subject",
+        "position_complexes": [
+          "ecrits",
+          "hegel"
+        ],
+        "beta_1_before": 415,
+        "beta_1_after": 415,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 865,
+        "operation": "fold_blocked",
+        "position": "Other_barred",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 415,
+        "beta_1_after": 415,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 867,
+        "operation": "fold_blocked",
+        "position": "alienation",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 415,
+        "beta_1_after": 415,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 869,
+        "operation": "fold_blocked",
+        "position": "imaginary",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 415,
+        "beta_1_after": 415,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 871,
+        "operation": "fold_blocked",
+        "position": "frustration",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 415,
+        "beta_1_after": 415,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 873,
+        "operation": "fold",
+        "position": "privation",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 415,
+        "beta_1_after": 414,
+        "delta_beta_1": -1
+      },
+      {
+        "step": 874,
+        "operation": "fold_blocked",
+        "position": "privation",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 414,
+        "beta_1_after": 414,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 878,
+        "operation": "fold",
+        "position": "subject",
+        "position_complexes": [
+          "ecrits",
+          "hegel"
+        ],
+        "beta_1_before": 414,
+        "beta_1_after": 417,
+        "delta_beta_1": 3
+      },
+      {
+        "step": 879,
+        "operation": "fold_blocked",
+        "position": "subject",
+        "position_complexes": [
+          "ecrits",
+          "hegel"
+        ],
+        "beta_1_before": 417,
+        "beta_1_after": 417,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 883,
+        "operation": "sublate",
+        "position": "syn_anxiety_anti_anxiety_881_883",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 417,
+        "beta_1_after": 418,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 892,
+        "operation": "sublate",
+        "position": "syn_psychoanalytic_act_anti_psychoanalytic_act_890_892",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 418,
+        "beta_1_after": 419,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 901,
+        "operation": "sublate",
+        "position": "syn_negative_procedure_anti_negative_procedure_899_901",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 419,
+        "beta_1_after": 420,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 910,
+        "operation": "sublate",
+        "position": "syn_experience_anti_experience_908_910",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 420,
+        "beta_1_after": 421,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 919,
+        "operation": "sublate",
+        "position": "syn_individual_universal_unity_anti_individual_universal_unity_917_919",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 421,
+        "beta_1_after": 422,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 927,
+        "operation": "sublate",
+        "position": "syn_discourse_concept_anti_discourse_concept_925_927",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 422,
+        "beta_1_after": 423,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 936,
+        "operation": "sublate",
+        "position": "syn_postulates_anti_postulates_934_936",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 423,
+        "beta_1_after": 424,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 945,
+        "operation": "fold",
+        "position": "no_metalanguage",
+        "position_complexes": [
+          "ecrits"
+        ],
+        "beta_1_before": 424,
+        "beta_1_after": 423,
+        "delta_beta_1": -1
+      },
+      {
+        "step": 950,
+        "operation": "fold",
+        "position": "master_signifier_S1",
+        "position_complexes": [
+          "seminars"
+        ],
+        "beta_1_before": 423,
+        "beta_1_after": 422,
+        "delta_beta_1": -1
+      },
+      {
+        "step": 953,
+        "operation": "fold",
+        "position": "master_discourse",
+        "position_complexes": [
+          "seminars"
+        ],
+        "beta_1_before": 422,
+        "beta_1_after": 421,
+        "delta_beta_1": -1
+      },
+      {
+        "step": 958,
+        "operation": "fold",
+        "position": "structure",
+        "position_complexes": [
+          "ecrits"
+        ],
+        "beta_1_before": 421,
+        "beta_1_after": 420,
+        "delta_beta_1": -1
+      },
+      {
+        "step": 970,
+        "operation": "sublate",
+        "position": "syn_subject_unconscious_anti_subject_unconscious_968_970",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 420,
+        "beta_1_after": 421,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 983,
+        "operation": "sublate",
+        "position": "syn_drive_anti_drive_981_983",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 421,
+        "beta_1_after": 422,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 990,
+        "operation": "fold",
+        "position": "moral_worldview",
+        "position_complexes": [
+          "hegel"
+        ],
+        "beta_1_before": 422,
+        "beta_1_after": 421,
+        "delta_beta_1": -1
+      },
+      {
+        "step": 998,
+        "operation": "fold_blocked",
+        "position": "ideal_ego",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 421,
+        "beta_1_after": 421,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1000,
+        "operation": "fold_blocked",
+        "position": "ego",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 421,
+        "beta_1_after": 421,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1004,
+        "operation": "fold_blocked",
+        "position": "subject",
+        "position_complexes": [
+          "ecrits",
+          "hegel"
+        ],
+        "beta_1_before": 421,
+        "beta_1_after": 421,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1006,
+        "operation": "fold_blocked",
+        "position": "transference",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 421,
+        "beta_1_after": 421,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1008,
+        "operation": "fold_blocked",
+        "position": "intersubjectivity",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 421,
+        "beta_1_after": 421,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1012,
+        "operation": "fold_blocked",
+        "position": "intersubjectivity",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 421,
+        "beta_1_after": 421,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1016,
+        "operation": "fold_blocked",
+        "position": "intersubjectivity",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 421,
+        "beta_1_after": 421,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1018,
+        "operation": "fold",
+        "position": "transference",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 421,
+        "beta_1_after": 420,
+        "delta_beta_1": -1
+      },
+      {
+        "step": 1019,
+        "operation": "negate_a",
+        "position": "transference",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 420,
+        "beta_1_after": 420,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1020,
+        "operation": "sublate",
+        "position": "syn_transference_intersubjectivity_1020",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 420,
+        "beta_1_after": 421,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 1023,
+        "operation": "fold_blocked",
+        "position": "intersubjectivity",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 421,
+        "beta_1_after": 421,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1027,
+        "operation": "fold_blocked",
+        "position": "intersubjectivity",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 421,
+        "beta_1_after": 421,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1031,
+        "operation": "fold_blocked",
+        "position": "intersubjectivity",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 421,
+        "beta_1_after": 421,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1033,
+        "operation": "negate_a",
+        "position": "transference",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 421,
+        "beta_1_after": 421,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1034,
+        "operation": "sublate",
+        "position": "syn_transference_subject_1034",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 421,
+        "beta_1_after": 422,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 1037,
+        "operation": "fold_blocked",
+        "position": "transference",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 422,
+        "beta_1_after": 422,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1041,
+        "operation": "fold_blocked",
+        "position": "transference",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 422,
+        "beta_1_after": 422,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1045,
+        "operation": "fold_blocked",
+        "position": "transference",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 422,
+        "beta_1_after": 422,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1047,
+        "operation": "fold_blocked",
+        "position": "intersubjectivity",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 422,
+        "beta_1_after": 422,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1051,
+        "operation": "fold_blocked",
+        "position": "intersubjectivity",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 422,
+        "beta_1_after": 422,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1055,
+        "operation": "fold_blocked",
+        "position": "intersubjectivity",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 422,
+        "beta_1_after": 422,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1057,
+        "operation": "fold_blocked",
+        "position": "transference",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 422,
+        "beta_1_after": 422,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1059,
+        "operation": "fold",
+        "position": "transference_love",
+        "position_complexes": [
+          "seminars"
+        ],
+        "beta_1_before": 422,
+        "beta_1_after": 421,
+        "delta_beta_1": -1
+      },
+      {
+        "step": 1065,
+        "operation": "fold_blocked",
+        "position": "transference",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 421,
+        "beta_1_after": 421,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1069,
+        "operation": "fold_blocked",
+        "position": "transference",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 421,
+        "beta_1_after": 421,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1071,
+        "operation": "fold_blocked",
+        "position": "intersubjectivity",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 421,
+        "beta_1_after": 421,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1075,
+        "operation": "fold_blocked",
+        "position": "intersubjectivity",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 421,
+        "beta_1_after": 421,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1079,
+        "operation": "fold_blocked",
+        "position": "intersubjectivity",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 421,
+        "beta_1_after": 421,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1081,
+        "operation": "fold_blocked",
+        "position": "transference",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 421,
+        "beta_1_after": 421,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1091,
+        "operation": "fold_blocked",
+        "position": "transference",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 421,
+        "beta_1_after": 421,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1093,
+        "operation": "fold_blocked",
+        "position": "subject",
+        "position_complexes": [
+          "ecrits",
+          "hegel"
+        ],
+        "beta_1_before": 421,
+        "beta_1_after": 421,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1096,
+        "operation": "fold_blocked",
+        "position": "subject",
+        "position_complexes": [
+          "ecrits",
+          "hegel"
+        ],
+        "beta_1_before": 421,
+        "beta_1_after": 421,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1099,
+        "operation": "fold_blocked",
+        "position": "subject",
+        "position_complexes": [
+          "ecrits",
+          "hegel"
+        ],
+        "beta_1_before": 421,
+        "beta_1_after": 421,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1106,
+        "operation": "fold",
+        "position": "subject",
+        "position_complexes": [
+          "ecrits",
+          "hegel"
+        ],
+        "beta_1_before": 421,
+        "beta_1_after": 421,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1107,
+        "operation": "fold_blocked",
+        "position": "subject",
+        "position_complexes": [
+          "ecrits",
+          "hegel"
+        ],
+        "beta_1_before": 421,
+        "beta_1_after": 421,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1109,
+        "operation": "fold_blocked",
+        "position": "jouissance",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 421,
+        "beta_1_after": 421,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1113,
+        "operation": "fold_blocked",
+        "position": "jouissance",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 421,
+        "beta_1_after": 421,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1120,
+        "operation": "fold_blocked",
+        "position": "jouissance",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 421,
+        "beta_1_after": 421,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1123,
+        "operation": "fold_blocked",
+        "position": "jouissance",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 421,
+        "beta_1_after": 421,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1131,
+        "operation": "fold",
+        "position": "subject",
+        "position_complexes": [
+          "ecrits",
+          "hegel"
+        ],
+        "beta_1_before": 421,
+        "beta_1_after": 421,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1132,
+        "operation": "negate_a",
+        "position": "subject",
+        "position_complexes": [
+          "ecrits",
+          "hegel"
+        ],
+        "beta_1_before": 421,
+        "beta_1_after": 421,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1133,
+        "operation": "sublate",
+        "position": "syn_subject_das_Ding_1133",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 421,
+        "beta_1_after": 422,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 1138,
+        "operation": "fold_blocked",
+        "position": "jouissance",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 422,
+        "beta_1_after": 422,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1142,
+        "operation": "fold_blocked",
+        "position": "signifier",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 422,
+        "beta_1_after": 422,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1152,
+        "operation": "fold_blocked",
+        "position": "subject_of_science",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 422,
+        "beta_1_after": 422,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1158,
+        "operation": "fold_blocked",
+        "position": "full_speech",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 422,
+        "beta_1_after": 422,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1162,
+        "operation": "sublate",
+        "position": "syn_empty_speech_anti_empty_speech_1160_1162",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 422,
+        "beta_1_after": 423,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 1172,
+        "operation": "fold_blocked",
+        "position": "identification",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 423,
+        "beta_1_after": 423,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1174,
+        "operation": "fold_blocked",
+        "position": "ideal_ego",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 423,
+        "beta_1_after": 423,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1184,
+        "operation": "fold",
+        "position": "identification",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 423,
+        "beta_1_after": 422,
+        "delta_beta_1": -1
+      },
+      {
+        "step": 1185,
+        "operation": "fold_blocked",
+        "position": "identification",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 422,
+        "beta_1_after": 422,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1189,
+        "operation": "fold_blocked",
+        "position": "identification",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 422,
+        "beta_1_after": 422,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1191,
+        "operation": "fold_blocked",
+        "position": "subject",
+        "position_complexes": [
+          "ecrits",
+          "hegel"
+        ],
+        "beta_1_before": 422,
+        "beta_1_after": 422,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1193,
+        "operation": "fold_blocked",
+        "position": "jouissance",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 422,
+        "beta_1_after": 422,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1196,
+        "operation": "fold_blocked",
+        "position": "jouissance",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 422,
+        "beta_1_after": 422,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1200,
+        "operation": "fold_blocked",
+        "position": "jouissance",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 422,
+        "beta_1_after": 422,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1202,
+        "operation": "fold_blocked",
+        "position": "subject",
+        "position_complexes": [
+          "ecrits",
+          "hegel"
+        ],
+        "beta_1_before": 422,
+        "beta_1_after": 422,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1205,
+        "operation": "fold_blocked",
+        "position": "subject",
+        "position_complexes": [
+          "ecrits",
+          "hegel"
+        ],
+        "beta_1_before": 422,
+        "beta_1_after": 422,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1209,
+        "operation": "fold",
+        "position": "signifier",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 422,
+        "beta_1_after": 422,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1210,
+        "operation": "fold_blocked",
+        "position": "signifier",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 422,
+        "beta_1_after": 422,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1213,
+        "operation": "fold_blocked",
+        "position": "signifier",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 422,
+        "beta_1_after": 422,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1216,
+        "operation": "fold_blocked",
+        "position": "signifier",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 422,
+        "beta_1_after": 422,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1218,
+        "operation": "fold_blocked",
+        "position": "subject",
+        "position_complexes": [
+          "ecrits",
+          "hegel"
+        ],
+        "beta_1_before": 422,
+        "beta_1_after": 422,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1220,
+        "operation": "fold_blocked",
+        "position": "Other_barred",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 422,
+        "beta_1_after": 422,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1222,
+        "operation": "fold_blocked",
+        "position": "alienation",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 422,
+        "beta_1_after": 422,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1224,
+        "operation": "fold_blocked",
+        "position": "castration",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 422,
+        "beta_1_after": 422,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1228,
+        "operation": "sublate",
+        "position": "syn_symbolic_phallus_anti_symbolic_phallus_1226_1228",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 422,
+        "beta_1_after": 423,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 1236,
+        "operation": "sublate",
+        "position": "syn_ego_sinthome_anti_ego_sinthome_1234_1236",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 423,
+        "beta_1_after": 424,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 1244,
+        "operation": "sublate",
+        "position": "syn_enjoyment_anti_enjoyment_1242_1244",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 424,
+        "beta_1_after": 425,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 1259,
+        "operation": "fold",
+        "position": "guilt",
+        "position_complexes": [
+          "hegel"
+        ],
+        "beta_1_before": 425,
+        "beta_1_after": 424,
+        "delta_beta_1": -1
+      },
+      {
+        "step": 1261,
+        "operation": "sublate",
+        "position": "syn_guilt_ethical_destruction_1261",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 424,
+        "beta_1_after": 425,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 1269,
+        "operation": "fold_blocked",
+        "position": "subject",
+        "position_complexes": [
+          "ecrits",
+          "hegel"
+        ],
+        "beta_1_before": 425,
+        "beta_1_after": 425,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1271,
+        "operation": "fold_blocked",
+        "position": "Other_barred",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 425,
+        "beta_1_after": 425,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1273,
+        "operation": "fold_blocked",
+        "position": "alienation",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 425,
+        "beta_1_after": 425,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1275,
+        "operation": "fold_blocked",
+        "position": "castration",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 425,
+        "beta_1_after": 425,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1279,
+        "operation": "fold_blocked",
+        "position": "castration",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 425,
+        "beta_1_after": 425,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1283,
+        "operation": "fold_blocked",
+        "position": "jouissance",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 425,
+        "beta_1_after": 425,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1287,
+        "operation": "fold_blocked",
+        "position": "jouissance",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 425,
+        "beta_1_after": 425,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1289,
+        "operation": "fold_blocked",
+        "position": "subject",
+        "position_complexes": [
+          "ecrits",
+          "hegel"
+        ],
+        "beta_1_before": 425,
+        "beta_1_after": 425,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1291,
+        "operation": "fold_blocked",
+        "position": "alienation",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 425,
+        "beta_1_after": 425,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1293,
+        "operation": "fold_blocked",
+        "position": "Other_barred",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 425,
+        "beta_1_after": 425,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1295,
+        "operation": "fold_blocked",
+        "position": "subject",
+        "position_complexes": [
+          "ecrits",
+          "hegel"
+        ],
+        "beta_1_before": 425,
+        "beta_1_after": 425,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1299,
+        "operation": "fold",
+        "position": "subject",
+        "position_complexes": [
+          "ecrits",
+          "hegel"
+        ],
+        "beta_1_before": 425,
+        "beta_1_after": 425,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1300,
+        "operation": "negate_a",
+        "position": "subject",
+        "position_complexes": [
+          "ecrits",
+          "hegel"
+        ],
+        "beta_1_before": 425,
+        "beta_1_after": 425,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1301,
+        "operation": "sublate",
+        "position": "syn_subject_graph_of_desire_1301",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 425,
+        "beta_1_after": 426,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 1304,
+        "operation": "fold_blocked",
+        "position": "subject",
+        "position_complexes": [
+          "ecrits",
+          "hegel"
+        ],
+        "beta_1_before": 426,
+        "beta_1_after": 426,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1306,
+        "operation": "fold_blocked",
+        "position": "signifier",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 426,
+        "beta_1_after": 426,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1316,
+        "operation": "fold_blocked",
+        "position": "signifier",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 426,
+        "beta_1_after": 426,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1319,
+        "operation": "fold_blocked",
+        "position": "signifier",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 426,
+        "beta_1_after": 426,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1321,
+        "operation": "fold",
+        "position": "syn_subject_signifier_796",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 426,
+        "beta_1_after": 425,
+        "delta_beta_1": -1
+      },
+      {
+        "step": 1323,
+        "operation": "fold_blocked",
+        "position": "signifier",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 425,
+        "beta_1_after": 425,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1327,
+        "operation": "fold_blocked",
+        "position": "jouissance",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 425,
+        "beta_1_after": 425,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1335,
+        "operation": "fold_blocked",
+        "position": "pleasure_principle",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 425,
+        "beta_1_after": 425,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1337,
+        "operation": "fold_blocked",
+        "position": "jouissance",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 425,
+        "beta_1_after": 425,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1347,
+        "operation": "fold_blocked",
+        "position": "jouissance",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 425,
+        "beta_1_after": 425,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1351,
+        "operation": "fold_blocked",
+        "position": "castration",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 425,
+        "beta_1_after": 425,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1357,
+        "operation": "fold",
+        "position": "symbolic_phallus",
+        "position_complexes": [
+          "seminars"
+        ],
+        "beta_1_before": 425,
+        "beta_1_after": 423,
+        "delta_beta_1": -2
+      },
+      {
+        "step": 1359,
+        "operation": "sublate",
+        "position": "syn_symbolic_phallus_imaginary_phallus_1359",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 423,
+        "beta_1_after": 424,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 1367,
+        "operation": "sublate",
+        "position": "syn_phallic_jouissance_anti_phallic_jouissance_1365_1367",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 424,
+        "beta_1_after": 425,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 1385,
+        "operation": "fold_blocked",
+        "position": "jouissance",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 425,
+        "beta_1_after": 425,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1388,
+        "operation": "fold_blocked",
+        "position": "jouissance",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 425,
+        "beta_1_after": 425,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1397,
+        "operation": "sublate",
+        "position": "syn_Yad_lun_anti_Yad_lun_1395_1397",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 425,
+        "beta_1_after": 426,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 1417,
+        "operation": "sublate",
+        "position": "syn_natural_consciousness_anti_natural_consciousness_1415_1417",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 426,
+        "beta_1_after": 427,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 1425,
+        "operation": "fold_blocked",
+        "position": "subject",
+        "position_complexes": [
+          "ecrits",
+          "hegel"
+        ],
+        "beta_1_before": 427,
+        "beta_1_after": 427,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1427,
+        "operation": "fold_blocked",
+        "position": "transference",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 427,
+        "beta_1_after": 427,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1439,
+        "operation": "fold_blocked",
+        "position": "transference",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 427,
+        "beta_1_after": 427,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1441,
+        "operation": "fold_blocked",
+        "position": "subject",
+        "position_complexes": [
+          "ecrits",
+          "hegel"
+        ],
+        "beta_1_before": 427,
+        "beta_1_after": 427,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1443,
+        "operation": "fold_blocked",
+        "position": "alienation",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 427,
+        "beta_1_after": 427,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1445,
+        "operation": "fold_blocked",
+        "position": "Other_barred",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 427,
+        "beta_1_after": 427,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1447,
+        "operation": "fold_blocked",
+        "position": "jouissance",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 427,
+        "beta_1_after": 427,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1451,
+        "operation": "fold_blocked",
+        "position": "pleasure_principle",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 427,
+        "beta_1_after": 427,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1453,
+        "operation": "fold_blocked",
+        "position": "jouissance",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 427,
+        "beta_1_after": 427,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1456,
+        "operation": "fold_blocked",
+        "position": "jouissance",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 427,
+        "beta_1_after": 427,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1458,
+        "operation": "fold_blocked",
+        "position": "Other_barred",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 427,
+        "beta_1_after": 427,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1460,
+        "operation": "fold_blocked",
+        "position": "alienation",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 427,
+        "beta_1_after": 427,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1462,
+        "operation": "fold_blocked",
+        "position": "subject",
+        "position_complexes": [
+          "ecrits",
+          "hegel"
+        ],
+        "beta_1_before": 427,
+        "beta_1_after": 427,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1464,
+        "operation": "fold_blocked",
+        "position": "graph_of_desire",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 427,
+        "beta_1_after": 427,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1466,
+        "operation": "fold_blocked",
+        "position": "subject",
+        "position_complexes": [
+          "ecrits",
+          "hegel"
+        ],
+        "beta_1_before": 427,
+        "beta_1_after": 427,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1470,
+        "operation": "fold_blocked",
+        "position": "subject",
+        "position_complexes": [
+          "ecrits",
+          "hegel"
+        ],
+        "beta_1_before": 427,
+        "beta_1_after": 427,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1472,
+        "operation": "fold_blocked",
+        "position": "signifier",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 427,
+        "beta_1_after": 427,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1484,
+        "operation": "fold",
+        "position": "signifier",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 427,
+        "beta_1_after": 427,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1485,
+        "operation": "negate_a",
+        "position": "signifier",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 427,
+        "beta_1_after": 427,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1486,
+        "operation": "sublate",
+        "position": "syn_signifier_discourse_concept_1486",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 427,
+        "beta_1_after": 428,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 1489,
+        "operation": "fold_blocked",
+        "position": "signifier",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 428,
+        "beta_1_after": 428,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1493,
+        "operation": "fold_blocked",
+        "position": "signifier",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 428,
+        "beta_1_after": 428,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1503,
+        "operation": "fold_blocked",
+        "position": "subject_of_science",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 428,
+        "beta_1_after": 428,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1509,
+        "operation": "fold_blocked",
+        "position": "full_speech",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 428,
+        "beta_1_after": 428,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1512,
+        "operation": "fold_blocked",
+        "position": "full_speech",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 428,
+        "beta_1_after": 428,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1514,
+        "operation": "fold",
+        "position": "empty_speech",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 428,
+        "beta_1_after": 427,
+        "delta_beta_1": -1
+      },
+      {
+        "step": 1516,
+        "operation": "fold_blocked",
+        "position": "full_speech",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 427,
+        "beta_1_after": 427,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1522,
+        "operation": "fold_blocked",
+        "position": "subject_of_science",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 427,
+        "beta_1_after": 427,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1528,
+        "operation": "fold_blocked",
+        "position": "signifier",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 427,
+        "beta_1_after": 427,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1532,
+        "operation": "fold_blocked",
+        "position": "psychosis",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 427,
+        "beta_1_after": 427,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1534,
+        "operation": "fold_blocked",
+        "position": "paternal_metaphor",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 427,
+        "beta_1_after": 427,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1547,
+        "operation": "sublate",
+        "position": "syn_signifying_chain_anti_signifying_chain_1545_1547",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 427,
+        "beta_1_after": 428,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 1565,
+        "operation": "sublate",
+        "position": "syn_feminine_jouissance_anti_feminine_jouissance_1563_1565",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 428,
+        "beta_1_after": 429,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 1573,
+        "operation": "sublate",
+        "position": "syn_feminine_side_anti_feminine_side_1571_1573",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 429,
+        "beta_1_after": 430,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 1592,
+        "operation": "sublate",
+        "position": "syn_hallucination_anti_hallucination_1590_1592",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 430,
+        "beta_1_after": 431,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 1601,
+        "operation": "sublate",
+        "position": "syn_sinthome_anti_sinthome_1599_1601",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 431,
+        "beta_1_after": 432,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 1609,
+        "operation": "sublate",
+        "position": "syn_fragmented_body_anti_fragmented_body_1607_1609",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 432,
+        "beta_1_after": 433,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 1619,
+        "operation": "sublate",
+        "position": "syn_the_one_anti_the_one_1617_1619",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 433,
+        "beta_1_after": 434,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 1645,
+        "operation": "sublate",
+        "position": "syn_narcissism_anti_narcissism_1643_1645",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 434,
+        "beta_1_after": 435,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 1667,
+        "operation": "sublate",
+        "position": "syn_immediate_knowledge_anti_immediate_knowledge_1665_1667",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 435,
+        "beta_1_after": 436,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 1675,
+        "operation": "sublate",
+        "position": "syn_human_law_anti_human_law_1673_1675",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 436,
+        "beta_1_after": 437,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 1700,
+        "operation": "fold_blocked",
+        "position": "ego",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 437,
+        "beta_1_after": 437,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1704,
+        "operation": "fold_blocked",
+        "position": "ego",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 437,
+        "beta_1_after": 437,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1707,
+        "operation": "fold_blocked",
+        "position": "ego",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 437,
+        "beta_1_after": 437,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1709,
+        "operation": "fold_blocked",
+        "position": "identification",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 437,
+        "beta_1_after": 437,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1711,
+        "operation": "fold_blocked",
+        "position": "ideal_ego",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 437,
+        "beta_1_after": 437,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1713,
+        "operation": "fold_blocked",
+        "position": "ego",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 437,
+        "beta_1_after": 437,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1728,
+        "operation": "sublate",
+        "position": "syn_substance_is_subject_anti_substance_is_subject_1726_1728",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 437,
+        "beta_1_after": 438,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 1742,
+        "operation": "sublate",
+        "position": "syn_spiritual_animal_kingdom_anti_spiritual_animal_kingdom_1740_1742",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 438,
+        "beta_1_after": 439,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 1750,
+        "operation": "sublate",
+        "position": "syn_inner_being_anti_inner_being_1748_1750",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 439,
+        "beta_1_after": 440,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 1757,
+        "operation": "fold",
+        "position": "self_conscious_individuality",
+        "position_complexes": [
+          "hegel"
+        ],
+        "beta_1_before": 440,
+        "beta_1_after": 439,
+        "delta_beta_1": -1
+      },
+      {
+        "step": 1771,
+        "operation": "sublate",
+        "position": "syn_time_for_comprehending_anti_time_for_comprehending_1769_1771",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 439,
+        "beta_1_after": 440,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 1780,
+        "operation": "fold_blocked",
+        "position": "signifier",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 440,
+        "beta_1_after": 440,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1784,
+        "operation": "fold_blocked",
+        "position": "signifier",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 440,
+        "beta_1_after": 440,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1787,
+        "operation": "fold_blocked",
+        "position": "jouissance",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 440,
+        "beta_1_after": 440,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1791,
+        "operation": "sublate",
+        "position": "syn_superego_anti_superego_1789_1791",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 440,
+        "beta_1_after": 441,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 1801,
+        "operation": "sublate",
+        "position": "syn_mirror_stage_anti_mirror_stage_1799_1801",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 441,
+        "beta_1_after": 442,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 1810,
+        "operation": "sublate",
+        "position": "syn_supersensible_world_anti_supersensible_world_1808_1810",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 442,
+        "beta_1_after": 443,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 1824,
+        "operation": "sublate",
+        "position": "syn_university_discourse_anti_university_discourse_1822_1824",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 443,
+        "beta_1_after": 444,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 1833,
+        "operation": "sublate",
+        "position": "syn_surplus_value_anti_surplus_value_1831_1833",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 444,
+        "beta_1_after": 445,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 1847,
+        "operation": "sublate",
+        "position": "syn_universal_anti_universal_1845_1847",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 445,
+        "beta_1_after": 446,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 1870,
+        "operation": "fold_blocked",
+        "position": "castration",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 446,
+        "beta_1_after": 446,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1873,
+        "operation": "fold_blocked",
+        "position": "castration",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 446,
+        "beta_1_after": 446,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1875,
+        "operation": "fold",
+        "position": "alienation",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 446,
+        "beta_1_after": 445,
+        "delta_beta_1": -1
+      },
+      {
+        "step": 1876,
+        "operation": "fold",
+        "position": "alienation",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 445,
+        "beta_1_after": 444,
+        "delta_beta_1": -1
+      },
+      {
+        "step": 1877,
+        "operation": "fold_blocked",
+        "position": "alienation",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 444,
+        "beta_1_after": 444,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1879,
+        "operation": "fold_blocked",
+        "position": "Other_barred",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 444,
+        "beta_1_after": 444,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1881,
+        "operation": "fold_blocked",
+        "position": "jouissance",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 444,
+        "beta_1_after": 444,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1885,
+        "operation": "fold_blocked",
+        "position": "pleasure_principle",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 444,
+        "beta_1_after": 444,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1887,
+        "operation": "fold_blocked",
+        "position": "jouissance",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 444,
+        "beta_1_after": 444,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1892,
+        "operation": "fold_blocked",
+        "position": "jouissance",
+        "position_complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "beta_1_before": 444,
+        "beta_1_after": 444,
+        "delta_beta_1": 0
+      },
+      {
+        "step": 1896,
+        "operation": "sublate",
+        "position": "syn_lalangue_anti_lalangue_1894_1896",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 444,
+        "beta_1_after": 445,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 1916,
+        "operation": "sublate",
+        "position": "syn_lord_anti_lord_1914_1916",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 445,
+        "beta_1_after": 446,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 1924,
+        "operation": "fold",
+        "position": "independence",
+        "position_complexes": [
+          "hegel"
+        ],
+        "beta_1_before": 446,
+        "beta_1_after": 445,
+        "delta_beta_1": -1
+      },
+      {
+        "step": 1926,
+        "operation": "fold",
+        "position": "dependence",
+        "position_complexes": [
+          "hegel"
+        ],
+        "beta_1_before": 445,
+        "beta_1_after": 444,
+        "delta_beta_1": -1
+      },
+      {
+        "step": 1929,
+        "operation": "sublate",
+        "position": "syn_dependence_anti_dependence_1927_1929",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 444,
+        "beta_1_after": 445,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 1938,
+        "operation": "sublate",
+        "position": "syn_impossible_sexual_relation_anti_impossible_sexual_relation_1936_1938",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 445,
+        "beta_1_after": 446,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 1948,
+        "operation": "sublate",
+        "position": "syn_science_anti_science_1946_1948",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 446,
+        "beta_1_after": 447,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 1957,
+        "operation": "sublate",
+        "position": "syn_thing_anti_thing_1955_1957",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 447,
+        "beta_1_after": 448,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 1966,
+        "operation": "sublate",
+        "position": "syn_sexuation_formulas_anti_sexuation_formulas_1964_1966",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 448,
+        "beta_1_after": 449,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 1980,
+        "operation": "sublate",
+        "position": "syn_perception_anti_perception_1978_1980",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 449,
+        "beta_1_after": 450,
+        "delta_beta_1": 1
+      },
+      {
+        "step": 1995,
+        "operation": "fold",
+        "position": "sense_certainty",
+        "position_complexes": [
+          "hegel"
+        ],
+        "beta_1_before": 450,
+        "beta_1_after": 449,
+        "delta_beta_1": -1
+      },
+      {
+        "step": 1998,
+        "operation": "sublate",
+        "position": "syn_sense_certainty_anti_sense_certainty_1996_1998",
+        "position_complexes": [
+          "unknown"
+        ],
+        "beta_1_before": 449,
+        "beta_1_after": 450,
+        "delta_beta_1": 1
+      }
+    ],
+    "cross_complex_tension_pairs": [
+      {
+        "vertex": "subject",
+        "complexes": [
+          "hegel",
+          "ecrits"
+        ],
+        "critical_neighbor_count": 59
+      },
+      {
+        "vertex": "graph_of_desire",
+        "complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "critical_neighbor_count": 58
+      },
+      {
+        "vertex": "signifier",
+        "complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "critical_neighbor_count": 31
+      },
+      {
+        "vertex": "jouissance",
+        "complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "critical_neighbor_count": 21
+      },
+      {
+        "vertex": "ego",
+        "complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "critical_neighbor_count": 15
+      },
+      {
+        "vertex": "identification",
+        "complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "critical_neighbor_count": 12
+      },
+      {
+        "vertex": "alienation",
+        "complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "critical_neighbor_count": 10
+      },
+      {
+        "vertex": "transference",
+        "complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "critical_neighbor_count": 10
+      },
+      {
+        "vertex": "Other_barred",
+        "complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "critical_neighbor_count": 9
+      },
+      {
+        "vertex": "religion",
+        "complexes": [
+          "hegel",
+          "ecrits"
+        ],
+        "critical_neighbor_count": 9
+      },
+      {
+        "vertex": "castration",
+        "complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "critical_neighbor_count": 8
+      },
+      {
+        "vertex": "law",
+        "complexes": [
+          "hegel",
+          "ecrits"
+        ],
+        "critical_neighbor_count": 8
+      },
+      {
+        "vertex": "repetition_automatism",
+        "complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "critical_neighbor_count": 8
+      },
+      {
+        "vertex": "science",
+        "complexes": [
+          "hegel",
+          "ecrits"
+        ],
+        "critical_neighbor_count": 8
+      },
+      {
+        "vertex": "empty_speech",
+        "complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "critical_neighbor_count": 5
+      },
+      {
+        "vertex": "pleasure_principle",
+        "complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "critical_neighbor_count": 5
+      },
+      {
+        "vertex": "subject_of_science",
+        "complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "critical_neighbor_count": 5
+      },
+      {
+        "vertex": "demand",
+        "complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "critical_neighbor_count": 4
+      },
+      {
+        "vertex": "foreclosure",
+        "complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "critical_neighbor_count": 4
+      },
+      {
+        "vertex": "full_speech",
+        "complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "critical_neighbor_count": 4
+      },
+      {
+        "vertex": "ideal_ego",
+        "complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "critical_neighbor_count": 4
+      },
+      {
+        "vertex": "intersubjectivity",
+        "complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "critical_neighbor_count": 4
+      },
+      {
+        "vertex": "paternal_metaphor",
+        "complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "critical_neighbor_count": 4
+      },
+      {
+        "vertex": "psychosis",
+        "complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "critical_neighbor_count": 4
+      },
+      {
+        "vertex": "signified",
+        "complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "critical_neighbor_count": 4
+      },
+      {
+        "vertex": "resistance",
+        "complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "critical_neighbor_count": 3
+      },
+      {
+        "vertex": "need",
+        "complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "critical_neighbor_count": 2
+      },
+      {
+        "vertex": "point_de_capiton",
+        "complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "critical_neighbor_count": 2
+      },
+      {
+        "vertex": "lamella",
+        "complexes": [
+          "ecrits",
+          "seminars"
+        ],
+        "critical_neighbor_count": 1
+      }
+    ],
+    "final_terrain_distribution": {
+      "tree": 667,
+      "critical": 409
+    },
+    "critical_edge_ratio": 0.38011152416356875,
+    "final_edge_type_distribution": {
+      "negation": 271,
+      "dependency": 516,
+      "reference": 153,
+      "sublation": 281,
+      "fold": 34
+    }
+  },
+  "settled_cycles_detail": [
+    {
+      "edges": [
+        [
+          "syn_property_contradiction_anti_property_contradiction_1_3",
+          "anti_property_contradiction_1"
+        ],
+        [
+          "syn_property_contradiction_anti_property_contradiction_1_3",
+          "property_contradiction"
+        ]
+      ],
+      "settled_at_step": 13
+    },
+    {
+      "edges": [
+        [
+          "syn_death_drive_sem2_anti_death_drive_sem2_16_18",
+          "anti_death_drive_sem2_16"
+        ],
+        [
+          "syn_death_drive_sem2_anti_death_drive_sem2_16_18",
+          "death_drive_sem2"
+        ]
+      ],
+      "settled_at_step": 28
+    },
+    {
+      "edges": [
+        [
+          "syn_signifier_anti_signifier_25_27",
+          "anti_signifier_25"
+        ],
+        [
+          "syn_signifier_anti_signifier_25_27",
+          "signifier"
+        ]
+      ],
+      "settled_at_step": 37
+    },
+    {
+      "edges": [
+        [
+          "syn_Joyce_anti_Joyce_38_40",
+          "Joyce"
+        ],
+        [
+          "syn_Joyce_anti_Joyce_38_40",
+          "anti_Joyce_38"
+        ]
+      ],
+      "settled_at_step": 50
+    },
+    {
+      "edges": [
+        [
+          "syn_Names_of_Father_anti_Names_of_Father_48_50",
+          "Names_of_Father"
+        ],
+        [
+          "syn_Names_of_Father_anti_Names_of_Father_48_50",
+          "anti_Names_of_Father_48"
+        ]
+      ],
+      "settled_at_step": 60
+    },
+    {
+      "edges": [
+        [
+          "syn_transference_anti_transference_59_61",
+          "anti_transference_59"
+        ],
+        [
+          "syn_transference_anti_transference_59_61",
+          "transference"
+        ]
+      ],
+      "settled_at_step": 71
+    },
+    {
+      "edges": [
+        [
+          "syn_graph_of_desire_anti_graph_of_desire_70_72",
+          "anti_graph_of_desire_70"
+        ],
+        [
+          "syn_graph_of_desire_anti_graph_of_desire_70_72",
+          "graph_of_desire"
+        ]
+      ],
+      "settled_at_step": 82
+    },
+    {
+      "edges": [
+        [
+          "syn_Other_barred_anti_Other_barred_78_80",
+          "Other_barred"
+        ],
+        [
+          "syn_Other_barred_anti_Other_barred_78_80",
+          "anti_Other_barred_78"
+        ]
+      ],
+      "settled_at_step": 90
+    },
+    {
+      "edges": [
+        [
+          "syn_borromean_knot_anti_borromean_knot_87_89",
+          "anti_borromean_knot_87"
+        ],
+        [
+          "syn_borromean_knot_anti_borromean_knot_87_89",
+          "borromean_knot"
+        ]
+      ],
+      "settled_at_step": 99
+    },
+    {
+      "edges": [
+        [
+          "syn_S_of_A_barred_anti_S_of_A_barred_95_97",
+          "S_of_A_barred"
+        ],
+        [
+          "syn_S_of_A_barred_anti_S_of_A_barred_95_97",
+          "anti_S_of_A_barred_95"
+        ]
+      ],
+      "settled_at_step": 107
+    },
+    {
+      "edges": [
+        [
+          "syn_delusional_metaphor_anti_delusional_metaphor_109_111",
+          "anti_delusional_metaphor_109"
+        ],
+        [
+          "syn_delusional_metaphor_anti_delusional_metaphor_109_111",
+          "delusional_metaphor"
+        ]
+      ],
+      "settled_at_step": 121
+    },
+    {
+      "edges": [
+        [
+          "syn_phallus_anti_phallus_124_126",
+          "anti_phallus_124"
+        ],
+        [
+          "syn_phallus_anti_phallus_124_126",
+          "phallus"
+        ]
+      ],
+      "settled_at_step": 136
+    },
+    {
+      "edges": [
+        [
+          "syn_truth_whole_anti_truth_whole_133_135",
+          "anti_truth_whole_133"
+        ],
+        [
+          "syn_truth_whole_anti_truth_whole_133_135",
+          "truth_whole"
+        ]
+      ],
+      "settled_at_step": 145
+    },
+    {
+      "edges": [
+        [
+          "syn_absolute_freedom_anti_absolute_freedom_141_143",
+          "absolute_freedom"
+        ],
+        [
+          "syn_absolute_freedom_anti_absolute_freedom_141_143",
+          "anti_absolute_freedom_141"
+        ]
+      ],
+      "settled_at_step": 153
+    },
+    {
+      "edges": [
+        [
+          "syn_absolute_knowing_anti_absolute_knowing_149_151",
+          "absolute_knowing"
+        ],
+        [
+          "syn_absolute_knowing_anti_absolute_knowing_149_151",
+          "anti_absolute_knowing_149"
+        ]
+      ],
+      "settled_at_step": 161
+    },
+    {
+      "edges": [
+        [
+          "syn_abstract_freedom_anti_abstract_freedom_157_159",
+          "abstract_freedom"
+        ],
+        [
+          "syn_abstract_freedom_anti_abstract_freedom_157_159",
+          "anti_abstract_freedom_157"
+        ]
+      ],
+      "settled_at_step": 169
+    },
+    {
+      "edges": [
+        [
+          "syn_act_concept_anti_act_concept_165_167",
+          "act_concept"
+        ],
+        [
+          "syn_act_concept_anti_act_concept_165_167",
+          "anti_act_concept_165"
+        ]
+      ],
+      "settled_at_step": 177
+    },
+    {
+      "edges": [
+        [
+          "syn_aggressivity_anti_aggressivity_178_180",
+          "aggressivity"
+        ],
+        [
+          "syn_aggressivity_anti_aggressivity_178_180",
+          "anti_aggressivity_178"
+        ]
+      ],
+      "settled_at_step": 190
+    },
+    {
+      "edges": [
+        [
+          "syn_algorithm_S_over_s_anti_algorithm_S_over_s_186_188",
+          "algorithm_S_over_s"
+        ],
+        [
+          "syn_algorithm_S_over_s_anti_algorithm_S_over_s_186_188",
+          "anti_algorithm_S_over_s_186"
+        ]
+      ],
+      "settled_at_step": 198
+    },
+    {
+      "edges": [
+        [
+          "syn_alienation_anti_alienation_194_196",
+          "alienation"
+        ],
+        [
+          "syn_alienation_anti_alienation_194_196",
+          "anti_alienation_194"
+        ]
+      ],
+      "settled_at_step": 206
+    },
+    {
+      "edges": [
+        [
+          "syn_repetition_concept_anti_repetition_concept_203_205",
+          "anti_repetition_concept_203"
+        ],
+        [
+          "syn_repetition_concept_anti_repetition_concept_203_205",
+          "repetition_concept"
+        ]
+      ],
+      "settled_at_step": 215
+    },
+    {
+      "edges": [
+        [
+          "syn_all_not_all_anti_all_not_all_211_213",
+          "all_not_all"
+        ],
+        [
+          "syn_all_not_all_anti_all_not_all_211_213",
+          "anti_all_not_all_211"
+        ]
+      ],
+      "settled_at_step": 223
+    },
+    {
+      "edges": [
+        [
+          "graph_of_desire",
+          "surplus_jouissance_a"
+        ],
+        [
+          "surplus_jouissance_a",
+          "graph_of_desire"
+        ]
+      ],
+      "settled_at_step": 280
+    },
+    {
+      "edges": [
+        [
+          "graph_of_desire",
+          "graph_of_desire"
+        ]
+      ],
+      "settled_at_step": 280
+    },
+    {
+      "edges": [
+        [
+          "syn_truth_anti_truth_276_278",
+          "anti_truth_276"
+        ],
+        [
+          "syn_truth_anti_truth_276_278",
+          "truth"
+        ]
+      ],
+      "settled_at_step": 288
+    },
+    {
+      "edges": [
+        [
+          "syn_identification_anti_identification_290_292",
+          "anti_identification_290"
+        ],
+        [
+          "syn_identification_anti_identification_290_292",
+          "identification"
+        ]
+      ],
+      "settled_at_step": 302
+    },
+    {
+      "edges": [
+        [
+          "syn_borromean_anti_borromean_321_323",
+          "anti_borromean_321"
+        ],
+        [
+          "syn_borromean_anti_borromean_321_323",
+          "borromean"
+        ]
+      ],
+      "settled_at_step": 333
+    },
+    {
+      "edges": [
+        [
+          "syn_subject_anti_subject_332_334",
+          "anti_subject_332"
+        ],
+        [
+          "syn_subject_anti_subject_332_334",
+          "subject"
+        ]
+      ],
+      "settled_at_step": 344
+    },
+    {
+      "edges": [
+        [
+          "syn_antigone_anti_antigone_340_342",
+          "anti_antigone_340"
+        ],
+        [
+          "syn_antigone_anti_antigone_340_342",
+          "antigone"
+        ]
+      ],
+      "settled_at_step": 352
+    },
+    {
+      "edges": [
+        [
+          "syn_picture_thinking_anti_picture_thinking_368_370",
+          "anti_picture_thinking_368"
+        ],
+        [
+          "syn_picture_thinking_anti_picture_thinking_368_370",
+          "picture_thinking"
+        ]
+      ],
+      "settled_at_step": 380
+    },
+    {
+      "edges": [
+        [
+          "syn_changeable_anti_changeable_387_389",
+          "anti_changeable_387"
+        ],
+        [
+          "syn_changeable_anti_changeable_387_389",
+          "changeable"
+        ]
+      ],
+      "settled_at_step": 399
+    },
+    {
+      "edges": [
+        [
+          "syn_jouissance_anti_jouissance_399_401",
+          "anti_jouissance_399"
+        ],
+        [
+          "syn_jouissance_anti_jouissance_399_401",
+          "jouissance"
+        ]
+      ],
+      "settled_at_step": 411
+    },
+    {
+      "edges": [
+        [
+          "syn_automaton_anti_automaton_407_409",
+          "anti_automaton_407"
+        ],
+        [
+          "syn_automaton_anti_automaton_407_409",
+          "automaton"
+        ]
+      ],
+      "settled_at_step": 419
+    },
+    {
+      "edges": [
+        [
+          "syn_signified_anti_signified_423_425",
+          "anti_signified_423"
+        ],
+        [
+          "syn_signified_anti_signified_423_425",
+          "signified"
+        ]
+      ],
+      "settled_at_step": 435
+    },
+    {
+      "edges": [
+        [
+          "syn_reconciliation_moral_anti_reconciliation_moral_450_452",
+          "anti_reconciliation_moral_450"
+        ],
+        [
+          "syn_reconciliation_moral_anti_reconciliation_moral_450_452",
+          "reconciliation_moral"
+        ]
+      ],
+      "settled_at_step": 462
+    },
+    {
+      "edges": [
+        [
+          "syn_ethical_substance_anti_ethical_substance_464_466",
+          "anti_ethical_substance_464"
+        ],
+        [
+          "syn_ethical_substance_anti_ethical_substance_464_466",
+          "ethical_substance"
+        ]
+      ],
+      "settled_at_step": 476
+    },
+    {
+      "edges": [
+        [
+          "syn_bondsman_freedom_anti_bondsman_freedom_488_490",
+          "anti_bondsman_freedom_488"
+        ],
+        [
+          "syn_bondsman_freedom_anti_bondsman_freedom_488_490",
+          "bondsman_freedom"
+        ]
+      ],
+      "settled_at_step": 500
+    },
+    {
+      "edges": [
+        [
+          "syn_religion_anti_religion_510_512",
+          "anti_religion_510"
+        ],
+        [
+          "syn_religion_anti_religion_510_512",
+          "religion"
+        ]
+      ],
+      "settled_at_step": 522
+    },
+    {
+      "edges": [
+        [
+          "syn_castration_anti_castration_518_520",
+          "anti_castration_518"
+        ],
+        [
+          "syn_castration_anti_castration_518_520",
+          "castration"
+        ]
+      ],
+      "settled_at_step": 530
+    },
+    {
+      "edges": [
+        [
+          "syn_category_anti_category_526_528",
+          "anti_category_526"
+        ],
+        [
+          "syn_category_anti_category_526_528",
+          "category"
+        ]
+      ],
+      "settled_at_step": 538
+    },
+    {
+      "edges": [
+        [
+          "syn_ego_ideal_ego_555",
+          "ego"
+        ],
+        [
+          "syn_ego_ideal_ego_555",
+          "ideal_ego"
+        ]
+      ],
+      "settled_at_step": 565
+    },
+    {
+      "edges": [
+        [
+          "syn_ego_as_function_anti_ego_as_function_558_560",
+          "anti_ego_as_function_558"
+        ],
+        [
+          "syn_ego_as_function_anti_ego_as_function_558_560",
+          "ego_as_function"
+        ]
+      ],
+      "settled_at_step": 570
+    },
+    {
+      "edges": [
+        [
+          "syn_subject_decentered_anti_subject_decentered_572_574",
+          "anti_subject_decentered_572"
+        ],
+        [
+          "syn_subject_decentered_anti_subject_decentered_572_574",
+          "subject_decentered"
+        ]
+      ],
+      "settled_at_step": 584
+    },
+    {
+      "edges": [
+        [
+          "syn_ethical_destruction_anti_ethical_destruction_586_588",
+          "anti_ethical_destruction_586"
+        ],
+        [
+          "syn_ethical_destruction_anti_ethical_destruction_586_588",
+          "ethical_destruction"
+        ]
+      ],
+      "settled_at_step": 598
+    },
+    {
+      "edges": [
+        [
+          "syn_time_history_anti_time_history_595_597",
+          "anti_time_history_595"
+        ],
+        [
+          "syn_time_history_anti_time_history_595_597",
+          "time_history"
+        ]
+      ],
+      "settled_at_step": 607
+    },
+    {
+      "edges": [
+        [
+          "syn_substance_anti_substance_605_607",
+          "anti_substance_605"
+        ],
+        [
+          "syn_substance_anti_substance_605_607",
+          "substance"
+        ]
+      ],
+      "settled_at_step": 617
+    },
+    {
+      "edges": [
+        [
+          "syn_real_knowledge_anti_real_knowledge_614_616",
+          "anti_real_knowledge_614"
+        ],
+        [
+          "syn_real_knowledge_anti_real_knowledge_614_616",
+          "real_knowledge"
+        ]
+      ],
+      "settled_at_step": 626
+    },
+    {
+      "edges": [
+        [
+          "syn_particular_anti_particular_623_625",
+          "anti_particular_623"
+        ],
+        [
+          "syn_particular_anti_particular_623_625",
+          "particular"
+        ]
+      ],
+      "settled_at_step": 635
+    },
+    {
+      "edges": [
+        [
+          "syn_metaphor_failure_anti_metaphor_failure_657_659",
+          "anti_metaphor_failure_657"
+        ],
+        [
+          "syn_metaphor_failure_anti_metaphor_failure_657_659",
+          "metaphor_failure"
+        ]
+      ],
+      "settled_at_step": 669
+    },
+    {
+      "edges": [
+        [
+          "syn_contradictory_thing_anti_contradictory_thing_665_667",
+          "anti_contradictory_thing_665"
+        ],
+        [
+          "syn_contradictory_thing_anti_contradictory_thing_665_667",
+          "contradictory_thing"
+        ]
+      ],
+      "settled_at_step": 677
+    },
+    {
+      "edges": [
+        [
+          "syn_divine_law_anti_divine_law_677_679",
+          "anti_divine_law_677"
+        ],
+        [
+          "syn_divine_law_anti_divine_law_677_679",
+          "divine_law"
+        ]
+      ],
+      "settled_at_step": 689
+    },
+    {
+      "edges": [
+        [
+          "syn_tragedy_anti_tragedy_694_696",
+          "anti_tragedy_694"
+        ],
+        [
+          "syn_tragedy_anti_tragedy_694_696",
+          "tragedy"
+        ]
+      ],
+      "settled_at_step": 706
+    },
+    {
+      "edges": [
+        [
+          "syn_internal_distinction_anti_internal_distinction_704_706",
+          "anti_internal_distinction_704"
+        ],
+        [
+          "syn_internal_distinction_anti_internal_distinction_704_706",
+          "internal_distinction"
+        ]
+      ],
+      "settled_at_step": 716
+    },
+    {
+      "edges": [
+        [
+          "syn_unconscious_concept_anti_unconscious_concept_714_716",
+          "anti_unconscious_concept_714"
+        ],
+        [
+          "syn_unconscious_concept_anti_unconscious_concept_714_716",
+          "unconscious_concept"
+        ]
+      ],
+      "settled_at_step": 726
+    },
+    {
+      "edges": [
+        [
+          "syn_curtain_anti_curtain_727_729",
+          "anti_curtain_727"
+        ],
+        [
+          "syn_curtain_anti_curtain_727_729",
+          "curtain"
+        ]
+      ],
+      "settled_at_step": 739
+    },
+    {
+      "edges": [
+        [
+          "syn_repetition_automatism_anti_repetition_automatism_737_739",
+          "anti_repetition_automatism_737"
+        ],
+        [
+          "syn_repetition_automatism_anti_repetition_automatism_737_739",
+          "repetition_automatism"
+        ]
+      ],
+      "settled_at_step": 749
+    },
+    {
+      "edges": [
+        [
+          "syn_das_Ding_anti_das_Ding_745_747",
+          "anti_das_Ding_745"
+        ],
+        [
+          "syn_das_Ding_anti_das_Ding_745_747",
+          "das_Ding"
+        ]
+      ],
+      "settled_at_step": 757
+    },
+    {
+      "edges": [
+        [
+          "syn_death_of_god_anti_death_of_god_753_755",
+          "anti_death_of_god_753"
+        ],
+        [
+          "syn_death_of_god_anti_death_of_god_753_755",
+          "death_of_god"
+        ]
+      ],
+      "settled_at_step": 765
+    },
+    {
+      "edges": [
+        [
+          "syn_independence_anti_independence_777_779",
+          "anti_independence_777"
+        ],
+        [
+          "syn_independence_anti_independence_777_779",
+          "independence"
+        ]
+      ],
+      "settled_at_step": 789
+    },
+    {
+      "edges": [
+        [
+          "syn_subject_signifier_796",
+          "signifier"
+        ],
+        [
+          "syn_subject_signifier_796",
+          "subject"
+        ]
+      ],
+      "settled_at_step": 806
+    },
+    {
+      "edges": [
+        [
+          "subject",
+          "subject"
+        ]
+      ],
+      "settled_at_step": 827
+    },
+    {
+      "edges": [
+        [
+          "syn_not_all_anti_not_all_840_842",
+          "anti_not_all_840"
+        ],
+        [
+          "syn_not_all_anti_not_all_840_842",
+          "not_all"
+        ]
+      ],
+      "settled_at_step": 852
+    },
+    {
+      "edges": [
+        [
+          "graph_of_desire",
+          "transference_love"
+        ],
+        [
+          "resistance",
+          "subject"
+        ],
+        [
+          "signifier",
+          "graph_of_desire"
+        ],
+        [
+          "subject",
+          "signifier"
+        ],
+        [
+          "transference",
+          "resistance"
+        ],
+        [
+          "transference_love",
+          "transference"
+        ]
+      ],
+      "settled_at_step": 888
+    },
+    {
+      "edges": [
+        [
+          "syn_anxiety_anti_anxiety_881_883",
+          "anti_anxiety_881"
+        ],
+        [
+          "syn_anxiety_anti_anxiety_881_883",
+          "anxiety"
+        ]
+      ],
+      "settled_at_step": 893
+    },
+    {
+      "edges": [
+        [
+          "syn_psychoanalytic_act_anti_psychoanalytic_act_890_892",
+          "anti_psychoanalytic_act_890"
+        ],
+        [
+          "syn_psychoanalytic_act_anti_psychoanalytic_act_890_892",
+          "psychoanalytic_act"
+        ]
+      ],
+      "settled_at_step": 902
+    },
+    {
+      "edges": [
+        [
+          "syn_negative_procedure_anti_negative_procedure_899_901",
+          "anti_negative_procedure_899"
+        ],
+        [
+          "syn_negative_procedure_anti_negative_procedure_899_901",
+          "negative_procedure"
+        ]
+      ],
+      "settled_at_step": 911
+    },
+    {
+      "edges": [
+        [
+          "syn_experience_anti_experience_908_910",
+          "anti_experience_908"
+        ],
+        [
+          "syn_experience_anti_experience_908_910",
+          "experience"
+        ]
+      ],
+      "settled_at_step": 920
+    },
+    {
+      "edges": [
+        [
+          "syn_individual_universal_unity_anti_individual_universal_unity_917_919",
+          "anti_individual_universal_unity_917"
+        ],
+        [
+          "syn_individual_universal_unity_anti_individual_universal_unity_917_919",
+          "individual_universal_unity"
+        ]
+      ],
+      "settled_at_step": 929
+    },
+    {
+      "edges": [
+        [
+          "syn_discourse_concept_anti_discourse_concept_925_927",
+          "anti_discourse_concept_925"
+        ],
+        [
+          "syn_discourse_concept_anti_discourse_concept_925_927",
+          "discourse_concept"
+        ]
+      ],
+      "settled_at_step": 937
+    },
+    {
+      "edges": [
+        [
+          "syn_postulates_anti_postulates_934_936",
+          "anti_postulates_934"
+        ],
+        [
+          "syn_postulates_anti_postulates_934_936",
+          "postulates"
+        ]
+      ],
+      "settled_at_step": 946
+    },
+    {
+      "edges": [
+        [
+          "syn_subject_unconscious_anti_subject_unconscious_968_970",
+          "anti_subject_unconscious_968"
+        ],
+        [
+          "syn_subject_unconscious_anti_subject_unconscious_968_970",
+          "subject_unconscious"
+        ]
+      ],
+      "settled_at_step": 980
+    },
+    {
+      "edges": [
+        [
+          "syn_drive_anti_drive_981_983",
+          "anti_drive_981"
+        ],
+        [
+          "syn_drive_anti_drive_981_983",
+          "drive"
+        ]
+      ],
+      "settled_at_step": 993
+    },
+    {
+      "edges": [
+        [
+          "syn_transference_intersubjectivity_1020",
+          "intersubjectivity"
+        ],
+        [
+          "syn_transference_intersubjectivity_1020",
+          "transference"
+        ]
+      ],
+      "settled_at_step": 1030
+    },
+    {
+      "edges": [
+        [
+          "syn_transference_subject_1034",
+          "subject"
+        ],
+        [
+          "syn_transference_subject_1034",
+          "transference"
+        ]
+      ],
+      "settled_at_step": 1044
+    },
+    {
+      "edges": [
+        [
+          "syn_subject_das_Ding_1133",
+          "das_Ding"
+        ],
+        [
+          "syn_subject_das_Ding_1133",
+          "subject"
+        ]
+      ],
+      "settled_at_step": 1143
+    },
+    {
+      "edges": [
+        [
+          "syn_empty_speech_anti_empty_speech_1160_1162",
+          "anti_empty_speech_1160"
+        ],
+        [
+          "syn_empty_speech_anti_empty_speech_1160_1162",
+          "empty_speech"
+        ]
+      ],
+      "settled_at_step": 1172
+    },
+    {
+      "edges": [
+        [
+          "syn_symbolic_phallus_anti_symbolic_phallus_1226_1228",
+          "anti_symbolic_phallus_1226"
+        ],
+        [
+          "syn_symbolic_phallus_anti_symbolic_phallus_1226_1228",
+          "symbolic_phallus"
+        ]
+      ],
+      "settled_at_step": 1238
+    },
+    {
+      "edges": [
+        [
+          "syn_ego_sinthome_anti_ego_sinthome_1234_1236",
+          "anti_ego_sinthome_1234"
+        ],
+        [
+          "syn_ego_sinthome_anti_ego_sinthome_1234_1236",
+          "ego_sinthome"
+        ]
+      ],
+      "settled_at_step": 1246
+    },
+    {
+      "edges": [
+        [
+          "syn_enjoyment_anti_enjoyment_1242_1244",
+          "anti_enjoyment_1242"
+        ],
+        [
+          "syn_enjoyment_anti_enjoyment_1242_1244",
+          "enjoyment"
+        ]
+      ],
+      "settled_at_step": 1254
+    },
+    {
+      "edges": [
+        [
+          "syn_guilt_ethical_destruction_1261",
+          "ethical_destruction"
+        ],
+        [
+          "syn_guilt_ethical_destruction_1261",
+          "guilt"
+        ]
+      ],
+      "settled_at_step": 1271
+    },
+    {
+      "edges": [
+        [
+          "syn_subject_graph_of_desire_1301",
+          "graph_of_desire"
+        ],
+        [
+          "syn_subject_graph_of_desire_1301",
+          "subject"
+        ]
+      ],
+      "settled_at_step": 1311
+    },
+    {
+      "edges": [
+        [
+          "syn_symbolic_phallus_imaginary_phallus_1359",
+          "imaginary_phallus"
+        ],
+        [
+          "syn_symbolic_phallus_imaginary_phallus_1359",
+          "symbolic_phallus"
+        ]
+      ],
+      "settled_at_step": 1369
+    },
+    {
+      "edges": [
+        [
+          "syn_phallic_jouissance_anti_phallic_jouissance_1365_1367",
+          "anti_phallic_jouissance_1365"
+        ],
+        [
+          "syn_phallic_jouissance_anti_phallic_jouissance_1365_1367",
+          "phallic_jouissance"
+        ]
+      ],
+      "settled_at_step": 1377
+    },
+    {
+      "edges": [
+        [
+          "syn_Yad_lun_anti_Yad_lun_1395_1397",
+          "Yad_lun"
+        ],
+        [
+          "syn_Yad_lun_anti_Yad_lun_1395_1397",
+          "anti_Yad_lun_1395"
+        ]
+      ],
+      "settled_at_step": 1407
+    },
+    {
+      "edges": [
+        [
+          "syn_natural_consciousness_anti_natural_consciousness_1415_1417",
+          "anti_natural_consciousness_1415"
+        ],
+        [
+          "syn_natural_consciousness_anti_natural_consciousness_1415_1417",
+          "natural_consciousness"
+        ]
+      ],
+      "settled_at_step": 1427
+    },
+    {
+      "edges": [
+        [
+          "syn_signifier_discourse_concept_1486",
+          "discourse_concept"
+        ],
+        [
+          "syn_signifier_discourse_concept_1486",
+          "signifier"
+        ]
+      ],
+      "settled_at_step": 1496
+    },
+    {
+      "edges": [
+        [
+          "syn_signifying_chain_anti_signifying_chain_1545_1547",
+          "anti_signifying_chain_1545"
+        ],
+        [
+          "syn_signifying_chain_anti_signifying_chain_1545_1547",
+          "signifying_chain"
+        ]
+      ],
+      "settled_at_step": 1557
+    },
+    {
+      "edges": [
+        [
+          "syn_feminine_jouissance_anti_feminine_jouissance_1563_1565",
+          "anti_feminine_jouissance_1563"
+        ],
+        [
+          "syn_feminine_jouissance_anti_feminine_jouissance_1563_1565",
+          "feminine_jouissance"
+        ]
+      ],
+      "settled_at_step": 1575
+    },
+    {
+      "edges": [
+        [
+          "syn_feminine_side_anti_feminine_side_1571_1573",
+          "anti_feminine_side_1571"
+        ],
+        [
+          "syn_feminine_side_anti_feminine_side_1571_1573",
+          "feminine_side"
+        ]
+      ],
+      "settled_at_step": 1583
+    },
+    {
+      "edges": [
+        [
+          "syn_hallucination_anti_hallucination_1590_1592",
+          "anti_hallucination_1590"
+        ],
+        [
+          "syn_hallucination_anti_hallucination_1590_1592",
+          "hallucination"
+        ]
+      ],
+      "settled_at_step": 1602
+    },
+    {
+      "edges": [
+        [
+          "syn_sinthome_anti_sinthome_1599_1601",
+          "anti_sinthome_1599"
+        ],
+        [
+          "syn_sinthome_anti_sinthome_1599_1601",
+          "sinthome"
+        ]
+      ],
+      "settled_at_step": 1611
+    },
+    {
+      "edges": [
+        [
+          "syn_fragmented_body_anti_fragmented_body_1607_1609",
+          "anti_fragmented_body_1607"
+        ],
+        [
+          "syn_fragmented_body_anti_fragmented_body_1607_1609",
+          "fragmented_body"
+        ]
+      ],
+      "settled_at_step": 1619
+    },
+    {
+      "edges": [
+        [
+          "syn_the_one_anti_the_one_1617_1619",
+          "anti_the_one_1617"
+        ],
+        [
+          "syn_the_one_anti_the_one_1617_1619",
+          "the_one"
+        ]
+      ],
+      "settled_at_step": 1629
+    },
+    {
+      "edges": [
+        [
+          "syn_narcissism_anti_narcissism_1643_1645",
+          "anti_narcissism_1643"
+        ],
+        [
+          "syn_narcissism_anti_narcissism_1643_1645",
+          "narcissism"
+        ]
+      ],
+      "settled_at_step": 1655
+    },
+    {
+      "edges": [
+        [
+          "syn_immediate_knowledge_anti_immediate_knowledge_1665_1667",
+          "anti_immediate_knowledge_1665"
+        ],
+        [
+          "syn_immediate_knowledge_anti_immediate_knowledge_1665_1667",
+          "immediate_knowledge"
+        ]
+      ],
+      "settled_at_step": 1677
+    },
+    {
+      "edges": [
+        [
+          "syn_human_law_anti_human_law_1673_1675",
+          "anti_human_law_1673"
+        ],
+        [
+          "syn_human_law_anti_human_law_1673_1675",
+          "human_law"
+        ]
+      ],
+      "settled_at_step": 1685
+    },
+    {
+      "edges": [
+        [
+          "syn_substance_is_subject_anti_substance_is_subject_1726_1728",
+          "anti_substance_is_subject_1726"
+        ],
+        [
+          "syn_substance_is_subject_anti_substance_is_subject_1726_1728",
+          "substance_is_subject"
+        ]
+      ],
+      "settled_at_step": 1738
+    },
+    {
+      "edges": [
+        [
+          "syn_spiritual_animal_kingdom_anti_spiritual_animal_kingdom_1740_1742",
+          "anti_spiritual_animal_kingdom_1740"
+        ],
+        [
+          "syn_spiritual_animal_kingdom_anti_spiritual_animal_kingdom_1740_1742",
+          "spiritual_animal_kingdom"
+        ]
+      ],
+      "settled_at_step": 1752
+    },
+    {
+      "edges": [
+        [
+          "syn_inner_being_anti_inner_being_1748_1750",
+          "anti_inner_being_1748"
+        ],
+        [
+          "syn_inner_being_anti_inner_being_1748_1750",
+          "inner_being"
+        ]
+      ],
+      "settled_at_step": 1760
+    },
+    {
+      "edges": [
+        [
+          "syn_time_for_comprehending_anti_time_for_comprehending_1769_1771",
+          "anti_time_for_comprehending_1769"
+        ],
+        [
+          "syn_time_for_comprehending_anti_time_for_comprehending_1769_1771",
+          "time_for_comprehending"
+        ]
+      ],
+      "settled_at_step": 1781
+    },
+    {
+      "edges": [
+        [
+          "syn_superego_anti_superego_1789_1791",
+          "anti_superego_1789"
+        ],
+        [
+          "syn_superego_anti_superego_1789_1791",
+          "superego"
+        ]
+      ],
+      "settled_at_step": 1801
+    },
+    {
+      "edges": [
+        [
+          "syn_mirror_stage_anti_mirror_stage_1799_1801",
+          "anti_mirror_stage_1799"
+        ],
+        [
+          "syn_mirror_stage_anti_mirror_stage_1799_1801",
+          "mirror_stage"
+        ]
+      ],
+      "settled_at_step": 1811
+    },
+    {
+      "edges": [
+        [
+          "syn_supersensible_world_anti_supersensible_world_1808_1810",
+          "anti_supersensible_world_1808"
+        ],
+        [
+          "syn_supersensible_world_anti_supersensible_world_1808_1810",
+          "supersensible_world"
+        ]
+      ],
+      "settled_at_step": 1820
+    },
+    {
+      "edges": [
+        [
+          "syn_university_discourse_anti_university_discourse_1822_1824",
+          "anti_university_discourse_1822"
+        ],
+        [
+          "syn_university_discourse_anti_university_discourse_1822_1824",
+          "university_discourse"
+        ]
+      ],
+      "settled_at_step": 1834
+    },
+    {
+      "edges": [
+        [
+          "syn_surplus_value_anti_surplus_value_1831_1833",
+          "anti_surplus_value_1831"
+        ],
+        [
+          "syn_surplus_value_anti_surplus_value_1831_1833",
+          "surplus_value"
+        ]
+      ],
+      "settled_at_step": 1843
+    },
+    {
+      "edges": [
+        [
+          "syn_universal_anti_universal_1845_1847",
+          "anti_universal_1845"
+        ],
+        [
+          "syn_universal_anti_universal_1845_1847",
+          "universal"
+        ]
+      ],
+      "settled_at_step": 1857
+    },
+    {
+      "edges": [
+        [
+          "syn_lalangue_anti_lalangue_1894_1896",
+          "anti_lalangue_1894"
+        ],
+        [
+          "syn_lalangue_anti_lalangue_1894_1896",
+          "lalangue"
+        ]
+      ],
+      "settled_at_step": 1906
+    },
+    {
+      "edges": [
+        [
+          "syn_dependence_anti_dependence_1927_1929",
+          "anti_dependence_1927"
+        ],
+        [
+          "syn_dependence_anti_dependence_1927_1929",
+          "dependence"
+        ]
+      ],
+      "settled_at_step": 1939
+    },
+    {
+      "edges": [
+        [
+          "syn_impossible_sexual_relation_anti_impossible_sexual_relation_1936_1938",
+          "anti_impossible_sexual_relation_1936"
+        ],
+        [
+          "syn_impossible_sexual_relation_anti_impossible_sexual_relation_1936_1938",
+          "impossible_sexual_relation"
+        ]
+      ],
+      "settled_at_step": 1948
+    },
+    {
+      "edges": [
+        [
+          "syn_science_anti_science_1946_1948",
+          "anti_science_1946"
+        ],
+        [
+          "syn_science_anti_science_1946_1948",
+          "science"
+        ]
+      ],
+      "settled_at_step": 1958
+    },
+    {
+      "edges": [
+        [
+          "syn_thing_anti_thing_1955_1957",
+          "anti_thing_1955"
+        ],
+        [
+          "syn_thing_anti_thing_1955_1957",
+          "thing"
+        ]
+      ],
+      "settled_at_step": 1967
+    },
+    {
+      "edges": [
+        [
+          "syn_sexuation_formulas_anti_sexuation_formulas_1964_1966",
+          "anti_sexuation_formulas_1964"
+        ],
+        [
+          "syn_sexuation_formulas_anti_sexuation_formulas_1964_1966",
+          "sexuation_formulas"
+        ]
+      ],
+      "settled_at_step": 1976
+    },
+    {
+      "edges": [
+        [
+          "syn_perception_anti_perception_1978_1980",
+          "anti_perception_1978"
+        ],
+        [
+          "syn_perception_anti_perception_1978_1980",
+          "perception"
+        ]
+      ],
+      "settled_at_step": 1990
+    }
+  ],
+  "elapsed_seconds": 9.739439249038696
+}
