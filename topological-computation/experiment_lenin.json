@@ -1,0 +1,3475 @@
+{
+  "experiment": "lenin_collected_works_incremental",
+  "source": "Lenin, Collected Works — 30 works by publication date (1893-1923)",
+  "methodology": "manual dialectical complex per work, incremental injection, digestion until 50-step beta_1 stability",
+  "work_results": [
+    {
+      "work": "1893: What the Friends of the People Are",
+      "work_index": 1,
+      "vertices_added": 10,
+      "edges_added": 12,
+      "vertices_total": 9,
+      "edges_total": 13,
+      "beta_1_before_injection": 4,
+      "beta_1_after_digestion": 4,
+      "delta_beta_1": 0,
+      "settled_cycles": 0,
+      "blocked_in_work": 0,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 50,
+      "operation_counts": {
+        "walk": 49,
+        "fold": 1
+      }
+    },
+    {
+      "work": "1895: The Economic Content of Narodism",
+      "work_index": 2,
+      "vertices_added": 5,
+      "edges_added": 9,
+      "vertices_total": 18,
+      "edges_total": 28,
+      "beta_1_before_injection": 7,
+      "beta_1_after_digestion": 9,
+      "delta_beta_1": 2,
+      "settled_cycles": 2,
+      "blocked_in_work": 0,
+      "steps_to_digest": 72,
+      "converged": true,
+      "cumulative_steps": 122,
+      "operation_counts": {
+        "walk": 68,
+        "negate_b": 2,
+        "sublate": 2
+      }
+    },
+    {
+      "work": "1897: The Development of Capitalism in Russia",
+      "work_index": 3,
+      "vertices_added": 6,
+      "edges_added": 11,
+      "vertices_total": 22,
+      "edges_total": 40,
+      "beta_1_before_injection": 14,
+      "beta_1_after_digestion": 13,
+      "delta_beta_1": -1,
+      "settled_cycles": 2,
+      "blocked_in_work": 0,
+      "steps_to_digest": 54,
+      "converged": true,
+      "cumulative_steps": 176,
+      "operation_counts": {
+        "walk": 52,
+        "fold": 2
+      }
+    },
+    {
+      "work": "1899: A Protest by Russian Social-Democrats",
+      "work_index": 4,
+      "vertices_added": 3,
+      "edges_added": 6,
+      "vertices_total": 27,
+      "edges_total": 49,
+      "beta_1_before_injection": 16,
+      "beta_1_after_digestion": 17,
+      "delta_beta_1": 1,
+      "settled_cycles": 3,
+      "blocked_in_work": 0,
+      "steps_to_digest": 59,
+      "converged": true,
+      "cumulative_steps": 235,
+      "operation_counts": {
+        "walk": 57,
+        "negate_b": 1,
+        "sublate": 1
+      }
+    },
+    {
+      "work": "1902: What Is To Be Done?",
+      "work_index": 5,
+      "vertices_added": 8,
+      "edges_added": 12,
+      "vertices_total": 36,
+      "edges_total": 63,
+      "beta_1_before_injection": 20,
+      "beta_1_after_digestion": 20,
+      "delta_beta_1": 0,
+      "settled_cycles": 4,
+      "blocked_in_work": 1,
+      "steps_to_digest": 66,
+      "converged": true,
+      "cumulative_steps": 301,
+      "operation_counts": {
+        "walk": 62,
+        "negate_b": 1,
+        "sublate": 1,
+        "fold_blocked": 1,
+        "fold": 1
+      }
+    },
+    {
+      "work": "1904: One Step Forward, Two Steps Back",
+      "work_index": 6,
+      "vertices_added": 5,
+      "edges_added": 9,
+      "vertices_total": 38,
+      "edges_total": 74,
+      "beta_1_before_injection": 24,
+      "beta_1_after_digestion": 23,
+      "delta_beta_1": -1,
+      "settled_cycles": 4,
+      "blocked_in_work": 1,
+      "steps_to_digest": 61,
+      "converged": true,
+      "cumulative_steps": 362,
+      "operation_counts": {
+        "walk": 58,
+        "fold": 3
+      }
+    },
+    {
+      "work": "1905: Two Tactics of Social-Democracy",
+      "work_index": 7,
+      "vertices_added": 5,
+      "edges_added": 11,
+      "vertices_total": 41,
+      "edges_total": 85,
+      "beta_1_before_injection": 27,
+      "beta_1_after_digestion": 26,
+      "delta_beta_1": -1,
+      "settled_cycles": 4,
+      "blocked_in_work": 1,
+      "steps_to_digest": 65,
+      "converged": true,
+      "cumulative_steps": 427,
+      "operation_counts": {
+        "walk": 63,
+        "fold": 2
+      }
+    },
+    {
+      "work": "1908: Materialism and Empirio-Criticism",
+      "work_index": 8,
+      "vertices_added": 6,
+      "edges_added": 11,
+      "vertices_total": 49,
+      "edges_total": 104,
+      "beta_1_before_injection": 31,
+      "beta_1_after_digestion": 33,
+      "delta_beta_1": 2,
+      "settled_cycles": 5,
+      "blocked_in_work": 1,
+      "steps_to_digest": 69,
+      "converged": true,
+      "cumulative_steps": 496,
+      "operation_counts": {
+        "walk": 63,
+        "negate_b": 2,
+        "sublate": 2,
+        "fold": 2
+      }
+    },
+    {
+      "work": "1913: Three Sources and Three Component Parts of Marxism",
+      "work_index": 9,
+      "vertices_added": 5,
+      "edges_added": 10,
+      "vertices_total": 54,
+      "edges_total": 120,
+      "beta_1_before_injection": 36,
+      "beta_1_after_digestion": 38,
+      "delta_beta_1": 2,
+      "settled_cycles": 8,
+      "blocked_in_work": 7,
+      "steps_to_digest": 96,
+      "converged": true,
+      "cumulative_steps": 592,
+      "operation_counts": {
+        "fold": 3,
+        "walk": 83,
+        "negate_b": 1,
+        "sublate": 2,
+        "negate_a": 1,
+        "fold_blocked": 6
+      }
+    },
+    {
+      "work": "1914: The Right of Nations to Self-Determination",
+      "work_index": 10,
+      "vertices_added": 5,
+      "edges_added": 7,
+      "vertices_total": 59,
+      "edges_total": 125,
+      "beta_1_before_injection": 38,
+      "beta_1_after_digestion": 38,
+      "delta_beta_1": 0,
+      "settled_cycles": 8,
+      "blocked_in_work": 7,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 642,
+      "operation_counts": {
+        "walk": 50
+      }
+    },
+    {
+      "work": "1914-16: Philosophical Notebooks",
+      "work_index": 11,
+      "vertices_added": 6,
+      "edges_added": 12,
+      "vertices_total": 64,
+      "edges_total": 133,
+      "beta_1_before_injection": 40,
+      "beta_1_after_digestion": 40,
+      "delta_beta_1": 0,
+      "settled_cycles": 8,
+      "blocked_in_work": 7,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 692,
+      "operation_counts": {
+        "walk": 49,
+        "fold": 1
+      }
+    },
+    {
+      "work": "1915: The Collapse of the Second International",
+      "work_index": 12,
+      "vertices_added": 5,
+      "edges_added": 10,
+      "vertices_total": 69,
+      "edges_total": 139,
+      "beta_1_before_injection": 41,
+      "beta_1_after_digestion": 41,
+      "delta_beta_1": 0,
+      "settled_cycles": 8,
+      "blocked_in_work": 7,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 742,
+      "operation_counts": {
+        "walk": 50
+      }
+    },
+    {
+      "work": "1916: Imperialism, the Highest Stage of Capitalism",
+      "work_index": 13,
+      "vertices_added": 8,
+      "edges_added": 13,
+      "vertices_total": 80,
+      "edges_total": 158,
+      "beta_1_before_injection": 46,
+      "beta_1_after_digestion": 47,
+      "delta_beta_1": 1,
+      "settled_cycles": 9,
+      "blocked_in_work": 7,
+      "steps_to_digest": 69,
+      "converged": true,
+      "cumulative_steps": 811,
+      "operation_counts": {
+        "negate_b": 2,
+        "walk": 64,
+        "sublate": 2,
+        "fold": 1
+      }
+    },
+    {
+      "work": "1917: The State and Revolution",
+      "work_index": 14,
+      "vertices_added": 8,
+      "edges_added": 16,
+      "vertices_total": 87,
+      "edges_total": 169,
+      "beta_1_before_injection": 50,
+      "beta_1_after_digestion": 48,
+      "delta_beta_1": -2,
+      "settled_cycles": 9,
+      "blocked_in_work": 7,
+      "steps_to_digest": 58,
+      "converged": true,
+      "cumulative_steps": 869,
+      "operation_counts": {
+        "walk": 57,
+        "fold": 1
+      }
+    },
+    {
+      "work": "1917: April Theses",
+      "work_index": 15,
+      "vertices_added": 4,
+      "edges_added": 8,
+      "vertices_total": 91,
+      "edges_total": 178,
+      "beta_1_before_injection": 50,
+      "beta_1_after_digestion": 49,
+      "delta_beta_1": -1,
+      "settled_cycles": 10,
+      "blocked_in_work": 7,
+      "steps_to_digest": 69,
+      "converged": true,
+      "cumulative_steps": 938,
+      "operation_counts": {
+        "walk": 65,
+        "fold": 2,
+        "negate_b": 1,
+        "sublate": 1
+      }
+    },
+    {
+      "work": "1917: Letters from Afar",
+      "work_index": 16,
+      "vertices_added": 3,
+      "edges_added": 6,
+      "vertices_total": 93,
+      "edges_total": 182,
+      "beta_1_before_injection": 50,
+      "beta_1_after_digestion": 49,
+      "delta_beta_1": -1,
+      "settled_cycles": 10,
+      "blocked_in_work": 7,
+      "steps_to_digest": 62,
+      "converged": true,
+      "cumulative_steps": 1000,
+      "operation_counts": {
+        "walk": 61,
+        "fold": 1
+      }
+    },
+    {
+      "work": "1917: Can the Bolsheviks Retain State Power?",
+      "work_index": 17,
+      "vertices_added": 3,
+      "edges_added": 6,
+      "vertices_total": 97,
+      "edges_total": 188,
+      "beta_1_before_injection": 50,
+      "beta_1_after_digestion": 50,
+      "delta_beta_1": 0,
+      "settled_cycles": 11,
+      "blocked_in_work": 7,
+      "steps_to_digest": 85,
+      "converged": true,
+      "cumulative_steps": 1085,
+      "operation_counts": {
+        "walk": 82,
+        "fold": 1,
+        "negate_b": 1,
+        "sublate": 1
+      }
+    },
+    {
+      "work": "1918: The Immediate Tasks of the Soviet Government",
+      "work_index": 18,
+      "vertices_added": 4,
+      "edges_added": 9,
+      "vertices_total": 101,
+      "edges_total": 193,
+      "beta_1_before_injection": 50,
+      "beta_1_after_digestion": 50,
+      "delta_beta_1": 0,
+      "settled_cycles": 11,
+      "blocked_in_work": 7,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 1135,
+      "operation_counts": {
+        "walk": 50
+      }
+    },
+    {
+      "work": "1918: The Proletarian Revolution and the Renegade Kautsky",
+      "work_index": 19,
+      "vertices_added": 4,
+      "edges_added": 9,
+      "vertices_total": 107,
+      "edges_total": 205,
+      "beta_1_before_injection": 52,
+      "beta_1_after_digestion": 53,
+      "delta_beta_1": 1,
+      "settled_cycles": 13,
+      "blocked_in_work": 7,
+      "steps_to_digest": 75,
+      "converged": true,
+      "cumulative_steps": 1210,
+      "operation_counts": {
+        "walk": 70,
+        "negate_b": 1,
+        "sublate": 2,
+        "fold": 1,
+        "negate_a": 1
+      }
+    },
+    {
+      "work": "1919: Economics and Politics in the Era of the Dictatorship",
+      "work_index": 20,
+      "vertices_added": 3,
+      "edges_added": 8,
+      "vertices_total": 110,
+      "edges_total": 207,
+      "beta_1_before_injection": 53,
+      "beta_1_after_digestion": 53,
+      "delta_beta_1": 0,
+      "settled_cycles": 13,
+      "blocked_in_work": 7,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 1260,
+      "operation_counts": {
+        "walk": 50
+      }
+    },
+    {
+      "work": "1920: Left-Wing Communism: An Infantile Disorder",
+      "work_index": 21,
+      "vertices_added": 5,
+      "edges_added": 11,
+      "vertices_total": 116,
+      "edges_total": 218,
+      "beta_1_before_injection": 57,
+      "beta_1_after_digestion": 57,
+      "delta_beta_1": 0,
+      "settled_cycles": 14,
+      "blocked_in_work": 7,
+      "steps_to_digest": 61,
+      "converged": true,
+      "cumulative_steps": 1321,
+      "operation_counts": {
+        "walk": 58,
+        "fold": 1,
+        "negate_b": 1,
+        "sublate": 1
+      }
+    },
+    {
+      "work": "1920: Report on International Situation (Comintern)",
+      "work_index": 22,
+      "vertices_added": 3,
+      "edges_added": 8,
+      "vertices_total": 121,
+      "edges_total": 225,
+      "beta_1_before_injection": 58,
+      "beta_1_after_digestion": 59,
+      "delta_beta_1": 1,
+      "settled_cycles": 15,
+      "blocked_in_work": 7,
+      "steps_to_digest": 60,
+      "converged": true,
+      "cumulative_steps": 1381,
+      "operation_counts": {
+        "walk": 58,
+        "negate_b": 1,
+        "sublate": 1
+      }
+    },
+    {
+      "work": "1921: On the Tax in Kind (NEP)",
+      "work_index": 23,
+      "vertices_added": 5,
+      "edges_added": 10,
+      "vertices_total": 126,
+      "edges_total": 241,
+      "beta_1_before_injection": 62,
+      "beta_1_after_digestion": 67,
+      "delta_beta_1": 5,
+      "settled_cycles": 17,
+      "blocked_in_work": 7,
+      "steps_to_digest": 93,
+      "converged": true,
+      "cumulative_steps": 1474,
+      "operation_counts": {
+        "walk": 87,
+        "negate_a": 2,
+        "sublate": 2,
+        "fold": 2
+      }
+    },
+    {
+      "work": "1921: Once Again on the Trade Unions",
+      "work_index": 24,
+      "vertices_added": 3,
+      "edges_added": 8,
+      "vertices_total": 130,
+      "edges_total": 248,
+      "beta_1_before_injection": 68,
+      "beta_1_after_digestion": 68,
+      "delta_beta_1": 0,
+      "settled_cycles": 18,
+      "blocked_in_work": 22,
+      "steps_to_digest": 113,
+      "converged": true,
+      "cumulative_steps": 1587,
+      "operation_counts": {
+        "walk": 95,
+        "fold_blocked": 15,
+        "negate_b": 1,
+        "sublate": 1,
+        "fold": 1
+      }
+    },
+    {
+      "work": "1922: On the Significance of Militant Materialism",
+      "work_index": 25,
+      "vertices_added": 3,
+      "edges_added": 7,
+      "vertices_total": 133,
+      "edges_total": 252,
+      "beta_1_before_injection": 69,
+      "beta_1_after_digestion": 69,
+      "delta_beta_1": 0,
+      "settled_cycles": 18,
+      "blocked_in_work": 39,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 1637,
+      "operation_counts": {
+        "fold_blocked": 17,
+        "walk": 33
+      }
+    },
+    {
+      "work": "1922: Letter to the Congress (Testament)",
+      "work_index": 26,
+      "vertices_added": 3,
+      "edges_added": 7,
+      "vertices_total": 136,
+      "edges_total": 254,
+      "beta_1_before_injection": 69,
+      "beta_1_after_digestion": 69,
+      "delta_beta_1": 0,
+      "settled_cycles": 18,
+      "blocked_in_work": 56,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 1687,
+      "operation_counts": {
+        "walk": 33,
+        "fold_blocked": 17
+      }
+    },
+    {
+      "work": "1923: On Cooperation",
+      "work_index": 27,
+      "vertices_added": 3,
+      "edges_added": 7,
+      "vertices_total": 139,
+      "edges_total": 259,
+      "beta_1_before_injection": 71,
+      "beta_1_after_digestion": 71,
+      "delta_beta_1": 0,
+      "settled_cycles": 18,
+      "blocked_in_work": 72,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 1737,
+      "operation_counts": {
+        "walk": 34,
+        "fold_blocked": 16
+      }
+    },
+    {
+      "work": "1923: Better Fewer, But Better",
+      "work_index": 28,
+      "vertices_added": 2,
+      "edges_added": 5,
+      "vertices_total": 141,
+      "edges_total": 264,
+      "beta_1_before_injection": 74,
+      "beta_1_after_digestion": 74,
+      "delta_beta_1": 0,
+      "settled_cycles": 18,
+      "blocked_in_work": 89,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 1787,
+      "operation_counts": {
+        "fold_blocked": 17,
+        "walk": 33
+      }
+    },
+    {
+      "work": "1923: Our Revolution",
+      "work_index": 29,
+      "vertices_added": 3,
+      "edges_added": 7,
+      "vertices_total": 144,
+      "edges_total": 268,
+      "beta_1_before_injection": 74,
+      "beta_1_after_digestion": 74,
+      "delta_beta_1": 0,
+      "settled_cycles": 18,
+      "blocked_in_work": 106,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 1837,
+      "operation_counts": {
+        "walk": 33,
+        "fold_blocked": 17
+      }
+    },
+    {
+      "work": "1923: Pages from a Diary",
+      "work_index": 30,
+      "vertices_added": 2,
+      "edges_added": 4,
+      "vertices_total": 146,
+      "edges_total": 271,
+      "beta_1_before_injection": 75,
+      "beta_1_after_digestion": 75,
+      "delta_beta_1": 0,
+      "settled_cycles": 18,
+      "blocked_in_work": 122,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 1887,
+      "operation_counts": {
+        "walk": 34,
+        "fold_blocked": 16
+      }
+    }
+  ],
+  "beta_1_curve": [
+    {
+      "work_index": 1,
+      "work_name": "1893: What the Friends of the People Are",
+      "beta_1": 4,
+      "cumulative_steps": 50
+    },
+    {
+      "work_index": 2,
+      "work_name": "1895: The Economic Content of Narodism",
+      "beta_1": 9,
+      "cumulative_steps": 122
+    },
+    {
+      "work_index": 3,
+      "work_name": "1897: The Development of Capitalism in Russia",
+      "beta_1": 13,
+      "cumulative_steps": 176
+    },
+    {
+      "work_index": 4,
+      "work_name": "1899: A Protest by Russian Social-Democrats",
+      "beta_1": 17,
+      "cumulative_steps": 235
+    },
+    {
+      "work_index": 5,
+      "work_name": "1902: What Is To Be Done?",
+      "beta_1": 20,
+      "cumulative_steps": 301
+    },
+    {
+      "work_index": 6,
+      "work_name": "1904: One Step Forward, Two Steps Back",
+      "beta_1": 23,
+      "cumulative_steps": 362
+    },
+    {
+      "work_index": 7,
+      "work_name": "1905: Two Tactics of Social-Democracy",
+      "beta_1": 26,
+      "cumulative_steps": 427
+    },
+    {
+      "work_index": 8,
+      "work_name": "1908: Materialism and Empirio-Criticism",
+      "beta_1": 33,
+      "cumulative_steps": 496
+    },
+    {
+      "work_index": 9,
+      "work_name": "1913: Three Sources and Three Component Parts of Marxism",
+      "beta_1": 38,
+      "cumulative_steps": 592
+    },
+    {
+      "work_index": 10,
+      "work_name": "1914: The Right of Nations to Self-Determination",
+      "beta_1": 38,
+      "cumulative_steps": 642
+    },
+    {
+      "work_index": 11,
+      "work_name": "1914-16: Philosophical Notebooks",
+      "beta_1": 40,
+      "cumulative_steps": 692
+    },
+    {
+      "work_index": 12,
+      "work_name": "1915: The Collapse of the Second International",
+      "beta_1": 41,
+      "cumulative_steps": 742
+    },
+    {
+      "work_index": 13,
+      "work_name": "1916: Imperialism, the Highest Stage of Capitalism",
+      "beta_1": 47,
+      "cumulative_steps": 811
+    },
+    {
+      "work_index": 14,
+      "work_name": "1917: The State and Revolution",
+      "beta_1": 48,
+      "cumulative_steps": 869
+    },
+    {
+      "work_index": 15,
+      "work_name": "1917: April Theses",
+      "beta_1": 49,
+      "cumulative_steps": 938
+    },
+    {
+      "work_index": 16,
+      "work_name": "1917: Letters from Afar",
+      "beta_1": 49,
+      "cumulative_steps": 1000
+    },
+    {
+      "work_index": 17,
+      "work_name": "1917: Can the Bolsheviks Retain State Power?",
+      "beta_1": 50,
+      "cumulative_steps": 1085
+    },
+    {
+      "work_index": 18,
+      "work_name": "1918: The Immediate Tasks of the Soviet Government",
+      "beta_1": 50,
+      "cumulative_steps": 1135
+    },
+    {
+      "work_index": 19,
+      "work_name": "1918: The Proletarian Revolution and the Renegade Kautsky",
+      "beta_1": 53,
+      "cumulative_steps": 1210
+    },
+    {
+      "work_index": 20,
+      "work_name": "1919: Economics and Politics in the Era of the Dictatorship",
+      "beta_1": 53,
+      "cumulative_steps": 1260
+    },
+    {
+      "work_index": 21,
+      "work_name": "1920: Left-Wing Communism: An Infantile Disorder",
+      "beta_1": 57,
+      "cumulative_steps": 1321
+    },
+    {
+      "work_index": 22,
+      "work_name": "1920: Report on International Situation (Comintern)",
+      "beta_1": 59,
+      "cumulative_steps": 1381
+    },
+    {
+      "work_index": 23,
+      "work_name": "1921: On the Tax in Kind (NEP)",
+      "beta_1": 67,
+      "cumulative_steps": 1474
+    },
+    {
+      "work_index": 24,
+      "work_name": "1921: Once Again on the Trade Unions",
+      "beta_1": 68,
+      "cumulative_steps": 1587
+    },
+    {
+      "work_index": 25,
+      "work_name": "1922: On the Significance of Militant Materialism",
+      "beta_1": 69,
+      "cumulative_steps": 1637
+    },
+    {
+      "work_index": 26,
+      "work_name": "1922: Letter to the Congress (Testament)",
+      "beta_1": 69,
+      "cumulative_steps": 1687
+    },
+    {
+      "work_index": 27,
+      "work_name": "1923: On Cooperation",
+      "beta_1": 71,
+      "cumulative_steps": 1737
+    },
+    {
+      "work_index": 28,
+      "work_name": "1923: Better Fewer, But Better",
+      "beta_1": 74,
+      "cumulative_steps": 1787
+    },
+    {
+      "work_index": 29,
+      "work_name": "1923: Our Revolution",
+      "beta_1": 74,
+      "cumulative_steps": 1837
+    },
+    {
+      "work_index": 30,
+      "work_name": "1923: Pages from a Diary",
+      "beta_1": 75,
+      "cumulative_steps": 1887
+    }
+  ],
+  "final_complex": {
+    "vertices_active": 146,
+    "edges_active": 271,
+    "beta_1": 75,
+    "settled_cycles": 18,
+    "edge_type_distribution": {
+      "dependency": 116,
+      "negation": 57,
+      "reference": 47,
+      "fold": 13,
+      "sublation": 38
+    },
+    "terrain_distribution": {
+      "tree": 151,
+      "critical": 56
+    },
+    "critical_edge_ratio": 0.27053140096618356,
+    "negation_density": 0.21033210332103322
+  },
+  "total_steps": 1887,
+  "settled_cycles_detail": [
+    {
+      "edges": [
+        [
+          "syn_partisanship_anti_partisanship_59_61",
+          "anti_partisanship_59"
+        ],
+        [
+          "syn_partisanship_anti_partisanship_59_61",
+          "partisanship"
+        ]
+      ],
+      "settled_at_step": 71
+    },
+    {
+      "edges": [
+        [
+          "syn_historical_materialism_anti_historical_materialism_70_72",
+          "anti_historical_materialism_70"
+        ],
+        [
+          "syn_historical_materialism_anti_historical_materialism_70_72",
+          "historical_materialism"
+        ]
+      ],
+      "settled_at_step": 82
+    },
+    {
+      "edges": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ],
+      "settled_at_step": 195
+    },
+    {
+      "edges": [
+        [
+          "syn_consciousness_anti_consciousness_241_243",
+          "anti_consciousness_241"
+        ],
+        [
+          "syn_consciousness_anti_consciousness_241_243",
+          "consciousness"
+        ]
+      ],
+      "settled_at_step": 253
+    },
+    {
+      "edges": [
+        [
+          "syn_materialism_anti_materialism_444_446",
+          "anti_materialism_444"
+        ],
+        [
+          "syn_materialism_anti_materialism_444_446",
+          "materialism"
+        ]
+      ],
+      "settled_at_step": 456
+    },
+    {
+      "edges": [
+        [
+          "syn_french_socialism_anti_french_socialism_508_510",
+          "anti_french_socialism_508"
+        ],
+        [
+          "syn_french_socialism_anti_french_socialism_508_510",
+          "french_socialism"
+        ]
+      ],
+      "settled_at_step": 520
+    },
+    {
+      "edges": [
+        [
+          "syn_revolutionary_program_french_socialism_525",
+          "french_socialism"
+        ],
+        [
+          "syn_revolutionary_program_french_socialism_525",
+          "revolutionary_program"
+        ]
+      ],
+      "settled_at_step": 535
+    },
+    {
+      "edges": [
+        [
+          "revolutionary_program",
+          "revolutionary_program"
+        ]
+      ],
+      "settled_at_step": 552
+    },
+    {
+      "edges": [
+        [
+          "syn_social_chauvinism_anti_social_chauvinism_743_745",
+          "anti_social_chauvinism_743"
+        ],
+        [
+          "syn_social_chauvinism_anti_social_chauvinism_743_745",
+          "social_chauvinism"
+        ]
+      ],
+      "settled_at_step": 755
+    },
+    {
+      "edges": [
+        [
+          "syn_soviets_anti_soviets_880_882",
+          "anti_soviets_880"
+        ],
+        [
+          "syn_soviets_anti_soviets_880_882",
+          "soviets"
+        ]
+      ],
+      "settled_at_step": 892
+    },
+    {
+      "edges": [
+        [
+          "syn_finance_capital_anti_finance_capital_1033_1035",
+          "anti_finance_capital_1033"
+        ],
+        [
+          "syn_finance_capital_anti_finance_capital_1033_1035",
+          "finance_capital"
+        ]
+      ],
+      "settled_at_step": 1045
+    },
+    {
+      "edges": [
+        [
+          "syn_opportunism_anti_opportunism_1147_1149",
+          "anti_opportunism_1147"
+        ],
+        [
+          "syn_opportunism_anti_opportunism_1147_1149",
+          "opportunism"
+        ]
+      ],
+      "settled_at_step": 1159
+    },
+    {
+      "edges": [
+        [
+          "syn_social_chauvinism_second_international_1160",
+          "second_international"
+        ],
+        [
+          "syn_social_chauvinism_second_international_1160",
+          "social_chauvinism"
+        ]
+      ],
+      "settled_at_step": 1170
+    },
+    {
+      "edges": [
+        [
+          "syn_ultra_leftism_anti_ultra_leftism_1269_1271",
+          "anti_ultra_leftism_1269"
+        ],
+        [
+          "syn_ultra_leftism_anti_ultra_leftism_1269_1271",
+          "ultra_leftism"
+        ]
+      ],
+      "settled_at_step": 1281
+    },
+    {
+      "edges": [
+        [
+          "syn_self_determination_anti_self_determination_1329_1331",
+          "anti_self_determination_1329"
+        ],
+        [
+          "syn_self_determination_anti_self_determination_1329_1331",
+          "self_determination"
+        ]
+      ],
+      "settled_at_step": 1341
+    },
+    {
+      "edges": [
+        [
+          "revolutionary_democratic_dictatorship",
+          "revolutionary_democratic_dictatorship"
+        ]
+      ],
+      "settled_at_step": 1432
+    },
+    {
+      "edges": [
+        [
+          "syn_revolutionary_democratic_dictatorship_worker_peasant_alliance_1424",
+          "revolutionary_democratic_dictatorship"
+        ],
+        [
+          "syn_revolutionary_democratic_dictatorship_worker_peasant_alliance_1424",
+          "worker_peasant_alliance"
+        ]
+      ],
+      "settled_at_step": 1434
+    },
+    {
+      "edges": [
+        [
+          "syn_spontaneity_anti_spontaneity_1508_1510",
+          "anti_spontaneity_1508"
+        ],
+        [
+          "syn_spontaneity_anti_spontaneity_1508_1510",
+          "spontaneity"
+        ]
+      ],
+      "settled_at_step": 1520
+    }
+  ],
+  "blocked_log": [
+    {
+      "step": 249,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "economism",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 527,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "french_socialism",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 530,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "french_socialism",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 533,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "french_socialism",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 535,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "revolutionary_program",
+          "french_socialism"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_french_socialism_anti_french_socialism_508_510",
+          "anti_french_socialism_508"
+        ],
+        [
+          "syn_french_socialism_anti_french_socialism_508_510",
+          "french_socialism"
+        ]
+      ]
+    },
+    {
+      "step": 538,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "revolutionary_program",
+          "french_socialism"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_french_socialism_anti_french_socialism_508_510",
+          "anti_french_socialism_508"
+        ],
+        [
+          "syn_french_socialism_anti_french_socialism_508_510",
+          "french_socialism"
+        ]
+      ]
+    },
+    {
+      "step": 540,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "class_struggle",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1484,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "spontaneity",
+          "revolutionary_democratic_dictatorship"
+        ]
+      },
+      "blocked_by": [
+        [
+          "revolutionary_democratic_dictatorship",
+          "revolutionary_democratic_dictatorship"
+        ]
+      ]
+    },
+    {
+      "step": 1487,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "spontaneity",
+          "revolutionary_democratic_dictatorship"
+        ]
+      },
+      "blocked_by": [
+        [
+          "revolutionary_democratic_dictatorship",
+          "revolutionary_democratic_dictatorship"
+        ]
+      ]
+    },
+    {
+      "step": 1500,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "spontaneity",
+          "revolutionary_democratic_dictatorship"
+        ]
+      },
+      "blocked_by": [
+        [
+          "revolutionary_democratic_dictatorship",
+          "revolutionary_democratic_dictatorship"
+        ]
+      ]
+    },
+    {
+      "step": 1532,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "revolutionary_democratic_dictatorship",
+          "spontaneity"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_spontaneity_anti_spontaneity_1508_1510",
+          "anti_spontaneity_1508"
+        ],
+        [
+          "syn_spontaneity_anti_spontaneity_1508_1510",
+          "spontaneity"
+        ]
+      ]
+    },
+    {
+      "step": 1545,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "spontaneity",
+          "revolutionary_democratic_dictatorship"
+        ]
+      },
+      "blocked_by": [
+        [
+          "revolutionary_democratic_dictatorship",
+          "revolutionary_democratic_dictatorship"
+        ]
+      ]
+    },
+    {
+      "step": 1548,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moribund_capitalism",
+          "revolutionary_democratic_dictatorship"
+        ]
+      },
+      "blocked_by": [
+        [
+          "revolutionary_democratic_dictatorship",
+          "revolutionary_democratic_dictatorship"
+        ]
+      ]
+    },
+    {
+      "step": 1551,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "moribund_capitalism",
+          "revolutionary_democratic_dictatorship"
+        ]
+      },
+      "blocked_by": [
+        [
+          "revolutionary_democratic_dictatorship",
+          "revolutionary_democratic_dictatorship"
+        ]
+      ]
+    },
+    {
+      "step": 1554,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "spontaneity",
+          "revolutionary_democratic_dictatorship"
+        ]
+      },
+      "blocked_by": [
+        [
+          "revolutionary_democratic_dictatorship",
+          "revolutionary_democratic_dictatorship"
+        ]
+      ]
+    },
+    {
+      "step": 1567,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1570,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1573,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1576,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1579,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1582,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1585,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1588,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1591,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1594,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1597,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1600,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1603,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1606,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1609,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1612,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1615,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1618,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1621,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1624,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1627,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1630,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1633,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1636,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1639,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1642,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1645,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1648,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1651,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1654,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1657,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1660,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1663,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1666,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1669,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1672,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1675,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1678,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1681,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1684,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1687,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1690,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1693,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1696,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1699,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1702,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1705,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1708,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1711,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1714,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1717,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1720,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1723,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1726,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1729,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1732,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1735,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1738,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1741,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1744,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1747,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1750,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1753,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1756,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1759,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1762,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1765,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1768,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1771,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1774,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1777,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1780,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1783,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1786,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1789,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1792,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1795,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1798,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1801,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1804,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1807,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1810,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1813,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1816,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1819,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1822,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1825,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1828,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1831,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1834,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1837,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1840,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1843,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1846,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1849,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1852,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1855,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1858,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1861,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1864,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1867,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1870,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1873,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1876,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1879,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1882,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    },
+    {
+      "step": 1885,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "finance_capital",
+          "revolutionary_program"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "anti_revolutionary_program_183"
+        ],
+        [
+          "syn_revolutionary_program_anti_revolutionary_program_183_185",
+          "revolutionary_program"
+        ]
+      ]
+    }
+  ]
+}

@@ -1,0 +1,2340 @@
+{
+  "experiment": "marx_collected_works_incremental",
+  "source": "Marx Collected Works — 30 works (1841-1894)",
+  "methodology": "manual dialectical complex per work, incremental injection, digestion until 50-step beta_1 stability",
+  "work_results": [
+    {
+      "work": "1841: Doctoral Dissertation",
+      "work_index": 1,
+      "vertices_added": 10,
+      "edges_added": 11,
+      "vertices_total": 10,
+      "edges_total": 14,
+      "beta_1_before_injection": 2,
+      "beta_1_after_digestion": 1,
+      "delta_beta_1": -1,
+      "settled_cycles": 1,
+      "blocked_in_work": 0,
+      "steps_to_digest": 68,
+      "converged": true,
+      "cumulative_steps": 68,
+      "operation_counts": {
+        "walk": 64,
+        "negate_b": 1,
+        "sublate": 1,
+        "fold": 2
+      }
+    },
+    {
+      "work": "1843: Critique of Hegel's Philosophy of Right",
+      "work_index": 2,
+      "vertices_added": 10,
+      "edges_added": 12,
+      "vertices_total": 20,
+      "edges_total": 25,
+      "beta_1_before_injection": 1,
+      "beta_1_after_digestion": 1,
+      "delta_beta_1": 0,
+      "settled_cycles": 1,
+      "blocked_in_work": 0,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 118,
+      "operation_counts": {
+        "walk": 50
+      }
+    },
+    {
+      "work": "1843: On the Jewish Question",
+      "work_index": 3,
+      "vertices_added": 7,
+      "edges_added": 9,
+      "vertices_total": 29,
+      "edges_total": 37,
+      "beta_1_before_injection": 3,
+      "beta_1_after_digestion": 4,
+      "delta_beta_1": 1,
+      "settled_cycles": 2,
+      "blocked_in_work": 0,
+      "steps_to_digest": 65,
+      "converged": true,
+      "cumulative_steps": 183,
+      "operation_counts": {
+        "walk": 63,
+        "negate_b": 1,
+        "sublate": 1
+      }
+    },
+    {
+      "work": "1844: Economic and Philosophic Manuscripts",
+      "work_index": 4,
+      "vertices_added": 12,
+      "edges_added": 16,
+      "vertices_total": 39,
+      "edges_total": 53,
+      "beta_1_before_injection": 8,
+      "beta_1_after_digestion": 7,
+      "delta_beta_1": -1,
+      "settled_cycles": 2,
+      "blocked_in_work": 0,
+      "steps_to_digest": 68,
+      "converged": true,
+      "cumulative_steps": 251,
+      "operation_counts": {
+        "walk": 66,
+        "fold": 2
+      }
+    },
+    {
+      "work": "1844: Critical Notes on King of Prussia",
+      "work_index": 5,
+      "vertices_added": 5,
+      "edges_added": 7,
+      "vertices_total": 46,
+      "edges_total": 63,
+      "beta_1_before_injection": 9,
+      "beta_1_after_digestion": 10,
+      "delta_beta_1": 1,
+      "settled_cycles": 3,
+      "blocked_in_work": 0,
+      "steps_to_digest": 66,
+      "converged": true,
+      "cumulative_steps": 317,
+      "operation_counts": {
+        "walk": 64,
+        "negate_b": 1,
+        "sublate": 1
+      }
+    },
+    {
+      "work": "1845: Theses on Feuerbach",
+      "work_index": 6,
+      "vertices_added": 7,
+      "edges_added": 8,
+      "vertices_total": 53,
+      "edges_total": 71,
+      "beta_1_before_injection": 11,
+      "beta_1_after_digestion": 11,
+      "delta_beta_1": 0,
+      "settled_cycles": 3,
+      "blocked_in_work": 0,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 367,
+      "operation_counts": {
+        "walk": 50
+      }
+    },
+    {
+      "work": "1845: The Holy Family",
+      "work_index": 7,
+      "vertices_added": 5,
+      "edges_added": 7,
+      "vertices_total": 62,
+      "edges_total": 88,
+      "beta_1_before_injection": 13,
+      "beta_1_after_digestion": 16,
+      "delta_beta_1": 3,
+      "settled_cycles": 6,
+      "blocked_in_work": 0,
+      "steps_to_digest": 88,
+      "converged": true,
+      "cumulative_steps": 455,
+      "operation_counts": {
+        "walk": 81,
+        "negate_b": 2,
+        "sublate": 3,
+        "fold": 1,
+        "negate_a": 1
+      }
+    },
+    {
+      "work": "1846: The German Ideology",
+      "work_index": 8,
+      "vertices_added": 12,
+      "edges_added": 17,
+      "vertices_total": 73,
+      "edges_total": 105,
+      "beta_1_before_injection": 20,
+      "beta_1_after_digestion": 20,
+      "delta_beta_1": 0,
+      "settled_cycles": 6,
+      "blocked_in_work": 0,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 505,
+      "operation_counts": {
+        "walk": 49,
+        "fold": 1
+      }
+    },
+    {
+      "work": "1847: The Poverty of Philosophy",
+      "work_index": 9,
+      "vertices_added": 7,
+      "edges_added": 9,
+      "vertices_total": 79,
+      "edges_total": 115,
+      "beta_1_before_injection": 22,
+      "beta_1_after_digestion": 22,
+      "delta_beta_1": 0,
+      "settled_cycles": 6,
+      "blocked_in_work": 0,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 555,
+      "operation_counts": {
+        "walk": 49,
+        "fold": 1
+      }
+    },
+    {
+      "work": "1847: Wage Labour and Capital",
+      "work_index": 10,
+      "vertices_added": 5,
+      "edges_added": 8,
+      "vertices_total": 84,
+      "edges_total": 123,
+      "beta_1_before_injection": 25,
+      "beta_1_after_digestion": 25,
+      "delta_beta_1": 0,
+      "settled_cycles": 6,
+      "blocked_in_work": 0,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 605,
+      "operation_counts": {
+        "walk": 50
+      }
+    },
+    {
+      "work": "1848: Communist Manifesto",
+      "work_index": 11,
+      "vertices_added": 11,
+      "edges_added": 16,
+      "vertices_total": 101,
+      "edges_total": 147,
+      "beta_1_before_injection": 29,
+      "beta_1_after_digestion": 32,
+      "delta_beta_1": 3,
+      "settled_cycles": 9,
+      "blocked_in_work": 0,
+      "steps_to_digest": 101,
+      "converged": true,
+      "cumulative_steps": 706,
+      "operation_counts": {
+        "walk": 95,
+        "negate_b": 3,
+        "sublate": 3
+      }
+    },
+    {
+      "work": "1850: The Class Struggles in France",
+      "work_index": 12,
+      "vertices_added": 8,
+      "edges_added": 9,
+      "vertices_total": 109,
+      "edges_total": 156,
+      "beta_1_before_injection": 33,
+      "beta_1_after_digestion": 33,
+      "delta_beta_1": 0,
+      "settled_cycles": 9,
+      "blocked_in_work": 0,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 756,
+      "operation_counts": {
+        "walk": 50
+      }
+    },
+    {
+      "work": "1852: The Eighteenth Brumaire",
+      "work_index": 13,
+      "vertices_added": 7,
+      "edges_added": 12,
+      "vertices_total": 117,
+      "edges_total": 171,
+      "beta_1_before_injection": 38,
+      "beta_1_after_digestion": 38,
+      "delta_beta_1": 0,
+      "settled_cycles": 10,
+      "blocked_in_work": 0,
+      "steps_to_digest": 79,
+      "converged": true,
+      "cumulative_steps": 835,
+      "operation_counts": {
+        "walk": 76,
+        "negate_b": 1,
+        "sublate": 1,
+        "fold": 1
+      }
+    },
+    {
+      "work": "1853: Articles on India",
+      "work_index": 14,
+      "vertices_added": 5,
+      "edges_added": 7,
+      "vertices_total": 126,
+      "edges_total": 184,
+      "beta_1_before_injection": 40,
+      "beta_1_after_digestion": 42,
+      "delta_beta_1": 2,
+      "settled_cycles": 12,
+      "blocked_in_work": 0,
+      "steps_to_digest": 83,
+      "converged": true,
+      "cumulative_steps": 918,
+      "operation_counts": {
+        "walk": 79,
+        "negate_b": 2,
+        "sublate": 2
+      }
+    },
+    {
+      "work": "1857: Introduction to Grundrisse",
+      "work_index": 15,
+      "vertices_added": 6,
+      "edges_added": 7,
+      "vertices_total": 132,
+      "edges_total": 191,
+      "beta_1_before_injection": 44,
+      "beta_1_after_digestion": 44,
+      "delta_beta_1": 0,
+      "settled_cycles": 12,
+      "blocked_in_work": 0,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 968,
+      "operation_counts": {
+        "walk": 50
+      }
+    },
+    {
+      "work": "1857-58: Grundrisse",
+      "work_index": 16,
+      "vertices_added": 16,
+      "edges_added": 25,
+      "vertices_total": 153,
+      "edges_total": 225,
+      "beta_1_before_injection": 52,
+      "beta_1_after_digestion": 54,
+      "delta_beta_1": 2,
+      "settled_cycles": 15,
+      "blocked_in_work": 0,
+      "steps_to_digest": 117,
+      "converged": true,
+      "cumulative_steps": 1085,
+      "operation_counts": {
+        "walk": 110,
+        "negate_b": 3,
+        "sublate": 3,
+        "fold": 1
+      }
+    },
+    {
+      "work": "1859: Contribution to Critique of Political Economy",
+      "work_index": 17,
+      "vertices_added": 7,
+      "edges_added": 11,
+      "vertices_total": 163,
+      "edges_total": 243,
+      "beta_1_before_injection": 58,
+      "beta_1_after_digestion": 60,
+      "delta_beta_1": 2,
+      "settled_cycles": 17,
+      "blocked_in_work": 1,
+      "steps_to_digest": 74,
+      "converged": true,
+      "cumulative_steps": 1159,
+      "operation_counts": {
+        "walk": 68,
+        "negate_b": 2,
+        "sublate": 2,
+        "fold_blocked": 1,
+        "fold": 1
+      }
+    },
+    {
+      "work": "1861-63: Theories of Surplus Value",
+      "work_index": 18,
+      "vertices_added": 8,
+      "edges_added": 12,
+      "vertices_total": 173,
+      "edges_total": 258,
+      "beta_1_before_injection": 64,
+      "beta_1_after_digestion": 65,
+      "delta_beta_1": 1,
+      "settled_cycles": 18,
+      "blocked_in_work": 1,
+      "steps_to_digest": 79,
+      "converged": true,
+      "cumulative_steps": 1238,
+      "operation_counts": {
+        "walk": 77,
+        "negate_b": 1,
+        "sublate": 1
+      }
+    },
+    {
+      "work": "1863: Results of Immediate Process of Production",
+      "work_index": 19,
+      "vertices_added": 4,
+      "edges_added": 7,
+      "vertices_total": 179,
+      "edges_total": 268,
+      "beta_1_before_injection": 68,
+      "beta_1_after_digestion": 69,
+      "delta_beta_1": 1,
+      "settled_cycles": 19,
+      "blocked_in_work": 1,
+      "steps_to_digest": 56,
+      "converged": true,
+      "cumulative_steps": 1294,
+      "operation_counts": {
+        "walk": 54,
+        "negate_b": 1,
+        "sublate": 1
+      }
+    },
+    {
+      "work": "1864: Inaugural Address of the International",
+      "work_index": 20,
+      "vertices_added": 4,
+      "edges_added": 6,
+      "vertices_total": 183,
+      "edges_total": 274,
+      "beta_1_before_injection": 71,
+      "beta_1_after_digestion": 71,
+      "delta_beta_1": 0,
+      "settled_cycles": 19,
+      "blocked_in_work": 1,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 1344,
+      "operation_counts": {
+        "walk": 50
+      }
+    },
+    {
+      "work": "1865: Value, Price and Profit",
+      "work_index": 21,
+      "vertices_added": 6,
+      "edges_added": 11,
+      "vertices_total": 197,
+      "edges_total": 297,
+      "beta_1_before_injection": 76,
+      "beta_1_after_digestion": 80,
+      "delta_beta_1": 4,
+      "settled_cycles": 23,
+      "blocked_in_work": 1,
+      "steps_to_digest": 101,
+      "converged": true,
+      "cumulative_steps": 1445,
+      "operation_counts": {
+        "walk": 93,
+        "negate_b": 4,
+        "sublate": 4
+      }
+    },
+    {
+      "work": "1867: Capital Volume I",
+      "work_index": 22,
+      "vertices_added": 15,
+      "edges_added": 29,
+      "vertices_total": 224,
+      "edges_total": 347,
+      "beta_1_before_injection": 94,
+      "beta_1_after_digestion": 99,
+      "delta_beta_1": 5,
+      "settled_cycles": 30,
+      "blocked_in_work": 1,
+      "steps_to_digest": 160,
+      "converged": true,
+      "cumulative_steps": 1605,
+      "operation_counts": {
+        "walk": 144,
+        "fold": 2,
+        "negate_b": 7,
+        "sublate": 7
+      }
+    },
+    {
+      "work": "1871: The Civil War in France",
+      "work_index": 23,
+      "vertices_added": 5,
+      "edges_added": 10,
+      "vertices_total": 235,
+      "edges_total": 369,
+      "beta_1_before_injection": 104,
+      "beta_1_after_digestion": 107,
+      "delta_beta_1": 3,
+      "settled_cycles": 33,
+      "blocked_in_work": 1,
+      "steps_to_digest": 85,
+      "converged": true,
+      "cumulative_steps": 1690,
+      "operation_counts": {
+        "walk": 76,
+        "negate_b": 3,
+        "sublate": 4,
+        "fold": 1,
+        "negate_a": 1
+      }
+    },
+    {
+      "work": "1874: Conspectus of Bakunin",
+      "work_index": 24,
+      "vertices_added": 3,
+      "edges_added": 5,
+      "vertices_total": 238,
+      "edges_total": 373,
+      "beta_1_before_injection": 108,
+      "beta_1_after_digestion": 108,
+      "delta_beta_1": 0,
+      "settled_cycles": 33,
+      "blocked_in_work": 1,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 1740,
+      "operation_counts": {
+        "walk": 50
+      }
+    },
+    {
+      "work": "1875: Critique of the Gotha Programme",
+      "work_index": 25,
+      "vertices_added": 8,
+      "edges_added": 12,
+      "vertices_total": 250,
+      "edges_total": 391,
+      "beta_1_before_injection": 112,
+      "beta_1_after_digestion": 114,
+      "delta_beta_1": 2,
+      "settled_cycles": 35,
+      "blocked_in_work": 1,
+      "steps_to_digest": 81,
+      "converged": true,
+      "cumulative_steps": 1821,
+      "operation_counts": {
+        "walk": 77,
+        "negate_b": 2,
+        "sublate": 2
+      }
+    },
+    {
+      "work": "1880: Notes on Wagner",
+      "work_index": 26,
+      "vertices_added": 3,
+      "edges_added": 5,
+      "vertices_total": 257,
+      "edges_total": 402,
+      "beta_1_before_injection": 116,
+      "beta_1_after_digestion": 118,
+      "delta_beta_1": 2,
+      "settled_cycles": 37,
+      "blocked_in_work": 1,
+      "steps_to_digest": 68,
+      "converged": true,
+      "cumulative_steps": 1889,
+      "operation_counts": {
+        "walk": 64,
+        "negate_b": 2,
+        "sublate": 2
+      }
+    },
+    {
+      "work": "1881: Letter to Vera Zasulich",
+      "work_index": 27,
+      "vertices_added": 3,
+      "edges_added": 6,
+      "vertices_total": 264,
+      "edges_total": 414,
+      "beta_1_before_injection": 121,
+      "beta_1_after_digestion": 123,
+      "delta_beta_1": 2,
+      "settled_cycles": 39,
+      "blocked_in_work": 1,
+      "steps_to_digest": 111,
+      "converged": true,
+      "cumulative_steps": 2000,
+      "operation_counts": {
+        "walk": 107,
+        "negate_b": 2,
+        "sublate": 2
+      }
+    },
+    {
+      "work": "1885: Capital Volume II",
+      "work_index": 28,
+      "vertices_added": 7,
+      "edges_added": 13,
+      "vertices_total": 277,
+      "edges_total": 436,
+      "beta_1_before_injection": 129,
+      "beta_1_after_digestion": 132,
+      "delta_beta_1": 3,
+      "settled_cycles": 42,
+      "blocked_in_work": 14,
+      "steps_to_digest": 81,
+      "converged": true,
+      "cumulative_steps": 2081,
+      "operation_counts": {
+        "walk": 62,
+        "negate_b": 3,
+        "sublate": 3,
+        "fold_blocked": 13
+      }
+    },
+    {
+      "work": "1894: Capital Volume III",
+      "work_index": 29,
+      "vertices_added": 15,
+      "edges_added": 30,
+      "vertices_total": 301,
+      "edges_total": 481,
+      "beta_1_before_injection": 147,
+      "beta_1_after_digestion": 151,
+      "delta_beta_1": 4,
+      "settled_cycles": 47,
+      "blocked_in_work": 24,
+      "steps_to_digest": 158,
+      "converged": true,
+      "cumulative_steps": 2239,
+      "operation_counts": {
+        "fold_blocked": 10,
+        "walk": 137,
+        "negate_b": 5,
+        "sublate": 5,
+        "fold": 1
+      }
+    },
+    {
+      "work": "1843-83: Selected Correspondence",
+      "work_index": 30,
+      "vertices_added": 4,
+      "edges_added": 9,
+      "vertices_total": 307,
+      "edges_total": 497,
+      "beta_1_before_injection": 156,
+      "beta_1_after_digestion": 157,
+      "delta_beta_1": 1,
+      "settled_cycles": 49,
+      "blocked_in_work": 43,
+      "steps_to_digest": 109,
+      "converged": true,
+      "cumulative_steps": 2348,
+      "operation_counts": {
+        "walk": 84,
+        "negate_b": 2,
+        "sublate": 2,
+        "fold_blocked": 19,
+        "fold": 2
+      }
+    }
+  ],
+  "beta_1_curve": [
+    {
+      "work_index": 1,
+      "work_name": "1841: Doctoral Dissertation",
+      "beta_1": 1,
+      "cumulative_steps": 68
+    },
+    {
+      "work_index": 2,
+      "work_name": "1843: Critique of Hegel's Philosophy of Right",
+      "beta_1": 1,
+      "cumulative_steps": 118
+    },
+    {
+      "work_index": 3,
+      "work_name": "1843: On the Jewish Question",
+      "beta_1": 4,
+      "cumulative_steps": 183
+    },
+    {
+      "work_index": 4,
+      "work_name": "1844: Economic and Philosophic Manuscripts",
+      "beta_1": 7,
+      "cumulative_steps": 251
+    },
+    {
+      "work_index": 5,
+      "work_name": "1844: Critical Notes on King of Prussia",
+      "beta_1": 10,
+      "cumulative_steps": 317
+    },
+    {
+      "work_index": 6,
+      "work_name": "1845: Theses on Feuerbach",
+      "beta_1": 11,
+      "cumulative_steps": 367
+    },
+    {
+      "work_index": 7,
+      "work_name": "1845: The Holy Family",
+      "beta_1": 16,
+      "cumulative_steps": 455
+    },
+    {
+      "work_index": 8,
+      "work_name": "1846: The German Ideology",
+      "beta_1": 20,
+      "cumulative_steps": 505
+    },
+    {
+      "work_index": 9,
+      "work_name": "1847: The Poverty of Philosophy",
+      "beta_1": 22,
+      "cumulative_steps": 555
+    },
+    {
+      "work_index": 10,
+      "work_name": "1847: Wage Labour and Capital",
+      "beta_1": 25,
+      "cumulative_steps": 605
+    },
+    {
+      "work_index": 11,
+      "work_name": "1848: Communist Manifesto",
+      "beta_1": 32,
+      "cumulative_steps": 706
+    },
+    {
+      "work_index": 12,
+      "work_name": "1850: The Class Struggles in France",
+      "beta_1": 33,
+      "cumulative_steps": 756
+    },
+    {
+      "work_index": 13,
+      "work_name": "1852: The Eighteenth Brumaire",
+      "beta_1": 38,
+      "cumulative_steps": 835
+    },
+    {
+      "work_index": 14,
+      "work_name": "1853: Articles on India",
+      "beta_1": 42,
+      "cumulative_steps": 918
+    },
+    {
+      "work_index": 15,
+      "work_name": "1857: Introduction to Grundrisse",
+      "beta_1": 44,
+      "cumulative_steps": 968
+    },
+    {
+      "work_index": 16,
+      "work_name": "1857-58: Grundrisse",
+      "beta_1": 54,
+      "cumulative_steps": 1085
+    },
+    {
+      "work_index": 17,
+      "work_name": "1859: Contribution to Critique of Political Economy",
+      "beta_1": 60,
+      "cumulative_steps": 1159
+    },
+    {
+      "work_index": 18,
+      "work_name": "1861-63: Theories of Surplus Value",
+      "beta_1": 65,
+      "cumulative_steps": 1238
+    },
+    {
+      "work_index": 19,
+      "work_name": "1863: Results of Immediate Process of Production",
+      "beta_1": 69,
+      "cumulative_steps": 1294
+    },
+    {
+      "work_index": 20,
+      "work_name": "1864: Inaugural Address of the International",
+      "beta_1": 71,
+      "cumulative_steps": 1344
+    },
+    {
+      "work_index": 21,
+      "work_name": "1865: Value, Price and Profit",
+      "beta_1": 80,
+      "cumulative_steps": 1445
+    },
+    {
+      "work_index": 22,
+      "work_name": "1867: Capital Volume I",
+      "beta_1": 99,
+      "cumulative_steps": 1605
+    },
+    {
+      "work_index": 23,
+      "work_name": "1871: The Civil War in France",
+      "beta_1": 107,
+      "cumulative_steps": 1690
+    },
+    {
+      "work_index": 24,
+      "work_name": "1874: Conspectus of Bakunin",
+      "beta_1": 108,
+      "cumulative_steps": 1740
+    },
+    {
+      "work_index": 25,
+      "work_name": "1875: Critique of the Gotha Programme",
+      "beta_1": 114,
+      "cumulative_steps": 1821
+    },
+    {
+      "work_index": 26,
+      "work_name": "1880: Notes on Wagner",
+      "beta_1": 118,
+      "cumulative_steps": 1889
+    },
+    {
+      "work_index": 27,
+      "work_name": "1881: Letter to Vera Zasulich",
+      "beta_1": 123,
+      "cumulative_steps": 2000
+    },
+    {
+      "work_index": 28,
+      "work_name": "1885: Capital Volume II",
+      "beta_1": 132,
+      "cumulative_steps": 2081
+    },
+    {
+      "work_index": 29,
+      "work_name": "1894: Capital Volume III",
+      "beta_1": 151,
+      "cumulative_steps": 2239
+    },
+    {
+      "work_index": 30,
+      "work_name": "1843-83: Selected Correspondence",
+      "beta_1": 157,
+      "cumulative_steps": 2348
+    }
+  ],
+  "final_complex": {
+    "vertices_active": 307,
+    "edges_active": 497,
+    "beta_1": 157,
+    "settled_cycles": 49,
+    "edge_type_distribution": {
+      "negation": 112,
+      "dependency": 236,
+      "reference": 11,
+      "sublation": 132,
+      "fold": 6
+    },
+    "terrain_distribution": {
+      "tree": 312,
+      "critical": 154
+    },
+    "critical_edge_ratio": 0.33047210300429186,
+    "negation_density": 0.22535211267605634,
+    "sublation_density": 0.2655935613682093
+  },
+  "total_steps": 2348,
+  "elapsed_seconds": 3.815325975418091,
+  "settled_cycles_detail": [
+    {
+      "edges": [
+        [
+          "syn_necessity_anti_necessity_3_5",
+          "anti_necessity_3"
+        ],
+        [
+          "syn_necessity_anti_necessity_3_5",
+          "necessity"
+        ]
+      ],
+      "settled_at_step": 15
+    },
+    {
+      "edges": [
+        [
+          "syn_political_emancipation_anti_political_emancipation_131_133",
+          "anti_political_emancipation_131"
+        ],
+        [
+          "syn_political_emancipation_anti_political_emancipation_131_133",
+          "political_emancipation"
+        ]
+      ],
+      "settled_at_step": 143
+    },
+    {
+      "edges": [
+        [
+          "syn_estranged_labor_anti_estranged_labor_265_267",
+          "anti_estranged_labor_265"
+        ],
+        [
+          "syn_estranged_labor_anti_estranged_labor_265_267",
+          "estranged_labor"
+        ]
+      ],
+      "settled_at_step": 277
+    },
+    {
+      "edges": [
+        [
+          "syn_private_property_anti_private_property_379_381",
+          "anti_private_property_379"
+        ],
+        [
+          "syn_private_property_anti_private_property_379_381",
+          "private_property"
+        ]
+      ],
+      "settled_at_step": 391
+    },
+    {
+      "edges": [
+        [
+          "syn_estranged_labor_proletariat_401",
+          "estranged_labor"
+        ],
+        [
+          "syn_estranged_labor_proletariat_401",
+          "proletariat"
+        ]
+      ],
+      "settled_at_step": 411
+    },
+    {
+      "edges": [
+        [
+          "syn_proletariat_anti_proletariat_403_405",
+          "anti_proletariat_403"
+        ],
+        [
+          "syn_proletariat_anti_proletariat_403_405",
+          "proletariat"
+        ]
+      ],
+      "settled_at_step": 415
+    },
+    {
+      "edges": [
+        [
+          "syn_division_of_labor_anti_division_of_labor_624_626",
+          "anti_division_of_labor_624"
+        ],
+        [
+          "syn_division_of_labor_anti_division_of_labor_624_626",
+          "division_of_labor"
+        ]
+      ],
+      "settled_at_step": 636
+    },
+    {
+      "edges": [
+        [
+          "syn_class_struggle_anti_class_struggle_633_635",
+          "anti_class_struggle_633"
+        ],
+        [
+          "syn_class_struggle_anti_class_struggle_633_635",
+          "class_struggle"
+        ]
+      ],
+      "settled_at_step": 645
+    },
+    {
+      "edges": [
+        [
+          "syn_social_relations_anti_social_relations_654_656",
+          "anti_social_relations_654"
+        ],
+        [
+          "syn_social_relations_anti_social_relations_654_656",
+          "social_relations"
+        ]
+      ],
+      "settled_at_step": 666
+    },
+    {
+      "edges": [
+        [
+          "syn_ideology_anti_ideology_768_770",
+          "anti_ideology_768"
+        ],
+        [
+          "syn_ideology_anti_ideology_768_770",
+          "ideology"
+        ]
+      ],
+      "settled_at_step": 780
+    },
+    {
+      "edges": [
+        [
+          "syn_mode_of_production_anti_mode_of_production_842_844",
+          "anti_mode_of_production_842"
+        ],
+        [
+          "syn_mode_of_production_anti_mode_of_production_842_844",
+          "mode_of_production"
+        ]
+      ],
+      "settled_at_step": 854
+    },
+    {
+      "edges": [
+        [
+          "syn_state_anti_state_866_868",
+          "anti_state_866"
+        ],
+        [
+          "syn_state_anti_state_866_868",
+          "state"
+        ]
+      ],
+      "settled_at_step": 878
+    },
+    {
+      "edges": [
+        [
+          "syn_fixed_capital_anti_fixed_capital_980_982",
+          "anti_fixed_capital_980"
+        ],
+        [
+          "syn_fixed_capital_anti_fixed_capital_980_982",
+          "fixed_capital"
+        ]
+      ],
+      "settled_at_step": 992
+    },
+    {
+      "edges": [
+        [
+          "syn_commodity_anti_commodity_989_991",
+          "anti_commodity_989"
+        ],
+        [
+          "syn_commodity_anti_commodity_989_991",
+          "commodity"
+        ]
+      ],
+      "settled_at_step": 1001
+    },
+    {
+      "edges": [
+        [
+          "syn_historical_materialism_anti_historical_materialism_1013_1015",
+          "anti_historical_materialism_1013"
+        ],
+        [
+          "syn_historical_materialism_anti_historical_materialism_1013_1015",
+          "historical_materialism"
+        ]
+      ],
+      "settled_at_step": 1025
+    },
+    {
+      "edges": [
+        [
+          "syn_consciousness_anti_consciousness_1093_1095",
+          "anti_consciousness_1093"
+        ],
+        [
+          "syn_consciousness_anti_consciousness_1093_1095",
+          "consciousness"
+        ]
+      ],
+      "settled_at_step": 1105
+    },
+    {
+      "edges": [
+        [
+          "syn_relations_of_production_anti_relations_of_production_1107_1109",
+          "anti_relations_of_production_1107"
+        ],
+        [
+          "syn_relations_of_production_anti_relations_of_production_1107_1109",
+          "relations_of_production"
+        ]
+      ],
+      "settled_at_step": 1119
+    },
+    {
+      "edges": [
+        [
+          "syn_capital_general_anti_capital_general_1186_1188",
+          "anti_capital_general_1186"
+        ],
+        [
+          "syn_capital_general_anti_capital_general_1186_1188",
+          "capital_general"
+        ]
+      ],
+      "settled_at_step": 1198
+    },
+    {
+      "edges": [
+        [
+          "syn_capital_relation_anti_capital_relation_1242_1244",
+          "anti_capital_relation_1242"
+        ],
+        [
+          "syn_capital_relation_anti_capital_relation_1242_1244",
+          "capital_relation"
+        ]
+      ],
+      "settled_at_step": 1254
+    },
+    {
+      "edges": [
+        [
+          "syn_exploitation_anti_exploitation_1350_1352",
+          "anti_exploitation_1350"
+        ],
+        [
+          "syn_exploitation_anti_exploitation_1350_1352",
+          "exploitation"
+        ]
+      ],
+      "settled_at_step": 1362
+    },
+    {
+      "edges": [
+        [
+          "syn_value_labor_power_anti_value_labor_power_1364_1366",
+          "anti_value_labor_power_1364"
+        ],
+        [
+          "syn_value_labor_power_anti_value_labor_power_1364_1366",
+          "value_labor_power"
+        ]
+      ],
+      "settled_at_step": 1376
+    },
+    {
+      "edges": [
+        [
+          "syn_surplus_value_anti_surplus_value_1373_1375",
+          "anti_surplus_value_1373"
+        ],
+        [
+          "syn_surplus_value_anti_surplus_value_1373_1375",
+          "surplus_value"
+        ]
+      ],
+      "settled_at_step": 1385
+    },
+    {
+      "edges": [
+        [
+          "syn_necessary_labor_time_anti_necessary_labor_time_1393_1395",
+          "anti_necessary_labor_time_1393"
+        ],
+        [
+          "syn_necessary_labor_time_anti_necessary_labor_time_1393_1395",
+          "necessary_labor_time"
+        ]
+      ],
+      "settled_at_step": 1405
+    },
+    {
+      "edges": [
+        [
+          "syn_manufacture_anti_manufacture_1464_1466",
+          "anti_manufacture_1464"
+        ],
+        [
+          "syn_manufacture_anti_manufacture_1464_1466",
+          "manufacture"
+        ]
+      ],
+      "settled_at_step": 1476
+    },
+    {
+      "edges": [
+        [
+          "syn_fetishism_anti_fetishism_1472_1474",
+          "anti_fetishism_1472"
+        ],
+        [
+          "syn_fetishism_anti_fetishism_1472_1474",
+          "fetishism"
+        ]
+      ],
+      "settled_at_step": 1484
+    },
+    {
+      "edges": [
+        [
+          "syn_communism_gi_anti_communism_gi_1481_1483",
+          "anti_communism_gi_1481"
+        ],
+        [
+          "syn_communism_gi_anti_communism_gi_1481_1483",
+          "communism_gi"
+        ]
+      ],
+      "settled_at_step": 1493
+    },
+    {
+      "edges": [
+        [
+          "syn_machinery_anti_machinery_1489_1491",
+          "anti_machinery_1489"
+        ],
+        [
+          "syn_machinery_anti_machinery_1489_1491",
+          "machinery"
+        ]
+      ],
+      "settled_at_step": 1501
+    },
+    {
+      "edges": [
+        [
+          "syn_money_form_anti_money_form_1498_1500",
+          "anti_money_form_1498"
+        ],
+        [
+          "syn_money_form_anti_money_form_1498_1500",
+          "money_form"
+        ]
+      ],
+      "settled_at_step": 1510
+    },
+    {
+      "edges": [
+        [
+          "syn_relative_sv_anti_relative_sv_1536_1538",
+          "anti_relative_sv_1536"
+        ],
+        [
+          "syn_relative_sv_anti_relative_sv_1536_1538",
+          "relative_sv"
+        ]
+      ],
+      "settled_at_step": 1548
+    },
+    {
+      "edges": [
+        [
+          "syn_mystification_anti_mystification_1553_1555",
+          "anti_mystification_1553"
+        ],
+        [
+          "syn_mystification_anti_mystification_1553_1555",
+          "mystification"
+        ]
+      ],
+      "settled_at_step": 1565
+    },
+    {
+      "edges": [
+        [
+          "syn_class_struggle_paris_commune_1622",
+          "class_struggle"
+        ],
+        [
+          "syn_class_struggle_paris_commune_1622",
+          "paris_commune"
+        ]
+      ],
+      "settled_at_step": 1632
+    },
+    {
+      "edges": [
+        [
+          "syn_state_machine_anti_state_machine_1629_1631",
+          "anti_state_machine_1629"
+        ],
+        [
+          "syn_state_machine_anti_state_machine_1629_1631",
+          "state_machine"
+        ]
+      ],
+      "settled_at_step": 1641
+    },
+    {
+      "edges": [
+        [
+          "syn_political_revolution_anti_political_revolution_1638_1640",
+          "anti_political_revolution_1638"
+        ],
+        [
+          "syn_political_revolution_anti_political_revolution_1638_1640",
+          "political_revolution"
+        ]
+      ],
+      "settled_at_step": 1650
+    },
+    {
+      "edges": [
+        [
+          "syn_lower_phase_anti_lower_phase_1747_1749",
+          "anti_lower_phase_1747"
+        ],
+        [
+          "syn_lower_phase_anti_lower_phase_1747_1749",
+          "lower_phase"
+        ]
+      ],
+      "settled_at_step": 1759
+    },
+    {
+      "edges": [
+        [
+          "syn_dictatorship_proletariat_anti_dictatorship_proletariat_1769_1771",
+          "anti_dictatorship_proletariat_1769"
+        ],
+        [
+          "syn_dictatorship_proletariat_anti_dictatorship_proletariat_1769_1771",
+          "dictatorship_proletariat"
+        ]
+      ],
+      "settled_at_step": 1781
+    },
+    {
+      "edges": [
+        [
+          "syn_concrete_abstract_anti_concrete_abstract_1828_1830",
+          "anti_concrete_abstract_1828"
+        ],
+        [
+          "syn_concrete_abstract_anti_concrete_abstract_1828_1830",
+          "concrete_abstract"
+        ]
+      ],
+      "settled_at_step": 1840
+    },
+    {
+      "edges": [
+        [
+          "syn_historically_specific_anti_historically_specific_1837_1839",
+          "anti_historically_specific_1837"
+        ],
+        [
+          "syn_historically_specific_anti_historically_specific_1837_1839",
+          "historically_specific"
+        ]
+      ],
+      "settled_at_step": 1849
+    },
+    {
+      "edges": [
+        [
+          "syn_russian_commune_anti_russian_commune_1900_1902",
+          "anti_russian_commune_1900"
+        ],
+        [
+          "syn_russian_commune_anti_russian_commune_1900_1902",
+          "russian_commune"
+        ]
+      ],
+      "settled_at_step": 1912
+    },
+    {
+      "edges": [
+        [
+          "syn_absolute_sv_anti_absolute_sv_1948_1950",
+          "absolute_sv"
+        ],
+        [
+          "syn_absolute_sv_anti_absolute_sv_1948_1950",
+          "anti_absolute_sv_1948"
+        ]
+      ],
+      "settled_at_step": 1960
+    },
+    {
+      "edges": [
+        [
+          "syn_circuit_capital_anti_circuit_capital_2006_2008",
+          "anti_circuit_capital_2006"
+        ],
+        [
+          "syn_circuit_capital_anti_circuit_capital_2006_2008",
+          "circuit_capital"
+        ]
+      ],
+      "settled_at_step": 2018
+    },
+    {
+      "edges": [
+        [
+          "syn_variable_capital_anti_variable_capital_2015_2017",
+          "anti_variable_capital_2015"
+        ],
+        [
+          "syn_variable_capital_anti_variable_capital_2015_2017",
+          "variable_capital"
+        ]
+      ],
+      "settled_at_step": 2027
+    },
+    {
+      "edges": [
+        [
+          "syn_circulation_anti_circulation_2029_2031",
+          "anti_circulation_2029"
+        ],
+        [
+          "syn_circulation_anti_circulation_2029_2031",
+          "circulation"
+        ]
+      ],
+      "settled_at_step": 2041
+    },
+    {
+      "edges": [
+        [
+          "syn_average_rate_profit_anti_average_rate_profit_2086_2088",
+          "anti_average_rate_profit_2086"
+        ],
+        [
+          "syn_average_rate_profit_anti_average_rate_profit_2086_2088",
+          "average_rate_profit"
+        ]
+      ],
+      "settled_at_step": 2098
+    },
+    {
+      "edges": [
+        [
+          "syn_prices_production_anti_prices_production_2109_2111",
+          "anti_prices_production_2109"
+        ],
+        [
+          "syn_prices_production_anti_prices_production_2109_2111",
+          "prices_production"
+        ]
+      ],
+      "settled_at_step": 2121
+    },
+    {
+      "edges": [
+        [
+          "syn_interest_bearing_capital_anti_interest_bearing_capital_2127_2129",
+          "anti_interest_bearing_capital_2127"
+        ],
+        [
+          "syn_interest_bearing_capital_anti_interest_bearing_capital_2127_2129",
+          "interest_bearing_capital"
+        ]
+      ],
+      "settled_at_step": 2139
+    },
+    {
+      "edges": [
+        [
+          "syn_capitalist_production_process_anti_capitalist_production_process_2145_2147",
+          "anti_capitalist_production_process_2145"
+        ],
+        [
+          "syn_capitalist_production_process_anti_capitalist_production_process_2145_2147",
+          "capitalist_production_process"
+        ]
+      ],
+      "settled_at_step": 2157
+    },
+    {
+      "edges": [
+        [
+          "syn_rate_of_profit_anti_rate_of_profit_2156_2158",
+          "anti_rate_of_profit_2156"
+        ],
+        [
+          "syn_rate_of_profit_anti_rate_of_profit_2156_2158",
+          "rate_of_profit"
+        ]
+      ],
+      "settled_at_step": 2168
+    },
+    {
+      "edges": [
+        [
+          "syn_determination_last_instance_anti_determination_last_instance_2245_2247",
+          "anti_determination_last_instance_2245"
+        ],
+        [
+          "syn_determination_last_instance_anti_determination_last_instance_2245_2247",
+          "determination_last_instance"
+        ]
+      ],
+      "settled_at_step": 2257
+    },
+    {
+      "edges": [
+        [
+          "syn_relative_autonomy_superstructure_anti_relative_autonomy_superstructure_2258_2260",
+          "anti_relative_autonomy_superstructure_2258"
+        ],
+        [
+          "syn_relative_autonomy_superstructure_anti_relative_autonomy_superstructure_2258_2260",
+          "relative_autonomy_superstructure"
+        ]
+      ],
+      "settled_at_step": 2270
+    }
+  ],
+  "blocked_log": [
+    {
+      "step": 1137,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "forces_of_production",
+          "relations_of_production"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_relations_of_production_anti_relations_of_production_1107_1109",
+          "anti_relations_of_production_1107"
+        ],
+        [
+          "syn_relations_of_production_anti_relations_of_production_1107_1109",
+          "relations_of_production"
+        ]
+      ]
+    },
+    {
+      "step": 2049,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fixed_capital",
+          "variable_capital"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_variable_capital_anti_variable_capital_2015_2017",
+          "anti_variable_capital_2015"
+        ],
+        [
+          "syn_variable_capital_anti_variable_capital_2015_2017",
+          "variable_capital"
+        ]
+      ]
+    },
+    {
+      "step": 2052,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fixed_capital",
+          "variable_capital"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_variable_capital_anti_variable_capital_2015_2017",
+          "anti_variable_capital_2015"
+        ],
+        [
+          "syn_variable_capital_anti_variable_capital_2015_2017",
+          "variable_capital"
+        ]
+      ]
+    },
+    {
+      "step": 2054,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "variable_capital",
+          "fixed_capital"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_fixed_capital_anti_fixed_capital_980_982",
+          "anti_fixed_capital_980"
+        ],
+        [
+          "syn_fixed_capital_anti_fixed_capital_980_982",
+          "fixed_capital"
+        ]
+      ]
+    },
+    {
+      "step": 2057,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "variable_capital",
+          "fixed_capital"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_fixed_capital_anti_fixed_capital_980_982",
+          "anti_fixed_capital_980"
+        ],
+        [
+          "syn_fixed_capital_anti_fixed_capital_980_982",
+          "fixed_capital"
+        ]
+      ]
+    },
+    {
+      "step": 2059,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fixed_capital",
+          "variable_capital"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_variable_capital_anti_variable_capital_2015_2017",
+          "anti_variable_capital_2015"
+        ],
+        [
+          "syn_variable_capital_anti_variable_capital_2015_2017",
+          "variable_capital"
+        ]
+      ]
+    },
+    {
+      "step": 2062,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fixed_capital",
+          "variable_capital"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_variable_capital_anti_variable_capital_2015_2017",
+          "anti_variable_capital_2015"
+        ],
+        [
+          "syn_variable_capital_anti_variable_capital_2015_2017",
+          "variable_capital"
+        ]
+      ]
+    },
+    {
+      "step": 2064,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "variable_capital",
+          "fixed_capital"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_fixed_capital_anti_fixed_capital_980_982",
+          "anti_fixed_capital_980"
+        ],
+        [
+          "syn_fixed_capital_anti_fixed_capital_980_982",
+          "fixed_capital"
+        ]
+      ]
+    },
+    {
+      "step": 2067,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "variable_capital",
+          "fixed_capital"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_fixed_capital_anti_fixed_capital_980_982",
+          "anti_fixed_capital_980"
+        ],
+        [
+          "syn_fixed_capital_anti_fixed_capital_980_982",
+          "fixed_capital"
+        ]
+      ]
+    },
+    {
+      "step": 2070,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "variable_capital",
+          "fixed_capital"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_fixed_capital_anti_fixed_capital_980_982",
+          "anti_fixed_capital_980"
+        ],
+        [
+          "syn_fixed_capital_anti_fixed_capital_980_982",
+          "fixed_capital"
+        ]
+      ]
+    },
+    {
+      "step": 2072,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fixed_capital",
+          "variable_capital"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_variable_capital_anti_variable_capital_2015_2017",
+          "anti_variable_capital_2015"
+        ],
+        [
+          "syn_variable_capital_anti_variable_capital_2015_2017",
+          "variable_capital"
+        ]
+      ]
+    },
+    {
+      "step": 2075,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fixed_capital",
+          "variable_capital"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_variable_capital_anti_variable_capital_2015_2017",
+          "anti_variable_capital_2015"
+        ],
+        [
+          "syn_variable_capital_anti_variable_capital_2015_2017",
+          "variable_capital"
+        ]
+      ]
+    },
+    {
+      "step": 2078,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fixed_capital",
+          "variable_capital"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_variable_capital_anti_variable_capital_2015_2017",
+          "anti_variable_capital_2015"
+        ],
+        [
+          "syn_variable_capital_anti_variable_capital_2015_2017",
+          "variable_capital"
+        ]
+      ]
+    },
+    {
+      "step": 2080,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "variable_capital",
+          "fixed_capital"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_fixed_capital_anti_fixed_capital_980_982",
+          "anti_fixed_capital_980"
+        ],
+        [
+          "syn_fixed_capital_anti_fixed_capital_980_982",
+          "fixed_capital"
+        ]
+      ]
+    },
+    {
+      "step": 2082,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "constant_capital",
+          "variable_capital"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_variable_capital_anti_variable_capital_2015_2017",
+          "anti_variable_capital_2015"
+        ],
+        [
+          "syn_variable_capital_anti_variable_capital_2015_2017",
+          "variable_capital"
+        ]
+      ]
+    },
+    {
+      "step": 2084,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "rate_of_profit",
+          "fixed_capital"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_fixed_capital_anti_fixed_capital_980_982",
+          "anti_fixed_capital_980"
+        ],
+        [
+          "syn_fixed_capital_anti_fixed_capital_980_982",
+          "fixed_capital"
+        ]
+      ]
+    },
+    {
+      "step": 2106,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "rate_of_profit",
+          "fixed_capital"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_fixed_capital_anti_fixed_capital_980_982",
+          "anti_fixed_capital_980"
+        ],
+        [
+          "syn_fixed_capital_anti_fixed_capital_980_982",
+          "fixed_capital"
+        ]
+      ]
+    },
+    {
+      "step": 2118,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "money_capital_form",
+          "circulation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_circulation_anti_circulation_2029_2031",
+          "anti_circulation_2029"
+        ],
+        [
+          "syn_circulation_anti_circulation_2029_2031",
+          "circulation"
+        ]
+      ]
+    },
+    {
+      "step": 2120,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "money_form",
+          "circuit_capital"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_circuit_capital_anti_circuit_capital_2006_2008",
+          "anti_circuit_capital_2006"
+        ],
+        [
+          "syn_circuit_capital_anti_circuit_capital_2006_2008",
+          "circuit_capital"
+        ]
+      ]
+    },
+    {
+      "step": 2143,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "surplus_value",
+          "interest_bearing_capital"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_interest_bearing_capital_anti_interest_bearing_capital_2127_2129",
+          "anti_interest_bearing_capital_2127"
+        ],
+        [
+          "syn_interest_bearing_capital_anti_interest_bearing_capital_2127_2129",
+          "interest_bearing_capital"
+        ]
+      ]
+    },
+    {
+      "step": 2170,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "tendency_fall_rop",
+          "surplus_value"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_surplus_value_anti_surplus_value_1373_1375",
+          "anti_surplus_value_1373"
+        ],
+        [
+          "syn_surplus_value_anti_surplus_value_1373_1375",
+          "surplus_value"
+        ]
+      ]
+    },
+    {
+      "step": 2177,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "money_capital_form",
+          "circulation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_circulation_anti_circulation_2029_2031",
+          "anti_circulation_2029"
+        ],
+        [
+          "syn_circulation_anti_circulation_2029_2031",
+          "circulation"
+        ]
+      ]
+    },
+    {
+      "step": 2182,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "money_capital_form",
+          "circulation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_circulation_anti_circulation_2029_2031",
+          "anti_circulation_2029"
+        ],
+        [
+          "syn_circulation_anti_circulation_2029_2031",
+          "circulation"
+        ]
+      ]
+    },
+    {
+      "step": 2184,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "money_form",
+          "circuit_capital"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_circuit_capital_anti_circuit_capital_2006_2008",
+          "anti_circuit_capital_2006"
+        ],
+        [
+          "syn_circuit_capital_anti_circuit_capital_2006_2008",
+          "circuit_capital"
+        ]
+      ]
+    },
+    {
+      "step": 2274,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "capital_general",
+          "circulation"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_circulation_anti_circulation_2029_2031",
+          "anti_circulation_2029"
+        ],
+        [
+          "syn_circulation_anti_circulation_2029_2031",
+          "circulation"
+        ]
+      ]
+    },
+    {
+      "step": 2276,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "surplus_value",
+          "capital_general"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_capital_general_anti_capital_general_1186_1188",
+          "anti_capital_general_1186"
+        ],
+        [
+          "syn_capital_general_anti_capital_general_1186_1188",
+          "capital_general"
+        ]
+      ]
+    },
+    {
+      "step": 2279,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "surplus_value",
+          "capital_general"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_capital_general_anti_capital_general_1186_1188",
+          "anti_capital_general_1186"
+        ],
+        [
+          "syn_capital_general_anti_capital_general_1186_1188",
+          "capital_general"
+        ]
+      ]
+    },
+    {
+      "step": 2296,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "tendency_fall_rop",
+          "surplus_value"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_surplus_value_anti_surplus_value_1373_1375",
+          "anti_surplus_value_1373"
+        ],
+        [
+          "syn_surplus_value_anti_surplus_value_1373_1375",
+          "surplus_value"
+        ]
+      ]
+    },
+    {
+      "step": 2299,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "rate_of_profit",
+          "capital_general"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_capital_general_anti_capital_general_1186_1188",
+          "anti_capital_general_1186"
+        ],
+        [
+          "syn_capital_general_anti_capital_general_1186_1188",
+          "capital_general"
+        ]
+      ]
+    },
+    {
+      "step": 2301,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "variable_capital",
+          "rate_of_profit"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_rate_of_profit_anti_rate_of_profit_2156_2158",
+          "anti_rate_of_profit_2156"
+        ],
+        [
+          "syn_rate_of_profit_anti_rate_of_profit_2156_2158",
+          "rate_of_profit"
+        ]
+      ]
+    },
+    {
+      "step": 2303,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "constant_capital",
+          "variable_capital"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_variable_capital_anti_variable_capital_2015_2017",
+          "anti_variable_capital_2015"
+        ],
+        [
+          "syn_variable_capital_anti_variable_capital_2015_2017",
+          "variable_capital"
+        ]
+      ]
+    },
+    {
+      "step": 2306,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "variable_capital",
+          "surplus_value"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_surplus_value_anti_surplus_value_1373_1375",
+          "anti_surplus_value_1373"
+        ],
+        [
+          "syn_surplus_value_anti_surplus_value_1373_1375",
+          "surplus_value"
+        ]
+      ]
+    },
+    {
+      "step": 2308,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fixed_capital",
+          "rate_of_profit"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_rate_of_profit_anti_rate_of_profit_2156_2158",
+          "anti_rate_of_profit_2156"
+        ],
+        [
+          "syn_rate_of_profit_anti_rate_of_profit_2156_2158",
+          "rate_of_profit"
+        ]
+      ]
+    },
+    {
+      "step": 2311,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fixed_capital",
+          "rate_of_profit"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_rate_of_profit_anti_rate_of_profit_2156_2158",
+          "anti_rate_of_profit_2156"
+        ],
+        [
+          "syn_rate_of_profit_anti_rate_of_profit_2156_2158",
+          "rate_of_profit"
+        ]
+      ]
+    },
+    {
+      "step": 2314,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fixed_capital",
+          "rate_of_profit"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_rate_of_profit_anti_rate_of_profit_2156_2158",
+          "anti_rate_of_profit_2156"
+        ],
+        [
+          "syn_rate_of_profit_anti_rate_of_profit_2156_2158",
+          "rate_of_profit"
+        ]
+      ]
+    },
+    {
+      "step": 2316,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "variable_capital",
+          "surplus_value"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_surplus_value_anti_surplus_value_1373_1375",
+          "anti_surplus_value_1373"
+        ],
+        [
+          "syn_surplus_value_anti_surplus_value_1373_1375",
+          "surplus_value"
+        ]
+      ]
+    },
+    {
+      "step": 2318,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "rate_of_profit",
+          "fixed_capital"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_fixed_capital_anti_fixed_capital_980_982",
+          "anti_fixed_capital_980"
+        ],
+        [
+          "syn_fixed_capital_anti_fixed_capital_980_982",
+          "fixed_capital"
+        ]
+      ]
+    },
+    {
+      "step": 2320,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "surplus_value",
+          "variable_capital"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_variable_capital_anti_variable_capital_2015_2017",
+          "anti_variable_capital_2015"
+        ],
+        [
+          "syn_variable_capital_anti_variable_capital_2015_2017",
+          "variable_capital"
+        ]
+      ]
+    },
+    {
+      "step": 2322,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "capital_general",
+          "surplus_value"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_surplus_value_anti_surplus_value_1373_1375",
+          "anti_surplus_value_1373"
+        ],
+        [
+          "syn_surplus_value_anti_surplus_value_1373_1375",
+          "surplus_value"
+        ]
+      ]
+    },
+    {
+      "step": 2335,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "ideology",
+          "determination_last_instance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_determination_last_instance_anti_determination_last_instance_2245_2247",
+          "anti_determination_last_instance_2245"
+        ],
+        [
+          "syn_determination_last_instance_anti_determination_last_instance_2245_2247",
+          "determination_last_instance"
+        ]
+      ]
+    },
+    {
+      "step": 2337,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "base_superstructure",
+          "relative_autonomy_superstructure"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_relative_autonomy_superstructure_anti_relative_autonomy_superstructure_2258_2260",
+          "anti_relative_autonomy_superstructure_2258"
+        ],
+        [
+          "syn_relative_autonomy_superstructure_anti_relative_autonomy_superstructure_2258_2260",
+          "relative_autonomy_superstructure"
+        ]
+      ]
+    },
+    {
+      "step": 2339,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "ideology",
+          "determination_last_instance"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_determination_last_instance_anti_determination_last_instance_2245_2247",
+          "anti_determination_last_instance_2245"
+        ],
+        [
+          "syn_determination_last_instance_anti_determination_last_instance_2245_2247",
+          "determination_last_instance"
+        ]
+      ]
+    },
+    {
+      "step": 2343,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "surplus_value",
+          "capital_general"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_capital_general_anti_capital_general_1186_1188",
+          "anti_capital_general_1186"
+        ],
+        [
+          "syn_capital_general_anti_capital_general_1186_1188",
+          "capital_general"
+        ]
+      ]
+    }
+  ]
+}
