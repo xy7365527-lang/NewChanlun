@@ -1,0 +1,57 @@
+{
+  "config": {
+    "text_dir": "C:\\Users\\hanju\\NewChanlun\\tmp\\batch_test",
+    "settlement_threshold": 5,
+    "convergence_window": 10,
+    "seed": 42,
+    "file_count": 2
+  },
+  "files": [
+    {
+      "filename": "01_chanlun.txt",
+      "language": "zh",
+      "text_length": 23,
+      "sub_vertices": 5,
+      "sub_edges": 2,
+      "cumulative_vertices_before": 0,
+      "cumulative_vertices_after": 5,
+      "cumulative_edges_before": 0,
+      "cumulative_edges_after": 2,
+      "beta_1_before": 0,
+      "beta_1_after_inject": 0,
+      "beta_1_after_traversal": 0,
+      "traversal_steps": 10,
+      "settled_cycles": 0,
+      "elapsed_seconds": 0.001
+    },
+    {
+      "filename": "02_english.txt",
+      "language": "en",
+      "text_length": 61,
+      "sub_vertices": 3,
+      "sub_edges": 2,
+      "cumulative_vertices_before": 5,
+      "cumulative_vertices_after": 8,
+      "cumulative_edges_before": 2,
+      "cumulative_edges_after": 4,
+      "beta_1_before": 0,
+      "beta_1_after_inject": 0,
+      "beta_1_after_traversal": 0,
+      "traversal_steps": 10,
+      "settled_cycles": 0,
+      "elapsed_seconds": 0.001
+    }
+  ],
+  "aggregate": {
+    "total_vertices": 8,
+    "total_edges": 4,
+    "final_beta_1": 0,
+    "final_settled_cycles": 0,
+    "edge_type_distribution": {
+      "dependency": 3,
+      "negation": 1
+    },
+    "total_steps": 20,
+    "total_elapsed": 0.002
+  }
+}

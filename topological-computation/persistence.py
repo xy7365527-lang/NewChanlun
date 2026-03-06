@@ -75,6 +75,26 @@ class PersistentKFull:
         }
         self._write(record)
 
+    def append_vertex_status(self, vertex_id: str, status: str, step: int):
+        """Append a vertex status change record (e.g. fold → FOLDED)."""
+        record = {
+            "type": "vertex_status",
+            "id": vertex_id,
+            "status": status,
+            "step": step,
+        }
+        self._write(record)
+
+    def append_merge(self, keep: str, remove: str, step: int):
+        """Append a merge record (fold: keep absorbs remove)."""
+        record = {
+            "type": "merge",
+            "keep": keep,
+            "remove": remove,
+            "step": step,
+        }
+        self._write(record)
+
     def append_settlement(self, step: int, cycle_edges: list):
         """Append a settlement record."""
         record = {
@@ -91,7 +111,11 @@ class PersistentKFull:
 
     @classmethod
     def load(cls, path: str | Path = DEFAULT_PATH) -> tuple[Graph, list[dict]]:
-        """Recover K_full from JSONL file.
+        """Recover graph from JSONL file.
+
+        Replays vertex additions, edge additions, and vertex status changes
+        (e.g. fold → FOLDED) in order, so the recovered graph reflects the
+        final state including all fold/negate/sublate operations.
 
         Returns:
             (graph, operations_log) — the reconstructed Graph and the
@@ -128,6 +152,25 @@ class PersistentKFull:
                         created_at=record.get("created_at", 0),
                     )
                     graph = graph.add_edge(e)
+
+                elif record["type"] == "vertex_status":
+                    # Replay vertex status change (e.g. contested)
+                    vid = record["id"]
+                    new_status = VertexStatus(record["status"])
+                    old_v = graph.vertex(vid)
+                    if old_v is not None:
+                        new_verts = dict(graph._vertices)
+                        new_verts[vid] = Vertex(
+                            old_v.id, new_status, old_v.content, old_v.created_at,
+                        )
+                        graph = Graph(new_verts, list(graph._edges))
+
+                elif record["type"] == "merge":
+                    # Replay fold merge: keep absorbs remove
+                    keep = record["keep"]
+                    remove = record["remove"]
+                    if graph.vertex(keep) is not None and graph.vertex(remove) is not None:
+                        graph = graph.merge_vertices(keep, remove)
 
                 elif record["type"] in ("operation", "settlement"):
                     operations.append(record)

@@ -1,0 +1,75 @@
+======================================================================
+TOPOLOGICAL COMPUTATION DAEMON DEPLOY REPORT
+======================================================================
+
+--- 1. Import Check ---
+All imports OK: engine, traversal, morse, phi_L, genealogy_loader, daemon, persistence
+
+--- 2. Test Results ---
+22/22 tests passed (test_engine.py)
+
+--- 3. Seed Complex (from genealogy data) ---
+Source: C:/Users/hanju/NewChanlun/.chanlun/block-topology/
+Vertices: 2524
+Edges: 6751
+beta_1: 2325
+
+--- 4. Daemon Run (200 steps) ---
+Instance ID: deploy_node_0
+Settlement threshold: 15
+Time: 15.67s
+beta_1 trajectory: 2325 -> 2316 (delta=-9)
+K_active final: 2543 vertices, 6891 edges
+Total events: 79
+Settled cycles: 12
+Gaps detected: 3
+Blocks written: 55
+Blocks injected: 0
+Known blocks: 55
+
+--- 5. Blocks Verification ---
+Block files in ~/.swarm/blocks/: 55
+K_full JSONL: C:\Users\hanju\.swarm\k_full.jsonl
+JSONL size: 1974625 bytes (9596 lines)
+
+--- 6. Recovery Verification ---
+K_active at shutdown:  2543V, 6891E, beta_1=2316
+Recovered from JSONL:  2543V, 6891E, beta_1=2316
+beta_1 match:          True
+Vertex count match:    True
+Edge count match:      True
+Operations log:        79 entries
+
+--- Event Log (last 20) ---
+  [step 153] sublate at 'syn_8dce3d7183b29846eb240dbfd6632a3ebee088e2fcff17c7c98258f0eacdd1cf_anti_8dce3d7183b29846eb240dbfd6632a3ebee088e2fcff17c7c98258f0eacdd1cf_151_153' (f=-99) beta_1 2307->2308 (+1)
+  [step 160] fold at 'syn_d38f615e48536be4bbbc974e2af9bf3f6768bb3f1052821347f8cc45dba4ae89_1086043b544b0777d138719541523cd20d769c9a4999c766c9d401bb6aa40807_17' (f=164) beta_1 2308->2307 (-1)
+  [step 161] fold_blocked at 'syn_d38f615e48536be4bbbc974e2af9bf3f6768bb3f1052821347f8cc45dba4ae89_1086043b544b0777d138719541523cd20d769c9a4999c766c9d401bb6aa40807_17' (f=160) beta_1 2307->2307 (+0) BLOCKED
+  [step 163] fold_blocked at '[event] 005b铰链命题地位与原则0完全可修改性的关系显式化' (f=174) beta_1 2307->2307 (+0) BLOCKED
+  [step 166] sublate at 'syn_afc0b3bcd32bd423a77914de6df8e0dddec6fda50640e5ae998d3a53795e03b0_04825e30002d311e316afcaf747999f0a93a1e4bfd1f4eb0fef3b5eb73fa49ab_166' (f=-99) beta_1 2307->2308 (+1)
+  [step 167] fold_blocked at 'syn_afc0b3bcd32bd423a77914de6df8e0dddec6fda50640e5ae998d3a53795e03b0_04825e30002d311e316afcaf747999f0a93a1e4bfd1f4eb0fef3b5eb73fa49ab_166' (f=165) beta_1 2308->2308 (+0) BLOCKED
+  [step 170] sublate at 'syn_afc0b3bcd32bd423a77914de6df8e0dddec6fda50640e5ae998d3a53795e03b0_45132d7dbcb9c190dd510461d516a1dd71234a35fc186e946e547bc334da35b7_170' (f=-99) beta_1 2308->2309 (+1)
+  [step 171] fold_blocked at 'syn_afc0b3bcd32bd423a77914de6df8e0dddec6fda50640e5ae998d3a53795e03b0_45132d7dbcb9c190dd510461d516a1dd71234a35fc186e946e547bc334da35b7_170' (f=165) beta_1 2309->2309 (+0) BLOCKED
+  [step 174] sublate at 'syn_afc0b3bcd32bd423a77914de6df8e0dddec6fda50640e5ae998d3a53795e03b0_b7856334941b390b3e1416399f8a74223bb4f75084d52243bf4585d0818660bf_174' (f=-99) beta_1 2309->2310 (+1)
+  [step 176] fold_blocked at '[event] 系统审计两定律结晶——声明-能力缺口的系统性与消除方式' (f=10) beta_1 2310->2310 (+0) BLOCKED
+  [step 179] sublate at 'syn_877afcb79d6f2031588173e5520b0e4571c16ecbc0a9ca26d8b473b22fe2b09d_1556ea0df62cc0b375686157d966ab1e89aa966c8c08a356c146995ce7c2cb21_179' (f=-99) beta_1 2310->2311 (+1)
+  [step 180] fold_blocked at 'syn_877afcb79d6f2031588173e5520b0e4571c16ecbc0a9ca26d8b473b22fe2b09d_1556ea0df62cc0b375686157d966ab1e89aa966c8c08a356c146995ce7c2cb21_179' (f=165) beta_1 2311->2311 (+0) BLOCKED
+  [step 183] sublate at 'syn_877afcb79d6f2031588173e5520b0e4571c16ecbc0a9ca26d8b473b22fe2b09d_a0ebe9c0f1b44ac89ec50c4248f175ecbfe021447d70328bd8685ff8000d0aba_183' (f=-99) beta_1 2311->2312 (+1)
+  [step 184] fold_blocked at 'syn_877afcb79d6f2031588173e5520b0e4571c16ecbc0a9ca26d8b473b22fe2b09d_a0ebe9c0f1b44ac89ec50c4248f175ecbfe021447d70328bd8685ff8000d0aba_183' (f=165) beta_1 2312->2312 (+0) BLOCKED
+  [step 187] sublate at 'syn_a0ebe9c0f1b44ac89ec50c4248f175ecbfe021447d70328bd8685ff8000d0aba_04825e30002d311e316afcaf747999f0a93a1e4bfd1f4eb0fef3b5eb73fa49ab_187' (f=-99) beta_1 2312->2313 (+1)
+  [step 188] fold_blocked at 'syn_a0ebe9c0f1b44ac89ec50c4248f175ecbfe021447d70328bd8685ff8000d0aba_04825e30002d311e316afcaf747999f0a93a1e4bfd1f4eb0fef3b5eb73fa49ab_187' (f=165) beta_1 2313->2313 (+0) BLOCKED
+  [step 191] sublate at 'syn_a0ebe9c0f1b44ac89ec50c4248f175ecbfe021447d70328bd8685ff8000d0aba_6941c7207167cdf63e154aacd4761d2dc713f8e25ffdec2c0f9268b8c2766717_191' (f=-99) beta_1 2313->2314 (+1)
+  [step 194] sublate at 'syn_6941c7207167cdf63e154aacd4761d2dc713f8e25ffdec2c0f9268b8c2766717_c970eb8e366b05000273f937febeddb428b6c23ebdb6e3d4d8ba027dd6d948a4_194' (f=-99) beta_1 2314->2315 (+1)
+  [step 197] sublate at 'syn_6941c7207167cdf63e154aacd4761d2dc713f8e25ffdec2c0f9268b8c2766717_f184c64cd22253bcba7133f895de408e3e8211d9d5ffa779866dafac8eeb0358_197' (f=-99) beta_1 2315->2316 (+1)
+  [step 199] fold_blocked at '[event] lead-audit hook 恶性循环——观测行为产生观测对象' (f=19) beta_1 2316->2316 (+0) BLOCKED
+
+--- Bug Fixes Applied ---
+1. daemon.py _step(): persist new vertices/edges from K_full on every step (not just significant)
+2. daemon.py _step(): persist merge records (fold: keep absorbs remove) for recovery
+3. daemon.py _step(): persist vertex_status changes (e.g. CONTESTED)
+4. persistence.py: added append_vertex_status() and append_merge() methods
+5. persistence.py load(): replay merge records via merge_vertices() for correct fold recovery
+6. persistence.py load(): replay vertex_status records for contested state recovery
+
+======================================================================
+RESULT: DAEMON DEPLOYED SUCCESSFULLY — ALL CHECKS PASSED
+======================================================================

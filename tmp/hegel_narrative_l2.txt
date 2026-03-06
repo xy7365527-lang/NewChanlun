@@ -1,674 +1,131 @@
 === L2 Traversal Narrative (Importance-Filtered) ===
-Total steps: 835 | Total encounters: 238 | Significant (I > 13.0): 219 | Compression: 8%
-Final beta_1: 130
+Total steps: 1051 | Total encounters: 232 | Significant (I > 6.0): 39 | Compression: 83%
+Final beta_1: 134
 
 Step 61 [I=64]: SUBLATE 'real knowledge' + 'anti_real_knowledge_59' -> 'syn_real_knowledge_anti_real_knowledge_59_61'. beta_1 7->8.
     [cross-origin: 'real_knowledge' (step 0) vs 'anti_real_knowledge_59' (step 59)]
+Step 67 [I=7]: FOLD 'experience (dialectical movement)' ~ 'real knowledge' (f=3). beta_1 8->7.
+Step 70 [I=6]: SUBLATE 'experience (dialectical movement)' + 'anti_experience_68' -> 'syn_experience_anti_experience_68_70'. beta_1 7->8.
+    [cross-origin: 'experience' (step 0) vs 'anti_experience_68' (step 68)]
 Step 139 [I=72]: SUBLATE 'the This' + 'anti_the_this_137' -> 'syn_the_this_anti_the_this_137_139'. beta_1 21->22.
     [beta_1 growth: local rate 0.2800/step is 2.0x the global average]
     [settled cycles: 1 active]
     [cross-origin: 'the_this' (step 0) vs 'anti_the_this_137' (step 137)]
-Step 183 [I=13]: FOLD BLOCKED 'pure being' ~ 'the This' (f=10) -- would destroy settled cycle.
-    [settled cycles: 6 active]
-Step 186 [I=13]: FOLD BLOCKED 'the universal' ~ 'Now is Night' (f=12) -- would destroy settled cycle.
+Step 148 [I=12]: SUBLATE 'dialectic as method' + 'anti_dialectic_method_146' -> 'syn_dialectic_method_anti_dialectic_method_146_148'. beta_1 22->23.
+    [beta_1 growth: local rate 0.3000/step is 2.2x the global average]
+    [settled cycles: 1 active]
+    [cross-origin: 'dialectic_method' (step 0) vs 'anti_dialectic_method_146' (step 146)]
+Step 156 [I=11]: SUBLATE 'Now is Day' + 'anti_now_day_154' -> 'syn_now_day_anti_now_day_154_156'. beta_1 23->24.
+    [beta_1 growth: local rate 0.3200/step is 2.4x the global average]
+    [settled cycles: 2 active]
+    [cross-origin: 'now_day' (step 0) vs 'anti_now_day_154' (step 154)]
+Step 162 [I=7]: FOLD 'Now is Night' ~ 'Now is Day' (f=4). beta_1 24->25.
+    [beta_1 growth: local rate 0.3400/step is 2.5x the global average]
+    [settled cycles: 3 active]
+Step 168 [I=7]: FOLD 'the particular' ~ 'mediated simplicity' (f=3). beta_1 25->24.
+    [beta_1 growth: local rate 0.3200/step is 2.5x the global average]
+    [settled cycles: 3 active]
+Step 177 [I=8]: SUBLATE 'sense-certainty' + 'anti_sense_certainty_175' -> 'syn_sense_certainty_anti_sense_certainty_175_177'. beta_1 27->28.
+    [settled cycles: 4 active]
+    [cross-origin: 'sense_certainty' (step 0) vs 'anti_sense_certainty_175' (step 175)]
+Step 183 [I=11]: FOLD BLOCKED 'pure being' ~ 'the This' (f=10) -- would destroy settled cycle.
+    [settled cycles: 5 active]
+Step 185 [I=9]: FOLD 'the universal' ~ 'sense-certainty' (f=8). beta_1 28->27.
+    [settled cycles: 5 active]
+Step 186 [I=11]: FOLD BLOCKED 'the universal' ~ 'Now is Night' (f=12) -- would destroy settled cycle.
+    [settled cycles: 5 active]
+Step 190 [I=11]: FOLD BLOCKED 'concept of knowledge' ~ 'Now is Night' (f=12) -- would destroy settled cycle.
+    [settled cycles: 5 active]
+--- Section 1-200: 13 significant events, beta_1 7-> 26 ---
+
+Step 201 [I=15]: SUBLATE 'mediation' + 'anti_mediation_199' -> 'syn_mediation_anti_mediation_199_201'. beta_1 26->27.
+    [settled cycles: 5 active]
+    [cross-origin: 'mediation' (step 0) vs 'anti_mediation_199' (step 199)]
+Step 207 [I=7]: FOLD 'singular I' ~ 'concept of knowledge' (f=8). beta_1 27->26.
     [region: 1 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 189 [I=13]: FOLD BLOCKED 'concept of knowledge' ~ 'the universal' (f=8) -- would destroy settled cycle.
+    [settled cycles: 5 active]
+Step 208 [I=11]: FOLD BLOCKED 'singular I' ~ 'Now is Night' (f=12) -- would destroy settled cycle.
     [region: 1 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 195 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=8) -- would destroy settled cycle.
-    [region: 1 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 198 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=8) -- would destroy settled cycle.
+    [settled cycles: 5 active]
+Step 213 [I=6]: FOLD BLOCKED 'singular I' ~ 'Now is Night' (f=12) -- would destroy settled cycle.
     [region: 2 prior blocked event(s) near this position]
+    [beta_1 growth: local rate 0.0200/step is unusually slow vs global 0.1085/step]
     [settled cycles: 6 active]
---- Section 1-200: 7 significant events, beta_1 7-> 27 ---
-
-Step 201 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=8) -- would destroy settled cycle.
-    [region: 3 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 204 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=8) -- would destroy settled cycle.
-    [region: 4 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 207 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=8) -- would destroy settled cycle.
+Step 234 [I=28]: FOLD 'the Now' ~ 'Now as universal' (f=1). beta_1 26->25.
     [region: 5 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 210 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=8) -- would destroy settled cycle.
-    [region: 6 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 213 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=8) -- would destroy settled cycle.
-    [region: 7 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 216 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=8) -- would destroy settled cycle.
-    [region: 8 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 219 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=8) -- would destroy settled cycle.
-    [region: 9 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 222 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=8) -- would destroy settled cycle.
-    [region: 10 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 225 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=8) -- would destroy settled cycle.
-    [region: 11 prior blocked event(s) near this position]
-    [beta_1 growth: local rate 0.0000/step is unusually slow vs global 0.1071/step]
-    [settled cycles: 6 active]
-Step 228 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=8) -- would destroy settled cycle.
-    [region: 12 prior blocked event(s) near this position]
-    [beta_1 growth: local rate -0.0200/step is unusually slow vs global 0.1057/step]
-    [settled cycles: 6 active]
-Step 231 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=8) -- would destroy settled cycle.
-    [region: 13 prior blocked event(s) near this position]
-    [beta_1 growth: local rate -0.0200/step is unusually slow vs global 0.1043/step]
-    [settled cycles: 6 active]
-Step 234 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=8) -- would destroy settled cycle.
-    [region: 14 prior blocked event(s) near this position]
-    [beta_1 growth: local rate -0.0200/step is unusually slow vs global 0.1030/step]
-    [settled cycles: 6 active]
-Step 237 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=11) -- would destroy settled cycle.
-    [region: 15 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 240 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=11) -- would destroy settled cycle.
-    [region: 16 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 243 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=11) -- would destroy settled cycle.
-    [region: 17 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 246 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=11) -- would destroy settled cycle.
-    [region: 18 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 249 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=11) -- would destroy settled cycle.
-    [region: 19 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 252 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=11) -- would destroy settled cycle.
-    [region: 20 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 255 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=11) -- would destroy settled cycle.
-    [region: 21 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 258 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=11) -- would destroy settled cycle.
-    [region: 22 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 261 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=11) -- would destroy settled cycle.
-    [region: 23 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 264 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=11) -- would destroy settled cycle.
-    [region: 24 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 267 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=11) -- would destroy settled cycle.
-    [region: 25 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 270 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=11) -- would destroy settled cycle.
-    [region: 26 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 273 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=11) -- would destroy settled cycle.
-    [region: 27 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 276 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=11) -- would destroy settled cycle.
-    [region: 28 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 279 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=11) -- would destroy settled cycle.
-    [region: 29 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 282 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=11) -- would destroy settled cycle.
-    [region: 30 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 285 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=11) -- would destroy settled cycle.
-    [region: 31 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 288 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=12) -- would destroy settled cycle.
-    [region: 32 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 291 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=12) -- would destroy settled cycle.
-    [region: 33 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 294 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=12) -- would destroy settled cycle.
-    [region: 34 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 297 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=12) -- would destroy settled cycle.
-    [region: 35 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 300 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=12) -- would destroy settled cycle.
-    [region: 36 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 303 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=12) -- would destroy settled cycle.
-    [region: 37 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 306 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=12) -- would destroy settled cycle.
-    [region: 38 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 309 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=12) -- would destroy settled cycle.
-    [region: 39 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 312 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=12) -- would destroy settled cycle.
-    [region: 40 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 315 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=12) -- would destroy settled cycle.
-    [region: 41 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 318 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=12) -- would destroy settled cycle.
-    [region: 42 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 321 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=12) -- would destroy settled cycle.
-    [region: 43 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 324 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=12) -- would destroy settled cycle.
-    [region: 44 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 327 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=12) -- would destroy settled cycle.
-    [region: 45 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 330 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=12) -- would destroy settled cycle.
-    [region: 46 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 333 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=12) -- would destroy settled cycle.
-    [region: 47 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 336 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=12) -- would destroy settled cycle.
-    [region: 48 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 339 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=12) -- would destroy settled cycle.
-    [region: 49 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 342 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=12) -- would destroy settled cycle.
-    [region: 50 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 345 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=12) -- would destroy settled cycle.
-    [region: 51 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 348 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=12) -- would destroy settled cycle.
-    [region: 52 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 351 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=12) -- would destroy settled cycle.
-    [region: 53 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 354 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=12) -- would destroy settled cycle.
-    [region: 54 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 357 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=12) -- would destroy settled cycle.
-    [region: 55 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 360 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=12) -- would destroy settled cycle.
-    [region: 56 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 363 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=12) -- would destroy settled cycle.
-    [region: 57 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 366 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=12) -- would destroy settled cycle.
-    [region: 58 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 369 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=12) -- would destroy settled cycle.
-    [region: 59 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 372 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=12) -- would destroy settled cycle.
-    [region: 60 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 375 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=12) -- would destroy settled cycle.
-    [region: 61 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 378 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=12) -- would destroy settled cycle.
-    [region: 62 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 381 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=12) -- would destroy settled cycle.
-    [region: 63 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 384 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=12) -- would destroy settled cycle.
-    [region: 64 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 387 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=12) -- would destroy settled cycle.
-    [region: 65 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 390 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=12) -- would destroy settled cycle.
-    [region: 66 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 393 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=12) -- would destroy settled cycle.
-    [region: 67 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 396 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=12) -- would destroy settled cycle.
-    [region: 68 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 399 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=12) -- would destroy settled cycle.
-    [region: 69 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
---- Section 201-401: 67 significant events, beta_1 27-> 66 ---
+    [beta_1 growth: local rate -0.0600/step is unusually slow vs global 0.0944/step]
+    [settled cycles: 6 active]
+Step 248 [I=17]: SUBLATE 'singular I' + 'anti_singular_I_246' -> 'syn_singular_I_anti_singular_I_246_248'. beta_1 25->26.
+    [region: 5 prior blocked event(s) near this position]
+    [beta_1 growth: local rate 0.0000/step is unusually slow vs global 0.0931/step]
+    [settled cycles: 6 active]
+    [cross-origin: 'singular_I' (step 0) vs 'anti_singular_I_246' (step 246)]
+Step 313 [I=68]: SUBLATE 'property as self-contradictory' + 'anti_property_contradiction_311' -> 'syn_property_contradiction_anti_property_contradiction_311_313'. beta_1 32->33.
+    [settled cycles: 7 active]
+    [cross-origin: 'property_contradiction' (step 0) vs 'anti_property_contradiction_311' (step 311)]
+Step 319 [I=7]: FOLD 'contradictory nature of thing' ~ 'property as self-contradictory' (f=5). beta_1 33->32.
+    [settled cycles: 7 active]
+Step 322 [I=6]: SUBLATE 'contradictory nature of thing' + 'anti_contradictory_thing_320' -> 'syn_contradictory_thing_anti_contradictory_thing_320_322'. beta_1 32->33.
+    [settled cycles: 7 active]
+    [cross-origin: 'contradictory_thing' (step 0) vs 'anti_contradictory_thing_320' (step 320)]
+Step 330 [I=9]: FOLD 'the One (excluding unity)' ~ 'Also includes' (f=1). beta_1 33->32.
+    [settled cycles: 7 active]
+Step 333 [I=6]: SUBLATE 'the One (excluding unity)' + 'anti_the_one_331' -> 'syn_the_one_anti_the_one_331_333'. beta_1 32->33.
+    [settled cycles: 8 active]
+    [cross-origin: 'the_one' (step 0) vs 'anti_the_one_331' (step 331)]
+Step 342 [I=19]: FOLD 'the Also (general medium)' ~ 'the One (excluding unity)' (f=7). beta_1 33->35.
+    [settled cycles: 8 active]
+Step 397 [I=58]: SUBLATE 'play of forces' + 'anti_play_of_forces_395' -> 'syn_play_of_forces_anti_play_of_forces_395_397'. beta_1 45->46.
+    [beta_1 growth: local rate 0.2200/step is 2.0x the global average]
+    [settled cycles: 8 active]
+    [cross-origin: 'play_of_forces' (step 0) vs 'anti_play_of_forces_395' (step 395)]
+--- Section 201-406: 13 significant events, beta_1 26-> 46 ---
 
-Step 402 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=12) -- would destroy settled cycle.
-    [region: 70 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 405 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=12) -- would destroy settled cycle.
-    [region: 71 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 408 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=12) -- would destroy settled cycle.
-    [region: 72 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 411 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=12) -- would destroy settled cycle.
-    [region: 73 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 414 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=12) -- would destroy settled cycle.
-    [region: 74 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 417 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=12) -- would destroy settled cycle.
-    [region: 75 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 420 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=12) -- would destroy settled cycle.
-    [region: 76 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 423 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=12) -- would destroy settled cycle.
-    [region: 77 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 426 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=12) -- would destroy settled cycle.
-    [region: 78 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 429 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=12) -- would destroy settled cycle.
-    [region: 79 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 432 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=12) -- would destroy settled cycle.
-    [region: 80 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 435 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=12) -- would destroy settled cycle.
-    [region: 81 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 438 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 82 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 441 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 83 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 444 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 84 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 447 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 85 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 450 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 86 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 453 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 87 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 456 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 88 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 459 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 89 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 462 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 90 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 465 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 91 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 468 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 92 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 471 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 93 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 474 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 94 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 477 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 95 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 480 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 96 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 483 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 97 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 486 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 98 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 489 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 99 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 492 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 100 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 495 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 101 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 498 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 102 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 501 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 103 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 504 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 104 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 507 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 105 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 510 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 106 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 513 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 107 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 516 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 108 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 519 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 109 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 522 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 110 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 525 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 111 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 528 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 112 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 531 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 113 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 534 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 114 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 537 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 115 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 540 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 116 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 543 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 117 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 546 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 118 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 549 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 119 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 552 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 120 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 555 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 121 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 558 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 122 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 561 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 123 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 564 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 124 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 567 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 125 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 570 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 126 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 573 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 127 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 576 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 128 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 579 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 129 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 582 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 130 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 585 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 131 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 588 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 132 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 591 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 133 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 594 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 134 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 597 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 135 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 600 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 136 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
---- Section 401-602: 67 significant events, beta_1 66-> 88 ---
+Step 407 [I=13]: SUBLATE 'internal distinction' + 'anti_internal_distinction_405' -> 'syn_internal_distinction_anti_internal_distinction_405_407'. beta_1 46->47.
+    [beta_1 growth: local rate 0.2400/step is 2.2x the global average]
+    [settled cycles: 9 active]
+    [cross-origin: 'internal_distinction' (step 0) vs 'anti_internal_distinction_405' (step 405)]
+Step 426 [I=22]: SUBLATE 'unconditioned universal' + 'anti_unconditioned_universal_424' -> 'syn_unconditioned_universal_anti_unconditioned_universal_424_426'. beta_1 47->48.
+    [beta_1 growth: local rate 0.2600/step is 2.5x the global average]
+    [settled cycles: 10 active]
+    [cross-origin: 'unconditioned_universal' (step 0) vs 'anti_unconditioned_universal_424' (step 424)]
+Step 455 [I=32]: SUBLATE 'subject (self-developing)' + 'anti_subject_453' -> 'syn_subject_anti_subject_453_455'. beta_1 48->49.
+    [settled cycles: 11 active]
+    [cross-origin: 'subject' (step 0) vs 'anti_subject_453' (step 453)]
+Step 513 [I=61]: SUBLATE 'the bondsman (slave)' + 'anti_bondsman_511' -> 'syn_bondsman_anti_bondsman_511_513'. beta_1 61->62.
+    [beta_1 growth: local rate 0.2600/step is 2.3x the global average]
+    [settled cycles: 12 active]
+    [cross-origin: 'bondsman' (step 0) vs 'anti_bondsman_511' (step 511)]
+Step 519 [I=7]: FOLD 'bondsman's freedom through work' ~ 'the bondsman (slave)' (f=3). beta_1 62->61.
+    [beta_1 growth: local rate 0.2400/step is 2.1x the global average]
+    [settled cycles: 12 active]
+Step 522 [I=6]: SUBLATE 'bondsman's freedom through work' + 'anti_bondsman_freedom_520' -> 'syn_bondsman_freedom_anti_bondsman_freedom_520_522'. beta_1 61->62.
+    [beta_1 growth: local rate 0.2600/step is 2.3x the global average]
+    [settled cycles: 12 active]
+    [cross-origin: 'bondsman_freedom' (step 0) vs 'anti_bondsman_freedom_520' (step 520)]
+Step 532 [I=13]: SUBLATE 'independence' + 'anti_independence_530' -> 'syn_independence_anti_independence_530_532'. beta_1 62->63.
+    [beta_1 growth: local rate 0.2800/step is 2.5x the global average]
+    [settled cycles: 12 active]
+    [cross-origin: 'independence' (step 0) vs 'anti_independence_530' (step 530)]
+Step 541 [I=12]: SUBLATE 'life' + 'anti_life_539' -> 'syn_life_anti_life_539_541'. beta_1 63->64.
+    [beta_1 growth: local rate 0.3000/step is 2.7x the global average]
+    [settled cycles: 12 active]
+    [cross-origin: 'life' (step 0) vs 'anti_life_539' (step 539)]
+Step 547 [I=27]: FOLD BLOCKED 'enjoyment' ~ 'independence' (f=8) -- would destroy settled cycle.
+    [beta_1 growth: local rate 0.3000/step is 2.7x the global average]
+    [settled cycles: 13 active]
+Step 551 [I=13]: SUBLATE 'work (formative activity)' + 'anti_work_549' -> 'syn_work_anti_work_549_551'. beta_1 64->65.
+    [region: 1 prior blocked event(s) near this position]
+    [beta_1 growth: local rate 0.3200/step is 2.8x the global average]
+    [settled cycles: 14 active]
+    [cross-origin: 'work' (step 0) vs 'anti_work_549' (step 549)]
+Step 558 [I=29]: FOLD BLOCKED 'life-and-death struggle' ~ 'independence' (f=8) -- would destroy settled cycle.
+    [settled cycles: 14 active]
+Step 561 [I=16]: FOLD BLOCKED 'life-and-death struggle' ~ 'independence' (f=8) -- would destroy settled cycle.
+    [region: 1 prior blocked event(s) near this position]
+    [settled cycles: 15 active]
+Step 564 [I=8]: FOLD BLOCKED 'life-and-death struggle' ~ 'independence' (f=8) -- would destroy settled cycle.
+    [region: 2 prior blocked event(s) near this position]
+    [settled cycles: 15 active]
 
-Step 603 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 137 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 606 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 138 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 609 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 139 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 612 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 140 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 615 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 141 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 618 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 142 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 621 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 143 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 624 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 144 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 627 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 145 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 630 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 146 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 633 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=13) -- would destroy settled cycle.
-    [region: 147 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 636 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 148 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 639 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 149 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 642 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 150 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 645 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 151 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 648 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 152 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 651 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 153 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 654 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 154 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 657 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 155 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 660 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 156 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 663 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 157 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 666 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 158 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 669 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 159 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 672 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 160 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 675 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 161 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 678 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 162 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 681 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 163 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 684 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 164 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 687 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 165 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 690 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 166 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 693 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 167 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 696 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 168 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 699 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 169 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 702 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 170 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 705 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 171 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 708 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 172 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 711 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 173 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 714 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 174 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 717 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 175 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 720 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 176 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 723 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 177 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 726 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 178 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 729 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 179 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 732 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 180 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 735 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 181 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 738 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 182 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 741 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 183 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 744 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 184 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 747 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 185 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 750 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 186 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 753 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 187 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 756 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 188 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 759 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 189 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 762 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 190 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 765 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 191 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 768 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 192 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 771 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 193 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 774 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 194 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 777 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 195 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 780 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 196 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 783 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 197 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 786 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 198 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 789 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 199 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 792 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 200 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 795 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 201 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 798 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 202 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
---- Section 601-800: 66 significant events, beta_1 88-> 130 ---
-
-Step 801 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 203 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 804 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 204 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 807 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 205 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 810 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 206 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 813 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 207 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 816 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 208 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 819 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 209 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 822 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 210 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 825 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 211 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 828 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 212 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 831 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 213 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-Step 834 [I=13]: FOLD BLOCKED 'singular I' ~ 'the universal' (f=14) -- would destroy settled cycle.
-    [region: 214 prior blocked event(s) near this position]
-    [settled cycles: 6 active]
-
---- Section 801-834: 12 significant events, beta_1 130-> 130 ---
+--- Section 401-564: 13 significant events, beta_1 46-> 65 ---
