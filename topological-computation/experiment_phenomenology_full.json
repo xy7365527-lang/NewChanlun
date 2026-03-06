@@ -1,0 +1,4087 @@
+{
+  "experiment": "phenomenology_full_incremental",
+  "source": "Hegel, Phenomenology of Spirit — all 15 chapters",
+  "methodology": "manual dialectical complex per chapter, incremental injection, digestion until 50-step beta_1 stability",
+  "chapter_results": [
+    {
+      "chapter": "Preface",
+      "chapter_index": 1,
+      "vertices_added": 17,
+      "edges_added": 19,
+      "vertices_total": 16,
+      "edges_total": 20,
+      "beta_1_before_injection": 3,
+      "beta_1_after_digestion": 3,
+      "delta_beta_1": 0,
+      "settled_cycles": 0,
+      "blocked_in_chapter": 0,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 50,
+      "operation_counts": {
+        "walk": 49,
+        "fold": 1
+      }
+    },
+    {
+      "chapter": "Introduction",
+      "chapter_index": 2,
+      "vertices_added": 11,
+      "edges_added": 15,
+      "vertices_total": 30,
+      "edges_total": 41,
+      "beta_1_before_injection": 7,
+      "beta_1_after_digestion": 8,
+      "delta_beta_1": 1,
+      "settled_cycles": 1,
+      "blocked_in_chapter": 0,
+      "steps_to_digest": 70,
+      "converged": true,
+      "cumulative_steps": 120,
+      "operation_counts": {
+        "walk": 65,
+        "negate_b": 2,
+        "sublate": 2,
+        "fold": 1
+      }
+    },
+    {
+      "chapter": "A.I. Sense-Certainty",
+      "chapter_index": 3,
+      "vertices_added": 21,
+      "edges_added": 39,
+      "vertices_total": 56,
+      "edges_total": 103,
+      "beta_1_before_injection": 21,
+      "beta_1_after_digestion": 26,
+      "delta_beta_1": 5,
+      "settled_cycles": 8,
+      "blocked_in_chapter": 8,
+      "steps_to_digest": 178,
+      "converged": true,
+      "cumulative_steps": 298,
+      "operation_counts": {
+        "walk": 148,
+        "negate_b": 6,
+        "sublate": 7,
+        "fold": 8,
+        "negate_a": 1,
+        "fold_blocked": 8
+      }
+    },
+    {
+      "chapter": "A.II. Perception",
+      "chapter_index": 4,
+      "vertices_added": 18,
+      "edges_added": 30,
+      "vertices_total": 76,
+      "edges_total": 137,
+      "beta_1_before_injection": 32,
+      "beta_1_after_digestion": 35,
+      "delta_beta_1": 3,
+      "settled_cycles": 9,
+      "blocked_in_chapter": 8,
+      "steps_to_digest": 94,
+      "converged": true,
+      "cumulative_steps": 392,
+      "operation_counts": {
+        "walk": 84,
+        "negate_b": 3,
+        "sublate": 3,
+        "fold": 4
+      }
+    },
+    {
+      "chapter": "A.III. Force and Understanding",
+      "chapter_index": 5,
+      "vertices_added": 21,
+      "edges_added": 36,
+      "vertices_total": 105,
+      "edges_total": 183,
+      "beta_1_before_injection": 45,
+      "beta_1_after_digestion": 49,
+      "delta_beta_1": 4,
+      "settled_cycles": 13,
+      "blocked_in_chapter": 8,
+      "steps_to_digest": 113,
+      "converged": true,
+      "cumulative_steps": 505,
+      "operation_counts": {
+        "walk": 105,
+        "negate_b": 4,
+        "sublate": 4
+      }
+    },
+    {
+      "chapter": "B.IV.A. Lordship and Bondage",
+      "chapter_index": 6,
+      "vertices_added": 15,
+      "edges_added": 29,
+      "vertices_total": 128,
+      "edges_total": 228,
+      "beta_1_before_injection": 61,
+      "beta_1_after_digestion": 65,
+      "delta_beta_1": 4,
+      "settled_cycles": 16,
+      "blocked_in_chapter": 24,
+      "steps_to_digest": 96,
+      "converged": true,
+      "cumulative_steps": 601,
+      "operation_counts": {
+        "walk": 68,
+        "negate_b": 5,
+        "sublate": 5,
+        "fold": 2,
+        "fold_blocked": 16
+      }
+    },
+    {
+      "chapter": "B.IV.B. Freedom of Self-Consciousness",
+      "chapter_index": 7,
+      "vertices_added": 12,
+      "edges_added": 22,
+      "vertices_total": 140,
+      "edges_total": 248,
+      "beta_1_before_injection": 72,
+      "beta_1_after_digestion": 72,
+      "delta_beta_1": 0,
+      "settled_cycles": 16,
+      "blocked_in_chapter": 41,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 651,
+      "operation_counts": {
+        "walk": 33,
+        "fold_blocked": 17
+      }
+    },
+    {
+      "chapter": "C.V.A. Observing Reason",
+      "chapter_index": 8,
+      "vertices_added": 13,
+      "edges_added": 18,
+      "vertices_total": 153,
+      "edges_total": 265,
+      "beta_1_before_injection": 76,
+      "beta_1_after_digestion": 76,
+      "delta_beta_1": 0,
+      "settled_cycles": 16,
+      "blocked_in_chapter": 57,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 701,
+      "operation_counts": {
+        "walk": 34,
+        "fold_blocked": 16
+      }
+    },
+    {
+      "chapter": "C.V.B. Actualization of Rational Self-Consciousness",
+      "chapter_index": 9,
+      "vertices_added": 9,
+      "edges_added": 14,
+      "vertices_total": 162,
+      "edges_total": 279,
+      "beta_1_before_injection": 79,
+      "beta_1_after_digestion": 79,
+      "delta_beta_1": 0,
+      "settled_cycles": 16,
+      "blocked_in_chapter": 74,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 751,
+      "operation_counts": {
+        "fold_blocked": 17,
+        "walk": 33
+      }
+    },
+    {
+      "chapter": "C.V.C. Individuality Real In and For Itself",
+      "chapter_index": 10,
+      "vertices_added": 9,
+      "edges_added": 13,
+      "vertices_total": 171,
+      "edges_total": 292,
+      "beta_1_before_injection": 83,
+      "beta_1_after_digestion": 83,
+      "delta_beta_1": 0,
+      "settled_cycles": 16,
+      "blocked_in_chapter": 91,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 801,
+      "operation_counts": {
+        "walk": 33,
+        "fold_blocked": 17
+      }
+    },
+    {
+      "chapter": "C.VI.A. The Ethical Order",
+      "chapter_index": 11,
+      "vertices_added": 12,
+      "edges_added": 24,
+      "vertices_total": 183,
+      "edges_total": 316,
+      "beta_1_before_injection": 93,
+      "beta_1_after_digestion": 93,
+      "delta_beta_1": 0,
+      "settled_cycles": 16,
+      "blocked_in_chapter": 107,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 851,
+      "operation_counts": {
+        "walk": 34,
+        "fold_blocked": 16
+      }
+    },
+    {
+      "chapter": "C.VI.B. Culture (Bildung)",
+      "chapter_index": 12,
+      "vertices_added": 14,
+      "edges_added": 23,
+      "vertices_total": 197,
+      "edges_total": 338,
+      "beta_1_before_injection": 97,
+      "beta_1_after_digestion": 97,
+      "delta_beta_1": 0,
+      "settled_cycles": 16,
+      "blocked_in_chapter": 124,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 901,
+      "operation_counts": {
+        "fold_blocked": 17,
+        "walk": 33
+      }
+    },
+    {
+      "chapter": "C.VI.C. Morality",
+      "chapter_index": 13,
+      "vertices_added": 14,
+      "edges_added": 30,
+      "vertices_total": 211,
+      "edges_total": 368,
+      "beta_1_before_injection": 111,
+      "beta_1_after_digestion": 111,
+      "delta_beta_1": 0,
+      "settled_cycles": 16,
+      "blocked_in_chapter": 141,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 951,
+      "operation_counts": {
+        "walk": 33,
+        "fold_blocked": 17
+      }
+    },
+    {
+      "chapter": "C.VII. Religion",
+      "chapter_index": 14,
+      "vertices_added": 15,
+      "edges_added": 25,
+      "vertices_total": 226,
+      "edges_total": 393,
+      "beta_1_before_injection": 121,
+      "beta_1_after_digestion": 121,
+      "delta_beta_1": 0,
+      "settled_cycles": 16,
+      "blocked_in_chapter": 157,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 1001,
+      "operation_counts": {
+        "walk": 34,
+        "fold_blocked": 16
+      }
+    },
+    {
+      "chapter": "C.VIII. Absolute Knowing",
+      "chapter_index": 15,
+      "vertices_added": 9,
+      "edges_added": 23,
+      "vertices_total": 235,
+      "edges_total": 415,
+      "beta_1_before_injection": 134,
+      "beta_1_after_digestion": 134,
+      "delta_beta_1": 0,
+      "settled_cycles": 16,
+      "blocked_in_chapter": 174,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 1051,
+      "operation_counts": {
+        "fold_blocked": 17,
+        "walk": 33
+      }
+    }
+  ],
+  "beta_1_curve": [
+    {
+      "chapter_index": 1,
+      "chapter_name": "Preface",
+      "beta_1": 3,
+      "cumulative_steps": 50
+    },
+    {
+      "chapter_index": 2,
+      "chapter_name": "Introduction",
+      "beta_1": 8,
+      "cumulative_steps": 120
+    },
+    {
+      "chapter_index": 3,
+      "chapter_name": "A.I. Sense-Certainty",
+      "beta_1": 26,
+      "cumulative_steps": 298
+    },
+    {
+      "chapter_index": 4,
+      "chapter_name": "A.II. Perception",
+      "beta_1": 35,
+      "cumulative_steps": 392
+    },
+    {
+      "chapter_index": 5,
+      "chapter_name": "A.III. Force and Understanding",
+      "beta_1": 49,
+      "cumulative_steps": 505
+    },
+    {
+      "chapter_index": 6,
+      "chapter_name": "B.IV.A. Lordship and Bondage",
+      "beta_1": 65,
+      "cumulative_steps": 601
+    },
+    {
+      "chapter_index": 7,
+      "chapter_name": "B.IV.B. Freedom of Self-Consciousness",
+      "beta_1": 72,
+      "cumulative_steps": 651
+    },
+    {
+      "chapter_index": 8,
+      "chapter_name": "C.V.A. Observing Reason",
+      "beta_1": 76,
+      "cumulative_steps": 701
+    },
+    {
+      "chapter_index": 9,
+      "chapter_name": "C.V.B. Actualization of Rational Self-Consciousness",
+      "beta_1": 79,
+      "cumulative_steps": 751
+    },
+    {
+      "chapter_index": 10,
+      "chapter_name": "C.V.C. Individuality Real In and For Itself",
+      "beta_1": 83,
+      "cumulative_steps": 801
+    },
+    {
+      "chapter_index": 11,
+      "chapter_name": "C.VI.A. The Ethical Order",
+      "beta_1": 93,
+      "cumulative_steps": 851
+    },
+    {
+      "chapter_index": 12,
+      "chapter_name": "C.VI.B. Culture (Bildung)",
+      "beta_1": 97,
+      "cumulative_steps": 901
+    },
+    {
+      "chapter_index": 13,
+      "chapter_name": "C.VI.C. Morality",
+      "beta_1": 111,
+      "cumulative_steps": 951
+    },
+    {
+      "chapter_index": 14,
+      "chapter_name": "C.VII. Religion",
+      "beta_1": 121,
+      "cumulative_steps": 1001
+    },
+    {
+      "chapter_index": 15,
+      "chapter_name": "C.VIII. Absolute Knowing",
+      "beta_1": 134,
+      "cumulative_steps": 1051
+    }
+  ],
+  "final_complex": {
+    "vertices_active": 235,
+    "edges_active": 415,
+    "beta_1": 134,
+    "settled_cycles": 16,
+    "edge_type_distribution": {
+      "negation": 114,
+      "dependency": 180,
+      "reference": 55,
+      "fold": 7,
+      "sublation": 59
+    },
+    "terrain_distribution": {
+      "tree": 247,
+      "critical": 133
+    },
+    "critical_edge_ratio": 0.35,
+    "negation_density": 0.2746987951807229
+  },
+  "total_steps": 1051,
+  "settled_cycles_detail": [
+    {
+      "edges": [
+        [
+          "syn_experience_anti_experience_68_70",
+          "anti_experience_68"
+        ],
+        [
+          "syn_experience_anti_experience_68_70",
+          "experience"
+        ]
+      ],
+      "settled_at_step": 80
+    },
+    {
+      "edges": [
+        [
+          "syn_the_this_anti_the_this_137_139",
+          "anti_the_this_137"
+        ],
+        [
+          "syn_the_this_anti_the_this_137_139",
+          "the_this"
+        ]
+      ],
+      "settled_at_step": 149
+    },
+    {
+      "edges": [
+        [
+          "syn_dialectic_method_anti_dialectic_method_146_148",
+          "anti_dialectic_method_146"
+        ],
+        [
+          "syn_dialectic_method_anti_dialectic_method_146_148",
+          "dialectic_method"
+        ]
+      ],
+      "settled_at_step": 158
+    },
+    {
+      "edges": [
+        [
+          "now_night",
+          "now_night"
+        ]
+      ],
+      "settled_at_step": 172
+    },
+    {
+      "edges": [
+        [
+          "the_this",
+          "this_not_this"
+        ],
+        [
+          "this_not_this",
+          "the_this"
+        ]
+      ],
+      "settled_at_step": 182
+    },
+    {
+      "edges": [
+        [
+          "the_this",
+          "the_this"
+        ]
+      ],
+      "settled_at_step": 182
+    },
+    {
+      "edges": [
+        [
+          "syn_mediation_anti_mediation_199_201",
+          "anti_mediation_199"
+        ],
+        [
+          "syn_mediation_anti_mediation_199_201",
+          "mediation"
+        ]
+      ],
+      "settled_at_step": 211
+    },
+    {
+      "edges": [
+        [
+          "syn_singular_I_anti_singular_I_246_248",
+          "anti_singular_I_246"
+        ],
+        [
+          "syn_singular_I_anti_singular_I_246_248",
+          "singular_I"
+        ]
+      ],
+      "settled_at_step": 258
+    },
+    {
+      "edges": [
+        [
+          "syn_contradictory_thing_anti_contradictory_thing_320_322",
+          "anti_contradictory_thing_320"
+        ],
+        [
+          "syn_contradictory_thing_anti_contradictory_thing_320_322",
+          "contradictory_thing"
+        ]
+      ],
+      "settled_at_step": 332
+    },
+    {
+      "edges": [
+        [
+          "syn_play_of_forces_anti_play_of_forces_395_397",
+          "anti_play_of_forces_395"
+        ],
+        [
+          "syn_play_of_forces_anti_play_of_forces_395_397",
+          "play_of_forces"
+        ]
+      ],
+      "settled_at_step": 407
+    },
+    {
+      "edges": [
+        [
+          "syn_internal_distinction_anti_internal_distinction_405_407",
+          "anti_internal_distinction_405"
+        ],
+        [
+          "syn_internal_distinction_anti_internal_distinction_405_407",
+          "internal_distinction"
+        ]
+      ],
+      "settled_at_step": 417
+    },
+    {
+      "edges": [
+        [
+          "syn_unconditioned_universal_anti_unconditioned_universal_424_426",
+          "anti_unconditioned_universal_424"
+        ],
+        [
+          "syn_unconditioned_universal_anti_unconditioned_universal_424_426",
+          "unconditioned_universal"
+        ]
+      ],
+      "settled_at_step": 436
+    },
+    {
+      "edges": [
+        [
+          "syn_subject_anti_subject_453_455",
+          "anti_subject_453"
+        ],
+        [
+          "syn_subject_anti_subject_453_455",
+          "subject"
+        ]
+      ],
+      "settled_at_step": 465
+    },
+    {
+      "edges": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ],
+      "settled_at_step": 542
+    },
+    {
+      "edges": [
+        [
+          "syn_life_anti_life_539_541",
+          "anti_life_539"
+        ],
+        [
+          "syn_life_anti_life_539_541",
+          "life"
+        ]
+      ],
+      "settled_at_step": 551
+    },
+    {
+      "edges": [
+        [
+          "syn_work_anti_work_549_551",
+          "anti_work_549"
+        ],
+        [
+          "syn_work_anti_work_549_551",
+          "work"
+        ]
+      ],
+      "settled_at_step": 561
+    }
+  ],
+  "blocked_log": [
+    {
+      "step": 183,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "pure_being",
+          "the_this"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_the_this_anti_the_this_137_139",
+          "anti_the_this_137"
+        ],
+        [
+          "syn_the_this_anti_the_this_137_139",
+          "the_this"
+        ]
+      ]
+    },
+    {
+      "step": 186,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "universal",
+          "now_night"
+        ]
+      },
+      "blocked_by": [
+        [
+          "now_night",
+          "now_night"
+        ]
+      ]
+    },
+    {
+      "step": 190,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "concept_of_knowledge",
+          "now_night"
+        ]
+      },
+      "blocked_by": [
+        [
+          "now_night",
+          "now_night"
+        ]
+      ]
+    },
+    {
+      "step": 195,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "concept_of_knowledge",
+          "now_night"
+        ]
+      },
+      "blocked_by": [
+        [
+          "now_night",
+          "now_night"
+        ]
+      ]
+    },
+    {
+      "step": 208,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "singular_I",
+          "now_night"
+        ]
+      },
+      "blocked_by": [
+        [
+          "now_night",
+          "now_night"
+        ]
+      ]
+    },
+    {
+      "step": 213,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "singular_I",
+          "now_night"
+        ]
+      },
+      "blocked_by": [
+        [
+          "now_night",
+          "now_night"
+        ]
+      ]
+    },
+    {
+      "step": 221,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "singular_I",
+          "now_night"
+        ]
+      },
+      "blocked_by": [
+        [
+          "now_night",
+          "now_night"
+        ]
+      ]
+    },
+    {
+      "step": 228,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "singular_I",
+          "now_night"
+        ]
+      },
+      "blocked_by": [
+        [
+          "now_night",
+          "now_night"
+        ]
+      ]
+    },
+    {
+      "step": 547,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "enjoyment",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 558,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 561,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 564,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 567,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 570,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 573,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 576,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 579,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 582,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 585,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 588,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 591,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 594,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 597,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 600,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 603,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 606,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 609,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 612,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 615,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 618,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 621,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 624,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 627,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 630,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 633,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 636,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 639,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 642,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 645,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 648,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 651,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 654,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 657,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 660,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 663,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 666,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 669,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 672,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 675,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 678,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 681,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 684,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 687,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 690,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 693,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 696,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 699,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 702,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 705,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 708,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 711,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 714,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 717,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 720,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 723,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 726,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 729,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 732,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 735,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 738,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 741,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 744,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 747,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 750,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 753,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 756,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 759,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 762,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 765,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 768,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 771,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 774,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 777,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 780,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 783,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 786,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 789,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 792,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 795,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 798,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 801,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 804,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 807,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 810,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 813,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 816,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 819,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 822,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 825,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 828,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 831,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 834,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 837,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 840,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 843,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 846,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 849,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 852,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 855,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 858,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 861,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 864,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 867,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 870,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 873,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 876,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 879,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 882,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 885,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 888,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 891,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 894,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 897,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 900,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 903,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 906,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 909,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 912,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 915,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 918,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 921,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 924,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 927,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 930,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 933,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 936,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 939,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 942,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 945,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 948,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 951,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 954,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 957,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 960,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 963,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 966,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 969,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 972,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 975,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 978,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 981,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 984,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 987,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 990,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 993,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 996,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 999,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 1002,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 1005,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 1008,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 1011,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 1014,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 1017,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 1020,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 1023,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 1026,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 1029,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 1032,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 1035,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 1038,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 1041,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 1044,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 1047,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    },
+    {
+      "step": 1050,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "struggle_life_death",
+          "independence"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_independence_anti_independence_530_532",
+          "anti_independence_530"
+        ],
+        [
+          "syn_independence_anti_independence_530_532",
+          "independence"
+        ]
+      ]
+    }
+  ]
+}
