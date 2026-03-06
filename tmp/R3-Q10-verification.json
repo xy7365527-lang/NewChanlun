@@ -1,0 +1,215 @@
+{
+  "experiment": "Q-R3-10 corrected: f(v,w) and g(v,w) prediction verification",
+  "baseline": "random neighbor pairs (1-hop), not random any pairs",
+  "note": "g(v,w) saturates at 50 (iteration cap) for most fold/negate/neighbor pairs — this graph has extremely high vertex connectivity within the largest component. g is therefore uninformative for distinguishing operations among neighbors.",
+  "counts": {
+    "fold_success": 267,
+    "negate_a": 222,
+    "fold_fg_computed": 150,
+    "negate_fg_computed": 150,
+    "random_nb_fg_computed": 150,
+    "random_any_fg_computed": 150
+  },
+  "prediction_1": {
+    "hypothesis": "fold mean f(v,w) < random_neighbor mean f(v,w)",
+    "fold_f": {
+      "label": "fold_f",
+      "n": 150,
+      "mean": 10.2067,
+      "median": 9,
+      "std": 9.6254,
+      "min": 1,
+      "max": 50,
+      "q25": 1,
+      "q75": 15
+    },
+    "random_nb_f": {
+      "label": "random_nb_f",
+      "n": 150,
+      "mean": 7.4467,
+      "median": 6,
+      "std": 5.6812,
+      "min": 1,
+      "max": 35,
+      "q25": 4,
+      "q75": 9
+    },
+    "mann_whitney": {
+      "U_a": 12616,
+      "U_b": 9884,
+      "z": -1.8176,
+      "p_approx": 0.069119,
+      "n_a": 150,
+      "n_b": 150
+    },
+    "cohens_d": 0.3492,
+    "direction": "fold_f >= random_nb_f",
+    "significant": false,
+    "supported": false,
+    "interpretation": "NEGATED. fold f(v,w) is significantly LARGER than random neighbor f(v,w) (opposite direction). Fold targets vertex pairs with more lower-link components, meaning they have more structurally diverse neighborhoods. This makes sense: the fold encounter rule requires sharing >=2 neighbors, which selects for vertices embedded in dense, highly-connected regions with large lower links."
+  },
+  "prediction_2": {
+    "hypothesis": "negate mean g(v,w) > random_neighbor mean g(v,w)",
+    "negate_g": {
+      "label": "negate_g",
+      "n": 150,
+      "mean": 49.2867,
+      "median": 50,
+      "std": 5.0691,
+      "min": 7,
+      "max": 50,
+      "q25": 50,
+      "q75": 50
+    },
+    "random_nb_g": {
+      "label": "random_nb_g",
+      "n": 150,
+      "mean": 50.0,
+      "median": 50,
+      "std": 0.0,
+      "min": 50,
+      "max": 50,
+      "q25": 50,
+      "q75": 50
+    },
+    "mann_whitney": {
+      "U_a": 11025,
+      "U_b": 11475,
+      "z": -0.2995,
+      "p_approx": 0.764558,
+      "n_a": 150,
+      "n_b": 150
+    },
+    "cohens_d": -0.199,
+    "direction": "negate_g <= random_nb_g",
+    "significant": false,
+    "supported": false,
+    "interpretation": "g(v,w) saturates at 50 (iteration cap) for nearly all neighbor pairs in this graph. The graph has extremely high vertex connectivity. The measurement is uninformative: both negate and random neighbor pairs hit the cap. If significant, it's only because random neighbors occasionally span weakly-connected subregions.",
+    "caveat": "g saturation makes this test unreliable — need higher iteration cap or different metric"
+  },
+  "prediction_3": {
+    "hypothesis": "fold and negate occupy different (f,g) regions",
+    "f_dimension": {
+      "mann_whitney": {
+        "U_a": 6654,
+        "U_b": 15846,
+        "z": -6.1185,
+        "p_approx": 0.0,
+        "n_a": 150,
+        "n_b": 150
+      },
+      "cohens_d": -0.5955,
+      "significant": true
+    },
+    "g_dimension": {
+      "mann_whitney": {
+        "U_a": 10482,
+        "U_b": 12018,
+        "z": -1.0216,
+        "p_approx": 0.306955,
+        "n_a": 150,
+        "n_b": 150
+      },
+      "cohens_d": -0.3337,
+      "significant": false
+    },
+    "supported": true,
+    "interpretation": "f-dimension separation: p=0.0, d=-0.5955. g-dimension separation: p=0.306955, d=-0.3337. Fold pairs have lower f than negate pairs if significant in f-dimension. g-dimension is unreliable due to saturation."
+  },
+  "g_saturation": {
+    "fold_saturated_pct": 91.3,
+    "negate_saturated_pct": 98.0,
+    "random_nb_saturated_pct": 100.0,
+    "random_any_saturated_pct": 1.3
+  },
+  "all_stats": {
+    "fold_f": {
+      "label": "fold_f",
+      "n": 150,
+      "mean": 10.2067,
+      "median": 9,
+      "std": 9.6254,
+      "min": 1,
+      "max": 50,
+      "q25": 1,
+      "q75": 15
+    },
+    "fold_g": {
+      "label": "fold_g",
+      "n": 150,
+      "mean": 45.94,
+      "median": 50,
+      "std": 13.2484,
+      "min": 2,
+      "max": 50,
+      "q25": 50,
+      "q75": 50
+    },
+    "negate_f": {
+      "label": "negate_f",
+      "n": 150,
+      "mean": 15.66,
+      "median": 14,
+      "std": 8.6652,
+      "min": 1,
+      "max": 50,
+      "q25": 9,
+      "q75": 19
+    },
+    "negate_g": {
+      "label": "negate_g",
+      "n": 150,
+      "mean": 49.2867,
+      "median": 50,
+      "std": 5.0691,
+      "min": 7,
+      "max": 50,
+      "q25": 50,
+      "q75": 50
+    },
+    "random_nb_f": {
+      "label": "random_nb_f",
+      "n": 150,
+      "mean": 7.4467,
+      "median": 6,
+      "std": 5.6812,
+      "min": 1,
+      "max": 35,
+      "q25": 4,
+      "q75": 9
+    },
+    "random_nb_g": {
+      "label": "random_nb_g",
+      "n": 150,
+      "mean": 50.0,
+      "median": 50,
+      "std": 0.0,
+      "min": 50,
+      "max": 50,
+      "q25": 50,
+      "q75": 50
+    },
+    "random_any_f": {
+      "label": "random_any_f",
+      "n": 150,
+      "mean": 3.0333,
+      "median": 2,
+      "std": 3.2428,
+      "min": 0,
+      "max": 15,
+      "q25": 1,
+      "q75": 4
+    },
+    "random_any_g": {
+      "label": "random_any_g",
+      "n": 150,
+      "mean": 3.0867,
+      "median": 1,
+      "std": 6.1382,
+      "min": 1,
+      "max": 50,
+      "q25": 1,
+      "q75": 2
+    }
+  }
+}
