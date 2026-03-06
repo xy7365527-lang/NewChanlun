@@ -1,0 +1,8308 @@
+{
+  "experiment": "simmel_complete_works_incremental",
+  "source": "Georg Simmel — complete works, 30 entries (1890-1918)",
+  "methodology": "manual conceptual complex per work, incremental injection, digestion until 50-step beta_1 stability",
+  "work_results": [
+    {
+      "work": "1890: On Social Differentiation",
+      "work_index": 1,
+      "vertices_added": 11,
+      "edges_added": 12,
+      "vertices_total": 10,
+      "edges_total": 13,
+      "beta_1_before_injection": 3,
+      "beta_1_after_digestion": 3,
+      "delta_beta_1": 0,
+      "settled_cycles": 0,
+      "blocked_in_work": 0,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 50,
+      "operation_counts": {
+        "walk": 49,
+        "fold": 1
+      }
+    },
+    {
+      "work": "1892: Problems of the Philosophy of History (1st ed)",
+      "work_index": 2,
+      "vertices_added": 9,
+      "edges_added": 11,
+      "vertices_total": 18,
+      "edges_total": 24,
+      "beta_1_before_injection": 5,
+      "beta_1_after_digestion": 4,
+      "delta_beta_1": -1,
+      "settled_cycles": 0,
+      "blocked_in_work": 0,
+      "steps_to_digest": 55,
+      "converged": true,
+      "cumulative_steps": 105,
+      "operation_counts": {
+        "walk": 54,
+        "fold": 1
+      }
+    },
+    {
+      "work": "1894: The Problem of Sociology",
+      "work_index": 3,
+      "vertices_added": 7,
+      "edges_added": 12,
+      "vertices_total": 24,
+      "edges_total": 36,
+      "beta_1_before_injection": 8,
+      "beta_1_after_digestion": 7,
+      "delta_beta_1": -1,
+      "settled_cycles": 0,
+      "blocked_in_work": 0,
+      "steps_to_digest": 66,
+      "converged": true,
+      "cumulative_steps": 171,
+      "operation_counts": {
+        "walk": 65,
+        "fold": 1
+      }
+    },
+    {
+      "work": "1896: Sociological Aesthetics",
+      "work_index": 4,
+      "vertices_added": 6,
+      "edges_added": 10,
+      "vertices_total": 32,
+      "edges_total": 52,
+      "beta_1_before_injection": 11,
+      "beta_1_after_digestion": 12,
+      "delta_beta_1": 1,
+      "settled_cycles": 2,
+      "blocked_in_work": 1,
+      "steps_to_digest": 79,
+      "converged": true,
+      "cumulative_steps": 250,
+      "operation_counts": {
+        "walk": 72,
+        "negate_b": 2,
+        "sublate": 2,
+        "fold_blocked": 1,
+        "fold": 2
+      }
+    },
+    {
+      "work": "1897: The Persistence of Social Groups",
+      "work_index": 5,
+      "vertices_added": 6,
+      "edges_added": 10,
+      "vertices_total": 37,
+      "edges_total": 60,
+      "beta_1_before_injection": 14,
+      "beta_1_after_digestion": 14,
+      "delta_beta_1": 0,
+      "settled_cycles": 2,
+      "blocked_in_work": 1,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 300,
+      "operation_counts": {
+        "walk": 49,
+        "fold": 1
+      }
+    },
+    {
+      "work": "1898: A Chapter in the Philosophy of Value",
+      "work_index": 6,
+      "vertices_added": 7,
+      "edges_added": 11,
+      "vertices_total": 46,
+      "edges_total": 82,
+      "beta_1_before_injection": 18,
+      "beta_1_after_digestion": 22,
+      "delta_beta_1": 4,
+      "settled_cycles": 3,
+      "blocked_in_work": 3,
+      "steps_to_digest": 76,
+      "converged": true,
+      "cumulative_steps": 376,
+      "operation_counts": {
+        "walk": 65,
+        "negate_b": 2,
+        "sublate": 3,
+        "fold": 3,
+        "negate_a": 1,
+        "fold_blocked": 2
+      }
+    },
+    {
+      "work": "1900: The Philosophy of Money",
+      "work_index": 7,
+      "vertices_added": 13,
+      "edges_added": 22,
+      "vertices_total": 59,
+      "edges_total": 105,
+      "beta_1_before_injection": 28,
+      "beta_1_after_digestion": 28,
+      "delta_beta_1": 0,
+      "settled_cycles": 4,
+      "blocked_in_work": 3,
+      "steps_to_digest": 87,
+      "converged": true,
+      "cumulative_steps": 463,
+      "operation_counts": {
+        "walk": 83,
+        "fold": 2,
+        "negate_b": 1,
+        "sublate": 1
+      }
+    },
+    {
+      "work": "1903: The Metropolis and Mental Life",
+      "work_index": 8,
+      "vertices_added": 11,
+      "edges_added": 18,
+      "vertices_total": 72,
+      "edges_total": 128,
+      "beta_1_before_injection": 33,
+      "beta_1_after_digestion": 33,
+      "delta_beta_1": 0,
+      "settled_cycles": 6,
+      "blocked_in_work": 3,
+      "steps_to_digest": 72,
+      "converged": true,
+      "cumulative_steps": 535,
+      "operation_counts": {
+        "walk": 66,
+        "negate_b": 2,
+        "sublate": 2,
+        "fold": 2
+      }
+    },
+    {
+      "work": "1904: Fashion",
+      "work_index": 9,
+      "vertices_added": 7,
+      "edges_added": 15,
+      "vertices_total": 80,
+      "edges_total": 144,
+      "beta_1_before_injection": 36,
+      "beta_1_after_digestion": 36,
+      "delta_beta_1": 0,
+      "settled_cycles": 8,
+      "blocked_in_work": 19,
+      "steps_to_digest": 75,
+      "converged": true,
+      "cumulative_steps": 610,
+      "operation_counts": {
+        "walk": 53,
+        "negate_b": 1,
+        "sublate": 2,
+        "fold_blocked": 16,
+        "fold": 2,
+        "negate_a": 1
+      }
+    },
+    {
+      "work": "1905: A Contribution to the Sociology of Religion",
+      "work_index": 10,
+      "vertices_added": 5,
+      "edges_added": 9,
+      "vertices_total": 85,
+      "edges_total": 149,
+      "beta_1_before_injection": 37,
+      "beta_1_after_digestion": 37,
+      "delta_beta_1": 0,
+      "settled_cycles": 8,
+      "blocked_in_work": 36,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 660,
+      "operation_counts": {
+        "walk": 33,
+        "fold_blocked": 17
+      }
+    },
+    {
+      "work": "1906: The Sociology of Secrecy and of Secret Societies",
+      "work_index": 11,
+      "vertices_added": 9,
+      "edges_added": 17,
+      "vertices_total": 94,
+      "edges_total": 164,
+      "beta_1_before_injection": 41,
+      "beta_1_after_digestion": 41,
+      "delta_beta_1": 0,
+      "settled_cycles": 8,
+      "blocked_in_work": 52,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 710,
+      "operation_counts": {
+        "walk": 34,
+        "fold_blocked": 16
+      }
+    },
+    {
+      "work": "1907: The Philosophy of Money (2nd ed, expanded)",
+      "work_index": 12,
+      "vertices_added": 5,
+      "edges_added": 12,
+      "vertices_total": 99,
+      "edges_total": 171,
+      "beta_1_before_injection": 43,
+      "beta_1_after_digestion": 43,
+      "delta_beta_1": 0,
+      "settled_cycles": 8,
+      "blocked_in_work": 69,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 760,
+      "operation_counts": {
+        "fold_blocked": 17,
+        "walk": 33
+      }
+    },
+    {
+      "work": "1908: Sociology — Forms of Sociation",
+      "work_index": 13,
+      "vertices_added": 10,
+      "edges_added": 17,
+      "vertices_total": 109,
+      "edges_total": 181,
+      "beta_1_before_injection": 46,
+      "beta_1_after_digestion": 46,
+      "delta_beta_1": 0,
+      "settled_cycles": 8,
+      "blocked_in_work": 86,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 810,
+      "operation_counts": {
+        "walk": 33,
+        "fold_blocked": 17
+      }
+    },
+    {
+      "work": "1908: The Stranger",
+      "work_index": 14,
+      "vertices_added": 5,
+      "edges_added": 11,
+      "vertices_total": 114,
+      "edges_total": 189,
+      "beta_1_before_injection": 49,
+      "beta_1_after_digestion": 49,
+      "delta_beta_1": 0,
+      "settled_cycles": 8,
+      "blocked_in_work": 102,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 860,
+      "operation_counts": {
+        "walk": 34,
+        "fold_blocked": 16
+      }
+    },
+    {
+      "work": "1908: The Poor",
+      "work_index": 15,
+      "vertices_added": 4,
+      "edges_added": 8,
+      "vertices_total": 118,
+      "edges_total": 195,
+      "beta_1_before_injection": 51,
+      "beta_1_after_digestion": 51,
+      "delta_beta_1": 0,
+      "settled_cycles": 8,
+      "blocked_in_work": 119,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 910,
+      "operation_counts": {
+        "fold_blocked": 17,
+        "walk": 33
+      }
+    },
+    {
+      "work": "1908: Conflict",
+      "work_index": 16,
+      "vertices_added": 6,
+      "edges_added": 10,
+      "vertices_total": 124,
+      "edges_total": 202,
+      "beta_1_before_injection": 51,
+      "beta_1_after_digestion": 51,
+      "delta_beta_1": 0,
+      "settled_cycles": 8,
+      "blocked_in_work": 136,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 960,
+      "operation_counts": {
+        "walk": 33,
+        "fold_blocked": 17
+      }
+    },
+    {
+      "work": "1908: Domination and Subordination",
+      "work_index": 17,
+      "vertices_added": 7,
+      "edges_added": 13,
+      "vertices_total": 131,
+      "edges_total": 214,
+      "beta_1_before_injection": 54,
+      "beta_1_after_digestion": 54,
+      "delta_beta_1": 0,
+      "settled_cycles": 8,
+      "blocked_in_work": 152,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 1010,
+      "operation_counts": {
+        "walk": 34,
+        "fold_blocked": 16
+      }
+    },
+    {
+      "work": "1908: The Web of Group Affiliations",
+      "work_index": 18,
+      "vertices_added": 5,
+      "edges_added": 10,
+      "vertices_total": 136,
+      "edges_total": 223,
+      "beta_1_before_injection": 58,
+      "beta_1_after_digestion": 58,
+      "delta_beta_1": 0,
+      "settled_cycles": 8,
+      "blocked_in_work": 169,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 1060,
+      "operation_counts": {
+        "fold_blocked": 17,
+        "walk": 33
+      }
+    },
+    {
+      "work": "1909: Bridge and Door",
+      "work_index": 19,
+      "vertices_added": 5,
+      "edges_added": 13,
+      "vertices_total": 141,
+      "edges_total": 234,
+      "beta_1_before_injection": 63,
+      "beta_1_after_digestion": 63,
+      "delta_beta_1": 0,
+      "settled_cycles": 8,
+      "blocked_in_work": 186,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 1110,
+      "operation_counts": {
+        "walk": 33,
+        "fold_blocked": 17
+      }
+    },
+    {
+      "work": "1910: How Is Society Possible?",
+      "work_index": 20,
+      "vertices_added": 6,
+      "edges_added": 12,
+      "vertices_total": 147,
+      "edges_total": 242,
+      "beta_1_before_injection": 64,
+      "beta_1_after_digestion": 64,
+      "delta_beta_1": 0,
+      "settled_cycles": 8,
+      "blocked_in_work": 202,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 1160,
+      "operation_counts": {
+        "walk": 34,
+        "fold_blocked": 16
+      }
+    },
+    {
+      "work": "1910: Sociability",
+      "work_index": 21,
+      "vertices_added": 6,
+      "edges_added": 14,
+      "vertices_total": 153,
+      "edges_total": 253,
+      "beta_1_before_injection": 69,
+      "beta_1_after_digestion": 69,
+      "delta_beta_1": 0,
+      "settled_cycles": 8,
+      "blocked_in_work": 219,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 1210,
+      "operation_counts": {
+        "fold_blocked": 17,
+        "walk": 33
+      }
+    },
+    {
+      "work": "1911: The Adventurer",
+      "work_index": 22,
+      "vertices_added": 6,
+      "edges_added": 10,
+      "vertices_total": 159,
+      "edges_total": 262,
+      "beta_1_before_injection": 72,
+      "beta_1_after_digestion": 72,
+      "delta_beta_1": 0,
+      "settled_cycles": 8,
+      "blocked_in_work": 236,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 1260,
+      "operation_counts": {
+        "walk": 33,
+        "fold_blocked": 17
+      }
+    },
+    {
+      "work": "1911: The Ruin",
+      "work_index": 23,
+      "vertices_added": 4,
+      "edges_added": 8,
+      "vertices_total": 163,
+      "edges_total": 266,
+      "beta_1_before_injection": 72,
+      "beta_1_after_digestion": 72,
+      "delta_beta_1": 0,
+      "settled_cycles": 8,
+      "blocked_in_work": 252,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 1310,
+      "operation_counts": {
+        "walk": 34,
+        "fold_blocked": 16
+      }
+    },
+    {
+      "work": "1911: Philosophical Culture",
+      "work_index": 24,
+      "vertices_added": 5,
+      "edges_added": 12,
+      "vertices_total": 168,
+      "edges_total": 276,
+      "beta_1_before_injection": 76,
+      "beta_1_after_digestion": 76,
+      "delta_beta_1": 0,
+      "settled_cycles": 8,
+      "blocked_in_work": 269,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 1360,
+      "operation_counts": {
+        "fold_blocked": 17,
+        "walk": 33
+      }
+    },
+    {
+      "work": "1912: The Concept and Tragedy of Culture",
+      "work_index": 25,
+      "vertices_added": 7,
+      "edges_added": 15,
+      "vertices_total": 175,
+      "edges_total": 290,
+      "beta_1_before_injection": 83,
+      "beta_1_after_digestion": 83,
+      "delta_beta_1": 0,
+      "settled_cycles": 8,
+      "blocked_in_work": 286,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 1410,
+      "operation_counts": {
+        "walk": 33,
+        "fold_blocked": 17
+      }
+    },
+    {
+      "work": "1913: Goethe",
+      "work_index": 26,
+      "vertices_added": 5,
+      "edges_added": 11,
+      "vertices_total": 180,
+      "edges_total": 299,
+      "beta_1_before_injection": 87,
+      "beta_1_after_digestion": 87,
+      "delta_beta_1": 0,
+      "settled_cycles": 8,
+      "blocked_in_work": 302,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 1460,
+      "operation_counts": {
+        "walk": 34,
+        "fold_blocked": 16
+      }
+    },
+    {
+      "work": "1916: Rembrandt",
+      "work_index": 27,
+      "vertices_added": 7,
+      "edges_added": 14,
+      "vertices_total": 187,
+      "edges_total": 311,
+      "beta_1_before_injection": 92,
+      "beta_1_after_digestion": 92,
+      "delta_beta_1": 0,
+      "settled_cycles": 8,
+      "blocked_in_work": 319,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 1510,
+      "operation_counts": {
+        "fold_blocked": 17,
+        "walk": 33
+      }
+    },
+    {
+      "work": "1917: Fundamental Questions of Sociology",
+      "work_index": 28,
+      "vertices_added": 5,
+      "edges_added": 11,
+      "vertices_total": 192,
+      "edges_total": 320,
+      "beta_1_before_injection": 96,
+      "beta_1_after_digestion": 96,
+      "delta_beta_1": 0,
+      "settled_cycles": 8,
+      "blocked_in_work": 336,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 1560,
+      "operation_counts": {
+        "walk": 33,
+        "fold_blocked": 17
+      }
+    },
+    {
+      "work": "1918: The Conflict in Modern Culture",
+      "work_index": 29,
+      "vertices_added": 6,
+      "edges_added": 13,
+      "vertices_total": 198,
+      "edges_total": 330,
+      "beta_1_before_injection": 100,
+      "beta_1_after_digestion": 100,
+      "delta_beta_1": 0,
+      "settled_cycles": 8,
+      "blocked_in_work": 352,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 1610,
+      "operation_counts": {
+        "walk": 34,
+        "fold_blocked": 16
+      }
+    },
+    {
+      "work": "1918: Lebensanschauung (The View of Life)",
+      "work_index": 30,
+      "vertices_added": 7,
+      "edges_added": 17,
+      "vertices_total": 205,
+      "edges_total": 344,
+      "beta_1_before_injection": 106,
+      "beta_1_after_digestion": 106,
+      "delta_beta_1": 0,
+      "settled_cycles": 8,
+      "blocked_in_work": 369,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 1660,
+      "operation_counts": {
+        "fold_blocked": 17,
+        "walk": 33
+      }
+    }
+  ],
+  "beta_1_curve": [
+    {
+      "work_index": 1,
+      "work_name": "1890: On Social Differentiation",
+      "beta_1": 3,
+      "cumulative_steps": 50
+    },
+    {
+      "work_index": 2,
+      "work_name": "1892: Problems of the Philosophy of History (1st ed)",
+      "beta_1": 4,
+      "cumulative_steps": 105
+    },
+    {
+      "work_index": 3,
+      "work_name": "1894: The Problem of Sociology",
+      "beta_1": 7,
+      "cumulative_steps": 171
+    },
+    {
+      "work_index": 4,
+      "work_name": "1896: Sociological Aesthetics",
+      "beta_1": 12,
+      "cumulative_steps": 250
+    },
+    {
+      "work_index": 5,
+      "work_name": "1897: The Persistence of Social Groups",
+      "beta_1": 14,
+      "cumulative_steps": 300
+    },
+    {
+      "work_index": 6,
+      "work_name": "1898: A Chapter in the Philosophy of Value",
+      "beta_1": 22,
+      "cumulative_steps": 376
+    },
+    {
+      "work_index": 7,
+      "work_name": "1900: The Philosophy of Money",
+      "beta_1": 28,
+      "cumulative_steps": 463
+    },
+    {
+      "work_index": 8,
+      "work_name": "1903: The Metropolis and Mental Life",
+      "beta_1": 33,
+      "cumulative_steps": 535
+    },
+    {
+      "work_index": 9,
+      "work_name": "1904: Fashion",
+      "beta_1": 36,
+      "cumulative_steps": 610
+    },
+    {
+      "work_index": 10,
+      "work_name": "1905: A Contribution to the Sociology of Religion",
+      "beta_1": 37,
+      "cumulative_steps": 660
+    },
+    {
+      "work_index": 11,
+      "work_name": "1906: The Sociology of Secrecy and of Secret Societies",
+      "beta_1": 41,
+      "cumulative_steps": 710
+    },
+    {
+      "work_index": 12,
+      "work_name": "1907: The Philosophy of Money (2nd ed, expanded)",
+      "beta_1": 43,
+      "cumulative_steps": 760
+    },
+    {
+      "work_index": 13,
+      "work_name": "1908: Sociology — Forms of Sociation",
+      "beta_1": 46,
+      "cumulative_steps": 810
+    },
+    {
+      "work_index": 14,
+      "work_name": "1908: The Stranger",
+      "beta_1": 49,
+      "cumulative_steps": 860
+    },
+    {
+      "work_index": 15,
+      "work_name": "1908: The Poor",
+      "beta_1": 51,
+      "cumulative_steps": 910
+    },
+    {
+      "work_index": 16,
+      "work_name": "1908: Conflict",
+      "beta_1": 51,
+      "cumulative_steps": 960
+    },
+    {
+      "work_index": 17,
+      "work_name": "1908: Domination and Subordination",
+      "beta_1": 54,
+      "cumulative_steps": 1010
+    },
+    {
+      "work_index": 18,
+      "work_name": "1908: The Web of Group Affiliations",
+      "beta_1": 58,
+      "cumulative_steps": 1060
+    },
+    {
+      "work_index": 19,
+      "work_name": "1909: Bridge and Door",
+      "beta_1": 63,
+      "cumulative_steps": 1110
+    },
+    {
+      "work_index": 20,
+      "work_name": "1910: How Is Society Possible?",
+      "beta_1": 64,
+      "cumulative_steps": 1160
+    },
+    {
+      "work_index": 21,
+      "work_name": "1910: Sociability",
+      "beta_1": 69,
+      "cumulative_steps": 1210
+    },
+    {
+      "work_index": 22,
+      "work_name": "1911: The Adventurer",
+      "beta_1": 72,
+      "cumulative_steps": 1260
+    },
+    {
+      "work_index": 23,
+      "work_name": "1911: The Ruin",
+      "beta_1": 72,
+      "cumulative_steps": 1310
+    },
+    {
+      "work_index": 24,
+      "work_name": "1911: Philosophical Culture",
+      "beta_1": 76,
+      "cumulative_steps": 1360
+    },
+    {
+      "work_index": 25,
+      "work_name": "1912: The Concept and Tragedy of Culture",
+      "beta_1": 83,
+      "cumulative_steps": 1410
+    },
+    {
+      "work_index": 26,
+      "work_name": "1913: Goethe",
+      "beta_1": 87,
+      "cumulative_steps": 1460
+    },
+    {
+      "work_index": 27,
+      "work_name": "1916: Rembrandt",
+      "beta_1": 92,
+      "cumulative_steps": 1510
+    },
+    {
+      "work_index": 28,
+      "work_name": "1917: Fundamental Questions of Sociology",
+      "beta_1": 96,
+      "cumulative_steps": 1560
+    },
+    {
+      "work_index": 29,
+      "work_name": "1918: The Conflict in Modern Culture",
+      "beta_1": 100,
+      "cumulative_steps": 1610
+    },
+    {
+      "work_index": 30,
+      "work_name": "1918: Lebensanschauung (The View of Life)",
+      "beta_1": 106,
+      "cumulative_steps": 1660
+    }
+  ],
+  "final_complex": {
+    "vertices_active": 205,
+    "edges_active": 344,
+    "beta_1": 106,
+    "settled_cycles": 8,
+    "edge_type_distribution": {
+      "dependency": 198,
+      "negation": 53,
+      "reference": 46,
+      "fold": 6,
+      "sublation": 41
+    },
+    "terrain_distribution": {
+      "tree": 211,
+      "critical": 100
+    },
+    "critical_edge_ratio": 0.3215434083601286,
+    "negation_density": 0.15406976744186046
+  },
+  "total_steps": 1660,
+  "settled_cycles_detail": [
+    {
+      "edges": [
+        [
+          "syn_reciprocity_anti_reciprocity_174_176",
+          "anti_reciprocity_174"
+        ],
+        [
+          "syn_reciprocity_anti_reciprocity_174_176",
+          "reciprocity"
+        ]
+      ],
+      "settled_at_step": 186
+    },
+    {
+      "edges": [
+        [
+          "reciprocity",
+          "reciprocity"
+        ]
+      ],
+      "settled_at_step": 210
+    },
+    {
+      "edges": [
+        [
+          "syn_desire_anti_desire_304_306",
+          "anti_desire_304"
+        ],
+        [
+          "syn_desire_anti_desire_304_306",
+          "desire"
+        ]
+      ],
+      "settled_at_step": 316
+    },
+    {
+      "edges": [
+        [
+          "syn_individuality_anti_individuality_411_413",
+          "anti_individuality_411"
+        ],
+        [
+          "syn_individuality_anti_individuality_411_413",
+          "individuality"
+        ]
+      ],
+      "settled_at_step": 423
+    },
+    {
+      "edges": [
+        [
+          "syn_blase_attitude_anti_blase_attitude_466_468",
+          "anti_blase_attitude_466"
+        ],
+        [
+          "syn_blase_attitude_anti_blase_attitude_466_468",
+          "blase_attitude"
+        ]
+      ],
+      "settled_at_step": 478
+    },
+    {
+      "edges": [
+        [
+          "syn_intellectualism_anti_intellectualism_483_485",
+          "anti_intellectualism_483"
+        ],
+        [
+          "syn_intellectualism_anti_intellectualism_483_485",
+          "intellectualism"
+        ]
+      ],
+      "settled_at_step": 495
+    },
+    {
+      "edges": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ],
+      "settled_at_step": 554
+    },
+    {
+      "edges": [
+        [
+          "syn_imitation_fashion_559",
+          "fashion"
+        ],
+        [
+          "syn_imitation_fashion_559",
+          "imitation"
+        ]
+      ],
+      "settled_at_step": 569
+    }
+  ],
+  "blocked_log": [
+    {
+      "step": 187,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "aesthetic_form",
+          "reciprocity"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_reciprocity_anti_reciprocity_174_176",
+          "anti_reciprocity_174"
+        ],
+        [
+          "syn_reciprocity_anti_reciprocity_174_176",
+          "reciprocity"
+        ]
+      ]
+    },
+    {
+      "step": 317,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_subjective_value_value_316",
+          "desire"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_desire_anti_desire_304_306",
+          "anti_desire_304"
+        ],
+        [
+          "syn_desire_anti_desire_304_306",
+          "desire"
+        ]
+      ]
+    },
+    {
+      "step": 320,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "syn_subjective_value_value_316",
+          "desire"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_desire_anti_desire_304_306",
+          "anti_desire_304"
+        ],
+        [
+          "syn_desire_anti_desire_304_306",
+          "desire"
+        ]
+      ]
+    },
+    {
+      "step": 555,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 567,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 570,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 573,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 576,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 579,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 582,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 585,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 588,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 591,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 594,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 597,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 600,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 603,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 606,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 609,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 612,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 615,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 618,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 621,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 624,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 627,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 630,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 633,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 636,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 639,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 642,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 645,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 648,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 651,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 654,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 657,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 660,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 663,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 666,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 669,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 672,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 675,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 678,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 681,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 684,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 687,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 690,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 693,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 696,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 699,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 702,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 705,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 708,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 711,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 714,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 717,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 720,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 723,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 726,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 729,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 732,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 735,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 738,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 741,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 744,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 747,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 750,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 753,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 756,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 759,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 762,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 765,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 768,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 771,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 774,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 777,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 780,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 783,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 786,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 789,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 792,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 795,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 798,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 801,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 804,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 807,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 810,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 813,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 816,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 819,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 822,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 825,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 828,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 831,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 834,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 837,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 840,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 843,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 846,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 849,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 852,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 855,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 858,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 861,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 864,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 867,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 870,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 873,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 876,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 879,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 882,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 885,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 888,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 891,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 894,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 897,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 900,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 903,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 906,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 909,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 912,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 915,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 918,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 921,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 924,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 927,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 930,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 933,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 936,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 939,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 942,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 945,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 948,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 951,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 954,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 957,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 960,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 963,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 966,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 969,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 972,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 975,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 978,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 981,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 984,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 987,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 990,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 993,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 996,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 999,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1002,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1005,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1008,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1011,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1014,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1017,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1020,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1023,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1026,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1029,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1032,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1035,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1038,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1041,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1044,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1047,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1050,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1053,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1056,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1059,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1062,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1065,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1068,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1071,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1074,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1077,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1080,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1083,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1086,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1089,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1092,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1095,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1098,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1101,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1104,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1107,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1110,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1113,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1116,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1119,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1122,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1125,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1128,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1131,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1134,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1137,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1140,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1143,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1146,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1149,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1152,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1155,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1158,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1161,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1164,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1167,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1170,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1173,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1176,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1179,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1182,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1185,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1188,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1191,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1194,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1197,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1200,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1203,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1206,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1209,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1212,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1215,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1218,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1221,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1224,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1227,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1230,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1233,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1236,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1239,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1242,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1245,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1248,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1251,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1254,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1257,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1260,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1263,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1266,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1269,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1272,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1275,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1278,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1281,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1284,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1287,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1290,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1293,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1296,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1299,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1302,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1305,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1308,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1311,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1314,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1317,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1320,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1323,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1326,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1329,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1332,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1335,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1338,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1341,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1344,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1347,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1350,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1353,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1356,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1359,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1362,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1365,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1368,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1371,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1374,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1377,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1380,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1383,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1386,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1389,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1392,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1395,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1398,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1401,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1404,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1407,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1410,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1413,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1416,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1419,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1422,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1425,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1428,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1431,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1434,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1437,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1440,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1443,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1446,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1449,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1452,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1455,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1458,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1461,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1464,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1467,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1470,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1473,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1476,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1479,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1482,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1485,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1488,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1491,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1494,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1497,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1500,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1503,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1506,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1509,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1512,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1515,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1518,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1521,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1524,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1527,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1530,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1533,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1536,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1539,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1542,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1545,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1548,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1551,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1554,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1557,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1560,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1563,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1566,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1569,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1572,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1575,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1578,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1581,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1584,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1587,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1590,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1593,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1596,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1599,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1602,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1605,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1608,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1611,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1614,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1617,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1620,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1623,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1626,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1629,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1632,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1635,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1638,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1641,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1644,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1647,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1650,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1653,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1656,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    },
+    {
+      "step": 1659,
+      "operation": "fold",
+      "detail": {
+        "vertices": [
+          "fashion",
+          "trickle_down"
+        ]
+      },
+      "blocked_by": [
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "anti_trickle_down_542"
+        ],
+        [
+          "syn_trickle_down_anti_trickle_down_542_544",
+          "trickle_down"
+        ]
+      ]
+    }
+  ]
+}
