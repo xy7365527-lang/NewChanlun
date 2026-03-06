@@ -10,12 +10,15 @@ import textwrap
 import pytest
 
 from scripts.ceremony_scan import (
-    compute_delta_blocks,
-    detect_genealogy_anomalies,
-    detect_pending_topo_effects,
-    get_frozen_nodes,
     main,
 )
+
+# 以下函数在 ceremony_scan.py 重构后已被删除（177号/178号功能移除）
+# 对应测试类已标记 skip
+compute_delta_blocks = None
+detect_genealogy_anomalies = None
+detect_pending_topo_effects = None
+get_frozen_nodes = None
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -95,6 +98,7 @@ GENEALOGY_SPLIT_PENDING = textwrap.dedent("""\
 # ═══════════════════════════════════════════════════════════════
 
 
+@pytest.mark.skip(reason="detect_pending_topo_effects 已从 ceremony_scan.py 删除（177号重构）")
 class TestDetectPendingTopoEffects:
     def test_detects_structured_pending(self, tmp_path) -> None:
         """含结构化 topo_effect 且无 topo_executed_at → 检出。"""
@@ -187,6 +191,7 @@ def _setup_blocks(root, block_count, meta_block_count=None):
 # ═══════════════════════════════════════════════════════════════
 
 
+@pytest.mark.skip(reason="compute_delta_blocks 已从 ceremony_scan.py 删除（178号重构）")
 class TestComputeDeltaBlocks:
     def test_no_block_dir(self, tmp_path) -> None:
         """block 目录不存在 → current=0, delta=0。"""
@@ -271,6 +276,7 @@ def _write_block_file(base, block_id, content_dict):
 # ═══════════════════════════════════════════════════════════════
 
 
+@pytest.mark.skip(reason="get_frozen_nodes 已从 ceremony_scan.py 删除（178号-2重构）")
 class TestGetFrozenNodes:
     def test_no_block_topology(self, tmp_path) -> None:
         """无 block-topology 目录 → 空集合。"""
@@ -374,6 +380,7 @@ class TestGetFrozenNodes:
 # ═══════════════════════════════════════════════════════════════
 
 
+@pytest.mark.skip(reason="detect_genealogy_anomalies 已从 ceremony_scan.py 删除（178号重构）")
 class TestDetectGenealogyAnomaliesBlockTopology:
     def test_missing_block_mapping(self, tmp_path) -> None:
         """settled 文件编号不在 id_mapping → 检出 missing_block_mapping。"""
@@ -469,6 +476,7 @@ def _run_main_in_tmp(tmp_path, monkeypatch):
 class TestCleanTerminateConsistency:
     """186号下游推论2：clean_terminate 与 workstations 的一致性。"""
 
+    @pytest.mark.skip(reason="detect_genealogy_anomalies 已从 main() 中移除，anomaly 工位不再产生")
     def test_clean_terminate_false_when_anomalies_exist(self, tmp_path, monkeypatch) -> None:
         """settled 文件存在但 block-topology 无 id_mapping → genealogy_anomalies 工位 → clean_terminate=False。"""
         _write_settled(tmp_path, "001-test.md", textwrap.dedent("""\
@@ -525,6 +533,7 @@ def _write_session_file(root, filename, settled_count, time_str=None):
     return path
 
 
+@pytest.mark.skip(reason="async_self_ref 集成已从 ceremony_scan.py 删除（183号功能移除）")
 class TestAsyncSelfRefIntegration:
     """183号目B：async_self_reference 集成到 ceremony_scan。"""
 
@@ -625,6 +634,7 @@ class TestAsyncSelfRefIntegration:
 # ═══════════════════════════════════════════════════════════════
 
 
+@pytest.mark.skip(reason="ceremony_state suspended 过滤已从 ceremony_scan.py 删除（270号功能移除）")
 class TestSuspendedWorkstationFiltering:
     """270号：ceremony_scan 过滤 suspended 工位。"""
 

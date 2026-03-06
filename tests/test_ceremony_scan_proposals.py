@@ -6,7 +6,10 @@ import textwrap
 
 import pytest
 
-from scripts.ceremony_scan import _scan_genealogy_proposals, _check_completion
+from scripts.ceremony_scan import main  # noqa: F401 — 确认模块可导入
+
+# _scan_genealogy_proposals 和 _check_completion 已从 ceremony_scan.py 删除
+# 以下测试类均标记 skip
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -153,6 +156,7 @@ GENEALOGY_RESOLVED_ITEMS = textwrap.dedent("""\
 # ═══════════════════════════════════════════════════════════════
 
 
+@pytest.mark.skip(reason="_scan_genealogy_proposals 已从 ceremony_scan.py 删除")
 class TestScanGenealogyProposals:
     """_scan_genealogy_proposals 基本功能测试。"""
 
@@ -272,6 +276,7 @@ class TestScanGenealogyProposals:
 # ═══════════════════════════════════════════════════════════════
 
 
+@pytest.mark.skip(reason="_check_completion 已从 ceremony_scan.py 删除")
 class TestCheckCompletionGlob:
     """_check_completion 的 test_file_exists glob 模式支持。"""
 
