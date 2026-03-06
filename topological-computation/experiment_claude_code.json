@@ -1,0 +1,449 @@
+{
+  "experiment": "everything_claude_code_phi_L",
+  "source": "everything-claude-code repository, 14 core documents",
+  "methodology": "phi_L NLP pipeline (spaCy dependency parse), code-block stripping, 10000-char cap, incremental injection, traversal to 50-step beta_1 stability",
+  "doc_results": [
+    {
+      "document": "CLAUDE.md",
+      "doc_index": 1,
+      "raw_chars": 2384,
+      "clean_chars": 2207,
+      "sub_vertices": 147,
+      "sub_edges": 3,
+      "vertices_added": 147,
+      "edges_added": 3,
+      "vertices_total": 147,
+      "edges_total": 3,
+      "beta_1_before": 0,
+      "beta_1_after_inject": 0,
+      "beta_1_after_traversal": 0,
+      "delta_beta_1": 0,
+      "settled_cycles": 0,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 50,
+      "operation_counts": {
+        "walk": 50
+      },
+      "elapsed_seconds": 0.015
+    },
+    {
+      "document": "AGENTS.md",
+      "doc_index": 2,
+      "raw_chars": 6008,
+      "clean_chars": 5617,
+      "sub_vertices": 112,
+      "sub_edges": 21,
+      "vertices_added": 99,
+      "edges_added": 21,
+      "vertices_total": 246,
+      "edges_total": 24,
+      "beta_1_before": 0,
+      "beta_1_after_inject": 0,
+      "beta_1_after_traversal": 0,
+      "delta_beta_1": 0,
+      "settled_cycles": 0,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 100,
+      "operation_counts": {
+        "walk": 50
+      },
+      "elapsed_seconds": 0.028
+    },
+    {
+      "document": "README.md",
+      "doc_index": 3,
+      "raw_chars": 52802,
+      "clean_chars": 10000,
+      "sub_vertices": 298,
+      "sub_edges": 15,
+      "vertices_added": 261,
+      "edges_added": 15,
+      "vertices_total": 507,
+      "edges_total": 39,
+      "beta_1_before": 0,
+      "beta_1_after_inject": 0,
+      "beta_1_after_traversal": 0,
+      "delta_beta_1": 0,
+      "settled_cycles": 0,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 150,
+      "operation_counts": {
+        "walk": 50
+      },
+      "elapsed_seconds": 0.055
+    },
+    {
+      "document": "the-longform-guide.md",
+      "doc_index": 4,
+      "raw_chars": 15168,
+      "clean_chars": 10000,
+      "sub_vertices": 343,
+      "sub_edges": 43,
+      "vertices_added": 274,
+      "edges_added": 43,
+      "vertices_total": 781,
+      "edges_total": 82,
+      "beta_1_before": 0,
+      "beta_1_after_inject": 0,
+      "beta_1_after_traversal": 0,
+      "delta_beta_1": 0,
+      "settled_cycles": 0,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 200,
+      "operation_counts": {
+        "walk": 50
+      },
+      "elapsed_seconds": 0.085
+    },
+    {
+      "document": "the-shortform-guide.md",
+      "doc_index": 5,
+      "raw_chars": 16057,
+      "clean_chars": 10000,
+      "sub_vertices": 360,
+      "sub_edges": 44,
+      "vertices_added": 244,
+      "edges_added": 44,
+      "vertices_total": 1025,
+      "edges_total": 126,
+      "beta_1_before": 0,
+      "beta_1_after_inject": 0,
+      "beta_1_after_traversal": 0,
+      "delta_beta_1": 0,
+      "settled_cycles": 0,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 250,
+      "operation_counts": {
+        "walk": 50
+      },
+      "elapsed_seconds": 0.122
+    },
+    {
+      "document": "the-security-guide.md",
+      "doc_index": 6,
+      "raw_chars": 28629,
+      "clean_chars": 10000,
+      "sub_vertices": 319,
+      "sub_edges": 64,
+      "vertices_added": 229,
+      "edges_added": 64,
+      "vertices_total": 1254,
+      "edges_total": 190,
+      "beta_1_before": 0,
+      "beta_1_after_inject": 0,
+      "beta_1_after_traversal": 0,
+      "delta_beta_1": 0,
+      "settled_cycles": 0,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 300,
+      "operation_counts": {
+        "walk": 50
+      },
+      "elapsed_seconds": 0.16
+    },
+    {
+      "document": "the-openclaw-guide.md",
+      "doc_index": 7,
+      "raw_chars": 43184,
+      "clean_chars": 10000,
+      "sub_vertices": 362,
+      "sub_edges": 77,
+      "vertices_added": 232,
+      "edges_added": 77,
+      "vertices_total": 1486,
+      "edges_total": 267,
+      "beta_1_before": 0,
+      "beta_1_after_inject": 0,
+      "beta_1_after_traversal": 0,
+      "delta_beta_1": 0,
+      "settled_cycles": 0,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 350,
+      "operation_counts": {
+        "walk": 50
+      },
+      "elapsed_seconds": 0.197
+    },
+    {
+      "document": "CONTRIBUTING.md",
+      "doc_index": 8,
+      "raw_chars": 8432,
+      "clean_chars": 4558,
+      "sub_vertices": 134,
+      "sub_edges": 9,
+      "vertices_added": 65,
+      "edges_added": 9,
+      "vertices_total": 1551,
+      "edges_total": 276,
+      "beta_1_before": 0,
+      "beta_1_after_inject": 0,
+      "beta_1_after_traversal": 0,
+      "delta_beta_1": 0,
+      "settled_cycles": 0,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 400,
+      "operation_counts": {
+        "walk": 50
+      },
+      "elapsed_seconds": 0.197
+    },
+    {
+      "document": "rules/common/agents.md",
+      "doc_index": 9,
+      "raw_chars": 1491,
+      "clean_chars": 1211,
+      "sub_vertices": 75,
+      "sub_edges": 2,
+      "vertices_added": 41,
+      "edges_added": 2,
+      "vertices_total": 1592,
+      "edges_total": 278,
+      "beta_1_before": 0,
+      "beta_1_after_inject": 0,
+      "beta_1_after_traversal": 0,
+      "delta_beta_1": 0,
+      "settled_cycles": 0,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 450,
+      "operation_counts": {
+        "walk": 50
+      },
+      "elapsed_seconds": 0.2
+    },
+    {
+      "document": "rules/common/coding-style.md",
+      "doc_index": 10,
+      "raw_chars": 1398,
+      "clean_chars": 1239,
+      "sub_vertices": 55,
+      "sub_edges": 2,
+      "vertices_added": 16,
+      "edges_added": 2,
+      "vertices_total": 1608,
+      "edges_total": 280,
+      "beta_1_before": 0,
+      "beta_1_after_inject": 0,
+      "beta_1_after_traversal": 0,
+      "delta_beta_1": 0,
+      "settled_cycles": 0,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 500,
+      "operation_counts": {
+        "walk": 50
+      },
+      "elapsed_seconds": 0.209
+    },
+    {
+      "document": "rules/common/security.md",
+      "doc_index": 11,
+      "raw_chars": 862,
+      "clean_chars": 862,
+      "sub_vertices": 36,
+      "sub_edges": 2,
+      "vertices_added": 7,
+      "edges_added": 1,
+      "vertices_total": 1615,
+      "edges_total": 281,
+      "beta_1_before": 0,
+      "beta_1_after_inject": 0,
+      "beta_1_after_traversal": 0,
+      "delta_beta_1": 0,
+      "settled_cycles": 0,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 550,
+      "operation_counts": {
+        "walk": 50
+      },
+      "elapsed_seconds": 0.202
+    },
+    {
+      "document": "rules/common/testing.md",
+      "doc_index": 12,
+      "raw_chars": 770,
+      "clean_chars": 770,
+      "sub_vertices": 17,
+      "sub_edges": 4,
+      "vertices_added": 7,
+      "edges_added": 3,
+      "vertices_total": 1622,
+      "edges_total": 284,
+      "beta_1_before": 0,
+      "beta_1_after_inject": 0,
+      "beta_1_after_traversal": 0,
+      "delta_beta_1": 0,
+      "settled_cycles": 0,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 600,
+      "operation_counts": {
+        "walk": 50
+      },
+      "elapsed_seconds": 0.247
+    },
+    {
+      "document": "rules/common/performance.md",
+      "doc_index": 13,
+      "raw_chars": 1599,
+      "clean_chars": 1599,
+      "sub_vertices": 44,
+      "sub_edges": 3,
+      "vertices_added": 22,
+      "edges_added": 3,
+      "vertices_total": 1644,
+      "edges_total": 287,
+      "beta_1_before": 0,
+      "beta_1_after_inject": 0,
+      "beta_1_after_traversal": 0,
+      "delta_beta_1": 0,
+      "settled_cycles": 0,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 650,
+      "operation_counts": {
+        "walk": 50
+      },
+      "elapsed_seconds": 0.204
+    },
+    {
+      "document": "rules/common/patterns.md",
+      "doc_index": 14,
+      "raw_chars": 1022,
+      "clean_chars": 1022,
+      "sub_vertices": 47,
+      "sub_edges": 2,
+      "vertices_added": 11,
+      "edges_added": 2,
+      "vertices_total": 1655,
+      "edges_total": 289,
+      "beta_1_before": 0,
+      "beta_1_after_inject": 0,
+      "beta_1_after_traversal": 0,
+      "delta_beta_1": 0,
+      "settled_cycles": 0,
+      "steps_to_digest": 50,
+      "converged": true,
+      "cumulative_steps": 700,
+      "operation_counts": {
+        "walk": 50
+      },
+      "elapsed_seconds": 0.229
+    }
+  ],
+  "beta_1_curve": [
+    {
+      "doc_index": 1,
+      "document": "CLAUDE.md",
+      "beta_1": 0,
+      "cumulative_steps": 50
+    },
+    {
+      "doc_index": 2,
+      "document": "AGENTS.md",
+      "beta_1": 0,
+      "cumulative_steps": 100
+    },
+    {
+      "doc_index": 3,
+      "document": "README.md",
+      "beta_1": 0,
+      "cumulative_steps": 150
+    },
+    {
+      "doc_index": 4,
+      "document": "the-longform-guide.md",
+      "beta_1": 0,
+      "cumulative_steps": 200
+    },
+    {
+      "doc_index": 5,
+      "document": "the-shortform-guide.md",
+      "beta_1": 0,
+      "cumulative_steps": 250
+    },
+    {
+      "doc_index": 6,
+      "document": "the-security-guide.md",
+      "beta_1": 0,
+      "cumulative_steps": 300
+    },
+    {
+      "doc_index": 7,
+      "document": "the-openclaw-guide.md",
+      "beta_1": 0,
+      "cumulative_steps": 350
+    },
+    {
+      "doc_index": 8,
+      "document": "CONTRIBUTING.md",
+      "beta_1": 0,
+      "cumulative_steps": 400
+    },
+    {
+      "doc_index": 9,
+      "document": "rules/common/agents.md",
+      "beta_1": 0,
+      "cumulative_steps": 450
+    },
+    {
+      "doc_index": 10,
+      "document": "rules/common/coding-style.md",
+      "beta_1": 0,
+      "cumulative_steps": 500
+    },
+    {
+      "doc_index": 11,
+      "document": "rules/common/security.md",
+      "beta_1": 0,
+      "cumulative_steps": 550
+    },
+    {
+      "doc_index": 12,
+      "document": "rules/common/testing.md",
+      "beta_1": 0,
+      "cumulative_steps": 600
+    },
+    {
+      "doc_index": 13,
+      "document": "rules/common/performance.md",
+      "beta_1": 0,
+      "cumulative_steps": 650
+    },
+    {
+      "doc_index": 14,
+      "document": "rules/common/patterns.md",
+      "beta_1": 0,
+      "cumulative_steps": 700
+    }
+  ],
+  "final_complex": {
+    "vertices_active": 1655,
+    "edges_active": 289,
+    "beta_1": 0,
+    "settled_cycles": 0,
+    "edge_type_distribution": {
+      "dependency": 50,
+      "reference": 211,
+      "negation": 28
+    },
+    "terrain_distribution": {
+      "tree": 289,
+      "critical": 0
+    },
+    "critical_edge_ratio": 0.0,
+    "negation_density": 0.09688581314878893
+  },
+  "total_steps": 700,
+  "settled_cycles_detail": [],
+  "blocked_log": []
+}
