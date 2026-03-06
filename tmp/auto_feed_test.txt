@@ -1,0 +1,67 @@
+======================================================================
+AUTO_FEED TEST REPORT
+======================================================================
+
+Initial complex: 210 vertices, 360 edges, beta_1=130
+
+--- Test 1: Gap queries from Hegel complex ---
+
+Query: 'Bacchanalian revel Hegel'
+  Source: none
+  Text: (none)
+
+Query: 'pure being philosophy'
+  Source: wikipedia
+  Text preview:  Ontology is the philosophical study of being. It is traditionally understood as the subdiscipline of metaphysics focuse...
+  phi_L: 46 vertices, 6 edges
+  Quality: match_rate=0.214, verdict=nutritious
+
+Query: 'the bud dialectics'
+  Source: wikipedia
+  Text preview: Michael James Esper is an American actor, best known for his stage work....
+  phi_L: 4 vertices, 1 edges
+  Quality: match_rate=0.250, verdict=nutritious
+
+Query: 'sense-certainty Hegel'
+  Source: wikipedia
+  Text preview: Georg Wilhelm Friedrich Hegel was a German philosopher and a major figure in the tradition of German idealism. His influ...
+  phi_L: 18 vertices, 1 edges
+  Quality: match_rate=0.059, verdict=garbage
+
+Query: 'Aufhebung sublation'
+  Source: wikipedia
+  Text preview: Aufheben ( ) or Aufhebung ( ) is a German word with several seemingly contradictory meanings, including "to lift up", "t...
+  phi_L: 20 vertices, 3 edges
+  Quality: match_rate=0.118, verdict=nutritious
+
+Query: 'determinate negation Hegel'
+  Source: wikipedia
+  Text preview: Dialectic, also known as the dialectical method, refers originally to dialogue between people holding different points o...
+  phi_L: 17 vertices, 3 edges
+  Quality: match_rate=0.312, verdict=nutritious
+
+--- Test 2: Out-of-domain queries (expect garbage) ---
+
+Query: 'quantum entanglement physics'
+  Source: wikipedia
+  phi_L: 20 vertices, 2 edges
+  Quality: match_rate=0.100, verdict=nutritious
+
+Query: 'machine learning transformer attention'
+  Source: wikipedia
+  phi_L: 28 vertices, 2 edges
+  Quality: match_rate=0.077, verdict=garbage
+
+--- Test 3: Full feed_from_gap flow ---
+
+Before feeding: 210 vertices, beta_1=130
+
+Feed query: 'dialectics Hegel philosophy'
+  Accepted: True
+  Source: wikipedia
+  Vertices added: 17
+  Edges added: 3
+  Match rate: 0.312
+  Verdict: nutritious
+
+After feeding: 227 vertices, beta_1=130
