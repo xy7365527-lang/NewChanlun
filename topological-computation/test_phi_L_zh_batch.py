@@ -136,14 +136,26 @@ def test_detect_language_empty():
 # ---------------------------------------------------------------------------
 
 def test_phi_L_chinese():
-    """Test phi_L with Chinese text produces a graph with vertices and edges."""
+    """Test phi_L with Chinese text produces a graph with whitelisted vertices only.
+
+    After whitelist enforcement, only terms in CHANLUN_WHITELIST produce vertices.
+    '走势' and '级别' and '走势类型' are in the whitelist; '完美' is not.
+    """
     text = "走势终完美。任何级别的任何走势类型终要完成。"
     g = phi_L(text)
 
     verts = g.vertices
     edges = g.edges
 
-    assert len(verts) >= 2, f"Expected >= 2 vertices, got {len(verts)}"
+    # Should have vertices for whitelisted terms only (走势, 级别, 走势类型)
+    assert len(verts) >= 1, f"Expected >= 1 whitelisted vertex, got {len(verts)}"
+
+    # Verify all vertex contents are in the whitelist
+    from vertex_cleaning import CHANLUN_WHITELIST
+    for vid, v in verts.items():
+        assert v.content in CHANLUN_WHITELIST, (
+            f"Vertex {vid} has content {v.content!r} not in whitelist"
+        )
 
     # Print graph for inspection
     print(f"  phi_L Chinese graph: {len(verts)} vertices, {len(edges)} edges")
@@ -158,11 +170,16 @@ def test_phi_L_chinese():
 
 
 def test_phi_L_english_still_works():
-    """Test that English text still works after the language detection integration."""
+    """Test that English text produces an empty graph (whitelist is Chinese terms only).
+
+    After whitelist enforcement, English text has no matching terms and produces
+    an empty graph. This is correct behavior — phi_L only anchors whitelisted terms.
+    """
     text = "Theories require hypotheses. Hypotheses require experiments."
     g = phi_L(text)
-    assert len(g.vertices) >= 2, f"Expected >= 2 vertices for English text"
-    print("  [PASS] phi_L_english_still_works")
+    # English terms are not in CHANLUN_WHITELIST, so 0 vertices expected
+    assert len(g.vertices) == 0, f"Expected 0 vertices for English text (whitelist is Chinese), got {len(g.vertices)}"
+    print("  [PASS] phi_L_english_still_works (empty graph, correct)")
 
 
 # ---------------------------------------------------------------------------
@@ -192,21 +209,29 @@ def test_inject_subgraph():
 
 
 def test_phi_L_multilingual():
-    """Test multilingual phi_L wrapper."""
+    """Test multilingual phi_L wrapper with whitelist enforcement.
+
+    Chinese text with whitelisted terms produces vertices.
+    English text produces 0 vertices (whitelist is Chinese-only).
+    """
     zh_graph = phi_L_multilingual("走势终完美。", lang="zh")
     en_graph = phi_L_multilingual("Theories require hypotheses.", lang="en")
     auto_zh = phi_L_multilingual("走势终完美。")
     auto_en = phi_L_multilingual("Theories require hypotheses.")
 
-    assert len(zh_graph.vertices) >= 1
-    assert len(en_graph.vertices) >= 1
-    assert len(auto_zh.vertices) >= 1
-    assert len(auto_en.vertices) >= 1
+    assert len(zh_graph.vertices) >= 1, f"Expected >= 1 Chinese vertex, got {len(zh_graph.vertices)}"
+    assert len(en_graph.vertices) == 0, f"Expected 0 English vertices, got {len(en_graph.vertices)}"
+    assert len(auto_zh.vertices) >= 1, f"Expected >= 1 auto-detected Chinese vertex"
+    assert len(auto_en.vertices) == 0, f"Expected 0 auto-detected English vertices"
     print("  [PASS] phi_L_multilingual")
 
 
 def test_batch_process():
-    """Test batch processing with a temporary directory of text files."""
+    """Test batch processing with a temporary directory of text files.
+
+    After whitelist enforcement, only Chinese files with whitelisted terms
+    produce vertices. English files produce empty sub-graphs.
+    """
     with tempfile.TemporaryDirectory() as tmpdir:
         # Create test files
         with open(os.path.join(tmpdir, "01_intro.txt"), "w", encoding="utf-8") as f:
@@ -243,11 +268,19 @@ def test_batch_process():
             assert "filename" in file_result
             assert "language" in file_result
             assert "beta_1_after_traversal" in file_result
-            assert file_result["sub_vertices"] >= 1
 
-        # Verify aggregate
-        assert results["aggregate"]["total_vertices"] >= 3
-        assert results["aggregate"]["total_edges"] >= 1
+        # Chinese files with whitelisted terms should produce vertices
+        # English file should produce 0 vertices
+        zh_files = [f for f in results["files"] if f["language"] == "zh"]
+        en_files = [f for f in results["files"] if f["language"] == "en"]
+        assert len(zh_files) >= 1, "Expected at least 1 Chinese file"
+        for zf in zh_files:
+            assert zf["sub_vertices"] >= 1, f"Expected >= 1 vertex for Chinese file {zf['filename']}"
+        for ef in en_files:
+            assert ef["sub_vertices"] == 0, f"Expected 0 vertices for English file {ef['filename']}"
+
+        # Verify aggregate — at least Chinese vertices exist
+        assert results["aggregate"]["total_vertices"] >= 1
 
         # Read back JSON to verify serialization
         with open(output_json, "r", encoding="utf-8") as f:

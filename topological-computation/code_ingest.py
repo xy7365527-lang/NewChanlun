@@ -4,15 +4,20 @@ Each vertex carries its full AST subtree as metadata for transplant operations.
 Enhanced version of code_topology.parse_file — additionally stores source code
 in vertex content for extraction during transplant.
 
-Pure Python, only stdlib (ast, pathlib). No external dependencies.
+Pure Python, only stdlib (ast, pathlib, argparse, json). No external dependencies.
 """
 
 from __future__ import annotations
 
+import argparse
 import ast
+import json
+import sys
 from pathlib import Path
 
 from engine import Graph, Vertex, Edge, EdgeType, VertexStatus
+
+_EXCLUDED_DIRS = {"__pycache__", ".venv", "node_modules", ".git", "venv", "env"}
 
 
 # ---------------------------------------------------------------------------
@@ -22,16 +27,18 @@ from engine import Graph, Vertex, Edge, EdgeType, VertexStatus
 class _IngestVisitor(ast.NodeVisitor):
     """Walk a Python AST and collect vertices with full source bodies."""
 
-    def __init__(self, module_name: str, source_lines: list[str]) -> None:
+    def __init__(self, module_name: str, source_lines: list[str], source: str = "") -> None:
         self.module_name = module_name
         self.source_lines = source_lines
+        self.source = source
         self.vertices: list[Vertex] = []
         self.edges: list[Edge] = []
         self._defined_names: set[str] = set()
         self._scope_stack: list[str] = []
 
     def _make_id(self, name: str) -> str:
-        return f"{self.module_name}.{name}"
+        prefix = f"{self.source}:" if self.source else ""
+        return f"{prefix}{self.module_name}.{name}"
 
     def _current_scope_id(self) -> str | None:
         if self._scope_stack:
@@ -52,6 +59,53 @@ class _IngestVisitor(ast.NodeVisitor):
     def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
         self._handle_funcdef(node)
 
+    def _annotation_to_str(self, node: ast.expr | None) -> str:
+        """Convert an annotation AST node to a readable string."""
+        if node is None:
+            return ""
+        if isinstance(node, ast.Constant):
+            return repr(node.value)
+        name = _extract_name(node)
+        if name:
+            return name
+        # Fallback: unparse if available (Python 3.9+)
+        try:
+            return ast.unparse(node)
+        except Exception:
+            return "?"
+
+    def _extract_signature(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> str:
+        """Extract function signature + docstring as concept-level content."""
+        # Build signature: name(arg1, arg2, ...) -> return_type
+        args = []
+        for arg in node.args.args:
+            name = arg.arg
+            if arg.annotation:
+                ann = self._annotation_to_str(arg.annotation)
+                name = f"{name}: {ann}"
+            args.append(name)
+        sig = f"{node.name}({', '.join(args)})"
+        if node.returns:
+            ret = self._annotation_to_str(node.returns)
+            sig += f" -> {ret}"
+        # Append docstring if present
+        docstring = ast.get_docstring(node)
+        if docstring:
+            # First line of docstring only
+            first_line = docstring.split("\n")[0].strip()
+            sig = f"{sig}\n{first_line}"
+        return sig
+
+    def _extract_class_signature(self, node: ast.ClassDef) -> str:
+        """Extract class signature + docstring as concept-level content."""
+        bases = [_extract_name(b) or "?" for b in node.bases]
+        sig = f"class {node.name}" + (f"({', '.join(bases)})" if bases else "")
+        docstring = ast.get_docstring(node)
+        if docstring:
+            first_line = docstring.split("\n")[0].strip()
+            sig = f"{sig}\n{first_line}"
+        return sig
+
     def _handle_funcdef(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
         if self._scope_stack:
             qualified = f"{self._scope_stack[-1]}.{node.name}"
@@ -59,11 +113,11 @@ class _IngestVisitor(ast.NodeVisitor):
             qualified = node.name
 
         vid = self._make_id(qualified)
-        source_body = self._extract_source(node)
+        content = self._extract_signature(node)
         self.vertices.append(Vertex(
             id=vid,
             status=VertexStatus.ACTIVE,
-            content=source_body,
+            content=content,
         ))
         self._defined_names.add(vid)
 
@@ -86,11 +140,11 @@ class _IngestVisitor(ast.NodeVisitor):
             qualified = node.name
 
         vid = self._make_id(qualified)
-        source_body = self._extract_source(node)
+        content = self._extract_class_signature(node)
         self.vertices.append(Vertex(
             id=vid,
             status=VertexStatus.ACTIVE,
-            content=source_body,
+            content=content,
         ))
         self._defined_names.add(vid)
 
@@ -117,16 +171,11 @@ class _IngestVisitor(ast.NodeVisitor):
         self._scope_stack.pop()
 
     def visit_Import(self, node: ast.Import) -> None:
+        """Import: only create edges, no vertices. Imports are relationships, not concepts."""
         scope_id = self._current_scope_id() or self._make_id("<module>")
         for alias in node.names:
             mod_id = f"<import>.{alias.name}"
-            if mod_id not in self._defined_names:
-                self.vertices.append(Vertex(
-                    id=mod_id,
-                    status=VertexStatus.ACTIVE,
-                    content=f"import {alias.name}",
-                ))
-                self._defined_names.add(mod_id)
+            self._defined_names.add(mod_id)
             self.edges.append(Edge(
                 source=scope_id,
                 target=mod_id,
@@ -134,17 +183,12 @@ class _IngestVisitor(ast.NodeVisitor):
             ))
 
     def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+        """ImportFrom: only create edges, no vertices."""
         scope_id = self._current_scope_id() or self._make_id("<module>")
         module = node.module or ""
         for alias in (node.names or []):
             mod_id = f"<import>.{module}.{alias.name}"
-            if mod_id not in self._defined_names:
-                self.vertices.append(Vertex(
-                    id=mod_id,
-                    status=VertexStatus.ACTIVE,
-                    content=f"from {module} import {alias.name}",
-                ))
-                self._defined_names.add(mod_id)
+            self._defined_names.add(mod_id)
             self.edges.append(Edge(
                 source=scope_id,
                 target=mod_id,
@@ -183,23 +227,29 @@ def _extract_name(node: ast.expr) -> str | None:
 # Public API
 # ---------------------------------------------------------------------------
 
-def ingest_file(filepath: str, graph: Graph) -> Graph:
+def ingest_file(filepath: str, graph: Graph, source: str = "") -> Graph:
     """Parse single .py file, inject functions/classes/imports with full source.
 
     Unlike code_topology.parse_file, each vertex's content contains the full
     source code of the function/class body — not just the signature or docstring.
+
+    Args:
+        filepath: Path to .py file.
+        graph: Existing graph to merge into.
+        source: Optional source label prefix for vertex IDs (e.g. "DeepSeek-V3").
     """
     with open(filepath, "r", encoding="utf-8") as f:
-        source = f.read()
+        file_source = f.read()
 
-    source_lines = source.split("\n")
+    source_lines = file_source.split("\n")
     module_name = Path(filepath).stem
-    tree = ast.parse(source, filename=filepath)
+    tree = ast.parse(file_source, filename=filepath)
 
-    visitor = _IngestVisitor(module_name, source_lines)
+    visitor = _IngestVisitor(module_name, source_lines, source=source)
 
     # Module-level vertex with module docstring
-    module_id = f"{module_name}.<module>"
+    prefix = f"{source}:" if source else ""
+    module_id = f"{prefix}{module_name}.<module>"
     module_docstring = ast.get_docstring(tree) or module_name
     visitor.vertices.append(Vertex(
         id=module_id,
@@ -245,3 +295,81 @@ def ingest_directory(dirpath: str, graph: Graph | None = None) -> Graph:
         graph = ingest_file(str(py_file), graph)
 
     return graph
+
+
+def ingest_tree(dirpath: str, graph: Graph | None = None, source: str = "") -> Graph:
+    """Recursively scan directory tree for .py files and ingest into graph.
+
+    Excludes common non-source directories (__pycache__, .venv, node_modules,
+    .git, venv, env). Prints progress every 50 files.
+
+    Args:
+        dirpath: Root directory to scan recursively.
+        graph: Existing graph to merge into (creates new if None).
+        source: Source label prefix for all vertex IDs (e.g. "DeepSeek-V3").
+    """
+    if graph is None:
+        graph = Graph()
+
+    root = Path(dirpath)
+    count = 0
+    skipped = 0
+
+    for py_file in sorted(root.rglob("*.py")):
+        # Skip excluded directories
+        if any(part in _EXCLUDED_DIRS for part in py_file.parts):
+            continue
+
+        try:
+            graph = ingest_file(str(py_file), graph, source=source)
+        except SyntaxError:
+            print(f"WARNING: skipping {py_file} (SyntaxError)", file=sys.stderr)
+            skipped += 1
+            count += 1
+            continue
+
+        count += 1
+        if count % 50 == 0:
+            print(f"  ingested {count} files...", file=sys.stderr)
+
+    print(
+        f"ingest_tree complete: {count} files processed, {skipped} skipped "
+        f"({len(graph.active_vertex_ids())} vertices, {len(graph.edges)} edges)",
+        file=sys.stderr,
+    )
+    return graph
+
+
+# ---------------------------------------------------------------------------
+# CLI entry point
+# ---------------------------------------------------------------------------
+
+def _graph_to_dict(graph: Graph) -> dict:
+    """Serialize a Graph to a JSON-compatible dict."""
+    return {
+        "vertices": [
+            {"id": v.id, "status": v.status.value, "content_length": len(v.content) if v.content else 0}
+            for v in graph.vertices.values()
+        ],
+        "edges": [
+            {"source": e.source, "target": e.target, "type": e.edge_type.value}
+            for e in graph.edges
+        ],
+    }
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Ingest Python source tree into topological graph")
+    parser.add_argument("--path", required=True, help="Root directory to scan")
+    parser.add_argument("--source", required=True, help="Source label (e.g. DeepSeek-V3)")
+    parser.add_argument("--output", default=None, help="Optional JSON output path")
+    args = parser.parse_args()
+
+    g = ingest_tree(args.path, source=args.source)
+
+    print(f"\nStats: {len(g.active_vertex_ids())} active vertices, {len(g.edges)} edges")
+
+    if args.output:
+        with open(args.output, "w", encoding="utf-8") as f:
+            json.dump(_graph_to_dict(g), f, indent=2, ensure_ascii=False)
+        print(f"Graph exported to {args.output}")

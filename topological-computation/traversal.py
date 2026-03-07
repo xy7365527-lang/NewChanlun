@@ -407,12 +407,17 @@ class TraversalEngine:
 
     # -- walk ---------------------------------------------------------------
 
+    @property
+    def _nothing_threshold(self) -> int:
+        """Adaptive threshold for nothing-streak jump: scales with graph size."""
+        return max(3, int(len(self.k_active.active_vertex_ids()) ** 0.5))
+
     def walk(self) -> None:
         """Move to an adjacent vertex. Prefer critical edges, then unvisited, then random.
 
-        Anti-oscillation: if stuck in nothing streak >= 5, jump to least-visited active vertex.
+        Anti-oscillation: if stuck in nothing streak >= threshold, jump to least-visited active vertex.
         """
-        if self._nothing_streak >= 5:
+        if self._nothing_streak >= self._nothing_threshold:
             # Jump to least-visited active vertex to escape local trap
             active = self.k_active.active_vertex_ids()
             visit_counts = {}

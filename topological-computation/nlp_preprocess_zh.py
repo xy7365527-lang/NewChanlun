@@ -1,8 +1,9 @@
 """Chinese NLP preprocessing: text -> dependency trees.
 
-Pure Python, no jieba/pkuseg dependency. Uses punctuation-based sentence splitting,
-stopword filtering, and pattern-based concept extraction for Chinese text
-(primarily 缠论 original texts).
+Uses Stanza (Stanford NLP) for Chinese dependency parsing when available.
+Falls back to pure Python rule-based approach: punctuation-based sentence
+splitting, stopword filtering, and pattern-based concept extraction for
+Chinese text (primarily 缠论 original texts).
 """
 
 from __future__ import annotations
@@ -11,6 +12,22 @@ import re
 from dataclasses import dataclass
 
 from nlp_preprocess import Token, NounChunk, SentenceTree
+
+
+# ---------------------------------------------------------------------------
+# Try Stanza Chinese backend, fall back to rule-based
+# ---------------------------------------------------------------------------
+
+_USE_STANZA_ZH = False
+_nlp_zh = None
+
+try:
+    import stanza as _stanza_mod
+    _nlp_zh = _stanza_mod.Pipeline('zh', processors='tokenize,pos,lemma,depparse',
+                                   download_method=None, logging_level='WARN')
+    _USE_STANZA_ZH = True
+except Exception:
+    pass
 
 
 # ---------------------------------------------------------------------------
@@ -334,11 +351,92 @@ def _build_sentence_tree(sentence: str, sent_idx: int) -> SentenceTree:
 
 
 # ---------------------------------------------------------------------------
+# Stanza Chinese backend
+# ---------------------------------------------------------------------------
+
+def _extract_chunks_from_deps_zh(tokens: list[Token]) -> list[NounChunk]:
+    """Extract noun chunks from Stanza Chinese dependency parse output.
+
+    Same logic as English: find NOUN tokens with subject/object deps,
+    expand left for det/amod/compound, right for flat/compound.
+    """
+    _CHUNK_DEPS = frozenset({
+        "nsubj", "nsubj:pass", "obj", "obl", "iobj",
+        "nmod",    # Chinese UD: nominal modifiers that are often core concepts
+        "conj",    # Coordinated nouns (e.g. "笔和线段")
+    })
+    _CHUNK_POS = frozenset({"NOUN", "PROPN"})
+    _LEFT_EXPAND = frozenset({"det", "amod", "compound", "nummod", "clf", "nmod"})
+    _RIGHT_EXPAND = frozenset({"flat", "compound"})
+
+    chunks: list[NounChunk] = []
+    used: set[int] = set()
+
+    for tok in tokens:
+        if tok.dep not in _CHUNK_DEPS or tok.pos not in _CHUNK_POS or tok.idx in used:
+            continue
+
+        root_idx = tok.idx
+        start = root_idx
+        end = root_idx + 1
+
+        while start > 0:
+            prev = tokens[start - 1]
+            if prev.dep in _LEFT_EXPAND and prev.head_idx == root_idx:
+                start -= 1
+            else:
+                break
+
+        while end < len(tokens):
+            nxt = tokens[end]
+            if nxt.dep in _RIGHT_EXPAND and nxt.head_idx == root_idx:
+                end += 1
+            else:
+                break
+
+        used.update(range(start, end))
+        chunk_text = "".join(t.word for t in tokens[start:end])
+        chunks.append(NounChunk(text=chunk_text, root_idx=root_idx,
+                                start=start, end=end))
+
+    return chunks
+
+
+def _preprocess_stanza_zh(text: str) -> list[SentenceTree]:
+    """Parse Chinese text using Stanza pipeline."""
+    doc = _nlp_zh(text)
+    trees: list[SentenceTree] = []
+
+    for sent in doc.sentences:
+        tokens: list[Token] = []
+        for word in sent.words:
+            if word.head == 0:
+                head_idx = word.id - 1
+            else:
+                head_idx = word.head - 1
+            tokens.append(Token(
+                word=word.text,
+                pos=word.upos,
+                dep=word.deprel,
+                head_idx=head_idx,
+                idx=word.id - 1,
+            ))
+
+        chunks = _extract_chunks_from_deps_zh(tokens)
+        trees.append(SentenceTree(tokens=tokens, noun_chunks=chunks,
+                                  text=sent.text))
+
+    return trees
+
+
+# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
 def preprocess_zh(text: str) -> list[SentenceTree]:
     """Chinese text preprocessing, returns SentenceTree list identical to English API."""
+    if _USE_STANZA_ZH:
+        return _preprocess_stanza_zh(text)
     sentences = _split_sentences(text)
     trees: list[SentenceTree] = []
     for si, sent in enumerate(sentences):

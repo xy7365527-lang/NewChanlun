@@ -1,7 +1,11 @@
-"""Cross-instance operation injection.
+"""Cross-instance operation injection with interpretation.
 
-Periodically scans the shared layer for new blocks written by other instances.
-New blocks are injected into the local K_active as external operations.
+逻辑分两层：
+1. 注入（原有）：把外来块的顶点/边加入本地图（盲目合并）
+2. 解读（新增）：用自己的 f 值判断外来 fold 是否合理，并将回应写入共享层
+
+解读层不阻断注入——外来块始终被注入，但会附带一份"我的立场"写入共享 relations。
+这使得蜂群的分歧可见：共享层不只是数据同步媒介，也是多个实例之间立场交换的场所。
 """
 
 from __future__ import annotations
@@ -16,7 +20,17 @@ from swarm.shared_layer import SharedLayer
 
 
 class CrossInstanceSync:
-    """Sync operations from other instances via shared block store."""
+    """Sync operations from other instances via shared block store.
+
+    每次 sync() 包含两个阶段：
+    1. 注入：把外来块的顶点/边合并到本地图
+    2. 解读：用本地 f 值判断外来 fold，将回应写入共享 relations
+
+    解读结果类型：
+    - agree：本地认为外来 fold 合理（f 小，拓扑近似）
+    - negate：本地否定外来 fold（f 大，拓扑距离远）
+    - defer：本地暂不判断（灰色区或操作类型不支持）
+    """
 
     def __init__(
         self,
@@ -30,8 +44,17 @@ class CrossInstanceSync:
         self.known_blocks: set[str] = set()
         self.injected_count: int = 0
 
+        # 解读统计
+        self.agreed_count: int = 0    # 同意对方 fold 的次数
+        self.negated_count: int = 0   # 否定对方 fold 的次数
+        self.deferred_count: int = 0  # defer（灰色区）的次数
+
     def sync(self) -> int:
         """Scan for new blocks, inject those from other instances.
+
+        对每个外来块：
+        1. 注入顶点/边
+        2. 解读操作，将回应写入共享 relations
 
         Returns the number of blocks injected.
         """
@@ -41,8 +64,13 @@ class CrossInstanceSync:
             block_hash = block.get("hash", "")
             self.known_blocks.add(block_hash)
             if block.get("instance") != self.instance_id:
+                # Phase 1: 注入
                 self._inject_external_operation(block)
                 injected += 1
+
+                # Phase 2: 解读（在注入之后，用更新后的图做判断）
+                self._interpret_and_respond(block, block_hash)
+
         self.injected_count += injected
         return injected
 
@@ -85,3 +113,77 @@ class CrossInstanceSync:
         self.daemon.k_active = graph
         self.daemon.k_full = graph
         self.daemon._initialize_engine()
+
+    def _interpret_and_respond(self, block: dict, block_hash: str) -> None:
+        """用自己的拓扑解读外来操作，将回应写入共享层 relations。
+
+        解读在注入之后执行——此时外来顶点已在本地图中，
+        因此 f 值计算基于融合后的图（而非注入前的图）。
+        这是有意的：我用自己对这个世界的整体理解来判断对方的操作。
+        """
+        from swarm.identity import InstanceSnapshot, process_other_operation
+
+        # 构建本地快照（注入后的图 + 本地 settlement）
+        my_snapshot = InstanceSnapshot(
+            instance_id=self.instance_id,
+            graph=self.daemon.k_active,
+            settlement=self.daemon.settlement,
+            step=self.daemon.total_steps,
+        )
+
+        # 解读外来操作
+        response = process_other_operation(my_snapshot, block)
+
+        # 更新统计
+        if response.response == "agree":
+            self.agreed_count += 1
+        elif response.response == "negate":
+            self.negated_count += 1
+        else:
+            self.deferred_count += 1
+
+        # 将回应写入共享层 relations（仅 agree 和 negate 有记录价值）
+        if response.response in ("agree", "negate"):
+            # 先把回应写成一个 block，再用 relation 连接
+            response_block = {
+                "instance": self.instance_id,
+                "step": self.daemon.total_steps,
+                "type": "interpretation",
+                "target_block": block_hash,
+                "target_instance": block.get("instance"),
+                "operation": response.operation,
+                "response": response.response,
+                "my_f": response.my_f,
+                "other_f": response.other_f,
+                "target_v": response.target_v,
+                "target_w": response.target_w,
+                "reason": response.reason,
+            }
+            response_hash = self.shared.write_block(response_block)
+            self.known_blocks.add(response_hash)
+
+            # relation: block_hash --[agree|negate]--> response_hash
+            self.shared.write_relation(
+                from_hash=block_hash,
+                to_hash=response_hash,
+                relation=response.response,
+                instance_id=self.instance_id,
+            )
+
+    def interpretation_summary(self) -> dict:
+        """返回解读统计摘要。"""
+        total = self.agreed_count + self.negated_count + self.deferred_count
+        return {
+            "instance_id": self.instance_id,
+            "injected_total": self.injected_count,
+            "interpreted_total": total,
+            "agreed": self.agreed_count,
+            "negated": self.negated_count,
+            "deferred": self.deferred_count,
+            "agreement_rate": (
+                round(self.agreed_count / total, 4) if total > 0 else 0.0
+            ),
+            "negation_rate": (
+                round(self.negated_count / total, 4) if total > 0 else 0.0
+            ),
+        }

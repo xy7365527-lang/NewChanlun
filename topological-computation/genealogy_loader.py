@@ -3,6 +3,9 @@
 Reads blocks (vertices) and relations (edges) from the .chanlun/block-topology
 directory and constructs an engine.Graph for analysis.
 
+Also loads genealogy data from dag.yaml + block-topology/relations.jsonl for
+proper genealogy graph construction.
+
 Pure Python, no external dependencies.
 """
 

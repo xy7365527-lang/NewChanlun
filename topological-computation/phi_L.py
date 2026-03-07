@@ -1,6 +1,9 @@
 """phi_L: Dependency trees -> typed directed simplicial complex.
 
 Deterministic rules, zero neural networks. The core mapping.
+
+phi_L is NOT a concept generator — it only does whitelist term matching.
+Vertices are only created for terms in the CHANLUN_WHITELIST.
 """
 
 from __future__ import annotations
@@ -11,6 +14,7 @@ from dataclasses import dataclass
 from engine import Graph, Vertex, Edge, EdgeType, VertexStatus, compute_beta_1
 from nlp_preprocess import preprocess, SentenceTree, Token
 from nlp_preprocess_zh import preprocess_zh, detect_language
+from vertex_cleaning import CHANLUN_WHITELIST
 
 
 # ---------------------------------------------------------------------------
@@ -74,13 +78,23 @@ _CONTRAST_CONJ = frozenset({"however", "but", "although", "though", "yet"})
 # Vertex extraction
 # ---------------------------------------------------------------------------
 
-_NOUN_DEPS = frozenset({"nsubj", "nsubjpass", "dobj", "pobj", "nmod", "attr", "conj"})
+_NOUN_DEPS = frozenset({
+    "nsubj", "nsubjpass", "dobj", "pobj", "nmod", "attr", "conj",
+    # Universal Dependencies labels (used by Stanza Chinese parser)
+    "obj", "obl", "iobj", "nsubj:pass",
+})
 
 
 def _normalize(text: str) -> str:
-    """Lowercase, strip leading determiners/articles."""
+    """Lowercase, strip leading determiners/articles/quantifiers."""
     low = text.lower().strip()
+    # English articles/determiners
     for prefix in ("all ", "the ", "a ", "an ", "some ", "any ", "every "):
+        if low.startswith(prefix):
+            low = low[len(prefix):]
+    # Chinese quantifiers/determiners (stopwords that appear as chunk prefixes)
+    for prefix in ("任何", "每个", "所有", "某些", "某个", "这个", "那个",
+                    "一个", "该", "此", "各个", "各种"):
         if low.startswith(prefix):
             low = low[len(prefix):]
     return low.strip()
@@ -96,37 +110,40 @@ class _RawVertex:
 
 def extract_vertices(
     trees: list[SentenceTree],
+    whitelist: frozenset[str] = CHANLUN_WHITELIST,
 ) -> tuple[list[Vertex], dict[str, str]]:
-    """Extract concept vertices from dependency trees.
+    """Extract concept vertices from dependency trees via whitelist matching.
+
+    phi_L is NOT a concept generator. It only anchors terms that appear in
+    the whitelist. All other noun chunks are silently dropped.
 
     Returns:
-        vertices: list of unique Vertex objects
+        vertices: list of unique Vertex objects (only whitelisted terms)
         token_to_vertex: mapping of (sent_idx, token_idx) -> vertex_id
     """
+    import hashlib
+
     raw: list[_RawVertex] = []
-    # Track which tokens are covered by noun chunks
-    chunk_coverage: dict[tuple[int, int], _RawVertex] = {}
 
     for si, tree in enumerate(trees):
         for chunk in tree.noun_chunks:
             root_tok = tree.tokens[chunk.root_idx]
             if root_tok.dep in _NOUN_DEPS or root_tok.dep == "ROOT":
                 label = _normalize(chunk.text)
+                # Whitelist gate: only accept terms in the whitelist
+                if label not in whitelist:
+                    continue
                 rv = _RawVertex(label=label, original=chunk.text,
                                 sent_idx=si, token_idx=chunk.root_idx)
                 raw.append(rv)
-                for ti in range(chunk.start, chunk.end):
-                    chunk_coverage[(si, ti)] = rv
 
-    # Deduplicate by normalized label (string exact match, case-insensitive)
+    # Deduplicate by normalized label
     label_to_id: dict[str, str] = {}
     vertices: list[Vertex] = []
-    vid_counter = 0
 
     for rv in raw:
         if rv.label not in label_to_id:
-            vid = f"v{vid_counter}"
-            vid_counter += 1
+            vid = "c_" + hashlib.sha256(rv.label.encode("utf-8")).hexdigest()[:12]
             label_to_id[rv.label] = vid
             vertices.append(Vertex(id=vid, content=rv.label))
 
@@ -154,8 +171,13 @@ def _find_subject_object(
     """
     triples: list[tuple[int, int, int]] = []
 
+    # Subject/object dep labels — support both spaCy (English) and UD (Chinese Stanza)
+    _SUBJ_DEPS = frozenset({"nsubj", "nsubjpass", "nsubj:pass"})
+    _OBJ_DEPS = frozenset({"dobj", "attr", "oprd", "obj", "iobj"})
+    _POBJ_DEPS = frozenset({"pobj", "obl"})
+
     for tok in tree.tokens:
-        if tok.pos == "VERB" or tok.dep == "ROOT":
+        if tok.pos == "VERB" or tok.dep in ("ROOT", "root"):
             verb_idx = tok.idx
             subj_idx: int | None = None
             obj_idx: int | None = None
@@ -163,14 +185,14 @@ def _find_subject_object(
 
             for child in tree.tokens:
                 if child.head_idx == verb_idx:
-                    if child.dep in ("nsubj", "nsubjpass"):
+                    if child.dep in _SUBJ_DEPS:
                         subj_idx = child.idx
-                    elif child.dep in ("dobj", "attr", "oprd"):
+                    elif child.dep in _OBJ_DEPS:
                         obj_idx = child.idx
-                    elif child.dep == "prep" and obj_idx is None:
-                        # Only use pobj as object when no direct object found
+                    elif child.dep in ("prep", "case") and obj_idx is None:
+                        # Only use pobj/obl as object when no direct object found
                         for grandchild in tree.tokens:
-                            if grandchild.head_idx == child.idx and grandchild.dep == "pobj":
+                            if grandchild.head_idx == child.idx and grandchild.dep in _POBJ_DEPS:
                                 obj_idx = grandchild.idx
                                 break
                     elif child.dep == "xcomp" and child.pos == "VERB":
@@ -180,11 +202,11 @@ def _find_subject_object(
             if obj_idx is None and xcomp_idx is not None:
                 for child in tree.tokens:
                     if child.head_idx == xcomp_idx:
-                        if child.dep in ("dobj", "attr", "oprd"):
+                        if child.dep in _OBJ_DEPS:
                             obj_idx = child.idx
-                        elif child.dep == "prep":
+                        elif child.dep in ("prep", "case"):
                             for grandchild in tree.tokens:
-                                if grandchild.head_idx == child.idx and grandchild.dep == "pobj":
+                                if grandchild.head_idx == child.idx and grandchild.dep in _POBJ_DEPS:
                                     obj_idx = grandchild.idx
                                     break
 
@@ -239,16 +261,66 @@ def _has_negation_child(tree: SentenceTree, verb_idx: int) -> bool:
     return False
 
 
+def _extract_surface_between(
+    tree: SentenceTree,
+    subj_idx: int,
+    obj_idx: int,
+    verb_idx: int,
+) -> str | None:
+    """Extract surface form (verb phrase) between subject and object tokens.
+
+    Strategy:
+    1. Find token span positions of subject root and object root.
+    2. Collect tokens between them (exclusive) that are not part of the noun chunks.
+    3. If the span is empty or too large, fall back to just the verb word.
+    """
+    tokens = tree.tokens
+    if not tokens:
+        return None
+
+    # Get character/token positions
+    subj_pos = tokens[subj_idx].idx if subj_idx < len(tokens) else None
+    obj_pos = tokens[obj_idx].idx if obj_idx < len(tokens) else None
+    verb_pos = tokens[verb_idx].idx if verb_idx < len(tokens) else None
+
+    if subj_pos is None or obj_pos is None or verb_pos is None:
+        return None
+
+    # Determine span: from left endpoint to right endpoint (exclusive of both nouns)
+    left = min(subj_pos, obj_pos)
+    right = max(subj_pos, obj_pos)
+
+    # Collect tokens strictly between left and right positions
+    between: list[str] = []
+    for tok in tokens:
+        if left < tok.idx < right:
+            # Skip tokens that are chunk roots (they are noun concepts, not the bridge)
+            between.append(tok.word)
+
+    surface = " ".join(between).strip()
+    if not surface:
+        # Fall back to verb word itself
+        surface = tokens[verb_idx].word if verb_idx < len(tokens) else None
+
+    return surface if surface else None
+
+
+def _sentence_text(tree: SentenceTree) -> str:
+    """Reconstruct approximate sentence text from tokens."""
+    return " ".join(tok.word for tok in tree.tokens)
+
+
 def extract_edges(
     trees: list[SentenceTree],
     token_to_vertex: dict[str, str],
 ) -> list[Edge]:
-    """Extract typed edges from dependency trees."""
+    """Extract typed edges from dependency trees, including surface forms."""
     edges: list[Edge] = []
     seen: set[tuple[str, str, str]] = set()
 
     for si, tree in enumerate(trees):
         triples = _find_subject_object(tree)
+        context = _sentence_text(tree)
 
         for subj_idx, verb_idx, obj_idx in triples:
             src_vid = _token_vertex(si, subj_idx, token_to_vertex, tree)
@@ -260,13 +332,22 @@ def extract_edges(
 
             verb_word = tree.tokens[verb_idx].word.lower()
 
+            # Extract surface form (verb phrase between the two concepts)
+            surface = _extract_surface_between(tree, subj_idx, obj_idx, verb_idx)
+
             # Check for negation modifier on verb
             if _has_negation_child(tree, verb_idx):
                 edge_type = EdgeType.NEGATION
                 edge_key = (src_vid, tgt_vid, edge_type.value)
                 if edge_key not in seen:
                     seen.add(edge_key)
-                    edges.append(Edge(source=src_vid, target=tgt_vid, edge_type=edge_type))
+                    edges.append(Edge(
+                        source=src_vid,
+                        target=tgt_vid,
+                        edge_type=edge_type,
+                        surface=surface,
+                        context=context,
+                    ))
                 continue
 
             edge_type, reverse = _classify_verb(verb_word)
@@ -276,7 +357,13 @@ def extract_edges(
             edge_key = (src_vid, tgt_vid, edge_type.value)
             if edge_key not in seen:
                 seen.add(edge_key)
-                edges.append(Edge(source=src_vid, target=tgt_vid, edge_type=edge_type))
+                edges.append(Edge(
+                    source=src_vid,
+                    target=tgt_vid,
+                    edge_type=edge_type,
+                    surface=surface,
+                    context=context,
+                ))
 
     return edges
 
@@ -294,6 +381,7 @@ def extract_negations(
     seen: set[tuple[str, str]] = set()
 
     for si, tree in enumerate(trees):
+        context = _sentence_text(tree)
         for tok in tree.tokens:
             if tok.word.lower() in _CONTRAST_CONJ and tok.dep in ("cc", "advmod", "mark"):
                 # Find the two clauses linked by this conjunction
@@ -305,7 +393,7 @@ def extract_negations(
 
                 # Subject of head verb
                 for child in tree.tokens:
-                    if child.head_idx == head_idx and child.dep in ("nsubj", "nsubjpass"):
+                    if child.head_idx == head_idx and child.dep in ("nsubj", "nsubjpass", "nsubj:pass"):
                         vid = _token_vertex(si, child.idx, token_to_vertex, tree)
                         if vid:
                             conj_subjects.append(vid)
@@ -315,7 +403,7 @@ def extract_negations(
                 for child in tree.tokens:
                     if child.head_idx == head_idx and child.dep == "conj":
                         for gc in tree.tokens:
-                            if gc.head_idx == child.idx and gc.dep in ("nsubj", "nsubjpass"):
+                            if gc.head_idx == child.idx and gc.dep in ("nsubj", "nsubjpass", "nsubj:pass"):
                                 vid = _token_vertex(si, gc.idx, token_to_vertex, tree)
                                 if vid:
                                     conj_subjects.append(vid)
@@ -326,7 +414,14 @@ def extract_negations(
                     s, t = conj_subjects[0], conj_subjects[1]
                     if s != t and (s, t) not in seen and (t, s) not in seen:
                         seen.add((s, t))
-                        edges.append(Edge(source=s, target=t, edge_type=EdgeType.NEGATION))
+                        # surface = the contrast conjunction word itself
+                        edges.append(Edge(
+                            source=s,
+                            target=t,
+                            edge_type=EdgeType.NEGATION,
+                            surface=tok.word,
+                            context=context,
+                        ))
 
     return edges
 
@@ -351,24 +446,25 @@ def merge_cross_sentence(
 # Full pipeline
 # ---------------------------------------------------------------------------
 
-def phi_L(text: str) -> Graph:
+def phi_L(text: str, whitelist: frozenset[str] = CHANLUN_WHITELIST) -> Graph:
     """Complete pipeline: text -> typed directed simplicial complex.
 
     Auto-detects language (Chinese/English) and selects the appropriate preprocessor.
+    Only whitelisted terms produce vertices — phi_L is a term matcher, not a generator.
     """
     lang = detect_language(text)
     if lang == "zh":
         trees = preprocess_zh(text)
     else:
         trees = preprocess(text)
-    vertices, token_to_vertex = extract_vertices(trees)
+    vertices, token_to_vertex = extract_vertices(trees, whitelist)
     edges = extract_edges(trees, token_to_vertex)
     neg_edges = extract_negations(trees, token_to_vertex)
 
     all_edges = edges + neg_edges
     vertices, all_edges = merge_cross_sentence(vertices, all_edges)
 
-    # Deduplicate edges
+    # Deduplicate edges (by source/target/type — surface/context from first occurrence kept)
     seen: set[tuple[str, str, str]] = set()
     deduped: list[Edge] = []
     for e in all_edges:
@@ -407,7 +503,8 @@ def _format_graph(g: Graph) -> str:
     for e in edges:
         src_content = verts[e.source].content if e.source in verts else e.source
         tgt_content = verts[e.target].content if e.target in verts else e.target
-        lines.append(f"  {src_content!r} --[{e.edge_type.value}]--> {tgt_content!r}")
+        surface_note = f" [{e.surface!r}]" if e.surface else ""
+        lines.append(f"  {src_content!r} --[{e.edge_type.value}]{surface_note}--> {tgt_content!r}")
 
     beta = compute_beta_1(g)
     lines.append(f"\nbeta_1 = {beta}")

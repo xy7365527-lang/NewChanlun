@@ -7,13 +7,15 @@ Adds:
 - PID file management (~/.swarm/daemon.pid)
 - File logging (~/.swarm/output/daemon.log)
 - IPFS background upload thread (graceful degradation)
+- HTTP/WS API server (--serve mode)
 - Crash retry wrapper
 - Persistence enabled by default
 
 CLI:
-    python swarm/swarm_daemon.py --instance-id inst_0 --seed path/to/text.txt --shared /tmp/swarm --steps 200
-    python swarm/swarm_daemon.py --instance-id inst_0 --hegel --shared /tmp/swarm --steps 500
-    python swarm/swarm_daemon.py --instance-id node0 --hegel --shared ~/.swarm --persist --steps 1000
+    python swarm/swarm_daemon.py --instance-id inst_0 --seed path/to/text.txt --shared /tmp/swarm
+    python swarm/swarm_daemon.py --instance-id inst_0 --hegel --shared /tmp/swarm
+    python swarm/swarm_daemon.py --instance-id node0 --hegel --shared ~/.swarm --persist
+    python swarm/swarm_daemon.py --instance-id node0 --hegel --shared ~/.swarm --serve --port 8080 --ws-port 8765
 """
 
 from __future__ import annotations
@@ -198,6 +200,18 @@ class SwarmDaemon(TopologicalDaemon):
         self.sync_interval = sync_interval
         self._logger = logger
 
+        # Override checkpoint instance_id to use swarm's instance_id
+        self._checkpoint.close()
+        from traversal_checkpoint import TraversalCheckpoint, restore_daemon_state
+        self._checkpoint = TraversalCheckpoint(instance_id=instance_id)
+
+        # If checkpoint exists, restore state
+        saved = self._checkpoint.load_state()
+        if saved:
+            restore_daemon_state(self, saved)
+            if self._logger:
+                self._logger.info(f"Restored: step={self.total_steps}, settled={len(self.settlement.settled_cycles)}")
+
         # Shared layer
         self.shared = SharedLayer(shared_dir)
         self.syncer = CrossInstanceSync(self.shared, instance_id, self)
@@ -339,10 +353,15 @@ def _run_once(args, parent_dir: str, logger: logging.Logger) -> dict:
     ipfs_uploader = IPFSUploader(logger)
     ipfs_uploader.start()
 
-    # Persistence path
+    # Persistence path — each instance gets its own file to avoid conflicts
     persist_path = None
     if args.persist:
-        persist_path = args.persist if isinstance(args.persist, str) and args.persist != "True" else str(PERSIST_DEFAULT_PATH)
+        if isinstance(args.persist, str) and args.persist != "True" and args.persist != str(PERSIST_DEFAULT_PATH):
+            # User specified an explicit path
+            persist_path = args.persist
+        else:
+            # Default: instance-specific path under shared directory
+            persist_path = str(Path(shared_dir) / "persist" / f"{args.instance_id}.jsonl")
 
     # Use instance_id hash as random seed for diversity
     instance_seed = hash(args.instance_id) % (2**31)
@@ -375,13 +394,64 @@ def _run_once(args, parent_dir: str, logger: logging.Logger) -> dict:
 
     daemon.register_callback("on_event", on_event)
 
+    # Multiprocess mode: serve HTTP in main process, traversal in subprocess
+    # This eliminates GIL contention — HTTP responds instantly even during
+    # heavy terrain computation (15K graph, 0.5-2s per step)
+    if args.serve and getattr(args, 'multiproc', False):
+        logger.info("Multiprocess mode: traversal in subprocess, HTTP/WS in main process")
+
+        # Serialize graph to JSON for subprocess
+        graph_json = None
+        if graph is not None:
+            from daemon import graph_to_dict
+            graph_json = graph_to_dict(graph)
+
+        from daemon_multiproc import start_multiprocess_daemon
+        start_multiprocess_daemon(
+            graph_json=graph_json,
+            port=args.port,
+            ws_port=args.ws_port,
+            persist_path=persist_path,
+            settlement_threshold=15,
+            seed=instance_seed,
+            autonomous=args.autonomous,
+        )
+
+        # start_multiprocess_daemon blocks forever, cleanup on return
+        ipfs_uploader.stop()
+        _remove_pid(pid_path)
+        return {"mode": "multiproc", "instance_id": args.instance_id}
+
+    # HTTP/WS API server (--serve mode, single-process with threads)
+    http_server = None
+    if args.serve:
+        from daemon_server import start_http_server, start_ws_server, bridge_daemon_to_ws
+        http_server = start_http_server(daemon, args.port)
+        start_ws_server(args.ws_port)
+        bridge_daemon_to_ws(daemon)
+        logger.info(f"API server started: HTTP={args.port}, WS={args.ws_port}")
+
+    # Autonomous mode: auto-feed on gap detection
+    if args.autonomous:
+        from auto_feed import feed_from_gap
+        from daemon import GapInfo
+
+        def on_gap_feed(gap: GapInfo) -> None:
+            record = feed_from_gap(gap, daemon)
+            logger.info(
+                f"[auto-feed] '{gap.content}' -> {record.verdict} "
+                f"(source={record.source}, accepted={record.accepted})"
+            )
+
+        daemon.register_callback("on_gap", on_gap_feed)
+
     n_verts = len(daemon.k_active.active_vertex_ids())
     n_edges = len(daemon.k_active.active_edges())
     beta_1 = compute_beta_1(daemon.k_active)
-    logger.info(f"Starting: {n_verts}V {n_edges}E beta_1={beta_1}, {args.steps} steps")
+    logger.info(f"Starting: {n_verts}V {n_edges}E beta_1={beta_1}, self-driven (no step limit)")
 
     t0 = time.monotonic()
-    daemon.run(max_steps=args.steps)
+    daemon.run()
     elapsed = time.monotonic() - t0
 
     status = daemon.swarm_status()
@@ -389,7 +459,7 @@ def _run_once(args, parent_dir: str, logger: logging.Logger) -> dict:
 
     report_lines = [
         f"=== SwarmDaemon Report: {args.instance_id} ===",
-        f"Steps: {args.steps}, Time: {elapsed:.2f}s",
+        f"Steps: {status['total_steps']}, Time: {elapsed:.2f}s",
         f"Vertices: {status['vertices_active']}, Edges: {status['edges_active']}",
         f"beta_1: {status['beta_1']}, Settled: {status['settled_cycles']}",
         f"Events: {status['total_events']}, Gaps: {status['total_gaps_detected']}",
@@ -415,6 +485,8 @@ def _run_once(args, parent_dir: str, logger: logging.Logger) -> dict:
 
     # Cleanup
     ipfs_uploader.stop()
+    if http_server:
+        http_server.shutdown()
     daemon.close()
     _remove_pid(pid_path)
 
@@ -426,13 +498,22 @@ def main() -> None:
     parser.add_argument("--instance-id", type=str, required=True, help="Unique instance identifier")
     parser.add_argument("--seed", type=str, help="Seed text file for phi_L processing")
     parser.add_argument("--shared", type=str, required=True, help="Shared directory for cross-instance communication")
-    parser.add_argument("--steps", type=int, default=200, help="Number of steps to run")
     parser.add_argument("--sync-interval", type=int, default=20, help="Sync with shared layer every N steps")
     parser.add_argument("--hegel", action="store_true", help="Build from Hegel Phenomenology chapters")
     parser.add_argument("--load", type=str, help="Load graph from JSON file")
     parser.add_argument("--output", type=str, help="Output file for results")
     parser.add_argument("--persist", type=str, nargs="?", const=str(PERSIST_DEFAULT_PATH),
                         help="Enable JSONL persistence (default on)")
+    parser.add_argument("--serve", action="store_true",
+                        help="Start HTTP/WS API server for Dashboard")
+    parser.add_argument("--port", type=int, default=8080,
+                        help="HTTP API port (with --serve)")
+    parser.add_argument("--ws-port", type=int, default=8765,
+                        help="WebSocket port (with --serve)")
+    parser.add_argument("--autonomous", action="store_true",
+                        help="Enable autonomous gap detection + auto-feed")
+    parser.add_argument("--multiproc", action="store_true",
+                        help="Multiprocess mode: traversal in subprocess, HTTP/WS in main (solves GIL blocking)")
     parser.add_argument("--max-retries", type=int, default=3,
                         help="Maximum crash retries (0 = no retry)")
     parser.add_argument("--retry-delay", type=int, default=5,
