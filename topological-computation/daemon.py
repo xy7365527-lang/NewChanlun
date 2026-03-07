@@ -62,12 +62,17 @@ def graph_to_dict(graph: Graph) -> dict:
         })
     edges = []
     for e in graph.edges:
-        edges.append({
+        ed: dict = {
             "source": e.source,
             "target": e.target,
             "edge_type": e.edge_type.value,
             "created_at": e.created_at,
-        })
+        }
+        if e.surface is not None:
+            ed["surface"] = e.surface
+        if e.context is not None:
+            ed["context"] = e.context
+        edges.append(ed)
     return {"vertices": vertices, "edges": edges}
 
 
@@ -93,6 +98,8 @@ def graph_from_dict(data: dict) -> Graph:
             target=ed["target"],
             edge_type=EdgeType(ed["edge_type"]),
             created_at=ed.get("created_at", 0),
+            surface=ed.get("surface"),
+            context=ed.get("context"),
         )
         if e.source in vertices and e.target in vertices:
             edges.append(e)

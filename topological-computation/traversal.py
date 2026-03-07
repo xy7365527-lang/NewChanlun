@@ -13,6 +13,7 @@ from typing import Optional
 
 from engine import (
     Graph, VertexStatus, EdgeType, SettlementTracker, OperationResult,
+    SublationRecord,
     compute_beta_1, fold, negate, sublate, _connected_components,
 )
 from morse import compute_terrain, critical_neighbors
@@ -64,6 +65,9 @@ class TraversalEngine:
         seed: int = 42,
         use_llm: bool = False,
         conservative_prompt: bool = False,
+        use_f_criterion: bool = False,
+        f_fold_threshold: int = 2,
+        f_negate_threshold: int = 10,
     ):
         self.k_full = graph
         self.k_active = graph  # initially same
@@ -80,6 +84,9 @@ class TraversalEngine:
         self._use_llm = use_llm
         self._conservative_prompt = conservative_prompt
         self._llm_log: list[dict] = []  # LLM call log for debugging
+        self._use_f_criterion = use_f_criterion
+        self._f_fold_threshold = f_fold_threshold
+        self._f_negate_threshold = f_negate_threshold
 
     # -- f(v,w) terrain annotation (not a filter, not a trigger) ---------------
 
@@ -116,11 +123,14 @@ class TraversalEngine:
     def detect_encounter(self) -> Encounter:
         """Detect encounter at current position.
 
-        Phase 1 (use_llm=False): topological rules.
+        Phase 1 (use_llm=False, use_f_criterion=False): topological rules.
         Phase 2 (use_llm=True): LLM semantic analysis.
+        f-criterion mode (use_f_criterion=True): f(v,w) as intrinsic criterion.
         """
         if self._use_llm:
             return self._detect_encounter_llm()
+        if self._use_f_criterion:
+            return self._detect_encounter_f_criterion()
         return self._detect_encounter_topo()
 
     def _detect_encounter_llm(self) -> Encounter:
@@ -284,6 +294,101 @@ class TraversalEngine:
         # 5. Nothing
         return Encounter(EncounterType.NOTHING, reason="No encounter detected")
 
+    def _detect_encounter_f_criterion(self) -> Encounter:
+        """Detect encounter using f(v,w) as the intrinsic criterion.
+
+        f(v,w) <= f_fold_threshold  -> fold candidate
+        f(v,w) >= f_negate_threshold -> negate candidate
+        Sublation: same as rule-based (pending negation pair + contested vertex).
+        """
+        pos = self.position
+        active = set(self.k_active.active_vertex_ids())
+
+        # 1. Sublation: contested vertex with pending negation pair
+        v = self.k_active.vertex(pos)
+        if v and v.status == VertexStatus.CONTESTED:
+            for thesis, antithesis in self._pending_negations:
+                if pos == thesis or pos == antithesis:
+                    return Encounter(
+                        EncounterType.SUBLATION, thesis, antithesis,
+                        f"Contested vertex {pos} with pending negation {thesis}-{antithesis}",
+                    )
+
+        # 2. Compute f(pos, nb) for all active neighbors
+        neighbors = self.k_active.neighbors(pos)
+        f_scores: list[tuple[str, int]] = []
+        for nb in neighbors:
+            if nb == pos or nb not in active:
+                continue
+            f_val = self._compute_f(pos, nb)
+            f_scores.append((nb, f_val))
+
+        if not f_scores:
+            return Encounter(EncounterType.NOTHING, reason="No active neighbors for f-criterion")
+
+        # 3. Negate candidates: f >= threshold, bidirectional edge, no existing negation
+        pos_is_synthetic = pos.startswith("syn_") or pos.startswith("anti_")
+        out_nbs = set(self.k_active.out_neighbors(pos))
+        in_nbs = set(self.k_active.in_neighbors(pos))
+
+        best_negate: Optional[tuple[str, int]] = None
+        for nb, f_val in f_scores:
+            if f_val < self._f_negate_threshold:
+                continue
+            nb_is_synthetic = nb.startswith("syn_") or nb.startswith("anti_")
+            if pos_is_synthetic or nb_is_synthetic:
+                continue
+            if nb not in out_nbs or nb not in in_nbs:
+                continue
+            has_neg = any(
+                e.edge_type == EdgeType.NEGATION
+                and ((e.source == pos and e.target == nb)
+                     or (e.source == nb and e.target == pos))
+                for e in self.k_active.active_edges()
+            )
+            if has_neg:
+                continue
+            if best_negate is None or f_val > best_negate[1]:
+                best_negate = (nb, f_val)
+
+        if best_negate is not None:
+            nb, f_val = best_negate
+            return Encounter(
+                EncounterType.NEGATE_A, pos, nb,
+                f"f-criterion negate: f({pos[:16]},{nb[:16]})={f_val} >= {self._f_negate_threshold}",
+                f_value=f_val,
+            )
+
+        # 4. Fold candidates: f <= threshold, both non-synthetic
+        best_fold: Optional[tuple[str, int]] = None
+        for nb, f_val in f_scores:
+            if f_val > self._f_fold_threshold:
+                continue
+            nb_is_synthetic = nb.startswith("syn_") or nb.startswith("anti_")
+            if pos_is_synthetic or nb_is_synthetic:
+                continue
+            if best_fold is None or f_val < best_fold[1]:
+                best_fold = (nb, f_val)
+
+        if best_fold is not None:
+            nb, f_val = best_fold
+            return Encounter(
+                EncounterType.FOLD, pos, nb,
+                f"f-criterion fold: f({pos[:16]},{nb[:16]})={f_val} <= {self._f_fold_threshold}",
+                f_value=f_val,
+            )
+
+        # 5. Negate_B: many high-f neighbors, vertex not contested
+        high_f_count = sum(1 for _, f_val in f_scores if f_val >= self._f_negate_threshold)
+        if high_f_count >= 2 and v and v.status == VertexStatus.ACTIVE:
+            return Encounter(
+                EncounterType.NEGATE_B, pos, None,
+                f"f-criterion tension: {high_f_count} neighbors with f >= {self._f_negate_threshold}",
+            )
+
+        # 6. Nothing
+        return Encounter(EncounterType.NOTHING, reason="No f-criterion encounter")
+
     # -- operation execution ------------------------------------------------
 
     def execute_encounter(self, enc: Encounter) -> tuple[str, bool]:
@@ -292,8 +397,37 @@ class TraversalEngine:
         Returns (operation_name, blocked).
         """
         if enc.encounter_type == EncounterType.SUBLATION:
+            # Build synthesis content from source vertices + negation edge
+            v_a = self.k_active.vertex(enc.target_a)
+            v_b = self.k_active.vertex(enc.target_b)
+            content_a = (v_a.content or enc.target_a) if v_a else enc.target_a
+            content_b = (v_b.content or enc.target_b) if v_b else enc.target_b
+
+            negation_surface = ""
+            for e in self.k_active.active_edges():
+                if e.edge_type == EdgeType.NEGATION and (
+                    (e.source == enc.target_a and e.target == enc.target_b)
+                    or (e.source == enc.target_b and e.target == enc.target_a)
+                ):
+                    negation_surface = e.surface or ""
+                    break
+
+            contradiction = negation_surface if negation_surface else f"{content_a} vs {content_b}"
+            synthesis_content = f"[{content_a}] + [{content_b}] → sublated via: {contradiction}"
+
+            sublation_record = SublationRecord(
+                source_a_id=enc.target_a,
+                source_b_id=enc.target_b,
+                contradiction=contradiction,
+                negated=f"incompatibility between {content_a} and {content_b}",
+                preserved=f"{content_a}; {content_b}",
+                elevated=synthesis_content,
+            )
+
             result = sublate(
                 self.k_active, enc.target_a, enc.target_b, self.step, self.settlement,
+                synthesis_content=synthesis_content,
+                sublation_record=sublation_record,
             )
             if result.blocked:
                 self.settlement.record_blocked(

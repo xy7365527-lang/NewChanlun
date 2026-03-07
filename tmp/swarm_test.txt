@@ -2,29 +2,29 @@
 SWARM INTEGRATION TEST
 ======================================================================
 
-Shared directory: C:\Users\hanju\AppData\Local\Temp\swarm_test_5o2aum_q
+Shared directory: C:\Users\hanju\AppData\Local\Temp\swarm_test_vhj9qym6
 
 Initial graph: 210 vertices, 360 edges, beta_1=130
 
 Running 200 steps per instance (interleaved, 20-step chunks)...
-Elapsed: 0.77s
+Elapsed: 1.81s
 
 --- Instance A (seed=42) ---
-  Vertices: 240, Edges: 411
-  beta_1: 142, Settled: 13
-  Events: 19
-  Blocks written: 2
-  Blocks injected: 2
+  Vertices: 228, Edges: 388
+  beta_1: 138, Settled: 9
+  Events: 10
+  Blocks written: 1
+  Blocks injected: 1
 
 --- Instance B (seed=137) ---
-  Vertices: 238, Edges: 408
-  beta_1: 141, Settled: 13
-  Events: 18
-  Blocks written: 2
-  Blocks injected: 2
+  Vertices: 227, Edges: 385
+  beta_1: 138, Settled: 8
+  Events: 8
+  Blocks written: 1
+  Blocks injected: 1
 
 --- Shared Layer ---
-  Total blocks on disk: 4
+  Total blocks on disk: 2
 
 --- Verification ---
   [PASS] Instance A wrote blocks to shared dir

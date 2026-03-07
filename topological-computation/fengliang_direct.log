@@ -1,0 +1,4 @@
+  HTTP API: http://localhost:9090
+  WebSocket: ws://localhost:9765/ws
+API ready: http://localhost:9090
+Traversal thread started

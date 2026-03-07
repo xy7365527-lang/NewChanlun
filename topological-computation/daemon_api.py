@@ -15,6 +15,9 @@ if TYPE_CHECKING:
 from engine import compute_beta_1, Edge, EdgeType, Vertex
 
 
+from psi_L_constraint import ConstraintSet
+from llm_integration import get_client as _get_llm_client
+
 def status_json(daemon: TopologicalDaemon) -> dict:
     """GET /status — current daemon state snapshot."""
     s = daemon.status()
@@ -58,10 +61,11 @@ def status_json(daemon: TopologicalDaemon) -> dict:
     }
 
 
-def topology_json(daemon: TopologicalDaemon, center: str | None = None, radius: int = 2, full: bool = False) -> dict:
+def topology_json(daemon: TopologicalDaemon, center: str | None = None, radius: int = 2) -> dict:
     """GET /topology — K_active subgraph snapshot with f-values.
 
-    Default: top-50 skeleton. ?full=true for all. ?center=X&radius=N for local.
+    If center is given, returns local subgraph within radius hops.
+    Otherwise returns top-100 highest-degree vertices as skeleton.
     """
     graph = daemon.k_active
     active = graph.active_vertex_ids()
@@ -69,16 +73,12 @@ def topology_json(daemon: TopologicalDaemon, center: str | None = None, radius: 
     total_e = len(graph.active_edges())
 
     if center and center in set(active):
+        # Local subgraph
         vids, edges = graph.local_subgraph(center, radius)
-    elif full:
+    else:
+        # Full graph — all active vertices and edges
         vids = active
         edges = graph.active_edges()
-    else:
-        degrees = {v: len(graph.neighbors(v)) for v in active}
-        top = sorted(active, key=lambda v: degrees.get(v, 0), reverse=True)[:50]
-        vids = top
-        top_set = set(top)
-        edges = [e for e in graph.active_edges() if e.source in top_set and e.target in top_set]
 
     # Build f-value map for vertices
     vid_set = set(vids)
@@ -662,6 +662,45 @@ def _narrate_co_gaze(
 
 
 # ---------------------------------------------------------------------------
+# LLM 语言器官辅助：生成/润色 present_json 的 parts 文本
+# ---------------------------------------------------------------------------
+
+def _llm_generate_part(
+    context_fragment: str,
+    must_use: list[str],
+    daemon,
+    register: str = "plain",
+) -> str:
+    """尝试用 LLM 语言器官润色 context_fragment 为自然语言文本.
+
+    如果 LLM 不可用（无 API key 或调用失败），返回原始 context_fragment（fallback）。
+    daemon 用于读取当前 beta_1 和 settled_count 以填充 ConstraintSet。
+    """
+    try:
+        from engine import compute_beta_1
+        beta_1 = compute_beta_1(daemon.k_active) if daemon.k_active else None
+        settled_count = len(daemon.settlement.settled_cycles) if daemon.settlement else None
+
+        cs = ConstraintSet(
+            must_use=must_use,
+            must_avoid=[],
+            register=register,
+            length_hint=len(context_fragment) + 50,
+            context_fragment=context_fragment,
+            beta_1=beta_1,
+            settled_count=settled_count,
+        )
+        client = _get_llm_client()
+        record = client.generate(cs, provider="auto")
+        # fallback 时 provider = "fallback"，返回原文
+        if record.provider == "fallback":
+            return context_fragment
+        return record.llm_output.strip() or context_fragment
+    except Exception:
+        return context_fragment
+
+
+# ---------------------------------------------------------------------------
 # /present endpoint — user presence handler
 # ---------------------------------------------------------------------------
 
@@ -673,6 +712,7 @@ def present_json(daemon: TopologicalDaemon, text: str, session_id: str = "defaul
 
     Returns None if the system has nothing to say (silence is valid).
     Returns a dict with type, parts, injected, concepts_found, expression_pressure.
+    llm_used: bool — whether LLM generation was used for any part.
 
     session_id: identifier for the user session, used to create/reuse the
                 source vertex that anchors this user's concept region.
@@ -680,6 +720,7 @@ def present_json(daemon: TopologicalDaemon, text: str, session_id: str = "defaul
     parts: list[dict] = []
     injected = False
     concepts_found: list[str] = []
+    llm_used = False
 
     # 1. Inject — if text is substantial, feed it into K_active permanently
     if len(text) > 20:
@@ -708,7 +749,14 @@ def present_json(daemon: TopologicalDaemon, text: str, session_id: str = "defaul
     # 4. Expression pressure — unreported high-I events
     unreported = _get_unreported_events(daemon)
     if unreported:
-        sharing_text = _narrate_unreported(unreported, daemon)
+        raw_sharing_text = _narrate_unreported(unreported, daemon)
+        sharing_text = _llm_generate_part(
+            context_fragment=raw_sharing_text,
+            must_use=[ev["position_label"] for ev in unreported[:2]],
+            daemon=daemon,
+        )
+        if sharing_text != raw_sharing_text:
+            llm_used = True
         parts.append({"source": "unreported", "text": sharing_text})
         _mark_reported(daemon)
 
@@ -721,7 +769,14 @@ def present_json(daemon: TopologicalDaemon, text: str, session_id: str = "defaul
             v = daemon.k_active.vertex(located_vid)
             located_concept = (v.content or located_vid)[:60] if v else located_vid
             gaze_events = _quick_traverse(daemon, located_vid, budget=20)
-            gaze_text = _narrate_co_gaze(located_concept, gaze_events, daemon)
+            raw_gaze_text = _narrate_co_gaze(located_concept, gaze_events, daemon)
+            gaze_text = _llm_generate_part(
+                context_fragment=raw_gaze_text,
+                must_use=[located_concept] if located_concept else [],
+                daemon=daemon,
+            )
+            if gaze_text != raw_gaze_text:
+                llm_used = True
             parts.append({"source": "co-gaze", "text": gaze_text})
 
     # 6. Determine response type
@@ -745,6 +800,7 @@ def present_json(daemon: TopologicalDaemon, text: str, session_id: str = "defaul
             "concepts_found": concepts_found,
             "expression_pressure": unreported_count,
             "source_vertex": source_vid,
+            "llm_used": False,
         }
 
     # Update unreported count
@@ -757,8 +813,8 @@ def present_json(daemon: TopologicalDaemon, text: str, session_id: str = "defaul
         "concepts_found": concepts_found,
         "expression_pressure": unreported_count,
         "source_vertex": source_vid,
+        "llm_used": llm_used,
     }
-
 
 def _count_unreported(daemon: TopologicalDaemon) -> int:
     """Count currently unreported high-I events (for expression pressure indicator)."""

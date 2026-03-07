@@ -7,7 +7,7 @@ import traceback
 
 from engine import (
     Graph, Vertex, Edge, EdgeType, VertexStatus,
-    compute_beta_1, SettlementTracker, fold, negate, sublate,
+    compute_beta_1, SettlementTracker, SublationRecord, fold, negate, sublate,
     find_new_cycle_edges,
 )
 from morse import compute_terrain, critical_neighbors
@@ -145,6 +145,20 @@ def test_negate_case_b_no_path():
 # Sublate tests
 # ---------------------------------------------------------------------------
 
+def _make_sublation_args(thesis: str, antithesis: str) -> dict:
+    """Build the required synthesis_content + sublation_record for sublate() calls in tests."""
+    content = f"synthesis of {thesis} and {antithesis}"
+    record = SublationRecord(
+        source_a_id=thesis,
+        source_b_id=antithesis,
+        contradiction=f"{thesis} vs {antithesis}",
+        negated=f"incompatibility between {thesis} and {antithesis}",
+        preserved=f"{thesis}; {antithesis}",
+        elevated=content,
+    )
+    return {"synthesis_content": content, "sublation_record": record}
+
+
 def test_sublate_after_negate():
     """Full contradiction path: negate then sublate → net Δβ₁ = +1."""
     g = _make_triangle()
@@ -157,7 +171,8 @@ def test_sublate_after_negate():
     beta_after_neg = compute_beta_1(g2)
 
     # Step 2: Sublate
-    sub_result = sublate(g2, thesis="A", antithesis=anti, step=2, settlement=s)
+    sub_result = sublate(g2, thesis="A", antithesis=anti, step=2, settlement=s,
+                         **_make_sublation_args("A", anti))
     assert not sub_result.blocked
     assert sub_result.new_vertex is not None
     beta_after_sub = compute_beta_1(sub_result.graph)
@@ -167,13 +182,22 @@ def test_sublate_after_negate():
         f"Sublate Δβ₁ should be +1, got {sub_result.delta_beta_1_actual}"
     )
 
+    # Gate: sublation_record should be attached
+    assert sub_result.sublation_record is not None
+    assert sub_result.sublation_record.source_a_id == "A"
+    assert sub_result.sublation_record.source_b_id == anti
+
+    # Gate: synthesis vertex should have content
+    syn_v = sub_result.graph.vertex(sub_result.new_vertex)
+    assert syn_v.content is not None and len(syn_v.content.strip()) > 0
+
 
 def test_sublate_requires_negation():
     """Sublate without prior negation should raise."""
     g = _make_triangle()
     s = SettlementTracker()
     try:
-        sublate(g, "A", "B", step=1, settlement=s)
+        sublate(g, "A", "B", step=1, settlement=s, **_make_sublation_args("A", "B"))
         assert False, "Should have raised ValueError"
     except ValueError:
         pass
@@ -255,7 +279,8 @@ def test_sublate_position():
     g = _make_triangle()
     s = SettlementTracker()
     neg = negate(g, "A", None, step=1, settlement=s)
-    sub = sublate(neg.graph, "A", neg.new_vertex, step=2, settlement=s)
+    sub = sublate(neg.graph, "A", neg.new_vertex, step=2, settlement=s,
+                  **_make_sublation_args("A", neg.new_vertex))
     assert sub.new_vertex is not None
     assert sub.graph.vertex(sub.new_vertex) is not None
 
@@ -274,13 +299,78 @@ def test_kfull_only_grows():
     g2 = r1.graph
     counts.append((len(g2.vertices), len(g2.edges)))
 
-    r2 = sublate(g2, "A", r1.new_vertex, step=2, settlement=s)
+    r2 = sublate(g2, "A", r1.new_vertex, step=2, settlement=s,
+                 **_make_sublation_args("A", r1.new_vertex))
     g3 = r2.graph
     counts.append((len(g3.vertices), len(g3.edges)))
 
     for i in range(1, len(counts)):
         assert counts[i][0] >= counts[i - 1][0], f"Vertex count decreased at step {i}"
         assert counts[i][1] >= counts[i - 1][1], f"Edge count decreased at step {i}"
+
+
+def test_sublate_gate_rejects_empty_content():
+    """Sublation gate rejects empty synthesis_content."""
+    g = _make_triangle()
+    s = SettlementTracker()
+    neg = negate(g, "A", None, step=1, settlement=s)
+    record = SublationRecord(
+        source_a_id="A", source_b_id=neg.new_vertex,
+        contradiction="A vs anti", negated="x", preserved="y", elevated="z",
+    )
+    try:
+        sublate(neg.graph, "A", neg.new_vertex, step=2, settlement=s,
+                synthesis_content="", sublation_record=record)
+        assert False, "Should have raised ValueError for empty content"
+    except ValueError as e:
+        assert "synthesis_content" in str(e)
+
+
+def test_sublate_gate_rejects_missing_record():
+    """Sublation gate rejects missing sublation_record."""
+    g = _make_triangle()
+    s = SettlementTracker()
+    neg = negate(g, "A", None, step=1, settlement=s)
+    try:
+        sublate(neg.graph, "A", neg.new_vertex, step=2, settlement=s,
+                synthesis_content="some content", sublation_record=None)
+        assert False, "Should have raised ValueError for missing record"
+    except ValueError as e:
+        assert "sublation_record" in str(e)
+
+
+def test_sublate_gate_rejects_empty_contradiction():
+    """Sublation gate rejects record with empty contradiction."""
+    g = _make_triangle()
+    s = SettlementTracker()
+    neg = negate(g, "A", None, step=1, settlement=s)
+    record = SublationRecord(
+        source_a_id="A", source_b_id=neg.new_vertex,
+        contradiction="  ", negated="x", preserved="y", elevated="z",
+    )
+    try:
+        sublate(neg.graph, "A", neg.new_vertex, step=2, settlement=s,
+                synthesis_content="content", sublation_record=record)
+        assert False, "Should have raised ValueError for empty contradiction"
+    except ValueError as e:
+        assert "contradiction" in str(e)
+
+
+def test_sublate_gate_rejects_empty_elevated():
+    """Sublation gate rejects record with empty elevated."""
+    g = _make_triangle()
+    s = SettlementTracker()
+    neg = negate(g, "A", None, step=1, settlement=s)
+    record = SublationRecord(
+        source_a_id="A", source_b_id=neg.new_vertex,
+        contradiction="real", negated="x", preserved="y", elevated="  ",
+    )
+    try:
+        sublate(neg.graph, "A", neg.new_vertex, step=2, settlement=s,
+                synthesis_content="content", sublation_record=record)
+        assert False, "Should have raised ValueError for empty elevated"
+    except ValueError as e:
+        assert "elevated" in str(e)
 
 
 # ---------------------------------------------------------------------------
@@ -336,6 +426,10 @@ def run_tests():
         test_negate_case_b_no_path,
         test_sublate_after_negate,
         test_sublate_requires_negation,
+        test_sublate_gate_rejects_empty_content,
+        test_sublate_gate_rejects_missing_record,
+        test_sublate_gate_rejects_empty_contradiction,
+        test_sublate_gate_rejects_empty_elevated,
         test_settlement_tracking,
         test_settlement_blocking,
         test_settlement_does_not_block_unrelated,

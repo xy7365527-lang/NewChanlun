@@ -1,0 +1,175 @@
+TopologicalDaemon API Server
+  Complex: 17894 vertices, 24320 edges, beta_1=7607
+  HTTP API: http://localhost:9090
+Exception in thread ws-server:
+Traceback (most recent call last):
+  File "C:\Python314\Lib\threading.py", line 1082, in _bootstrap_inner
+    self._context.run(self.run)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "C:\Python314\Lib\threading.py", line 1024, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "G:\NewChanlun\topological-computation\daemon_server.py", line 302, in _thread_target
+    loop.run_until_complete(_run())
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^
+  File "C:\Python314\Lib\asyncio\base_events.py", line 719, in run_until_complete
+    return future.result()
+           ~~~~~~~~~~~~~^^
+  File "G:\NewChanlun\topological-computation\daemon_server.py", line 294, in _run
+    async with websockets.serve(_ws_handler, "0.0.0.0", port):
+               ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\site-packages\websockets\asyncio\server.py", line 813, in __aenter__
+    return await self
+           ^^^^^^^^^^
+  File "C:\Python314\Lib\site-packages\websockets\asyncio\server.py", line 831, in __await_impl__
+    server = await self.create_server
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\asyncio\base_events.py", line 1627, in create_server
+    raise OSError(err.errno, msg) from None
+OSError: [Errno 10048] error while attempting to bind on address ('0.0.0.0', 9765): [winerror 10048] 通常每个套接字地址(协议/网络地址/端口)只允许使用一次。
+
+  Daemon running. Ctrl+C to stop.
+[step 4] sublate at 'syn_02d5ef5dd3db08a7b3f4edcef6c4197f546db51058cb665315927227384ed787_9f8df55cd330493bd0e625396bc259a8c3c5a3bdd03594d475b5bd9ffb93f753_4' (f=-99) beta_1 7607->7608 (+1)
+[step 6] fold at '[event] 元观察——v123-swarm OQ5完整生命周期模式 + 279号推论执行分派' (f=201) beta_1 7608->7600 (-8)
+[step 11] fold at '74672a28486f37929079f4ccb932cb4c63b10df2b4e11bfcad8e9aa2e8541ffe' (f=213) beta_1 7600->7601 (+1)
+[step 18] sublate at 'syn_0f1b79e6d6f26f2f780bfa3717a7894b89e8c50acd85817d4373b3e94649f0be_14a92b739a8c60515887d30343b306d9600a62d0078b3a5345bedb5de9a58c30_18' (f=-99) beta_1 7601->7602 (+1)
+[step 22] sublate at 'syn_0bc19e80cfe8c6a684ede6b2c2e95621e8c247deecef9f7539009bdc1f77148b_89223d266c5c73d6c354b70de0d31c01334e1b386c3b2b42e76fd7839abb04a5_22' (f=-99) beta_1 7602->7603 (+1)
+[step 24] fold at '[event] #164 语法记录 已结算' (f=30) beta_1 7603->7606 (+3)
+[step 25] fold at '[event] #164 语法记录 已结算' (f=32) beta_1 7606->7604 (-2)
+[step 27] sublate at 'syn_89223d266c5c73d6c354b70de0d31c01334e1b386c3b2b42e76fd7839abb04a5_4613dc647bbbf26c851f836995b080f77ccf97b40981e78d8cc0bca60c2a83c9_27' (f=-99) beta_1 7604->7605 (+1)
+[step 30] sublate at 'syn_89223d266c5c73d6c354b70de0d31c01334e1b386c3b2b42e76fd7839abb04a5_589bf6151d935c8b7376b3a67034204a6f1e3bbc9479e9fc6152e61fdcc9d019_30' (f=-99) beta_1 7605->7606 (+1)
+[step 33] sublate at 'syn_589bf6151d935c8b7376b3a67034204a6f1e3bbc9479e9fc6152e61fdcc9d019_b9a34892a1c7ca50c4c7b7908a9d9b6d4a9f80efa3587f7675fe1a9d7446e54d_33' (f=-99) beta_1 7606->7607 (+1)
+[step 35] fold at '[event] 连续流形→偏序集/有向图范式转换' (f=43) beta_1 7607->7609 (+2)
+[step 37] sublate at 'syn_589bf6151d935c8b7376b3a67034204a6f1e3bbc9479e9fc6152e61fdcc9d019_04825e30002d311e316afcaf747999f0a93a1e4bfd1f4eb0fef3b5eb73fa49ab_37' (f=-99) beta_1 7609->7610 (+1)
+[step 40] sublate at 'syn_589bf6151d935c8b7376b3a67034204a6f1e3bbc9479e9fc6152e61fdcc9d019_1086043b544b0777d138719541523cd20d769c9a4999c766c9d401bb6aa40807_40' (f=-99) beta_1 7610->7611 (+1)
+[step 43] sublate at 'syn_589bf6151d935c8b7376b3a67034204a6f1e3bbc9479e9fc6152e61fdcc9d019_7bcac105af1f0f5e522f6b8347da6fe6afc0b1346ae2d33cc58a91d2d0e0b7a9_43' (f=-99) beta_1 7611->7612 (+1)
+[step 46] sublate at 'syn_7bcac105af1f0f5e522f6b8347da6fe6afc0b1346ae2d33cc58a91d2d0e0b7a9_14a92b739a8c60515887d30343b306d9600a62d0078b3a5345bedb5de9a58c30_46' (f=-99) beta_1 7612->7613 (+1)
+[step 50] sublate at 'syn_syn_7bcac105af1f0f5e522f6b8347da6fe6afc0b1346ae2d33cc58a91d2d0e0b7a9_14a92b739a8c60515887d30343b306d9600a62d0078b3a5345bedb5de9a58c30_46_anti_syn_7bcac105af1f0f5e522f6b8347da6fe6afc0b1346ae2d33cc58a91d2d0e0b7a9_14a92b739a8c60515887d30343b306d9600a62d0078b3a5345bedb5de9a58c30_46_48_50' (f=-99) beta_1 7613->7614 (+1)
+  [gap] 'convert' (degree=0, avg=2.4)
+2026-03-07 03:50:01 WARNING: Language en package default expects mwt, which has been added
+  [auto-feed] 'convert' -> empty_parse (source=wikipedia, accepted=False)
+  [gap] 'main(hf_ckpt_path, save_path, n_experts, mp)
+Converts and saves model checkpoint files into a specified format.' (degree=0, avg=2.4)
+  [auto-feed] 'main(hf_ckpt_path, save_path, n_experts, mp)
+Converts and saves model checkpoint files into a specified format.' -> redundant (source=brave, accepted=False)
+  [gap] 'fp8_cast_bf16' (degree=0, avg=2.4)
+  [auto-feed] 'fp8_cast_bf16' -> empty_parse (source=wikipedia, accepted=False)
+[step 185] fold_blocked at 'syn_0f1b79e6d6f26f2f780bfa3717a7894b89e8c50acd85817d4373b3e94649f0be_14a92b739a8c60515887d30343b306d9600a62d0078b3a5345bedb5de9a58c30_18' (f=278) beta_1 7614->7614 (+0) BLOCKED
+[step 188] sublate at 'syn_77462f52898c10cc3f2ee1858be5b3b54765c4887df76d7ef2eb4a740160963e_1476b4c39fcea6433f035f91633bb931f5683a51f958eb466feab84ed05fc9e3_188' (f=-99) beta_1 7614->7615 (+1)
+[step 189] fold_blocked at 'syn_77462f52898c10cc3f2ee1858be5b3b54765c4887df76d7ef2eb4a740160963e_1476b4c39fcea6433f035f91633bb931f5683a51f958eb466feab84ed05fc9e3_188' (f=215) beta_1 7615->7615 (+0) BLOCKED
+[step 192] sublate at 'syn_77462f52898c10cc3f2ee1858be5b3b54765c4887df76d7ef2eb4a740160963e_e1ef44e34fef8a1595f00c25a48d30e055de78369c3ada79fedc9467c16a99e2_192' (f=-99) beta_1 7615->7616 (+1)
+[step 195] sublate at 'syn_e1ef44e34fef8a1595f00c25a48d30e055de78369c3ada79fedc9467c16a99e2_3a719f5fe485de6787bd21280aa4a6a18ab5b011a45af7264c12fe724c24f4d6_195' (f=-99) beta_1 7616->7617 (+1)
+[step 197] fold at '[event] v37全体系声明-能力缺口审计——P0修复批' (f=21) beta_1 7617->7618 (+1)
+[step 199] sublate at 'syn_e1ef44e34fef8a1595f00c25a48d30e055de78369c3ada79fedc9467c16a99e2_d1b9e503215f14bda34b3070e95915240e7f02cad8c938281ce3e697691c6169_199' (f=-99) beta_1 7618->7619 (+1)
+[step 201] fold at '[event] ceremony 持久化缺口修复 + 规则边界退化防护 + 成本收益消解禁止' (f=36) beta_1 7619->7621 (+2)
+[step 202] fold_blocked at '[event] ceremony 持久化缺口修复 + 规则边界退化防护 + 成本收益消解禁止' (f=250) beta_1 7621->7621 (+0) BLOCKED
+[step 205] sublate at 'syn_1476b4c39fcea6433f035f91633bb931f5683a51f958eb466feab84ed05fc9e3_b3431ddca89670293dd26f459732f7a7c3c65d1c74eb309fd709ba344cff7a88_205' (f=-99) beta_1 7621->7622 (+1)
+[step 207] fold_blocked at 'syn_1476b4c39fcea6433f035f91633bb931f5683a51f958eb466feab84ed05fc9e3_b3431ddca89670293dd26f459732f7a7c3c65d1c74eb309fd709ba344cff7a88_205' (f=251) beta_1 7622->7622 (+0) BLOCKED
+[step 210] sublate at 'syn_3b335ab689811d1cf51352450c9decf1f025f777d2ccfbaf9ed2ba27496ee17d_4ccf4ca1e7de27757e7aa05a2afeea90a38c27f470c8d7996602fdcf2b72acb4_210' (f=-99) beta_1 7622->7623 (+1)
+[step 212] fold_blocked at '[event] 元观察——Phase 2 否定/扬弃拓扑升级实现 session（context compaction 后延续）' (f=214) beta_1 7623->7623 (+0) BLOCKED
+[step 215] sublate at 'syn_4ccf4ca1e7de27757e7aa05a2afeea90a38c27f470c8d7996602fdcf2b72acb4_520da2966f6c9e609ac4f03ef74b774adc772719d9ba32421d0bd3285c6806f8_215' (f=-99) beta_1 7623->7624 (+1)
+[step 216] fold at 'syn_4ccf4ca1e7de27757e7aa05a2afeea90a38c27f470c8d7996602fdcf2b72acb4_520da2966f6c9e609ac4f03ef74b774adc772719d9ba32421d0bd3285c6806f8_215' (f=2) beta_1 7624->7623 (-1)
+[step 217] fold_blocked at 'syn_4ccf4ca1e7de27757e7aa05a2afeea90a38c27f470c8d7996602fdcf2b72acb4_520da2966f6c9e609ac4f03ef74b774adc772719d9ba32421d0bd3285c6806f8_215' (f=214) beta_1 7623->7623 (+0) BLOCKED
+[step 219] fold at '[event] 元观察——Phase 2 图不变量实现 session（compute_graph_invariants + is_structurally_significant 接口预留）' (f=6) beta_1 7623->7618 (-5)
+[step 221] sublate at 'syn_a1562fcc912dfea29d5359e735a4471fa8a378e5664889a9f38c86d9e0775e5c_e7e7a911c6a5ca5401ed2460ab94d6ae4fa7bf159d7b99f5177aa2e74212cf7e_221' (f=-99) beta_1 7618->7619 (+1)
+[step 224] sublate at 'syn_e7e7a911c6a5ca5401ed2460ab94d6ae4fa7bf159d7b99f5177aa2e74212cf7e_cfd7820c87d4d56585c30e80f1c1cd136fd9113ec50ee1d0bfb91488d9538ee9_224' (f=-99) beta_1 7619->7620 (+1)
+[step 226] fold_blocked at 'syn_e7e7a911c6a5ca5401ed2460ab94d6ae4fa7bf159d7b99f5177aa2e74212cf7e_cfd7820c87d4d56585c30e80f1c1cd136fd9113ec50ee1d0bfb91488d9538ee9_224' (f=220) beta_1 7620->7620 (+0) BLOCKED
+[step 228] fold at '[event] 元观察——Phase 2 否定/扬弃拓扑方案讨论 session（context compaction 后延续）' (f=6) beta_1 7620->7614 (-6)
+[step 230] sublate at 'syn_6bedf3337c832e47648cd6bdbbe39941bdb6e3a52ba24c611b9f290b1a116cdf_188d3e4f219a76859f8714b6b5d2110150c7d15e99254c2a689741a634adc8fe_230' (f=-99) beta_1 7614->7615 (+1)
+[step 233] sublate at 'syn_6bedf3337c832e47648cd6bdbbe39941bdb6e3a52ba24c611b9f290b1a116cdf_520da2966f6c9e609ac4f03ef74b774adc772719d9ba32421d0bd3285c6806f8_233' (f=-99) beta_1 7615->7616 (+1)
+[step 235] fold_blocked at '[event] 元观察——Phase 2 否定/扬弃拓扑方案讨论 session（context compaction 后延续）' (f=218) beta_1 7616->7616 (+0) BLOCKED
+[step 237] fold at '7409fcbdbfa5eb3cec026be5a8b17445c4cd602bea6c35cc89df495e21084601' (f=10) beta_1 7616->7614 (-2)
+[step 238] fold_blocked at '7409fcbdbfa5eb3cec026be5a8b17445c4cd602bea6c35cc89df495e21084601' (f=12) beta_1 7614->7614 (+0) BLOCKED
+[step 240] fold at '[event] 元观察——十五轮质询的方法论洞察' (f=13) beta_1 7614->7606 (-8)
+[step 242] sublate at 'syn_1d112ef3950cce5f4b7207985c827d1d6b4015f1dc5fe101f239097846ca0bae_007986f0913eb382f49d000bcace241a4b83cd8178f53b4bd25e3b0fc2c484f0_242' (f=-99) beta_1 7606->7607 (+1)
+[step 244] fold at '[event] 元观察——v131-swarm 编排者结构性校正模式 + 蜂群内部自校正/编排者校正边界' (f=21) beta_1 7607->7597 (-10)
+[step 246] sublate at 'syn_007986f0913eb382f49d000bcace241a4b83cd8178f53b4bd25e3b0fc2c484f0_01195bac9c8c983120624d050d7f1fb98aaa351d88fd3b9e86df8d1bdf9c333e_246' (f=-99) beta_1 7597->7598 (+1)
+[step 247] fold_blocked at 'syn_007986f0913eb382f49d000bcace241a4b83cd8178f53b4bd25e3b0fc2c484f0_01195bac9c8c983120624d050d7f1fb98aaa351d88fd3b9e86df8d1bdf9c333e_246' (f=212) beta_1 7598->7598 (+0) BLOCKED
+[step 249] fold at '[event] 元观察——v130 session OQ v2 四实验并行执行 + 跨实验交叉验证涌现' (f=30) beta_1 7598->7592 (-6)
+[step 251] sublate at 'syn_01195bac9c8c983120624d050d7f1fb98aaa351d88fd3b9e86df8d1bdf9c333e_b2d8dcdfc07bac1ff23e2ff4540fb2fa568679df21b3550a2032450a04c4cfb2_251' (f=-99) beta_1 7592->7593 (+1)
+[step 252] fold_blocked at 'syn_01195bac9c8c983120624d050d7f1fb98aaa351d88fd3b9e86df8d1bdf9c333e_b2d8dcdfc07bac1ff23e2ff4540fb2fa568679df21b3550a2032450a04c4cfb2_251' (f=212) beta_1 7593->7593 (+0) BLOCKED
+[step 254] fold at '[event] 元观察——v129-swarm 编排者语言清洗 + OQ v2 实验脚本重写' (f=43) beta_1 7593->7589 (-4)
+[step 256] sublate at 'syn_b2d8dcdfc07bac1ff23e2ff4540fb2fa568679df21b3550a2032450a04c4cfb2_008a61b0f753f317332c242576818e7d6f04680f316843c4a15d9291d959e9b6_256' (f=-99) beta_1 7589->7590 (+1)
+[step 258] fold at '[event] 元观察——v55-swarm 异质诊断相关失败 + 任务粒度默认偏小' (f=53) beta_1 7590->7586 (-4)
+[step 260] sublate at 'syn_008a61b0f753f317332c242576818e7d6f04680f316843c4a15d9291d959e9b6_174125636139582124e437a10a4af1b7faa00bb6bd2ed92baa89b95fff2533c4_260' (f=-99) beta_1 7586->7587 (+1)
+[step 261] fold_blocked at 'syn_008a61b0f753f317332c242576818e7d6f04680f316843c4a15d9291d959e9b6_174125636139582124e437a10a4af1b7faa00bb6bd2ed92baa89b95fff2533c4_260' (f=212) beta_1 7587->7587 (+0) BLOCKED
+[step 263] fold at '[event] 元观察——v56-swarm 并行工位隐式依赖 + ceremony_scan 误报模式' (f=65) beta_1 7587->7582 (-5)
+[step 265] sublate at 'syn_174125636139582124e437a10a4af1b7faa00bb6bd2ed92baa89b95fff2533c4_5f45064955282e96e7cec2e0401ccc9fd102ec4fc419e6b870c08c7bc9adfe12_265' (f=-99) beta_1 7582->7583 (+1)
+[step 267] fold at '[event] Lead 并行化——割掉 RTAS 的串行尾巴' (f=77) beta_1 7583->7581 (-2)
+[step 269] sublate at 'syn_5f45064955282e96e7cec2e0401ccc9fd102ec4fc419e6b870c08c7bc9adfe12_36e6de070e9b9edd13876cca37b3af6ad76b88d0cdf7c1f28024a548fe1793f7_269' (f=-99) beta_1 7581->7582 (+1)
+[step 271] fold at '[event] 元观察——区块拓扑内容级升级 session 二阶观察' (f=98) beta_1 7582->7581 (-1)
+[step 273] sublate at 'syn_36e6de070e9b9edd13876cca37b3af6ad76b88d0cdf7c1f28024a548fe1793f7_9f8df55cd330493bd0e625396bc259a8c3c5a3bdd03594d475b5bd9ffb93f753_273' (f=-99) beta_1 7581->7582 (+1)
+[step 274] fold_blocked at 'syn_36e6de070e9b9edd13876cca37b3af6ad76b88d0cdf7c1f28024a548fe1793f7_9f8df55cd330493bd0e625396bc259a8c3c5a3bdd03594d475b5bd9ffb93f753_273' (f=212) beta_1 7582->7582 (+0) BLOCKED
+[step 276] fold at '[event] 元观察——v122-swarm 编排者辩证INTERRUPT + 已结算定义执行漂移' (f=116) beta_1 7582->7579 (-3)
+[step 278] sublate at 'syn_9f8df55cd330493bd0e625396bc259a8c3c5a3bdd03594d475b5bd9ffb93f753_661fec4796c55c7d41eb8cf8f15465129867cdd98c7554860d9cf32056b56e74_278' (f=-99) beta_1 7579->7580 (+1)
+[step 279] fold_blocked at 'syn_9f8df55cd330493bd0e625396bc259a8c3c5a3bdd03594d475b5bd9ffb93f753_661fec4796c55c7d41eb8cf8f15465129867cdd98c7554860d9cf32056b56e74_278' (f=212) beta_1 7580->7580 (+0) BLOCKED
+[step 282] sublate at 'syn_9f8df55cd330493bd0e625396bc259a8c3c5a3bdd03594d475b5bd9ffb93f753_a6e0d042b96d072ace8663dfa98a23c847ac1d119069948abb89be7fd6a7c027_282' (f=-99) beta_1 7580->7581 (+1)
+[step 284] fold at '[event] 元观察——v60-swarm 缠论语言封闭性违反 + F3术语修正 + risk残留断裂' (f=135) beta_1 7581->7586 (+5)
+[step 286] sublate at 'syn_a6e0d042b96d072ace8663dfa98a23c847ac1d119069948abb89be7fd6a7c027_2dfe4b70b6686c32524bfaec9dbd3890564d3bc4145974f59a9ffa9fc0095e88_286' (f=-99) beta_1 7586->7587 (+1)
+[step 287] fold_blocked at 'syn_a6e0d042b96d072ace8663dfa98a23c847ac1d119069948abb89be7fd6a7c027_2dfe4b70b6686c32524bfaec9dbd3890564d3bc4145974f59a9ffa9fc0095e88_286' (f=212) beta_1 7587->7587 (+0) BLOCKED
+[step 290] sublate at 'syn_a6e0d042b96d072ace8663dfa98a23c847ac1d119069948abb89be7fd6a7c027_cb607532e11a5a751d92125af640968b4784cbf773f246dc672c3c77f217d95d_290' (f=-99) beta_1 7587->7588 (+1)
+[step 294] sublate at 'syn_cb607532e11a5a751d92125af640968b4784cbf773f246dc672c3c77f217d95d_debed6ca3623ed74755cfc0480a8827dc33077ab62d7ca492a2b220579dac24d_294' (f=-99) beta_1 7588->7589 (+1)
+[step 297] sublate at 'syn_debed6ca3623ed74755cfc0480a8827dc33077ab62d7ca492a2b220579dac24d_d1a9bb993dd1274e357d369d8d6e71a44ba09fe26d9634b13c3803607144421d_297' (f=-99) beta_1 7589->7590 (+1)
+[step 299] fold_blocked at 'syn_debed6ca3623ed74755cfc0480a8827dc33077ab62d7ca492a2b220579dac24d_d1a9bb993dd1274e357d369d8d6e71a44ba09fe26d9634b13c3803607144421d_297' (f=147) beta_1 7590->7590 (+0) BLOCKED
+[step 302] fold at 'syn_debed6ca3623ed74755cfc0480a8827dc33077ab62d7ca492a2b220579dac24d_d1a9bb993dd1274e357d369d8d6e71a44ba09fe26d9634b13c3803607144421d_297' (f=156) beta_1 7590->7589 (-1)
+[step 303] fold_blocked at 'syn_debed6ca3623ed74755cfc0480a8827dc33077ab62d7ca492a2b220579dac24d_d1a9bb993dd1274e357d369d8d6e71a44ba09fe26d9634b13c3803607144421d_297' (f=158) beta_1 7589->7589 (+0) BLOCKED
+[step 305] fold at 'bbd109023bd8c89bb1edf59c06f3f4014b76229594d4cdd3807101416e63c083' (f=0) beta_1 7589->7588 (-1)
+[step 307] fold_blocked at 'syn_debed6ca3623ed74755cfc0480a8827dc33077ab62d7ca492a2b220579dac24d_d1a9bb993dd1274e357d369d8d6e71a44ba09fe26d9634b13c3803607144421d_297' (f=158) beta_1 7588->7588 (+0) BLOCKED
+[step 309] fold at 'e8f176910add72e54e15f631fbd936600726b1dd3b2f6be5698c8855d4d81c3a' (f=0) beta_1 7588->7587 (-1)
+[step 311] fold_blocked at 'syn_debed6ca3623ed74755cfc0480a8827dc33077ab62d7ca492a2b220579dac24d_d1a9bb993dd1274e357d369d8d6e71a44ba09fe26d9634b13c3803607144421d_297' (f=158) beta_1 7587->7587 (+0) BLOCKED
+[step 313] fold at 'syn_e7e7a911c6a5ca5401ed2460ab94d6ae4fa7bf159d7b99f5177aa2e74212cf7e_cfd7820c87d4d56585c30e80f1c1cd136fd9113ec50ee1d0bfb91488d9538ee9_224' (f=183) beta_1 7587->7593 (+6)
+[step 314] fold_blocked at 'syn_e7e7a911c6a5ca5401ed2460ab94d6ae4fa7bf159d7b99f5177aa2e74212cf7e_cfd7820c87d4d56585c30e80f1c1cd136fd9113ec50ee1d0bfb91488d9538ee9_224' (f=185) beta_1 7593->7593 (+0) BLOCKED
+[step 316] fold at '[event] 折叠拓扑本体论——分类学之前的存在论结构' (f=195) beta_1 7593->7588 (-5)
+[step 317] fold_blocked at '[event] 折叠拓扑本体论——分类学之前的存在论结构' (f=197) beta_1 7588->7588 (+0) BLOCKED
+[step 319] fold at '17ccc990e65412bf4e82f088c65a3a1d64a366c4a4d2e498f451fdd3dc4c58b2' (f=0) beta_1 7588->7587 (-1)
+[step 321] fold_blocked at '[event] 折叠拓扑本体论——分类学之前的存在论结构' (f=197) beta_1 7587->7587 (+0) BLOCKED
+[step 323] fold at 'syn_a9c514fc43dd794c5c56c19609d0fa010e964828b518df07a5f145c04201f6dd_6dbca4343114f95872bd9bc3ab27d74ec5a987a2dd756053ff77939d7b36072a_67' (f=230) beta_1 7587->7586 (-1)
+[step 324] fold_blocked at 'syn_a9c514fc43dd794c5c56c19609d0fa010e964828b518df07a5f145c04201f6dd_6dbca4343114f95872bd9bc3ab27d74ec5a987a2dd756053ff77939d7b36072a_67' (f=232) beta_1 7586->7586 (+0) BLOCKED
+[step 327] sublate at 'syn_6a1998a88b2a4b16ad710f67fe68ef5b75211b42b26040c10be8da9316a9b02c_9c93825a8989bc2ac2250c87473f1b519fa534fe58f64060b8770eab2f1fd2c3_327' (f=-99) beta_1 7586->7587 (+1)
+[step 329] fold_blocked at '[event] keys=['original_type', 'source_file']' (f=210) beta_1 7587->7587 (+0) BLOCKED
+[step 332] fold_blocked at '[event] keys=['original_type', 'source_file']' (f=210) beta_1 7587->7587 (+0) BLOCKED
+[step 335] fold at '[event] keys=['source_file']' (f=12) beta_1 7587->7590 (+3)
+[step 338] sublate at 'syn_c974bf4218f19113c3f3e130b0816c50e0e6d4477779052c8e3ec1f15f5655d2_88c4328891fcb0d66821a45ced3a1f956d5e683e3c9f27ce55f05c18008db022_338' (f=-99) beta_1 7590->7591 (+1)
+[step 339] fold_blocked at 'syn_c974bf4218f19113c3f3e130b0816c50e0e6d4477779052c8e3ec1f15f5655d2_88c4328891fcb0d66821a45ced3a1f956d5e683e3c9f27ce55f05c18008db022_338' (f=209) beta_1 7591->7591 (+0) BLOCKED
+[step 342] sublate at 'syn_c974bf4218f19113c3f3e130b0816c50e0e6d4477779052c8e3ec1f15f5655d2_b7856334941b390b3e1416399f8a74223bb4f75084d52243bf4585d0818660bf_342' (f=-99) beta_1 7591->7592 (+1)
+[step 343] fold_blocked at 'syn_c974bf4218f19113c3f3e130b0816c50e0e6d4477779052c8e3ec1f15f5655d2_b7856334941b390b3e1416399f8a74223bb4f75084d52243bf4585d0818660bf_342' (f=209) beta_1 7592->7592 (+0) BLOCKED
+[step 346] sublate at 'syn_c974bf4218f19113c3f3e130b0816c50e0e6d4477779052c8e3ec1f15f5655d2_c970eb8e366b05000273f937febeddb428b6c23ebdb6e3d4d8ba027dd6d948a4_346' (f=-99) beta_1 7592->7593 (+1)
+[step 347] fold_blocked at 'syn_c974bf4218f19113c3f3e130b0816c50e0e6d4477779052c8e3ec1f15f5655d2_c970eb8e366b05000273f937febeddb428b6c23ebdb6e3d4d8ba027dd6d948a4_346' (f=209) beta_1 7593->7593 (+0) BLOCKED
+[step 350] sublate at 'syn_c974bf4218f19113c3f3e130b0816c50e0e6d4477779052c8e3ec1f15f5655d2_cef41c0e865071b3e4c016bcd0656d1f95879cd5c1bb87c5c5aa4f52f6a90066_350' (f=-99) beta_1 7593->7594 (+1)
+[step 351] fold_blocked at 'syn_c974bf4218f19113c3f3e130b0816c50e0e6d4477779052c8e3ec1f15f5655d2_cef41c0e865071b3e4c016bcd0656d1f95879cd5c1bb87c5c5aa4f52f6a90066_350' (f=209) beta_1 7594->7594 (+0) BLOCKED
+[step 353] fold_blocked at '[event] keys=['source_file']' (f=251) beta_1 7594->7594 (+0) BLOCKED
+[step 356] fold_blocked at '[event] keys=['source_file']' (f=257) beta_1 7594->7594 (+0) BLOCKED
+[step 358] fold at '2d60e22f86d1668c371e49bdc686eae0df225119acfd3ee4cb79e96c8cbd4e0c' (f=13) beta_1 7594->7597 (+3)
+[step 359] fold_blocked at '2d60e22f86d1668c371e49bdc686eae0df225119acfd3ee4cb79e96c8cbd4e0c' (f=265) beta_1 7597->7597 (+0) BLOCKED
+[step 361] fold at 'syn_1476b4c39fcea6433f035f91633bb931f5683a51f958eb466feab84ed05fc9e3_b3431ddca89670293dd26f459732f7a7c3c65d1c74eb309fd709ba344cff7a88_205' (f=51) beta_1 7597->7596 (-1)
+[step 362] fold_blocked at 'syn_1476b4c39fcea6433f035f91633bb931f5683a51f958eb466feab84ed05fc9e3_b3431ddca89670293dd26f459732f7a7c3c65d1c74eb309fd709ba344cff7a88_205' (f=323) beta_1 7596->7596 (+0) BLOCKED
+[step 365] sublate at 'syn_6aa2f22ff8838b7cd298e9165a1d7dce5bed91c2bbc4a5b293c4c9150d4e565e_4b2a0836ac2cdbe7416719cce646a115c1a1ad24251e414cd02b6397a0b96407_365' (f=-99) beta_1 7596->7597 (+1)
+[step 366] fold_blocked at 'syn_6aa2f22ff8838b7cd298e9165a1d7dce5bed91c2bbc4a5b293c4c9150d4e565e_4b2a0836ac2cdbe7416719cce646a115c1a1ad24251e414cd02b6397a0b96407_365' (f=52) beta_1 7597->7597 (+0) BLOCKED
+[step 368] fold_blocked at '6aa2f22ff8838b7cd298e9165a1d7dce5bed91c2bbc4a5b293c4c9150d4e565e' (f=54) beta_1 7597->7597 (+0) BLOCKED
+[step 370] fold at '4b2a0836ac2cdbe7416719cce646a115c1a1ad24251e414cd02b6397a0b96407' (f=10) beta_1 7597->7596 (-1)
+[step 371] fold_blocked at '4b2a0836ac2cdbe7416719cce646a115c1a1ad24251e414cd02b6397a0b96407' (f=65) beta_1 7596->7596 (+0) BLOCKED
+[step 374] sublate at 'syn_b854bc961c2c03d56e080992da5b2c0b468ab503b2bd0e9f8973cca707561155_28b5018ebca8a314e5f0ec35aca7d0d1e5374656d4fabb071318735871c9d0f1_374' (f=-99) beta_1 7596->7597 (+1)
+[step 376] fold at '[event] 蜂群持续自动化断裂：D策略 — roadmap对象化 + scan补全 + 终止逻辑修正' (f=25) beta_1 7597->7594 (-3)
+[step 378] sublate at 'syn_28b5018ebca8a314e5f0ec35aca7d0d1e5374656d4fabb071318735871c9d0f1_3deebfb671f9bee68cd63d6176d3677af6d3c36a9c6b17430dead6e050f84f48_378' (f=-99) beta_1 7594->7595 (+1)
+[step 381] sublate at 'syn_3deebfb671f9bee68cd63d6176d3677af6d3c36a9c6b17430dead6e050f84f48_0e5c86baef74028bb544b7f68e9feed6f3a76bbc903b7c04c3d7904f05050ab4_381' (f=-99) beta_1 7595->7596 (+1)
+[step 384] sublate at 'syn_0e5c86baef74028bb544b7f68e9feed6f3a76bbc903b7c04c3d7904f05050ab4_7d4e0c56cf594f782e83ef3521010c25db9ac2be4bd639c4f79c543b986d2ae2_384' (f=-99) beta_1 7596->7597 (+1)
+[step 387] sublate at 'syn_0e5c86baef74028bb544b7f68e9feed6f3a76bbc903b7c04c3d7904f05050ab4_95e46de5ba496fc4ded454caf886b9a970c3546f87e6dd227bcac63391b8d23f_387' (f=-99) beta_1 7597->7598 (+1)
+[step 389] fold at '[event] 创世Gap的第一个工程实例' (f=12) beta_1 7598->7600 (+2)
+[step 391] sublate at 'syn_0e5c86baef74028bb544b7f68e9feed6f3a76bbc903b7c04c3d7904f05050ab4_6dbca4343114f95872bd9bc3ab27d74ec5a987a2dd756053ff77939d7b36072a_391' (f=-99) beta_1 7600->7601 (+1)
+[step 393] fold at 'syn_0e5c86baef74028bb544b7f68e9feed6f3a76bbc903b7c04c3d7904f05050ab4_6dbca4343114f95872bd9bc3ab27d74ec5a987a2dd756053ff77939d7b36072a_391' (f=44) beta_1 7601->7602 (+1)
+[step 394] fold at 'syn_0e5c86baef74028bb544b7f68e9feed6f3a76bbc903b7c04c3d7904f05050ab4_6dbca4343114f95872bd9bc3ab27d74ec5a987a2dd756053ff77939d7b36072a_391' (f=56) beta_1 7602->7601 (-1)
+[step 395] fold_blocked at 'syn_0e5c86baef74028bb544b7f68e9feed6f3a76bbc903b7c04c3d7904f05050ab4_6dbca4343114f95872bd9bc3ab27d74ec5a987a2dd756053ff77939d7b36072a_391' (f=112) beta_1 7601->7601 (+0) BLOCKED
+[step 398] sublate at 'syn_5e17c1d95a896cceaf325abeb85aff8e940c7668df3739cd30b492b0d56e6600_b893911161e8987f2a8de6fda5ecd8f00be9c34b1b7ae12bdcdaf320e09fad9f_398' (f=-99) beta_1 7601->7602 (+1)
+[step 399] fold_blocked at 'syn_5e17c1d95a896cceaf325abeb85aff8e940c7668df3739cd30b492b0d56e6600_b893911161e8987f2a8de6fda5ecd8f00be9c34b1b7ae12bdcdaf320e09fad9f_398' (f=52) beta_1 7602->7602 (+0) BLOCKED
+[step 401] fold at '[event] keys=['full_text', 'original_type']' (f=8) beta_1 7602->7601 (-1)
+[step 402] fold_blocked at '[event] keys=['full_text', 'original_type']' (f=62) beta_1 7601->7601 (+0) BLOCKED
+[step 404] fold at 'syn_1476b4c39fcea6433f035f91633bb931f5683a51f958eb466feab84ed05fc9e3_b3431ddca89670293dd26f459732f7a7c3c65d1c74eb309fd709ba344cff7a88_205' (f=62) beta_1 7601->7599 (-2)
+[step 405] fold_blocked at 'syn_1476b4c39fcea6433f035f91633bb931f5683a51f958eb466feab84ed05fc9e3_b3431ddca89670293dd26f459732f7a7c3c65d1c74eb309fd709ba344cff7a88_205' (f=339) beta_1 7599->7599 (+0) BLOCKED
+[step 407] fold_blocked at 'syn_e1ef44e34fef8a1595f00c25a48d30e055de78369c3ada79fedc9467c16a99e2_3a719f5fe485de6787bd21280aa4a6a18ab5b011a45af7264c12fe724c24f4d6_195' (f=245) beta_1 7599->7599 (+0) BLOCKED
+[step 409] fold_blocked at 'syn_1476b4c39fcea6433f035f91633bb931f5683a51f958eb466feab84ed05fc9e3_b3431ddca89670293dd26f459732f7a7c3c65d1c74eb309fd709ba344cff7a88_205' (f=339) beta_1 7599->7599 (+0) BLOCKED
+[step 411] fold_blocked at '[event] 元观察——Phase 2 regex 扩展 + enrichment 首次执行 session（否定8模式+修正三层策略+KeyError防御+拓扑跃变）' (f=67) beta_1 7599->7599 (+0) BLOCKED
+[step 413] fold at '[event] 否定拓扑代数——边有效性标记与否定之否定的精确拓扑表达' (f=12) beta_1 7599->7598 (-1)
+[step 414] fold_blocked at '[event] 否定拓扑代数——边有效性标记与否定之否定的精确拓扑表达' (f=76) beta_1 7598->7598 (+0) BLOCKED
+[step 416] fold at '[event] 元编排递归拓扑异步自指化审计——严格扬弃（Aufhebung）' (f=11) beta_1 7598->7597 (-1)
+[step 418] sublate at 'syn_877afcb79d6f2031588173e5520b0e4571c16ecbc0a9ca26d8b473b22fe2b09d_188d3e4f219a76859f8714b6b5d2110150c7d15e99254c2a689741a634adc8fe_418' (f=-99) beta_1 7597->7598 (+1)
+[step 419] fold_blocked at 'syn_877afcb79d6f2031588173e5520b0e4571c16ecbc0a9ca26d8b473b22fe2b09d_188d3e4f219a76859f8714b6b5d2110150c7d15e99254c2a689741a634adc8fe_418' (f=63) beta_1 7598->7598 (+0) BLOCKED
