@@ -190,6 +190,9 @@ def extract_daemon_state(daemon) -> dict:
         state["position"] = daemon.engine.position
         state["visit_history"] = daemon.engine.visit_history[-500:]  # Last 500
         state["nothing_streak"] = daemon.engine._nothing_streak
+        state["pending_negations"] = [
+            [t, a] for t, a in daemon.engine._pending_negations
+        ]
 
     # Crystallization
     state["crystallization_count"] = getattr(daemon, '_crystallization_count', 0)
@@ -227,6 +230,12 @@ def restore_daemon_state(daemon, state: dict) -> None:
             daemon.engine.visit_history = [v for v in state["visit_history"] if v in active]
         daemon.engine._nothing_streak = state.get("nothing_streak", 0)
         daemon.engine.step = state.get("total_steps", 0)
+        # Restore pending negations (only pairs where both vertices still active)
+        if state.get("pending_negations"):
+            daemon.engine._pending_negations = [
+                (t, a) for t, a in state["pending_negations"]
+                if t in active and a in active
+            ]
 
     # Crystallization
     daemon._crystallization_count = state.get("crystallization_count", 0)

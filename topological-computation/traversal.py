@@ -220,24 +220,18 @@ class TraversalEngine:
                     )
 
         # 2. Negate_A: current vertex and a neighbor have circular dependency
-        #    Two filters to reduce false positives:
-        #    (a) Skip synthetic vertices (syn_/anti_ prefixed) — prevents self-referential oscillation
-        #    (b) At least one edge in the bidirectional pair must be critical (non-tree) in Morse terrain
-        #        Tree edges are hub-internal redundancy; critical edges participate in irreducible cycles
-        #        Zero parameters — uses intrinsic topological structure from already-computed terrain
+        #    Filter: at least one edge in the bidirectional pair must be critical (non-tree)
+        #    in Morse terrain. Tree edges are hub-internal redundancy; critical edges
+        #    participate in irreducible cycles. Zero parameters — uses intrinsic
+        #    topological structure from already-computed terrain.
         neighbors = self.k_active.neighbors(pos)
-        pos_is_synthetic = pos.startswith("syn_") or pos.startswith("anti_")
         out_nbs = self.k_active.out_neighbors(pos)
         in_nbs = self.k_active.in_neighbors(pos)
         for nb in neighbors:
             if nb == pos:
                 continue
-            # (a) Skip if either vertex is a synthesis/antithesis product
-            nb_is_synthetic = nb.startswith("syn_") or nb.startswith("anti_")
-            if pos_is_synthetic or nb_is_synthetic:
-                continue
             if nb in out_nbs and nb in in_nbs:
-                # (b) Morse critical filter: at least one direction must be a critical edge
+                # Morse critical filter: at least one direction must be a critical edge
                 fwd_mark = self.terrain.get((pos, nb), "critical")  # default critical if not in terrain
                 rev_mark = self.terrain.get((nb, pos), "critical")
                 if fwd_mark == "tree" and rev_mark == "tree":
@@ -409,8 +403,13 @@ class TraversalEngine:
 
     @property
     def _nothing_threshold(self) -> int:
-        """Adaptive threshold for nothing-streak jump: scales with graph size."""
-        return max(3, int(len(self.k_active.active_vertex_ids()) ** 0.5))
+        """Adaptive threshold for nothing-streak jump.
+
+        Capped at 20 to prevent dead zones in large graphs.
+        Previous bug: sqrt(16827) = 129, making the jump unreachable
+        while the walker oscillated in synthetic vertex traps.
+        """
+        return max(3, min(20, int(len(self.k_active.active_vertex_ids()) ** 0.5)))
 
     def walk(self) -> None:
         """Move to an adjacent vertex. Prefer critical edges, then unvisited, then random.
@@ -420,9 +419,13 @@ class TraversalEngine:
         if self._nothing_streak >= self._nothing_threshold:
             # Jump to least-visited active vertex to escape local trap
             active = self.k_active.active_vertex_ids()
+            # Count visits efficiently using Counter over history
             visit_counts = {}
-            for v in active:
-                visit_counts[v] = sum(1 for h in self.visit_history if h == v)
+            for h in self.visit_history:
+                if h in visit_counts:
+                    visit_counts[h] += 1
+                else:
+                    visit_counts[h] = 1
             least_visited = min(active, key=lambda v: (visit_counts.get(v, 0), v))
             if least_visited != self.position:
                 self.position = least_visited

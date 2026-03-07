@@ -75,9 +75,6 @@ class Graph:
         for e in self._edges:
             self._adj_out.setdefault(e.source, []).append(e)
             self._adj_in.setdefault(e.target, []).append(e)
-        # Lazy caches — valid because Graph is immutable (mutations return new instances)
-        self._active_ids_cache: list[str] | None = None
-        self._active_set_cache: set[str] | None = None
 
     # -- accessors ----------------------------------------------------------
 
@@ -93,41 +90,33 @@ class Graph:
         return self._vertices.get(vid)
 
     def active_vertex_ids(self) -> list[str]:
-        if self._active_ids_cache is None:
-            self._active_ids_cache = [
-                v.id for v in self._vertices.values()
-                if v.status != VertexStatus.FOLDED
-            ]
-        return self._active_ids_cache
-
-    def _active_set(self) -> set[str]:
-        """Cached set of active vertex ids for O(1) membership tests."""
-        if self._active_set_cache is None:
-            self._active_set_cache = set(self.active_vertex_ids())
-        return self._active_set_cache
+        return [
+            v.id for v in self._vertices.values()
+            if v.status != VertexStatus.FOLDED
+        ]
 
     def active_edges(self) -> list[Edge]:
-        active = self._active_set()
+        active = set(self.active_vertex_ids())
         return [e for e in self._edges if e.source in active and e.target in active]
 
     def neighbors(self, vid: str) -> list[str]:
         """Return ids of vertices adjacent to vid (outgoing + incoming) among active vertices."""
-        active = self._active_set()
+        active = set(self.active_vertex_ids())
         out = {e.target for e in self._adj_out.get(vid, ()) if e.target in active}
         inc = {e.source for e in self._adj_in.get(vid, ()) if e.source in active}
         return sorted(out | inc)
 
     def out_neighbors(self, vid: str) -> list[str]:
-        active = self._active_set()
+        active = set(self.active_vertex_ids())
         return sorted({e.target for e in self._adj_out.get(vid, ()) if e.target in active})
 
     def in_neighbors(self, vid: str) -> list[str]:
-        active = self._active_set()
+        active = set(self.active_vertex_ids())
         return sorted({e.source for e in self._adj_in.get(vid, ()) if e.source in active})
 
     def has_path(self, source: str, target: str) -> bool:
         """BFS on active subgraph (directed edges only)."""
-        active = self._active_set()
+        active = set(self.active_vertex_ids())
         if source not in active or target not in active:
             return False
         visited: set[str] = set()
@@ -146,7 +135,7 @@ class Graph:
 
     def local_subgraph(self, center: str, radius: int = 1) -> tuple[list[str], list[Edge]]:
         """Return vertices and edges within `radius` hops of `center`."""
-        active = self._active_set()
+        active = set(self.active_vertex_ids())
         verts: set[str] = {center}
         for _ in range(radius):
             new: set[str] = set()
@@ -163,7 +152,7 @@ class Graph:
 
     def undirected_active_edges(self) -> list[frozenset[str]]:
         """Return undirected edge set from active directed edges (no self-loops)."""
-        active = self._active_set()
+        active = set(self.active_vertex_ids())
         result: set[frozenset[str]] = set()
         for e in self._edges:
             if e.source in active and e.target in active and e.source != e.target:
@@ -172,7 +161,7 @@ class Graph:
 
     def self_loops(self) -> list[Edge]:
         """Return self-loops in active graph."""
-        active = self._active_set()
+        active = set(self.active_vertex_ids())
         return [e for e in self._edges if e.source == e.target and e.source in active]
 
     # -- mutation (returns new Graph) ---------------------------------------
@@ -303,7 +292,7 @@ def find_new_cycle_edges(
 
 def _find_path_edges(graph: Graph, source: str, target: str) -> set[tuple[str, str]] | None:
     """BFS to find directed path from source to target, return edge set."""
-    active = graph._active_set()
+    active = set(graph.active_vertex_ids())
     if source not in active or target not in active:
         return None
 
@@ -401,6 +390,17 @@ class SettlementTracker:
 # Operations
 # ---------------------------------------------------------------------------
 
+@dataclass(frozen=True, slots=True)
+class SublationRecord:
+    """Audit trail for a sublation: what was negated, preserved, elevated."""
+    source_a_id: str
+    source_b_id: str
+    contradiction: str          # what the negation edge asserts
+    negated: str                # what was denied (the incompatibility)
+    preserved: str              # what was kept from both sides
+    elevated: str               # the synthesis — what emerges
+
+
 @dataclass
 class OperationResult:
     """Result of a topological operation."""
@@ -411,6 +411,7 @@ class OperationResult:
     new_cycle_edges: frozenset[tuple[str, str]] | None = None
     blocked: bool = False
     blocked_by: SettledCycle | None = None
+    sublation_record: SublationRecord | None = None
 
 
 def fold(
@@ -561,14 +562,21 @@ def sublate(
     antithesis: str,
     step: int,
     settlement: SettlementTracker,
+    synthesis_content: str | None = None,
+    sublation_record: SublationRecord | None = None,
 ) -> OperationResult:
     """Sublate: create synthesis on top of contradiction.
 
     Precondition: negation edge between thesis and antithesis exists.
     Creates C with sublation edges C→thesis, C→antithesis.
     Δβ₁ = +1 (triangle C-thesis-antithesis).
+
+    Gate conditions (all must hold for new sublations):
+      1. Necessary: negation edge exists between thesis and antithesis.
+      2. Generative: synthesis_content must be non-empty (not template filler).
+      3. Audit: sublation_record must be provided with complete provenance.
     """
-    # Verify precondition: negation edge exists
+    # Gate 1 — Necessary: negation edge exists
     has_negation = any(
         e.edge_type == EdgeType.NEGATION
         and (
@@ -580,11 +588,29 @@ def sublate(
     if not has_negation:
         raise ValueError(f"No negation edge between {thesis} and {antithesis}")
 
+    # Gate 2 — Generative: synthesis content must be articulable
+    if not synthesis_content or not synthesis_content.strip():
+        raise ValueError(
+            f"Sublation gate: synthesis_content must be non-empty. "
+            f"Cannot create synthesis from {thesis} and {antithesis} without articulable content."
+        )
+
+    # Gate 3 — Audit: sublation record must be complete
+    if sublation_record is None:
+        raise ValueError(
+            f"Sublation gate: sublation_record required for audit trail. "
+            f"Provide source IDs, contradiction, negated/preserved/elevated."
+        )
+    if not sublation_record.contradiction.strip():
+        raise ValueError("Sublation gate: sublation_record.contradiction must be non-empty.")
+    if not sublation_record.elevated.strip():
+        raise ValueError("Sublation gate: sublation_record.elevated must be non-empty.")
+
     beta_before = compute_beta_1(graph)
     predicted = 1
 
     synthesis_id = f"syn_{thesis}_{antithesis}_{step}"
-    new_v = Vertex(synthesis_id, VertexStatus.ACTIVE, created_at=step)
+    new_v = Vertex(synthesis_id, VertexStatus.ACTIVE, content=synthesis_content, created_at=step)
 
     result_graph = graph.add_vertex(new_v)
     result_graph = result_graph.add_edge(
@@ -616,4 +642,5 @@ def sublate(
         delta_beta_1_actual=actual,
         new_vertex=synthesis_id,
         new_cycle_edges=new_cycle,
+        sublation_record=sublation_record,
     )
