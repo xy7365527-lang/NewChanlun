@@ -1871,6 +1871,51 @@ nodes:
   status: pending
   type: meta-rule
   file: pending/386-meta-observation-v167-swarm.md
+- id: '387'
+  title: Phase 3 真实谱系穿越——Fold 在密度下自然涌现（L2）
+  status: 已结算
+  type: discovery
+  file: settled/387-phase3-real-genealogy-traverse-l2.md
+- id: '388'
+  title: negate_a 两个架构 bug 修正——自引用振荡 + Morse critical 过滤
+  status: 已结算
+  type: correction
+  file: settled/388-negate-a-architecture-bugs-correction.md
+- id: '389'
+  title: 纯拓扑发育四阶段 L1 验证——错误是拓扑生长的燃料
+  status: 已结算
+  type: discovery
+  file: settled/389-pure-topo-development-four-stages-l1.md
+- id: '390'
+  title: 2000步长运行验证——β₁有界增长 + 发育三阶段（探索→收缩→稳态）
+  status: 已结算
+  type: discovery
+  file: settled/390-long-run-2000-beta1-bounded-growth.md
+- id: '391'
+  title: R3 Phase 2 Gemini代数分析——f/g函数性质 + 统一势函数Φ
+  status: 已结算
+  type: discovery
+  file: settled/391-gemini-fg-algebra-unified-potential.md
+- id: '392'
+  title: Q-R3-10 数据验证——f/g猜想部分否定（f判据方向反转 + g判据强烈支持）
+  status: 已结算
+  type: correction
+  file: settled/392-fg-data-validation-partial-negation.md
+- id: '393'
+  title: fold猜想初始图验证——f小=fold成立 + Jaccard 44x + f=0充分条件 + 392号P1修正
+  status: settled
+  type: correction
+  file: settled/393-fold-conjecture-validated-initial-graph.md
+- id: '394'
+  title: 簇2穿越：Separation→Che vuoi→Genus 生成环——三种不可消除性的关系铭写
+  status: settled
+  type: discovery
+  file: settled/394-cluster2-traversal-genus-chevuoi-separation.md
+- id: '395'
+  title: Q-R3-16候选2验证——可达集变化量方向反转（negate在冗余区域不在瓶颈）
+  status: settled
+  type: correction
+  file: settled/395-Q-R3-16-reachability-reversal.md
 edges:
   depends_on:
   - from: '136'
@@ -3987,6 +4032,40 @@ edges:
     to: '381'
   - from: '386'
     to: '382'
+  - from: '387'
+    to: '381'
+  - from: '387'
+    to: '384'
+  - from: '387'
+    to: '323'
+  - from: '390'
+    to: '387'
+  - from: '390'
+    to: '388'
+  - from: '391'
+    to: '387'
+  - from: '391'
+    to: '388'
+  - from: '391'
+    to: '390'
+  - from: '392'
+    to: '390'
+  - from: '392'
+    to: '391'
+  - from: '393'
+    to: '391'
+  - from: '393'
+    to: '392'
+  - from: '394'
+    to: '390'
+  - from: '394'
+    to: '391'
+  - from: '394'
+    to: '393'
+  - from: '395'
+    to: '391'
+  - from: '395'
+    to: '392'
   triggered:
   - from: '005'
     to: 005a
