@@ -8,6 +8,7 @@ Pure Python, only stdlib for HTTP (urllib). No external dependencies.
 
 from __future__ import annotations
 
+import gzip
 import json
 import os
 import sys
@@ -74,47 +75,36 @@ def search_wikipedia(query: str) -> str | None:
 
 
 # ---------------------------------------------------------------------------
-# Search layer 2: Semantic Scholar Graph API
+# Search layer 2: Semantic Scholar Graph API (delegates to feeds.semantic_scholar)
 # ---------------------------------------------------------------------------
-
-_SS_SEARCH_URL = (
-    "https://api.semanticscholar.org/graph/v1/paper/search"
-    "?query={query}&limit=3&fields=abstract"
-)
 
 
 def search_semantic_scholar(query: str) -> str | None:
     """Search Semantic Scholar and return concatenated abstracts (up to 2000 chars).
 
-    Free tier, no API key required. Returns None on failure or no results.
+    Delegates to feeds.semantic_scholar.search() which provides citation-sorted
+    results with richer metadata. Returns None on failure or no results.
     """
     try:
-        url = _SS_SEARCH_URL.format(query=urllib.parse.quote(query))
-        req = urllib.request.Request(
-            url,
-            headers={"User-Agent": "TopologicalDaemon/1.0 (research)"},
-        )
-        with urllib.request.urlopen(req, timeout=_REQUEST_TIMEOUT) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-
-        papers = data.get("data", [])
-        if not papers:
-            return None
-
-        abstracts = []
-        for paper in papers:
-            abstract = paper.get("abstract")
-            if abstract:
-                abstracts.append(abstract)
-
-        if not abstracts:
-            return None
-
-        combined = " ".join(abstracts)
-        return combined[:2000]
-
-    except (urllib.error.URLError, urllib.error.HTTPError, OSError, json.JSONDecodeError):
+        from feeds.semantic_scholar import search as ss_search
+        papers = ss_search(query, limit=3)
+    except Exception:
         return None
+
+    if not papers:
+        return None
+
+    abstracts = []
+    for paper in papers:
+        abstract = paper.get("abstract")
+        if abstract:
+            abstracts.append(abstract)
+
+    if not abstracts:
+        return None
+
+    combined = " ".join(abstracts)
+    return combined[:2000]
 
 
 # ---------------------------------------------------------------------------
@@ -132,7 +122,7 @@ def search_brave(query: str, api_key: str | None = None) -> str | None:
     Requires BRAVE_API_KEY env var or explicit api_key. Returns None if no key
     or on failure.
     """
-    key = api_key or os.environ.get("BRAVE_API_KEY")
+    key = api_key or os.environ.get("BRAVE_SEARCH_API_KEY") or os.environ.get("BRAVE_API_KEY")
     if not key:
         return None
 
@@ -147,7 +137,10 @@ def search_brave(query: str, api_key: str | None = None) -> str | None:
             },
         )
         with urllib.request.urlopen(req, timeout=_REQUEST_TIMEOUT) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
+            raw = resp.read()
+            if resp.headers.get("Content-Encoding") == "gzip":
+                raw = gzip.decompress(raw)
+            data = json.loads(raw.decode("utf-8"))
 
         results = data.get("web", {}).get("results", [])
         if not results:
@@ -210,7 +203,47 @@ def _normalize_label(label: str) -> str:
     return label.lower().strip()
 
 
-def quality_check(sub_graph: Graph, main_graph: Graph) -> tuple[float, str]:
+def _percentile(values: list[float], pct: float) -> float:
+    """Compute percentile without numpy. Linear interpolation between nearest ranks."""
+    if not values:
+        return 0.0
+    sorted_v = sorted(values)
+    n = len(sorted_v)
+    if n == 1:
+        return sorted_v[0]
+    k = (pct / 100.0) * (n - 1)
+    f = int(k)
+    c = f + 1
+    if c >= n:
+        return sorted_v[-1]
+    d = k - f
+    return sorted_v[f] * (1.0 - d) + sorted_v[c] * d
+
+
+def adaptive_quality_bounds(
+    feed_history: list[float],
+) -> tuple[float, float]:
+    """Derive quality thresholds from historical match rates.
+
+    Cold start (<5 entries): use lenient defaults (0.05, 0.85).
+    Warm: garbage_threshold = 10th percentile, redundant_threshold = 90th percentile.
+    """
+    if len(feed_history) < 5:
+        return 0.05, 0.85
+
+    lo = _percentile(feed_history, 10)
+    hi = _percentile(feed_history, 90)
+    # Clamp to sane ranges
+    lo = max(0.01, min(lo, 0.30))
+    hi = max(0.50, min(hi, 0.95))
+    return lo, hi
+
+
+def quality_check(
+    sub_graph: Graph,
+    main_graph: Graph,
+    feed_history: list[float] | None = None,
+) -> tuple[float, str]:
     """Topological quality control: compute match rate between sub and main.
 
     match_rate = |V(sub) ∩ V(main)| / |V(sub)|
@@ -219,11 +252,19 @@ def quality_check(sub_graph: Graph, main_graph: Graph) -> tuple[float, str]:
     Labels shorter than 4 characters are excluded from matching to avoid
     trivial overlaps on common words ("i", "it", "the").
 
+    Thresholds are adaptive when feed_history is provided:
+    - Cold start (<5 entries): garbage < 0.05, redundant > 0.85
+    - Warm: garbage < 10th pct, redundant > 90th pct of history
+
     Returns (match_rate, verdict):
-    - match_rate < 0.10:  "garbage"    (almost no connection to existing structure)
-    - 0.10 <= rate <= 0.7: "nutritious" (has connections + new content)
-    - match_rate > 0.7:    "redundant"  (mostly already exists)
+    - match_rate < garbage_threshold:   "garbage"
+    - garbage_threshold <= rate <= redundant_threshold: "nutritious"
+    - match_rate > redundant_threshold: "redundant"
     """
+    garbage_threshold, redundant_threshold = adaptive_quality_bounds(
+        feed_history or [],
+    )
+
     _MIN_LABEL_LEN = 4
 
     sub_vids = sub_graph.active_vertex_ids()
@@ -264,9 +305,9 @@ def quality_check(sub_graph: Graph, main_graph: Graph) -> tuple[float, str]:
 
     match_rate = matched / matchable
 
-    if match_rate < 0.10:
+    if match_rate < garbage_threshold:
         verdict = "garbage"
-    elif match_rate > 0.7:
+    elif match_rate > redundant_threshold:
         verdict = "redundant"
     else:
         verdict = "nutritious"
@@ -324,9 +365,19 @@ def feed_from_gap(gap: dict | object, daemon: object) -> FeedRecord:
             match_rate=0.0, verdict="no_results", reason="all search layers returned nothing",
         )
 
-    # phi_L processing
-    from phi_L import phi_L
-    sub = phi_L(result.text)
+    # Parse through router (auto-detects formula/table/citation/text)
+    from parsers.router import parse
+    from engine import Graph as _Graph
+    vertices, edges = parse(result.text, source=result.source)
+
+    # Build sub-graph for quality check
+    sub = _Graph()
+    for v in vertices:
+        sub = sub.add_vertex(v)
+    v_ids = set(sub.active_vertex_ids())
+    for e in edges:
+        if e.source in v_ids and e.target in v_ids:
+            sub = sub.add_edge(e)
 
     sub_v_count = len(sub.active_vertex_ids())
     sub_e_count = len(sub.active_edges())
@@ -335,7 +386,7 @@ def feed_from_gap(gap: dict | object, daemon: object) -> FeedRecord:
         return FeedRecord(
             accepted=False, source=result.source, query=query,
             vertices_added=0, edges_added=0,
-            match_rate=0.0, verdict="empty_parse", reason="phi_L produced empty graph from search text",
+            match_rate=0.0, verdict="empty_parse", reason="parser produced empty graph from search text",
         )
 
     # Quality check

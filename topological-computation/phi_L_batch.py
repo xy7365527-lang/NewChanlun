@@ -22,6 +22,7 @@ from phi_L import phi_L, extract_vertices, extract_edges, extract_negations, mer
 from nlp_preprocess import preprocess, SentenceTree
 from nlp_preprocess_zh import preprocess_zh, detect_language
 from traversal import TraversalEngine
+from vertex_cleaning import CHANLUN_WHITELIST
 
 
 # ---------------------------------------------------------------------------
@@ -259,6 +260,8 @@ def phi_L_multilingual(text: str, lang: str | None = None) -> Graph:
 
     If lang is None, auto-detects. Uses Chinese preprocessor for 'zh',
     English preprocessor for 'en'.
+
+    Only whitelisted terms produce vertices — phi_L is a term matcher, not a generator.
     """
     if lang is None:
         lang = detect_language(text)
@@ -268,7 +271,7 @@ def phi_L_multilingual(text: str, lang: str | None = None) -> Graph:
     else:
         trees = preprocess(text)
 
-    vertices, token_to_vertex = extract_vertices(trees)
+    vertices, token_to_vertex = extract_vertices(trees, CHANLUN_WHITELIST)
     edges = extract_edges(trees, token_to_vertex)
     neg_edges = extract_negations(trees, token_to_vertex)
 

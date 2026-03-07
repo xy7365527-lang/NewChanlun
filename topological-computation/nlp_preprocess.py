@@ -1,8 +1,9 @@
 """NLP preprocessing: text -> dependency trees.
 
-Uses spaCy for dependency parsing when available. Falls back to a rule-based
-parser for environments where spaCy is not compatible (e.g. Python 3.14+).
-Neural network lives in the sensor layer, not in the core mapping.
+Uses Stanza (Stanford NLP) for dependency parsing when available. Falls back to
+a rule-based parser for environments where Stanza is not installed or model
+download is missing. Neural network lives in the sensor layer, not in the core
+mapping.
 """
 
 from __future__ import annotations
@@ -36,61 +37,103 @@ class SentenceTree:
 
 
 # ---------------------------------------------------------------------------
-# Try spaCy first, fall back to rule-based
+# Try Stanza first, fall back to rule-based
 # ---------------------------------------------------------------------------
 
-_USE_SPACY = False
-_nlp = None
+_USE_STANZA = False
+_nlp_en = None
 
 try:
-    import spacy as _spacy_mod
-    _nlp = _spacy_mod.load("en_core_web_sm")
-    _USE_SPACY = True
+    import stanza as _stanza_mod
+    _nlp_en = _stanza_mod.Pipeline('en', processors='tokenize,pos,lemma,depparse',
+                                   download_method=None, logging_level='WARN')
+    _USE_STANZA = True
 except Exception:
     pass
 
 
 def preprocess(text: str) -> list[SentenceTree]:
     """Parse text into per-sentence dependency trees."""
-    if _USE_SPACY:
-        return _preprocess_spacy(text)
+    if _USE_STANZA:
+        return _preprocess_stanza(text)
     return _preprocess_rules(text)
 
 
 # ---------------------------------------------------------------------------
-# spaCy backend
+# Stanza backend
 # ---------------------------------------------------------------------------
 
-def _preprocess_spacy(text: str) -> list[SentenceTree]:
-    doc = _nlp(text)
+def _extract_chunks_from_deps(tokens: list[Token]) -> list[NounChunk]:
+    """Extract noun chunks from Stanza dependency parse output.
+
+    Stanza has no native noun_chunks API. We identify chunk roots as NOUN tokens
+    with subject/object dependency roles, then expand left for det/amod/compound
+    and right for flat/compound continuations.
+    """
+    _CHUNK_DEPS = frozenset({"nsubj", "nsubj:pass", "obj", "obl", "iobj"})
+    _LEFT_EXPAND = frozenset({"det", "amod", "compound", "nummod"})
+    _RIGHT_EXPAND = frozenset({"flat", "compound"})
+
+    chunks: list[NounChunk] = []
+    used: set[int] = set()
+
+    for tok in tokens:
+        if tok.dep not in _CHUNK_DEPS or tok.pos != "NOUN" or tok.idx in used:
+            continue
+
+        root_idx = tok.idx
+        start = root_idx
+        end = root_idx + 1
+
+        # Expand left: det, amod, compound, nummod pointing to this root
+        while start > 0:
+            prev = tokens[start - 1]
+            if prev.dep in _LEFT_EXPAND and prev.head_idx == root_idx:
+                start -= 1
+            else:
+                break
+
+        # Expand right: flat, compound pointing to this root
+        while end < len(tokens):
+            nxt = tokens[end]
+            if nxt.dep in _RIGHT_EXPAND and nxt.head_idx == root_idx:
+                end += 1
+            else:
+                break
+
+        used.update(range(start, end))
+        chunk_text = " ".join(t.word for t in tokens[start:end])
+        chunks.append(NounChunk(text=chunk_text, root_idx=root_idx,
+                                start=start, end=end))
+
+    return chunks
+
+
+def _preprocess_stanza(text: str) -> list[SentenceTree]:
+    """Parse text using Stanza pipeline."""
+    doc = _nlp_en(text)
     trees: list[SentenceTree] = []
 
-    for sent in doc.sents:
-        sent_start = sent.start
-        tokens = [
-            Token(
-                word=tok.text,
-                pos=tok.pos_,
-                dep=tok.dep_,
-                head_idx=tok.head.i - sent_start,
-                idx=tok.i - sent_start,
-            )
-            for tok in sent
-        ]
+    for sent in doc.sentences:
+        tokens: list[Token] = []
+        for word in sent.words:
+            # Stanza word.head is 1-indexed; 0 means ROOT.
+            # Convert to 0-indexed self-reference for ROOT.
+            if word.head == 0:
+                head_idx = word.id - 1  # self-reference
+            else:
+                head_idx = word.head - 1
+            tokens.append(Token(
+                word=word.text,
+                pos=word.upos,
+                dep=word.deprel,
+                head_idx=head_idx,
+                idx=word.id - 1,
+            ))
 
-        chunks: list[NounChunk] = []
-        for chunk in doc.noun_chunks:
-            if chunk.start >= sent.start and chunk.end <= sent.end:
-                chunks.append(
-                    NounChunk(
-                        text=chunk.text,
-                        root_idx=chunk.root.i - sent_start,
-                        start=chunk.start - sent_start,
-                        end=chunk.end - sent_start,
-                    )
-                )
-
-        trees.append(SentenceTree(tokens=tokens, noun_chunks=chunks, text=sent.text))
+        chunks = _extract_chunks_from_deps(tokens)
+        trees.append(SentenceTree(tokens=tokens, noun_chunks=chunks,
+                                  text=sent.text))
 
     return trees
 

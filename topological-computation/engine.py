@@ -48,6 +48,8 @@ class Edge:
     target: str
     edge_type: EdgeType
     created_at: int = 0
+    surface: Optional[str] = None   # 连接两概念的原始语言片段（动词/谓语部分）
+    context: Optional[str] = None   # 完整原句，用于叙事生成时还原语境
 
 
 # ---------------------------------------------------------------------------
@@ -73,6 +75,9 @@ class Graph:
         for e in self._edges:
             self._adj_out.setdefault(e.source, []).append(e)
             self._adj_in.setdefault(e.target, []).append(e)
+        # Lazy caches — valid because Graph is immutable (mutations return new instances)
+        self._active_ids_cache: list[str] | None = None
+        self._active_set_cache: set[str] | None = None
 
     # -- accessors ----------------------------------------------------------
 
@@ -88,33 +93,41 @@ class Graph:
         return self._vertices.get(vid)
 
     def active_vertex_ids(self) -> list[str]:
-        return [
-            v.id for v in self._vertices.values()
-            if v.status != VertexStatus.FOLDED
-        ]
+        if self._active_ids_cache is None:
+            self._active_ids_cache = [
+                v.id for v in self._vertices.values()
+                if v.status != VertexStatus.FOLDED
+            ]
+        return self._active_ids_cache
+
+    def _active_set(self) -> set[str]:
+        """Cached set of active vertex ids for O(1) membership tests."""
+        if self._active_set_cache is None:
+            self._active_set_cache = set(self.active_vertex_ids())
+        return self._active_set_cache
 
     def active_edges(self) -> list[Edge]:
-        active = set(self.active_vertex_ids())
+        active = self._active_set()
         return [e for e in self._edges if e.source in active and e.target in active]
 
     def neighbors(self, vid: str) -> list[str]:
         """Return ids of vertices adjacent to vid (outgoing + incoming) among active vertices."""
-        active = set(self.active_vertex_ids())
+        active = self._active_set()
         out = {e.target for e in self._adj_out.get(vid, ()) if e.target in active}
         inc = {e.source for e in self._adj_in.get(vid, ()) if e.source in active}
         return sorted(out | inc)
 
     def out_neighbors(self, vid: str) -> list[str]:
-        active = set(self.active_vertex_ids())
+        active = self._active_set()
         return sorted({e.target for e in self._adj_out.get(vid, ()) if e.target in active})
 
     def in_neighbors(self, vid: str) -> list[str]:
-        active = set(self.active_vertex_ids())
+        active = self._active_set()
         return sorted({e.source for e in self._adj_in.get(vid, ()) if e.source in active})
 
     def has_path(self, source: str, target: str) -> bool:
         """BFS on active subgraph (directed edges only)."""
-        active = set(self.active_vertex_ids())
+        active = self._active_set()
         if source not in active or target not in active:
             return False
         visited: set[str] = set()
@@ -133,7 +146,7 @@ class Graph:
 
     def local_subgraph(self, center: str, radius: int = 1) -> tuple[list[str], list[Edge]]:
         """Return vertices and edges within `radius` hops of `center`."""
-        active = set(self.active_vertex_ids())
+        active = self._active_set()
         verts: set[str] = {center}
         for _ in range(radius):
             new: set[str] = set()
@@ -150,7 +163,7 @@ class Graph:
 
     def undirected_active_edges(self) -> list[frozenset[str]]:
         """Return undirected edge set from active directed edges (no self-loops)."""
-        active = set(self.active_vertex_ids())
+        active = self._active_set()
         result: set[frozenset[str]] = set()
         for e in self._edges:
             if e.source in active and e.target in active and e.source != e.target:
@@ -159,7 +172,7 @@ class Graph:
 
     def self_loops(self) -> list[Edge]:
         """Return self-loops in active graph."""
-        active = set(self.active_vertex_ids())
+        active = self._active_set()
         return [e for e in self._edges if e.source == e.target and e.source in active]
 
     # -- mutation (returns new Graph) ---------------------------------------
@@ -188,7 +201,8 @@ class Graph:
         for e in self._edges:
             src = keep if e.source == remove else e.source
             tgt = keep if e.target == remove else e.target
-            new_edges.append(Edge(src, tgt, e.edge_type, e.created_at))
+            # Preserve surface/context fields when redirecting edges
+            new_edges.append(Edge(src, tgt, e.edge_type, e.created_at, e.surface, e.context))
 
         return Graph(new_verts, new_edges)
 
@@ -289,7 +303,7 @@ def find_new_cycle_edges(
 
 def _find_path_edges(graph: Graph, source: str, target: str) -> set[tuple[str, str]] | None:
     """BFS to find directed path from source to target, return edge set."""
-    active = set(graph.active_vertex_ids())
+    active = graph._active_set()
     if source not in active or target not in active:
         return None
 

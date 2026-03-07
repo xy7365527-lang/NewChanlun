@@ -12,8 +12,7 @@ Cross-platform (Windows/Linux/Mac). Does:
 8. Output PID and log path
 
 Usage:
-    python deploy.py                    # Full deploy with default 5000 steps
-    python deploy.py --steps 200        # Short run for testing
+    python deploy.py                    # Full deploy (daemon runs until crystallized)
     python deploy.py --check-only       # Steps 1-6 only, no daemon launch
     python deploy.py --repo-root /path  # Specify repo root (default: auto-detect)
 """
@@ -42,7 +41,7 @@ SEED_JSON_PATH = SWARM_DIR / "seed_complex.json"
 PID_FILE = SWARM_DIR / "daemon.pid"
 LOG_PATH = SWARM_DIR / "output" / "daemon.log"
 
-REQUIRED_PACKAGES = ["spacy", "pymupdf", "python-dotenv"]
+REQUIRED_PACKAGES = ["stanza", "pymupdf", "python-dotenv"]
 
 ENV_TEMPLATE = """\
 SEMANTIC_SCHOLAR_API=https://api.semanticscholar.org/graph/v1
@@ -226,8 +225,8 @@ def step_6_run_tests() -> bool:
 # Step 7: Launch daemon
 # ---------------------------------------------------------------------------
 
-def step_7_launch_daemon(steps: int) -> dict | None:
-    _print_step(7, f"Launch daemon (background, {steps} steps)")
+def step_7_launch_daemon() -> dict | None:
+    _print_step(7, "Launch daemon (background, self-terminating)")
 
     daemon_script = SCRIPT_DIR / "swarm" / "swarm_daemon.py"
     if not daemon_script.exists():
@@ -240,7 +239,6 @@ def step_7_launch_daemon(steps: int) -> dict | None:
         "--shared", str(SWARM_DIR),
         "--load", str(SEED_JSON_PATH),
         "--persist", str(PERSIST_PATH),
-        "--steps", str(steps),
         "--output", str(SWARM_DIR / "output" / "daemon_report.txt"),
         "--max-retries", "3",
         "--retry-delay", "5",
@@ -367,10 +365,6 @@ def main() -> None:
         description="Deploy the Topological Computation Daemon",
     )
     parser.add_argument(
-        "--steps", type=int, default=5000,
-        help="Number of daemon steps (default: 5000)",
-    )
-    parser.add_argument(
         "--check-only", action="store_true",
         help="Run checks (steps 1-6) without launching daemon",
     )
@@ -415,7 +409,7 @@ def main() -> None:
     # Step 7
     daemon_info = None
     if not args.check_only:
-        daemon_info = step_7_launch_daemon(args.steps)
+        daemon_info = step_7_launch_daemon()
         if daemon_info is None:
             _print_fail("Daemon launch failed")
             sys.exit(1)

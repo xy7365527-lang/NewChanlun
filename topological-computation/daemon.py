@@ -1,17 +1,21 @@
-"""TopologicalDaemon — autonomous running topological entity.
+"""逢亮 (FengLiang) — autonomous topological entity.
 
 The engine runs as a persistent process: traverse -> encounter -> operate ->
 terrain update -> gap detect -> (feed) -> continue traversing.
+
+All behavior is internally driven by topological state. No external step counts.
+The daemon runs indefinitely, detecting crystallization (beta_1 stability)
+to decide when to jump to unstable regions.
 
 I/O through callbacks — the engine doesn't know callbacks exist, only that
 topology changes after certain edge traversals.
 
 CLI:
-    python daemon.py --load experiment_phenomenology_full.json --steps 200
-    python daemon.py --seed path/to/text.txt --steps 500
+    python daemon.py --load experiment_phenomenology_full.json
+    python daemon.py --seed path/to/text.txt
     python daemon.py --interactive --load experiment_phenomenology_full.json
-    python daemon.py --autonomous --load experiment_phenomenology_full.json --steps 5000
-    python daemon.py --persist --hegel --steps 1000
+    python daemon.py --autonomous --load experiment_phenomenology_full.json
+    python daemon.py --persist --hegel
 
 Pure Python, no external dependencies beyond this project's modules.
 """
@@ -37,6 +41,9 @@ from traversal import TraversalEngine, StepLog
 from concept_registry import Registry, _tokenize
 from psi_L_narrative import generate_narrative, _ENCOUNTER_OPS
 from persistence import PersistentKFull, DEFAULT_PATH
+from encounter_log import EncounterLog
+from cross_domain import detect_cross_domain_edges, _source_prefix
+from traversal_checkpoint import TraversalCheckpoint, extract_daemon_state, restore_daemon_state
 
 
 # ---------------------------------------------------------------------------
@@ -65,8 +72,12 @@ def graph_to_dict(graph: Graph) -> dict:
 
 
 def graph_from_dict(data: dict) -> Graph:
-    """Deserialize a Graph from a dict."""
-    g = Graph()
+    """Deserialize a Graph from a dict.
+
+    Batch-constructs the Graph directly from dicts/lists instead of calling
+    add_vertex/add_edge in a loop (which would be O(n^2) due to immutable copies).
+    """
+    vertices: dict[str, Vertex] = {}
     for vd in data["vertices"]:
         v = Vertex(
             id=vd["id"],
@@ -74,7 +85,8 @@ def graph_from_dict(data: dict) -> Graph:
             content=vd.get("content"),
             created_at=vd.get("created_at", 0),
         )
-        g = g.add_vertex(v)
+        vertices[v.id] = v
+    edges: list[Edge] = []
     for ed in data["edges"]:
         e = Edge(
             source=ed["source"],
@@ -82,9 +94,9 @@ def graph_from_dict(data: dict) -> Graph:
             edge_type=EdgeType(ed["edge_type"]),
             created_at=ed.get("created_at", 0),
         )
-        if g.vertex(e.source) is not None and g.vertex(e.target) is not None:
-            g = g.add_edge(e)
-    return g
+        if e.source in vertices and e.target in vertices:
+            edges.append(e)
+    return Graph(vertices, edges)
 
 
 # ---------------------------------------------------------------------------
@@ -143,7 +155,7 @@ class GapInfo:
 
 
 class TopologicalDaemon:
-    """Autonomous running topological entity."""
+    """逢亮 — autonomous topological entity."""
 
     def __init__(
         self,
@@ -190,9 +202,15 @@ class TopologicalDaemon:
             "on_feed": [],
         }
 
-        # Gap detection state
+        # Gap detection state — driven by topology change, not fixed interval
         self._gap_cooldown: dict[str, int] = {}
-        self._gap_check_interval = 50
+        self._last_gap_check_step = 0
+        self._cumulative_delta_beta_1 = 0.0
+
+        # Crystallization detection
+        self._beta_1_history: list[int] = []
+        self._local_f_history: list[float] = []
+        self._crystallization_count = 0
 
         # Statistics
         self.total_steps = 0
@@ -201,9 +219,24 @@ class TopologicalDaemon:
         self.total_gaps_detected = 0
         self.event_log: list[str] = []
 
+        # Encounter log (JSONL persistence)
+        self.encounter_log = EncounterLog()
+
+        # Cross-domain edge detection: track vertex set at last scan
+        self._cross_domain_scanned_vids: set[str] = set()
+
         # Initialize if graph is non-empty
         if self.k_active.active_vertex_ids():
             self._initialize_engine()
+
+        # Traversal checkpoint — persistent state across restarts
+        self._checkpoint = TraversalCheckpoint(instance_id="default")
+
+        # If checkpoint exists, restore state
+        saved = self._checkpoint.load_state()
+        if saved:
+            restore_daemon_state(self, saved)
+            print(f"Restored: step={self.total_steps}, settled={len(self.settlement.settled_cycles)}", file=sys.stderr)
 
     def _initialize_engine(self) -> None:
         """Initialize or reinitialize the traversal engine from current graph."""
@@ -240,7 +273,12 @@ class TopologicalDaemon:
         self._callbacks[event_type].append(callback)
 
     def run(self, max_steps: int | None = None) -> None:
-        """Main loop. max_steps=None means run forever."""
+        """Main loop.
+
+        Default behavior: run forever (self-driven by crystallization).
+        max_steps is kept for backward compatibility (tests, interactive mode)
+        but the daemon's natural mode is perpetual with internal jump logic.
+        """
         if self.engine is None:
             raise RuntimeError("No graph loaded — nothing to traverse")
 
@@ -248,9 +286,87 @@ class TopologicalDaemon:
         while max_steps is None or step_count < max_steps:
             self._step()
             step_count += 1
+            # Yield GIL every step so HTTP/WS threads can respond
+            # 15K graph terrain computation is heavy — need generous yield
+            time.sleep(0.05)
+
+    def _is_locally_crystallized(self, window: int = 50) -> bool:
+        """Check if beta_1 has been stable over the last `window` steps."""
+        if len(self._beta_1_history) < window:
+            return False
+        recent = self._beta_1_history[-window:]
+        return all(v == recent[0] for v in recent)
+
+    def _find_most_unstable_region(self) -> str:
+        """Find jump target after crystallization — topologically intrinsic.
+
+        No external labels. Jump to the topologically most distant reachable
+        vertex from current position: the neighbor-of-neighbor with highest f
+        value. This is purely determined by graph structure.
+
+        High f = topologically distant = different structural region.
+        The system discovers domain boundaries through f values, not through
+        string prefix classification.
+        """
+        active = self.k_active.active_vertex_ids()
+        if not active:
+            return self.engine.position
+
+        pos = self.engine.position
+        neighbors = self.k_active.neighbors(pos)
+        if not neighbors:
+            # Isolated — jump to random active vertex
+            import random
+            return random.choice(active)
+
+        # Collect 2-hop neighborhood: neighbors of neighbors
+        two_hop: set[str] = set()
+        for nb in neighbors:
+            for nb2 in self.k_active.neighbors(nb):
+                if nb2 != pos and nb2 not in set(neighbors):
+                    two_hop.add(nb2)
+
+        if not two_hop:
+            # No 2-hop — use neighbors themselves
+            two_hop = set(neighbors)
+
+        # Pick the vertex with highest f value relative to current position
+        # High f = structurally distant = most interesting jump target
+        best_vid = pos
+        best_f = -1
+        for vid in list(two_hop)[:200]:  # Cap for performance
+            f_val = self.engine._compute_f(pos, vid)
+            if f_val > best_f:
+                best_f = f_val
+                best_vid = vid
+
+        return best_vid
+
+    def _compute_local_f_terrain(self) -> float:
+        """Average f value of current position's neighbors.
+
+        Uses traversal engine's _compute_f. Returns 0.0 if no neighbors.
+        """
+        pos = self.engine.position
+        neighbors = self.k_active.neighbors(pos)
+        if not neighbors:
+            return 0.0
+        f_values = [self.engine._compute_f(pos, nb) for nb in neighbors]
+        return sum(f_values) / len(f_values)
+
+    def _should_check_gaps(self) -> bool:
+        """Gap detection triggered by cumulative topology change, not fixed interval.
+
+        Triggers when cumulative |delta_beta_1| since last check exceeds 1% of total beta_1.
+        """
+        total_b1 = compute_beta_1(self.k_active)
+        if total_b1 == 0:
+            # Fallback: check every 50 steps when graph has no cycles
+            return (self.total_steps - self._last_gap_check_step) >= 50
+        return self._cumulative_delta_beta_1 > total_b1 * 0.01
 
     def _step(self) -> None:
-        """One step: traverse -> encounter -> operate -> terrain -> gap detect."""
+        """One step: traverse -> encounter -> operate -> terrain -> gap detect -> crystallization."""
         self.total_steps += 1
 
         # Capture pre-step state for persistence diff
@@ -268,6 +384,46 @@ class TopologicalDaemon:
         self.k_active = self.engine.k_active
         self.k_full = self.engine.k_full
         self.terrain = self.engine.terrain
+
+        # Track beta_1 history for crystallization detection
+        self._beta_1_history.append(log.beta_1_after)
+        self._cumulative_delta_beta_1 += abs(log.delta_beta_1)
+
+        # Local f terrain tracking for adaptive traversal
+        local_f = self._compute_local_f_terrain()
+        self._local_f_history.append(local_f)
+
+        # Crystallization + jump logic
+        if self._is_locally_crystallized():
+            self._crystallization_count += 1
+
+            # Save settlement history for newly settled cycles
+            for sc in self.settlement.settled_cycles:
+                self._checkpoint.settlements.record_settlement(
+                    step=sc.settled_at_step,
+                    cycle_edges=sorted(sc.edges),
+                )
+
+            # Save mutable state at crystallization
+            self._checkpoint.save_state(extract_daemon_state(self))
+
+            # Crystallization = area digested. Check for gaps now.
+            gaps = self._detect_gaps()
+            for gap in gaps:
+                self._fire("on_gap", gap)
+                self.total_gaps_detected += 1
+            self._last_gap_check_step = self.total_steps
+            self._cumulative_delta_beta_1 = 0.0
+
+            # Incremental cross-domain edge detection after crystallization
+            self._inject_cross_domain_incremental()
+
+            # Jump to most unstable region
+            target = self._find_most_unstable_region()
+            if target != self.engine.position:
+                self.engine.position = target
+            self._local_f_history.clear()
+            self._beta_1_history.clear()
 
         # Persist graph state changes (always, not just for significant events)
         if self._persist:
@@ -307,12 +463,34 @@ class TopologicalDaemon:
             self._fire("on_event", log, narrative)
             self.total_events += 1
 
-        # Gap detection (periodic)
-        if self.total_steps % self._gap_check_interval == 0:
+            # Write to persistent encounter log
+            pos_name = self.concept_names.get(log.position, log.position)
+            encounter_name = self.concept_names.get(log.encounter, log.encounter) if log.encounter else ""
+            self.encounter_log.record_encounter(
+                concept_a=pos_name,
+                concept_b=encounter_name,
+                encounter_type=log.operation,
+                f_value=log.f_value,
+                context=narrative,
+                beta_1_before=log.beta_1_before,
+                beta_1_after=log.beta_1_after,
+            )
+
+            # Write to traversal checkpoint encounter log
+            self._checkpoint.encounters.record(
+                step=log.step, operation=log.operation, position=log.position,
+                beta_1_before=log.beta_1_before, beta_1_after=log.beta_1_after,
+                f_value=log.f_value, blocked=log.blocked, context=narrative,
+            )
+
+        # Gap detection (topology-change driven)
+        if self._should_check_gaps():
             gaps = self._detect_gaps()
             for gap in gaps:
                 self._fire("on_gap", gap)
                 self.total_gaps_detected += 1
+            self._last_gap_check_step = self.total_steps
+            self._cumulative_delta_beta_1 = 0.0
 
     def feed(self, text: str) -> Graph:
         """External text injection. phi_L processes, then inject into K_active."""
@@ -334,7 +512,11 @@ class TopologicalDaemon:
         return answer.narrative
 
     def _detect_gaps(self) -> list[GapInfo]:
-        """Detect topological gaps — low-degree vertices, isolated regions."""
+        """Detect topological gaps — low-degree vertices, isolated regions.
+
+        Skips metadata vertices (content starting with [tag]) since they
+        are not conceptual nodes and produce bad search queries.
+        """
         active = self.k_active.active_vertex_ids()
         if not active:
             return []
@@ -343,21 +525,112 @@ class TopologicalDaemon:
         avg_degree = sum(degrees.values()) / len(degrees) if degrees else 0
         threshold = max(1, avg_degree / 3)
 
+        _META_PREFIXES = (
+            "[tension]", "[event]", "[rewrite]", "[meta]", "[audit]",
+            "[residue]", "[consensus]",
+        )
+        # Code syntax fragments produce garbage search queries
+        _CODE_PREFIXES = (
+            "from ", "import ", "def ", "class ", "if ", "for ",
+            "while ", "return ", "raise ", "with ", "try:", "except",
+            "self.", "assert ", "yield ", "async ", "await ",
+        )
+
         gaps: list[GapInfo] = []
         for v in active:
             if degrees[v] <= threshold and v not in self._gap_cooldown:
                 vertex = self.k_active.vertex(v)
                 if vertex and vertex.content:
+                    content = vertex.content.strip()
+                    # Skip metadata vertices
+                    if any(content.startswith(p) for p in _META_PREFIXES):
+                        continue
+                    # Skip code syntax fragments
+                    if any(content.startswith(p) for p in _CODE_PREFIXES):
+                        continue
+                    # Skip very short content
+                    if len(content) < 4:
+                        continue
                     gaps.append(GapInfo(
                         vertex_id=v,
-                        content=vertex.content,
+                        content=content,
                         degree=degrees[v],
                         avg_degree=avg_degree,
-                        search_query=vertex.content,
+                        search_query=content,
                     ))
                     self._gap_cooldown[v] = self.total_steps
 
         return gaps[:3]
+
+    def _inject_cross_domain_incremental(self) -> None:
+        """Incremental cross-domain edge detection.
+
+        Only compares newly-added vertices (since last scan) against existing
+        vertices to avoid O(V^2) on every crystallization.
+
+        Checks that multiple source prefixes exist before scanning.
+        """
+        current_vids = set(self.k_active.active_vertex_ids())
+        new_vids = current_vids - self._cross_domain_scanned_vids
+
+        if not new_vids:
+            self._cross_domain_scanned_vids = current_vids
+            return
+
+        # Check if there are multiple source prefixes (cross-domain only makes sense then)
+        prefixes = set()
+        for vid in current_vids:
+            prefix = _source_prefix(vid)
+            if prefix:
+                prefixes.add(prefix)
+            if len(prefixes) >= 2:
+                break
+
+        if len(prefixes) < 2:
+            self._cross_domain_scanned_vids = current_vids
+            return
+
+        # Build a sub-graph containing only new vertices + their 1-hop neighbors
+        # to limit the comparison scope
+        scope_vids: set[str] = set(new_vids)
+        for vid in new_vids:
+            for nb in self.k_active.neighbors(vid):
+                scope_vids.add(nb)
+
+        scope_vertices: dict[str, Vertex] = {}
+        for vid in scope_vids:
+            v = self.k_active.vertex(vid)
+            if v:
+                scope_vertices[v.id] = v
+        scope_edges: list[Edge] = [
+            e for e in self.k_active.active_edges()
+            if e.source in scope_vids and e.target in scope_vids
+        ]
+        scope_graph = Graph(scope_vertices, scope_edges)
+
+        candidates = detect_cross_domain_edges(scope_graph, min_score=0.15)
+
+        # Inject into K_active (max 10 per crystallization to avoid flooding)
+        existing_edges = {
+            (e.source, e.target, e.edge_type.value)
+            for e in self.k_active.edges
+        }
+        added = 0
+        for edge, _score in candidates:
+            if added >= 10:
+                break
+            key = (edge.source, edge.target, edge.edge_type.value)
+            if key not in existing_edges:
+                if (self.k_active.vertex(edge.source) is not None
+                        and self.k_active.vertex(edge.target) is not None):
+                    self.k_active = self.k_active.add_edge(edge)
+                    self.k_full = self.k_full.add_edge(edge)
+                    existing_edges.add(key)
+                    added += 1
+                    if self._persist:
+                        self._persist.append_edge(edge)
+
+        self._cross_domain_scanned_vids = current_vids
 
     def _inject(self, sub_graph: Graph) -> None:
         """Inject a sub-graph into K_active. Merge by vertex ID."""
@@ -413,10 +686,14 @@ class TopologicalDaemon:
             "edges_active": len(self.k_active.active_edges()),
             "beta_1": compute_beta_1(self.k_active),
             "settled_cycles": len(self.settlement.settled_cycles),
+            "crystallization_count": self._crystallization_count,
         }
 
     def close(self):
         """Close persistence handle if open."""
+        if hasattr(self, '_checkpoint'):
+            self._checkpoint.save_state(extract_daemon_state(self))
+            self._checkpoint.close()
         if self._persist:
             self._persist.close()
 
@@ -426,26 +703,32 @@ class TopologicalDaemon:
 # ---------------------------------------------------------------------------
 
 def _build_graph_from_chapters() -> tuple[Graph, dict[str, str]]:
-    """Build the Hegel Phenomenology graph from chapter functions."""
+    """Build the Hegel Phenomenology graph from chapter functions.
+
+    Batch-constructs the Graph to avoid O(n^2) from iterative add_vertex/add_edge.
+    """
     from experiment_phenomenology_full import ALL_CHAPTERS
 
-    graph = Graph()
+    all_vertices: dict[str, Vertex] = {}
+    all_edges: list[Edge] = []
+    existing_edge_keys: set[tuple[str, str, EdgeType]] = set()
+
     for ch_fn in ALL_CHAPTERS:
         _, ch_vertices, ch_edges = ch_fn()
-        existing_vids = set(graph.vertices.keys())
         for v in ch_vertices:
-            if v.id not in existing_vids:
-                graph = graph.add_vertex(v)
-        existing_edges = {(e.source, e.target, e.edge_type) for e in graph.edges}
+            if v.id not in all_vertices:
+                all_vertices[v.id] = v
         for e in ch_edges:
             key = (e.source, e.target, e.edge_type)
-            if key not in existing_edges:
-                if e.source in graph.vertices and e.target in graph.vertices:
-                    graph = graph.add_edge(e)
-                    existing_edges.add(key)
+            if key not in existing_edge_keys:
+                if e.source in all_vertices and e.target in all_vertices:
+                    all_edges.append(e)
+                    existing_edge_keys.add(key)
+
+    graph = Graph(all_vertices, all_edges)
 
     concept_names = {}
-    for vid, v in graph.vertices.items():
+    for vid, v in all_vertices.items():
         if v.content:
             concept_names[vid] = v.content
 
@@ -460,9 +743,13 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="TopologicalDaemon — autonomous topological entity")
     parser.add_argument("--load", type=str, help="Load graph from JSON file (graph_data key)")
     parser.add_argument("--seed", type=str, help="Seed text file for phi_L processing")
-    parser.add_argument("--steps", type=int, default=200, help="Number of steps to run")
     parser.add_argument("--interactive", action="store_true", help="Interactive mode (traverse + dialogue)")
     parser.add_argument("--autonomous", action="store_true", help="Full autonomous mode (traverse + gap detect + feed)")
+    parser.add_argument("--serve", action="store_true", help="Start HTTP/WS API server for Dashboard")
+    parser.add_argument("--multiproc", action="store_true",
+                        help="Multiprocess mode: traversal in subprocess, HTTP/WS in main (solves GIL blocking)")
+    parser.add_argument("--port", type=int, default=8080, help="HTTP API port (with --serve)")
+    parser.add_argument("--ws-port", type=int, default=8765, help="WebSocket port (with --serve)")
     parser.add_argument("--output", type=str, help="Output file for test results")
     parser.add_argument("--hegel", action="store_true", help="Build from Hegel Phenomenology chapters")
     parser.add_argument("--persist", type=str, nargs="?", const=str(DEFAULT_PATH),
@@ -472,12 +759,22 @@ def main() -> None:
     script_dir = os.path.dirname(os.path.abspath(__file__))
     os.chdir(script_dir)
 
+    # Load .env if available (API keys for auto-feed)
+    env_path = os.path.join(script_dir, ".env")
+    if os.path.exists(env_path):
+        with open(env_path, "r", encoding="utf-8") as ef:
+            for line in ef:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    key, _, value = line.partition("=")
+                    os.environ.setdefault(key.strip(), value.strip())
+
     # Build graph
     graph = None
     concept_names: dict[str, str] = {}
 
     if args.load:
-        load_path = args.load
+        load_path = os.path.expanduser(args.load)
         if not os.path.isabs(load_path):
             load_path = os.path.join(script_dir, load_path)
         with open(load_path, "r", encoding="utf-8") as f:
@@ -544,33 +841,35 @@ def main() -> None:
     daemon.register_callback("on_gap", on_gap)
 
     if args.interactive:
-        _run_interactive(daemon, args.steps)
+        _run_interactive(daemon)
+    elif args.serve:
+        _run_serve(daemon, args.port, args.ws_port, args.autonomous,
+                   getattr(args, 'multiproc', False), graph)
     elif args.autonomous:
-        _run_autonomous(daemon, args.steps, event_lines, gap_records, args.output)
+        _run_autonomous(daemon, event_lines, gap_records, args.output)
     else:
-        _run_standard(daemon, args.steps, event_lines, gap_records, args.output)
+        _run_standard(daemon, event_lines, gap_records, args.output)
 
     daemon.close()
 
 
 def _run_standard(
     daemon: TopologicalDaemon,
-    steps: int,
     event_lines: list[str],
     gap_records: list[dict],
     output_path: str | None,
 ) -> None:
-    """Standard mode: run N steps, output results."""
+    """Standard mode: run indefinitely (self-terminating via crystallization)."""
     n_verts = len(daemon.k_active.active_vertex_ids())
     n_edges = len(daemon.k_active.active_edges())
     beta_1 = compute_beta_1(daemon.k_active)
 
     print(f"TopologicalDaemon starting", file=sys.stderr)
     print(f"  Complex: {n_verts} vertices, {n_edges} edges, beta_1={beta_1}", file=sys.stderr)
-    print(f"  Running {steps} steps...", file=sys.stderr)
+    print(f"  Running (self-driven, no step limit)...", file=sys.stderr)
 
     t0 = time.monotonic()
-    daemon.run(max_steps=steps)
+    daemon.run()
     elapsed = time.monotonic() - t0
 
     status = daemon.status()
@@ -581,7 +880,7 @@ def _run_standard(
         "=" * 70,
         "",
         f"Initial state: {n_verts} vertices, {n_edges} edges, beta_1={beta_1}",
-        f"Steps run: {steps}",
+        f"Steps run: {status['total_steps']}",
         f"Time elapsed: {elapsed:.2f}s",
         "",
         "--- Final Status ---",
@@ -591,6 +890,7 @@ def _run_standard(
         f"  Settled cycles: {status['settled_cycles']}",
         f"  Total events: {status['total_events']}",
         f"  Total gaps detected: {status['total_gaps_detected']}",
+        f"  Crystallizations: {status['crystallization_count']}",
         "",
     ]
 
@@ -620,8 +920,8 @@ def _run_standard(
         print(f"Report saved to {output_path}", file=sys.stderr)
 
 
-def _run_interactive(daemon: TopologicalDaemon, steps_per_round: int) -> None:
-    """Interactive mode: traverse N steps, then accept questions."""
+def _run_interactive(daemon: TopologicalDaemon) -> None:
+    """Interactive mode: user-driven traversal + questions."""
     n_verts = len(daemon.k_active.active_vertex_ids())
     n_edges = len(daemon.k_active.active_edges())
     beta_1 = compute_beta_1(daemon.k_active)
@@ -644,7 +944,7 @@ def _run_interactive(daemon: TopologicalDaemon, steps_per_round: int) -> None:
 
         if user_input.lower().startswith("traverse"):
             parts = user_input.split()
-            n = int(parts[1]) if len(parts) > 1 else steps_per_round
+            n = int(parts[1]) if len(parts) > 1 else 100
             print(f"Traversing {n} steps...")
             daemon.run(max_steps=n)
             status = daemon.status()
@@ -660,29 +960,104 @@ def _run_interactive(daemon: TopologicalDaemon, steps_per_round: int) -> None:
 
 def _run_autonomous(
     daemon: TopologicalDaemon,
-    steps: int,
     event_lines: list[str],
     gap_records: list[dict],
     output_path: str | None,
 ) -> None:
-    """Autonomous mode: traverse + gap detect + auto-feed (mocked)."""
-    # In autonomous mode, gap detection triggers mock feed
+    """Autonomous mode: traverse + gap detect + real auto-feed."""
+    from auto_feed import feed_from_gap
+
     feed_log: list[str] = []
 
     def on_gap_feed(gap: GapInfo) -> None:
-        # Mock feed: generate a simple sentence about the gap concept
-        mock_text = f"{gap.content} is a concept that requires further investigation."
-        daemon.feed(mock_text)
-        feed_log.append(f"Fed mock text for gap '{gap.content}'")
+        record = feed_from_gap(gap, daemon)
+        feed_log.append(
+            f"query='{gap.content}' source={record.source} "
+            f"verdict={record.verdict} accepted={record.accepted} "
+            f"match_rate={record.match_rate:.3f}"
+        )
+        print(
+            f"  [auto-feed] '{gap.content}' -> {record.verdict} "
+            f"(source={record.source}, accepted={record.accepted})",
+            file=sys.stderr,
+        )
 
     daemon.register_callback("on_gap", on_gap_feed)
 
-    _run_standard(daemon, steps, event_lines, gap_records, output_path)
+    _run_standard(daemon, event_lines, gap_records, output_path)
 
     if feed_log:
         print(f"\n--- Auto-Feed Log ({len(feed_log)}) ---")
         for line in feed_log:
             print(f"  {line}")
+
+
+def _run_serve(
+    daemon: TopologicalDaemon,
+    port: int,
+    ws_port: int,
+    autonomous: bool = False,
+    multiproc: bool = False,
+    graph: Graph | None = None,
+) -> None:
+    """Serve mode: HTTP/WS API + daemon running forever.
+
+    If multiproc=True, uses multiprocess architecture: traversal in subprocess,
+    HTTP/WS in main process. This eliminates GIL contention on large graphs.
+    """
+    if multiproc:
+        # Multiprocess mode: close single-process daemon and delegate
+        daemon.close()
+
+        graph_json = None
+        if graph is not None:
+            graph_json = graph_to_dict(graph)
+
+        from daemon_multiproc import start_multiprocess_daemon
+        print(f"TopologicalDaemon API Server (multiprocess mode)", file=sys.stderr)
+        start_multiprocess_daemon(
+            graph_json=graph_json,
+            port=port,
+            ws_port=ws_port,
+            autonomous=autonomous,
+        )
+        return
+
+    from daemon_server import start_http_server, start_ws_server, bridge_daemon_to_ws
+
+    n_verts = len(daemon.k_active.active_vertex_ids())
+    n_edges = len(daemon.k_active.active_edges())
+    beta_1 = compute_beta_1(daemon.k_active)
+
+    print(f"TopologicalDaemon API Server", file=sys.stderr)
+    print(f"  Complex: {n_verts} vertices, {n_edges} edges, beta_1={beta_1}", file=sys.stderr)
+
+    # Start HTTP + WS servers
+    start_http_server(daemon, port)
+    start_ws_server(ws_port)
+    bridge_daemon_to_ws(daemon)
+
+    # If autonomous, also register auto-feed
+    if autonomous:
+        from auto_feed import feed_from_gap
+
+        def on_gap_feed(gap: GapInfo) -> None:
+            record = feed_from_gap(gap, daemon)
+            print(
+                f"  [auto-feed] '{gap.content}' -> {record.verdict} "
+                f"(source={record.source}, accepted={record.accepted})",
+                file=sys.stderr,
+            )
+
+        daemon.register_callback("on_gap", on_gap_feed)
+
+    print(f"\n  Daemon running. Ctrl+C to stop.", file=sys.stderr)
+
+    # Run daemon forever in main thread
+    try:
+        daemon.run()
+    except KeyboardInterrupt:
+        print("\nShutting down.", file=sys.stderr)
 
 
 if __name__ == "__main__":
