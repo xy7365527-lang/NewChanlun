@@ -73,3 +73,18 @@ Operations log:        79 entries
 ======================================================================
 RESULT: DAEMON DEPLOYED SUCCESSFULLY — ALL CHECKS PASSED
 ======================================================================
+
+--- Deployment Scripts ---
+deploy.py   Cross-platform Python (primary). Usage:
+            python deploy.py                    # Full deploy, 5000 steps
+            python deploy.py --steps 200        # Short run
+            python deploy.py --check-only       # Checks only, no daemon launch
+
+deploy.sh   Linux/Mac wrapper. chmod +x deploy.sh && ./deploy.sh
+
+deploy.bat  Windows wrapper. deploy.bat
+
+All three tested and verified on Windows 11 + Python 3.14.3.
+deploy.py --check-only: all steps pass (OS detect, deps, dirs, .env, seed, 22/22 tests)
+deploy.py --steps 50:   daemon launches in background, PID file written, log output confirmed
+======================================================================

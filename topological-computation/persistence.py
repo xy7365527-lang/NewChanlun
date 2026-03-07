@@ -63,6 +63,10 @@ class PersistentKFull:
             "edge_type": edge.edge_type.value,
             "created_at": edge.created_at,
         }
+        if edge.surface is not None:
+            record["surface"] = edge.surface
+        if edge.context is not None:
+            record["context"] = edge.context
         self._write(record)
 
     def append_operation(self, step: int, operation: str, details: dict):
@@ -150,6 +154,8 @@ class PersistentKFull:
                         target=record["target"],
                         edge_type=EdgeType(record["edge_type"]),
                         created_at=record.get("created_at", 0),
+                        surface=record.get("surface"),
+                        context=record.get("context"),
                     )
                     graph = graph.add_edge(e)
 

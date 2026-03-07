@@ -21,7 +21,7 @@ from typing import Optional
 
 from engine import (
     Graph, Vertex, Edge, VertexStatus, EdgeType,
-    SettlementTracker, OperationResult,
+    SettlementTracker, SublationRecord, OperationResult,
     compute_beta_1, _connected_components,
     fold, negate, sublate,
 )
@@ -231,8 +231,37 @@ class FCriterionEngine:
     ) -> tuple[str, bool]:
         """Execute the operation. Returns (operation_name, blocked)."""
         if enc_type == "sublation":
+            # Build synthesis content from source vertices + negation edge
+            v_a = self.k_active.vertex(target_a)
+            v_b = self.k_active.vertex(target_b)
+            content_a = (v_a.content or target_a) if v_a else target_a
+            content_b = (v_b.content or target_b) if v_b else target_b
+
+            negation_surface = ""
+            for e in self.k_active.active_edges():
+                if e.edge_type == EdgeType.NEGATION and (
+                    (e.source == target_a and e.target == target_b)
+                    or (e.source == target_b and e.target == target_a)
+                ):
+                    negation_surface = e.surface or ""
+                    break
+
+            contradiction = negation_surface if negation_surface else f"{content_a} vs {content_b}"
+            synthesis_content = f"[{content_a}] + [{content_b}] → sublated via: {contradiction}"
+
+            record = SublationRecord(
+                source_a_id=target_a,
+                source_b_id=target_b,
+                contradiction=contradiction,
+                negated=f"incompatibility between {content_a} and {content_b}",
+                preserved=f"{content_a}; {content_b}",
+                elevated=synthesis_content,
+            )
+
             result = sublate(
                 self.k_active, target_a, target_b, self.step, self.settlement,
+                synthesis_content=synthesis_content,
+                sublation_record=record,
             )
             if result.blocked:
                 self.settlement.record_blocked(

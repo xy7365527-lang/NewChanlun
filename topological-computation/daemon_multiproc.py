@@ -237,15 +237,14 @@ def _update_status(daemon, status_dict: dict) -> None:
 
 
 def _update_topology(daemon, topology_cache: dict, topology_json_fn) -> None:
-    """Rebuild full topology snapshot — now fast thanks to Graph perf fix."""
+    """Rebuild topology snapshot. Skip f-value computation for speed."""
     try:
-        # Use the full topology_json function — no shortcuts
-        topo = topology_json_fn(daemon, full=True)
+        # Use skeleton (not full) to avoid blocking traversal with f-value computation
+        topo = topology_json_fn(daemon)
         topology_cache["json"] = json.dumps(topo, ensure_ascii=False)
         topology_cache["_updated_at"] = time.time()
     except Exception:
         pass
-        topology_cache["json"] = json.dumps(topo, ensure_ascii=False)
         topology_cache["_updated_at"] = time.time()
     except Exception:
         pass

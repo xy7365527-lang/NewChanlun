@@ -1,32 +1,32 @@
 TOPOLOGICAL COMPUTATION — PERSISTENCE TEST REPORT
-Date: 2026-03-06 19:46:46
-Temp dir: C:\Users\hanju\AppData\Local\Temp\topo_persist_test_bmru1has
+Date: 2026-03-07 06:32:50
+Temp dir: C:\Users\hanju\AppData\Local\Temp\topo_persist_test_h8a66e0u
 
 ============================================================
 TEST 1: Write 100 steps, check JSONL
 ============================================================
 Steps run: 100
-Time: 0.006s
-JSONL lines: 20
-JSONL size: 2017 bytes
+Time: 5.093s
+JSONL lines: 51
+JSONL size: 6507 bytes
 Final beta_1: 3
-Events: 2
-Settled cycles: 1
-PASS: line_count (20) >= initial records (18)
+Events: 1658
+Settled cycles: 16
+PASS: line_count (51) >= initial records (18)
 
 ============================================================
 TEST 2: Crash at 50 steps, recover, verify consistency
 ============================================================
 Before crash (50 steps):
-  beta_1: 4
-  vertices: 10
-  edges (full): 13
-  events: 2
+  beta_1: 3
+  vertices: 8
+  edges (full): 10
+  events: 1675
 After recovery:
   beta_1: 3
   vertices: 8
   edges (full): 10
-  operations log: 2 records
+  operations log: 17 records
 PASS: all initial vertices recovered
 PASS: edge count (10) >= initial (10)
 PASS: beta_1 (3) >= 0
