@@ -34,6 +34,7 @@ from daemon_api import (
     status_json, topology_json, query_json, narrative_json,
     gaps_json, operations_json, persistence_json, step_ws_message,
     present_json, expression_pressure_ws_message, _count_unreported,
+    instances_json,
 )
 
 
@@ -118,10 +119,12 @@ class DaemonHTTPHandler(BaseHTTPRequestHandler):
             self._json_response(operations_json(self.daemon))
         elif path == "/persistence":
             self._json_response(persistence_json(self.daemon))
+        elif path == "/instances":
+            self._json_response(instances_json(self.daemon))
         else:
             self._json_response({"error": "not found", "endpoints": [
                 "/status", "/topology", "/query", "/narrative", "/gaps", "/operations",
-                "/present",
+                "/present", "/instances",
             ]}, status=404)
 
     def do_POST(self) -> None:
@@ -315,6 +318,9 @@ def bridge_daemon_to_ws(daemon: TopologicalDaemon) -> None:
     """Register daemon callbacks that broadcast to WebSocket clients."""
     from daemon import GapInfo
 
+    # Track last-seen peer positions to detect changes and push updates
+    _last_peer_snapshot: dict[str, str] = {}
+
     def on_event(log, narrative: str) -> None:
         # Always push step message
         msg = step_ws_message(log, daemon)
@@ -324,6 +330,19 @@ def bridge_daemon_to_ws(daemon: TopologicalDaemon) -> None:
         pressure_msg = expression_pressure_ws_message(daemon)
         if pressure_msg.get("count", 0) > 0 or "text" in pressure_msg:
             _hub.broadcast(pressure_msg)
+        # Push peer_position updates when positions change
+        peer_positions: dict[str, dict] = getattr(daemon, 'peer_positions', {})
+        for inst_id, pos in peer_positions.items():
+            label = pos.get("position_label", "")
+            if _last_peer_snapshot.get(inst_id) != label:
+                _last_peer_snapshot[inst_id] = label
+                _hub.broadcast({
+                    "type": "peer_position",
+                    "instance": inst_id,
+                    "position_label": label,
+                    "step": pos.get("step", 0),
+                    "timestamp": pos.get("timestamp", 0),
+                })
 
     def on_gap(gap: GapInfo) -> None:
         _hub.broadcast({

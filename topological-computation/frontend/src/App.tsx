@@ -1,10 +1,9 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
-import { T, FONT, STATUS_POLL_MS, DEFAULT_INSTANCES } from "./tokens";
+import { T, FONT, STATUS_POLL_MS } from "./tokens";
 import { useStore } from "./hooks/useStore";
 import { useDaemonWS } from "./hooks/useDaemonWS";
-import { useMultiInstanceWS, appendTraversalHistory } from "./hooks/useMultiInstanceWS";
 import { daemonAPI } from "./hooks/useDaemonAPI";
-import type { TopologyNode, ChatMessage, InstanceConfig, InstanceState, WsMessage, WsStepMessage } from "./types";
+import type { TopologyNode, ChatMessage } from "./types";
 
 import { MetricsBar } from "./components/MetricsBar";
 import { Beta1Curve } from "./components/Beta1Curve";
@@ -16,7 +15,6 @@ import { TabSwitcher } from "./components/TabSwitcher";
 import { CodePanel } from "./components/CodePanel";
 import { QueryDetail } from "./components/QueryDetail";
 import { TopologyViewSwitcher } from "./views/TopologyViewSwitcher";
-import { InstancePanel } from "./components/InstancePanel";
 import type { InstanceTraversal } from "./components/TopologyView";
 
 const TABS = [
@@ -48,63 +46,11 @@ export default function App() {
   const setQueryResult = useStore((s) => s.setQueryResult);
   const addMessage = useStore((s) => s.addMessage);
 
-  // ── Multi-instance config ───────────────────────────────────
-  const [instances] = useState<InstanceConfig[]>(DEFAULT_INSTANCES);
-  const [instanceStates, setInstanceStates] = useState<Map<string, InstanceState>>(() => {
-    const m = new Map<string, InstanceState>();
-    for (const inst of DEFAULT_INSTANCES) {
-      m.set(inst.id, {
-        id: inst.id,
-        connected: false,
-        currentPositionLabel: "",
-        steps: 0,
-        settled: 0,
-        beta1: 0,
-        visible: true,
-        traversalHistory: [],
-      });
-    }
-    return m;
-  });
+  // ── Peer positions from SharedLayer (scheme C) ────────────────
+  const peersPositions = useStore((s) => s.peersPositions);
 
-  // ── Connect primary WS (for store: narrative, gaps, etc.) ───
+  // ── Connect primary WS (for store: narrative, gaps, peer_position, etc.) ───
   useDaemonWS();
-
-  // ── Multi-instance WS callbacks ─────────────────────────────
-  const handleInstanceStateChange = useCallback((instanceId: string, partial: Partial<InstanceState>) => {
-    setInstanceStates((prev) => {
-      const existing = prev.get(instanceId);
-      if (!existing) return prev;
-      const next = new Map(prev);
-      next.set(instanceId, { ...existing, ...partial });
-      return next;
-    });
-  }, []);
-
-  const handleInstanceWsBatch = useCallback((instanceId: string, msgs: WsMessage[]) => {
-    setInstanceStates((prev) => {
-      const existing = prev.get(instanceId);
-      if (!existing) return prev;
-      const next = new Map(prev);
-      const newHistory = appendTraversalHistory(existing.traversalHistory, msgs);
-
-      // Extract settled count from step messages if available
-      let settled = existing.settled;
-      for (const msg of msgs) {
-        if (msg.type === "step" && (msg as WsStepMessage).crystallized) {
-          settled = existing.settled; // crystallized flag doesn't directly give settled count
-        }
-      }
-
-      next.set(instanceId, { ...existing, traversalHistory: newHistory, settled });
-      return next;
-    });
-  }, []);
-
-  useMultiInstanceWS(instances, {
-    onStateChange: handleInstanceStateChange,
-    onWsBatch: handleInstanceWsBatch,
-  });
 
   // ── Local UI state ───────────────────────────────────────────
   const [activeTab, setActiveTab] = useState("chat");
@@ -302,42 +248,28 @@ export default function App() {
     }
   }, [pending, addMessage]);
 
-  // ── Toggle instance visibility ───────────────────────────────
-  const handleToggleInstanceVisibility = useCallback((instanceId: string) => {
-    setInstanceStates((prev) => {
-      const existing = prev.get(instanceId);
-      if (!existing) return prev;
-      const next = new Map(prev);
-      next.set(instanceId, { ...existing, visible: !existing.visible });
-      return next;
-    });
-  }, []);
-
-  // ── Build instance traversals for TopologyView ───────────────
+  // ── Build instance traversals for TopologyView (from peer positions) ──
   const instanceTraversals: InstanceTraversal[] = useMemo(() => {
     const result: InstanceTraversal[] = [];
-    for (const inst of instances) {
-      const state = instanceStates.get(inst.id);
-      if (!state || !state.visible || !state.connected) continue;
-      if (!state.currentPositionLabel) continue;
+    for (const [instanceId, peer] of Object.entries(peersPositions)) {
+      if (!peer.online || !peer.posLabel) continue;
 
       // Find vertex ID by label from topology
       const vertexId = topology?.nodes.find(
-        (n) => n.label === state.currentPositionLabel
+        (n) => n.label === peer.posLabel
       )?.id;
       if (!vertexId) continue;
 
-      // History is already vertex IDs from WS position field
       result.push({
-        instanceId: inst.id,
-        instanceName: inst.name,
+        instanceId,
+        instanceName: instanceId,
         position: vertexId,
-        color: inst.color,
-        history: state.traversalHistory,
+        color: peer.color,
+        history: [],
       });
     }
     return result;
-  }, [instances, instanceStates, topology]);
+  }, [peersPositions, topology]);
 
   // ── Fallback traversal for single-instance mode ──────────────
   const traversalVertexId = topology?.nodes.find(
@@ -382,11 +314,6 @@ export default function App() {
               narrative={narrative}
             />
           </div>
-          <InstancePanel
-            instances={instances}
-            states={instanceStates}
-            onToggleVisibility={handleToggleInstanceVisibility}
-          />
           <Beta1Curve history={beta1History} />
           <OperationsSummary operations={operations} />
         </div>
