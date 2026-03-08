@@ -25,6 +25,9 @@ No changes to engine.py, traversal.py, or daemon.py.
 
 from __future__ import annotations
 
+import sys
+sys.dont_write_bytecode = True  # 禁止 pyc 缓存
+
 import json
 import multiprocessing
 import os
@@ -210,7 +213,35 @@ def _traversal_worker(
         except Exception:
             pass
 
+    # on_step: push step message every N steps (throttled for WS performance)
+    _step_ws_counter = [0]
+    def on_step(log) -> None:
+        _step_ws_counter[0] += 1
+        if _step_ws_counter[0] % 50 != 0:
+            return  # 每50步推一次，避免WS洪水
+        try:
+            msg = step_ws_message(log, daemon)
+            event_queue.put_nowait(msg)
+        except Exception as exc:
+            print(f"[on_step] error: {exc}", file=sys.stderr)
+            # Push peer_position updates when positions change
+            peer_positions = getattr(daemon, 'peer_positions', {})
+            for inst_id, pos in peer_positions.items():
+                label = pos.get("position_label", "")
+                if _last_peer_snapshot.get(inst_id) != label:
+                    _last_peer_snapshot[inst_id] = label
+                    event_queue.put_nowait({
+                        "type": "peer_position",
+                        "instance": inst_id,
+                        "position_label": label,
+                        "step": pos.get("step", 0),
+                        "timestamp": pos.get("timestamp", 0),
+                    })
+        except Exception:
+            pass
+
     daemon.register_callback("on_event", on_event)
+    daemon.register_callback("on_step", on_step)
     daemon.register_callback("on_gap", on_gap)
     daemon.register_callback("on_feed", on_feed)
 

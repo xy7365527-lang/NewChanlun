@@ -905,7 +905,14 @@ def sublate(
         for e in graph.active_edges()
     )
     if not has_negation:
-        raise ValueError(f"No negation edge between {thesis} and {antithesis}")
+        # Negation edge may have been removed between detection and execution (race condition).
+        # Return a blocked result instead of crashing.
+        return SublateResult(
+            graph=graph,
+            new_vertex="",
+            blocked=True,
+            blocked_by=frozenset(),
+        )
 
     # Gate 2 — Generative: synthesis content must be articulable
     if not synthesis_content or not synthesis_content.strip():
