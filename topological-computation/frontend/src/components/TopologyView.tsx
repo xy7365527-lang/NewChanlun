@@ -15,22 +15,41 @@ export function TopologyView({
 }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const simRef = useRef<d3.Simulation<TopologyNode, TopologyLink> | null>(null);
+  const transformRef = useRef<d3.ZoomTransform>(d3.zoomIdentity);
+  const nodePositionsRef = useRef<Map<string, { x: number; y: number }>>(new Map());
   const [hoveredNode, setHoveredNode] = useState<TopologyNode | null>(null);
 
   useEffect(() => {
     if (!svgRef.current || !data) return;
 
     const svg = d3.select<SVGSVGElement, unknown>(svgRef.current);
+
+    // Save current node positions before teardown
+    if (simRef.current) {
+      const posMap = new Map<string, { x: number; y: number }>();
+      for (const n of simRef.current.nodes()) {
+        if (n.x != null && n.y != null) {
+          posMap.set(n.id, { x: n.x, y: n.y });
+        }
+      }
+      nodePositionsRef.current = posMap;
+    }
+
     svg.selectAll("*").remove();
 
     const width = svgRef.current.clientWidth || 800;
     const height = svgRef.current.clientHeight || 600;
+    const hasOldPositions = nodePositionsRef.current.size > 0;
 
-    // Mark traversal node
-    const nodes: TopologyNode[] = data.nodes.map((n) => ({
-      ...n,
-      isTraversal: n.id === traversalPosition,
-    }));
+    // Mark traversal node + restore previous positions
+    const nodes: TopologyNode[] = data.nodes.map((n) => {
+      const prev = nodePositionsRef.current.get(n.id);
+      return {
+        ...n,
+        isTraversal: n.id === traversalPosition,
+        ...(prev ? { x: prev.x, y: prev.y } : {}),
+      };
+    });
 
     // Deep-copy links because d3 mutates source/target from string → object
     const links: TopologyLink[] = data.links.map((l) => ({
@@ -66,8 +85,16 @@ export function TopologyView({
 
     const zoom = d3.zoom<SVGSVGElement, unknown>()
       .scaleExtent([0.2, 8])
-      .on("zoom", (event) => g.attr("transform", event.transform.toString()));
+      .on("zoom", (event) => {
+        transformRef.current = event.transform;
+        g.attr("transform", event.transform.toString());
+      });
     svg.call(zoom);
+
+    // Restore previous zoom transform
+    if (transformRef.current !== d3.zoomIdentity) {
+      svg.call(zoom.transform, transformRef.current);
+    }
 
     // ── Links ─────────────────────────────────────────────────
     const link = g.append("g")
@@ -187,6 +214,7 @@ export function TopologyView({
       .force("charge", d3.forceManyBody().strength(-200).distanceMax(400))
       .force("center", d3.forceCenter(width / 2, height / 2).strength(0.05))
       .force("collision", d3.forceCollide(16))
+      .alpha(hasOldPositions ? 0.1 : 1)
       .on("tick", () => {
         link
           .attr("x1", (d) => (d.source as TopologyNode).x ?? 0)

@@ -41,11 +41,22 @@ from traversal import TraversalEngine, StepLog
 from concept_registry import Registry, _tokenize
 from psi_L_narrative import generate_narrative, _ENCOUNTER_OPS
 from persistence import PersistentKFull, DEFAULT_PATH
-from encounter_log import EncounterLog
+from encounter_log import (
+    EncounterLog,
+    HISTORY_DOMAIN_PREFIX,
+    inject_encounter_history_node,
+    inject_settlement_history_node,
+    inject_settlement_nachtraeglichkeit_edge,
+    rebuild_history_from_jsonl,
+)
 from cross_domain import detect_cross_domain_edges, _source_prefix
 from traversal_checkpoint import TraversalCheckpoint, extract_daemon_state, restore_daemon_state
 from file_lock import get_instance_id
 from signifier_net import SNet
+from snet_activation import (
+    SNetActivation, InternalSpeechFragment, EdgeSuggestion,
+    _build_concept_to_signifier, _build_signifier_to_concepts,
+)
 from proprioception import (
     collect_metrics, update_proprioception_vertices,
     inject_self_reflexive_norms, check_norms,
@@ -93,7 +104,7 @@ def graph_from_dict(data: dict) -> Graph:
     for vd in data["vertices"]:
         v = Vertex(
             id=vd["id"],
-            status=VertexStatus(vd["status"]),
+            status=VertexStatus(vd.get("status", "active").lower()),
             content=vd.get("content"),
             created_at=vd.get("created_at", 0),
         )
@@ -103,7 +114,7 @@ def graph_from_dict(data: dict) -> Graph:
         e = Edge(
             source=ed["source"],
             target=ed["target"],
-            edge_type=EdgeType(ed["edge_type"]),
+            edge_type=EdgeType(ed.get("edge_type", "dependency").lower()),
             created_at=ed.get("created_at", 0),
             surface=ed.get("surface"),
             context=ed.get("context"),
@@ -185,9 +196,18 @@ class TopologicalDaemon:
 
         if persist_path is not None:
             recovered_graph, _ = PersistentKFull.load(persist_path)
-            if recovered_graph.active_vertex_ids():
-                # Successfully recovered — use recovered graph
-                graph = recovered_graph
+            recovered_vids = recovered_graph.active_vertex_ids()
+            if recovered_vids:
+                # Check if --load graph is significantly larger than recovered
+                loaded_size = len(graph.active_vertex_ids()) if graph is not None else 0
+                recovered_size = len(recovered_vids)
+                if graph is not None and loaded_size > recovered_size * 1.5:
+                    # Loaded graph is much larger — recovered is stale/partial
+                    # Keep loaded graph, will re-baseline persistence below
+                    pass
+                else:
+                    # Successfully recovered — use recovered graph
+                    graph = recovered_graph
             self._persist = PersistentKFull(persist_path)
             self._persist.open()
 
@@ -242,6 +262,9 @@ class TopologicalDaemon:
         # S_net (signifier network) — initialized during _initialize_engine
         self.snet: SNet = SNet()
 
+        # S_net activation (coupled oscillation) — initialized during _initialize_engine
+        self.snet_activation: SNetActivation | None = None
+
         # Initialize if graph is non-empty
         if self.k_active.active_vertex_ids():
             self._initialize_engine()
@@ -263,6 +286,28 @@ class TopologicalDaemon:
             backfilled = self.settlement.backfill_residue(graph=self.k_active)
             if backfilled > 0:
                 print(f"396号 backfill: {backfilled} settled cycles received residue", file=sys.stderr)
+
+        # Rebuild history nodes from JSONL (crash recovery)
+        # History nodes = encounter + settlement records as domain:history vertices in K_active
+        settlement_path = str(self._checkpoint._settlement_path) if hasattr(self._checkpoint, '_settlement_path') else None
+        pre_history_vids = len(self.k_active.active_vertex_ids())
+        self.k_active = rebuild_history_from_jsonl(
+            self.k_active,
+            encounter_log_path=str(self.encounter_log._path),
+            settlement_history_path=settlement_path,
+        )
+        self.k_full = rebuild_history_from_jsonl(
+            self.k_full,
+            encounter_log_path=str(self.encounter_log._path),
+            settlement_history_path=settlement_path,
+        )
+        history_added = len(self.k_active.active_vertex_ids()) - pre_history_vids
+        if history_added > 0:
+            print(f"History rebuild: {history_added} domain:history nodes injected from JSONL", file=sys.stderr)
+            # Re-sync engine if already initialized
+            if self.engine is not None:
+                self.engine.k_active = self.k_active
+                self.engine.k_full = self.k_full
 
     def _initialize_engine(self) -> None:
         """Initialize or reinitialize the traversal engine from current graph."""
@@ -310,6 +355,37 @@ class TopologicalDaemon:
         # Share settlement tracker
         self.engine.settlement = self.settlement
 
+        # S_net coupled oscillation: build activation and attach to engine
+        self._setup_snet_activation()
+
+    def _setup_snet_activation(self) -> None:
+        """Initialize S_net coupled oscillation and attach to traversal engine.
+
+        Builds concept<->signifier mappings from S_net + K_active,
+        creates SNetActivation, and sets it on the engine.
+
+        Graceful degradation: if S_net is empty, no activation is created.
+        """
+        if not self.snet.signifiers or self.engine is None:
+            self.snet_activation = None
+            return
+
+        concept_to_sig = _build_concept_to_signifier(self.snet, self.k_active)
+        sig_to_concepts = _build_signifier_to_concepts(self.snet, self.k_active)
+
+        self.snet_activation = SNetActivation(
+            s_net=self.snet,
+            concept_to_signifier=concept_to_sig,
+            signifier_to_concepts=sig_to_concepts,
+        )
+        self.engine.set_snet_activation(self.snet_activation)
+
+        n_mapped = len(concept_to_sig)
+        print(
+            f"S_net coupling: {n_mapped} concepts mapped to signifiers",
+            file=sys.stderr,
+        )
+
     def _bootstrap_snet(self) -> None:
         """Bootstrap S_net from K_active + surface forms data.
 
@@ -348,9 +424,46 @@ class TopologicalDaemon:
                     f"S_net bootstrap: {n_sigs} signifiers, {n_edges} edges (Layer A+C only, no surface forms data)",
                     file=sys.stderr,
                 )
+
+            # Dictionary ingest: enrich S_net with structured dictionary entries
+            self._ingest_dictionaries()
+
         except Exception as exc:
             print(f"S_net bootstrap failed (graceful degradation): {exc}", file=sys.stderr)
             self.snet = SNet()
+
+    def _ingest_dictionaries(self) -> None:
+        """Ingest dictionary JSONL files into S_net after bootstrap.
+
+        Adds synonym/contrast (paradigmatic) and definition-based (syntagmatic)
+        edges from structured dictionary entries.
+
+        Graceful degradation: if dictionaries dir is missing or ingest fails,
+        S_net remains unchanged.
+        """
+        try:
+            from signifier_net_ingest import ingest_all_dictionaries, format_ingest_report
+
+            script_dir = Path(os.path.dirname(os.path.abspath(__file__)))
+            dict_dir = script_dir / "signifier_net" / "dictionaries"
+
+            if not dict_dir.is_dir():
+                return
+
+            self.snet, all_stats = ingest_all_dictionaries(self.snet, dict_dir)
+
+            # Report
+            if all_stats:
+                report = format_ingest_report(all_stats)
+                print(report, file=sys.stderr)
+                n_sigs = len(self.snet.signifiers)
+                n_edges = len(self.snet.edges)
+                print(
+                    f"S_net after dictionary ingest: {n_sigs} signifiers, {n_edges} edges",
+                    file=sys.stderr,
+                )
+        except Exception as exc:
+            print(f"Dictionary ingest failed (graceful degradation): {exc}", file=sys.stderr)
 
     def register_callback(self, event_type: str, callback) -> None:
         """Register a callback for an event type."""
@@ -464,12 +577,47 @@ class TopologicalDaemon:
                 vid: v.status for vid, v in self.k_active.vertices.items()
             }
 
+        # Track settlement count before step to detect new settlements
+        pre_settled_count = len(self.settlement.settled_cycles)
+
         log = self.engine.run_step()
 
         # Sync graph state from engine
         self.k_active = self.engine.k_active
         self.k_full = self.engine.k_full
         self.terrain = self.engine.terrain
+
+        # Inject settlement history nodes for newly settled cycles
+        new_settled = self.settlement.settled_cycles[pre_settled_count:]
+        for sc in new_settled:
+            self.k_active = inject_settlement_history_node(
+                self.k_active,
+                step=sc.settled_at_step,
+                cycle_edges=sc.edges,
+                residue=sc.residue,
+            )
+            self.k_full = inject_settlement_history_node(
+                self.k_full,
+                step=sc.settled_at_step,
+                cycle_edges=sc.edges,
+                residue=sc.residue,
+            )
+            # Nachträglichkeit edges between settlements
+            if sc.residue:
+                for item in sc.residue:
+                    if item.get("type") == "nachtraeglichkeit":
+                        prior_step = item["data"].get("prior_settled_at")
+                        if prior_step is not None:
+                            self.k_active = inject_settlement_nachtraeglichkeit_edge(
+                                self.k_active, prior_step, sc.settled_at_step, log.step,
+                            )
+                            self.k_full = inject_settlement_nachtraeglichkeit_edge(
+                                self.k_full, prior_step, sc.settled_at_step, log.step,
+                            )
+        if new_settled:
+            # Sync back to engine after history node injection
+            self.engine.k_active = self.k_active
+            self.engine.k_full = self.k_full
 
         # Proprioception: update system self-sensing vertices every 100 steps
         if self.total_steps % 100 == 0:
@@ -568,7 +716,7 @@ class TopologicalDaemon:
             self._fire("on_event", log, narrative)
             self.total_events += 1
 
-            # Write to persistent encounter log
+            # Write to persistent encounter log (JSONL backup)
             pos_name = self.concept_names.get(log.position, log.position)
             encounter_name = self.concept_names.get(log.encounter, log.encounter) if log.encounter else ""
             self.encounter_log.record_encounter(
@@ -579,7 +727,35 @@ class TopologicalDaemon:
                 context=narrative,
                 beta_1_before=log.beta_1_before,
                 beta_1_after=log.beta_1_after,
+                step=log.step,
             )
+
+            # Inject encounter as domain:history node into K_active
+            self.k_active = inject_encounter_history_node(
+                self.k_active,
+                step=log.step,
+                operation=log.operation,
+                concept_a=log.position,
+                concept_b=log.encounter if log.encounter else "",
+                context=narrative,
+                beta_1_before=log.beta_1_before,
+                beta_1_after=log.beta_1_after,
+                f_value=log.f_value,
+            )
+            self.k_full = inject_encounter_history_node(
+                self.k_full,
+                step=log.step,
+                operation=log.operation,
+                concept_a=log.position,
+                concept_b=log.encounter if log.encounter else "",
+                context=narrative,
+                beta_1_before=log.beta_1_before,
+                beta_1_after=log.beta_1_after,
+                f_value=log.f_value,
+            )
+            # Sync back to engine
+            self.engine.k_active = self.k_active
+            self.engine.k_full = self.k_full
 
             # Write to traversal checkpoint encounter log
             self._checkpoint.encounters.record(
@@ -650,6 +826,7 @@ class TopologicalDaemon:
         _META_PREFIXES = (
             "[tension]", "[event]", "[rewrite]", "[meta]", "[audit]",
             "[residue]", "[consensus]", "[domain:code]", "[domain:self]",
+            HISTORY_DOMAIN_PREFIX,
             PROPRIOCEPTION_PREFIX, SELF_NORM_PREFIX,
         )
         # Code syntax fragments produce garbage search queries
@@ -800,17 +977,26 @@ class TopologicalDaemon:
     def status(self) -> dict:
         """Return current status snapshot."""
         active = self.k_active.active_vertex_ids()
-        # Domain distribution
+        # Domain distribution — detect from content tag or id prefix
+        # Known code id prefixes that map to 'code' or 'self' domains
+        _CODE_PREFIXES = frozenset({"topo-self", "NewChanlun", "DeepSeek-V3", "DeepSeek-R1", "MinerU"})
+        _HISTORY_PREFIX = "history:"
         domain_counts: dict[str, int] = {}
         for vid in active:
             v = self.k_active.vertex(vid)
-            if v and v.content and v.content.startswith("[domain:code]"):
-                domain_counts["code"] = domain_counts.get("code", 0) + 1
-            elif v and v.content and v.content.startswith("[domain:"):
-                # Extract domain tag
+            if v and v.content and v.content.startswith("[domain:"):
+                # Extract domain tag from content
                 tag_end = v.content.index("]")
                 domain = v.content[8:tag_end]
                 domain_counts[domain] = domain_counts.get(domain, 0) + 1
+            elif vid.startswith(_HISTORY_PREFIX):
+                domain_counts["history"] = domain_counts.get("history", 0) + 1
+            elif ":" in vid:
+                prefix = vid.split(":")[0]
+                if prefix in _CODE_PREFIXES:
+                    domain_counts["code"] = domain_counts.get("code", 0) + 1
+                else:
+                    domain_counts["core"] = domain_counts.get("core", 0) + 1
             else:
                 domain_counts["core"] = domain_counts.get("core", 0) + 1
         return {

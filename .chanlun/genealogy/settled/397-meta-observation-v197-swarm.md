@@ -3,7 +3,7 @@ id: '397'
 number: 397
 title: "元观察——v197-swarm（自反结构种子+396号residue补全+多实例共享+code_settlement_request桥接+VPS部署）"
 type: meta-rule
-status: 生成态
+status: 已结算
 date: 2026-03-08
 source: meta-observer（二阶观察，v197-swarm 终止阶段触发）
 depends_on:

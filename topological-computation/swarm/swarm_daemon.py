@@ -378,11 +378,19 @@ def _run_once(args, parent_dir: str, logger: logging.Logger) -> dict:
         ipfs_uploader=ipfs_uploader,
     )
 
-    # If persisting with a fresh file (no recovery), write initial graph
+    # If persisting, ensure initial graph is baselined in persistence file
+    # Covers: fresh file OR recovered graph smaller than loaded graph
     if persist_path and daemon._persist and graph is not None:
         from persistence import PersistentKFull
         recovered, _ = PersistentKFull.load(persist_path)
-        if not recovered.active_vertex_ids():
+        recovered_size = len(recovered.active_vertex_ids())
+        loaded_size = len(graph.active_vertex_ids())
+        if recovered_size == 0 or loaded_size > recovered_size * 1.5:
+            daemon._persist.close()
+            with open(persist_path, "w", encoding="utf-8") as _:
+                pass  # truncate
+            daemon._persist = PersistentKFull(persist_path)
+            daemon._persist.open()
             for vid, v in graph.vertices.items():
                 daemon._persist.append_vertex(v)
             for e in graph.edges:
