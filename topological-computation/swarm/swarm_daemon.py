@@ -222,6 +222,14 @@ class SwarmDaemon(TopologicalDaemon):
         # Track blocks written by this instance
         self._blocks_written: int = 0
 
+        # Peer positions: instance_id -> {position_label, step, timestamp}
+        # Updated by CrossInstanceSync when traversal_position blocks are discovered
+        self.peer_positions: dict[str, dict] = {}
+
+        # Traversal position write throttle: track last written position + time
+        self._last_position_write_time: float = 0.0
+        self._last_position_write_label: str = ""
+
         # IPFS background uploader
         self._ipfs_uploader = ipfs_uploader
 
@@ -239,9 +247,56 @@ class SwarmDaemon(TopologicalDaemon):
                 # Write block for significant events (beta_1 change or blocked)
                 self._write_event_block()
 
+        # Write traversal_position block (throttled)
+        self._write_traversal_position()
+
         # Cross-instance sync
         if self.total_steps % self.sync_interval == 0:
             self.syncer.sync()
+
+    def _write_traversal_position(self) -> None:
+        """Write traversal_position block to SharedLayer.
+
+        Throttled: only write when position changes and at least 2s have passed,
+        or when a significant topolological event (fold/negate) occurs on this step.
+        This prevents storage bloat from high-frequency traversal (Gemini v2 陷阱1).
+        """
+        if not self.engine:
+            return
+
+        current_position = self.engine.position
+        v = self.k_active.vertex(current_position)
+        position_label = (v.content if v and v.content else current_position) if v else current_position
+
+        now = time.time()
+        elapsed = now - self._last_position_write_time
+
+        # Check if a significant event happened this step
+        significant_event = False
+        if self.engine.logs:
+            last_log = self.engine.logs[-1]
+            if last_log.delta_beta_1 != 0 or last_log.blocked:
+                significant_event = True
+
+        # Throttle conditions: position changed AND (>2s elapsed OR significant event)
+        same_position = position_label == self._last_position_write_label
+        if same_position and not significant_event:
+            return
+        if not same_position and elapsed < 2.0 and not significant_event:
+            return
+
+        block = {
+            "type": "traversal_position",
+            "instance": self.instance_id,
+            "position_label": position_label,
+            "step": self.total_steps,
+            "timestamp": now,
+        }
+        block_hash = self.shared.write_block(block)
+        self.syncer.known_blocks.add(block_hash)
+
+        self._last_position_write_time = now
+        self._last_position_write_label = position_label
 
     def _write_event_block(self) -> None:
         """Write current graph snapshot as a content-addressed block."""
@@ -299,6 +354,7 @@ class SwarmDaemon(TopologicalDaemon):
         base["blocks_written"] = self._blocks_written
         base["blocks_injected"] = self.syncer.injected_count
         base["known_blocks"] = len(self.syncer.known_blocks)
+        base["peer_positions"] = dict(self.peer_positions)
         if self._ipfs_uploader:
             base["ipfs_uploaded"] = self._ipfs_uploader.uploaded_count
         return base

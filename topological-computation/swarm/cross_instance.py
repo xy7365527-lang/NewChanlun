@@ -53,8 +53,8 @@ class CrossInstanceSync:
         """Scan for new blocks, inject those from other instances.
 
         对每个外来块：
-        1. 注入顶点/边
-        2. 解读操作，将回应写入共享 relations
+        1. traversal_position 块 → 更新 peer_positions（不注入图）
+        2. 其他块 → 注入顶点/边 + 解读
 
         Returns the number of blocks injected.
         """
@@ -64,6 +64,11 @@ class CrossInstanceSync:
             block_hash = block.get("hash", "")
             self.known_blocks.add(block_hash)
             if block.get("instance") != self.instance_id:
+                if block.get("type") == "traversal_position":
+                    # 穿越位置是区块事件，不走注入流程（不修改概念图）
+                    self._update_peer_position(block)
+                    continue
+
                 # Phase 1: 注入
                 self._inject_external_operation(block)
                 injected += 1
@@ -73,6 +78,20 @@ class CrossInstanceSync:
 
         self.injected_count += injected
         return injected
+
+    def _update_peer_position(self, block: dict) -> None:
+        """Update peer_positions from a traversal_position block.
+
+        穿越位置是区块事件（方案C决策），通过 SharedLayer 传递而非前端直连。
+        """
+        instance_id = block.get("instance")
+        if not instance_id or instance_id == self.instance_id:
+            return
+        self.daemon.peer_positions[instance_id] = {
+            "position_label": block.get("position_label", ""),
+            "step": block.get("step", 0),
+            "timestamp": block.get("timestamp", 0),
+        }
 
     def _inject_external_operation(self, block: dict) -> None:
         """Inject an external block's vertices and edges into the local daemon."""

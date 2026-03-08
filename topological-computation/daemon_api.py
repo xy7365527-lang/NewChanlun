@@ -1111,6 +1111,36 @@ def _writeback_to_snet(
     return len(log_entries)
 
 
+def _resonate_from_operator(
+    daemon: TopologicalDaemon,
+    text: str,
+) -> None:
+    """Operator 输入 → S_net 能指提取 → 激活态共振（叠加，不替换）.
+
+    对话的上下文就是 S_net 激活态的累积。operator 的每一句话通过
+    能指链进入 S_net 后，在当前激活态的基础上引起新的共振。
+
+    Graceful degradation：snet_activation 为 None 或文本中无已知能指时不操作。
+    """
+    activation = getattr(daemon, 'snet_activation', None)
+    if activation is None:
+        return
+
+    snet = getattr(daemon, 'snet', None)
+    if not snet or not snet.signifiers:
+        return
+
+    if not text or not text.strip():
+        return
+
+    # 从 operator 文本中提取已知能指
+    known_sigs = list(snet.signifiers.keys())
+    chain = parse_signifier_chain(text, known_signifiers=known_sigs)
+
+    if chain:
+        activation.resonate(chain)
+
+
 def _detect_ruptures_from_text(
     daemon: TopologicalDaemon,
     text: str,
@@ -1258,6 +1288,9 @@ def present_json(daemon: TopologicalDaemon, text: str, session_id: str = "defaul
     if input_class == "dialogue":
         # 回写输入：用户对话文本 → S_net 共现边
         writeback_input_count = _writeback_to_snet(daemon, text, "operator_dialogue")
+
+        # S_net 共振：operator 输入中的能指叠加到当前激活态
+        _resonate_from_operator(daemon, text)
 
         # 外化接缝：内部言语 → LLM → 外部言语
         ext_result = _externalize_speech(daemon, user_text=text)
