@@ -1,0 +1,3432 @@
+{
+  "vertices": [
+    {
+      "id": "epicurus",
+      "status": "active",
+      "content": "Epicurus — freedom of self-consciousness",
+      "created_at": 0
+    },
+    {
+      "id": "democritus",
+      "status": "active",
+      "content": "Democritus — mechanical determinism",
+      "created_at": 0
+    },
+    {
+      "id": "self_consciousness",
+      "status": "active",
+      "content": "self-consciousness",
+      "created_at": 0
+    },
+    {
+      "id": "atom_swerve",
+      "status": "active",
+      "content": "clinamen — the swerve of the atom",
+      "created_at": 0
+    },
+    {
+      "id": "necessity",
+      "status": "active",
+      "content": "necessity / determinism",
+      "created_at": 0
+    },
+    {
+      "id": "contingency",
+      "status": "active",
+      "content": "contingency / freedom",
+      "created_at": 0
+    },
+    {
+      "id": "abstract_individual",
+      "status": "active",
+      "content": "abstract individual",
+      "created_at": 0
+    },
+    {
+      "id": "philosophy",
+      "status": "active",
+      "content": "philosophy as activity of self-consciousness",
+      "created_at": 0
+    },
+    {
+      "id": "religion_critique_early",
+      "status": "active",
+      "content": "critique of religion (early)",
+      "created_at": 0
+    },
+    {
+      "id": "prometheus",
+      "status": "active",
+      "content": "Prometheus — first saint of philosophy",
+      "created_at": 0
+    },
+    {
+      "id": "hegel_state",
+      "status": "active",
+      "content": "Hegel's rational state",
+      "created_at": 0
+    },
+    {
+      "id": "civil_society",
+      "status": "active",
+      "content": "civil society (bürgerliche Gesellschaft)",
+      "created_at": 0
+    },
+    {
+      "id": "state",
+      "status": "active",
+      "content": "the state",
+      "created_at": 0
+    },
+    {
+      "id": "bureaucracy",
+      "status": "active",
+      "content": "bureaucracy",
+      "created_at": 0
+    },
+    {
+      "id": "democracy",
+      "status": "active",
+      "content": "democracy as true resolution",
+      "created_at": 0
+    },
+    {
+      "id": "species_being",
+      "status": "active",
+      "content": "Gattungswesen — species-being",
+      "created_at": 0
+    },
+    {
+      "id": "inversion_method",
+      "status": "active",
+      "content": "inversion of subject and predicate",
+      "created_at": 0
+    },
+    {
+      "id": "political_emancipation",
+      "status": "active",
+      "content": "political emancipation",
+      "created_at": 0
+    },
+    {
+      "id": "real_democracy",
+      "status": "active",
+      "content": "real democracy vs formal state",
+      "created_at": 0
+    },
+    {
+      "id": "alienation",
+      "status": "active",
+      "content": "alienation (Entfremdung)",
+      "created_at": 0
+    },
+    {
+      "id": "human_emancipation",
+      "status": "active",
+      "content": "human emancipation",
+      "created_at": 0
+    },
+    {
+      "id": "rights_of_man",
+      "status": "active",
+      "content": "rights of man (bourgeois rights)",
+      "created_at": 0
+    },
+    {
+      "id": "citoyen",
+      "status": "active",
+      "content": "citoyen — political citizen",
+      "created_at": 0
+    },
+    {
+      "id": "bourgeois_individual",
+      "status": "active",
+      "content": "bourgeois — private individual",
+      "created_at": 0
+    },
+    {
+      "id": "religion_private",
+      "status": "active",
+      "content": "religion as private matter",
+      "created_at": 0
+    },
+    {
+      "id": "money_power",
+      "status": "active",
+      "content": "money as worldly god",
+      "created_at": 0
+    },
+    {
+      "id": "abstract_citizen",
+      "status": "active",
+      "content": "abstract political citizen",
+      "created_at": 0
+    },
+    {
+      "id": "estranged_labor",
+      "status": "active",
+      "content": "estranged/alienated labor",
+      "created_at": 0
+    },
+    {
+      "id": "labor",
+      "status": "active",
+      "content": "labor as life-activity",
+      "created_at": 0
+    },
+    {
+      "id": "private_property",
+      "status": "active",
+      "content": "private property",
+      "created_at": 0
+    },
+    {
+      "id": "objectification",
+      "status": "active",
+      "content": "objectification (Vergegenständlichung)",
+      "created_at": 0
+    },
+    {
+      "id": "communism_early",
+      "status": "active",
+      "content": "communism as positive supersession",
+      "created_at": 0
+    },
+    {
+      "id": "humanism",
+      "status": "active",
+      "content": "real humanism = naturalism",
+      "created_at": 0
+    },
+    {
+      "id": "political_economy_critique",
+      "status": "active",
+      "content": "critique of political economy",
+      "created_at": 0
+    },
+    {
+      "id": "wage_labor_early",
+      "status": "active",
+      "content": "wage labor",
+      "created_at": 0
+    },
+    {
+      "id": "capital_early",
+      "status": "active",
+      "content": "capital (early)",
+      "created_at": 0
+    },
+    {
+      "id": "rent_early",
+      "status": "active",
+      "content": "rent",
+      "created_at": 0
+    },
+    {
+      "id": "sensuous_activity",
+      "status": "active",
+      "content": "sensuous human activity",
+      "created_at": 0
+    },
+    {
+      "id": "nature",
+      "status": "active",
+      "content": "nature as man's inorganic body",
+      "created_at": 0
+    },
+    {
+      "id": "social_revolution",
+      "status": "active",
+      "content": "social revolution vs political revolution",
+      "created_at": 0
+    },
+    {
+      "id": "political_revolution",
+      "status": "active",
+      "content": "political revolution (partial)",
+      "created_at": 0
+    },
+    {
+      "id": "pauperism",
+      "status": "active",
+      "content": "pauperism",
+      "created_at": 0
+    },
+    {
+      "id": "proletariat",
+      "status": "active",
+      "content": "proletariat",
+      "created_at": 0
+    },
+    {
+      "id": "state_impotence",
+      "status": "active",
+      "content": "impotence of the state",
+      "created_at": 0
+    },
+    {
+      "id": "praxis",
+      "status": "active",
+      "content": "revolutionary practical-critical activity",
+      "created_at": 0
+    },
+    {
+      "id": "feuerbach_materialism",
+      "status": "active",
+      "content": "Feuerbach's contemplative materialism",
+      "created_at": 0
+    },
+    {
+      "id": "idealism_active",
+      "status": "active",
+      "content": "idealism — active side",
+      "created_at": 0
+    },
+    {
+      "id": "social_relations",
+      "status": "active",
+      "content": "ensemble of social relations",
+      "created_at": 0
+    },
+    {
+      "id": "interpret_world",
+      "status": "active",
+      "content": "philosophers interpret the world",
+      "created_at": 0
+    },
+    {
+      "id": "change_world",
+      "status": "active",
+      "content": "the point is to change it",
+      "created_at": 0
+    },
+    {
+      "id": "new_materialism",
+      "status": "active",
+      "content": "new materialism (standpoint of social humanity)",
+      "created_at": 0
+    },
+    {
+      "id": "critical_criticism",
+      "status": "active",
+      "content": "critical criticism (Bauer)",
+      "created_at": 0
+    },
+    {
+      "id": "mass",
+      "status": "active",
+      "content": "the mass / real movement",
+      "created_at": 0
+    },
+    {
+      "id": "spirit_matter_split",
+      "status": "active",
+      "content": "spirit vs matter (Young Hegelian)",
+      "created_at": 0
+    },
+    {
+      "id": "real_humanism_hf",
+      "status": "active",
+      "content": "real humanism (Holy Family)",
+      "created_at": 0
+    },
+    {
+      "id": "proletariat_mission",
+      "status": "active",
+      "content": "proletariat's historical mission",
+      "created_at": 0
+    },
+    {
+      "id": "historical_materialism",
+      "status": "active",
+      "content": "materialist conception of history",
+      "created_at": 0
+    },
+    {
+      "id": "mode_of_production",
+      "status": "active",
+      "content": "mode of production (Produktionsweise)",
+      "created_at": 0
+    },
+    {
+      "id": "forces_of_production",
+      "status": "active",
+      "content": "productive forces",
+      "created_at": 0
+    },
+    {
+      "id": "relations_of_production",
+      "status": "active",
+      "content": "relations of production",
+      "created_at": 0
+    },
+    {
+      "id": "division_of_labor",
+      "status": "active",
+      "content": "division of labor",
+      "created_at": 0
+    },
+    {
+      "id": "ideology",
+      "status": "active",
+      "content": "ideology (camera obscura)",
+      "created_at": 0
+    },
+    {
+      "id": "consciousness",
+      "status": "active",
+      "content": "consciousness determined by life",
+      "created_at": 0
+    },
+    {
+      "id": "ruling_ideas",
+      "status": "active",
+      "content": "ruling ideas = ideas of ruling class",
+      "created_at": 0
+    },
+    {
+      "id": "material_conditions",
+      "status": "active",
+      "content": "material conditions of life",
+      "created_at": 0
+    },
+    {
+      "id": "class",
+      "status": "active",
+      "content": "class",
+      "created_at": 0
+    },
+    {
+      "id": "class_struggle",
+      "status": "active",
+      "content": "class struggle",
+      "created_at": 0
+    },
+    {
+      "id": "communism_gi",
+      "status": "active",
+      "content": "communism as real movement",
+      "created_at": 0
+    },
+    {
+      "id": "proudhon",
+      "status": "active",
+      "content": "Proudhon's petty-bourgeois socialism",
+      "created_at": 0
+    },
+    {
+      "id": "use_value",
+      "status": "active",
+      "content": "use-value",
+      "created_at": 0
+    },
+    {
+      "id": "exchange_value",
+      "status": "active",
+      "content": "exchange-value",
+      "created_at": 0
+    },
+    {
+      "id": "value",
+      "status": "active",
+      "content": "value",
+      "created_at": 0
+    },
+    {
+      "id": "constituted_value",
+      "status": "active",
+      "content": "Proudhon's constituted value",
+      "created_at": 0
+    },
+    {
+      "id": "historical_categories",
+      "status": "active",
+      "content": "economic categories are historical",
+      "created_at": 0
+    },
+    {
+      "id": "social_character_production",
+      "status": "active",
+      "content": "social character of production",
+      "created_at": 0
+    },
+    {
+      "id": "wage",
+      "status": "active",
+      "content": "wage",
+      "created_at": 0
+    },
+    {
+      "id": "labor_power_early",
+      "status": "active",
+      "content": "labor as commodity (early)",
+      "created_at": 0
+    },
+    {
+      "id": "nominal_vs_real_wage",
+      "status": "active",
+      "content": "nominal vs real wage",
+      "created_at": 0
+    },
+    {
+      "id": "relative_wage",
+      "status": "active",
+      "content": "relative wage",
+      "created_at": 0
+    },
+    {
+      "id": "capital_relation",
+      "status": "active",
+      "content": "capital as social relation",
+      "created_at": 0
+    },
+    {
+      "id": "bourgeoisie",
+      "status": "active",
+      "content": "bourgeoisie",
+      "created_at": 0
+    },
+    {
+      "id": "bourgeois_epoch",
+      "status": "active",
+      "content": "bourgeois epoch — constant revolution",
+      "created_at": 0
+    },
+    {
+      "id": "world_market",
+      "status": "active",
+      "content": "world market",
+      "created_at": 0
+    },
+    {
+      "id": "communist_party",
+      "status": "active",
+      "content": "communist party",
+      "created_at": 0
+    },
+    {
+      "id": "abolition_property",
+      "status": "active",
+      "content": "abolition of bourgeois property",
+      "created_at": 0
+    },
+    {
+      "id": "ten_measures",
+      "status": "active",
+      "content": "ten transitional measures",
+      "created_at": 0
+    },
+    {
+      "id": "withering_state",
+      "status": "active",
+      "content": "public power loses political character",
+      "created_at": 0
+    },
+    {
+      "id": "free_development",
+      "status": "active",
+      "content": "free development of each = condition for all",
+      "created_at": 0
+    },
+    {
+      "id": "utopian_socialism",
+      "status": "active",
+      "content": "utopian socialism",
+      "created_at": 0
+    },
+    {
+      "id": "history_class_struggle",
+      "status": "active",
+      "content": "all history is history of class struggles",
+      "created_at": 0
+    },
+    {
+      "id": "spectre",
+      "status": "active",
+      "content": "spectre of communism",
+      "created_at": 0
+    },
+    {
+      "id": "finance_aristocracy",
+      "status": "active",
+      "content": "finance aristocracy",
+      "created_at": 0
+    },
+    {
+      "id": "industrial_bourgeoisie",
+      "status": "active",
+      "content": "industrial bourgeoisie",
+      "created_at": 0
+    },
+    {
+      "id": "petty_bourgeoisie",
+      "status": "active",
+      "content": "petty bourgeoisie",
+      "created_at": 0
+    },
+    {
+      "id": "lumpenproletariat",
+      "status": "active",
+      "content": "lumpenproletariat",
+      "created_at": 0
+    },
+    {
+      "id": "peasantry",
+      "status": "active",
+      "content": "peasantry",
+      "created_at": 0
+    },
+    {
+      "id": "revolution_1848",
+      "status": "active",
+      "content": "revolution of 1848",
+      "created_at": 0
+    },
+    {
+      "id": "class_fraction",
+      "status": "active",
+      "content": "class fractions",
+      "created_at": 0
+    },
+    {
+      "id": "permanent_revolution_early",
+      "status": "active",
+      "content": "permanent revolution (early)",
+      "created_at": 0
+    },
+    {
+      "id": "bonapartism",
+      "status": "active",
+      "content": "Bonapartism — state autonomy",
+      "created_at": 0
+    },
+    {
+      "id": "farce_tragedy",
+      "status": "active",
+      "content": "first time tragedy, second time farce",
+      "created_at": 0
+    },
+    {
+      "id": "men_make_history",
+      "status": "active",
+      "content": "men make their own history, but not as they please",
+      "created_at": 0
+    },
+    {
+      "id": "state_machine",
+      "status": "active",
+      "content": "enormous state machine / parasitic body",
+      "created_at": 0
+    },
+    {
+      "id": "smallholding_peasant",
+      "status": "active",
+      "content": "smallholding peasantry as sack of potatoes",
+      "created_at": 0
+    },
+    {
+      "id": "class_representation",
+      "status": "active",
+      "content": "political representation of class",
+      "created_at": 0
+    },
+    {
+      "id": "tradition_dead_generations",
+      "status": "active",
+      "content": "tradition of dead generations",
+      "created_at": 0
+    },
+    {
+      "id": "oriental_despotism",
+      "status": "active",
+      "content": "oriental despotism / Asiatic mode",
+      "created_at": 0
+    },
+    {
+      "id": "village_community",
+      "status": "active",
+      "content": "self-sufficient village community",
+      "created_at": 0
+    },
+    {
+      "id": "british_colonialism",
+      "status": "active",
+      "content": "British colonialism in India",
+      "created_at": 0
+    },
+    {
+      "id": "double_mission",
+      "status": "active",
+      "content": "double mission of colonialism",
+      "created_at": 0
+    },
+    {
+      "id": "asiatic_production",
+      "status": "active",
+      "content": "Asiatic mode of production",
+      "created_at": 0
+    },
+    {
+      "id": "method_pe",
+      "status": "active",
+      "content": "method of political economy",
+      "created_at": 0
+    },
+    {
+      "id": "concrete_abstract",
+      "status": "active",
+      "content": "rise from abstract to concrete",
+      "created_at": 0
+    },
+    {
+      "id": "production_general",
+      "status": "active",
+      "content": "production in general",
+      "created_at": 0
+    },
+    {
+      "id": "production_distribution",
+      "status": "active",
+      "content": "production-distribution-exchange-consumption",
+      "created_at": 0
+    },
+    {
+      "id": "historically_specific",
+      "status": "active",
+      "content": "historically specific categories",
+      "created_at": 0
+    },
+    {
+      "id": "robinson_crusoe",
+      "status": "active",
+      "content": "Robinson Crusoe critique",
+      "created_at": 0
+    },
+    {
+      "id": "money_form",
+      "status": "active",
+      "content": "money form",
+      "created_at": 0
+    },
+    {
+      "id": "commodity",
+      "status": "active",
+      "content": "commodity",
+      "created_at": 0
+    },
+    {
+      "id": "abstract_labor",
+      "status": "active",
+      "content": "abstract labor",
+      "created_at": 0
+    },
+    {
+      "id": "concrete_labor",
+      "status": "active",
+      "content": "concrete/useful labor",
+      "created_at": 0
+    },
+    {
+      "id": "surplus_value",
+      "status": "active",
+      "content": "surplus value (Mehrwert)",
+      "created_at": 0
+    },
+    {
+      "id": "necessary_labor_time",
+      "status": "active",
+      "content": "necessary labor time",
+      "created_at": 0
+    },
+    {
+      "id": "surplus_labor_time",
+      "status": "active",
+      "content": "surplus labor time",
+      "created_at": 0
+    },
+    {
+      "id": "circulation",
+      "status": "active",
+      "content": "circulation process",
+      "created_at": 0
+    },
+    {
+      "id": "capital_general",
+      "status": "active",
+      "content": "capital in general",
+      "created_at": 0
+    },
+    {
+      "id": "fixed_capital",
+      "status": "active",
+      "content": "fixed capital",
+      "created_at": 0
+    },
+    {
+      "id": "variable_capital",
+      "status": "active",
+      "content": "variable capital",
+      "created_at": 0
+    },
+    {
+      "id": "general_intellect",
+      "status": "active",
+      "content": "general intellect / social knowledge",
+      "created_at": 0
+    },
+    {
+      "id": "machine_fragment",
+      "status": "active",
+      "content": "fragment on machines",
+      "created_at": 0
+    },
+    {
+      "id": "precapitalist_forms",
+      "status": "active",
+      "content": "pre-capitalist economic formations",
+      "created_at": 0
+    },
+    {
+      "id": "formal_subsumption",
+      "status": "active",
+      "content": "formal subsumption of labor",
+      "created_at": 0
+    },
+    {
+      "id": "real_subsumption",
+      "status": "active",
+      "content": "real subsumption of labor",
+      "created_at": 0
+    },
+    {
+      "id": "base_superstructure",
+      "status": "active",
+      "content": "base and superstructure",
+      "created_at": 0
+    },
+    {
+      "id": "social_being",
+      "status": "active",
+      "content": "social being determines consciousness",
+      "created_at": 0
+    },
+    {
+      "id": "epoch_revolution",
+      "status": "active",
+      "content": "epoch of social revolution",
+      "created_at": 0
+    },
+    {
+      "id": "commodity_analysis",
+      "status": "active",
+      "content": "commodity as cell-form",
+      "created_at": 0
+    },
+    {
+      "id": "simple_form_value",
+      "status": "active",
+      "content": "simple form of value",
+      "created_at": 0
+    },
+    {
+      "id": "expanded_form_value",
+      "status": "active",
+      "content": "expanded form of value",
+      "created_at": 0
+    },
+    {
+      "id": "general_form_value",
+      "status": "active",
+      "content": "general form of value",
+      "created_at": 0
+    },
+    {
+      "id": "physiocrats",
+      "status": "active",
+      "content": "Physiocrats — surplus in agriculture",
+      "created_at": 0
+    },
+    {
+      "id": "adam_smith",
+      "status": "active",
+      "content": "Adam Smith — labor theory of value",
+      "created_at": 0
+    },
+    {
+      "id": "ricardo",
+      "status": "active",
+      "content": "Ricardo — value and profit",
+      "created_at": 0
+    },
+    {
+      "id": "productive_labor",
+      "status": "active",
+      "content": "productive vs unproductive labor",
+      "created_at": 0
+    },
+    {
+      "id": "rate_of_profit_tendency",
+      "status": "active",
+      "content": "tendency of rate of profit to fall",
+      "created_at": 0
+    },
+    {
+      "id": "absolute_sv",
+      "status": "active",
+      "content": "absolute surplus value",
+      "created_at": 0
+    },
+    {
+      "id": "relative_sv",
+      "status": "active",
+      "content": "relative surplus value",
+      "created_at": 0
+    },
+    {
+      "id": "vulgar_economy",
+      "status": "active",
+      "content": "vulgar economy vs classical",
+      "created_at": 0
+    },
+    {
+      "id": "commodity_capital",
+      "status": "active",
+      "content": "commodity as product of capital",
+      "created_at": 0
+    },
+    {
+      "id": "total_social_capital",
+      "status": "active",
+      "content": "total social capital",
+      "created_at": 0
+    },
+    {
+      "id": "capitalist_production_process",
+      "status": "active",
+      "content": "capitalist production process as whole",
+      "created_at": 0
+    },
+    {
+      "id": "mystification",
+      "status": "active",
+      "content": "mystification of capital relation",
+      "created_at": 0
+    },
+    {
+      "id": "international_wma",
+      "status": "active",
+      "content": "International Workingmen's Association",
+      "created_at": 0
+    },
+    {
+      "id": "ten_hours_bill",
+      "status": "active",
+      "content": "Ten Hours Bill — legislative victory",
+      "created_at": 0
+    },
+    {
+      "id": "cooperative_movement",
+      "status": "active",
+      "content": "cooperative movement",
+      "created_at": 0
+    },
+    {
+      "id": "political_power_proletariat",
+      "status": "active",
+      "content": "political power of working class",
+      "created_at": 0
+    },
+    {
+      "id": "labor_power",
+      "status": "active",
+      "content": "labor-power as commodity",
+      "created_at": 0
+    },
+    {
+      "id": "value_labor_power",
+      "status": "active",
+      "content": "value of labor-power",
+      "created_at": 0
+    },
+    {
+      "id": "price_labor",
+      "status": "active",
+      "content": "price of labor",
+      "created_at": 0
+    },
+    {
+      "id": "exploitation",
+      "status": "active",
+      "content": "exploitation (rate of surplus value)",
+      "created_at": 0
+    },
+    {
+      "id": "profit",
+      "status": "active",
+      "content": "profit",
+      "created_at": 0
+    },
+    {
+      "id": "wages_struggles",
+      "status": "active",
+      "content": "trade union wage struggles",
+      "created_at": 0
+    },
+    {
+      "id": "fetishism",
+      "status": "active",
+      "content": "commodity fetishism",
+      "created_at": 0
+    },
+    {
+      "id": "money_capital_form",
+      "status": "active",
+      "content": "money form of capital (M-C-M')",
+      "created_at": 0
+    },
+    {
+      "id": "accumulation",
+      "status": "active",
+      "content": "accumulation of capital",
+      "created_at": 0
+    },
+    {
+      "id": "primitive_accumulation",
+      "status": "active",
+      "content": "so-called primitive accumulation",
+      "created_at": 0
+    },
+    {
+      "id": "reserve_army",
+      "status": "active",
+      "content": "industrial reserve army",
+      "created_at": 0
+    },
+    {
+      "id": "working_day",
+      "status": "active",
+      "content": "struggle over the working day",
+      "created_at": 0
+    },
+    {
+      "id": "machinery",
+      "status": "active",
+      "content": "machinery and large-scale industry",
+      "created_at": 0
+    },
+    {
+      "id": "cooperation",
+      "status": "active",
+      "content": "cooperation",
+      "created_at": 0
+    },
+    {
+      "id": "manufacture",
+      "status": "active",
+      "content": "manufacture",
+      "created_at": 0
+    },
+    {
+      "id": "concentration",
+      "status": "active",
+      "content": "concentration and centralization of capital",
+      "created_at": 0
+    },
+    {
+      "id": "expropriation",
+      "status": "active",
+      "content": "expropriation of expropriators",
+      "created_at": 0
+    },
+    {
+      "id": "historical_tendency",
+      "status": "active",
+      "content": "historical tendency of capitalist accumulation",
+      "created_at": 0
+    },
+    {
+      "id": "reproduction_simple",
+      "status": "active",
+      "content": "simple reproduction",
+      "created_at": 0
+    },
+    {
+      "id": "reproduction_expanded",
+      "status": "active",
+      "content": "expanded reproduction",
+      "created_at": 0
+    },
+    {
+      "id": "general_law_accumulation",
+      "status": "active",
+      "content": "general law of capitalist accumulation",
+      "created_at": 0
+    },
+    {
+      "id": "paris_commune",
+      "status": "active",
+      "content": "Paris Commune",
+      "created_at": 0
+    },
+    {
+      "id": "commune_state_form",
+      "status": "active",
+      "content": "Commune as political form",
+      "created_at": 0
+    },
+    {
+      "id": "smash_state_machine",
+      "status": "active",
+      "content": "smashing the state machine",
+      "created_at": 0
+    },
+    {
+      "id": "social_republic",
+      "status": "active",
+      "content": "social republic",
+      "created_at": 0
+    },
+    {
+      "id": "working_class_government",
+      "status": "active",
+      "content": "working class government",
+      "created_at": 0
+    },
+    {
+      "id": "bakunin",
+      "status": "active",
+      "content": "Bakunin — abolish state immediately",
+      "created_at": 0
+    },
+    {
+      "id": "transitional_state",
+      "status": "active",
+      "content": "transitional proletarian state",
+      "created_at": 0
+    },
+    {
+      "id": "dictatorship_proletariat",
+      "status": "active",
+      "content": "dictatorship of the proletariat",
+      "created_at": 0
+    },
+    {
+      "id": "lower_phase",
+      "status": "active",
+      "content": "lower phase of communism (socialism)",
+      "created_at": 0
+    },
+    {
+      "id": "higher_phase",
+      "status": "active",
+      "content": "higher phase of communism",
+      "created_at": 0
+    },
+    {
+      "id": "labor_vouchers",
+      "status": "active",
+      "content": "labor vouchers (not money)",
+      "created_at": 0
+    },
+    {
+      "id": "bourgeois_right",
+      "status": "active",
+      "content": "bourgeois right in lower phase",
+      "created_at": 0
+    },
+    {
+      "id": "from_each_to_each",
+      "status": "active",
+      "content": "from each according to ability, to each according to needs",
+      "created_at": 0
+    },
+    {
+      "id": "lassalle_critique",
+      "status": "active",
+      "content": "critique of Lassalle",
+      "created_at": 0
+    },
+    {
+      "id": "iron_law_wages",
+      "status": "active",
+      "content": "iron law of wages (rejected)",
+      "created_at": 0
+    },
+    {
+      "id": "undiminished_proceeds",
+      "status": "active",
+      "content": "deductions from total social product",
+      "created_at": 0
+    },
+    {
+      "id": "wagner_critique",
+      "status": "active",
+      "content": "critique of Wagner's economics",
+      "created_at": 0
+    },
+    {
+      "id": "value_not_general",
+      "status": "active",
+      "content": "value is not supra-historical",
+      "created_at": 0
+    },
+    {
+      "id": "method_analysis",
+      "status": "active",
+      "content": "method: from concrete to abstract and back",
+      "created_at": 0
+    },
+    {
+      "id": "russian_commune",
+      "status": "active",
+      "content": "Russian rural commune (obshchina)",
+      "created_at": 0
+    },
+    {
+      "id": "skip_capitalism",
+      "status": "active",
+      "content": "possibility of skipping capitalist stage",
+      "created_at": 0
+    },
+    {
+      "id": "multilinear_history",
+      "status": "active",
+      "content": "multilinear historical development",
+      "created_at": 0
+    },
+    {
+      "id": "circuit_capital",
+      "status": "active",
+      "content": "circuit of capital (M-C...P...C'-M')",
+      "created_at": 0
+    },
+    {
+      "id": "turnover_capital",
+      "status": "active",
+      "content": "turnover of capital",
+      "created_at": 0
+    },
+    {
+      "id": "reproduction_schemas",
+      "status": "active",
+      "content": "reproduction schemas (Dept I and II)",
+      "created_at": 0
+    },
+    {
+      "id": "constant_capital",
+      "status": "active",
+      "content": "constant capital",
+      "created_at": 0
+    },
+    {
+      "id": "dept_I",
+      "status": "active",
+      "content": "Department I — means of production",
+      "created_at": 0
+    },
+    {
+      "id": "dept_II",
+      "status": "active",
+      "content": "Department II — means of consumption",
+      "created_at": 0
+    },
+    {
+      "id": "realization_problem",
+      "status": "active",
+      "content": "problem of realization",
+      "created_at": 0
+    },
+    {
+      "id": "rate_of_profit",
+      "status": "active",
+      "content": "rate of profit",
+      "created_at": 0
+    },
+    {
+      "id": "average_rate_profit",
+      "status": "active",
+      "content": "average rate of profit",
+      "created_at": 0
+    },
+    {
+      "id": "prices_production",
+      "status": "active",
+      "content": "prices of production",
+      "created_at": 0
+    },
+    {
+      "id": "transformation_problem",
+      "status": "active",
+      "content": "transformation of values into prices",
+      "created_at": 0
+    },
+    {
+      "id": "tendency_fall_rop",
+      "status": "active",
+      "content": "tendency of rate of profit to fall (law)",
+      "created_at": 0
+    },
+    {
+      "id": "counteracting_causes",
+      "status": "active",
+      "content": "counteracting causes",
+      "created_at": 0
+    },
+    {
+      "id": "commercial_capital",
+      "status": "active",
+      "content": "commercial capital",
+      "created_at": 0
+    },
+    {
+      "id": "interest_bearing_capital",
+      "status": "active",
+      "content": "interest-bearing capital",
+      "created_at": 0
+    },
+    {
+      "id": "interest",
+      "status": "active",
+      "content": "interest",
+      "created_at": 0
+    },
+    {
+      "id": "rent",
+      "status": "active",
+      "content": "ground rent",
+      "created_at": 0
+    },
+    {
+      "id": "absolute_rent",
+      "status": "active",
+      "content": "absolute rent",
+      "created_at": 0
+    },
+    {
+      "id": "differential_rent",
+      "status": "active",
+      "content": "differential rent",
+      "created_at": 0
+    },
+    {
+      "id": "trinity_formula",
+      "status": "active",
+      "content": "trinity formula (capital-profit, land-rent, labor-wages)",
+      "created_at": 0
+    },
+    {
+      "id": "revenue_sources",
+      "status": "active",
+      "content": "revenue and its sources",
+      "created_at": 0
+    },
+    {
+      "id": "fictitious_capital",
+      "status": "active",
+      "content": "fictitious capital",
+      "created_at": 0
+    },
+    {
+      "id": "method_letters",
+      "status": "active",
+      "content": "method explained in letters",
+      "created_at": 0
+    },
+    {
+      "id": "totality",
+      "status": "active",
+      "content": "totality of social relations",
+      "created_at": 0
+    },
+    {
+      "id": "determination_last_instance",
+      "status": "active",
+      "content": "determination in the last instance",
+      "created_at": 0
+    },
+    {
+      "id": "relative_autonomy_superstructure",
+      "status": "active",
+      "content": "relative autonomy of superstructure",
+      "created_at": 0
+    }
+  ],
+  "edges": [
+    {
+      "source": "epicurus",
+      "target": "democritus",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "atom_swerve",
+      "target": "necessity",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "contingency",
+      "target": "atom_swerve",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "self_consciousness",
+      "target": "contingency",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "self_consciousness",
+      "target": "necessity",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "abstract_individual",
+      "target": "self_consciousness",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "philosophy",
+      "target": "self_consciousness",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "religion_critique_early",
+      "target": "philosophy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "prometheus",
+      "target": "philosophy",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "epicurus",
+      "target": "self_consciousness",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "democritus",
+      "target": "necessity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "inversion_method",
+      "target": "hegel_state",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "civil_society",
+      "target": "state",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "state",
+      "target": "civil_society",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "bureaucracy",
+      "target": "state",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "democracy",
+      "target": "bureaucracy",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "real_democracy",
+      "target": "democracy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "real_democracy",
+      "target": "hegel_state",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "species_being",
+      "target": "self_consciousness",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "alienation",
+      "target": "species_being",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "political_emancipation",
+      "target": "alienation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "political_emancipation",
+      "target": "state",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "inversion_method",
+      "target": "philosophy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "human_emancipation",
+      "target": "political_emancipation",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "human_emancipation",
+      "target": "rights_of_man",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "citoyen",
+      "target": "bourgeois_individual",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "abstract_citizen",
+      "target": "citoyen",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "bourgeois_individual",
+      "target": "civil_society",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "rights_of_man",
+      "target": "bourgeois_individual",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "religion_private",
+      "target": "political_emancipation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "money_power",
+      "target": "alienation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "human_emancipation",
+      "target": "alienation",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "estranged_labor",
+      "target": "labor",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "estranged_labor",
+      "target": "alienation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "private_property",
+      "target": "estranged_labor",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "objectification",
+      "target": "labor",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "estranged_labor",
+      "target": "objectification",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "communism_early",
+      "target": "private_property",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "communism_early",
+      "target": "estranged_labor",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "communism_early",
+      "target": "alienation",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "humanism",
+      "target": "communism_early",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "humanism",
+      "target": "species_being",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "political_economy_critique",
+      "target": "wage_labor_early",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "political_economy_critique",
+      "target": "capital_early",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "political_economy_critique",
+      "target": "rent_early",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sensuous_activity",
+      "target": "self_consciousness",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "nature",
+      "target": "sensuous_activity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "labor",
+      "target": "nature",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "social_revolution",
+      "target": "political_revolution",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "political_revolution",
+      "target": "state",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "social_revolution",
+      "target": "proletariat",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "pauperism",
+      "target": "private_property",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "state_impotence",
+      "target": "pauperism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "state_impotence",
+      "target": "state",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "proletariat",
+      "target": "estranged_labor",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "praxis",
+      "target": "feuerbach_materialism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "praxis",
+      "target": "idealism_active",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "new_materialism",
+      "target": "feuerbach_materialism",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "new_materialism",
+      "target": "praxis",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "social_relations",
+      "target": "species_being",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "change_world",
+      "target": "interpret_world",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "change_world",
+      "target": "praxis",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sensuous_activity",
+      "target": "praxis",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "mass",
+      "target": "critical_criticism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "real_humanism_hf",
+      "target": "critical_criticism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "real_humanism_hf",
+      "target": "humanism",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "spirit_matter_split",
+      "target": "critical_criticism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "mass",
+      "target": "proletariat",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "proletariat_mission",
+      "target": "proletariat",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "proletariat_mission",
+      "target": "private_property",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "historical_materialism",
+      "target": "feuerbach_materialism",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "historical_materialism",
+      "target": "praxis",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "mode_of_production",
+      "target": "forces_of_production",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "mode_of_production",
+      "target": "relations_of_production",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "forces_of_production",
+      "target": "relations_of_production",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "division_of_labor",
+      "target": "mode_of_production",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "ideology",
+      "target": "consciousness",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "consciousness",
+      "target": "material_conditions",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "ruling_ideas",
+      "target": "ideology",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "ruling_ideas",
+      "target": "class",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "class_struggle",
+      "target": "class",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "class_struggle",
+      "target": "division_of_labor",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "communism_gi",
+      "target": "communism_early",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "communism_gi",
+      "target": "class_struggle",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "communism_gi",
+      "target": "division_of_labor",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "material_conditions",
+      "target": "nature",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "social_relations",
+      "target": "mode_of_production",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "constituted_value",
+      "target": "use_value",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "constituted_value",
+      "target": "exchange_value",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "value",
+      "target": "constituted_value",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "value",
+      "target": "use_value",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "value",
+      "target": "exchange_value",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "historical_categories",
+      "target": "proudhon",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "historical_categories",
+      "target": "mode_of_production",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "social_character_production",
+      "target": "relations_of_production",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "proudhon",
+      "target": "political_economy_critique",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "wage",
+      "target": "labor_power_early",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "wage",
+      "target": "capital_early",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nominal_vs_real_wage",
+      "target": "wage",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "relative_wage",
+      "target": "wage",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "relative_wage",
+      "target": "proletariat",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "capital_relation",
+      "target": "capital_early",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "capital_relation",
+      "target": "social_relations",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "labor_power_early",
+      "target": "estranged_labor",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "history_class_struggle",
+      "target": "class_struggle",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "bourgeoisie",
+      "target": "class",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "proletariat",
+      "target": "bourgeoisie",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "bourgeois_epoch",
+      "target": "bourgeoisie",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "bourgeois_epoch",
+      "target": "mode_of_production",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "world_market",
+      "target": "bourgeois_epoch",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "communist_party",
+      "target": "proletariat",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "abolition_property",
+      "target": "private_property",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "abolition_property",
+      "target": "communist_party",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "ten_measures",
+      "target": "abolition_property",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "withering_state",
+      "target": "state",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "withering_state",
+      "target": "class_struggle",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "free_development",
+      "target": "communism_gi",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "free_development",
+      "target": "proletariat_mission",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "utopian_socialism",
+      "target": "communism_gi",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "spectre",
+      "target": "bourgeoisie",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "finance_aristocracy",
+      "target": "bourgeoisie",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "industrial_bourgeoisie",
+      "target": "bourgeoisie",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "petty_bourgeoisie",
+      "target": "class",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "lumpenproletariat",
+      "target": "proletariat",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "peasantry",
+      "target": "class",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "revolution_1848",
+      "target": "class_struggle",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "class_fraction",
+      "target": "class",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "permanent_revolution_early",
+      "target": "social_revolution",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "permanent_revolution_early",
+      "target": "revolution_1848",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "bonapartism",
+      "target": "state",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "bonapartism",
+      "target": "bourgeoisie",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "bonapartism",
+      "target": "proletariat",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "farce_tragedy",
+      "target": "revolution_1848",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "men_make_history",
+      "target": "historical_materialism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "men_make_history",
+      "target": "material_conditions",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "state_machine",
+      "target": "bureaucracy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "state_machine",
+      "target": "state",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "smallholding_peasant",
+      "target": "peasantry",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "class_representation",
+      "target": "class",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "class_representation",
+      "target": "ideology",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "tradition_dead_generations",
+      "target": "consciousness",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "oriental_despotism",
+      "target": "state",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "village_community",
+      "target": "mode_of_production",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "british_colonialism",
+      "target": "village_community",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "double_mission",
+      "target": "british_colonialism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "double_mission",
+      "target": "world_market",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "asiatic_production",
+      "target": "mode_of_production",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "asiatic_production",
+      "target": "oriental_despotism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "method_pe",
+      "target": "historical_materialism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "concrete_abstract",
+      "target": "method_pe",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "concrete_abstract",
+      "target": "inversion_method",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "production_general",
+      "target": "production_distribution",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "historically_specific",
+      "target": "historical_categories",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "historically_specific",
+      "target": "mode_of_production",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "robinson_crusoe",
+      "target": "abstract_individual",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "commodity",
+      "target": "use_value",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "commodity",
+      "target": "exchange_value",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "money_form",
+      "target": "commodity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "money_form",
+      "target": "money_power",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "abstract_labor",
+      "target": "labor",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "concrete_labor",
+      "target": "labor",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "abstract_labor",
+      "target": "concrete_labor",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "value",
+      "target": "abstract_labor",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "surplus_value",
+      "target": "surplus_labor_time",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "surplus_value",
+      "target": "necessary_labor_time",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "surplus_labor_time",
+      "target": "necessary_labor_time",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "circulation",
+      "target": "commodity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "circulation",
+      "target": "money_form",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "capital_general",
+      "target": "surplus_value",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "capital_general",
+      "target": "capital_relation",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "fixed_capital",
+      "target": "capital_general",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "variable_capital",
+      "target": "capital_general",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "fixed_capital",
+      "target": "variable_capital",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "general_intellect",
+      "target": "fixed_capital",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "machine_fragment",
+      "target": "general_intellect",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "machine_fragment",
+      "target": "real_subsumption",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "real_subsumption",
+      "target": "formal_subsumption",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "formal_subsumption",
+      "target": "estranged_labor",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "precapitalist_forms",
+      "target": "mode_of_production",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "precapitalist_forms",
+      "target": "historical_materialism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "base_superstructure",
+      "target": "mode_of_production",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "base_superstructure",
+      "target": "ideology",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "social_being",
+      "target": "consciousness",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "social_being",
+      "target": "material_conditions",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "epoch_revolution",
+      "target": "forces_of_production",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "epoch_revolution",
+      "target": "relations_of_production",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "commodity_analysis",
+      "target": "commodity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "simple_form_value",
+      "target": "value",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "expanded_form_value",
+      "target": "simple_form_value",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "general_form_value",
+      "target": "expanded_form_value",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "general_form_value",
+      "target": "money_form",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "adam_smith",
+      "target": "physiocrats",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "ricardo",
+      "target": "adam_smith",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "surplus_value",
+      "target": "ricardo",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "productive_labor",
+      "target": "labor",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "productive_labor",
+      "target": "surplus_value",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "rate_of_profit_tendency",
+      "target": "surplus_value",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "rate_of_profit_tendency",
+      "target": "capital_general",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "absolute_sv",
+      "target": "surplus_value",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "relative_sv",
+      "target": "surplus_value",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "relative_sv",
+      "target": "absolute_sv",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "vulgar_economy",
+      "target": "ricardo",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "vulgar_economy",
+      "target": "ideology",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "commodity_capital",
+      "target": "commodity",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "commodity_capital",
+      "target": "capital_general",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "total_social_capital",
+      "target": "capital_general",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "capitalist_production_process",
+      "target": "real_subsumption",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "capitalist_production_process",
+      "target": "surplus_value",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "mystification",
+      "target": "capitalist_production_process",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "mystification",
+      "target": "ideology",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "international_wma",
+      "target": "proletariat",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "international_wma",
+      "target": "communist_party",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "ten_hours_bill",
+      "target": "class_struggle",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "cooperative_movement",
+      "target": "social_character_production",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "political_power_proletariat",
+      "target": "international_wma",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "political_power_proletariat",
+      "target": "class_struggle",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "labor_power",
+      "target": "labor_power_early",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "labor_power",
+      "target": "commodity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "value_labor_power",
+      "target": "labor_power",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "value_labor_power",
+      "target": "necessary_labor_time",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "price_labor",
+      "target": "value_labor_power",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "price_labor",
+      "target": "wage",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "exploitation",
+      "target": "surplus_value",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "exploitation",
+      "target": "labor_power",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "profit",
+      "target": "surplus_value",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "wages_struggles",
+      "target": "class_struggle",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "wages_struggles",
+      "target": "exploitation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "fetishism",
+      "target": "commodity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "fetishism",
+      "target": "mystification",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "fetishism",
+      "target": "social_relations",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "money_capital_form",
+      "target": "money_form",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "money_capital_form",
+      "target": "surplus_value",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "accumulation",
+      "target": "surplus_value",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "accumulation",
+      "target": "capital_general",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "primitive_accumulation",
+      "target": "accumulation",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "primitive_accumulation",
+      "target": "precapitalist_forms",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "reserve_army",
+      "target": "accumulation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "reserve_army",
+      "target": "proletariat",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "working_day",
+      "target": "absolute_sv",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "working_day",
+      "target": "class_struggle",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "machinery",
+      "target": "relative_sv",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "machinery",
+      "target": "real_subsumption",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "cooperation",
+      "target": "labor",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "manufacture",
+      "target": "cooperation",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "manufacture",
+      "target": "division_of_labor",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "machinery",
+      "target": "manufacture",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "concentration",
+      "target": "accumulation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "expropriation",
+      "target": "primitive_accumulation",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "expropriation",
+      "target": "concentration",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "historical_tendency",
+      "target": "expropriation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "historical_tendency",
+      "target": "communism_gi",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "reproduction_simple",
+      "target": "capital_general",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "reproduction_expanded",
+      "target": "reproduction_simple",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "reproduction_expanded",
+      "target": "accumulation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "general_law_accumulation",
+      "target": "reserve_army",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "general_law_accumulation",
+      "target": "accumulation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "paris_commune",
+      "target": "proletariat",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "paris_commune",
+      "target": "class_struggle",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "commune_state_form",
+      "target": "paris_commune",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "commune_state_form",
+      "target": "withering_state",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "smash_state_machine",
+      "target": "state_machine",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "smash_state_machine",
+      "target": "paris_commune",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "social_republic",
+      "target": "commune_state_form",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "social_republic",
+      "target": "political_revolution",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "working_class_government",
+      "target": "commune_state_form",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "working_class_government",
+      "target": "political_power_proletariat",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "transitional_state",
+      "target": "bakunin",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "dictatorship_proletariat",
+      "target": "transitional_state",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "dictatorship_proletariat",
+      "target": "commune_state_form",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "dictatorship_proletariat",
+      "target": "withering_state",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "bakunin",
+      "target": "smash_state_machine",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "lower_phase",
+      "target": "dictatorship_proletariat",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "lower_phase",
+      "target": "communism_gi",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "higher_phase",
+      "target": "lower_phase",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "labor_vouchers",
+      "target": "money_form",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "labor_vouchers",
+      "target": "lower_phase",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "bourgeois_right",
+      "target": "lower_phase",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "bourgeois_right",
+      "target": "rights_of_man",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "from_each_to_each",
+      "target": "higher_phase",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "from_each_to_each",
+      "target": "free_development",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "lassalle_critique",
+      "target": "iron_law_wages",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "iron_law_wages",
+      "target": "wage",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "undiminished_proceeds",
+      "target": "total_social_capital",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "wagner_critique",
+      "target": "vulgar_economy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "value_not_general",
+      "target": "value",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "value_not_general",
+      "target": "historically_specific",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "method_analysis",
+      "target": "concrete_abstract",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "method_analysis",
+      "target": "method_pe",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "russian_commune",
+      "target": "village_community",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "russian_commune",
+      "target": "communism_gi",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "skip_capitalism",
+      "target": "russian_commune",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "skip_capitalism",
+      "target": "primitive_accumulation",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "multilinear_history",
+      "target": "historical_materialism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "multilinear_history",
+      "target": "skip_capitalism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "circuit_capital",
+      "target": "money_capital_form",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "circuit_capital",
+      "target": "circulation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "turnover_capital",
+      "target": "circuit_capital",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "turnover_capital",
+      "target": "fixed_capital",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "reproduction_schemas",
+      "target": "reproduction_expanded",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "reproduction_schemas",
+      "target": "total_social_capital",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "constant_capital",
+      "target": "fixed_capital",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "constant_capital",
+      "target": "variable_capital",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "dept_I",
+      "target": "reproduction_schemas",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "dept_II",
+      "target": "reproduction_schemas",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "dept_I",
+      "target": "dept_II",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "realization_problem",
+      "target": "reproduction_schemas",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "realization_problem",
+      "target": "circulation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "rate_of_profit",
+      "target": "surplus_value",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "rate_of_profit",
+      "target": "constant_capital",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "rate_of_profit",
+      "target": "variable_capital",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "average_rate_profit",
+      "target": "rate_of_profit",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "average_rate_profit",
+      "target": "concentration",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "prices_production",
+      "target": "average_rate_profit",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "prices_production",
+      "target": "value",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "transformation_problem",
+      "target": "prices_production",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "transformation_problem",
+      "target": "value",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "tendency_fall_rop",
+      "target": "rate_of_profit_tendency",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "tendency_fall_rop",
+      "target": "rate_of_profit",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "counteracting_causes",
+      "target": "tendency_fall_rop",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "commercial_capital",
+      "target": "capital_general",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "commercial_capital",
+      "target": "circulation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "interest_bearing_capital",
+      "target": "capital_general",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "interest_bearing_capital",
+      "target": "money_capital_form",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "interest",
+      "target": "interest_bearing_capital",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "interest",
+      "target": "profit",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "rent",
+      "target": "rent_early",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "absolute_rent",
+      "target": "rent",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "differential_rent",
+      "target": "rent",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "differential_rent",
+      "target": "absolute_rent",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "trinity_formula",
+      "target": "fetishism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "trinity_formula",
+      "target": "mystification",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "trinity_formula",
+      "target": "profit",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "trinity_formula",
+      "target": "rent",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "trinity_formula",
+      "target": "wage",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "revenue_sources",
+      "target": "trinity_formula",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "fictitious_capital",
+      "target": "interest_bearing_capital",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "fictitious_capital",
+      "target": "money_capital_form",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "method_letters",
+      "target": "historical_materialism",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "method_letters",
+      "target": "method_pe",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "totality",
+      "target": "social_relations",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "totality",
+      "target": "mode_of_production",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "determination_last_instance",
+      "target": "base_superstructure",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "determination_last_instance",
+      "target": "material_conditions",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "relative_autonomy_superstructure",
+      "target": "base_superstructure",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "relative_autonomy_superstructure",
+      "target": "determination_last_instance",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "relative_autonomy_superstructure",
+      "target": "ideology",
+      "edge_type": "dependency",
+      "created_at": 0
+    }
+  ]
+}

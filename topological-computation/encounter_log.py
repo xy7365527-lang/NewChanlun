@@ -1,7 +1,7 @@
 """Encounter log — record topological events during conversational traversal.
 
 Writes JSONL to .chanlun/traversal-events.jsonl (append-only backup).
-Primary access path: history nodes in K_active (domain:history).
+Primary access path: memory nodes in K_active (domain:memory).
 """
 
 from __future__ import annotations
@@ -15,23 +15,23 @@ from typing import Optional
 from file_lock import locked_append
 
 
-# History node content prefix — matches the [domain:xxx] convention
-HISTORY_DOMAIN_PREFIX = "[domain:history]"
+# Memory node content prefix — matches the [domain:xxx] convention
+MEMORY_DOMAIN_PREFIX = "[domain:memory]"
 
 
 def _make_encounter_vertex_id(step: int, operation: str) -> str:
-    """Generate vertex_id for an encounter history node."""
-    return f"history:encounter:{step}:{operation}"
+    """Generate vertex_id for an encounter memory node."""
+    return f"memory:encounter:{step}:{operation}"
 
 
 def _make_settlement_vertex_id(step: int) -> str:
-    """Generate vertex_id for a settlement history node."""
-    return f"history:settlement:{step}"
+    """Generate vertex_id for a settlement memory node."""
+    return f"memory:settlement:{step}"
 
 
 def _make_residue_vertex_id(residue_type: str, index: int, step: int) -> str:
-    """Generate vertex_id for a residue history node."""
-    return f"history:residue:{residue_type}:{index}:{step}"
+    """Generate vertex_id for a residue memory node."""
+    return f"memory:residue:{residue_type}:{index}:{step}"
 
 
 class EncounterLog:
@@ -39,7 +39,7 @@ class EncounterLog:
 
     Uses file locking for safe concurrent writes from multiple instances.
     JSONL file is kept as append-only backup (crash recovery).
-    Primary access path is through history nodes injected into K_active.
+    Primary access path is through memory nodes injected into K_active.
     """
 
     def __init__(self, log_path: str = ".chanlun/traversal-events.jsonl") -> None:
@@ -175,10 +175,10 @@ class EncounterLog:
 
 
 # ---------------------------------------------------------------------------
-# History node injection into K_active
+# Memory node injection into K_active
 # ---------------------------------------------------------------------------
 
-def inject_encounter_history_node(
+def inject_encounter_memory_node(
     graph,
     step: int,
     operation: str,
@@ -189,9 +189,9 @@ def inject_encounter_history_node(
     beta_1_after: int,
     f_value: int = -99,
 ):
-    """Inject an encounter record as a domain:history node into K_active.
+    """Inject an encounter record as a domain:memory node into K_active.
 
-    Creates a vertex with domain:history content and REFERENCE edges
+    Creates a vertex with domain:memory content and REFERENCE edges
     to the concept vertices involved in the encounter.
 
     Returns the new Graph (immutable pattern — original unchanged).
@@ -200,7 +200,7 @@ def inject_encounter_history_node(
 
     vid = _make_encounter_vertex_id(step, operation)
     content = (
-        f"{HISTORY_DOMAIN_PREFIX} encounter step={step} op={operation}: "
+        f"{MEMORY_DOMAIN_PREFIX} encounter step={step} op={operation}: "
         f"{context[:200]}"
     )
     vertex = Vertex(id=vid, status=VertexStatus.ACTIVE, content=content, created_at=step)
@@ -218,13 +218,13 @@ def inject_encounter_history_node(
     return result
 
 
-def inject_settlement_history_node(
+def inject_settlement_memory_node(
     graph,
     step: int,
     cycle_edges: frozenset[tuple[str, str]],
     residue: tuple[dict, ...] = (),
 ):
-    """Inject a settlement record as a domain:history node into K_active.
+    """Inject a settlement record as a domain:memory node into K_active.
 
     Creates a vertex for the settlement itself, plus vertices for each
     residue item. Connects settlement to cycle vertices and residue nodes
@@ -238,7 +238,7 @@ def inject_settlement_history_node(
     settle_vid = _make_settlement_vertex_id(step)
     cycle_desc = ", ".join(f"{s}->{t}" for s, t in sorted(cycle_edges))
     content = (
-        f"{HISTORY_DOMAIN_PREFIX} settlement step={step} "
+        f"{MEMORY_DOMAIN_PREFIX} settlement step={step} "
         f"cycle=[{cycle_desc[:150]}]"
     )
     vertex = Vertex(id=settle_vid, status=VertexStatus.ACTIVE, content=content, created_at=step)
@@ -263,7 +263,7 @@ def inject_settlement_history_node(
         r_data = item.get("data", {})
         r_vid = _make_residue_vertex_id(r_type, idx, step)
         r_content = (
-            f"{HISTORY_DOMAIN_PREFIX} residue type={r_type} "
+            f"{MEMORY_DOMAIN_PREFIX} residue type={r_type} "
             f"settlement_step={step}"
         )
         r_vertex = Vertex(id=r_vid, status=VertexStatus.ACTIVE, content=r_content, created_at=step)
@@ -313,7 +313,7 @@ def inject_settlement_nachtraeglichkeit_edge(
     settlement_step_b: int,
     step: int,
 ):
-    """Connect two settlement history nodes via a Nachträglichkeit edge.
+    """Connect two settlement memory nodes via a Nachträglichkeit edge.
 
     settlement_step_b retroactively reinterprets settlement_step_a.
     Returns the new Graph, or the original if either node doesn't exist.
@@ -334,15 +334,15 @@ def inject_settlement_nachtraeglichkeit_edge(
     return graph.add_edge(edge)
 
 
-def rebuild_history_from_jsonl(
+def rebuild_memory_from_jsonl(
     graph,
     encounter_log_path: str = ".chanlun/traversal-events.jsonl",
     settlement_history_path: str | None = None,
 ):
-    """Rebuild history nodes from JSONL files into K_active (crash recovery).
+    """Rebuild memory nodes from JSONL files into K_active (crash recovery).
 
     Reads encounter events and settlement history from JSONL, injects
-    corresponding domain:history nodes. Idempotent — skips nodes that
+    corresponding domain:memory nodes. Idempotent — skips nodes that
     already exist in the graph.
 
     Returns the new Graph.
@@ -351,7 +351,7 @@ def rebuild_history_from_jsonl(
 
     result = graph
 
-    # Rebuild encounter history nodes
+    # Rebuild encounter memory nodes
     enc_path = Path(encounter_log_path)
     if enc_path.is_file():
         with open(enc_path, encoding="utf-8") as fh:
@@ -373,7 +373,7 @@ def rebuild_history_from_jsonl(
                 vid = _make_encounter_vertex_id(step, operation)
                 if result.vertex(vid) is not None:
                     continue  # Already exists
-                result = inject_encounter_history_node(
+                result = inject_encounter_memory_node(
                     result,
                     step=step,
                     operation=operation,
@@ -385,7 +385,7 @@ def rebuild_history_from_jsonl(
                     f_value=ev.get("f_value", -99),
                 )
 
-    # Rebuild settlement history nodes
+    # Rebuild settlement memory nodes
     if settlement_history_path is not None:
         settle_path = Path(settlement_history_path)
         if settle_path.is_file():
@@ -409,7 +409,7 @@ def rebuild_history_from_jsonl(
                     cycle_edges = frozenset(
                         tuple(e) for e in entry.get("cycle_edges", [])
                     )
-                    result = inject_settlement_history_node(
+                    result = inject_settlement_memory_node(
                         result,
                         step=step,
                         cycle_edges=cycle_edges,

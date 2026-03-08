@@ -1,0 +1,2334 @@
+{
+  "vertices": [
+    {
+      "id": "God_Nature",
+      "status": "active",
+      "content": "God or Nature — the sole substance",
+      "created_at": 0
+    },
+    {
+      "id": "substance",
+      "status": "active",
+      "content": "substance — that which is in itself",
+      "created_at": 0
+    },
+    {
+      "id": "attribute",
+      "status": "active",
+      "content": "attribute — what intellect perceives as essence of substance",
+      "created_at": 0
+    },
+    {
+      "id": "thought",
+      "status": "active",
+      "content": "thought — attribute of substance",
+      "created_at": 0
+    },
+    {
+      "id": "extension",
+      "status": "active",
+      "content": "extension — attribute of substance",
+      "created_at": 0
+    },
+    {
+      "id": "mode",
+      "status": "active",
+      "content": "mode — affection of substance",
+      "created_at": 0
+    },
+    {
+      "id": "infinite",
+      "status": "active",
+      "content": "infinite — that which is unlimited in its kind",
+      "created_at": 0
+    },
+    {
+      "id": "finite",
+      "status": "active",
+      "content": "finite — limited by another of the same nature",
+      "created_at": 0
+    },
+    {
+      "id": "knowledge_opinion",
+      "status": "active",
+      "content": "opinion (imaginatio) — first kind of knowledge",
+      "created_at": 0
+    },
+    {
+      "id": "knowledge_true_belief",
+      "status": "active",
+      "content": "true belief — second kind of knowledge",
+      "created_at": 0
+    },
+    {
+      "id": "knowledge_clear",
+      "status": "active",
+      "content": "clear knowledge (intuition) — third kind",
+      "created_at": 0
+    },
+    {
+      "id": "love_of_God_early",
+      "status": "active",
+      "content": "intellectual love of God (early)",
+      "created_at": 0
+    },
+    {
+      "id": "good_evil_early",
+      "status": "active",
+      "content": "good and evil as relative to us",
+      "created_at": 0
+    },
+    {
+      "id": "will_intellect_unity",
+      "status": "active",
+      "content": "will and intellect are one",
+      "created_at": 0
+    },
+    {
+      "id": "true_good",
+      "status": "active",
+      "content": "true good — continuous supreme joy",
+      "created_at": 0
+    },
+    {
+      "id": "ordinary_goods",
+      "status": "active",
+      "content": "ordinary goods (wealth, honor, pleasure)",
+      "created_at": 0
+    },
+    {
+      "id": "adequate_idea",
+      "status": "active",
+      "content": "adequate idea — clear and distinct in itself",
+      "created_at": 0
+    },
+    {
+      "id": "truth",
+      "status": "active",
+      "content": "truth — idea agreeing with its ideatum",
+      "created_at": 0
+    },
+    {
+      "id": "falsity",
+      "status": "active",
+      "content": "falsity — mutilated and confused ideas",
+      "created_at": 0
+    },
+    {
+      "id": "method",
+      "status": "active",
+      "content": "method — reflexive knowledge of the idea of the true",
+      "created_at": 0
+    },
+    {
+      "id": "imagination",
+      "status": "active",
+      "content": "imagination — confused, first kind of knowledge",
+      "created_at": 0
+    },
+    {
+      "id": "intellect",
+      "status": "active",
+      "content": "intellect — true ideas, foundation of method",
+      "created_at": 0
+    },
+    {
+      "id": "definition",
+      "status": "active",
+      "content": "definition — expresses intimate essence of thing",
+      "created_at": 0
+    },
+    {
+      "id": "fictitious_idea",
+      "status": "active",
+      "content": "fictitious idea — joining unconnected ideas",
+      "created_at": 0
+    },
+    {
+      "id": "false_idea",
+      "status": "active",
+      "content": "false idea — imagination without correction",
+      "created_at": 0
+    },
+    {
+      "id": "doubt",
+      "status": "active",
+      "content": "doubt — suspension due to inadequate ideas",
+      "created_at": 0
+    },
+    {
+      "id": "descartes_substance",
+      "status": "active",
+      "content": "Descartes' substance (res cogitans/extensa)",
+      "created_at": 0
+    },
+    {
+      "id": "causa_sui",
+      "status": "active",
+      "content": "causa sui — cause of itself",
+      "created_at": 0
+    },
+    {
+      "id": "existence",
+      "status": "active",
+      "content": "existence — not distinct from essence in God",
+      "created_at": 0
+    },
+    {
+      "id": "essence",
+      "status": "active",
+      "content": "essence — what constitutes a thing",
+      "created_at": 0
+    },
+    {
+      "id": "duration",
+      "status": "active",
+      "content": "duration — indefinite continuation of existing",
+      "created_at": 0
+    },
+    {
+      "id": "eternity",
+      "status": "active",
+      "content": "eternity — existence conceived under infinite attribute",
+      "created_at": 0
+    },
+    {
+      "id": "creation_continuous",
+      "status": "active",
+      "content": "continuous creation (conservatio)",
+      "created_at": 0
+    },
+    {
+      "id": "perfection",
+      "status": "active",
+      "content": "perfection — degree of reality/being",
+      "created_at": 0
+    },
+    {
+      "id": "evil_privation",
+      "status": "active",
+      "content": "evil as privation, not positive being",
+      "created_at": 0
+    },
+    {
+      "id": "will_intellect_distinction",
+      "status": "active",
+      "content": "Cartesian distinction of will and intellect (Spinoza rejects)",
+      "created_at": 0
+    },
+    {
+      "id": "substance_unique",
+      "status": "active",
+      "content": "there can be only one substance",
+      "created_at": 0
+    },
+    {
+      "id": "attribute_infinite",
+      "status": "active",
+      "content": "substance has infinite attributes",
+      "created_at": 0
+    },
+    {
+      "id": "God_proof",
+      "status": "active",
+      "content": "God necessarily exists (ontological proof)",
+      "created_at": 0
+    },
+    {
+      "id": "natura_naturans",
+      "status": "active",
+      "content": "natura naturans — God as free cause",
+      "created_at": 0
+    },
+    {
+      "id": "natura_naturata",
+      "status": "active",
+      "content": "natura naturata — modes following from God",
+      "created_at": 0
+    },
+    {
+      "id": "necessity",
+      "status": "active",
+      "content": "all things follow from God's nature necessarily",
+      "created_at": 0
+    },
+    {
+      "id": "freedom_as_necessity",
+      "status": "active",
+      "content": "freedom = acting from necessity of own nature",
+      "created_at": 0
+    },
+    {
+      "id": "contingency_denied",
+      "status": "active",
+      "content": "nothing is contingent — only from ignorance",
+      "created_at": 0
+    },
+    {
+      "id": "will_not_free_cause",
+      "status": "active",
+      "content": "will cannot be called a free cause",
+      "created_at": 0
+    },
+    {
+      "id": "determinism",
+      "status": "active",
+      "content": "every thing determined by another to exist and act",
+      "created_at": 0
+    },
+    {
+      "id": "infinite_modes",
+      "status": "active",
+      "content": "infinite modes — immediate and mediate",
+      "created_at": 0
+    },
+    {
+      "id": "finite_mode_chain",
+      "status": "active",
+      "content": "finite modes determined by other finite modes",
+      "created_at": 0
+    },
+    {
+      "id": "mind",
+      "status": "active",
+      "content": "mind — idea of the body",
+      "created_at": 0
+    },
+    {
+      "id": "body",
+      "status": "active",
+      "content": "body — mode of extension",
+      "created_at": 0
+    },
+    {
+      "id": "parallelism",
+      "status": "active",
+      "content": "order of ideas = order of things",
+      "created_at": 0
+    },
+    {
+      "id": "mind_body_unity",
+      "status": "active",
+      "content": "mind and body are one and the same thing",
+      "created_at": 0
+    },
+    {
+      "id": "common_notions",
+      "status": "active",
+      "content": "common notions — basis of reason",
+      "created_at": 0
+    },
+    {
+      "id": "knowledge_first",
+      "status": "active",
+      "content": "first kind: imagination/opinion",
+      "created_at": 0
+    },
+    {
+      "id": "knowledge_second",
+      "status": "active",
+      "content": "second kind: reason (from common notions)",
+      "created_at": 0
+    },
+    {
+      "id": "knowledge_third",
+      "status": "active",
+      "content": "third kind: intuitive knowledge (scientia intuitiva)",
+      "created_at": 0
+    },
+    {
+      "id": "idea_of_idea",
+      "status": "active",
+      "content": "idea of idea — reflexive self-knowledge",
+      "created_at": 0
+    },
+    {
+      "id": "sensation",
+      "status": "active",
+      "content": "sensation — ideas of body's affections",
+      "created_at": 0
+    },
+    {
+      "id": "memory",
+      "status": "active",
+      "content": "memory — association of bodily images",
+      "created_at": 0
+    },
+    {
+      "id": "universals_abstractions",
+      "status": "active",
+      "content": "universals as confused abstractions",
+      "created_at": 0
+    },
+    {
+      "id": "adequate_knowledge_body",
+      "status": "active",
+      "content": "adequate knowledge of the body is limited",
+      "created_at": 0
+    },
+    {
+      "id": "error_source",
+      "status": "active",
+      "content": "error arises from inadequate ideas",
+      "created_at": 0
+    },
+    {
+      "id": "conatus",
+      "status": "active",
+      "content": "conatus — striving to persevere in being",
+      "created_at": 0
+    },
+    {
+      "id": "desire",
+      "status": "active",
+      "content": "desire (cupiditas) — conatus with consciousness",
+      "created_at": 0
+    },
+    {
+      "id": "joy",
+      "status": "active",
+      "content": "joy (laetitia) — passage to greater perfection",
+      "created_at": 0
+    },
+    {
+      "id": "sadness",
+      "status": "active",
+      "content": "sadness (tristitia) — passage to lesser perfection",
+      "created_at": 0
+    },
+    {
+      "id": "affects_active",
+      "status": "active",
+      "content": "active affects — from adequate ideas",
+      "created_at": 0
+    },
+    {
+      "id": "affects_passive",
+      "status": "active",
+      "content": "passive affects (passiones) — from inadequate ideas",
+      "created_at": 0
+    },
+    {
+      "id": "love",
+      "status": "active",
+      "content": "love — joy with idea of external cause",
+      "created_at": 0
+    },
+    {
+      "id": "hate",
+      "status": "active",
+      "content": "hate — sadness with idea of external cause",
+      "created_at": 0
+    },
+    {
+      "id": "hope",
+      "status": "active",
+      "content": "hope — inconstant joy from uncertain future",
+      "created_at": 0
+    },
+    {
+      "id": "fear",
+      "status": "active",
+      "content": "fear — inconstant sadness from uncertain future",
+      "created_at": 0
+    },
+    {
+      "id": "imitation_affects",
+      "status": "active",
+      "content": "imitation of affects — affective mimesis",
+      "created_at": 0
+    },
+    {
+      "id": "fluctuatio_animi",
+      "status": "active",
+      "content": "fluctuatio animi — vacillation between contrary affects",
+      "created_at": 0
+    },
+    {
+      "id": "power",
+      "status": "active",
+      "content": "power (potentia) — capacity to act and be affected",
+      "created_at": 0
+    },
+    {
+      "id": "bondage",
+      "status": "active",
+      "content": "human bondage — subjection to passive affects",
+      "created_at": 0
+    },
+    {
+      "id": "virtue",
+      "status": "active",
+      "content": "virtue — power of acting from adequate ideas",
+      "created_at": 0
+    },
+    {
+      "id": "self_preservation",
+      "status": "active",
+      "content": "self-preservation = foundation of virtue",
+      "created_at": 0
+    },
+    {
+      "id": "reason_dictates",
+      "status": "active",
+      "content": "dictates of reason — what reason prescribes",
+      "created_at": 0
+    },
+    {
+      "id": "good_evil",
+      "status": "active",
+      "content": "good and evil as relative to human model",
+      "created_at": 0
+    },
+    {
+      "id": "strength_of_mind",
+      "status": "active",
+      "content": "fortitudo — strength of mind",
+      "created_at": 0
+    },
+    {
+      "id": "generosity",
+      "status": "active",
+      "content": "generositas — rational desire to aid others",
+      "created_at": 0
+    },
+    {
+      "id": "free_man",
+      "status": "active",
+      "content": "the free man — one guided by reason",
+      "created_at": 0
+    },
+    {
+      "id": "society_rational",
+      "status": "active",
+      "content": "rational society — agreement by nature",
+      "created_at": 0
+    },
+    {
+      "id": "superstition_bondage",
+      "status": "active",
+      "content": "superstition as form of bondage",
+      "created_at": 0
+    },
+    {
+      "id": "temporal_affect",
+      "status": "active",
+      "content": "present affect stronger than future — temporal gradient",
+      "created_at": 0
+    },
+    {
+      "id": "remedy_affects",
+      "status": "active",
+      "content": "remedies against the affects",
+      "created_at": 0
+    },
+    {
+      "id": "affect_as_idea",
+      "status": "active",
+      "content": "affect ceases to be passion when we form clear idea",
+      "created_at": 0
+    },
+    {
+      "id": "love_of_God",
+      "status": "active",
+      "content": "amor Dei intellectualis — intellectual love of God",
+      "created_at": 0
+    },
+    {
+      "id": "blessedness",
+      "status": "active",
+      "content": "blessedness (beatitudo) — not reward of virtue, but virtue itself",
+      "created_at": 0
+    },
+    {
+      "id": "eternity_of_mind",
+      "status": "active",
+      "content": "something of the mind is eternal",
+      "created_at": 0
+    },
+    {
+      "id": "intuitive_knowledge",
+      "status": "active",
+      "content": "scientia intuitiva — knowledge of things sub specie aeternitatis",
+      "created_at": 0
+    },
+    {
+      "id": "sub_specie_aeternitatis",
+      "status": "active",
+      "content": "under the aspect of eternity",
+      "created_at": 0
+    },
+    {
+      "id": "freedom",
+      "status": "active",
+      "content": "freedom — self-determination through adequate ideas",
+      "created_at": 0
+    },
+    {
+      "id": "acquiescentia_in_se",
+      "status": "active",
+      "content": "acquiescentia in se ipso — self-contentment from reason",
+      "created_at": 0
+    },
+    {
+      "id": "joy_from_knowledge",
+      "status": "active",
+      "content": "highest joy from third kind of knowledge",
+      "created_at": 0
+    },
+    {
+      "id": "scripture_interpretation",
+      "status": "active",
+      "content": "scripture must be interpreted from scripture alone",
+      "created_at": 0
+    },
+    {
+      "id": "prophecy",
+      "status": "active",
+      "content": "prophecy — vivid imagination, not intellectual knowledge",
+      "created_at": 0
+    },
+    {
+      "id": "miracles_denied",
+      "status": "active",
+      "content": "miracles = ignorance of natural causes",
+      "created_at": 0
+    },
+    {
+      "id": "freedom_of_thought",
+      "status": "active",
+      "content": "freedom of thought and expression",
+      "created_at": 0
+    },
+    {
+      "id": "state_purpose",
+      "status": "active",
+      "content": "purpose of state = freedom, not obedience",
+      "created_at": 0
+    },
+    {
+      "id": "democracy_best",
+      "status": "active",
+      "content": "democracy as most natural form of government",
+      "created_at": 0
+    },
+    {
+      "id": "theology_philosophy_separation",
+      "status": "active",
+      "content": "theology and philosophy have separate domains",
+      "created_at": 0
+    },
+    {
+      "id": "obedience_piety",
+      "status": "active",
+      "content": "theology teaches obedience and piety, not truth",
+      "created_at": 0
+    },
+    {
+      "id": "natural_right_ttp",
+      "status": "active",
+      "content": "natural right = power",
+      "created_at": 0
+    },
+    {
+      "id": "social_contract_ttp",
+      "status": "active",
+      "content": "social contract — transfer of right to sovereign",
+      "created_at": 0
+    },
+    {
+      "id": "superstition_origin",
+      "status": "active",
+      "content": "superstition arises from fear and ignorance",
+      "created_at": 0
+    },
+    {
+      "id": "hebrew_state",
+      "status": "active",
+      "content": "the Hebrew theocracy — historical model",
+      "created_at": 0
+    },
+    {
+      "id": "political_science",
+      "status": "active",
+      "content": "political science — from affects as they are, not as they should be",
+      "created_at": 0
+    },
+    {
+      "id": "natural_right_power",
+      "status": "active",
+      "content": "natural right = actual power (jus sive potentia)",
+      "created_at": 0
+    },
+    {
+      "id": "sovereignty",
+      "status": "active",
+      "content": "sovereignty — power of the multitude",
+      "created_at": 0
+    },
+    {
+      "id": "multitude",
+      "status": "active",
+      "content": "the multitude (multitudo) — collective political subject",
+      "created_at": 0
+    },
+    {
+      "id": "monarchy",
+      "status": "active",
+      "content": "monarchy — one holds sovereign power",
+      "created_at": 0
+    },
+    {
+      "id": "aristocracy",
+      "status": "active",
+      "content": "aristocracy — council holds sovereign power",
+      "created_at": 0
+    },
+    {
+      "id": "democracy_tp",
+      "status": "active",
+      "content": "democracy — all citizens hold sovereign power",
+      "created_at": 0
+    },
+    {
+      "id": "indignation",
+      "status": "active",
+      "content": "indignatio — political affect of revolt",
+      "created_at": 0
+    },
+    {
+      "id": "common_affect",
+      "status": "active",
+      "content": "communis affectus — shared political affect",
+      "created_at": 0
+    },
+    {
+      "id": "right_of_state",
+      "status": "active",
+      "content": "right of the state = its power",
+      "created_at": 0
+    },
+    {
+      "id": "infinite_letter12",
+      "status": "active",
+      "content": "Letter 12 on the infinite — three kinds of infinity",
+      "created_at": 0
+    },
+    {
+      "id": "substance_monism_defense",
+      "status": "active",
+      "content": "defense of substance monism against objections",
+      "created_at": 0
+    },
+    {
+      "id": "evil_as_privation_letter",
+      "status": "active",
+      "content": "evil is privation — letter to Blyenbergh",
+      "created_at": 0
+    },
+    {
+      "id": "determinism_defense",
+      "status": "active",
+      "content": "defense of determinism — we are determined but free through understanding",
+      "created_at": 0
+    },
+    {
+      "id": "worm_in_blood",
+      "status": "active",
+      "content": "worm in blood analogy — part/whole knowledge",
+      "created_at": 0
+    },
+    {
+      "id": "chinese_political",
+      "status": "active",
+      "content": "political remarks in letters",
+      "created_at": 0
+    }
+  ],
+  "edges": [
+    {
+      "source": "God_Nature",
+      "target": "substance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "attribute",
+      "target": "substance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "thought",
+      "target": "attribute",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "extension",
+      "target": "attribute",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "thought",
+      "target": "extension",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "mode",
+      "target": "substance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "mode",
+      "target": "attribute",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "infinite",
+      "target": "substance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "finite",
+      "target": "infinite",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "finite",
+      "target": "mode",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "knowledge_true_belief",
+      "target": "knowledge_opinion",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "knowledge_clear",
+      "target": "knowledge_true_belief",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "love_of_God_early",
+      "target": "knowledge_clear",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "love_of_God_early",
+      "target": "God_Nature",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "good_evil_early",
+      "target": "mode",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "will_intellect_unity",
+      "target": "thought",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "true_good",
+      "target": "ordinary_goods",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "true_good",
+      "target": "love_of_God_early",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "adequate_idea",
+      "target": "truth",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "adequate_idea",
+      "target": "falsity",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "method",
+      "target": "adequate_idea",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "method",
+      "target": "intellect",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "imagination",
+      "target": "intellect",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "imagination",
+      "target": "knowledge_opinion",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "intellect",
+      "target": "thought",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "definition",
+      "target": "adequate_idea",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "definition",
+      "target": "method",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "fictitious_idea",
+      "target": "imagination",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "false_idea",
+      "target": "imagination",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "false_idea",
+      "target": "adequate_idea",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "doubt",
+      "target": "falsity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "doubt",
+      "target": "adequate_idea",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "truth",
+      "target": "falsity",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "descartes_substance",
+      "target": "substance",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "causa_sui",
+      "target": "God_Nature",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "causa_sui",
+      "target": "substance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "existence",
+      "target": "essence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "existence",
+      "target": "causa_sui",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "essence",
+      "target": "substance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "duration",
+      "target": "eternity",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "duration",
+      "target": "finite",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "eternity",
+      "target": "substance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "eternity",
+      "target": "infinite",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "creation_continuous",
+      "target": "causa_sui",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "perfection",
+      "target": "existence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "perfection",
+      "target": "essence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "evil_privation",
+      "target": "good_evil_early",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "evil_privation",
+      "target": "perfection",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "will_intellect_distinction",
+      "target": "will_intellect_unity",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "will_intellect_distinction",
+      "target": "descartes_substance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "substance_unique",
+      "target": "substance",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "substance_unique",
+      "target": "descartes_substance",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "attribute_infinite",
+      "target": "attribute",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "attribute_infinite",
+      "target": "substance_unique",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "God_proof",
+      "target": "causa_sui",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "God_proof",
+      "target": "substance_unique",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "God_proof",
+      "target": "existence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "natura_naturans",
+      "target": "God_Nature",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "natura_naturans",
+      "target": "substance_unique",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "natura_naturata",
+      "target": "natura_naturans",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "natura_naturata",
+      "target": "mode",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "necessity",
+      "target": "God_proof",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "necessity",
+      "target": "contingency_denied",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "freedom_as_necessity",
+      "target": "necessity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "freedom_as_necessity",
+      "target": "causa_sui",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "contingency_denied",
+      "target": "finite",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "contingency_denied",
+      "target": "imagination",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "will_not_free_cause",
+      "target": "will_intellect_unity",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "will_not_free_cause",
+      "target": "will_intellect_distinction",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "will_not_free_cause",
+      "target": "determinism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "determinism",
+      "target": "necessity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "determinism",
+      "target": "natura_naturata",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "infinite_modes",
+      "target": "natura_naturans",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "infinite_modes",
+      "target": "attribute_infinite",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "finite_mode_chain",
+      "target": "determinism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "finite_mode_chain",
+      "target": "finite",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "mind",
+      "target": "thought",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "mind",
+      "target": "mode",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "body",
+      "target": "extension",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "body",
+      "target": "mode",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "parallelism",
+      "target": "thought",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "parallelism",
+      "target": "extension",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "parallelism",
+      "target": "attribute_infinite",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "mind_body_unity",
+      "target": "parallelism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "mind_body_unity",
+      "target": "mind",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "mind_body_unity",
+      "target": "body",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "mind_body_unity",
+      "target": "descartes_substance",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "common_notions",
+      "target": "adequate_idea",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "common_notions",
+      "target": "body",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "knowledge_first",
+      "target": "imagination",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "knowledge_first",
+      "target": "sensation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "knowledge_second",
+      "target": "common_notions",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "knowledge_second",
+      "target": "knowledge_first",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "knowledge_second",
+      "target": "adequate_idea",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "knowledge_third",
+      "target": "knowledge_second",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "knowledge_third",
+      "target": "knowledge_clear",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "knowledge_third",
+      "target": "essence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "idea_of_idea",
+      "target": "mind",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "idea_of_idea",
+      "target": "adequate_idea",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sensation",
+      "target": "body",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sensation",
+      "target": "mind",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "memory",
+      "target": "sensation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "memory",
+      "target": "imagination",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "universals_abstractions",
+      "target": "imagination",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "universals_abstractions",
+      "target": "knowledge_first",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "adequate_knowledge_body",
+      "target": "common_notions",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "adequate_knowledge_body",
+      "target": "mind_body_unity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "error_source",
+      "target": "falsity",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "error_source",
+      "target": "knowledge_first",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "error_source",
+      "target": "adequate_idea",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "conatus",
+      "target": "essence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "conatus",
+      "target": "natura_naturata",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "conatus",
+      "target": "determinism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "desire",
+      "target": "conatus",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "desire",
+      "target": "mind",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "joy",
+      "target": "conatus",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "joy",
+      "target": "perfection",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sadness",
+      "target": "conatus",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sadness",
+      "target": "joy",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "affects_active",
+      "target": "adequate_idea",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "affects_active",
+      "target": "conatus",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "affects_passive",
+      "target": "imagination",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "affects_passive",
+      "target": "affects_active",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "love",
+      "target": "joy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "hate",
+      "target": "sadness",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "hate",
+      "target": "love",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "hope",
+      "target": "joy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "hope",
+      "target": "imagination",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "fear",
+      "target": "sadness",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "fear",
+      "target": "hope",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "imitation_affects",
+      "target": "affects_passive",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "imitation_affects",
+      "target": "imagination",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "fluctuatio_animi",
+      "target": "affects_passive",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "fluctuatio_animi",
+      "target": "hope",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "fluctuatio_animi",
+      "target": "fear",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "power",
+      "target": "conatus",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "power",
+      "target": "affects_active",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "bondage",
+      "target": "affects_passive",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "bondage",
+      "target": "imagination",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "bondage",
+      "target": "freedom_as_necessity",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "virtue",
+      "target": "power",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "virtue",
+      "target": "adequate_idea",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "virtue",
+      "target": "conatus",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "self_preservation",
+      "target": "conatus",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "self_preservation",
+      "target": "virtue",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "reason_dictates",
+      "target": "knowledge_second",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "reason_dictates",
+      "target": "common_notions",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "reason_dictates",
+      "target": "virtue",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "good_evil",
+      "target": "good_evil_early",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "good_evil",
+      "target": "perfection",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "good_evil",
+      "target": "joy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "good_evil",
+      "target": "sadness",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "strength_of_mind",
+      "target": "virtue",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "strength_of_mind",
+      "target": "affects_active",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "generosity",
+      "target": "strength_of_mind",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "generosity",
+      "target": "reason_dictates",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "free_man",
+      "target": "reason_dictates",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "free_man",
+      "target": "bondage",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "free_man",
+      "target": "virtue",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "society_rational",
+      "target": "free_man",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "society_rational",
+      "target": "generosity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "superstition_bondage",
+      "target": "bondage",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "superstition_bondage",
+      "target": "imagination",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "superstition_bondage",
+      "target": "fear",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "temporal_affect",
+      "target": "affects_passive",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "temporal_affect",
+      "target": "imagination",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "temporal_affect",
+      "target": "duration",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "remedy_affects",
+      "target": "affects_passive",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "remedy_affects",
+      "target": "adequate_idea",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "remedy_affects",
+      "target": "knowledge_second",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "affect_as_idea",
+      "target": "remedy_affects",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "affect_as_idea",
+      "target": "adequate_idea",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "affect_as_idea",
+      "target": "affects_passive",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "love_of_God",
+      "target": "love_of_God_early",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "love_of_God",
+      "target": "God_Nature",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "love_of_God",
+      "target": "intuitive_knowledge",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "love_of_God",
+      "target": "joy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "blessedness",
+      "target": "love_of_God",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "blessedness",
+      "target": "virtue",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "blessedness",
+      "target": "freedom",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "eternity_of_mind",
+      "target": "mind",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "eternity_of_mind",
+      "target": "eternity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "eternity_of_mind",
+      "target": "knowledge_third",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "intuitive_knowledge",
+      "target": "knowledge_third",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "intuitive_knowledge",
+      "target": "God_Nature",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "intuitive_knowledge",
+      "target": "essence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sub_specie_aeternitatis",
+      "target": "eternity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sub_specie_aeternitatis",
+      "target": "intuitive_knowledge",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sub_specie_aeternitatis",
+      "target": "duration",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "freedom",
+      "target": "freedom_as_necessity",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "freedom",
+      "target": "adequate_idea",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "freedom",
+      "target": "bondage",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "acquiescentia_in_se",
+      "target": "virtue",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "acquiescentia_in_se",
+      "target": "joy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "acquiescentia_in_se",
+      "target": "knowledge_second",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "joy_from_knowledge",
+      "target": "knowledge_third",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "joy_from_knowledge",
+      "target": "love_of_God",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "joy_from_knowledge",
+      "target": "joy",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "scripture_interpretation",
+      "target": "method",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "scripture_interpretation",
+      "target": "adequate_idea",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "prophecy",
+      "target": "imagination",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "prophecy",
+      "target": "knowledge_first",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "prophecy",
+      "target": "intuitive_knowledge",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "miracles_denied",
+      "target": "necessity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "miracles_denied",
+      "target": "God_Nature",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "miracles_denied",
+      "target": "contingency_denied",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "freedom_of_thought",
+      "target": "reason_dictates",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "freedom_of_thought",
+      "target": "free_man",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "state_purpose",
+      "target": "freedom_of_thought",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "state_purpose",
+      "target": "freedom",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "democracy_best",
+      "target": "state_purpose",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "democracy_best",
+      "target": "society_rational",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "theology_philosophy_separation",
+      "target": "imagination",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "theology_philosophy_separation",
+      "target": "knowledge_second",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "obedience_piety",
+      "target": "theology_philosophy_separation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "obedience_piety",
+      "target": "truth",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "natural_right_ttp",
+      "target": "power",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "natural_right_ttp",
+      "target": "conatus",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "social_contract_ttp",
+      "target": "natural_right_ttp",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "social_contract_ttp",
+      "target": "society_rational",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "superstition_origin",
+      "target": "superstition_bondage",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "superstition_origin",
+      "target": "fear",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "superstition_origin",
+      "target": "imagination",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "hebrew_state",
+      "target": "social_contract_ttp",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "hebrew_state",
+      "target": "democracy_best",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "political_science",
+      "target": "affects_passive",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "political_science",
+      "target": "conatus",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "political_science",
+      "target": "reason_dictates",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "natural_right_power",
+      "target": "natural_right_ttp",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "natural_right_power",
+      "target": "power",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "natural_right_power",
+      "target": "conatus",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sovereignty",
+      "target": "multitude",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sovereignty",
+      "target": "natural_right_power",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "multitude",
+      "target": "society_rational",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "multitude",
+      "target": "social_contract_ttp",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "monarchy",
+      "target": "sovereignty",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "aristocracy",
+      "target": "sovereignty",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "aristocracy",
+      "target": "monarchy",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "democracy_tp",
+      "target": "sovereignty",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "democracy_tp",
+      "target": "democracy_best",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "democracy_tp",
+      "target": "aristocracy",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "indignation",
+      "target": "sadness",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "indignation",
+      "target": "affects_passive",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "indignation",
+      "target": "imitation_affects",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "common_affect",
+      "target": "imitation_affects",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "common_affect",
+      "target": "multitude",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "right_of_state",
+      "target": "sovereignty",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "right_of_state",
+      "target": "natural_right_power",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "infinite_letter12",
+      "target": "infinite",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "infinite_letter12",
+      "target": "duration",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "infinite_letter12",
+      "target": "eternity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "substance_monism_defense",
+      "target": "substance_unique",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "substance_monism_defense",
+      "target": "God_proof",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "evil_as_privation_letter",
+      "target": "evil_privation",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "evil_as_privation_letter",
+      "target": "good_evil",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "evil_as_privation_letter",
+      "target": "perfection",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "determinism_defense",
+      "target": "determinism",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "determinism_defense",
+      "target": "freedom",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "determinism_defense",
+      "target": "adequate_idea",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "worm_in_blood",
+      "target": "adequate_knowledge_body",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "worm_in_blood",
+      "target": "knowledge_first",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "worm_in_blood",
+      "target": "parallelism",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "chinese_political",
+      "target": "democracy_tp",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "chinese_political",
+      "target": "sovereignty",
+      "edge_type": "reference",
+      "created_at": 0
+    }
+  ]
+}

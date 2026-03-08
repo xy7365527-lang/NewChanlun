@@ -1,0 +1,1152 @@
+{
+  "vertices": [
+    {
+      "id": "deleuze_difference",
+      "status": "active",
+      "content": "difference-in-itself — not subordinated to identity or analogy",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_repetition",
+      "status": "active",
+      "content": "repetition — productive, creates the new, not copying",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_virtual",
+      "status": "active",
+      "content": "virtual — fully real but not actual, differential field",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_actual",
+      "status": "active",
+      "content": "actual — actualization of the virtual, differentiation",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_intensity",
+      "status": "active",
+      "content": "intensity — difference in itself, prior to quality and extension",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_representation",
+      "status": "active",
+      "content": "representation — the four shackles: identity, analogy, opposition, resemblance",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_identity_critique",
+      "status": "active",
+      "content": "critique of identity — identity is secondary effect of difference",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_simulacrum",
+      "status": "active",
+      "content": "simulacrum — copy without original, overturns Platonism",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_eternal_return",
+      "status": "active",
+      "content": "eternal return — return of difference, not the same",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_problematic",
+      "status": "active",
+      "content": "problematic — problems are not reducible to solutions",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_idea",
+      "status": "active",
+      "content": "Idea — differential structure, multiplicity",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_individuation",
+      "status": "active",
+      "content": "individuation — process, not pre-given individual",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_dramatization",
+      "status": "active",
+      "content": "dramatization — spatio-temporal dynamisms beneath concepts",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_multiplicity",
+      "status": "active",
+      "content": "multiplicity — neither one nor many, continuous manifold",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_sense",
+      "status": "active",
+      "content": "sense — surface effect, neither body nor proposition",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_event",
+      "status": "active",
+      "content": "event — incorporeal transformation, pure becoming",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_series",
+      "status": "active",
+      "content": "series — heterogeneous series converge/diverge",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_paradox",
+      "status": "active",
+      "content": "paradox — essential to sense, not deficiency",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_surface",
+      "status": "active",
+      "content": "surface — where sense is produced, between depth and height",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_phantasm",
+      "status": "active",
+      "content": "phantasm — simulacrum on the surface, desexualized energy",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_nonsense",
+      "status": "active",
+      "content": "nonsense — condition of sense, not its opposite",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_aion",
+      "status": "active",
+      "content": "Aion — pure empty time of the event, versus Chronos",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_chronos",
+      "status": "active",
+      "content": "Chronos — time of bodies, living present",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_quasi_cause",
+      "status": "active",
+      "content": "quasi-cause — events cause each other on the surface",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_humor",
+      "status": "active",
+      "content": "humor — Stoic descent to surfaces, versus irony's ascent",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_desiring_machine",
+      "status": "active",
+      "content": "desiring-machine — desire as production, not lack",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_bwo",
+      "status": "active",
+      "content": "body without organs (BwO) — limit of desiring-production, surface of recording",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_deterritorialization",
+      "status": "active",
+      "content": "deterritorialization — movement away from coded territory",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_reterritorialization",
+      "status": "active",
+      "content": "reterritorialization — recapture of flows onto new territory",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_schizoanalysis",
+      "status": "active",
+      "content": "schizoanalysis — alternative to psychoanalysis, follows desire's lines",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_oedipus_critique",
+      "status": "active",
+      "content": "critique of Oedipus — the Oedipal triangle as repressive apparatus",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_desire_production",
+      "status": "active",
+      "content": "desire is production — not lack, not representation",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_socius",
+      "status": "active",
+      "content": "socius — the social body that codes flows",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_capitalism_flows",
+      "status": "active",
+      "content": "capitalism — decodes flows, axiomatizes, never enough deterritorialization",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_schizo",
+      "status": "active",
+      "content": "the schizo — revolutionary process, not clinical entity",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_paranoid_pole",
+      "status": "active",
+      "content": "paranoid-fascist pole — molar, reterritorializing",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_schizo_pole",
+      "status": "active",
+      "content": "schizoid-revolutionary pole — molecular, deterritorializing",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_coding",
+      "status": "active",
+      "content": "coding — inscribing flows on the socius",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_overcoding",
+      "status": "active",
+      "content": "overcoding — despotic appropriation of codes",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_rhizome",
+      "status": "active",
+      "content": "rhizome — non-hierarchical connection, any point to any point",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_assemblage",
+      "status": "active",
+      "content": "assemblage (agencement) — heterogeneous arrangement of bodies and enunciations",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_smooth_space",
+      "status": "active",
+      "content": "smooth space — nomadic, intensive, haptic",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_striated_space",
+      "status": "active",
+      "content": "striated space — State, extensive, optical, gridded",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_becoming",
+      "status": "active",
+      "content": "becoming — becoming-animal, -woman, -imperceptible; not imitation",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_plane_of_immanence",
+      "status": "active",
+      "content": "plane of immanence — pre-philosophical field, no transcendence",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_war_machine",
+      "status": "active",
+      "content": "war machine — exterior to the State, nomadic invention",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_state_apparatus",
+      "status": "active",
+      "content": "State apparatus — capture, striation, overcoding",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_abstract_machine",
+      "status": "active",
+      "content": "abstract machine — diagrammatic, operates before forms/substances",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_molar",
+      "status": "active",
+      "content": "molar — large-scale aggregates, segmented, organized",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_molecular",
+      "status": "active",
+      "content": "molecular — micro-processes, flows, becomings",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_line_of_flight",
+      "status": "active",
+      "content": "line of flight — absolute deterritorialization, creative escape",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_refrain",
+      "status": "active",
+      "content": "refrain (ritournelle) — territorial motif, organizing rhythm",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_faciality",
+      "status": "active",
+      "content": "faciality — white wall/black hole system, overcoding of body",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_body_politic",
+      "status": "active",
+      "content": "body politic — the three bodies: earth, despot, capital",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_nomadology",
+      "status": "active",
+      "content": "nomadology — treatise on the war machine, anti-State thought",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_plateau",
+      "status": "active",
+      "content": "plateau — zone of continuous intensity, not climax",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_concept",
+      "status": "active",
+      "content": "concept — philosophical creation on the plane of immanence",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_conceptual_personae",
+      "status": "active",
+      "content": "conceptual personae — the thinker's persona, pre-philosophical image",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_plane_of_reference",
+      "status": "active",
+      "content": "plane of reference — science, functions, propositions",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_plane_of_composition",
+      "status": "active",
+      "content": "plane of composition — art, percepts, affects",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_percept",
+      "status": "active",
+      "content": "percept — non-human perception, wrested from perceptions",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_affect",
+      "status": "active",
+      "content": "affect — non-human becoming, wrested from affections",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_functive",
+      "status": "active",
+      "content": "functive — element of science, slows infinite speed to limit",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_geo_philosophy",
+      "status": "active",
+      "content": "geo-philosophy — philosophy needs a milieu, Greek contingency",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_opinion",
+      "status": "active",
+      "content": "opinion (doxa) — what philosophy, science, art fight against",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_chaos",
+      "status": "active",
+      "content": "chaos — infinite speed where nothing takes form",
+      "created_at": 0
+    },
+    {
+      "id": "deleuze_brain",
+      "status": "active",
+      "content": "brain — junction of planes, not metaphor",
+      "created_at": 0
+    }
+  ],
+  "edges": [
+    {
+      "source": "deleuze_difference",
+      "target": "deleuze_identity_critique",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_difference",
+      "target": "deleuze_representation",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_repetition",
+      "target": "deleuze_difference",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_repetition",
+      "target": "deleuze_representation",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_virtual",
+      "target": "deleuze_actual",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_virtual",
+      "target": "deleuze_difference",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_actual",
+      "target": "deleuze_virtual",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_intensity",
+      "target": "deleuze_difference",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_intensity",
+      "target": "deleuze_representation",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_identity_critique",
+      "target": "deleuze_representation",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_simulacrum",
+      "target": "deleuze_representation",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_simulacrum",
+      "target": "deleuze_difference",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_eternal_return",
+      "target": "deleuze_difference",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_eternal_return",
+      "target": "deleuze_repetition",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_problematic",
+      "target": "deleuze_idea",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_problematic",
+      "target": "deleuze_virtual",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_idea",
+      "target": "deleuze_multiplicity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_idea",
+      "target": "deleuze_virtual",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_individuation",
+      "target": "deleuze_intensity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_individuation",
+      "target": "deleuze_virtual",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_dramatization",
+      "target": "deleuze_individuation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_dramatization",
+      "target": "deleuze_idea",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_multiplicity",
+      "target": "deleuze_difference",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_multiplicity",
+      "target": "deleuze_identity_critique",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_sense",
+      "target": "deleuze_event",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_sense",
+      "target": "deleuze_surface",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_event",
+      "target": "deleuze_aion",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_event",
+      "target": "deleuze_chronos",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_series",
+      "target": "deleuze_sense",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_series",
+      "target": "deleuze_paradox",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_paradox",
+      "target": "deleuze_sense",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_paradox",
+      "target": "deleuze_nonsense",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_surface",
+      "target": "deleuze_event",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_phantasm",
+      "target": "deleuze_surface",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_phantasm",
+      "target": "deleuze_simulacrum",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_nonsense",
+      "target": "deleuze_sense",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_aion",
+      "target": "deleuze_chronos",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_quasi_cause",
+      "target": "deleuze_event",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_quasi_cause",
+      "target": "deleuze_surface",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_humor",
+      "target": "deleuze_surface",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_event",
+      "target": "deleuze_difference",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_sense",
+      "target": "deleuze_virtual",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_desiring_machine",
+      "target": "deleuze_desire_production",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_desiring_machine",
+      "target": "deleuze_oedipus_critique",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_bwo",
+      "target": "deleuze_desiring_machine",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_bwo",
+      "target": "deleuze_desire_production",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_deterritorialization",
+      "target": "deleuze_reterritorialization",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_deterritorialization",
+      "target": "deleuze_coding",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_reterritorialization",
+      "target": "deleuze_deterritorialization",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_schizoanalysis",
+      "target": "deleuze_oedipus_critique",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_schizoanalysis",
+      "target": "deleuze_desiring_machine",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_oedipus_critique",
+      "target": "deleuze_desire_production",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_desire_production",
+      "target": "deleuze_representation",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_socius",
+      "target": "deleuze_coding",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_capitalism_flows",
+      "target": "deleuze_deterritorialization",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_capitalism_flows",
+      "target": "deleuze_reterritorialization",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_capitalism_flows",
+      "target": "deleuze_coding",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_schizo",
+      "target": "deleuze_deterritorialization",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_schizo",
+      "target": "deleuze_oedipus_critique",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_paranoid_pole",
+      "target": "deleuze_reterritorialization",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_schizo_pole",
+      "target": "deleuze_deterritorialization",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_paranoid_pole",
+      "target": "deleuze_schizo_pole",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_coding",
+      "target": "deleuze_socius",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_overcoding",
+      "target": "deleuze_coding",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_overcoding",
+      "target": "deleuze_deterritorialization",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_desire_production",
+      "target": "deleuze_difference",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_bwo",
+      "target": "deleuze_intensity",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_rhizome",
+      "target": "deleuze_assemblage",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_rhizome",
+      "target": "deleuze_representation",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_rhizome",
+      "target": "deleuze_multiplicity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_assemblage",
+      "target": "deleuze_abstract_machine",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_smooth_space",
+      "target": "deleuze_striated_space",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_striated_space",
+      "target": "deleuze_smooth_space",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_becoming",
+      "target": "deleuze_identity_critique",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_becoming",
+      "target": "deleuze_molecular",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_becoming",
+      "target": "deleuze_molar",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_plane_of_immanence",
+      "target": "deleuze_virtual",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_plane_of_immanence",
+      "target": "deleuze_difference",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_war_machine",
+      "target": "deleuze_state_apparatus",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_war_machine",
+      "target": "deleuze_smooth_space",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_war_machine",
+      "target": "deleuze_line_of_flight",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_state_apparatus",
+      "target": "deleuze_striated_space",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_state_apparatus",
+      "target": "deleuze_overcoding",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_abstract_machine",
+      "target": "deleuze_assemblage",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_abstract_machine",
+      "target": "deleuze_virtual",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_molar",
+      "target": "deleuze_molecular",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_molecular",
+      "target": "deleuze_molar",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_line_of_flight",
+      "target": "deleuze_deterritorialization",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_line_of_flight",
+      "target": "deleuze_reterritorialization",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_refrain",
+      "target": "deleuze_deterritorialization",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_refrain",
+      "target": "deleuze_assemblage",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_faciality",
+      "target": "deleuze_overcoding",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_faciality",
+      "target": "deleuze_becoming",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_nomadology",
+      "target": "deleuze_war_machine",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_nomadology",
+      "target": "deleuze_state_apparatus",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_plateau",
+      "target": "deleuze_rhizome",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_plateau",
+      "target": "deleuze_intensity",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_body_politic",
+      "target": "deleuze_socius",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_smooth_space",
+      "target": "deleuze_bwo",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_assemblage",
+      "target": "deleuze_desiring_machine",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_concept",
+      "target": "deleuze_plane_of_immanence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_concept",
+      "target": "deleuze_opinion",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_concept",
+      "target": "deleuze_conceptual_personae",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_conceptual_personae",
+      "target": "deleuze_plane_of_immanence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_plane_of_reference",
+      "target": "deleuze_plane_of_immanence",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_plane_of_composition",
+      "target": "deleuze_plane_of_immanence",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_plane_of_composition",
+      "target": "deleuze_plane_of_reference",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_percept",
+      "target": "deleuze_plane_of_composition",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_affect",
+      "target": "deleuze_plane_of_composition",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_affect",
+      "target": "deleuze_becoming",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_functive",
+      "target": "deleuze_plane_of_reference",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_functive",
+      "target": "deleuze_concept",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_geo_philosophy",
+      "target": "deleuze_plane_of_immanence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_geo_philosophy",
+      "target": "deleuze_deterritorialization",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_opinion",
+      "target": "deleuze_chaos",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_chaos",
+      "target": "deleuze_plane_of_immanence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_chaos",
+      "target": "deleuze_plane_of_reference",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_chaos",
+      "target": "deleuze_plane_of_composition",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_brain",
+      "target": "deleuze_concept",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_brain",
+      "target": "deleuze_percept",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_brain",
+      "target": "deleuze_functive",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_concept",
+      "target": "deleuze_difference",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_plane_of_immanence",
+      "target": "deleuze_rhizome",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "deleuze_affect",
+      "target": "deleuze_intensity",
+      "edge_type": "reference",
+      "created_at": 0
+    }
+  ]
+}

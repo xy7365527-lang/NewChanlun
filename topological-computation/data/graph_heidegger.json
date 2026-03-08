@@ -1,0 +1,2988 @@
+{
+  "vertices": [
+    {
+      "id": "being",
+      "status": "active",
+      "content": "Being (Sein)",
+      "created_at": 0
+    },
+    {
+      "id": "beings",
+      "status": "active",
+      "content": "beings (Seiendes)",
+      "created_at": 0
+    },
+    {
+      "id": "ontological_difference",
+      "status": "active",
+      "content": "ontological difference",
+      "created_at": 0
+    },
+    {
+      "id": "dasein",
+      "status": "active",
+      "content": "Dasein",
+      "created_at": 0
+    },
+    {
+      "id": "intentionality",
+      "status": "active",
+      "content": "intentionality",
+      "created_at": 0
+    },
+    {
+      "id": "categorial_intuition",
+      "status": "active",
+      "content": "categorial intuition",
+      "created_at": 0
+    },
+    {
+      "id": "a_priori",
+      "status": "active",
+      "content": "the a priori",
+      "created_at": 0
+    },
+    {
+      "id": "phenomenology_method",
+      "status": "active",
+      "content": "phenomenological method",
+      "created_at": 0
+    },
+    {
+      "id": "time_concept_history",
+      "status": "active",
+      "content": "history of the concept of time",
+      "created_at": 0
+    },
+    {
+      "id": "natural_attitude",
+      "status": "active",
+      "content": "natural attitude",
+      "created_at": 0
+    },
+    {
+      "id": "world",
+      "status": "active",
+      "content": "world",
+      "created_at": 0
+    },
+    {
+      "id": "being_in_the_world",
+      "status": "active",
+      "content": "being-in-the-world",
+      "created_at": 0
+    },
+    {
+      "id": "presence",
+      "status": "active",
+      "content": "presence (Anwesenheit)",
+      "created_at": 0
+    },
+    {
+      "id": "absence",
+      "status": "active",
+      "content": "absence",
+      "created_at": 0
+    },
+    {
+      "id": "temporality",
+      "status": "active",
+      "content": "temporality (Zeitlichkeit)",
+      "created_at": 0
+    },
+    {
+      "id": "temporal_interpretation",
+      "status": "active",
+      "content": "temporal interpretation of Being",
+      "created_at": 0
+    },
+    {
+      "id": "ontological_reduction",
+      "status": "active",
+      "content": "ontological/phenomenological reduction",
+      "created_at": 0
+    },
+    {
+      "id": "ontological_construction",
+      "status": "active",
+      "content": "ontological construction",
+      "created_at": 0
+    },
+    {
+      "id": "ontological_destruction",
+      "status": "active",
+      "content": "ontological destruction",
+      "created_at": 0
+    },
+    {
+      "id": "res_cogitans",
+      "status": "active",
+      "content": "res cogitans (Descartes thesis)",
+      "created_at": 0
+    },
+    {
+      "id": "medieval_ontology",
+      "status": "active",
+      "content": "medieval ontology",
+      "created_at": 0
+    },
+    {
+      "id": "care",
+      "status": "active",
+      "content": "care (Sorge)",
+      "created_at": 0
+    },
+    {
+      "id": "thrownness",
+      "status": "active",
+      "content": "thrownness (Geworfenheit)",
+      "created_at": 0
+    },
+    {
+      "id": "projection",
+      "status": "active",
+      "content": "projection (Entwurf)",
+      "created_at": 0
+    },
+    {
+      "id": "falling",
+      "status": "active",
+      "content": "falling (Verfallen)",
+      "created_at": 0
+    },
+    {
+      "id": "authenticity",
+      "status": "active",
+      "content": "authenticity (Eigentlichkeit)",
+      "created_at": 0
+    },
+    {
+      "id": "inauthenticity",
+      "status": "active",
+      "content": "inauthenticity (Uneigentlichkeit)",
+      "created_at": 0
+    },
+    {
+      "id": "das_man",
+      "status": "active",
+      "content": "the They (das Man)",
+      "created_at": 0
+    },
+    {
+      "id": "anxiety",
+      "status": "active",
+      "content": "anxiety (Angst)",
+      "created_at": 0
+    },
+    {
+      "id": "death",
+      "status": "active",
+      "content": "death",
+      "created_at": 0
+    },
+    {
+      "id": "being_toward_death",
+      "status": "active",
+      "content": "being-toward-death",
+      "created_at": 0
+    },
+    {
+      "id": "understanding",
+      "status": "active",
+      "content": "understanding (Verstehen)",
+      "created_at": 0
+    },
+    {
+      "id": "interpretation",
+      "status": "active",
+      "content": "interpretation (Auslegung)",
+      "created_at": 0
+    },
+    {
+      "id": "mood",
+      "status": "active",
+      "content": "mood/attunement (Befindlichkeit)",
+      "created_at": 0
+    },
+    {
+      "id": "discourse",
+      "status": "active",
+      "content": "discourse (Rede)",
+      "created_at": 0
+    },
+    {
+      "id": "truth",
+      "status": "active",
+      "content": "truth (Wahrheit)",
+      "created_at": 0
+    },
+    {
+      "id": "readiness_to_hand",
+      "status": "active",
+      "content": "readiness-to-hand (Zuhandenheit)",
+      "created_at": 0
+    },
+    {
+      "id": "present_at_hand",
+      "status": "active",
+      "content": "present-at-hand (Vorhandenheit)",
+      "created_at": 0
+    },
+    {
+      "id": "equipment",
+      "status": "active",
+      "content": "equipment (Zeug)",
+      "created_at": 0
+    },
+    {
+      "id": "resoluteness",
+      "status": "active",
+      "content": "resoluteness (Entschlossenheit)",
+      "created_at": 0
+    },
+    {
+      "id": "historicity",
+      "status": "active",
+      "content": "historicity (Geschichtlichkeit)",
+      "created_at": 0
+    },
+    {
+      "id": "conscience",
+      "status": "active",
+      "content": "conscience (Gewissen)",
+      "created_at": 0
+    },
+    {
+      "id": "guilt",
+      "status": "active",
+      "content": "guilt (Schuld)",
+      "created_at": 0
+    },
+    {
+      "id": "ecstasis",
+      "status": "active",
+      "content": "ecstatic temporality",
+      "created_at": 0
+    },
+    {
+      "id": "finitude",
+      "status": "active",
+      "content": "finitude of Dasein",
+      "created_at": 0
+    },
+    {
+      "id": "transcendence",
+      "status": "active",
+      "content": "transcendence",
+      "created_at": 0
+    },
+    {
+      "id": "imagination",
+      "status": "active",
+      "content": "transcendental imagination",
+      "created_at": 0
+    },
+    {
+      "id": "ground_metaphysics",
+      "status": "active",
+      "content": "ground of metaphysics",
+      "created_at": 0
+    },
+    {
+      "id": "ontological_knowledge",
+      "status": "active",
+      "content": "ontological knowledge",
+      "created_at": 0
+    },
+    {
+      "id": "receptivity",
+      "status": "active",
+      "content": "receptivity (finite intuition)",
+      "created_at": 0
+    },
+    {
+      "id": "spontaneity",
+      "status": "active",
+      "content": "spontaneity (understanding)",
+      "created_at": 0
+    },
+    {
+      "id": "nothing",
+      "status": "active",
+      "content": "the Nothing (das Nichts)",
+      "created_at": 0
+    },
+    {
+      "id": "negation_logic",
+      "status": "active",
+      "content": "logical negation",
+      "created_at": 0
+    },
+    {
+      "id": "ground",
+      "status": "active",
+      "content": "ground (Grund)",
+      "created_at": 0
+    },
+    {
+      "id": "abyss",
+      "status": "active",
+      "content": "abyss (Ab-grund)",
+      "created_at": 0
+    },
+    {
+      "id": "freedom",
+      "status": "active",
+      "content": "freedom (Freiheit)",
+      "created_at": 0
+    },
+    {
+      "id": "world_forming",
+      "status": "active",
+      "content": "world-forming",
+      "created_at": 0
+    },
+    {
+      "id": "transcendence_ground",
+      "status": "active",
+      "content": "transcendence as ground",
+      "created_at": 0
+    },
+    {
+      "id": "aletheia",
+      "status": "active",
+      "content": "unconcealment (aletheia)",
+      "created_at": 0
+    },
+    {
+      "id": "concealment",
+      "status": "active",
+      "content": "concealment (Verbergung)",
+      "created_at": 0
+    },
+    {
+      "id": "errancy",
+      "status": "active",
+      "content": "errancy (Irre)",
+      "created_at": 0
+    },
+    {
+      "id": "letting_be",
+      "status": "active",
+      "content": "letting-be (Seinlassen)",
+      "created_at": 0
+    },
+    {
+      "id": "openness",
+      "status": "active",
+      "content": "openness (Offenheit)",
+      "created_at": 0
+    },
+    {
+      "id": "physis",
+      "status": "active",
+      "content": "physis (emerging/arising)",
+      "created_at": 0
+    },
+    {
+      "id": "logos",
+      "status": "active",
+      "content": "logos (gathering)",
+      "created_at": 0
+    },
+    {
+      "id": "noein",
+      "status": "active",
+      "content": "noein (apprehending)",
+      "created_at": 0
+    },
+    {
+      "id": "dike",
+      "status": "active",
+      "content": "dike (fittingness/order)",
+      "created_at": 0
+    },
+    {
+      "id": "techne",
+      "status": "active",
+      "content": "techne (knowing/craft)",
+      "created_at": 0
+    },
+    {
+      "id": "polis",
+      "status": "active",
+      "content": "polis",
+      "created_at": 0
+    },
+    {
+      "id": "violence",
+      "status": "active",
+      "content": "violence (Gewalt-tatigkeit)",
+      "created_at": 0
+    },
+    {
+      "id": "uncanny",
+      "status": "active",
+      "content": "the uncanny (Unheimliche)",
+      "created_at": 0
+    },
+    {
+      "id": "earth",
+      "status": "active",
+      "content": "earth (Erde)",
+      "created_at": 0
+    },
+    {
+      "id": "art_work",
+      "status": "active",
+      "content": "work of art",
+      "created_at": 0
+    },
+    {
+      "id": "strife",
+      "status": "active",
+      "content": "strife (Streit) between earth and world",
+      "created_at": 0
+    },
+    {
+      "id": "setting_up_world",
+      "status": "active",
+      "content": "setting up a world",
+      "created_at": 0
+    },
+    {
+      "id": "setting_forth_earth",
+      "status": "active",
+      "content": "setting forth the earth",
+      "created_at": 0
+    },
+    {
+      "id": "rift",
+      "status": "active",
+      "content": "rift (Riss)",
+      "created_at": 0
+    },
+    {
+      "id": "figure",
+      "status": "active",
+      "content": "figure/shape (Gestalt)",
+      "created_at": 0
+    },
+    {
+      "id": "poiesis",
+      "status": "active",
+      "content": "poiesis (bringing-forth)",
+      "created_at": 0
+    },
+    {
+      "id": "ereignis",
+      "status": "active",
+      "content": "Ereignis (event of appropriation)",
+      "created_at": 0
+    },
+    {
+      "id": "last_god",
+      "status": "active",
+      "content": "the last god (der letzte Gott)",
+      "created_at": 0
+    },
+    {
+      "id": "grounding",
+      "status": "active",
+      "content": "grounding (Grundung)",
+      "created_at": 0
+    },
+    {
+      "id": "leap",
+      "status": "active",
+      "content": "the leap (der Sprung)",
+      "created_at": 0
+    },
+    {
+      "id": "interplay",
+      "status": "active",
+      "content": "interplay (Zuspiel)",
+      "created_at": 0
+    },
+    {
+      "id": "echo",
+      "status": "active",
+      "content": "echo (Anklang)",
+      "created_at": 0
+    },
+    {
+      "id": "future_ones",
+      "status": "active",
+      "content": "the future ones (die Zukunftigen)",
+      "created_at": 0
+    },
+    {
+      "id": "abandonment_of_being",
+      "status": "active",
+      "content": "abandonment of being (Seinsverlassenheit)",
+      "created_at": 0
+    },
+    {
+      "id": "machination",
+      "status": "active",
+      "content": "machination (Machenschaft)",
+      "created_at": 0
+    },
+    {
+      "id": "lived_experience",
+      "status": "active",
+      "content": "lived experience (Erlebnis)",
+      "created_at": 0
+    },
+    {
+      "id": "beyng",
+      "status": "active",
+      "content": "Beyng (Seyn)",
+      "created_at": 0
+    },
+    {
+      "id": "abyss_ground",
+      "status": "active",
+      "content": "ab-ground (the abyss as ground)",
+      "created_at": 0
+    },
+    {
+      "id": "time_space",
+      "status": "active",
+      "content": "time-space (Zeit-Raum)",
+      "created_at": 0
+    },
+    {
+      "id": "will_to_power",
+      "status": "active",
+      "content": "will to power",
+      "created_at": 0
+    },
+    {
+      "id": "eternal_return",
+      "status": "active",
+      "content": "eternal return of the same",
+      "created_at": 0
+    },
+    {
+      "id": "nihilism",
+      "status": "active",
+      "content": "nihilism",
+      "created_at": 0
+    },
+    {
+      "id": "overman",
+      "status": "active",
+      "content": "overman (Ubermensch)",
+      "created_at": 0
+    },
+    {
+      "id": "metaphysics_completion",
+      "status": "active",
+      "content": "completion of metaphysics",
+      "created_at": 0
+    },
+    {
+      "id": "value_positing",
+      "status": "active",
+      "content": "value-positing",
+      "created_at": 0
+    },
+    {
+      "id": "moment",
+      "status": "active",
+      "content": "the moment (Augenblick)",
+      "created_at": 0
+    },
+    {
+      "id": "overcoming_metaphysics",
+      "status": "active",
+      "content": "overcoming metaphysics (Uberwindung)",
+      "created_at": 0
+    },
+    {
+      "id": "history_of_being",
+      "status": "active",
+      "content": "history of Being (Seinsgeschichte)",
+      "created_at": 0
+    },
+    {
+      "id": "sending",
+      "status": "active",
+      "content": "sending/dispensation (Geschick)",
+      "created_at": 0
+    },
+    {
+      "id": "oblivion_of_being",
+      "status": "active",
+      "content": "oblivion of Being (Seinsvergessenheit)",
+      "created_at": 0
+    },
+    {
+      "id": "destiny",
+      "status": "active",
+      "content": "destiny (Geschick)",
+      "created_at": 0
+    },
+    {
+      "id": "aletheia_goddess",
+      "status": "active",
+      "content": "aletheia as goddess",
+      "created_at": 0
+    },
+    {
+      "id": "lethe",
+      "status": "active",
+      "content": "Lethe (oblivion)",
+      "created_at": 0
+    },
+    {
+      "id": "mythos",
+      "status": "active",
+      "content": "mythos",
+      "created_at": 0
+    },
+    {
+      "id": "roman_verum",
+      "status": "active",
+      "content": "Roman verum/veritas",
+      "created_at": 0
+    },
+    {
+      "id": "greek_aletheia_orig",
+      "status": "active",
+      "content": "original Greek aletheia",
+      "created_at": 0
+    },
+    {
+      "id": "gelassenheit",
+      "status": "active",
+      "content": "releasement (Gelassenheit)",
+      "created_at": 0
+    },
+    {
+      "id": "meditative_thinking",
+      "status": "active",
+      "content": "meditative thinking",
+      "created_at": 0
+    },
+    {
+      "id": "calculative_thinking",
+      "status": "active",
+      "content": "calculative thinking",
+      "created_at": 0
+    },
+    {
+      "id": "openness_mystery",
+      "status": "active",
+      "content": "openness to the mystery",
+      "created_at": 0
+    },
+    {
+      "id": "region",
+      "status": "active",
+      "content": "the region (die Gegend/Gegnet)",
+      "created_at": 0
+    },
+    {
+      "id": "ek_sistence",
+      "status": "active",
+      "content": "ek-sistence (Ek-sistenz)",
+      "created_at": 0
+    },
+    {
+      "id": "house_of_being",
+      "status": "active",
+      "content": "language as house of Being",
+      "created_at": 0
+    },
+    {
+      "id": "thinking",
+      "status": "active",
+      "content": "thinking (Denken)",
+      "created_at": 0
+    },
+    {
+      "id": "language",
+      "status": "active",
+      "content": "language (Sprache)",
+      "created_at": 0
+    },
+    {
+      "id": "homelessness",
+      "status": "active",
+      "content": "homelessness",
+      "created_at": 0
+    },
+    {
+      "id": "humanism_critique",
+      "status": "active",
+      "content": "critique of humanism",
+      "created_at": 0
+    },
+    {
+      "id": "clearing",
+      "status": "active",
+      "content": "clearing (Lichtung)",
+      "created_at": 0
+    },
+    {
+      "id": "gestell",
+      "status": "active",
+      "content": "Gestell (enframing)",
+      "created_at": 0
+    },
+    {
+      "id": "enframing",
+      "status": "active",
+      "content": "enframing (challenging-forth)",
+      "created_at": 0
+    },
+    {
+      "id": "standing_reserve",
+      "status": "active",
+      "content": "standing-reserve (Bestand)",
+      "created_at": 0
+    },
+    {
+      "id": "challenging",
+      "status": "active",
+      "content": "challenging (Herausfordern)",
+      "created_at": 0
+    },
+    {
+      "id": "revealing",
+      "status": "active",
+      "content": "revealing (Entbergen)",
+      "created_at": 0
+    },
+    {
+      "id": "saving_power",
+      "status": "active",
+      "content": "the saving power",
+      "created_at": 0
+    },
+    {
+      "id": "danger",
+      "status": "active",
+      "content": "the danger (die Gefahr)",
+      "created_at": 0
+    },
+    {
+      "id": "gathering",
+      "status": "active",
+      "content": "gathering (Versammlung)",
+      "created_at": 0
+    },
+    {
+      "id": "nearness",
+      "status": "active",
+      "content": "nearness (Nahe)",
+      "created_at": 0
+    },
+    {
+      "id": "distancelessness",
+      "status": "active",
+      "content": "distancelessness (Abstandlosigkeit)",
+      "created_at": 0
+    },
+    {
+      "id": "mirroring",
+      "status": "active",
+      "content": "mirror-play of the fourfold",
+      "created_at": 0
+    },
+    {
+      "id": "dwelling",
+      "status": "active",
+      "content": "dwelling (Wohnen)",
+      "created_at": 0
+    },
+    {
+      "id": "building",
+      "status": "active",
+      "content": "building (Bauen)",
+      "created_at": 0
+    },
+    {
+      "id": "fourfold",
+      "status": "active",
+      "content": "the fourfold (Geviert)",
+      "created_at": 0
+    },
+    {
+      "id": "sky",
+      "status": "active",
+      "content": "sky",
+      "created_at": 0
+    },
+    {
+      "id": "mortals",
+      "status": "active",
+      "content": "mortals",
+      "created_at": 0
+    },
+    {
+      "id": "divinities",
+      "status": "active",
+      "content": "divinities (die Gottlichen)",
+      "created_at": 0
+    },
+    {
+      "id": "sparing",
+      "status": "active",
+      "content": "sparing (Schonen)",
+      "created_at": 0
+    },
+    {
+      "id": "thing",
+      "status": "active",
+      "content": "the thing (das Ding)",
+      "created_at": 0
+    },
+    {
+      "id": "location",
+      "status": "active",
+      "content": "location (Ort)",
+      "created_at": 0
+    },
+    {
+      "id": "space_dwelling",
+      "status": "active",
+      "content": "space as grounded in dwelling",
+      "created_at": 0
+    },
+    {
+      "id": "thinking_calls",
+      "status": "active",
+      "content": "what calls for thinking",
+      "created_at": 0
+    },
+    {
+      "id": "withdrawal",
+      "status": "active",
+      "content": "withdrawal (Entzug)",
+      "created_at": 0
+    },
+    {
+      "id": "memory",
+      "status": "active",
+      "content": "memory/thinking (Andenken/Gedachtnis)",
+      "created_at": 0
+    },
+    {
+      "id": "thanking",
+      "status": "active",
+      "content": "thanking (Danken)",
+      "created_at": 0
+    },
+    {
+      "id": "most_thought_provoking",
+      "status": "active",
+      "content": "the most thought-provoking",
+      "created_at": 0
+    },
+    {
+      "id": "principle_reason",
+      "status": "active",
+      "content": "the principle of reason (Satz vom Grund)",
+      "created_at": 0
+    },
+    {
+      "id": "being_and_ground",
+      "status": "active",
+      "content": "being and ground (Sein und Grund)",
+      "created_at": 0
+    },
+    {
+      "id": "groundlessness",
+      "status": "active",
+      "content": "groundlessness of Being",
+      "created_at": 0
+    },
+    {
+      "id": "play",
+      "status": "active",
+      "content": "play (Spiel)",
+      "created_at": 0
+    },
+    {
+      "id": "identity",
+      "status": "active",
+      "content": "identity (Identitat)",
+      "created_at": 0
+    },
+    {
+      "id": "difference",
+      "status": "active",
+      "content": "difference (Differenz)",
+      "created_at": 0
+    },
+    {
+      "id": "belonging_together",
+      "status": "active",
+      "content": "belonging-together (Zusammengehoren)",
+      "created_at": 0
+    },
+    {
+      "id": "onto_theo_logic",
+      "status": "active",
+      "content": "onto-theo-logical constitution of metaphysics",
+      "created_at": 0
+    },
+    {
+      "id": "step_back",
+      "status": "active",
+      "content": "the step back (Schritt zuruck)",
+      "created_at": 0
+    },
+    {
+      "id": "saying",
+      "status": "active",
+      "content": "Saying (Sage)",
+      "created_at": 0
+    },
+    {
+      "id": "showing",
+      "status": "active",
+      "content": "showing (Zeigen)",
+      "created_at": 0
+    },
+    {
+      "id": "language_speaks",
+      "status": "active",
+      "content": "language speaks (die Sprache spricht)",
+      "created_at": 0
+    },
+    {
+      "id": "peal_of_stillness",
+      "status": "active",
+      "content": "the peal of stillness (Gelaut der Stille)",
+      "created_at": 0
+    },
+    {
+      "id": "way_to_language",
+      "status": "active",
+      "content": "the way to language",
+      "created_at": 0
+    },
+    {
+      "id": "hermeneutic_circle",
+      "status": "active",
+      "content": "hermeneutic circle",
+      "created_at": 0
+    },
+    {
+      "id": "bodily_being",
+      "status": "active",
+      "content": "bodily being (Leiblichkeit)",
+      "created_at": 0
+    },
+    {
+      "id": "dasein_analysis_med",
+      "status": "active",
+      "content": "Daseinsanalysis (medical)",
+      "created_at": 0
+    },
+    {
+      "id": "illness",
+      "status": "active",
+      "content": "illness as mode of Dasein",
+      "created_at": 0
+    },
+    {
+      "id": "spatiality_body",
+      "status": "active",
+      "content": "spatiality of the lived body",
+      "created_at": 0
+    },
+    {
+      "id": "psychosomatic",
+      "status": "active",
+      "content": "psychosomatic unity",
+      "created_at": 0
+    },
+    {
+      "id": "es_gibt",
+      "status": "active",
+      "content": "It gives / there is (Es gibt)",
+      "created_at": 0
+    },
+    {
+      "id": "giving",
+      "status": "active",
+      "content": "giving (Geben)",
+      "created_at": 0
+    },
+    {
+      "id": "extending",
+      "status": "active",
+      "content": "extending (Reichen)",
+      "created_at": 0
+    },
+    {
+      "id": "presence_absence_time",
+      "status": "active",
+      "content": "presence-absence in time",
+      "created_at": 0
+    },
+    {
+      "id": "propriation",
+      "status": "active",
+      "content": "propriation (Ereignis as proper)",
+      "created_at": 0
+    },
+    {
+      "id": "end_philosophy",
+      "status": "active",
+      "content": "the end of philosophy",
+      "created_at": 0
+    },
+    {
+      "id": "task_thinking",
+      "status": "active",
+      "content": "the task of thinking",
+      "created_at": 0
+    },
+    {
+      "id": "lichtung",
+      "status": "active",
+      "content": "Lichtung (clearing/lighting)",
+      "created_at": 0
+    },
+    {
+      "id": "sciences_dissolution",
+      "status": "active",
+      "content": "dissolution of philosophy into sciences",
+      "created_at": 0
+    },
+    {
+      "id": "topology_of_being",
+      "status": "active",
+      "content": "topology of Being (Topologie des Seyns)",
+      "created_at": 0
+    },
+    {
+      "id": "place_of_being",
+      "status": "active",
+      "content": "place of Being (Ort des Seins)",
+      "created_at": 0
+    },
+    {
+      "id": "phenomenology_inconspicuous",
+      "status": "active",
+      "content": "phenomenology of the inconspicuous",
+      "created_at": 0
+    }
+  ],
+  "edges": [
+    {
+      "source": "ontological_difference",
+      "target": "being",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "ontological_difference",
+      "target": "beings",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "being",
+      "target": "beings",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "dasein",
+      "target": "being_in_the_world",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "being_in_the_world",
+      "target": "world",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "intentionality",
+      "target": "dasein",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "categorial_intuition",
+      "target": "intentionality",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "categorial_intuition",
+      "target": "a_priori",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "phenomenology_method",
+      "target": "categorial_intuition",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "time_concept_history",
+      "target": "being",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "natural_attitude",
+      "target": "phenomenology_method",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "dasein",
+      "target": "ontological_difference",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "presence",
+      "target": "being",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "absence",
+      "target": "presence",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "temporality",
+      "target": "being",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "temporality",
+      "target": "dasein",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "temporal_interpretation",
+      "target": "temporality",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "temporal_interpretation",
+      "target": "ontological_difference",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "ontological_reduction",
+      "target": "phenomenology_method",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "ontological_construction",
+      "target": "ontological_reduction",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "ontological_destruction",
+      "target": "ontological_construction",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "ontological_destruction",
+      "target": "medieval_ontology",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "res_cogitans",
+      "target": "dasein",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "presence",
+      "target": "absence",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "care",
+      "target": "thrownness",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "care",
+      "target": "projection",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "care",
+      "target": "falling",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "care",
+      "target": "dasein",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "thrownness",
+      "target": "mood",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "projection",
+      "target": "understanding",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "falling",
+      "target": "das_man",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "authenticity",
+      "target": "inauthenticity",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "inauthenticity",
+      "target": "das_man",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "anxiety",
+      "target": "das_man",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "anxiety",
+      "target": "being_in_the_world",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "death",
+      "target": "dasein",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "being_toward_death",
+      "target": "death",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "being_toward_death",
+      "target": "authenticity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "being_toward_death",
+      "target": "anxiety",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "understanding",
+      "target": "interpretation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "understanding",
+      "target": "projection",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "mood",
+      "target": "thrownness",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "discourse",
+      "target": "understanding",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "discourse",
+      "target": "mood",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "truth",
+      "target": "being",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "truth",
+      "target": "dasein",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "readiness_to_hand",
+      "target": "present_at_hand",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "readiness_to_hand",
+      "target": "equipment",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "equipment",
+      "target": "world",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "present_at_hand",
+      "target": "readiness_to_hand",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "resoluteness",
+      "target": "being_toward_death",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "resoluteness",
+      "target": "conscience",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "conscience",
+      "target": "guilt",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "guilt",
+      "target": "care",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "historicity",
+      "target": "temporality",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "historicity",
+      "target": "dasein",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "ecstasis",
+      "target": "temporality",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "ecstasis",
+      "target": "care",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "temporality",
+      "target": "ecstasis",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "finitude",
+      "target": "dasein",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "finitude",
+      "target": "transcendence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "transcendence",
+      "target": "being_in_the_world",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "imagination",
+      "target": "receptivity",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "imagination",
+      "target": "spontaneity",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "imagination",
+      "target": "temporality",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "ground_metaphysics",
+      "target": "finitude",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "ground_metaphysics",
+      "target": "ontological_difference",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "ontological_knowledge",
+      "target": "imagination",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "ontological_knowledge",
+      "target": "a_priori",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "receptivity",
+      "target": "spontaneity",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "nothing",
+      "target": "being",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "nothing",
+      "target": "anxiety",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nothing",
+      "target": "beings",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "negation_logic",
+      "target": "nothing",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "ground",
+      "target": "nothing",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "abyss",
+      "target": "ground",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "abyss",
+      "target": "nothing",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "dasein",
+      "target": "nothing",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "freedom",
+      "target": "transcendence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "freedom",
+      "target": "ground",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "world_forming",
+      "target": "world",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "world_forming",
+      "target": "transcendence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "transcendence_ground",
+      "target": "transcendence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "transcendence_ground",
+      "target": "ground",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "transcendence_ground",
+      "target": "dasein",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "freedom",
+      "target": "nothing",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "aletheia",
+      "target": "concealment",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "aletheia",
+      "target": "truth",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "concealment",
+      "target": "truth",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "errancy",
+      "target": "concealment",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "errancy",
+      "target": "freedom",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "letting_be",
+      "target": "freedom",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "letting_be",
+      "target": "openness",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "openness",
+      "target": "aletheia",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "openness",
+      "target": "being",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "truth",
+      "target": "aletheia",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "physis",
+      "target": "being",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "physis",
+      "target": "aletheia",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "logos",
+      "target": "physis",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "logos",
+      "target": "noein",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "noein",
+      "target": "being",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "dike",
+      "target": "physis",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "techne",
+      "target": "physis",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "techne",
+      "target": "dike",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "polis",
+      "target": "dasein",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "polis",
+      "target": "dike",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "violence",
+      "target": "uncanny",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "uncanny",
+      "target": "dasein",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "uncanny",
+      "target": "being_in_the_world",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "earth",
+      "target": "world",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "strife",
+      "target": "earth",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "strife",
+      "target": "world",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "art_work",
+      "target": "strife",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "art_work",
+      "target": "truth",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "setting_up_world",
+      "target": "world",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "setting_forth_earth",
+      "target": "earth",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "setting_up_world",
+      "target": "setting_forth_earth",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "rift",
+      "target": "strife",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "figure",
+      "target": "rift",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "poiesis",
+      "target": "aletheia",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "poiesis",
+      "target": "techne",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "art_work",
+      "target": "poiesis",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "ereignis",
+      "target": "beyng",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "ereignis",
+      "target": "dasein",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "ereignis",
+      "target": "truth",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "beyng",
+      "target": "being",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "last_god",
+      "target": "ereignis",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "last_god",
+      "target": "future_ones",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "grounding",
+      "target": "abyss_ground",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "grounding",
+      "target": "dasein",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "grounding",
+      "target": "truth",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "leap",
+      "target": "grounding",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "leap",
+      "target": "echo",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "interplay",
+      "target": "echo",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "interplay",
+      "target": "being",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "echo",
+      "target": "abandonment_of_being",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "abandonment_of_being",
+      "target": "machination",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "machination",
+      "target": "lived_experience",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "machination",
+      "target": "techne",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "lived_experience",
+      "target": "inauthenticity",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "abyss_ground",
+      "target": "abyss",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "abyss_ground",
+      "target": "ground",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "future_ones",
+      "target": "dasein",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "time_space",
+      "target": "temporality",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "time_space",
+      "target": "ereignis",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "will_to_power",
+      "target": "being",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "will_to_power",
+      "target": "value_positing",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "eternal_return",
+      "target": "will_to_power",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "eternal_return",
+      "target": "temporality",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "nihilism",
+      "target": "being",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "nihilism",
+      "target": "nothing",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "overman",
+      "target": "will_to_power",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "overman",
+      "target": "das_man",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "metaphysics_completion",
+      "target": "nihilism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "metaphysics_completion",
+      "target": "will_to_power",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "value_positing",
+      "target": "machination",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "moment",
+      "target": "eternal_return",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "moment",
+      "target": "ecstasis",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "moment",
+      "target": "resoluteness",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "overcoming_metaphysics",
+      "target": "metaphysics_completion",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "overcoming_metaphysics",
+      "target": "ereignis",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "overcoming_metaphysics",
+      "target": "nihilism",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "history_of_being",
+      "target": "being",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "history_of_being",
+      "target": "sending",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "history_of_being",
+      "target": "metaphysics_completion",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sending",
+      "target": "ereignis",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sending",
+      "target": "destiny",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "oblivion_of_being",
+      "target": "ontological_difference",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "oblivion_of_being",
+      "target": "nihilism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "oblivion_of_being",
+      "target": "history_of_being",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "destiny",
+      "target": "historicity",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "aletheia_goddess",
+      "target": "aletheia",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "aletheia_goddess",
+      "target": "truth",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "lethe",
+      "target": "concealment",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "lethe",
+      "target": "oblivion_of_being",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "mythos",
+      "target": "logos",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "mythos",
+      "target": "aletheia_goddess",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "roman_verum",
+      "target": "aletheia",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "roman_verum",
+      "target": "truth",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "greek_aletheia_orig",
+      "target": "physis",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "greek_aletheia_orig",
+      "target": "aletheia",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "gelassenheit",
+      "target": "letting_be",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "gelassenheit",
+      "target": "calculative_thinking",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "meditative_thinking",
+      "target": "gelassenheit",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "calculative_thinking",
+      "target": "machination",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "openness_mystery",
+      "target": "gelassenheit",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "openness_mystery",
+      "target": "concealment",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "region",
+      "target": "openness",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "region",
+      "target": "gelassenheit",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "ek_sistence",
+      "target": "dasein",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "ek_sistence",
+      "target": "being",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "house_of_being",
+      "target": "language",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "house_of_being",
+      "target": "being",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "thinking",
+      "target": "being",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "thinking",
+      "target": "language",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "language",
+      "target": "discourse",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "homelessness",
+      "target": "being_in_the_world",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "homelessness",
+      "target": "oblivion_of_being",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "humanism_critique",
+      "target": "ek_sistence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "humanism_critique",
+      "target": "das_man",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "clearing",
+      "target": "aletheia",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "clearing",
+      "target": "being",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "clearing",
+      "target": "openness",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "gestell",
+      "target": "enframing",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "gestell",
+      "target": "being",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "gestell",
+      "target": "machination",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "enframing",
+      "target": "challenging",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "enframing",
+      "target": "revealing",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "standing_reserve",
+      "target": "enframing",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "standing_reserve",
+      "target": "present_at_hand",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "challenging",
+      "target": "poiesis",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "revealing",
+      "target": "aletheia",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "revealing",
+      "target": "poiesis",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "saving_power",
+      "target": "danger",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "saving_power",
+      "target": "poiesis",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "danger",
+      "target": "gestell",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "danger",
+      "target": "oblivion_of_being",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nearness",
+      "target": "distancelessness",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "distancelessness",
+      "target": "gestell",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "mirroring",
+      "target": "ereignis",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "dwelling",
+      "target": "being_in_the_world",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "dwelling",
+      "target": "fourfold",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "dwelling",
+      "target": "sparing",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "building",
+      "target": "dwelling",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "fourfold",
+      "target": "earth",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "fourfold",
+      "target": "sky",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "fourfold",
+      "target": "mortals",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "fourfold",
+      "target": "divinities",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "mortals",
+      "target": "being_toward_death",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "divinities",
+      "target": "last_god",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "sparing",
+      "target": "letting_be",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "thing",
+      "target": "fourfold",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "location",
+      "target": "thing",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "location",
+      "target": "dwelling",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "space_dwelling",
+      "target": "dwelling",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "space_dwelling",
+      "target": "being_in_the_world",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "thinking_calls",
+      "target": "thinking",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "thinking_calls",
+      "target": "being",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "withdrawal",
+      "target": "being",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "withdrawal",
+      "target": "concealment",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "withdrawal",
+      "target": "most_thought_provoking",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "memory",
+      "target": "thinking",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "memory",
+      "target": "thanking",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "thanking",
+      "target": "thinking",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "most_thought_provoking",
+      "target": "oblivion_of_being",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "most_thought_provoking",
+      "target": "gestell",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "principle_reason",
+      "target": "ground",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "principle_reason",
+      "target": "being",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "being_and_ground",
+      "target": "being",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "being_and_ground",
+      "target": "ground",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "being_and_ground",
+      "target": "ontological_difference",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "groundlessness",
+      "target": "abyss",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "groundlessness",
+      "target": "being_and_ground",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "play",
+      "target": "groundlessness",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "play",
+      "target": "ereignis",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "identity",
+      "target": "difference",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "identity",
+      "target": "belonging_together",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "belonging_together",
+      "target": "ereignis",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "belonging_together",
+      "target": "being",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "belonging_together",
+      "target": "dasein",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "difference",
+      "target": "ontological_difference",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "onto_theo_logic",
+      "target": "metaphysics_completion",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "onto_theo_logic",
+      "target": "ground",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "step_back",
+      "target": "onto_theo_logic",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "step_back",
+      "target": "overcoming_metaphysics",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "step_back",
+      "target": "ereignis",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "saying",
+      "target": "language",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "saying",
+      "target": "showing",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "saying",
+      "target": "ereignis",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "showing",
+      "target": "aletheia",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "language_speaks",
+      "target": "language",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "language_speaks",
+      "target": "dasein",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "peal_of_stillness",
+      "target": "language_speaks",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "peal_of_stillness",
+      "target": "saying",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "way_to_language",
+      "target": "saying",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "way_to_language",
+      "target": "thinking",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "hermeneutic_circle",
+      "target": "understanding",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "hermeneutic_circle",
+      "target": "interpretation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "bodily_being",
+      "target": "dasein",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "bodily_being",
+      "target": "being_in_the_world",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "dasein_analysis_med",
+      "target": "dasein",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "dasein_analysis_med",
+      "target": "care",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "illness",
+      "target": "dasein",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "illness",
+      "target": "being_toward_death",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "spatiality_body",
+      "target": "bodily_being",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "spatiality_body",
+      "target": "being_in_the_world",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "psychosomatic",
+      "target": "bodily_being",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "psychosomatic",
+      "target": "res_cogitans",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "es_gibt",
+      "target": "being",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "es_gibt",
+      "target": "temporality",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "es_gibt",
+      "target": "ereignis",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "giving",
+      "target": "es_gibt",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "giving",
+      "target": "sending",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "extending",
+      "target": "temporality",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "extending",
+      "target": "giving",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "presence_absence_time",
+      "target": "presence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "presence_absence_time",
+      "target": "absence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "presence_absence_time",
+      "target": "ecstasis",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "propriation",
+      "target": "ereignis",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "propriation",
+      "target": "belonging_together",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "end_philosophy",
+      "target": "metaphysics_completion",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "end_philosophy",
+      "target": "sciences_dissolution",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "task_thinking",
+      "target": "end_philosophy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "task_thinking",
+      "target": "lichtung",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "task_thinking",
+      "target": "thinking",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "lichtung",
+      "target": "clearing",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "lichtung",
+      "target": "aletheia",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "lichtung",
+      "target": "concealment",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sciences_dissolution",
+      "target": "gestell",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sciences_dissolution",
+      "target": "overcoming_metaphysics",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "topology_of_being",
+      "target": "lichtung",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "topology_of_being",
+      "target": "being",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "topology_of_being",
+      "target": "ereignis",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "place_of_being",
+      "target": "topology_of_being",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "place_of_being",
+      "target": "location",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "phenomenology_inconspicuous",
+      "target": "phenomenology_method",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "phenomenology_inconspicuous",
+      "target": "lichtung",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "phenomenology_inconspicuous",
+      "target": "gelassenheit",
+      "edge_type": "reference",
+      "created_at": 0
+    }
+  ]
+}

@@ -1,0 +1,4356 @@
+{
+  "vertices": [
+    {
+      "id": "jesus_moral_teacher",
+      "status": "active",
+      "content": "Jesus as moral teacher",
+      "created_at": 0
+    },
+    {
+      "id": "pure_reason_religion",
+      "status": "active",
+      "content": "religion within pure reason",
+      "created_at": 0
+    },
+    {
+      "id": "moral_law",
+      "status": "active",
+      "content": "moral law",
+      "created_at": 0
+    },
+    {
+      "id": "positive_religion",
+      "status": "active",
+      "content": "positive religion (statutory)",
+      "created_at": 0
+    },
+    {
+      "id": "folk_religion",
+      "status": "active",
+      "content": "folk religion (Volksreligion)",
+      "created_at": 0
+    },
+    {
+      "id": "subjective_religion",
+      "status": "active",
+      "content": "subjective religion",
+      "created_at": 0
+    },
+    {
+      "id": "objective_religion",
+      "status": "active",
+      "content": "objective religion",
+      "created_at": 0
+    },
+    {
+      "id": "kantian_ethics_early",
+      "status": "active",
+      "content": "Kantian ethics (early)",
+      "created_at": 0
+    },
+    {
+      "id": "love_early",
+      "status": "active",
+      "content": "love (early theological)",
+      "created_at": 0
+    },
+    {
+      "id": "positivity",
+      "status": "active",
+      "content": "positivity (dead letter of law)",
+      "created_at": 0
+    },
+    {
+      "id": "living_religion",
+      "status": "active",
+      "content": "living religion",
+      "created_at": 0
+    },
+    {
+      "id": "authority_religion",
+      "status": "active",
+      "content": "authority in religion",
+      "created_at": 0
+    },
+    {
+      "id": "reason_freedom",
+      "status": "active",
+      "content": "reason and freedom",
+      "created_at": 0
+    },
+    {
+      "id": "fetishism",
+      "status": "active",
+      "content": "fetishism (reification of spirit)",
+      "created_at": 0
+    },
+    {
+      "id": "historical_contingency",
+      "status": "active",
+      "content": "historical contingency of doctrine",
+      "created_at": 0
+    },
+    {
+      "id": "corruption_original",
+      "status": "active",
+      "content": "corruption of original teaching",
+      "created_at": 0
+    },
+    {
+      "id": "love_principle",
+      "status": "active",
+      "content": "love as unifying principle",
+      "created_at": 0
+    },
+    {
+      "id": "fate",
+      "status": "active",
+      "content": "fate (Schicksal)",
+      "created_at": 0
+    },
+    {
+      "id": "jewish_law",
+      "status": "active",
+      "content": "Jewish law (abstract universality)",
+      "created_at": 0
+    },
+    {
+      "id": "abraham",
+      "status": "active",
+      "content": "Abraham — separation from nature",
+      "created_at": 0
+    },
+    {
+      "id": "beauty_of_soul",
+      "status": "active",
+      "content": "beauty of soul",
+      "created_at": 0
+    },
+    {
+      "id": "life_divine",
+      "status": "active",
+      "content": "divine life",
+      "created_at": 0
+    },
+    {
+      "id": "punishment_fate",
+      "status": "active",
+      "content": "punishment as fate, not justice",
+      "created_at": 0
+    },
+    {
+      "id": "reconciliation_early",
+      "status": "active",
+      "content": "reconciliation (early)",
+      "created_at": 0
+    },
+    {
+      "id": "kantian_opposition",
+      "status": "active",
+      "content": "Kantian opposition duty/inclination",
+      "created_at": 0
+    },
+    {
+      "id": "beyond_morality",
+      "status": "active",
+      "content": "beyond morality — love",
+      "created_at": 0
+    },
+    {
+      "id": "pleroma",
+      "status": "active",
+      "content": "pleroma — fullness of life",
+      "created_at": 0
+    },
+    {
+      "id": "love_unity",
+      "status": "active",
+      "content": "love as unity of subject and object",
+      "created_at": 0
+    },
+    {
+      "id": "separation_reflective",
+      "status": "active",
+      "content": "separation by reflection",
+      "created_at": 0
+    },
+    {
+      "id": "living_bond",
+      "status": "active",
+      "content": "living bond",
+      "created_at": 0
+    },
+    {
+      "id": "property_love",
+      "status": "active",
+      "content": "property negated by love",
+      "created_at": 0
+    },
+    {
+      "id": "life_infinite",
+      "status": "active",
+      "content": "infinite life",
+      "created_at": 0
+    },
+    {
+      "id": "finite_life",
+      "status": "active",
+      "content": "finite life",
+      "created_at": 0
+    },
+    {
+      "id": "union_opposition",
+      "status": "active",
+      "content": "union of union and non-union",
+      "created_at": 0
+    },
+    {
+      "id": "religion_elevation",
+      "status": "active",
+      "content": "religion as elevation above finite",
+      "created_at": 0
+    },
+    {
+      "id": "philosophy_reflection",
+      "status": "active",
+      "content": "philosophy = reflection (limitation)",
+      "created_at": 0
+    },
+    {
+      "id": "manifold_life",
+      "status": "active",
+      "content": "manifold of life",
+      "created_at": 0
+    },
+    {
+      "id": "absolute_identity",
+      "status": "active",
+      "content": "absolute identity (Schelling)",
+      "created_at": 0
+    },
+    {
+      "id": "fichte_subjectivity",
+      "status": "active",
+      "content": "Fichte's subjective idealism",
+      "created_at": 0
+    },
+    {
+      "id": "schelling_objectivity",
+      "status": "active",
+      "content": "Schelling's objective identity",
+      "created_at": 0
+    },
+    {
+      "id": "dichotomy",
+      "status": "active",
+      "content": "dichotomy (Entzweiung)",
+      "created_at": 0
+    },
+    {
+      "id": "need_for_philosophy",
+      "status": "active",
+      "content": "need for philosophy",
+      "created_at": 0
+    },
+    {
+      "id": "speculation",
+      "status": "active",
+      "content": "speculation vs reflection",
+      "created_at": 0
+    },
+    {
+      "id": "intellectual_intuition",
+      "status": "active",
+      "content": "intellectual intuition",
+      "created_at": 0
+    },
+    {
+      "id": "common_sense",
+      "status": "active",
+      "content": "common sense (gesunder Menschenverstand)",
+      "created_at": 0
+    },
+    {
+      "id": "antinomy_reflection",
+      "status": "active",
+      "content": "antinomy of reflection",
+      "created_at": 0
+    },
+    {
+      "id": "transcendental_intuition",
+      "status": "active",
+      "content": "transcendental intuition",
+      "created_at": 0
+    },
+    {
+      "id": "faith_knowledge_opposition",
+      "status": "active",
+      "content": "faith vs knowledge opposition",
+      "created_at": 0
+    },
+    {
+      "id": "kant_critique",
+      "status": "active",
+      "content": "Kant's critical philosophy (limit)",
+      "created_at": 0
+    },
+    {
+      "id": "jacobi_immediacy",
+      "status": "active",
+      "content": "Jacobi's immediate faith",
+      "created_at": 0
+    },
+    {
+      "id": "fichte_striving",
+      "status": "active",
+      "content": "Fichte's infinite striving",
+      "created_at": 0
+    },
+    {
+      "id": "speculative_good_friday",
+      "status": "active",
+      "content": "speculative Good Friday",
+      "created_at": 0
+    },
+    {
+      "id": "death_of_god_speculative",
+      "status": "active",
+      "content": "death of God (speculative)",
+      "created_at": 0
+    },
+    {
+      "id": "highest_totality",
+      "status": "active",
+      "content": "highest totality",
+      "created_at": 0
+    },
+    {
+      "id": "reflection_philosophy",
+      "status": "active",
+      "content": "philosophy of reflection",
+      "created_at": 0
+    },
+    {
+      "id": "infinite_grief",
+      "status": "active",
+      "content": "infinite grief / pain",
+      "created_at": 0
+    },
+    {
+      "id": "empirical_natural_law",
+      "status": "active",
+      "content": "empirical treatment of natural law",
+      "created_at": 0
+    },
+    {
+      "id": "formal_natural_law",
+      "status": "active",
+      "content": "formal treatment of natural law (Kant/Fichte)",
+      "created_at": 0
+    },
+    {
+      "id": "ethical_totality",
+      "status": "active",
+      "content": "ethical totality (Sittlichkeit)",
+      "created_at": 0
+    },
+    {
+      "id": "tragedy_ethical",
+      "status": "active",
+      "content": "tragedy in the ethical",
+      "created_at": 0
+    },
+    {
+      "id": "absolute_ethical_life",
+      "status": "active",
+      "content": "absolute ethical life",
+      "created_at": 0
+    },
+    {
+      "id": "bourgeois_society_early",
+      "status": "active",
+      "content": "bourgeois society (early)",
+      "created_at": 0
+    },
+    {
+      "id": "crime_punishment_natural",
+      "status": "active",
+      "content": "crime and punishment (natural law)",
+      "created_at": 0
+    },
+    {
+      "id": "natural_ethical",
+      "status": "active",
+      "content": "natural ethical life",
+      "created_at": 0
+    },
+    {
+      "id": "feeling_intuition",
+      "status": "active",
+      "content": "feeling / intuition (immediate)",
+      "created_at": 0
+    },
+    {
+      "id": "formal_concept_ethical",
+      "status": "active",
+      "content": "formal concept of ethical life",
+      "created_at": 0
+    },
+    {
+      "id": "absolute_sittlichkeit",
+      "status": "active",
+      "content": "absolute Sittlichkeit",
+      "created_at": 0
+    },
+    {
+      "id": "potency_one",
+      "status": "active",
+      "content": "first potency (need/labour)",
+      "created_at": 0
+    },
+    {
+      "id": "potency_two",
+      "status": "active",
+      "content": "second potency (tool/speech)",
+      "created_at": 0
+    },
+    {
+      "id": "potency_three",
+      "status": "active",
+      "content": "third potency (family/people)",
+      "created_at": 0
+    },
+    {
+      "id": "recognition_early",
+      "status": "active",
+      "content": "recognition (early Jena)",
+      "created_at": 0
+    },
+    {
+      "id": "labour_tool",
+      "status": "active",
+      "content": "labour and tool",
+      "created_at": 0
+    },
+    {
+      "id": "people_state",
+      "status": "active",
+      "content": "people (Volk) and state",
+      "created_at": 0
+    },
+    {
+      "id": "spirit_jena",
+      "status": "active",
+      "content": "spirit (Jena lectures)",
+      "created_at": 0
+    },
+    {
+      "id": "language_jena",
+      "status": "active",
+      "content": "language (naming)",
+      "created_at": 0
+    },
+    {
+      "id": "memory_jena",
+      "status": "active",
+      "content": "memory (mechanical)",
+      "created_at": 0
+    },
+    {
+      "id": "will_jena",
+      "status": "active",
+      "content": "will",
+      "created_at": 0
+    },
+    {
+      "id": "contract_jena",
+      "status": "active",
+      "content": "contract",
+      "created_at": 0
+    },
+    {
+      "id": "crime_jena",
+      "status": "active",
+      "content": "crime",
+      "created_at": 0
+    },
+    {
+      "id": "punishment_jena",
+      "status": "active",
+      "content": "punishment (restoring right)",
+      "created_at": 0
+    },
+    {
+      "id": "recognition_struggle",
+      "status": "active",
+      "content": "struggle for recognition",
+      "created_at": 0
+    },
+    {
+      "id": "state_jena",
+      "status": "active",
+      "content": "state (constitution)",
+      "created_at": 0
+    },
+    {
+      "id": "world_history_jena",
+      "status": "active",
+      "content": "world history (Jena)",
+      "created_at": 0
+    },
+    {
+      "id": "tool_cunning",
+      "status": "active",
+      "content": "cunning of reason (tool)",
+      "created_at": 0
+    },
+    {
+      "id": "sense_certainty",
+      "status": "active",
+      "content": "sense-certainty",
+      "created_at": 0
+    },
+    {
+      "id": "perception",
+      "status": "active",
+      "content": "perception (Wahrnehmung)",
+      "created_at": 0
+    },
+    {
+      "id": "understanding",
+      "status": "active",
+      "content": "understanding (Verstand)",
+      "created_at": 0
+    },
+    {
+      "id": "self_consciousness",
+      "status": "active",
+      "content": "self-consciousness",
+      "created_at": 0
+    },
+    {
+      "id": "lord_bondsman",
+      "status": "active",
+      "content": "lordship and bondage",
+      "created_at": 0
+    },
+    {
+      "id": "stoicism",
+      "status": "active",
+      "content": "stoicism",
+      "created_at": 0
+    },
+    {
+      "id": "scepticism",
+      "status": "active",
+      "content": "scepticism",
+      "created_at": 0
+    },
+    {
+      "id": "unhappy_consciousness",
+      "status": "active",
+      "content": "unhappy consciousness",
+      "created_at": 0
+    },
+    {
+      "id": "reason_observing",
+      "status": "active",
+      "content": "observing reason",
+      "created_at": 0
+    },
+    {
+      "id": "ethical_order",
+      "status": "active",
+      "content": "ethical order (Sittlichkeit)",
+      "created_at": 0
+    },
+    {
+      "id": "culture_bildung",
+      "status": "active",
+      "content": "culture / Bildung",
+      "created_at": 0
+    },
+    {
+      "id": "absolute_freedom",
+      "status": "active",
+      "content": "absolute freedom and terror",
+      "created_at": 0
+    },
+    {
+      "id": "morality_phenom",
+      "status": "active",
+      "content": "morality (conscience/forgiveness)",
+      "created_at": 0
+    },
+    {
+      "id": "religion_phenom",
+      "status": "active",
+      "content": "religion (natural/art/revealed)",
+      "created_at": 0
+    },
+    {
+      "id": "absolute_knowing",
+      "status": "active",
+      "content": "absolute knowing",
+      "created_at": 0
+    },
+    {
+      "id": "experience_consciousness",
+      "status": "active",
+      "content": "experience of consciousness",
+      "created_at": 0
+    },
+    {
+      "id": "spirit_phenom",
+      "status": "active",
+      "content": "spirit (Geist)",
+      "created_at": 0
+    },
+    {
+      "id": "substance_subject",
+      "status": "active",
+      "content": "substance is subject",
+      "created_at": 0
+    },
+    {
+      "id": "dialectical_movement",
+      "status": "active",
+      "content": "dialectical movement",
+      "created_at": 0
+    },
+    {
+      "id": "negation_determinate",
+      "status": "active",
+      "content": "determinate negation",
+      "created_at": 0
+    },
+    {
+      "id": "being",
+      "status": "active",
+      "content": "being (Sein)",
+      "created_at": 0
+    },
+    {
+      "id": "nothing",
+      "status": "active",
+      "content": "nothing (Nichts)",
+      "created_at": 0
+    },
+    {
+      "id": "becoming",
+      "status": "active",
+      "content": "becoming (Werden)",
+      "created_at": 0
+    },
+    {
+      "id": "determinate_being",
+      "status": "active",
+      "content": "determinate being (Dasein)",
+      "created_at": 0
+    },
+    {
+      "id": "quality",
+      "status": "active",
+      "content": "quality",
+      "created_at": 0
+    },
+    {
+      "id": "quantity",
+      "status": "active",
+      "content": "quantity",
+      "created_at": 0
+    },
+    {
+      "id": "measure",
+      "status": "active",
+      "content": "measure (Maß)",
+      "created_at": 0
+    },
+    {
+      "id": "being_for_self",
+      "status": "active",
+      "content": "being-for-self (Fürsichsein)",
+      "created_at": 0
+    },
+    {
+      "id": "one_many",
+      "status": "active",
+      "content": "the one and the many",
+      "created_at": 0
+    },
+    {
+      "id": "something_other",
+      "status": "active",
+      "content": "something and other",
+      "created_at": 0
+    },
+    {
+      "id": "finitude",
+      "status": "active",
+      "content": "finitude",
+      "created_at": 0
+    },
+    {
+      "id": "infinity_true",
+      "status": "active",
+      "content": "true infinity",
+      "created_at": 0
+    },
+    {
+      "id": "infinity_bad",
+      "status": "active",
+      "content": "bad infinity (Schlechte Unendlichkeit)",
+      "created_at": 0
+    },
+    {
+      "id": "limit",
+      "status": "active",
+      "content": "limit / boundary",
+      "created_at": 0
+    },
+    {
+      "id": "degree",
+      "status": "active",
+      "content": "degree",
+      "created_at": 0
+    },
+    {
+      "id": "quantum",
+      "status": "active",
+      "content": "quantum",
+      "created_at": 0
+    },
+    {
+      "id": "nodal_line",
+      "status": "active",
+      "content": "nodal line of measures",
+      "created_at": 0
+    },
+    {
+      "id": "measureless",
+      "status": "active",
+      "content": "the measureless",
+      "created_at": 0
+    },
+    {
+      "id": "essence",
+      "status": "active",
+      "content": "essence (Wesen)",
+      "created_at": 0
+    },
+    {
+      "id": "appearance",
+      "status": "active",
+      "content": "appearance (Erscheinung)",
+      "created_at": 0
+    },
+    {
+      "id": "actuality",
+      "status": "active",
+      "content": "actuality (Wirklichkeit)",
+      "created_at": 0
+    },
+    {
+      "id": "reflection",
+      "status": "active",
+      "content": "reflection (positing/external/determining)",
+      "created_at": 0
+    },
+    {
+      "id": "identity_essence",
+      "status": "active",
+      "content": "identity (A=A)",
+      "created_at": 0
+    },
+    {
+      "id": "difference_essence",
+      "status": "active",
+      "content": "difference",
+      "created_at": 0
+    },
+    {
+      "id": "contradiction",
+      "status": "active",
+      "content": "contradiction",
+      "created_at": 0
+    },
+    {
+      "id": "ground",
+      "status": "active",
+      "content": "ground (Grund)",
+      "created_at": 0
+    },
+    {
+      "id": "existence_essence",
+      "status": "active",
+      "content": "existence (Existenz)",
+      "created_at": 0
+    },
+    {
+      "id": "thing_essence",
+      "status": "active",
+      "content": "the thing (Ding)",
+      "created_at": 0
+    },
+    {
+      "id": "law_of_appearance",
+      "status": "active",
+      "content": "law of appearance",
+      "created_at": 0
+    },
+    {
+      "id": "essential_relation",
+      "status": "active",
+      "content": "essential relation (whole/parts, force, inner/outer)",
+      "created_at": 0
+    },
+    {
+      "id": "substance_essence",
+      "status": "active",
+      "content": "substance (Spinoza)",
+      "created_at": 0
+    },
+    {
+      "id": "causality",
+      "status": "active",
+      "content": "causality",
+      "created_at": 0
+    },
+    {
+      "id": "reciprocity",
+      "status": "active",
+      "content": "reciprocity (Wechselwirkung)",
+      "created_at": 0
+    },
+    {
+      "id": "necessity",
+      "status": "active",
+      "content": "necessity",
+      "created_at": 0
+    },
+    {
+      "id": "contingency_essence",
+      "status": "active",
+      "content": "contingency",
+      "created_at": 0
+    },
+    {
+      "id": "possibility_actuality",
+      "status": "active",
+      "content": "possibility / actuality",
+      "created_at": 0
+    },
+    {
+      "id": "concept",
+      "status": "active",
+      "content": "the concept (Begriff)",
+      "created_at": 0
+    },
+    {
+      "id": "universal",
+      "status": "active",
+      "content": "universality",
+      "created_at": 0
+    },
+    {
+      "id": "particular",
+      "status": "active",
+      "content": "particularity",
+      "created_at": 0
+    },
+    {
+      "id": "individual",
+      "status": "active",
+      "content": "individuality (Einzelheit)",
+      "created_at": 0
+    },
+    {
+      "id": "judgment",
+      "status": "active",
+      "content": "judgment (Urteil)",
+      "created_at": 0
+    },
+    {
+      "id": "syllogism",
+      "status": "active",
+      "content": "syllogism (Schluss)",
+      "created_at": 0
+    },
+    {
+      "id": "mechanism",
+      "status": "active",
+      "content": "mechanism",
+      "created_at": 0
+    },
+    {
+      "id": "chemism",
+      "status": "active",
+      "content": "chemism",
+      "created_at": 0
+    },
+    {
+      "id": "teleology",
+      "status": "active",
+      "content": "teleology (purpose)",
+      "created_at": 0
+    },
+    {
+      "id": "life_logic",
+      "status": "active",
+      "content": "life (logical)",
+      "created_at": 0
+    },
+    {
+      "id": "cognition_logic",
+      "status": "active",
+      "content": "cognition (logical)",
+      "created_at": 0
+    },
+    {
+      "id": "idea",
+      "status": "active",
+      "content": "the idea (Idee)",
+      "created_at": 0
+    },
+    {
+      "id": "absolute_idea",
+      "status": "active",
+      "content": "the absolute idea",
+      "created_at": 0
+    },
+    {
+      "id": "method_dialectical",
+      "status": "active",
+      "content": "the dialectical method",
+      "created_at": 0
+    },
+    {
+      "id": "objectivity_logic",
+      "status": "active",
+      "content": "objectivity (logical)",
+      "created_at": 0
+    },
+    {
+      "id": "subjectivity_logic",
+      "status": "active",
+      "content": "subjectivity (logical)",
+      "created_at": 0
+    },
+    {
+      "id": "preliminary_concept",
+      "status": "active",
+      "content": "preliminary concept of logic",
+      "created_at": 0
+    },
+    {
+      "id": "empiricism_enc",
+      "status": "active",
+      "content": "empiricism",
+      "created_at": 0
+    },
+    {
+      "id": "critical_philosophy_enc",
+      "status": "active",
+      "content": "critical philosophy (Kant)",
+      "created_at": 0
+    },
+    {
+      "id": "immediate_knowing_enc",
+      "status": "active",
+      "content": "immediate knowing (Jacobi)",
+      "created_at": 0
+    },
+    {
+      "id": "three_sides_logical",
+      "status": "active",
+      "content": "three sides of the logical",
+      "created_at": 0
+    },
+    {
+      "id": "abstract_understanding",
+      "status": "active",
+      "content": "abstract / understanding moment",
+      "created_at": 0
+    },
+    {
+      "id": "dialectical_negative",
+      "status": "active",
+      "content": "dialectical / negative-rational moment",
+      "created_at": 0
+    },
+    {
+      "id": "speculative_positive",
+      "status": "active",
+      "content": "speculative / positive-rational moment",
+      "created_at": 0
+    },
+    {
+      "id": "beginning_logic",
+      "status": "active",
+      "content": "with what must logic begin",
+      "created_at": 0
+    },
+    {
+      "id": "transition_being_essence",
+      "status": "active",
+      "content": "transition from being to essence",
+      "created_at": 0
+    },
+    {
+      "id": "transition_essence_concept",
+      "status": "active",
+      "content": "transition from essence to concept",
+      "created_at": 0
+    },
+    {
+      "id": "nature_externality",
+      "status": "active",
+      "content": "nature as externality of the idea",
+      "created_at": 0
+    },
+    {
+      "id": "space",
+      "status": "active",
+      "content": "space",
+      "created_at": 0
+    },
+    {
+      "id": "time_nature",
+      "status": "active",
+      "content": "time",
+      "created_at": 0
+    },
+    {
+      "id": "matter_motion",
+      "status": "active",
+      "content": "matter and motion",
+      "created_at": 0
+    },
+    {
+      "id": "mechanics",
+      "status": "active",
+      "content": "mechanics",
+      "created_at": 0
+    },
+    {
+      "id": "physics",
+      "status": "active",
+      "content": "physics (particularity of matter)",
+      "created_at": 0
+    },
+    {
+      "id": "organics",
+      "status": "active",
+      "content": "organics (life in nature)",
+      "created_at": 0
+    },
+    {
+      "id": "geological_organism",
+      "status": "active",
+      "content": "geological organism",
+      "created_at": 0
+    },
+    {
+      "id": "vegetal_organism",
+      "status": "active",
+      "content": "vegetal organism",
+      "created_at": 0
+    },
+    {
+      "id": "animal_organism",
+      "status": "active",
+      "content": "animal organism",
+      "created_at": 0
+    },
+    {
+      "id": "death_natural",
+      "status": "active",
+      "content": "death of the natural individual",
+      "created_at": 0
+    },
+    {
+      "id": "genus_process",
+      "status": "active",
+      "content": "genus process (Gattungsprozeß)",
+      "created_at": 0
+    },
+    {
+      "id": "idea_returns_nature",
+      "status": "active",
+      "content": "idea returns from nature to spirit",
+      "created_at": 0
+    },
+    {
+      "id": "subjective_spirit",
+      "status": "active",
+      "content": "subjective spirit",
+      "created_at": 0
+    },
+    {
+      "id": "anthropology_enc",
+      "status": "active",
+      "content": "anthropology (soul)",
+      "created_at": 0
+    },
+    {
+      "id": "phenomenology_enc",
+      "status": "active",
+      "content": "phenomenology (consciousness)",
+      "created_at": 0
+    },
+    {
+      "id": "psychology_enc",
+      "status": "active",
+      "content": "psychology (mind)",
+      "created_at": 0
+    },
+    {
+      "id": "objective_spirit",
+      "status": "active",
+      "content": "objective spirit",
+      "created_at": 0
+    },
+    {
+      "id": "abstract_right",
+      "status": "active",
+      "content": "abstract right",
+      "created_at": 0
+    },
+    {
+      "id": "morality_enc",
+      "status": "active",
+      "content": "morality (Moralität)",
+      "created_at": 0
+    },
+    {
+      "id": "ethical_life_enc",
+      "status": "active",
+      "content": "ethical life (Sittlichkeit)",
+      "created_at": 0
+    },
+    {
+      "id": "absolute_spirit",
+      "status": "active",
+      "content": "absolute spirit",
+      "created_at": 0
+    },
+    {
+      "id": "art_enc",
+      "status": "active",
+      "content": "art (absolute spirit)",
+      "created_at": 0
+    },
+    {
+      "id": "revealed_religion_enc",
+      "status": "active",
+      "content": "revealed religion (absolute spirit)",
+      "created_at": 0
+    },
+    {
+      "id": "philosophy_enc",
+      "status": "active",
+      "content": "philosophy (absolute spirit)",
+      "created_at": 0
+    },
+    {
+      "id": "free_spirit",
+      "status": "active",
+      "content": "free spirit",
+      "created_at": 0
+    },
+    {
+      "id": "habit",
+      "status": "active",
+      "content": "habit (second nature)",
+      "created_at": 0
+    },
+    {
+      "id": "theoretical_spirit",
+      "status": "active",
+      "content": "theoretical spirit",
+      "created_at": 0
+    },
+    {
+      "id": "practical_spirit",
+      "status": "active",
+      "content": "practical spirit",
+      "created_at": 0
+    },
+    {
+      "id": "right_abstract",
+      "status": "active",
+      "content": "abstract right (property, contract, wrong)",
+      "created_at": 0
+    },
+    {
+      "id": "property",
+      "status": "active",
+      "content": "property (Eigentum)",
+      "created_at": 0
+    },
+    {
+      "id": "contract",
+      "status": "active",
+      "content": "contract (Vertrag)",
+      "created_at": 0
+    },
+    {
+      "id": "wrong_crime",
+      "status": "active",
+      "content": "wrong / crime (Unrecht)",
+      "created_at": 0
+    },
+    {
+      "id": "morality_right",
+      "status": "active",
+      "content": "morality (Moralität)",
+      "created_at": 0
+    },
+    {
+      "id": "purpose_responsibility",
+      "status": "active",
+      "content": "purpose and responsibility",
+      "created_at": 0
+    },
+    {
+      "id": "intention_welfare",
+      "status": "active",
+      "content": "intention and welfare",
+      "created_at": 0
+    },
+    {
+      "id": "good_conscience",
+      "status": "active",
+      "content": "the good and conscience",
+      "created_at": 0
+    },
+    {
+      "id": "ethical_life_right",
+      "status": "active",
+      "content": "ethical life (Sittlichkeit)",
+      "created_at": 0
+    },
+    {
+      "id": "family",
+      "status": "active",
+      "content": "family",
+      "created_at": 0
+    },
+    {
+      "id": "civil_society",
+      "status": "active",
+      "content": "civil society (bürgerliche Gesellschaft)",
+      "created_at": 0
+    },
+    {
+      "id": "state_right",
+      "status": "active",
+      "content": "the state",
+      "created_at": 0
+    },
+    {
+      "id": "system_of_needs",
+      "status": "active",
+      "content": "system of needs",
+      "created_at": 0
+    },
+    {
+      "id": "police_corporation",
+      "status": "active",
+      "content": "police and corporation",
+      "created_at": 0
+    },
+    {
+      "id": "administration_of_justice",
+      "status": "active",
+      "content": "administration of justice",
+      "created_at": 0
+    },
+    {
+      "id": "constitutional_law",
+      "status": "active",
+      "content": "constitutional law (internal)",
+      "created_at": 0
+    },
+    {
+      "id": "international_law",
+      "status": "active",
+      "content": "international law (external)",
+      "created_at": 0
+    },
+    {
+      "id": "world_history_right",
+      "status": "active",
+      "content": "world history",
+      "created_at": 0
+    },
+    {
+      "id": "monarch",
+      "status": "active",
+      "content": "the monarch",
+      "created_at": 0
+    },
+    {
+      "id": "executive_power",
+      "status": "active",
+      "content": "executive power",
+      "created_at": 0
+    },
+    {
+      "id": "legislative_power",
+      "status": "active",
+      "content": "legislative power",
+      "created_at": 0
+    },
+    {
+      "id": "estates",
+      "status": "active",
+      "content": "estates (Stände)",
+      "created_at": 0
+    },
+    {
+      "id": "rational_actual",
+      "status": "active",
+      "content": "what is rational is actual",
+      "created_at": 0
+    },
+    {
+      "id": "freedom_will",
+      "status": "active",
+      "content": "free will",
+      "created_at": 0
+    },
+    {
+      "id": "rabble",
+      "status": "active",
+      "content": "the rabble (Pöbel)",
+      "created_at": 0
+    },
+    {
+      "id": "beauty_idea",
+      "status": "active",
+      "content": "the beautiful is the sensuous shining of the idea",
+      "created_at": 0
+    },
+    {
+      "id": "ideal",
+      "status": "active",
+      "content": "the ideal",
+      "created_at": 0
+    },
+    {
+      "id": "symbolic_art",
+      "status": "active",
+      "content": "symbolic art form",
+      "created_at": 0
+    },
+    {
+      "id": "classical_art",
+      "status": "active",
+      "content": "classical art form",
+      "created_at": 0
+    },
+    {
+      "id": "romantic_art",
+      "status": "active",
+      "content": "romantic art form",
+      "created_at": 0
+    },
+    {
+      "id": "end_of_art",
+      "status": "active",
+      "content": "end of art (dissolution)",
+      "created_at": 0
+    },
+    {
+      "id": "architecture",
+      "status": "active",
+      "content": "architecture (symbolic)",
+      "created_at": 0
+    },
+    {
+      "id": "sculpture",
+      "status": "active",
+      "content": "sculpture (classical)",
+      "created_at": 0
+    },
+    {
+      "id": "painting",
+      "status": "active",
+      "content": "painting (romantic)",
+      "created_at": 0
+    },
+    {
+      "id": "music",
+      "status": "active",
+      "content": "music (romantic)",
+      "created_at": 0
+    },
+    {
+      "id": "poetry",
+      "status": "active",
+      "content": "poetry (romantic — universal art)",
+      "created_at": 0
+    },
+    {
+      "id": "content_form_art",
+      "status": "active",
+      "content": "unity of content and form",
+      "created_at": 0
+    },
+    {
+      "id": "natural_beauty",
+      "status": "active",
+      "content": "natural beauty (deficient)",
+      "created_at": 0
+    },
+    {
+      "id": "artistic_beauty",
+      "status": "active",
+      "content": "artistic beauty (spiritual)",
+      "created_at": 0
+    },
+    {
+      "id": "sublime",
+      "status": "active",
+      "content": "the sublime",
+      "created_at": 0
+    },
+    {
+      "id": "concept_of_religion",
+      "status": "active",
+      "content": "the concept of religion",
+      "created_at": 0
+    },
+    {
+      "id": "religious_consciousness",
+      "status": "active",
+      "content": "religious consciousness",
+      "created_at": 0
+    },
+    {
+      "id": "feeling_religion",
+      "status": "active",
+      "content": "feeling (Gefühl) in religion",
+      "created_at": 0
+    },
+    {
+      "id": "representation_religion",
+      "status": "active",
+      "content": "representation (Vorstellung)",
+      "created_at": 0
+    },
+    {
+      "id": "thought_religion",
+      "status": "active",
+      "content": "thought in religion",
+      "created_at": 0
+    },
+    {
+      "id": "determinate_religion",
+      "status": "active",
+      "content": "determinate religion",
+      "created_at": 0
+    },
+    {
+      "id": "nature_religion",
+      "status": "active",
+      "content": "nature religion (immediate)",
+      "created_at": 0
+    },
+    {
+      "id": "spiritual_individuality_religion",
+      "status": "active",
+      "content": "religion of spiritual individuality",
+      "created_at": 0
+    },
+    {
+      "id": "religion_sublimity",
+      "status": "active",
+      "content": "religion of sublimity (Jewish)",
+      "created_at": 0
+    },
+    {
+      "id": "religion_beauty",
+      "status": "active",
+      "content": "religion of beauty (Greek)",
+      "created_at": 0
+    },
+    {
+      "id": "religion_purposiveness",
+      "status": "active",
+      "content": "religion of purposiveness (Roman)",
+      "created_at": 0
+    },
+    {
+      "id": "consummate_religion",
+      "status": "active",
+      "content": "consummate/absolute religion (Christianity)",
+      "created_at": 0
+    },
+    {
+      "id": "trinity_religion",
+      "status": "active",
+      "content": "Trinity (immanent life of God)",
+      "created_at": 0
+    },
+    {
+      "id": "creation_fall",
+      "status": "active",
+      "content": "creation, fall, evil",
+      "created_at": 0
+    },
+    {
+      "id": "reconciliation_religion",
+      "status": "active",
+      "content": "reconciliation (Versöhnung)",
+      "created_at": 0
+    },
+    {
+      "id": "community_religion",
+      "status": "active",
+      "content": "community / church",
+      "created_at": 0
+    },
+    {
+      "id": "cult",
+      "status": "active",
+      "content": "cult (devotion, sacrament)",
+      "created_at": 0
+    },
+    {
+      "id": "history_of_philosophy",
+      "status": "active",
+      "content": "history of philosophy",
+      "created_at": 0
+    },
+    {
+      "id": "oriental_philosophy",
+      "status": "active",
+      "content": "Oriental philosophy (beginning)",
+      "created_at": 0
+    },
+    {
+      "id": "greek_philosophy",
+      "status": "active",
+      "content": "Greek philosophy",
+      "created_at": 0
+    },
+    {
+      "id": "thales_to_anaxagoras",
+      "status": "active",
+      "content": "Thales to Anaxagoras",
+      "created_at": 0
+    },
+    {
+      "id": "sophists_socrates",
+      "status": "active",
+      "content": "Sophists and Socrates",
+      "created_at": 0
+    },
+    {
+      "id": "plato_hp",
+      "status": "active",
+      "content": "Plato (history of philosophy)",
+      "created_at": 0
+    },
+    {
+      "id": "aristotle_hp",
+      "status": "active",
+      "content": "Aristotle (history of philosophy)",
+      "created_at": 0
+    },
+    {
+      "id": "stoic_sceptic_epicurean",
+      "status": "active",
+      "content": "Stoics, Sceptics, Epicureans",
+      "created_at": 0
+    },
+    {
+      "id": "neoplatonism",
+      "status": "active",
+      "content": "Neoplatonism",
+      "created_at": 0
+    },
+    {
+      "id": "medieval_philosophy",
+      "status": "active",
+      "content": "medieval philosophy (Scholasticism)",
+      "created_at": 0
+    },
+    {
+      "id": "modern_philosophy",
+      "status": "active",
+      "content": "modern philosophy",
+      "created_at": 0
+    },
+    {
+      "id": "descartes_spinoza",
+      "status": "active",
+      "content": "Descartes and Spinoza",
+      "created_at": 0
+    },
+    {
+      "id": "leibniz_wolff",
+      "status": "active",
+      "content": "Leibniz and Wolff",
+      "created_at": 0
+    },
+    {
+      "id": "british_empiricism",
+      "status": "active",
+      "content": "British empiricism",
+      "created_at": 0
+    },
+    {
+      "id": "french_enlightenment",
+      "status": "active",
+      "content": "French Enlightenment",
+      "created_at": 0
+    },
+    {
+      "id": "kant_hp",
+      "status": "active",
+      "content": "Kant (history of philosophy)",
+      "created_at": 0
+    },
+    {
+      "id": "fichte_hp",
+      "status": "active",
+      "content": "Fichte (history of philosophy)",
+      "created_at": 0
+    },
+    {
+      "id": "schelling_hp",
+      "status": "active",
+      "content": "Schelling (history of philosophy)",
+      "created_at": 0
+    },
+    {
+      "id": "philosophy_self_comprehension",
+      "status": "active",
+      "content": "philosophy comprehends itself",
+      "created_at": 0
+    },
+    {
+      "id": "world_spirit",
+      "status": "active",
+      "content": "world spirit (Weltgeist)",
+      "created_at": 0
+    },
+    {
+      "id": "cunning_of_reason",
+      "status": "active",
+      "content": "cunning of reason (List der Vernunft)",
+      "created_at": 0
+    },
+    {
+      "id": "world_historical_individual",
+      "status": "active",
+      "content": "world-historical individual",
+      "created_at": 0
+    },
+    {
+      "id": "oriental_world",
+      "status": "active",
+      "content": "Oriental world (one is free)",
+      "created_at": 0
+    },
+    {
+      "id": "greek_world",
+      "status": "active",
+      "content": "Greek world (some are free)",
+      "created_at": 0
+    },
+    {
+      "id": "roman_world",
+      "status": "active",
+      "content": "Roman world (abstract universality)",
+      "created_at": 0
+    },
+    {
+      "id": "germanic_world",
+      "status": "active",
+      "content": "Germanic world (all are free)",
+      "created_at": 0
+    },
+    {
+      "id": "freedom_consciousness",
+      "status": "active",
+      "content": "consciousness of freedom",
+      "created_at": 0
+    },
+    {
+      "id": "progress_freedom",
+      "status": "active",
+      "content": "progress in consciousness of freedom",
+      "created_at": 0
+    },
+    {
+      "id": "state_realization_freedom",
+      "status": "active",
+      "content": "state as realization of freedom",
+      "created_at": 0
+    },
+    {
+      "id": "passions_individuals",
+      "status": "active",
+      "content": "passions of individuals (means)",
+      "created_at": 0
+    },
+    {
+      "id": "geographical_basis",
+      "status": "active",
+      "content": "geographical basis of history",
+      "created_at": 0
+    },
+    {
+      "id": "reformation",
+      "status": "active",
+      "content": "the Reformation",
+      "created_at": 0
+    },
+    {
+      "id": "french_revolution_wh",
+      "status": "active",
+      "content": "French Revolution",
+      "created_at": 0
+    },
+    {
+      "id": "review_hamann",
+      "status": "active",
+      "content": "review of Hamann's writings",
+      "created_at": 0
+    },
+    {
+      "id": "review_goeschel",
+      "status": "active",
+      "content": "review of Göschel (aphorisms)",
+      "created_at": 0
+    },
+    {
+      "id": "review_humboldt",
+      "status": "active",
+      "content": "review of Humboldt (Bhagavad-Gita)",
+      "created_at": 0
+    },
+    {
+      "id": "english_reform_bill",
+      "status": "active",
+      "content": "on the English Reform Bill",
+      "created_at": 0
+    },
+    {
+      "id": "sovereignty_people",
+      "status": "active",
+      "content": "sovereignty of the people (critique)",
+      "created_at": 0
+    },
+    {
+      "id": "philosophy_system_completion",
+      "status": "active",
+      "content": "philosophy as system, completion",
+      "created_at": 0
+    },
+    {
+      "id": "actuality_philosophy_late",
+      "status": "active",
+      "content": "actuality of philosophy (late)",
+      "created_at": 0
+    }
+  ],
+  "edges": [
+    {
+      "source": "jesus_moral_teacher",
+      "target": "moral_law",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "jesus_moral_teacher",
+      "target": "pure_reason_religion",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "positive_religion",
+      "target": "moral_law",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "folk_religion",
+      "target": "positive_religion",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "folk_religion",
+      "target": "subjective_religion",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "subjective_religion",
+      "target": "objective_religion",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "objective_religion",
+      "target": "subjective_religion",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "kantian_ethics_early",
+      "target": "moral_law",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "love_early",
+      "target": "moral_law",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "love_early",
+      "target": "kantian_ethics_early",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "positivity",
+      "target": "living_religion",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "authority_religion",
+      "target": "reason_freedom",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "positivity",
+      "target": "authority_religion",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "fetishism",
+      "target": "positivity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "fetishism",
+      "target": "living_religion",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "historical_contingency",
+      "target": "positivity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "corruption_original",
+      "target": "positivity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "positivity",
+      "target": "positive_religion",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "living_religion",
+      "target": "folk_religion",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "reason_freedom",
+      "target": "moral_law",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "love_principle",
+      "target": "jewish_law",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "love_principle",
+      "target": "kantian_opposition",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "fate",
+      "target": "punishment_fate",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "fate",
+      "target": "jewish_law",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "abraham",
+      "target": "jewish_law",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "beauty_of_soul",
+      "target": "love_principle",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "life_divine",
+      "target": "love_principle",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "life_divine",
+      "target": "pleroma",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "reconciliation_early",
+      "target": "fate",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "reconciliation_early",
+      "target": "love_principle",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "beyond_morality",
+      "target": "kantian_opposition",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "beyond_morality",
+      "target": "love_principle",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "pleroma",
+      "target": "jewish_law",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "kantian_opposition",
+      "target": "kantian_ethics_early",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "love_principle",
+      "target": "love_early",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "reconciliation_early",
+      "target": "living_religion",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "love_unity",
+      "target": "separation_reflective",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "living_bond",
+      "target": "love_unity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "property_love",
+      "target": "love_unity",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "love_unity",
+      "target": "love_principle",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "separation_reflective",
+      "target": "kantian_opposition",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "life_infinite",
+      "target": "finite_life",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "union_opposition",
+      "target": "life_infinite",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "union_opposition",
+      "target": "finite_life",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "religion_elevation",
+      "target": "finite_life",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "religion_elevation",
+      "target": "life_infinite",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "philosophy_reflection",
+      "target": "life_infinite",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "philosophy_reflection",
+      "target": "religion_elevation",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "manifold_life",
+      "target": "life_infinite",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "life_infinite",
+      "target": "life_divine",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "union_opposition",
+      "target": "love_unity",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "religion_elevation",
+      "target": "reconciliation_early",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "fichte_subjectivity",
+      "target": "schelling_objectivity",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "absolute_identity",
+      "target": "fichte_subjectivity",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "absolute_identity",
+      "target": "schelling_objectivity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "dichotomy",
+      "target": "need_for_philosophy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "need_for_philosophy",
+      "target": "dichotomy",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "speculation",
+      "target": "antinomy_reflection",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "intellectual_intuition",
+      "target": "speculation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "common_sense",
+      "target": "speculation",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "transcendental_intuition",
+      "target": "intellectual_intuition",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "antinomy_reflection",
+      "target": "fichte_subjectivity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "dichotomy",
+      "target": "separation_reflective",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "absolute_identity",
+      "target": "union_opposition",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "speculation",
+      "target": "philosophy_reflection",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "faith_knowledge_opposition",
+      "target": "kant_critique",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "faith_knowledge_opposition",
+      "target": "jacobi_immediacy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "faith_knowledge_opposition",
+      "target": "fichte_striving",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "kant_critique",
+      "target": "jacobi_immediacy",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "jacobi_immediacy",
+      "target": "fichte_striving",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "speculative_good_friday",
+      "target": "death_of_god_speculative",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "speculative_good_friday",
+      "target": "infinite_grief",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "speculative_good_friday",
+      "target": "highest_totality",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "death_of_god_speculative",
+      "target": "reflection_philosophy",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "highest_totality",
+      "target": "reflection_philosophy",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "reflection_philosophy",
+      "target": "kant_critique",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "reflection_philosophy",
+      "target": "jacobi_immediacy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "reflection_philosophy",
+      "target": "fichte_striving",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "reflection_philosophy",
+      "target": "philosophy_reflection",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "death_of_god_speculative",
+      "target": "religion_elevation",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "speculative_good_friday",
+      "target": "reconciliation_early",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "highest_totality",
+      "target": "absolute_identity",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "empirical_natural_law",
+      "target": "formal_natural_law",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "formal_natural_law",
+      "target": "empirical_natural_law",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "ethical_totality",
+      "target": "empirical_natural_law",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "ethical_totality",
+      "target": "formal_natural_law",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "tragedy_ethical",
+      "target": "ethical_totality",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "absolute_ethical_life",
+      "target": "ethical_totality",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "bourgeois_society_early",
+      "target": "ethical_totality",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "crime_punishment_natural",
+      "target": "tragedy_ethical",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "ethical_totality",
+      "target": "speculation",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "formal_natural_law",
+      "target": "kant_critique",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "tragedy_ethical",
+      "target": "fate",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "natural_ethical",
+      "target": "feeling_intuition",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "formal_concept_ethical",
+      "target": "natural_ethical",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "absolute_sittlichkeit",
+      "target": "formal_concept_ethical",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "absolute_sittlichkeit",
+      "target": "natural_ethical",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "potency_one",
+      "target": "natural_ethical",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "potency_two",
+      "target": "potency_one",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "potency_three",
+      "target": "potency_two",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "recognition_early",
+      "target": "potency_two",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "labour_tool",
+      "target": "potency_one",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "people_state",
+      "target": "potency_three",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "people_state",
+      "target": "absolute_sittlichkeit",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "absolute_sittlichkeit",
+      "target": "ethical_totality",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "recognition_early",
+      "target": "bourgeois_society_early",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "labour_tool",
+      "target": "potency_one",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "spirit_jena",
+      "target": "language_jena",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "spirit_jena",
+      "target": "memory_jena",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "spirit_jena",
+      "target": "will_jena",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "will_jena",
+      "target": "contract_jena",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "crime_jena",
+      "target": "contract_jena",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "punishment_jena",
+      "target": "crime_jena",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "recognition_struggle",
+      "target": "will_jena",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "state_jena",
+      "target": "contract_jena",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "state_jena",
+      "target": "recognition_struggle",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "world_history_jena",
+      "target": "state_jena",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "tool_cunning",
+      "target": "labour_tool",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "tool_cunning",
+      "target": "world_history_jena",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "recognition_struggle",
+      "target": "recognition_early",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "spirit_jena",
+      "target": "absolute_sittlichkeit",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "language_jena",
+      "target": "potency_two",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "sense_certainty",
+      "target": "perception",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "perception",
+      "target": "understanding",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "understanding",
+      "target": "self_consciousness",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "self_consciousness",
+      "target": "lord_bondsman",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "lord_bondsman",
+      "target": "stoicism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "stoicism",
+      "target": "scepticism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "scepticism",
+      "target": "unhappy_consciousness",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "unhappy_consciousness",
+      "target": "reason_observing",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "reason_observing",
+      "target": "ethical_order",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "ethical_order",
+      "target": "culture_bildung",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "culture_bildung",
+      "target": "absolute_freedom",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "absolute_freedom",
+      "target": "morality_phenom",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "morality_phenom",
+      "target": "religion_phenom",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "religion_phenom",
+      "target": "absolute_knowing",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "experience_consciousness",
+      "target": "dialectical_movement",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "spirit_phenom",
+      "target": "ethical_order",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "spirit_phenom",
+      "target": "culture_bildung",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "spirit_phenom",
+      "target": "morality_phenom",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "substance_subject",
+      "target": "spirit_phenom",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "negation_determinate",
+      "target": "dialectical_movement",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "absolute_knowing",
+      "target": "substance_subject",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "absolute_knowing",
+      "target": "negation_determinate",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "lord_bondsman",
+      "target": "recognition_struggle",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "ethical_order",
+      "target": "absolute_sittlichkeit",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "substance_subject",
+      "target": "absolute_identity",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "absolute_knowing",
+      "target": "speculation",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "unhappy_consciousness",
+      "target": "reconciliation_early",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "absolute_freedom",
+      "target": "bourgeois_society_early",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "religion_phenom",
+      "target": "death_of_god_speculative",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "being",
+      "target": "nothing",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "nothing",
+      "target": "being",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "becoming",
+      "target": "being",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "becoming",
+      "target": "nothing",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "determinate_being",
+      "target": "becoming",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "quality",
+      "target": "determinate_being",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "something_other",
+      "target": "determinate_being",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "finitude",
+      "target": "something_other",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "limit",
+      "target": "finitude",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "infinity_bad",
+      "target": "finitude",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "infinity_true",
+      "target": "infinity_bad",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "infinity_true",
+      "target": "finitude",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "being_for_self",
+      "target": "infinity_true",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "one_many",
+      "target": "being_for_self",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "quantity",
+      "target": "quality",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "quantum",
+      "target": "quantity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "degree",
+      "target": "quantum",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "measure",
+      "target": "quality",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "measure",
+      "target": "quantity",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "nodal_line",
+      "target": "measure",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "measureless",
+      "target": "measure",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "being",
+      "target": "absolute_knowing",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "becoming",
+      "target": "dialectical_movement",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "negation_determinate",
+      "target": "nothing",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "infinity_true",
+      "target": "life_infinite",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "essence",
+      "target": "being",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "essence",
+      "target": "appearance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "appearance",
+      "target": "actuality",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "reflection",
+      "target": "essence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "identity_essence",
+      "target": "reflection",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "difference_essence",
+      "target": "identity_essence",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "contradiction",
+      "target": "difference_essence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "contradiction",
+      "target": "identity_essence",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "ground",
+      "target": "contradiction",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "existence_essence",
+      "target": "ground",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "thing_essence",
+      "target": "existence_essence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "law_of_appearance",
+      "target": "appearance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "essential_relation",
+      "target": "appearance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "substance_essence",
+      "target": "actuality",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "causality",
+      "target": "substance_essence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "reciprocity",
+      "target": "causality",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "necessity",
+      "target": "actuality",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "contingency_essence",
+      "target": "necessity",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "possibility_actuality",
+      "target": "actuality",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "actuality",
+      "target": "essence",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "actuality",
+      "target": "appearance",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "essence",
+      "target": "measureless",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "contradiction",
+      "target": "negation_determinate",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "substance_essence",
+      "target": "substance_subject",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "reciprocity",
+      "target": "dialectical_movement",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "concept",
+      "target": "reciprocity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "universal",
+      "target": "concept",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "particular",
+      "target": "universal",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "individual",
+      "target": "particular",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "individual",
+      "target": "universal",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "judgment",
+      "target": "concept",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "syllogism",
+      "target": "judgment",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "subjectivity_logic",
+      "target": "concept",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "subjectivity_logic",
+      "target": "judgment",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "subjectivity_logic",
+      "target": "syllogism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "objectivity_logic",
+      "target": "subjectivity_logic",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "mechanism",
+      "target": "objectivity_logic",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "chemism",
+      "target": "mechanism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "teleology",
+      "target": "chemism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "life_logic",
+      "target": "teleology",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "cognition_logic",
+      "target": "life_logic",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "idea",
+      "target": "cognition_logic",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "idea",
+      "target": "life_logic",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "absolute_idea",
+      "target": "idea",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "absolute_idea",
+      "target": "method_dialectical",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "method_dialectical",
+      "target": "negation_determinate",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "concept",
+      "target": "actuality",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "absolute_idea",
+      "target": "absolute_knowing",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "life_logic",
+      "target": "life_infinite",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "idea",
+      "target": "speculation",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "preliminary_concept",
+      "target": "empiricism_enc",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "preliminary_concept",
+      "target": "critical_philosophy_enc",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "preliminary_concept",
+      "target": "immediate_knowing_enc",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "empiricism_enc",
+      "target": "critical_philosophy_enc",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "critical_philosophy_enc",
+      "target": "immediate_knowing_enc",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "three_sides_logical",
+      "target": "abstract_understanding",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "three_sides_logical",
+      "target": "dialectical_negative",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "three_sides_logical",
+      "target": "speculative_positive",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "abstract_understanding",
+      "target": "dialectical_negative",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "dialectical_negative",
+      "target": "speculative_positive",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "speculative_positive",
+      "target": "abstract_understanding",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "speculative_positive",
+      "target": "dialectical_negative",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "beginning_logic",
+      "target": "being",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "transition_being_essence",
+      "target": "measureless",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "transition_being_essence",
+      "target": "essence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "transition_essence_concept",
+      "target": "reciprocity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "transition_essence_concept",
+      "target": "concept",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "three_sides_logical",
+      "target": "method_dialectical",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "critical_philosophy_enc",
+      "target": "kant_critique",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "immediate_knowing_enc",
+      "target": "jacobi_immediacy",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "speculative_positive",
+      "target": "absolute_idea",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "nature_externality",
+      "target": "absolute_idea",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "space",
+      "target": "nature_externality",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "time_nature",
+      "target": "space",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "matter_motion",
+      "target": "space",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "matter_motion",
+      "target": "time_nature",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "mechanics",
+      "target": "matter_motion",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "physics",
+      "target": "mechanics",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "organics",
+      "target": "physics",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "geological_organism",
+      "target": "organics",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "vegetal_organism",
+      "target": "geological_organism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "animal_organism",
+      "target": "vegetal_organism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "death_natural",
+      "target": "animal_organism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "genus_process",
+      "target": "animal_organism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "genus_process",
+      "target": "death_natural",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "idea_returns_nature",
+      "target": "genus_process",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "idea_returns_nature",
+      "target": "nature_externality",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "nature_externality",
+      "target": "absolute_idea",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "organics",
+      "target": "life_logic",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "idea_returns_nature",
+      "target": "spirit_phenom",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "subjective_spirit",
+      "target": "idea_returns_nature",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "anthropology_enc",
+      "target": "subjective_spirit",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "phenomenology_enc",
+      "target": "anthropology_enc",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "psychology_enc",
+      "target": "phenomenology_enc",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "theoretical_spirit",
+      "target": "psychology_enc",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "practical_spirit",
+      "target": "theoretical_spirit",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "free_spirit",
+      "target": "practical_spirit",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "free_spirit",
+      "target": "theoretical_spirit",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "habit",
+      "target": "anthropology_enc",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "objective_spirit",
+      "target": "free_spirit",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "abstract_right",
+      "target": "objective_spirit",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "morality_enc",
+      "target": "abstract_right",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "ethical_life_enc",
+      "target": "morality_enc",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "ethical_life_enc",
+      "target": "abstract_right",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "absolute_spirit",
+      "target": "objective_spirit",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "art_enc",
+      "target": "absolute_spirit",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "revealed_religion_enc",
+      "target": "art_enc",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "philosophy_enc",
+      "target": "revealed_religion_enc",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "philosophy_enc",
+      "target": "absolute_idea",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "phenomenology_enc",
+      "target": "experience_consciousness",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "ethical_life_enc",
+      "target": "ethical_order",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "absolute_spirit",
+      "target": "absolute_knowing",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "art_enc",
+      "target": "religion_phenom",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "objective_spirit",
+      "target": "spirit_phenom",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "right_abstract",
+      "target": "freedom_will",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "property",
+      "target": "right_abstract",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "contract",
+      "target": "property",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "wrong_crime",
+      "target": "contract",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "morality_right",
+      "target": "right_abstract",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "purpose_responsibility",
+      "target": "morality_right",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "intention_welfare",
+      "target": "purpose_responsibility",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "good_conscience",
+      "target": "intention_welfare",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "ethical_life_right",
+      "target": "morality_right",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "ethical_life_right",
+      "target": "right_abstract",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "family",
+      "target": "ethical_life_right",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "civil_society",
+      "target": "family",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "state_right",
+      "target": "civil_society",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "state_right",
+      "target": "family",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "system_of_needs",
+      "target": "civil_society",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "administration_of_justice",
+      "target": "civil_society",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "police_corporation",
+      "target": "civil_society",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "constitutional_law",
+      "target": "state_right",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "international_law",
+      "target": "state_right",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "world_history_right",
+      "target": "international_law",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "monarch",
+      "target": "constitutional_law",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "executive_power",
+      "target": "monarch",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "legislative_power",
+      "target": "executive_power",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "estates",
+      "target": "legislative_power",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "rational_actual",
+      "target": "ethical_life_right",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "freedom_will",
+      "target": "concept",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "rabble",
+      "target": "system_of_needs",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "rabble",
+      "target": "civil_society",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "right_abstract",
+      "target": "abstract_right",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "morality_right",
+      "target": "morality_enc",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "ethical_life_right",
+      "target": "ethical_life_enc",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "civil_society",
+      "target": "bourgeois_society_early",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "world_history_right",
+      "target": "world_history_jena",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "rational_actual",
+      "target": "actuality",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "freedom_will",
+      "target": "free_spirit",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "beauty_idea",
+      "target": "idea",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "ideal",
+      "target": "beauty_idea",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "symbolic_art",
+      "target": "ideal",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "classical_art",
+      "target": "symbolic_art",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "romantic_art",
+      "target": "classical_art",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "end_of_art",
+      "target": "romantic_art",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "architecture",
+      "target": "symbolic_art",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sculpture",
+      "target": "classical_art",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "painting",
+      "target": "romantic_art",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "music",
+      "target": "romantic_art",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "poetry",
+      "target": "romantic_art",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "poetry",
+      "target": "music",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "content_form_art",
+      "target": "classical_art",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "content_form_art",
+      "target": "symbolic_art",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "natural_beauty",
+      "target": "beauty_idea",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "artistic_beauty",
+      "target": "natural_beauty",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "sublime",
+      "target": "symbolic_art",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sublime",
+      "target": "classical_art",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "beauty_idea",
+      "target": "art_enc",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "end_of_art",
+      "target": "philosophy_enc",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "romantic_art",
+      "target": "revealed_religion_enc",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "content_form_art",
+      "target": "absolute_idea",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "concept_of_religion",
+      "target": "absolute_spirit",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "religious_consciousness",
+      "target": "concept_of_religion",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "feeling_religion",
+      "target": "religious_consciousness",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "representation_religion",
+      "target": "feeling_religion",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "thought_religion",
+      "target": "representation_religion",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "determinate_religion",
+      "target": "concept_of_religion",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nature_religion",
+      "target": "determinate_religion",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "spiritual_individuality_religion",
+      "target": "nature_religion",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "religion_sublimity",
+      "target": "spiritual_individuality_religion",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "religion_beauty",
+      "target": "religion_sublimity",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "religion_purposiveness",
+      "target": "religion_beauty",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "consummate_religion",
+      "target": "determinate_religion",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "consummate_religion",
+      "target": "religion_purposiveness",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "trinity_religion",
+      "target": "consummate_religion",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "creation_fall",
+      "target": "trinity_religion",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "reconciliation_religion",
+      "target": "creation_fall",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "community_religion",
+      "target": "reconciliation_religion",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "cult",
+      "target": "concept_of_religion",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "cult",
+      "target": "community_religion",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "consummate_religion",
+      "target": "revealed_religion_enc",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "representation_religion",
+      "target": "religion_phenom",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "reconciliation_religion",
+      "target": "reconciliation_early",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "thought_religion",
+      "target": "philosophy_enc",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "trinity_religion",
+      "target": "absolute_idea",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "religion_sublimity",
+      "target": "jewish_law",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "history_of_philosophy",
+      "target": "philosophy_enc",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "oriental_philosophy",
+      "target": "history_of_philosophy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "greek_philosophy",
+      "target": "oriental_philosophy",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "thales_to_anaxagoras",
+      "target": "greek_philosophy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sophists_socrates",
+      "target": "thales_to_anaxagoras",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "plato_hp",
+      "target": "sophists_socrates",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "aristotle_hp",
+      "target": "plato_hp",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "stoic_sceptic_epicurean",
+      "target": "aristotle_hp",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "neoplatonism",
+      "target": "stoic_sceptic_epicurean",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "medieval_philosophy",
+      "target": "neoplatonism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "modern_philosophy",
+      "target": "medieval_philosophy",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "descartes_spinoza",
+      "target": "modern_philosophy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "leibniz_wolff",
+      "target": "descartes_spinoza",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "british_empiricism",
+      "target": "leibniz_wolff",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "french_enlightenment",
+      "target": "british_empiricism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "kant_hp",
+      "target": "french_enlightenment",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "fichte_hp",
+      "target": "kant_hp",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "schelling_hp",
+      "target": "fichte_hp",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "philosophy_self_comprehension",
+      "target": "schelling_hp",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "philosophy_self_comprehension",
+      "target": "history_of_philosophy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "philosophy_self_comprehension",
+      "target": "absolute_knowing",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "kant_hp",
+      "target": "critical_philosophy_enc",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "descartes_spinoza",
+      "target": "substance_essence",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "schelling_hp",
+      "target": "absolute_identity",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "fichte_hp",
+      "target": "fichte_subjectivity",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "neoplatonism",
+      "target": "speculative_good_friday",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "world_spirit",
+      "target": "absolute_spirit",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "cunning_of_reason",
+      "target": "world_spirit",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "cunning_of_reason",
+      "target": "passions_individuals",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "world_historical_individual",
+      "target": "cunning_of_reason",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "oriental_world",
+      "target": "freedom_consciousness",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "greek_world",
+      "target": "oriental_world",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "roman_world",
+      "target": "greek_world",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "germanic_world",
+      "target": "roman_world",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "freedom_consciousness",
+      "target": "world_spirit",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "progress_freedom",
+      "target": "freedom_consciousness",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "progress_freedom",
+      "target": "germanic_world",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "state_realization_freedom",
+      "target": "freedom_consciousness",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "state_realization_freedom",
+      "target": "state_right",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "passions_individuals",
+      "target": "world_historical_individual",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "geographical_basis",
+      "target": "nature_externality",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "reformation",
+      "target": "germanic_world",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "french_revolution_wh",
+      "target": "reformation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "french_revolution_wh",
+      "target": "absolute_freedom",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "world_spirit",
+      "target": "spirit_phenom",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "cunning_of_reason",
+      "target": "tool_cunning",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "world_historical_individual",
+      "target": "world_history_right",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "germanic_world",
+      "target": "ethical_life_right",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "review_hamann",
+      "target": "feeling_religion",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "review_hamann",
+      "target": "immediate_knowing_enc",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "review_goeschel",
+      "target": "thought_religion",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "review_humboldt",
+      "target": "oriental_philosophy",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "english_reform_bill",
+      "target": "state_right",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "english_reform_bill",
+      "target": "estates",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "sovereignty_people",
+      "target": "state_right",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sovereignty_people",
+      "target": "monarch",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "philosophy_system_completion",
+      "target": "absolute_idea",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "philosophy_system_completion",
+      "target": "philosophy_self_comprehension",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "actuality_philosophy_late",
+      "target": "rational_actual",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "actuality_philosophy_late",
+      "target": "philosophy_enc",
+      "edge_type": "dependency",
+      "created_at": 0
+    }
+  ]
+}

@@ -1,0 +1,3486 @@
+{
+  "vertices": [
+    {
+      "id": "differentiation",
+      "status": "active",
+      "content": "social differentiation",
+      "created_at": 0
+    },
+    {
+      "id": "individuality",
+      "status": "active",
+      "content": "individuality",
+      "created_at": 0
+    },
+    {
+      "id": "form",
+      "status": "active",
+      "content": "form (social)",
+      "created_at": 0
+    },
+    {
+      "id": "content",
+      "status": "active",
+      "content": "content (social)",
+      "created_at": 0
+    },
+    {
+      "id": "interaction",
+      "status": "active",
+      "content": "interaction",
+      "created_at": 0
+    },
+    {
+      "id": "group_size",
+      "status": "active",
+      "content": "group size",
+      "created_at": 0
+    },
+    {
+      "id": "web_of_affiliations_proto",
+      "status": "active",
+      "content": "web of affiliations (proto)",
+      "created_at": 0
+    },
+    {
+      "id": "crossing_social_circles",
+      "status": "active",
+      "content": "crossing of social circles",
+      "created_at": 0
+    },
+    {
+      "id": "division_of_labor",
+      "status": "active",
+      "content": "division of labor",
+      "created_at": 0
+    },
+    {
+      "id": "organic_solidarity_proto",
+      "status": "active",
+      "content": "organic solidarity (proto-concept)",
+      "created_at": 0
+    },
+    {
+      "id": "quantitative_determination",
+      "status": "active",
+      "content": "quantitative determination of groups",
+      "created_at": 0
+    },
+    {
+      "id": "historical_understanding",
+      "status": "active",
+      "content": "historical understanding",
+      "created_at": 0
+    },
+    {
+      "id": "a_priori_forms_history",
+      "status": "active",
+      "content": "a priori forms of historical knowledge",
+      "created_at": 0
+    },
+    {
+      "id": "historical_laws",
+      "status": "active",
+      "content": "historical laws",
+      "created_at": 0
+    },
+    {
+      "id": "historical_individual",
+      "status": "active",
+      "content": "historical individual",
+      "created_at": 0
+    },
+    {
+      "id": "re_experiencing",
+      "status": "active",
+      "content": "re-experiencing (Nacherleben)",
+      "created_at": 0
+    },
+    {
+      "id": "objectivity_history",
+      "status": "active",
+      "content": "objectivity in history",
+      "created_at": 0
+    },
+    {
+      "id": "fragmentary_character",
+      "status": "active",
+      "content": "fragmentary character of knowledge",
+      "created_at": 0
+    },
+    {
+      "id": "historical_causation",
+      "status": "active",
+      "content": "historical causation",
+      "created_at": 0
+    },
+    {
+      "id": "freedom_necessity_history",
+      "status": "active",
+      "content": "freedom vs necessity in history",
+      "created_at": 0
+    },
+    {
+      "id": "sociation",
+      "status": "active",
+      "content": "sociation (Vergesellschaftung)",
+      "created_at": 0
+    },
+    {
+      "id": "reciprocity",
+      "status": "active",
+      "content": "reciprocity (Wechselwirkung)",
+      "created_at": 0
+    },
+    {
+      "id": "sociology_as_method",
+      "status": "active",
+      "content": "sociology as method, not substance",
+      "created_at": 0
+    },
+    {
+      "id": "social_geometry",
+      "status": "active",
+      "content": "social geometry",
+      "created_at": 0
+    },
+    {
+      "id": "formal_sociology",
+      "status": "active",
+      "content": "formal sociology",
+      "created_at": 0
+    },
+    {
+      "id": "dyad",
+      "status": "active",
+      "content": "dyad",
+      "created_at": 0
+    },
+    {
+      "id": "triad",
+      "status": "active",
+      "content": "triad",
+      "created_at": 0
+    },
+    {
+      "id": "aesthetic_distance",
+      "status": "active",
+      "content": "aesthetic distance",
+      "created_at": 0
+    },
+    {
+      "id": "symmetry",
+      "status": "active",
+      "content": "symmetry",
+      "created_at": 0
+    },
+    {
+      "id": "aesthetic_form",
+      "status": "active",
+      "content": "aesthetic form",
+      "created_at": 0
+    },
+    {
+      "id": "style",
+      "status": "active",
+      "content": "style",
+      "created_at": 0
+    },
+    {
+      "id": "beauty_social",
+      "status": "active",
+      "content": "beauty as social phenomenon",
+      "created_at": 0
+    },
+    {
+      "id": "aesthetic_play",
+      "status": "active",
+      "content": "aesthetic play",
+      "created_at": 0
+    },
+    {
+      "id": "group_persistence",
+      "status": "active",
+      "content": "persistence of social groups",
+      "created_at": 0
+    },
+    {
+      "id": "group_boundary",
+      "status": "active",
+      "content": "group boundary",
+      "created_at": 0
+    },
+    {
+      "id": "membership_change",
+      "status": "active",
+      "content": "membership change",
+      "created_at": 0
+    },
+    {
+      "id": "group_identity",
+      "status": "active",
+      "content": "group identity across time",
+      "created_at": 0
+    },
+    {
+      "id": "institutional_continuity",
+      "status": "active",
+      "content": "institutional continuity",
+      "created_at": 0
+    },
+    {
+      "id": "objective_culture_proto",
+      "status": "active",
+      "content": "objective culture (proto)",
+      "created_at": 0
+    },
+    {
+      "id": "value",
+      "status": "active",
+      "content": "value",
+      "created_at": 0
+    },
+    {
+      "id": "desire",
+      "status": "active",
+      "content": "desire",
+      "created_at": 0
+    },
+    {
+      "id": "distance_value",
+      "status": "active",
+      "content": "distance as condition of value",
+      "created_at": 0
+    },
+    {
+      "id": "sacrifice",
+      "status": "active",
+      "content": "sacrifice",
+      "created_at": 0
+    },
+    {
+      "id": "exchange",
+      "status": "active",
+      "content": "exchange",
+      "created_at": 0
+    },
+    {
+      "id": "objective_value",
+      "status": "active",
+      "content": "objective value",
+      "created_at": 0
+    },
+    {
+      "id": "subjective_value",
+      "status": "active",
+      "content": "subjective value",
+      "created_at": 0
+    },
+    {
+      "id": "money",
+      "status": "active",
+      "content": "money",
+      "created_at": 0
+    },
+    {
+      "id": "money_pure_means",
+      "status": "active",
+      "content": "money as pure means becoming end",
+      "created_at": 0
+    },
+    {
+      "id": "money_leveler",
+      "status": "active",
+      "content": "money as leveler",
+      "created_at": 0
+    },
+    {
+      "id": "objectification",
+      "status": "active",
+      "content": "objectification",
+      "created_at": 0
+    },
+    {
+      "id": "culture",
+      "status": "active",
+      "content": "culture",
+      "created_at": 0
+    },
+    {
+      "id": "alienation",
+      "status": "active",
+      "content": "alienation",
+      "created_at": 0
+    },
+    {
+      "id": "freedom",
+      "status": "active",
+      "content": "freedom",
+      "created_at": 0
+    },
+    {
+      "id": "personal_value_vs_money",
+      "status": "active",
+      "content": "personal value vs money value",
+      "created_at": 0
+    },
+    {
+      "id": "cynicism",
+      "status": "active",
+      "content": "cynicism",
+      "created_at": 0
+    },
+    {
+      "id": "blase_attitude",
+      "status": "active",
+      "content": "blasé attitude",
+      "created_at": 0
+    },
+    {
+      "id": "trust",
+      "status": "active",
+      "content": "trust",
+      "created_at": 0
+    },
+    {
+      "id": "abstract_exchange",
+      "status": "active",
+      "content": "abstract exchange",
+      "created_at": 0
+    },
+    {
+      "id": "means_ends_reversal",
+      "status": "active",
+      "content": "means-ends reversal",
+      "created_at": 0
+    },
+    {
+      "id": "metropolis",
+      "status": "active",
+      "content": "metropolis",
+      "created_at": 0
+    },
+    {
+      "id": "mental_life",
+      "status": "active",
+      "content": "mental life",
+      "created_at": 0
+    },
+    {
+      "id": "intensification_nervous_stimulation",
+      "status": "active",
+      "content": "intensification of nervous stimulation",
+      "created_at": 0
+    },
+    {
+      "id": "intellectualism",
+      "status": "active",
+      "content": "intellectualism (metropolitan)",
+      "created_at": 0
+    },
+    {
+      "id": "reserve",
+      "status": "active",
+      "content": "reserve (Reserviertheit)",
+      "created_at": 0
+    },
+    {
+      "id": "distance",
+      "status": "active",
+      "content": "distance",
+      "created_at": 0
+    },
+    {
+      "id": "proximity",
+      "status": "active",
+      "content": "proximity",
+      "created_at": 0
+    },
+    {
+      "id": "money_economy_city",
+      "status": "active",
+      "content": "money economy in the city",
+      "created_at": 0
+    },
+    {
+      "id": "punctuality",
+      "status": "active",
+      "content": "punctuality",
+      "created_at": 0
+    },
+    {
+      "id": "calculability",
+      "status": "active",
+      "content": "calculability",
+      "created_at": 0
+    },
+    {
+      "id": "atrophy_individual_culture",
+      "status": "active",
+      "content": "atrophy of individual culture",
+      "created_at": 0
+    },
+    {
+      "id": "fashion",
+      "status": "active",
+      "content": "fashion",
+      "created_at": 0
+    },
+    {
+      "id": "imitation",
+      "status": "active",
+      "content": "imitation",
+      "created_at": 0
+    },
+    {
+      "id": "fashion_cycle",
+      "status": "active",
+      "content": "fashion cycle",
+      "created_at": 0
+    },
+    {
+      "id": "class_distinction",
+      "status": "active",
+      "content": "class distinction",
+      "created_at": 0
+    },
+    {
+      "id": "trickle_down",
+      "status": "active",
+      "content": "trickle-down",
+      "created_at": 0
+    },
+    {
+      "id": "conformity",
+      "status": "active",
+      "content": "conformity",
+      "created_at": 0
+    },
+    {
+      "id": "fashion_as_form",
+      "status": "active",
+      "content": "fashion as social form",
+      "created_at": 0
+    },
+    {
+      "id": "religious_form",
+      "status": "active",
+      "content": "religious form",
+      "created_at": 0
+    },
+    {
+      "id": "faith_social",
+      "status": "active",
+      "content": "faith as social relation",
+      "created_at": 0
+    },
+    {
+      "id": "piety",
+      "status": "active",
+      "content": "piety",
+      "created_at": 0
+    },
+    {
+      "id": "unity_religious",
+      "status": "active",
+      "content": "religious unity",
+      "created_at": 0
+    },
+    {
+      "id": "sacred_profane",
+      "status": "active",
+      "content": "sacred vs profane",
+      "created_at": 0
+    },
+    {
+      "id": "secrecy",
+      "status": "active",
+      "content": "secrecy",
+      "created_at": 0
+    },
+    {
+      "id": "secret_society",
+      "status": "active",
+      "content": "secret society",
+      "created_at": 0
+    },
+    {
+      "id": "concealment",
+      "status": "active",
+      "content": "concealment",
+      "created_at": 0
+    },
+    {
+      "id": "revelation",
+      "status": "active",
+      "content": "revelation",
+      "created_at": 0
+    },
+    {
+      "id": "lying",
+      "status": "active",
+      "content": "lying",
+      "created_at": 0
+    },
+    {
+      "id": "confidence",
+      "status": "active",
+      "content": "confidence",
+      "created_at": 0
+    },
+    {
+      "id": "adornment",
+      "status": "active",
+      "content": "adornment",
+      "created_at": 0
+    },
+    {
+      "id": "written_communication",
+      "status": "active",
+      "content": "written communication",
+      "created_at": 0
+    },
+    {
+      "id": "discretion",
+      "status": "active",
+      "content": "discretion",
+      "created_at": 0
+    },
+    {
+      "id": "money_symbolism",
+      "status": "active",
+      "content": "money as symbol",
+      "created_at": 0
+    },
+    {
+      "id": "credit",
+      "status": "active",
+      "content": "credit",
+      "created_at": 0
+    },
+    {
+      "id": "money_and_freedom_expanded",
+      "status": "active",
+      "content": "money-freedom relation expanded",
+      "created_at": 0
+    },
+    {
+      "id": "impersonal_relations",
+      "status": "active",
+      "content": "impersonal relations",
+      "created_at": 0
+    },
+    {
+      "id": "style_of_life",
+      "status": "active",
+      "content": "style of life",
+      "created_at": 0
+    },
+    {
+      "id": "superordination",
+      "status": "active",
+      "content": "superordination",
+      "created_at": 0
+    },
+    {
+      "id": "self_preservation_group",
+      "status": "active",
+      "content": "self-preservation of the group",
+      "created_at": 0
+    },
+    {
+      "id": "number_social",
+      "status": "active",
+      "content": "quantitative aspects of the group",
+      "created_at": 0
+    },
+    {
+      "id": "spatial_sociology",
+      "status": "active",
+      "content": "sociology of space",
+      "created_at": 0
+    },
+    {
+      "id": "boundary_spatial",
+      "status": "active",
+      "content": "spatial boundary",
+      "created_at": 0
+    },
+    {
+      "id": "fixity_spatial",
+      "status": "active",
+      "content": "spatial fixity",
+      "created_at": 0
+    },
+    {
+      "id": "social_types",
+      "status": "active",
+      "content": "social types",
+      "created_at": 0
+    },
+    {
+      "id": "intersection_circles",
+      "status": "active",
+      "content": "intersection of social circles",
+      "created_at": 0
+    },
+    {
+      "id": "expansion_group",
+      "status": "active",
+      "content": "expansion of the group",
+      "created_at": 0
+    },
+    {
+      "id": "nobility",
+      "status": "active",
+      "content": "nobility (social type)",
+      "created_at": 0
+    },
+    {
+      "id": "stranger",
+      "status": "active",
+      "content": "the stranger",
+      "created_at": 0
+    },
+    {
+      "id": "wanderer",
+      "status": "active",
+      "content": "the wanderer",
+      "created_at": 0
+    },
+    {
+      "id": "trader",
+      "status": "active",
+      "content": "the trader (stranger as)",
+      "created_at": 0
+    },
+    {
+      "id": "objectivity_stranger",
+      "status": "active",
+      "content": "objectivity of the stranger",
+      "created_at": 0
+    },
+    {
+      "id": "nearness_remoteness",
+      "status": "active",
+      "content": "nearness and remoteness (unity)",
+      "created_at": 0
+    },
+    {
+      "id": "the_poor",
+      "status": "active",
+      "content": "the poor",
+      "created_at": 0
+    },
+    {
+      "id": "assistance",
+      "status": "active",
+      "content": "assistance (social obligation)",
+      "created_at": 0
+    },
+    {
+      "id": "right_to_assistance",
+      "status": "active",
+      "content": "right to assistance",
+      "created_at": 0
+    },
+    {
+      "id": "poverty_relation",
+      "status": "active",
+      "content": "poverty as social relation",
+      "created_at": 0
+    },
+    {
+      "id": "conflict",
+      "status": "active",
+      "content": "conflict (Streit)",
+      "created_at": 0
+    },
+    {
+      "id": "conflict_as_sociation",
+      "status": "active",
+      "content": "conflict as form of sociation",
+      "created_at": 0
+    },
+    {
+      "id": "competition",
+      "status": "active",
+      "content": "competition",
+      "created_at": 0
+    },
+    {
+      "id": "jealousy",
+      "status": "active",
+      "content": "jealousy",
+      "created_at": 0
+    },
+    {
+      "id": "unity_of_opposites_conflict",
+      "status": "active",
+      "content": "unity produced by conflict",
+      "created_at": 0
+    },
+    {
+      "id": "peace",
+      "status": "active",
+      "content": "peace",
+      "created_at": 0
+    },
+    {
+      "id": "domination",
+      "status": "active",
+      "content": "domination (Herrschaft)",
+      "created_at": 0
+    },
+    {
+      "id": "subordination",
+      "status": "active",
+      "content": "subordination",
+      "created_at": 0
+    },
+    {
+      "id": "authority",
+      "status": "active",
+      "content": "authority",
+      "created_at": 0
+    },
+    {
+      "id": "legitimacy",
+      "status": "active",
+      "content": "legitimacy",
+      "created_at": 0
+    },
+    {
+      "id": "domination_by_plurality",
+      "status": "active",
+      "content": "domination by a plurality",
+      "created_at": 0
+    },
+    {
+      "id": "leveling",
+      "status": "active",
+      "content": "leveling",
+      "created_at": 0
+    },
+    {
+      "id": "primus_inter_pares",
+      "status": "active",
+      "content": "primus inter pares",
+      "created_at": 0
+    },
+    {
+      "id": "web_of_affiliations",
+      "status": "active",
+      "content": "web of group affiliations",
+      "created_at": 0
+    },
+    {
+      "id": "multiple_group_membership",
+      "status": "active",
+      "content": "multiple group membership",
+      "created_at": 0
+    },
+    {
+      "id": "unique_individual",
+      "status": "active",
+      "content": "unique individual (intersection point)",
+      "created_at": 0
+    },
+    {
+      "id": "organic_membership",
+      "status": "active",
+      "content": "organic vs rational membership",
+      "created_at": 0
+    },
+    {
+      "id": "concentric_circles",
+      "status": "active",
+      "content": "concentric circles",
+      "created_at": 0
+    },
+    {
+      "id": "bridge",
+      "status": "active",
+      "content": "bridge",
+      "created_at": 0
+    },
+    {
+      "id": "door",
+      "status": "active",
+      "content": "door",
+      "created_at": 0
+    },
+    {
+      "id": "separation_connection",
+      "status": "active",
+      "content": "separation and connection",
+      "created_at": 0
+    },
+    {
+      "id": "frame",
+      "status": "active",
+      "content": "frame (Rahmen)",
+      "created_at": 0
+    },
+    {
+      "id": "threshold",
+      "status": "active",
+      "content": "threshold",
+      "created_at": 0
+    },
+    {
+      "id": "a_priori_sociation",
+      "status": "active",
+      "content": "a priori of sociation",
+      "created_at": 0
+    },
+    {
+      "id": "generalization_individual",
+      "status": "active",
+      "content": "generalization of the individual",
+      "created_at": 0
+    },
+    {
+      "id": "social_role",
+      "status": "active",
+      "content": "social role",
+      "created_at": 0
+    },
+    {
+      "id": "vocation",
+      "status": "active",
+      "content": "vocation (Beruf)",
+      "created_at": 0
+    },
+    {
+      "id": "incompleteness_knowledge",
+      "status": "active",
+      "content": "incompleteness of knowledge of other",
+      "created_at": 0
+    },
+    {
+      "id": "society_possible",
+      "status": "active",
+      "content": "how is society possible",
+      "created_at": 0
+    },
+    {
+      "id": "sociability",
+      "status": "active",
+      "content": "sociability (Geselligkeit)",
+      "created_at": 0
+    },
+    {
+      "id": "play",
+      "status": "active",
+      "content": "play (Spiel)",
+      "created_at": 0
+    },
+    {
+      "id": "play_form",
+      "status": "active",
+      "content": "play-form of sociation",
+      "created_at": 0
+    },
+    {
+      "id": "coquetry",
+      "status": "active",
+      "content": "coquetry",
+      "created_at": 0
+    },
+    {
+      "id": "conversation",
+      "status": "active",
+      "content": "conversation (as play)",
+      "created_at": 0
+    },
+    {
+      "id": "tact",
+      "status": "active",
+      "content": "tact",
+      "created_at": 0
+    },
+    {
+      "id": "adventure",
+      "status": "active",
+      "content": "the adventure",
+      "created_at": 0
+    },
+    {
+      "id": "risk",
+      "status": "active",
+      "content": "risk",
+      "created_at": 0
+    },
+    {
+      "id": "adventure_form",
+      "status": "active",
+      "content": "adventure as form",
+      "created_at": 0
+    },
+    {
+      "id": "present_intensity",
+      "status": "active",
+      "content": "intensity of the present moment",
+      "created_at": 0
+    },
+    {
+      "id": "gambler",
+      "status": "active",
+      "content": "the gambler",
+      "created_at": 0
+    },
+    {
+      "id": "lover",
+      "status": "active",
+      "content": "the lover (adventurer)",
+      "created_at": 0
+    },
+    {
+      "id": "ruin",
+      "status": "active",
+      "content": "the ruin",
+      "created_at": 0
+    },
+    {
+      "id": "nature_spirit_ruin",
+      "status": "active",
+      "content": "nature vs spirit in ruin",
+      "created_at": 0
+    },
+    {
+      "id": "past_present_ruin",
+      "status": "active",
+      "content": "past and present in ruin",
+      "created_at": 0
+    },
+    {
+      "id": "decay_as_form",
+      "status": "active",
+      "content": "decay as aesthetic form",
+      "created_at": 0
+    },
+    {
+      "id": "philosophical_culture",
+      "status": "active",
+      "content": "philosophical culture",
+      "created_at": 0
+    },
+    {
+      "id": "subjective_culture",
+      "status": "active",
+      "content": "subjective culture",
+      "created_at": 0
+    },
+    {
+      "id": "objective_culture",
+      "status": "active",
+      "content": "objective culture",
+      "created_at": 0
+    },
+    {
+      "id": "female_culture",
+      "status": "active",
+      "content": "female culture",
+      "created_at": 0
+    },
+    {
+      "id": "cultural_forms",
+      "status": "active",
+      "content": "cultural forms",
+      "created_at": 0
+    },
+    {
+      "id": "tragedy_of_culture",
+      "status": "active",
+      "content": "the tragedy of culture",
+      "created_at": 0
+    },
+    {
+      "id": "life",
+      "status": "active",
+      "content": "life (Leben)",
+      "created_at": 0
+    },
+    {
+      "id": "more_life",
+      "status": "active",
+      "content": "more-life (Mehr-Leben)",
+      "created_at": 0
+    },
+    {
+      "id": "more_than_life",
+      "status": "active",
+      "content": "more-than-life (Mehr-als-Leben)",
+      "created_at": 0
+    },
+    {
+      "id": "cultural_lag",
+      "status": "active",
+      "content": "cultural lag (objective outpaces subjective)",
+      "created_at": 0
+    },
+    {
+      "id": "spirit_objectified",
+      "status": "active",
+      "content": "objectified spirit",
+      "created_at": 0
+    },
+    {
+      "id": "means_ends_culture",
+      "status": "active",
+      "content": "means-ends inversion in culture",
+      "created_at": 0
+    },
+    {
+      "id": "goethe_unity",
+      "status": "active",
+      "content": "Goethe as unity of life and form",
+      "created_at": 0
+    },
+    {
+      "id": "personality_totality",
+      "status": "active",
+      "content": "personality as totality",
+      "created_at": 0
+    },
+    {
+      "id": "life_form_unity",
+      "status": "active",
+      "content": "unity of life and form",
+      "created_at": 0
+    },
+    {
+      "id": "genius",
+      "status": "active",
+      "content": "genius",
+      "created_at": 0
+    },
+    {
+      "id": "naivete",
+      "status": "active",
+      "content": "naiveté (Goethean)",
+      "created_at": 0
+    },
+    {
+      "id": "rembrandt_individuality",
+      "status": "active",
+      "content": "Rembrandt's individuality (vs Renaissance type)",
+      "created_at": 0
+    },
+    {
+      "id": "portrait_individuality",
+      "status": "active",
+      "content": "portrait as individuality",
+      "created_at": 0
+    },
+    {
+      "id": "movement_art",
+      "status": "active",
+      "content": "movement in art",
+      "created_at": 0
+    },
+    {
+      "id": "death",
+      "status": "active",
+      "content": "death",
+      "created_at": 0
+    },
+    {
+      "id": "religious_art",
+      "status": "active",
+      "content": "religious art (inner life)",
+      "created_at": 0
+    },
+    {
+      "id": "landscape_mood",
+      "status": "active",
+      "content": "landscape as mood",
+      "created_at": 0
+    },
+    {
+      "id": "life_unity_art",
+      "status": "active",
+      "content": "life-unity in art",
+      "created_at": 0
+    },
+    {
+      "id": "individual_society_problem",
+      "status": "active",
+      "content": "the individual and society problem",
+      "created_at": 0
+    },
+    {
+      "id": "sociological_a_priori",
+      "status": "active",
+      "content": "the three sociological a priori",
+      "created_at": 0
+    },
+    {
+      "id": "social_type_generalized",
+      "status": "active",
+      "content": "social type (generalized)",
+      "created_at": 0
+    },
+    {
+      "id": "vocation_generalized",
+      "status": "active",
+      "content": "vocation as a priori",
+      "created_at": 0
+    },
+    {
+      "id": "society_as_more",
+      "status": "active",
+      "content": "society as more than sum of individuals",
+      "created_at": 0
+    },
+    {
+      "id": "conflict_life_form",
+      "status": "active",
+      "content": "conflict between life and form",
+      "created_at": 0
+    },
+    {
+      "id": "life_against_form",
+      "status": "active",
+      "content": "life against the principle of form",
+      "created_at": 0
+    },
+    {
+      "id": "perpetual_revolution",
+      "status": "active",
+      "content": "perpetual revolution of life",
+      "created_at": 0
+    },
+    {
+      "id": "formless_life",
+      "status": "active",
+      "content": "formless life (modern tendency)",
+      "created_at": 0
+    },
+    {
+      "id": "expressionism",
+      "status": "active",
+      "content": "expressionism",
+      "created_at": 0
+    },
+    {
+      "id": "pragmatism",
+      "status": "active",
+      "content": "pragmatism",
+      "created_at": 0
+    },
+    {
+      "id": "life_transcendence",
+      "status": "active",
+      "content": "life as self-transcendence",
+      "created_at": 0
+    },
+    {
+      "id": "boundary_consciousness",
+      "status": "active",
+      "content": "consciousness of boundaries",
+      "created_at": 0
+    },
+    {
+      "id": "individual_law",
+      "status": "active",
+      "content": "individual law (individuelles Gesetz)",
+      "created_at": 0
+    },
+    {
+      "id": "turning_to_idea",
+      "status": "active",
+      "content": "the turning to the idea",
+      "created_at": 0
+    },
+    {
+      "id": "death_boundary",
+      "status": "active",
+      "content": "death as life's own boundary",
+      "created_at": 0
+    },
+    {
+      "id": "absolute_immanence",
+      "status": "active",
+      "content": "absolute and immanence",
+      "created_at": 0
+    },
+    {
+      "id": "ought",
+      "status": "active",
+      "content": "the Ought (Sollen)",
+      "created_at": 0
+    }
+  ],
+  "edges": [
+    {
+      "source": "differentiation",
+      "target": "individuality",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "differentiation",
+      "target": "group_size",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "form",
+      "target": "content",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "interaction",
+      "target": "form",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "crossing_social_circles",
+      "target": "individuality",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "crossing_social_circles",
+      "target": "differentiation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "web_of_affiliations_proto",
+      "target": "crossing_social_circles",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "division_of_labor",
+      "target": "differentiation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "division_of_labor",
+      "target": "group_size",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "organic_solidarity_proto",
+      "target": "division_of_labor",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "quantitative_determination",
+      "target": "group_size",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "quantitative_determination",
+      "target": "differentiation",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "historical_understanding",
+      "target": "a_priori_forms_history",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "historical_understanding",
+      "target": "re_experiencing",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "a_priori_forms_history",
+      "target": "form",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "historical_laws",
+      "target": "historical_causation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "historical_individual",
+      "target": "historical_understanding",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "re_experiencing",
+      "target": "interaction",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "objectivity_history",
+      "target": "a_priori_forms_history",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "objectivity_history",
+      "target": "fragmentary_character",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "fragmentary_character",
+      "target": "historical_understanding",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "freedom_necessity_history",
+      "target": "historical_laws",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "historical_causation",
+      "target": "historical_individual",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sociation",
+      "target": "interaction",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sociation",
+      "target": "form",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sociation",
+      "target": "reciprocity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "reciprocity",
+      "target": "interaction",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "formal_sociology",
+      "target": "form",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "formal_sociology",
+      "target": "content",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "formal_sociology",
+      "target": "sociology_as_method",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "social_geometry",
+      "target": "form",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "social_geometry",
+      "target": "quantitative_determination",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "dyad",
+      "target": "sociation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "triad",
+      "target": "sociation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "triad",
+      "target": "dyad",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "aesthetic_form",
+      "target": "form",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "aesthetic_form",
+      "target": "content",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "style",
+      "target": "aesthetic_form",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "style",
+      "target": "individuality",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "beauty_social",
+      "target": "sociation",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "beauty_social",
+      "target": "aesthetic_form",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "symmetry",
+      "target": "reciprocity",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "symmetry",
+      "target": "aesthetic_form",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "aesthetic_play",
+      "target": "aesthetic_form",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "aesthetic_play",
+      "target": "reciprocity",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "group_persistence",
+      "target": "sociation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "group_persistence",
+      "target": "group_identity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "group_boundary",
+      "target": "differentiation",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "group_boundary",
+      "target": "group_persistence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "membership_change",
+      "target": "group_persistence",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "group_identity",
+      "target": "membership_change",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "institutional_continuity",
+      "target": "group_persistence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "institutional_continuity",
+      "target": "group_identity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "objective_culture_proto",
+      "target": "institutional_continuity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "objective_culture_proto",
+      "target": "form",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "value",
+      "target": "desire",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "value",
+      "target": "distance_value",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "distance_value",
+      "target": "desire",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sacrifice",
+      "target": "value",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sacrifice",
+      "target": "exchange",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "exchange",
+      "target": "reciprocity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "exchange",
+      "target": "value",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "objective_value",
+      "target": "subjective_value",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "objective_value",
+      "target": "exchange",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "subjective_value",
+      "target": "desire",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "subjective_value",
+      "target": "value",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "money",
+      "target": "exchange",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "money",
+      "target": "value",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "money",
+      "target": "trust",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "money_pure_means",
+      "target": "money",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "money_pure_means",
+      "target": "means_ends_reversal",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "means_ends_reversal",
+      "target": "money",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "money_leveler",
+      "target": "money",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "money_leveler",
+      "target": "differentiation",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "objectification",
+      "target": "culture",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "objectification",
+      "target": "money",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "alienation",
+      "target": "objectification",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "alienation",
+      "target": "freedom",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "freedom",
+      "target": "money",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "freedom",
+      "target": "individuality",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "personal_value_vs_money",
+      "target": "money_leveler",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "personal_value_vs_money",
+      "target": "individuality",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "cynicism",
+      "target": "money_leveler",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "cynicism",
+      "target": "value",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "blase_attitude",
+      "target": "cynicism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "blase_attitude",
+      "target": "money_leveler",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "abstract_exchange",
+      "target": "money",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "abstract_exchange",
+      "target": "reciprocity",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "metropolis",
+      "target": "mental_life",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "mental_life",
+      "target": "intensification_nervous_stimulation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "intensification_nervous_stimulation",
+      "target": "blase_attitude",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "intellectualism",
+      "target": "intensification_nervous_stimulation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "intellectualism",
+      "target": "blase_attitude",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "reserve",
+      "target": "blase_attitude",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "reserve",
+      "target": "distance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "distance",
+      "target": "proximity",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "proximity",
+      "target": "distance",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "money_economy_city",
+      "target": "money",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "money_economy_city",
+      "target": "metropolis",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "money_economy_city",
+      "target": "calculability",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "punctuality",
+      "target": "money_economy_city",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "calculability",
+      "target": "intellectualism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "atrophy_individual_culture",
+      "target": "objectification",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "atrophy_individual_culture",
+      "target": "metropolis",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "atrophy_individual_culture",
+      "target": "individuality",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "freedom",
+      "target": "metropolis",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "fashion",
+      "target": "imitation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "fashion",
+      "target": "differentiation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "fashion",
+      "target": "conformity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "imitation",
+      "target": "conformity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "imitation",
+      "target": "differentiation",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "differentiation",
+      "target": "imitation",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "fashion_cycle",
+      "target": "fashion",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "fashion_cycle",
+      "target": "trickle_down",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "class_distinction",
+      "target": "differentiation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "class_distinction",
+      "target": "fashion",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "trickle_down",
+      "target": "class_distinction",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "trickle_down",
+      "target": "imitation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "conformity",
+      "target": "individuality",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "fashion_as_form",
+      "target": "form",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "fashion_as_form",
+      "target": "fashion",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "religious_form",
+      "target": "form",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "religious_form",
+      "target": "sociation",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "faith_social",
+      "target": "trust",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "faith_social",
+      "target": "reciprocity",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "piety",
+      "target": "faith_social",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "unity_religious",
+      "target": "sociation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "unity_religious",
+      "target": "piety",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sacred_profane",
+      "target": "form",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "sacred_profane",
+      "target": "content",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "secrecy",
+      "target": "trust",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "secrecy",
+      "target": "sociation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "secrecy",
+      "target": "concealment",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "concealment",
+      "target": "revelation",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "revelation",
+      "target": "concealment",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "secret_society",
+      "target": "secrecy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "secret_society",
+      "target": "group_boundary",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "lying",
+      "target": "secrecy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "lying",
+      "target": "trust",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "confidence",
+      "target": "trust",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "confidence",
+      "target": "secrecy",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "adornment",
+      "target": "distance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "adornment",
+      "target": "form",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "written_communication",
+      "target": "distance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "written_communication",
+      "target": "secrecy",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "discretion",
+      "target": "distance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "discretion",
+      "target": "secrecy",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "money_symbolism",
+      "target": "money",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "money_symbolism",
+      "target": "abstract_exchange",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "credit",
+      "target": "money",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "credit",
+      "target": "trust",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "money_and_freedom_expanded",
+      "target": "freedom",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "money_and_freedom_expanded",
+      "target": "money",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "money_and_freedom_expanded",
+      "target": "alienation",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "impersonal_relations",
+      "target": "money_leveler",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "impersonal_relations",
+      "target": "reserve",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "style_of_life",
+      "target": "money",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "style_of_life",
+      "target": "culture",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "style_of_life",
+      "target": "fashion",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "self_preservation_group",
+      "target": "group_persistence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "self_preservation_group",
+      "target": "sociation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "number_social",
+      "target": "dyad",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "number_social",
+      "target": "triad",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "number_social",
+      "target": "group_size",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "spatial_sociology",
+      "target": "form",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "spatial_sociology",
+      "target": "boundary_spatial",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "boundary_spatial",
+      "target": "group_boundary",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "fixity_spatial",
+      "target": "spatial_sociology",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "social_types",
+      "target": "form",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "social_types",
+      "target": "sociation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "intersection_circles",
+      "target": "crossing_social_circles",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "intersection_circles",
+      "target": "individuality",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "expansion_group",
+      "target": "differentiation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "expansion_group",
+      "target": "individuality",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nobility",
+      "target": "social_types",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nobility",
+      "target": "class_distinction",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "stranger",
+      "target": "distance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "stranger",
+      "target": "proximity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "stranger",
+      "target": "nearness_remoteness",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nearness_remoteness",
+      "target": "distance",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "nearness_remoteness",
+      "target": "proximity",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "wanderer",
+      "target": "stranger",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "trader",
+      "target": "stranger",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "trader",
+      "target": "money",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "objectivity_stranger",
+      "target": "stranger",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "objectivity_stranger",
+      "target": "freedom",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "stranger",
+      "target": "sociation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "the_poor",
+      "target": "sociation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "assistance",
+      "target": "the_poor",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "assistance",
+      "target": "reciprocity",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "right_to_assistance",
+      "target": "assistance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "right_to_assistance",
+      "target": "the_poor",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "poverty_relation",
+      "target": "the_poor",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "poverty_relation",
+      "target": "sociation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "poverty_relation",
+      "target": "money_leveler",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "conflict",
+      "target": "sociation",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "conflict_as_sociation",
+      "target": "conflict",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "conflict_as_sociation",
+      "target": "sociation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "conflict_as_sociation",
+      "target": "reciprocity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "competition",
+      "target": "conflict",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "competition",
+      "target": "differentiation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "jealousy",
+      "target": "conflict",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "unity_of_opposites_conflict",
+      "target": "conflict",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "peace",
+      "target": "conflict",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "conflict",
+      "target": "peace",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "domination",
+      "target": "subordination",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "subordination",
+      "target": "domination",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "domination",
+      "target": "sociation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "domination",
+      "target": "reciprocity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "authority",
+      "target": "domination",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "authority",
+      "target": "legitimacy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "legitimacy",
+      "target": "trust",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "domination_by_plurality",
+      "target": "domination",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "domination_by_plurality",
+      "target": "triad",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "leveling",
+      "target": "domination",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "leveling",
+      "target": "money_leveler",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "primus_inter_pares",
+      "target": "domination",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "primus_inter_pares",
+      "target": "superordination",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "web_of_affiliations",
+      "target": "crossing_social_circles",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "web_of_affiliations",
+      "target": "intersection_circles",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "web_of_affiliations",
+      "target": "individuality",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "multiple_group_membership",
+      "target": "web_of_affiliations",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "multiple_group_membership",
+      "target": "differentiation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "unique_individual",
+      "target": "multiple_group_membership",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "unique_individual",
+      "target": "individuality",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "organic_membership",
+      "target": "web_of_affiliations",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "concentric_circles",
+      "target": "web_of_affiliations",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "concentric_circles",
+      "target": "group_boundary",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "bridge",
+      "target": "separation_connection",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "bridge",
+      "target": "proximity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "bridge",
+      "target": "distance",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "door",
+      "target": "separation_connection",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "door",
+      "target": "distance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "door",
+      "target": "proximity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "separation_connection",
+      "target": "form",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "frame",
+      "target": "form",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "frame",
+      "target": "boundary_spatial",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "threshold",
+      "target": "door",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "threshold",
+      "target": "bridge",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "bridge",
+      "target": "door",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "door",
+      "target": "bridge",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "a_priori_sociation",
+      "target": "sociation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "a_priori_sociation",
+      "target": "a_priori_forms_history",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "generalization_individual",
+      "target": "individuality",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "generalization_individual",
+      "target": "social_types",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "social_role",
+      "target": "form",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "social_role",
+      "target": "sociation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "vocation",
+      "target": "social_role",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "vocation",
+      "target": "unique_individual",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "incompleteness_knowledge",
+      "target": "fragmentary_character",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "incompleteness_knowledge",
+      "target": "trust",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "society_possible",
+      "target": "a_priori_sociation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "society_possible",
+      "target": "incompleteness_knowledge",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sociability",
+      "target": "sociation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sociability",
+      "target": "form",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sociability",
+      "target": "content",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "play",
+      "target": "sociability",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "play",
+      "target": "aesthetic_play",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "play_form",
+      "target": "sociability",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "play_form",
+      "target": "form",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "coquetry",
+      "target": "play_form",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "coquetry",
+      "target": "distance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "coquetry",
+      "target": "proximity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "conversation",
+      "target": "sociability",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "conversation",
+      "target": "reciprocity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "tact",
+      "target": "sociability",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "tact",
+      "target": "discretion",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "adventure",
+      "target": "form",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "adventure",
+      "target": "risk",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "adventure_form",
+      "target": "adventure",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "adventure_form",
+      "target": "play_form",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "present_intensity",
+      "target": "adventure",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "gambler",
+      "target": "adventure",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "gambler",
+      "target": "risk",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "lover",
+      "target": "adventure",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "lover",
+      "target": "coquetry",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "risk",
+      "target": "trust",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "ruin",
+      "target": "form",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "ruin",
+      "target": "culture",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "nature_spirit_ruin",
+      "target": "ruin",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nature_spirit_ruin",
+      "target": "objectification",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "past_present_ruin",
+      "target": "ruin",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "past_present_ruin",
+      "target": "group_persistence",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "decay_as_form",
+      "target": "ruin",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "decay_as_form",
+      "target": "aesthetic_form",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "philosophical_culture",
+      "target": "culture",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "subjective_culture",
+      "target": "individuality",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "subjective_culture",
+      "target": "culture",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "objective_culture",
+      "target": "objectification",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "objective_culture",
+      "target": "culture",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "objective_culture",
+      "target": "objective_culture_proto",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "subjective_culture",
+      "target": "objective_culture",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "objective_culture",
+      "target": "subjective_culture",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "female_culture",
+      "target": "subjective_culture",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "female_culture",
+      "target": "objective_culture",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "cultural_forms",
+      "target": "form",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "cultural_forms",
+      "target": "culture",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "tragedy_of_culture",
+      "target": "culture",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "tragedy_of_culture",
+      "target": "objective_culture",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "tragedy_of_culture",
+      "target": "subjective_culture",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "life",
+      "target": "more_life",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "more_life",
+      "target": "more_than_life",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "more_than_life",
+      "target": "life",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "more_than_life",
+      "target": "culture",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "cultural_lag",
+      "target": "objective_culture",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "cultural_lag",
+      "target": "subjective_culture",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "cultural_lag",
+      "target": "tragedy_of_culture",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "spirit_objectified",
+      "target": "objectification",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "spirit_objectified",
+      "target": "culture",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "means_ends_culture",
+      "target": "means_ends_reversal",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "means_ends_culture",
+      "target": "tragedy_of_culture",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "alienation",
+      "target": "tragedy_of_culture",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "goethe_unity",
+      "target": "life",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "goethe_unity",
+      "target": "form",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "goethe_unity",
+      "target": "life_form_unity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "personality_totality",
+      "target": "individuality",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "personality_totality",
+      "target": "goethe_unity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "life_form_unity",
+      "target": "life",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "life_form_unity",
+      "target": "form",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "life_form_unity",
+      "target": "tragedy_of_culture",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "genius",
+      "target": "personality_totality",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "genius",
+      "target": "unique_individual",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "naivete",
+      "target": "goethe_unity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "rembrandt_individuality",
+      "target": "individuality",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "rembrandt_individuality",
+      "target": "personality_totality",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "portrait_individuality",
+      "target": "rembrandt_individuality",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "portrait_individuality",
+      "target": "form",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "movement_art",
+      "target": "life",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "movement_art",
+      "target": "rembrandt_individuality",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "death",
+      "target": "life",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "death",
+      "target": "more_than_life",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "religious_art",
+      "target": "rembrandt_individuality",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "religious_art",
+      "target": "subjective_culture",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "landscape_mood",
+      "target": "rembrandt_individuality",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "landscape_mood",
+      "target": "aesthetic_form",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "life_unity_art",
+      "target": "life_form_unity",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "life_unity_art",
+      "target": "rembrandt_individuality",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "individual_society_problem",
+      "target": "individuality",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "individual_society_problem",
+      "target": "sociation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sociological_a_priori",
+      "target": "a_priori_sociation",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "sociological_a_priori",
+      "target": "society_possible",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "social_type_generalized",
+      "target": "social_types",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "social_type_generalized",
+      "target": "generalization_individual",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "vocation_generalized",
+      "target": "vocation",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "vocation_generalized",
+      "target": "sociological_a_priori",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "society_as_more",
+      "target": "sociation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "society_as_more",
+      "target": "reciprocity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "society_as_more",
+      "target": "individual_society_problem",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "conflict_life_form",
+      "target": "life",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "conflict_life_form",
+      "target": "form",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "conflict_life_form",
+      "target": "tragedy_of_culture",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "life_against_form",
+      "target": "conflict_life_form",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "life_against_form",
+      "target": "form",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "perpetual_revolution",
+      "target": "conflict_life_form",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "perpetual_revolution",
+      "target": "more_life",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "formless_life",
+      "target": "life_against_form",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "formless_life",
+      "target": "form",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "expressionism",
+      "target": "formless_life",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "expressionism",
+      "target": "subjective_culture",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "pragmatism",
+      "target": "formless_life",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "pragmatism",
+      "target": "objective_value",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "life_transcendence",
+      "target": "life",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "life_transcendence",
+      "target": "more_than_life",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "life_transcendence",
+      "target": "form",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "boundary_consciousness",
+      "target": "life_transcendence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "boundary_consciousness",
+      "target": "distance",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "individual_law",
+      "target": "individuality",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "individual_law",
+      "target": "form",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "individual_law",
+      "target": "ought",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "turning_to_idea",
+      "target": "life_transcendence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "turning_to_idea",
+      "target": "more_than_life",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "death_boundary",
+      "target": "death",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "death_boundary",
+      "target": "life_transcendence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "death_boundary",
+      "target": "boundary_consciousness",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "absolute_immanence",
+      "target": "life_transcendence",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "absolute_immanence",
+      "target": "conflict_life_form",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "ought",
+      "target": "individual_law",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "ought",
+      "target": "form",
+      "edge_type": "reference",
+      "created_at": 0
+    }
+  ]
+}

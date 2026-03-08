@@ -1,0 +1,2460 @@
+{
+  "vertices": [
+    {
+      "id": "proposition",
+      "status": "active",
+      "content": "proposition — what can be true or false",
+      "created_at": 0
+    },
+    {
+      "id": "logical_form",
+      "status": "active",
+      "content": "logical form — the structure shared by proposition and fact",
+      "created_at": 0
+    },
+    {
+      "id": "fact",
+      "status": "active",
+      "content": "fact — what is the case",
+      "created_at": 0
+    },
+    {
+      "id": "sense",
+      "status": "active",
+      "content": "sense — the way a proposition determines reality",
+      "created_at": 0
+    },
+    {
+      "id": "nonsense",
+      "status": "active",
+      "content": "nonsense — pseudo-propositions without sense",
+      "created_at": 0
+    },
+    {
+      "id": "showing",
+      "status": "active",
+      "content": "showing — what cannot be said but shows itself",
+      "created_at": 0
+    },
+    {
+      "id": "saying",
+      "status": "active",
+      "content": "saying — what propositions express",
+      "created_at": 0
+    },
+    {
+      "id": "logical_constant",
+      "status": "active",
+      "content": "logical constants do not represent",
+      "created_at": 0
+    },
+    {
+      "id": "ab_notation",
+      "status": "active",
+      "content": "ab-notation — bipolarity of propositions",
+      "created_at": 0
+    },
+    {
+      "id": "molecular_prop",
+      "status": "active",
+      "content": "molecular propositions — truth-functions",
+      "created_at": 0
+    },
+    {
+      "id": "tautology",
+      "status": "active",
+      "content": "tautology — says nothing, shows logical form",
+      "created_at": 0
+    },
+    {
+      "id": "contradiction",
+      "status": "active",
+      "content": "contradiction — no possible state of affairs",
+      "created_at": 0
+    },
+    {
+      "id": "truth_function",
+      "status": "active",
+      "content": "truth-function — proposition as function of elementary propositions",
+      "created_at": 0
+    },
+    {
+      "id": "bipolarity",
+      "status": "active",
+      "content": "bipolarity — every proposition can be true or false",
+      "created_at": 0
+    },
+    {
+      "id": "type_theory",
+      "status": "active",
+      "content": "type theory is superfluous if symbols used correctly",
+      "created_at": 0
+    },
+    {
+      "id": "object",
+      "status": "active",
+      "content": "object — simple, the substance of the world",
+      "created_at": 0
+    },
+    {
+      "id": "name",
+      "status": "active",
+      "content": "name — the simplest sign, stands for an object",
+      "created_at": 0
+    },
+    {
+      "id": "state_of_affairs",
+      "status": "active",
+      "content": "state of affairs — combination of objects",
+      "created_at": 0
+    },
+    {
+      "id": "world",
+      "status": "active",
+      "content": "world — totality of facts, not things",
+      "created_at": 0
+    },
+    {
+      "id": "logical_space",
+      "status": "active",
+      "content": "logical space — the space of all possible states of affairs",
+      "created_at": 0
+    },
+    {
+      "id": "subject",
+      "status": "active",
+      "content": "the subject — limit of the world, not in it",
+      "created_at": 0
+    },
+    {
+      "id": "ethics",
+      "status": "active",
+      "content": "ethics — transcendental, cannot be put into words",
+      "created_at": 0
+    },
+    {
+      "id": "will",
+      "status": "active",
+      "content": "the will — attitude of the subject to the world",
+      "created_at": 0
+    },
+    {
+      "id": "solipsism",
+      "status": "active",
+      "content": "solipsism — what it means coincides with realism",
+      "created_at": 0
+    },
+    {
+      "id": "simplicity",
+      "status": "active",
+      "content": "the demand for simples — analysis must come to an end",
+      "created_at": 0
+    },
+    {
+      "id": "picture",
+      "status": "active",
+      "content": "picture — a model of reality, shares logical form with fact",
+      "created_at": 0
+    },
+    {
+      "id": "thought",
+      "status": "active",
+      "content": "thought — a logical picture of facts",
+      "created_at": 0
+    },
+    {
+      "id": "elementary_prop",
+      "status": "active",
+      "content": "elementary proposition — the simplest assertion about a state of affairs",
+      "created_at": 0
+    },
+    {
+      "id": "truth_table",
+      "status": "active",
+      "content": "truth-table — method of representing truth-functions",
+      "created_at": 0
+    },
+    {
+      "id": "general_form_prop",
+      "status": "active",
+      "content": "general form of proposition — the one logical constant",
+      "created_at": 0
+    },
+    {
+      "id": "identity",
+      "status": "active",
+      "content": "identity — not a relation, expressed by sameness of sign",
+      "created_at": 0
+    },
+    {
+      "id": "number",
+      "status": "active",
+      "content": "number — exponent of an operation",
+      "created_at": 0
+    },
+    {
+      "id": "philosophy",
+      "status": "active",
+      "content": "philosophy — not a doctrine but an activity of clarification",
+      "created_at": 0
+    },
+    {
+      "id": "mystical",
+      "status": "active",
+      "content": "the mystical — that the world exists, not how",
+      "created_at": 0
+    },
+    {
+      "id": "silence",
+      "status": "active",
+      "content": "whereof one cannot speak, thereof one must be silent",
+      "created_at": 0
+    },
+    {
+      "id": "ladder",
+      "status": "active",
+      "content": "the ladder — propositions of the Tractatus themselves nonsensical",
+      "created_at": 0
+    },
+    {
+      "id": "colour_exclusion",
+      "status": "active",
+      "content": "colour exclusion problem — two colours cannot be at same point",
+      "created_at": 0
+    },
+    {
+      "id": "logical_independence",
+      "status": "active",
+      "content": "logical independence of elementary propositions — challenged",
+      "created_at": 0
+    },
+    {
+      "id": "number_in_logic",
+      "status": "active",
+      "content": "numbers enter logic at the level of atomic propositions",
+      "created_at": 0
+    },
+    {
+      "id": "phenomenological_language",
+      "status": "active",
+      "content": "phenomenological language — direct description of phenomena",
+      "created_at": 0
+    },
+    {
+      "id": "verification",
+      "status": "active",
+      "content": "verification — understanding a proposition = knowing how to verify it",
+      "created_at": 0
+    },
+    {
+      "id": "grammar",
+      "status": "active",
+      "content": "grammar — rules for the use of signs, autonomous",
+      "created_at": 0
+    },
+    {
+      "id": "expectation",
+      "status": "active",
+      "content": "expectation — internally related to its fulfilment",
+      "created_at": 0
+    },
+    {
+      "id": "visual_space",
+      "status": "active",
+      "content": "visual space — the space of immediate experience",
+      "created_at": 0
+    },
+    {
+      "id": "infinity",
+      "status": "active",
+      "content": "infinity — not a number, a rule for generating numbers",
+      "created_at": 0
+    },
+    {
+      "id": "hypothesis",
+      "status": "active",
+      "content": "hypothesis — a law for forming propositions, not itself verifiable",
+      "created_at": 0
+    },
+    {
+      "id": "intentionality",
+      "status": "active",
+      "content": "intentionality — the internal relation of thought and object",
+      "created_at": 0
+    },
+    {
+      "id": "meaning",
+      "status": "active",
+      "content": "meaning — not an object correlated with a word, but its use",
+      "created_at": 0
+    },
+    {
+      "id": "use",
+      "status": "active",
+      "content": "use — the life of the sign",
+      "created_at": 0
+    },
+    {
+      "id": "calculus",
+      "status": "active",
+      "content": "calculus model of language — operating with signs according to rules",
+      "created_at": 0
+    },
+    {
+      "id": "understanding",
+      "status": "active",
+      "content": "understanding — mastery of a technique, not a mental process",
+      "created_at": 0
+    },
+    {
+      "id": "language",
+      "status": "active",
+      "content": "language — not a calculus, a family of practices",
+      "created_at": 0
+    },
+    {
+      "id": "rule",
+      "status": "active",
+      "content": "rule — standard of correctness for use of signs",
+      "created_at": 0
+    },
+    {
+      "id": "language_game",
+      "status": "active",
+      "content": "language game — simple practices with words as objects of comparison",
+      "created_at": 0
+    },
+    {
+      "id": "family_resemblance",
+      "status": "active",
+      "content": "family resemblance — overlapping similarities, no common essence",
+      "created_at": 0
+    },
+    {
+      "id": "craving_generality",
+      "status": "active",
+      "content": "craving for generality — the philosophical disease",
+      "created_at": 0
+    },
+    {
+      "id": "ostensive_definition",
+      "status": "active",
+      "content": "ostensive definition — pointing alone does not fix meaning",
+      "created_at": 0
+    },
+    {
+      "id": "mental_process",
+      "status": "active",
+      "content": "mental process — understanding/meaning are not inner processes",
+      "created_at": 0
+    },
+    {
+      "id": "primitive_lg",
+      "status": "active",
+      "content": "primitive language games — simplified models of language use",
+      "created_at": 0
+    },
+    {
+      "id": "builder_game",
+      "status": "active",
+      "content": "builder's game — Slab! Pillar! Block!",
+      "created_at": 0
+    },
+    {
+      "id": "training",
+      "status": "active",
+      "content": "training — how one is brought into a practice",
+      "created_at": 0
+    },
+    {
+      "id": "aspect_seeing",
+      "status": "active",
+      "content": "aspect-seeing — seeing-as, noticing an aspect",
+      "created_at": 0
+    },
+    {
+      "id": "mathematics",
+      "status": "active",
+      "content": "mathematics — a motley of techniques, not discovery of truths",
+      "created_at": 0
+    },
+    {
+      "id": "proof",
+      "status": "active",
+      "content": "proof — produces a new concept, not discovery of a fact",
+      "created_at": 0
+    },
+    {
+      "id": "surveyability",
+      "status": "active",
+      "content": "surveyability — a proof must be surveyable",
+      "created_at": 0
+    },
+    {
+      "id": "following_a_rule_math",
+      "status": "active",
+      "content": "following a rule in mathematics — normative, not descriptive",
+      "created_at": 0
+    },
+    {
+      "id": "logical_compulsion",
+      "status": "active",
+      "content": "logical compulsion — the hardness of the logical must",
+      "created_at": 0
+    },
+    {
+      "id": "aesthetics",
+      "status": "active",
+      "content": "aesthetics — not a matter of liking, but of the right word/gesture",
+      "created_at": 0
+    },
+    {
+      "id": "religion",
+      "status": "active",
+      "content": "religious belief — a passionate commitment, not a hypothesis",
+      "created_at": 0
+    },
+    {
+      "id": "psychology_confusion",
+      "status": "active",
+      "content": "conceptual confusion in psychology",
+      "created_at": 0
+    },
+    {
+      "id": "intransitive_use",
+      "status": "active",
+      "content": "intransitive use — 'I know what I mean' without criteria",
+      "created_at": 0
+    },
+    {
+      "id": "math_invention",
+      "status": "active",
+      "content": "mathematical invention, not discovery",
+      "created_at": 0
+    },
+    {
+      "id": "rule_in_math",
+      "status": "active",
+      "content": "rule in mathematics — we lay down rails, not discover them",
+      "created_at": 0
+    },
+    {
+      "id": "contradiction_toleration",
+      "status": "active",
+      "content": "contradiction — may be tolerated if it has no practical effect",
+      "created_at": 0
+    },
+    {
+      "id": "consistency",
+      "status": "active",
+      "content": "consistency — not a mathematical discovery, a grammatical decision",
+      "created_at": 0
+    },
+    {
+      "id": "godel",
+      "status": "active",
+      "content": "Gödel's theorem — prose interpretation misleading",
+      "created_at": 0
+    },
+    {
+      "id": "contradiction_math",
+      "status": "active",
+      "content": "contradiction in mathematics — not catastrophic, just unusable",
+      "created_at": 0
+    },
+    {
+      "id": "concept_proof",
+      "status": "active",
+      "content": "proof changes the concept — new proof, new concept",
+      "created_at": 0
+    },
+    {
+      "id": "form_of_life",
+      "status": "active",
+      "content": "form of life — the given, agreement in actions and judgments",
+      "created_at": 0
+    },
+    {
+      "id": "rule_following",
+      "status": "active",
+      "content": "rule-following — no interpretation determines meaning, it is a practice",
+      "created_at": 0
+    },
+    {
+      "id": "private_language",
+      "status": "active",
+      "content": "private language argument — no language can be essentially private",
+      "created_at": 0
+    },
+    {
+      "id": "beetle_in_box",
+      "status": "active",
+      "content": "beetle in a box — private object drops out of language game",
+      "created_at": 0
+    },
+    {
+      "id": "pain",
+      "status": "active",
+      "content": "pain — not identified by inner observation, expressed",
+      "created_at": 0
+    },
+    {
+      "id": "sensation",
+      "status": "active",
+      "content": "sensation — the grammar of sensation-words",
+      "created_at": 0
+    },
+    {
+      "id": "inner_outer",
+      "status": "active",
+      "content": "inner/outer — the misleading picture of inside and outside",
+      "created_at": 0
+    },
+    {
+      "id": "criterion",
+      "status": "active",
+      "content": "criterion — grammatical relation between expression and what is expressed",
+      "created_at": 0
+    },
+    {
+      "id": "therapy",
+      "status": "active",
+      "content": "philosophy as therapy — dissolving not solving problems",
+      "created_at": 0
+    },
+    {
+      "id": "clarity",
+      "status": "active",
+      "content": "clarity — the philosophical goal, not theory",
+      "created_at": 0
+    },
+    {
+      "id": "duck_rabbit",
+      "status": "active",
+      "content": "duck-rabbit — aspect perception, seeing-as",
+      "created_at": 0
+    },
+    {
+      "id": "secondary_sense",
+      "status": "active",
+      "content": "secondary sense — 'fat' Wednesday, metaphorical use",
+      "created_at": 0
+    },
+    {
+      "id": "certainty_PI",
+      "status": "active",
+      "content": "agreement in judgments — groundless ground of language games",
+      "created_at": 0
+    },
+    {
+      "id": "intention",
+      "status": "active",
+      "content": "intention — not an inner act, embedded in situation and custom",
+      "created_at": 0
+    },
+    {
+      "id": "concept_formation",
+      "status": "active",
+      "content": "concept formation — concepts shaped by natural facts",
+      "created_at": 0
+    },
+    {
+      "id": "thinking",
+      "status": "active",
+      "content": "thinking — operating with signs, not an accompaniment",
+      "created_at": 0
+    },
+    {
+      "id": "imagination",
+      "status": "active",
+      "content": "imagination — not a faded picture, a capacity",
+      "created_at": 0
+    },
+    {
+      "id": "disposition",
+      "status": "active",
+      "content": "disposition — not an inner state, a pattern of behaviour",
+      "created_at": 0
+    },
+    {
+      "id": "expression",
+      "status": "active",
+      "content": "expression — pain behaviour is not a report of inner states",
+      "created_at": 0
+    },
+    {
+      "id": "attitude",
+      "status": "active",
+      "content": "attitude toward a soul — not belief in a hidden object",
+      "created_at": 0
+    },
+    {
+      "id": "seeing_as",
+      "status": "active",
+      "content": "seeing-as — categorical, not an interpretation added to seeing",
+      "created_at": 0
+    },
+    {
+      "id": "experience_of_meaning",
+      "status": "active",
+      "content": "experience of meaning — meaning is not an experience alongside the word",
+      "created_at": 0
+    },
+    {
+      "id": "imponderable_evidence",
+      "status": "active",
+      "content": "imponderable evidence — subtle cues in understanding others",
+      "created_at": 0
+    },
+    {
+      "id": "fine_shades_meaning",
+      "status": "active",
+      "content": "fine shades of meaning — nuances that resist analysis",
+      "created_at": 0
+    },
+    {
+      "id": "inner_certainty",
+      "status": "active",
+      "content": "inner certainty — not based on evidence, part of the language game",
+      "created_at": 0
+    },
+    {
+      "id": "pretending",
+      "status": "active",
+      "content": "pretending — not merely behaviour, requires a context",
+      "created_at": 0
+    },
+    {
+      "id": "understanding_others",
+      "status": "active",
+      "content": "understanding others — not inference from behaviour to inner states",
+      "created_at": 0
+    },
+    {
+      "id": "inner_outer_final",
+      "status": "active",
+      "content": "inner/outer revisited — the picture's grip loosens",
+      "created_at": 0
+    },
+    {
+      "id": "concept_experience",
+      "status": "active",
+      "content": "experience of a concept — not sensation, not nothing",
+      "created_at": 0
+    },
+    {
+      "id": "colour",
+      "status": "active",
+      "content": "colour — grammar of colour words, not physics or optics",
+      "created_at": 0
+    },
+    {
+      "id": "colour_geometry",
+      "status": "active",
+      "content": "colour geometry — the logical structure of colour space",
+      "created_at": 0
+    },
+    {
+      "id": "transparency",
+      "status": "active",
+      "content": "transparency — white cannot be transparent (grammatical)",
+      "created_at": 0
+    },
+    {
+      "id": "reddish_green",
+      "status": "active",
+      "content": "reddish green — no such thing; grammatical, not empirical",
+      "created_at": 0
+    },
+    {
+      "id": "certainty",
+      "status": "active",
+      "content": "certainty — not justified belief, the bedrock of action",
+      "created_at": 0
+    },
+    {
+      "id": "doubt",
+      "status": "active",
+      "content": "doubt — requires grounds; universal doubt is senseless",
+      "created_at": 0
+    },
+    {
+      "id": "knowledge",
+      "status": "active",
+      "content": "knowledge — I know = I am certain, but certainty is not knowledge",
+      "created_at": 0
+    },
+    {
+      "id": "hinge_proposition",
+      "status": "active",
+      "content": "hinge proposition — what stands fast, the riverbed",
+      "created_at": 0
+    },
+    {
+      "id": "world_picture",
+      "status": "active",
+      "content": "world-picture — the inherited background of judging",
+      "created_at": 0
+    },
+    {
+      "id": "belief",
+      "status": "active",
+      "content": "belief — acting, not a mental state",
+      "created_at": 0
+    },
+    {
+      "id": "groundlessness",
+      "status": "active",
+      "content": "groundlessness — at the bottom justification comes to an end",
+      "created_at": 0
+    },
+    {
+      "id": "mistake_vs_doubt",
+      "status": "active",
+      "content": "mistake vs. doubt — a mistake presupposes the framework, doubt questions it",
+      "created_at": 0
+    },
+    {
+      "id": "culture",
+      "status": "active",
+      "content": "culture — not civilization; depth vs. surface",
+      "created_at": 0
+    },
+    {
+      "id": "value",
+      "status": "active",
+      "content": "value — cannot be stated, only shown in how one lives",
+      "created_at": 0
+    },
+    {
+      "id": "genius",
+      "status": "active",
+      "content": "genius — courage in one's talent",
+      "created_at": 0
+    },
+    {
+      "id": "honesty",
+      "status": "active",
+      "content": "honesty — the philosophical virtue",
+      "created_at": 0
+    },
+    {
+      "id": "music",
+      "status": "active",
+      "content": "music — understanding music as a model for understanding language",
+      "created_at": 0
+    },
+    {
+      "id": "justification",
+      "status": "active",
+      "content": "justification — comes to an end somewhere",
+      "created_at": 0
+    }
+  ],
+  "edges": [
+    {
+      "source": "proposition",
+      "target": "logical_form",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "proposition",
+      "target": "sense",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "proposition",
+      "target": "fact",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "showing",
+      "target": "saying",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "nonsense",
+      "target": "sense",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "logical_constant",
+      "target": "proposition",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "ab_notation",
+      "target": "proposition",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "molecular_prop",
+      "target": "proposition",
+      "edge_type": "fold",
+      "created_at": 0
+    },
+    {
+      "source": "logical_form",
+      "target": "showing",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "saying",
+      "target": "sense",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "tautology",
+      "target": "proposition",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "tautology",
+      "target": "sense",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "tautology",
+      "target": "showing",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "contradiction",
+      "target": "tautology",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "truth_function",
+      "target": "proposition",
+      "edge_type": "fold",
+      "created_at": 0
+    },
+    {
+      "source": "truth_function",
+      "target": "molecular_prop",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "bipolarity",
+      "target": "proposition",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "bipolarity",
+      "target": "ab_notation",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "type_theory",
+      "target": "nonsense",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "type_theory",
+      "target": "logical_form",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "object",
+      "target": "name",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "state_of_affairs",
+      "target": "object",
+      "edge_type": "fold",
+      "created_at": 0
+    },
+    {
+      "source": "world",
+      "target": "fact",
+      "edge_type": "fold",
+      "created_at": 0
+    },
+    {
+      "source": "world",
+      "target": "state_of_affairs",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "logical_space",
+      "target": "state_of_affairs",
+      "edge_type": "fold",
+      "created_at": 0
+    },
+    {
+      "source": "logical_space",
+      "target": "proposition",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "name",
+      "target": "proposition",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "subject",
+      "target": "world",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "ethics",
+      "target": "saying",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "ethics",
+      "target": "showing",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "will",
+      "target": "subject",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "will",
+      "target": "ethics",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "solipsism",
+      "target": "subject",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "solipsism",
+      "target": "world",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "simplicity",
+      "target": "object",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "simplicity",
+      "target": "name",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "picture",
+      "target": "fact",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "picture",
+      "target": "logical_form",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "picture",
+      "target": "proposition",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "thought",
+      "target": "picture",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "thought",
+      "target": "proposition",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "elementary_prop",
+      "target": "state_of_affairs",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "elementary_prop",
+      "target": "name",
+      "edge_type": "fold",
+      "created_at": 0
+    },
+    {
+      "source": "truth_table",
+      "target": "truth_function",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "truth_table",
+      "target": "elementary_prop",
+      "edge_type": "fold",
+      "created_at": 0
+    },
+    {
+      "source": "general_form_prop",
+      "target": "truth_function",
+      "edge_type": "fold",
+      "created_at": 0
+    },
+    {
+      "source": "general_form_prop",
+      "target": "proposition",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "identity",
+      "target": "name",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "identity",
+      "target": "nonsense",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "number",
+      "target": "general_form_prop",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "philosophy",
+      "target": "nonsense",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "philosophy",
+      "target": "showing",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "mystical",
+      "target": "ethics",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "mystical",
+      "target": "showing",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "mystical",
+      "target": "saying",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "silence",
+      "target": "nonsense",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "silence",
+      "target": "mystical",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "ladder",
+      "target": "nonsense",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "ladder",
+      "target": "proposition",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "ladder",
+      "target": "showing",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "colour_exclusion",
+      "target": "elementary_prop",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "colour_exclusion",
+      "target": "logical_independence",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "logical_independence",
+      "target": "elementary_prop",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "logical_independence",
+      "target": "truth_function",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "number_in_logic",
+      "target": "number",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "number_in_logic",
+      "target": "logical_form",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "phenomenological_language",
+      "target": "picture",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "phenomenological_language",
+      "target": "logical_form",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "verification",
+      "target": "sense",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "verification",
+      "target": "proposition",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "verification",
+      "target": "picture",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "grammar",
+      "target": "logical_form",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "grammar",
+      "target": "nonsense",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "expectation",
+      "target": "intentionality",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "expectation",
+      "target": "proposition",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "visual_space",
+      "target": "logical_space",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "visual_space",
+      "target": "phenomenological_language",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "infinity",
+      "target": "number",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "infinity",
+      "target": "general_form_prop",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "hypothesis",
+      "target": "verification",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "hypothesis",
+      "target": "proposition",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "intentionality",
+      "target": "thought",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "intentionality",
+      "target": "picture",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "meaning",
+      "target": "use",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "meaning",
+      "target": "name",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "meaning",
+      "target": "picture",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "use",
+      "target": "grammar",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "use",
+      "target": "language",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "calculus",
+      "target": "grammar",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "calculus",
+      "target": "truth_function",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "understanding",
+      "target": "meaning",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "understanding",
+      "target": "verification",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "understanding",
+      "target": "use",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "language",
+      "target": "calculus",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "language",
+      "target": "proposition",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "rule",
+      "target": "grammar",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "rule",
+      "target": "calculus",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "language_game",
+      "target": "language",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "language_game",
+      "target": "use",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "language_game",
+      "target": "calculus",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "family_resemblance",
+      "target": "craving_generality",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "family_resemblance",
+      "target": "object",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "craving_generality",
+      "target": "philosophy",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "ostensive_definition",
+      "target": "name",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "ostensive_definition",
+      "target": "meaning",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "ostensive_definition",
+      "target": "language_game",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "mental_process",
+      "target": "understanding",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "mental_process",
+      "target": "intentionality",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "primitive_lg",
+      "target": "language_game",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "primitive_lg",
+      "target": "language",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "builder_game",
+      "target": "primitive_lg",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "builder_game",
+      "target": "ostensive_definition",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "training",
+      "target": "understanding",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "training",
+      "target": "rule",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "training",
+      "target": "language_game",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "aspect_seeing",
+      "target": "visual_space",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "aspect_seeing",
+      "target": "meaning",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "aspect_seeing",
+      "target": "picture",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "mathematics",
+      "target": "grammar",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "mathematics",
+      "target": "language_game",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "mathematics",
+      "target": "tautology",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "proof",
+      "target": "mathematics",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "proof",
+      "target": "showing",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "proof",
+      "target": "proposition",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "surveyability",
+      "target": "proof",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "surveyability",
+      "target": "understanding",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "following_a_rule_math",
+      "target": "rule",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "following_a_rule_math",
+      "target": "training",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "logical_compulsion",
+      "target": "following_a_rule_math",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "logical_compulsion",
+      "target": "grammar",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "aesthetics",
+      "target": "language_game",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "aesthetics",
+      "target": "family_resemblance",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "aesthetics",
+      "target": "ethics",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "religion",
+      "target": "language_game",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "religion",
+      "target": "hypothesis",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "psychology_confusion",
+      "target": "grammar",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "psychology_confusion",
+      "target": "mental_process",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "intransitive_use",
+      "target": "meaning",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "intransitive_use",
+      "target": "use",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "math_invention",
+      "target": "mathematics",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "math_invention",
+      "target": "proof",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "math_invention",
+      "target": "grammar",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "rule_in_math",
+      "target": "following_a_rule_math",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "rule_in_math",
+      "target": "grammar",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "contradiction_toleration",
+      "target": "language_game",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "consistency",
+      "target": "mathematics",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "consistency",
+      "target": "grammar",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "consistency",
+      "target": "logical_compulsion",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "godel",
+      "target": "proof",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "godel",
+      "target": "nonsense",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "godel",
+      "target": "saying",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "contradiction_math",
+      "target": "contradiction",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "contradiction_math",
+      "target": "language_game",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "contradiction_math",
+      "target": "mathematics",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "concept_proof",
+      "target": "proof",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "concept_proof",
+      "target": "grammar",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "form_of_life",
+      "target": "language_game",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "form_of_life",
+      "target": "training",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "form_of_life",
+      "target": "world",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "rule_following",
+      "target": "rule",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "rule_following",
+      "target": "meaning",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "rule_following",
+      "target": "understanding",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "rule_following",
+      "target": "form_of_life",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "private_language",
+      "target": "language_game",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "private_language",
+      "target": "rule_following",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "private_language",
+      "target": "sensation",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "beetle_in_box",
+      "target": "private_language",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "beetle_in_box",
+      "target": "language_game",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "beetle_in_box",
+      "target": "object",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "pain",
+      "target": "sensation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "pain",
+      "target": "private_language",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "pain",
+      "target": "criterion",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "pain",
+      "target": "inner_outer",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "sensation",
+      "target": "grammar",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sensation",
+      "target": "mental_process",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "inner_outer",
+      "target": "picture",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "inner_outer",
+      "target": "private_language",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "criterion",
+      "target": "grammar",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "criterion",
+      "target": "verification",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "therapy",
+      "target": "philosophy",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "therapy",
+      "target": "nonsense",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "therapy",
+      "target": "clarity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "clarity",
+      "target": "philosophy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "clarity",
+      "target": "showing",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "duck_rabbit",
+      "target": "aspect_seeing",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "duck_rabbit",
+      "target": "meaning",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "secondary_sense",
+      "target": "meaning",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "secondary_sense",
+      "target": "language_game",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "certainty_PI",
+      "target": "form_of_life",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "certainty_PI",
+      "target": "rule_following",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "intention",
+      "target": "mental_process",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "intention",
+      "target": "language_game",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "intention",
+      "target": "form_of_life",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "concept_formation",
+      "target": "grammar",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "concept_formation",
+      "target": "form_of_life",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "concept_formation",
+      "target": "family_resemblance",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "thinking",
+      "target": "mental_process",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "thinking",
+      "target": "language",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "thinking",
+      "target": "use",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "imagination",
+      "target": "picture",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "imagination",
+      "target": "aspect_seeing",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "disposition",
+      "target": "inner_outer",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "disposition",
+      "target": "criterion",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "disposition",
+      "target": "language_game",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "expression",
+      "target": "pain",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "expression",
+      "target": "inner_outer",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "expression",
+      "target": "criterion",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "attitude",
+      "target": "form_of_life",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "attitude",
+      "target": "private_language",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "attitude",
+      "target": "beetle_in_box",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "seeing_as",
+      "target": "aspect_seeing",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "seeing_as",
+      "target": "duck_rabbit",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "seeing_as",
+      "target": "understanding",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "experience_of_meaning",
+      "target": "meaning",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "experience_of_meaning",
+      "target": "mental_process",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "experience_of_meaning",
+      "target": "use",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "imponderable_evidence",
+      "target": "criterion",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "imponderable_evidence",
+      "target": "expression",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "imponderable_evidence",
+      "target": "form_of_life",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "fine_shades_meaning",
+      "target": "meaning",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "fine_shades_meaning",
+      "target": "experience_of_meaning",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "fine_shades_meaning",
+      "target": "secondary_sense",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "inner_certainty",
+      "target": "certainty_PI",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "inner_certainty",
+      "target": "private_language",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "inner_certainty",
+      "target": "criterion",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "pretending",
+      "target": "expression",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "pretending",
+      "target": "language_game",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "pretending",
+      "target": "inner_outer",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "understanding_others",
+      "target": "attitude",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "understanding_others",
+      "target": "imponderable_evidence",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "understanding_others",
+      "target": "form_of_life",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "inner_outer_final",
+      "target": "inner_outer",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "inner_outer_final",
+      "target": "expression",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "inner_outer_final",
+      "target": "form_of_life",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "concept_experience",
+      "target": "experience_of_meaning",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "concept_experience",
+      "target": "aspect_seeing",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "concept_experience",
+      "target": "sensation",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "colour",
+      "target": "grammar",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "colour",
+      "target": "colour_exclusion",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "colour",
+      "target": "language_game",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "colour_geometry",
+      "target": "colour",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "colour_geometry",
+      "target": "logical_space",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "colour_geometry",
+      "target": "visual_space",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "transparency",
+      "target": "colour",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "transparency",
+      "target": "grammar",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "reddish_green",
+      "target": "nonsense",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "reddish_green",
+      "target": "colour_geometry",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "reddish_green",
+      "target": "grammar",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "certainty",
+      "target": "doubt",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "certainty",
+      "target": "knowledge",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "certainty",
+      "target": "form_of_life",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "certainty",
+      "target": "certainty_PI",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "doubt",
+      "target": "language_game",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "doubt",
+      "target": "grammar",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "knowledge",
+      "target": "certainty",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "knowledge",
+      "target": "proposition",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "hinge_proposition",
+      "target": "certainty",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "hinge_proposition",
+      "target": "world_picture",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "hinge_proposition",
+      "target": "rule_following",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "world_picture",
+      "target": "form_of_life",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "world_picture",
+      "target": "grammar",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "world_picture",
+      "target": "language_game",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "belief",
+      "target": "certainty",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "belief",
+      "target": "form_of_life",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "belief",
+      "target": "mental_process",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "groundlessness",
+      "target": "hinge_proposition",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "groundlessness",
+      "target": "rule_following",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "mistake_vs_doubt",
+      "target": "doubt",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "mistake_vs_doubt",
+      "target": "hinge_proposition",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "culture",
+      "target": "form_of_life",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "culture",
+      "target": "value",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "value",
+      "target": "ethics",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "value",
+      "target": "saying",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "value",
+      "target": "showing",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "genius",
+      "target": "honesty",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "genius",
+      "target": "culture",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "honesty",
+      "target": "philosophy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "honesty",
+      "target": "clarity",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "music",
+      "target": "language_game",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "music",
+      "target": "understanding",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "music",
+      "target": "aspect_seeing",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "justification",
+      "target": "groundlessness",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "justification",
+      "target": "rule_following",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "justification",
+      "target": "certainty",
+      "edge_type": "reference",
+      "created_at": 0
+    }
+  ]
+}

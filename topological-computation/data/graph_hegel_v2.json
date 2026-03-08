@@ -1,0 +1,408 @@
+{
+  "vertices": [
+    {
+      "id": "sense_certainty",
+      "status": "active",
+      "content": "sense-certainty",
+      "created_at": 0
+    },
+    {
+      "id": "immediate_knowledge",
+      "status": "active",
+      "content": "immediate knowledge",
+      "created_at": 0
+    },
+    {
+      "id": "object",
+      "status": "active",
+      "content": "the object",
+      "created_at": 0
+    },
+    {
+      "id": "the_I",
+      "status": "active",
+      "content": "the I",
+      "created_at": 0
+    },
+    {
+      "id": "now",
+      "status": "active",
+      "content": "the Now",
+      "created_at": 0
+    },
+    {
+      "id": "now_night",
+      "status": "active",
+      "content": "Now is Night",
+      "created_at": 0
+    },
+    {
+      "id": "now_day",
+      "status": "active",
+      "content": "Now is Day",
+      "created_at": 0
+    },
+    {
+      "id": "now_universal",
+      "status": "active",
+      "content": "Now as universal",
+      "created_at": 0
+    },
+    {
+      "id": "this",
+      "status": "active",
+      "content": "the This",
+      "created_at": 0
+    },
+    {
+      "id": "this_negated",
+      "status": "active",
+      "content": "This as not-This",
+      "created_at": 0
+    },
+    {
+      "id": "this_superseded",
+      "status": "active",
+      "content": "This as superseded",
+      "created_at": 0
+    },
+    {
+      "id": "this_preserved",
+      "status": "active",
+      "content": "This as preserved/universal",
+      "created_at": 0
+    },
+    {
+      "id": "here",
+      "status": "active",
+      "content": "the Here",
+      "created_at": 0
+    },
+    {
+      "id": "here_universal",
+      "status": "active",
+      "content": "Here as universal",
+      "created_at": 0
+    },
+    {
+      "id": "universal",
+      "status": "active",
+      "content": "the universal",
+      "created_at": 0
+    },
+    {
+      "id": "particular",
+      "status": "active",
+      "content": "the particular",
+      "created_at": 0
+    },
+    {
+      "id": "immediacy",
+      "status": "active",
+      "content": "immediacy",
+      "created_at": 0
+    },
+    {
+      "id": "mediation",
+      "status": "active",
+      "content": "mediation",
+      "created_at": 0
+    },
+    {
+      "id": "language",
+      "status": "active",
+      "content": "language",
+      "created_at": 0
+    },
+    {
+      "id": "what_is_meant",
+      "status": "active",
+      "content": "what is meant (das Meinen)",
+      "created_at": 0
+    },
+    {
+      "id": "singular_I",
+      "status": "active",
+      "content": "singular I",
+      "created_at": 0
+    },
+    {
+      "id": "universal_I",
+      "status": "active",
+      "content": "universal I",
+      "created_at": 0
+    },
+    {
+      "id": "pure_being",
+      "status": "active",
+      "content": "pure being",
+      "created_at": 0
+    },
+    {
+      "id": "truth_sc",
+      "status": "active",
+      "content": "truth of sense-certainty",
+      "created_at": 0
+    }
+  ],
+  "edges": [
+    {
+      "source": "sense_certainty",
+      "target": "immediate_knowledge",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sense_certainty",
+      "target": "object",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sense_certainty",
+      "target": "the_I",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "immediate_knowledge",
+      "target": "immediacy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "now",
+      "target": "sense_certainty",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "now_night",
+      "target": "now",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "now_day",
+      "target": "now",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "now_night",
+      "target": "now_day",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "now_day",
+      "target": "now_night",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "now_universal",
+      "target": "now_night",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "now_universal",
+      "target": "now_day",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "now_universal",
+      "target": "universal",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "this",
+      "target": "sense_certainty",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "this",
+      "target": "particular",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "this_negated",
+      "target": "this",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "this_superseded",
+      "target": "this_negated",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "this_preserved",
+      "target": "this_superseded",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "this_preserved",
+      "target": "this",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "this_preserved",
+      "target": "universal",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "here",
+      "target": "sense_certainty",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "here",
+      "target": "particular",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "here_universal",
+      "target": "here",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "here_universal",
+      "target": "universal",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "particular",
+      "target": "universal",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "universal",
+      "target": "particular",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "immediacy",
+      "target": "mediation",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "mediation",
+      "target": "immediacy",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "language",
+      "target": "universal",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "what_is_meant",
+      "target": "particular",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "language",
+      "target": "what_is_meant",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "the_I",
+      "target": "singular_I",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "singular_I",
+      "target": "universal_I",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "universal_I",
+      "target": "singular_I",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "universal_I",
+      "target": "universal",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "object",
+      "target": "immediacy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "object",
+      "target": "particular",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "pure_being",
+      "target": "universal",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "truth_sc",
+      "target": "pure_being",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "truth_sc",
+      "target": "sense_certainty",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "sense_certainty",
+      "target": "truth_sc",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "mediation",
+      "target": "universal",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "now_universal",
+      "target": "this_preserved",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "the_I",
+      "target": "universal_I",
+      "edge_type": "reference",
+      "created_at": 0
+    }
+  ]
+}

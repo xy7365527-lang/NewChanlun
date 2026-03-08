@@ -1,0 +1,1368 @@
+{
+  "vertices": [
+    {
+      "id": "truth_whole",
+      "status": "active",
+      "content": "the truth is the whole",
+      "created_at": 0
+    },
+    {
+      "id": "substance",
+      "status": "active",
+      "content": "substance",
+      "created_at": 0
+    },
+    {
+      "id": "subject",
+      "status": "active",
+      "content": "subject (self-developing)",
+      "created_at": 0
+    },
+    {
+      "id": "bud",
+      "status": "active",
+      "content": "the bud",
+      "created_at": 0
+    },
+    {
+      "id": "blossom",
+      "status": "active",
+      "content": "the blossom",
+      "created_at": 0
+    },
+    {
+      "id": "fruit",
+      "status": "active",
+      "content": "the fruit",
+      "created_at": 0
+    },
+    {
+      "id": "mutual_necessity",
+      "status": "active",
+      "content": "mutual necessity",
+      "created_at": 0
+    },
+    {
+      "id": "bacchanalian_revel",
+      "status": "active",
+      "content": "Bacchanalian revel",
+      "created_at": 0
+    },
+    {
+      "id": "simple_repose",
+      "status": "active",
+      "content": "transparent simple repose",
+      "created_at": 0
+    },
+    {
+      "id": "spirit",
+      "status": "active",
+      "content": "spirit",
+      "created_at": 0
+    },
+    {
+      "id": "science",
+      "status": "active",
+      "content": "science",
+      "created_at": 0
+    },
+    {
+      "id": "dogmatism",
+      "status": "active",
+      "content": "dogmatism",
+      "created_at": 0
+    },
+    {
+      "id": "speculative_proposition",
+      "status": "active",
+      "content": "speculative proposition",
+      "created_at": 0
+    },
+    {
+      "id": "dialectic_method",
+      "status": "active",
+      "content": "dialectic as method",
+      "created_at": 0
+    },
+    {
+      "id": "fixed_result",
+      "status": "active",
+      "content": "fixed result/proposition",
+      "created_at": 0
+    },
+    {
+      "id": "false_moment",
+      "status": "active",
+      "content": "the false as moment of truth",
+      "created_at": 0
+    },
+    {
+      "id": "appearance_truth",
+      "status": "active",
+      "content": "appearance as actuality",
+      "created_at": 0
+    },
+    {
+      "id": "cognition_instrument",
+      "status": "active",
+      "content": "cognition as instrument",
+      "created_at": 0
+    },
+    {
+      "id": "cognition_medium",
+      "status": "active",
+      "content": "cognition as medium",
+      "created_at": 0
+    },
+    {
+      "id": "absolute_being",
+      "status": "active",
+      "content": "the Absolute",
+      "created_at": 0
+    },
+    {
+      "id": "fear_of_error",
+      "status": "active",
+      "content": "fear of error",
+      "created_at": 0
+    },
+    {
+      "id": "fear_of_truth",
+      "status": "active",
+      "content": "fear of truth",
+      "created_at": 0
+    },
+    {
+      "id": "experience",
+      "status": "active",
+      "content": "experience (dialectical movement)",
+      "created_at": 0
+    },
+    {
+      "id": "natural_consciousness",
+      "status": "active",
+      "content": "natural consciousness",
+      "created_at": 0
+    },
+    {
+      "id": "real_knowledge",
+      "status": "active",
+      "content": "real knowledge",
+      "created_at": 0
+    },
+    {
+      "id": "concept_of_knowledge",
+      "status": "active",
+      "content": "concept of knowledge",
+      "created_at": 0
+    },
+    {
+      "id": "negative_procedure",
+      "status": "active",
+      "content": "negative procedure",
+      "created_at": 0
+    },
+    {
+      "id": "hidden_tendency",
+      "status": "active",
+      "content": "hidden tendency toward truth",
+      "created_at": 0
+    },
+    {
+      "id": "sense_certainty",
+      "status": "active",
+      "content": "sense-certainty",
+      "created_at": 0
+    },
+    {
+      "id": "immediate_knowledge",
+      "status": "active",
+      "content": "immediate knowledge",
+      "created_at": 0
+    },
+    {
+      "id": "the_now",
+      "status": "active",
+      "content": "the Now",
+      "created_at": 0
+    },
+    {
+      "id": "now_night",
+      "status": "active",
+      "content": "Now is Night",
+      "created_at": 0
+    },
+    {
+      "id": "now_day",
+      "status": "active",
+      "content": "Now is Day",
+      "created_at": 0
+    },
+    {
+      "id": "now_universal",
+      "status": "active",
+      "content": "Now as universal",
+      "created_at": 0
+    },
+    {
+      "id": "the_this",
+      "status": "active",
+      "content": "the This",
+      "created_at": 0
+    },
+    {
+      "id": "the_here",
+      "status": "active",
+      "content": "the Here",
+      "created_at": 0
+    },
+    {
+      "id": "this_not_this",
+      "status": "active",
+      "content": "This as not-This (superseded)",
+      "created_at": 0
+    },
+    {
+      "id": "determinate_nothing",
+      "status": "active",
+      "content": "determinate Nothing",
+      "created_at": 0
+    },
+    {
+      "id": "mediated_simplicity",
+      "status": "active",
+      "content": "mediated simplicity",
+      "created_at": 0
+    },
+    {
+      "id": "the_I",
+      "status": "active",
+      "content": "the I",
+      "created_at": 0
+    },
+    {
+      "id": "singular_I",
+      "status": "active",
+      "content": "singular I",
+      "created_at": 0
+    },
+    {
+      "id": "universal_I",
+      "status": "active",
+      "content": "universal I",
+      "created_at": 0
+    },
+    {
+      "id": "language_sc",
+      "status": "active",
+      "content": "language (expresses universal)",
+      "created_at": 0
+    },
+    {
+      "id": "what_is_meant",
+      "status": "active",
+      "content": "what is meant (das Meinen)",
+      "created_at": 0
+    },
+    {
+      "id": "pure_being",
+      "status": "active",
+      "content": "pure being",
+      "created_at": 0
+    },
+    {
+      "id": "universal",
+      "status": "active",
+      "content": "the universal",
+      "created_at": 0
+    },
+    {
+      "id": "particular",
+      "status": "active",
+      "content": "the particular",
+      "created_at": 0
+    },
+    {
+      "id": "immediacy",
+      "status": "active",
+      "content": "immediacy",
+      "created_at": 0
+    },
+    {
+      "id": "mediation",
+      "status": "active",
+      "content": "mediation",
+      "created_at": 0
+    },
+    {
+      "id": "perception",
+      "status": "active",
+      "content": "perception",
+      "created_at": 0
+    },
+    {
+      "id": "thing",
+      "status": "active",
+      "content": "the thing",
+      "created_at": 0
+    },
+    {
+      "id": "many_properties",
+      "status": "active",
+      "content": "many properties",
+      "created_at": 0
+    },
+    {
+      "id": "thinghood",
+      "status": "active",
+      "content": "thinghood (pure essence)",
+      "created_at": 0
+    },
+    {
+      "id": "the_one",
+      "status": "active",
+      "content": "the One (excluding unity)",
+      "created_at": 0
+    },
+    {
+      "id": "the_also",
+      "status": "active",
+      "content": "the Also (general medium)",
+      "created_at": 0
+    },
+    {
+      "id": "salt_example",
+      "status": "active",
+      "content": "salt (white, pungent, cubical)",
+      "created_at": 0
+    },
+    {
+      "id": "one_excludes",
+      "status": "active",
+      "content": "One excludes",
+      "created_at": 0
+    },
+    {
+      "id": "also_includes",
+      "status": "active",
+      "content": "Also includes",
+      "created_at": 0
+    },
+    {
+      "id": "contradictory_thing",
+      "status": "active",
+      "content": "contradictory nature of thing",
+      "created_at": 0
+    },
+    {
+      "id": "free_matter",
+      "status": "active",
+      "content": "free matter/property",
+      "created_at": 0
+    },
+    {
+      "id": "surface_enclosure",
+      "status": "active",
+      "content": "surface enclosure",
+      "created_at": 0
+    },
+    {
+      "id": "white_vs_black",
+      "status": "active",
+      "content": "white opposed to black",
+      "created_at": 0
+    },
+    {
+      "id": "property_contradiction",
+      "status": "active",
+      "content": "property as self-contradictory",
+      "created_at": 0
+    },
+    {
+      "id": "unconditioned_universal",
+      "status": "active",
+      "content": "unconditioned universal",
+      "created_at": 0
+    },
+    {
+      "id": "concrete_universal",
+      "status": "active",
+      "content": "concrete universal",
+      "created_at": 0
+    },
+    {
+      "id": "sound_common_sense",
+      "status": "active",
+      "content": "sound common sense",
+      "created_at": 0
+    },
+    {
+      "id": "insofar_as",
+      "status": "active",
+      "content": "insofar-as qualification",
+      "created_at": 0
+    },
+    {
+      "id": "inner_being",
+      "status": "active",
+      "content": "inner being of thing",
+      "created_at": 0
+    },
+    {
+      "id": "force",
+      "status": "active",
+      "content": "force",
+      "created_at": 0
+    },
+    {
+      "id": "force_expression",
+      "status": "active",
+      "content": "expression of force",
+      "created_at": 0
+    },
+    {
+      "id": "force_proper",
+      "status": "active",
+      "content": "force proper",
+      "created_at": 0
+    },
+    {
+      "id": "play_of_forces",
+      "status": "active",
+      "content": "play of forces",
+      "created_at": 0
+    },
+    {
+      "id": "inciting",
+      "status": "active",
+      "content": "inciting force",
+      "created_at": 0
+    },
+    {
+      "id": "incited",
+      "status": "active",
+      "content": "incited force",
+      "created_at": 0
+    },
+    {
+      "id": "law",
+      "status": "active",
+      "content": "law (stable image)",
+      "created_at": 0
+    },
+    {
+      "id": "appearance_flux",
+      "status": "active",
+      "content": "appearance (flux)",
+      "created_at": 0
+    },
+    {
+      "id": "explanation_tautology",
+      "status": "active",
+      "content": "explanation as tautology",
+      "created_at": 0
+    },
+    {
+      "id": "supersensible_world",
+      "status": "active",
+      "content": "supersensible world",
+      "created_at": 0
+    },
+    {
+      "id": "kingdom_of_laws",
+      "status": "active",
+      "content": "tranquil kingdom of laws",
+      "created_at": 0
+    },
+    {
+      "id": "inverted_world",
+      "status": "active",
+      "content": "inverted world",
+      "created_at": 0
+    },
+    {
+      "id": "sweet_sour",
+      "status": "active",
+      "content": "sweet becomes sour",
+      "created_at": 0
+    },
+    {
+      "id": "crime_punishment",
+      "status": "active",
+      "content": "crime becomes punishment",
+      "created_at": 0
+    },
+    {
+      "id": "internal_distinction",
+      "status": "active",
+      "content": "internal distinction",
+      "created_at": 0
+    },
+    {
+      "id": "simple_infinity",
+      "status": "active",
+      "content": "simple infinity",
+      "created_at": 0
+    },
+    {
+      "id": "self_consciousness_emerges",
+      "status": "active",
+      "content": "self-consciousness emerges",
+      "created_at": 0
+    },
+    {
+      "id": "curtain",
+      "status": "active",
+      "content": "the curtain",
+      "created_at": 0
+    },
+    {
+      "id": "nothing_behind",
+      "status": "active",
+      "content": "nothing behind unless we go there",
+      "created_at": 0
+    },
+    {
+      "id": "self_related_negation",
+      "status": "active",
+      "content": "self-related negation",
+      "created_at": 0
+    }
+  ],
+  "edges": [
+    {
+      "source": "subject",
+      "target": "substance",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "substance",
+      "target": "subject",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "truth_whole",
+      "target": "subject",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "truth_whole",
+      "target": "substance",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "blossom",
+      "target": "bud",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "fruit",
+      "target": "blossom",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "mutual_necessity",
+      "target": "bud",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "mutual_necessity",
+      "target": "blossom",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "mutual_necessity",
+      "target": "fruit",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "bacchanalian_revel",
+      "target": "simple_repose",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "simple_repose",
+      "target": "bacchanalian_revel",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "science",
+      "target": "spirit",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "spirit",
+      "target": "truth_whole",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "dogmatism",
+      "target": "fixed_result",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "speculative_proposition",
+      "target": "dogmatism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "speculative_proposition",
+      "target": "dialectic_method",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "false_moment",
+      "target": "truth_whole",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "fixed_result",
+      "target": "false_moment",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "appearance_truth",
+      "target": "truth_whole",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "cognition_instrument",
+      "target": "absolute_being",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "cognition_medium",
+      "target": "absolute_being",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "cognition_instrument",
+      "target": "cognition_medium",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "fear_of_error",
+      "target": "fear_of_truth",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "fear_of_truth",
+      "target": "fear_of_error",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "experience",
+      "target": "natural_consciousness",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "natural_consciousness",
+      "target": "concept_of_knowledge",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "natural_consciousness",
+      "target": "real_knowledge",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "concept_of_knowledge",
+      "target": "real_knowledge",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "negative_procedure",
+      "target": "natural_consciousness",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "hidden_tendency",
+      "target": "experience",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "hidden_tendency",
+      "target": "real_knowledge",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "sense_certainty",
+      "target": "immediate_knowledge",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sense_certainty",
+      "target": "the_this",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sense_certainty",
+      "target": "the_I",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "immediate_knowledge",
+      "target": "immediacy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "the_now",
+      "target": "sense_certainty",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "now_night",
+      "target": "the_now",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "now_day",
+      "target": "the_now",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "now_night",
+      "target": "now_day",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "now_day",
+      "target": "now_night",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "now_universal",
+      "target": "now_night",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "now_universal",
+      "target": "now_day",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "now_universal",
+      "target": "universal",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "the_this",
+      "target": "particular",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "this_not_this",
+      "target": "the_this",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "determinate_nothing",
+      "target": "this_not_this",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "mediated_simplicity",
+      "target": "this_not_this",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "mediated_simplicity",
+      "target": "the_this",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "mediated_simplicity",
+      "target": "universal",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "the_here",
+      "target": "sense_certainty",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "the_here",
+      "target": "particular",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "the_I",
+      "target": "singular_I",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "singular_I",
+      "target": "universal_I",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "universal_I",
+      "target": "singular_I",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "universal_I",
+      "target": "universal",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "language_sc",
+      "target": "universal",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "what_is_meant",
+      "target": "particular",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "language_sc",
+      "target": "what_is_meant",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "particular",
+      "target": "universal",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "universal",
+      "target": "particular",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "immediacy",
+      "target": "mediation",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "mediation",
+      "target": "immediacy",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "pure_being",
+      "target": "universal",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "pure_being",
+      "target": "sense_certainty",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "perception",
+      "target": "universal",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "perception",
+      "target": "sense_certainty",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "thing",
+      "target": "many_properties",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "thing",
+      "target": "thinghood",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "the_one",
+      "target": "thing",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "the_also",
+      "target": "thing",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "the_one",
+      "target": "the_also",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "the_also",
+      "target": "the_one",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "one_excludes",
+      "target": "the_one",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "also_includes",
+      "target": "the_also",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "one_excludes",
+      "target": "also_includes",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "salt_example",
+      "target": "many_properties",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "salt_example",
+      "target": "the_also",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "contradictory_thing",
+      "target": "the_one",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "contradictory_thing",
+      "target": "the_also",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "free_matter",
+      "target": "many_properties",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "surface_enclosure",
+      "target": "free_matter",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "white_vs_black",
+      "target": "property_contradiction",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "property_contradiction",
+      "target": "free_matter",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "property_contradiction",
+      "target": "the_one",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "unconditioned_universal",
+      "target": "contradictory_thing",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "unconditioned_universal",
+      "target": "property_contradiction",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "concrete_universal",
+      "target": "unconditioned_universal",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "concrete_universal",
+      "target": "universal",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "concrete_universal",
+      "target": "particular",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sound_common_sense",
+      "target": "insofar_as",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "insofar_as",
+      "target": "contradictory_thing",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "inner_being",
+      "target": "thing",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "inner_being",
+      "target": "unconditioned_universal",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "force",
+      "target": "force_expression",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "force_expression",
+      "target": "force",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "force_proper",
+      "target": "force",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "force_expression",
+      "target": "force_proper",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "play_of_forces",
+      "target": "inciting",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "play_of_forces",
+      "target": "incited",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "inciting",
+      "target": "incited",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "incited",
+      "target": "inciting",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "law",
+      "target": "play_of_forces",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "law",
+      "target": "appearance_flux",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "appearance_flux",
+      "target": "play_of_forces",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "explanation_tautology",
+      "target": "law",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "supersensible_world",
+      "target": "law",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "kingdom_of_laws",
+      "target": "supersensible_world",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "inverted_world",
+      "target": "supersensible_world",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "sweet_sour",
+      "target": "inverted_world",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "crime_punishment",
+      "target": "inverted_world",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "internal_distinction",
+      "target": "inverted_world",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "internal_distinction",
+      "target": "supersensible_world",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "simple_infinity",
+      "target": "internal_distinction",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "simple_infinity",
+      "target": "self_related_negation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "self_related_negation",
+      "target": "simple_infinity",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "self_consciousness_emerges",
+      "target": "simple_infinity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "curtain",
+      "target": "supersensible_world",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "nothing_behind",
+      "target": "curtain",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "self_consciousness_emerges",
+      "target": "curtain",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "self_consciousness_emerges",
+      "target": "nothing_behind",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "dialectic_method",
+      "target": "experience",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "false_moment",
+      "target": "negative_procedure",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "truth_whole",
+      "target": "absolute_being",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "natural_consciousness",
+      "target": "sense_certainty",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "experience",
+      "target": "sense_certainty",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "real_knowledge",
+      "target": "immediate_knowledge",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "perception",
+      "target": "mediated_simplicity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "thing",
+      "target": "universal",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "many_properties",
+      "target": "particular",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "force",
+      "target": "unconditioned_universal",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "inner_being",
+      "target": "concrete_universal",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "law",
+      "target": "universal",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "self_consciousness_emerges",
+      "target": "spirit",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "self_consciousness_emerges",
+      "target": "subject",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "mediation",
+      "target": "experience",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "mediation",
+      "target": "dialectic_method",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "play_of_forces",
+      "target": "mediation",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "self_related_negation",
+      "target": "particular",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "determinate_nothing",
+      "target": "negative_procedure",
+      "edge_type": "reference",
+      "created_at": 0
+    }
+  ]
+}

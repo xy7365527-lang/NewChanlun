@@ -1,0 +1,1878 @@
+{
+  "vertices": [
+    {
+      "id": "behavior",
+      "status": "active",
+      "content": "behavior as form/structure",
+      "created_at": 0
+    },
+    {
+      "id": "structure",
+      "status": "active",
+      "content": "structure (Gestalt)",
+      "created_at": 0
+    },
+    {
+      "id": "form",
+      "status": "active",
+      "content": "form — organizing principle",
+      "created_at": 0
+    },
+    {
+      "id": "reflex",
+      "status": "active",
+      "content": "reflex arc",
+      "created_at": 0
+    },
+    {
+      "id": "stimulus_response",
+      "status": "active",
+      "content": "stimulus-response model",
+      "created_at": 0
+    },
+    {
+      "id": "consciousness",
+      "status": "active",
+      "content": "consciousness",
+      "created_at": 0
+    },
+    {
+      "id": "organism",
+      "status": "active",
+      "content": "organism as totality",
+      "created_at": 0
+    },
+    {
+      "id": "physical_order",
+      "status": "active",
+      "content": "physical order",
+      "created_at": 0
+    },
+    {
+      "id": "vital_order",
+      "status": "active",
+      "content": "vital order",
+      "created_at": 0
+    },
+    {
+      "id": "human_order",
+      "status": "active",
+      "content": "human order",
+      "created_at": 0
+    },
+    {
+      "id": "integration",
+      "status": "active",
+      "content": "integration of orders",
+      "created_at": 0
+    },
+    {
+      "id": "dialectic_nature_consciousness",
+      "status": "active",
+      "content": "dialectic of nature and consciousness",
+      "created_at": 0
+    },
+    {
+      "id": "perception",
+      "status": "active",
+      "content": "perception — primordial contact with the world",
+      "created_at": 0
+    },
+    {
+      "id": "body",
+      "status": "active",
+      "content": "lived body (corps propre / Leib)",
+      "created_at": 0
+    },
+    {
+      "id": "phenomenal_field",
+      "status": "active",
+      "content": "phenomenal field",
+      "created_at": 0
+    },
+    {
+      "id": "motility",
+      "status": "active",
+      "content": "motility — bodily movement as intentional",
+      "created_at": 0
+    },
+    {
+      "id": "habit",
+      "status": "active",
+      "content": "habit — motor significance",
+      "created_at": 0
+    },
+    {
+      "id": "schema_corporel",
+      "status": "active",
+      "content": "body schema (schema corporel)",
+      "created_at": 0
+    },
+    {
+      "id": "sensation",
+      "status": "active",
+      "content": "sensation — not atomic impression",
+      "created_at": 0
+    },
+    {
+      "id": "subject",
+      "status": "active",
+      "content": "embodied subject",
+      "created_at": 0
+    },
+    {
+      "id": "world",
+      "status": "active",
+      "content": "world — not objective sum",
+      "created_at": 0
+    },
+    {
+      "id": "intentionality",
+      "status": "active",
+      "content": "operative intentionality (fungierende Intentionalitat)",
+      "created_at": 0
+    },
+    {
+      "id": "spatiality",
+      "status": "active",
+      "content": "bodily spatiality — situation not position",
+      "created_at": 0
+    },
+    {
+      "id": "temporality",
+      "status": "active",
+      "content": "temporality — living present",
+      "created_at": 0
+    },
+    {
+      "id": "freedom",
+      "status": "active",
+      "content": "situated freedom",
+      "created_at": 0
+    },
+    {
+      "id": "existence",
+      "status": "active",
+      "content": "existence — being-in-the-world",
+      "created_at": 0
+    },
+    {
+      "id": "ambiguity",
+      "status": "active",
+      "content": "ambiguity — constitutive, not defect",
+      "created_at": 0
+    },
+    {
+      "id": "intersubjectivity",
+      "status": "active",
+      "content": "intersubjectivity — intercorporeality",
+      "created_at": 0
+    },
+    {
+      "id": "sexuality",
+      "status": "active",
+      "content": "sexuality as existential dimension",
+      "created_at": 0
+    },
+    {
+      "id": "speech",
+      "status": "active",
+      "content": "speech — bodily gesture of meaning",
+      "created_at": 0
+    },
+    {
+      "id": "primacy",
+      "status": "active",
+      "content": "primacy of perception — thesis",
+      "created_at": 0
+    },
+    {
+      "id": "perceived_world",
+      "status": "active",
+      "content": "perceived world — primary reality",
+      "created_at": 0
+    },
+    {
+      "id": "science_founded",
+      "status": "active",
+      "content": "science — founded on perceived world",
+      "created_at": 0
+    },
+    {
+      "id": "classical_prejudices",
+      "status": "active",
+      "content": "classical prejudices — constancy hypothesis",
+      "created_at": 0
+    },
+    {
+      "id": "violence",
+      "status": "active",
+      "content": "violence — inescapable in history",
+      "created_at": 0
+    },
+    {
+      "id": "history",
+      "status": "active",
+      "content": "history — contingent, not teleological",
+      "created_at": 0
+    },
+    {
+      "id": "humanism",
+      "status": "active",
+      "content": "humanism — not abstract ideal",
+      "created_at": 0
+    },
+    {
+      "id": "terror",
+      "status": "active",
+      "content": "terror — revolutionary violence",
+      "created_at": 0
+    },
+    {
+      "id": "proletariat",
+      "status": "active",
+      "content": "proletariat — historical subject",
+      "created_at": 0
+    },
+    {
+      "id": "contingency",
+      "status": "active",
+      "content": "contingency of historical outcome",
+      "created_at": 0
+    },
+    {
+      "id": "political_action",
+      "status": "active",
+      "content": "political action — risk and ambiguity",
+      "created_at": 0
+    },
+    {
+      "id": "marxism_open",
+      "status": "active",
+      "content": "Marxism as open theory",
+      "created_at": 0
+    },
+    {
+      "id": "sense",
+      "status": "active",
+      "content": "sense — embodied meaning",
+      "created_at": 0
+    },
+    {
+      "id": "nonsense",
+      "status": "active",
+      "content": "non-sense — not absence but other of sense",
+      "created_at": 0
+    },
+    {
+      "id": "painting",
+      "status": "active",
+      "content": "painting — Cezanne's doubt",
+      "created_at": 0
+    },
+    {
+      "id": "style",
+      "status": "active",
+      "content": "style — bodily expression",
+      "created_at": 0
+    },
+    {
+      "id": "engagement",
+      "status": "active",
+      "content": "engagement — situated thought",
+      "created_at": 0
+    },
+    {
+      "id": "metaphysics_concrete",
+      "status": "active",
+      "content": "metaphysics — concrete, not abstract",
+      "created_at": 0
+    },
+    {
+      "id": "expression_proto",
+      "status": "active",
+      "content": "expression (proto — bodily gesture)",
+      "created_at": 0
+    },
+    {
+      "id": "child_perception",
+      "status": "active",
+      "content": "child's perception — not deficient adult",
+      "created_at": 0
+    },
+    {
+      "id": "child_body",
+      "status": "active",
+      "content": "child's body — motor intentionality developing",
+      "created_at": 0
+    },
+    {
+      "id": "child_language",
+      "status": "active",
+      "content": "child's language acquisition",
+      "created_at": 0
+    },
+    {
+      "id": "child_drawing",
+      "status": "active",
+      "content": "child's drawing — expression not copy",
+      "created_at": 0
+    },
+    {
+      "id": "developmental_form",
+      "status": "active",
+      "content": "developmental form — Gestalt in growth",
+      "created_at": 0
+    },
+    {
+      "id": "eidetic_psychology",
+      "status": "active",
+      "content": "eidetic psychology — between empiricism and intellectualism",
+      "created_at": 0
+    },
+    {
+      "id": "human_science",
+      "status": "active",
+      "content": "human science — not natural science model",
+      "created_at": 0
+    },
+    {
+      "id": "phenomenological_method",
+      "status": "active",
+      "content": "phenomenological method — return to things",
+      "created_at": 0
+    },
+    {
+      "id": "philosophical_irony",
+      "status": "active",
+      "content": "philosophical irony — Socratic",
+      "created_at": 0
+    },
+    {
+      "id": "non_philosophy",
+      "status": "active",
+      "content": "non-philosophy — philosophy's other",
+      "created_at": 0
+    },
+    {
+      "id": "philosopher_and_shadow",
+      "status": "active",
+      "content": "philosopher and his shadow",
+      "created_at": 0
+    },
+    {
+      "id": "heroic_philosophy",
+      "status": "active",
+      "content": "heroic philosophy — facing contingency",
+      "created_at": 0
+    },
+    {
+      "id": "institution",
+      "status": "active",
+      "content": "institution (Stiftung) — not constitution",
+      "created_at": 0
+    },
+    {
+      "id": "passivity",
+      "status": "active",
+      "content": "passivity — not inactivity but receptivity",
+      "created_at": 0
+    },
+    {
+      "id": "Stiftung",
+      "status": "active",
+      "content": "Stiftung — founding that calls for continuation",
+      "created_at": 0
+    },
+    {
+      "id": "sleep",
+      "status": "active",
+      "content": "sleep — exemplary passivity",
+      "created_at": 0
+    },
+    {
+      "id": "unconscious_mp",
+      "status": "active",
+      "content": "unconscious — institutional sedimentation",
+      "created_at": 0
+    },
+    {
+      "id": "event",
+      "status": "active",
+      "content": "event — instituting moment",
+      "created_at": 0
+    },
+    {
+      "id": "continuation",
+      "status": "active",
+      "content": "continuation — picking up and transforming",
+      "created_at": 0
+    },
+    {
+      "id": "dialectic",
+      "status": "active",
+      "content": "dialectic — lived, not mechanical",
+      "created_at": 0
+    },
+    {
+      "id": "weber_dialectic",
+      "status": "active",
+      "content": "Weber — rationalization as fate",
+      "created_at": 0
+    },
+    {
+      "id": "lukacs_dialectic",
+      "status": "active",
+      "content": "Lukacs — totality and reification",
+      "created_at": 0
+    },
+    {
+      "id": "sartre_critique",
+      "status": "active",
+      "content": "critique of Sartre's ultra-bolshevism",
+      "created_at": 0
+    },
+    {
+      "id": "institution_political",
+      "status": "active",
+      "content": "political institution vs revolution",
+      "created_at": 0
+    },
+    {
+      "id": "new_liberalism",
+      "status": "active",
+      "content": "new liberalism — beyond left/right",
+      "created_at": 0
+    },
+    {
+      "id": "praxis",
+      "status": "active",
+      "content": "praxis — open dialectic",
+      "created_at": 0
+    },
+    {
+      "id": "western_marxism",
+      "status": "active",
+      "content": "Western Marxism — reflection on practice",
+      "created_at": 0
+    },
+    {
+      "id": "nature",
+      "status": "active",
+      "content": "nature — not object but flesh of the world",
+      "created_at": 0
+    },
+    {
+      "id": "animality",
+      "status": "active",
+      "content": "animality — behavior as Gestalt",
+      "created_at": 0
+    },
+    {
+      "id": "human_body_nature",
+      "status": "active",
+      "content": "human body as natural being",
+      "created_at": 0
+    },
+    {
+      "id": "nature_perception",
+      "status": "active",
+      "content": "nature as perceived, not objective",
+      "created_at": 0
+    },
+    {
+      "id": "umwelt",
+      "status": "active",
+      "content": "Umwelt — animal world",
+      "created_at": 0
+    },
+    {
+      "id": "lateral_universal",
+      "status": "active",
+      "content": "lateral universal — not from above",
+      "created_at": 0
+    },
+    {
+      "id": "embryology",
+      "status": "active",
+      "content": "embryology — self-differentiation",
+      "created_at": 0
+    },
+    {
+      "id": "expression",
+      "status": "active",
+      "content": "expression — creative, not representational",
+      "created_at": 0
+    },
+    {
+      "id": "language",
+      "status": "active",
+      "content": "language — system of differences",
+      "created_at": 0
+    },
+    {
+      "id": "indirect_language",
+      "status": "active",
+      "content": "indirect language — voices of silence",
+      "created_at": 0
+    },
+    {
+      "id": "literary_expression",
+      "status": "active",
+      "content": "literary expression",
+      "created_at": 0
+    },
+    {
+      "id": "sedimentation",
+      "status": "active",
+      "content": "sedimentation of meaning",
+      "created_at": 0
+    },
+    {
+      "id": "institution_linguistic",
+      "status": "active",
+      "content": "linguistic institution",
+      "created_at": 0
+    },
+    {
+      "id": "creative_expression",
+      "status": "active",
+      "content": "creative expression — surpassing sedimented",
+      "created_at": 0
+    },
+    {
+      "id": "algorithm_language",
+      "status": "active",
+      "content": "algorithm of language — Saussure",
+      "created_at": 0
+    },
+    {
+      "id": "indirect_ontology",
+      "status": "active",
+      "content": "indirect ontology — through signs",
+      "created_at": 0
+    },
+    {
+      "id": "philosophy_and_sociology",
+      "status": "active",
+      "content": "philosopher and sociology",
+      "created_at": 0
+    },
+    {
+      "id": "eye_and_mind_proto",
+      "status": "active",
+      "content": "eye and mind (proto-version in Signs)",
+      "created_at": 0
+    },
+    {
+      "id": "sign",
+      "status": "active",
+      "content": "sign — diacritical, not representational",
+      "created_at": 0
+    },
+    {
+      "id": "interrogation_proto",
+      "status": "active",
+      "content": "interrogation (proto — philosophical method)",
+      "created_at": 0
+    },
+    {
+      "id": "eye",
+      "status": "active",
+      "content": "eye — not instrument but of the body",
+      "created_at": 0
+    },
+    {
+      "id": "vision",
+      "status": "active",
+      "content": "vision — flesh seeing itself",
+      "created_at": 0
+    },
+    {
+      "id": "depth",
+      "status": "active",
+      "content": "depth — not third dimension but dimensionality",
+      "created_at": 0
+    },
+    {
+      "id": "color",
+      "status": "active",
+      "content": "color — modulation of the visible",
+      "created_at": 0
+    },
+    {
+      "id": "mirror",
+      "status": "active",
+      "content": "mirror — seeing oneself seeing",
+      "created_at": 0
+    },
+    {
+      "id": "operative_body",
+      "status": "active",
+      "content": "operative body — I can, not I think",
+      "created_at": 0
+    },
+    {
+      "id": "flesh",
+      "status": "active",
+      "content": "flesh (chair) — element, not substance",
+      "created_at": 0
+    },
+    {
+      "id": "chiasm",
+      "status": "active",
+      "content": "chiasm (chiasme) — intertwining",
+      "created_at": 0
+    },
+    {
+      "id": "visible",
+      "status": "active",
+      "content": "the visible",
+      "created_at": 0
+    },
+    {
+      "id": "invisible",
+      "status": "active",
+      "content": "the invisible — not hidden but lining of the visible",
+      "created_at": 0
+    },
+    {
+      "id": "reversibility",
+      "status": "active",
+      "content": "reversibility — touching-touched",
+      "created_at": 0
+    },
+    {
+      "id": "interrogation",
+      "status": "active",
+      "content": "interrogation — philosophy as radical questioning",
+      "created_at": 0
+    },
+    {
+      "id": "wild_being",
+      "status": "active",
+      "content": "wild being (etre sauvage) — pre-reflective",
+      "created_at": 0
+    },
+    {
+      "id": "dehiscence",
+      "status": "active",
+      "content": "dehiscence — self-fission of the sensible",
+      "created_at": 0
+    },
+    {
+      "id": "ecart",
+      "status": "active",
+      "content": "ecart — divergence, spread",
+      "created_at": 0
+    },
+    {
+      "id": "fold",
+      "status": "active",
+      "content": "fold (pli) — self-folding of Being",
+      "created_at": 0
+    },
+    {
+      "id": "hyperdialectic",
+      "status": "active",
+      "content": "hyper-dialectic — without synthesis",
+      "created_at": 0
+    }
+  ],
+  "edges": [
+    {
+      "source": "behavior",
+      "target": "structure",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "behavior",
+      "target": "form",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "structure",
+      "target": "reflex",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "structure",
+      "target": "stimulus_response",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "organism",
+      "target": "structure",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "organism",
+      "target": "form",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "physical_order",
+      "target": "vital_order",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "vital_order",
+      "target": "human_order",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "human_order",
+      "target": "consciousness",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "integration",
+      "target": "physical_order",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "integration",
+      "target": "vital_order",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "integration",
+      "target": "human_order",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "dialectic_nature_consciousness",
+      "target": "consciousness",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "dialectic_nature_consciousness",
+      "target": "organism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "perception",
+      "target": "body",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "perception",
+      "target": "phenomenal_field",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "perception",
+      "target": "sensation",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "body",
+      "target": "schema_corporel",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "body",
+      "target": "motility",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "body",
+      "target": "habit",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "body",
+      "target": "consciousness",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "subject",
+      "target": "body",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "subject",
+      "target": "world",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "phenomenal_field",
+      "target": "world",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "phenomenal_field",
+      "target": "structure",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "intentionality",
+      "target": "perception",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "intentionality",
+      "target": "motility",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "spatiality",
+      "target": "body",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "spatiality",
+      "target": "schema_corporel",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "temporality",
+      "target": "perception",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "temporality",
+      "target": "existence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "existence",
+      "target": "subject",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "existence",
+      "target": "world",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "freedom",
+      "target": "existence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "freedom",
+      "target": "ambiguity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "ambiguity",
+      "target": "perception",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "ambiguity",
+      "target": "existence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "intersubjectivity",
+      "target": "body",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "intersubjectivity",
+      "target": "perception",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "sexuality",
+      "target": "body",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sexuality",
+      "target": "existence",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "speech",
+      "target": "body",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "speech",
+      "target": "motility",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "primacy",
+      "target": "perception",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "primacy",
+      "target": "perceived_world",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "perceived_world",
+      "target": "phenomenal_field",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "perceived_world",
+      "target": "world",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "science_founded",
+      "target": "perceived_world",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "science_founded",
+      "target": "perception",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "classical_prejudices",
+      "target": "sensation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "classical_prejudices",
+      "target": "perception",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "violence",
+      "target": "history",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "violence",
+      "target": "political_action",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "humanism",
+      "target": "terror",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "humanism",
+      "target": "freedom",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "terror",
+      "target": "violence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "proletariat",
+      "target": "history",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "contingency",
+      "target": "history",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "contingency",
+      "target": "ambiguity",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "political_action",
+      "target": "existence",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "political_action",
+      "target": "contingency",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "marxism_open",
+      "target": "proletariat",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "marxism_open",
+      "target": "contingency",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sense",
+      "target": "perception",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sense",
+      "target": "body",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nonsense",
+      "target": "sense",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "nonsense",
+      "target": "ambiguity",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "painting",
+      "target": "perception",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "painting",
+      "target": "style",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "style",
+      "target": "body",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "style",
+      "target": "expression_proto",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "engagement",
+      "target": "existence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "engagement",
+      "target": "political_action",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "metaphysics_concrete",
+      "target": "perception",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "metaphysics_concrete",
+      "target": "existence",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "child_perception",
+      "target": "perception",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "child_perception",
+      "target": "phenomenal_field",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "child_body",
+      "target": "body",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "child_body",
+      "target": "schema_corporel",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "child_language",
+      "target": "speech",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "child_language",
+      "target": "child_body",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "child_drawing",
+      "target": "expression_proto",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "child_drawing",
+      "target": "child_perception",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "developmental_form",
+      "target": "structure",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "developmental_form",
+      "target": "child_body",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "eidetic_psychology",
+      "target": "perception",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "eidetic_psychology",
+      "target": "structure",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "human_science",
+      "target": "intersubjectivity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "human_science",
+      "target": "eidetic_psychology",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "phenomenological_method",
+      "target": "perception",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "phenomenological_method",
+      "target": "existence",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "philosophical_irony",
+      "target": "ambiguity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "non_philosophy",
+      "target": "philosophical_irony",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "non_philosophy",
+      "target": "existence",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "philosopher_and_shadow",
+      "target": "philosophical_irony",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "heroic_philosophy",
+      "target": "contingency",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "heroic_philosophy",
+      "target": "freedom",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "institution",
+      "target": "habit",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "institution",
+      "target": "Stiftung",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "passivity",
+      "target": "perception",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "passivity",
+      "target": "institution",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "Stiftung",
+      "target": "temporality",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sleep",
+      "target": "passivity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sleep",
+      "target": "body",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "unconscious_mp",
+      "target": "passivity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "unconscious_mp",
+      "target": "institution",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "event",
+      "target": "institution",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "event",
+      "target": "contingency",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "continuation",
+      "target": "institution",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "dialectic",
+      "target": "history",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "dialectic",
+      "target": "ambiguity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "weber_dialectic",
+      "target": "dialectic",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "lukacs_dialectic",
+      "target": "dialectic",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "lukacs_dialectic",
+      "target": "proletariat",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "sartre_critique",
+      "target": "freedom",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "sartre_critique",
+      "target": "dialectic",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "institution_political",
+      "target": "political_action",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "institution_political",
+      "target": "violence",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "new_liberalism",
+      "target": "institution_political",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "praxis",
+      "target": "dialectic",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "praxis",
+      "target": "contingency",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "western_marxism",
+      "target": "marxism_open",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "western_marxism",
+      "target": "dialectic",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nature",
+      "target": "world",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "nature",
+      "target": "body",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "animality",
+      "target": "behavior",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "animality",
+      "target": "organism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "animality",
+      "target": "nature",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "human_body_nature",
+      "target": "body",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "human_body_nature",
+      "target": "nature",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nature_perception",
+      "target": "perception",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nature_perception",
+      "target": "nature",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "umwelt",
+      "target": "animality",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "umwelt",
+      "target": "phenomenal_field",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "lateral_universal",
+      "target": "intersubjectivity",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "lateral_universal",
+      "target": "nature",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "embryology",
+      "target": "organism",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "embryology",
+      "target": "nature",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "expression",
+      "target": "body",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "expression",
+      "target": "speech",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "expression",
+      "target": "expression_proto",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "language",
+      "target": "expression",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "language",
+      "target": "sedimentation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "indirect_language",
+      "target": "language",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "indirect_language",
+      "target": "painting",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "literary_expression",
+      "target": "expression",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "literary_expression",
+      "target": "creative_expression",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sedimentation",
+      "target": "habit",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "institution_linguistic",
+      "target": "language",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "institution_linguistic",
+      "target": "sedimentation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "creative_expression",
+      "target": "sedimentation",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "algorithm_language",
+      "target": "language",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "algorithm_language",
+      "target": "structure",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "indirect_ontology",
+      "target": "perception",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "indirect_ontology",
+      "target": "expression",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "philosophy_and_sociology",
+      "target": "intersubjectivity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "philosophy_and_sociology",
+      "target": "dialectic",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "eye_and_mind_proto",
+      "target": "painting",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "eye_and_mind_proto",
+      "target": "body",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sign",
+      "target": "language",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sign",
+      "target": "sense",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "interrogation_proto",
+      "target": "ambiguity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "interrogation_proto",
+      "target": "indirect_ontology",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "eye",
+      "target": "body",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "eye",
+      "target": "perception",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "vision",
+      "target": "eye",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "vision",
+      "target": "painting",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "depth",
+      "target": "spatiality",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "depth",
+      "target": "vision",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "color",
+      "target": "vision",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "color",
+      "target": "phenomenal_field",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "mirror",
+      "target": "vision",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "mirror",
+      "target": "intersubjectivity",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "operative_body",
+      "target": "body",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "operative_body",
+      "target": "motility",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "operative_body",
+      "target": "eye",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "flesh",
+      "target": "body",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "flesh",
+      "target": "world",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "flesh",
+      "target": "perception",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "chiasm",
+      "target": "flesh",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "chiasm",
+      "target": "reversibility",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "visible",
+      "target": "perception",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "visible",
+      "target": "flesh",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "invisible",
+      "target": "visible",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "invisible",
+      "target": "ambiguity",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "reversibility",
+      "target": "body",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "reversibility",
+      "target": "intersubjectivity",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "interrogation",
+      "target": "interrogation_proto",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "interrogation",
+      "target": "hyperdialectic",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "wild_being",
+      "target": "nature",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "wild_being",
+      "target": "flesh",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "dehiscence",
+      "target": "flesh",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "dehiscence",
+      "target": "ecart",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "ecart",
+      "target": "chiasm",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "ecart",
+      "target": "ambiguity",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "fold",
+      "target": "flesh",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "fold",
+      "target": "reversibility",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "hyperdialectic",
+      "target": "dialectic",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "hyperdialectic",
+      "target": "ambiguity",
+      "edge_type": "dependency",
+      "created_at": 0
+    }
+  ]
+}

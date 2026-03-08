@@ -1,0 +1,900 @@
+{
+  "vertices": [
+    {
+      "id": "education",
+      "status": "active",
+      "content": "education — the process of meaning-making, not information transfer",
+      "created_at": 0
+    },
+    {
+      "id": "inquiry",
+      "status": "active",
+      "content": "inquiry — the subversive method of asking questions",
+      "created_at": 0
+    },
+    {
+      "id": "medium",
+      "status": "active",
+      "content": "medium — the environment that shapes perception and thought",
+      "created_at": 0
+    },
+    {
+      "id": "message",
+      "status": "active",
+      "content": "message — the content carried by, and transformed by, the medium",
+      "created_at": 0
+    },
+    {
+      "id": "meaning",
+      "status": "active",
+      "content": "meaning — constructed by the learner, not delivered by the teacher",
+      "created_at": 0
+    },
+    {
+      "id": "language",
+      "status": "active",
+      "content": "language — the tool and environment of thought",
+      "created_at": 0
+    },
+    {
+      "id": "metaphor",
+      "status": "active",
+      "content": "metaphor — the hidden comparison that structures understanding",
+      "created_at": 0
+    },
+    {
+      "id": "crap_detector",
+      "status": "active",
+      "content": "the crap detector — the capacity to distinguish sense from nonsense",
+      "created_at": 0
+    },
+    {
+      "id": "school",
+      "status": "active",
+      "content": "the school — an environment (medium) that shapes what can be thought",
+      "created_at": 0
+    },
+    {
+      "id": "student_agency",
+      "status": "active",
+      "content": "student agency — learners as active participants in institutional change",
+      "created_at": 0
+    },
+    {
+      "id": "semantic_environment",
+      "status": "active",
+      "content": "semantic environment — the context that determines what words mean",
+      "created_at": 0
+    },
+    {
+      "id": "crazy_talk",
+      "status": "active",
+      "content": "crazy talk — language that confuses levels of abstraction",
+      "created_at": 0
+    },
+    {
+      "id": "stupid_talk",
+      "status": "active",
+      "content": "stupid talk — language that is irrelevant to its purpose",
+      "created_at": 0
+    },
+    {
+      "id": "abstraction",
+      "status": "active",
+      "content": "levels of abstraction — the hierarchy from particular to general",
+      "created_at": 0
+    },
+    {
+      "id": "thermostat",
+      "status": "active",
+      "content": "the thermostatic function — education as cultural counterbalance",
+      "created_at": 0
+    },
+    {
+      "id": "information_glut",
+      "status": "active",
+      "content": "information glut — too much information, too little meaning",
+      "created_at": 0
+    },
+    {
+      "id": "conservation",
+      "status": "active",
+      "content": "conservation — preserving coherent meaning against information flood",
+      "created_at": 0
+    },
+    {
+      "id": "culture",
+      "status": "active",
+      "content": "culture — the shared system of meaning and narrative",
+      "created_at": 0
+    },
+    {
+      "id": "childhood",
+      "status": "active",
+      "content": "childhood — a social construction created by print literacy",
+      "created_at": 0
+    },
+    {
+      "id": "print_culture",
+      "status": "active",
+      "content": "print culture — the world organized by typography and reading",
+      "created_at": 0
+    },
+    {
+      "id": "television",
+      "status": "active",
+      "content": "television — the medium that dissolves print-culture distinctions",
+      "created_at": 0
+    },
+    {
+      "id": "secrecy",
+      "status": "active",
+      "content": "secrecy — the adult monopoly on information that creates childhood",
+      "created_at": 0
+    },
+    {
+      "id": "image",
+      "status": "active",
+      "content": "image — the visual, immediate, non-sequential mode of television",
+      "created_at": 0
+    },
+    {
+      "id": "narrative",
+      "status": "active",
+      "content": "narrative — the sequential, coherent story that organizes meaning",
+      "created_at": 0
+    },
+    {
+      "id": "entertainment",
+      "status": "active",
+      "content": "entertainment — the supra-ideology of television",
+      "created_at": 0
+    },
+    {
+      "id": "public_discourse",
+      "status": "active",
+      "content": "public discourse — the conversation a culture has with itself",
+      "created_at": 0
+    },
+    {
+      "id": "typography",
+      "status": "active",
+      "content": "typography — the culture of print, sequential thought, and argument",
+      "created_at": 0
+    },
+    {
+      "id": "epistemology",
+      "status": "active",
+      "content": "epistemology — the theory of knowledge implicit in every medium",
+      "created_at": 0
+    },
+    {
+      "id": "show_business",
+      "status": "active",
+      "content": "show business — the transformation of all discourse into spectacle",
+      "created_at": 0
+    },
+    {
+      "id": "Huxley",
+      "status": "active",
+      "content": "Huxley — Brave New World, control through pleasure",
+      "created_at": 0
+    },
+    {
+      "id": "Orwell",
+      "status": "active",
+      "content": "Orwell — 1984, control through pain",
+      "created_at": 0
+    },
+    {
+      "id": "reason",
+      "status": "active",
+      "content": "reason — the capacity for sustained, sequential, evidence-based argument",
+      "created_at": 0
+    },
+    {
+      "id": "democracy",
+      "status": "active",
+      "content": "democracy — requires informed citizens engaged in rational discourse",
+      "created_at": 0
+    },
+    {
+      "id": "technology",
+      "status": "active",
+      "content": "technology — not neutral but carrying ideology and epistemological bias",
+      "created_at": 0
+    },
+    {
+      "id": "Faustian_bargain",
+      "status": "active",
+      "content": "the Faustian bargain — every technology gives and takes away",
+      "created_at": 0
+    },
+    {
+      "id": "bias",
+      "status": "active",
+      "content": "bias of communication — every medium privileges certain forms of content",
+      "created_at": 0
+    },
+    {
+      "id": "technopoly",
+      "status": "active",
+      "content": "technopoly — the totalitarian rule of technology over culture",
+      "created_at": 0
+    },
+    {
+      "id": "tool_using",
+      "status": "active",
+      "content": "tool-using culture — technology subordinate to theology or philosophy",
+      "created_at": 0
+    },
+    {
+      "id": "technocracy",
+      "status": "active",
+      "content": "technocracy — technology challenges but coexists with traditional beliefs",
+      "created_at": 0
+    },
+    {
+      "id": "information",
+      "status": "active",
+      "content": "information — data without context, meaning, or purpose",
+      "created_at": 0
+    },
+    {
+      "id": "context",
+      "status": "active",
+      "content": "context — the framework that gives information meaning",
+      "created_at": 0
+    },
+    {
+      "id": "tradition",
+      "status": "active",
+      "content": "tradition — the inherited framework of meaning and value",
+      "created_at": 0
+    },
+    {
+      "id": "judgment",
+      "status": "active",
+      "content": "judgment — the capacity to evaluate, needing context and tradition",
+      "created_at": 0
+    },
+    {
+      "id": "news",
+      "status": "active",
+      "content": "news — the constructed spectacle presenting itself as reality",
+      "created_at": 0
+    },
+    {
+      "id": "advertising",
+      "status": "active",
+      "content": "advertising — the economic substrate that shapes news content",
+      "created_at": 0
+    },
+    {
+      "id": "end_of_education",
+      "status": "active",
+      "content": "the end (purpose) of education — what narrative justifies schooling?",
+      "created_at": 0
+    },
+    {
+      "id": "god",
+      "status": "active",
+      "content": "'god' — the narrative or grand story that gives education meaning",
+      "created_at": 0
+    },
+    {
+      "id": "spaceship_earth",
+      "status": "active",
+      "content": "spaceship earth — the ecological narrative for education",
+      "created_at": 0
+    },
+    {
+      "id": "fallen_angel",
+      "status": "active",
+      "content": "the fallen angel — education as the correction of human error",
+      "created_at": 0
+    },
+    {
+      "id": "Enlightenment",
+      "status": "active",
+      "content": "the Enlightenment — the source of reason, democracy, and childhood",
+      "created_at": 0
+    },
+    {
+      "id": "digital_revolution",
+      "status": "active",
+      "content": "the digital revolution — the new threat to Enlightenment values",
+      "created_at": 0
+    },
+    {
+      "id": "skepticism",
+      "status": "active",
+      "content": "skepticism — the Enlightenment virtue of questioning all claims",
+      "created_at": 0
+    },
+    {
+      "id": "conversation",
+      "status": "active",
+      "content": "conversation — the Enlightenment form of public discourse",
+      "created_at": 0
+    }
+  ],
+  "edges": [
+    {
+      "source": "education",
+      "target": "inquiry",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "medium",
+      "target": "message",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "inquiry",
+      "target": "meaning",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "language",
+      "target": "meaning",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "metaphor",
+      "target": "language",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "crap_detector",
+      "target": "inquiry",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "education",
+      "target": "medium",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "crap_detector",
+      "target": "meaning",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "school",
+      "target": "medium",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "school",
+      "target": "education",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "student_agency",
+      "target": "inquiry",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "student_agency",
+      "target": "education",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "semantic_environment",
+      "target": "language",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "semantic_environment",
+      "target": "meaning",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "crazy_talk",
+      "target": "semantic_environment",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "stupid_talk",
+      "target": "semantic_environment",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "abstraction",
+      "target": "language",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "crazy_talk",
+      "target": "abstraction",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "semantic_environment",
+      "target": "metaphor",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "thermostat",
+      "target": "education",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "thermostat",
+      "target": "culture",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "information_glut",
+      "target": "meaning",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "conservation",
+      "target": "thermostat",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "conservation",
+      "target": "culture",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "information_glut",
+      "target": "medium",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "thermostat",
+      "target": "inquiry",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "childhood",
+      "target": "print_culture",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "childhood",
+      "target": "secrecy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "television",
+      "target": "childhood",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "television",
+      "target": "secrecy",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "television",
+      "target": "image",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "print_culture",
+      "target": "narrative",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "image",
+      "target": "narrative",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "television",
+      "target": "medium",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "print_culture",
+      "target": "medium",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "entertainment",
+      "target": "television",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "entertainment",
+      "target": "public_discourse",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "public_discourse",
+      "target": "democracy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "typography",
+      "target": "reason",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "typography",
+      "target": "public_discourse",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "epistemology",
+      "target": "medium",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "show_business",
+      "target": "entertainment",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "television",
+      "target": "typography",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "television",
+      "target": "reason",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "Huxley",
+      "target": "Orwell",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "Huxley",
+      "target": "entertainment",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "democracy",
+      "target": "reason",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "epistemology",
+      "target": "culture",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "entertainment",
+      "target": "image",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "show_business",
+      "target": "public_discourse",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "technology",
+      "target": "medium",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "Faustian_bargain",
+      "target": "technology",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "bias",
+      "target": "medium",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "bias",
+      "target": "epistemology",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "Faustian_bargain",
+      "target": "culture",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "technology",
+      "target": "entertainment",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "technopoly",
+      "target": "technology",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "technopoly",
+      "target": "culture",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "tool_using",
+      "target": "technology",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "technocracy",
+      "target": "tool_using",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "technopoly",
+      "target": "technocracy",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "information",
+      "target": "meaning",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "information",
+      "target": "context",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "context",
+      "target": "meaning",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "tradition",
+      "target": "context",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "technopoly",
+      "target": "tradition",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "judgment",
+      "target": "context",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "judgment",
+      "target": "tradition",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "technopoly",
+      "target": "information_glut",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "information",
+      "target": "technology",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "news",
+      "target": "television",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "news",
+      "target": "entertainment",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "news",
+      "target": "public_discourse",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "advertising",
+      "target": "news",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "advertising",
+      "target": "show_business",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "news",
+      "target": "information",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "news",
+      "target": "context",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "end_of_education",
+      "target": "education",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "end_of_education",
+      "target": "narrative",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "god",
+      "target": "narrative",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "god",
+      "target": "meaning",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "spaceship_earth",
+      "target": "god",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "fallen_angel",
+      "target": "god",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "end_of_education",
+      "target": "culture",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "end_of_education",
+      "target": "technopoly",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "Enlightenment",
+      "target": "reason",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "Enlightenment",
+      "target": "democracy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "Enlightenment",
+      "target": "childhood",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "digital_revolution",
+      "target": "technopoly",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "digital_revolution",
+      "target": "Enlightenment",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "skepticism",
+      "target": "crap_detector",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "skepticism",
+      "target": "reason",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "conversation",
+      "target": "public_discourse",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "conversation",
+      "target": "typography",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "digital_revolution",
+      "target": "television",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "Enlightenment",
+      "target": "tradition",
+      "edge_type": "reference",
+      "created_at": 0
+    }
+  ]
+}

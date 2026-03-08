@@ -1,0 +1,3630 @@
+{
+  "vertices": [
+    {
+      "id": "mass_mobilization",
+      "status": "active",
+      "content": "mass mobilization — union of the popular masses",
+      "created_at": 0
+    },
+    {
+      "id": "imperialism",
+      "status": "active",
+      "content": "imperialism — foreign domination",
+      "created_at": 0
+    },
+    {
+      "id": "popular_masses",
+      "status": "active",
+      "content": "popular masses — workers, peasants, students, women",
+      "created_at": 0
+    },
+    {
+      "id": "resistance",
+      "status": "active",
+      "content": "resistance — organized struggle against oppression",
+      "created_at": 0
+    },
+    {
+      "id": "class_analysis",
+      "status": "active",
+      "content": "class analysis — who are our enemies, who are our friends",
+      "created_at": 0
+    },
+    {
+      "id": "landlord_class",
+      "status": "active",
+      "content": "landlord class — feudal exploiters",
+      "created_at": 0
+    },
+    {
+      "id": "comprador_bourgeoisie",
+      "status": "active",
+      "content": "comprador bourgeoisie — imperialist agents",
+      "created_at": 0
+    },
+    {
+      "id": "national_bourgeoisie",
+      "status": "active",
+      "content": "national bourgeoisie — vacillating middle",
+      "created_at": 0
+    },
+    {
+      "id": "petty_bourgeoisie",
+      "status": "active",
+      "content": "petty bourgeoisie — small proprietors",
+      "created_at": 0
+    },
+    {
+      "id": "semi_proletariat",
+      "status": "active",
+      "content": "semi-proletariat — poor peasants",
+      "created_at": 0
+    },
+    {
+      "id": "proletariat",
+      "status": "active",
+      "content": "proletariat — industrial workers",
+      "created_at": 0
+    },
+    {
+      "id": "lumpenproletariat",
+      "status": "active",
+      "content": "lumpenproletariat — destructive if unled",
+      "created_at": 0
+    },
+    {
+      "id": "revolution",
+      "status": "active",
+      "content": "revolution — overthrow of oppressor classes",
+      "created_at": 0
+    },
+    {
+      "id": "enemy_friend",
+      "status": "active",
+      "content": "fundamental question: who are enemies, who are friends",
+      "created_at": 0
+    },
+    {
+      "id": "peasantry",
+      "status": "active",
+      "content": "peasantry — main force of Chinese revolution",
+      "created_at": 0
+    },
+    {
+      "id": "national_revolution",
+      "status": "active",
+      "content": "national revolution against imperialism and feudalism",
+      "created_at": 0
+    },
+    {
+      "id": "agrarian_revolution",
+      "status": "active",
+      "content": "agrarian revolution — land to the tiller",
+      "created_at": 0
+    },
+    {
+      "id": "feudalism",
+      "status": "active",
+      "content": "feudalism — landlord exploitation of peasants",
+      "created_at": 0
+    },
+    {
+      "id": "investigation_research",
+      "status": "active",
+      "content": "investigation and research — no right to speak without it",
+      "created_at": 0
+    },
+    {
+      "id": "mass_initiative",
+      "status": "active",
+      "content": "mass initiative — spontaneous revolutionary energy",
+      "created_at": 0
+    },
+    {
+      "id": "revolutionary_violence",
+      "status": "active",
+      "content": "revolutionary violence — not a dinner party",
+      "created_at": 0
+    },
+    {
+      "id": "peasant_association",
+      "status": "active",
+      "content": "peasant association — organizational form",
+      "created_at": 0
+    },
+    {
+      "id": "rural_revolution",
+      "status": "active",
+      "content": "rural revolution — overthrowing local tyrants",
+      "created_at": 0
+    },
+    {
+      "id": "base_areas",
+      "status": "active",
+      "content": "revolutionary base areas — red political power in countryside",
+      "created_at": 0
+    },
+    {
+      "id": "uneven_development",
+      "status": "active",
+      "content": "uneven development of Chinese society",
+      "created_at": 0
+    },
+    {
+      "id": "encircle_cities",
+      "status": "active",
+      "content": "encircle the cities from the countryside",
+      "created_at": 0
+    },
+    {
+      "id": "red_army",
+      "status": "active",
+      "content": "Red Army — armed force of revolution",
+      "created_at": 0
+    },
+    {
+      "id": "white_regime",
+      "status": "active",
+      "content": "white regime — KMT/warlord reaction",
+      "created_at": 0
+    },
+    {
+      "id": "land_policy_jinggang",
+      "status": "active",
+      "content": "land policy — confiscate and distribute landlord land",
+      "created_at": 0
+    },
+    {
+      "id": "military_principles_early",
+      "status": "active",
+      "content": "early military principles — enemy advances we retreat",
+      "created_at": 0
+    },
+    {
+      "id": "base_building",
+      "status": "active",
+      "content": "base area construction — political + military + economic",
+      "created_at": 0
+    },
+    {
+      "id": "rectification",
+      "status": "active",
+      "content": "rectification — correcting wrong ideas through criticism",
+      "created_at": 0
+    },
+    {
+      "id": "criticism_self_criticism",
+      "status": "active",
+      "content": "criticism and self-criticism — party method",
+      "created_at": 0
+    },
+    {
+      "id": "ultra_democracy",
+      "status": "active",
+      "content": "ultra-democracy — anarchist tendency",
+      "created_at": 0
+    },
+    {
+      "id": "absolute_equalitarianism",
+      "status": "active",
+      "content": "absolute equalitarianism — petty-bourgeois tendency",
+      "created_at": 0
+    },
+    {
+      "id": "purely_military_viewpoint",
+      "status": "active",
+      "content": "purely military viewpoint — army vs politics",
+      "created_at": 0
+    },
+    {
+      "id": "party_discipline",
+      "status": "active",
+      "content": "party discipline — democratic centralism",
+      "created_at": 0
+    },
+    {
+      "id": "oppose_bookism",
+      "status": "active",
+      "content": "oppose book worship — dogmatism negated",
+      "created_at": 0
+    },
+    {
+      "id": "dogmatism",
+      "status": "active",
+      "content": "dogmatism — applying theory mechanically",
+      "created_at": 0
+    },
+    {
+      "id": "theory_practice_link",
+      "status": "active",
+      "content": "linking theory to practice — unity of knowing and doing",
+      "created_at": 0
+    },
+    {
+      "id": "social_investigation",
+      "status": "active",
+      "content": "social investigation — systematic inquiry into conditions",
+      "created_at": 0
+    },
+    {
+      "id": "single_spark",
+      "status": "active",
+      "content": "a single spark can start a prairie fire",
+      "created_at": 0
+    },
+    {
+      "id": "revolutionary_optimism",
+      "status": "active",
+      "content": "revolutionary optimism — seeing the future in the present",
+      "created_at": 0
+    },
+    {
+      "id": "subjective_forces",
+      "status": "active",
+      "content": "subjective forces — role of consciousness and will",
+      "created_at": 0
+    },
+    {
+      "id": "xunwu_investigation",
+      "status": "active",
+      "content": "Xunwu investigation — exemplary social investigation",
+      "created_at": 0
+    },
+    {
+      "id": "concrete_analysis",
+      "status": "active",
+      "content": "concrete analysis of concrete conditions",
+      "created_at": 0
+    },
+    {
+      "id": "rural_class_differentiation",
+      "status": "active",
+      "content": "differentiate rural classes — rich/middle/poor peasant, landlord",
+      "created_at": 0
+    },
+    {
+      "id": "counter_encirclement",
+      "status": "active",
+      "content": "counter-encirclement campaigns — active defense",
+      "created_at": 0
+    },
+    {
+      "id": "active_defense",
+      "status": "active",
+      "content": "active defense — offensive within strategic defensive",
+      "created_at": 0
+    },
+    {
+      "id": "mass_line",
+      "status": "active",
+      "content": "mass line — from the masses, to the masses",
+      "created_at": 0
+    },
+    {
+      "id": "serve_the_people",
+      "status": "active",
+      "content": "serve the people — party's purpose",
+      "created_at": 0
+    },
+    {
+      "id": "connecting_to_masses",
+      "status": "active",
+      "content": "connecting to masses — bureaucracy negated",
+      "created_at": 0
+    },
+    {
+      "id": "bureaucratism",
+      "status": "active",
+      "content": "bureaucratism — separation from masses",
+      "created_at": 0
+    },
+    {
+      "id": "united_front",
+      "status": "active",
+      "content": "united front — alliance of all anti-Japanese forces",
+      "created_at": 0
+    },
+    {
+      "id": "principal_contradiction",
+      "status": "active",
+      "content": "principal contradiction — determines the main enemy",
+      "created_at": 0
+    },
+    {
+      "id": "national_contradiction",
+      "status": "active",
+      "content": "national contradiction — China vs Japan",
+      "created_at": 0
+    },
+    {
+      "id": "class_contradiction",
+      "status": "active",
+      "content": "class contradiction — internal class struggle",
+      "created_at": 0
+    },
+    {
+      "id": "protracted_war",
+      "status": "active",
+      "content": "protracted war — strategic concept",
+      "created_at": 0
+    },
+    {
+      "id": "strategic_retreat",
+      "status": "active",
+      "content": "strategic retreat — lure deep, concentrate forces",
+      "created_at": 0
+    },
+    {
+      "id": "annihilation_strategy",
+      "status": "active",
+      "content": "annihilation — destroying enemy forces completely",
+      "created_at": 0
+    },
+    {
+      "id": "attrition_strategy",
+      "status": "active",
+      "content": "attrition — wearing down enemy gradually",
+      "created_at": 0
+    },
+    {
+      "id": "concentration_forces",
+      "status": "active",
+      "content": "concentrate a superior force to destroy enemy piecemeal",
+      "created_at": 0
+    },
+    {
+      "id": "initiative_flexibility",
+      "status": "active",
+      "content": "initiative and flexibility in war",
+      "created_at": 0
+    },
+    {
+      "id": "practice",
+      "status": "active",
+      "content": "practice — social practice as basis and criterion of knowledge",
+      "created_at": 0
+    },
+    {
+      "id": "perceptual_knowledge",
+      "status": "active",
+      "content": "perceptual knowledge — stage of sensation/impression",
+      "created_at": 0
+    },
+    {
+      "id": "rational_knowledge",
+      "status": "active",
+      "content": "rational knowledge — stage of concepts/judgments/inferences",
+      "created_at": 0
+    },
+    {
+      "id": "leap_to_rational",
+      "status": "active",
+      "content": "leap from perceptual to rational knowledge",
+      "created_at": 0
+    },
+    {
+      "id": "leap_to_practice",
+      "status": "active",
+      "content": "second leap — from rational knowledge back to practice",
+      "created_at": 0
+    },
+    {
+      "id": "criterion_of_truth",
+      "status": "active",
+      "content": "practice is the sole criterion of truth",
+      "created_at": 0
+    },
+    {
+      "id": "dialectical_materialism",
+      "status": "active",
+      "content": "dialectical materialism — Marxist epistemology",
+      "created_at": 0
+    },
+    {
+      "id": "contradiction",
+      "status": "active",
+      "content": "contradiction — unity of opposites, law of dialectics",
+      "created_at": 0
+    },
+    {
+      "id": "universality_of_contradiction",
+      "status": "active",
+      "content": "universality — contradiction exists in all things",
+      "created_at": 0
+    },
+    {
+      "id": "particularity_of_contradiction",
+      "status": "active",
+      "content": "particularity — each contradiction has specific character",
+      "created_at": 0
+    },
+    {
+      "id": "principal_and_secondary",
+      "status": "active",
+      "content": "principal and secondary contradictions",
+      "created_at": 0
+    },
+    {
+      "id": "principal_aspect",
+      "status": "active",
+      "content": "principal aspect of a contradiction — determines its nature",
+      "created_at": 0
+    },
+    {
+      "id": "identity_of_opposites",
+      "status": "active",
+      "content": "identity of opposites — mutual dependence and transformation",
+      "created_at": 0
+    },
+    {
+      "id": "struggle_of_opposites",
+      "status": "active",
+      "content": "struggle of opposites — absolute, driving change",
+      "created_at": 0
+    },
+    {
+      "id": "antagonistic_contradiction",
+      "status": "active",
+      "content": "antagonistic contradiction — resolved by revolution",
+      "created_at": 0
+    },
+    {
+      "id": "non_antagonistic_contradiction",
+      "status": "active",
+      "content": "non-antagonistic contradiction — resolved by criticism",
+      "created_at": 0
+    },
+    {
+      "id": "transformation_of_opposites",
+      "status": "active",
+      "content": "transformation of opposites — conditions for reversal",
+      "created_at": 0
+    },
+    {
+      "id": "liberalism",
+      "status": "active",
+      "content": "liberalism — unprincipled peace, avoiding struggle",
+      "created_at": 0
+    },
+    {
+      "id": "principled_struggle",
+      "status": "active",
+      "content": "principled struggle — ideological combat",
+      "created_at": 0
+    },
+    {
+      "id": "national_self_defense",
+      "status": "active",
+      "content": "war of national self-defense against Japan",
+      "created_at": 0
+    },
+    {
+      "id": "independence_in_uf",
+      "status": "active",
+      "content": "independence and initiative within the united front",
+      "created_at": 0
+    },
+    {
+      "id": "three_stages",
+      "status": "active",
+      "content": "three stages of protracted war",
+      "created_at": 0
+    },
+    {
+      "id": "strategic_defensive",
+      "status": "active",
+      "content": "strategic defensive — first stage, retreat and preserve",
+      "created_at": 0
+    },
+    {
+      "id": "strategic_stalemate",
+      "status": "active",
+      "content": "strategic stalemate — second stage, guerrilla war expands",
+      "created_at": 0
+    },
+    {
+      "id": "strategic_offensive",
+      "status": "active",
+      "content": "strategic offensive — third stage, counterattack",
+      "created_at": 0
+    },
+    {
+      "id": "peoples_war",
+      "status": "active",
+      "content": "people's war — mobilize the whole nation",
+      "created_at": 0
+    },
+    {
+      "id": "man_over_weapons",
+      "status": "active",
+      "content": "man is the decisive factor, not weapons",
+      "created_at": 0
+    },
+    {
+      "id": "guerrilla_war",
+      "status": "active",
+      "content": "guerrilla warfare — flexible, mobile operations",
+      "created_at": 0
+    },
+    {
+      "id": "guerrilla_strategy",
+      "status": "active",
+      "content": "guerrilla strategy — six strategic problems",
+      "created_at": 0
+    },
+    {
+      "id": "defense_within_offense",
+      "status": "active",
+      "content": "strategic defensive contains tactical offensive",
+      "created_at": 0
+    },
+    {
+      "id": "interior_exterior_lines",
+      "status": "active",
+      "content": "interior and exterior lines of operation",
+      "created_at": 0
+    },
+    {
+      "id": "party_leadership",
+      "status": "active",
+      "content": "CCP leadership — vanguard role in national war",
+      "created_at": 0
+    },
+    {
+      "id": "three_styles_of_work",
+      "status": "active",
+      "content": "three great styles: theory-practice unity, mass connection, self-criticism",
+      "created_at": 0
+    },
+    {
+      "id": "cadre_policy",
+      "status": "active",
+      "content": "cadre policy — select, train, promote cadres",
+      "created_at": 0
+    },
+    {
+      "id": "self_reliance",
+      "status": "active",
+      "content": "self-reliance — rely mainly on own efforts",
+      "created_at": 0
+    },
+    {
+      "id": "power_from_gun",
+      "status": "active",
+      "content": "political power grows out of the barrel of a gun",
+      "created_at": 0
+    },
+    {
+      "id": "party_commands_gun",
+      "status": "active",
+      "content": "the party commands the gun, the gun must never command the party",
+      "created_at": 0
+    },
+    {
+      "id": "two_stage_revolution",
+      "status": "active",
+      "content": "two-stage revolution: new-democratic -> socialist",
+      "created_at": 0
+    },
+    {
+      "id": "semi_colonial_semi_feudal",
+      "status": "active",
+      "content": "semi-colonial semi-feudal society — China's character",
+      "created_at": 0
+    },
+    {
+      "id": "new_democratic_revolution",
+      "status": "active",
+      "content": "new-democratic revolution — bourgeois-democratic under proletarian leadership",
+      "created_at": 0
+    },
+    {
+      "id": "three_magic_weapons",
+      "status": "active",
+      "content": "three magic weapons: united front, armed struggle, party building",
+      "created_at": 0
+    },
+    {
+      "id": "armed_struggle",
+      "status": "active",
+      "content": "armed struggle — central form of revolution",
+      "created_at": 0
+    },
+    {
+      "id": "party_building",
+      "status": "active",
+      "content": "party building — organizational guarantee",
+      "created_at": 0
+    },
+    {
+      "id": "new_democracy",
+      "status": "active",
+      "content": "new democracy — joint dictatorship of revolutionary classes",
+      "created_at": 0
+    },
+    {
+      "id": "new_democratic_politics",
+      "status": "active",
+      "content": "new-democratic politics — democratic centralism",
+      "created_at": 0
+    },
+    {
+      "id": "new_democratic_economy",
+      "status": "active",
+      "content": "new-democratic economy — state/cooperative/private",
+      "created_at": 0
+    },
+    {
+      "id": "new_democratic_culture",
+      "status": "active",
+      "content": "new-democratic culture — national, scientific, mass",
+      "created_at": 0
+    },
+    {
+      "id": "joint_dictatorship",
+      "status": "active",
+      "content": "joint dictatorship of several revolutionary classes",
+      "created_at": 0
+    },
+    {
+      "id": "old_democracy",
+      "status": "active",
+      "content": "old bourgeois democracy — superseded",
+      "created_at": 0
+    },
+    {
+      "id": "three_forces",
+      "status": "active",
+      "content": "three political forces: die-hards, middle, progressives",
+      "created_at": 0
+    },
+    {
+      "id": "struggle_with_diehards",
+      "status": "active",
+      "content": "struggle with die-hards — on just grounds, to advantage, with restraint",
+      "created_at": 0
+    },
+    {
+      "id": "rural_surveys",
+      "status": "active",
+      "content": "rural surveys — systematic investigation of countryside",
+      "created_at": 0
+    },
+    {
+      "id": "subjectivism",
+      "status": "active",
+      "content": "subjectivism — divorced from practice",
+      "created_at": 0
+    },
+    {
+      "id": "seeking_truth_from_facts",
+      "status": "active",
+      "content": "seeking truth from facts — shi shi qiu shi",
+      "created_at": 0
+    },
+    {
+      "id": "sinification_of_marxism",
+      "status": "active",
+      "content": "sinification of Marxism — apply to Chinese conditions",
+      "created_at": 0
+    },
+    {
+      "id": "empiricism",
+      "status": "active",
+      "content": "empiricism — narrow experience worship",
+      "created_at": 0
+    },
+    {
+      "id": "rectification_movement",
+      "status": "active",
+      "content": "rectification movement (Zhengfeng) — Yan'an 1942",
+      "created_at": 0
+    },
+    {
+      "id": "sectarianism",
+      "status": "active",
+      "content": "sectarianism — faction above party",
+      "created_at": 0
+    },
+    {
+      "id": "formalism_party_jargon",
+      "status": "active",
+      "content": "party formalism — stereotyped writing",
+      "created_at": 0
+    },
+    {
+      "id": "unity_through_struggle",
+      "status": "active",
+      "content": "unity — criticism — unity formula",
+      "created_at": 0
+    },
+    {
+      "id": "oppose_stereotypes",
+      "status": "active",
+      "content": "oppose stereotyped party writing — eight indictments",
+      "created_at": 0
+    },
+    {
+      "id": "lively_style",
+      "status": "active",
+      "content": "lively, fresh writing style — learn from the people's language",
+      "created_at": 0
+    },
+    {
+      "id": "art_serves_politics",
+      "status": "active",
+      "content": "art and literature must serve the revolution",
+      "created_at": 0
+    },
+    {
+      "id": "workers_peasants_soldiers",
+      "status": "active",
+      "content": "workers, peasants, soldiers — primary audience",
+      "created_at": 0
+    },
+    {
+      "id": "popularization_vs_raising",
+      "status": "active",
+      "content": "popularization vs raising standards — dialectic",
+      "created_at": 0
+    },
+    {
+      "id": "art_for_art",
+      "status": "active",
+      "content": "art for art's sake — bourgeois position negated",
+      "created_at": 0
+    },
+    {
+      "id": "production_campaign",
+      "status": "active",
+      "content": "production campaign — army and people produce to survive blockade",
+      "created_at": 0
+    },
+    {
+      "id": "self_sufficiency_economy",
+      "status": "active",
+      "content": "self-sufficiency economy — overcome enemy blockade",
+      "created_at": 0
+    },
+    {
+      "id": "from_masses_to_masses",
+      "status": "active",
+      "content": "from the masses, to the masses — leadership method",
+      "created_at": 0
+    },
+    {
+      "id": "general_particular_combine",
+      "status": "active",
+      "content": "combine the general call with particular guidance",
+      "created_at": 0
+    },
+    {
+      "id": "line_struggle",
+      "status": "active",
+      "content": "two-line struggle — correct vs incorrect line",
+      "created_at": 0
+    },
+    {
+      "id": "resolution_history",
+      "status": "active",
+      "content": "resolution on history — systematic summary of line struggles",
+      "created_at": 0
+    },
+    {
+      "id": "left_deviation",
+      "status": "active",
+      "content": "left deviation — adventurism, closed-doorism",
+      "created_at": 0
+    },
+    {
+      "id": "right_deviation",
+      "status": "active",
+      "content": "right deviation — capitulationism, tailism",
+      "created_at": 0
+    },
+    {
+      "id": "coalition_government",
+      "status": "active",
+      "content": "coalition government — democratic post-war program",
+      "created_at": 0
+    },
+    {
+      "id": "two_destinies",
+      "status": "active",
+      "content": "two destinies — democratic China vs feudal-fascist China",
+      "created_at": 0
+    },
+    {
+      "id": "peoples_army",
+      "status": "active",
+      "content": "people's army — an army that serves the people",
+      "created_at": 0
+    },
+    {
+      "id": "foolish_old_man",
+      "status": "active",
+      "content": "Yu Gong — perseverance of the masses",
+      "created_at": 0
+    },
+    {
+      "id": "two_mountains",
+      "status": "active",
+      "content": "two mountains: imperialism and feudalism",
+      "created_at": 0
+    },
+    {
+      "id": "perseverance",
+      "status": "active",
+      "content": "perseverance — sustained struggle through difficulty",
+      "created_at": 0
+    },
+    {
+      "id": "chiangs_two_faces",
+      "status": "active",
+      "content": "Chiang's two-faced tactics — peace talk + war preparation",
+      "created_at": 0
+    },
+    {
+      "id": "prepare_civil_war",
+      "status": "active",
+      "content": "prepare for civil war — self-defense strategy",
+      "created_at": 0
+    },
+    {
+      "id": "tit_for_tat",
+      "status": "active",
+      "content": "tit-for-tat — fight on just grounds, to advantage, with restraint",
+      "created_at": 0
+    },
+    {
+      "id": "fight_while_negotiate",
+      "status": "active",
+      "content": "fighting while negotiating — dual tactics",
+      "created_at": 0
+    },
+    {
+      "id": "paper_tiger",
+      "status": "active",
+      "content": "all reactionaries are paper tigers",
+      "created_at": 0
+    },
+    {
+      "id": "strategic_despise",
+      "status": "active",
+      "content": "strategically despise the enemy, tactically take seriously",
+      "created_at": 0
+    },
+    {
+      "id": "ten_military_principles",
+      "status": "active",
+      "content": "ten principles of operation — concentrate superior forces",
+      "created_at": 0
+    },
+    {
+      "id": "confiscate_bureaucratic_capital",
+      "status": "active",
+      "content": "confiscate bureaucrat-capital",
+      "created_at": 0
+    },
+    {
+      "id": "pla_manifesto",
+      "status": "active",
+      "content": "PLA manifesto — overthrow Chiang, land to the tiller",
+      "created_at": 0
+    },
+    {
+      "id": "land_reform",
+      "status": "active",
+      "content": "land reform — confiscate landlord land, distribute to peasants",
+      "created_at": 0
+    },
+    {
+      "id": "new_liberated_areas_policy",
+      "status": "active",
+      "content": "policy in new liberated areas — go slow on land reform",
+      "created_at": 0
+    },
+    {
+      "id": "winning_middle_peasant",
+      "status": "active",
+      "content": "win the middle peasant — do not encroach on middle peasants",
+      "created_at": 0
+    },
+    {
+      "id": "peoples_democratic_dictatorship",
+      "status": "active",
+      "content": "people's democratic dictatorship — state form",
+      "created_at": 0
+    },
+    {
+      "id": "democracy_for_people",
+      "status": "active",
+      "content": "democracy for the people — who are 'the people'",
+      "created_at": 0
+    },
+    {
+      "id": "dictatorship_over_reactionaries",
+      "status": "active",
+      "content": "dictatorship over reactionaries — suppress resistance",
+      "created_at": 0
+    },
+    {
+      "id": "lean_to_one_side",
+      "status": "active",
+      "content": "lean to one side — ally with socialist camp",
+      "created_at": 0
+    },
+    {
+      "id": "isolate_main_enemy",
+      "status": "active",
+      "content": "isolate the main enemy — focus attack",
+      "created_at": 0
+    },
+    {
+      "id": "consolidate_majority",
+      "status": "active",
+      "content": "consolidate the majority — win over middle forces",
+      "created_at": 0
+    },
+    {
+      "id": "resist_us_aid_korea",
+      "status": "active",
+      "content": "resist US aggression and aid Korea — just war",
+      "created_at": 0
+    },
+    {
+      "id": "proletarian_internationalism",
+      "status": "active",
+      "content": "proletarian internationalism — support revolutionary peoples",
+      "created_at": 0
+    },
+    {
+      "id": "contradictions_among_people_early",
+      "status": "active",
+      "content": "contradictions among the people — early formulation 1953",
+      "created_at": 0
+    },
+    {
+      "id": "cooperative_agriculture",
+      "status": "active",
+      "content": "cooperative transformation of agriculture — mutual aid to higher cooperatives",
+      "created_at": 0
+    },
+    {
+      "id": "socialist_transformation",
+      "status": "active",
+      "content": "socialist transformation — private to public ownership",
+      "created_at": 0
+    },
+    {
+      "id": "socialist_upsurge",
+      "status": "active",
+      "content": "socialist upsurge — mass enthusiasm for cooperatives",
+      "created_at": 0
+    },
+    {
+      "id": "right_conservatism",
+      "status": "active",
+      "content": "right conservatism — slow pace of collectivization criticized",
+      "created_at": 0
+    },
+    {
+      "id": "ten_major_relationships",
+      "status": "active",
+      "content": "ten major relationships — dialectics of construction",
+      "created_at": 0
+    },
+    {
+      "id": "heavy_light_industry",
+      "status": "active",
+      "content": "heavy vs light industry + agriculture balance",
+      "created_at": 0
+    },
+    {
+      "id": "coastal_inland",
+      "status": "active",
+      "content": "coastal vs inland development",
+      "created_at": 0
+    },
+    {
+      "id": "center_local",
+      "status": "active",
+      "content": "center vs local — give localities more power",
+      "created_at": 0
+    },
+    {
+      "id": "china_foreign",
+      "status": "active",
+      "content": "China and foreign countries — learn, don't copy",
+      "created_at": 0
+    },
+    {
+      "id": "learn_from_ussr_mistakes",
+      "status": "active",
+      "content": "learn from USSR mistakes — avoid their path",
+      "created_at": 0
+    },
+    {
+      "id": "contradictions_among_people",
+      "status": "active",
+      "content": "contradictions among the people — non-antagonistic, handled by discussion",
+      "created_at": 0
+    },
+    {
+      "id": "contradictions_with_enemy",
+      "status": "active",
+      "content": "contradictions between us and the enemy — antagonistic",
+      "created_at": 0
+    },
+    {
+      "id": "two_types_contradictions",
+      "status": "active",
+      "content": "two types of social contradictions",
+      "created_at": 0
+    },
+    {
+      "id": "six_criteria",
+      "status": "active",
+      "content": "six criteria for distinguishing fragrant flowers from poisonous weeds",
+      "created_at": 0
+    },
+    {
+      "id": "hundred_flowers",
+      "status": "active",
+      "content": "let a hundred flowers bloom, let a hundred schools contend",
+      "created_at": 0
+    },
+    {
+      "id": "ideological_remolding",
+      "status": "active",
+      "content": "ideological remolding of intellectuals",
+      "created_at": 0
+    },
+    {
+      "id": "propaganda_work",
+      "status": "active",
+      "content": "propaganda work — spread correct ideas",
+      "created_at": 0
+    },
+    {
+      "id": "red_and_expert",
+      "status": "active",
+      "content": "red and expert — politics and technique united",
+      "created_at": 0
+    },
+    {
+      "id": "politics_in_command",
+      "status": "active",
+      "content": "politics in command — political consciousness leads",
+      "created_at": 0
+    },
+    {
+      "id": "great_leap_ideology",
+      "status": "active",
+      "content": "Great Leap ideology — mass mobilization for rapid development",
+      "created_at": 0
+    },
+    {
+      "id": "critique_soviet_model",
+      "status": "active",
+      "content": "critique of Soviet economic model — mechanistic, divorced from masses",
+      "created_at": 0
+    },
+    {
+      "id": "commodity_under_socialism",
+      "status": "active",
+      "content": "commodity production under socialism — transitional",
+      "created_at": 0
+    },
+    {
+      "id": "socialist_transition",
+      "status": "active",
+      "content": "socialist transition — protracted, full of contradictions",
+      "created_at": 0
+    },
+    {
+      "id": "bourgeois_right",
+      "status": "active",
+      "content": "bourgeois right — remnant inequality under socialism",
+      "created_at": 0
+    },
+    {
+      "id": "correct_great_leap",
+      "status": "active",
+      "content": "correct Great Leap excesses — exaggeration, commandism",
+      "created_at": 0
+    },
+    {
+      "id": "commandism",
+      "status": "active",
+      "content": "commandism — coercing the masses instead of persuading",
+      "created_at": 0
+    },
+    {
+      "id": "correct_ideas_from_practice",
+      "status": "active",
+      "content": "correct ideas come from social practice — three sources",
+      "created_at": 0
+    },
+    {
+      "id": "three_practices",
+      "status": "active",
+      "content": "three forms of practice: production, class struggle, scientific experiment",
+      "created_at": 0
+    },
+    {
+      "id": "matter_to_consciousness",
+      "status": "active",
+      "content": "matter determines consciousness, consciousness reacts on matter",
+      "created_at": 0
+    },
+    {
+      "id": "learn_from_models",
+      "status": "active",
+      "content": "learn from Dazhai/PLA — model emulation campaigns",
+      "created_at": 0
+    },
+    {
+      "id": "socialist_education",
+      "status": "active",
+      "content": "socialist education movement — four cleanups",
+      "created_at": 0
+    },
+    {
+      "id": "anti_revisionism",
+      "status": "active",
+      "content": "anti-revisionism — Khrushchev betrays Marxism-Leninism",
+      "created_at": 0
+    },
+    {
+      "id": "capitalist_restoration",
+      "status": "active",
+      "content": "danger of capitalist restoration under socialism",
+      "created_at": 0
+    },
+    {
+      "id": "continuing_revolution",
+      "status": "active",
+      "content": "continuing the revolution under the dictatorship of the proletariat",
+      "created_at": 0
+    },
+    {
+      "id": "revisionism",
+      "status": "active",
+      "content": "revisionism — negation of class struggle under socialism",
+      "created_at": 0
+    },
+    {
+      "id": "capitalist_roaders",
+      "status": "active",
+      "content": "capitalist roaders — party members taking capitalist road",
+      "created_at": 0
+    },
+    {
+      "id": "target_in_party",
+      "status": "active",
+      "content": "target of movement = those in authority taking capitalist road",
+      "created_at": 0
+    },
+    {
+      "id": "cultural_revolution",
+      "status": "active",
+      "content": "Great Proletarian Cultural Revolution",
+      "created_at": 0
+    },
+    {
+      "id": "may_16_circular",
+      "status": "active",
+      "content": "May 16 circular — programmatic document of Cultural Revolution",
+      "created_at": 0
+    },
+    {
+      "id": "leader_movement_dialectic",
+      "status": "active",
+      "content": "dialectic of leader and mass movement — leader can be surpassed",
+      "created_at": 0
+    },
+    {
+      "id": "being_used_by_right",
+      "status": "active",
+      "content": "danger of being used by the right",
+      "created_at": 0
+    },
+    {
+      "id": "bombard_headquarters",
+      "status": "active",
+      "content": "bombard the headquarters — attack party bureaucracy",
+      "created_at": 0
+    },
+    {
+      "id": "mass_democracy_cr",
+      "status": "active",
+      "content": "mass democracy — big-character posters, great debates",
+      "created_at": 0
+    },
+    {
+      "id": "sixteen_points",
+      "status": "active",
+      "content": "sixteen points — guidelines for Cultural Revolution conduct",
+      "created_at": 0
+    },
+    {
+      "id": "trust_the_masses",
+      "status": "active",
+      "content": "trust the masses, rely on the masses — CR principle",
+      "created_at": 0
+    },
+    {
+      "id": "chaos_as_method",
+      "status": "active",
+      "content": "great disorder under heaven leads to great order",
+      "created_at": 0
+    },
+    {
+      "id": "revolutionary_committees",
+      "status": "active",
+      "content": "revolutionary committees — three-in-one combination",
+      "created_at": 0
+    },
+    {
+      "id": "personality_cult_dialectic",
+      "status": "active",
+      "content": "personality cult — needed to combat bureaucracy, but eventually must end",
+      "created_at": 0
+    },
+    {
+      "id": "worship_to_overcome",
+      "status": "active",
+      "content": "cult of personality as weapon against entrenched bureaucracy",
+      "created_at": 0
+    },
+    {
+      "id": "critique_lin_confucius",
+      "status": "active",
+      "content": "criticize Lin Biao and Confucius — anti-revisionism + anti-restorationism",
+      "created_at": 0
+    },
+    {
+      "id": "revolution_limits",
+      "status": "active",
+      "content": "revolution's limits — three great differences persist",
+      "created_at": 0
+    },
+    {
+      "id": "continuous_revolution",
+      "status": "active",
+      "content": "continuous revolution under proletarian dictatorship — final formulation",
+      "created_at": 0
+    },
+    {
+      "id": "three_worlds_theory",
+      "status": "active",
+      "content": "three worlds theory — first/second/third world geopolitics",
+      "created_at": 0
+    }
+  ],
+  "edges": [
+    {
+      "source": "mass_mobilization",
+      "target": "popular_masses",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "mass_mobilization",
+      "target": "resistance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "resistance",
+      "target": "imperialism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "popular_masses",
+      "target": "imperialism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "class_analysis",
+      "target": "enemy_friend",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "landlord_class",
+      "target": "imperialism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "comprador_bourgeoisie",
+      "target": "imperialism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "national_bourgeoisie",
+      "target": "proletariat",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "national_bourgeoisie",
+      "target": "imperialism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "proletariat",
+      "target": "landlord_class",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "proletariat",
+      "target": "comprador_bourgeoisie",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "semi_proletariat",
+      "target": "proletariat",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "revolution",
+      "target": "class_analysis",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "revolution",
+      "target": "proletariat",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "lumpenproletariat",
+      "target": "revolution",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "popular_masses",
+      "target": "proletariat",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "peasantry",
+      "target": "revolution",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "national_revolution",
+      "target": "imperialism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "national_revolution",
+      "target": "feudalism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "agrarian_revolution",
+      "target": "feudalism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "agrarian_revolution",
+      "target": "peasantry",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "peasantry",
+      "target": "proletariat",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "peasantry",
+      "target": "semi_proletariat",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "investigation_research",
+      "target": "class_analysis",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "mass_initiative",
+      "target": "peasantry",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "revolutionary_violence",
+      "target": "revolution",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "revolutionary_violence",
+      "target": "landlord_class",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "peasant_association",
+      "target": "peasantry",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "rural_revolution",
+      "target": "agrarian_revolution",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "rural_revolution",
+      "target": "feudalism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "mass_initiative",
+      "target": "revolution",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "base_areas",
+      "target": "peasantry",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "base_areas",
+      "target": "red_army",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "uneven_development",
+      "target": "base_areas",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "encircle_cities",
+      "target": "base_areas",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "encircle_cities",
+      "target": "rural_revolution",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "red_army",
+      "target": "revolution",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "white_regime",
+      "target": "base_areas",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "white_regime",
+      "target": "imperialism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "land_policy_jinggang",
+      "target": "agrarian_revolution",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "land_policy_jinggang",
+      "target": "peasantry",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "military_principles_early",
+      "target": "red_army",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "military_principles_early",
+      "target": "white_regime",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "base_building",
+      "target": "base_areas",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "rectification",
+      "target": "criticism_self_criticism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "rectification",
+      "target": "ultra_democracy",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "rectification",
+      "target": "absolute_equalitarianism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "rectification",
+      "target": "purely_military_viewpoint",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "party_discipline",
+      "target": "rectification",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "ultra_democracy",
+      "target": "party_discipline",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "criticism_self_criticism",
+      "target": "class_analysis",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "oppose_bookism",
+      "target": "dogmatism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "theory_practice_link",
+      "target": "dogmatism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "theory_practice_link",
+      "target": "investigation_research",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "social_investigation",
+      "target": "investigation_research",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "social_investigation",
+      "target": "class_analysis",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "oppose_bookism",
+      "target": "investigation_research",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "single_spark",
+      "target": "base_areas",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "single_spark",
+      "target": "revolutionary_optimism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "revolutionary_optimism",
+      "target": "revolution",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "subjective_forces",
+      "target": "revolution",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "single_spark",
+      "target": "uneven_development",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "xunwu_investigation",
+      "target": "social_investigation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "xunwu_investigation",
+      "target": "class_analysis",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "concrete_analysis",
+      "target": "investigation_research",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "concrete_analysis",
+      "target": "dogmatism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "rural_class_differentiation",
+      "target": "class_analysis",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "rural_class_differentiation",
+      "target": "peasantry",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "counter_encirclement",
+      "target": "red_army",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "counter_encirclement",
+      "target": "white_regime",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "active_defense",
+      "target": "counter_encirclement",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "active_defense",
+      "target": "military_principles_early",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "mass_line",
+      "target": "peasantry",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "mass_line",
+      "target": "proletariat",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "serve_the_people",
+      "target": "mass_line",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "connecting_to_masses",
+      "target": "mass_line",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "connecting_to_masses",
+      "target": "bureaucratism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "bureaucratism",
+      "target": "mass_line",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "mass_line",
+      "target": "investigation_research",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "united_front",
+      "target": "principal_contradiction",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "principal_contradiction",
+      "target": "national_contradiction",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "national_contradiction",
+      "target": "imperialism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "national_contradiction",
+      "target": "class_contradiction",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "class_contradiction",
+      "target": "class_analysis",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "united_front",
+      "target": "national_bourgeoisie",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "principal_contradiction",
+      "target": "class_analysis",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "protracted_war",
+      "target": "strategic_retreat",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "protracted_war",
+      "target": "uneven_development",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "strategic_retreat",
+      "target": "concentration_forces",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "annihilation_strategy",
+      "target": "attrition_strategy",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "annihilation_strategy",
+      "target": "concentration_forces",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "initiative_flexibility",
+      "target": "protracted_war",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "protracted_war",
+      "target": "red_army",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "practice",
+      "target": "criterion_of_truth",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "perceptual_knowledge",
+      "target": "practice",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "rational_knowledge",
+      "target": "perceptual_knowledge",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "leap_to_rational",
+      "target": "perceptual_knowledge",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "leap_to_rational",
+      "target": "rational_knowledge",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "leap_to_practice",
+      "target": "rational_knowledge",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "leap_to_practice",
+      "target": "practice",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "criterion_of_truth",
+      "target": "dogmatism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "dialectical_materialism",
+      "target": "practice",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "dialectical_materialism",
+      "target": "theory_practice_link",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "practice",
+      "target": "investigation_research",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "contradiction",
+      "target": "universality_of_contradiction",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "contradiction",
+      "target": "particularity_of_contradiction",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "universality_of_contradiction",
+      "target": "particularity_of_contradiction",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "principal_and_secondary",
+      "target": "contradiction",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "principal_and_secondary",
+      "target": "principal_contradiction",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "principal_aspect",
+      "target": "contradiction",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "identity_of_opposites",
+      "target": "struggle_of_opposites",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "identity_of_opposites",
+      "target": "transformation_of_opposites",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "struggle_of_opposites",
+      "target": "identity_of_opposites",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "antagonistic_contradiction",
+      "target": "non_antagonistic_contradiction",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "antagonistic_contradiction",
+      "target": "revolution",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "non_antagonistic_contradiction",
+      "target": "criticism_self_criticism",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "contradiction",
+      "target": "dialectical_materialism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "transformation_of_opposites",
+      "target": "practice",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "liberalism",
+      "target": "principled_struggle",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "principled_struggle",
+      "target": "criticism_self_criticism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "liberalism",
+      "target": "party_discipline",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "principled_struggle",
+      "target": "rectification",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "national_self_defense",
+      "target": "united_front",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "national_self_defense",
+      "target": "national_contradiction",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "independence_in_uf",
+      "target": "united_front",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "three_stages",
+      "target": "protracted_war",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "strategic_defensive",
+      "target": "strategic_stalemate",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "strategic_stalemate",
+      "target": "strategic_offensive",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "strategic_defensive",
+      "target": "strategic_offensive",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "peoples_war",
+      "target": "mass_line",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "peoples_war",
+      "target": "peasantry",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "man_over_weapons",
+      "target": "subjective_forces",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "guerrilla_war",
+      "target": "base_areas",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "guerrilla_war",
+      "target": "peoples_war",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "three_stages",
+      "target": "transformation_of_opposites",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "guerrilla_strategy",
+      "target": "guerrilla_war",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "guerrilla_strategy",
+      "target": "protracted_war",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "defense_within_offense",
+      "target": "strategic_defensive",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "defense_within_offense",
+      "target": "strategic_offensive",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "interior_exterior_lines",
+      "target": "concentration_forces",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "guerrilla_strategy",
+      "target": "initiative_flexibility",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "party_leadership",
+      "target": "united_front",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "three_styles_of_work",
+      "target": "theory_practice_link",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "three_styles_of_work",
+      "target": "mass_line",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "three_styles_of_work",
+      "target": "criticism_self_criticism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "cadre_policy",
+      "target": "party_leadership",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "self_reliance",
+      "target": "subjective_forces",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "party_leadership",
+      "target": "proletariat",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "power_from_gun",
+      "target": "revolution",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "power_from_gun",
+      "target": "red_army",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "party_commands_gun",
+      "target": "party_leadership",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "party_commands_gun",
+      "target": "purely_military_viewpoint",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "party_commands_gun",
+      "target": "power_from_gun",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "two_stage_revolution",
+      "target": "new_democratic_revolution",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "semi_colonial_semi_feudal",
+      "target": "imperialism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "semi_colonial_semi_feudal",
+      "target": "feudalism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "new_democratic_revolution",
+      "target": "semi_colonial_semi_feudal",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "new_democratic_revolution",
+      "target": "proletariat",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "new_democratic_revolution",
+      "target": "peasantry",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "two_stage_revolution",
+      "target": "revolution",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "three_magic_weapons",
+      "target": "united_front",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "three_magic_weapons",
+      "target": "armed_struggle",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "three_magic_weapons",
+      "target": "party_building",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "armed_struggle",
+      "target": "power_from_gun",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "party_building",
+      "target": "party_leadership",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "party_building",
+      "target": "rectification",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "new_democracy",
+      "target": "new_democratic_revolution",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "new_democracy",
+      "target": "old_democracy",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "new_democratic_politics",
+      "target": "new_democracy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "new_democratic_economy",
+      "target": "new_democracy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "new_democratic_culture",
+      "target": "new_democracy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "joint_dictatorship",
+      "target": "united_front",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "joint_dictatorship",
+      "target": "proletariat",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "joint_dictatorship",
+      "target": "peasantry",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "old_democracy",
+      "target": "new_democracy",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "new_democratic_culture",
+      "target": "mass_line",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "three_forces",
+      "target": "united_front",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "three_forces",
+      "target": "class_analysis",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "struggle_with_diehards",
+      "target": "three_forces",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "struggle_with_diehards",
+      "target": "principled_struggle",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "rural_surveys",
+      "target": "social_investigation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "rural_surveys",
+      "target": "xunwu_investigation",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "rural_surveys",
+      "target": "concrete_analysis",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "subjectivism",
+      "target": "dogmatism",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "subjectivism",
+      "target": "empiricism",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "seeking_truth_from_facts",
+      "target": "subjectivism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "seeking_truth_from_facts",
+      "target": "practice",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "seeking_truth_from_facts",
+      "target": "investigation_research",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sinification_of_marxism",
+      "target": "seeking_truth_from_facts",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sinification_of_marxism",
+      "target": "dogmatism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "empiricism",
+      "target": "dogmatism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "rectification_movement",
+      "target": "rectification",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "rectification_movement",
+      "target": "subjectivism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "rectification_movement",
+      "target": "sectarianism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "rectification_movement",
+      "target": "formalism_party_jargon",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "unity_through_struggle",
+      "target": "criticism_self_criticism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "unity_through_struggle",
+      "target": "non_antagonistic_contradiction",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "rectification_movement",
+      "target": "sinification_of_marxism",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "oppose_stereotypes",
+      "target": "formalism_party_jargon",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "oppose_stereotypes",
+      "target": "rectification_movement",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "lively_style",
+      "target": "mass_line",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "lively_style",
+      "target": "oppose_stereotypes",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "art_serves_politics",
+      "target": "revolution",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "art_serves_politics",
+      "target": "art_for_art",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "workers_peasants_soldiers",
+      "target": "mass_line",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "popularization_vs_raising",
+      "target": "workers_peasants_soldiers",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "popularization_vs_raising",
+      "target": "identity_of_opposites",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "art_serves_politics",
+      "target": "class_analysis",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "production_campaign",
+      "target": "self_reliance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "production_campaign",
+      "target": "base_areas",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "self_sufficiency_economy",
+      "target": "production_campaign",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "self_sufficiency_economy",
+      "target": "peoples_war",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "from_masses_to_masses",
+      "target": "mass_line",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "from_masses_to_masses",
+      "target": "investigation_research",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "general_particular_combine",
+      "target": "universality_of_contradiction",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "general_particular_combine",
+      "target": "particularity_of_contradiction",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "general_particular_combine",
+      "target": "mass_line",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "line_struggle",
+      "target": "principled_struggle",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "line_struggle",
+      "target": "rectification",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "resolution_history",
+      "target": "line_struggle",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "resolution_history",
+      "target": "sinification_of_marxism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "left_deviation",
+      "target": "right_deviation",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "resolution_history",
+      "target": "left_deviation",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "resolution_history",
+      "target": "right_deviation",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "resolution_history",
+      "target": "seeking_truth_from_facts",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "coalition_government",
+      "target": "new_democracy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "coalition_government",
+      "target": "united_front",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "two_destinies",
+      "target": "principal_contradiction",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "two_destinies",
+      "target": "coalition_government",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "peoples_army",
+      "target": "red_army",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "peoples_army",
+      "target": "peoples_war",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "peoples_army",
+      "target": "serve_the_people",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "foolish_old_man",
+      "target": "serve_the_people",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "two_mountains",
+      "target": "imperialism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "two_mountains",
+      "target": "feudalism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "perseverance",
+      "target": "subjective_forces",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "perseverance",
+      "target": "mass_line",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "foolish_old_man",
+      "target": "revolutionary_optimism",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "chiangs_two_faces",
+      "target": "united_front",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "prepare_civil_war",
+      "target": "self_reliance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "prepare_civil_war",
+      "target": "peoples_army",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "chiangs_two_faces",
+      "target": "class_analysis",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "tit_for_tat",
+      "target": "principled_struggle",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "fight_while_negotiate",
+      "target": "tit_for_tat",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "fight_while_negotiate",
+      "target": "peoples_army",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "tit_for_tat",
+      "target": "transformation_of_opposites",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "paper_tiger",
+      "target": "revolutionary_optimism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "paper_tiger",
+      "target": "imperialism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "strategic_despise",
+      "target": "paper_tiger",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "strategic_despise",
+      "target": "transformation_of_opposites",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "ten_military_principles",
+      "target": "concentration_forces",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "ten_military_principles",
+      "target": "annihilation_strategy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "confiscate_bureaucratic_capital",
+      "target": "new_democratic_economy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "confiscate_bureaucratic_capital",
+      "target": "comprador_bourgeoisie",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "pla_manifesto",
+      "target": "peoples_army",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "pla_manifesto",
+      "target": "agrarian_revolution",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "land_reform",
+      "target": "agrarian_revolution",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "land_reform",
+      "target": "landlord_class",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "land_reform",
+      "target": "peasantry",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "new_liberated_areas_policy",
+      "target": "land_reform",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "new_liberated_areas_policy",
+      "target": "concrete_analysis",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "winning_middle_peasant",
+      "target": "peasantry",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "winning_middle_peasant",
+      "target": "united_front",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "peoples_democratic_dictatorship",
+      "target": "joint_dictatorship",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "peoples_democratic_dictatorship",
+      "target": "new_democracy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "democracy_for_people",
+      "target": "peoples_democratic_dictatorship",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "dictatorship_over_reactionaries",
+      "target": "peoples_democratic_dictatorship",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "democracy_for_people",
+      "target": "dictatorship_over_reactionaries",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "lean_to_one_side",
+      "target": "imperialism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "peoples_democratic_dictatorship",
+      "target": "class_analysis",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "isolate_main_enemy",
+      "target": "principal_contradiction",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "isolate_main_enemy",
+      "target": "united_front",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "consolidate_majority",
+      "target": "mass_line",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "consolidate_majority",
+      "target": "national_bourgeoisie",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "isolate_main_enemy",
+      "target": "enemy_friend",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "resist_us_aid_korea",
+      "target": "imperialism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "resist_us_aid_korea",
+      "target": "peoples_war",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "proletarian_internationalism",
+      "target": "resist_us_aid_korea",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "proletarian_internationalism",
+      "target": "lean_to_one_side",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "contradictions_among_people_early",
+      "target": "non_antagonistic_contradiction",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "contradictions_among_people_early",
+      "target": "peoples_democratic_dictatorship",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "contradictions_among_people_early",
+      "target": "antagonistic_contradiction",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "cooperative_agriculture",
+      "target": "peasantry",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "cooperative_agriculture",
+      "target": "land_reform",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "socialist_transformation",
+      "target": "new_democratic_economy",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "socialist_transformation",
+      "target": "cooperative_agriculture",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "socialist_upsurge",
+      "target": "cooperative_agriculture",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "socialist_upsurge",
+      "target": "mass_initiative",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "right_conservatism",
+      "target": "socialist_upsurge",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "right_conservatism",
+      "target": "right_deviation",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "ten_major_relationships",
+      "target": "contradiction",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "ten_major_relationships",
+      "target": "seeking_truth_from_facts",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "heavy_light_industry",
+      "target": "ten_major_relationships",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "coastal_inland",
+      "target": "ten_major_relationships",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "center_local",
+      "target": "ten_major_relationships",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "china_foreign",
+      "target": "sinification_of_marxism",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "learn_from_ussr_mistakes",
+      "target": "dogmatism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "learn_from_ussr_mistakes",
+      "target": "china_foreign",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "two_types_contradictions",
+      "target": "antagonistic_contradiction",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "two_types_contradictions",
+      "target": "non_antagonistic_contradiction",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "contradictions_among_people",
+      "target": "non_antagonistic_contradiction",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "contradictions_among_people",
+      "target": "contradictions_among_people_early",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "contradictions_with_enemy",
+      "target": "antagonistic_contradiction",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "contradictions_among_people",
+      "target": "contradictions_with_enemy",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "six_criteria",
+      "target": "contradictions_among_people",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "hundred_flowers",
+      "target": "contradictions_among_people",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "hundred_flowers",
+      "target": "unity_through_struggle",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "contradictions_among_people",
+      "target": "peoples_democratic_dictatorship",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "ideological_remolding",
+      "target": "rectification",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "ideological_remolding",
+      "target": "contradictions_among_people",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "propaganda_work",
+      "target": "mass_line",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "propaganda_work",
+      "target": "art_serves_politics",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "ideological_remolding",
+      "target": "criticism_self_criticism",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "red_and_expert",
+      "target": "party_leadership",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "red_and_expert",
+      "target": "practice",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "politics_in_command",
+      "target": "party_commands_gun",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "politics_in_command",
+      "target": "red_and_expert",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "great_leap_ideology",
+      "target": "mass_mobilization",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "great_leap_ideology",
+      "target": "revolutionary_optimism",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "critique_soviet_model",
+      "target": "learn_from_ussr_mistakes",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "critique_soviet_model",
+      "target": "dogmatism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "commodity_under_socialism",
+      "target": "socialist_transition",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "socialist_transition",
+      "target": "contradiction",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "bourgeois_right",
+      "target": "socialist_transition",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "bourgeois_right",
+      "target": "class_analysis",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "critique_soviet_model",
+      "target": "sinification_of_marxism",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "correct_great_leap",
+      "target": "seeking_truth_from_facts",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "correct_great_leap",
+      "target": "great_leap_ideology",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "commandism",
+      "target": "mass_line",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "correct_great_leap",
+      "target": "commandism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "correct_ideas_from_practice",
+      "target": "practice",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "correct_ideas_from_practice",
+      "target": "criterion_of_truth",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "three_practices",
+      "target": "correct_ideas_from_practice",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "matter_to_consciousness",
+      "target": "dialectical_materialism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "matter_to_consciousness",
+      "target": "leap_to_rational",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "matter_to_consciousness",
+      "target": "leap_to_practice",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "learn_from_models",
+      "target": "self_reliance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "learn_from_models",
+      "target": "mass_line",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "socialist_education",
+      "target": "class_analysis",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "socialist_education",
+      "target": "rectification",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "anti_revisionism",
+      "target": "revisionism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "capitalist_restoration",
+      "target": "bourgeois_right",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "capitalist_restoration",
+      "target": "socialist_transition",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "continuing_revolution",
+      "target": "capitalist_restoration",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "continuing_revolution",
+      "target": "class_analysis",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "revisionism",
+      "target": "critique_soviet_model",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "anti_revisionism",
+      "target": "line_struggle",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "continuing_revolution",
+      "target": "peoples_democratic_dictatorship",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "capitalist_roaders",
+      "target": "revisionism",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "capitalist_roaders",
+      "target": "class_analysis",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "target_in_party",
+      "target": "capitalist_roaders",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "target_in_party",
+      "target": "socialist_education",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "target_in_party",
+      "target": "continuing_revolution",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "cultural_revolution",
+      "target": "continuing_revolution",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "cultural_revolution",
+      "target": "capitalist_restoration",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "may_16_circular",
+      "target": "cultural_revolution",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "may_16_circular",
+      "target": "target_in_party",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "leader_movement_dialectic",
+      "target": "mass_line",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "leader_movement_dialectic",
+      "target": "transformation_of_opposites",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "being_used_by_right",
+      "target": "line_struggle",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "being_used_by_right",
+      "target": "continuing_revolution",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "bombard_headquarters",
+      "target": "bureaucratism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "bombard_headquarters",
+      "target": "cultural_revolution",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "mass_democracy_cr",
+      "target": "mass_line",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "mass_democracy_cr",
+      "target": "cultural_revolution",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "bombard_headquarters",
+      "target": "capitalist_roaders",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "sixteen_points",
+      "target": "cultural_revolution",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sixteen_points",
+      "target": "mass_democracy_cr",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "trust_the_masses",
+      "target": "mass_line",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "trust_the_masses",
+      "target": "mass_initiative",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "chaos_as_method",
+      "target": "transformation_of_opposites",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "chaos_as_method",
+      "target": "contradiction",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "chaos_as_method",
+      "target": "cultural_revolution",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "revolutionary_committees",
+      "target": "cultural_revolution",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "revolutionary_committees",
+      "target": "mass_democracy_cr",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "personality_cult_dialectic",
+      "target": "leader_movement_dialectic",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "personality_cult_dialectic",
+      "target": "transformation_of_opposites",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "worship_to_overcome",
+      "target": "bureaucratism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "worship_to_overcome",
+      "target": "cultural_revolution",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "critique_lin_confucius",
+      "target": "line_struggle",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "critique_lin_confucius",
+      "target": "cultural_revolution",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "revolution_limits",
+      "target": "bourgeois_right",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "revolution_limits",
+      "target": "socialist_transition",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "continuous_revolution",
+      "target": "continuing_revolution",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "continuous_revolution",
+      "target": "contradiction",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "three_worlds_theory",
+      "target": "imperialism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "three_worlds_theory",
+      "target": "proletarian_internationalism",
+      "edge_type": "reference",
+      "created_at": 0
+    }
+  ]
+}

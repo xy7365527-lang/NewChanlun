@@ -1,0 +1,1044 @@
+{
+  "vertices": [
+    {
+      "id": "foucault_reason_unreason",
+      "status": "active",
+      "content": "reason/unreason — the great division, reason constitutes itself by excluding unreason",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_madness",
+      "status": "active",
+      "content": "madness — not a natural fact but a cultural construct, silenced experience",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_great_confinement",
+      "status": "active",
+      "content": "great confinement — classical age locks up the mad, poor, deviant together",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_ship_of_fools",
+      "status": "active",
+      "content": "ship of fools (Narrenschiff) — Renaissance, madness circulates freely",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_asylum",
+      "status": "active",
+      "content": "asylum — moral treatment replaces chains with guilt and observation",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_mental_illness",
+      "status": "active",
+      "content": "mental illness — modern medical category, madness captured by psychiatry",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_classical_age",
+      "status": "active",
+      "content": "classical age — age of representation, confinement as social control",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_moral_treatment",
+      "status": "active",
+      "content": "moral treatment — Tuke and Pinel, liberation that is new subjection",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_experience_limit",
+      "status": "active",
+      "content": "limit-experience — madness as experience at the edge of reason",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_silence_madness",
+      "status": "active",
+      "content": "silence of madness — reason speaks about madness, madness cannot speak",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_episteme",
+      "status": "active",
+      "content": "episteme — historical a priori, conditions of possibility for knowledge",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_archaeology",
+      "status": "active",
+      "content": "archaeology — method: uncover deep structures of discourse",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_man_invention",
+      "status": "active",
+      "content": "man as recent invention — the figure of 'man' emerged around 1800",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_death_of_man",
+      "status": "active",
+      "content": "death of man — man will be erased, like a face drawn in sand",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_classical_episteme",
+      "status": "active",
+      "content": "classical episteme — representation, taxonomy, mathesis",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_modern_episteme",
+      "status": "active",
+      "content": "modern episteme — man as both subject and object of knowledge",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_renaissance_episteme",
+      "status": "active",
+      "content": "Renaissance episteme — resemblance, similitude, signatures",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_representation",
+      "status": "active",
+      "content": "representation — classical age organizes knowledge through representation",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_language_being",
+      "status": "active",
+      "content": "language returns to being — literature, linguistics, formalization",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_human_sciences",
+      "status": "active",
+      "content": "human sciences — psychology, sociology, literary studies: secondary formation",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_empirico_transcendental",
+      "status": "active",
+      "content": "empirico-transcendental doublet — man as both knowing subject and known object",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_finitude",
+      "status": "active",
+      "content": "finitude — modern man defined by labor, life, language as finite",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_analytic_finitude",
+      "status": "active",
+      "content": "analytic of finitude — Kant's question: conditions of knowledge = conditions of experience",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_discourse",
+      "status": "active",
+      "content": "discourse — regulated system of statements, not just speech",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_statement",
+      "status": "active",
+      "content": "statement (enonce) — atomic function of discourse, not sentence",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_archive",
+      "status": "active",
+      "content": "archive — the law of what can be said, system of discursive functioning",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_discursive_formation",
+      "status": "active",
+      "content": "discursive formation — system of regularity among statements",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_discursive_practice",
+      "status": "active",
+      "content": "discursive practice — rules that produce statements",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_positivity",
+      "status": "active",
+      "content": "positivity — conditions of existence of discourse",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_historical_a_priori",
+      "status": "active",
+      "content": "historical a priori — conditions of discourse, historically variable",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_enunciative_function",
+      "status": "active",
+      "content": "enunciative function — what makes a statement a statement",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_regularity",
+      "status": "active",
+      "content": "regularity — patterns in discursive formation, not hidden meaning",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_discontinuity",
+      "status": "active",
+      "content": "discontinuity — ruptures between discursive formations, not smooth progress",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_discipline",
+      "status": "active",
+      "content": "discipline — microphysics of power, techniques for training bodies",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_panopticon",
+      "status": "active",
+      "content": "Panopticon — Bentham's design, perfect surveillance, internalized gaze",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_power_knowledge",
+      "status": "active",
+      "content": "power/knowledge — power produces knowledge, knowledge enables power",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_surveillance",
+      "status": "active",
+      "content": "surveillance — hierarchical observation, normalizing judgment",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_docile_body",
+      "status": "active",
+      "content": "docile body — body subjected to discipline, made useful and obedient",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_sovereign_power",
+      "status": "active",
+      "content": "sovereign power — spectacle of punishment, the scaffold",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_prison",
+      "status": "active",
+      "content": "prison — the carceral archipelago, discipline as norm",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_norm",
+      "status": "active",
+      "content": "norm — normalizing judgment, the examination",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_examination",
+      "status": "active",
+      "content": "examination — combines hierarchical observation + normalizing judgment",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_soul",
+      "status": "active",
+      "content": "soul — the prison of the body, produced by disciplinary power",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_genealogy",
+      "status": "active",
+      "content": "genealogy — method: power relations, not hidden truth, Nietzschean",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_carceral",
+      "status": "active",
+      "content": "carceral continuum — discipline extends from prison to school to hospital",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_delinquent",
+      "status": "active",
+      "content": "delinquent — category produced by prison system, not pre-existing",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_power",
+      "status": "active",
+      "content": "power — relational, productive, not possessed, not purely repressive",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_subject",
+      "status": "active",
+      "content": "subject — produced by power relations, subjection and subjectivation",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_biopower",
+      "status": "active",
+      "content": "biopower — power over life, regulation of populations",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_sexuality_discourse",
+      "status": "active",
+      "content": "sexuality as discourse — not repressed nature but produced object",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_repressive_hypothesis",
+      "status": "active",
+      "content": "repressive hypothesis — the idea that sex has been silenced (Foucault refutes this)",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_confession",
+      "status": "active",
+      "content": "confession — technique for extracting truth about the self, sexuality",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_scientia_sexualis",
+      "status": "active",
+      "content": "scientia sexualis — Western science of sexuality, tied to confession",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_ars_erotica",
+      "status": "active",
+      "content": "ars erotica — Eastern tradition, truth from pleasure itself",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_biopolitics",
+      "status": "active",
+      "content": "biopolitics — politics of life: birth rate, health, hygiene, population",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_anatomopolitics",
+      "status": "active",
+      "content": "anatomo-politics — discipline of individual body (connects to D&P)",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_deployment_sexuality",
+      "status": "active",
+      "content": "deployment of sexuality — network of power/knowledge about sex",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_deployment_alliance",
+      "status": "active",
+      "content": "deployment of alliance — family, kinship, inheritance (prior system)",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_right_of_death",
+      "status": "active",
+      "content": "sovereign right of death — 'let live or make die'",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_power_over_life",
+      "status": "active",
+      "content": "power over life — 'make live or let die', biopolitical inversion",
+      "created_at": 0
+    },
+    {
+      "id": "foucault_resistance",
+      "status": "active",
+      "content": "resistance — where there is power, there is resistance",
+      "created_at": 0
+    }
+  ],
+  "edges": [
+    {
+      "source": "foucault_reason_unreason",
+      "target": "foucault_madness",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_madness",
+      "target": "foucault_reason_unreason",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_great_confinement",
+      "target": "foucault_classical_age",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_great_confinement",
+      "target": "foucault_madness",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_ship_of_fools",
+      "target": "foucault_great_confinement",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_asylum",
+      "target": "foucault_great_confinement",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_asylum",
+      "target": "foucault_moral_treatment",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_mental_illness",
+      "target": "foucault_madness",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_mental_illness",
+      "target": "foucault_asylum",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_moral_treatment",
+      "target": "foucault_asylum",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_moral_treatment",
+      "target": "foucault_reason_unreason",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_experience_limit",
+      "target": "foucault_madness",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_experience_limit",
+      "target": "foucault_reason_unreason",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_silence_madness",
+      "target": "foucault_madness",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_silence_madness",
+      "target": "foucault_reason_unreason",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_classical_age",
+      "target": "foucault_ship_of_fools",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_episteme",
+      "target": "foucault_archaeology",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_man_invention",
+      "target": "foucault_modern_episteme",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_death_of_man",
+      "target": "foucault_man_invention",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_death_of_man",
+      "target": "foucault_language_being",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_classical_episteme",
+      "target": "foucault_renaissance_episteme",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_classical_episteme",
+      "target": "foucault_representation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_modern_episteme",
+      "target": "foucault_classical_episteme",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_modern_episteme",
+      "target": "foucault_man_invention",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_modern_episteme",
+      "target": "foucault_finitude",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_renaissance_episteme",
+      "target": "foucault_classical_episteme",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_representation",
+      "target": "foucault_classical_episteme",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_language_being",
+      "target": "foucault_modern_episteme",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_language_being",
+      "target": "foucault_representation",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_human_sciences",
+      "target": "foucault_modern_episteme",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_human_sciences",
+      "target": "foucault_empirico_transcendental",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_empirico_transcendental",
+      "target": "foucault_man_invention",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_finitude",
+      "target": "foucault_analytic_finitude",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_analytic_finitude",
+      "target": "foucault_empirico_transcendental",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_archaeology",
+      "target": "foucault_reason_unreason",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_episteme",
+      "target": "foucault_classical_age",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_discourse",
+      "target": "foucault_statement",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_discourse",
+      "target": "foucault_discursive_formation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_statement",
+      "target": "foucault_enunciative_function",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_archive",
+      "target": "foucault_discourse",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_archive",
+      "target": "foucault_historical_a_priori",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_discursive_formation",
+      "target": "foucault_regularity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_discursive_formation",
+      "target": "foucault_discursive_practice",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_discursive_practice",
+      "target": "foucault_statement",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_positivity",
+      "target": "foucault_discourse",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_positivity",
+      "target": "foucault_archive",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_historical_a_priori",
+      "target": "foucault_episteme",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_historical_a_priori",
+      "target": "foucault_archive",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_regularity",
+      "target": "foucault_discursive_practice",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_discontinuity",
+      "target": "foucault_regularity",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_discontinuity",
+      "target": "foucault_discursive_formation",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_discourse",
+      "target": "foucault_episteme",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_discontinuity",
+      "target": "foucault_classical_episteme",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_archive",
+      "target": "foucault_silence_madness",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_discipline",
+      "target": "foucault_sovereign_power",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_discipline",
+      "target": "foucault_docile_body",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_discipline",
+      "target": "foucault_norm",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_panopticon",
+      "target": "foucault_surveillance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_panopticon",
+      "target": "foucault_discipline",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_power_knowledge",
+      "target": "foucault_power",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_power_knowledge",
+      "target": "foucault_discourse",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_surveillance",
+      "target": "foucault_discipline",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_surveillance",
+      "target": "foucault_norm",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_docile_body",
+      "target": "foucault_discipline",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_docile_body",
+      "target": "foucault_subject",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_sovereign_power",
+      "target": "foucault_discipline",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_prison",
+      "target": "foucault_panopticon",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_prison",
+      "target": "foucault_discipline",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_prison",
+      "target": "foucault_delinquent",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_norm",
+      "target": "foucault_examination",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_examination",
+      "target": "foucault_surveillance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_examination",
+      "target": "foucault_norm",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_soul",
+      "target": "foucault_discipline",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_soul",
+      "target": "foucault_docile_body",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_genealogy",
+      "target": "foucault_archaeology",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_genealogy",
+      "target": "foucault_power",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_carceral",
+      "target": "foucault_prison",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_carceral",
+      "target": "foucault_discipline",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_delinquent",
+      "target": "foucault_prison",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_delinquent",
+      "target": "foucault_norm",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_power",
+      "target": "foucault_subject",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_power",
+      "target": "foucault_power_knowledge",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_subject",
+      "target": "foucault_power",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_discipline",
+      "target": "foucault_great_confinement",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_genealogy",
+      "target": "foucault_episteme",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_panopticon",
+      "target": "foucault_asylum",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_biopower",
+      "target": "foucault_power",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_biopower",
+      "target": "foucault_sovereign_power",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_biopower",
+      "target": "foucault_biopolitics",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_biopower",
+      "target": "foucault_anatomopolitics",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_sexuality_discourse",
+      "target": "foucault_discourse",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_sexuality_discourse",
+      "target": "foucault_repressive_hypothesis",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_repressive_hypothesis",
+      "target": "foucault_sexuality_discourse",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_confession",
+      "target": "foucault_sexuality_discourse",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_confession",
+      "target": "foucault_power_knowledge",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_scientia_sexualis",
+      "target": "foucault_confession",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_scientia_sexualis",
+      "target": "foucault_ars_erotica",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_ars_erotica",
+      "target": "foucault_scientia_sexualis",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_biopolitics",
+      "target": "foucault_biopower",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_biopolitics",
+      "target": "foucault_discipline",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_anatomopolitics",
+      "target": "foucault_discipline",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_anatomopolitics",
+      "target": "foucault_docile_body",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_deployment_sexuality",
+      "target": "foucault_deployment_alliance",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_deployment_sexuality",
+      "target": "foucault_power_knowledge",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_right_of_death",
+      "target": "foucault_power_over_life",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_power_over_life",
+      "target": "foucault_biopower",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_power_over_life",
+      "target": "foucault_right_of_death",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_resistance",
+      "target": "foucault_power",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_resistance",
+      "target": "foucault_power",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_biopower",
+      "target": "foucault_panopticon",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_confession",
+      "target": "foucault_examination",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "foucault_biopolitics",
+      "target": "foucault_norm",
+      "edge_type": "reference",
+      "created_at": 0
+    }
+  ]
+}

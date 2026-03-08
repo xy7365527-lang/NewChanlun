@@ -1,0 +1,5094 @@
+{
+  "vertices": [
+    {
+      "id": "reality_principle",
+      "status": "active",
+      "content": "Freudian reality principle",
+      "created_at": 0
+    },
+    {
+      "id": "pleasure_principle",
+      "status": "active",
+      "content": "pleasure principle",
+      "created_at": 0
+    },
+    {
+      "id": "imago",
+      "status": "active",
+      "content": "imago — precipitate of imaginary relation",
+      "created_at": 0
+    },
+    {
+      "id": "identification",
+      "status": "active",
+      "content": "identification with the image",
+      "created_at": 0
+    },
+    {
+      "id": "psychic_reality",
+      "status": "active",
+      "content": "psychic reality vs external reality",
+      "created_at": 0
+    },
+    {
+      "id": "associationism",
+      "status": "active",
+      "content": "associationist psychology",
+      "created_at": 0
+    },
+    {
+      "id": "imaginary",
+      "status": "active",
+      "content": "the imaginary register",
+      "created_at": 0
+    },
+    {
+      "id": "desire",
+      "status": "active",
+      "content": "desire",
+      "created_at": 0
+    },
+    {
+      "id": "ego",
+      "status": "active",
+      "content": "ego — moi",
+      "created_at": 0
+    },
+    {
+      "id": "narcissism",
+      "status": "active",
+      "content": "narcissism — libidinal investment of ego",
+      "created_at": 0
+    },
+    {
+      "id": "logical_time",
+      "status": "active",
+      "content": "logical time — not chronological",
+      "created_at": 0
+    },
+    {
+      "id": "instant_of_glance",
+      "status": "active",
+      "content": "instant of the glance",
+      "created_at": 0
+    },
+    {
+      "id": "time_for_comprehending",
+      "status": "active",
+      "content": "time for comprehending",
+      "created_at": 0
+    },
+    {
+      "id": "moment_of_concluding",
+      "status": "active",
+      "content": "moment of concluding",
+      "created_at": 0
+    },
+    {
+      "id": "anticipated_certainty",
+      "status": "active",
+      "content": "anticipated certainty",
+      "created_at": 0
+    },
+    {
+      "id": "intersubjectivity",
+      "status": "active",
+      "content": "intersubjective logic",
+      "created_at": 0
+    },
+    {
+      "id": "subject",
+      "status": "active",
+      "content": "subject — sujet",
+      "created_at": 0
+    },
+    {
+      "id": "other",
+      "status": "active",
+      "content": "other — autre (lowercase)",
+      "created_at": 0
+    },
+    {
+      "id": "haste",
+      "status": "active",
+      "content": "haste — precipitation in concluding",
+      "created_at": 0
+    },
+    {
+      "id": "aggressivity",
+      "status": "active",
+      "content": "aggressivity — structural, not instinctual",
+      "created_at": 0
+    },
+    {
+      "id": "mirror_identification",
+      "status": "active",
+      "content": "identification with specular image",
+      "created_at": 0
+    },
+    {
+      "id": "fragmented_body",
+      "status": "active",
+      "content": "corps morcelé — fragmented body image",
+      "created_at": 0
+    },
+    {
+      "id": "jealousy",
+      "status": "active",
+      "content": "jealousy — transitivism",
+      "created_at": 0
+    },
+    {
+      "id": "transitivism",
+      "status": "active",
+      "content": "transitivism — child attributes own acts to other",
+      "created_at": 0
+    },
+    {
+      "id": "imago_body",
+      "status": "active",
+      "content": "imago of the body in pieces",
+      "created_at": 0
+    },
+    {
+      "id": "tension",
+      "status": "active",
+      "content": "aggressive tension of ego-other pair",
+      "created_at": 0
+    },
+    {
+      "id": "mirror_stage",
+      "status": "active",
+      "content": "mirror stage — stade du miroir",
+      "created_at": 0
+    },
+    {
+      "id": "specular_image",
+      "status": "active",
+      "content": "specular image — i(a)",
+      "created_at": 0
+    },
+    {
+      "id": "jubilation",
+      "status": "active",
+      "content": "jubilant assumption of image",
+      "created_at": 0
+    },
+    {
+      "id": "gestalt",
+      "status": "active",
+      "content": "gestalt — total form of the body",
+      "created_at": 0
+    },
+    {
+      "id": "meconnaissance",
+      "status": "active",
+      "content": "méconnaissance — structural misrecognition",
+      "created_at": 0
+    },
+    {
+      "id": "ideal_ego",
+      "status": "active",
+      "content": "ideal ego — Idealich — moi-idéal",
+      "created_at": 0
+    },
+    {
+      "id": "alienation",
+      "status": "active",
+      "content": "alienation in the image",
+      "created_at": 0
+    },
+    {
+      "id": "orthopaedic_totality",
+      "status": "active",
+      "content": "orthopaedic totality — armour",
+      "created_at": 0
+    },
+    {
+      "id": "motor_prematurity",
+      "status": "active",
+      "content": "specific prematurity of birth",
+      "created_at": 0
+    },
+    {
+      "id": "symbolic",
+      "status": "active",
+      "content": "the symbolic register — order of the signifier",
+      "created_at": 0
+    },
+    {
+      "id": "real",
+      "status": "active",
+      "content": "the real — what resists symbolization",
+      "created_at": 0
+    },
+    {
+      "id": "signifier",
+      "status": "active",
+      "content": "signifier — signifiant",
+      "created_at": 0
+    },
+    {
+      "id": "signified",
+      "status": "active",
+      "content": "signified — signifié",
+      "created_at": 0
+    },
+    {
+      "id": "full_speech",
+      "status": "active",
+      "content": "full speech — parole pleine",
+      "created_at": 0
+    },
+    {
+      "id": "empty_speech",
+      "status": "active",
+      "content": "empty speech — parole vide",
+      "created_at": 0
+    },
+    {
+      "id": "Other",
+      "status": "active",
+      "content": "big Other — Autre — locus of the signifier",
+      "created_at": 0
+    },
+    {
+      "id": "law",
+      "status": "active",
+      "content": "the law — symbolic prohibition",
+      "created_at": 0
+    },
+    {
+      "id": "Name_of_Father",
+      "status": "active",
+      "content": "Name-of-the-Father — Nom-du-Père",
+      "created_at": 0
+    },
+    {
+      "id": "unconscious_structured",
+      "status": "active",
+      "content": "the unconscious is structured like a language",
+      "created_at": 0
+    },
+    {
+      "id": "truth",
+      "status": "active",
+      "content": "truth — emerges in speech",
+      "created_at": 0
+    },
+    {
+      "id": "history",
+      "status": "active",
+      "content": "history — realization of subject in speech",
+      "created_at": 0
+    },
+    {
+      "id": "freudian_thing",
+      "status": "active",
+      "content": "the Freudian thing — Freud's discovery",
+      "created_at": 0
+    },
+    {
+      "id": "symptom",
+      "status": "active",
+      "content": "symptom — truth of the subject",
+      "created_at": 0
+    },
+    {
+      "id": "ego_psychology",
+      "status": "active",
+      "content": "ego psychology — American deviation",
+      "created_at": 0
+    },
+    {
+      "id": "resistance",
+      "status": "active",
+      "content": "resistance — of the ego",
+      "created_at": 0
+    },
+    {
+      "id": "return_to_freud",
+      "status": "active",
+      "content": "return to Freud",
+      "created_at": 0
+    },
+    {
+      "id": "transference",
+      "status": "active",
+      "content": "transference",
+      "created_at": 0
+    },
+    {
+      "id": "ego_ideal",
+      "status": "active",
+      "content": "ego-ideal (ideal du moi)",
+      "created_at": 0
+    },
+    {
+      "id": "symbolic_exchange",
+      "status": "active",
+      "content": "symbolic exchange",
+      "created_at": 0
+    },
+    {
+      "id": "word",
+      "status": "active",
+      "content": "word (parole)",
+      "created_at": 0
+    },
+    {
+      "id": "ego_as_function",
+      "status": "active",
+      "content": "ego as imaginary function",
+      "created_at": 0
+    },
+    {
+      "id": "imaginary_captation",
+      "status": "active",
+      "content": "imaginary captation",
+      "created_at": 0
+    },
+    {
+      "id": "symbolic_determination",
+      "status": "active",
+      "content": "symbolic determination",
+      "created_at": 0
+    },
+    {
+      "id": "cybernetics",
+      "status": "active",
+      "content": "cybernetics",
+      "created_at": 0
+    },
+    {
+      "id": "repetition_automatism",
+      "status": "active",
+      "content": "repetition automatism",
+      "created_at": 0
+    },
+    {
+      "id": "machine",
+      "status": "active",
+      "content": "machine (symbolic chain)",
+      "created_at": 0
+    },
+    {
+      "id": "subject_decentered",
+      "status": "active",
+      "content": "decentered subject",
+      "created_at": 0
+    },
+    {
+      "id": "other_scene",
+      "status": "active",
+      "content": "the other scene (ein anderer Schauplatz)",
+      "created_at": 0
+    },
+    {
+      "id": "beyond_pleasure",
+      "status": "active",
+      "content": "beyond the pleasure principle",
+      "created_at": 0
+    },
+    {
+      "id": "death_drive_sem2",
+      "status": "active",
+      "content": "death drive (Sem II)",
+      "created_at": 0
+    },
+    {
+      "id": "letter",
+      "status": "active",
+      "content": "the letter — purloined letter as signifier",
+      "created_at": 0
+    },
+    {
+      "id": "letter_always_arrives",
+      "status": "active",
+      "content": "a letter always arrives at its destination",
+      "created_at": 0
+    },
+    {
+      "id": "intersubjective_position",
+      "status": "active",
+      "content": "intersubjective position determined by signifier",
+      "created_at": 0
+    },
+    {
+      "id": "signifying_chain",
+      "status": "active",
+      "content": "signifying chain — autonomy of signifier",
+      "created_at": 0
+    },
+    {
+      "id": "minister",
+      "status": "active",
+      "content": "the Minister — holds the letter",
+      "created_at": 0
+    },
+    {
+      "id": "queen",
+      "status": "active",
+      "content": "the Queen — letter stolen from her",
+      "created_at": 0
+    },
+    {
+      "id": "police",
+      "status": "active",
+      "content": "the Police — cannot find the letter",
+      "created_at": 0
+    },
+    {
+      "id": "foreclosure",
+      "status": "active",
+      "content": "foreclosure (Verwerfung)",
+      "created_at": 0
+    },
+    {
+      "id": "psychosis",
+      "status": "active",
+      "content": "psychosis",
+      "created_at": 0
+    },
+    {
+      "id": "metaphor_failure",
+      "status": "active",
+      "content": "metaphoric failure",
+      "created_at": 0
+    },
+    {
+      "id": "delusional_metaphor",
+      "status": "active",
+      "content": "delusional metaphor",
+      "created_at": 0
+    },
+    {
+      "id": "neurosis",
+      "status": "active",
+      "content": "neurosis",
+      "created_at": 0
+    },
+    {
+      "id": "repression",
+      "status": "active",
+      "content": "repression (Verdrangung)",
+      "created_at": 0
+    },
+    {
+      "id": "point_de_capiton",
+      "status": "active",
+      "content": "quilting point (point de capiton)",
+      "created_at": 0
+    },
+    {
+      "id": "Schreber",
+      "status": "active",
+      "content": "Schreber case",
+      "created_at": 0
+    },
+    {
+      "id": "lack_of_object",
+      "status": "active",
+      "content": "lack of object",
+      "created_at": 0
+    },
+    {
+      "id": "frustration",
+      "status": "active",
+      "content": "frustration (Versagung)",
+      "created_at": 0
+    },
+    {
+      "id": "privation",
+      "status": "active",
+      "content": "privation",
+      "created_at": 0
+    },
+    {
+      "id": "castration",
+      "status": "active",
+      "content": "castration",
+      "created_at": 0
+    },
+    {
+      "id": "phobic_object",
+      "status": "active",
+      "content": "phobic object",
+      "created_at": 0
+    },
+    {
+      "id": "imaginary_phallus",
+      "status": "active",
+      "content": "imaginary phallus (-phi)",
+      "created_at": 0
+    },
+    {
+      "id": "mother_desire",
+      "status": "active",
+      "content": "desire of the mother",
+      "created_at": 0
+    },
+    {
+      "id": "little_Hans",
+      "status": "active",
+      "content": "Little Hans case",
+      "created_at": 0
+    },
+    {
+      "id": "fetish",
+      "status": "active",
+      "content": "fetish",
+      "created_at": 0
+    },
+    {
+      "id": "algorithm_S_over_s",
+      "status": "active",
+      "content": "algorithm S/s — signifier over signified",
+      "created_at": 0
+    },
+    {
+      "id": "bar",
+      "status": "active",
+      "content": "the bar — resistance of signification",
+      "created_at": 0
+    },
+    {
+      "id": "metaphor",
+      "status": "active",
+      "content": "metaphor — one signifier substitutes for another",
+      "created_at": 0
+    },
+    {
+      "id": "metonymy",
+      "status": "active",
+      "content": "metonymy — word-to-word connection",
+      "created_at": 0
+    },
+    {
+      "id": "condensation",
+      "status": "active",
+      "content": "condensation — Verdichtung",
+      "created_at": 0
+    },
+    {
+      "id": "displacement",
+      "status": "active",
+      "content": "displacement — Verschiebung",
+      "created_at": 0
+    },
+    {
+      "id": "formations_unconscious",
+      "status": "active",
+      "content": "formations of the unconscious",
+      "created_at": 0
+    },
+    {
+      "id": "joke",
+      "status": "active",
+      "content": "joke (Witz)",
+      "created_at": 0
+    },
+    {
+      "id": "graph_of_desire",
+      "status": "active",
+      "content": "graph of desire",
+      "created_at": 0
+    },
+    {
+      "id": "paternal_metaphor",
+      "status": "active",
+      "content": "paternal metaphor",
+      "created_at": 0
+    },
+    {
+      "id": "demand",
+      "status": "active",
+      "content": "demand",
+      "created_at": 0
+    },
+    {
+      "id": "need",
+      "status": "active",
+      "content": "need (besoin)",
+      "created_at": 0
+    },
+    {
+      "id": "symbolic_phallus",
+      "status": "active",
+      "content": "symbolic phallus (Phi)",
+      "created_at": 0
+    },
+    {
+      "id": "Other_A",
+      "status": "active",
+      "content": "the big Other (A)",
+      "created_at": 0
+    },
+    {
+      "id": "message",
+      "status": "active",
+      "content": "message",
+      "created_at": 0
+    },
+    {
+      "id": "code",
+      "status": "active",
+      "content": "code",
+      "created_at": 0
+    },
+    {
+      "id": "desire_of_analyst",
+      "status": "active",
+      "content": "desire of the analyst",
+      "created_at": 0
+    },
+    {
+      "id": "phallus",
+      "status": "active",
+      "content": "phallus — signifier of desire",
+      "created_at": 0
+    },
+    {
+      "id": "being_phallus",
+      "status": "active",
+      "content": "being the phallus — feminine position",
+      "created_at": 0
+    },
+    {
+      "id": "having_phallus",
+      "status": "active",
+      "content": "having the phallus — masculine position",
+      "created_at": 0
+    },
+    {
+      "id": "Bedeutung",
+      "status": "active",
+      "content": "Bedeutung — signification as such",
+      "created_at": 0
+    },
+    {
+      "id": "lack",
+      "status": "active",
+      "content": "lack — manque — constitutive",
+      "created_at": 0
+    },
+    {
+      "id": "hallucination",
+      "status": "active",
+      "content": "hallucination — return in the real",
+      "created_at": 0
+    },
+    {
+      "id": "delusion",
+      "status": "active",
+      "content": "delusion — attempted restitution",
+      "created_at": 0
+    },
+    {
+      "id": "schema_L",
+      "status": "active",
+      "content": "Schema L — imaginary-symbolic axes",
+      "created_at": 0
+    },
+    {
+      "id": "schema_R",
+      "status": "active",
+      "content": "Schema R — field of reality",
+      "created_at": 0
+    },
+    {
+      "id": "desire_interpretation",
+      "status": "active",
+      "content": "desire and its interpretation",
+      "created_at": 0
+    },
+    {
+      "id": "hamlet",
+      "status": "active",
+      "content": "Hamlet",
+      "created_at": 0
+    },
+    {
+      "id": "fantasy",
+      "status": "active",
+      "content": "fantasy ($<>a)",
+      "created_at": 0
+    },
+    {
+      "id": "object_of_desire",
+      "status": "active",
+      "content": "object of desire",
+      "created_at": 0
+    },
+    {
+      "id": "phallus_signifier",
+      "status": "active",
+      "content": "phallus as signifier of desire",
+      "created_at": 0
+    },
+    {
+      "id": "desire_of_Other",
+      "status": "active",
+      "content": "desire of the Other",
+      "created_at": 0
+    },
+    {
+      "id": "mourning",
+      "status": "active",
+      "content": "mourning",
+      "created_at": 0
+    },
+    {
+      "id": "acting_out",
+      "status": "active",
+      "content": "acting out",
+      "created_at": 0
+    },
+    {
+      "id": "passage_to_act",
+      "status": "active",
+      "content": "passage to the act",
+      "created_at": 0
+    },
+    {
+      "id": "das_Ding",
+      "status": "active",
+      "content": "das Ding (the Thing)",
+      "created_at": 0
+    },
+    {
+      "id": "jouissance",
+      "status": "active",
+      "content": "jouissance",
+      "created_at": 0
+    },
+    {
+      "id": "categorical_imperative",
+      "status": "active",
+      "content": "Kantian categorical imperative",
+      "created_at": 0
+    },
+    {
+      "id": "sublimation",
+      "status": "active",
+      "content": "sublimation",
+      "created_at": 0
+    },
+    {
+      "id": "Antigone",
+      "status": "active",
+      "content": "Antigone",
+      "created_at": 0
+    },
+    {
+      "id": "between_two_deaths",
+      "status": "active",
+      "content": "between two deaths",
+      "created_at": 0
+    },
+    {
+      "id": "Sade",
+      "status": "active",
+      "content": "Sade",
+      "created_at": 0
+    },
+    {
+      "id": "ethics_psychoanalysis",
+      "status": "active",
+      "content": "ethics of psychoanalysis",
+      "created_at": 0
+    },
+    {
+      "id": "beautiful",
+      "status": "active",
+      "content": "the beautiful (barrier to jouissance)",
+      "created_at": 0
+    },
+    {
+      "id": "creation_ex_nihilo",
+      "status": "active",
+      "content": "creation ex nihilo",
+      "created_at": 0
+    },
+    {
+      "id": "good_supreme",
+      "status": "active",
+      "content": "the sovereign good",
+      "created_at": 0
+    },
+    {
+      "id": "che_vuoi",
+      "status": "active",
+      "content": "Che vuoi? — what do you want?",
+      "created_at": 0
+    },
+    {
+      "id": "objet_a",
+      "status": "active",
+      "content": "objet petit a — object-cause of desire",
+      "created_at": 0
+    },
+    {
+      "id": "vel_of_alienation",
+      "status": "active",
+      "content": "vel of alienation — forced choice",
+      "created_at": 0
+    },
+    {
+      "id": "separation",
+      "status": "active",
+      "content": "separation — second operation of subject",
+      "created_at": 0
+    },
+    {
+      "id": "drive",
+      "status": "active",
+      "content": "drive — pulsion — Trieb",
+      "created_at": 0
+    },
+    {
+      "id": "transference_love",
+      "status": "active",
+      "content": "transference love",
+      "created_at": 0
+    },
+    {
+      "id": "agalma",
+      "status": "active",
+      "content": "agalma (hidden treasure)",
+      "created_at": 0
+    },
+    {
+      "id": "Socrates",
+      "status": "active",
+      "content": "Socrates",
+      "created_at": 0
+    },
+    {
+      "id": "Alcibiades",
+      "status": "active",
+      "content": "Alcibiades",
+      "created_at": 0
+    },
+    {
+      "id": "desire_analyst",
+      "status": "active",
+      "content": "desire of the analyst",
+      "created_at": 0
+    },
+    {
+      "id": "eromenos",
+      "status": "active",
+      "content": "eromenos (beloved)",
+      "created_at": 0
+    },
+    {
+      "id": "erastes",
+      "status": "active",
+      "content": "erastes (lover)",
+      "created_at": 0
+    },
+    {
+      "id": "substitution_love",
+      "status": "active",
+      "content": "metaphor of love",
+      "created_at": 0
+    },
+    {
+      "id": "trait_unaire",
+      "status": "active",
+      "content": "unary trait (trait unaire)",
+      "created_at": 0
+    },
+    {
+      "id": "topology_identification",
+      "status": "active",
+      "content": "topology of identification",
+      "created_at": 0
+    },
+    {
+      "id": "torus",
+      "status": "active",
+      "content": "torus",
+      "created_at": 0
+    },
+    {
+      "id": "demand_circle",
+      "status": "active",
+      "content": "circle of demand",
+      "created_at": 0
+    },
+    {
+      "id": "desire_circle",
+      "status": "active",
+      "content": "circle of desire",
+      "created_at": 0
+    },
+    {
+      "id": "regression_identification",
+      "status": "active",
+      "content": "regressive identification",
+      "created_at": 0
+    },
+    {
+      "id": "hysterical_identification",
+      "status": "active",
+      "content": "hysterical identification",
+      "created_at": 0
+    },
+    {
+      "id": "anxiety",
+      "status": "active",
+      "content": "anxiety (angoisse)",
+      "created_at": 0
+    },
+    {
+      "id": "anxiety_signal",
+      "status": "active",
+      "content": "anxiety as signal",
+      "created_at": 0
+    },
+    {
+      "id": "remainder",
+      "status": "active",
+      "content": "remainder (reste)",
+      "created_at": 0
+    },
+    {
+      "id": "oral_object",
+      "status": "active",
+      "content": "oral object (breast)",
+      "created_at": 0
+    },
+    {
+      "id": "anal_object",
+      "status": "active",
+      "content": "anal object",
+      "created_at": 0
+    },
+    {
+      "id": "gaze_obj",
+      "status": "active",
+      "content": "the gaze (objet a)",
+      "created_at": 0
+    },
+    {
+      "id": "voice_obj",
+      "status": "active",
+      "content": "the voice (objet a)",
+      "created_at": 0
+    },
+    {
+      "id": "lack_of_lack",
+      "status": "active",
+      "content": "lack of lack",
+      "created_at": 0
+    },
+    {
+      "id": "uncanny",
+      "status": "active",
+      "content": "the uncanny (Unheimlich)",
+      "created_at": 0
+    },
+    {
+      "id": "moral_law",
+      "status": "active",
+      "content": "Kantian moral law — categorical imperative",
+      "created_at": 0
+    },
+    {
+      "id": "sade_maxim",
+      "status": "active",
+      "content": "Sade's maxim — universal right to jouissance",
+      "created_at": 0
+    },
+    {
+      "id": "voice",
+      "status": "active",
+      "content": "voice — objet a as superego command",
+      "created_at": 0
+    },
+    {
+      "id": "superego",
+      "status": "active",
+      "content": "superego — Über-Ich",
+      "created_at": 0
+    },
+    {
+      "id": "sadistic_will",
+      "status": "active",
+      "content": "sadistic will — instrument of jouissance",
+      "created_at": 0
+    },
+    {
+      "id": "subject_of_unconscious",
+      "status": "active",
+      "content": "subject of the unconscious — $",
+      "created_at": 0
+    },
+    {
+      "id": "gap",
+      "status": "active",
+      "content": "gap — béance — where unconscious manifests",
+      "created_at": 0
+    },
+    {
+      "id": "pulsation",
+      "status": "active",
+      "content": "pulsation — temporal opening/closing",
+      "created_at": 0
+    },
+    {
+      "id": "lamella",
+      "status": "active",
+      "content": "lamella — libido as organ",
+      "created_at": 0
+    },
+    {
+      "id": "four_concepts",
+      "status": "active",
+      "content": "four fundamental concepts",
+      "created_at": 0
+    },
+    {
+      "id": "unconscious_concept",
+      "status": "active",
+      "content": "the unconscious (concept)",
+      "created_at": 0
+    },
+    {
+      "id": "repetition_concept",
+      "status": "active",
+      "content": "repetition (concept)",
+      "created_at": 0
+    },
+    {
+      "id": "transference_concept",
+      "status": "active",
+      "content": "transference (concept)",
+      "created_at": 0
+    },
+    {
+      "id": "drive_concept",
+      "status": "active",
+      "content": "the drive (Trieb)",
+      "created_at": 0
+    },
+    {
+      "id": "vel_alienation",
+      "status": "active",
+      "content": "vel of alienation (or)",
+      "created_at": 0
+    },
+    {
+      "id": "tuche",
+      "status": "active",
+      "content": "tuche (encounter with the real)",
+      "created_at": 0
+    },
+    {
+      "id": "automaton",
+      "status": "active",
+      "content": "automaton (symbolic network)",
+      "created_at": 0
+    },
+    {
+      "id": "subject_supposed_know",
+      "status": "active",
+      "content": "subject supposed to know",
+      "created_at": 0
+    },
+    {
+      "id": "crucial_problems",
+      "status": "active",
+      "content": "crucial problems for psychoanalysis",
+      "created_at": 0
+    },
+    {
+      "id": "subject_of_science",
+      "status": "active",
+      "content": "subject of science",
+      "created_at": 0
+    },
+    {
+      "id": "cogito",
+      "status": "active",
+      "content": "Cartesian cogito",
+      "created_at": 0
+    },
+    {
+      "id": "subject_unconscious",
+      "status": "active",
+      "content": "subject of the unconscious",
+      "created_at": 0
+    },
+    {
+      "id": "truth_subject",
+      "status": "active",
+      "content": "truth as cause for the subject",
+      "created_at": 0
+    },
+    {
+      "id": "truth_as_cause",
+      "status": "active",
+      "content": "truth as cause — not knowledge",
+      "created_at": 0
+    },
+    {
+      "id": "magic",
+      "status": "active",
+      "content": "magic — efficient causality imaginarized",
+      "created_at": 0
+    },
+    {
+      "id": "religion",
+      "status": "active",
+      "content": "religion — final cause",
+      "created_at": 0
+    },
+    {
+      "id": "science",
+      "status": "active",
+      "content": "science — formal cause",
+      "created_at": 0
+    },
+    {
+      "id": "psychoanalysis_cause",
+      "status": "active",
+      "content": "psychoanalysis — material cause (truth)",
+      "created_at": 0
+    },
+    {
+      "id": "object_psychoanalysis",
+      "status": "active",
+      "content": "object of psychoanalysis",
+      "created_at": 0
+    },
+    {
+      "id": "gaze_concept",
+      "status": "active",
+      "content": "the gaze (concept)",
+      "created_at": 0
+    },
+    {
+      "id": "voice_concept",
+      "status": "active",
+      "content": "the voice (concept)",
+      "created_at": 0
+    },
+    {
+      "id": "Velazquez",
+      "status": "active",
+      "content": "Las Meninas (Velazquez)",
+      "created_at": 0
+    },
+    {
+      "id": "anamorphosis",
+      "status": "active",
+      "content": "anamorphosis",
+      "created_at": 0
+    },
+    {
+      "id": "perspective_subject",
+      "status": "active",
+      "content": "subject of perspective",
+      "created_at": 0
+    },
+    {
+      "id": "structure",
+      "status": "active",
+      "content": "structure — inmixing of otherness",
+      "created_at": 0
+    },
+    {
+      "id": "S_of_A_barred",
+      "status": "active",
+      "content": "S(Ⱥ) — signifier of the lack in the Other",
+      "created_at": 0
+    },
+    {
+      "id": "Other_barred",
+      "status": "active",
+      "content": "barred Other — Ⱥ — Other lacks",
+      "created_at": 0
+    },
+    {
+      "id": "subject_barred",
+      "status": "active",
+      "content": "barred subject — $ — divided",
+      "created_at": 0
+    },
+    {
+      "id": "no_metalanguage",
+      "status": "active",
+      "content": "there is no metalanguage",
+      "created_at": 0
+    },
+    {
+      "id": "logic_phantasy",
+      "status": "active",
+      "content": "logic of phantasy",
+      "created_at": 0
+    },
+    {
+      "id": "sexual_act",
+      "status": "active",
+      "content": "there is no sexual relation (anticipated)",
+      "created_at": 0
+    },
+    {
+      "id": "fantasy_formula",
+      "status": "active",
+      "content": "fantasy formula ($<>a)",
+      "created_at": 0
+    },
+    {
+      "id": "alienation_repetition",
+      "status": "active",
+      "content": "alienation-repetition structure",
+      "created_at": 0
+    },
+    {
+      "id": "act_concept",
+      "status": "active",
+      "content": "the act (concept)",
+      "created_at": 0
+    },
+    {
+      "id": "proposition_1967",
+      "status": "active",
+      "content": "Proposition of 9 October 1967",
+      "created_at": 0
+    },
+    {
+      "id": "pass_procedure",
+      "status": "active",
+      "content": "the pass (la passe)",
+      "created_at": 0
+    },
+    {
+      "id": "authorization",
+      "status": "active",
+      "content": "the analyst authorizes himself",
+      "created_at": 0
+    },
+    {
+      "id": "school",
+      "status": "active",
+      "content": "the School (École)",
+      "created_at": 0
+    },
+    {
+      "id": "AE",
+      "status": "active",
+      "content": "Analyst of the School (AE)",
+      "created_at": 0
+    },
+    {
+      "id": "psychoanalytic_act",
+      "status": "active",
+      "content": "the psychoanalytic act",
+      "created_at": 0
+    },
+    {
+      "id": "destitution",
+      "status": "active",
+      "content": "subjective destitution",
+      "created_at": 0
+    },
+    {
+      "id": "analyst_position",
+      "status": "active",
+      "content": "position of the analyst",
+      "created_at": 0
+    },
+    {
+      "id": "analysand_to_analyst",
+      "status": "active",
+      "content": "passage from analysand to analyst",
+      "created_at": 0
+    },
+    {
+      "id": "surplus_jouissance",
+      "status": "active",
+      "content": "surplus jouissance (plus-de-jouir)",
+      "created_at": 0
+    },
+    {
+      "id": "plus_de_jouir",
+      "status": "active",
+      "content": "plus-de-jouir (as objet a)",
+      "created_at": 0
+    },
+    {
+      "id": "discourse_concept",
+      "status": "active",
+      "content": "discourse (concept)",
+      "created_at": 0
+    },
+    {
+      "id": "surplus_value",
+      "status": "active",
+      "content": "surplus value (Mehrwert)",
+      "created_at": 0
+    },
+    {
+      "id": "other_small",
+      "status": "active",
+      "content": "the other (small a)",
+      "created_at": 0
+    },
+    {
+      "id": "knowledge_market",
+      "status": "active",
+      "content": "knowledge as market commodity",
+      "created_at": 0
+    },
+    {
+      "id": "four_discourses",
+      "status": "active",
+      "content": "four discourses",
+      "created_at": 0
+    },
+    {
+      "id": "master_discourse",
+      "status": "active",
+      "content": "discourse of the master",
+      "created_at": 0
+    },
+    {
+      "id": "university_discourse",
+      "status": "active",
+      "content": "discourse of the university",
+      "created_at": 0
+    },
+    {
+      "id": "hysteric_discourse",
+      "status": "active",
+      "content": "discourse of the hysteric",
+      "created_at": 0
+    },
+    {
+      "id": "analyst_discourse",
+      "status": "active",
+      "content": "discourse of the analyst",
+      "created_at": 0
+    },
+    {
+      "id": "master_signifier_S1",
+      "status": "active",
+      "content": "master signifier (S1)",
+      "created_at": 0
+    },
+    {
+      "id": "knowledge_S2",
+      "status": "active",
+      "content": "knowledge (S2)",
+      "created_at": 0
+    },
+    {
+      "id": "surplus_jouissance_a",
+      "status": "active",
+      "content": "surplus jouissance (a) in discourse",
+      "created_at": 0
+    },
+    {
+      "id": "divided_subject",
+      "status": "active",
+      "content": "divided subject ($)",
+      "created_at": 0
+    },
+    {
+      "id": "truth_position",
+      "status": "active",
+      "content": "truth (position in discourse)",
+      "created_at": 0
+    },
+    {
+      "id": "production_position",
+      "status": "active",
+      "content": "production (position in discourse)",
+      "created_at": 0
+    },
+    {
+      "id": "radiophonie",
+      "status": "active",
+      "content": "Radiophonie (1970)",
+      "created_at": 0
+    },
+    {
+      "id": "four_discourses_applied",
+      "status": "active",
+      "content": "four discourses applied to social bond",
+      "created_at": 0
+    },
+    {
+      "id": "linguisterie",
+      "status": "active",
+      "content": "linguisterie (vs linguistics)",
+      "created_at": 0
+    },
+    {
+      "id": "semblance",
+      "status": "active",
+      "content": "semblance (semblant)",
+      "created_at": 0
+    },
+    {
+      "id": "lalangue",
+      "status": "active",
+      "content": "lalangue",
+      "created_at": 0
+    },
+    {
+      "id": "impossible_sexual_relation",
+      "status": "active",
+      "content": "there is no sexual relation",
+      "created_at": 0
+    },
+    {
+      "id": "matheme",
+      "status": "active",
+      "content": "matheme",
+      "created_at": 0
+    },
+    {
+      "id": "formulas_sexuation",
+      "status": "active",
+      "content": "formulas of sexuation (anticipated)",
+      "created_at": 0
+    },
+    {
+      "id": "writing",
+      "status": "active",
+      "content": "writing (ecriture)",
+      "created_at": 0
+    },
+    {
+      "id": "lituraterre",
+      "status": "active",
+      "content": "Lituraterre (1971)",
+      "created_at": 0
+    },
+    {
+      "id": "letter_lituraterre",
+      "status": "active",
+      "content": "letter as littoral (not literal)",
+      "created_at": 0
+    },
+    {
+      "id": "littoral",
+      "status": "active",
+      "content": "littoral — edge between knowledge and jouissance",
+      "created_at": 0
+    },
+    {
+      "id": "Yad_lun",
+      "status": "active",
+      "content": "Yad'lun (there is One)",
+      "created_at": 0
+    },
+    {
+      "id": "existence_sem19",
+      "status": "active",
+      "content": "existence (vs essence)",
+      "created_at": 0
+    },
+    {
+      "id": "one",
+      "status": "active",
+      "content": "the One",
+      "created_at": 0
+    },
+    {
+      "id": "all_not_all",
+      "status": "active",
+      "content": "all / not-all (anticipated)",
+      "created_at": 0
+    },
+    {
+      "id": "universe_discourse",
+      "status": "active",
+      "content": "there is no universe of discourse",
+      "created_at": 0
+    },
+    {
+      "id": "letourdit",
+      "status": "active",
+      "content": "L'Étourdit (1972)",
+      "created_at": 0
+    },
+    {
+      "id": "dire",
+      "status": "active",
+      "content": "dire (saying) vs dit (said)",
+      "created_at": 0
+    },
+    {
+      "id": "topology_letourdit",
+      "status": "active",
+      "content": "topology — cross-cap, Boy surface",
+      "created_at": 0
+    },
+    {
+      "id": "modal_logic",
+      "status": "active",
+      "content": "modal logic — necessary, impossible, contingent",
+      "created_at": 0
+    },
+    {
+      "id": "feminine_jouissance",
+      "status": "active",
+      "content": "feminine jouissance (Other jouissance)",
+      "created_at": 0
+    },
+    {
+      "id": "not_all",
+      "status": "active",
+      "content": "not-all (pas-tout)",
+      "created_at": 0
+    },
+    {
+      "id": "phallic_jouissance",
+      "status": "active",
+      "content": "phallic jouissance",
+      "created_at": 0
+    },
+    {
+      "id": "borromean",
+      "status": "active",
+      "content": "Borromean knot (introduced)",
+      "created_at": 0
+    },
+    {
+      "id": "love_sem20",
+      "status": "active",
+      "content": "love (Encore)",
+      "created_at": 0
+    },
+    {
+      "id": "sexuation_formulas",
+      "status": "active",
+      "content": "formulas of sexuation",
+      "created_at": 0
+    },
+    {
+      "id": "masculine_side",
+      "status": "active",
+      "content": "masculine side (all/exception)",
+      "created_at": 0
+    },
+    {
+      "id": "feminine_side",
+      "status": "active",
+      "content": "feminine side (not-all)",
+      "created_at": 0
+    },
+    {
+      "id": "God_jouissance",
+      "status": "active",
+      "content": "God and jouissance",
+      "created_at": 0
+    },
+    {
+      "id": "mystic_jouissance",
+      "status": "active",
+      "content": "mystic jouissance",
+      "created_at": 0
+    },
+    {
+      "id": "television",
+      "status": "active",
+      "content": "Television (1973)",
+      "created_at": 0
+    },
+    {
+      "id": "affect_discourse",
+      "status": "active",
+      "content": "affect determined by discourse",
+      "created_at": 0
+    },
+    {
+      "id": "sadness_cowardice",
+      "status": "active",
+      "content": "sadness as moral cowardice",
+      "created_at": 0
+    },
+    {
+      "id": "gay_savoir",
+      "status": "active",
+      "content": "gay savoir — satisfaction of the analyst",
+      "created_at": 0
+    },
+    {
+      "id": "Names_of_Father",
+      "status": "active",
+      "content": "Names-of-the-Father (plural)",
+      "created_at": 0
+    },
+    {
+      "id": "non_dupes_errent",
+      "status": "active",
+      "content": "les non-dupes errent (non-dupes err)",
+      "created_at": 0
+    },
+    {
+      "id": "nomination",
+      "status": "active",
+      "content": "nomination",
+      "created_at": 0
+    },
+    {
+      "id": "symptom_as_name",
+      "status": "active",
+      "content": "symptom as name",
+      "created_at": 0
+    },
+    {
+      "id": "real_symbolic_imaginary_knot",
+      "status": "active",
+      "content": "R.S.I. knotting (anticipated)",
+      "created_at": 0
+    },
+    {
+      "id": "RSI",
+      "status": "active",
+      "content": "R.S.I.",
+      "created_at": 0
+    },
+    {
+      "id": "borromean_knot",
+      "status": "active",
+      "content": "Borromean knot (formalized)",
+      "created_at": 0
+    },
+    {
+      "id": "imaginary_ring",
+      "status": "active",
+      "content": "imaginary ring",
+      "created_at": 0
+    },
+    {
+      "id": "symbolic_ring",
+      "status": "active",
+      "content": "symbolic ring",
+      "created_at": 0
+    },
+    {
+      "id": "real_ring",
+      "status": "active",
+      "content": "real ring",
+      "created_at": 0
+    },
+    {
+      "id": "sense_jouis_sense",
+      "status": "active",
+      "content": "jouis-sens (enjoy-meant)",
+      "created_at": 0
+    },
+    {
+      "id": "inhibition_symptom_anxiety",
+      "status": "active",
+      "content": "inhibition, symptom, anxiety (topologized)",
+      "created_at": 0
+    },
+    {
+      "id": "joyce_le_symptome",
+      "status": "active",
+      "content": "Joyce le Symptôme (1975 lecture)",
+      "created_at": 0
+    },
+    {
+      "id": "joyce_writing",
+      "status": "active",
+      "content": "Joyce's writing as symptom",
+      "created_at": 0
+    },
+    {
+      "id": "sinthome_anticipated",
+      "status": "active",
+      "content": "sinthome (anticipated in lecture)",
+      "created_at": 0
+    },
+    {
+      "id": "sinthome",
+      "status": "active",
+      "content": "sinthome",
+      "created_at": 0
+    },
+    {
+      "id": "Joyce",
+      "status": "active",
+      "content": "Joyce",
+      "created_at": 0
+    },
+    {
+      "id": "fourth_ring",
+      "status": "active",
+      "content": "fourth ring",
+      "created_at": 0
+    },
+    {
+      "id": "reparation",
+      "status": "active",
+      "content": "reparation of the knot",
+      "created_at": 0
+    },
+    {
+      "id": "ego_sinthome",
+      "status": "active",
+      "content": "ego as sinthome (Joyce)",
+      "created_at": 0
+    },
+    {
+      "id": "symptom_sinthome",
+      "status": "active",
+      "content": "symptom -> sinthome",
+      "created_at": 0
+    },
+    {
+      "id": "epiphany",
+      "status": "active",
+      "content": "epiphany (Joyce)",
+      "created_at": 0
+    },
+    {
+      "id": "knot_error",
+      "status": "active",
+      "content": "knotting error",
+      "created_at": 0
+    }
+  ],
+  "edges": [
+    {
+      "source": "reality_principle",
+      "target": "pleasure_principle",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "imago",
+      "target": "identification",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "identification",
+      "target": "ego",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "ego",
+      "target": "narcissism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "narcissism",
+      "target": "imaginary",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "psychic_reality",
+      "target": "reality_principle",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "associationism",
+      "target": "psychic_reality",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "imago",
+      "target": "imaginary",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "desire",
+      "target": "pleasure_principle",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "desire",
+      "target": "imaginary",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "logical_time",
+      "target": "instant_of_glance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "logical_time",
+      "target": "time_for_comprehending",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "logical_time",
+      "target": "moment_of_concluding",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "instant_of_glance",
+      "target": "time_for_comprehending",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "time_for_comprehending",
+      "target": "moment_of_concluding",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "moment_of_concluding",
+      "target": "anticipated_certainty",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "anticipated_certainty",
+      "target": "haste",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "intersubjectivity",
+      "target": "subject",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "intersubjectivity",
+      "target": "other",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "subject",
+      "target": "other",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "haste",
+      "target": "subject",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "aggressivity",
+      "target": "narcissism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "aggressivity",
+      "target": "mirror_identification",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "mirror_identification",
+      "target": "ego",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "mirror_identification",
+      "target": "imaginary",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "fragmented_body",
+      "target": "aggressivity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "fragmented_body",
+      "target": "imago_body",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "imago_body",
+      "target": "imago",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "transitivism",
+      "target": "jealousy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "transitivism",
+      "target": "identification",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "tension",
+      "target": "ego",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "tension",
+      "target": "other",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "aggressivity",
+      "target": "ego",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "mirror_stage",
+      "target": "specular_image",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "specular_image",
+      "target": "jubilation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "specular_image",
+      "target": "gestalt",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "gestalt",
+      "target": "fragmented_body",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "mirror_stage",
+      "target": "ego",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "ego",
+      "target": "meconnaissance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "ego",
+      "target": "ideal_ego",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "ideal_ego",
+      "target": "identification",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "alienation",
+      "target": "mirror_stage",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "alienation",
+      "target": "imaginary",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "orthopaedic_totality",
+      "target": "gestalt",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "motor_prematurity",
+      "target": "mirror_stage",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "meconnaissance",
+      "target": "imaginary",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "specular_image",
+      "target": "narcissism",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "symbolic",
+      "target": "imaginary",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "symbolic",
+      "target": "real",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "imaginary",
+      "target": "real",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "signifier",
+      "target": "signified",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "signifier",
+      "target": "symbolic",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "full_speech",
+      "target": "empty_speech",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "full_speech",
+      "target": "truth",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "full_speech",
+      "target": "subject",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "empty_speech",
+      "target": "ego",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "Other",
+      "target": "symbolic",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "Other",
+      "target": "law",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "Name_of_Father",
+      "target": "law",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "Name_of_Father",
+      "target": "symbolic",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "unconscious_structured",
+      "target": "signifier",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "unconscious_structured",
+      "target": "symbolic",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "desire",
+      "target": "Other",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "history",
+      "target": "subject",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "history",
+      "target": "full_speech",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "freudian_thing",
+      "target": "truth",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "symptom",
+      "target": "signifier",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "symptom",
+      "target": "truth",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "ego_psychology",
+      "target": "ego",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "ego_psychology",
+      "target": "meconnaissance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "return_to_freud",
+      "target": "ego_psychology",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "return_to_freud",
+      "target": "freudian_thing",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "resistance",
+      "target": "ego",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "resistance",
+      "target": "imaginary",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "symptom",
+      "target": "subject",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "transference",
+      "target": "resistance",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "ideal_ego",
+      "target": "ego",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "ego_ideal",
+      "target": "ideal_ego",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "ego_ideal",
+      "target": "symbolic",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "ideal_ego",
+      "target": "imaginary",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "symbolic_exchange",
+      "target": "word",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "empty_speech",
+      "target": "full_speech",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "full_speech",
+      "target": "symbolic_exchange",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "empty_speech",
+      "target": "imaginary",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "full_speech",
+      "target": "symbolic",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "transference",
+      "target": "intersubjectivity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "intersubjectivity",
+      "target": "symbolic_exchange",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "real",
+      "target": "symbolic",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "ego_as_function",
+      "target": "ego",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "ego_as_function",
+      "target": "imaginary_captation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "imaginary_captation",
+      "target": "imaginary",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "symbolic_determination",
+      "target": "symbolic",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "symbolic_determination",
+      "target": "ego_as_function",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "cybernetics",
+      "target": "machine",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "repetition_automatism",
+      "target": "machine",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "repetition_automatism",
+      "target": "symbolic_determination",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "subject_decentered",
+      "target": "ego",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "subject_decentered",
+      "target": "other_scene",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "other_scene",
+      "target": "symbolic",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "beyond_pleasure",
+      "target": "pleasure_principle",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "death_drive_sem2",
+      "target": "beyond_pleasure",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "death_drive_sem2",
+      "target": "repetition_automatism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "letter",
+      "target": "signifier",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "letter_always_arrives",
+      "target": "letter",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "letter_always_arrives",
+      "target": "symbolic",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "intersubjective_position",
+      "target": "signifier",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "intersubjective_position",
+      "target": "subject",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "signifying_chain",
+      "target": "signifier",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "signifying_chain",
+      "target": "repetition_automatism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "repetition_automatism",
+      "target": "signifier",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "minister",
+      "target": "intersubjective_position",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "queen",
+      "target": "intersubjective_position",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "police",
+      "target": "imaginary",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "police",
+      "target": "intersubjective_position",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "foreclosure",
+      "target": "repression",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "foreclosure",
+      "target": "Name_of_Father",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "psychosis",
+      "target": "foreclosure",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "neurosis",
+      "target": "repression",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "metaphor_failure",
+      "target": "Name_of_Father",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "metaphor_failure",
+      "target": "signifier",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "psychosis",
+      "target": "metaphor_failure",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "delusional_metaphor",
+      "target": "metaphor_failure",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "delusional_metaphor",
+      "target": "psychosis",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "point_de_capiton",
+      "target": "signifier",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "point_de_capiton",
+      "target": "signified",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "Schreber",
+      "target": "psychosis",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "Schreber",
+      "target": "delusional_metaphor",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "Name_of_Father",
+      "target": "symbolic",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "lack_of_object",
+      "target": "frustration",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "lack_of_object",
+      "target": "privation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "lack_of_object",
+      "target": "castration",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "frustration",
+      "target": "imaginary",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "privation",
+      "target": "real",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "castration",
+      "target": "symbolic",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "phobic_object",
+      "target": "castration",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "phobic_object",
+      "target": "Name_of_Father",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "imaginary_phallus",
+      "target": "lack_of_object",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "imaginary_phallus",
+      "target": "mother_desire",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "mother_desire",
+      "target": "castration",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "little_Hans",
+      "target": "phobic_object",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "fetish",
+      "target": "privation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "fetish",
+      "target": "castration",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "algorithm_S_over_s",
+      "target": "signifier",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "algorithm_S_over_s",
+      "target": "signified",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "algorithm_S_over_s",
+      "target": "bar",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "bar",
+      "target": "signifier",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "metaphor",
+      "target": "signifier",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "metaphor",
+      "target": "condensation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "metonymy",
+      "target": "signifier",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "metonymy",
+      "target": "displacement",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "metonymy",
+      "target": "desire",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "metaphor",
+      "target": "metonymy",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "metaphor",
+      "target": "Name_of_Father",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "condensation",
+      "target": "displacement",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "metaphor",
+      "target": "symptom",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "formations_unconscious",
+      "target": "signifier",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "joke",
+      "target": "formations_unconscious",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "joke",
+      "target": "Other_A",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "graph_of_desire",
+      "target": "desire",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "graph_of_desire",
+      "target": "demand",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "graph_of_desire",
+      "target": "signifier",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "paternal_metaphor",
+      "target": "Name_of_Father",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "paternal_metaphor",
+      "target": "mother_desire",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "paternal_metaphor",
+      "target": "symbolic_phallus",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "desire",
+      "target": "demand",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "demand",
+      "target": "need",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "desire",
+      "target": "need",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "symbolic_phallus",
+      "target": "imaginary_phallus",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "symbolic_phallus",
+      "target": "castration",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "Other_A",
+      "target": "symbolic",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "Other_A",
+      "target": "code",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "message",
+      "target": "code",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "message",
+      "target": "Other_A",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "desire",
+      "target": "need",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "desire",
+      "target": "Other",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "frustration",
+      "target": "privation",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "privation",
+      "target": "castration",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "desire_of_analyst",
+      "target": "desire",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "desire_of_analyst",
+      "target": "transference",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "transference",
+      "target": "subject",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "transference",
+      "target": "Other",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "phallus",
+      "target": "signifier",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "phallus",
+      "target": "desire",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "phallus",
+      "target": "castration",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "being_phallus",
+      "target": "having_phallus",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "being_phallus",
+      "target": "imaginary",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "having_phallus",
+      "target": "symbolic",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "Bedeutung",
+      "target": "phallus",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "Bedeutung",
+      "target": "signifier",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "lack",
+      "target": "desire",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "lack",
+      "target": "castration",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "phallus",
+      "target": "meconnaissance",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "foreclosure",
+      "target": "Name_of_Father",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "foreclosure",
+      "target": "psychosis",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "paternal_metaphor",
+      "target": "metaphor",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "paternal_metaphor",
+      "target": "phallus",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "psychosis",
+      "target": "paternal_metaphor",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "hallucination",
+      "target": "foreclosure",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "hallucination",
+      "target": "real",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "delusion",
+      "target": "hallucination",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "delusion",
+      "target": "symbolic",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "schema_L",
+      "target": "imaginary",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "schema_L",
+      "target": "symbolic",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "schema_R",
+      "target": "schema_L",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "schema_R",
+      "target": "real",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "desire_interpretation",
+      "target": "desire",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "desire_interpretation",
+      "target": "graph_of_desire",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "hamlet",
+      "target": "desire_of_Other",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "hamlet",
+      "target": "mourning",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "fantasy",
+      "target": "desire",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "fantasy",
+      "target": "object_of_desire",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "object_of_desire",
+      "target": "lack_of_object",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "phallus_signifier",
+      "target": "symbolic_phallus",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "phallus_signifier",
+      "target": "desire",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "desire_of_Other",
+      "target": "Other_A",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "desire_of_Other",
+      "target": "desire",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "mourning",
+      "target": "lack_of_object",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "acting_out",
+      "target": "passage_to_act",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "acting_out",
+      "target": "fantasy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "passage_to_act",
+      "target": "fantasy",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "das_Ding",
+      "target": "real",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "das_Ding",
+      "target": "pleasure_principle",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "jouissance",
+      "target": "das_Ding",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "jouissance",
+      "target": "pleasure_principle",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "categorical_imperative",
+      "target": "jouissance",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "Sade",
+      "target": "categorical_imperative",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "Sade",
+      "target": "jouissance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sublimation",
+      "target": "das_Ding",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sublimation",
+      "target": "creation_ex_nihilo",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "Antigone",
+      "target": "between_two_deaths",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "Antigone",
+      "target": "desire",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "between_two_deaths",
+      "target": "death_drive_sem2",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "ethics_psychoanalysis",
+      "target": "desire",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "ethics_psychoanalysis",
+      "target": "good_supreme",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "beautiful",
+      "target": "jouissance",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "beautiful",
+      "target": "sublimation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "good_supreme",
+      "target": "jouissance",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "graph_of_desire",
+      "target": "Other",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "che_vuoi",
+      "target": "Other",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "che_vuoi",
+      "target": "desire",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "fantasy",
+      "target": "subject",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "fantasy",
+      "target": "objet_a",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "objet_a",
+      "target": "desire",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "objet_a",
+      "target": "imaginary",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "objet_a",
+      "target": "real",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "vel_of_alienation",
+      "target": "subject",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "vel_of_alienation",
+      "target": "Other",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "separation",
+      "target": "vel_of_alienation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "separation",
+      "target": "lack",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "drive",
+      "target": "demand",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "drive",
+      "target": "jouissance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "jouissance",
+      "target": "real",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "fantasy",
+      "target": "che_vuoi",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "transference_love",
+      "target": "transference",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "transference_love",
+      "target": "desire",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "agalma",
+      "target": "object_of_desire",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "agalma",
+      "target": "Socrates",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "Alcibiades",
+      "target": "Socrates",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "Alcibiades",
+      "target": "agalma",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "desire_analyst",
+      "target": "transference_love",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "desire_analyst",
+      "target": "desire_of_Other",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "eromenos",
+      "target": "erastes",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "substitution_love",
+      "target": "eromenos",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "substitution_love",
+      "target": "erastes",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "substitution_love",
+      "target": "transference_love",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "identification",
+      "target": "signifier",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "trait_unaire",
+      "target": "signifier",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "trait_unaire",
+      "target": "identification",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "trait_unaire",
+      "target": "ego_ideal",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "topology_identification",
+      "target": "torus",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "topology_identification",
+      "target": "identification",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "torus",
+      "target": "demand_circle",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "torus",
+      "target": "desire_circle",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "demand_circle",
+      "target": "demand",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "desire_circle",
+      "target": "desire",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "regression_identification",
+      "target": "identification",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "hysterical_identification",
+      "target": "identification",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "hysterical_identification",
+      "target": "desire_of_Other",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "anxiety",
+      "target": "real",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "anxiety",
+      "target": "lack_of_lack",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "objet_a",
+      "target": "remainder",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "objet_a",
+      "target": "object_of_desire",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "objet_a",
+      "target": "fantasy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "anxiety_signal",
+      "target": "anxiety",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "anxiety_signal",
+      "target": "objet_a",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "remainder",
+      "target": "das_Ding",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "oral_object",
+      "target": "objet_a",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "anal_object",
+      "target": "objet_a",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "gaze_obj",
+      "target": "objet_a",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "voice_obj",
+      "target": "objet_a",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "lack_of_lack",
+      "target": "castration",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "uncanny",
+      "target": "anxiety",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "uncanny",
+      "target": "imaginary",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sade_maxim",
+      "target": "moral_law",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "sade_maxim",
+      "target": "jouissance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "moral_law",
+      "target": "law",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "moral_law",
+      "target": "desire",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "voice",
+      "target": "objet_a",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "voice",
+      "target": "superego",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "superego",
+      "target": "law",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "superego",
+      "target": "jouissance",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "sadistic_will",
+      "target": "drive",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sadistic_will",
+      "target": "jouissance",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "sade_maxim",
+      "target": "moral_law",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "subject_of_unconscious",
+      "target": "subject",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "subject_of_unconscious",
+      "target": "signifier",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "subject_of_unconscious",
+      "target": "unconscious_structured",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "gap",
+      "target": "subject_of_unconscious",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "gap",
+      "target": "signifying_chain",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "pulsation",
+      "target": "gap",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "pulsation",
+      "target": "drive",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "lamella",
+      "target": "drive",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "lamella",
+      "target": "objet_a",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "vel_of_alienation",
+      "target": "subject_of_unconscious",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "separation",
+      "target": "subject_of_unconscious",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "four_concepts",
+      "target": "unconscious_concept",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "four_concepts",
+      "target": "repetition_concept",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "four_concepts",
+      "target": "transference_concept",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "four_concepts",
+      "target": "drive_concept",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "unconscious_concept",
+      "target": "signifier",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "unconscious_concept",
+      "target": "Other_A",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "repetition_concept",
+      "target": "repetition_automatism",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "repetition_concept",
+      "target": "tuche",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "repetition_concept",
+      "target": "automaton",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "tuche",
+      "target": "real",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "automaton",
+      "target": "symbolic",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "tuche",
+      "target": "automaton",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "transference_concept",
+      "target": "transference_love",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "transference_concept",
+      "target": "subject_supposed_know",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "subject_supposed_know",
+      "target": "Other_A",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "drive_concept",
+      "target": "objet_a",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "drive_concept",
+      "target": "lamella",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "alienation",
+      "target": "vel_alienation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "alienation",
+      "target": "Other_A",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "separation",
+      "target": "alienation",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "separation",
+      "target": "objet_a",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "lamella",
+      "target": "drive_concept",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "crucial_problems",
+      "target": "four_concepts",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "subject_of_science",
+      "target": "cogito",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "subject_of_science",
+      "target": "subject_unconscious",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "subject_unconscious",
+      "target": "unconscious_concept",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "subject_unconscious",
+      "target": "signifier",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "cogito",
+      "target": "subject_decentered",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "truth_subject",
+      "target": "subject_unconscious",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "truth_subject",
+      "target": "desire",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "subject_of_science",
+      "target": "subject",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "subject_of_science",
+      "target": "subject_of_unconscious",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "truth_as_cause",
+      "target": "truth",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "truth_as_cause",
+      "target": "subject_of_science",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "magic",
+      "target": "imaginary",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "religion",
+      "target": "symbolic",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "science",
+      "target": "signifier",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "psychoanalysis_cause",
+      "target": "truth_as_cause",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "psychoanalysis_cause",
+      "target": "subject_of_unconscious",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "magic",
+      "target": "religion",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "religion",
+      "target": "science",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "science",
+      "target": "psychoanalysis_cause",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "object_psychoanalysis",
+      "target": "objet_a",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "gaze_concept",
+      "target": "gaze_obj",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "gaze_concept",
+      "target": "objet_a",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "voice_concept",
+      "target": "voice_obj",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "voice_concept",
+      "target": "objet_a",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "Velazquez",
+      "target": "gaze_concept",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "anamorphosis",
+      "target": "gaze_concept",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "anamorphosis",
+      "target": "real",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "perspective_subject",
+      "target": "subject_of_science",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "perspective_subject",
+      "target": "gaze_concept",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "structure",
+      "target": "signifier",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "structure",
+      "target": "Other",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "S_of_A_barred",
+      "target": "Other_barred",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "S_of_A_barred",
+      "target": "signifier",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "Other_barred",
+      "target": "Other",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "Other_barred",
+      "target": "lack",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "subject_barred",
+      "target": "subject",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "subject_barred",
+      "target": "signifier",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "subject_barred",
+      "target": "subject_of_unconscious",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "no_metalanguage",
+      "target": "signifier",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "no_metalanguage",
+      "target": "Other",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "S_of_A_barred",
+      "target": "jouissance",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "subject_barred",
+      "target": "objet_a",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "logic_phantasy",
+      "target": "fantasy",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "logic_phantasy",
+      "target": "objet_a",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sexual_act",
+      "target": "jouissance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sexual_act",
+      "target": "castration",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "fantasy_formula",
+      "target": "fantasy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "fantasy_formula",
+      "target": "objet_a",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "alienation_repetition",
+      "target": "alienation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "alienation_repetition",
+      "target": "repetition_concept",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "act_concept",
+      "target": "sexual_act",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "act_concept",
+      "target": "desire",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "proposition_1967",
+      "target": "pass_procedure",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "proposition_1967",
+      "target": "school",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "pass_procedure",
+      "target": "desire_analyst",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "pass_procedure",
+      "target": "fantasy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "authorization",
+      "target": "pass_procedure",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "authorization",
+      "target": "subject_unconscious",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "AE",
+      "target": "pass_procedure",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "AE",
+      "target": "school",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "psychoanalytic_act",
+      "target": "act_concept",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "psychoanalytic_act",
+      "target": "transference_concept",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "pass_procedure",
+      "target": "psychoanalytic_act",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "pass_procedure",
+      "target": "analysand_to_analyst",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "destitution",
+      "target": "psychoanalytic_act",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "destitution",
+      "target": "fantasy",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "analyst_position",
+      "target": "desire_analyst",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "analyst_position",
+      "target": "objet_a",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "analysand_to_analyst",
+      "target": "destitution",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "surplus_jouissance",
+      "target": "jouissance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "surplus_jouissance",
+      "target": "objet_a",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "plus_de_jouir",
+      "target": "surplus_jouissance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "plus_de_jouir",
+      "target": "surplus_value",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "discourse_concept",
+      "target": "signifier",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "discourse_concept",
+      "target": "Other_A",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "surplus_value",
+      "target": "surplus_jouissance",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "Other_barred",
+      "target": "Other_A",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "Other_barred",
+      "target": "jouissance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "other_small",
+      "target": "objet_a",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "knowledge_market",
+      "target": "surplus_value",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "knowledge_market",
+      "target": "discourse_concept",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "four_discourses",
+      "target": "discourse_concept",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "master_discourse",
+      "target": "four_discourses",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "university_discourse",
+      "target": "four_discourses",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "hysteric_discourse",
+      "target": "four_discourses",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "analyst_discourse",
+      "target": "four_discourses",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "master_discourse",
+      "target": "master_signifier_S1",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "master_discourse",
+      "target": "knowledge_S2",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "university_discourse",
+      "target": "knowledge_S2",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "university_discourse",
+      "target": "surplus_jouissance_a",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "hysteric_discourse",
+      "target": "divided_subject",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "hysteric_discourse",
+      "target": "master_signifier_S1",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "analyst_discourse",
+      "target": "surplus_jouissance_a",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "analyst_discourse",
+      "target": "divided_subject",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "analyst_discourse",
+      "target": "analyst_position",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "divided_subject",
+      "target": "signifier",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "master_signifier_S1",
+      "target": "signifier",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "truth_position",
+      "target": "four_discourses",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "production_position",
+      "target": "four_discourses",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "surplus_jouissance_a",
+      "target": "objet_a",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "radiophonie",
+      "target": "four_discourses",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "four_discourses_applied",
+      "target": "four_discourses",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "four_discourses_applied",
+      "target": "surplus_jouissance",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "linguisterie",
+      "target": "signifier",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "linguisterie",
+      "target": "jouissance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "radiophonie",
+      "target": "linguisterie",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "semblance",
+      "target": "symbolic",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "semblance",
+      "target": "real",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "lalangue",
+      "target": "signifier",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "lalangue",
+      "target": "jouissance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "impossible_sexual_relation",
+      "target": "sexual_act",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "impossible_sexual_relation",
+      "target": "real",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "impossible_sexual_relation",
+      "target": "castration",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "matheme",
+      "target": "writing",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "matheme",
+      "target": "signifier",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "formulas_sexuation",
+      "target": "impossible_sexual_relation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "writing",
+      "target": "semblance",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "lituraterre",
+      "target": "writing",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "lituraterre",
+      "target": "jouissance",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "letter_lituraterre",
+      "target": "letter",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "letter_lituraterre",
+      "target": "writing",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "littoral",
+      "target": "symbolic",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "littoral",
+      "target": "real",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "littoral",
+      "target": "letter_lituraterre",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "lituraterre",
+      "target": "lalangue",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "Yad_lun",
+      "target": "one",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "Yad_lun",
+      "target": "signifier",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "existence_sem19",
+      "target": "Yad_lun",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "existence_sem19",
+      "target": "real",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "one",
+      "target": "master_signifier_S1",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "all_not_all",
+      "target": "formulas_sexuation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "all_not_all",
+      "target": "impossible_sexual_relation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "universe_discourse",
+      "target": "Other_barred",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "universe_discourse",
+      "target": "all_not_all",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "letourdit",
+      "target": "impossible_sexual_relation",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "letourdit",
+      "target": "matheme",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "dire",
+      "target": "signifier",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "dire",
+      "target": "truth",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "dire",
+      "target": "writing",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "topology_letourdit",
+      "target": "torus",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "topology_letourdit",
+      "target": "real",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "modal_logic",
+      "target": "impossible_sexual_relation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "modal_logic",
+      "target": "real",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "letourdit",
+      "target": "dire",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "feminine_jouissance",
+      "target": "jouissance",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "feminine_jouissance",
+      "target": "not_all",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "feminine_jouissance",
+      "target": "phallic_jouissance",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "not_all",
+      "target": "all_not_all",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "phallic_jouissance",
+      "target": "castration",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "phallic_jouissance",
+      "target": "symbolic_phallus",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "borromean",
+      "target": "imaginary",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "borromean",
+      "target": "symbolic",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "borromean",
+      "target": "real",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "love_sem20",
+      "target": "transference_love",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "love_sem20",
+      "target": "impossible_sexual_relation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sexuation_formulas",
+      "target": "formulas_sexuation",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "sexuation_formulas",
+      "target": "masculine_side",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sexuation_formulas",
+      "target": "feminine_side",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "masculine_side",
+      "target": "phallic_jouissance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "feminine_side",
+      "target": "not_all",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "feminine_side",
+      "target": "feminine_jouissance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "God_jouissance",
+      "target": "feminine_jouissance",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "mystic_jouissance",
+      "target": "feminine_jouissance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "mystic_jouissance",
+      "target": "God_jouissance",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "television",
+      "target": "four_discourses",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "television",
+      "target": "jouissance",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "affect_discourse",
+      "target": "four_discourses",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "affect_discourse",
+      "target": "jouissance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sadness_cowardice",
+      "target": "affect_discourse",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sadness_cowardice",
+      "target": "ethics_psychoanalysis",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "gay_savoir",
+      "target": "desire_analyst",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "gay_savoir",
+      "target": "jouissance",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "television",
+      "target": "real",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "Names_of_Father",
+      "target": "Name_of_Father",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "Names_of_Father",
+      "target": "borromean",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "non_dupes_errent",
+      "target": "Names_of_Father",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "nomination",
+      "target": "Names_of_Father",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nomination",
+      "target": "signifier",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "symptom_as_name",
+      "target": "nomination",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "symptom_as_name",
+      "target": "formations_unconscious",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "real_symbolic_imaginary_knot",
+      "target": "borromean",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "RSI",
+      "target": "borromean",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "RSI",
+      "target": "borromean_knot",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "borromean_knot",
+      "target": "imaginary_ring",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "borromean_knot",
+      "target": "symbolic_ring",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "borromean_knot",
+      "target": "real_ring",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "imaginary_ring",
+      "target": "imaginary",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "symbolic_ring",
+      "target": "symbolic",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "real_ring",
+      "target": "real",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "sense_jouis_sense",
+      "target": "jouissance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sense_jouis_sense",
+      "target": "lalangue",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "inhibition_symptom_anxiety",
+      "target": "anxiety",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "inhibition_symptom_anxiety",
+      "target": "borromean_knot",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "real_symbolic_imaginary_knot",
+      "target": "borromean_knot",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "joyce_le_symptome",
+      "target": "jouissance",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "joyce_le_symptome",
+      "target": "writing",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "joyce_writing",
+      "target": "symptom_as_name",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "joyce_writing",
+      "target": "lalangue",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "sinthome_anticipated",
+      "target": "symptom_as_name",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "sinthome_anticipated",
+      "target": "borromean_knot",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "joyce_le_symptome",
+      "target": "joyce_writing",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sinthome",
+      "target": "borromean_knot",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "sinthome",
+      "target": "fourth_ring",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sinthome",
+      "target": "symptom_as_name",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "Joyce",
+      "target": "sinthome",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "Joyce",
+      "target": "ego_sinthome",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "fourth_ring",
+      "target": "borromean_knot",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "reparation",
+      "target": "knot_error",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "reparation",
+      "target": "sinthome",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "ego_sinthome",
+      "target": "ego",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "ego_sinthome",
+      "target": "sinthome",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "symptom_sinthome",
+      "target": "sinthome",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "symptom_sinthome",
+      "target": "formations_unconscious",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "epiphany",
+      "target": "Joyce",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "epiphany",
+      "target": "jouissance",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "knot_error",
+      "target": "borromean_knot",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "knot_error",
+      "target": "foreclosure",
+      "edge_type": "reference",
+      "created_at": 0
+    }
+  ]
+}
