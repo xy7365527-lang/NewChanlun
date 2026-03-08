@@ -1,0 +1,34 @@
+{"term": "笔", "domain": "chanlun", "definition": "两个相邻的顶分型与底分型之间构成一笔，上升笔从底分型到顶分型，下降笔从顶分型到底分型", "synonyms": ["bi"], "contrasts": [{"term": "线段", "differential": "笔是线段的构成单元，线段至少由三笔组成"}, {"term": "分型", "differential": "分型是笔的端点，笔是两个分型之间的连接"}]}
+{"term": "分型", "domain": "chanlun", "definition": "包含处理后三根相邻K线中第二根的高低点满足特定极值条件的结构", "synonyms": [], "contrasts": [{"term": "笔", "differential": "分型是笔的端点结构，笔是两个分型之间的走势"}]}
+{"term": "顶分型", "domain": "chanlun", "definition": "三根相邻K线中第二根的高点是三者最高且低点也是三者最高", "synonyms": [], "contrasts": [{"term": "底分型", "differential": "顶分型的高低点均为三者最高，底分型的高低点均为三者最低"}]}
+{"term": "底分型", "domain": "chanlun", "definition": "三根相邻K线中第二根的低点是三者最低且高点也是三者最低", "synonyms": [], "contrasts": [{"term": "顶分型", "differential": "底分型的高低点均为三者最低，顶分型的高低点均为三者最高"}]}
+{"term": "线段", "domain": "chanlun", "definition": "至少由三笔组成且前三笔必须有重叠部分的走势结构", "synonyms": ["段"], "contrasts": [{"term": "笔", "differential": "线段由多笔构成，笔是线段的子单元"}, {"term": "走势类型", "differential": "线段是走势类型的构成单元"}]}
+{"term": "特征序列", "domain": "chanlun", "definition": "线段中与线段方向相反的笔所组成的序列，用于判定线段的终结", "synonyms": [], "contrasts": [{"term": "标准特征序列", "differential": "标准特征序列是特征序列经过包含处理后的结果"}]}
+{"term": "包含关系", "domain": "chanlun", "definition": "一根K线的高低点区间完全在另一根K线范围内的关系", "synonyms": [], "contrasts": []}
+{"term": "中枢", "domain": "chanlun", "definition": "某级别走势类型中被至少三个连续次级别走势类型所重叠的部分", "synonyms": ["走势中枢", "震荡区间"], "contrasts": [{"term": "趋势", "differential": "中枢是走势的非趋势状态，趋势包含至少两个同向中枢"}]}
+{"term": "走势中枢", "domain": "chanlun", "definition": "某级别走势类型中被至少三个连续次级别走势类型所重叠的部分，强调级别归属", "synonyms": ["中枢"], "contrasts": []}
+{"term": "走势类型", "domain": "chanlun", "definition": "某级别走势的完成形态，只有盘整与趋势两类", "synonyms": [], "contrasts": []}
+{"term": "趋势", "domain": "chanlun", "definition": "某完成走势类型至少包含两个以上依次同向的走势中枢", "synonyms": [], "contrasts": [{"term": "盘整", "differential": "趋势包含两个以上中枢，盘整只包含一个中枢"}, {"term": "中枢", "differential": "趋势是包含多个中枢的走势类型，中枢是趋势的构成单元"}]}
+{"term": "盘整", "domain": "chanlun", "definition": "某完成走势类型只包含一个走势中枢", "synonyms": [], "contrasts": [{"term": "趋势", "differential": "盘整只有一个中枢，趋势有两个以上中枢"}]}
+{"term": "上涨", "domain": "chanlun", "definition": "向上方向的趋势，中枢依次升高", "synonyms": [], "contrasts": [{"term": "下跌", "differential": "上涨中枢依次升高，下跌中枢依次降低"}]}
+{"term": "下跌", "domain": "chanlun", "definition": "向下方向的趋势，中枢依次降低", "synonyms": [], "contrasts": [{"term": "上涨", "differential": "下跌中枢依次降低，上涨中枢依次升高"}]}
+{"term": "背驰", "domain": "chanlun", "definition": "趋势力度比上一次趋势力度弱的现象，表示力量衰竭", "synonyms": ["趋势背驰"], "contrasts": [{"term": "盘整背驰", "differential": "背驰发生在趋势中，盘整背驰发生在盘整中"}]}
+{"term": "盘整背驰", "domain": "chanlun", "definition": "盘整中当下笔或线段力度比前一笔或线段弱的现象", "synonyms": [], "contrasts": [{"term": "背驰", "differential": "盘整背驰不改变走势方向仅结束当前盘整段，趋势背驰可能改变走势方向"}]}
+{"term": "趋势背驰", "domain": "chanlun", "definition": "趋势中最后一段走势力度弱于前一段同向走势的现象，可能改变走势方向", "synonyms": ["背驰"], "contrasts": [{"term": "盘整背驰", "differential": "趋势背驰是更强的背驰信号，可改变走势方向"}]}
+{"term": "买点", "domain": "chanlun", "definition": "走势中可以买入的最优位置，分三类", "synonyms": [], "contrasts": [{"term": "卖点", "differential": "买点是买入位置，卖点是卖出位置，两者对称"}]}
+{"term": "卖点", "domain": "chanlun", "definition": "走势中可以卖出的最优位置，分三类", "synonyms": [], "contrasts": [{"term": "买点", "differential": "卖点是卖出位置，买点是买入位置，两者对称"}]}
+{"term": "第一类买点", "domain": "chanlun", "definition": "某级别下跌趋势中次级别走势向下跌破最后一个中枢后形成的背驰点", "synonyms": [], "contrasts": [{"term": "第一类卖点", "differential": "第一类买点在下跌末端，第一类卖点在上涨末端"}, {"term": "第二类买点", "differential": "第一类买点是背驰点，第二类买点是第一类买点后回调的低点"}]}
+{"term": "第二类买点", "domain": "chanlun", "definition": "第一类买点后次级别上涨结束再次下跌的次级别走势结束点", "synonyms": [], "contrasts": [{"term": "第一类买点", "differential": "第二类买点是第一类买点之后的确认点"}, {"term": "第三类买点", "differential": "第二类买点来自背驰后回调，第三类买点来自中枢突破后回踩"}]}
+{"term": "第三类买点", "domain": "chanlun", "definition": "上涨趋势中次级别走势向上离开中枢后回抽低点不跌破ZG的中枢终结点", "synonyms": [], "contrasts": [{"term": "第三类卖点", "differential": "第三类买点在上涨中枢上方，第三类卖点在下跌中枢下方"}]}
+{"term": "第一类卖点", "domain": "chanlun", "definition": "某级别上涨趋势中次级别走势向上突破最后一个中枢后形成的背驰点", "synonyms": [], "contrasts": [{"term": "第一类买点", "differential": "第一类卖点在上涨末端，第一类买点在下跌末端"}]}
+{"term": "第二类卖点", "domain": "chanlun", "definition": "第一类卖点后次级别下跌结束再次上涨的次级别走势结束点", "synonyms": [], "contrasts": [{"term": "第二类买点", "differential": "第二类卖点与第二类买点对称"}]}
+{"term": "第三类卖点", "domain": "chanlun", "definition": "下跌趋势中次级别走势向下离开中枢后回抽高点不升破ZD的中枢终结点", "synonyms": [], "contrasts": [{"term": "第三类买点", "differential": "第三类卖点与第三类买点对称"}]}
+{"term": "区间套", "domain": "chanlun", "definition": "根据背驰段从大级别向小级别逐级寻找背驰点的方法，实现精确定位大转折", "synonyms": [], "contrasts": []}
+{"term": "级别", "domain": "chanlun", "definition": "走势的递归层级，由走势组件递归构成，不等同于时间周期", "synonyms": [], "contrasts": []}
+{"term": "递归", "domain": "chanlun", "definition": "从最小级别走势向上逐级构造更高级别走势类型和中枢的过程", "synonyms": [], "contrasts": []}
+{"term": "力度", "domain": "chanlun", "definition": "走势运动的强度，用于判断背驰，常用MACD辅助判断", "synonyms": [], "contrasts": []}
+{"term": "MACD", "domain": "chanlun", "definition": "用于辅助判断背驰的技术指标，通过比较柱子面积判断走势力度变化", "synonyms": [], "contrasts": []}
+{"term": "同级别分解", "domain": "chanlun", "definition": "将走势在同一级别上分解为盘整、下跌、上涨三类走势类型的连接", "synonyms": [], "contrasts": []}
+{"term": "结合律", "domain": "chanlun", "definition": "走势类型连接符合结合律但不符合交换律，允许在不改变逻辑前提下重新组合", "synonyms": [], "contrasts": []}
+{"term": "中枢扩展", "domain": "chanlun", "definition": "两个同级别中枢的波动区间产生重叠时形成更高级别中枢", "synonyms": ["中枢扩张"], "contrasts": [{"term": "中枢新生", "differential": "中枢扩展形成更高级别中枢，中枢新生形成趋势"}]}
+{"term": "中枢新生", "domain": "chanlun", "definition": "中枢终结后在同方向上形成新的同级别中枢，构成趋势", "synonyms": [], "contrasts": [{"term": "中枢扩展", "differential": "中枢新生形成趋势，中枢扩展形成更高级别中枢"}]}

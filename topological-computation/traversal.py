@@ -18,6 +18,7 @@ from engine import (
 )
 from encounter_log import EncounterLog
 from morse import compute_terrain, critical_neighbors
+from snet_activation import SNetActivation
 
 
 # -- norm violation → code gap mapping ------------------------------------
@@ -87,6 +88,7 @@ class StepLog:
     vertices_full: int
     edges_full: int
     f_value: int = -99  # f(v,w) terrain annotation: -1=no shared neighbors, 0=topo equivalent, high=topo distant
+    resonance: bool = False  # S_net 耦合振荡：chosen candidate was in resonating set
 
 
 class TraversalEngine:
@@ -126,6 +128,23 @@ class TraversalEngine:
         self._f_fold_threshold = f_fold_threshold
         self._f_negate_threshold = f_negate_threshold
         self._encounter_log = encounter_log
+        self._attempted_folds: set[frozenset[str]] = set()  # 398号: fold pairs already attempted & blocked
+        self._snet_activation: SNetActivation | None = None  # 耦合振荡: S_net 激活态
+        self._last_resonance: bool = False  # 上一步选择的候选是否处于共振区域
+
+    def _invalidate_attempted_folds(self, affected_vertices: set[str]) -> None:
+        """Remove attempted-fold entries involving any of the affected vertices.
+
+        Called when graph structure changes (new edges, new vertices, settlement
+        revocation) that may alter neighborhood relationships, making previously
+        blocked fold pairs retryable.
+        """
+        if not affected_vertices or not self._attempted_folds:
+            return
+        self._attempted_folds = {
+            pair for pair in self._attempted_folds
+            if not pair & affected_vertices
+        }
 
     # -- f(v,w) terrain annotation (not a filter, not a trigger) ---------------
 
@@ -353,7 +372,10 @@ class TraversalEngine:
             #   (1) both are neighbors of current position (original rule), OR
             #   (2) a is current position and b is any active vertex (LLM history-based fold)
             if a in active and b in active and a != b:
-                if (a in neighbors and b in neighbors) or \
+                # 398号: skip already-attempted & blocked fold pairs
+                if frozenset((a, b)) in self._attempted_folds:
+                    pass  # fall through to NOTHING
+                elif (a in neighbors and b in neighbors) or \
                    (a == self.position) or (b == self.position):
                     return Encounter(
                         EncounterType.FOLD, a, b,
@@ -424,6 +446,9 @@ class TraversalEngine:
                 past_nbs = set(self.k_active.neighbors(past_vid))
                 shared = (pos_nbs & past_nbs) - {pos, past_vid}
                 if len(shared) >= 2:  # share at least 2 neighbors = structural similarity
+                    pair_key = frozenset((pos, past_vid))
+                    if pair_key in self._attempted_folds:
+                        continue  # 398号: already attempted & blocked, skip
                     f_val = self._compute_f(pos, past_vid)
                     return Encounter(
                         EncounterType.FOLD, pos, past_vid,
@@ -518,6 +543,9 @@ class TraversalEngine:
             nb_is_synthetic = nb.startswith("syn_") or nb.startswith("anti_")
             if pos_is_synthetic or nb_is_synthetic:
                 continue
+            # 398号: skip already-attempted & blocked fold pairs
+            if frozenset((pos, nb)) in self._attempted_folds:
+                continue
             if best_fold is None or f_val < best_fold[1]:
                 best_fold = (nb, f_val)
 
@@ -606,6 +634,8 @@ class TraversalEngine:
 
             if result.new_cycle_edges:
                 self.settlement.register_new_cycle(result.new_cycle_edges, self.step)
+            # 398号: sublation changes graph structure — invalidate affected fold pairs
+            self._invalidate_attempted_folds({enc.target_a, enc.target_b, result.new_vertex})
             return "sublate", False
 
         elif enc.encounter_type == EncounterType.NEGATE_A:
@@ -629,6 +659,8 @@ class TraversalEngine:
             self._pending_negations.append((enc.target_a, enc.target_b))
             if result.new_cycle_edges:
                 self.settlement.register_new_cycle(result.new_cycle_edges, self.step)
+            # 398号: negate adds edges — invalidate affected fold pairs
+            self._invalidate_attempted_folds({enc.target_a, enc.target_b})
             return "negate_a", False
 
         elif enc.encounter_type == EncounterType.NEGATE_B:
@@ -658,6 +690,11 @@ class TraversalEngine:
                 self._pending_negations.append((enc.target_a, result.new_vertex))
             if result.new_cycle_edges:
                 self.settlement.register_new_cycle(result.new_cycle_edges, self.step)
+            # 398号: negate_b adds vertex+edges — invalidate affected fold pairs
+            affected = {enc.target_a}
+            if result.new_vertex:
+                affected.add(result.new_vertex)
+            self._invalidate_attempted_folds(affected)
             return "negate_b", False
 
         elif enc.encounter_type == EncounterType.FOLD:
@@ -671,6 +708,8 @@ class TraversalEngine:
                     result.blocked_by,
                 )
                 self._last_blocked_by = result.blocked_by
+                # 398号: remember this blocked fold pair
+                self._attempted_folds.add(frozenset((enc.target_a, enc.target_b)))
                 return "fold_blocked", True
 
             self.k_active = result.graph
@@ -682,11 +721,31 @@ class TraversalEngine:
             if self.position == enc.target_b:
                 self.position = enc.target_a
 
+            # 398号: fold succeeded — clear attempted_folds involving merged vertices
+            # (graph structure changed, old fold-block reasons may no longer hold)
+            merged_away = enc.target_b  # target_b is the vertex removed by fold
+            self._attempted_folds = {
+                pair for pair in self._attempted_folds
+                if merged_away not in pair
+            }
+
             if result.new_cycle_edges:
                 self.settlement.register_new_cycle(result.new_cycle_edges, self.step)
             return "fold", False
 
         return "nothing", False
+
+    # -- S_net coupling -----------------------------------------------------
+
+    def set_snet_activation(self, snet_activation: SNetActivation) -> None:
+        """Set S_net activation for coupled oscillation."""
+        self._snet_activation = snet_activation
+
+    def _resonating_candidates(self) -> set[str]:
+        """Get K_active concept IDs in the S_net resonating zone."""
+        if self._snet_activation is None:
+            return set()
+        return self._snet_activation.get_resonating_concepts()
 
     # -- walk ---------------------------------------------------------------
 
@@ -785,6 +844,7 @@ class TraversalEngine:
 
         Anti-oscillation: if stuck in nothing streak >= threshold, jump to least-visited active vertex.
         Domain awareness: if last 5 steps all in code domain, prefer core/text neighbors.
+        S_net coupling: resonating candidates get preference within same priority tier (pull, not override).
         """
         if self._nothing_streak >= self._nothing_threshold:
             # Jump to least-visited active vertex to escape local trap
@@ -807,6 +867,9 @@ class TraversalEngine:
         if not neighbors:
             return  # stuck (should not happen in connected graph)
 
+        # S_net resonating concepts (secondary pull)
+        resonating = self._resonating_candidates()
+
         # Domain awareness: if last 5 positions were all code domain,
         # prefer non-code neighbors to avoid getting stuck in code hubs
         code_streak = (
@@ -822,36 +885,64 @@ class TraversalEngine:
             non_code_crit = [n for n in crit if not self._is_code_vertex(n)]
             non_code_any = [n for n in neighbors if not self._is_code_vertex(n)]
             if non_code_crit:
-                self.position = self.rng.choice(non_code_crit)
+                chosen = self._pick_with_resonance(non_code_crit, resonating)
+                self.position = chosen
                 self.visit_history.append(self.position)
                 return
             if non_code_any:
-                self.position = self.rng.choice(non_code_any)
+                chosen = self._pick_with_resonance(non_code_any, resonating)
+                self.position = chosen
                 self.visit_history.append(self.position)
                 return
             # All neighbors are code — fall through to normal logic
 
         unvisited = [n for n in crit if n not in self.visit_history[-5:]]
         if unvisited:
-            self.position = self.rng.choice(unvisited)
+            self.position = self._pick_with_resonance(unvisited, resonating)
         elif crit:
-            self.position = self.rng.choice(crit)
+            self.position = self._pick_with_resonance(crit, resonating)
         else:
             # Fall back to any neighbor
             unvisited_any = [n for n in neighbors if n not in self.visit_history[-3:]]
             if unvisited_any:
-                self.position = self.rng.choice(unvisited_any)
+                self.position = self._pick_with_resonance(unvisited_any, resonating)
             else:
-                self.position = self.rng.choice(neighbors)
+                self.position = self._pick_with_resonance(neighbors, resonating)
 
         self.visit_history.append(self.position)
+
+    def _pick_with_resonance(
+        self,
+        candidates: list[str],
+        resonating: set[str],
+    ) -> str:
+        """Choose from candidates with resonance as secondary pull.
+
+        If any candidates are in the resonating set, prefer those.
+        Otherwise, random choice among all candidates.
+        Edge type priority is already handled by the caller (crit > unvisited > any).
+        Resonance only distinguishes within the same priority tier.
+        """
+        if not candidates:
+            return self.position
+        resonating_candidates = [c for c in candidates if c in resonating]
+        if resonating_candidates:
+            self._last_resonance = True
+            return self.rng.choice(resonating_candidates)
+        self._last_resonance = False
+        return self.rng.choice(candidates)
 
     # -- main step ----------------------------------------------------------
 
     def run_step(self) -> StepLog:
-        """Execute one full step: detect encounter → execute or walk → update terrain → settle."""
+        """Execute one full step: detect encounter → execute or walk → update terrain → settle → S_net sync."""
         self.step += 1
+        self._last_resonance = False
         beta_before = compute_beta_1(self.k_active)
+
+        # S_net: update current step
+        if self._snet_activation is not None:
+            self._snet_activation.current_step = self.step
 
         enc = self.detect_encounter()
         blocked = False
@@ -885,6 +976,12 @@ class TraversalEngine:
             self._nothing_streak += 1
             self.walk()
 
+        # S_net coupling: activate signifier for new position + check articulation feedback
+        if self._snet_activation is not None:
+            self._snet_activation.activate(self.position)
+            new_suggestions = self._snet_activation.check_articulation_feedback(self.k_active)
+            self._snet_activation.edge_suggestions.extend(new_suggestions)
+
         # Update terrain after any graph change
         self.terrain = compute_terrain(self.k_active)
 
@@ -917,6 +1014,7 @@ class TraversalEngine:
             vertices_full=len(self.k_full.vertices),
             edges_full=len(self.k_full.edges),
             f_value=enc.f_value,
+            resonance=self._last_resonance,
         )
         self.logs.append(log)
         return log

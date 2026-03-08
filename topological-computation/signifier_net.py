@@ -814,3 +814,133 @@ def persist_rupture_log(
 
     except Exception:
         return None
+
+
+# ---------------------------------------------------------------------------
+# 对话回写（writeback）— 从对话文本中提取术语共现关系回写到 S_net
+# ---------------------------------------------------------------------------
+
+def phi_L_whitelist_match(
+    text: str,
+    whitelist: set[str],
+) -> list[tuple[str, int]]:
+    """在文本中定位白名单术语，按位置排序返回。
+
+    返回 list[tuple[str, int]]：(术语, 首次出现位置)。
+    同一术语只返回首次出现。长术语优先匹配（避免短术语吞噬长术语的子串）。
+
+    认识论等级：L0（确定性字符串操作）
+    """
+    if not text or not whitelist:
+        return []
+
+    # 按长度降序排列，优先匹配长术语
+    sorted_terms = sorted(whitelist, key=len, reverse=True)
+    found: list[tuple[str, int]] = []
+    seen: set[str] = set()
+
+    for term in sorted_terms:
+        if term in seen:
+            continue
+        pos = text.find(term)
+        if pos >= 0:
+            found.append((term, pos))
+            seen.add(term)
+
+    # 按位置排序
+    found.sort(key=lambda t: t[1])
+    return found
+
+
+def extract_between(
+    text: str,
+    term_a: str,
+    pos_a: int,
+    term_b: str,
+    pos_b: int,
+) -> str:
+    """提取两个术语之间的连接文本片段。
+
+    返回 term_a 和 term_b 之间的文本（去掉首尾空白）。
+    如果两个术语重叠或间距过大（>100字符），返回空字符串。
+
+    认识论等级：L0（确定性字符串操作）
+    """
+    start = pos_a + len(term_a)
+    end = pos_b
+    if start >= end or (end - start) > 100:
+        return ""
+    return text[start:end].strip()
+
+
+def writeback_from_text(
+    snet: SNet,
+    text: str,
+    whitelist: set[str],
+    source_type: str,
+    timestamp: str,
+) -> tuple[SNet, list[dict]]:
+    """从文本中提取白名单术语共现对，回写到 S_net。
+
+    遵循不可变操作模式：返回新的 SNet 实例（不修改传入的 snet）。
+    同时返回回写日志条目列表（用于持久化到 generation_log.jsonl）。
+
+    参数：
+      snet:        当前 S_net 实例
+      text:        对话文本（用户输入或 LLM 输出）
+      whitelist:   白名单术语集合（S_net 中所有能指 id）
+      source_type: 来源类型标记
+                   - 'operator_dialogue': 操作者对话输入
+                   - 'llm_generation': LLM 语法填充产出
+                   - 'self_traversal': 逢亮自己的微穿越产出
+                   - 'agent_interrogation': 询问代理的回应
+      timestamp:   时间戳字符串
+
+    返回：
+      (new_snet, log_entries)
+      - new_snet: 包含新增共现边的 SNet（已 merge_edge_weights）
+      - log_entries: 回写日志条目列表，每条包含 source/target/pattern/corpus_ref
+
+    认识论等级：L0（确定性字符串操作 + S_net 拓扑更新）
+    """
+    matches = phi_L_whitelist_match(text, whitelist)
+    if len(matches) < 2:
+        return snet, []
+
+    new_snet = snet
+    log_entries: list[dict] = []
+
+    for i in range(len(matches) - 1):
+        sig_a, pos_a = matches[i]
+        sig_b, pos_b = matches[i + 1]
+
+        # 两个术语都必须在 S_net 中
+        if not new_snet.has_signifier(sig_a) or not new_snet.has_signifier(sig_b):
+            continue
+
+        # 提取连接模式
+        pattern = extract_between(text, sig_a, pos_a, sig_b, pos_b)
+
+        # 添加组合轴边（weight=1.0，后续 merge_edge_weights 会累积）
+        edge = SignifierEdge(
+            source=sig_a,
+            target=sig_b,
+            axis=AxisType.SYNTAGMATIC,
+            weight=1.0,
+            evidence=pattern if pattern else "",
+        )
+        new_snet = new_snet.add_edge(edge)
+
+        corpus_ref = f"{source_type}:{timestamp}"
+        log_entries.append({
+            "source": sig_a,
+            "target": sig_b,
+            "pattern": pattern,
+            "corpus_ref": corpus_ref,
+        })
+
+    # 合并同 (source, target, axis) 的边权重
+    if log_entries:
+        new_snet = new_snet.merge_edge_weights()
+
+    return new_snet, log_entries

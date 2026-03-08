@@ -19,7 +19,8 @@ from engine import compute_beta_1, Edge, EdgeType, Vertex
 
 from psi_L_constraint import ConstraintSet
 from llm_integration import get_client as _get_llm_client, GenerationRecord, parse_signifier_chain
-from signifier_net import detect_ruptures, persist_rupture_log
+from signifier_net import detect_ruptures, persist_rupture_log, writeback_from_text
+from internal_speech import externalize as _externalize_speech
 
 def status_json(daemon: TopologicalDaemon) -> dict:
     """GET /status — current daemon state snapshot."""
@@ -477,6 +478,10 @@ def _mark_reported(daemon: TopologicalDaemon) -> None:
     if daemon.engine and daemon.engine.logs:
         last_step = daemon.engine.logs[-1].step
         daemon._reported_step_watermark = last_step
+        # Also advance WS watermark so WS doesn't re-push already-reported events
+        daemon._ws_last_reported_step = max(
+            getattr(daemon, '_ws_last_reported_step', 0), last_step
+        )
     # Reset unreported counter
     daemon._unreported_count = 0
 
@@ -1045,6 +1050,67 @@ def language_organ_respond(
     }
 
 
+def _writeback_to_snet(
+    daemon: TopologicalDaemon,
+    text: str,
+    source_type: str,
+) -> int:
+    """对话文本 → S_net 共现边回写 + 日志持久化。
+
+    从文本中提取白名单术语共现对，回写到 daemon.snet。
+    返回新增的共现对数量。
+
+    Graceful degradation：S_net 为空或回写失败时返回 0。
+    """
+    snet = getattr(daemon, 'snet', None)
+    if not snet or not snet.signifiers:
+        return 0
+
+    if not text or not text.strip():
+        return 0
+
+    whitelist = set(snet.signifiers.keys())
+    timestamp = str(time.time())
+
+    try:
+        new_snet, log_entries = writeback_from_text(
+            snet=snet,
+            text=text,
+            whitelist=whitelist,
+            source_type=source_type,
+            timestamp=timestamp,
+        )
+    except Exception:
+        return 0
+
+    if not log_entries:
+        return 0
+
+    # 更新 daemon.snet（不可变替换）
+    daemon.snet = new_snet
+
+    # 持久化回写日志到 generation_log.jsonl
+    try:
+        from llm_integration import _append_audit
+        record = GenerationRecord(
+            provider="writeback",
+            model="dialogue_writeback",
+            register=source_type,
+            must_use=[],
+            must_avoid=[],
+            system_prompt_len=0,
+            user_prompt_len=len(text),
+            response_text=_json.dumps(log_entries, ensure_ascii=False)[:2000],
+            response_len=len(log_entries),
+            success=True,
+        )
+        _append_audit(record)
+    except Exception:
+        pass
+
+    return len(log_entries)
+
+
 def _detect_ruptures_from_text(
     daemon: TopologicalDaemon,
     text: str,
@@ -1187,10 +1253,14 @@ def present_json(daemon: TopologicalDaemon, text: str, session_id: str = "defaul
     session_id: identifier for the user session, used to create/reuse the
                 source vertex that anchors this user's concept region.
     """
-    # Dialogue routing: if user text is dialogue, use language organ
+    # Dialogue routing: if user text is dialogue, use externalize flow
     input_class = _classify_input(text)
     if input_class == "dialogue":
-        organ_result = language_organ_respond(daemon, text)
+        # 回写输入：用户对话文本 → S_net 共现边
+        writeback_input_count = _writeback_to_snet(daemon, text, "operator_dialogue")
+
+        # 外化接缝：内部言语 → LLM → 外部言语
+        ext_result = _externalize_speech(daemon, user_text=text)
 
         # 断裂检测：对话输入 → 能指链 → S_net 断裂检测
         rupture_info = _detect_ruptures_from_text(daemon, text)
@@ -1200,11 +1270,24 @@ def present_json(daemon: TopologicalDaemon, text: str, session_id: str = "defaul
 
         result = {
             "type": "dialogue",
-            "parts": [{"source": "language_organ", "text": organ_result["content"]}],
+            "parts": [{"source": "internal_speech", "text": ext_result["content"]}],
             "injected": False,
             "concepts_found": _extract_concepts(text) if text.strip() else [],
             "expression_pressure": _count_unreported(daemon),
-            "llm_used": organ_result["llm_used"],
+            "llm_used": ext_result["llm_used"],
+            "writeback": {
+                "input_edges": writeback_input_count,
+                "output_edges": ext_result.get("writeback_edges", 0),
+            },
+            "externalize": {
+                "trigger": ext_result.get("trigger", "passive"),
+                "output_ruptures": ext_result.get("output_ruptures", []),
+                "snapshot_summary": {
+                    "formed_fragments": len(ext_result.get("snapshot", {}).get("formed_fragments", [])),
+                    "active_signifiers": len(ext_result.get("snapshot", {}).get("active_signifiers", [])),
+                    "locked_signifiers": len(ext_result.get("snapshot", {}).get("locked_signifiers", [])),
+                },
+            },
         }
         if rupture_info:
             result["ruptures"] = rupture_info
@@ -1342,19 +1425,22 @@ def expression_pressure_ws_message(daemon: TopologicalDaemon) -> dict:
     """WebSocket push: current expression pressure + optional high-I event narrative.
 
     Called by daemon server when a significant event fires.
+    Uses a separate _ws_last_reported_step watermark so that each event is
+    pushed via WS at most once (fixes repetition bug: same fold reported
+    on every subsequent event).
     """
     count = _count_unreported(daemon)
     msg: dict = {
         "type": "expression_pressure",
         "count": count,
     }
-    # If count just crossed a threshold, include the most recent event narrative
+    # Only include text for events not yet pushed via WS
+    ws_watermark: int = getattr(daemon, '_ws_last_reported_step', 0)
     if count > 0 and daemon.engine and daemon.engine.logs:
         logs = daemon.engine.logs
-        watermark: int = getattr(daemon, '_reported_step_watermark', 0)
         recent_high = [
             log for log in logs
-            if log.step > watermark and (log.delta_beta_1 != 0 or log.blocked)
+            if log.step > ws_watermark and (log.delta_beta_1 != 0 or log.blocked)
             and min(1.0, abs(log.delta_beta_1) * 0.3 + (0.5 if log.blocked else 0.0)) >= _HIGH_I_THRESHOLD
         ]
         if recent_high:
@@ -1377,4 +1463,6 @@ def expression_pressure_ws_message(daemon: TopologicalDaemon) -> dict:
                     + (" (BLOCKED)" if top.blocked else "")
                 )
             msg["importance"] = round(importance, 2)
+            # Advance WS watermark to prevent re-pushing this event
+            daemon._ws_last_reported_step = top.step
     return msg

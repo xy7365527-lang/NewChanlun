@@ -46,11 +46,11 @@ epistemological_level: L2
 
 ## 下游推论
 
-1. **392号P1修正**：P1从"否定"修正为"支持"——f小=fold在初始图上成立
-2. **f=0是fold的强充分条件**：40% fold对f=0，0% random对f=0。f⁻¹(0)是fold候选的过滤器
-3. **Jaccard是fold最强的单指标**：0.622 vs 0.014 = 44倍效应。邻域重叠度直接编码结构等价性
-4. **negate_a规则可以用f值替代Morse critical过滤**：f>阈值 → negate候选，f<阈值 → fold候选。阈值由f的分布自然确定（如f=5）
-5. **测量时机原则**：拓扑指标必须在操作前的图上计算，不在操作后的图上计算
+1. **392号P1修正**：P1从"否定"修正为"支持"——f小=fold在初始图上成立 [audited: v198, consumed]
+2. **f=0是fold的强充分条件**：40% fold对f=0，0% random对f=0。f⁻¹(0)是fold候选的过滤器 [audited: v198, consumed — 方法论记录]
+3. **Jaccard是fold最强的单指标**：0.622 vs 0.014 = 44倍效应。邻域重叠度直接编码结构等价性 [audited: v198, consumed — 方法论记录]
+4. **negate_a规则可以用f值替代Morse critical过滤**：f>阈值 → negate候选，f<阈值 → fold候选。阈值由f的分布自然确定（如f=5） [audited: v198, deferred — 未实施替代]
+5. **测量时机原则**：拓扑指标必须在操作前的图上计算，不在操作后的图上计算 [audited: v198, consumed — 方法论记录]
 
 ## 谱系引用
 

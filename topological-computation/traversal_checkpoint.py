@@ -240,10 +240,18 @@ def extract_daemon_state(daemon) -> dict:
         state["pending_negations"] = [
             [t, a] for t, a in daemon.engine._pending_negations
         ]
+        # 398号: persist attempted_folds as list of sorted pairs
+        state["attempted_folds"] = [
+            sorted(pair) for pair in daemon.engine._attempted_folds
+        ]
 
     # Crystallization
     state["crystallization_count"] = getattr(daemon, '_crystallization_count', 0)
     state["beta_1_history"] = list(getattr(daemon, '_beta_1_history', []))[-200:]
+
+    # S_net activation (coupled oscillation)
+    if getattr(daemon, 'snet_activation', None) is not None:
+        state["snet_activation"] = daemon.snet_activation.to_dict()
 
     return state
 
@@ -289,8 +297,20 @@ def restore_daemon_state(daemon, state: dict) -> None:
                 (t, a) for t, a in state["pending_negations"]
                 if t in active and a in active
             ]
+        # 398号: restore attempted_folds (only pairs where both vertices still active)
+        if state.get("attempted_folds"):
+            daemon.engine._attempted_folds = {
+                frozenset(pair) for pair in state["attempted_folds"]
+                if all(v in active for v in pair)
+            }
+        else:
+            daemon.engine._attempted_folds = set()
 
     # Crystallization
     daemon._crystallization_count = state.get("crystallization_count", 0)
     if state.get("beta_1_history"):
         daemon._beta_1_history = list(state["beta_1_history"])
+
+    # S_net activation (coupled oscillation)
+    if state.get("snet_activation") and getattr(daemon, 'snet_activation', None) is not None:
+        daemon.snet_activation.restore_from_dict(state["snet_activation"])

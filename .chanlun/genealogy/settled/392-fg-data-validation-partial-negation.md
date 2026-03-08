@@ -60,9 +60,9 @@ f/g的二维空间不能完全分离fold和negate操作。g维度上的重叠表
 
 ## 4. 下游推论
 
-1. **fold的内禀判据需要重新寻找**：f(v,w)不是fold判据——至少方向是反的。候选替代量：邻域Jaccard相似度（共享邻居比例）、spectral距离（Laplacian特征向量差异）、局部聚类系数差异。这些量可能更好地捕捉fold的"合并适宜性" → `deferred: 需要在实验数据上计算候选拓扑量并与fold事件关联。依赖topological-computation/引擎输出中记录fold发生位置的详细拓扑特征`
-2. **g作为negate判据可直接集成**：g(v,w)的效应量d=7.03足够大，可以替代当前negate_a中的bidirectional+Morse critical规则。集成路径：在traversal.py的negate_a步骤中，计算候选对的g值，优先选择g最大的对 → `deferred: 需要评估g计算的性能开销（BFS独立路径枚举在2524顶点图上的时间复杂度）以及替代bidirectional规则后的fold质量变化`
-3. **Φ势函数需要修正**：391号的Φ中f项的符号或含义需要重新理解——如果fold偏好高f而非低f，Φ的极小值（fold目标）定义需要反转f项的贡献 → `deferred: 依赖推论1的结果——需要先理解fold的真实判据，再修正Φ的形式`
+1. **fold的内禀判据需要重新寻找**：f(v,w)不是fold判据——至少方向是反的。候选替代量：邻域Jaccard相似度（共享邻居比例）、spectral距离（Laplacian特征向量差异）、局部聚类系数差异。这些量可能更好地捕捉fold的"合并适宜性" → `deferred: 需要在实验数据上计算候选拓扑量并与fold事件关联。依赖topological-computation/引擎输出中记录fold发生位置的详细拓扑特征` [audited: v198, partially_consumed — 393号已回答：Jaccard 44x效应（0.622 vs 0.014），f在初始图上f小=fold成立（392号P1否定是测量错误）。候选替代量中Jaccard已验证为最强单指标]
+2. **g作为negate判据可直接集成**：g(v,w)的效应量d=7.03足够大，可以替代当前negate_a中的bidirectional+Morse critical规则。集成路径：在traversal.py的negate_a步骤中，计算候选对的g值，优先选择g最大的对 → `deferred: 需要评估g计算的性能开销（BFS独立路径枚举在2524顶点图上的时间复杂度）以及替代bidirectional规则后的fold质量变化` [audited: v198, deferred — 性能评估未做]
+3. **Φ势函数需要修正**：391号的Φ中f项的符号或含义需要重新理解——如果fold偏好高f而非低f，Φ的极小值（fold目标）定义需要反转f项的贡献 → `deferred: 依赖推论1的结果——需要先理解fold的真实判据，再修正Φ的形式` [audited: v198, deferred — 393号修正了f方向问题但Φ形式未更新]
 
 ## 5. 谱系引用
 

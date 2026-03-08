@@ -99,11 +99,22 @@ def _traversal_worker(
         persist_path=persist_path,
     )
 
-    # If persisting with a fresh file, write initial graph
+    # If persisting, ensure initial graph is baselined in k_full.jsonl
+    # This covers two cases:
+    # 1. Fresh file (no recovery) — write all vertices/edges
+    # 2. Recovered graph was smaller than loaded graph — rewrite baseline
     if persist_path and daemon._persist and graph is not None:
         from persistence import PersistentKFull
         recovered, _ = PersistentKFull.load(persist_path)
-        if not recovered.active_vertex_ids():
+        recovered_size = len(recovered.active_vertex_ids())
+        loaded_size = len(graph.active_vertex_ids())
+        if recovered_size == 0 or loaded_size > recovered_size * 1.5:
+            # Close existing handle, truncate file, rewrite with full graph
+            daemon._persist.close()
+            with open(persist_path, "w", encoding="utf-8") as _:
+                pass  # truncate
+            daemon._persist = PersistentKFull(persist_path)
+            daemon._persist.open()
             for vid, v in graph.vertices.items():
                 daemon._persist.append_vertex(v)
             for e in graph.edges:
@@ -122,6 +133,19 @@ def _traversal_worker(
 
         daemon.register_callback("on_gap", on_gap_feed)
 
+    # IPFS background uploader (graceful degradation)
+    ipfs_uploader = None
+    if config.get("ipfs", False):
+        try:
+            from swarm.swarm_daemon import IPFSUploader
+            import logging
+            _ipfs_logger = logging.getLogger("ipfs-uploader")
+            _ipfs_logger.addHandler(logging.StreamHandler(sys.stderr))
+            ipfs_uploader = IPFSUploader(_ipfs_logger)
+            ipfs_uploader.start()
+        except Exception as exc:
+            print(f"[traversal-worker] IPFS init failed (graceful degradation): {exc}", file=sys.stderr)
+
     # Event callback: push significant events to event_queue for WS broadcast
     def on_event(log, narrative: str) -> None:
         try:
@@ -131,6 +155,18 @@ def _traversal_worker(
             pressure_msg = expression_pressure_ws_message(daemon)
             if pressure_msg.get("count", 0) > 0 or "text" in pressure_msg:
                 event_queue.put_nowait(pressure_msg)
+            # IPFS upload for significant events
+            if ipfs_uploader and (log.delta_beta_1 != 0 or log.blocked):
+                import json as _json
+                block_data = {
+                    "step": log.step,
+                    "operation": log.operation,
+                    "beta_1_before": log.beta_1_before,
+                    "beta_1_after": log.beta_1_after,
+                    "position": log.position,
+                }
+                block_hash = f"mp_{log.step}_{log.operation}"
+                ipfs_uploader.enqueue(block_hash, block_data)
         except Exception:
             pass  # Queue full or other error, non-fatal
 
@@ -712,6 +748,7 @@ def start_multiprocess_daemon(
     seed: int = 42,
     autonomous: bool = False,
     topology_refresh_interval: int = 50,
+    ipfs: bool = False,
 ) -> None:
     """Start the multiprocess daemon: traversal subprocess + HTTP/WS in main.
 
@@ -737,6 +774,7 @@ def start_multiprocess_daemon(
         "seed": seed,
         "autonomous": autonomous,
         "topology_refresh_interval": topology_refresh_interval,
+        "ipfs": ipfs,
     }
 
     # Start traversal subprocess
@@ -805,6 +843,8 @@ def main() -> None:
                         help="Random seed for traversal")
     parser.add_argument("--topology-refresh", type=int, default=50,
                         help="Rebuild topology cache every N steps")
+    parser.add_argument("--ipfs", action="store_true",
+                        help="Enable IPFS background upload for significant events")
     args = parser.parse_args()
 
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -855,6 +895,7 @@ def main() -> None:
         seed=args.seed,
         autonomous=args.autonomous,
         topology_refresh_interval=args.topology_refresh,
+        ipfs=args.ipfs,
     )
 
 
