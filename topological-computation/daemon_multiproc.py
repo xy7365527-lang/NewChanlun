@@ -245,6 +245,15 @@ def _traversal_worker(
                 _update_api_caches(daemon, status_dict, _narrative_json, _gaps_json,
                                    _operations_json, _persistence_json)
 
+            # Plan C: periodic cross-instance sync via SharedLayer
+            if step_count % 20 == 0:
+                cis = getattr(daemon, '_cross_instance_sync', None)
+                if cis is not None:
+                    try:
+                        cis.sync()
+                    except Exception:
+                        pass
+
             # Drain feed queue (non-blocking)
             _drain_feed_queue(daemon, feed_queue, event_queue)
 

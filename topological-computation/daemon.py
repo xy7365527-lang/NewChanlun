@@ -324,6 +324,36 @@ class TopologicalDaemon:
             if backfilled > 0:
                 print(f"396号 backfill: {backfilled} settled cycles received residue", file=sys.stderr)
 
+        # Plan C: peer_positions + traversal position write throttle
+        self.peer_positions: dict[str, dict] = {}
+        self._last_position_write_time: float = 0.0
+        self._last_position_write_label: str = ""
+
+        # Plan C: SharedLayer for multi-instance sync (graceful degradation)
+        self._shared_layer: SharedLayer | None = None
+        self._cross_instance_sync: CrossInstanceSync | None = None
+        try:
+            shared_dir = Path(".chanlun/shared_blocks")
+            env_shared = os.environ.get("FENGLIANG_SHARED_DIR")
+            if env_shared:
+                shared_dir = Path(env_shared)
+            if shared_dir.exists() or env_shared:
+                from swarm.shared_layer import SharedLayer
+                from swarm.cross_instance import CrossInstanceSync
+                self._shared_layer = SharedLayer(str(shared_dir))
+                self._cross_instance_sync = CrossInstanceSync(
+                    shared_layer=self._shared_layer,
+                    instance_id=self._instance_id,
+                    daemon=self,
+                )
+                print(
+                    f"Plan C: SharedLayer multi-instance sync enabled "
+                    f"(dir={shared_dir})",
+                    file=sys.stderr,
+                )
+        except ImportError:
+            pass
+
         # 401号修复：清除已有的 encounter memory 节点（脚印不是宝藏）
         # 保留 settlement 和 residue memory 节点，移除 encounter 类型
         self.k_active = _purge_encounter_memory_nodes(self.k_active)
@@ -888,6 +918,53 @@ class TopologicalDaemon:
                 self.total_gaps_detected += 1
             self._last_gap_check_step = self.total_steps
             self._cumulative_delta_beta_1 = 0.0
+
+        # Plan C: write traversal position to SharedLayer (throttled)
+        if self._shared_layer is not None:
+            self._write_traversal_position(log)
+
+    def _write_traversal_position(self, log) -> None:
+        """Write traversal_position block to SharedLayer.
+
+        Throttled: only write when position changes and at least 2s have passed,
+        or when a significant topological event (fold/negate/sublate) occurs.
+        Mirrors SwarmDaemon._write_traversal_position logic.
+        """
+        if not self.engine:
+            return
+
+        current_position = self.engine.position
+        v = self.k_active.vertex(current_position)
+        position_label = (
+            (v.content if v and v.content else current_position)
+            if v else current_position
+        )
+
+        now = time.time()
+        elapsed = now - self._last_position_write_time
+
+        # Check if a significant event happened this step
+        significant_event = log.operation in ("fold", "negate", "sublate")
+
+        # Throttle: position changed AND (>2s elapsed OR significant event)
+        same_position = position_label == self._last_position_write_label
+        if same_position and not significant_event:
+            return
+        if not same_position and elapsed < 2.0 and not significant_event:
+            return
+
+        block = {
+            "type": "traversal_position",
+            "instance": self._instance_id,
+            "position_label": position_label,
+            "step": self.total_steps,
+            "timestamp": now,
+        }
+        block_hash = self._shared_layer.write_block(block)
+        self._cross_instance_sync.known_blocks.add(block_hash)
+
+        self._last_position_write_time = now
+        self._last_position_write_label = position_label
 
     def feed(self, text: str) -> Graph:
         """External text injection. phi_L processes, then inject into K_active."""

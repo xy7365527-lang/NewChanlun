@@ -363,8 +363,12 @@ class SNetActivation:
 
         S_net 中两个激活能指有组合轴连接，但对应概念在 K_active 中
         没有 edge → 注册为 edge_suggestion。
+
+        当一个能指有 concept_ref 而另一个没有（孤立 signifier）时，
+        生成桥接建议而非跳过（articulation_bridge）。
         """
         suggestions: list[EdgeSuggestion] = []
+        bridge_suggestions: list[dict] = []
         active_list = sorted(self.currently_active)
 
         for i, sig_a in enumerate(active_list):
@@ -376,9 +380,38 @@ class SNetActivation:
                 concepts_a = self._sig_to_concepts.get(sig_a, [])
                 concepts_b = self._sig_to_concepts.get(sig_b, [])
 
+                # 收集 evidence patterns（桥接和标准路径都需要）
+                syntagmatic_evidence: list[str] = []
+                for edge in self.s_net.syntagmatic_neighbors(sig_a):
+                    if edge.target == sig_b and edge.evidence:
+                        syntagmatic_evidence.append(edge.evidence)
+                for edge in self.s_net.syntagmatic_neighbors(sig_b):
+                    if edge.target == sig_a and edge.evidence:
+                        syntagmatic_evidence.append(edge.evidence)
+
+                # 桥接路径：一个有 concept_ref，另一个没有
+                if concepts_a and not concepts_b:
+                    bridge_suggestions.append({
+                        "anchor_concept": concepts_a[0],
+                        "orphan_signifier": sig_b,
+                        "evidence_signifiers": (sig_a, sig_b),
+                        "evidence_patterns": tuple(syntagmatic_evidence[:5]),
+                    })
+                    continue
+                elif concepts_b and not concepts_a:
+                    bridge_suggestions.append({
+                        "anchor_concept": concepts_b[0],
+                        "orphan_signifier": sig_a,
+                        "evidence_signifiers": (sig_a, sig_b),
+                        "evidence_patterns": tuple(syntagmatic_evidence[:5]),
+                    })
+                    continue
+
+                # 两个都没有 concept_ref → 不创建（避免大量孤立对注入）
                 if not concepts_a or not concepts_b:
                     continue
 
+                # 标准路径：两个都有 concept_ref
                 # 检查 K_active 中是否有 edge
                 for ca in concepts_a:
                     for cb in concepts_b:
@@ -389,25 +422,58 @@ class SNetActivation:
                         if cb in neighbors_ca:
                             continue
 
-                        # 收集 evidence patterns
-                        patterns: list[str] = []
-                        for edge in self.s_net.syntagmatic_neighbors(sig_a):
-                            if edge.target == sig_b and edge.evidence:
-                                patterns.append(edge.evidence)
-                        for edge in self.s_net.syntagmatic_neighbors(sig_b):
-                            if edge.target == sig_a and edge.evidence:
-                                patterns.append(edge.evidence)
-
                         suggestion = EdgeSuggestion(
                             source_concept=ca,
                             target_concept=cb,
                             evidence_signifiers=(sig_a, sig_b),
-                            evidence_patterns=tuple(patterns[:5]),
+                            evidence_patterns=tuple(syntagmatic_evidence[:5]),
                             step=self.current_step,
                         )
                         suggestions.append(suggestion)
 
+        # 处理桥接建议
+        bridge_edges = self._bridge_orphan_signifiers(bridge_suggestions, graph)
+        suggestions.extend(bridge_edges)
+
         return suggestions
+
+    def _bridge_orphan_signifiers(
+        self,
+        bridge_suggestions: list[dict],
+        graph,
+    ) -> list[EdgeSuggestion]:
+        """为孤立 signifier 创建桥接 EdgeSuggestion.
+
+        每步最多桥接 MAX_BRIDGE_PER_STEP 个（防止膨胀）。
+        桥接建议的 target_concept 使用 __bridge__ 前缀标记，
+        由 traversal.py 的消费逻辑创建实际顶点。
+        """
+        MAX_BRIDGE_PER_STEP = 3
+        results: list[EdgeSuggestion] = []
+        bridged = 0
+
+        for bridge in bridge_suggestions:
+            if bridged >= MAX_BRIDGE_PER_STEP:
+                break
+
+            orphan_sig = bridge["orphan_signifier"]
+            anchor = bridge["anchor_concept"]
+
+            # 检查是否已被桥接（避免重复创建）
+            if self._sig_to_concepts.get(orphan_sig):
+                continue
+
+            results.append(EdgeSuggestion(
+                source_concept=anchor,
+                target_concept=f"__bridge__{orphan_sig}",
+                evidence_signifiers=bridge["evidence_signifiers"],
+                evidence_patterns=bridge.get("evidence_patterns", ()),
+                origin="articulation_bridge",
+                step=self.current_step,
+            ))
+            bridged += 1
+
+        return results
 
     # ------------------------------------------------------------------
     # 序列化 / 反序列化
