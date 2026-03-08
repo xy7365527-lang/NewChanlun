@@ -113,7 +113,7 @@ class _IngestVisitor(ast.NodeVisitor):
             qualified = node.name
 
         vid = self._make_id(qualified)
-        content = self._extract_signature(node)
+        content = f"[domain:code] {self._extract_signature(node)}"
         self.vertices.append(Vertex(
             id=vid,
             status=VertexStatus.ACTIVE,
@@ -140,7 +140,7 @@ class _IngestVisitor(ast.NodeVisitor):
             qualified = node.name
 
         vid = self._make_id(qualified)
-        content = self._extract_class_signature(node)
+        content = f"[domain:code] {self._extract_class_signature(node)}"
         self.vertices.append(Vertex(
             id=vid,
             status=VertexStatus.ACTIVE,
@@ -251,10 +251,11 @@ def ingest_file(filepath: str, graph: Graph, source: str = "") -> Graph:
     prefix = f"{source}:" if source else ""
     module_id = f"{prefix}{module_name}.<module>"
     module_docstring = ast.get_docstring(tree) or module_name
+    module_content = f"[domain:code] {module_docstring[:400]}" if module_docstring else f"[domain:code] {module_name}"
     visitor.vertices.append(Vertex(
         id=module_id,
         status=VertexStatus.ACTIVE,
-        content=module_docstring[:400] if module_docstring else module_name,
+        content=module_content,
     ))
     visitor._defined_names.add(module_id)
 

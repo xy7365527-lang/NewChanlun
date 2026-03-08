@@ -44,6 +44,7 @@ from persistence import PersistentKFull, DEFAULT_PATH
 from encounter_log import EncounterLog
 from cross_domain import detect_cross_domain_edges, _source_prefix
 from traversal_checkpoint import TraversalCheckpoint, extract_daemon_state, restore_daemon_state
+from signifier_net import SNet
 
 
 # ---------------------------------------------------------------------------
@@ -232,6 +233,9 @@ class TopologicalDaemon:
         # Cross-domain edge detection: track vertex set at last scan
         self._cross_domain_scanned_vids: set[str] = set()
 
+        # S_net (signifier network) — initialized during _initialize_engine
+        self.snet: SNet = SNet()
+
         # Initialize if graph is non-empty
         if self.k_active.active_vertex_ids():
             self._initialize_engine()
@@ -260,6 +264,9 @@ class TopologicalDaemon:
             if v.content:
                 self.concept_names[vid] = v.content
 
+        # S_net bootstrap: Layer A (K_active projection) + Layer B (surface forms) + Layer C (paradigmatic seeds)
+        self._bootstrap_snet()
+
         # Pick start: highest degree vertex
         degrees = {v: len(self.k_active.neighbors(v)) for v in active}
         start = max(active, key=lambda v: (degrees.get(v, 0), v))
@@ -272,6 +279,48 @@ class TopologicalDaemon:
         )
         # Share settlement tracker
         self.engine.settlement = self.settlement
+
+    def _bootstrap_snet(self) -> None:
+        """Bootstrap S_net from K_active + surface forms data.
+
+        Layer A: K_active vertex content -> signifier nodes
+        Layer B: chanlun_surface_forms.jsonl -> syntagmatic edges (PMI weighted)
+        Layer C: paradigmatic seeds (chanlun synonym/replacement pairs)
+
+        Graceful degradation: if data file is missing or bootstrap fails,
+        self.snet remains an empty SNet and daemon continues normally.
+        """
+        try:
+            from snet_bootstrap import bootstrap_snet
+
+            script_dir = Path(os.path.dirname(os.path.abspath(__file__)))
+            sf_path = script_dir / "data" / "chanlun_surface_forms.jsonl"
+
+            snet, stats = bootstrap_snet(
+                graph=self.k_active,
+                surface_forms_path=str(sf_path) if sf_path.exists() else None,
+                pmi_threshold=0.0,
+            )
+            self.snet = snet
+
+            # Report
+            n_sigs = len(snet.signifiers)
+            n_edges = len(snet.edges)
+            layer_b = stats.get("layer_b")
+            if layer_b:
+                print(
+                    f"S_net bootstrap: {n_sigs} signifiers, {n_edges} edges "
+                    f"(PMI filtered: {layer_b.get('filtered', 0)} removed)",
+                    file=sys.stderr,
+                )
+            else:
+                print(
+                    f"S_net bootstrap: {n_sigs} signifiers, {n_edges} edges (Layer A+C only, no surface forms data)",
+                    file=sys.stderr,
+                )
+        except Exception as exc:
+            print(f"S_net bootstrap failed (graceful degradation): {exc}", file=sys.stderr)
+            self.snet = SNet()
 
     def register_callback(self, event_type: str, callback) -> None:
         """Register a callback for an event type."""
@@ -508,6 +557,23 @@ class TopologicalDaemon:
         self.total_feeds += 1
         return sub_graph
 
+    def ingest_code(self, dirpath: str, source: str = "") -> Graph:
+        """Ingest Python source tree into K_active with domain:code tagging.
+
+        Unlike feed() which uses phi_L for text, this uses code_ingest
+        for AST-based parsing. Vertices carry [domain:code] content prefix.
+
+        Args:
+            dirpath: Root directory to scan for .py files.
+            source: Source label prefix for vertex IDs (e.g. "NewChanlun").
+        """
+        from code_ingest import ingest_tree
+        code_graph = ingest_tree(dirpath, source=source)
+        self._inject(code_graph)
+        self._fire("on_feed", code_graph)
+        self.total_feeds += 1
+        return code_graph
+
     def ask(self, question: str) -> str:
         """External question. Directed traversal + answer generation."""
         from interactive import InteractiveTraversal
@@ -534,7 +600,7 @@ class TopologicalDaemon:
 
         _META_PREFIXES = (
             "[tension]", "[event]", "[rewrite]", "[meta]", "[audit]",
-            "[residue]", "[consensus]",
+            "[residue]", "[consensus]", "[domain:code]",
         )
         # Code syntax fragments produce garbage search queries
         _CODE_PREFIXES = (
@@ -684,6 +750,19 @@ class TopologicalDaemon:
     def status(self) -> dict:
         """Return current status snapshot."""
         active = self.k_active.active_vertex_ids()
+        # Domain distribution
+        domain_counts: dict[str, int] = {}
+        for vid in active:
+            v = self.k_active.vertex(vid)
+            if v and v.content and v.content.startswith("[domain:code]"):
+                domain_counts["code"] = domain_counts.get("code", 0) + 1
+            elif v and v.content and v.content.startswith("[domain:"):
+                # Extract domain tag
+                tag_end = v.content.index("]")
+                domain = v.content[8:tag_end]
+                domain_counts[domain] = domain_counts.get(domain, 0) + 1
+            else:
+                domain_counts["core"] = domain_counts.get("core", 0) + 1
         return {
             "total_steps": self.total_steps,
             "total_events": self.total_events,
@@ -694,6 +773,7 @@ class TopologicalDaemon:
             "beta_1": compute_beta_1(self.k_active),
             "settled_cycles": len(self.settlement.settled_cycles),
             "crystallization_count": self._crystallization_count,
+            "domain_distribution": domain_counts,
         }
 
     def close(self):

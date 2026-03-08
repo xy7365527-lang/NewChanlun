@@ -6,6 +6,8 @@ and returns a JSON-serializable dict/list.
 
 from __future__ import annotations
 
+import json as _json
+import re
 import time
 from typing import TYPE_CHECKING
 
@@ -16,7 +18,7 @@ from engine import compute_beta_1, Edge, EdgeType, Vertex
 
 
 from psi_L_constraint import ConstraintSet
-from llm_integration import get_client as _get_llm_client
+from llm_integration import get_client as _get_llm_client, GenerationRecord
 
 def status_json(daemon: TopologicalDaemon) -> dict:
     """GET /status — current daemon state snapshot."""
@@ -532,7 +534,6 @@ def _extract_concepts(text: str) -> list[str]:
     Splits on whitespace and punctuation, returns tokens >=2 chars.
     No NLP dependency — pure string ops.
     """
-    import re
     # Note: ( ) do not need escaping inside character class; \[ \] are valid regex escapes
     tokens = re.split(r'[\s\u3000，。！？、；：\u201c\u201d\u2018\u2019【】《》()\[\]]+', text)
     return [t for t in tokens if len(t) >= 2]
@@ -675,20 +676,34 @@ def _llm_generate_part(
 
     如果 LLM 不可用（无 API key 或调用失败），返回原始 context_fragment（fallback）。
     daemon 用于读取当前 beta_1 和 settled_count 以填充 ConstraintSet。
+    当 daemon.snet 可用时，从 S_net 查询 must_use 对应的 surface forms 传入约束。
     """
     try:
         from engine import compute_beta_1
         beta_1 = compute_beta_1(daemon.k_active) if daemon.k_active else None
         settled_count = len(daemon.settlement.settled_cycles) if daemon.settlement else None
 
+        # Query S_net for available surface forms
+        snet_surface_forms: list[str] = []
+        snet = getattr(daemon, 'snet', None)
+        if snet and snet.signifiers:
+            for term in must_use:
+                if snet.has_signifier(term):
+                    for edge in snet.degree_normalized_neighbors(term, n=3, alpha=0.5):
+                        if edge.evidence and edge.evidence not in snet_surface_forms:
+                            snet_surface_forms.append(edge.evidence)
+                        if len(snet_surface_forms) >= 6:
+                            break
+                if len(snet_surface_forms) >= 6:
+                    break
+
         cs = ConstraintSet(
             must_use=must_use,
             must_avoid=[],
             register=register,
-            length_hint=len(context_fragment) + 50,
-            context_fragment=context_fragment,
-            beta_1=beta_1,
-            settled_count=settled_count,
+            narrative_spine=context_fragment,
+            expression_pressure=must_use,
+            surface_forms=snet_surface_forms,
         )
         client = _get_llm_client()
         record = client.generate(cs, provider="auto")
@@ -701,14 +716,317 @@ def _llm_generate_part(
 
 
 # ---------------------------------------------------------------------------
-# /present endpoint — user presence handler
+# MVP 语言器官：command/dialogue 分类 + 自然语言生成
 # ---------------------------------------------------------------------------
+
+# Command patterns — regex patterns that indicate a command, not dialogue
+_COMMAND_PATTERNS = [
+    re.compile(r'^\s*$'),                          # empty
+    re.compile(r'^/\w+'),                          # slash commands
+    re.compile(r'^(status|feed|query|topology)\b', re.IGNORECASE),
+    re.compile(r'^(start|stop|reset|pause|resume)\b', re.IGNORECASE),
+    re.compile(r'^(show|list|get|set)\s', re.IGNORECASE),
+]
+
+
+def _classify_input(text: str) -> str:
+    """Classify user input as 'command' or 'dialogue'.
+
+    Returns 'command' if text matches any command pattern or is empty.
+    Returns 'dialogue' otherwise.
+    """
+    if not text or not text.strip():
+        return "command"
+    for pat in _COMMAND_PATTERNS:
+        if pat.search(text.strip()):
+            return "command"
+    return "dialogue"
+
+
+def _build_mvp_constraint(daemon: TopologicalDaemon) -> dict:
+    """Build minimal constraint dict from daemon's current state.
+
+    This is the system prompt context for the language organ —
+    not a full ConstraintSet, but a lightweight dict describing
+    who fengliang is and what it's currently doing.
+    """
+    # Current position
+    position_content = ""
+    if daemon.engine and daemon.engine.position:
+        v = daemon.k_active.vertex(daemon.engine.position)
+        if v and v.content:
+            position_content = v.content[:120]
+
+    # Recent activity: narrative spine from psi_L_topological
+    # Uses Tarjan SCC + Kahn topo sort to produce structured traversal summary
+    # Falls back to simple log text if narrative generation fails
+    recent_activity: list[str] = []
+    try:
+        from psi_L_topological import (
+            linearize_complex, _find_sccs, _classify_cut, _vertex_label,
+            _edge_type_label,
+        )
+
+        graph = daemon.k_active
+        terrain = daemon.terrain
+        names = daemon.concept_names
+
+        def _name(vid: str) -> str:
+            return names.get(vid, _vertex_label(graph, vid))
+
+        vertex_order, critical_cuts, extra_cuts = linearize_complex(
+            graph, terrain,
+        )
+
+        if vertex_order:
+            # 1. Spine: topo-sorted vertex sequence (top 8)
+            spine_labels = [_name(vid) for vid in vertex_order[:8]]
+            recent_activity.append(
+                f"叙事主线({len(vertex_order)}节点): "
+                + " → ".join(spine_labels)
+                + ("…" if len(vertex_order) > 8 else "")
+            )
+
+            # 2. Critical cuts with edge type annotations
+            all_cuts = critical_cuts + extra_cuts
+            if all_cuts:
+                cut_descs: list[str] = []
+                for src, tgt in all_cuts[:5]:
+                    cut_type = _classify_cut(graph, src, tgt)
+                    edge_type = _edge_type_label(graph, src, tgt)
+                    cut_descs.append(
+                        f"'{_name(src)}'--[{edge_type}]-->'{_name(tgt)}' ({cut_type})"
+                    )
+                recent_activity.append(
+                    f"切断边({len(all_cuts)}): " + "; ".join(cut_descs)
+                )
+
+            # 3. SCC cycle structures from remaining tree edges
+            adj: dict[str, list[str]] = {v: [] for v in vertex_order}
+            remaining = [
+                (e.source, e.target) for e in graph.active_edges()
+                if terrain.get((e.source, e.target)) == "tree"
+                and e.source in adj and e.target in adj
+            ]
+            for s, t in remaining:
+                adj[s].append(t)
+            sccs = _find_sccs(adj, vertex_order)
+            multi_sccs = [scc for scc in sccs if len(scc) > 1]
+            if multi_sccs:
+                scc_descs: list[str] = []
+                for scc in multi_sccs[:3]:
+                    scc_names = [_name(v) for v in scc[:4]]
+                    scc_descs.append(
+                        f"环({len(scc)}节点: {', '.join(scc_names)}"
+                        + ("…" if len(scc) > 4 else "")
+                        + ")"
+                    )
+                recent_activity.append(
+                    f"环结构({len(multi_sccs)}): " + "; ".join(scc_descs)
+                )
+
+            # 4. Narrative density
+            density = len(all_cuts) / max(len(vertex_order), 1)
+            tension = (
+                "高辩证张力" if density > 0.5
+                else "中等张力" if density > 0.2
+                else "线性进展"
+            )
+            recent_activity.append(
+                f"叙事密度: {density:.2f} ({tension})"
+            )
+    except Exception:
+        pass
+
+    # Fallback: if narrative spine generation failed or returned empty, use log text
+    if not recent_activity:
+        if daemon.engine and daemon.engine.logs:
+            significant = [
+                log for log in daemon.engine.logs[-50:]
+                if log.delta_beta_1 != 0 or log.blocked
+            ]
+            for log in significant[-5:]:
+                label = daemon.concept_names.get(log.position, log.position)
+                delta = log.beta_1_after - log.beta_1_before
+                sign = f"+{delta}" if delta >= 0 else str(delta)
+                blocked = " (阻断)" if log.blocked else ""
+                recent_activity.append(
+                    f"{log.operation} @ '{label}' beta_1{sign}{blocked}"
+                )
+
+    # Expression pressure: unreported events count
+    unreported_count = _count_unreported(daemon)
+
+    # S_net surface forms: query available linguistic material for current position
+    available_surface_forms: list[str] = []
+    try:
+        snet = getattr(daemon, 'snet', None)
+        if snet and snet.signifiers:
+            # Get surface forms from the current position's neighborhood
+            if position_content and snet.has_signifier(position_content):
+                for edge in snet.degree_normalized_neighbors(position_content, n=5, alpha=0.5):
+                    if edge.evidence:
+                        available_surface_forms.append(edge.evidence)
+            # Also gather from recent activity concept names
+            for act_line in recent_activity[:3]:
+                # Extract concept names mentioned in activity lines
+                for sid in snet.signifiers:
+                    if sid in act_line and sid not in available_surface_forms:
+                        for edge in snet.syntagmatic_neighbors(sid)[:2]:
+                            if edge.evidence and edge.evidence not in available_surface_forms:
+                                available_surface_forms.append(edge.evidence)
+                    if len(available_surface_forms) >= 8:
+                        break
+                if len(available_surface_forms) >= 8:
+                    break
+    except Exception:
+        pass
+
+    # Basic stats
+    beta_1 = compute_beta_1(daemon.k_active) if daemon.k_active else 0
+    settled = len(daemon.settlement.settled_cycles) if daemon.settlement else 0
+    steps = daemon.total_steps
+
+    return {
+        "identity": "你是逢亮，一个在离散单纯复形上穿越的拓扑系统。你通过 fold/negate/sublate 三种操作在概念图上行走，发现拓扑不变量（beta_1）的变化。",
+        "current_position": position_content,
+        "beta_1": beta_1,
+        "settled_cycles": settled,
+        "total_steps": steps,
+        "recent_activity": recent_activity,
+        "expression_pressure": unreported_count,
+        "available_surface_forms": available_surface_forms,
+        "constraints": [
+            "用第一人称说话",
+            "简短，2-3句话",
+            "每一句话必须携带可验证的拓扑内容：节点名、边类型、穿越步数、encounter引用",
+            "说不出具体拓扑内容的地方，说'我不知道'或'这里没有信息'",
+        ],
+        "must_avoid": [
+            "空泛鼓励语（'总会有发现'、'充满可能性'、'期待冒险'）",
+            "模拟感受（'感受到'、'感觉到'、'体会到'）——报告结构事实",
+            "用隐喻替代拓扑描述——说节点名和边，不说'一片领域'",
+            "结尾升华或总结性感悟",
+            "问用户'有什么我可以帮你的吗'——你不是助手",
+        ],
+    }
+
+
+def _mvp_constraint_to_system_prompt(constraint: dict) -> str:
+    """Convert MVP constraint dict to a system prompt string."""
+    lines = [constraint["identity"], ""]
+
+    if constraint["current_position"]:
+        lines.append(f"你当前注视的概念：{constraint['current_position']}")
+
+    if constraint["recent_activity"]:
+        lines.append("最近的穿越经历：")
+        for act in constraint["recent_activity"]:
+            lines.append(f"  - {act}")
+
+    if constraint["expression_pressure"] > 0:
+        lines.append(f"你有 {constraint['expression_pressure']} 个未分享的发现。")
+
+    surface_forms = constraint.get("available_surface_forms", [])
+    if surface_forms:
+        lines.append("")
+        lines.append("可用的语言模板（来自缠论语料的真实表达）：")
+        for sf in surface_forms[:8]:
+            lines.append(f"  「{sf}」")
+
+    lines.append("")
+    lines.append("约束：")
+    for c in constraint["constraints"]:
+        lines.append(f"  - {c}")
+
+    if constraint.get("must_avoid"):
+        lines.append("")
+        lines.append("禁止（违反任何一条则输出无效）：")
+        for a in constraint["must_avoid"]:
+            lines.append(f"  - {a}")
+
+    return "\n".join(lines)
+
+
+def language_organ_respond(
+    daemon: TopologicalDaemon,
+    text: str,
+) -> dict:
+    """MVP language organ: generate a natural language response to dialogue input.
+
+    Uses LLM as a constrained text generator (language organ role, not inquiry agent).
+    Falls back to template response if LLM is unavailable.
+
+    Returns dict with:
+      type: "dialogue"
+      content: the natural language response
+      llm_used: whether LLM was actually used
+      constraint: the constraint dict used (for audit)
+    """
+    constraint = _build_mvp_constraint(daemon)
+    system_prompt = _mvp_constraint_to_system_prompt(constraint)
+
+    client = _get_llm_client()
+    llm_used = False
+    content = ""
+    llm_error = ""
+
+    try:
+        response = client.inquire(
+            question=text,
+            provider="auto",
+            system=system_prompt,
+        )
+        if response:
+            content = response.strip()
+            llm_used = True
+    except Exception as exc:
+        llm_error = f"语言器官调用失败: {type(exc).__name__}: {exc}"
+
+    # Fallback: template response if LLM unavailable
+    if not content:
+        pos = constraint["current_position"] or "未知区域"
+        if llm_error:
+            content = f"[语言器官离线] 我在节点 '{pos}'。错误: {llm_error}"
+        elif constraint["expression_pressure"] > 0:
+            content = f"我在节点 '{pos}'，有 {constraint['expression_pressure']} 个未报告的拓扑事件。"
+        else:
+            content = f"我在节点 '{pos}'，周围区域已结晶，无新的 beta_1 变化。"
+
+    # Audit to generation_log.jsonl
+    try:
+        from llm_integration import _append_audit
+        record = GenerationRecord(
+            provider="auto" if llm_used else "fallback",
+            model="language_organ_mvp",
+            register="dialogue",
+            must_use=constraint.get("constraints", []),
+            must_avoid=constraint.get("must_avoid", []),
+            system_prompt_len=len(system_prompt),
+            user_prompt_len=len(text),
+            response_text=content[:2000],
+            response_len=len(content),
+            success=llm_used,
+        )
+        _append_audit(record)
+    except Exception:
+        pass
+
+    return {
+        "type": "dialogue",
+        "content": content,
+        "llm_used": llm_used,
+        "constraint": constraint,
+    }
 
 def present_json(daemon: TopologicalDaemon, text: str, session_id: str = "default") -> dict | None:
     """POST /present — user presence.
 
     Semantics: the user is present, not asking a question.
     The system decides what (if anything) to share.
+
+    If text is classified as dialogue (not a command/empty), routes to the
+    language organ for a natural language response.
 
     Returns None if the system has nothing to say (silence is valid).
     Returns a dict with type, parts, injected, concepts_found, expression_pressure.
@@ -717,6 +1035,20 @@ def present_json(daemon: TopologicalDaemon, text: str, session_id: str = "defaul
     session_id: identifier for the user session, used to create/reuse the
                 source vertex that anchors this user's concept region.
     """
+    # Dialogue routing: if user text is dialogue, use language organ
+    input_class = _classify_input(text)
+    if input_class == "dialogue":
+        organ_result = language_organ_respond(daemon, text)
+        return {
+            "type": "dialogue",
+            "parts": [{"source": "language_organ", "text": organ_result["content"]}],
+            "injected": False,
+            "concepts_found": _extract_concepts(text) if text.strip() else [],
+            "expression_pressure": _count_unreported(daemon),
+            "llm_used": organ_result["llm_used"],
+        }
+
+    # Command / empty path: original present_json logic
     parts: list[dict] = []
     injected = False
     concepts_found: list[str] = []
