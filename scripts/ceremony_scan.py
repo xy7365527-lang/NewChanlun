@@ -200,6 +200,48 @@ def discover_business_tasks(root):
     return tasks
 
 
+def scan_code_settlement_requests(root):
+    """扫描 encounter_log (traversal-events.jsonl) 中 status=pending 的 code_settlement_request.
+
+    逢亮的自诊断通过 proprioception → norm violation → code gap mapping 产出
+    code_settlement_request。这些请求需要 operator 审批后 CC 才能执行修改。
+
+    返回 workstation 列表，每个 workstation 标记 approval_required=True。
+    """
+    log_path = os.path.join(root, "topological-computation/.chanlun/traversal-events.jsonl")
+    if not os.path.isfile(log_path):
+        return []
+
+    workstations = []
+    with open(log_path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entry = json.loads(line)
+            except (json.JSONDecodeError, ValueError):
+                continue
+            if entry.get("type") != "code_settlement_request":
+                continue
+            if entry.get("status") != "pending":
+                continue
+            norm_info = entry.get("norm_violation", {})
+            workstations.append({
+                "priority": "P0",
+                "name": f"code-settlement: {entry.get('diagnosed_file', 'unknown')}",
+                "description": (
+                    f"Gap: {entry.get('gap_description', '')}\n"
+                    f"Direction: {entry.get('proposed_direction', '')}\n"
+                    f"Basis: {entry.get('theoretical_basis', '')}"
+                ),
+                "source": "self_diagnosis",
+                "approval_required": True,
+                "severity": norm_info.get("severity", "unknown"),
+            })
+    return workstations
+
+
 def get_pattern_buffer_candidate_count(root):
     """统计 pattern-buffer 中 status=candidate 的模式数量。
 
@@ -388,6 +430,12 @@ def main():
                     "review_file": review["file"],
                 })
 
+    # 2c. 逢亮自诊断：code_settlement_request (提案权，需 operator 审批)
+    code_settlement_ws = scan_code_settlement_requests(root)
+    if code_settlement_ws:
+        result["code_settlement_requests"] = len(code_settlement_ws)
+        workstations.extend(code_settlement_ws)
+
     # 3. 079号：如果无任何工位，执行 no_work_fallback
     if not workstations:
         workstations = discover_business_tasks(root)
@@ -404,6 +452,7 @@ def main():
         and len(workstations) == 0
         and pending_count == 0
         and len(review_results) == 0
+        and len(code_settlement_ws) == 0
     )
 
     # 定义/谱系计数

@@ -8,7 +8,8 @@
     "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
     "MCP_TIMEOUT": "5000",
     "API_TIMEOUT_MS": "120000",
-    "ANTHROPIC_BASE_URL": "https://api.apiyi.com"
+    "ANTHROPIC_BASE_URL": "https://cc1.zhihuiapi.top",
+    "ANTHROPIC_AUTH_TOKEN": "sk-t5SNQ3KGRpnn3m3ev2TC9SflVUBmWVv5BHgmAMFZeMEoI6BY"
   },
   "hooks": {
     "SessionStart": [
@@ -282,5 +283,6 @@
   "model": "claude-opus-4-6-thinking[1m]",
   "betas": [
     "context-1m-2025-08-07"
-  ]
+  ],
+  "forceLoginMethod": "console"
 }

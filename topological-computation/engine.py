@@ -247,9 +247,16 @@ def compute_beta_1(graph: Graph) -> int:
 
 @dataclass(frozen=True, slots=True)
 class SettledCycle:
-    """A specific set of edges forming an irreducible cycle, marked as settled."""
+    """A specific set of edges forming an irreducible cycle, marked as settled.
+
+    residue: transformation products of settlement (396号).
+    Each entry: {"type": "edge"|"tension"|"pressure", "data": {...}}
+    Settlement is transformation, not closure — every Aufhebung is also
+    the starting point of a new contradiction.
+    """
     edges: frozenset[tuple[str, str]]
     settled_at_step: int
+    residue: tuple[dict, ...] = ()
 
 
 def find_new_cycle_edges(
@@ -323,7 +330,12 @@ def _find_path_edges(graph: Graph, source: str, target: str) -> set[tuple[str, s
 
 
 class SettlementTracker:
-    """Track cycle persistence and settlement state."""
+    """Track cycle persistence and settlement state.
+
+    396号: settlement is transformation, not closure. Each settlement
+    produces residue — unsettled elements that are the starting point
+    of new contradictions.
+    """
 
     def __init__(self, threshold: int = 5) -> None:
         self.threshold = threshold
@@ -344,8 +356,115 @@ class SettlementTracker:
         if edges not in self._pending and not self._is_settled(edges):
             self._pending[edges] = step
 
+    def _compute_residue(
+        self, cycle_edges: frozenset[tuple[str, str]], step: int,
+        graph: Graph | None = None,
+    ) -> tuple[dict, ...]:
+        """Compute residue for a settling cycle (396号).
+
+        Five residue types:
+        1. edge: two settled cycles share a vertex -> inter-cycle relation
+        2. tension: two settled cycles have conflicting edge directions on shared vertex
+        3. expression_pressure: every settlement needs articulation
+        4. boundary_edge: edge with one end inside settled cycle, other end outside
+        5. nachtraeglichkeit: new settlement overlaps prior settlement's jurisdiction
+        """
+        residue: list[dict] = []
+
+        # Vertices in this cycle
+        cycle_vids: set[str] = set()
+        for src, tgt in cycle_edges:
+            cycle_vids.add(src)
+            cycle_vids.add(tgt)
+
+        # Check shared vertices with other settled cycles
+        for other_sc in self._settled:
+            other_vids: set[str] = set()
+            for src, tgt in other_sc.edges:
+                other_vids.add(src)
+                other_vids.add(tgt)
+            shared = cycle_vids & other_vids
+            if shared:
+                # Type 1: shared vertex -> new edge (inter-cycle relation)
+                residue.append({
+                    "type": "edge",
+                    "data": {
+                        "shared_vertices": sorted(shared),
+                        "other_cycle_settled_at": other_sc.settled_at_step,
+                        "relation": "inter_cycle",
+                    },
+                })
+
+                # Type 2: check for directional conflict on shared vertices
+                # If cycle A has edge X->Y and cycle B has Y->X, that's tension
+                cycle_dir = {(s, t) for s, t in cycle_edges if s in shared or t in shared}
+                other_dir = {(s, t) for s, t in other_sc.edges if s in shared or t in shared}
+                for s1, t1 in cycle_dir:
+                    if (t1, s1) in other_dir:
+                        residue.append({
+                            "type": "tension",
+                            "data": {
+                                "vertex_a": s1,
+                                "vertex_b": t1,
+                                "conflict": "directional",
+                                "this_direction": f"{s1}->{t1}",
+                                "other_direction": f"{t1}->{s1}",
+                            },
+                        })
+
+                # Type 5: nachtraeglichkeit — new cycle overlaps prior settlement
+                residue.append({
+                    "type": "nachtraeglichkeit",
+                    "data": {
+                        "prior_settled_at": other_sc.settled_at_step,
+                        "affected_vertices": sorted(shared),
+                        "reason": "new settlement altered edge structure within prior's jurisdiction",
+                    },
+                })
+
+        # Type 4: boundary_edge — edges with one end inside, one end outside
+        if graph is not None:
+            for vid in cycle_vids:
+                for e in graph._adj_out.get(vid, ()):
+                    if (e.source, e.target) not in cycle_edges and e.target not in cycle_vids:
+                        residue.append({
+                            "type": "boundary_edge",
+                            "data": {
+                                "internal_vertex": vid,
+                                "external_vertex": e.target,
+                                "edge_source": e.source,
+                                "edge_target": e.target,
+                            },
+                        })
+                for e in graph._adj_in.get(vid, ()):
+                    if (e.source, e.target) not in cycle_edges and e.source not in cycle_vids:
+                        residue.append({
+                            "type": "boundary_edge",
+                            "data": {
+                                "internal_vertex": vid,
+                                "external_vertex": e.source,
+                                "edge_source": e.source,
+                                "edge_target": e.target,
+                            },
+                        })
+
+        # Type 3: expression_pressure — always produced
+        residue.append({
+            "type": "expression_pressure",
+            "data": {
+                "cycle_vertices": sorted(cycle_vids),
+                "settled_at_step": step,
+                "needs_articulation": True,
+            },
+        })
+
+        return tuple(residue)
+
     def check_settlement(self, step: int, graph: Graph) -> list[SettledCycle]:
-        """Check if any pending cycles have persisted long enough to settle."""
+        """Check if any pending cycles have persisted long enough to settle.
+
+        396号: settlement produces residue (transformation, not closure).
+        """
         newly_settled: list[SettledCycle] = []
         active_edges = {(e.source, e.target) for e in graph.active_edges()}
 
@@ -356,7 +475,8 @@ class SettlementTracker:
                 to_remove.append(cycle_edges)
                 continue
             if step - first_seen >= self.threshold:
-                sc = SettledCycle(cycle_edges, step)
+                residue = self._compute_residue(cycle_edges, step, graph=graph)
+                sc = SettledCycle(cycle_edges, step, residue=residue)
                 self._settled.append(sc)
                 newly_settled.append(sc)
                 to_remove.append(cycle_edges)
@@ -366,11 +486,185 @@ class SettlementTracker:
 
         return newly_settled
 
-    def would_destroy_settled(self, graph_after: Graph) -> SettledCycle | None:
-        """Check if graph_after destroys any settled cycle. Returns the first violated cycle."""
+    def backfill_residue(self, graph: Graph | None = None) -> int:
+        """Backfill residue for existing settled cycles that have none (396号).
+
+        Called once at daemon startup to retroactively produce residue
+        for the 201 settled cycles that were created before this mechanism.
+
+        Args:
+            graph: the active graph, needed for boundary_edge computation.
+                   If None, boundary_edge residues will not be produced.
+
+        Returns count of cycles that received residue.
+        """
+        backfilled = 0
+        new_settled: list[SettledCycle] = []
+
+        for sc in self._settled:
+            if sc.residue:
+                new_settled.append(sc)
+                continue
+            # Compute residue against all OTHER settled cycles
+            # (temporarily exclude self to avoid self-reference)
+            cycle_vids: set[str] = set()
+            for src, tgt in sc.edges:
+                cycle_vids.add(src)
+                cycle_vids.add(tgt)
+
+            residue: list[dict] = []
+
+            for other_sc in self._settled:
+                if other_sc is sc:
+                    continue
+                other_vids: set[str] = set()
+                for src, tgt in other_sc.edges:
+                    other_vids.add(src)
+                    other_vids.add(tgt)
+                shared = cycle_vids & other_vids
+                if shared:
+                    residue.append({
+                        "type": "edge",
+                        "data": {
+                            "shared_vertices": sorted(shared),
+                            "other_cycle_settled_at": other_sc.settled_at_step,
+                            "relation": "inter_cycle",
+                        },
+                    })
+                    cycle_dir = {(s, t) for s, t in sc.edges if s in shared or t in shared}
+                    other_dir = {(s, t) for s, t in other_sc.edges if s in shared or t in shared}
+                    for s1, t1 in cycle_dir:
+                        if (t1, s1) in other_dir:
+                            residue.append({
+                                "type": "tension",
+                                "data": {
+                                    "vertex_a": s1,
+                                    "vertex_b": t1,
+                                    "conflict": "directional",
+                                    "this_direction": f"{s1}->{t1}",
+                                    "other_direction": f"{t1}->{s1}",
+                                },
+                            })
+
+                    # Nachträglichkeit: this cycle overlaps prior settlement
+                    residue.append({
+                        "type": "nachtraeglichkeit",
+                        "data": {
+                            "prior_settled_at": other_sc.settled_at_step,
+                            "affected_vertices": sorted(shared),
+                            "reason": "new settlement altered edge structure within prior's jurisdiction",
+                        },
+                    })
+
+            # Boundary edges: edges with one end inside cycle, one end outside
+            if graph is not None:
+                for vid in cycle_vids:
+                    for e in graph._adj_out.get(vid, ()):
+                        if (e.source, e.target) not in sc.edges and e.target not in cycle_vids:
+                            residue.append({
+                                "type": "boundary_edge",
+                                "data": {
+                                    "internal_vertex": vid,
+                                    "external_vertex": e.target,
+                                    "edge_source": e.source,
+                                    "edge_target": e.target,
+                                },
+                            })
+                    for e in graph._adj_in.get(vid, ()):
+                        if (e.source, e.target) not in sc.edges and e.source not in cycle_vids:
+                            residue.append({
+                                "type": "boundary_edge",
+                                "data": {
+                                    "internal_vertex": vid,
+                                    "external_vertex": e.source,
+                                    "edge_source": e.source,
+                                    "edge_target": e.target,
+                                },
+                            })
+
+            residue.append({
+                "type": "expression_pressure",
+                "data": {
+                    "cycle_vertices": sorted(cycle_vids),
+                    "settled_at_step": sc.settled_at_step,
+                    "needs_articulation": True,
+                },
+            })
+
+            new_sc = SettledCycle(sc.edges, sc.settled_at_step, residue=tuple(residue))
+            new_settled.append(new_sc)
+            backfilled += 1
+
+        self._settled = new_settled
+        return backfilled
+
+    def residue_vertices(self) -> set[str]:
+        """Return all vertex IDs referenced by any residue item (396号).
+
+        These are vertices where operations should NOT be blocked even though
+        they participate in settled cycles — the residue is the unsettled
+        transformation product.
+        """
+        vids: set[str] = set()
+        for sc in self._settled:
+            for item in sc.residue:
+                data = item.get("data", {})
+                if item["type"] == "edge":
+                    for v in data.get("shared_vertices", []):
+                        vids.add(v)
+                elif item["type"] == "tension":
+                    va = data.get("vertex_a")
+                    vb = data.get("vertex_b")
+                    if va:
+                        vids.add(va)
+                    if vb:
+                        vids.add(vb)
+                elif item["type"] == "expression_pressure":
+                    for v in data.get("cycle_vertices", []):
+                        vids.add(v)
+                elif item["type"] == "boundary_edge":
+                    iv = data.get("internal_vertex")
+                    ev = data.get("external_vertex")
+                    if iv:
+                        vids.add(iv)
+                    if ev:
+                        vids.add(ev)
+                elif item["type"] == "nachtraeglichkeit":
+                    for v in data.get("affected_vertices", []):
+                        vids.add(v)
+        return vids
+
+    def would_destroy_settled(
+        self,
+        graph_after: Graph,
+        operation_vertices: frozenset[str] | None = None,
+    ) -> SettledCycle | None:
+        """Check if graph_after destroys any settled cycle.
+
+        396号: if the operation targets only residue vertices (vertices
+        referenced by residue items), allow it — settlement protects the
+        cycle's edges, not its residue.
+
+        Args:
+            graph_after: the graph state after the proposed operation
+            operation_vertices: vertices directly involved in the operation
+                (e.g., fold targets, negate endpoints). If all of these are
+                residue vertices, the operation is allowed even if it would
+                modify a settled cycle's edge set.
+        """
         active_edges = {(e.source, e.target) for e in graph_after.active_edges()}
+        residue_vids = self.residue_vertices() if operation_vertices else set()
+
         for sc in self._settled:
             if not sc.edges.issubset(active_edges):
+                # This settled cycle would be destroyed.
+                # 396号: allow if the operation only touches residue vertices
+                if (
+                    operation_vertices is not None
+                    and sc.residue
+                    and operation_vertices.issubset(residue_vids)
+                ):
+                    continue
                 return sc
         return None
 
@@ -469,8 +763,10 @@ def fold(
             Edge(keep, keep, EdgeType.FOLD, step)
         ) if n_loop > 0 else result_graph
 
-    # Check settlement constraint
-    violated = settlement.would_destroy_settled(result_graph)
+    # Check settlement constraint (396号: pass operation vertices for residue check)
+    violated = settlement.would_destroy_settled(
+        result_graph, operation_vertices=frozenset(vertices),
+    )
     if violated is not None:
         return OperationResult(
             graph=graph,
@@ -530,8 +826,11 @@ def negate(
         )
         result_graph = result_graph.set_vertex_status(thesis, VertexStatus.CONTESTED)
 
-    # Check settlement constraint
-    violated = settlement.would_destroy_settled(result_graph)
+    # Check settlement constraint (396号: pass operation vertices for residue check)
+    negate_verts = frozenset({thesis} | ({antithesis} if antithesis in active else set()))
+    violated = settlement.would_destroy_settled(
+        result_graph, operation_vertices=negate_verts,
+    )
     if violated is not None:
         return OperationResult(
             graph=graph,
@@ -620,8 +919,10 @@ def sublate(
         Edge(synthesis_id, antithesis, EdgeType.SUBLATION, step)
     )
 
-    # Check settlement constraint
-    violated = settlement.would_destroy_settled(result_graph)
+    # Check settlement constraint (396号: pass operation vertices for residue check)
+    violated = settlement.would_destroy_settled(
+        result_graph, operation_vertices=frozenset({thesis, antithesis}),
+    )
     if violated is not None:
         return OperationResult(
             graph=graph,

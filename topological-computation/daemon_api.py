@@ -18,7 +18,8 @@ from engine import compute_beta_1, Edge, EdgeType, Vertex
 
 
 from psi_L_constraint import ConstraintSet
-from llm_integration import get_client as _get_llm_client, GenerationRecord
+from llm_integration import get_client as _get_llm_client, GenerationRecord, parse_signifier_chain
+from signifier_net import detect_ruptures, persist_rupture_log
 
 def status_json(daemon: TopologicalDaemon) -> dict:
     """GET /status — current daemon state snapshot."""
@@ -60,6 +61,7 @@ def status_json(daemon: TopologicalDaemon) -> dict:
         "encounter_density": round(density, 3),
         "status": label,
         "expression_pressure": getattr(daemon, '_unreported_count', 0),
+        "residue_vertices": len(daemon.settlement.residue_vertices()) if daemon.settlement else 0,
     }
 
 
@@ -1019,6 +1021,63 @@ def language_organ_respond(
         "constraint": constraint,
     }
 
+
+def _detect_ruptures_from_text(
+    daemon: TopologicalDaemon,
+    text: str,
+) -> dict | None:
+    """对话输入 → 能指链 → S_net 断裂检测 → tuché 候选 → 持久化。
+
+    完整管线：
+      1. parse_signifier_chain(text, known_signifiers=S_net 全部能指)
+      2. detect_ruptures(signifier_chain, snet)
+      3. persist_rupture_log(...)
+      4. 返回断裂摘要 dict（含 tuché 候选列表）
+
+    Graceful degradation：S_net 为空或检测失败时返回 None。
+    """
+    snet = getattr(daemon, 'snet', None)
+    if not snet or not snet.signifiers:
+        return None
+
+    if not text or not text.strip():
+        return None
+
+    # Step 1: 解析能指链（使用 S_net 全部能指作为锚定）
+    known_sigs = list(snet.signifiers.keys())
+    chain = parse_signifier_chain(text, known_signifiers=known_sigs)
+
+    if not chain:
+        return None
+
+    # Step 2: 断裂检测
+    ruptures = detect_ruptures(chain, snet)
+
+    # Step 3: 持久化
+    from pathlib import Path
+    log_dir = Path(__file__).resolve().parent / "rupture_logs"
+    persist_rupture_log(text, chain, ruptures, log_dir=log_dir)
+
+    # Step 4: 构建摘要
+    tuche_candidates = [r.signifier for r in ruptures if r.tuche_candidate]
+
+    return {
+        "signifier_chain": chain,
+        "rupture_count": len(ruptures),
+        "ruptures": [
+            {
+                "type": r.rupture_type.value,
+                "signifier": r.signifier,
+                "significance": round(r.significance, 3),
+                "context": r.context,
+                "tuche_candidate": r.tuche_candidate,
+            }
+            for r in ruptures
+        ],
+        "tuche_candidates": tuche_candidates,
+    }
+
+
 def present_json(daemon: TopologicalDaemon, text: str, session_id: str = "default") -> dict | None:
     """POST /present — user presence.
 
@@ -1039,7 +1098,11 @@ def present_json(daemon: TopologicalDaemon, text: str, session_id: str = "defaul
     input_class = _classify_input(text)
     if input_class == "dialogue":
         organ_result = language_organ_respond(daemon, text)
-        return {
+
+        # 断裂检测：对话输入 → 能指链 → S_net 断裂检测
+        rupture_info = _detect_ruptures_from_text(daemon, text)
+
+        result = {
             "type": "dialogue",
             "parts": [{"source": "language_organ", "text": organ_result["content"]}],
             "injected": False,
@@ -1047,6 +1110,9 @@ def present_json(daemon: TopologicalDaemon, text: str, session_id: str = "defaul
             "expression_pressure": _count_unreported(daemon),
             "llm_used": organ_result["llm_used"],
         }
+        if rupture_info:
+            result["ruptures"] = rupture_info
+        return result
 
     # Command / empty path: original present_json logic
     parts: list[dict] = []
@@ -1121,11 +1187,14 @@ def present_json(daemon: TopologicalDaemon, text: str, session_id: str = "defaul
     else:
         response_type = "co-gaze"
 
+    # 7. 断裂检测（command 路径也做）
+    rupture_info = _detect_ruptures_from_text(daemon, text) if text.strip() else None
+
     # Silence: return None — frontend shows "系统在稳态中"
     if response_type == "silence":
         # Count unreported events for pressure indicator even when silent
         unreported_count = _count_unreported(daemon)
-        return {
+        result = {
             "type": "silence",
             "parts": [],
             "injected": injected,
@@ -1134,11 +1203,14 @@ def present_json(daemon: TopologicalDaemon, text: str, session_id: str = "defaul
             "source_vertex": source_vid,
             "llm_used": False,
         }
+        if rupture_info:
+            result["ruptures"] = rupture_info
+        return result
 
     # Update unreported count
     unreported_count = _count_unreported(daemon)
 
-    return {
+    result = {
         "type": response_type,
         "parts": parts,
         "injected": injected,
@@ -1147,6 +1219,9 @@ def present_json(daemon: TopologicalDaemon, text: str, session_id: str = "defaul
         "source_vertex": source_vid,
         "llm_used": llm_used,
     }
+    if rupture_info:
+        result["ruptures"] = rupture_info
+    return result
 
 def _count_unreported(daemon: TopologicalDaemon) -> int:
     """Count currently unreported high-I events (for expression pressure indicator)."""

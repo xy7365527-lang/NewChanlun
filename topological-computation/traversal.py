@@ -12,11 +12,46 @@ from enum import Enum
 from typing import Optional
 
 from engine import (
-    Graph, VertexStatus, EdgeType, SettlementTracker, OperationResult,
-    SublationRecord,
+    Graph, VertexStatus, EdgeType, SettlementTracker, SettledCycle,
+    OperationResult, SublationRecord,
     compute_beta_1, fold, negate, sublate, _connected_components,
 )
+from encounter_log import EncounterLog
 from morse import compute_terrain, critical_neighbors
+
+
+# -- norm violation → code gap mapping ------------------------------------
+
+def _norm_to_code_gap(violation) -> dict | None:
+    """Map a NormViolation to a code gap description, if applicable.
+
+    Returns dict with keys: file, gap, direction — or None if the violation
+    does not map to a specific code-level gap.
+    """
+    norm_text = violation.norm.operational_norm
+
+    if norm_text == "每次settlement的residue非空":
+        return {
+            "file": "topological-computation/engine.py",
+            "gap": "settlement produces empty residue — closure without transformation",
+            "direction": "Ensure _compute_residue always produces non-empty residue after settlement",
+        }
+
+    if norm_text == "unsettled_count > 0":
+        return {
+            "file": "topological-computation/engine.py",
+            "gap": "all cycles settled, no unsettled cycles remain — heat death",
+            "direction": "Add mechanism to generate new cycles when all are settled",
+        }
+
+    if norm_text == "settled_cycle_count increases over time":
+        return {
+            "file": "topological-computation/traversal.py",
+            "gap": "prolonged nothing-streak indicates traversal cannot produce new settlements",
+            "direction": "Improve encounter detection or walker strategy for stagnant regions",
+        }
+
+    return None
 
 
 class EncounterType(str, Enum):
@@ -68,6 +103,7 @@ class TraversalEngine:
         use_f_criterion: bool = False,
         f_fold_threshold: int = 2,
         f_negate_threshold: int = 10,
+        encounter_log: EncounterLog | None = None,
     ):
         self.k_full = graph
         self.k_active = graph  # initially same
@@ -82,12 +118,14 @@ class TraversalEngine:
         self._nothing_streak = 0  # consecutive "nothing" steps
         self._blocked_streak = 0  # consecutive blocked operation steps
         self._blocked_at: dict[str, int] = {}  # position -> last blocked step (skip encounter there)
+        self._last_blocked_by: SettledCycle | None = None  # last cycle that blocked an operation
         self._use_llm = use_llm
         self._conservative_prompt = conservative_prompt
         self._llm_log: list[dict] = []  # LLM call log for debugging
         self._use_f_criterion = use_f_criterion
         self._f_fold_threshold = f_fold_threshold
         self._f_negate_threshold = f_negate_threshold
+        self._encounter_log = encounter_log
 
     # -- f(v,w) terrain annotation (not a filter, not a trigger) ---------------
 
@@ -127,12 +165,124 @@ class TraversalEngine:
         Phase 1 (use_llm=False, use_f_criterion=False): topological rules.
         Phase 2 (use_llm=True): LLM semantic analysis.
         f-criterion mode (use_f_criterion=True): f(v,w) as intrinsic criterion.
+
+        Proprioception override: when position is a proprioception vertex,
+        check self-reflexive norms. Violated norms produce structural encounters.
         """
+        proprioception_enc = self._check_proprioception_encounter()
+        if proprioception_enc is not None:
+            return proprioception_enc
+
         if self._use_llm:
             return self._detect_encounter_llm()
         if self._use_f_criterion:
             return self._detect_encounter_f_criterion()
         return self._detect_encounter_topo()
+
+    def _check_proprioception_encounter(self) -> Encounter | None:
+        """Check self-reflexive norms when at a proprioception vertex.
+
+        If the current position is a proprioception vertex, parse current metrics
+        from the graph's proprioception vertices, check norms, and produce a
+        negate_b encounter (structural forcing) if any norm is violated.
+
+        Returns None if not at a proprioception vertex or no violations detected.
+        """
+        if not self.position.startswith("proprioception:"):
+            return None
+
+        from proprioception import (
+            check_norms, ProprioceptionMetrics, PROPRIOCEPTION_PREFIX,
+        )
+
+        # Collect metrics from proprioception vertices in the graph
+        metric_values: dict[str, int] = {}
+        for vid in self.k_active.active_vertex_ids():
+            if vid.startswith("proprioception:"):
+                v = self.k_active.vertex(vid)
+                if v and v.content and v.content.startswith(PROPRIOCEPTION_PREFIX):
+                    key = vid.split(":", 1)[1]
+                    parts = v.content.split("=", 1)
+                    if len(parts) == 2:
+                        try:
+                            metric_values[key] = int(parts[1].strip())
+                        except ValueError:
+                            pass
+
+        if not metric_values:
+            return None
+
+        metrics = ProprioceptionMetrics(
+            settled_cycle_count=metric_values.get("settled_cycle_count", 0),
+            total_vertices=metric_values.get("total_vertices", 0),
+            total_edges=metric_values.get("total_edges", 0),
+            nothing_streak=metric_values.get("nothing_streak", 0),
+            expression_pressure=metric_values.get("expression_pressure", 0),
+            blocked_streak=metric_values.get("blocked_streak", 0),
+        )
+
+        # Total cycles = pending + settled
+        total_cycles = len(self.settlement.settled_cycles) + len(self.settlement._pending)
+        violations = check_norms(metrics, total_cycles)
+
+        if not violations:
+            return None
+
+        # Most severe violation becomes a structural forcing encounter (negate_b)
+        critical = [v for v in violations if v.severity == "critical"]
+        chosen = critical[0] if critical else violations[0]
+
+        # Emit code_settlement_request for structural violations that map to code gaps.
+        # The norm→code mapping uses the norm's diagnosis to identify the relevant file.
+        if chosen.severity in ("critical", "warning"):
+            code_mapping = _norm_to_code_gap(chosen)
+            if code_mapping is not None:
+                self._emit_code_settlement_request(
+                    diagnosed_file=code_mapping["file"],
+                    gap_description=code_mapping["gap"],
+                    proposed_direction=code_mapping["direction"],
+                    theoretical_basis=chosen.norm.theoretical_concept,
+                    norm_violation={
+                        "norm": chosen.norm.operational_norm,
+                        "actual_state": chosen.actual_state,
+                        "severity": chosen.severity,
+                    },
+                )
+
+        return Encounter(
+            EncounterType.NEGATE_B,
+            self.position,
+            None,
+            f"Self-diagnosis: {chosen.norm.theoretical_concept} violated — "
+            f"{chosen.norm.diagnosis} ({chosen.actual_state})",
+        )
+
+    def _emit_code_settlement_request(
+        self,
+        diagnosed_file: str,
+        gap_description: str,
+        proposed_direction: str,
+        theoretical_basis: str,
+        norm_violation: dict,
+    ) -> dict | None:
+        """逢亮的提案权：write code_settlement_request to encounter_log.
+
+        When self-diagnosis via proprioception detects a norm violation and
+        the traversal is in the self domain (code vertices), this emits a
+        code_settlement_request. The request is proposal-only — execution
+        requires operator approval through ceremony_scan → CC workflow.
+
+        Returns the request dict if written, None if no encounter_log available.
+        """
+        if self._encounter_log is None:
+            return None
+        return self._encounter_log.record_code_settlement_request(
+            diagnosed_file=diagnosed_file,
+            gap_description=gap_description,
+            proposed_direction=proposed_direction,
+            theoretical_basis=theoretical_basis,
+            norm_violation=norm_violation,
+        )
 
     def _detect_encounter_llm(self) -> Encounter:
         """Detect encounter using LLM semantic analysis of vertex content."""
@@ -436,6 +586,7 @@ class TraversalEngine:
                     {"thesis": enc.target_a, "antithesis": enc.target_b},
                     result.blocked_by,
                 )
+                self._last_blocked_by = result.blocked_by
                 return "sublate_blocked", True
 
             self.k_active = result.graph
@@ -467,6 +618,7 @@ class TraversalEngine:
                     {"thesis": enc.target_a, "antithesis": enc.target_b},
                     result.blocked_by,
                 )
+                self._last_blocked_by = result.blocked_by
                 return "negate_blocked", True
 
             self.k_active = result.graph
@@ -489,6 +641,7 @@ class TraversalEngine:
                     {"thesis": enc.target_a},
                     result.blocked_by,
                 )
+                self._last_blocked_by = result.blocked_by
                 return "negate_blocked", True
 
             self.k_active = result.graph
@@ -517,6 +670,7 @@ class TraversalEngine:
                     {"vertices": [enc.target_a, enc.target_b]},
                     result.blocked_by,
                 )
+                self._last_blocked_by = result.blocked_by
                 return "fold_blocked", True
 
             self.k_active = result.graph
@@ -573,9 +727,58 @@ class TraversalEngine:
         return max(free_vids, key=lambda v: (degrees[v], v))
 
     def _is_code_vertex(self, vid: str) -> bool:
-        """Check if vertex belongs to code domain (content starts with [domain:code])."""
+        """Check if vertex belongs to code domain (content starts with [domain:code] or [domain:self])."""
         v = self.k_active.vertex(vid)
-        return v is not None and v.content is not None and v.content.startswith("[domain:code]")
+        if v is None or v.content is None:
+            return False
+        return v.content.startswith("[domain:code]") or v.content.startswith("[domain:self]")
+
+    def _try_residue_escape(self, blocked_by: SettledCycle | None) -> bool:
+        """Attempt to escape a settled cycle block using residue paths.
+
+        When an operation is blocked by a settled cycle, check its residue:
+        - boundary_edge: move to the external vertex (prefer different domain)
+        - nachtraeglichkeit: move into the prior settlement's affected region
+
+        Returns True if escape succeeded (position changed), False otherwise.
+        """
+        if blocked_by is None or not blocked_by.residue:
+            return False
+
+        active = set(self.k_active.active_vertex_ids())
+
+        # Collect boundary_edge targets (external vertices)
+        boundary_targets: list[str] = []
+        for item in blocked_by.residue:
+            if item["type"] == "boundary_edge":
+                ev = item["data"].get("external_vertex")
+                if ev and ev in active and ev != self.position:
+                    boundary_targets.append(ev)
+
+        if boundary_targets:
+            # Prefer boundary edge leading to a different domain
+            current_is_code = self._is_code_vertex(self.position)
+            cross_domain = [v for v in boundary_targets if self._is_code_vertex(v) != current_is_code]
+            target = self.rng.choice(cross_domain) if cross_domain else self.rng.choice(boundary_targets)
+            self.position = target
+            self.visit_history.append(self.position)
+            return True
+
+        # Collect nachtraeglichkeit targets (affected vertices in prior settlements)
+        nachtraeg_targets: list[str] = []
+        for item in blocked_by.residue:
+            if item["type"] == "nachtraeglichkeit":
+                for v in item["data"].get("affected_vertices", []):
+                    if v in active and v != self.position:
+                        nachtraeg_targets.append(v)
+
+        if nachtraeg_targets:
+            target = self.rng.choice(nachtraeg_targets)
+            self.position = target
+            self.visit_history.append(self.position)
+            return True
+
+        return False
 
     def walk(self) -> None:
         """Move to an adjacent vertex. Prefer critical edges, then unvisited, then random.
@@ -665,9 +868,12 @@ class TraversalEngine:
                 self._blocked_at[self.position] = self.step
                 self._blocked_streak += 1
 
+                # 396号: try to escape via residue paths (boundary_edge / nachtraeglichkeit)
+                if self._try_residue_escape(self._last_blocked_by):
+                    self._blocked_streak = 0
                 # Settlement deadlock escape: if blocked too many times consecutively,
                 # jump to a vertex outside all settled cycles ("free zone")
-                if self._blocked_streak >= 30:
+                elif self._blocked_streak >= 30:
                     free_target = self._find_free_zone_target()
                     if free_target is not None and free_target != self.position:
                         self.position = free_target
