@@ -440,12 +440,16 @@ class TopologicalDaemon:
 
         Adds synonym/contrast (paradigmatic) and definition-based (syntagmatic)
         edges from structured dictionary entries.
+        Also ingests bilingual (bilingual_*.jsonl) and morpheme (morpheme_*.jsonl) dictionaries.
 
         Graceful degradation: if dictionaries dir is missing or ingest fails,
         S_net remains unchanged.
         """
         try:
-            from signifier_net_ingest import ingest_all_dictionaries, format_ingest_report
+            from signifier_net_ingest import (
+                ingest_all_dictionaries, format_ingest_report,
+                ingest_bilingual_dict, ingest_morpheme_dict,
+            )
 
             script_dir = Path(os.path.dirname(os.path.abspath(__file__)))
             dict_dir = script_dir / "signifier_net" / "dictionaries"
@@ -453,18 +457,50 @@ class TopologicalDaemon:
             if not dict_dir.is_dir():
                 return
 
+            # 1. 单语辞典（dict_*.jsonl）
             self.snet, all_stats = ingest_all_dictionaries(self.snet, dict_dir)
 
             # Report
             if all_stats:
                 report = format_ingest_report(all_stats)
                 print(report, file=sys.stderr)
-                n_sigs = len(self.snet.signifiers)
-                n_edges = len(self.snet.edges)
-                print(
-                    f"S_net after dictionary ingest: {n_sigs} signifiers, {n_edges} edges",
-                    file=sys.stderr,
-                )
+
+            # 2. 双语辞典（bilingual_*.jsonl）
+            bilingual_files = sorted(dict_dir.glob("bilingual_*.jsonl"))
+            for bf in bilingual_files:
+                try:
+                    self.snet, bstats = ingest_bilingual_dict(self.snet, bf)
+                    print(
+                        f"  bilingual {bf.name}: "
+                        f"{bstats.get('entries_total', 0)} entries, "
+                        f"+{bstats.get('translations_added', 0)} translations, "
+                        f"+{bstats.get('signifiers_created', 0)} new signifiers",
+                        file=sys.stderr,
+                    )
+                except Exception as exc:
+                    print(f"  bilingual {bf.name}: ERROR - {exc}", file=sys.stderr)
+
+            # 3. 语素辞典（morpheme_*.jsonl）
+            morpheme_files = sorted(dict_dir.glob("morpheme_*.jsonl"))
+            for mf in morpheme_files:
+                try:
+                    self.snet, mstats = ingest_morpheme_dict(self.snet, mf)
+                    print(
+                        f"  morpheme {mf.name}: "
+                        f"{mstats.get('entries_total', 0)} entries, "
+                        f"+{mstats.get('structures_added', 0)} structures, "
+                        f"+{mstats.get('morpheme_edges_added', 0)} morpheme edges",
+                        file=sys.stderr,
+                    )
+                except Exception as exc:
+                    print(f"  morpheme {mf.name}: ERROR - {exc}", file=sys.stderr)
+
+            n_sigs = len(self.snet.signifiers)
+            n_edges = len(self.snet.edges)
+            print(
+                f"S_net after dictionary ingest: {n_sigs} signifiers, {n_edges} edges",
+                file=sys.stderr,
+            )
         except Exception as exc:
             print(f"Dictionary ingest failed (graceful degradation): {exc}", file=sys.stderr)
 

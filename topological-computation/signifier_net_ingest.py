@@ -26,7 +26,10 @@ import re
 import sys
 from pathlib import Path
 
-from signifier_net import SNet, Signifier, SignifierEdge, AxisType
+from signifier_net import (
+    SNet, Signifier, SignifierEdge, AxisType,
+    Morpheme, MorphemeStructure,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -172,6 +175,7 @@ def ingest_dictionary(
     for entry in entries:
         term = entry.get("term", "").strip()
         domain = entry.get("domain", "").strip()
+        entry_lang = entry.get("lang", "").strip()
 
         if not term:
             continue
@@ -194,6 +198,7 @@ def ingest_dictionary(
                     id=syn,
                     surface_forms=(),
                     source="dictionary",
+                    lang=entry_lang,
                 ))
                 stats["signifiers_created"] += 1
 
@@ -545,3 +550,224 @@ def ingest_text_passage(
         new_snet = new_snet.merge_edge_weights()
 
     return new_snet, log_entries
+
+
+# ---------------------------------------------------------------------------
+# 双语辞典摄入
+# ---------------------------------------------------------------------------
+
+def ingest_bilingual_dict(
+    snet: SNet,
+    dict_path: str | Path,
+) -> tuple[SNet, dict]:
+    """从双语 JSONL 辞典文件向 S_net 注入跨语言翻译关系。
+
+    JSONL 格式（每行一个 JSON）：
+      {"term_a": str, "lang_a": str, "term_b": str, "lang_b": str,
+       "domain": str, "differential": str, "source": str}
+
+    处理逻辑：
+      1. 为 term_a 和 term_b 创建 Signifier（带 lang），若已存在则保留
+      2. 创建 PARADIGMATIC 边（relation="translation", differential=entry 的 differential）
+
+    参数：
+      snet:      当前 S_net 实例
+      dict_path: 双语辞典 JSONL 文件路径
+
+    返回：
+      (new_snet, stats) — stats 包含摄入统计
+
+    认识论等级：L0（辞典是手工编纂的定义）
+    """
+    path = Path(dict_path)
+    if not path.exists():
+        raise FileNotFoundError(f"双语辞典文件不存在: {path}")
+
+    stats = {
+        "file": str(path.name),
+        "type": "bilingual",
+        "entries_total": 0,
+        "translations_added": 0,
+        "signifiers_created": 0,
+    }
+
+    entries: list[dict] = []
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entries.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+
+    stats["entries_total"] = len(entries)
+
+    for entry in entries:
+        term_a = entry.get("term_a", "").strip()
+        term_b = entry.get("term_b", "").strip()
+        lang_a = entry.get("lang_a", "").strip()
+        lang_b = entry.get("lang_b", "").strip()
+        domain = entry.get("domain", "").strip()
+        differential = entry.get("differential", "").strip()
+        source = entry.get("source", "").strip()
+
+        if not term_a or not term_b:
+            continue
+
+        # 创建 Signifier（若不存在）
+        if not snet.has_signifier(term_a):
+            snet = snet.add_signifier(Signifier(
+                id=term_a,
+                surface_forms=(),
+                source="bilingual_dictionary",
+                lang=lang_a,
+                domain=domain,
+            ))
+            stats["signifiers_created"] += 1
+
+        if not snet.has_signifier(term_b):
+            snet = snet.add_signifier(Signifier(
+                id=term_b,
+                surface_forms=(),
+                source="bilingual_dictionary",
+                lang=lang_b,
+                domain=domain,
+            ))
+            stats["signifiers_created"] += 1
+
+        # 创建翻译边（双向）
+        evidence = f"bilingual:{source}" if source else f"bilingual:{path.stem}"
+        snet = snet.add_edge(SignifierEdge(
+            source=term_a,
+            target=term_b,
+            axis=AxisType.PARADIGMATIC,
+            weight=0.9,
+            evidence=evidence,
+            relation="translation",
+            differential=differential,
+        ))
+        snet = snet.add_edge(SignifierEdge(
+            source=term_b,
+            target=term_a,
+            axis=AxisType.PARADIGMATIC,
+            weight=0.9,
+            evidence=evidence,
+            relation="translation",
+            differential=differential,
+        ))
+        stats["translations_added"] += 1
+
+    # 合并同键边
+    snet = snet.merge_edge_weights()
+
+    return snet, stats
+
+
+# ---------------------------------------------------------------------------
+# 语素辞典摄入
+# ---------------------------------------------------------------------------
+
+def ingest_morpheme_dict(
+    snet: SNet,
+    dict_path: str | Path,
+) -> tuple[SNet, dict]:
+    """从语素 JSONL 辞典文件向 S_net 注入语素分解结构。
+
+    JSONL 格式（每行一个 JSON）：
+      {"signifier_id": str, "lang": str,
+       "morphemes": [{"form": str, "meaning": str}, ...],
+       "etymology": str}
+
+    处理逻辑：
+      1. 创建 MorphemeStructure 并添加到 S_net
+      2. 对 shared_with 中的能指对创建 MORPHEME 边
+
+    参数：
+      snet:      当前 S_net 实例
+      dict_path: 语素辞典 JSONL 文件路径
+
+    返回：
+      (new_snet, stats) — stats 包含摄入统计
+
+    认识论等级：L0（辞典是手工编纂的定义）
+    """
+    path = Path(dict_path)
+    if not path.exists():
+        raise FileNotFoundError(f"语素辞典文件不存在: {path}")
+
+    stats = {
+        "file": str(path.name),
+        "type": "morpheme",
+        "entries_total": 0,
+        "structures_added": 0,
+        "morpheme_edges_added": 0,
+    }
+
+    entries: list[dict] = []
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entries.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+
+    stats["entries_total"] = len(entries)
+
+    for entry in entries:
+        sig_id = entry.get("signifier_id", "").strip()
+        lang = entry.get("lang", "").strip()
+        etymology = entry.get("etymology", "").strip()
+        raw_morphemes = entry.get("morphemes", [])
+
+        if not sig_id or not raw_morphemes:
+            continue
+
+        # 构建 Morpheme tuple
+        morphemes: list[Morpheme] = []
+        for m in raw_morphemes:
+            form = m.get("form", "").strip()
+            meaning = m.get("meaning", "").strip()
+            shared = tuple(s.strip() for s in m.get("shared_with", []) if s.strip())
+            if form:
+                morphemes.append(Morpheme(
+                    form=form,
+                    meaning=meaning,
+                    lang=lang,
+                    shared_with=shared,
+                ))
+
+        if not morphemes:
+            continue
+
+        # 创建 MorphemeStructure
+        ms = MorphemeStructure(
+            signifier_id=sig_id,
+            morphemes=tuple(morphemes),
+            etymology=etymology,
+        )
+        snet = snet.add_morpheme_structure(ms)
+        stats["structures_added"] += 1
+
+        # 对 shared_with 中的能指对创建 MORPHEME 边
+        for morph in morphemes:
+            for other_id in morph.shared_with:
+                if other_id != sig_id and snet.has_signifier(other_id):
+                    snet = snet.add_edge(SignifierEdge(
+                        source=sig_id,
+                        target=other_id,
+                        axis=AxisType.MORPHEME,
+                        weight=0.7,
+                        evidence=f"shared morpheme: {morph.form} ({morph.meaning})",
+                        relation="morpheme_link",
+                    ))
+                    stats["morpheme_edges_added"] += 1
+
+    # 合并同键边
+    snet = snet.merge_edge_weights()
+
+    return snet, stats

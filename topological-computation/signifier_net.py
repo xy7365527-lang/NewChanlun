@@ -38,6 +38,7 @@ from typing import Optional
 class AxisType(str, Enum):
     SYNTAGMATIC = "syntagmatic"   # 组合轴：共现/邻接
     PARADIGMATIC = "paradigmatic" # 聚合轴：替换/同义
+    MORPHEME = "morpheme"         # 语素轴：语素共享连接
 
 
 # ---------------------------------------------------------------------------
@@ -51,10 +52,14 @@ class Signifier:
     id: 规范形式（通常是术语本身）
     surface_forms: 该能指在语料中出现的表层变体（list，不可变）
     source: 来源层 — 'k_active_projection' | 'corpus' | 'manual'
+    lang: 语言标记 — 'zh' | 'en' | 'de' | 'fr' | ''(legacy)
+    domain: 域标记（如 'hegel', 'chanlun'）
     """
     id: str
     surface_forms: tuple[str, ...] = ()
     source: str = "k_active_projection"
+    lang: str = ""
+    domain: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,15 +68,47 @@ class SignifierEdge:
 
     source: 来源能指 id
     target: 目标能指 id
-    axis: 组合轴或聚合轴
+    axis: 组合轴、聚合轴或语素轴
     weight: 共现强度（组合轴：PMI 值）或替换概率（聚合轴）
     evidence: 原始语言片段（surface），用于调试和叙事还原
+    relation: 关系子类型 — 'synonym'|'contrast'|'translation'|'morpheme_link'|''
+    differential: 翻译损失/增益描述（跨语言边专用）
     """
     source: str
     target: str
     axis: AxisType
     weight: float = 1.0
     evidence: str = ""
+    relation: str = ""
+    differential: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class Morpheme:
+    """语素。
+
+    form: 语素本身（如 "Auf", "中", "re-"）
+    meaning: 语素含义
+    lang: 语言
+    shared_with: 该语素参与的其他能指 ID
+    """
+    form: str
+    meaning: str
+    lang: str
+    shared_with: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class MorphemeStructure:
+    """能指的语素分解结构。
+
+    signifier_id: 对应的能指 ID
+    morphemes: 语素序列
+    etymology: 词源/说明
+    """
+    signifier_id: str
+    morphemes: tuple[Morpheme, ...] = ()
+    etymology: str = ""
 
 
 class SNet:
@@ -86,13 +123,17 @@ class SNet:
         self,
         signifiers: dict[str, Signifier] | None = None,
         edges: list[SignifierEdge] | None = None,
+        morphemes: dict[str, MorphemeStructure] | None = None,
     ) -> None:
         self._signifiers: dict[str, Signifier] = dict(signifiers) if signifiers else {}
         self._edges: list[SignifierEdge] = list(edges) if edges else []
+        self._morphemes: dict[str, MorphemeStructure] = dict(morphemes) if morphemes else {}
         # 组合轴邻接索引（source -> list[SignifierEdge]）
         self._syn_out: dict[str, list[SignifierEdge]] = {}
         # 聚合轴替换索引（id -> list[SignifierEdge]）
         self._par_out: dict[str, list[SignifierEdge]] = {}
+        # 语素轴索引（source -> list[SignifierEdge]）
+        self._morpheme_out: dict[str, list[SignifierEdge]] = {}
         # 度数索引（组合轴，无向）
         self._syn_degree: dict[str, int] = {}
         for e in self._edges:
@@ -100,6 +141,8 @@ class SNet:
                 self._syn_out.setdefault(e.source, []).append(e)
                 self._syn_degree[e.source] = self._syn_degree.get(e.source, 0) + 1
                 self._syn_degree[e.target] = self._syn_degree.get(e.target, 0) + 1
+            elif e.axis == AxisType.MORPHEME:
+                self._morpheme_out.setdefault(e.source, []).append(e)
             else:
                 self._par_out.setdefault(e.source, []).append(e)
 
@@ -127,6 +170,15 @@ class SNet:
         """返回能指 sid 的所有聚合轴替换项（按 weight 降序）。"""
         edges = self._par_out.get(sid, [])
         return sorted(edges, key=lambda e: -e.weight)
+
+    def morpheme_links(self, sid: str) -> list[SignifierEdge]:
+        """返回能指 sid 的所有语素轴连接（按 weight 降序）。"""
+        edges = self._morpheme_out.get(sid, [])
+        return sorted(edges, key=lambda e: -e.weight)
+
+    def get_morpheme_structure(self, signifier_id: str) -> MorphemeStructure | None:
+        """返回能指的语素分解结构，不存在时返回 None。"""
+        return self._morphemes.get(signifier_id)
 
     def cooccurrence_weight(self, sid_a: str, sid_b: str) -> float:
         """返回两个能指之间的组合轴共现权重（无边则 0.0）。"""
@@ -185,11 +237,17 @@ class SNet:
         """添加能指。若 id 已存在则覆盖。"""
         new_sigs = dict(self._signifiers)
         new_sigs[sig.id] = sig
-        return SNet(new_sigs, self._edges)
+        return SNet(new_sigs, self._edges, self._morphemes)
 
     def add_edge(self, edge: SignifierEdge) -> "SNet":
         """添加边。不去重（允许累积权重后外部聚合）。"""
-        return SNet(self._signifiers, self._edges + [edge])
+        return SNet(self._signifiers, self._edges + [edge], self._morphemes)
+
+    def add_morpheme_structure(self, ms: MorphemeStructure) -> "SNet":
+        """添加语素分解结构。若 signifier_id 已存在则覆盖。"""
+        new_morphemes = dict(self._morphemes)
+        new_morphemes[ms.signifier_id] = ms
+        return SNet(self._signifiers, self._edges, new_morphemes)
 
     def merge_edge_weights(self) -> "SNet":
         """将同 (source, target, axis) 的边合并，weight 求和。
@@ -198,11 +256,17 @@ class SNet:
         """
         merged: dict[tuple[str, str, AxisType], float] = {}
         evidences: dict[tuple[str, str, AxisType], list[str]] = {}
+        relations: dict[tuple[str, str, AxisType], str] = {}
+        differentials: dict[tuple[str, str, AxisType], str] = {}
         for e in self._edges:
             key = (e.source, e.target, e.axis)
             merged[key] = merged.get(key, 0.0) + e.weight
             if e.evidence:
                 evidences.setdefault(key, []).append(e.evidence)
+            if e.relation and key not in relations:
+                relations[key] = e.relation
+            if e.differential and key not in differentials:
+                differentials[key] = e.differential
         new_edges = [
             SignifierEdge(
                 source=k[0],
@@ -210,15 +274,18 @@ class SNet:
                 axis=k[2],
                 weight=w,
                 evidence=evidences.get(k, [""])[0],  # 只保留第一条证据
+                relation=relations.get(k, ""),
+                differential=differentials.get(k, ""),
             )
             for k, w in merged.items()
         ]
-        return SNet(self._signifiers, new_edges)
+        return SNet(self._signifiers, new_edges, self._morphemes)
 
     def __repr__(self) -> str:
         return (
             f"SNet(signifiers={len(self._signifiers)}, "
-            f"edges={len(self._edges)})"
+            f"edges={len(self._edges)}, "
+            f"morphemes={len(self._morphemes)})"
         )
 
 

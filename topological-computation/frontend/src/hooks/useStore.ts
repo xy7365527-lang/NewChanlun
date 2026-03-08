@@ -15,6 +15,32 @@ interface Beta1Point {
   beta1: number;
 }
 
+// Color palette for peer instances (auto-assigned)
+const PEER_COLORS = [
+  "#ff4466",  // red
+  "#22d68a",  // green
+  "#f0c040",  // amber
+  "#cc66ff",  // purple
+  "#ff8c42",  // orange
+  "#42c6ff",  // cyan
+];
+
+function _assignPeerColor(
+  instanceId: string,
+  existing: Record<string, { color: string }>,
+): string {
+  const usedColors = new Set(Object.values(existing).map((p) => p.color));
+  for (const c of PEER_COLORS) {
+    if (!usedColors.has(c)) return c;
+  }
+  // Fallback: hash-based color
+  let hash = 0;
+  for (let i = 0; i < instanceId.length; i++) {
+    hash = (hash * 31 + instanceId.charCodeAt(i)) | 0;
+  }
+  return PEER_COLORS[Math.abs(hash) % PEER_COLORS.length];
+}
+
 interface DaemonStore {
   // Connection
   wsConnected: boolean;
@@ -51,6 +77,9 @@ interface DaemonStore {
   // Expression pressure: number of unreported high-I events
   expressionPressure: number;
 
+  // Peer instance positions (from SharedLayer cross-instance sync)
+  peersPositions: Record<string, { posLabel: string; color: string; step: number; online: boolean }>;
+
   // Actions
   setWsConnected: (v: boolean) => void;
   setDaemonReachable: (v: boolean) => void;
@@ -63,6 +92,7 @@ interface DaemonStore {
   setOperations: (ops: OperationStats) => void;
   addMessage: (msg: ChatMessage) => void;
   handleWsBatch: (msgs: WsMessage[]) => void;
+  updatePeerPosition: (instanceId: string, posLabel: string, step?: number) => void;
 }
 
 export const useStore = create<DaemonStore>((set) => ({
@@ -79,6 +109,7 @@ export const useStore = create<DaemonStore>((set) => ({
   messages: [],
   currentPositionLabel: "",
   expressionPressure: 0,
+  peersPositions: {},
 
   setWsConnected: (v) => set({ wsConnected: v }),
   setDaemonReachable: (v) => set({ daemonReachable: v }),
@@ -117,6 +148,8 @@ export const useStore = create<DaemonStore>((set) => ({
       const newNarrative: NarrativeEvent[] = [];
       const newGaps: GapEntry[] = [...state.gaps];
       const newMessages: ChatMessage[] = [];
+      let peersUpdated = false;
+      const updatedPeers = { ...state.peersPositions };
 
       for (const msg of msgs) {
         if (msg.type === "step") {
@@ -173,6 +206,16 @@ export const useStore = create<DaemonStore>((set) => ({
               timestamp: Date.now(),
             });
           }
+        } else if (msg.type === "peer_position") {
+          // Update peer instance position from SharedLayer cross-instance sync
+          const existing = updatedPeers[msg.instance];
+          updatedPeers[msg.instance] = {
+            posLabel: msg.position_label,
+            color: existing?.color || _assignPeerColor(msg.instance, updatedPeers),
+            step: msg.step ?? 0,
+            online: true,
+          };
+          peersUpdated = true;
         }
       }
 
@@ -185,9 +228,26 @@ export const useStore = create<DaemonStore>((set) => ({
         narrative: merged,
         gaps: newGaps.slice(0, 30),
         expressionPressure,
+        peersPositions: peersUpdated ? updatedPeers : state.peersPositions,
         messages: newMessages.length > 0
           ? [...state.messages, ...newMessages]
           : state.messages,
+      };
+    }),
+
+  updatePeerPosition: (instanceId, posLabel, step) =>
+    set((state) => {
+      const existing = state.peersPositions[instanceId];
+      return {
+        peersPositions: {
+          ...state.peersPositions,
+          [instanceId]: {
+            posLabel,
+            color: existing?.color || _assignPeerColor(instanceId, state.peersPositions),
+            step: step ?? existing?.step ?? 0,
+            online: true,
+          },
+        },
       };
     }),
 }));

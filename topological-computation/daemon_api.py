@@ -1466,3 +1466,39 @@ def expression_pressure_ws_message(daemon: TopologicalDaemon) -> dict:
             # Advance WS watermark to prevent re-pushing this event
             daemon._ws_last_reported_step = top.step
     return msg
+
+
+def instances_json(daemon: TopologicalDaemon) -> dict:
+    """GET /instances — all known instance positions (including self).
+
+    Returns peer positions discovered via SharedLayer cross-instance sync,
+    plus this daemon's own position. Used by the dashboard to render
+    multi-instance traversal markers without direct WS connections.
+    """
+    peer_positions: dict[str, dict] = getattr(daemon, 'peer_positions', {})
+    result: dict[str, dict] = {}
+
+    # Add peers
+    now = time.time()
+    for instance_id, pos in peer_positions.items():
+        age = now - pos.get("timestamp", 0)
+        result[instance_id] = {
+            "position_label": pos.get("position_label", ""),
+            "step": pos.get("step", 0),
+            "timestamp": pos.get("timestamp", 0),
+            "online": age < 30,
+        }
+
+    # Add self
+    instance_id = getattr(daemon, 'instance_id', 'local')
+    if daemon.engine:
+        v = daemon.k_active.vertex(daemon.engine.position)
+        self_label = (v.content if v and v.content else daemon.engine.position) if v else ""
+        result[instance_id] = {
+            "position_label": self_label,
+            "step": daemon.total_steps,
+            "timestamp": now,
+            "online": True,
+        }
+
+    return {"instances": result}

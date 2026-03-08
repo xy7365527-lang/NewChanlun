@@ -170,32 +170,21 @@ export interface WsExpressionMessage {
   importance?: number;
 }
 
+/** Peer instance position update via SharedLayer cross-instance sync. */
+export interface WsPeerPositionMessage {
+  type: "peer_position";
+  instance: string;
+  position_label: string;
+  step?: number;
+  timestamp?: number;
+}
+
 export type WsMessage =
   | WsStepMessage
   | WsGapMessage
   | WsFeedMessage
-  | WsExpressionMessage;
-
-// ── Multi-instance types ─────────────────────────────────────────
-
-export interface InstanceConfig {
-  id: string;
-  name: string;
-  wsUrl: string;
-  httpUrl: string;
-  color: string;
-}
-
-export interface InstanceState {
-  id: string;
-  connected: boolean;
-  currentPositionLabel: string;
-  steps: number;
-  settled: number;
-  beta1: number;
-  visible: boolean;
-  traversalHistory: string[];   // recent position IDs for path rendering
-}
+  | WsExpressionMessage
+  | WsPeerPositionMessage;
 
 // ── Chat message ────────────────────────────────────────────────
 
