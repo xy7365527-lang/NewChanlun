@@ -176,6 +176,27 @@ export type WsMessage =
   | WsFeedMessage
   | WsExpressionMessage;
 
+// ── Multi-instance types ─────────────────────────────────────────
+
+export interface InstanceConfig {
+  id: string;
+  name: string;
+  wsUrl: string;
+  httpUrl: string;
+  color: string;
+}
+
+export interface InstanceState {
+  id: string;
+  connected: boolean;
+  currentPositionLabel: string;
+  steps: number;
+  settled: number;
+  beta1: number;
+  visible: boolean;
+  traversalHistory: string[];   // recent position IDs for path rendering
+}
+
 // ── Chat message ────────────────────────────────────────────────
 
 export interface ChatMessage {

@@ -1,9 +1,10 @@
-import { useEffect, useState, useCallback, useRef } from "react";
-import { T, FONT, STATUS_POLL_MS } from "./tokens";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
+import { T, FONT, STATUS_POLL_MS, DEFAULT_INSTANCES } from "./tokens";
 import { useStore } from "./hooks/useStore";
 import { useDaemonWS } from "./hooks/useDaemonWS";
+import { useMultiInstanceWS, appendTraversalHistory } from "./hooks/useMultiInstanceWS";
 import { daemonAPI } from "./hooks/useDaemonAPI";
-import type { TopologyNode, ChatMessage } from "./types";
+import type { TopologyNode, ChatMessage, InstanceConfig, InstanceState, WsMessage, WsStepMessage } from "./types";
 
 import { MetricsBar } from "./components/MetricsBar";
 import { Beta1Curve } from "./components/Beta1Curve";
@@ -15,10 +16,12 @@ import { TabSwitcher } from "./components/TabSwitcher";
 import { CodePanel } from "./components/CodePanel";
 import { QueryDetail } from "./components/QueryDetail";
 import { TopologyViewSwitcher } from "./views/TopologyViewSwitcher";
+import { InstancePanel } from "./components/InstancePanel";
+import type { InstanceTraversal } from "./components/TopologyView";
 
 const TABS = [
-  { id: "chat", label: "对话" },
-  { id: "code", label: "代码" },
+  { id: "chat", label: "\u5BF9\u8BDD" },
+  { id: "code", label: "\u4EE3\u7801" },
 ];
 
 export default function App() {
@@ -45,8 +48,63 @@ export default function App() {
   const setQueryResult = useStore((s) => s.setQueryResult);
   const addMessage = useStore((s) => s.addMessage);
 
-  // ── Connect WS ───────────────────────────────────────────────
+  // ── Multi-instance config ───────────────────────────────────
+  const [instances] = useState<InstanceConfig[]>(DEFAULT_INSTANCES);
+  const [instanceStates, setInstanceStates] = useState<Map<string, InstanceState>>(() => {
+    const m = new Map<string, InstanceState>();
+    for (const inst of DEFAULT_INSTANCES) {
+      m.set(inst.id, {
+        id: inst.id,
+        connected: false,
+        currentPositionLabel: "",
+        steps: 0,
+        settled: 0,
+        beta1: 0,
+        visible: true,
+        traversalHistory: [],
+      });
+    }
+    return m;
+  });
+
+  // ── Connect primary WS (for store: narrative, gaps, etc.) ───
   useDaemonWS();
+
+  // ── Multi-instance WS callbacks ─────────────────────────────
+  const handleInstanceStateChange = useCallback((instanceId: string, partial: Partial<InstanceState>) => {
+    setInstanceStates((prev) => {
+      const existing = prev.get(instanceId);
+      if (!existing) return prev;
+      const next = new Map(prev);
+      next.set(instanceId, { ...existing, ...partial });
+      return next;
+    });
+  }, []);
+
+  const handleInstanceWsBatch = useCallback((instanceId: string, msgs: WsMessage[]) => {
+    setInstanceStates((prev) => {
+      const existing = prev.get(instanceId);
+      if (!existing) return prev;
+      const next = new Map(prev);
+      const newHistory = appendTraversalHistory(existing.traversalHistory, msgs);
+
+      // Extract settled count from step messages if available
+      let settled = existing.settled;
+      for (const msg of msgs) {
+        if (msg.type === "step" && (msg as WsStepMessage).crystallized) {
+          settled = existing.settled; // crystallized flag doesn't directly give settled count
+        }
+      }
+
+      next.set(instanceId, { ...existing, traversalHistory: newHistory, settled });
+      return next;
+    });
+  }, []);
+
+  useMultiInstanceWS(instances, {
+    onStateChange: handleInstanceStateChange,
+    onWsBatch: handleInstanceWsBatch,
+  });
 
   // ── Local UI state ───────────────────────────────────────────
   const [activeTab, setActiveTab] = useState("chat");
@@ -61,7 +119,7 @@ export default function App() {
         const s = await daemonAPI.status();
         if (alive) setStatus(s);
       } catch {
-        // daemon not reachable — skip silently
+        // daemon not reachable
       }
     }
     poll();
@@ -89,7 +147,7 @@ export default function App() {
   useEffect(() => {
     let alive = true;
     async function fetchNarrative() {
-      if (wsConnected) return; // WS keeps narrative fresh
+      if (wsConnected) return;
       try {
         const events = await daemonAPI.narrative(30);
         if (alive) setNarrative(events);
@@ -139,7 +197,7 @@ export default function App() {
     chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // ── Node click → still use /query for topology node detail ────
+  // ── Node click -> query ──────────────────────────────────────
   const handleSelectNode = useCallback(
     async (node: TopologyNode) => {
       setFocusConcept(node.label);
@@ -151,7 +209,7 @@ export default function App() {
       } catch (e) {
         addMessage({
           role: "daemon",
-          text: `查询 "${node.label}" 失败: ${e instanceof Error ? e.message : String(e)}`,
+          text: `\u67E5\u8BE2 "${node.label}" \u5931\u8D25: ${e instanceof Error ? e.message : String(e)}`,
           timestamp: Date.now(),
         });
       }
@@ -159,7 +217,6 @@ export default function App() {
     [setFocusConcept, setQueryResult, addMessage]
   );
 
-  // ── Concept selected from terrain/3D view ───────────────────
   const handleSelectConcept = useCallback(
     (concept: string) => {
       setFocusConcept(concept);
@@ -168,7 +225,7 @@ export default function App() {
     [setFocusConcept]
   );
 
-  // ── /present — all user input funnels through here ───────────
+  // ── /present ─────────────────────────────────────────────────
   const handleSend = useCallback(
     async (text: string) => {
       const userMsg: ChatMessage = { role: "user", text, timestamp: Date.now() };
@@ -180,18 +237,14 @@ export default function App() {
         const res = await daemonAPI.present(text);
 
         if (res.type === "silence") {
-          // Silence means the system has nothing specific to share.
-          // But since the user is talking, route through language organ fallback
-          // instead of showing a template status message.
           addMessage({
             role: "daemon",
             text: res.expression_pressure > 0
-              ? `[${res.expression_pressure} 个未报告事件积压中]`
-              : "",  // true silence: no message shown
+              ? `[${res.expression_pressure} \u4E2A\u672A\u62A5\u544A\u4E8B\u4EF6\u79EF\u538B\u4E2D]`
+              : "",
             timestamp: Date.now(),
           });
         } else {
-          // dialogue, sharing, co-gaze — render each part
           for (const part of res.parts) {
             addMessage({
               role: "daemon",
@@ -201,14 +254,13 @@ export default function App() {
           }
         }
 
-        // If concepts were located, also update the focus concept for the topology view
         if (res.concepts_found && res.concepts_found.length > 0) {
           setFocusConcept(res.concepts_found[0]);
         }
       } catch (e) {
         addMessage({
           role: "daemon",
-          text: `错误: ${e instanceof Error ? e.message : String(e)}`,
+          text: `\u9519\u8BEF: ${e instanceof Error ? e.message : String(e)}`,
           timestamp: Date.now(),
         });
       } finally {
@@ -218,7 +270,6 @@ export default function App() {
     [addMessage, setFocusConcept]
   );
 
-  // ── Expression pressure click — trigger sharing with empty text ──
   const handlePressureClick = useCallback(async () => {
     if (pending) return;
     setPending(true);
@@ -227,7 +278,7 @@ export default function App() {
       if (res.type === "silence") {
         addMessage({
           role: "daemon",
-          text: "系统在稳态中，暂无积压事件。",
+          text: "\u7CFB\u7EDF\u5728\u7A33\u6001\u4E2D\uFF0C\u6682\u65E0\u79EF\u538B\u4E8B\u4EF6\u3002",
           timestamp: Date.now(),
         });
       } else {
@@ -243,7 +294,7 @@ export default function App() {
     } catch (e) {
       addMessage({
         role: "daemon",
-        text: `错误: ${e instanceof Error ? e.message : String(e)}`,
+        text: `\u9519\u8BEF: ${e instanceof Error ? e.message : String(e)}`,
         timestamp: Date.now(),
       });
     } finally {
@@ -251,7 +302,44 @@ export default function App() {
     }
   }, [pending, addMessage]);
 
-  // ── Current traversal vertex id from topology ────────────────
+  // ── Toggle instance visibility ───────────────────────────────
+  const handleToggleInstanceVisibility = useCallback((instanceId: string) => {
+    setInstanceStates((prev) => {
+      const existing = prev.get(instanceId);
+      if (!existing) return prev;
+      const next = new Map(prev);
+      next.set(instanceId, { ...existing, visible: !existing.visible });
+      return next;
+    });
+  }, []);
+
+  // ── Build instance traversals for TopologyView ───────────────
+  const instanceTraversals: InstanceTraversal[] = useMemo(() => {
+    const result: InstanceTraversal[] = [];
+    for (const inst of instances) {
+      const state = instanceStates.get(inst.id);
+      if (!state || !state.visible || !state.connected) continue;
+      if (!state.currentPositionLabel) continue;
+
+      // Find vertex ID by label from topology
+      const vertexId = topology?.nodes.find(
+        (n) => n.label === state.currentPositionLabel
+      )?.id;
+      if (!vertexId) continue;
+
+      // History is already vertex IDs from WS position field
+      result.push({
+        instanceId: inst.id,
+        instanceName: inst.name,
+        position: vertexId,
+        color: inst.color,
+        history: state.traversalHistory,
+      });
+    }
+    return result;
+  }, [instances, instanceStates, topology]);
+
+  // ── Fallback traversal for single-instance mode ──────────────
   const traversalVertexId = topology?.nodes.find(
     (n) => n.label === currentPositionLabel
   )?.id;
@@ -275,7 +363,7 @@ export default function App() {
       {/* Main content */}
       <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
 
-        {/* Left: topology view switcher + β₁ curve + ops */}
+        {/* Left: topology view switcher + instance panel + beta1 curve + ops */}
         <div style={{
           flex: 1, display: "flex", flexDirection: "column",
           borderRight: `1px solid ${T.border}`,
@@ -285,6 +373,7 @@ export default function App() {
             <TopologyViewSwitcher
               data={topology}
               traversalPosition={traversalVertexId}
+              instanceTraversals={instanceTraversals.length > 0 ? instanceTraversals : undefined}
               focusConcept={focusConcept}
               onSelectNode={handleSelectNode}
               onSelectConcept={handleSelectConcept}
@@ -293,6 +382,11 @@ export default function App() {
               narrative={narrative}
             />
           </div>
+          <InstancePanel
+            instances={instances}
+            states={instanceStates}
+            onToggleVisibility={handleToggleInstanceVisibility}
+          />
           <Beta1Curve history={beta1History} />
           <OperationsSummary operations={operations} />
         </div>
@@ -308,14 +402,12 @@ export default function App() {
             <>
               <div style={{ flex: 1, overflow: "auto", display: "flex", flexDirection: "column" }}>
                 {messages.length === 0 ? (
-                  /* No messages yet — show narrative stream */
                   <NarrativeStream events={narrative} />
                 ) : (
                   <div style={{
                     fontFamily: FONT.mono, fontSize: 11, lineHeight: 1.7,
                     padding: "8px 12px", display: "flex", flexDirection: "column", gap: 0,
                   }}>
-                    {/* Pinned narrative (top 3) */}
                     <div style={{
                       color: T.textMuted, fontSize: 9, marginBottom: 8,
                       letterSpacing: "0.1em",
@@ -331,7 +423,6 @@ export default function App() {
                       </div>
                     ))}
 
-                    {/* Query detail (if focus concept) */}
                     {queryResult && queryResult.found && (
                       <div style={{
                         margin: "8px 0",
@@ -350,7 +441,6 @@ export default function App() {
 
                     <div style={{ height: 1, background: T.border, margin: "8px 0" }} />
 
-                    {/* Chat messages */}
                     {messages.map((msg, i) => (
                       <div key={i} style={{
                         padding: "8px 0",
@@ -361,7 +451,7 @@ export default function App() {
                           marginRight: 8, fontSize: 9,
                           letterSpacing: "0.1em",
                         }}>
-                          {msg.role === "user" ? "YOU" : "逢亮"}
+                          {msg.role === "user" ? "YOU" : "\u9022\u4EAE"}
                         </span>
                         <div style={{
                           color: msg.role === "user" ? T.text : T.textDim,
@@ -374,7 +464,7 @@ export default function App() {
 
                     {pending && (
                       <div style={{ color: T.textMuted, fontSize: 10, padding: "8px 0" }}>
-                        逢亮 处理中...
+                        \u9022\u4EAE \u5904\u7406\u4E2D...
                       </div>
                     )}
 

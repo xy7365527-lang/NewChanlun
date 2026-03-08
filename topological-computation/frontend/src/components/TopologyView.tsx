@@ -3,21 +3,61 @@ import * as d3 from "d3";
 import { T, FONT, fToColor } from "../tokens";
 import type { TopologyNode, TopologyLink, TopologyResponse } from "../types";
 
+export interface InstanceTraversal {
+  instanceId: string;
+  instanceName: string;
+  position: string;         // vertex id
+  color: string;
+  history: string[];        // recent position ids for path rendering
+}
+
 interface Props {
   data: TopologyResponse | null;
-  traversalPosition?: string;   // vertex id of current daemon position
+  traversalPosition?: string;               // single-instance fallback
+  instanceTraversals?: InstanceTraversal[];  // multi-instance markers
   focusConcept?: string | null;
   onSelectNode?: (node: TopologyNode) => void;
 }
 
 export function TopologyView({
-  data, traversalPosition, focusConcept, onSelectNode,
+  data, traversalPosition, instanceTraversals, focusConcept, onSelectNode,
 }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const simRef = useRef<d3.Simulation<TopologyNode, TopologyLink> | null>(null);
   const transformRef = useRef<d3.ZoomTransform>(d3.zoomIdentity);
   const nodePositionsRef = useRef<Map<string, { x: number; y: number }>>(new Map());
   const [hoveredNode, setHoveredNode] = useState<TopologyNode | null>(null);
+
+  // Build traversal lookup: nodeId -> list of instances at that node
+  const traversalMap = new Map<string, InstanceTraversal[]>();
+  if (instanceTraversals && instanceTraversals.length > 0) {
+    for (const it of instanceTraversals) {
+      if (!it.position) continue;
+      const existing = traversalMap.get(it.position) ?? [];
+      existing.push(it);
+      traversalMap.set(it.position, existing);
+    }
+  } else if (traversalPosition) {
+    // Fallback: single instance with default color
+    traversalMap.set(traversalPosition, [{
+      instanceId: "default",
+      instanceName: "local",
+      position: traversalPosition,
+      color: T.traversalPulse,
+      history: [],
+    }]);
+  }
+
+  // Collect all history node IDs per instance for path highlighting
+  const historyMap = new Map<string, { nodeIds: Set<string>; color: string }>();
+  if (instanceTraversals) {
+    for (const it of instanceTraversals) {
+      historyMap.set(it.instanceId, {
+        nodeIds: new Set(it.history),
+        color: it.color,
+      });
+    }
+  }
 
   useEffect(() => {
     if (!svgRef.current || !data) return;
@@ -41,17 +81,20 @@ export function TopologyView({
     const height = svgRef.current.clientHeight || 600;
     const hasOldPositions = nodePositionsRef.current.size > 0;
 
+    // Check if node is a traversal target for any instance
+    const isTraversalNode = (id: string) => traversalMap.has(id);
+
     // Mark traversal node + restore previous positions
     const nodes: TopologyNode[] = data.nodes.map((n) => {
       const prev = nodePositionsRef.current.get(n.id);
       return {
         ...n,
-        isTraversal: n.id === traversalPosition,
+        isTraversal: isTraversalNode(n.id),
         ...(prev ? { x: prev.x, y: prev.y } : {}),
       };
     });
 
-    // Deep-copy links because d3 mutates source/target from string → object
+    // Deep-copy links because d3 mutates source/target from string -> object
     const links: TopologyLink[] = data.links.map((l) => ({
       source: typeof l.source === "string" ? l.source : (l.source as TopologyNode).id,
       target: typeof l.target === "string" ? l.target : (l.target as TopologyNode).id,
@@ -68,17 +111,30 @@ export function TopologyView({
     settledMerge.append("feMergeNode").attr("in", "blur");
     settledMerge.append("feMergeNode").attr("in", "SourceGraphic");
 
-    const traversalFilter = defs.append("filter").attr("id", "traversalGlow");
-    traversalFilter.append("feGaussianBlur").attr("stdDeviation", "8").attr("result", "blur");
-    const traversalMerge = traversalFilter.append("feMerge");
-    traversalMerge.append("feMergeNode").attr("in", "blur");
-    traversalMerge.append("feMergeNode").attr("in", "SourceGraphic");
-
     const focusFilter = defs.append("filter").attr("id", "focusGlow");
     focusFilter.append("feGaussianBlur").attr("stdDeviation", "6").attr("result", "blur");
     const focusMerge = focusFilter.append("feMerge");
     focusMerge.append("feMergeNode").attr("in", "blur");
     focusMerge.append("feMergeNode").attr("in", "SourceGraphic");
+
+    // Per-instance glow filters
+    const instanceColors = new Set<string>();
+    for (const entries of traversalMap.values()) {
+      for (const e of entries) instanceColors.add(e.color);
+    }
+    for (const entries of historyMap.values()) {
+      instanceColors.add(entries.color);
+    }
+    for (const color of instanceColors) {
+      const filterId = `glow-${color.replace("#", "")}`;
+      const f = defs.append("filter").attr("id", filterId);
+      f.append("feGaussianBlur").attr("stdDeviation", "8").attr("result", "blur");
+      f.append("feFlood").attr("flood-color", color).attr("flood-opacity", "0.6").attr("result", "color");
+      f.append("feComposite").attr("in", "color").attr("in2", "blur").attr("operator", "in").attr("result", "colorBlur");
+      const merge = f.append("feMerge");
+      merge.append("feMergeNode").attr("in", "colorBlur");
+      merge.append("feMergeNode").attr("in", "SourceGraphic");
+    }
 
     // ── Container with zoom ───────────────────────────────────
     const g = svg.append("g");
@@ -130,16 +186,26 @@ export function TopologyView({
       .attr("r", (d) => {
         if (d.isTraversal) return 9;
         if (d.label === focusConcept) return 8;
-        // Scale by degree: sqrt for natural visual weight
         return 2 + Math.sqrt(Math.min(d.degree, 100)) * 0.8;
       })
       .attr("fill", (d) => {
-        if (d.isTraversal) return T.traversalPulse;
+        if (d.isTraversal) {
+          const instances = traversalMap.get(d.id);
+          if (instances && instances.length === 1) return instances[0].color;
+          if (instances && instances.length > 1) return T.traversalPulse; // multi: white
+          return T.traversalPulse;
+        }
         return fToColor(d.f_avg);
       })
       .attr("opacity", (d) => d.isTraversal ? 1 : 0.7 + Math.min(d.degree / 12, 0.3))
       .attr("filter", (d) => {
-        if (d.isTraversal) return "url(#traversalGlow)";
+        if (d.isTraversal) {
+          const instances = traversalMap.get(d.id);
+          if (instances && instances.length === 1) {
+            return `url(#glow-${instances[0].color.replace("#", "")})`;
+          }
+          return "none"; // multi-instance overlap: no single glow
+        }
         if (d.label === focusConcept) return "url(#focusGlow)";
         return "none";
       })
@@ -165,15 +231,56 @@ export function TopologyView({
           })
       );
 
+    // ── Multi-instance traversal rings (when multiple instances at same node) ──
+    const multiTraversalNodes = nodes.filter((n) => {
+      const instances = traversalMap.get(n.id);
+      return instances && instances.length > 1;
+    });
+
+    // Draw concentric colored rings for multi-instance overlap
+    const multiRingGroup = g.append("g");
+    for (const n of multiTraversalNodes) {
+      const instances = traversalMap.get(n.id)!;
+      instances.forEach((inst, idx) => {
+        multiRingGroup.append("circle")
+          .datum(n)
+          .attr("r", 12 + idx * 4)
+          .attr("fill", "none")
+          .attr("stroke", inst.color)
+          .attr("stroke-width", 2)
+          .attr("opacity", 0.8)
+          .attr("filter", `url(#glow-${inst.color.replace("#", "")})`)
+          .attr("class", `multi-ring-${n.id}`);
+      });
+    }
+
+    // ── Instance traversal path highlights ────────────────────
+    // For each visible instance, draw faint colored rings on history nodes
+    const pathGroup = g.append("g");
+    const nodeIdSet = new Set(nodes.map((n) => n.id));
+    for (const [, { nodeIds, color }] of historyMap) {
+      for (const nodeId of nodeIds) {
+        if (!nodeIdSet.has(nodeId) || traversalMap.has(nodeId)) continue;
+        const matchNode = nodes.find((n) => n.id === nodeId);
+        if (!matchNode) continue;
+        pathGroup.append("circle")
+          .datum(matchNode)
+          .attr("r", 6)
+          .attr("fill", "none")
+          .attr("stroke", color)
+          .attr("stroke-width", 1)
+          .attr("opacity", 0.3)
+          .attr("class", "path-marker");
+      }
+    }
+
     // ── Labels ────────────────────────────────────────────────
-    // Only label top-10 by degree + traversal + focus to avoid overlap
     const degreeSorted = [...nodes].sort((a, b) => b.degree - a.degree);
     const topN = new Set(degreeSorted.slice(0, 10).map((n) => n.id));
     const labelNodes = nodes.filter(
       (n) => n.isTraversal || n.label === focusConcept || topN.has(n.id)
     );
 
-    // Label backgrounds for readability
     const labelBg = g.append("g")
       .selectAll<SVGRectElement, TopologyNode>("rect")
       .data(labelNodes)
@@ -189,13 +296,19 @@ export function TopologyView({
       .enter()
       .append("text")
       .text((d) => {
-        // Clean label: trim hash prefixes, show meaningful part
         let lbl = d.label;
-        if (lbl.startsWith("syn_") || lbl.startsWith("anti_")) lbl = lbl.slice(0, 12) + "…";
-        else if (lbl.length > 24) lbl = lbl.slice(0, 22) + "…";
+        if (lbl.startsWith("syn_") || lbl.startsWith("anti_")) lbl = lbl.slice(0, 12) + "\u2026";
+        else if (lbl.length > 24) lbl = lbl.slice(0, 22) + "\u2026";
         return lbl;
       })
-      .attr("fill", (d) => d.isTraversal ? T.text : T.textDim)
+      .attr("fill", (d) => {
+        if (d.isTraversal) {
+          const instances = traversalMap.get(d.id);
+          if (instances && instances.length === 1) return instances[0].color;
+          return T.text;
+        }
+        return T.textDim;
+      })
       .attr("font-size", "8px")
       .attr("font-family", FONT.mono)
       .attr("text-anchor", "middle")
@@ -230,11 +343,22 @@ export function TopologyView({
           .attr("cx", (d) => d.x ?? 0)
           .attr("cy", (d) => d.y ?? 0);
 
+        // Update multi-instance rings
+        for (const n of multiTraversalNodes) {
+          svg.selectAll(`.multi-ring-${CSS.escape(n.id)}`)
+            .attr("cx", n.x ?? 0)
+            .attr("cy", n.y ?? 0);
+        }
+
+        // Update path markers
+        pathGroup.selectAll<SVGCircleElement, TopologyNode>(".path-marker")
+          .attr("cx", (d) => d.x ?? 0)
+          .attr("cy", (d) => d.y ?? 0);
+
         label
           .attr("x", (d) => d.x ?? 0)
           .attr("y", (d) => d.y ?? 0);
 
-        // Update label backgrounds
         labelBg.each(function (d, i) {
           const textEl = label.nodes()[i];
           if (textEl) {
@@ -250,7 +374,15 @@ export function TopologyView({
 
     simRef.current = sim;
     return () => { sim.stop(); };
-  }, [data, focusConcept, traversalPosition, onSelectNode]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, focusConcept, traversalPosition, instanceTraversals, onSelectNode]);
+
+  // Build legend entries for instances
+  const instanceLegend = instanceTraversals && instanceTraversals.length > 0
+    ? instanceTraversals
+    : traversalPosition
+      ? [{ instanceId: "default", instanceName: "local", color: T.traversalPulse, position: traversalPosition, history: [] }]
+      : [];
 
   return (
     <div style={{ position: "relative", width: "100%", height: "100%" }}>
@@ -282,7 +414,17 @@ export function TopologyView({
             deg={hoveredNode.degree}
           </span>
           {hoveredNode.settled && (
-            <span style={{ color: T.settled, marginLeft: 8 }}>● settled</span>
+            <span style={{ color: T.settled, marginLeft: 8 }}>settled</span>
+          )}
+          {/* Show which instances are at this node */}
+          {traversalMap.has(hoveredNode.id) && (
+            <span style={{ marginLeft: 8 }}>
+              {traversalMap.get(hoveredNode.id)!.map((it) => (
+                <span key={it.instanceId} style={{ color: it.color, marginLeft: 4 }}>
+                  [{it.instanceName}]
+                </span>
+              ))}
+            </span>
           )}
         </div>
       )}
@@ -294,15 +436,25 @@ export function TopologyView({
         border: `1px solid ${T.border}`,
         borderRadius: 6, padding: "8px 12px",
         fontFamily: FONT.mono, fontSize: 9, color: T.textDim,
-        display: "flex", gap: 12,
+        display: "flex", flexDirection: "column", gap: 6,
         pointerEvents: "none",
       }}>
-        <span><span style={{ color: T.fZero }}>●</span> f=0</span>
-        <span><span style={{ color: T.fLow }}>●</span> fold</span>
-        <span><span style={{ color: T.fMid }}>●</span> gray</span>
-        <span><span style={{ color: T.fHigh }}>●</span> negate</span>
-        <span><span style={{ color: T.settled }}>○</span> settled</span>
-        <span><span style={{ color: T.traversalPulse }}>◉</span> here</span>
+        <div style={{ display: "flex", gap: 12 }}>
+          <span><span style={{ color: T.fZero }}>&#9679;</span> f=0</span>
+          <span><span style={{ color: T.fLow }}>&#9679;</span> fold</span>
+          <span><span style={{ color: T.fMid }}>&#9679;</span> gray</span>
+          <span><span style={{ color: T.fHigh }}>&#9679;</span> negate</span>
+          <span><span style={{ color: T.settled }}>&#9675;</span> settled</span>
+        </div>
+        {instanceLegend.length > 0 && (
+          <div style={{ display: "flex", gap: 10, borderTop: `1px solid ${T.border}`, paddingTop: 4 }}>
+            {instanceLegend.map((it) => (
+              <span key={it.instanceId}>
+                <span style={{ color: it.color }}>&#9673;</span> {it.instanceName}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Meta info */}

@@ -39,6 +39,34 @@ export const DAEMON_WS = "ws://localhost:9765/ws";
 export const WS_THROTTLE_MS = 100;
 export const STATUS_POLL_MS = 1000;
 
+// ── Multi-instance config ──────────────────────────────────────
+import type { InstanceConfig } from "./types";
+
+export const INSTANCE_COLORS = {
+  local: "#4488ff",    // blue
+  vps: "#ff4466",      // red
+  extra1: "#22d68a",   // green
+  extra2: "#f0c040",   // amber
+  extra3: "#cc66ff",   // purple
+} as const;
+
+export const DEFAULT_INSTANCES: InstanceConfig[] = [
+  {
+    id: "local",
+    name: "本地",
+    wsUrl: "ws://localhost:9765/ws",
+    httpUrl: "http://localhost:9090",
+    color: INSTANCE_COLORS.local,
+  },
+  {
+    id: "vps",
+    name: "VPS",
+    wsUrl: "ws://46.225.187.39:8081/ws",
+    httpUrl: "http://46.225.187.39:8081",
+    color: INSTANCE_COLORS.vps,
+  },
+];
+
 // ── f-value color mapping ───────────────────────────────────────
 export function fToColor(f: number): string {
   if (f < 0) return T.textMuted;   // unknown / no terrain data

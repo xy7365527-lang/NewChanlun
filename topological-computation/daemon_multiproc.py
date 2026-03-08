@@ -822,6 +822,78 @@ def start_multiprocess_daemon(
 
 
 # ---------------------------------------------------------------------------
+# Experiment graph merger (for --load-experiments)
+# ---------------------------------------------------------------------------
+
+def _merge_experiment_graphs(base_json: dict | None, script_dir: str) -> dict | None:
+    """Load all data/graph_*.json files and merge into base_json.
+
+    If base_json is None, builds graph purely from experiment files.
+    Returns a merged graph JSON dict (vertices + edges format).
+    """
+    import glob as glob_mod
+
+    data_dir = os.path.join(script_dir, "data")
+    pattern = os.path.join(data_dir, "graph_*.json")
+    files = sorted(glob_mod.glob(pattern))
+
+    if not files:
+        print("[multiproc] No graph_*.json files found in data/", file=sys.stderr)
+        return base_json
+
+    # Collect all vertices and edges (keyed by id / source+target+type)
+    all_vertices: dict[str, dict] = {}
+    existing_edge_keys: set[tuple[str, str, str]] = set()
+    all_edges: list[dict] = []
+
+    # Seed with base graph if provided
+    if base_json:
+        for vd in base_json.get("vertices", []):
+            all_vertices[vd["id"]] = vd
+        for ed in base_json.get("edges", []):
+            key = (ed["source"], ed["target"], ed.get("edge_type", "dependency"))
+            if key not in existing_edge_keys:
+                all_edges.append(ed)
+                existing_edge_keys.add(key)
+
+    loaded_count = 0
+    for fpath in files:
+        try:
+            with open(fpath, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            n_v = len(data.get("vertices", []))
+            n_e = len(data.get("edges", []))
+
+            for vd in data.get("vertices", []):
+                if vd["id"] not in all_vertices:
+                    all_vertices[vd["id"]] = vd
+
+            for ed in data.get("edges", []):
+                key = (ed["source"], ed["target"], ed.get("edge_type", "dependency"))
+                if key not in existing_edge_keys:
+                    if ed["source"] in all_vertices and ed["target"] in all_vertices:
+                        all_edges.append(ed)
+                        existing_edge_keys.add(key)
+
+            loaded_count += 1
+            fname = os.path.basename(fpath)
+            print(f"  [load] {fname}: {n_v}V {n_e}E", file=sys.stderr)
+        except Exception as exc:
+            print(f"  [load] FAIL {fpath}: {exc}", file=sys.stderr)
+
+    merged = {
+        "vertices": list(all_vertices.values()),
+        "edges": all_edges,
+    }
+    total_v = len(all_vertices)
+    total_e = len(all_edges)
+    print(f"[multiproc] Loaded {loaded_count} experiment graphs: "
+          f"{total_v} vertices, {total_e} edges (merged)", file=sys.stderr)
+
+    return merged
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
@@ -845,6 +917,8 @@ def main() -> None:
                         help="Rebuild topology cache every N steps")
     parser.add_argument("--ipfs", action="store_true",
                         help="Enable IPFS background upload for significant events")
+    parser.add_argument("--load-experiments", action="store_true",
+                        help="Load all data/graph_*.json (experiment concept graphs) and merge")
     args = parser.parse_args()
 
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -873,6 +947,10 @@ def main() -> None:
         else:
             graph_json = data
     # If no --load: graph_json=None means worker will build from chapters
+
+    # Merge experiment graphs (data/graph_*.json) if requested
+    if args.load_experiments:
+        graph_json = _merge_experiment_graphs(graph_json, script_dir)
 
     # Persistence
     persist_path = None
