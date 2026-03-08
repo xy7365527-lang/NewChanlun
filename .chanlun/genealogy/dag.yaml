@@ -1916,6 +1916,11 @@ nodes:
   status: settled
   type: correction
   file: settled/395-Q-R3-16-reachability-reversal.md
+- id: '397'
+  title: 元观察——v197-swarm（自反结构种子+396号residue补全+多实例共享+code_settlement_request桥接+VPS部署）
+  status: 生成态
+  type: meta-rule
+  file: pending/397-meta-observation-v197-swarm.md
 edges:
   depends_on:
   - from: '136'
@@ -4066,6 +4071,10 @@ edges:
     to: '391'
   - from: '395'
     to: '392'
+  - from: '397'
+    to: '386'
+  - from: '397'
+    to: '396'
   triggered:
   - from: '005'
     to: 005a
