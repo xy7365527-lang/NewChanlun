@@ -10,6 +10,8 @@ export interface StatusResponse {
   encounter_density: number;
   status: "traversing" | "feeding" | "crystallized";
   expression_pressure?: number;
+  position?: string;
+  position_label?: string;
 }
 
 export interface TopologyNode {

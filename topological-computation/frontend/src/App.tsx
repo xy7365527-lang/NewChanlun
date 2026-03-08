@@ -49,6 +49,8 @@ export default function App() {
   // ── Peer positions from SharedLayer (scheme C) ────────────────
   const peersPositions = useStore((s) => s.peersPositions);
 
+  const currentPositionId = useStore((s) => s.currentPositionId);
+
   // ── Connect primary WS (for store: narrative, gaps, peer_position, etc.) ───
   useDaemonWS();
 
@@ -250,8 +252,9 @@ export default function App() {
 
   // ── Build instance traversals for TopologyView ──
   // Includes BOTH self-instance (from WS step messages) AND peers (from SharedLayer sync)
+  // Match by vertex ID first (reliable), then fallback to label match
   const selfVertexId = topology?.nodes.find(
-    (n) => n.label === currentPositionLabel
+    (n) => n.id === currentPositionId || n.label === currentPositionLabel
   )?.id;
 
   const instanceTraversals: InstanceTraversal[] = useMemo(() => {
@@ -286,7 +289,7 @@ export default function App() {
       });
     }
     return result;
-  }, [peersPositions, topology, selfVertexId, currentPositionLabel]);
+  }, [peersPositions, topology, selfVertexId, currentPositionLabel, currentPositionId]);
 
   // ── Fallback traversal for single-instance mode (used by views that don't support instanceTraversals) ──
   const traversalVertexId = selfVertexId;

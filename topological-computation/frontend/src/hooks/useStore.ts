@@ -73,6 +73,7 @@ interface DaemonStore {
 
   // Current traversal position label (from WS steps)
   currentPositionLabel: string;
+  currentPositionId: string;
 
   // Expression pressure: number of unreported high-I events
   expressionPressure: number;
@@ -108,6 +109,7 @@ export const useStore = create<DaemonStore>((set) => ({
   operations: null,
   messages: [],
   currentPositionLabel: "",
+  currentPositionId: "",
   expressionPressure: 0,
   peersPositions: {},
 
@@ -127,7 +129,10 @@ export const useStore = create<DaemonStore>((set) => ({
       const pressure = s.expression_pressure !== undefined
         ? s.expression_pressure
         : state.expressionPressure;
-      return { status: s, beta1History: history, daemonReachable: true, expressionPressure: pressure };
+      // Sync position from status poll (fallback when WS is unavailable)
+      const posLabel = s.position_label || state.currentPositionLabel;
+      const posId = s.position || state.currentPositionId;
+      return { status: s, beta1History: history, daemonReachable: true, expressionPressure: pressure, currentPositionLabel: posLabel, currentPositionId: posId };
     }),
 
   setTopology: (t) => set({ topology: t }),
@@ -144,6 +149,7 @@ export const useStore = create<DaemonStore>((set) => ({
     set((state) => {
       let history = [...state.beta1History];
       let currentPositionLabel = state.currentPositionLabel;
+      let currentPositionId = state.currentPositionId;
       let expressionPressure = state.expressionPressure;
       const newNarrative: NarrativeEvent[] = [];
       const newGaps: GapEntry[] = [...state.gaps];
@@ -160,6 +166,7 @@ export const useStore = create<DaemonStore>((set) => ({
             if (history.length > 500) history = history.slice(-500);
           }
           currentPositionLabel = msg.position_label;
+          currentPositionId = msg.position;
 
           // Significant events -> narrative
           if (msg.delta_beta_1 !== 0 || msg.operation !== "walk") {
@@ -225,6 +232,7 @@ export const useStore = create<DaemonStore>((set) => ({
       return {
         beta1History: history,
         currentPositionLabel,
+        currentPositionId,
         narrative: merged,
         gaps: newGaps.slice(0, 30),
         expressionPressure,

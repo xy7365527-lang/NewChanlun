@@ -217,14 +217,16 @@ def _traversal_worker(
     _step_ws_counter = [0]
     def on_step(log) -> None:
         _step_ws_counter[0] += 1
-        if _step_ws_counter[0] % 50 != 0:
-            return  # 每50步推一次，避免WS洪水
+        if _step_ws_counter[0] % 5 != 0:
+            return
         try:
             msg = step_ws_message(log, daemon)
             event_queue.put_nowait(msg)
         except Exception as exc:
             print(f"[on_step] error: {exc}", file=sys.stderr)
-            # Push peer_position updates when positions change
+
+        # Push peer_position updates when positions change
+        try:
             peer_positions = getattr(daemon, 'peer_positions', {})
             for inst_id, pos in peer_positions.items():
                 label = pos.get("position_label", "")
@@ -335,7 +337,25 @@ def _update_status(daemon, status_dict: dict) -> None:
             status_dict["expression_pressure"] = unreported
         # Position for dashboard
         if daemon.engine:
-            status_dict["position"] = daemon.engine.position
+            pos_id = daemon.engine.position
+            # If on a syn_ node (sublation product), find a nearby topology-resident node
+            # syn_ nodes may not be in the topology cache yet
+            display_pos_id = pos_id
+            if pos_id.startswith("syn_") or pos_id.startswith("anti_"):
+                # Try to find a neighbor that's a "core" node (not syn_/anti_)
+                neighbors = daemon.k_active.neighbors(pos_id)
+                for nb in neighbors:
+                    if not nb.startswith("syn_") and not nb.startswith("anti_"):
+                        display_pos_id = nb
+                        break
+            status_dict["position"] = display_pos_id
+            label = ""
+            if daemon.concept_names:
+                label = daemon.concept_names.get(display_pos_id, "")
+            if not label:
+                v = daemon.k_active.vertex(display_pos_id)
+                label = (v.content or display_pos_id)[:60] if v else display_pos_id
+            status_dict["position_label"] = label
         # Peer positions (from cross-instance sync)
         peer_positions = getattr(daemon, 'peer_positions', {})
         if peer_positions:
@@ -647,6 +667,8 @@ def _build_status_response(status_dict: dict) -> dict:
         "status": "traversing",
         "expression_pressure": status_dict.get("expression_pressure", 0),
         "domain_distribution": domain_dist,
+        "position": status_dict.get("position", ""),
+        "position_label": status_dict.get("position_label", ""),
     }
 
 

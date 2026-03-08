@@ -27,7 +27,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import * as THREE from "three";
 import { CSS2DRenderer, CSS2DObject } from "three/examples/jsm/renderers/CSS2DRenderer.js";
-import { T, FONT, fToColor } from "../tokens";
+import { T, FONT, fToColor, DAEMON_HTTP } from "../tokens";
 import type { TopologyNode, TopologyLink, TopologyResponse } from "../types";
 import type { InstanceTraversal } from "../components/TopologyView";
 
@@ -338,7 +338,7 @@ export function GalaxyView({
     if (loadingFull || fullData) return;
     setLoadingFull(true);
     try {
-      const res = await fetch("http://localhost:9090/topology?full=true");
+      const res = await fetch(`${DAEMON_HTTP}/topology?full=true`);
       if (res.ok) {
         const json: TopologyResponse = await res.json();
         setFullData(json);
