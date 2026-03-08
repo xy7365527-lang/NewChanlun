@@ -201,6 +201,49 @@ class SNetActivation:
         self._check_fragment_formation(self.currently_active, new_active)
         self.currently_active = new_active
 
+    def resonate(self, signifier_ids: list[str]) -> None:
+        """Operator 输入引起的共振——在当前激活态基础上叠加，不替换.
+
+        与 activate() 的区别：
+          activate() 是穿越引擎的焦点切换——旧激活中失去连接的被清出。
+          resonate() 是 operator 对话的叠加——新能指加入激活态，
+          旧激活全部保留（operator 的每句话都是上下文的累积）。
+
+        清理逻辑：只有与所有激活态能指（包括新加入的）都没有
+        组合轴连接的旧能指才会被清出。这保证对话上下文的连续性。
+        """
+        if not signifier_ids:
+            return
+
+        # 新能指加入激活态
+        incoming: set[str] = set()
+        for sid in signifier_ids:
+            if self.s_net.has_signifier(sid):
+                incoming.add(sid)
+
+        if not incoming:
+            return
+
+        combined = self.currently_active | incoming
+
+        # 清理：只清出与所有其他激活能指都没有组合轴连接的节点
+        retained: set[str] = set(incoming)  # 新输入的一定保留
+        for sig in self.currently_active:
+            if sig in incoming:
+                retained.add(sig)
+                continue
+            # 检查是否与 combined 中任意其他能指有组合轴连接
+            has_connection = any(
+                self._has_syntagmatic_edge(sig, other)
+                for other in combined
+                if other != sig
+            )
+            if has_connection:
+                retained.add(sig)
+
+        self._check_fragment_formation(self.currently_active, retained)
+        self.currently_active = retained
+
     def _has_syntagmatic_edge(self, sig_a: str, sig_b: str) -> bool:
         """检查两个能指之间是否有组合轴连接（任意方向）."""
         w = self.s_net.cooccurrence_weight(sig_a, sig_b)
