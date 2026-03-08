@@ -146,6 +146,9 @@ def _traversal_worker(
         except Exception as exc:
             print(f"[traversal-worker] IPFS init failed (graceful degradation): {exc}", file=sys.stderr)
 
+    # Track last-seen peer positions to detect changes for WS push
+    _last_peer_snapshot: dict[str, str] = {}
+
     # Event callback: push significant events to event_queue for WS broadcast
     def on_event(log, narrative: str) -> None:
         try:
@@ -155,6 +158,19 @@ def _traversal_worker(
             pressure_msg = expression_pressure_ws_message(daemon)
             if pressure_msg.get("count", 0) > 0 or "text" in pressure_msg:
                 event_queue.put_nowait(pressure_msg)
+            # Push peer_position updates when positions change
+            peer_positions = getattr(daemon, 'peer_positions', {})
+            for inst_id, pos in peer_positions.items():
+                label = pos.get("position_label", "")
+                if _last_peer_snapshot.get(inst_id) != label:
+                    _last_peer_snapshot[inst_id] = label
+                    event_queue.put_nowait({
+                        "type": "peer_position",
+                        "instance": inst_id,
+                        "position_label": label,
+                        "step": pos.get("step", 0),
+                        "timestamp": pos.get("timestamp", 0),
+                    })
             # IPFS upload for significant events
             if ipfs_uploader and (log.delta_beta_1 != 0 or log.blocked):
                 import json as _json
@@ -280,6 +296,10 @@ def _update_status(daemon, status_dict: dict) -> None:
         # Position for dashboard
         if daemon.engine:
             status_dict["position"] = daemon.engine.position
+        # Peer positions (from cross-instance sync)
+        peer_positions = getattr(daemon, 'peer_positions', {})
+        if peer_positions:
+            status_dict["_peer_positions_json"] = json.dumps(peer_positions)
         status_dict["_updated_at"] = time.time()
     except Exception:
         pass
@@ -501,9 +521,13 @@ class MultiprocessHTTPHandler:
             return {"pairs": [], "total_beta_1": 0, "settled_count": 0,
                     "pending_count": 0, "beta1_curve": []}, 200
 
+        elif path == "/instances":
+            return _build_instances_response(status_dict), 200
+
         return {"error": "not found", "endpoints": [
             "/status", "/topology", "/narrative", "/gaps",
             "/operations", "/persistence", "/feed", "/present",
+            "/instances",
         ]}, 404
 
     @staticmethod
@@ -584,6 +608,40 @@ def _build_status_response(status_dict: dict) -> dict:
         "expression_pressure": status_dict.get("expression_pressure", 0),
         "domain_distribution": domain_dist,
     }
+
+
+def _build_instances_response(status_dict: dict) -> dict:
+    """Build /instances response from shared dict's peer_positions."""
+    now = time.time()
+    result: dict[str, dict] = {}
+
+    # Parse peer positions from JSON string
+    raw = status_dict.get("_peer_positions_json", "{}")
+    try:
+        peers = json.loads(raw) if isinstance(raw, str) else raw
+    except (json.JSONDecodeError, TypeError):
+        peers = {}
+
+    for instance_id, pos in peers.items():
+        age = now - pos.get("timestamp", 0)
+        result[instance_id] = {
+            "position_label": pos.get("position_label", ""),
+            "step": pos.get("step", 0),
+            "timestamp": pos.get("timestamp", 0),
+            "online": age < 30,
+        }
+
+    # Add self (from status_dict position)
+    position = status_dict.get("position", "")
+    if position:
+        result["self"] = {
+            "position_label": position,
+            "step": status_dict.get("total_steps", 0),
+            "timestamp": now,
+            "online": True,
+        }
+
+    return {"instances": result}
 
 
 # ---------------------------------------------------------------------------
