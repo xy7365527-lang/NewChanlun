@@ -176,6 +176,7 @@ class SNetActivation:
         self._concept_to_sig = dict(concept_to_signifier)
         self._sig_to_concepts = dict(signifier_to_concepts)
         self.currently_active: set[str] = set()
+        self._dialogue_focus_set: set[str] = set()
         self.internal_speech_buffer: list[InternalSpeechFragment] = []
         self.edge_suggestions: list[EdgeSuggestion] = []
         self.current_step: int = 0
@@ -202,20 +203,24 @@ class SNetActivation:
         self.currently_active = new_active
 
     def resonate(self, signifier_ids: list[str]) -> None:
-        """Operator 输入引起的共振——在当前激活态基础上叠加，不替换.
+        """Operator 输入引起的共振——通过对话焦点集控制激活态.
 
         与 activate() 的区别：
-          activate() 是穿越引擎的焦点切换——旧激活中失去连接的被清出。
-          resonate() 是 operator 对话的叠加——新能指加入激活态，
-          旧激活全部保留（operator 的每句话都是上下文的累积）。
+          activate() 是穿越引擎的焦点切换（单点），resonate() 是对话累积（多点焦点集）。
 
-        清理逻辑：只有与所有激活态能指（包括新加入的）都没有
-        组合轴连接的旧能指才会被清出。这保证对话上下文的连续性。
+        对话焦点集（_dialogue_focus_set）= 最近几轮对话中通过 phi_L 匹配到的能指。
+        能指保持激活只要它和焦点集中任一成员有组合轴连接。
+        焦点集本身随对话推进而更新：
+          1. 新能指加入焦点集
+          2. 旧焦点集成员如果和新能指中的任何一个都没有组合轴连接 → 退出焦点集
+          3. currently_active 中不在焦点集、且和焦点集中任一成员都没有组合轴连接的 → 退出
+
+        不用衰减（权重/时间/频率衰减全部被否定）——只用拓扑判据。
         """
         if not signifier_ids:
             return
 
-        # 新能指加入激活态
+        # 验证并收集有效的新能指
         incoming: set[str] = set()
         for sid in signifier_ids:
             if self.s_net.has_signifier(sid):
@@ -224,25 +229,39 @@ class SNetActivation:
         if not incoming:
             return
 
-        combined = self.currently_active | incoming
-
-        # 清理：只清出与所有其他激活能指都没有组合轴连接的节点
-        retained: set[str] = set(incoming)  # 新输入的一定保留
-        for sig in self.currently_active:
-            if sig in incoming:
-                retained.add(sig)
+        # --- 步骤1：新能指加入焦点集 ---
+        # --- 步骤2：焦点集内部清理 ---
+        # 旧焦点集成员如果和所有新能指都没有组合轴连接 → 退出焦点集
+        surviving_focus: set[str] = set(incoming)
+        for old_focus in self._dialogue_focus_set:
+            if old_focus in incoming:
+                surviving_focus.add(old_focus)
                 continue
-            # 检查是否与 combined 中任意其他能指有组合轴连接
-            has_connection = any(
-                self._has_syntagmatic_edge(sig, other)
-                for other in combined
-                if other != sig
+            has_link_to_incoming = any(
+                self._has_syntagmatic_edge(old_focus, new_sig)
+                for new_sig in incoming
             )
-            if has_connection:
-                retained.add(sig)
+            if has_link_to_incoming:
+                surviving_focus.add(old_focus)
 
-        self._check_fragment_formation(self.currently_active, retained)
-        self.currently_active = retained
+        self._dialogue_focus_set = surviving_focus
+
+        # --- 步骤3：currently_active 清理 ---
+        # 焦点集成员一定保留在 currently_active 中
+        # 非焦点集成员：和焦点集中任一成员有组合轴连接 → 保留，否则退出
+        new_active: set[str] = set(self._dialogue_focus_set)
+        for sig in self.currently_active:
+            if sig in new_active:
+                continue
+            has_link_to_focus = any(
+                self._has_syntagmatic_edge(sig, focus_sig)
+                for focus_sig in self._dialogue_focus_set
+            )
+            if has_link_to_focus:
+                new_active.add(sig)
+
+        self._check_fragment_formation(self.currently_active, new_active)
+        self.currently_active = new_active
 
     def _has_syntagmatic_edge(self, sig_a: str, sig_b: str) -> bool:
         """检查两个能指之间是否有组合轴连接（任意方向）."""
@@ -398,6 +417,7 @@ class SNetActivation:
         """序列化为可持久化的 dict."""
         return {
             "currently_active": sorted(self.currently_active),
+            "dialogue_focus_set": sorted(self._dialogue_focus_set),
             "current_step": self.current_step,
             "internal_speech_buffer": [
                 f.to_dict() for f in self.internal_speech_buffer
@@ -410,6 +430,7 @@ class SNetActivation:
     def restore_from_dict(self, d: dict) -> None:
         """从 dict 恢复状态."""
         self.currently_active = set(d.get("currently_active", []))
+        self._dialogue_focus_set = set(d.get("dialogue_focus_set", []))
         self.current_step = d.get("current_step", 0)
         self.internal_speech_buffer = [
             InternalSpeechFragment.from_dict(f)
