@@ -634,6 +634,26 @@ class SettlementTracker:
                         vids.add(v)
         return vids
 
+    def purge_invalid_cycles(self, graph: Graph) -> int:
+        """Remove settled cycles whose edges no longer exist in the graph.
+
+        401号: after purging encounter memory nodes, some settled cycles may
+        reference edges between removed vertices. These "ghost settlements"
+        block operations without protecting anything real.
+
+        Returns the number of purged cycles.
+        """
+        active_edges = {(e.source, e.target) for e in graph.active_edges()}
+        valid: list[SettledCycle] = []
+        purged = 0
+        for sc in self._settled:
+            if sc.edges.issubset(active_edges):
+                valid.append(sc)
+            else:
+                purged += 1
+        self._settled = valid
+        return purged
+
     def would_destroy_settled(
         self,
         graph_after: Graph,
