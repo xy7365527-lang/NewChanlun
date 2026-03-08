@@ -603,11 +603,15 @@ class TraversalEngine:
                 elevated=synthesis_content,
             )
 
-            result = sublate(
-                self.k_active, enc.target_a, enc.target_b, self.step, self.settlement,
-                synthesis_content=synthesis_content,
-                sublation_record=sublation_record,
-            )
+            try:
+                result = sublate(
+                    self.k_active, enc.target_a, enc.target_b, self.step, self.settlement,
+                    synthesis_content=synthesis_content,
+                    sublation_record=sublation_record,
+                )
+            except ValueError:
+                # Edge may have been removed between detection and execution
+                return "walk", False
             if result.blocked:
                 self.settlement.record_blocked(
                     self.step, "sublate",

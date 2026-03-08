@@ -329,6 +329,13 @@ class TopologicalDaemon:
         self.k_active = _purge_encounter_memory_nodes(self.k_active)
         self.k_full = _purge_encounter_memory_nodes(self.k_full)
 
+        # 401号修复：清除幽灵 settlement（cycle 的边涉及已被清除的 memory 节点）
+        if self.settlement.settled_cycles:
+            purged = self.settlement.purge_invalid_cycles(self.k_active)
+            if purged > 0:
+                print(f"401号 purge: {purged} ghost settlements removed "
+                      f"({len(self.settlement.settled_cycles)} valid remain)", file=sys.stderr)
+
         # Rebuild memory nodes from JSONL (crash recovery)
         # 401号后只重建 settlement + residue memory 节点（不再重建 encounter）
         settlement_path = str(self._checkpoint._settlement_path) if hasattr(self._checkpoint, '_settlement_path') else None
