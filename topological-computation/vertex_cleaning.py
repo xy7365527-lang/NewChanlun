@@ -53,11 +53,15 @@ _PHILOSOPHY_PREFIXES: tuple[str, ...] = (
 def _classify_source(vid: str, content: str) -> str:
     """Infer the layer source of a vertex from its ID and content patterns.
 
-    Returns one of: 'core', 'sublation', 'encounter', 'phi_L', 'unknown'.
+    Returns one of: 'core', 'sublation', 'articulation_bridge', 'encounter', 'phi_L', 'unknown'.
     """
     # Layer 2: sublation synthesis vertices
     if vid.startswith("syn_") or vid.startswith("anti_"):
         return "sublation"
+
+    # Articulation bridge vertices (from orphan signifier bridging)
+    if vid.startswith("bridge_"):
+        return "articulation_bridge"
 
     # Code topology vertices (Layer 1 core — code structure)
     if ":" in vid:
@@ -132,6 +136,8 @@ def is_garbage(
     if source == "core":
         return False, ""
     if source == "sublation":
+        return False, ""
+    if source == "articulation_bridge":
         return False, ""
 
     # Rule 1: Empty or trivially short content

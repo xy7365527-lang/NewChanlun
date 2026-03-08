@@ -12,7 +12,7 @@ from enum import Enum
 from typing import Optional
 
 from engine import (
-    Graph, Edge, VertexStatus, EdgeType, SettlementTracker, SettledCycle,
+    Graph, Vertex, Edge, VertexStatus, EdgeType, SettlementTracker, SettledCycle,
     OperationResult, SublationRecord,
     compute_beta_1, fold, negate, sublate, _connected_components,
 )
@@ -995,6 +995,46 @@ class TraversalEngine:
                     continue
                 src = suggestion.source_concept
                 tgt = suggestion.target_concept
+
+                # Bridge path: orphan signifier needs a new K_active vertex
+                if suggestion.origin == "articulation_bridge" and tgt.startswith("__bridge__"):
+                    orphan_sig = tgt[len("__bridge__"):]
+                    # Use signifier ID as the vertex ID (bridge_ prefix for protection)
+                    bridge_vid = f"bridge_{orphan_sig}"
+                    # Check not already created
+                    if bridge_vid in self.k_active.active_vertex_ids():
+                        consumed.append(idx)
+                        continue
+                    # Verify anchor concept still active
+                    if src not in self.k_active.active_vertex_ids():
+                        continue
+                    # Create new vertex for orphan signifier
+                    bridge_vertex = Vertex(
+                        id=bridge_vid,
+                        status=VertexStatus.ACTIVE,
+                        content=orphan_sig,
+                        created_at=self.step,
+                    )
+                    self.k_active = self.k_active.add_vertex(bridge_vertex)
+                    self.k_full = self.k_full.add_vertex(bridge_vertex)
+                    # Create REFERENCE edge from anchor to bridge vertex
+                    surface = "; ".join(suggestion.evidence_patterns[:3]) if suggestion.evidence_patterns else ""
+                    new_edge = Edge(
+                        source=src,
+                        target=bridge_vid,
+                        edge_type=EdgeType.REFERENCE,
+                        created_at=self.step,
+                        surface=surface,
+                        context=f"articulation_bridge from S_net: {suggestion.evidence_signifiers}",
+                    )
+                    self.k_active = self.k_active.add_edge(new_edge)
+                    self.k_full = self.k_full.add_edge(new_edge)
+                    # Update _sig_to_concepts mapping for consistency
+                    self._snet_activation._sig_to_concepts.setdefault(orphan_sig, []).append(bridge_vid)
+                    consumed.append(idx)
+                    continue
+
+                # Standard path: both concepts already exist in K_active
                 # Verify both concepts still active in K_active
                 if src not in self.k_active.active_vertex_ids():
                     continue
