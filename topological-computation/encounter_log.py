@@ -351,39 +351,10 @@ def rebuild_memory_from_jsonl(
 
     result = graph
 
-    # Rebuild encounter memory nodes
-    enc_path = Path(encounter_log_path)
-    if enc_path.is_file():
-        with open(enc_path, encoding="utf-8") as fh:
-            for line in fh:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    ev = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                # Skip non-encounter records (like code_settlement_request)
-                if ev.get("type") == "code_settlement_request":
-                    continue
-                step = ev.get("step")
-                if step is None:
-                    continue
-                operation = ev.get("encounter_type", "unknown")
-                vid = _make_encounter_vertex_id(step, operation)
-                if result.vertex(vid) is not None:
-                    continue  # Already exists
-                result = inject_encounter_memory_node(
-                    result,
-                    step=step,
-                    operation=operation,
-                    concept_a=ev.get("concept_a", ""),
-                    concept_b=ev.get("concept_b", ""),
-                    context=ev.get("context", ""),
-                    beta_1_before=ev.get("beta_1_before", 0),
-                    beta_1_after=ev.get("beta_1_after", 0),
-                    f_value=ev.get("f_value", -99),
-                )
+    # 401号修复：不再从 encounter log 重建 encounter memory 节点。
+    # encounter（fold/sublate/negate/blocked）是穿越轨迹，不是结构性事件。
+    # "脚印不是宝藏" — 只有 settlement 和 residue 进入 K_active。
+    # encounter log JSONL 保留为 append-only 备份（事件历史），但不注入 K_active。
 
     # Rebuild settlement memory nodes
     if settlement_history_path is not None:

@@ -44,7 +44,6 @@ from persistence import PersistentKFull, DEFAULT_PATH
 from encounter_log import (
     EncounterLog,
     MEMORY_DOMAIN_PREFIX,
-    inject_encounter_memory_node,
     inject_settlement_memory_node,
     inject_settlement_nachtraeglichkeit_edge,
     rebuild_memory_from_jsonl,
@@ -62,6 +61,44 @@ from proprioception import (
     inject_self_reflexive_norms, check_norms,
     PROPRIOCEPTION_PREFIX, SELF_NORM_PREFIX,
 )
+
+
+# ---------------------------------------------------------------------------
+# 401号: encounter memory node 清除 — "脚印不是宝藏"
+# ---------------------------------------------------------------------------
+
+def _purge_encounter_memory_nodes(graph: Graph) -> Graph:
+    """Remove encounter memory nodes from K_active/K_full.
+
+    Keeps: settlement (memory:settlement:*) and residue (memory:residue:*) nodes.
+    Removes: encounter (memory:encounter:*) nodes and their edges.
+
+    Returns a new Graph without encounter memory nodes.
+    """
+    encounter_vids: set[str] = set()
+    for vid in graph.vertices:
+        if vid.startswith("memory:encounter:"):
+            encounter_vids.add(vid)
+
+    if not encounter_vids:
+        return graph
+
+    # Build new graph excluding encounter memory nodes and their edges
+    keep_vertices = {
+        vid: v for vid, v in graph.vertices.items()
+        if vid not in encounter_vids
+    }
+    keep_edges = [
+        e for e in graph.edges
+        if e.source not in encounter_vids and e.target not in encounter_vids
+    ]
+    purged = Graph(vertices=keep_vertices, edges=keep_edges)
+    print(
+        f"401号 purge: removed {len(encounter_vids)} encounter memory nodes "
+        f"({len(graph.edges) - len(keep_edges)} edges)",
+        file=sys.stderr,
+    )
+    return purged
 
 
 # ---------------------------------------------------------------------------
@@ -287,8 +324,13 @@ class TopologicalDaemon:
             if backfilled > 0:
                 print(f"396号 backfill: {backfilled} settled cycles received residue", file=sys.stderr)
 
+        # 401号修复：清除已有的 encounter memory 节点（脚印不是宝藏）
+        # 保留 settlement 和 residue memory 节点，移除 encounter 类型
+        self.k_active = _purge_encounter_memory_nodes(self.k_active)
+        self.k_full = _purge_encounter_memory_nodes(self.k_full)
+
         # Rebuild memory nodes from JSONL (crash recovery)
-        # Memory nodes = encounter + settlement records as domain:memory vertices in K_active
+        # 401号后只重建 settlement + residue memory 节点（不再重建 encounter）
         settlement_path = str(self._checkpoint._settlement_path) if hasattr(self._checkpoint, '_settlement_path') else None
         pre_memory_vids = len(self.k_active.active_vertex_ids())
         self.k_active = rebuild_memory_from_jsonl(
@@ -303,7 +345,7 @@ class TopologicalDaemon:
         )
         memory_added = len(self.k_active.active_vertex_ids()) - pre_memory_vids
         if memory_added > 0:
-            print(f"Memory rebuild: {memory_added} domain:memory nodes injected from JSONL", file=sys.stderr)
+            print(f"Memory rebuild: {memory_added} settlement/residue memory nodes from JSONL", file=sys.stderr)
             # Re-sync engine if already initialized
             if self.engine is not None:
                 self.engine.k_active = self.k_active
@@ -820,32 +862,9 @@ class TopologicalDaemon:
                 step=log.step,
             )
 
-            # Inject encounter as domain:memory node into K_active
-            self.k_active = inject_encounter_memory_node(
-                self.k_active,
-                step=log.step,
-                operation=log.operation,
-                concept_a=log.position,
-                concept_b=log.encounter if log.encounter else "",
-                context=narrative,
-                beta_1_before=log.beta_1_before,
-                beta_1_after=log.beta_1_after,
-                f_value=log.f_value,
-            )
-            self.k_full = inject_encounter_memory_node(
-                self.k_full,
-                step=log.step,
-                operation=log.operation,
-                concept_a=log.position,
-                concept_b=log.encounter if log.encounter else "",
-                context=narrative,
-                beta_1_before=log.beta_1_before,
-                beta_1_after=log.beta_1_after,
-                f_value=log.f_value,
-            )
-            # Sync back to engine
-            self.engine.k_active = self.k_active
-            self.engine.k_full = self.k_full
+            # 401号修复：不再将 encounter 注入 K_active。
+            # encounter（fold/sublate/negate/blocked）是穿越轨迹，不是结构产出。
+            # "脚印不是宝藏" — 只有 settlement 和 residue 进入 K_active。
 
             # Write to traversal checkpoint encounter log
             self._checkpoint.encounters.record(
