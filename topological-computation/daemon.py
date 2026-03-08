@@ -329,26 +329,29 @@ class TopologicalDaemon:
         self._last_position_write_time: float = 0.0
         self._last_position_write_label: str = ""
 
-        # Plan C: SharedLayer for multi-instance sync (graceful degradation)
+        # Plan C: SharedLayer via IPFS（不降级到本地）
         self._shared_layer: SharedLayer | None = None
         self._cross_instance_sync: CrossInstanceSync | None = None
         try:
-            shared_dir = Path(".chanlun/shared_blocks")
-            env_shared = os.environ.get("FENGLIANG_SHARED_DIR")
-            if env_shared:
-                shared_dir = Path(env_shared)
-            if shared_dir.exists() or env_shared:
-                from swarm.shared_layer import SharedLayer
-                from swarm.cross_instance import CrossInstanceSync
-                self._shared_layer = SharedLayer(str(shared_dir))
+            from chain.ipfs_client import IPFSClient
+            from swarm.shared_layer import SharedLayer
+            from swarm.cross_instance import CrossInstanceSync
+            ipfs = IPFSClient()
+            if ipfs.is_available():
+                self._shared_layer = SharedLayer(ipfs)
                 self._cross_instance_sync = CrossInstanceSync(
                     shared_layer=self._shared_layer,
                     instance_id=self._instance_id,
                     daemon=self,
                 )
                 print(
-                    f"Plan C: SharedLayer multi-instance sync enabled "
-                    f"(dir={shared_dir})",
+                    f"Plan C: SharedLayer IPFS backend enabled "
+                    f"(api={ipfs.api_url})",
+                    file=sys.stderr,
+                )
+            else:
+                print(
+                    "Plan C: IPFS daemon 不可用 — SharedLayer 未启用",
                     file=sys.stderr,
                 )
         except ImportError:
@@ -1341,7 +1344,7 @@ def main() -> None:
     parser.add_argument("--serve", action="store_true", help="Start HTTP/WS API server for Dashboard")
     parser.add_argument("--multiproc", action="store_true",
                         help="Multiprocess mode: traversal in subprocess, HTTP/WS in main (solves GIL blocking)")
-    parser.add_argument("--port", type=int, default=8080, help="HTTP API port (with --serve)")
+    parser.add_argument("--port", type=int, default=9765, help="HTTP API port (with --serve)")
     parser.add_argument("--ws-port", type=int, default=8765, help="WebSocket port (with --serve)")
     parser.add_argument("--output", type=str, help="Output file for test results")
     parser.add_argument("--hegel", action="store_true", help="Build from Hegel Phenomenology chapters")

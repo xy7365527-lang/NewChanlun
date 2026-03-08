@@ -248,13 +248,30 @@ export default function App() {
     }
   }, [pending, addMessage]);
 
-  // ── Build instance traversals for TopologyView (from peer positions) ──
+  // ── Build instance traversals for TopologyView ──
+  // Includes BOTH self-instance (from WS step messages) AND peers (from SharedLayer sync)
+  const selfVertexId = topology?.nodes.find(
+    (n) => n.label === currentPositionLabel
+  )?.id;
+
   const instanceTraversals: InstanceTraversal[] = useMemo(() => {
     const result: InstanceTraversal[] = [];
+
+    // Self-instance: always include when we have a position
+    if (selfVertexId && currentPositionLabel) {
+      result.push({
+        instanceId: "self",
+        instanceName: "local",
+        position: selfVertexId,
+        color: "#00ccff",
+        history: [],
+      });
+    }
+
+    // Peer instances from SharedLayer cross-instance sync
     for (const [instanceId, peer] of Object.entries(peersPositions)) {
       if (!peer.online || !peer.posLabel) continue;
 
-      // Find vertex ID by label from topology
       const vertexId = topology?.nodes.find(
         (n) => n.label === peer.posLabel
       )?.id;
@@ -269,12 +286,10 @@ export default function App() {
       });
     }
     return result;
-  }, [peersPositions, topology]);
+  }, [peersPositions, topology, selfVertexId, currentPositionLabel]);
 
-  // ── Fallback traversal for single-instance mode ──────────────
-  const traversalVertexId = topology?.nodes.find(
-    (n) => n.label === currentPositionLabel
-  )?.id;
+  // ── Fallback traversal for single-instance mode (used by views that don't support instanceTraversals) ──
+  const traversalVertexId = selfVertexId;
 
   // ── Render ───────────────────────────────────────────────────
   return (

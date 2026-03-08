@@ -291,10 +291,23 @@ class TraversalEngine:
         code_settlement_request. The request is proposal-only — execution
         requires operator approval through ceremony_scan → CC workflow.
 
+        去重：同一 gap_description 已有 pending request 时不重复写入。
+        使用实例级缓存避免每步读取全量 JSONL。
+
         Returns the request dict if written, None if no encounter_log available.
         """
         if self._encounter_log is None:
             return None
+        # 去重：实例级缓存已提交的 gap_description
+        if not hasattr(self, '_emitted_gaps'):
+            # 首次调用时从 JSONL 加载已有 pending 的 gap
+            existing = self._encounter_log.pending_code_settlement_requests()
+            self._emitted_gaps: set[str] = {
+                req.get("gap_description", "") for req in existing
+            }
+        if gap_description in self._emitted_gaps:
+            return None
+        self._emitted_gaps.add(gap_description)
         return self._encounter_log.record_code_settlement_request(
             diagnosed_file=diagnosed_file,
             gap_description=gap_description,

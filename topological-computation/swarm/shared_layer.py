@@ -1,42 +1,67 @@
-"""Shared event layer: append-only blocks + appendable relations.
+"""Shared event layer: append-only blocks + appendable relations — IPFS backend.
 
-Block topology's Event layer and Relation layer.
-Blocks are content-addressed (SHA256 hash filename), naturally deduplicated.
-Relations are JSONL append-write.
+IPFS 就是 SharedLayer。区块直接写到 IPFS、从 IPFS 读。
+本地文件系统不再是存储位置。CID 替代 SHA256 hash 作为 block 标识。
+
+索引机制：IPFS MFS (Mutable File System)
+- /shared/blocks/  — 每个 block 的 CID 作为文件名，内容为空（CID 本身就是索引键）
+- /shared/relations/ — 每条 relation 的 CID 作为文件名
+
+MFS 提供"列目录"能力，解决 IPFS 内容寻址无法枚举的问题。
 """
 
 from __future__ import annotations
 
 import json
-import hashlib
 import time
-from pathlib import Path
+
+from chain.ipfs_client import IPFSClient
+
+
+# MFS 根目录
+_MFS_ROOT = "/shared"
+_MFS_BLOCKS = f"{_MFS_ROOT}/blocks"
+_MFS_RELATIONS = f"{_MFS_ROOT}/relations"
 
 
 class SharedLayer:
-    """Content-addressed block store + JSONL relation log."""
+    """Content-addressed block store + relation log — IPFS backend.
 
-    def __init__(self, shared_dir: str | Path):
-        self.blocks_dir = Path(shared_dir) / "blocks"
-        self.relations_path = Path(shared_dir) / "relations.jsonl"
-        self.blocks_dir.mkdir(parents=True, exist_ok=True)
-        self.relations_path.parent.mkdir(parents=True, exist_ok=True)
+    构造函数接受 IPFSClient 实例。IPFS 不可用时拒绝创建（不降级到本地）。
+    """
+
+    def __init__(self, ipfs: IPFSClient):
+        if not ipfs.is_available():
+            raise RuntimeError(
+                "IPFS daemon 不可用。SharedLayer 要求 IPFS 在线运行。"
+                "区块拓扑在链上执行是存在方式，不是可选优化。"
+            )
+        self._ipfs = ipfs
+        # 初始化 MFS 目录结构
+        self._ipfs.files_mkdir(_MFS_BLOCKS)
+        self._ipfs.files_mkdir(_MFS_RELATIONS)
 
     def write_block(self, content: dict) -> str:
-        """Write content-addressed block. Returns block hash."""
-        data = json.dumps(content, sort_keys=True, ensure_ascii=False)
-        block_hash = hashlib.sha256(data.encode()).hexdigest()
-        path = self.blocks_dir / f"{block_hash}.json"
-        if not path.exists():
-            path.write_text(data, encoding="utf-8")
-        return block_hash
+        """写入内容寻址区块到 IPFS。返回 CID（替代原来的 SHA256 hash）。
 
-    def read_block(self, block_hash: str) -> dict | None:
-        """Read a single block by hash."""
-        path = self.blocks_dir / f"{block_hash}.json"
-        if not path.exists():
+        CID 由 IPFS 根据内容自动生成，天然去重。
+        写入后在 MFS 索引中注册 CID，并 pin 防止 GC。
+        """
+        data = json.dumps(content, sort_keys=True, ensure_ascii=False)
+        cid = self._ipfs.upload(data)
+        self._ipfs.pin(cid)
+        # 在 MFS 中注册 CID（文件名 = CID，内容为空占位）
+        mfs_path = f"{_MFS_BLOCKS}/{cid}"
+        self._ipfs.files_write(mfs_path, b"", create=True, truncate=True)
+        return cid
+
+    def read_block(self, cid: str) -> dict | None:
+        """根据 CID 从 IPFS 读取区块。"""
+        try:
+            raw = self._ipfs.download(cid)
+            return json.loads(raw.decode("utf-8"))
+        except Exception:
             return None
-        return json.loads(path.read_text(encoding="utf-8"))
 
     def write_relation(
         self,
@@ -45,7 +70,10 @@ class SharedLayer:
         relation: str,
         instance_id: str,
     ) -> None:
-        """Append a relation record."""
+        """写入 relation 记录到 IPFS。
+
+        每条 relation 作为独立 IPFS block 存储，CID 注册到 MFS /shared/relations/。
+        """
         record = {
             "from": from_hash,
             "to": to_hash,
@@ -53,32 +81,39 @@ class SharedLayer:
             "instance": instance_id,
             "timestamp": time.time(),
         }
-        with open(self.relations_path, "a", encoding="utf-8") as f:
-            f.write(json.dumps(record, ensure_ascii=False) + "\n")
+        data = json.dumps(record, sort_keys=True, ensure_ascii=False)
+        cid = self._ipfs.upload(data)
+        self._ipfs.pin(cid)
+        # 注册到 MFS relations 索引
+        mfs_path = f"{_MFS_RELATIONS}/{cid}"
+        self._ipfs.files_write(mfs_path, b"", create=True, truncate=True)
 
-    def read_new_blocks(self, known_hashes: set[str]) -> list[dict]:
-        """Read blocks not in known_hashes. Returns list of block dicts with 'hash' field."""
+    def read_new_blocks(self, known_cids: set[str]) -> list[dict]:
+        """读取不在 known_cids 中的新区块。返回带 'hash' 字段（CID）的 block list。"""
+        all_cids = self.all_block_hashes()
+        new_cids = all_cids - known_cids
         new_blocks: list[dict] = []
-        for path in self.blocks_dir.glob("*.json"):
-            block_hash = path.stem
-            if block_hash not in known_hashes:
-                content = json.loads(path.read_text(encoding="utf-8"))
-                content["hash"] = block_hash
+        for cid in new_cids:
+            content = self.read_block(cid)
+            if content is not None:
+                content["hash"] = cid
                 new_blocks.append(content)
         return new_blocks
 
     def all_block_hashes(self) -> set[str]:
-        """Return the set of all block hashes currently on disk."""
-        return {p.stem for p in self.blocks_dir.glob("*.json")}
+        """返回所有已知 block 的 CID 集合（通过 MFS 目录枚举）。"""
+        entries = self._ipfs.files_ls(_MFS_BLOCKS)
+        return {entry["Name"] for entry in entries}
 
     def read_relations(self) -> list[dict]:
-        """Read all relation records."""
-        if not self.relations_path.exists():
-            return []
+        """读取所有 relation 记录。"""
+        entries = self._ipfs.files_ls(_MFS_RELATIONS)
         records: list[dict] = []
-        with open(self.relations_path, encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if line:
-                    records.append(json.loads(line))
+        for entry in entries:
+            cid = entry["Name"]
+            try:
+                raw = self._ipfs.download(cid)
+                records.append(json.loads(raw.decode("utf-8")))
+            except Exception:
+                continue
         return records

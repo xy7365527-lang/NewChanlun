@@ -8,7 +8,7 @@ export default defineConfig({
     // Proxy to avoid CORS issues during dev
     proxy: {
       '/api': {
-        target: 'http://localhost:9090',
+        target: 'http://localhost:9765',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
       },

@@ -202,6 +202,7 @@ export function TopologyViewSwitcher({
           <GalaxyView
             data={data}
             traversalPosition={traversalPosition}
+            instanceTraversals={instanceTraversals}
             focusConcept={focusConcept}
             onSelectNode={onSelectNode}
           />

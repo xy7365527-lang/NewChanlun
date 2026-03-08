@@ -34,7 +34,7 @@ export const FONT = {
 } as const;
 
 // ── Config ─────────────────────────────────────────────────────
-export const DAEMON_HTTP = "http://localhost:9090";
+export const DAEMON_HTTP = "http://localhost:9765";
 export const DAEMON_WS = "ws://localhost:8765/ws";
 export const WS_THROTTLE_MS = 100;
 export const STATUS_POLL_MS = 1000;

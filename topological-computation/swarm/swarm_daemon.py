@@ -39,6 +39,7 @@ from persistence import DEFAULT_PATH as PERSIST_DEFAULT_PATH
 from traversal import StepLog
 from swarm.shared_layer import SharedLayer
 from swarm.cross_instance import CrossInstanceSync
+from chain.ipfs_client import IPFSClient
 
 
 # ---------------------------------------------------------------------------
@@ -178,7 +179,7 @@ class SwarmDaemon(TopologicalDaemon):
 
     def __init__(
         self,
-        shared_dir: str | Path,
+        ipfs_client: IPFSClient,
         instance_id: str,
         sync_interval: int = 20,
         graph: Graph | None = None,
@@ -212,8 +213,8 @@ class SwarmDaemon(TopologicalDaemon):
             if self._logger:
                 self._logger.info(f"Restored: step={self.total_steps}, settled={len(self.settlement.settled_cycles)}")
 
-        # Shared layer
-        self.shared = SharedLayer(shared_dir)
+        # Shared layer — IPFS backend（不降级到本地）
+        self.shared = SharedLayer(ipfs_client)
         self.syncer = CrossInstanceSync(self.shared, instance_id, self)
 
         # Initialize known blocks with whatever is already on disk
@@ -343,10 +344,6 @@ class SwarmDaemon(TopologicalDaemon):
         self.syncer.known_blocks.add(block_hash)
         self._blocks_written += 1
 
-        # Enqueue for IPFS upload if available
-        if self._ipfs_uploader:
-            self._ipfs_uploader.enqueue(block_hash, block)
-
     def swarm_status(self) -> dict:
         """Extended status with swarm-specific info."""
         base = self.status()
@@ -405,7 +402,14 @@ def _run_once(args, parent_dir: str, logger: logging.Logger) -> dict:
         logger.warning(f"Daemon already running (PID {existing_pid}), proceeding anyway")
     _write_pid(pid_path)
 
-    # IPFS uploader
+    # IPFS client — SharedLayer 的唯一后端
+    ipfs_client = IPFSClient()
+    if not ipfs_client.is_available():
+        logger.error("IPFS daemon 不可用。SharedLayer 要求 IPFS 在线。")
+        raise RuntimeError("IPFS daemon 不可用 — SwarmDaemon 拒绝启动")
+    logger.info(f"IPFS daemon 在线 (api={ipfs_client.api_url})")
+
+    # IPFS uploader（后台上传线程，用于非 SharedLayer 的额外上传）
     ipfs_uploader = IPFSUploader(logger)
     ipfs_uploader.start()
 
@@ -423,7 +427,7 @@ def _run_once(args, parent_dir: str, logger: logging.Logger) -> dict:
     instance_seed = hash(args.instance_id) % (2**31)
 
     daemon = SwarmDaemon(
-        shared_dir=shared_dir,
+        ipfs_client=ipfs_client,
         instance_id=args.instance_id,
         sync_interval=args.sync_interval,
         graph=graph,

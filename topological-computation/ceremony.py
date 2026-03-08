@@ -133,12 +133,12 @@ def step_1_ipfs_init(debug: bool = False) -> dict:
         ipfs_available = False
 
     if not ipfs_available:
-        _warn("IPFS CLI 未安装——降级到本地持久化模式")
+        _warn("IPFS CLI 未安装——SharedLayer 要求 IPFS 在线")
         _info("安装 IPFS: https://docs.ipfs.tech/install/")
-        # 确保目录存在
-        for d in ["blocks", "relations", "index", "output"]:
+        # 确保日志/持久化目录存在（这些不在 IPFS 上）
+        for d in ["output", "persist"]:
             (SWARM_DIR / d).mkdir(parents=True, exist_ok=True)
-        _ok("本地持久化目录就绪（不依赖 IPFS）")
+        _warn("IPFS 不可用——daemon 启动时将报错拒绝")
         return {"ipfs_available": False, "ipfs_running": False, "degraded": True}
 
     # Run setup_private.sh if on Unix
@@ -153,10 +153,10 @@ def step_1_ipfs_init(debug: bool = False) -> dict:
         else:
             _warn(f"setup_private.sh 返回 {result.returncode}，继续")
     else:
-        # Windows or no script: create directories manually
-        for d in ["blocks", "relations", "index", "output"]:
+        # Windows or no script: create logging/persist directories
+        for d in ["output", "persist"]:
             (SWARM_DIR / d).mkdir(parents=True, exist_ok=True)
-        _ok("Swarm 目录创建完成")
+        _ok("日志/持久化目录创建完成")
 
     # Check if IPFS daemon is running
     try:
@@ -356,35 +356,37 @@ def step_4_api_exposure(debug: bool = False) -> bool:
 # ---------------------------------------------------------------------------
 
 def step_5_sync_confirm(additional: list[dict], debug: bool = False) -> bool:
-    """Confirm cross-instance sync: blocks flowing between instances.
+    """Confirm cross-instance sync: blocks flowing between instances via IPFS.
 
-    Uses SharedLayer event file as proxy for sync confirmation.
+    Uses IPFS SharedLayer block count as proxy for sync confirmation.
     """
-    _step(5, "跨实例同步确认（块在实例间流通）")
+    _step(5, "跨实例同步确认（块在 IPFS 上流通）")
 
     if not additional:
         _ok("单实例模式——跨实例同步不适用")
         return True
-
-    events_file = SWARM_DIR / "events.jsonl"
 
     # Wait briefly for instances to write their first blocks
     wait_seconds = 5
     _info(f"等待 {wait_seconds}s 让实例写入第一个事件...")
     time.sleep(wait_seconds)
 
-    if events_file.exists() and events_file.stat().st_size > 0:
-        line_count = sum(1 for _ in events_file.open("r", encoding="utf-8"))
-        _ok(f"共享事件层在线: {events_file} ({line_count} 事件)")
-    else:
-        _warn("共享事件层尚无事件——实例可能仍在初始化")
-        _ok("继续（共享层会在穿越开始后自动激活）")
+    # Check IPFS SharedLayer for blocks
+    try:
+        from chain.ipfs_client import IPFSClient
+        ipfs = IPFSClient()
+        if ipfs.is_available():
+            from swarm.shared_layer import SharedLayer
+            shared = SharedLayer(ipfs)
+            block_count = len(shared.all_block_hashes())
+            _ok(f"IPFS 共享块存储: {block_count} 个块")
+        else:
+            _warn("IPFS daemon 未在线——实例可能仍在初始化")
+            _ok("继续（共享层会在穿越开始后自动激活）")
+    except Exception as exc:
+        _warn(f"IPFS 检查失败: {exc}")
+        _ok("继续（实例启动后自动连接 IPFS）")
 
-    # Check blocks dir: instances write content-addressed blocks
-    blocks_dir = SWARM_DIR / "blocks"
-    if blocks_dir.exists():
-        block_count = len(list(blocks_dir.glob("*.json")))
-        _ok(f"共享块存储: {block_count} 个块")
     return True
 
 
@@ -393,40 +395,28 @@ def step_5_sync_confirm(additional: list[dict], debug: bool = False) -> bool:
 # ---------------------------------------------------------------------------
 
 def step_6_ipfs_upload_confirm(ipfs_info: dict, debug: bool = False) -> bool:
-    """Confirm IPFS upload: blocks pinned to IPFS.
-
-    Graceful degradation: if IPFS not running, confirm local persistence instead.
-    """
-    _step(6, "IPFS 上传确认（降级：本地持久化）")
+    """Confirm IPFS is operational: SharedLayer 直接写入 IPFS，无降级路径。"""
+    _step(6, "IPFS 存储确认（SharedLayer 直接写入 IPFS）")
 
     if ipfs_info.get("degraded"):
-        # Confirm local persistence
-        persist_node0 = SWARM_DIR / "k_full_node_0.jsonl"
-        if persist_node0.exists() and persist_node0.stat().st_size > 0:
-            size_kb = persist_node0.stat().st_size // 1024
-            _ok(f"本地持久化就绪: {persist_node0} ({size_kb} KB)")
-        else:
-            _info("JSONL 文件尚未写入——daemon 启动后自动写入")
-            _ok("本地持久化路径已创建")
+        _warn("IPFS 不可用——SharedLayer 无法工作")
+        _info("daemon 启动时将拒绝运行")
         return True
 
     if not ipfs_info.get("ipfs_running"):
-        _info("IPFS daemon 未在线——块将在 daemon 启动后异步上传")
-        _ok("IPFS 上传将在后台异步进行")
+        _warn("IPFS daemon 未在线——daemon 需要 IPFS 在线才能启动")
         return True
 
     try:
-        result = subprocess.run(
-            ["ipfs", "stat", "repo"],
-            capture_output=True, text=True, timeout=5,
-        )
-        if result.returncode == 0:
-            _ok("IPFS repo 可访问——上传线程已就绪")
+        from chain.ipfs_client import IPFSClient
+        ipfs = IPFSClient()
+        if ipfs.is_available():
+            _ok("IPFS daemon 在线——SharedLayer 可直接写入")
             return True
-    except (FileNotFoundError, subprocess.TimeoutExpired):
+    except Exception:
         pass
 
-    _warn("IPFS 状态未知——继续（上传线程会自动重试）")
+    _warn("IPFS 状态未知——daemon 启动时会自行检测")
     return True
 
 
