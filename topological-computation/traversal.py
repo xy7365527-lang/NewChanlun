@@ -80,6 +80,7 @@ class TraversalEngine:
         self.terrain = compute_terrain(self.k_active)
         self._pending_negations: list[tuple[str, str]] = []  # (thesis, antithesis) pairs
         self._nothing_streak = 0  # consecutive "nothing" steps
+        self._blocked_streak = 0  # consecutive blocked operation steps
         self._blocked_at: dict[str, int] = {}  # position -> last blocked step (skip encounter there)
         self._use_llm = use_llm
         self._conservative_prompt = conservative_prompt
@@ -545,10 +546,42 @@ class TraversalEngine:
         """
         return max(3, min(20, int(len(self.k_active.active_vertex_ids()) ** 0.5)))
 
+    def _find_free_zone_target(self) -> str | None:
+        """Find a high-degree vertex not in any settled cycle's edge set.
+
+        When all operations are blocked by settled cycles, the traverser
+        needs to escape to a region where operations can succeed. A "free"
+        vertex is one whose edges are not part of any settled cycle.
+
+        Returns the highest-degree free vertex, or None if all are locked.
+        """
+        # Collect all vertex IDs that participate in settled cycle edges
+        locked_vids: set[str] = set()
+        for sc in self.settlement.settled_cycles:
+            for src, tgt in sc.edges:
+                locked_vids.add(src)
+                locked_vids.add(tgt)
+
+        active = self.k_active.active_vertex_ids()
+        free_vids = [v for v in active if v not in locked_vids]
+
+        if not free_vids:
+            return None
+
+        # Pick highest-degree free vertex (most neighbors = most encounter potential)
+        degrees = {v: len(self.k_active.neighbors(v)) for v in free_vids}
+        return max(free_vids, key=lambda v: (degrees[v], v))
+
+    def _is_code_vertex(self, vid: str) -> bool:
+        """Check if vertex belongs to code domain (content starts with [domain:code])."""
+        v = self.k_active.vertex(vid)
+        return v is not None and v.content is not None and v.content.startswith("[domain:code]")
+
     def walk(self) -> None:
         """Move to an adjacent vertex. Prefer critical edges, then unvisited, then random.
 
         Anti-oscillation: if stuck in nothing streak >= threshold, jump to least-visited active vertex.
+        Domain awareness: if last 5 steps all in code domain, prefer core/text neighbors.
         """
         if self._nothing_streak >= self._nothing_threshold:
             # Jump to least-visited active vertex to escape local trap
@@ -571,8 +604,30 @@ class TraversalEngine:
         if not neighbors:
             return  # stuck (should not happen in connected graph)
 
+        # Domain awareness: if last 5 positions were all code domain,
+        # prefer non-code neighbors to avoid getting stuck in code hubs
+        code_streak = (
+            len(self.visit_history) >= 5
+            and all(self._is_code_vertex(h) for h in self.visit_history[-5:])
+        )
+
         # Prefer critical neighbors
         crit = critical_neighbors(self.k_active, self.position, self.terrain)
+
+        if code_streak:
+            # Filter for non-code vertices first
+            non_code_crit = [n for n in crit if not self._is_code_vertex(n)]
+            non_code_any = [n for n in neighbors if not self._is_code_vertex(n)]
+            if non_code_crit:
+                self.position = self.rng.choice(non_code_crit)
+                self.visit_history.append(self.position)
+                return
+            if non_code_any:
+                self.position = self.rng.choice(non_code_any)
+                self.visit_history.append(self.position)
+                return
+            # All neighbors are code — fall through to normal logic
+
         unvisited = [n for n in crit if n not in self.visit_history[-5:]]
         if unvisited:
             self.position = self.rng.choice(unvisited)
@@ -608,6 +663,18 @@ class TraversalEngine:
             self._nothing_streak = 0
             if blocked:
                 self._blocked_at[self.position] = self.step
+                self._blocked_streak += 1
+
+                # Settlement deadlock escape: if blocked too many times consecutively,
+                # jump to a vertex outside all settled cycles ("free zone")
+                if self._blocked_streak >= 30:
+                    free_target = self._find_free_zone_target()
+                    if free_target is not None and free_target != self.position:
+                        self.position = free_target
+                        self.visit_history.append(self.position)
+                    self._blocked_streak = 0
+            else:
+                self._blocked_streak = 0
         else:
             self._nothing_streak += 1
             self.walk()

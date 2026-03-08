@@ -119,16 +119,17 @@ export interface FeedResponse {
 // ── /present response ────────────────────────────────────────────
 
 export interface PresentPart {
-  source: "unreported" | "co-gaze";
+  source: "unreported" | "co-gaze" | "language_organ";
   text: string;
 }
 
 export interface PresentResponse {
-  type: "sharing" | "co-gaze" | "silence";
+  type: "sharing" | "co-gaze" | "silence" | "dialogue";
   parts: PresentPart[];
   injected: boolean;
   concepts_found: string[];
   expression_pressure: number;
+  llm_used?: boolean;
 }
 
 // ── WebSocket message types ─────────────────────────────────────

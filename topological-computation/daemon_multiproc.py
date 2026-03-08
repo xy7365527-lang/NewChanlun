@@ -228,6 +228,19 @@ def _update_status(daemon, status_dict: dict) -> None:
         status_dict["beta_1"] = s["beta_1"]
         status_dict["settled_cycles"] = s["settled_cycles"]
         status_dict["crystallization_count"] = s["crystallization_count"]
+        # Domain distribution
+        status_dict["domain_distribution"] = json.dumps(s.get("domain_distribution", {}))
+        # Encounter density from recent logs
+        if daemon.engine and daemon.engine.logs:
+            recent = daemon.engine.logs[-100:]
+            encounters = sum(1 for log in recent if log.operation != "walk")
+            status_dict["encounter_density"] = round(encounters / max(len(recent), 1), 3)
+        # Expression pressure
+        watermark = getattr(daemon, '_reported_step_watermark', 0)
+        if daemon.engine and daemon.engine.logs:
+            unreported = sum(1 for log in daemon.engine.logs
+                           if log.step > watermark and (log.delta_beta_1 != 0 or log.blocked))
+            status_dict["expression_pressure"] = unreported
         # Position for dashboard
         if daemon.engine:
             status_dict["position"] = daemon.engine.position
@@ -242,9 +255,6 @@ def _update_topology(daemon, topology_cache: dict, topology_json_fn) -> None:
         # Use skeleton (not full) to avoid blocking traversal with f-value computation
         topo = topology_json_fn(daemon)
         topology_cache["json"] = json.dumps(topo, ensure_ascii=False)
-        topology_cache["_updated_at"] = time.time()
-    except Exception:
-        pass
         topology_cache["_updated_at"] = time.time()
     except Exception:
         pass
@@ -467,6 +477,7 @@ class MultiprocessHTTPHandler:
         feed_queue: Queue,
         present_queue: Queue,
         present_result_queue: Queue,
+        status_dict: dict | None = None,
     ) -> tuple[dict, int]:
         """Route POST requests. Returns (response_data, status_code)."""
         if path == "/feed":
@@ -489,7 +500,8 @@ class MultiprocessHTTPHandler:
             })
 
             # Wait for result with timeout
-            deadline = time.time() + 10.0  # 10s timeout
+            # LLM language organ calls can take up to 30s — give enough room
+            deadline = time.time() + 35.0  # 35s timeout (LLM API timeout is 30s)
             while time.time() < deadline:
                 try:
                     response = present_result_queue.get(timeout=0.1)
@@ -502,13 +514,28 @@ class MultiprocessHTTPHandler:
                 except Exception:
                     continue
 
-            return {"error": "timeout waiting for traversal process"}, 504
+            # Timeout fallback: return simplified status instead of 504
+            # The traversal subprocess is busy — give the caller what we have
+            return {
+                "type": "silence",
+                "parts": [],
+                "injected": False,
+                "concepts_found": [],
+                "expression_pressure": status_dict.get("expression_pressure", 0),
+                "timeout_fallback": True,
+            }, 200
 
         return {"error": "not found"}, 404
 
 
 def _build_status_response(status_dict: dict) -> dict:
     """Build /status response from shared dict."""
+    # Parse domain distribution from JSON string
+    domain_raw = status_dict.get("domain_distribution", "{}")
+    try:
+        domain_dist = json.loads(domain_raw) if isinstance(domain_raw, str) else domain_raw
+    except (json.JSONDecodeError, TypeError):
+        domain_dist = {}
     return {
         "beta_1": status_dict.get("beta_1", 0),
         "vertices": status_dict.get("vertices_active", 0),
@@ -516,9 +543,10 @@ def _build_status_response(status_dict: dict) -> dict:
         "settled": status_dict.get("settled_cycles", 0),
         "steps": status_dict.get("total_steps", 0),
         "crystallization_count": status_dict.get("crystallization_count", 0),
-        "encounter_density": 0.0,
+        "encounter_density": status_dict.get("encounter_density", 0.0),
         "status": "traversing",
-        "expression_pressure": 0,
+        "expression_pressure": status_dict.get("expression_pressure", 0),
+        "domain_distribution": domain_dist,
     }
 
 
@@ -527,6 +555,7 @@ def _build_status_response(status_dict: dict) -> dict:
 # ---------------------------------------------------------------------------
 
 from http.server import HTTPServer, BaseHTTPRequestHandler
+from socketserver import ThreadingMixIn
 from urllib.parse import urlparse, parse_qs
 import threading
 
@@ -565,7 +594,8 @@ class _MPHTTPHandler(BaseHTTPRequestHandler):
 
         data, code = MultiprocessHTTPHandler.handle_post(
             path, req_data,
-            self.feed_queue, self.present_queue, self.present_result_queue)
+            self.feed_queue, self.present_queue, self.present_result_queue,
+            self.status_dict)
 
         self._json_response(data, code)
 
@@ -737,7 +767,10 @@ def start_multiprocess_daemon(
     _MPHTTPHandler.present_queue = present_queue
     _MPHTTPHandler.present_result_queue = present_result_queue
 
-    server = HTTPServer(("0.0.0.0", port), _MPHTTPHandler)
+    class _ThreadingHTTPServer(ThreadingMixIn, HTTPServer):
+        daemon_threads = True
+
+    server = _ThreadingHTTPServer(("0.0.0.0", port), _MPHTTPHandler)
     print(f"  HTTP API: http://localhost:{port}", file=sys.stderr)
     print(f"  Mode: multiprocess (GIL-free HTTP)", file=sys.stderr)
 

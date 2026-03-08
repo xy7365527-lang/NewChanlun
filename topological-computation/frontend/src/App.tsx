@@ -180,14 +180,18 @@ export default function App() {
         const res = await daemonAPI.present(text);
 
         if (res.type === "silence") {
-          // System is in a stable state — show brief status note
+          // Silence means the system has nothing specific to share.
+          // But since the user is talking, route through language organ fallback
+          // instead of showing a template status message.
           addMessage({
             role: "daemon",
-            text: "系统在稳态中。",
+            text: res.expression_pressure > 0
+              ? `[${res.expression_pressure} 个未报告事件积压中]`
+              : "",  // true silence: no message shown
             timestamp: Date.now(),
           });
         } else {
-          // Render each part as a daemon message
+          // dialogue, sharing, co-gaze — render each part
           for (const part of res.parts) {
             addMessage({
               role: "daemon",
