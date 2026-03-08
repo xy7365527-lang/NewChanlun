@@ -271,6 +271,7 @@ class TopologicalDaemon:
             "on_gap": [],
             "on_event": [],
             "on_feed": [],
+            "on_step": [],
         }
 
         # Gap detection state — driven by topology change, not fixed interval
@@ -880,6 +881,9 @@ class TopologicalDaemon:
                 "beta_1_after": log.beta_1_after,
                 "blocked": log.blocked,
             })
+
+        # Every step callback (for WS position tracking)
+        self._fire("on_step", log)
 
         # Significant event callback
         if self._is_significant(log):
