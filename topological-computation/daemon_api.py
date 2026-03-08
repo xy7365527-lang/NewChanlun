@@ -52,6 +52,17 @@ def status_json(daemon: TopologicalDaemon) -> dict:
         if hasattr(daemon, '_last_feed_step') and last_step - daemon._last_feed_step < 5:
             label = "feeding"
 
+    # Current traversal position
+    position = ""
+    position_label = ""
+    if daemon.engine and daemon.engine.position:
+        position = daemon.engine.position
+        if daemon.concept_names:
+            position_label = daemon.concept_names.get(position, "")
+        if not position_label:
+            v = daemon.k_active.vertex(position)
+            position_label = (v.content or position)[:60] if v else position
+
     return {
         "beta_1": s["beta_1"],
         "vertices": s["vertices_active"],
@@ -63,6 +74,8 @@ def status_json(daemon: TopologicalDaemon) -> dict:
         "status": label,
         "expression_pressure": getattr(daemon, '_unreported_count', 0),
         "residue_vertices": len(daemon.settlement.residue_vertices()) if daemon.settlement else 0,
+        "position": position,
+        "position_label": position_label,
     }
 
 
