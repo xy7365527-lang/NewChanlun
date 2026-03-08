@@ -29,17 +29,40 @@ import * as THREE from "three";
 import { CSS2DRenderer, CSS2DObject } from "three/examples/jsm/renderers/CSS2DRenderer.js";
 import { T, FONT, fToColor } from "../tokens";
 import type { TopologyNode, TopologyLink, TopologyResponse } from "../types";
+import type { InstanceTraversal } from "../components/TopologyView";
 
 // ── 类型 ──────────────────────────────────────────────────────────
 
 interface Props {
   data: TopologyResponse | null;
   traversalPosition?: string;
+  instanceTraversals?: InstanceTraversal[];
   focusConcept?: string | null;
   onSelectNode?: (node: TopologyNode) => void;
 }
 
 interface Vec3 { x: number; y: number; z: number }
+
+// 单个实例的 3D trail 状态
+interface InstanceTrailState {
+  light: THREE.PointLight;
+  trailGeo: THREE.BufferGeometry;
+  trailMat: THREE.PointsMaterial;
+  trailPoints: THREE.Points;
+  history: THREE.Vector3[];
+  color: THREE.Color;
+}
+
+// 新边动画状态
+interface EdgeBeam {
+  line: THREE.Line;
+  progress: number;       // 0→1
+  sourcePos: THREE.Vector3;
+  targetPos: THREE.Vector3;
+  duration: number;        // seconds
+  startTime: number;
+  edgeType: string;
+}
 
 // ── 星系常数 ─────────────────────────────────────────────────────
 
@@ -288,7 +311,7 @@ function easeInOut(t: number): number {
 // ── 主组件 ────────────────────────────────────────────────────────
 
 export function GalaxyView({
-  data, traversalPosition, focusConcept, onSelectNode,
+  data, traversalPosition, instanceTraversals, focusConcept, onSelectNode,
 }: Props) {
   const mountRef    = useRef<HTMLDivElement>(null);
   const labelRootRef = useRef<HTMLDivElement>(null);
@@ -299,6 +322,13 @@ export function GalaxyView({
   // traversalPosition 通过 ref 传入动画循环，避免重建场景
   const traversalRef = useRef(traversalPosition);
   traversalRef.current = traversalPosition;
+
+  // 多实例穿越数据通过 ref 传入动画循环
+  const instanceTraversalsRef = useRef(instanceTraversals);
+  instanceTraversalsRef.current = instanceTraversals;
+
+  // 上一帧的 link 集合（用于检测新边）
+  const prevLinkKeysRef = useRef<Set<string>>(new Set());
 
   // 全量数据增量加载
   const [fullData, setFullData] = useState<TopologyResponse | null>(null);
@@ -641,23 +671,105 @@ export function GalaxyView({
       pulses.push({ pt, si, ti, phase: li * 0.41 });
     });
 
-    // ── 穿越拖尾 ──────────────────────────────────────────────────
+    // ── 多实例穿越拖尾 ──────────────────────────────────────────────
 
     const TRAIL_LEN = 14;
-    const trailHistory: THREE.Vector3[] = [];
-    const trailGeo    = new THREE.BufferGeometry();
-    const trailPosBuf = new Float32Array(TRAIL_LEN * 3);
-    const trailColBuf = new Float32Array(TRAIL_LEN * 3);
-    trailGeo.setAttribute("position", new THREE.BufferAttribute(trailPosBuf, 3));
-    trailGeo.setAttribute("color",    new THREE.BufferAttribute(trailColBuf, 3));
-    const trailMat = new THREE.PointsMaterial({
-      size: 6, vertexColors: true, transparent: true, opacity: 0,
-      depthWrite: false, sizeAttenuation: true, blending: THREE.AdditiveBlending,
-    });
-    scene.add(new THREE.Points(trailGeo, trailMat));
+    const instanceTrailMap = new Map<string, InstanceTrailState>();
 
-    const traversalLight = new THREE.PointLight(0xaaddff, 0, 200);
-    scene.add(traversalLight);
+    // 为单实例 fallback 创建默认 trail
+    function getOrCreateInstanceTrail(instanceId: string, color: THREE.Color): InstanceTrailState {
+      if (instanceTrailMap.has(instanceId)) return instanceTrailMap.get(instanceId)!;
+
+      const trailGeo = new THREE.BufferGeometry();
+      const trailPosBuf = new Float32Array(TRAIL_LEN * 3);
+      const trailColBuf = new Float32Array(TRAIL_LEN * 3);
+      trailGeo.setAttribute("position", new THREE.BufferAttribute(trailPosBuf, 3));
+      trailGeo.setAttribute("color", new THREE.BufferAttribute(trailColBuf, 3));
+      const trailMat = new THREE.PointsMaterial({
+        size: 6, vertexColors: true, transparent: true, opacity: 0,
+        depthWrite: false, sizeAttenuation: true, blending: THREE.AdditiveBlending,
+      });
+      const trailPoints = new THREE.Points(trailGeo, trailMat);
+      scene.add(trailPoints);
+
+      const light = new THREE.PointLight(color.getHex(), 0, 200);
+      scene.add(light);
+
+      const state: InstanceTrailState = {
+        light, trailGeo, trailMat, trailPoints,
+        history: [], color,
+      };
+      instanceTrailMap.set(instanceId, state);
+      return state;
+    }
+
+    // ── 新边光线动画 ─────────────────────────────────────────────────
+
+    const activeBeams: EdgeBeam[] = [];
+
+    // 构建当前 link key 集合用于边 diff
+    function buildLinkKeySet(linkList: TopologyLink[]): Set<string> {
+      const s = new Set<string>();
+      for (const l of linkList) {
+        const srcId = typeof l.source === "string" ? l.source : (l.source as TopologyNode).id;
+        const tgtId = typeof l.target === "string" ? l.target : (l.target as TopologyNode).id;
+        // 双向归一化 key
+        const key = srcId < tgtId ? `${srcId}|${tgtId}` : `${tgtId}|${srcId}`;
+        s.add(key);
+      }
+      return s;
+    }
+
+    // 初始化 prevLinkKeys（第一帧不触发动画）
+    const currentLinkKeys = buildLinkKeySet(links);
+    const newLinkKeys: Array<{ srcId: string; tgtId: string; type: string }> = [];
+
+    // 检测新边（仅在非首帧时触发——prevLinkKeysRef 非空意味着有上一帧数据）
+    if (prevLinkKeysRef.current.size > 0) {
+      for (const l of links) {
+        const srcId = typeof l.source === "string" ? l.source : (l.source as TopologyNode).id;
+        const tgtId = typeof l.target === "string" ? l.target : (l.target as TopologyNode).id;
+        const key = srcId < tgtId ? `${srcId}|${tgtId}` : `${tgtId}|${srcId}`;
+        if (!prevLinkKeysRef.current.has(key)) {
+          newLinkKeys.push({ srcId, tgtId, type: l.type });
+        }
+      }
+    }
+    prevLinkKeysRef.current = currentLinkKeys;
+
+    // 预加载新边动画（会在动画循环第一帧开始播放）
+    let pendingBeams = newLinkKeys;
+
+    function spawnEdgeBeam(srcIdx: number, tgtIdx: number, edgeType: string, currentTime: number) {
+      const ps = positions[srcIdx];
+      const pt = positions[tgtIdx];
+      const sourcePos = new THREE.Vector3(ps.x, ps.y, ps.z);
+      const targetPos = new THREE.Vector3(pt.x, pt.y, pt.z);
+
+      const beamColor = edgeType === "negation" ? 0xff2244 : 0x22d68a;
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute("position", new THREE.Float32BufferAttribute([
+        sourcePos.x, sourcePos.y, sourcePos.z,
+        sourcePos.x, sourcePos.y, sourcePos.z,
+      ], 3));
+      const mat = new THREE.LineBasicMaterial({
+        color: beamColor,
+        transparent: true,
+        opacity: 0.9,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      });
+      const line = new THREE.Line(geo, mat);
+      scene.add(line);
+
+      activeBeams.push({
+        line, progress: 0,
+        sourcePos, targetPos,
+        duration: 0.7,
+        startTime: currentTime,
+        edgeType,
+      });
+    }
 
     // ── 环境光 ────────────────────────────────────────────────────
 
@@ -918,39 +1030,132 @@ export function GalaxyView({
         (pt.material as THREE.PointsMaterial).opacity = 0.85 * (1 - dFrac * dFrac);
       });
 
-      // 穿越拖尾
-      const trvIdx = nodes.findIndex((n) => n.id === traversalRef.current);
-      if (trvIdx >= 0) {
-        const tp  = positions[trvIdx];
-        const trvVec = new THREE.Vector3(tp.x, tp.y, tp.z);
-        traversalLight.position.copy(trvVec);
-        traversalLight.intensity = 2.0 + 0.8 * Math.sin(t * 4.5);
+      // ── 多实例穿越拖尾 ──────────────────────────────────────────
+      const currentInstances = instanceTraversalsRef.current;
+      const activeInstanceIds = new Set<string>();
 
-        if (trailHistory.length === 0 ||
-            trailHistory[trailHistory.length - 1].distanceTo(trvVec) > 0.5) {
-          trailHistory.push(trvVec.clone());
-          if (trailHistory.length > TRAIL_LEN) trailHistory.shift();
+      if (currentInstances && currentInstances.length > 0) {
+        // Multi-instance mode
+        for (const inst of currentInstances) {
+          const idx = nodeIdxMap.get(inst.position);
+          if (idx === undefined) continue;
+
+          activeInstanceIds.add(inst.instanceId);
+          const col = new THREE.Color(inst.color);
+          const trail = getOrCreateInstanceTrail(inst.instanceId, col);
+
+          const tp = positions[idx];
+          const trvVec = new THREE.Vector3(tp.x, tp.y, tp.z);
+          trail.light.position.copy(trvVec);
+          trail.light.color.copy(col);
+          trail.light.intensity = 2.0 + 0.8 * Math.sin(t * 4.5 + inst.instanceId.length * 0.7);
+
+          if (trail.history.length === 0 ||
+              trail.history[trail.history.length - 1].distanceTo(trvVec) > 0.5) {
+            trail.history.push(trvVec.clone());
+            if (trail.history.length > TRAIL_LEN) trail.history.shift();
+          }
+
+          const posAttr = trail.trailGeo.attributes.position as THREE.BufferAttribute;
+          const colAttr = trail.trailGeo.attributes.color as THREE.BufferAttribute;
+          for (let k = 0; k < TRAIL_LEN; k++) {
+            if (k < trail.history.length) {
+              const hp = trail.history[trail.history.length - 1 - k];
+              posAttr.setXYZ(k, hp.x, hp.y, hp.z);
+              const bright = 1 - k / TRAIL_LEN;
+              colAttr.setXYZ(k, col.r * bright, col.g * bright, col.b * bright);
+            } else {
+              posAttr.setXYZ(k, 0, 0, -99999);
+              colAttr.setXYZ(k, 0, 0, 0);
+            }
+          }
+          posAttr.needsUpdate = true;
+          colAttr.needsUpdate = true;
+          trail.trailMat.opacity = 0.8;
         }
+      } else {
+        // Single-instance fallback
+        const trvIdx = nodes.findIndex((n) => n.id === traversalRef.current);
+        if (trvIdx >= 0) {
+          activeInstanceIds.add("__default__");
+          const col = new THREE.Color(0xaaddff);
+          const trail = getOrCreateInstanceTrail("__default__", col);
 
-        const posAttr = trailGeo.attributes.position as THREE.BufferAttribute;
-        const colAttr = trailGeo.attributes.color    as THREE.BufferAttribute;
-        for (let k = 0; k < TRAIL_LEN; k++) {
-          if (k < trailHistory.length) {
-            const hp = trailHistory[trailHistory.length - 1 - k];
-            posAttr.setXYZ(k, hp.x, hp.y, hp.z);
-            const bright = 1 - k / TRAIL_LEN;
-            colAttr.setXYZ(k, bright * 0.6, bright * 0.9, 1.0);
-          } else {
-            posAttr.setXYZ(k, 0, 0, -99999);
-            colAttr.setXYZ(k, 0, 0, 0);
+          const tp = positions[trvIdx];
+          const trvVec = new THREE.Vector3(tp.x, tp.y, tp.z);
+          trail.light.position.copy(trvVec);
+          trail.light.intensity = 2.0 + 0.8 * Math.sin(t * 4.5);
+
+          if (trail.history.length === 0 ||
+              trail.history[trail.history.length - 1].distanceTo(trvVec) > 0.5) {
+            trail.history.push(trvVec.clone());
+            if (trail.history.length > TRAIL_LEN) trail.history.shift();
+          }
+
+          const posAttr = trail.trailGeo.attributes.position as THREE.BufferAttribute;
+          const colAttr = trail.trailGeo.attributes.color as THREE.BufferAttribute;
+          for (let k = 0; k < TRAIL_LEN; k++) {
+            if (k < trail.history.length) {
+              const hp = trail.history[trail.history.length - 1 - k];
+              posAttr.setXYZ(k, hp.x, hp.y, hp.z);
+              const bright = 1 - k / TRAIL_LEN;
+              colAttr.setXYZ(k, bright * 0.6, bright * 0.9, 1.0);
+            } else {
+              posAttr.setXYZ(k, 0, 0, -99999);
+              colAttr.setXYZ(k, 0, 0, 0);
+            }
+          }
+          posAttr.needsUpdate = true;
+          colAttr.needsUpdate = true;
+          trail.trailMat.opacity = 0.8;
+        }
+      }
+
+      // 隐藏不再活跃的实例 trail
+      for (const [id, trail] of instanceTrailMap) {
+        if (!activeInstanceIds.has(id)) {
+          trail.light.intensity = 0;
+          trail.trailMat.opacity = 0;
+        }
+      }
+
+      // ── 新边光线动画：首帧 spawn ──────────────────────────────────
+      if (pendingBeams.length > 0) {
+        for (const { srcId, tgtId, type } of pendingBeams) {
+          const si = nodeIdxMap.get(srcId);
+          const ti = nodeIdxMap.get(tgtId);
+          if (si !== undefined && ti !== undefined) {
+            spawnEdgeBeam(si, ti, type, t);
           }
         }
+        pendingBeams = [];
+      }
+
+      // ── 新边光线动画更新 ─────────────────────────────────────────
+      for (let i = activeBeams.length - 1; i >= 0; i--) {
+        const beam = activeBeams[i];
+        const elapsed = t - beam.startTime;
+        beam.progress = Math.min(1, elapsed / beam.duration);
+
+        // 更新光线头部位置
+        const headPos = new THREE.Vector3().lerpVectors(
+          beam.sourcePos, beam.targetPos, beam.progress
+        );
+        const posAttr = beam.line.geometry.attributes.position as THREE.BufferAttribute;
+        posAttr.setXYZ(1, headPos.x, headPos.y, headPos.z);
         posAttr.needsUpdate = true;
-        colAttr.needsUpdate = true;
-        trailMat.opacity = 0.8;
-      } else {
-        traversalLight.intensity = 0;
-        trailMat.opacity = 0;
+
+        // 动画完成后移除光线
+        if (beam.progress >= 1) {
+          scene.remove(beam.line);
+          beam.line.geometry.dispose();
+          (beam.line.material as THREE.LineBasicMaterial).dispose();
+          activeBeams.splice(i, 1);
+        } else {
+          // 光线亮度：中间最亮，两端渐暗
+          const brightness = Math.sin(beam.progress * Math.PI);
+          (beam.line.material as THREE.LineBasicMaterial).opacity = 0.6 + 0.4 * brightness;
+        }
       }
 
       renderer.render(scene, camera);
@@ -980,6 +1185,16 @@ export function GalaxyView({
       renderer.domElement.removeEventListener("click",      onCanvasClick);
       renderer.domElement.removeEventListener("dblclick",   onDblClick);
       window.removeEventListener("resize", onResize);
+      // Dispose instance trails
+      for (const [, trail] of instanceTrailMap) {
+        trail.trailGeo.dispose();
+        trail.trailMat.dispose();
+      }
+      // Dispose active beams
+      for (const beam of activeBeams) {
+        beam.line.geometry.dispose();
+        (beam.line.material as THREE.LineBasicMaterial).dispose();
+      }
       renderer.dispose();
       if (mount.contains(renderer.domElement)) mount.removeChild(renderer.domElement);
       if (labelRoot.contains(css2d.domElement)) labelRoot.removeChild(css2d.domElement);
@@ -1058,6 +1273,21 @@ export function GalaxyView({
           <span style={{ color: "#4090ff", opacity: 0.7 }}>◎</span> 代码
           <span style={{ color: "#9060ff", opacity: 0.7 }}>◎</span> 谱系
         </div>
+        {instanceTraversals && instanceTraversals.length > 0 && (
+          <div style={{
+            display: "flex", gap: 8, flexWrap: "wrap",
+            borderTop: "1px solid rgba(20,20,40,0.9)", paddingTop: 4,
+          }}>
+            {instanceTraversals.map((it) => (
+              <span key={it.instanceId} style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                <span style={{ color: it.color }}>◉</span>
+                <span style={{ color: "rgba(100,100,130,0.9)", fontSize: 7 }}>
+                  {it.instanceName}
+                </span>
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* 元信息 */}

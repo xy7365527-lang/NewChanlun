@@ -136,17 +136,21 @@ def main() -> None:
             for line in r["stdout"].strip().split("\n"):
                 print(f"  {line}")
 
-    # Print shared layer summary
-    shared = Path(args.shared) / "blocks"
-    if shared.exists():
-        block_count = len(list(shared.glob("*.json")))
-        print(f"\nShared blocks total: {block_count}")
-
-    relations_path = Path(args.shared) / "relations.jsonl"
-    if relations_path.exists():
-        with open(relations_path, encoding="utf-8") as f:
-            rel_count = sum(1 for _ in f)
-        print(f"Shared relations total: {rel_count}")
+    # Print shared layer summary (from IPFS)
+    try:
+        from chain.ipfs_client import IPFSClient
+        from swarm.shared_layer import SharedLayer
+        ipfs = IPFSClient()
+        if ipfs.is_available():
+            shared_layer = SharedLayer(ipfs)
+            block_count = len(shared_layer.all_block_hashes())
+            rel_count = len(shared_layer.read_relations())
+            print(f"\nShared blocks total (IPFS): {block_count}")
+            print(f"Shared relations total (IPFS): {rel_count}")
+        else:
+            print("\nIPFS daemon 不可用——共享层统计不可获取")
+    except Exception as exc:
+        print(f"\n共享层统计失败: {exc}")
 
 
 if __name__ == "__main__":

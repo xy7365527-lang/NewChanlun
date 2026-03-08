@@ -105,10 +105,9 @@ def launch_swarm(
     script_dir = os.path.dirname(os.path.abspath(__file__))
     daemon_script = os.path.join(script_dir, "swarm", "swarm_daemon.py")
 
-    # Ensure shared directory structure exists
+    # Ensure shared directory structure exists (output/persist for logs, blocks on IPFS)
     Path(shared_dir).mkdir(parents=True, exist_ok=True)
     (Path(shared_dir) / "output").mkdir(parents=True, exist_ok=True)
-    (Path(shared_dir) / "blocks").mkdir(parents=True, exist_ok=True)
 
     processes: list[subprocess.Popen] = []
 
@@ -263,11 +262,19 @@ def main() -> None:
         ret = p.returncode if p.returncode is not None else "?"
         print(f"  [fengliang_{i}] exit={ret}", file=sys.stderr)
 
-    # Print shared layer summary
-    shared_blocks = Path(args.shared) / "blocks"
-    if shared_blocks.exists():
-        block_count = len(list(shared_blocks.glob("*.json")))
-        print(f"  Shared blocks: {block_count}", file=sys.stderr)
+    # Print shared layer summary (from IPFS)
+    try:
+        from chain.ipfs_client import IPFSClient
+        from swarm.shared_layer import SharedLayer
+        ipfs = IPFSClient()
+        if ipfs.is_available():
+            shared_layer = SharedLayer(ipfs)
+            block_count = len(shared_layer.all_block_hashes())
+            print(f"  Shared blocks (IPFS): {block_count}", file=sys.stderr)
+        else:
+            print("  IPFS 不可用——共享层统计跳过", file=sys.stderr)
+    except Exception:
+        pass
 
 
 if __name__ == "__main__":

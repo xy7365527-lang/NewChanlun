@@ -18,11 +18,22 @@ from pathlib import Path
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 from swarm.shared_layer import SharedLayer
+from chain.ipfs_client import IPFSClient
 
 
 def snapshot(shared_dir: str) -> dict:
-    """Take a snapshot of the swarm state from the shared directory."""
-    shared = SharedLayer(shared_dir)
+    """Take a snapshot of the swarm state from IPFS shared layer."""
+    ipfs = IPFSClient()
+    if not ipfs.is_available():
+        return {
+            "total_blocks": 0,
+            "total_vertices_in_blocks": 0,
+            "total_edges_in_blocks": 0,
+            "total_relations": 0,
+            "instances": {},
+            "error": "IPFS daemon 不可用",
+        }
+    shared = SharedLayer(ipfs)
 
     # Read all blocks
     all_hashes = shared.all_block_hashes()
