@@ -27,10 +27,11 @@ _EXCLUDED_DIRS = {"__pycache__", ".venv", "node_modules", ".git", "venv", "env"}
 class _IngestVisitor(ast.NodeVisitor):
     """Walk a Python AST and collect vertices with full source bodies."""
 
-    def __init__(self, module_name: str, source_lines: list[str], source: str = "") -> None:
+    def __init__(self, module_name: str, source_lines: list[str], source: str = "", domain_tag: str = "[domain:code]") -> None:
         self.module_name = module_name
         self.source_lines = source_lines
         self.source = source
+        self.domain_tag = domain_tag
         self.vertices: list[Vertex] = []
         self.edges: list[Edge] = []
         self._defined_names: set[str] = set()
@@ -113,7 +114,7 @@ class _IngestVisitor(ast.NodeVisitor):
             qualified = node.name
 
         vid = self._make_id(qualified)
-        content = f"[domain:code] {self._extract_signature(node)}"
+        content = f"{self.domain_tag} {self._extract_signature(node)}"
         self.vertices.append(Vertex(
             id=vid,
             status=VertexStatus.ACTIVE,
@@ -140,7 +141,7 @@ class _IngestVisitor(ast.NodeVisitor):
             qualified = node.name
 
         vid = self._make_id(qualified)
-        content = f"[domain:code] {self._extract_class_signature(node)}"
+        content = f"{self.domain_tag} {self._extract_class_signature(node)}"
         self.vertices.append(Vertex(
             id=vid,
             status=VertexStatus.ACTIVE,
@@ -227,11 +228,30 @@ def _extract_name(node: ast.expr) -> str | None:
 # Public API
 # ---------------------------------------------------------------------------
 
+def _detect_domain_tag(filepath: str) -> str:
+    """Determine domain tag based on file path.
+
+    Files inside topological-computation/ are the system's own code (domain:self).
+    All other code is tagged as domain:code.
+    """
+    normalized = filepath.replace("\\", "/")
+    if "topological-computation/" in normalized or "topological-computation\\" in filepath:
+        return "[domain:self]"
+    # Also check if the file IS in topological-computation (relative path)
+    parts = Path(filepath).resolve().parts
+    if "topological-computation" in parts:
+        return "[domain:self]"
+    return "[domain:code]"
+
+
 def ingest_file(filepath: str, graph: Graph, source: str = "") -> Graph:
     """Parse single .py file, inject functions/classes/imports with full source.
 
     Unlike code_topology.parse_file, each vertex's content contains the full
     source code of the function/class body — not just the signature or docstring.
+
+    Files in topological-computation/ are tagged [domain:self] (system's own code).
+    All other files are tagged [domain:code].
 
     Args:
         filepath: Path to .py file.
@@ -245,13 +265,14 @@ def ingest_file(filepath: str, graph: Graph, source: str = "") -> Graph:
     module_name = Path(filepath).stem
     tree = ast.parse(file_source, filename=filepath)
 
-    visitor = _IngestVisitor(module_name, source_lines, source=source)
+    domain_tag = _detect_domain_tag(filepath)
+    visitor = _IngestVisitor(module_name, source_lines, source=source, domain_tag=domain_tag)
 
     # Module-level vertex with module docstring
     prefix = f"{source}:" if source else ""
     module_id = f"{prefix}{module_name}.<module>"
     module_docstring = ast.get_docstring(tree) or module_name
-    module_content = f"[domain:code] {module_docstring[:400]}" if module_docstring else f"[domain:code] {module_name}"
+    module_content = f"{domain_tag} {module_docstring[:400]}" if module_docstring else f"{domain_tag} {module_name}"
     visitor.vertices.append(Vertex(
         id=module_id,
         status=VertexStatus.ACTIVE,

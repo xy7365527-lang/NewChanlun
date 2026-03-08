@@ -11,9 +11,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+from file_lock import locked_append
+
 
 class EncounterLog:
-    """Append-only log of topological encounter events."""
+    """Append-only log of topological encounter events.
+
+    Uses file locking for safe concurrent writes from multiple instances.
+    """
 
     def __init__(self, log_path: str = ".chanlun/traversal-events.jsonl") -> None:
         self._path = Path(log_path)
@@ -42,7 +47,7 @@ class EncounterLog:
             "beta_1_after": beta_1_after,
             "session": session,
         }
-        with open(self._path, "a", encoding="utf-8") as fh:
+        with locked_append(self._path) as fh:
             fh.write(json.dumps(event, ensure_ascii=False) + "\n")
         return event
 
@@ -70,6 +75,50 @@ class EncounterLog:
             ev for ev in self._load_all()
             if keyword_lower in ev.get("concept_a", "").lower()
             or keyword_lower in ev.get("concept_b", "").lower()
+        ]
+
+    def record_code_settlement_request(
+        self,
+        diagnosed_file: str,
+        gap_description: str,
+        proposed_direction: str,
+        theoretical_basis: str,
+        norm_violation: dict,
+    ) -> dict:
+        """Record a code_settlement_request — 逢亮的提案权.
+
+        When self-diagnosis (proprioception → self domain traversal) identifies
+        a gap in the codebase, this writes a code_settlement_request to the
+        encounter log. The request carries proposal authority only, not
+        execution authority.
+
+        Args:
+            diagnosed_file: relative path of the file containing the gap
+            gap_description: what the gap is
+            proposed_direction: suggested fix direction
+            theoretical_basis: which norm/genealogy justifies the request
+            norm_violation: dict with keys norm, actual_state, severity
+        """
+        request = {
+            "type": "code_settlement_request",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "diagnosed_file": diagnosed_file,
+            "gap_description": gap_description,
+            "proposed_direction": proposed_direction,
+            "theoretical_basis": theoretical_basis,
+            "norm_violation": norm_violation,
+            "status": "pending",
+        }
+        with locked_append(self._path) as fh:
+            fh.write(json.dumps(request, ensure_ascii=False) + "\n")
+        return request
+
+    def pending_code_settlement_requests(self) -> list[dict]:
+        """Return all code_settlement_request entries with status='pending'."""
+        return [
+            ev for ev in self._load_all()
+            if ev.get("type") == "code_settlement_request"
+            and ev.get("status") == "pending"
         ]
 
     def summary(self) -> dict:

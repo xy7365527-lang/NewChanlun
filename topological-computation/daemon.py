@@ -44,7 +44,13 @@ from persistence import PersistentKFull, DEFAULT_PATH
 from encounter_log import EncounterLog
 from cross_domain import detect_cross_domain_edges, _source_prefix
 from traversal_checkpoint import TraversalCheckpoint, extract_daemon_state, restore_daemon_state
+from file_lock import get_instance_id
 from signifier_net import SNet
+from proprioception import (
+    collect_metrics, update_proprioception_vertices,
+    inject_self_reflexive_norms, check_norms,
+    PROPRIOCEPTION_PREFIX, SELF_NORM_PREFIX,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -240,6 +246,9 @@ class TopologicalDaemon:
         if self.k_active.active_vertex_ids():
             self._initialize_engine()
 
+        # Instance identity (auto-detected, used for multi-instance sharing)
+        self._instance_id = get_instance_id()
+
         # Traversal checkpoint — persistent state across restarts
         self._checkpoint = TraversalCheckpoint(instance_id="default")
 
@@ -248,6 +257,12 @@ class TopologicalDaemon:
         if saved:
             restore_daemon_state(self, saved)
             print(f"Restored: step={self.total_steps}, settled={len(self.settlement.settled_cycles)}", file=sys.stderr)
+
+        # 396号: backfill residue for existing settled cycles (closure → transformation)
+        if self.settlement.settled_cycles:
+            backfilled = self.settlement.backfill_residue(graph=self.k_active)
+            if backfilled > 0:
+                print(f"396号 backfill: {backfilled} settled cycles received residue", file=sys.stderr)
 
     def _initialize_engine(self) -> None:
         """Initialize or reinitialize the traversal engine from current graph."""
@@ -267,7 +282,21 @@ class TopologicalDaemon:
         # S_net bootstrap: Layer A (K_active projection) + Layer B (surface forms) + Layer C (paradigmatic seeds)
         self._bootstrap_snet()
 
-        # Pick start: highest degree vertex
+        # Proprioception: initial metrics snapshot + self-reflexive norms
+        # Order matters: proprioception vertices first, then norms (norms reference proprioception)
+        initial_metrics = collect_metrics(
+            k_active=self.k_active,
+            settlement_settled_count=len(self.settlement.settled_cycles),
+            nothing_streak=0,
+            blocked_streak=0,
+            unreported_count=0,
+        )
+        self.k_active = update_proprioception_vertices(self.k_active, initial_metrics, step=0)
+        self.k_full = update_proprioception_vertices(self.k_full, initial_metrics, step=0)
+        self.k_active = inject_self_reflexive_norms(self.k_active, step=0)
+        self.k_full = inject_self_reflexive_norms(self.k_full, step=0)
+
+        # Pick start: highest degree vertex (exclude proprioception/norm vertices)
         degrees = {v: len(self.k_active.neighbors(v)) for v in active}
         start = max(active, key=lambda v: (degrees.get(v, 0), v))
 
@@ -276,6 +305,7 @@ class TopologicalDaemon:
             start=start,
             settlement_threshold=self.settlement.threshold,
             seed=self._seed,
+            encounter_log=self.encounter_log,
         )
         # Share settlement tracker
         self.engine.settlement = self.settlement
@@ -441,6 +471,25 @@ class TopologicalDaemon:
         self.k_full = self.engine.k_full
         self.terrain = self.engine.terrain
 
+        # Proprioception: update system self-sensing vertices every 100 steps
+        if self.total_steps % 100 == 0:
+            metrics = collect_metrics(
+                k_active=self.k_active,
+                settlement_settled_count=len(self.settlement.settled_cycles),
+                nothing_streak=getattr(self.engine, '_nothing_streak', 0),
+                blocked_streak=getattr(self.engine, '_blocked_streak', 0),
+                unreported_count=getattr(self, '_unreported_count', 0),
+            )
+            self.k_active = update_proprioception_vertices(
+                self.k_active, metrics, self.total_steps,
+            )
+            self.k_full = update_proprioception_vertices(
+                self.k_full, metrics, self.total_steps,
+            )
+            # Sync back to engine
+            self.engine.k_active = self.k_active
+            self.engine.k_full = self.k_full
+
         # Track beta_1 history for crystallization detection
         self._beta_1_history.append(log.beta_1_after)
         self._cumulative_delta_beta_1 += abs(log.delta_beta_1)
@@ -600,7 +649,8 @@ class TopologicalDaemon:
 
         _META_PREFIXES = (
             "[tension]", "[event]", "[rewrite]", "[meta]", "[audit]",
-            "[residue]", "[consensus]", "[domain:code]",
+            "[residue]", "[consensus]", "[domain:code]", "[domain:self]",
+            PROPRIOCEPTION_PREFIX, SELF_NORM_PREFIX,
         )
         # Code syntax fragments produce garbage search queries
         _CODE_PREFIXES = (
@@ -764,6 +814,7 @@ class TopologicalDaemon:
             else:
                 domain_counts["core"] = domain_counts.get("core", 0) + 1
         return {
+            "instance_id": self._instance_id,
             "total_steps": self.total_steps,
             "total_events": self.total_events,
             "total_feeds": self.total_feeds,
@@ -775,6 +826,22 @@ class TopologicalDaemon:
             "crystallization_count": self._crystallization_count,
             "domain_distribution": domain_counts,
         }
+
+    def record_instance_tension(
+        self,
+        target_settlement_id: str,
+        conflicting_evidence: str,
+    ) -> dict:
+        """Record inter-instance tension in settlement history.
+
+        Delegates to the checkpoint's SettlementHistoryWriter. Uses this
+        daemon's instance_id as the source.
+        """
+        return self._checkpoint.settlements.record_instance_tension(
+            target_settlement_id=target_settlement_id,
+            conflicting_evidence=conflicting_evidence,
+            source_instance=self._instance_id,
+        )
 
     def close(self):
         """Close persistence handle if open."""
@@ -951,7 +1018,7 @@ def _run_standard(
     n_edges = len(daemon.k_active.active_edges())
     beta_1 = compute_beta_1(daemon.k_active)
 
-    print(f"TopologicalDaemon starting", file=sys.stderr)
+    print(f"TopologicalDaemon starting (instance={daemon._instance_id})", file=sys.stderr)
     print(f"  Complex: {n_verts} vertices, {n_edges} edges, beta_1={beta_1}", file=sys.stderr)
     print(f"  Running (self-driven, no step limit)...", file=sys.stderr)
 

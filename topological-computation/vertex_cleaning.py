@@ -21,6 +21,8 @@ from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Optional
 
+from file_lock import locked_append
+
 
 # ---------------------------------------------------------------------------
 # Core whitelist — chanlun terms that phi_L is allowed to anchor
@@ -284,8 +286,7 @@ def _write_cleaning_encounter(
             f"reasons: {json.dumps(reasons, ensure_ascii=False)}"
         )[:200],
     }
-    encounter_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(encounter_path, "a", encoding="utf-8") as fh:
+    with locked_append(encounter_path) as fh:
         fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
 
@@ -306,8 +307,7 @@ def _write_cleaning_settlement(
             "metadata leakage removed, zero-degree non-core vertices pruned."
         ),
     }
-    settlement_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(settlement_path, "a", encoding="utf-8") as fh:
+    with locked_append(settlement_path) as fh:
         fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
 

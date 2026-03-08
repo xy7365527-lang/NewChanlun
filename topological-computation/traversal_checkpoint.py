@@ -20,17 +20,21 @@ from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Any
 
+from file_lock import locked_append, get_instance_id
+
 
 DEFAULT_CHECKPOINT_DIR = str(Path.home() / ".swarm" / "checkpoint")
 
 
 class EncounterLogWriter:
-    """Append-only log of tuché events. Immutable once written."""
+    """Append-only log of tuché events. Immutable once written.
+
+    Uses file locking for safe concurrent writes from multiple instances.
+    """
 
     def __init__(self, path: str | Path) -> None:
         self._path = Path(path)
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        self._fh = open(self._path, "a", encoding="utf-8")
 
     def record(self, step: int, operation: str, position: str,
                beta_1_before: int, beta_1_after: int,
@@ -47,8 +51,8 @@ class EncounterLogWriter:
             "blocked": blocked,
             "context": context[:200],
         }
-        self._fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
-        self._fh.flush()
+        with locked_append(self._path) as fh:
+            fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
     def load_all(self) -> list[dict]:
         if not self._path.exists():
@@ -65,16 +69,23 @@ class EncounterLogWriter:
         return entries
 
     def close(self) -> None:
-        self._fh.close()
+        pass  # No persistent file handle to close
 
 
 class SettlementHistoryWriter:
-    """Append-only log of settlement rulings. Immutable once written."""
+    """Append-only log of settlement rulings. Immutable once written.
+
+    Uses file locking for safe concurrent writes from multiple instances.
+    """
 
     def __init__(self, path: str | Path) -> None:
         self._path = Path(path)
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        self._fh = open(self._path, "a", encoding="utf-8")
+
+    def _append(self, entry: dict) -> None:
+        """Append a single JSONL entry with file locking."""
+        with locked_append(self._path) as fh:
+            fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
     def record_settlement(self, step: int, cycle_edges: list[tuple[str, str]],
                           encounter_refs: list[int] | None = None) -> None:
@@ -85,8 +96,7 @@ class SettlementHistoryWriter:
             "cycle_edges": cycle_edges,
             "encounter_refs": encounter_refs or [],
         }
-        self._fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
-        self._fh.flush()
+        self._append(entry)
 
     def record_blocked(self, step: int, operation: str,
                        blocked_by_edges: list[tuple[str, str]]) -> None:
@@ -97,8 +107,40 @@ class SettlementHistoryWriter:
             "operation": operation,
             "blocked_by_edges": blocked_by_edges,
         }
-        self._fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
-        self._fh.flush()
+        self._append(entry)
+
+    def record_instance_tension(
+        self,
+        target_settlement_id: str,
+        conflicting_evidence: str,
+        source_instance: str | None = None,
+    ) -> dict:
+        """Record inter-instance tension in settlement history.
+
+        An instance_tension is an unsettled record indicating that one instance's
+        traversal history conflicts with a settlement reached by another instance
+        (or the same instance at an earlier time). Like inter-settlement tension,
+        it requires a future settlement to resolve.
+
+        Args:
+            target_settlement_id: identifier of the settlement being challenged
+            conflicting_evidence: description of the conflicting traversal evidence
+            source_instance: instance identifier (auto-detected if None)
+
+        Returns:
+            The recorded entry dict.
+        """
+        if source_instance is None:
+            source_instance = get_instance_id()
+        entry = {
+            "ts": time.time(),
+            "type": "instance_tension",
+            "source_instance": source_instance,
+            "target_settlement": target_settlement_id,
+            "conflicting_evidence": conflicting_evidence,
+        }
+        self._append(entry)
+        return entry
 
     def load_all(self) -> list[dict]:
         if not self._path.exists():
@@ -115,7 +157,7 @@ class SettlementHistoryWriter:
         return entries
 
     def close(self) -> None:
-        self._fh.close()
+        pass  # No persistent file handle to close
 
 
 class TraversalCheckpoint:
@@ -174,7 +216,11 @@ def extract_daemon_state(daemon) -> dict:
     # Settlement state
     if daemon.settlement:
         state["settled_cycles"] = [
-            {"edges": sorted(sc.edges), "settled_at": sc.settled_at_step}
+            {
+                "edges": sorted(sc.edges),
+                "settled_at": sc.settled_at_step,
+                "residue": list(sc.residue),
+            }
             for sc in daemon.settlement.settled_cycles
         ]
         state["pending_cycles"] = [
@@ -214,7 +260,12 @@ def restore_daemon_state(daemon, state: dict) -> None:
         from engine import SettledCycle
         for sc_data in state["settled_cycles"]:
             edges = frozenset(tuple(e) for e in sc_data["edges"])
-            sc = SettledCycle(edges=edges, settled_at_step=sc_data["settled_at"])
+            residue = tuple(sc_data.get("residue", ()))
+            sc = SettledCycle(
+                edges=edges,
+                settled_at_step=sc_data["settled_at"],
+                residue=residue,
+            )
             if sc not in daemon.settlement._settled:
                 daemon.settlement._settled.append(sc)
 

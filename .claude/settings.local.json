@@ -12,5 +12,9 @@
       "mcp__ide__*"
     ],
     "deny": []
-  }
+  },
+  "enabledMcpjsonServers": [
+    "claude-audit"
+  ],
+  "enableAllProjectMcpServers": true
 }
