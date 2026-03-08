@@ -1,0 +1,1026 @@
+{
+  "vertices": [
+    {
+      "id": "nietzsche_apollonian",
+      "status": "active",
+      "content": "Apollonian — form, individuation, dream, plastic art",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_dionysian",
+      "status": "active",
+      "content": "Dionysian — intoxication, dissolution of individuality, music",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_tragedy",
+      "status": "active",
+      "content": "tragedy — synthesis of Apollonian and Dionysian, highest art",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_socratic_optimism",
+      "status": "active",
+      "content": "Socratic optimism — knowledge can cure existence, death of tragedy",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_chorus",
+      "status": "active",
+      "content": "tragic chorus — Dionysian ground from which Apollonian vision arises",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_primal_unity",
+      "status": "active",
+      "content": "primal unity (Ur-Eine) — Dionysian oneness behind individuation",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_aesthetic_justification",
+      "status": "active",
+      "content": "aesthetic justification of existence — life justified as aesthetic phenomenon",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_myth",
+      "status": "active",
+      "content": "myth — tragic myth as Dionysian wisdom in Apollonian form",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_wagner_early",
+      "status": "active",
+      "content": "Wagner — vessel for rebirth of tragedy (early hope)",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_socrates",
+      "status": "active",
+      "content": "Socrates — the non-mystic, theoretical man, destroyer of instinct",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_individuation",
+      "status": "active",
+      "content": "principium individuationis — Apollonian principle, veil of Maya",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_master_morality",
+      "status": "active",
+      "content": "master morality — noble self-affirmation, good/bad",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_slave_morality",
+      "status": "active",
+      "content": "slave morality — reactive, born of ressentiment, good/evil",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_perspectivism",
+      "status": "active",
+      "content": "perspectivism — no facts, only interpretations",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_will_to_truth",
+      "status": "active",
+      "content": "will to truth — a refined form of will to power",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_free_spirit",
+      "status": "active",
+      "content": "free spirit — beyond conventional morality, experimenter",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_will_to_power",
+      "status": "active",
+      "content": "will to power — fundamental drive, self-overcoming",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_prejudices_philosophers",
+      "status": "active",
+      "content": "prejudices of philosophers — will to truth as unquestioned value",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_beyond_good_evil",
+      "status": "active",
+      "content": "beyond good and evil — beyond slave morality's categories",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_natural_order_rank",
+      "status": "active",
+      "content": "order of rank — natural hierarchy, not equality",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_herd_instinct",
+      "status": "active",
+      "content": "herd instinct — democratic-egalitarian morality as decadence",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_dangerous_perhaps",
+      "status": "active",
+      "content": "dangerous perhaps — the philosopher's first gesture",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_nobility",
+      "status": "active",
+      "content": "nobility — pathos of distance, self-legislation",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_ressentiment",
+      "status": "active",
+      "content": "ressentiment — creative force of slave morality, reactive valuation",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_bad_conscience",
+      "status": "active",
+      "content": "bad conscience — internalization of cruelty, guilt, debt",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_ascetic_ideal",
+      "status": "active",
+      "content": "ascetic ideal — will to nothingness rather than no will",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_noble_morality",
+      "status": "active",
+      "content": "noble morality — self-affirming, creates values spontaneously",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_priestly_caste",
+      "status": "active",
+      "content": "priestly caste — spiritual revenge, transvaluation from weakness",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_sovereign_individual",
+      "status": "active",
+      "content": "sovereign individual — can make promises, autonomous, free",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_guilt_debt",
+      "status": "active",
+      "content": "guilt (Schuld) = debt — moral concepts from economic exchange",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_punishment",
+      "status": "active",
+      "content": "punishment — multiple meanings, no single essence",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_cruelty",
+      "status": "active",
+      "content": "cruelty — pleasure in suffering, festival of cruelty",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_will_to_nothingness",
+      "status": "active",
+      "content": "will to nothingness — the ascetic's will, nihilism",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_truthfulness",
+      "status": "active",
+      "content": "truthfulness — ascetic ideal's own self-destruction",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_slave_revolt",
+      "status": "active",
+      "content": "slave revolt in morality — ressentiment becomes creative",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_ubermensch",
+      "status": "active",
+      "content": "Ubermensch — beyond-man, the meaning of the earth",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_eternal_recurrence",
+      "status": "active",
+      "content": "eternal recurrence — the heaviest weight, amor fati",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_death_of_god",
+      "status": "active",
+      "content": "death of God — God is dead, we have killed him",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_last_man",
+      "status": "active",
+      "content": "last man — comfortable mediocrity, no aspiration",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_three_metamorphoses",
+      "status": "active",
+      "content": "three metamorphoses — camel (burden), lion (freedom), child (creation)",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_zarathustra",
+      "status": "active",
+      "content": "Zarathustra — teacher of eternal recurrence and Ubermensch",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_self_overcoming",
+      "status": "active",
+      "content": "self-overcoming — life as that which must always overcome itself",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_amor_fati",
+      "status": "active",
+      "content": "amor fati — love of fate, affirmation of all existence",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_nihilism",
+      "status": "active",
+      "content": "nihilism — consequence of death of God, devaluation of highest values",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_great_noon",
+      "status": "active",
+      "content": "great noon — moment of highest self-awareness and decision",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_spirit_of_gravity",
+      "status": "active",
+      "content": "spirit of gravity — the dwarf, the antagonist of lightness",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_gift_giving_virtue",
+      "status": "active",
+      "content": "gift-giving virtue — overflow of power, not sacrifice",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_convalescent",
+      "status": "active",
+      "content": "convalescent — Zarathustra's recovery from the abyss of recurrence",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_transvaluation",
+      "status": "active",
+      "content": "transvaluation of all values — inverting the moral hierarchy",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_idols",
+      "status": "active",
+      "content": "idols — the eternal idols here sounded out with a hammer",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_hammer_philosophy",
+      "status": "active",
+      "content": "philosophy with a hammer — sounding out hollow idols",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_true_world_fable",
+      "status": "active",
+      "content": "how the true world became a fable — history of an error",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_decadence",
+      "status": "active",
+      "content": "decadence — decline of vital instincts, symptom reading",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_anti_nature",
+      "status": "active",
+      "content": "morality as anti-nature — morality against the instincts",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_four_errors",
+      "status": "active",
+      "content": "four great errors — false causality, free will, imaginary causes, purpose",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_healthy_instinct",
+      "status": "active",
+      "content": "healthy instinct — affirmative, life-enhancing",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_socrates_problem",
+      "status": "active",
+      "content": "the problem of Socrates — Socrates as decadent, dialectic as revenge",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_german_culture_critique",
+      "status": "active",
+      "content": "what the Germans lack — critique of German Bildung",
+      "created_at": 0
+    },
+    {
+      "id": "nietzsche_realism",
+      "status": "active",
+      "content": "realism — not idealism, not pessimism, but Dionysian affirmation",
+      "created_at": 0
+    }
+  ],
+  "edges": [
+    {
+      "source": "nietzsche_apollonian",
+      "target": "nietzsche_dionysian",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_dionysian",
+      "target": "nietzsche_apollonian",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_tragedy",
+      "target": "nietzsche_apollonian",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_tragedy",
+      "target": "nietzsche_dionysian",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_socratic_optimism",
+      "target": "nietzsche_tragedy",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_socratic_optimism",
+      "target": "nietzsche_dionysian",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_chorus",
+      "target": "nietzsche_dionysian",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_chorus",
+      "target": "nietzsche_tragedy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_primal_unity",
+      "target": "nietzsche_dionysian",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_primal_unity",
+      "target": "nietzsche_individuation",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_aesthetic_justification",
+      "target": "nietzsche_tragedy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_aesthetic_justification",
+      "target": "nietzsche_dionysian",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_myth",
+      "target": "nietzsche_tragedy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_myth",
+      "target": "nietzsche_apollonian",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_myth",
+      "target": "nietzsche_dionysian",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_wagner_early",
+      "target": "nietzsche_tragedy",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_socrates",
+      "target": "nietzsche_socratic_optimism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_individuation",
+      "target": "nietzsche_apollonian",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_master_morality",
+      "target": "nietzsche_slave_morality",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_slave_morality",
+      "target": "nietzsche_master_morality",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_perspectivism",
+      "target": "nietzsche_will_to_truth",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_perspectivism",
+      "target": "nietzsche_will_to_power",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_will_to_truth",
+      "target": "nietzsche_will_to_power",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_will_to_truth",
+      "target": "nietzsche_prejudices_philosophers",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_free_spirit",
+      "target": "nietzsche_beyond_good_evil",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_free_spirit",
+      "target": "nietzsche_herd_instinct",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_will_to_power",
+      "target": "nietzsche_master_morality",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_beyond_good_evil",
+      "target": "nietzsche_slave_morality",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_beyond_good_evil",
+      "target": "nietzsche_master_morality",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_natural_order_rank",
+      "target": "nietzsche_nobility",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_natural_order_rank",
+      "target": "nietzsche_herd_instinct",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_herd_instinct",
+      "target": "nietzsche_slave_morality",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_dangerous_perhaps",
+      "target": "nietzsche_will_to_truth",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_dangerous_perhaps",
+      "target": "nietzsche_perspectivism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_nobility",
+      "target": "nietzsche_master_morality",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_prejudices_philosophers",
+      "target": "nietzsche_perspectivism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_will_to_power",
+      "target": "nietzsche_dionysian",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_beyond_good_evil",
+      "target": "nietzsche_socratic_optimism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_ressentiment",
+      "target": "nietzsche_slave_morality",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_ressentiment",
+      "target": "nietzsche_master_morality",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_bad_conscience",
+      "target": "nietzsche_cruelty",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_bad_conscience",
+      "target": "nietzsche_guilt_debt",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_ascetic_ideal",
+      "target": "nietzsche_will_to_nothingness",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_ascetic_ideal",
+      "target": "nietzsche_will_to_power",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_noble_morality",
+      "target": "nietzsche_master_morality",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_noble_morality",
+      "target": "nietzsche_ressentiment",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_priestly_caste",
+      "target": "nietzsche_ressentiment",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_priestly_caste",
+      "target": "nietzsche_slave_revolt",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_sovereign_individual",
+      "target": "nietzsche_bad_conscience",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_sovereign_individual",
+      "target": "nietzsche_free_spirit",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_guilt_debt",
+      "target": "nietzsche_punishment",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_punishment",
+      "target": "nietzsche_cruelty",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_will_to_nothingness",
+      "target": "nietzsche_ascetic_ideal",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_will_to_nothingness",
+      "target": "nietzsche_will_to_power",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_truthfulness",
+      "target": "nietzsche_ascetic_ideal",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_truthfulness",
+      "target": "nietzsche_will_to_truth",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_slave_revolt",
+      "target": "nietzsche_ressentiment",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_slave_revolt",
+      "target": "nietzsche_noble_morality",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_cruelty",
+      "target": "nietzsche_will_to_power",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_ascetic_ideal",
+      "target": "nietzsche_socratic_optimism",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_noble_morality",
+      "target": "nietzsche_nobility",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_ubermensch",
+      "target": "nietzsche_last_man",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_ubermensch",
+      "target": "nietzsche_self_overcoming",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_ubermensch",
+      "target": "nietzsche_will_to_power",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_eternal_recurrence",
+      "target": "nietzsche_nihilism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_eternal_recurrence",
+      "target": "nietzsche_amor_fati",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_death_of_god",
+      "target": "nietzsche_nihilism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_death_of_god",
+      "target": "nietzsche_ubermensch",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_last_man",
+      "target": "nietzsche_ubermensch",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_last_man",
+      "target": "nietzsche_herd_instinct",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_three_metamorphoses",
+      "target": "nietzsche_self_overcoming",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_zarathustra",
+      "target": "nietzsche_ubermensch",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_zarathustra",
+      "target": "nietzsche_eternal_recurrence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_self_overcoming",
+      "target": "nietzsche_will_to_power",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_amor_fati",
+      "target": "nietzsche_eternal_recurrence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_amor_fati",
+      "target": "nietzsche_will_to_power",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_nihilism",
+      "target": "nietzsche_ascetic_ideal",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_great_noon",
+      "target": "nietzsche_eternal_recurrence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_great_noon",
+      "target": "nietzsche_ubermensch",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_spirit_of_gravity",
+      "target": "nietzsche_eternal_recurrence",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_gift_giving_virtue",
+      "target": "nietzsche_ubermensch",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_gift_giving_virtue",
+      "target": "nietzsche_will_to_power",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_convalescent",
+      "target": "nietzsche_eternal_recurrence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_convalescent",
+      "target": "nietzsche_zarathustra",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_ubermensch",
+      "target": "nietzsche_beyond_good_evil",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_death_of_god",
+      "target": "nietzsche_dionysian",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_eternal_recurrence",
+      "target": "nietzsche_dionysian",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_transvaluation",
+      "target": "nietzsche_slave_morality",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_transvaluation",
+      "target": "nietzsche_will_to_power",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_transvaluation",
+      "target": "nietzsche_beyond_good_evil",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_idols",
+      "target": "nietzsche_hammer_philosophy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_hammer_philosophy",
+      "target": "nietzsche_perspectivism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_true_world_fable",
+      "target": "nietzsche_perspectivism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_true_world_fable",
+      "target": "nietzsche_nihilism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_decadence",
+      "target": "nietzsche_ascetic_ideal",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_decadence",
+      "target": "nietzsche_slave_morality",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_anti_nature",
+      "target": "nietzsche_slave_morality",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_anti_nature",
+      "target": "nietzsche_healthy_instinct",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_four_errors",
+      "target": "nietzsche_perspectivism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_four_errors",
+      "target": "nietzsche_will_to_truth",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_healthy_instinct",
+      "target": "nietzsche_will_to_power",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_healthy_instinct",
+      "target": "nietzsche_dionysian",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_socrates_problem",
+      "target": "nietzsche_socratic_optimism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_socrates_problem",
+      "target": "nietzsche_decadence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_socrates_problem",
+      "target": "nietzsche_socrates",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_german_culture_critique",
+      "target": "nietzsche_decadence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_realism",
+      "target": "nietzsche_dionysian",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_realism",
+      "target": "nietzsche_true_world_fable",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_realism",
+      "target": "nietzsche_amor_fati",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_transvaluation",
+      "target": "nietzsche_ubermensch",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "nietzsche_decadence",
+      "target": "nietzsche_ressentiment",
+      "edge_type": "dependency",
+      "created_at": 0
+    }
+  ]
+}

@@ -1,0 +1,2448 @@
+{
+  "vertices": [
+    {
+      "id": "historical_materialism",
+      "status": "active",
+      "content": "historical materialism — social being determines consciousness",
+      "created_at": 0
+    },
+    {
+      "id": "class_struggle",
+      "status": "active",
+      "content": "class struggle — motor of history",
+      "created_at": 0
+    },
+    {
+      "id": "proletariat",
+      "status": "active",
+      "content": "proletariat — revolutionary class",
+      "created_at": 0
+    },
+    {
+      "id": "bourgeoisie",
+      "status": "active",
+      "content": "bourgeoisie — ruling class under capitalism",
+      "created_at": 0
+    },
+    {
+      "id": "narodism",
+      "status": "active",
+      "content": "Narodism — petty-bourgeois socialism",
+      "created_at": 0
+    },
+    {
+      "id": "subjective_sociology",
+      "status": "active",
+      "content": "subjective sociology — Mikhailovsky's method",
+      "created_at": 0
+    },
+    {
+      "id": "dialectics",
+      "status": "active",
+      "content": "dialectics — Marxist method",
+      "created_at": 0
+    },
+    {
+      "id": "materialism",
+      "status": "active",
+      "content": "materialism — matter primary, consciousness secondary",
+      "created_at": 0
+    },
+    {
+      "id": "capitalism",
+      "status": "active",
+      "content": "capitalism — commodity production generalized",
+      "created_at": 0
+    },
+    {
+      "id": "peasantry",
+      "status": "active",
+      "content": "peasantry — differentiation under capitalism",
+      "created_at": 0
+    },
+    {
+      "id": "legal_marxism",
+      "status": "active",
+      "content": "legal Marxism — Struve's objectivism",
+      "created_at": 0
+    },
+    {
+      "id": "objectivism",
+      "status": "active",
+      "content": "objectivism — bourgeois impartiality disguised as science",
+      "created_at": 0
+    },
+    {
+      "id": "partisanship",
+      "status": "active",
+      "content": "partisanship — Marxist class standpoint",
+      "created_at": 0
+    },
+    {
+      "id": "commodity_production",
+      "status": "active",
+      "content": "commodity production — basis of capitalism",
+      "created_at": 0
+    },
+    {
+      "id": "market",
+      "status": "active",
+      "content": "market — internal market created by capitalism",
+      "created_at": 0
+    },
+    {
+      "id": "differentiation_peasantry",
+      "status": "active",
+      "content": "differentiation of peasantry — rural bourgeoisie and proletariat",
+      "created_at": 0
+    },
+    {
+      "id": "internal_market",
+      "status": "active",
+      "content": "internal market — created by capitalism itself",
+      "created_at": 0
+    },
+    {
+      "id": "industrial_capitalism",
+      "status": "active",
+      "content": "industrial capitalism — large-scale machine industry",
+      "created_at": 0
+    },
+    {
+      "id": "rural_bourgeoisie",
+      "status": "active",
+      "content": "rural bourgeoisie — kulaks",
+      "created_at": 0
+    },
+    {
+      "id": "rural_proletariat",
+      "status": "active",
+      "content": "rural proletariat — landless laborers",
+      "created_at": 0
+    },
+    {
+      "id": "primitive_accumulation",
+      "status": "active",
+      "content": "primitive accumulation — expropriation of producers",
+      "created_at": 0
+    },
+    {
+      "id": "revisionism",
+      "status": "active",
+      "content": "revisionism — Bernstein's rejection of revolution",
+      "created_at": 0
+    },
+    {
+      "id": "reformism",
+      "status": "active",
+      "content": "reformism — gradual improvement within capitalism",
+      "created_at": 0
+    },
+    {
+      "id": "revolutionary_program",
+      "status": "active",
+      "content": "revolutionary program — overthrow of capitalism",
+      "created_at": 0
+    },
+    {
+      "id": "vanguard",
+      "status": "active",
+      "content": "vanguard party — organized detachment of the class",
+      "created_at": 0
+    },
+    {
+      "id": "spontaneity",
+      "status": "active",
+      "content": "spontaneity — trade-unionist consciousness",
+      "created_at": 0
+    },
+    {
+      "id": "consciousness",
+      "status": "active",
+      "content": "socialist consciousness — brought from without",
+      "created_at": 0
+    },
+    {
+      "id": "trade_unionism",
+      "status": "active",
+      "content": "trade unionism — bourgeois ideology among workers",
+      "created_at": 0
+    },
+    {
+      "id": "professional_revolutionaries",
+      "status": "active",
+      "content": "professional revolutionaries — core of the party",
+      "created_at": 0
+    },
+    {
+      "id": "party",
+      "status": "active",
+      "content": "party — organization of revolutionaries",
+      "created_at": 0
+    },
+    {
+      "id": "economism",
+      "status": "active",
+      "content": "economism — tail-ending the spontaneous movement",
+      "created_at": 0
+    },
+    {
+      "id": "newspaper",
+      "status": "active",
+      "content": "all-Russia newspaper — collective organizer",
+      "created_at": 0
+    },
+    {
+      "id": "democratic_centralism",
+      "status": "active",
+      "content": "democratic centralism — unity of will and action",
+      "created_at": 0
+    },
+    {
+      "id": "bolsheviks",
+      "status": "active",
+      "content": "Bolsheviks — majority, hard line on party membership",
+      "created_at": 0
+    },
+    {
+      "id": "mensheviks",
+      "status": "active",
+      "content": "Mensheviks — minority, loose party organization",
+      "created_at": 0
+    },
+    {
+      "id": "party_discipline",
+      "status": "active",
+      "content": "party discipline — subordination of minority to majority",
+      "created_at": 0
+    },
+    {
+      "id": "opportunism_organizational",
+      "status": "active",
+      "content": "organizational opportunism — loose, amorphous party",
+      "created_at": 0
+    },
+    {
+      "id": "bourgeois_democratic_revolution",
+      "status": "active",
+      "content": "bourgeois-democratic revolution — first stage",
+      "created_at": 0
+    },
+    {
+      "id": "hegemony",
+      "status": "active",
+      "content": "hegemony of proletariat in democratic revolution",
+      "created_at": 0
+    },
+    {
+      "id": "worker_peasant_alliance",
+      "status": "active",
+      "content": "worker-peasant alliance — democratic dictatorship",
+      "created_at": 0
+    },
+    {
+      "id": "revolutionary_democratic_dictatorship",
+      "status": "active",
+      "content": "revolutionary-democratic dictatorship of proletariat and peasantry",
+      "created_at": 0
+    },
+    {
+      "id": "liberal_bourgeoisie",
+      "status": "active",
+      "content": "liberal bourgeoisie — inconsistent democrat, fears revolution",
+      "created_at": 0
+    },
+    {
+      "id": "reflection_theory",
+      "status": "active",
+      "content": "reflection theory — consciousness reflects objective reality",
+      "created_at": 0
+    },
+    {
+      "id": "machism",
+      "status": "active",
+      "content": "Machism — empirio-criticism, subjective idealism",
+      "created_at": 0
+    },
+    {
+      "id": "idealism",
+      "status": "active",
+      "content": "idealism — consciousness primary, matter secondary",
+      "created_at": 0
+    },
+    {
+      "id": "objective_reality",
+      "status": "active",
+      "content": "objective reality — exists independently of consciousness",
+      "created_at": 0
+    },
+    {
+      "id": "thing_in_itself",
+      "status": "active",
+      "content": "thing-in-itself — knowable through practice",
+      "created_at": 0
+    },
+    {
+      "id": "partisanship_philosophy",
+      "status": "active",
+      "content": "partisanship in philosophy — materialism vs idealism, no third line",
+      "created_at": 0
+    },
+    {
+      "id": "german_philosophy",
+      "status": "active",
+      "content": "German philosophy — Hegel's dialectics, materialized",
+      "created_at": 0
+    },
+    {
+      "id": "english_political_economy",
+      "status": "active",
+      "content": "English political economy — labor theory of value",
+      "created_at": 0
+    },
+    {
+      "id": "french_socialism",
+      "status": "active",
+      "content": "French socialism — utopian, class struggle tradition",
+      "created_at": 0
+    },
+    {
+      "id": "surplus_value",
+      "status": "active",
+      "content": "surplus value — exploitation of labor by capital",
+      "created_at": 0
+    },
+    {
+      "id": "utopian_socialism",
+      "status": "active",
+      "content": "utopian socialism — socialism without class struggle",
+      "created_at": 0
+    },
+    {
+      "id": "self_determination",
+      "status": "active",
+      "content": "self-determination of nations — right to secession",
+      "created_at": 0
+    },
+    {
+      "id": "national_question",
+      "status": "active",
+      "content": "national question — oppressor vs oppressed nations",
+      "created_at": 0
+    },
+    {
+      "id": "oppressed_nations",
+      "status": "active",
+      "content": "oppressed nations — colonial and semi-colonial peoples",
+      "created_at": 0
+    },
+    {
+      "id": "great_power_chauvinism",
+      "status": "active",
+      "content": "great-power chauvinism — denial of self-determination",
+      "created_at": 0
+    },
+    {
+      "id": "national_liberation",
+      "status": "active",
+      "content": "national liberation — democratic content of national movements",
+      "created_at": 0
+    },
+    {
+      "id": "unity_of_opposites",
+      "status": "active",
+      "content": "unity and struggle of opposites — kernel of dialectics",
+      "created_at": 0
+    },
+    {
+      "id": "negation_of_negation",
+      "status": "active",
+      "content": "negation of negation — spiral development",
+      "created_at": 0
+    },
+    {
+      "id": "leap",
+      "status": "active",
+      "content": "leap — quantitative to qualitative transformation",
+      "created_at": 0
+    },
+    {
+      "id": "practice",
+      "status": "active",
+      "content": "practice — criterion of truth, basis of knowledge",
+      "created_at": 0
+    },
+    {
+      "id": "concrete_universal",
+      "status": "active",
+      "content": "concrete universal — unity of abstract and concrete",
+      "created_at": 0
+    },
+    {
+      "id": "contradiction",
+      "status": "active",
+      "content": "contradiction — internal source of development",
+      "created_at": 0
+    },
+    {
+      "id": "social_chauvinism",
+      "status": "active",
+      "content": "social-chauvinism — socialism in words, chauvinism in deeds",
+      "created_at": 0
+    },
+    {
+      "id": "opportunism",
+      "status": "active",
+      "content": "opportunism — adaptation to bourgeoisie within workers' movement",
+      "created_at": 0
+    },
+    {
+      "id": "labor_aristocracy",
+      "status": "active",
+      "content": "labor aristocracy — bribed upper stratum of working class",
+      "created_at": 0
+    },
+    {
+      "id": "second_international",
+      "status": "active",
+      "content": "Second International — collapse into social-chauvinism",
+      "created_at": 0
+    },
+    {
+      "id": "civil_peace",
+      "status": "active",
+      "content": "civil peace — class collaboration during war",
+      "created_at": 0
+    },
+    {
+      "id": "imperialism",
+      "status": "active",
+      "content": "imperialism — monopoly stage of capitalism",
+      "created_at": 0
+    },
+    {
+      "id": "finance_capital",
+      "status": "active",
+      "content": "finance capital — merger of bank and industrial capital",
+      "created_at": 0
+    },
+    {
+      "id": "monopoly",
+      "status": "active",
+      "content": "monopoly — concentration and centralization of production",
+      "created_at": 0
+    },
+    {
+      "id": "export_of_capital",
+      "status": "active",
+      "content": "export of capital — characteristic of imperialism",
+      "created_at": 0
+    },
+    {
+      "id": "division_of_world",
+      "status": "active",
+      "content": "division of world among great powers",
+      "created_at": 0
+    },
+    {
+      "id": "parasitism",
+      "status": "active",
+      "content": "parasitism — rentier state, coupon-clipping",
+      "created_at": 0
+    },
+    {
+      "id": "uneven_development",
+      "status": "active",
+      "content": "uneven development — law of capitalism/imperialism",
+      "created_at": 0
+    },
+    {
+      "id": "moribund_capitalism",
+      "status": "active",
+      "content": "moribund capitalism — eve of socialist revolution",
+      "created_at": 0
+    },
+    {
+      "id": "state",
+      "status": "active",
+      "content": "state — instrument of class domination",
+      "created_at": 0
+    },
+    {
+      "id": "dictatorship_proletariat",
+      "status": "active",
+      "content": "dictatorship of the proletariat — workers' state",
+      "created_at": 0
+    },
+    {
+      "id": "smashing_state",
+      "status": "active",
+      "content": "smashing the bourgeois state machine",
+      "created_at": 0
+    },
+    {
+      "id": "withering_away",
+      "status": "active",
+      "content": "withering away of the state — under communism",
+      "created_at": 0
+    },
+    {
+      "id": "commune_state",
+      "status": "active",
+      "content": "commune-state — Paris Commune model",
+      "created_at": 0
+    },
+    {
+      "id": "bourgeois_state",
+      "status": "active",
+      "content": "bourgeois state — standing army, bureaucracy, police",
+      "created_at": 0
+    },
+    {
+      "id": "soviets",
+      "status": "active",
+      "content": "soviets — organs of workers' power",
+      "created_at": 0
+    },
+    {
+      "id": "communism",
+      "status": "active",
+      "content": "communism — classless society",
+      "created_at": 0
+    },
+    {
+      "id": "provisional_government",
+      "status": "active",
+      "content": "provisional government — bourgeois power after February",
+      "created_at": 0
+    },
+    {
+      "id": "dual_power",
+      "status": "active",
+      "content": "dual power — soviets vs provisional government",
+      "created_at": 0
+    },
+    {
+      "id": "all_power_to_soviets",
+      "status": "active",
+      "content": "all power to the soviets — transfer of state power",
+      "created_at": 0
+    },
+    {
+      "id": "transition_to_socialist",
+      "status": "active",
+      "content": "transition to socialist revolution — growing over",
+      "created_at": 0
+    },
+    {
+      "id": "february_revolution",
+      "status": "active",
+      "content": "February revolution — overthrow of tsarism",
+      "created_at": 0
+    },
+    {
+      "id": "armed_people",
+      "status": "active",
+      "content": "armed people — universal arming as democratic demand",
+      "created_at": 0
+    },
+    {
+      "id": "tsarism",
+      "status": "active",
+      "content": "tsarism — autocratic monarchy",
+      "created_at": 0
+    },
+    {
+      "id": "accounting_control",
+      "status": "active",
+      "content": "accounting and control — key task of workers' state",
+      "created_at": 0
+    },
+    {
+      "id": "workers_control",
+      "status": "active",
+      "content": "workers' control over production — transition measure",
+      "created_at": 0
+    },
+    {
+      "id": "soviet_apparatus",
+      "status": "active",
+      "content": "soviet apparatus — new type of state machine",
+      "created_at": 0
+    },
+    {
+      "id": "labor_discipline",
+      "status": "active",
+      "content": "labor discipline — new proletarian discipline",
+      "created_at": 0
+    },
+    {
+      "id": "one_man_management",
+      "status": "active",
+      "content": "one-man management — combining democracy with iron discipline",
+      "created_at": 0
+    },
+    {
+      "id": "state_capitalism_transitional",
+      "status": "active",
+      "content": "state capitalism under dictatorship of proletariat — transitional form",
+      "created_at": 0
+    },
+    {
+      "id": "socialist_construction",
+      "status": "active",
+      "content": "socialist construction — building new economic base",
+      "created_at": 0
+    },
+    {
+      "id": "bourgeois_democracy",
+      "status": "active",
+      "content": "bourgeois democracy — democracy for the exploiters",
+      "created_at": 0
+    },
+    {
+      "id": "proletarian_democracy",
+      "status": "active",
+      "content": "proletarian democracy — democracy for the exploited",
+      "created_at": 0
+    },
+    {
+      "id": "kautsky_renegade",
+      "status": "active",
+      "content": "Kautsky as renegade — pure democracy covers class content",
+      "created_at": 0
+    },
+    {
+      "id": "pure_democracy",
+      "status": "active",
+      "content": "pure democracy — classless democracy is illusion",
+      "created_at": 0
+    },
+    {
+      "id": "transitional_economy",
+      "status": "active",
+      "content": "transitional economy — mixed forms under dictatorship",
+      "created_at": 0
+    },
+    {
+      "id": "small_commodity_production",
+      "status": "active",
+      "content": "small commodity production — generates capitalism spontaneously",
+      "created_at": 0
+    },
+    {
+      "id": "class_struggle_under_dictatorship",
+      "status": "active",
+      "content": "class struggle continues under dictatorship of proletariat",
+      "created_at": 0
+    },
+    {
+      "id": "ultra_leftism",
+      "status": "active",
+      "content": "ultra-leftism — infantile disorder, rejection of compromises",
+      "created_at": 0
+    },
+    {
+      "id": "tactical_flexibility",
+      "status": "active",
+      "content": "tactical flexibility — all forms of struggle",
+      "created_at": 0
+    },
+    {
+      "id": "compromise",
+      "status": "active",
+      "content": "compromise — permissible when serving revolution",
+      "created_at": 0
+    },
+    {
+      "id": "parliamentarism",
+      "status": "active",
+      "content": "revolutionary parliamentarism — using bourgeois parliament",
+      "created_at": 0
+    },
+    {
+      "id": "mass_line",
+      "status": "active",
+      "content": "connection with the masses — party must not lose contact",
+      "created_at": 0
+    },
+    {
+      "id": "world_revolution",
+      "status": "active",
+      "content": "world revolution — international character of proletarian revolution",
+      "created_at": 0
+    },
+    {
+      "id": "comintern",
+      "status": "active",
+      "content": "Communist International — world party of revolution",
+      "created_at": 0
+    },
+    {
+      "id": "colonial_question",
+      "status": "active",
+      "content": "colonial question — alliance with national liberation movements",
+      "created_at": 0
+    },
+    {
+      "id": "NEP",
+      "status": "active",
+      "content": "New Economic Policy — strategic retreat, market relations",
+      "created_at": 0
+    },
+    {
+      "id": "tax_in_kind",
+      "status": "active",
+      "content": "tax in kind — replacing surplus appropriation",
+      "created_at": 0
+    },
+    {
+      "id": "war_communism",
+      "status": "active",
+      "content": "war communism — direct transition attempt, failed",
+      "created_at": 0
+    },
+    {
+      "id": "free_trade",
+      "status": "active",
+      "content": "free trade — limited, under state supervision",
+      "created_at": 0
+    },
+    {
+      "id": "strategic_retreat",
+      "status": "active",
+      "content": "strategic retreat — orderly withdrawal to defensible positions",
+      "created_at": 0
+    },
+    {
+      "id": "trade_unions_school",
+      "status": "active",
+      "content": "trade unions as school of communism — transmission belt",
+      "created_at": 0
+    },
+    {
+      "id": "transmission_belt",
+      "status": "active",
+      "content": "transmission belt — party-class-masses link",
+      "created_at": 0
+    },
+    {
+      "id": "bureaucratism",
+      "status": "active",
+      "content": "bureaucratism — deformation of workers' state",
+      "created_at": 0
+    },
+    {
+      "id": "militant_materialism",
+      "status": "active",
+      "content": "militant materialism — systematic materialist propaganda",
+      "created_at": 0
+    },
+    {
+      "id": "militant_atheism",
+      "status": "active",
+      "content": "militant atheism — struggle against religion",
+      "created_at": 0
+    },
+    {
+      "id": "natural_science_alliance",
+      "status": "active",
+      "content": "alliance with natural scientists — materialist epistemology",
+      "created_at": 0
+    },
+    {
+      "id": "party_unity",
+      "status": "active",
+      "content": "party unity — danger of split between Stalin and Trotsky",
+      "created_at": 0
+    },
+    {
+      "id": "collective_leadership",
+      "status": "active",
+      "content": "collective leadership — enlarge Central Committee with workers",
+      "created_at": 0
+    },
+    {
+      "id": "bureaucratic_deformation",
+      "status": "active",
+      "content": "bureaucratic deformation — state apparatus infected by old officials",
+      "created_at": 0
+    },
+    {
+      "id": "cooperation",
+      "status": "active",
+      "content": "cooperation — path to socialism for peasants under dictatorship",
+      "created_at": 0
+    },
+    {
+      "id": "cultural_revolution",
+      "status": "active",
+      "content": "cultural revolution — civilize, educate, raise culture",
+      "created_at": 0
+    },
+    {
+      "id": "cooperative_plan",
+      "status": "active",
+      "content": "cooperative plan — voluntary, gradual, state-aided",
+      "created_at": 0
+    },
+    {
+      "id": "state_apparatus_quality",
+      "status": "active",
+      "content": "state apparatus quality — fewer but better officials",
+      "created_at": 0
+    },
+    {
+      "id": "workers_peasants_inspection",
+      "status": "active",
+      "content": "Workers' and Peasants' Inspection — Rabkrin reform",
+      "created_at": 0
+    },
+    {
+      "id": "revolution_in_backward_country",
+      "status": "active",
+      "content": "revolution possible first in backward country",
+      "created_at": 0
+    },
+    {
+      "id": "mechanical_determinism",
+      "status": "active",
+      "content": "mechanical determinism — revolution only after full capitalist development",
+      "created_at": 0
+    },
+    {
+      "id": "dialectical_development",
+      "status": "active",
+      "content": "dialectical development — altered order of historical steps",
+      "created_at": 0
+    },
+    {
+      "id": "literacy",
+      "status": "active",
+      "content": "literacy — basic cultural task of revolution",
+      "created_at": 0
+    },
+    {
+      "id": "cultural_backwardness",
+      "status": "active",
+      "content": "cultural backwardness — obstacle to socialist construction",
+      "created_at": 0
+    }
+  ],
+  "edges": [
+    {
+      "source": "historical_materialism",
+      "target": "materialism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "historical_materialism",
+      "target": "dialectics",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "class_struggle",
+      "target": "proletariat",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "class_struggle",
+      "target": "bourgeoisie",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "proletariat",
+      "target": "bourgeoisie",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "narodism",
+      "target": "historical_materialism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "subjective_sociology",
+      "target": "historical_materialism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "narodism",
+      "target": "subjective_sociology",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "capitalism",
+      "target": "bourgeoisie",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "capitalism",
+      "target": "proletariat",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "peasantry",
+      "target": "capitalism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "dialectics",
+      "target": "materialism",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "legal_marxism",
+      "target": "objectivism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "objectivism",
+      "target": "partisanship",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "partisanship",
+      "target": "historical_materialism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "partisanship",
+      "target": "proletariat",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "legal_marxism",
+      "target": "narodism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "commodity_production",
+      "target": "capitalism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "market",
+      "target": "commodity_production",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "market",
+      "target": "capitalism",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "legal_marxism",
+      "target": "capitalism",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "differentiation_peasantry",
+      "target": "peasantry",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "differentiation_peasantry",
+      "target": "capitalism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "differentiation_peasantry",
+      "target": "rural_bourgeoisie",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "differentiation_peasantry",
+      "target": "rural_proletariat",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "rural_bourgeoisie",
+      "target": "rural_proletariat",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "internal_market",
+      "target": "commodity_production",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "internal_market",
+      "target": "differentiation_peasantry",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "industrial_capitalism",
+      "target": "capitalism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "industrial_capitalism",
+      "target": "proletariat",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "primitive_accumulation",
+      "target": "capitalism",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "primitive_accumulation",
+      "target": "peasantry",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "revisionism",
+      "target": "revolutionary_program",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "revisionism",
+      "target": "reformism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "reformism",
+      "target": "revolutionary_program",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "revolutionary_program",
+      "target": "proletariat",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "revolutionary_program",
+      "target": "class_struggle",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "revisionism",
+      "target": "legal_marxism",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "spontaneity",
+      "target": "consciousness",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "consciousness",
+      "target": "vanguard",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "vanguard",
+      "target": "party",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "party",
+      "target": "professional_revolutionaries",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "trade_unionism",
+      "target": "spontaneity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "trade_unionism",
+      "target": "bourgeoisie",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "economism",
+      "target": "spontaneity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "economism",
+      "target": "revisionism",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "consciousness",
+      "target": "historical_materialism",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "vanguard",
+      "target": "proletariat",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "newspaper",
+      "target": "party",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "spontaneity",
+      "target": "revolutionary_program",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "democratic_centralism",
+      "target": "party",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "democratic_centralism",
+      "target": "party_discipline",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "bolsheviks",
+      "target": "mensheviks",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "bolsheviks",
+      "target": "democratic_centralism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "mensheviks",
+      "target": "opportunism_organizational",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "opportunism_organizational",
+      "target": "democratic_centralism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "party_discipline",
+      "target": "vanguard",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "bolsheviks",
+      "target": "party",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "mensheviks",
+      "target": "party",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "bourgeois_democratic_revolution",
+      "target": "capitalism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "hegemony",
+      "target": "proletariat",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "hegemony",
+      "target": "bourgeois_democratic_revolution",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "worker_peasant_alliance",
+      "target": "proletariat",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "worker_peasant_alliance",
+      "target": "peasantry",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "revolutionary_democratic_dictatorship",
+      "target": "worker_peasant_alliance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "revolutionary_democratic_dictatorship",
+      "target": "hegemony",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "liberal_bourgeoisie",
+      "target": "bourgeoisie",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "liberal_bourgeoisie",
+      "target": "bourgeois_democratic_revolution",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "liberal_bourgeoisie",
+      "target": "revolutionary_democratic_dictatorship",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "mensheviks",
+      "target": "liberal_bourgeoisie",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "reflection_theory",
+      "target": "materialism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "reflection_theory",
+      "target": "objective_reality",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "machism",
+      "target": "materialism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "machism",
+      "target": "idealism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "idealism",
+      "target": "materialism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "objective_reality",
+      "target": "materialism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "thing_in_itself",
+      "target": "objective_reality",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "thing_in_itself",
+      "target": "reflection_theory",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "partisanship_philosophy",
+      "target": "materialism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "partisanship_philosophy",
+      "target": "idealism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "partisanship_philosophy",
+      "target": "partisanship",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "german_philosophy",
+      "target": "dialectics",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "german_philosophy",
+      "target": "materialism",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "english_political_economy",
+      "target": "capitalism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "english_political_economy",
+      "target": "surplus_value",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "surplus_value",
+      "target": "proletariat",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "surplus_value",
+      "target": "bourgeoisie",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "french_socialism",
+      "target": "class_struggle",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "utopian_socialism",
+      "target": "french_socialism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "utopian_socialism",
+      "target": "class_struggle",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "french_socialism",
+      "target": "revolutionary_program",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "self_determination",
+      "target": "national_question",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "national_question",
+      "target": "oppressed_nations",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "self_determination",
+      "target": "bourgeois_democratic_revolution",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "great_power_chauvinism",
+      "target": "self_determination",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "national_liberation",
+      "target": "self_determination",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "national_liberation",
+      "target": "class_struggle",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "oppressed_nations",
+      "target": "capitalism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "unity_of_opposites",
+      "target": "dialectics",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "unity_of_opposites",
+      "target": "contradiction",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "negation_of_negation",
+      "target": "dialectics",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "negation_of_negation",
+      "target": "contradiction",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "leap",
+      "target": "dialectics",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "leap",
+      "target": "contradiction",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "practice",
+      "target": "materialism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "practice",
+      "target": "reflection_theory",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "practice",
+      "target": "thing_in_itself",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "concrete_universal",
+      "target": "dialectics",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "contradiction",
+      "target": "unity_of_opposites",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "contradiction",
+      "target": "class_struggle",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "social_chauvinism",
+      "target": "opportunism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "social_chauvinism",
+      "target": "great_power_chauvinism",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "opportunism",
+      "target": "labor_aristocracy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "labor_aristocracy",
+      "target": "proletariat",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "labor_aristocracy",
+      "target": "bourgeoisie",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "second_international",
+      "target": "social_chauvinism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "second_international",
+      "target": "revolutionary_program",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "civil_peace",
+      "target": "class_struggle",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "civil_peace",
+      "target": "social_chauvinism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "opportunism",
+      "target": "revisionism",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "imperialism",
+      "target": "capitalism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "imperialism",
+      "target": "monopoly",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "finance_capital",
+      "target": "monopoly",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "finance_capital",
+      "target": "capitalism",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "export_of_capital",
+      "target": "finance_capital",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "division_of_world",
+      "target": "imperialism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "division_of_world",
+      "target": "great_power_chauvinism",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "parasitism",
+      "target": "finance_capital",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "parasitism",
+      "target": "labor_aristocracy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "uneven_development",
+      "target": "imperialism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "moribund_capitalism",
+      "target": "imperialism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "moribund_capitalism",
+      "target": "revolutionary_program",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "imperialism",
+      "target": "oppressed_nations",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "state",
+      "target": "class_struggle",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "state",
+      "target": "bourgeoisie",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "dictatorship_proletariat",
+      "target": "state",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "dictatorship_proletariat",
+      "target": "proletariat",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "smashing_state",
+      "target": "bourgeois_state",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "smashing_state",
+      "target": "dictatorship_proletariat",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "bourgeois_state",
+      "target": "state",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "bourgeois_state",
+      "target": "bourgeoisie",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "withering_away",
+      "target": "state",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "withering_away",
+      "target": "communism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "commune_state",
+      "target": "dictatorship_proletariat",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "commune_state",
+      "target": "soviets",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "soviets",
+      "target": "dictatorship_proletariat",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "soviets",
+      "target": "bourgeois_state",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "communism",
+      "target": "class_struggle",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "opportunism",
+      "target": "bourgeois_state",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "provisional_government",
+      "target": "bourgeois_state",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "dual_power",
+      "target": "provisional_government",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "dual_power",
+      "target": "soviets",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "all_power_to_soviets",
+      "target": "soviets",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "all_power_to_soviets",
+      "target": "provisional_government",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "transition_to_socialist",
+      "target": "bourgeois_democratic_revolution",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "transition_to_socialist",
+      "target": "dictatorship_proletariat",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "transition_to_socialist",
+      "target": "all_power_to_soviets",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "february_revolution",
+      "target": "tsarism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "february_revolution",
+      "target": "bourgeois_democratic_revolution",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "february_revolution",
+      "target": "dual_power",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "armed_people",
+      "target": "bourgeois_state",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "armed_people",
+      "target": "soviets",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "tsarism",
+      "target": "state",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "accounting_control",
+      "target": "dictatorship_proletariat",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "workers_control",
+      "target": "accounting_control",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "workers_control",
+      "target": "proletariat",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "soviet_apparatus",
+      "target": "soviets",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "soviet_apparatus",
+      "target": "commune_state",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "soviet_apparatus",
+      "target": "bourgeois_state",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "labor_discipline",
+      "target": "dictatorship_proletariat",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "labor_discipline",
+      "target": "proletariat",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "one_man_management",
+      "target": "democratic_centralism",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "one_man_management",
+      "target": "labor_discipline",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "state_capitalism_transitional",
+      "target": "capitalism",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "state_capitalism_transitional",
+      "target": "dictatorship_proletariat",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "state_capitalism_transitional",
+      "target": "accounting_control",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "socialist_construction",
+      "target": "dictatorship_proletariat",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "socialist_construction",
+      "target": "smashing_state",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "bourgeois_democracy",
+      "target": "proletarian_democracy",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "bourgeois_democracy",
+      "target": "bourgeois_state",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "proletarian_democracy",
+      "target": "soviets",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "proletarian_democracy",
+      "target": "dictatorship_proletariat",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "kautsky_renegade",
+      "target": "opportunism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "kautsky_renegade",
+      "target": "pure_democracy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "pure_democracy",
+      "target": "bourgeois_democracy",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "pure_democracy",
+      "target": "class_struggle",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "kautsky_renegade",
+      "target": "second_international",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "transitional_economy",
+      "target": "dictatorship_proletariat",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "transitional_economy",
+      "target": "socialist_construction",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "small_commodity_production",
+      "target": "commodity_production",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "small_commodity_production",
+      "target": "capitalism",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "small_commodity_production",
+      "target": "peasantry",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "class_struggle_under_dictatorship",
+      "target": "dictatorship_proletariat",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "class_struggle_under_dictatorship",
+      "target": "class_struggle",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "class_struggle_under_dictatorship",
+      "target": "bourgeoisie",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "ultra_leftism",
+      "target": "revolutionary_program",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "ultra_leftism",
+      "target": "tactical_flexibility",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "tactical_flexibility",
+      "target": "vanguard",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "tactical_flexibility",
+      "target": "democratic_centralism",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "compromise",
+      "target": "tactical_flexibility",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "compromise",
+      "target": "opportunism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "parliamentarism",
+      "target": "bourgeois_democracy",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "parliamentarism",
+      "target": "tactical_flexibility",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "mass_line",
+      "target": "vanguard",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "mass_line",
+      "target": "proletariat",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "ultra_leftism",
+      "target": "opportunism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "world_revolution",
+      "target": "imperialism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "world_revolution",
+      "target": "dictatorship_proletariat",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "comintern",
+      "target": "party",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "comintern",
+      "target": "world_revolution",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "comintern",
+      "target": "second_international",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "colonial_question",
+      "target": "national_liberation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "colonial_question",
+      "target": "oppressed_nations",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "colonial_question",
+      "target": "imperialism",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "NEP",
+      "target": "tax_in_kind",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "NEP",
+      "target": "war_communism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "NEP",
+      "target": "state_capitalism_transitional",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "NEP",
+      "target": "strategic_retreat",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "tax_in_kind",
+      "target": "peasantry",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "war_communism",
+      "target": "socialist_construction",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "free_trade",
+      "target": "NEP",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "free_trade",
+      "target": "small_commodity_production",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "strategic_retreat",
+      "target": "dictatorship_proletariat",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "NEP",
+      "target": "worker_peasant_alliance",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "trade_unions_school",
+      "target": "proletariat",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "trade_unions_school",
+      "target": "trade_unionism",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "trade_unions_school",
+      "target": "dictatorship_proletariat",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "transmission_belt",
+      "target": "party",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "transmission_belt",
+      "target": "mass_line",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "bureaucratism",
+      "target": "state",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "bureaucratism",
+      "target": "dictatorship_proletariat",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "bureaucratism",
+      "target": "commune_state",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "militant_materialism",
+      "target": "materialism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "militant_materialism",
+      "target": "dialectics",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "militant_materialism",
+      "target": "partisanship_philosophy",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "militant_atheism",
+      "target": "materialism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "militant_atheism",
+      "target": "idealism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "natural_science_alliance",
+      "target": "materialism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "natural_science_alliance",
+      "target": "practice",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "party_unity",
+      "target": "party",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "party_unity",
+      "target": "democratic_centralism",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "collective_leadership",
+      "target": "party",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "collective_leadership",
+      "target": "proletariat",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "bureaucratic_deformation",
+      "target": "bureaucratism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "bureaucratic_deformation",
+      "target": "bourgeois_state",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "bureaucratic_deformation",
+      "target": "commune_state",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "cooperation",
+      "target": "NEP",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "cooperation",
+      "target": "peasantry",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "cooperation",
+      "target": "socialist_construction",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "cultural_revolution",
+      "target": "cooperation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "cultural_revolution",
+      "target": "consciousness",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "cooperative_plan",
+      "target": "cooperation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "cooperative_plan",
+      "target": "worker_peasant_alliance",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "state_apparatus_quality",
+      "target": "bureaucratic_deformation",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "state_apparatus_quality",
+      "target": "soviet_apparatus",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "workers_peasants_inspection",
+      "target": "state_apparatus_quality",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "workers_peasants_inspection",
+      "target": "workers_control",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "state_apparatus_quality",
+      "target": "cultural_revolution",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "revolution_in_backward_country",
+      "target": "uneven_development",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "revolution_in_backward_country",
+      "target": "dialectics",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "mechanical_determinism",
+      "target": "revolution_in_backward_country",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "mechanical_determinism",
+      "target": "revisionism",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "dialectical_development",
+      "target": "dialectics",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "dialectical_development",
+      "target": "mechanical_determinism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "dialectical_development",
+      "target": "leap",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "literacy",
+      "target": "cultural_revolution",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "cultural_backwardness",
+      "target": "socialist_construction",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "cultural_backwardness",
+      "target": "peasantry",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "literacy",
+      "target": "cultural_backwardness",
+      "edge_type": "negation",
+      "created_at": 0
+    }
+  ]
+}

@@ -1,0 +1,1536 @@
+{
+  "vertices": [
+    {
+      "id": "ideology",
+      "status": "active",
+      "content": "ideology — not false consciousness but the fantasy structuring reality",
+      "created_at": 0
+    },
+    {
+      "id": "fantasy",
+      "status": "active",
+      "content": "fantasy — the screen organizing desire and masking the Real",
+      "created_at": 0
+    },
+    {
+      "id": "sublime_object",
+      "status": "active",
+      "content": "sublime object — objet a elevated to the dignity of the Thing",
+      "created_at": 0
+    },
+    {
+      "id": "symptom",
+      "status": "active",
+      "content": "symptom — the point of ideological failure, return of the repressed",
+      "created_at": 0
+    },
+    {
+      "id": "Real",
+      "status": "active",
+      "content": "the Real — the traumatic kernel resisting symbolization",
+      "created_at": 0
+    },
+    {
+      "id": "symbolic",
+      "status": "active",
+      "content": "the Symbolic — the order of language and law",
+      "created_at": 0
+    },
+    {
+      "id": "imaginary",
+      "status": "active",
+      "content": "the Imaginary — the register of images and identification",
+      "created_at": 0
+    },
+    {
+      "id": "objet_a",
+      "status": "active",
+      "content": "objet a — the object-cause of desire",
+      "created_at": 0
+    },
+    {
+      "id": "subject",
+      "status": "active",
+      "content": "the subject — the barred subject ($), constituted by lack",
+      "created_at": 0
+    },
+    {
+      "id": "lack",
+      "status": "active",
+      "content": "lack — constitutive incompleteness",
+      "created_at": 0
+    },
+    {
+      "id": "Hegel",
+      "status": "active",
+      "content": "Hegel — dialectical logic as the logic of the signifier",
+      "created_at": 0
+    },
+    {
+      "id": "Lacan",
+      "status": "active",
+      "content": "Lacan — the return to Freud through structural linguistics",
+      "created_at": 0
+    },
+    {
+      "id": "Marx",
+      "status": "active",
+      "content": "Marx — commodity fetishism as the paradigm of ideological fantasy",
+      "created_at": 0
+    },
+    {
+      "id": "fetish",
+      "status": "active",
+      "content": "fetish — the disavowed belief, 'I know well, but nevertheless...'",
+      "created_at": 0
+    },
+    {
+      "id": "enjoyment",
+      "status": "active",
+      "content": "enjoyment — jouissance, the excessive satisfaction beyond pleasure",
+      "created_at": 0
+    },
+    {
+      "id": "big_Other",
+      "status": "active",
+      "content": "the big Other — the symbolic order, the supposed guarantee",
+      "created_at": 0
+    },
+    {
+      "id": "master_signifier",
+      "status": "active",
+      "content": "master signifier — S1, the quilting point of ideology",
+      "created_at": 0
+    },
+    {
+      "id": "nation",
+      "status": "active",
+      "content": "the nation — the way a community organizes its enjoyment",
+      "created_at": 0
+    },
+    {
+      "id": "negation",
+      "status": "active",
+      "content": "negation — Hegelian determinate negation",
+      "created_at": 0
+    },
+    {
+      "id": "negation_of_negation",
+      "status": "active",
+      "content": "negation of negation — not return but self-relating negativity",
+      "created_at": 0
+    },
+    {
+      "id": "gaze",
+      "status": "active",
+      "content": "the gaze — the object-gaze, the stain in the picture",
+      "created_at": 0
+    },
+    {
+      "id": "Thing",
+      "status": "active",
+      "content": "the Thing — das Ding, the impossible-real object of desire",
+      "created_at": 0
+    },
+    {
+      "id": "anamorphosis",
+      "status": "active",
+      "content": "anamorphosis — looking awry to see the truth",
+      "created_at": 0
+    },
+    {
+      "id": "sinthome",
+      "status": "active",
+      "content": "sinthome — the irreducible kernel of enjoyment, beyond analysis",
+      "created_at": 0
+    },
+    {
+      "id": "traversing_fantasy",
+      "status": "active",
+      "content": "traversing the fantasy — le traversée du fantasme",
+      "created_at": 0
+    },
+    {
+      "id": "negativity",
+      "status": "active",
+      "content": "negativity — the power of the negative, tarrying with it",
+      "created_at": 0
+    },
+    {
+      "id": "night_of_world",
+      "status": "active",
+      "content": "night of the world — the subject's radical negativity",
+      "created_at": 0
+    },
+    {
+      "id": "democracy",
+      "status": "active",
+      "content": "democracy — the regime of the empty place of power",
+      "created_at": 0
+    },
+    {
+      "id": "antagonism",
+      "status": "active",
+      "content": "antagonism — the constitutive social impossibility",
+      "created_at": 0
+    },
+    {
+      "id": "interpassivity",
+      "status": "active",
+      "content": "interpassivity — the Other enjoys for me",
+      "created_at": 0
+    },
+    {
+      "id": "cyberspace",
+      "status": "active",
+      "content": "cyberspace — virtual reality as ideological fantasy",
+      "created_at": 0
+    },
+    {
+      "id": "surplus_enjoyment",
+      "status": "active",
+      "content": "surplus-enjoyment — plus-de-jouir, Mehrlust",
+      "created_at": 0
+    },
+    {
+      "id": "desire",
+      "status": "active",
+      "content": "desire — the metonymy of the signifier, always desire of the Other",
+      "created_at": 0
+    },
+    {
+      "id": "act",
+      "status": "active",
+      "content": "the act — the genuine ethical/political act, breaking the symbolic coordinates",
+      "created_at": 0
+    },
+    {
+      "id": "Cartesian_subject",
+      "status": "active",
+      "content": "Cartesian subject — cogito as the empty point of self-relating negativity",
+      "created_at": 0
+    },
+    {
+      "id": "drive",
+      "status": "active",
+      "content": "drive — Trieb, beyond desire, acephalous, headless",
+      "created_at": 0
+    },
+    {
+      "id": "political_act",
+      "status": "active",
+      "content": "political act — authentic revolutionary intervention",
+      "created_at": 0
+    },
+    {
+      "id": "fragile_absolute",
+      "status": "active",
+      "content": "the fragile absolute — the absolute as inherently fragile",
+      "created_at": 0
+    },
+    {
+      "id": "Christianity",
+      "status": "active",
+      "content": "Christianity — the religion that implies its own overcoming",
+      "created_at": 0
+    },
+    {
+      "id": "death_of_God",
+      "status": "active",
+      "content": "death of God — God dies to himself on the cross",
+      "created_at": 0
+    },
+    {
+      "id": "perverse_core",
+      "status": "active",
+      "content": "perverse core — the materialist kernel within theology",
+      "created_at": 0
+    },
+    {
+      "id": "belief",
+      "status": "active",
+      "content": "belief — 'the big Other does not exist'",
+      "created_at": 0
+    },
+    {
+      "id": "organs_without_bodies",
+      "status": "active",
+      "content": "organs without bodies — the Žižekian inversion of Deleuze",
+      "created_at": 0
+    },
+    {
+      "id": "virtuality",
+      "status": "active",
+      "content": "virtuality — the virtual as the Real, not possibility",
+      "created_at": 0
+    },
+    {
+      "id": "parallax",
+      "status": "active",
+      "content": "parallax — the irreducible gap between two perspectives",
+      "created_at": 0
+    },
+    {
+      "id": "parallax_gap",
+      "status": "active",
+      "content": "parallax gap — not a third position but the gap itself",
+      "created_at": 0
+    },
+    {
+      "id": "materialism",
+      "status": "active",
+      "content": "dialectical materialism — materialism of the gap, not substance",
+      "created_at": 0
+    },
+    {
+      "id": "brain_mind",
+      "status": "active",
+      "content": "brain/mind parallax — the neuronal and the mental",
+      "created_at": 0
+    },
+    {
+      "id": "lost_causes",
+      "status": "active",
+      "content": "lost causes — the emancipatory kernel in failed revolutions",
+      "created_at": 0
+    },
+    {
+      "id": "revolutionary_terror",
+      "status": "active",
+      "content": "revolutionary terror — divine violence, the founding act",
+      "created_at": 0
+    },
+    {
+      "id": "universality",
+      "status": "active",
+      "content": "universality — the concrete universal, not abstract",
+      "created_at": 0
+    },
+    {
+      "id": "revolution",
+      "status": "active",
+      "content": "revolution — the authentic political Event",
+      "created_at": 0
+    },
+    {
+      "id": "violence",
+      "status": "active",
+      "content": "violence — subjective and objective (systemic + symbolic)",
+      "created_at": 0
+    },
+    {
+      "id": "systemic_violence",
+      "status": "active",
+      "content": "systemic violence — the violence of the normal functioning",
+      "created_at": 0
+    },
+    {
+      "id": "symbolic_violence",
+      "status": "active",
+      "content": "symbolic violence — the violence inherent in language",
+      "created_at": 0
+    },
+    {
+      "id": "tragedy_farce",
+      "status": "active",
+      "content": "first as tragedy, then as farce — Marx's dictum inverted",
+      "created_at": 0
+    },
+    {
+      "id": "liberal_communists",
+      "status": "active",
+      "content": "liberal communists — philanthropic capitalism as ideology",
+      "created_at": 0
+    },
+    {
+      "id": "revolutionary_idea",
+      "status": "active",
+      "content": "the Idea — the communist Idea as the horizon of emancipation",
+      "created_at": 0
+    },
+    {
+      "id": "monstrous_Christ",
+      "status": "active",
+      "content": "the monstrous Christ — the gap incarnate",
+      "created_at": 0
+    },
+    {
+      "id": "end_times",
+      "status": "active",
+      "content": "end times — the crisis of global capitalism",
+      "created_at": 0
+    },
+    {
+      "id": "capitalism",
+      "status": "active",
+      "content": "capitalism — the Real of our age",
+      "created_at": 0
+    },
+    {
+      "id": "communist_hypothesis",
+      "status": "active",
+      "content": "the communist hypothesis — the Idea that refuses to die",
+      "created_at": 0
+    },
+    {
+      "id": "class_struggle",
+      "status": "active",
+      "content": "class struggle — the antagonism that structures all others",
+      "created_at": 0
+    },
+    {
+      "id": "less_than_nothing",
+      "status": "active",
+      "content": "less than nothing — the void prior to any something",
+      "created_at": 0
+    },
+    {
+      "id": "ontological_incompleteness",
+      "status": "active",
+      "content": "ontological incompleteness — reality is not-all",
+      "created_at": 0
+    },
+    {
+      "id": "dialectical_materialism",
+      "status": "active",
+      "content": "dialectical materialism — the gap IS the substance",
+      "created_at": 0
+    },
+    {
+      "id": "not_all",
+      "status": "active",
+      "content": "not-all — pas-tout, the feminine logic of non-totalization",
+      "created_at": 0
+    },
+    {
+      "id": "void",
+      "status": "active",
+      "content": "the void — the constitutive gap in being",
+      "created_at": 0
+    },
+    {
+      "id": "retroactivity",
+      "status": "active",
+      "content": "retroactivity — the past changes retroactively",
+      "created_at": 0
+    },
+    {
+      "id": "absolute_recoil",
+      "status": "active",
+      "content": "absolute recoil — the cause that is the effect of its effects",
+      "created_at": 0
+    },
+    {
+      "id": "den",
+      "status": "active",
+      "content": "den — the less-than-nothing, the pre-ontological X",
+      "created_at": 0
+    },
+    {
+      "id": "interface",
+      "status": "active",
+      "content": "interface — the surface IS the depth",
+      "created_at": 0
+    },
+    {
+      "id": "event",
+      "status": "active",
+      "content": "the Event — the rupture that retroactively changes its conditions",
+      "created_at": 0
+    },
+    {
+      "id": "disparity",
+      "status": "active",
+      "content": "disparity — the minimal ontological gap, not between two things but within one",
+      "created_at": 0
+    },
+    {
+      "id": "quantum_ontology",
+      "status": "active",
+      "content": "quantum ontology — the wave function collapse as the act of subjectivation",
+      "created_at": 0
+    },
+    {
+      "id": "hopelessness",
+      "status": "active",
+      "content": "the courage of hopelessness — act without guarantee",
+      "created_at": 0
+    },
+    {
+      "id": "populism",
+      "status": "active",
+      "content": "populism — the false answer to a real question",
+      "created_at": 0
+    },
+    {
+      "id": "incontinence_of_void",
+      "status": "active",
+      "content": "incontinence of the void — the void overflows, producing reality",
+      "created_at": 0
+    },
+    {
+      "id": "spandrel",
+      "status": "active",
+      "content": "spandrel — the necessary byproduct that becomes the main thing",
+      "created_at": 0
+    },
+    {
+      "id": "failed_absolute",
+      "status": "active",
+      "content": "the failed absolute — the absolute that exists only as its own failure",
+      "created_at": 0
+    },
+    {
+      "id": "sexuation",
+      "status": "active",
+      "content": "sexuation — the Lacanian formulae, masculine exception vs feminine not-all",
+      "created_at": 0
+    },
+    {
+      "id": "death_drive",
+      "status": "active",
+      "content": "death drive — Todestrieb, the drive to repeat failure",
+      "created_at": 0
+    },
+    {
+      "id": "wired_brain",
+      "status": "active",
+      "content": "the wired brain — direct neural interface as the fantasy of full transparency",
+      "created_at": 0
+    },
+    {
+      "id": "pandemic",
+      "status": "active",
+      "content": "the pandemic — the event that exposes the Real of global capitalism",
+      "created_at": 0
+    }
+  ],
+  "edges": [
+    {
+      "source": "ideology",
+      "target": "fantasy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "fantasy",
+      "target": "Real",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "sublime_object",
+      "target": "objet_a",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "symptom",
+      "target": "ideology",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "symptom",
+      "target": "Real",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "subject",
+      "target": "lack",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "subject",
+      "target": "symbolic",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "fantasy",
+      "target": "objet_a",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "fetish",
+      "target": "ideology",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "Hegel",
+      "target": "Lacan",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "Marx",
+      "target": "ideology",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "ideology",
+      "target": "symbolic",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "Real",
+      "target": "symbolic",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "imaginary",
+      "target": "symbolic",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "enjoyment",
+      "target": "ideology",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "enjoyment",
+      "target": "Real",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "big_Other",
+      "target": "symbolic",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "big_Other",
+      "target": "lack",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "master_signifier",
+      "target": "ideology",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "master_signifier",
+      "target": "big_Other",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nation",
+      "target": "enjoyment",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "negation",
+      "target": "Hegel",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "negation_of_negation",
+      "target": "negation",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "enjoyment",
+      "target": "fantasy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nation",
+      "target": "fantasy",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "gaze",
+      "target": "objet_a",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "Thing",
+      "target": "Real",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "anamorphosis",
+      "target": "gaze",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "anamorphosis",
+      "target": "Real",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "Thing",
+      "target": "sublime_object",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "gaze",
+      "target": "subject",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "sinthome",
+      "target": "symptom",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "sinthome",
+      "target": "enjoyment",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sinthome",
+      "target": "Real",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "traversing_fantasy",
+      "target": "fantasy",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "negativity",
+      "target": "Hegel",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "negativity",
+      "target": "subject",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "night_of_world",
+      "target": "subject",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "night_of_world",
+      "target": "Real",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "democracy",
+      "target": "big_Other",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "democracy",
+      "target": "lack",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "antagonism",
+      "target": "Real",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "antagonism",
+      "target": "ideology",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "negativity",
+      "target": "negation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "night_of_world",
+      "target": "negativity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "interpassivity",
+      "target": "big_Other",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "interpassivity",
+      "target": "enjoyment",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "cyberspace",
+      "target": "fantasy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "cyberspace",
+      "target": "Real",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "surplus_enjoyment",
+      "target": "objet_a",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "surplus_enjoyment",
+      "target": "enjoyment",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "desire",
+      "target": "lack",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "desire",
+      "target": "big_Other",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "fantasy",
+      "target": "desire",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "fetish",
+      "target": "fantasy",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "act",
+      "target": "subject",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "act",
+      "target": "Real",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "act",
+      "target": "symbolic",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "Cartesian_subject",
+      "target": "subject",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "Cartesian_subject",
+      "target": "negativity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "drive",
+      "target": "desire",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "drive",
+      "target": "Real",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "political_act",
+      "target": "act",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "political_act",
+      "target": "antagonism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "drive",
+      "target": "objet_a",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "Christianity",
+      "target": "big_Other",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "death_of_God",
+      "target": "Christianity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "death_of_God",
+      "target": "negation_of_negation",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "fragile_absolute",
+      "target": "Hegel",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "perverse_core",
+      "target": "Christianity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "belief",
+      "target": "big_Other",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "belief",
+      "target": "ideology",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "perverse_core",
+      "target": "death_of_God",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "organs_without_bodies",
+      "target": "drive",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "organs_without_bodies",
+      "target": "Real",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "virtuality",
+      "target": "Real",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "organs_without_bodies",
+      "target": "Hegel",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "parallax",
+      "target": "Real",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "parallax",
+      "target": "antagonism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "parallax_gap",
+      "target": "parallax",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "parallax_gap",
+      "target": "negativity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "materialism",
+      "target": "Hegel",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "materialism",
+      "target": "parallax",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "brain_mind",
+      "target": "parallax",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "parallax_gap",
+      "target": "lack",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "materialism",
+      "target": "Marx",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "lost_causes",
+      "target": "revolution",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "revolutionary_terror",
+      "target": "act",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "universality",
+      "target": "Hegel",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "universality",
+      "target": "antagonism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "revolution",
+      "target": "act",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "violence",
+      "target": "systemic_violence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "violence",
+      "target": "symbolic_violence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "symbolic_violence",
+      "target": "symbolic",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "symbolic_violence",
+      "target": "big_Other",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "violence",
+      "target": "Real",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "systemic_violence",
+      "target": "ideology",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "tragedy_farce",
+      "target": "Marx",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "liberal_communists",
+      "target": "ideology",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "liberal_communists",
+      "target": "fetish",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "revolutionary_idea",
+      "target": "act",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "monstrous_Christ",
+      "target": "Christianity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "monstrous_Christ",
+      "target": "parallax_gap",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "monstrous_Christ",
+      "target": "death_of_God",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "end_times",
+      "target": "capitalism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "capitalism",
+      "target": "antagonism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "communist_hypothesis",
+      "target": "act",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "communist_hypothesis",
+      "target": "class_struggle",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "class_struggle",
+      "target": "Marx",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "class_struggle",
+      "target": "antagonism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "end_times",
+      "target": "Real",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "capitalism",
+      "target": "enjoyment",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "less_than_nothing",
+      "target": "void",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "less_than_nothing",
+      "target": "negativity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "ontological_incompleteness",
+      "target": "Real",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "ontological_incompleteness",
+      "target": "not_all",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "dialectical_materialism",
+      "target": "materialism",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "dialectical_materialism",
+      "target": "Hegel",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "not_all",
+      "target": "big_Other",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "void",
+      "target": "subject",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "retroactivity",
+      "target": "Hegel",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "retroactivity",
+      "target": "negation_of_negation",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "less_than_nothing",
+      "target": "Lacan",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "absolute_recoil",
+      "target": "negation_of_negation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "absolute_recoil",
+      "target": "retroactivity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "den",
+      "target": "less_than_nothing",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "den",
+      "target": "void",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "interface",
+      "target": "parallax",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "absolute_recoil",
+      "target": "dialectical_materialism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "interface",
+      "target": "Real",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "event",
+      "target": "act",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "event",
+      "target": "retroactivity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "event",
+      "target": "Real",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "event",
+      "target": "revolution",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "disparity",
+      "target": "parallax_gap",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "disparity",
+      "target": "negativity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "quantum_ontology",
+      "target": "ontological_incompleteness",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "quantum_ontology",
+      "target": "void",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "disparity",
+      "target": "Real",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "disparity",
+      "target": "den",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "hopelessness",
+      "target": "act",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "hopelessness",
+      "target": "drive",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "populism",
+      "target": "ideology",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "populism",
+      "target": "master_signifier",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "hopelessness",
+      "target": "revolution",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "populism",
+      "target": "fantasy",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "incontinence_of_void",
+      "target": "void",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "incontinence_of_void",
+      "target": "ontological_incompleteness",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "spandrel",
+      "target": "absolute_recoil",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "spandrel",
+      "target": "retroactivity",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "incontinence_of_void",
+      "target": "less_than_nothing",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "incontinence_of_void",
+      "target": "dialectical_materialism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "failed_absolute",
+      "target": "ontological_incompleteness",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "failed_absolute",
+      "target": "absolute_recoil",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sexuation",
+      "target": "not_all",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sexuation",
+      "target": "Real",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "death_drive",
+      "target": "drive",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "death_drive",
+      "target": "Real",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "failed_absolute",
+      "target": "Hegel",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "sexuation",
+      "target": "parallax",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "death_drive",
+      "target": "enjoyment",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "wired_brain",
+      "target": "cyberspace",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "wired_brain",
+      "target": "Hegel",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "wired_brain",
+      "target": "subject",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "wired_brain",
+      "target": "fantasy",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "wired_brain",
+      "target": "Real",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "pandemic",
+      "target": "event",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "pandemic",
+      "target": "capitalism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "pandemic",
+      "target": "systemic_violence",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "pandemic",
+      "target": "Real",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "pandemic",
+      "target": "ideology",
+      "edge_type": "negation",
+      "created_at": 0
+    }
+  ]
+}

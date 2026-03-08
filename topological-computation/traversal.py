@@ -12,13 +12,13 @@ from enum import Enum
 from typing import Optional
 
 from engine import (
-    Graph, VertexStatus, EdgeType, SettlementTracker, SettledCycle,
+    Graph, Edge, VertexStatus, EdgeType, SettlementTracker, SettledCycle,
     OperationResult, SublationRecord,
     compute_beta_1, fold, negate, sublate, _connected_components,
 )
 from encounter_log import EncounterLog
 from morse import compute_terrain, critical_neighbors
-from snet_activation import SNetActivation
+from snet_activation import SNetActivation, EdgeSuggestion
 
 
 # -- norm violation → code gap mapping ------------------------------------
@@ -981,6 +981,53 @@ class TraversalEngine:
             self._snet_activation.activate(self.position)
             new_suggestions = self._snet_activation.check_articulation_feedback(self.k_active)
             self._snet_activation.edge_suggestions.extend(new_suggestions)
+
+            # Consume unreviewed edge suggestions: create REFERENCE edges in K_active
+            # This closes the articulation feedback loop:
+            #   S_net co-occurrence edge → EdgeSuggestion → K_active REFERENCE edge
+            consumed = []
+            for idx, suggestion in enumerate(self._snet_activation.edge_suggestions):
+                if suggestion.reviewed:
+                    continue
+                src = suggestion.source_concept
+                tgt = suggestion.target_concept
+                # Verify both concepts still active in K_active
+                if src not in self.k_active.active_vertex_ids():
+                    continue
+                if tgt not in self.k_active.active_vertex_ids():
+                    continue
+                # Check edge doesn't already exist
+                if tgt in self.k_active.neighbors(src):
+                    continue
+                # Create REFERENCE edge with linguistic evidence
+                surface = "; ".join(suggestion.evidence_patterns[:3]) if suggestion.evidence_patterns else ""
+                new_edge = Edge(
+                    source=src,
+                    target=tgt,
+                    edge_type=EdgeType.REFERENCE,
+                    created_at=self.step,
+                    surface=surface,
+                    context=f"articulation_feedback from S_net: {suggestion.evidence_signifiers}",
+                )
+                self.k_active = self.k_active.add_edge(new_edge)
+                self.k_full = self.k_full.add_edge(new_edge)
+                consumed.append(idx)
+
+            # Mark consumed suggestions as reviewed (immutable dataclass — rebuild list)
+            if consumed:
+                consumed_set = set(consumed)
+                self._snet_activation.edge_suggestions = [
+                    EdgeSuggestion(
+                        source_concept=s.source_concept,
+                        target_concept=s.target_concept,
+                        evidence_signifiers=s.evidence_signifiers,
+                        evidence_patterns=s.evidence_patterns,
+                        origin=s.origin,
+                        step=s.step,
+                        reviewed=True,
+                    ) if i in consumed_set else s
+                    for i, s in enumerate(self._snet_activation.edge_suggestions)
+                ]
 
         # Update terrain after any graph change
         self.terrain = compute_terrain(self.k_active)

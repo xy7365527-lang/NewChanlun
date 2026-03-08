@@ -43,11 +43,11 @@ from psi_L_narrative import generate_narrative, _ENCOUNTER_OPS
 from persistence import PersistentKFull, DEFAULT_PATH
 from encounter_log import (
     EncounterLog,
-    HISTORY_DOMAIN_PREFIX,
-    inject_encounter_history_node,
-    inject_settlement_history_node,
+    MEMORY_DOMAIN_PREFIX,
+    inject_encounter_memory_node,
+    inject_settlement_memory_node,
     inject_settlement_nachtraeglichkeit_edge,
-    rebuild_history_from_jsonl,
+    rebuild_memory_from_jsonl,
 )
 from cross_domain import detect_cross_domain_edges, _source_prefix
 from traversal_checkpoint import TraversalCheckpoint, extract_daemon_state, restore_daemon_state
@@ -287,23 +287,23 @@ class TopologicalDaemon:
             if backfilled > 0:
                 print(f"396号 backfill: {backfilled} settled cycles received residue", file=sys.stderr)
 
-        # Rebuild history nodes from JSONL (crash recovery)
-        # History nodes = encounter + settlement records as domain:history vertices in K_active
+        # Rebuild memory nodes from JSONL (crash recovery)
+        # Memory nodes = encounter + settlement records as domain:memory vertices in K_active
         settlement_path = str(self._checkpoint._settlement_path) if hasattr(self._checkpoint, '_settlement_path') else None
-        pre_history_vids = len(self.k_active.active_vertex_ids())
-        self.k_active = rebuild_history_from_jsonl(
+        pre_memory_vids = len(self.k_active.active_vertex_ids())
+        self.k_active = rebuild_memory_from_jsonl(
             self.k_active,
             encounter_log_path=str(self.encounter_log._path),
             settlement_history_path=settlement_path,
         )
-        self.k_full = rebuild_history_from_jsonl(
+        self.k_full = rebuild_memory_from_jsonl(
             self.k_full,
             encounter_log_path=str(self.encounter_log._path),
             settlement_history_path=settlement_path,
         )
-        history_added = len(self.k_active.active_vertex_ids()) - pre_history_vids
-        if history_added > 0:
-            print(f"History rebuild: {history_added} domain:history nodes injected from JSONL", file=sys.stderr)
+        memory_added = len(self.k_active.active_vertex_ids()) - pre_memory_vids
+        if memory_added > 0:
+            print(f"Memory rebuild: {memory_added} domain:memory nodes injected from JSONL", file=sys.stderr)
             # Re-sync engine if already initialized
             if self.engine is not None:
                 self.engine.k_active = self.k_active
@@ -428,6 +428,9 @@ class TopologicalDaemon:
             # Dictionary ingest: enrich S_net with structured dictionary entries
             self._ingest_dictionaries()
 
+            # Text corpus ingest: enrich S_net with raw text co-occurrences + surface forms
+            self._ingest_text_corpora()
+
         except Exception as exc:
             print(f"S_net bootstrap failed (graceful degradation): {exc}", file=sys.stderr)
             self.snet = SNet()
@@ -464,6 +467,57 @@ class TopologicalDaemon:
                 )
         except Exception as exc:
             print(f"Dictionary ingest failed (graceful degradation): {exc}", file=sys.stderr)
+
+    def _ingest_text_corpora(self) -> None:
+        """Ingest text corpora into S_net after dictionary ingest.
+
+        Scans signifier_net/corpora/ for domain subdirectories, loads .txt and .md
+        files, extracts term co-occurrences and surface forms into S_net.
+
+        Does NOT modify K_active. Text material enriches S_net only — K_active
+        modification happens via articulation feedback during traversal.
+
+        Graceful degradation: if corpora dir is missing or ingest fails,
+        S_net remains unchanged.
+        """
+        try:
+            from text_corpus_loader import load_text_corpus, format_corpus_report
+
+            script_dir = Path(os.path.dirname(os.path.abspath(__file__)))
+            corpus_root = script_dir / "signifier_net" / "corpora"
+
+            if not corpus_root.is_dir():
+                return
+
+            domain_dirs = sorted(
+                d for d in corpus_root.iterdir()
+                if d.is_dir()
+            )
+
+            if not domain_dirs:
+                return
+
+            total_entries = 0
+            for domain_dir in domain_dirs:
+                domain = domain_dir.name
+                self.snet, log_entries = load_text_corpus(
+                    self.snet, domain_dir, domain,
+                )
+                if log_entries:
+                    report = format_corpus_report(domain, log_entries)
+                    print(report, file=sys.stderr)
+                    total_entries += len(log_entries)
+
+            if total_entries > 0:
+                n_sigs = len(self.snet.signifiers)
+                n_edges = len(self.snet.edges)
+                print(
+                    f"S_net after corpus ingest: {n_sigs} signifiers, {n_edges} edges",
+                    file=sys.stderr,
+                )
+
+        except Exception as exc:
+            print(f"Text corpus ingest failed (graceful degradation): {exc}", file=sys.stderr)
 
     def register_callback(self, event_type: str, callback) -> None:
         """Register a callback for an event type."""
@@ -587,16 +641,16 @@ class TopologicalDaemon:
         self.k_full = self.engine.k_full
         self.terrain = self.engine.terrain
 
-        # Inject settlement history nodes for newly settled cycles
+        # Inject settlement memory nodes for newly settled cycles
         new_settled = self.settlement.settled_cycles[pre_settled_count:]
         for sc in new_settled:
-            self.k_active = inject_settlement_history_node(
+            self.k_active = inject_settlement_memory_node(
                 self.k_active,
                 step=sc.settled_at_step,
                 cycle_edges=sc.edges,
                 residue=sc.residue,
             )
-            self.k_full = inject_settlement_history_node(
+            self.k_full = inject_settlement_memory_node(
                 self.k_full,
                 step=sc.settled_at_step,
                 cycle_edges=sc.edges,
@@ -730,8 +784,8 @@ class TopologicalDaemon:
                 step=log.step,
             )
 
-            # Inject encounter as domain:history node into K_active
-            self.k_active = inject_encounter_history_node(
+            # Inject encounter as domain:memory node into K_active
+            self.k_active = inject_encounter_memory_node(
                 self.k_active,
                 step=log.step,
                 operation=log.operation,
@@ -742,7 +796,7 @@ class TopologicalDaemon:
                 beta_1_after=log.beta_1_after,
                 f_value=log.f_value,
             )
-            self.k_full = inject_encounter_history_node(
+            self.k_full = inject_encounter_memory_node(
                 self.k_full,
                 step=log.step,
                 operation=log.operation,
@@ -826,7 +880,7 @@ class TopologicalDaemon:
         _META_PREFIXES = (
             "[tension]", "[event]", "[rewrite]", "[meta]", "[audit]",
             "[residue]", "[consensus]", "[domain:code]", "[domain:self]",
-            HISTORY_DOMAIN_PREFIX,
+            MEMORY_DOMAIN_PREFIX,
             PROPRIOCEPTION_PREFIX, SELF_NORM_PREFIX,
         )
         # Code syntax fragments produce garbage search queries
@@ -980,7 +1034,7 @@ class TopologicalDaemon:
         # Domain distribution — detect from content tag or id prefix
         # Known code id prefixes that map to 'code' or 'self' domains
         _CODE_PREFIXES = frozenset({"topo-self", "NewChanlun", "DeepSeek-V3", "DeepSeek-R1", "MinerU"})
-        _HISTORY_PREFIX = "history:"
+        _MEMORY_PREFIX = "memory:"
         domain_counts: dict[str, int] = {}
         for vid in active:
             v = self.k_active.vertex(vid)
@@ -989,8 +1043,8 @@ class TopologicalDaemon:
                 tag_end = v.content.index("]")
                 domain = v.content[8:tag_end]
                 domain_counts[domain] = domain_counts.get(domain, 0) + 1
-            elif vid.startswith(_HISTORY_PREFIX):
-                domain_counts["history"] = domain_counts.get("history", 0) + 1
+            elif vid.startswith(_MEMORY_PREFIX):
+                domain_counts["memory"] = domain_counts.get("memory", 0) + 1
             elif ":" in vid:
                 prefix = vid.split(":")[0]
                 if prefix in _CODE_PREFIXES:
@@ -1075,6 +1129,64 @@ def _build_graph_from_chapters() -> tuple[Graph, dict[str, str]]:
     return graph, concept_names
 
 
+def _load_experiment_graphs() -> tuple[Graph, dict[str, str]]:
+    """Load all data/graph_*.json files and merge into a single Graph.
+
+    Each file was extracted from experiment_*.py by extract_experiment_graphs.py.
+    Files are merged by vertex ID: shared IDs across thinkers become shared vertices,
+    enabling cross-thinker topological connections.
+    """
+    import glob as glob_mod
+
+    data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+    pattern = os.path.join(data_dir, "graph_*.json")
+    files = sorted(glob_mod.glob(pattern))
+
+    if not files:
+        print("[daemon] No graph_*.json files found in data/", file=sys.stderr)
+        return Graph(), {}
+
+    all_vertices: dict[str, Vertex] = {}
+    all_edges: list[Edge] = []
+    existing_edge_keys: set[tuple[str, str, str]] = set()
+    loaded_count = 0
+
+    for fpath in files:
+        try:
+            with open(fpath, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            g = graph_from_dict(data)
+            n_v = len(g.active_vertex_ids())
+            n_e = len(g.edges)
+
+            for vid, v in g.vertices.items():
+                if vid not in all_vertices:
+                    all_vertices[vid] = v
+
+            for e in g.edges:
+                key = (e.source, e.target, e.edge_type.value)
+                if key not in existing_edge_keys:
+                    if e.source in all_vertices and e.target in all_vertices:
+                        all_edges.append(e)
+                        existing_edge_keys.add(key)
+
+            loaded_count += 1
+            fname = os.path.basename(fpath)
+            print(f"  [load] {fname}: {n_v}V {n_e}E", file=sys.stderr)
+        except Exception as exc:
+            print(f"  [load] FAIL {fpath}: {exc}", file=sys.stderr)
+
+    graph = Graph(all_vertices, all_edges)
+    concept_names = {vid: v.content for vid, v in all_vertices.items() if v.content}
+
+    total_v = len(graph.active_vertex_ids())
+    total_e = len(graph.edges)
+    print(f"[daemon] Loaded {loaded_count} experiment graphs: "
+          f"{total_v} vertices, {total_e} edges (merged)", file=sys.stderr)
+
+    return graph, concept_names
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
@@ -1082,6 +1194,8 @@ def _build_graph_from_chapters() -> tuple[Graph, dict[str, str]]:
 def main() -> None:
     parser = argparse.ArgumentParser(description="TopologicalDaemon — autonomous topological entity")
     parser.add_argument("--load", type=str, help="Load graph from JSON file (graph_data key)")
+    parser.add_argument("--load-experiments", action="store_true",
+                        help="Load all data/graph_*.json (extracted experiment concept graphs) and merge")
     parser.add_argument("--seed", type=str, help="Seed text file for phi_L processing")
     parser.add_argument("--interactive", action="store_true", help="Interactive mode (traverse + dialogue)")
     parser.add_argument("--autonomous", action="store_true", help="Full autonomous mode (traverse + gap detect + feed)")
@@ -1140,6 +1254,8 @@ def main() -> None:
                 concept_names[vid] = v.content
     elif args.hegel:
         graph, concept_names = _build_graph_from_chapters()
+    elif args.load_experiments:
+        graph, concept_names = _load_experiment_graphs()
     else:
         # Default: build from Hegel Phenomenology
         graph, concept_names = _build_graph_from_chapters()

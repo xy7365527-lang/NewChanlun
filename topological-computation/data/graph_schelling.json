@@ -1,0 +1,2898 @@
+{
+  "vertices": [
+    {
+      "id": "unconditioned",
+      "status": "active",
+      "content": "the unconditioned (das Unbedingte)",
+      "created_at": 0
+    },
+    {
+      "id": "ego",
+      "status": "active",
+      "content": "ego (Ich) — absolute subject",
+      "created_at": 0
+    },
+    {
+      "id": "not_ego",
+      "status": "active",
+      "content": "not-ego (Nicht-Ich)",
+      "created_at": 0
+    },
+    {
+      "id": "subject",
+      "status": "active",
+      "content": "subject",
+      "created_at": 0
+    },
+    {
+      "id": "object",
+      "status": "active",
+      "content": "object",
+      "created_at": 0
+    },
+    {
+      "id": "form_philosophy",
+      "status": "active",
+      "content": "form of philosophy as such",
+      "created_at": 0
+    },
+    {
+      "id": "first_principle",
+      "status": "active",
+      "content": "first principle (Grundsatz)",
+      "created_at": 0
+    },
+    {
+      "id": "conditioned",
+      "status": "active",
+      "content": "the conditioned",
+      "created_at": 0
+    },
+    {
+      "id": "identity_principle",
+      "status": "active",
+      "content": "A = A, principle of identity",
+      "created_at": 0
+    },
+    {
+      "id": "absolute_ego",
+      "status": "active",
+      "content": "absolute ego — beyond subject/object",
+      "created_at": 0
+    },
+    {
+      "id": "intellectual_intuition",
+      "status": "active",
+      "content": "intellectual intuition (intellektuelle Anschauung)",
+      "created_at": 0
+    },
+    {
+      "id": "self_consciousness",
+      "status": "active",
+      "content": "self-consciousness",
+      "created_at": 0
+    },
+    {
+      "id": "thing_in_itself",
+      "status": "active",
+      "content": "thing-in-itself (rejected)",
+      "created_at": 0
+    },
+    {
+      "id": "spinoza_substance",
+      "status": "active",
+      "content": "Spinoza's substance (reinterpreted)",
+      "created_at": 0
+    },
+    {
+      "id": "dogmatism",
+      "status": "active",
+      "content": "dogmatism",
+      "created_at": 0
+    },
+    {
+      "id": "criticism",
+      "status": "active",
+      "content": "criticism (Kantian/Fichtean)",
+      "created_at": 0
+    },
+    {
+      "id": "finite_ego",
+      "status": "active",
+      "content": "finite ego",
+      "created_at": 0
+    },
+    {
+      "id": "practical_decision",
+      "status": "active",
+      "content": "practical decision between systems",
+      "created_at": 0
+    },
+    {
+      "id": "tragedy_philosophy",
+      "status": "active",
+      "content": "tragedy in philosophy",
+      "created_at": 0
+    },
+    {
+      "id": "moral_freedom_early",
+      "status": "active",
+      "content": "moral freedom (early)",
+      "created_at": 0
+    },
+    {
+      "id": "infinite_striving",
+      "status": "active",
+      "content": "infinite striving (Fichtean)",
+      "created_at": 0
+    },
+    {
+      "id": "aesthetic_resolution",
+      "status": "active",
+      "content": "aesthetic resolution of dogmatism/criticism",
+      "created_at": 0
+    },
+    {
+      "id": "nature",
+      "status": "active",
+      "content": "nature as visible spirit",
+      "created_at": 0
+    },
+    {
+      "id": "spirit",
+      "status": "active",
+      "content": "spirit as invisible nature",
+      "created_at": 0
+    },
+    {
+      "id": "Naturphilosophie",
+      "status": "active",
+      "content": "philosophy of nature (Naturphilosophie)",
+      "created_at": 0
+    },
+    {
+      "id": "productive_intuition",
+      "status": "active",
+      "content": "productive intuition of nature",
+      "created_at": 0
+    },
+    {
+      "id": "polarity",
+      "status": "active",
+      "content": "polarity (Polarität)",
+      "created_at": 0
+    },
+    {
+      "id": "magnetism",
+      "status": "active",
+      "content": "magnetism — first potency of nature",
+      "created_at": 0
+    },
+    {
+      "id": "electricity",
+      "status": "active",
+      "content": "electricity — second potency",
+      "created_at": 0
+    },
+    {
+      "id": "chemical_process",
+      "status": "active",
+      "content": "chemical process — third potency",
+      "created_at": 0
+    },
+    {
+      "id": "organism",
+      "status": "active",
+      "content": "organism (living nature)",
+      "created_at": 0
+    },
+    {
+      "id": "matter_force",
+      "status": "active",
+      "content": "matter as product of opposing forces",
+      "created_at": 0
+    },
+    {
+      "id": "dynamic_process",
+      "status": "active",
+      "content": "dynamic process",
+      "created_at": 0
+    },
+    {
+      "id": "nature_as_subject",
+      "status": "active",
+      "content": "nature as subject, self-producing",
+      "created_at": 0
+    },
+    {
+      "id": "world_soul",
+      "status": "active",
+      "content": "world soul (Weltseele)",
+      "created_at": 0
+    },
+    {
+      "id": "universal_organism",
+      "status": "active",
+      "content": "universal organism",
+      "created_at": 0
+    },
+    {
+      "id": "duality_forces",
+      "status": "active",
+      "content": "duality of forces in nature",
+      "created_at": 0
+    },
+    {
+      "id": "gravity",
+      "status": "active",
+      "content": "gravity — universal attraction",
+      "created_at": 0
+    },
+    {
+      "id": "light",
+      "status": "active",
+      "content": "light — universal expansion",
+      "created_at": 0
+    },
+    {
+      "id": "life",
+      "status": "active",
+      "content": "life as process",
+      "created_at": 0
+    },
+    {
+      "id": "organic_inorganic",
+      "status": "active",
+      "content": "continuum organic-inorganic",
+      "created_at": 0
+    },
+    {
+      "id": "universal_medium",
+      "status": "active",
+      "content": "universal medium (aether)",
+      "created_at": 0
+    },
+    {
+      "id": "productivity",
+      "status": "active",
+      "content": "productivity (Produktivität) — nature's infinite activity",
+      "created_at": 0
+    },
+    {
+      "id": "product",
+      "status": "active",
+      "content": "product (Produkt) — arrested productivity",
+      "created_at": 0
+    },
+    {
+      "id": "inhibition",
+      "status": "active",
+      "content": "inhibition (Hemmung) — what arrests productivity",
+      "created_at": 0
+    },
+    {
+      "id": "potency_levels",
+      "status": "active",
+      "content": "potencies (Potenzen) of nature",
+      "created_at": 0
+    },
+    {
+      "id": "construction",
+      "status": "active",
+      "content": "construction of matter",
+      "created_at": 0
+    },
+    {
+      "id": "infinite_activity_nature",
+      "status": "active",
+      "content": "infinite activity of nature",
+      "created_at": 0
+    },
+    {
+      "id": "natura_naturans",
+      "status": "active",
+      "content": "natura naturans",
+      "created_at": 0
+    },
+    {
+      "id": "natura_naturata",
+      "status": "active",
+      "content": "natura naturata",
+      "created_at": 0
+    },
+    {
+      "id": "reproduction",
+      "status": "active",
+      "content": "reproduction — highest organic potency",
+      "created_at": 0
+    },
+    {
+      "id": "sensibility",
+      "status": "active",
+      "content": "sensibility",
+      "created_at": 0
+    },
+    {
+      "id": "irritability",
+      "status": "active",
+      "content": "irritability",
+      "created_at": 0
+    },
+    {
+      "id": "transcendental_idealism",
+      "status": "active",
+      "content": "system of transcendental idealism",
+      "created_at": 0
+    },
+    {
+      "id": "theoretical_philosophy",
+      "status": "active",
+      "content": "theoretical philosophy — necessity",
+      "created_at": 0
+    },
+    {
+      "id": "practical_philosophy",
+      "status": "active",
+      "content": "practical philosophy — freedom",
+      "created_at": 0
+    },
+    {
+      "id": "art",
+      "status": "active",
+      "content": "art as organon of philosophy",
+      "created_at": 0
+    },
+    {
+      "id": "aesthetic_intuition",
+      "status": "active",
+      "content": "aesthetic intuition — objective intellectual intuition",
+      "created_at": 0
+    },
+    {
+      "id": "unconscious",
+      "status": "active",
+      "content": "unconscious productivity",
+      "created_at": 0
+    },
+    {
+      "id": "history",
+      "status": "active",
+      "content": "history as progressive revelation",
+      "created_at": 0
+    },
+    {
+      "id": "teleology",
+      "status": "active",
+      "content": "teleology — purposiveness in nature",
+      "created_at": 0
+    },
+    {
+      "id": "parallel_nature_spirit",
+      "status": "active",
+      "content": "parallel construction: nature/spirit",
+      "created_at": 0
+    },
+    {
+      "id": "absolute_identity_early",
+      "status": "active",
+      "content": "absolute identity of subject/object (early)",
+      "created_at": 0
+    },
+    {
+      "id": "genius",
+      "status": "active",
+      "content": "genius — conscious + unconscious",
+      "created_at": 0
+    },
+    {
+      "id": "mythology_early",
+      "status": "active",
+      "content": "new mythology (early call)",
+      "created_at": 0
+    },
+    {
+      "id": "absolute",
+      "status": "active",
+      "content": "the absolute — total indifference of real/ideal",
+      "created_at": 0
+    },
+    {
+      "id": "identity",
+      "status": "active",
+      "content": "identity of identity and difference",
+      "created_at": 0
+    },
+    {
+      "id": "indifference_point",
+      "status": "active",
+      "content": "point of indifference (Indifferenzpunkt)",
+      "created_at": 0
+    },
+    {
+      "id": "real",
+      "status": "active",
+      "content": "the real (nature pole)",
+      "created_at": 0
+    },
+    {
+      "id": "ideal",
+      "status": "active",
+      "content": "the ideal (spirit pole)",
+      "created_at": 0
+    },
+    {
+      "id": "quantitative_difference",
+      "status": "active",
+      "content": "quantitative difference within identity",
+      "created_at": 0
+    },
+    {
+      "id": "eternal_forms",
+      "status": "active",
+      "content": "eternal forms / ideas in the absolute",
+      "created_at": 0
+    },
+    {
+      "id": "finitude",
+      "status": "active",
+      "content": "finitude as falling from identity",
+      "created_at": 0
+    },
+    {
+      "id": "copula",
+      "status": "active",
+      "content": "copula — bond of real and ideal",
+      "created_at": 0
+    },
+    {
+      "id": "Identitaetsphilosophie",
+      "status": "active",
+      "content": "identity philosophy (Identitätsphilosophie)",
+      "created_at": 0
+    },
+    {
+      "id": "reason_as_absolute",
+      "status": "active",
+      "content": "reason as absolute — totale Indifferenz",
+      "created_at": 0
+    },
+    {
+      "id": "potency_A",
+      "status": "active",
+      "content": "potency A — real/nature",
+      "created_at": 0
+    },
+    {
+      "id": "potency_B",
+      "status": "active",
+      "content": "potency B — ideal/spirit",
+      "created_at": 0
+    },
+    {
+      "id": "potency_AB",
+      "status": "active",
+      "content": "potency A/B — reason/absolute",
+      "created_at": 0
+    },
+    {
+      "id": "intellectual_intuition_obj",
+      "status": "active",
+      "content": "intellectual intuition as objective (identity form)",
+      "created_at": 0
+    },
+    {
+      "id": "absolute_knowing",
+      "status": "active",
+      "content": "absolute knowing",
+      "created_at": 0
+    },
+    {
+      "id": "philosophy_of_art",
+      "status": "active",
+      "content": "philosophy of art — absolute in art-form",
+      "created_at": 0
+    },
+    {
+      "id": "mythology_as_material",
+      "status": "active",
+      "content": "mythology as material of art",
+      "created_at": 0
+    },
+    {
+      "id": "symbol",
+      "status": "active",
+      "content": "symbol — universal in particular",
+      "created_at": 0
+    },
+    {
+      "id": "allegory",
+      "status": "active",
+      "content": "allegory — particular for universal",
+      "created_at": 0
+    },
+    {
+      "id": "schema",
+      "status": "active",
+      "content": "schema — universal for particular",
+      "created_at": 0
+    },
+    {
+      "id": "plastic_arts",
+      "status": "active",
+      "content": "plastic/visual arts — real series",
+      "created_at": 0
+    },
+    {
+      "id": "verbal_arts",
+      "status": "active",
+      "content": "verbal arts — ideal series",
+      "created_at": 0
+    },
+    {
+      "id": "music",
+      "status": "active",
+      "content": "music — rhythm, first potency of verbal",
+      "created_at": 0
+    },
+    {
+      "id": "poetry",
+      "status": "active",
+      "content": "poetry — highest potency of verbal arts",
+      "created_at": 0
+    },
+    {
+      "id": "greek_art_ideal",
+      "status": "active",
+      "content": "Greek art as ideal of indifference",
+      "created_at": 0
+    },
+    {
+      "id": "method_academic",
+      "status": "active",
+      "content": "method of academic study",
+      "created_at": 0
+    },
+    {
+      "id": "organic_totality_knowledge",
+      "status": "active",
+      "content": "organic totality of knowledge",
+      "created_at": 0
+    },
+    {
+      "id": "living_knowledge",
+      "status": "active",
+      "content": "living knowledge vs dead learning",
+      "created_at": 0
+    },
+    {
+      "id": "theology_philosophy_unity",
+      "status": "active",
+      "content": "unity of theology and philosophy",
+      "created_at": 0
+    },
+    {
+      "id": "historical_construction",
+      "status": "active",
+      "content": "historical construction of knowledge",
+      "created_at": 0
+    },
+    {
+      "id": "fall_from_absolute",
+      "status": "active",
+      "content": "fall (Abfall) from the absolute",
+      "created_at": 0
+    },
+    {
+      "id": "finite_world_origin",
+      "status": "active",
+      "content": "origin of the finite world",
+      "created_at": 0
+    },
+    {
+      "id": "return_to_absolute",
+      "status": "active",
+      "content": "return (Rückkehr) to the absolute",
+      "created_at": 0
+    },
+    {
+      "id": "leap_irrational",
+      "status": "active",
+      "content": "irrational leap — finitude inexplicable",
+      "created_at": 0
+    },
+    {
+      "id": "immortality_soul",
+      "status": "active",
+      "content": "immortality of the soul",
+      "created_at": 0
+    },
+    {
+      "id": "freedom_early",
+      "status": "active",
+      "content": "freedom (early — tied to the fall)",
+      "created_at": 0
+    },
+    {
+      "id": "god_becoming",
+      "status": "active",
+      "content": "God as becoming — not static absolute",
+      "created_at": 0
+    },
+    {
+      "id": "three_potencies_god",
+      "status": "active",
+      "content": "three potencies in God (A¹ A² A³)",
+      "created_at": 0
+    },
+    {
+      "id": "dark_principle_god",
+      "status": "active",
+      "content": "dark principle in God (gravity, contraction)",
+      "created_at": 0
+    },
+    {
+      "id": "light_principle_god",
+      "status": "active",
+      "content": "light principle in God (expansion, love)",
+      "created_at": 0
+    },
+    {
+      "id": "creation_as_separation",
+      "status": "active",
+      "content": "creation as separation from God",
+      "created_at": 0
+    },
+    {
+      "id": "human_as_bond",
+      "status": "active",
+      "content": "human as bond (Band) of nature and spirit",
+      "created_at": 0
+    },
+    {
+      "id": "illness_as_autonomy",
+      "status": "active",
+      "content": "illness as false autonomy of a principle",
+      "created_at": 0
+    },
+    {
+      "id": "evil_preview",
+      "status": "active",
+      "content": "evil (preview — wrong potency dominance)",
+      "created_at": 0
+    },
+    {
+      "id": "freedom",
+      "status": "active",
+      "content": "human freedom — capacity for good and evil",
+      "created_at": 0
+    },
+    {
+      "id": "evil",
+      "status": "active",
+      "content": "evil as real positive force",
+      "created_at": 0
+    },
+    {
+      "id": "ground",
+      "status": "active",
+      "content": "ground of existence (Grund) — dark yearning",
+      "created_at": 0
+    },
+    {
+      "id": "existence",
+      "status": "active",
+      "content": "existence (Existenz) — what exists from ground",
+      "created_at": 0
+    },
+    {
+      "id": "longing",
+      "status": "active",
+      "content": "longing (Sehnsucht) — ground's yearning for light",
+      "created_at": 0
+    },
+    {
+      "id": "understanding",
+      "status": "active",
+      "content": "understanding (Verstand) — word spoken into darkness",
+      "created_at": 0
+    },
+    {
+      "id": "will",
+      "status": "active",
+      "content": "will — primordial being (Ursein ist Wollen)",
+      "created_at": 0
+    },
+    {
+      "id": "love",
+      "status": "active",
+      "content": "love — bond uniting ground and existence",
+      "created_at": 0
+    },
+    {
+      "id": "dark_ground",
+      "status": "active",
+      "content": "dark ground in God — that in God which is not God",
+      "created_at": 0
+    },
+    {
+      "id": "pantheism_defense",
+      "status": "active",
+      "content": "defense of pantheism — system of freedom",
+      "created_at": 0
+    },
+    {
+      "id": "personality_god",
+      "status": "active",
+      "content": "personality of God — living will",
+      "created_at": 0
+    },
+    {
+      "id": "inversion_potencies",
+      "status": "active",
+      "content": "inversion of potencies — evil as reversal",
+      "created_at": 0
+    },
+    {
+      "id": "ages_of_world",
+      "status": "active",
+      "content": "ages of the world (Weltalter)",
+      "created_at": 0
+    },
+    {
+      "id": "past",
+      "status": "active",
+      "content": "the past — contraction, ground",
+      "created_at": 0
+    },
+    {
+      "id": "present",
+      "status": "active",
+      "content": "the present — expansion, existence",
+      "created_at": 0
+    },
+    {
+      "id": "future",
+      "status": "active",
+      "content": "the future — resolution, love",
+      "created_at": 0
+    },
+    {
+      "id": "eternal_beginning",
+      "status": "active",
+      "content": "eternal beginning — before time",
+      "created_at": 0
+    },
+    {
+      "id": "rotary_drive",
+      "status": "active",
+      "content": "rotary drive (rotatorische Bewegung)",
+      "created_at": 0
+    },
+    {
+      "id": "decision",
+      "status": "active",
+      "content": "decision (Entscheidung) — cutting ground/existence",
+      "created_at": 0
+    },
+    {
+      "id": "narrative_philosophy",
+      "status": "active",
+      "content": "narrative philosophy — told not deduced",
+      "created_at": 0
+    },
+    {
+      "id": "god_before_creation",
+      "status": "active",
+      "content": "God before creation — contracted in self",
+      "created_at": 0
+    },
+    {
+      "id": "time_origin",
+      "status": "active",
+      "content": "origin of time from eternity",
+      "created_at": 0
+    },
+    {
+      "id": "samothrace_mysteries",
+      "status": "active",
+      "content": "Samothracian mysteries — Cabiri",
+      "created_at": 0
+    },
+    {
+      "id": "theogonic_process_proto",
+      "status": "active",
+      "content": "theogonic process (proto)",
+      "created_at": 0
+    },
+    {
+      "id": "cabiri",
+      "status": "active",
+      "content": "Cabiri — potency sequence in myth",
+      "created_at": 0
+    },
+    {
+      "id": "mythological_consciousness_proto",
+      "status": "active",
+      "content": "mythological consciousness (proto)",
+      "created_at": 0
+    },
+    {
+      "id": "negative_philosophy",
+      "status": "active",
+      "content": "negative philosophy — what things are (essence)",
+      "created_at": 0
+    },
+    {
+      "id": "positive_philosophy",
+      "status": "active",
+      "content": "positive philosophy — that things are (existence)",
+      "created_at": 0
+    },
+    {
+      "id": "potency_doctrine_late",
+      "status": "active",
+      "content": "potency doctrine (late — A, B, A/B)",
+      "created_at": 0
+    },
+    {
+      "id": "ecstatic_reason",
+      "status": "active",
+      "content": "ecstatic reason — reason going beyond itself",
+      "created_at": 0
+    },
+    {
+      "id": "prius",
+      "status": "active",
+      "content": "prius — that which is before being",
+      "created_at": 0
+    },
+    {
+      "id": "lord_of_being",
+      "status": "active",
+      "content": "lord of being (Herr des Seyns)",
+      "created_at": 0
+    },
+    {
+      "id": "mythology",
+      "status": "active",
+      "content": "mythology as real theogonic process",
+      "created_at": 0
+    },
+    {
+      "id": "theogony",
+      "status": "active",
+      "content": "theogony — birth of gods in consciousness",
+      "created_at": 0
+    },
+    {
+      "id": "mythological_consciousness",
+      "status": "active",
+      "content": "mythological consciousness — not allegorical",
+      "created_at": 0
+    },
+    {
+      "id": "tautegory",
+      "status": "active",
+      "content": "tautegory — myth means what it says",
+      "created_at": 0
+    },
+    {
+      "id": "polytheism",
+      "status": "active",
+      "content": "polytheism as necessary stage",
+      "created_at": 0
+    },
+    {
+      "id": "monotheism",
+      "status": "active",
+      "content": "relative monotheism (Urmonotheismus)",
+      "created_at": 0
+    },
+    {
+      "id": "potency_sequence_myth",
+      "status": "active",
+      "content": "potency sequence in mythological process",
+      "created_at": 0
+    },
+    {
+      "id": "cosmogony",
+      "status": "active",
+      "content": "cosmogonic process",
+      "created_at": 0
+    },
+    {
+      "id": "dionysus",
+      "status": "active",
+      "content": "Dionysus — liberating god, final mythological potency",
+      "created_at": 0
+    },
+    {
+      "id": "necessity_myth",
+      "status": "active",
+      "content": "necessity of mythological process — not invention",
+      "created_at": 0
+    },
+    {
+      "id": "revelation",
+      "status": "active",
+      "content": "revelation as free divine act",
+      "created_at": 0
+    },
+    {
+      "id": "christianity_philosophy",
+      "status": "active",
+      "content": "Christianity as philosophical fact",
+      "created_at": 0
+    },
+    {
+      "id": "trinity",
+      "status": "active",
+      "content": "trinity — three potencies of God realized",
+      "created_at": 0
+    },
+    {
+      "id": "incarnation",
+      "status": "active",
+      "content": "incarnation — second potency enters history",
+      "created_at": 0
+    },
+    {
+      "id": "creation_free_act",
+      "status": "active",
+      "content": "creation as free act (not necessary emanation)",
+      "created_at": 0
+    },
+    {
+      "id": "redemption",
+      "status": "active",
+      "content": "redemption — restoration of potency order",
+      "created_at": 0
+    },
+    {
+      "id": "church_ages",
+      "status": "active",
+      "content": "ages of the church — Petrine, Pauline, Johannine",
+      "created_at": 0
+    },
+    {
+      "id": "factual_philosophy",
+      "status": "active",
+      "content": "factual philosophy — philosophy of facts, not concepts",
+      "created_at": 0
+    },
+    {
+      "id": "god_as_lord_history",
+      "status": "active",
+      "content": "God as lord of history — personal will",
+      "created_at": 0
+    },
+    {
+      "id": "hegel_critique",
+      "status": "active",
+      "content": "critique of Hegel — purely negative/logical",
+      "created_at": 0
+    },
+    {
+      "id": "existence_beyond_reason",
+      "status": "active",
+      "content": "existence irreducible to reason",
+      "created_at": 0
+    },
+    {
+      "id": "unvordenkliches_sein",
+      "status": "active",
+      "content": "unvordenkliches Sein — immemorial being",
+      "created_at": 0
+    },
+    {
+      "id": "experience_philosophy",
+      "status": "active",
+      "content": "experience (Erfahrung) in positive philosophy",
+      "created_at": 0
+    },
+    {
+      "id": "contingency",
+      "status": "active",
+      "content": "contingency — what need not be",
+      "created_at": 0
+    },
+    {
+      "id": "a_posteriori_philosophy",
+      "status": "active",
+      "content": "a posteriori philosophy",
+      "created_at": 0
+    }
+  ],
+  "edges": [
+    {
+      "source": "unconditioned",
+      "target": "ego",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "unconditioned",
+      "target": "conditioned",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "ego",
+      "target": "not_ego",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "subject",
+      "target": "object",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "first_principle",
+      "target": "unconditioned",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "form_philosophy",
+      "target": "first_principle",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "identity_principle",
+      "target": "ego",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "identity_principle",
+      "target": "unconditioned",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "conditioned",
+      "target": "first_principle",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "absolute_ego",
+      "target": "ego",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "absolute_ego",
+      "target": "unconditioned",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "intellectual_intuition",
+      "target": "absolute_ego",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "self_consciousness",
+      "target": "absolute_ego",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "self_consciousness",
+      "target": "finite_ego",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "thing_in_itself",
+      "target": "absolute_ego",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "spinoza_substance",
+      "target": "absolute_ego",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "dogmatism",
+      "target": "thing_in_itself",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "dogmatism",
+      "target": "criticism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "criticism",
+      "target": "ego",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "finite_ego",
+      "target": "absolute_ego",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "finite_ego",
+      "target": "not_ego",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "practical_decision",
+      "target": "dogmatism",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "practical_decision",
+      "target": "criticism",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "tragedy_philosophy",
+      "target": "practical_decision",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "moral_freedom_early",
+      "target": "infinite_striving",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "infinite_striving",
+      "target": "absolute_ego",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "aesthetic_resolution",
+      "target": "dogmatism",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "aesthetic_resolution",
+      "target": "criticism",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "aesthetic_resolution",
+      "target": "intellectual_intuition",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "practical_decision",
+      "target": "moral_freedom_early",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nature",
+      "target": "spirit",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "Naturphilosophie",
+      "target": "nature",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "Naturphilosophie",
+      "target": "criticism",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "productive_intuition",
+      "target": "intellectual_intuition",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "productive_intuition",
+      "target": "nature",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "polarity",
+      "target": "nature",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "magnetism",
+      "target": "polarity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "electricity",
+      "target": "polarity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "chemical_process",
+      "target": "polarity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "magnetism",
+      "target": "electricity",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "electricity",
+      "target": "chemical_process",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "organism",
+      "target": "chemical_process",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "organism",
+      "target": "nature_as_subject",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "matter_force",
+      "target": "polarity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "dynamic_process",
+      "target": "matter_force",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nature_as_subject",
+      "target": "nature",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nature_as_subject",
+      "target": "subject",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "world_soul",
+      "target": "nature",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "world_soul",
+      "target": "organism",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "world_soul",
+      "target": "universal_organism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "universal_organism",
+      "target": "organism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "duality_forces",
+      "target": "polarity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "gravity",
+      "target": "light",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "gravity",
+      "target": "duality_forces",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "light",
+      "target": "duality_forces",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "life",
+      "target": "organism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "life",
+      "target": "duality_forces",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "organic_inorganic",
+      "target": "organism",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "organic_inorganic",
+      "target": "matter_force",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "universal_medium",
+      "target": "world_soul",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "universal_medium",
+      "target": "light",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "productivity",
+      "target": "product",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "inhibition",
+      "target": "productivity",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "product",
+      "target": "inhibition",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "potency_levels",
+      "target": "polarity",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "potency_levels",
+      "target": "magnetism",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "potency_levels",
+      "target": "electricity",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "potency_levels",
+      "target": "chemical_process",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "construction",
+      "target": "matter_force",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "construction",
+      "target": "potency_levels",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "infinite_activity_nature",
+      "target": "productivity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "natura_naturans",
+      "target": "productivity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "natura_naturata",
+      "target": "product",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "natura_naturans",
+      "target": "natura_naturata",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "reproduction",
+      "target": "organism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sensibility",
+      "target": "irritability",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "reproduction",
+      "target": "sensibility",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "infinite_activity_nature",
+      "target": "nature_as_subject",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "transcendental_idealism",
+      "target": "Naturphilosophie",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "transcendental_idealism",
+      "target": "intellectual_intuition",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "theoretical_philosophy",
+      "target": "practical_philosophy",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "theoretical_philosophy",
+      "target": "nature",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "practical_philosophy",
+      "target": "spirit",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "art",
+      "target": "aesthetic_intuition",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "art",
+      "target": "transcendental_idealism",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "aesthetic_intuition",
+      "target": "intellectual_intuition",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "unconscious",
+      "target": "productivity",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "unconscious",
+      "target": "nature",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "genius",
+      "target": "unconscious",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "genius",
+      "target": "self_consciousness",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "history",
+      "target": "practical_philosophy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "history",
+      "target": "unconscious",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "teleology",
+      "target": "organism",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "teleology",
+      "target": "nature_as_subject",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "parallel_nature_spirit",
+      "target": "nature",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "parallel_nature_spirit",
+      "target": "spirit",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "parallel_nature_spirit",
+      "target": "transcendental_idealism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "absolute_identity_early",
+      "target": "subject",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "absolute_identity_early",
+      "target": "object",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "mythology_early",
+      "target": "art",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "mythology_early",
+      "target": "history",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "absolute",
+      "target": "absolute_identity_early",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "absolute",
+      "target": "indifference_point",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "identity",
+      "target": "absolute",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "identity",
+      "target": "subject",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "identity",
+      "target": "object",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "indifference_point",
+      "target": "real",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "indifference_point",
+      "target": "ideal",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "real",
+      "target": "ideal",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "real",
+      "target": "nature",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "ideal",
+      "target": "spirit",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "quantitative_difference",
+      "target": "identity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "quantitative_difference",
+      "target": "real",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "quantitative_difference",
+      "target": "ideal",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "eternal_forms",
+      "target": "absolute",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "finitude",
+      "target": "absolute",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "finitude",
+      "target": "quantitative_difference",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "copula",
+      "target": "identity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "copula",
+      "target": "real",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "copula",
+      "target": "ideal",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "Identitaetsphilosophie",
+      "target": "absolute",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "Identitaetsphilosophie",
+      "target": "identity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "reason_as_absolute",
+      "target": "absolute",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "reason_as_absolute",
+      "target": "intellectual_intuition",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "potency_A",
+      "target": "real",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "potency_A",
+      "target": "nature",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "potency_B",
+      "target": "ideal",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "potency_B",
+      "target": "spirit",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "potency_AB",
+      "target": "potency_A",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "potency_AB",
+      "target": "potency_B",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "potency_AB",
+      "target": "absolute",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "intellectual_intuition_obj",
+      "target": "intellectual_intuition",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "intellectual_intuition_obj",
+      "target": "identity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "absolute_knowing",
+      "target": "reason_as_absolute",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "absolute_knowing",
+      "target": "intellectual_intuition_obj",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "philosophy_of_art",
+      "target": "art",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "philosophy_of_art",
+      "target": "Identitaetsphilosophie",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "mythology_as_material",
+      "target": "mythology_early",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "mythology_as_material",
+      "target": "philosophy_of_art",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "symbol",
+      "target": "allegory",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "symbol",
+      "target": "schema",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "symbol",
+      "target": "identity",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "allegory",
+      "target": "schema",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "plastic_arts",
+      "target": "verbal_arts",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "plastic_arts",
+      "target": "real",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "verbal_arts",
+      "target": "ideal",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "music",
+      "target": "verbal_arts",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "poetry",
+      "target": "verbal_arts",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "poetry",
+      "target": "music",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "greek_art_ideal",
+      "target": "indifference_point",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "greek_art_ideal",
+      "target": "mythology_as_material",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "philosophy_of_art",
+      "target": "potency_A",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "philosophy_of_art",
+      "target": "potency_B",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "method_academic",
+      "target": "Identitaetsphilosophie",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "organic_totality_knowledge",
+      "target": "absolute",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "organic_totality_knowledge",
+      "target": "method_academic",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "living_knowledge",
+      "target": "intellectual_intuition",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "living_knowledge",
+      "target": "organic_totality_knowledge",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "theology_philosophy_unity",
+      "target": "absolute",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "theology_philosophy_unity",
+      "target": "identity",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "historical_construction",
+      "target": "history",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "historical_construction",
+      "target": "method_academic",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "fall_from_absolute",
+      "target": "absolute",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "fall_from_absolute",
+      "target": "finitude",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "finite_world_origin",
+      "target": "fall_from_absolute",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "return_to_absolute",
+      "target": "fall_from_absolute",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "return_to_absolute",
+      "target": "absolute",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "leap_irrational",
+      "target": "fall_from_absolute",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "leap_irrational",
+      "target": "reason_as_absolute",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "immortality_soul",
+      "target": "return_to_absolute",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "freedom_early",
+      "target": "fall_from_absolute",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "freedom_early",
+      "target": "practical_philosophy",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "god_becoming",
+      "target": "absolute",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "god_becoming",
+      "target": "productivity",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "three_potencies_god",
+      "target": "god_becoming",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "three_potencies_god",
+      "target": "potency_A",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "three_potencies_god",
+      "target": "potency_B",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "three_potencies_god",
+      "target": "potency_AB",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "dark_principle_god",
+      "target": "three_potencies_god",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "dark_principle_god",
+      "target": "gravity",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "light_principle_god",
+      "target": "three_potencies_god",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "light_principle_god",
+      "target": "light",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "dark_principle_god",
+      "target": "light_principle_god",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "creation_as_separation",
+      "target": "fall_from_absolute",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "creation_as_separation",
+      "target": "god_becoming",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "human_as_bond",
+      "target": "nature",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "human_as_bond",
+      "target": "spirit",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "human_as_bond",
+      "target": "creation_as_separation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "illness_as_autonomy",
+      "target": "organism",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "illness_as_autonomy",
+      "target": "evil_preview",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "evil_preview",
+      "target": "dark_principle_god",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "evil_preview",
+      "target": "freedom_early",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "freedom",
+      "target": "evil",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "freedom",
+      "target": "will",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "evil",
+      "target": "ground",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "evil",
+      "target": "inversion_potencies",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "ground",
+      "target": "existence",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "ground",
+      "target": "dark_ground",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "longing",
+      "target": "ground",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "longing",
+      "target": "light",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "understanding",
+      "target": "longing",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "understanding",
+      "target": "ground",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "will",
+      "target": "ground",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "will",
+      "target": "unconditioned",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "love",
+      "target": "ground",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "love",
+      "target": "existence",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "love",
+      "target": "understanding",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "dark_ground",
+      "target": "god_becoming",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "dark_ground",
+      "target": "dark_principle_god",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "pantheism_defense",
+      "target": "identity",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "pantheism_defense",
+      "target": "freedom",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "personality_god",
+      "target": "god_becoming",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "personality_god",
+      "target": "will",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "inversion_potencies",
+      "target": "potency_levels",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "inversion_potencies",
+      "target": "ground",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "ages_of_world",
+      "target": "god_becoming",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "ages_of_world",
+      "target": "ground",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "past",
+      "target": "ground",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "past",
+      "target": "dark_ground",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "present",
+      "target": "existence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "present",
+      "target": "past",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "future",
+      "target": "love",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "future",
+      "target": "past",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "future",
+      "target": "present",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "eternal_beginning",
+      "target": "will",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "eternal_beginning",
+      "target": "ages_of_world",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "rotary_drive",
+      "target": "longing",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "rotary_drive",
+      "target": "eternal_beginning",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "decision",
+      "target": "freedom",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "decision",
+      "target": "rotary_drive",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "decision",
+      "target": "time_origin",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "narrative_philosophy",
+      "target": "ages_of_world",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "narrative_philosophy",
+      "target": "history",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "god_before_creation",
+      "target": "dark_ground",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "god_before_creation",
+      "target": "rotary_drive",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "time_origin",
+      "target": "eternal_beginning",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "samothrace_mysteries",
+      "target": "mythology_as_material",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "theogonic_process_proto",
+      "target": "three_potencies_god",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "theogonic_process_proto",
+      "target": "samothrace_mysteries",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "cabiri",
+      "target": "samothrace_mysteries",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "cabiri",
+      "target": "potency_A",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "cabiri",
+      "target": "potency_B",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "mythological_consciousness_proto",
+      "target": "mythology_as_material",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "mythological_consciousness_proto",
+      "target": "unconscious",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "negative_philosophy",
+      "target": "Identitaetsphilosophie",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "negative_philosophy",
+      "target": "reason_as_absolute",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "positive_philosophy",
+      "target": "negative_philosophy",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "positive_philosophy",
+      "target": "existence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "positive_philosophy",
+      "target": "will",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "potency_doctrine_late",
+      "target": "potency_A",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "potency_doctrine_late",
+      "target": "potency_B",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "potency_doctrine_late",
+      "target": "potency_AB",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "ecstatic_reason",
+      "target": "intellectual_intuition",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "ecstatic_reason",
+      "target": "positive_philosophy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "prius",
+      "target": "absolute",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "prius",
+      "target": "will",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "lord_of_being",
+      "target": "prius",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "lord_of_being",
+      "target": "personality_god",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "mythology",
+      "target": "mythology_as_material",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "mythology",
+      "target": "positive_philosophy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "theogony",
+      "target": "mythology",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "theogony",
+      "target": "theogonic_process_proto",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "mythological_consciousness",
+      "target": "mythological_consciousness_proto",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "mythological_consciousness",
+      "target": "unconscious",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "tautegory",
+      "target": "symbol",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "tautegory",
+      "target": "allegory",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "tautegory",
+      "target": "mythological_consciousness",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "polytheism",
+      "target": "monotheism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "polytheism",
+      "target": "mythology",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "monotheism",
+      "target": "mythology",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "potency_sequence_myth",
+      "target": "potency_doctrine_late",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "potency_sequence_myth",
+      "target": "theogony",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "cosmogony",
+      "target": "theogony",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "cosmogony",
+      "target": "nature",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "dionysus",
+      "target": "theogony",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "dionysus",
+      "target": "freedom",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "necessity_myth",
+      "target": "mythological_consciousness",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "necessity_myth",
+      "target": "ground",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "revelation",
+      "target": "positive_philosophy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "revelation",
+      "target": "mythology",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "revelation",
+      "target": "freedom",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "christianity_philosophy",
+      "target": "revelation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "christianity_philosophy",
+      "target": "mythology",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "trinity",
+      "target": "three_potencies_god",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "trinity",
+      "target": "revelation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "incarnation",
+      "target": "trinity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "incarnation",
+      "target": "potency_B",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "incarnation",
+      "target": "history",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "creation_free_act",
+      "target": "creation_as_separation",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "creation_free_act",
+      "target": "will",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "creation_free_act",
+      "target": "revelation",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "redemption",
+      "target": "evil",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "redemption",
+      "target": "revelation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "redemption",
+      "target": "love",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "church_ages",
+      "target": "revelation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "church_ages",
+      "target": "ages_of_world",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "factual_philosophy",
+      "target": "positive_philosophy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "factual_philosophy",
+      "target": "negative_philosophy",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "god_as_lord_history",
+      "target": "lord_of_being",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "god_as_lord_history",
+      "target": "personality_god",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "god_as_lord_history",
+      "target": "history",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "hegel_critique",
+      "target": "negative_philosophy",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "hegel_critique",
+      "target": "reason_as_absolute",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "existence_beyond_reason",
+      "target": "positive_philosophy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "existence_beyond_reason",
+      "target": "existence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "existence_beyond_reason",
+      "target": "hegel_critique",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "unvordenkliches_sein",
+      "target": "prius",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "unvordenkliches_sein",
+      "target": "ground",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "experience_philosophy",
+      "target": "positive_philosophy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "experience_philosophy",
+      "target": "factual_philosophy",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "contingency",
+      "target": "necessity_myth",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "contingency",
+      "target": "freedom",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "a_posteriori_philosophy",
+      "target": "positive_philosophy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "a_posteriori_philosophy",
+      "target": "experience_philosophy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "a_posteriori_philosophy",
+      "target": "negative_philosophy",
+      "edge_type": "negation",
+      "created_at": 0
+    }
+  ]
+}

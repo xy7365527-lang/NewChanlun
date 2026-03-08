@@ -1,0 +1,1728 @@
+{
+  "vertices": [
+    {
+      "id": "language",
+      "status": "active",
+      "content": "language — communicates communicability",
+      "created_at": 0
+    },
+    {
+      "id": "name",
+      "status": "active",
+      "content": "name — Adamic naming, non-instrumental",
+      "created_at": 0
+    },
+    {
+      "id": "word_of_god",
+      "status": "active",
+      "content": "word of God — creative word",
+      "created_at": 0
+    },
+    {
+      "id": "translation_proto",
+      "status": "active",
+      "content": "translation — between languages of things",
+      "created_at": 0
+    },
+    {
+      "id": "bourgeois_language",
+      "status": "active",
+      "content": "bourgeois conception of language — instrumental",
+      "created_at": 0
+    },
+    {
+      "id": "mental_being",
+      "status": "active",
+      "content": "mental being — communicated in, not through language",
+      "created_at": 0
+    },
+    {
+      "id": "overnaming",
+      "status": "active",
+      "content": "overnaming — human language after Fall",
+      "created_at": 0
+    },
+    {
+      "id": "mute_nature",
+      "status": "active",
+      "content": "mute nature — sadness of unredeemed naming",
+      "created_at": 0
+    },
+    {
+      "id": "violence_law",
+      "status": "active",
+      "content": "violence — relation to law and justice",
+      "created_at": 0
+    },
+    {
+      "id": "law_making_violence",
+      "status": "active",
+      "content": "law-making violence (rechtsetzende Gewalt)",
+      "created_at": 0
+    },
+    {
+      "id": "law_preserving_violence",
+      "status": "active",
+      "content": "law-preserving violence (rechtserhaltende Gewalt)",
+      "created_at": 0
+    },
+    {
+      "id": "divine_violence",
+      "status": "active",
+      "content": "divine violence — annihilating, beyond law",
+      "created_at": 0
+    },
+    {
+      "id": "general_strike",
+      "status": "active",
+      "content": "general strike — revolutionary, not political",
+      "created_at": 0
+    },
+    {
+      "id": "fate",
+      "status": "active",
+      "content": "fate — mythical order",
+      "created_at": 0
+    },
+    {
+      "id": "myth",
+      "status": "active",
+      "content": "myth — entanglement with guilt/law",
+      "created_at": 0
+    },
+    {
+      "id": "justice",
+      "status": "active",
+      "content": "justice — beyond law, unrepresentable",
+      "created_at": 0
+    },
+    {
+      "id": "translation",
+      "status": "active",
+      "content": "translation — afterlife of the work",
+      "created_at": 0
+    },
+    {
+      "id": "pure_language",
+      "status": "active",
+      "content": "pure language — reine Sprache, messianic horizon",
+      "created_at": 0
+    },
+    {
+      "id": "original",
+      "status": "active",
+      "content": "original — calls for translation",
+      "created_at": 0
+    },
+    {
+      "id": "kinship_languages",
+      "status": "active",
+      "content": "kinship of languages — converging toward pure language",
+      "created_at": 0
+    },
+    {
+      "id": "literalness",
+      "status": "active",
+      "content": "literalness — word-for-word as ideal",
+      "created_at": 0
+    },
+    {
+      "id": "translatability",
+      "status": "active",
+      "content": "translatability — essential quality of original",
+      "created_at": 0
+    },
+    {
+      "id": "montage",
+      "status": "active",
+      "content": "montage — literary technique",
+      "created_at": 0
+    },
+    {
+      "id": "thought_image",
+      "status": "active",
+      "content": "thought-image (Denkbild)",
+      "created_at": 0
+    },
+    {
+      "id": "urban_experience",
+      "status": "active",
+      "content": "urban experience",
+      "created_at": 0
+    },
+    {
+      "id": "commodity_world",
+      "status": "active",
+      "content": "commodity world — everyday objects",
+      "created_at": 0
+    },
+    {
+      "id": "distraction",
+      "status": "active",
+      "content": "distraction — mode of reception",
+      "created_at": 0
+    },
+    {
+      "id": "imperialism_images",
+      "status": "active",
+      "content": "imperialism of images",
+      "created_at": 0
+    },
+    {
+      "id": "origin",
+      "status": "active",
+      "content": "origin (Ursprung) — not genesis but eddy in the stream",
+      "created_at": 0
+    },
+    {
+      "id": "allegory",
+      "status": "active",
+      "content": "allegory — not symbol, facies hippocratica of history",
+      "created_at": 0
+    },
+    {
+      "id": "ruin",
+      "status": "active",
+      "content": "ruin — nature-history, transience",
+      "created_at": 0
+    },
+    {
+      "id": "melancholy",
+      "status": "active",
+      "content": "melancholy — Saturnine contemplation",
+      "created_at": 0
+    },
+    {
+      "id": "baroque",
+      "status": "active",
+      "content": "baroque — world as stage",
+      "created_at": 0
+    },
+    {
+      "id": "monad",
+      "status": "active",
+      "content": "monad — idea contains total image",
+      "created_at": 0
+    },
+    {
+      "id": "constellation",
+      "status": "active",
+      "content": "constellation — ideas as stars",
+      "created_at": 0
+    },
+    {
+      "id": "natural_history",
+      "status": "active",
+      "content": "natural history — nature as history, history as nature",
+      "created_at": 0
+    },
+    {
+      "id": "symbol_critique",
+      "status": "active",
+      "content": "critique of the Romantic symbol",
+      "created_at": 0
+    },
+    {
+      "id": "sovereign",
+      "status": "active",
+      "content": "sovereign — creature, not ruler",
+      "created_at": 0
+    },
+    {
+      "id": "profane_illumination",
+      "status": "active",
+      "content": "profane illumination — materialist inspiration",
+      "created_at": 0
+    },
+    {
+      "id": "intoxication",
+      "status": "active",
+      "content": "intoxication — threshold experience",
+      "created_at": 0
+    },
+    {
+      "id": "body_space",
+      "status": "active",
+      "content": "body space (Leibraum) — revolutionary",
+      "created_at": 0
+    },
+    {
+      "id": "image_space",
+      "status": "active",
+      "content": "image space (Bildraum) — political",
+      "created_at": 0
+    },
+    {
+      "id": "aura_proto",
+      "status": "active",
+      "content": "aura (proto) — strange weave of space and time",
+      "created_at": 0
+    },
+    {
+      "id": "optical_unconscious",
+      "status": "active",
+      "content": "optical unconscious",
+      "created_at": 0
+    },
+    {
+      "id": "decay_aura",
+      "status": "active",
+      "content": "decay of the aura",
+      "created_at": 0
+    },
+    {
+      "id": "portrait",
+      "status": "active",
+      "content": "portrait — cult value persists",
+      "created_at": 0
+    },
+    {
+      "id": "destructive_character",
+      "status": "active",
+      "content": "destructive character — makes room",
+      "created_at": 0
+    },
+    {
+      "id": "quotation",
+      "status": "active",
+      "content": "quotation — tearing from context",
+      "created_at": 0
+    },
+    {
+      "id": "kraus_demon",
+      "status": "active",
+      "content": "Kraus — demon of language",
+      "created_at": 0
+    },
+    {
+      "id": "childhood_memory",
+      "status": "active",
+      "content": "childhood memory — involuntary, spatial",
+      "created_at": 0
+    },
+    {
+      "id": "threshold",
+      "status": "active",
+      "content": "threshold (Schwelle) — passage, not boundary",
+      "created_at": 0
+    },
+    {
+      "id": "mimesis",
+      "status": "active",
+      "content": "mimesis — child's faculty of seeing resemblances",
+      "created_at": 0
+    },
+    {
+      "id": "trace",
+      "status": "active",
+      "content": "trace — imprint of things",
+      "created_at": 0
+    },
+    {
+      "id": "loggias",
+      "status": "active",
+      "content": "loggias — threshold between inside and outside",
+      "created_at": 0
+    },
+    {
+      "id": "hiding",
+      "status": "active",
+      "content": "hiding — child becomes thing-like",
+      "created_at": 0
+    },
+    {
+      "id": "mimetic_faculty",
+      "status": "active",
+      "content": "mimetic faculty — producing similarities",
+      "created_at": 0
+    },
+    {
+      "id": "nonsensuous_similarity",
+      "status": "active",
+      "content": "non-sensuous similarity — in language",
+      "created_at": 0
+    },
+    {
+      "id": "astrology_mimesis",
+      "status": "active",
+      "content": "astrological correspondence — archaic mimesis",
+      "created_at": 0
+    },
+    {
+      "id": "reading",
+      "status": "active",
+      "content": "reading — most recent form of mimesis",
+      "created_at": 0
+    },
+    {
+      "id": "gesture_kafka",
+      "status": "active",
+      "content": "gesture — Kafka's clouded parable",
+      "created_at": 0
+    },
+    {
+      "id": "distortion",
+      "status": "active",
+      "content": "distortion (Entstellung) — truth as disfigured",
+      "created_at": 0
+    },
+    {
+      "id": "forgotten",
+      "status": "active",
+      "content": "the forgotten — prehistoric forces",
+      "created_at": 0
+    },
+    {
+      "id": "court_kafka",
+      "status": "active",
+      "content": "court — bureaucratic fate",
+      "created_at": 0
+    },
+    {
+      "id": "truth_content_proto",
+      "status": "active",
+      "content": "truth content (proto) — non-intentional",
+      "created_at": 0
+    },
+    {
+      "id": "literary_technique",
+      "status": "active",
+      "content": "literary technique — progressive form",
+      "created_at": 0
+    },
+    {
+      "id": "author_producer",
+      "status": "active",
+      "content": "author as producer — in production relations",
+      "created_at": 0
+    },
+    {
+      "id": "apparatus",
+      "status": "active",
+      "content": "apparatus — transformation, not supply",
+      "created_at": 0
+    },
+    {
+      "id": "aura",
+      "status": "active",
+      "content": "aura — unique appearance of distance",
+      "created_at": 0
+    },
+    {
+      "id": "mechanical_reproduction",
+      "status": "active",
+      "content": "mechanical reproduction — shatters aura",
+      "created_at": 0
+    },
+    {
+      "id": "cult_value",
+      "status": "active",
+      "content": "cult value — embedded in ritual",
+      "created_at": 0
+    },
+    {
+      "id": "exhibition_value",
+      "status": "active",
+      "content": "exhibition value — replaces cult value",
+      "created_at": 0
+    },
+    {
+      "id": "film",
+      "status": "active",
+      "content": "film — art of distracted masses",
+      "created_at": 0
+    },
+    {
+      "id": "shock_effect",
+      "status": "active",
+      "content": "shock effect — tactile reception",
+      "created_at": 0
+    },
+    {
+      "id": "politicization_art",
+      "status": "active",
+      "content": "politicization of art — vs aestheticization of politics",
+      "created_at": 0
+    },
+    {
+      "id": "aestheticization_politics",
+      "status": "active",
+      "content": "aestheticization of politics — fascism",
+      "created_at": 0
+    },
+    {
+      "id": "storytelling",
+      "status": "active",
+      "content": "storytelling — communicability of experience",
+      "created_at": 0
+    },
+    {
+      "id": "experience_erfahrung",
+      "status": "active",
+      "content": "Erfahrung — transmissible experience",
+      "created_at": 0
+    },
+    {
+      "id": "experience_erlebnis",
+      "status": "active",
+      "content": "Erlebnis — isolated lived experience",
+      "created_at": 0
+    },
+    {
+      "id": "counsel",
+      "status": "active",
+      "content": "counsel — wisdom woven into storytelling",
+      "created_at": 0
+    },
+    {
+      "id": "novel",
+      "status": "active",
+      "content": "novel — birth of the lonely individual",
+      "created_at": 0
+    },
+    {
+      "id": "information",
+      "status": "active",
+      "content": "information — enemy of storytelling",
+      "created_at": 0
+    },
+    {
+      "id": "death",
+      "status": "active",
+      "content": "death — authority of the storyteller",
+      "created_at": 0
+    },
+    {
+      "id": "flaneur",
+      "status": "active",
+      "content": "flaneur — stroller in the crowd",
+      "created_at": 0
+    },
+    {
+      "id": "crowd",
+      "status": "active",
+      "content": "crowd — shock experience",
+      "created_at": 0
+    },
+    {
+      "id": "shock",
+      "status": "active",
+      "content": "shock — Baudelaire's parrying",
+      "created_at": 0
+    },
+    {
+      "id": "commodity",
+      "status": "active",
+      "content": "commodity — fetish character",
+      "created_at": 0
+    },
+    {
+      "id": "phantasmagoria",
+      "status": "active",
+      "content": "phantasmagoria — commodity as dreamworld",
+      "created_at": 0
+    },
+    {
+      "id": "spleen",
+      "status": "active",
+      "content": "spleen — experience of time emptied",
+      "created_at": 0
+    },
+    {
+      "id": "correspondances",
+      "status": "active",
+      "content": "correspondances — involuntary memory",
+      "created_at": 0
+    },
+    {
+      "id": "heroism_modern",
+      "status": "active",
+      "content": "heroism of modern life — ragpicker",
+      "created_at": 0
+    },
+    {
+      "id": "messianic_time",
+      "status": "active",
+      "content": "messianic time (Jetztzeit) — now-time",
+      "created_at": 0
+    },
+    {
+      "id": "angel_of_history",
+      "status": "active",
+      "content": "angel of history — Angelus Novus",
+      "created_at": 0
+    },
+    {
+      "id": "progress",
+      "status": "active",
+      "content": "progress — storm from paradise",
+      "created_at": 0
+    },
+    {
+      "id": "catastrophe",
+      "status": "active",
+      "content": "catastrophe — not exception but rule",
+      "created_at": 0
+    },
+    {
+      "id": "redemption",
+      "status": "active",
+      "content": "redemption — weak messianic power",
+      "created_at": 0
+    },
+    {
+      "id": "historical_materialism",
+      "status": "active",
+      "content": "historical materialism — tiger's leap",
+      "created_at": 0
+    },
+    {
+      "id": "tradition_oppressed",
+      "status": "active",
+      "content": "tradition of the oppressed",
+      "created_at": 0
+    },
+    {
+      "id": "dialectical_image_proto",
+      "status": "active",
+      "content": "dialectical image (proto) — flash of recognizability",
+      "created_at": 0
+    },
+    {
+      "id": "homogeneous_empty_time",
+      "status": "active",
+      "content": "homogeneous empty time — historicism",
+      "created_at": 0
+    },
+    {
+      "id": "dialectical_image",
+      "status": "active",
+      "content": "dialectical image — now of recognizability",
+      "created_at": 0
+    },
+    {
+      "id": "arcade",
+      "status": "active",
+      "content": "arcade (Passage) — dream house of the collective",
+      "created_at": 0
+    },
+    {
+      "id": "collector",
+      "status": "active",
+      "content": "collector — rescues things from commodity",
+      "created_at": 0
+    },
+    {
+      "id": "wish_image",
+      "status": "active",
+      "content": "wish image — utopian impulse in commodity",
+      "created_at": 0
+    },
+    {
+      "id": "awakening",
+      "status": "active",
+      "content": "awakening — dialectics of dreaming",
+      "created_at": 0
+    },
+    {
+      "id": "fashion",
+      "status": "active",
+      "content": "fashion — tiger's leap into the past",
+      "created_at": 0
+    },
+    {
+      "id": "boredom",
+      "status": "active",
+      "content": "boredom — threshold to great deeds",
+      "created_at": 0
+    },
+    {
+      "id": "prostitution",
+      "status": "active",
+      "content": "prostitution — seller and commodity in one",
+      "created_at": 0
+    },
+    {
+      "id": "iron_construction",
+      "status": "active",
+      "content": "iron and glass — new materials, old forms",
+      "created_at": 0
+    },
+    {
+      "id": "dream_collective",
+      "status": "active",
+      "content": "collective dream — mythic consciousness",
+      "created_at": 0
+    }
+  ],
+  "edges": [
+    {
+      "source": "language",
+      "target": "name",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "language",
+      "target": "mental_being",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "name",
+      "target": "word_of_god",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "name",
+      "target": "bourgeois_language",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "translation_proto",
+      "target": "language",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "translation_proto",
+      "target": "name",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "overnaming",
+      "target": "name",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "overnaming",
+      "target": "bourgeois_language",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "mute_nature",
+      "target": "name",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "mute_nature",
+      "target": "overnaming",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "violence_law",
+      "target": "law_making_violence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "violence_law",
+      "target": "law_preserving_violence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "law_making_violence",
+      "target": "law_preserving_violence",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "divine_violence",
+      "target": "law_making_violence",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "divine_violence",
+      "target": "law_preserving_violence",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "divine_violence",
+      "target": "justice",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "general_strike",
+      "target": "law_preserving_violence",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "fate",
+      "target": "myth",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "fate",
+      "target": "violence_law",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "myth",
+      "target": "divine_violence",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "justice",
+      "target": "fate",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "translation",
+      "target": "translation_proto",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "translation",
+      "target": "pure_language",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "translation",
+      "target": "original",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "pure_language",
+      "target": "language",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "pure_language",
+      "target": "name",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "kinship_languages",
+      "target": "pure_language",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "kinship_languages",
+      "target": "translation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "literalness",
+      "target": "translation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "literalness",
+      "target": "bourgeois_language",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "translatability",
+      "target": "original",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "translatability",
+      "target": "pure_language",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "montage",
+      "target": "language",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "montage",
+      "target": "bourgeois_language",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "thought_image",
+      "target": "montage",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "thought_image",
+      "target": "name",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "urban_experience",
+      "target": "commodity_world",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "urban_experience",
+      "target": "distraction",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "commodity_world",
+      "target": "fate",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "distraction",
+      "target": "urban_experience",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "imperialism_images",
+      "target": "commodity_world",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "origin",
+      "target": "monad",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "origin",
+      "target": "constellation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "allegory",
+      "target": "symbol_critique",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "allegory",
+      "target": "ruin",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "allegory",
+      "target": "melancholy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "ruin",
+      "target": "natural_history",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "ruin",
+      "target": "allegory",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "melancholy",
+      "target": "baroque",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "melancholy",
+      "target": "fate",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "baroque",
+      "target": "allegory",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "monad",
+      "target": "origin",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "constellation",
+      "target": "monad",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "natural_history",
+      "target": "myth",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "sovereign",
+      "target": "melancholy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sovereign",
+      "target": "baroque",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "profane_illumination",
+      "target": "intoxication",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "profane_illumination",
+      "target": "distraction",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "body_space",
+      "target": "profane_illumination",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "image_space",
+      "target": "profane_illumination",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "image_space",
+      "target": "montage",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "intoxication",
+      "target": "urban_experience",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "aura_proto",
+      "target": "urban_experience",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "aura_proto",
+      "target": "origin",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "optical_unconscious",
+      "target": "aura_proto",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "optical_unconscious",
+      "target": "distraction",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "decay_aura",
+      "target": "aura_proto",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "decay_aura",
+      "target": "commodity_world",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "portrait",
+      "target": "aura_proto",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "destructive_character",
+      "target": "ruin",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "destructive_character",
+      "target": "divine_violence",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "quotation",
+      "target": "montage",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "quotation",
+      "target": "language",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "kraus_demon",
+      "target": "name",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "kraus_demon",
+      "target": "quotation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "childhood_memory",
+      "target": "urban_experience",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "childhood_memory",
+      "target": "thought_image",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "threshold",
+      "target": "childhood_memory",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "threshold",
+      "target": "profane_illumination",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "mimesis",
+      "target": "name",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "mimesis",
+      "target": "language",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "trace",
+      "target": "aura_proto",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "trace",
+      "target": "childhood_memory",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "loggias",
+      "target": "threshold",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "hiding",
+      "target": "mimesis",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "hiding",
+      "target": "childhood_memory",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "mimetic_faculty",
+      "target": "mimesis",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "mimetic_faculty",
+      "target": "name",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "nonsensuous_similarity",
+      "target": "mimetic_faculty",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "nonsensuous_similarity",
+      "target": "language",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "astrology_mimesis",
+      "target": "mimetic_faculty",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "reading",
+      "target": "nonsensuous_similarity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "reading",
+      "target": "language",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "gesture_kafka",
+      "target": "allegory",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "distortion",
+      "target": "truth_content_proto",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "distortion",
+      "target": "myth",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "court_kafka",
+      "target": "fate",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "court_kafka",
+      "target": "law_preserving_violence",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "literary_technique",
+      "target": "montage",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "author_producer",
+      "target": "literary_technique",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "apparatus",
+      "target": "author_producer",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "aura",
+      "target": "aura_proto",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "aura",
+      "target": "cult_value",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "mechanical_reproduction",
+      "target": "aura",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "mechanical_reproduction",
+      "target": "exhibition_value",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "cult_value",
+      "target": "exhibition_value",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "exhibition_value",
+      "target": "mechanical_reproduction",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "film",
+      "target": "mechanical_reproduction",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "film",
+      "target": "distraction",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "shock_effect",
+      "target": "film",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "shock_effect",
+      "target": "distraction",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "politicization_art",
+      "target": "aestheticization_politics",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "politicization_art",
+      "target": "mechanical_reproduction",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "aestheticization_politics",
+      "target": "aura",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "aestheticization_politics",
+      "target": "myth",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "storytelling",
+      "target": "experience_erfahrung",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "storytelling",
+      "target": "information",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "experience_erfahrung",
+      "target": "experience_erlebnis",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "experience_erfahrung",
+      "target": "language",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "counsel",
+      "target": "storytelling",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "counsel",
+      "target": "experience_erfahrung",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "novel",
+      "target": "storytelling",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "novel",
+      "target": "experience_erlebnis",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "information",
+      "target": "mechanical_reproduction",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "death",
+      "target": "storytelling",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "death",
+      "target": "experience_erfahrung",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "flaneur",
+      "target": "crowd",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "flaneur",
+      "target": "urban_experience",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "crowd",
+      "target": "shock",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "shock",
+      "target": "experience_erlebnis",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "shock",
+      "target": "experience_erfahrung",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "commodity",
+      "target": "phantasmagoria",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "commodity",
+      "target": "commodity_world",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "phantasmagoria",
+      "target": "aura",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "phantasmagoria",
+      "target": "myth",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "spleen",
+      "target": "shock",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "spleen",
+      "target": "melancholy",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "correspondances",
+      "target": "experience_erfahrung",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "correspondances",
+      "target": "mimesis",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "heroism_modern",
+      "target": "flaneur",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "heroism_modern",
+      "target": "allegory",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "messianic_time",
+      "target": "homogeneous_empty_time",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "messianic_time",
+      "target": "redemption",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "angel_of_history",
+      "target": "catastrophe",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "angel_of_history",
+      "target": "progress",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "progress",
+      "target": "homogeneous_empty_time",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "progress",
+      "target": "catastrophe",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "catastrophe",
+      "target": "ruin",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "catastrophe",
+      "target": "tradition_oppressed",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "redemption",
+      "target": "tradition_oppressed",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "redemption",
+      "target": "messianic_time",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "historical_materialism",
+      "target": "messianic_time",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "historical_materialism",
+      "target": "dialectical_image_proto",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "tradition_oppressed",
+      "target": "storytelling",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "dialectical_image_proto",
+      "target": "messianic_time",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "dialectical_image_proto",
+      "target": "constellation",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "homogeneous_empty_time",
+      "target": "progress",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "dialectical_image",
+      "target": "dialectical_image_proto",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "dialectical_image",
+      "target": "constellation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "dialectical_image",
+      "target": "messianic_time",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "arcade",
+      "target": "phantasmagoria",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "arcade",
+      "target": "urban_experience",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "collector",
+      "target": "trace",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "collector",
+      "target": "commodity",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "wish_image",
+      "target": "commodity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "wish_image",
+      "target": "redemption",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "awakening",
+      "target": "dream_collective",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "awakening",
+      "target": "dialectical_image",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "fashion",
+      "target": "commodity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "fashion",
+      "target": "messianic_time",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "boredom",
+      "target": "spleen",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "boredom",
+      "target": "threshold",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "prostitution",
+      "target": "commodity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "prostitution",
+      "target": "flaneur",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "iron_construction",
+      "target": "arcade",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "iron_construction",
+      "target": "wish_image",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "dream_collective",
+      "target": "phantasmagoria",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "dream_collective",
+      "target": "myth",
+      "edge_type": "dependency",
+      "created_at": 0
+    }
+  ]
+}

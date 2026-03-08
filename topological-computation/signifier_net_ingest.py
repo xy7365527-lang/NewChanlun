@@ -1,5 +1,6 @@
-"""signifier_net_ingest.py — 辞典摄入 Pipeline.
+"""signifier_net_ingest.py — 辞典摄入 + 文本段落摄入 Pipeline.
 
+辞典摄入（原有）：
 从 JSONL 辞典文件向 S_net 注入结构化关系：
   - synonyms → 聚合轴边 (paradigmatic, relation=synonym)
   - contrasts → 聚合轴边 (paradigmatic, relation=contrast)
@@ -9,9 +10,13 @@
   {"term": str, "domain": str, "definition": str,
    "synonyms": [str, ...], "contrasts": [{"term": str, "differential": str}, ...]}
 
-认识论等级：L0（辞典是手工编纂的定义，不涉及经验假设）
+文本段落摄入（v198-swarm/text-ingest-pipeline 新增）：
+从原文段落中提取已知术语共现关系和 surface forms，丰富 S_net 的语言材料。
+不提取 vertices/edges，不修改 K_active。
 
-谱系引用：此模块由 v198-swarm/dict-ingest 创建。
+认识论等级：L0（辞典是手工编纂的定义；文本摄入是确定性字符串匹配，不涉及经验假设）
+
+谱系引用：辞典摄入由 v198-swarm/dict-ingest 创建。文本段落摄入由 v198-swarm/text-ingest-pipeline 创建。
 """
 
 from __future__ import annotations
@@ -355,3 +360,188 @@ def format_ingest_report(all_stats: list[dict]) -> str:
     )
 
     return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# 文本段落摄入：从原文中提取术语共现 + surface forms
+# ---------------------------------------------------------------------------
+
+def _split_paragraphs(text: str) -> list[str]:
+    """将文本按空行分割为段落。
+
+    连续的非空行合并为一个段落。
+    过滤掉过短的段落（< 10 字符）。
+
+    认识论等级：L0（确定性字符串操作）
+    """
+    paragraphs: list[str] = []
+    current: list[str] = []
+
+    for line in text.split("\n"):
+        stripped = line.strip()
+        if not stripped:
+            if current:
+                para = "\n".join(current).strip()
+                if len(para) >= 10:
+                    paragraphs.append(para)
+                current = []
+        else:
+            current.append(stripped)
+
+    if current:
+        para = "\n".join(current).strip()
+        if len(para) >= 10:
+            paragraphs.append(para)
+
+    return paragraphs
+
+
+def _find_surface_form(text: str, term: str) -> str | None:
+    """提取术语在原文中的实际出现形式。
+
+    如果术语直接出现在文本中，返回包含该术语的最短子句作为 surface form。
+    子句以中文/英文标点分割。
+
+    认识论等级：L0（确定性字符串操作）
+    """
+    pos = text.find(term)
+    if pos < 0:
+        return None
+
+    # 向前找句边界
+    start = pos
+    for i in range(pos - 1, max(pos - 30, -1), -1):
+        if i < 0:
+            start = 0
+            break
+        if text[i] in ("，", "。", "；", "、", ",", ".", ";", "\n"):
+            start = i + 1
+            break
+    else:
+        start = max(0, pos - 30)
+
+    # 向后找句边界
+    end = pos + len(term)
+    for i in range(end, min(end + 30, len(text))):
+        if text[i] in ("，", "。", "；", "、", ",", ".", ";", "\n"):
+            end = i
+            break
+    else:
+        end = min(len(text), end + 30)
+
+    form = text[start:end].strip()
+    if len(form) > 80:
+        form = form[:80]
+
+    return form if form else None
+
+
+def ingest_text_passage(
+    snet: SNet,
+    text: str,
+    domain: str,
+    source: str,
+) -> tuple[SNet, list[dict]]:
+    """从原文段落中提取 connective_patterns 并写入 S_net。
+
+    不提取 vertices/edges！只提取：
+    1. 术语共现（同一段落中出现的已知术语对）→ 组合轴边的 connective_patterns
+    2. 术语的 surface forms（该术语在原文中的实际出现形式）
+    3. 段落上下文（用于后续 articulation feedback 共振时参照）
+
+    此函数不修改 K_active——它只丰富 S_net 的语言材料。
+    K_active 的修改由 articulation feedback 在穿越中完成。
+
+    参数：
+      snet:    当前 S_net 实例（不会被修改）
+      text:    原文段落文本
+      domain:  语料域标记（如 "hegel", "marx"）
+      source:  来源标记（如 "phenomenology_of_spirit.md"）
+
+    返回：
+      (new_snet, log_entries)
+      - new_snet: 包含新增共现边和 surface forms 的 SNet
+      - log_entries: 摄入日志条目列表
+
+    认识论等级：L0（确定性字符串匹配，不涉及经验假设）
+    """
+    if not text or not snet.signifiers:
+        return snet, []
+
+    # 构建白名单（S_net 中所有能指 id）
+    whitelist = set(snet.signifiers.keys())
+
+    # 匹配段落中的已知术语（使用本模块的白名单匹配函数）
+    matched_terms = phi_L_whitelist_match(text, whitelist)
+    if len(matched_terms) < 2:
+        # 不足两个术语，无法产生共现对
+        # 但仍可提取 surface forms
+        if matched_terms:
+            term = matched_terms[0]
+            sf = _find_surface_form(text, term)
+            if sf:
+                existing = snet.signifiers.get(term)
+                if existing and sf not in existing.surface_forms:
+                    new_forms = existing.surface_forms + (sf,)
+                    snet = snet.add_signifier(Signifier(
+                        id=existing.id,
+                        surface_forms=new_forms,
+                        source=existing.source,
+                    ))
+        return snet, []
+
+    new_snet = snet
+    log_entries: list[dict] = []
+    evidence_tag = f"corpus:{domain}:{source}"
+
+    # 1. 提取 surface forms 并更新 signifiers
+    for term in matched_terms:
+        sf = _find_surface_form(text, term)
+        if not sf:
+            continue
+        existing = new_snet.signifiers.get(term)
+        if existing and sf not in existing.surface_forms:
+            # 限制 surface_forms 数量，避免内存膨胀
+            if len(existing.surface_forms) < 20:
+                new_forms = existing.surface_forms + (sf,)
+                new_snet = new_snet.add_signifier(Signifier(
+                    id=existing.id,
+                    surface_forms=new_forms,
+                    source=existing.source,
+                ))
+
+    # 2. 提取术语共现对 → 组合轴边
+    for i in range(len(matched_terms)):
+        for j in range(i + 1, len(matched_terms)):
+            term_a = matched_terms[i]
+            term_b = matched_terms[j]
+
+            if not new_snet.has_signifier(term_a) or not new_snet.has_signifier(term_b):
+                continue
+
+            # 提取两个术语之间的连接模式
+            pattern = extract_pattern(text, term_a, term_b)
+            evidence = pattern if pattern else evidence_tag
+
+            new_snet = new_snet.add_edge(SignifierEdge(
+                source=term_a,
+                target=term_b,
+                axis=AxisType.SYNTAGMATIC,
+                weight=1.0,
+                evidence=evidence,
+            ))
+
+            log_entries.append({
+                "type": "cooccurrence",
+                "source": term_a,
+                "target": term_b,
+                "pattern": pattern,
+                "domain": domain,
+                "corpus_ref": evidence_tag,
+            })
+
+    # 合并同键边（weight 求和）
+    if log_entries:
+        new_snet = new_snet.merge_edge_weights()
+
+    return new_snet, log_entries

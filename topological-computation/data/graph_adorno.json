@@ -1,0 +1,1506 @@
+{
+  "vertices": [
+    {
+      "id": "interiority",
+      "status": "active",
+      "content": "interiority — bourgeois retreat",
+      "created_at": 0
+    },
+    {
+      "id": "semblance",
+      "status": "active",
+      "content": "semblance (Schein) — aesthetic illusion",
+      "created_at": 0
+    },
+    {
+      "id": "melancholy_adorno",
+      "status": "active",
+      "content": "melancholy — Kierkegaard's situation",
+      "created_at": 0
+    },
+    {
+      "id": "construction",
+      "status": "active",
+      "content": "construction — philosophical method",
+      "created_at": 0
+    },
+    {
+      "id": "natural_history",
+      "status": "active",
+      "content": "natural history (Naturgeschichte)",
+      "created_at": 0
+    },
+    {
+      "id": "mythical_nature",
+      "status": "active",
+      "content": "mythical nature — in bourgeois interiority",
+      "created_at": 0
+    },
+    {
+      "id": "enlightenment",
+      "status": "active",
+      "content": "enlightenment — reverts to mythology",
+      "created_at": 0
+    },
+    {
+      "id": "myth_enlightenment",
+      "status": "active",
+      "content": "myth is already enlightenment",
+      "created_at": 0
+    },
+    {
+      "id": "domination",
+      "status": "active",
+      "content": "domination — of nature, then of humans",
+      "created_at": 0
+    },
+    {
+      "id": "instrumental_reason",
+      "status": "active",
+      "content": "instrumental reason — self-preserving",
+      "created_at": 0
+    },
+    {
+      "id": "culture_industry",
+      "status": "active",
+      "content": "culture industry — mass deception",
+      "created_at": 0
+    },
+    {
+      "id": "identity_thinking",
+      "status": "active",
+      "content": "identity thinking — subsumption under concept",
+      "created_at": 0
+    },
+    {
+      "id": "mimesis_adorno",
+      "status": "active",
+      "content": "mimesis — suppressed by enlightenment",
+      "created_at": 0
+    },
+    {
+      "id": "odysseus",
+      "status": "active",
+      "content": "Odysseus — proto-bourgeois cunning",
+      "created_at": 0
+    },
+    {
+      "id": "sacrifice",
+      "status": "active",
+      "content": "sacrifice — exchange with mythic powers",
+      "created_at": 0
+    },
+    {
+      "id": "self_preservation",
+      "status": "active",
+      "content": "self-preservation — becomes self-destruction",
+      "created_at": 0
+    },
+    {
+      "id": "reason",
+      "status": "active",
+      "content": "reason — entangled with unreason",
+      "created_at": 0
+    },
+    {
+      "id": "antisemitism",
+      "status": "active",
+      "content": "antisemitism — return of suppressed mimesis",
+      "created_at": 0
+    },
+    {
+      "id": "new_music",
+      "status": "active",
+      "content": "new music — Schoenberg's emancipation of dissonance",
+      "created_at": 0
+    },
+    {
+      "id": "twelve_tone",
+      "status": "active",
+      "content": "twelve-tone technique — total rationalization",
+      "created_at": 0
+    },
+    {
+      "id": "dissonance",
+      "status": "active",
+      "content": "dissonance — truth of expression",
+      "created_at": 0
+    },
+    {
+      "id": "atonality",
+      "status": "active",
+      "content": "atonality — liberation from tonality",
+      "created_at": 0
+    },
+    {
+      "id": "stravinsky_critique",
+      "status": "active",
+      "content": "Stravinsky — regression to archaic",
+      "created_at": 0
+    },
+    {
+      "id": "expression_adorno",
+      "status": "active",
+      "content": "expression — subjective against convention",
+      "created_at": 0
+    },
+    {
+      "id": "material",
+      "status": "active",
+      "content": "musical material — historically sedimented",
+      "created_at": 0
+    },
+    {
+      "id": "form",
+      "status": "active",
+      "content": "form — dialectic with content",
+      "created_at": 0
+    },
+    {
+      "id": "content_adorno",
+      "status": "active",
+      "content": "content — concrete, not imposed",
+      "created_at": 0
+    },
+    {
+      "id": "f_scale",
+      "status": "active",
+      "content": "F-scale — measuring fascist potential",
+      "created_at": 0
+    },
+    {
+      "id": "authoritarian_character",
+      "status": "active",
+      "content": "authoritarian character — conventional, submissive, aggressive",
+      "created_at": 0
+    },
+    {
+      "id": "prejudice",
+      "status": "active",
+      "content": "prejudice — structured by psyche",
+      "created_at": 0
+    },
+    {
+      "id": "projection",
+      "status": "active",
+      "content": "projection — paranoid, onto outgroup",
+      "created_at": 0
+    },
+    {
+      "id": "damaged_life",
+      "status": "active",
+      "content": "damaged life — wrong life cannot be lived rightly",
+      "created_at": 0
+    },
+    {
+      "id": "totality",
+      "status": "active",
+      "content": "totality — the false",
+      "created_at": 0
+    },
+    {
+      "id": "particular",
+      "status": "active",
+      "content": "particular — refuge of truth",
+      "created_at": 0
+    },
+    {
+      "id": "individual",
+      "status": "active",
+      "content": "individual — liquidated by late capitalism",
+      "created_at": 0
+    },
+    {
+      "id": "aphorism",
+      "status": "active",
+      "content": "aphorism — form of damaged thought",
+      "created_at": 0
+    },
+    {
+      "id": "love",
+      "status": "active",
+      "content": "love — promise of happiness",
+      "created_at": 0
+    },
+    {
+      "id": "gift",
+      "status": "active",
+      "content": "gift — impossible in exchange society",
+      "created_at": 0
+    },
+    {
+      "id": "dwelling",
+      "status": "active",
+      "content": "dwelling — impossible after Auschwitz",
+      "created_at": 0
+    },
+    {
+      "id": "utopia",
+      "status": "active",
+      "content": "utopia — standpoint of redemption",
+      "created_at": 0
+    },
+    {
+      "id": "cultural_criticism",
+      "status": "active",
+      "content": "cultural criticism — and society",
+      "created_at": 0
+    },
+    {
+      "id": "immanent_critique",
+      "status": "active",
+      "content": "immanent critique — vs transcendent critique",
+      "created_at": 0
+    },
+    {
+      "id": "poetry_after_auschwitz",
+      "status": "active",
+      "content": "poetry after Auschwitz — barbaric",
+      "created_at": 0
+    },
+    {
+      "id": "reification",
+      "status": "active",
+      "content": "reification — second nature",
+      "created_at": 0
+    },
+    {
+      "id": "metacritique",
+      "status": "active",
+      "content": "metacritique — of epistemology",
+      "created_at": 0
+    },
+    {
+      "id": "prima_philosophia",
+      "status": "active",
+      "content": "prima philosophia — impossible foundationalism",
+      "created_at": 0
+    },
+    {
+      "id": "givenness",
+      "status": "active",
+      "content": "givenness — myth of the given",
+      "created_at": 0
+    },
+    {
+      "id": "mediation",
+      "status": "active",
+      "content": "mediation — nothing immediate",
+      "created_at": 0
+    },
+    {
+      "id": "essay_form",
+      "status": "active",
+      "content": "essay as form — anti-systematic",
+      "created_at": 0
+    },
+    {
+      "id": "lyric_and_society",
+      "status": "active",
+      "content": "lyric and society — social content in form",
+      "created_at": 0
+    },
+    {
+      "id": "committed_art",
+      "status": "active",
+      "content": "committed vs autonomous art",
+      "created_at": 0
+    },
+    {
+      "id": "parataxis",
+      "status": "active",
+      "content": "parataxis — Holderlin's late style",
+      "created_at": 0
+    },
+    {
+      "id": "mahler_breakthrough",
+      "status": "active",
+      "content": "Mahler — breakthrough, not breakdown",
+      "created_at": 0
+    },
+    {
+      "id": "musical_physiognomy",
+      "status": "active",
+      "content": "musical physiognomy — reading expression",
+      "created_at": 0
+    },
+    {
+      "id": "banality",
+      "status": "active",
+      "content": "banality — truth in vulgar material",
+      "created_at": 0
+    },
+    {
+      "id": "variant_technique",
+      "status": "active",
+      "content": "variant technique — developing variation",
+      "created_at": 0
+    },
+    {
+      "id": "positivism_critique",
+      "status": "active",
+      "content": "critique of positivism — value-free illusion",
+      "created_at": 0
+    },
+    {
+      "id": "totalitarian_positivism",
+      "status": "active",
+      "content": "positivism — latent totalitarianism",
+      "created_at": 0
+    },
+    {
+      "id": "immanent_analysis",
+      "status": "active",
+      "content": "immanent analysis — society not sum of facts",
+      "created_at": 0
+    },
+    {
+      "id": "adequate_listening",
+      "status": "active",
+      "content": "adequate listening — structural hearing",
+      "created_at": 0
+    },
+    {
+      "id": "regressive_listening",
+      "status": "active",
+      "content": "regressive listening — fetishistic",
+      "created_at": 0
+    },
+    {
+      "id": "music_commodity",
+      "status": "active",
+      "content": "music as commodity",
+      "created_at": 0
+    },
+    {
+      "id": "musical_types",
+      "status": "active",
+      "content": "typology of musical behavior",
+      "created_at": 0
+    },
+    {
+      "id": "jargon",
+      "status": "active",
+      "content": "jargon — ideological pseudo-concreteness",
+      "created_at": 0
+    },
+    {
+      "id": "authenticity_critique",
+      "status": "active",
+      "content": "critique of authenticity — Heidegger",
+      "created_at": 0
+    },
+    {
+      "id": "concreteness_false",
+      "status": "active",
+      "content": "false concreteness — ontologizing the ontic",
+      "created_at": 0
+    },
+    {
+      "id": "negative_dialectics",
+      "status": "active",
+      "content": "negative dialectics — without synthesis",
+      "created_at": 0
+    },
+    {
+      "id": "non_identity",
+      "status": "active",
+      "content": "non-identity — preponderance of the object",
+      "created_at": 0
+    },
+    {
+      "id": "constellation_adorno",
+      "status": "active",
+      "content": "constellation — non-violent concept",
+      "created_at": 0
+    },
+    {
+      "id": "preponderance_object",
+      "status": "active",
+      "content": "preponderance of the object (Vorrang des Objekts)",
+      "created_at": 0
+    },
+    {
+      "id": "suffering",
+      "status": "active",
+      "content": "suffering — somatic moment of knowledge",
+      "created_at": 0
+    },
+    {
+      "id": "reconciliation",
+      "status": "active",
+      "content": "reconciliation — utopian, not actual",
+      "created_at": 0
+    },
+    {
+      "id": "concept",
+      "status": "active",
+      "content": "concept — necessary but insufficient",
+      "created_at": 0
+    },
+    {
+      "id": "universal",
+      "status": "active",
+      "content": "universal — coercive generality",
+      "created_at": 0
+    },
+    {
+      "id": "freedom_adorno",
+      "status": "active",
+      "content": "freedom — possible only in unfreedom",
+      "created_at": 0
+    },
+    {
+      "id": "metaphysics_after_auschwitz",
+      "status": "active",
+      "content": "metaphysics after Auschwitz",
+      "created_at": 0
+    },
+    {
+      "id": "education_after_auschwitz",
+      "status": "active",
+      "content": "education after Auschwitz — never again",
+      "created_at": 0
+    },
+    {
+      "id": "resignation_critique",
+      "status": "active",
+      "content": "critique of resignation — thinking is doing",
+      "created_at": 0
+    },
+    {
+      "id": "opinion_delusion",
+      "status": "active",
+      "content": "opinion, delusion, society",
+      "created_at": 0
+    },
+    {
+      "id": "theory_and_practice",
+      "status": "active",
+      "content": "theory and practice — not identical",
+      "created_at": 0
+    },
+    {
+      "id": "autonomy",
+      "status": "active",
+      "content": "autonomy of art — fait social",
+      "created_at": 0
+    },
+    {
+      "id": "truth_content",
+      "status": "active",
+      "content": "truth content (Wahrheitsgehalt) — non-intentional",
+      "created_at": 0
+    },
+    {
+      "id": "enigma_character",
+      "status": "active",
+      "content": "enigma character (Ratselcharakter) of art",
+      "created_at": 0
+    },
+    {
+      "id": "natural_beauty",
+      "status": "active",
+      "content": "natural beauty — non-identical in nature",
+      "created_at": 0
+    },
+    {
+      "id": "sublime_adorno",
+      "status": "active",
+      "content": "sublime — shudder before overwhelming",
+      "created_at": 0
+    },
+    {
+      "id": "modernism",
+      "status": "active",
+      "content": "modernism — immanent critique of tradition",
+      "created_at": 0
+    },
+    {
+      "id": "late_style",
+      "status": "active",
+      "content": "late style — disintegration, not serenity",
+      "created_at": 0
+    },
+    {
+      "id": "art_and_society",
+      "status": "active",
+      "content": "art and society — mediated autonomy",
+      "created_at": 0
+    }
+  ],
+  "edges": [
+    {
+      "source": "interiority",
+      "target": "semblance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "interiority",
+      "target": "mythical_nature",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "semblance",
+      "target": "construction",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "melancholy_adorno",
+      "target": "interiority",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "natural_history",
+      "target": "mythical_nature",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "natural_history",
+      "target": "construction",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "mythical_nature",
+      "target": "interiority",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "enlightenment",
+      "target": "myth_enlightenment",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "enlightenment",
+      "target": "domination",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "enlightenment",
+      "target": "instrumental_reason",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "myth_enlightenment",
+      "target": "enlightenment",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "domination",
+      "target": "identity_thinking",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "domination",
+      "target": "mimesis_adorno",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "instrumental_reason",
+      "target": "self_preservation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "instrumental_reason",
+      "target": "reason",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "culture_industry",
+      "target": "enlightenment",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "culture_industry",
+      "target": "domination",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "identity_thinking",
+      "target": "mimesis_adorno",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "odysseus",
+      "target": "self_preservation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "odysseus",
+      "target": "sacrifice",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "sacrifice",
+      "target": "domination",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "self_preservation",
+      "target": "domination",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "reason",
+      "target": "instrumental_reason",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "antisemitism",
+      "target": "mimesis_adorno",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "antisemitism",
+      "target": "identity_thinking",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "new_music",
+      "target": "atonality",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "new_music",
+      "target": "dissonance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "twelve_tone",
+      "target": "atonality",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "twelve_tone",
+      "target": "domination",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "dissonance",
+      "target": "expression_adorno",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "atonality",
+      "target": "material",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "stravinsky_critique",
+      "target": "mimesis_adorno",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "stravinsky_critique",
+      "target": "myth_enlightenment",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "expression_adorno",
+      "target": "mimesis_adorno",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "expression_adorno",
+      "target": "identity_thinking",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "material",
+      "target": "natural_history",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "form",
+      "target": "content_adorno",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "form",
+      "target": "material",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "content_adorno",
+      "target": "expression_adorno",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "f_scale",
+      "target": "authoritarian_character",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "authoritarian_character",
+      "target": "domination",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "authoritarian_character",
+      "target": "identity_thinking",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "prejudice",
+      "target": "authoritarian_character",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "prejudice",
+      "target": "antisemitism",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "projection",
+      "target": "mimesis_adorno",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "projection",
+      "target": "prejudice",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "damaged_life",
+      "target": "totality",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "damaged_life",
+      "target": "individual",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "totality",
+      "target": "particular",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "totality",
+      "target": "identity_thinking",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "particular",
+      "target": "totality",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "individual",
+      "target": "damaged_life",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "individual",
+      "target": "culture_industry",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "aphorism",
+      "target": "particular",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "aphorism",
+      "target": "totality",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "love",
+      "target": "damaged_life",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "love",
+      "target": "utopia",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "gift",
+      "target": "domination",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "gift",
+      "target": "love",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "dwelling",
+      "target": "damaged_life",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "utopia",
+      "target": "damaged_life",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "utopia",
+      "target": "particular",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "cultural_criticism",
+      "target": "culture_industry",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "cultural_criticism",
+      "target": "immanent_critique",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "immanent_critique",
+      "target": "totality",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "immanent_critique",
+      "target": "particular",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "poetry_after_auschwitz",
+      "target": "damaged_life",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "poetry_after_auschwitz",
+      "target": "expression_adorno",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "reification",
+      "target": "identity_thinking",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "reification",
+      "target": "natural_history",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "metacritique",
+      "target": "identity_thinking",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "metacritique",
+      "target": "construction",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "prima_philosophia",
+      "target": "identity_thinking",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "prima_philosophia",
+      "target": "metacritique",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "givenness",
+      "target": "prima_philosophia",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "givenness",
+      "target": "mediation",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "mediation",
+      "target": "givenness",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "mediation",
+      "target": "totality",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "essay_form",
+      "target": "aphorism",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "essay_form",
+      "target": "particular",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "essay_form",
+      "target": "totality",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "lyric_and_society",
+      "target": "expression_adorno",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "lyric_and_society",
+      "target": "form",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "committed_art",
+      "target": "culture_industry",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "committed_art",
+      "target": "expression_adorno",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "parataxis",
+      "target": "dissonance",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "parataxis",
+      "target": "identity_thinking",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "mahler_breakthrough",
+      "target": "new_music",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "mahler_breakthrough",
+      "target": "dissonance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "musical_physiognomy",
+      "target": "expression_adorno",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "musical_physiognomy",
+      "target": "mimesis_adorno",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "banality",
+      "target": "culture_industry",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "banality",
+      "target": "material",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "variant_technique",
+      "target": "twelve_tone",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "variant_technique",
+      "target": "form",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "positivism_critique",
+      "target": "identity_thinking",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "positivism_critique",
+      "target": "instrumental_reason",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "totalitarian_positivism",
+      "target": "positivism_critique",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "totalitarian_positivism",
+      "target": "domination",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "immanent_analysis",
+      "target": "totality",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "immanent_analysis",
+      "target": "mediation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "adequate_listening",
+      "target": "new_music",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "adequate_listening",
+      "target": "regressive_listening",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "regressive_listening",
+      "target": "culture_industry",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "regressive_listening",
+      "target": "mimesis_adorno",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "music_commodity",
+      "target": "culture_industry",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "music_commodity",
+      "target": "reification",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "musical_types",
+      "target": "adequate_listening",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "musical_types",
+      "target": "regressive_listening",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "jargon",
+      "target": "identity_thinking",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "jargon",
+      "target": "culture_industry",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "authenticity_critique",
+      "target": "jargon",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "authenticity_critique",
+      "target": "reification",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "concreteness_false",
+      "target": "jargon",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "concreteness_false",
+      "target": "mediation",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "negative_dialectics",
+      "target": "identity_thinking",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "negative_dialectics",
+      "target": "non_identity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "negative_dialectics",
+      "target": "constellation_adorno",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "non_identity",
+      "target": "identity_thinking",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "non_identity",
+      "target": "preponderance_object",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "constellation_adorno",
+      "target": "concept",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "constellation_adorno",
+      "target": "particular",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "preponderance_object",
+      "target": "mediation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "preponderance_object",
+      "target": "concept",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "suffering",
+      "target": "non_identity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "suffering",
+      "target": "damaged_life",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "reconciliation",
+      "target": "non_identity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "reconciliation",
+      "target": "utopia",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "concept",
+      "target": "identity_thinking",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "concept",
+      "target": "universal",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "universal",
+      "target": "particular",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "freedom_adorno",
+      "target": "domination",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "freedom_adorno",
+      "target": "reconciliation",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "metaphysics_after_auschwitz",
+      "target": "poetry_after_auschwitz",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "metaphysics_after_auschwitz",
+      "target": "suffering",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "education_after_auschwitz",
+      "target": "authoritarian_character",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "education_after_auschwitz",
+      "target": "poetry_after_auschwitz",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "education_after_auschwitz",
+      "target": "enlightenment",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "resignation_critique",
+      "target": "negative_dialectics",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "resignation_critique",
+      "target": "damaged_life",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "opinion_delusion",
+      "target": "culture_industry",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "opinion_delusion",
+      "target": "identity_thinking",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "theory_and_practice",
+      "target": "negative_dialectics",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "theory_and_practice",
+      "target": "reconciliation",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "autonomy",
+      "target": "culture_industry",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "autonomy",
+      "target": "art_and_society",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "truth_content",
+      "target": "autonomy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "truth_content",
+      "target": "non_identity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "truth_content",
+      "target": "semblance",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "enigma_character",
+      "target": "truth_content",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "enigma_character",
+      "target": "expression_adorno",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "natural_beauty",
+      "target": "non_identity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "natural_beauty",
+      "target": "mimesis_adorno",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sublime_adorno",
+      "target": "natural_beauty",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "sublime_adorno",
+      "target": "suffering",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "modernism",
+      "target": "dissonance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "modernism",
+      "target": "material",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "modernism",
+      "target": "autonomy",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "late_style",
+      "target": "form",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "late_style",
+      "target": "expression_adorno",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "art_and_society",
+      "target": "mediation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "art_and_society",
+      "target": "totality",
+      "edge_type": "dependency",
+      "created_at": 0
+    }
+  ]
+}

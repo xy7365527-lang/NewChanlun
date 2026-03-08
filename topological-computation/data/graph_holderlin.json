@@ -1,0 +1,1344 @@
+{
+  "vertices": [
+    {
+      "id": "freedom",
+      "status": "active",
+      "content": "freedom — political and spiritual liberation",
+      "created_at": 0
+    },
+    {
+      "id": "humanity",
+      "status": "active",
+      "content": "humanity — the human ideal",
+      "created_at": 0
+    },
+    {
+      "id": "harmony",
+      "status": "active",
+      "content": "harmony — unity of all things",
+      "created_at": 0
+    },
+    {
+      "id": "beauty",
+      "status": "active",
+      "content": "beauty — the appearance of the absolute",
+      "created_at": 0
+    },
+    {
+      "id": "nature",
+      "status": "active",
+      "content": "nature — the living totality",
+      "created_at": 0
+    },
+    {
+      "id": "love",
+      "status": "active",
+      "content": "love — the force that binds",
+      "created_at": 0
+    },
+    {
+      "id": "Greece",
+      "status": "active",
+      "content": "Greece — the ideal past",
+      "created_at": 0
+    },
+    {
+      "id": "spirit",
+      "status": "active",
+      "content": "spirit — the animating principle",
+      "created_at": 0
+    },
+    {
+      "id": "divine",
+      "status": "active",
+      "content": "the divine — das Göttliche",
+      "created_at": 0
+    },
+    {
+      "id": "Hyperion",
+      "status": "active",
+      "content": "Hyperion — the protagonist seeking unity",
+      "created_at": 0
+    },
+    {
+      "id": "longing",
+      "status": "active",
+      "content": "Sehnsucht — longing for lost wholeness",
+      "created_at": 0
+    },
+    {
+      "id": "separation",
+      "status": "active",
+      "content": "separation — Trennung from the All",
+      "created_at": 0
+    },
+    {
+      "id": "infinite",
+      "status": "active",
+      "content": "the infinite — das Unendliche",
+      "created_at": 0
+    },
+    {
+      "id": "finite",
+      "status": "active",
+      "content": "the finite — das Endliche",
+      "created_at": 0
+    },
+    {
+      "id": "judgment",
+      "status": "active",
+      "content": "Urteil — original division (Ur-teilung)",
+      "created_at": 0
+    },
+    {
+      "id": "being",
+      "status": "active",
+      "content": "Being — Seyn, prior to subject-object",
+      "created_at": 0
+    },
+    {
+      "id": "subject",
+      "status": "active",
+      "content": "subject — one side of the division",
+      "created_at": 0
+    },
+    {
+      "id": "object",
+      "status": "active",
+      "content": "object — the other side of the division",
+      "created_at": 0
+    },
+    {
+      "id": "unity",
+      "status": "active",
+      "content": "unity — the pre-reflective ground",
+      "created_at": 0
+    },
+    {
+      "id": "intellectual_intuition",
+      "status": "active",
+      "content": "intellectual intuition — access to Being",
+      "created_at": 0
+    },
+    {
+      "id": "poetic_spirit",
+      "status": "active",
+      "content": "poetic spirit — mediating force of poetry",
+      "created_at": 0
+    },
+    {
+      "id": "harmonious_opposition",
+      "status": "active",
+      "content": "harmonische Entgegensetzung — harmonious opposition",
+      "created_at": 0
+    },
+    {
+      "id": "ideal",
+      "status": "active",
+      "content": "the ideal — transcendent ground",
+      "created_at": 0
+    },
+    {
+      "id": "real",
+      "status": "active",
+      "content": "the real — empirical actuality",
+      "created_at": 0
+    },
+    {
+      "id": "tone",
+      "status": "active",
+      "content": "tone — Grundton (naive, heroic, ideal)",
+      "created_at": 0
+    },
+    {
+      "id": "Diotima",
+      "status": "active",
+      "content": "Diotima — love, beauty incarnate, tragic death",
+      "created_at": 0
+    },
+    {
+      "id": "Alabanda",
+      "status": "active",
+      "content": "Alabanda — revolutionary action, violent path",
+      "created_at": 0
+    },
+    {
+      "id": "eccentric_path",
+      "status": "active",
+      "content": "exzentrische Bahn — the eccentric orbit of life",
+      "created_at": 0
+    },
+    {
+      "id": "all_in_one",
+      "status": "active",
+      "content": "Hen kai Pan — the One and All",
+      "created_at": 0
+    },
+    {
+      "id": "return",
+      "status": "active",
+      "content": "return — Rückkehr, homecoming to nature",
+      "created_at": 0
+    },
+    {
+      "id": "mortal",
+      "status": "active",
+      "content": "mortal — das Sterbliche, human finitude",
+      "created_at": 0
+    },
+    {
+      "id": "fate",
+      "status": "active",
+      "content": "fate — Schicksal, the necessity of separation",
+      "created_at": 0
+    },
+    {
+      "id": "Empedocles",
+      "status": "active",
+      "content": "Empedocles — the philosopher who leaps into Etna",
+      "created_at": 0
+    },
+    {
+      "id": "organic",
+      "status": "active",
+      "content": "the organic — human art, culture, consciousness",
+      "created_at": 0
+    },
+    {
+      "id": "aorgic",
+      "status": "active",
+      "content": "the aorgic — nature's formless power, das Aorgische",
+      "created_at": 0
+    },
+    {
+      "id": "sacrifice",
+      "status": "active",
+      "content": "sacrifice — Opfer, the self-dissolution",
+      "created_at": 0
+    },
+    {
+      "id": "tragic_death",
+      "status": "active",
+      "content": "tragic death — reconciliation through destruction",
+      "created_at": 0
+    },
+    {
+      "id": "tragic",
+      "status": "active",
+      "content": "the tragic — das Tragische, necessary dissolution",
+      "created_at": 0
+    },
+    {
+      "id": "interpenetration",
+      "status": "active",
+      "content": "interpenetration of organic and aorgic",
+      "created_at": 0
+    },
+    {
+      "id": "dissolution",
+      "status": "active",
+      "content": "dissolution — Auflösung, the return to ground",
+      "created_at": 0
+    },
+    {
+      "id": "totality",
+      "status": "active",
+      "content": "totality — the whole that includes opposition",
+      "created_at": 0
+    },
+    {
+      "id": "caesura",
+      "status": "active",
+      "content": "caesura — Zäsur, the counter-rhythmic interruption",
+      "created_at": 0
+    },
+    {
+      "id": "tragic_transport",
+      "status": "active",
+      "content": "tragic transport — the human torn from its sphere",
+      "created_at": 0
+    },
+    {
+      "id": "turning_away",
+      "status": "active",
+      "content": "turning-away of the god — Abkehr des Göttlichen",
+      "created_at": 0
+    },
+    {
+      "id": "categorical_reversal",
+      "status": "active",
+      "content": "categorical reversal — kategorische Umkehr",
+      "created_at": 0
+    },
+    {
+      "id": "Oedipus",
+      "status": "active",
+      "content": "Oedipus — who seeks to know too much",
+      "created_at": 0
+    },
+    {
+      "id": "nefas",
+      "status": "active",
+      "content": "nefas — the monstrous coupling with the divine",
+      "created_at": 0
+    },
+    {
+      "id": "Antigone",
+      "status": "active",
+      "content": "Antigone — the anti-theos, defiant of divine law",
+      "created_at": 0
+    },
+    {
+      "id": "Hesperien",
+      "status": "active",
+      "content": "Hesperien — the West, the Hesperian land",
+      "created_at": 0
+    },
+    {
+      "id": "sobriety",
+      "status": "active",
+      "content": "Junonian sobriety — nüchterne Klarheit",
+      "created_at": 0
+    },
+    {
+      "id": "fire",
+      "status": "active",
+      "content": "fire from heaven — das Feuer vom Himmel",
+      "created_at": 0
+    },
+    {
+      "id": "national_reversal",
+      "status": "active",
+      "content": "national reversal — vaterländische Umkehr",
+      "created_at": 0
+    },
+    {
+      "id": "night",
+      "status": "active",
+      "content": "night — the gods' absence, the sacred night",
+      "created_at": 0
+    },
+    {
+      "id": "bread_and_wine",
+      "status": "active",
+      "content": "bread and wine — Dionysian gifts, holy signs",
+      "created_at": 0
+    },
+    {
+      "id": "poet",
+      "status": "active",
+      "content": "the poet — mediator between gods and mortals",
+      "created_at": 0
+    },
+    {
+      "id": "river",
+      "status": "active",
+      "content": "the river — Rhine, Danube — path of destiny",
+      "created_at": 0
+    },
+    {
+      "id": "Dionysus",
+      "status": "active",
+      "content": "Dionysus — the coming god, brother of Christ",
+      "created_at": 0
+    },
+    {
+      "id": "Christ",
+      "status": "active",
+      "content": "Christ — the last god, departure and promise",
+      "created_at": 0
+    },
+    {
+      "id": "fatherland",
+      "status": "active",
+      "content": "Vaterland — the homeland, the Hesperian ground",
+      "created_at": 0
+    },
+    {
+      "id": "demigod",
+      "status": "active",
+      "content": "demigod — Halbgott, between divine and mortal",
+      "created_at": 0
+    },
+    {
+      "id": "homecoming",
+      "status": "active",
+      "content": "homecoming — Heimkunft, return to the near",
+      "created_at": 0
+    },
+    {
+      "id": "joy",
+      "status": "active",
+      "content": "joy — Freude, the fitting name for the divine",
+      "created_at": 0
+    },
+    {
+      "id": "care",
+      "status": "active",
+      "content": "care — Sorge, the poet's task of preserving",
+      "created_at": 0
+    },
+    {
+      "id": "nearness",
+      "status": "active",
+      "content": "nearness — Nähe, the divine in the everyday",
+      "created_at": 0
+    },
+    {
+      "id": "peace",
+      "status": "active",
+      "content": "peace — Frieden, reconciliation of opposites",
+      "created_at": 0
+    },
+    {
+      "id": "feast",
+      "status": "active",
+      "content": "the feast — das Fest, gathering of gods and mortals",
+      "created_at": 0
+    },
+    {
+      "id": "prince_of_feast",
+      "status": "active",
+      "content": "prince of the feast — the unnamed reconciler",
+      "created_at": 0
+    },
+    {
+      "id": "poetic_dwelling",
+      "status": "active",
+      "content": "poetic dwelling — dichterisch wohnet der Mensch",
+      "created_at": 0
+    },
+    {
+      "id": "measure",
+      "status": "active",
+      "content": "measure — Maass, the measure the poet takes",
+      "created_at": 0
+    },
+    {
+      "id": "image",
+      "status": "active",
+      "content": "image — Bild, man as image of divinity",
+      "created_at": 0
+    },
+    {
+      "id": "heaven",
+      "status": "active",
+      "content": "heaven — Himmel, the blue above",
+      "created_at": 0
+    },
+    {
+      "id": "earth",
+      "status": "active",
+      "content": "earth — Erde, the ground below",
+      "created_at": 0
+    },
+    {
+      "id": "Mnemosyne",
+      "status": "active",
+      "content": "Mnemosyne — memory, mother of the Muses",
+      "created_at": 0
+    },
+    {
+      "id": "sign",
+      "status": "active",
+      "content": "sign — Zeichen, 'we are a sign, without meaning'",
+      "created_at": 0
+    },
+    {
+      "id": "mourning",
+      "status": "active",
+      "content": "mourning — Trauer, the impossible grief",
+      "created_at": 0
+    },
+    {
+      "id": "passage",
+      "status": "active",
+      "content": "passage — Übergang, mortals' crossing",
+      "created_at": 0
+    }
+  ],
+  "edges": [
+    {
+      "source": "freedom",
+      "target": "humanity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "beauty",
+      "target": "harmony",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nature",
+      "target": "beauty",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "love",
+      "target": "harmony",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "Greece",
+      "target": "beauty",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "divine",
+      "target": "nature",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "spirit",
+      "target": "freedom",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "humanity",
+      "target": "harmony",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nature",
+      "target": "divine",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "Hyperion",
+      "target": "longing",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "longing",
+      "target": "Greece",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "separation",
+      "target": "longing",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "infinite",
+      "target": "finite",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "Hyperion",
+      "target": "beauty",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "Hyperion",
+      "target": "nature",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "longing",
+      "target": "harmony",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "separation",
+      "target": "harmony",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "judgment",
+      "target": "being",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "judgment",
+      "target": "subject",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "judgment",
+      "target": "object",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "being",
+      "target": "unity",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "subject",
+      "target": "object",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "intellectual_intuition",
+      "target": "being",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "unity",
+      "target": "separation",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "being",
+      "target": "infinite",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "beauty",
+      "target": "being",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "poetic_spirit",
+      "target": "harmonious_opposition",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "harmonious_opposition",
+      "target": "infinite",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "harmonious_opposition",
+      "target": "finite",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "ideal",
+      "target": "real",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "poetic_spirit",
+      "target": "beauty",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "tone",
+      "target": "poetic_spirit",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "poetic_spirit",
+      "target": "nature",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "poetic_spirit",
+      "target": "spirit",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "Hyperion",
+      "target": "Diotima",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "Hyperion",
+      "target": "Alabanda",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "Diotima",
+      "target": "beauty",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "Diotima",
+      "target": "nature",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "Alabanda",
+      "target": "freedom",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "Alabanda",
+      "target": "Diotima",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "eccentric_path",
+      "target": "return",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "all_in_one",
+      "target": "nature",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "all_in_one",
+      "target": "divine",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "Diotima",
+      "target": "mortal",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "separation",
+      "target": "return",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "fate",
+      "target": "separation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "fate",
+      "target": "mortal",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "love",
+      "target": "Diotima",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "Hyperion",
+      "target": "eccentric_path",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "return",
+      "target": "all_in_one",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "Empedocles",
+      "target": "sacrifice",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sacrifice",
+      "target": "nature",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "Empedocles",
+      "target": "nature",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "organic",
+      "target": "aorgic",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "sacrifice",
+      "target": "organic",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "sacrifice",
+      "target": "aorgic",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "Empedocles",
+      "target": "divine",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "Empedocles",
+      "target": "mortal",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "tragic_death",
+      "target": "sacrifice",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "tragic_death",
+      "target": "return",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "Empedocles",
+      "target": "all_in_one",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "tragic",
+      "target": "organic",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "tragic",
+      "target": "aorgic",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "interpenetration",
+      "target": "organic",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "interpenetration",
+      "target": "aorgic",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "dissolution",
+      "target": "interpenetration",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "dissolution",
+      "target": "sacrifice",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "tragic",
+      "target": "dissolution",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "totality",
+      "target": "interpenetration",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "totality",
+      "target": "all_in_one",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "caesura",
+      "target": "tragic_transport",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "tragic_transport",
+      "target": "mortal",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "tragic_transport",
+      "target": "divine",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "turning_away",
+      "target": "divine",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "categorical_reversal",
+      "target": "caesura",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "Oedipus",
+      "target": "nefas",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nefas",
+      "target": "divine",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nefas",
+      "target": "mortal",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "caesura",
+      "target": "tragic",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "Oedipus",
+      "target": "fate",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "turning_away",
+      "target": "separation",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "Antigone",
+      "target": "divine",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "Antigone",
+      "target": "mortal",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "Hesperien",
+      "target": "Greece",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "sobriety",
+      "target": "fire",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "fire",
+      "target": "Greece",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "sobriety",
+      "target": "Hesperien",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "national_reversal",
+      "target": "Hesperien",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "national_reversal",
+      "target": "categorical_reversal",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "Antigone",
+      "target": "tragic_transport",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "Antigone",
+      "target": "caesura",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "fire",
+      "target": "divine",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "night",
+      "target": "divine",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "bread_and_wine",
+      "target": "Dionysus",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "bread_and_wine",
+      "target": "Christ",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "poet",
+      "target": "divine",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "poet",
+      "target": "mortal",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "river",
+      "target": "nature",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "river",
+      "target": "fatherland",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "Dionysus",
+      "target": "Christ",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "Christ",
+      "target": "divine",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "Christ",
+      "target": "mortal",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "demigod",
+      "target": "divine",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "demigod",
+      "target": "mortal",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "poet",
+      "target": "demigod",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "fatherland",
+      "target": "Hesperien",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "night",
+      "target": "return",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "Dionysus",
+      "target": "fire",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "homecoming",
+      "target": "fatherland",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "homecoming",
+      "target": "return",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "joy",
+      "target": "divine",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "joy",
+      "target": "nearness",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "care",
+      "target": "poet",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "nearness",
+      "target": "nature",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "nearness",
+      "target": "divine",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "homecoming",
+      "target": "Hesperien",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "care",
+      "target": "night",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "feast",
+      "target": "divine",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "feast",
+      "target": "mortal",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "peace",
+      "target": "feast",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "prince_of_feast",
+      "target": "Christ",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "prince_of_feast",
+      "target": "Dionysus",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "peace",
+      "target": "harmony",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "feast",
+      "target": "nature",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "peace",
+      "target": "fire",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "peace",
+      "target": "sobriety",
+      "edge_type": "sublation",
+      "created_at": 0
+    },
+    {
+      "source": "poetic_dwelling",
+      "target": "mortal",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "poetic_dwelling",
+      "target": "divine",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "measure",
+      "target": "heaven",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "measure",
+      "target": "earth",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "image",
+      "target": "divine",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "image",
+      "target": "mortal",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "poetic_dwelling",
+      "target": "measure",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "poetic_dwelling",
+      "target": "poet",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "heaven",
+      "target": "earth",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "poetic_dwelling",
+      "target": "beauty",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "Mnemosyne",
+      "target": "mortal",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "Mnemosyne",
+      "target": "divine",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "sign",
+      "target": "mortal",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "sign",
+      "target": "poet",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "mourning",
+      "target": "separation",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "mourning",
+      "target": "night",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "passage",
+      "target": "return",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "passage",
+      "target": "mortal",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "passage",
+      "target": "divine",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "Mnemosyne",
+      "target": "poetic_dwelling",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "sign",
+      "target": "caesura",
+      "edge_type": "reference",
+      "created_at": 0
+    }
+  ]
+}

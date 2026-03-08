@@ -1,0 +1,1038 @@
+{
+  "vertices": [
+    {
+      "id": "derrida_presence",
+      "status": "active",
+      "content": "presence (Gegenwart) — metaphysical foundation Derrida deconstructs",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_voice",
+      "status": "active",
+      "content": "voice (phonè) — illusory self-presence of speaking subject",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_sign",
+      "status": "active",
+      "content": "sign — always deferred, never purely present",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_indication",
+      "status": "active",
+      "content": "indication (Anzeichen) — Husserl's exterior sign",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_expression",
+      "status": "active",
+      "content": "expression (Ausdruck) — Husserl's meaning-bearing sign",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_solitary_mental_life",
+      "status": "active",
+      "content": "solitary mental life — Husserl's ideal of pure expression",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_representation",
+      "status": "active",
+      "content": "representation (Vorstellung) — re-presentation as repetition",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_living_present",
+      "status": "active",
+      "content": "living present (lebendige Gegenwart) — temporal self-awareness",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_retention",
+      "status": "active",
+      "content": "retention — non-present element within the present",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_iterability_early",
+      "status": "active",
+      "content": "iterability — sign must be repeatable in absence of origin",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_differance",
+      "status": "active",
+      "content": "differance — neither word nor concept, the movement of differing/deferring",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_trace",
+      "status": "active",
+      "content": "trace — mark of absent presence, origin without origin",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_supplement",
+      "status": "active",
+      "content": "supplement — that which adds to and replaces, logic of supplementarity",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_arche_writing",
+      "status": "active",
+      "content": "arche-writing (archi-ecriture) — originary trace prior to speech/writing",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_logocentrism",
+      "status": "active",
+      "content": "logocentrism — metaphysical privilege of logos, speech, presence",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_phonocentrism",
+      "status": "active",
+      "content": "phonocentrism — privilege of voice over writing",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_writing",
+      "status": "active",
+      "content": "writing (ecriture) — not secondary to speech, condition of all signification",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_speech",
+      "status": "active",
+      "content": "speech (parole) — falsely privileged over writing in Western metaphysics",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_saussure_critique",
+      "status": "active",
+      "content": "critique of Saussure — the signifier/signified distinction deconstructs itself",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_rousseau_reading",
+      "status": "active",
+      "content": "Rousseau reading — supplement as dangerous, nature/culture undone",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_nature_culture",
+      "status": "active",
+      "content": "nature/culture opposition — deconstructed by supplementarity",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_grammatology",
+      "status": "active",
+      "content": "grammatology — science of writing, never fully constituted",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_metaphysics_of_presence",
+      "status": "active",
+      "content": "metaphysics of presence — the dominant tradition Derrida deconstructs",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_signifier_signified",
+      "status": "active",
+      "content": "signifier/signified — the distinction is never pure",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_levi_strauss_critique",
+      "status": "active",
+      "content": "critique of Levi-Strauss — bricoleur and engineer, nature/culture",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_structure",
+      "status": "active",
+      "content": "structure — the concept of structure and its center",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_center",
+      "status": "active",
+      "content": "center — that which organizes structure while escaping structurality",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_play",
+      "status": "active",
+      "content": "play (jeu) — free play of signification without center",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_absence",
+      "status": "active",
+      "content": "absence — constitutive absence at the origin",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_freeplay",
+      "status": "active",
+      "content": "freeplay of the world — Nietzschean affirmation without nostalgia",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_nostalgia",
+      "status": "active",
+      "content": "nostalgia for origin — Rousseauist desire for lost presence",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_cogito_madness",
+      "status": "active",
+      "content": "cogito and madness — Foucault critique, reason excludes unreason",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_force_signification",
+      "status": "active",
+      "content": "force and signification — force exceeds structural form",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_freud_scene",
+      "status": "active",
+      "content": "Freud's mystic writing pad — trace and the psychic apparatus",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_levinas_violence",
+      "status": "active",
+      "content": "violence and metaphysics — Levinas, the Other, totality",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_artaud",
+      "status": "active",
+      "content": "theater of cruelty — Artaud, non-representational theater",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_bataille_economy",
+      "status": "active",
+      "content": "restricted vs general economy — Bataille, expenditure, sovereignty",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_sous_rature",
+      "status": "active",
+      "content": "sous rature (under erasure) — using concepts while crossing them out",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_pharmakon",
+      "status": "active",
+      "content": "pharmakon — both remedy and poison, undecidable",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_dissemination",
+      "status": "active",
+      "content": "dissemination — meaning scatters, cannot be gathered",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_white_mythology",
+      "status": "active",
+      "content": "white mythology — metaphor in philosophy, concept as worn metaphor",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_iterability",
+      "status": "active",
+      "content": "iterability — structural repeatability in new contexts, breaks with origin",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_signature",
+      "status": "active",
+      "content": "signature — paradox: must be repeatable yet singular",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_event",
+      "status": "active",
+      "content": "event — rupture that is never pure, always iterable",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_context",
+      "status": "active",
+      "content": "context — never fully determinable, always open",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_austin_critique",
+      "status": "active",
+      "content": "critique of Austin — serious/parasitic distinction deconstructs itself",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_tympan",
+      "status": "active",
+      "content": "tympan — the limit of philosophy, the margin",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_hegel_aufhebung_critique",
+      "status": "active",
+      "content": "critique of Aufhebung — sublation as reappropriation of difference",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_catachresis",
+      "status": "active",
+      "content": "catachresis — forced metaphor without proper meaning",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_hauntology",
+      "status": "active",
+      "content": "hauntology — being haunted by what is neither present nor absent",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_specter",
+      "status": "active",
+      "content": "specter — revenant that haunts, neither living nor dead",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_justice",
+      "status": "active",
+      "content": "justice — irreducible to law, always to-come",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_messianic",
+      "status": "active",
+      "content": "messianic without messianism — structural openness to the to-come",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_inheritance",
+      "status": "active",
+      "content": "inheritance — we are heirs, must choose what to inherit",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_conjuration",
+      "status": "active",
+      "content": "conjuration — attempt to exorcise the specter, doomed",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_new_international",
+      "status": "active",
+      "content": "new International — alliance beyond nation-state",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_end_of_history_critique",
+      "status": "active",
+      "content": "critique of end of history — Fukuyama, triumphalism",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_visor_effect",
+      "status": "active",
+      "content": "visor effect — the specter sees us, we cannot see it",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_to_come",
+      "status": "active",
+      "content": "to-come (a-venir) — the future that is not programmed",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_mourning",
+      "status": "active",
+      "content": "mourning — work of mourning, impossible mourning",
+      "created_at": 0
+    },
+    {
+      "id": "derrida_gift",
+      "status": "active",
+      "content": "gift — impossible gift, beyond economy of exchange",
+      "created_at": 0
+    }
+  ],
+  "edges": [
+    {
+      "source": "derrida_voice",
+      "target": "derrida_presence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_sign",
+      "target": "derrida_presence",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_indication",
+      "target": "derrida_expression",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_expression",
+      "target": "derrida_solitary_mental_life",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_solitary_mental_life",
+      "target": "derrida_presence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_voice",
+      "target": "derrida_expression",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_representation",
+      "target": "derrida_presence",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_living_present",
+      "target": "derrida_presence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_retention",
+      "target": "derrida_living_present",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_retention",
+      "target": "derrida_presence",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_iterability_early",
+      "target": "derrida_sign",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_iterability_early",
+      "target": "derrida_presence",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_indication",
+      "target": "derrida_sign",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_expression",
+      "target": "derrida_sign",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_differance",
+      "target": "derrida_presence",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_differance",
+      "target": "derrida_trace",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_trace",
+      "target": "derrida_presence",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_trace",
+      "target": "derrida_arche_writing",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_supplement",
+      "target": "derrida_presence",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_supplement",
+      "target": "derrida_nature_culture",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_arche_writing",
+      "target": "derrida_writing",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_arche_writing",
+      "target": "derrida_speech",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_logocentrism",
+      "target": "derrida_metaphysics_of_presence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_logocentrism",
+      "target": "derrida_phonocentrism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_phonocentrism",
+      "target": "derrida_speech",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_phonocentrism",
+      "target": "derrida_writing",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_writing",
+      "target": "derrida_speech",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_saussure_critique",
+      "target": "derrida_signifier_signified",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_saussure_critique",
+      "target": "derrida_logocentrism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_rousseau_reading",
+      "target": "derrida_supplement",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_rousseau_reading",
+      "target": "derrida_nature_culture",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_nature_culture",
+      "target": "derrida_logocentrism",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_grammatology",
+      "target": "derrida_arche_writing",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_grammatology",
+      "target": "derrida_logocentrism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_signifier_signified",
+      "target": "derrida_differance",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_metaphysics_of_presence",
+      "target": "derrida_presence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_levi_strauss_critique",
+      "target": "derrida_nature_culture",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_levi_strauss_critique",
+      "target": "derrida_logocentrism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_differance",
+      "target": "derrida_sign",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_arche_writing",
+      "target": "derrida_voice",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_supplement",
+      "target": "derrida_representation",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_center",
+      "target": "derrida_structure",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_center",
+      "target": "derrida_presence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_play",
+      "target": "derrida_center",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_play",
+      "target": "derrida_structure",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_absence",
+      "target": "derrida_presence",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_absence",
+      "target": "derrida_center",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_freeplay",
+      "target": "derrida_play",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_freeplay",
+      "target": "derrida_nostalgia",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_nostalgia",
+      "target": "derrida_presence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_cogito_madness",
+      "target": "derrida_presence",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_force_signification",
+      "target": "derrida_structure",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_freud_scene",
+      "target": "derrida_trace",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_freud_scene",
+      "target": "derrida_writing",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_levinas_violence",
+      "target": "derrida_metaphysics_of_presence",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_levinas_violence",
+      "target": "derrida_absence",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_artaud",
+      "target": "derrida_representation",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_bataille_economy",
+      "target": "derrida_logocentrism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_bataille_economy",
+      "target": "derrida_play",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_play",
+      "target": "derrida_differance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_structure",
+      "target": "derrida_signifier_signified",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_sous_rature",
+      "target": "derrida_differance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_sous_rature",
+      "target": "derrida_metaphysics_of_presence",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_pharmakon",
+      "target": "derrida_differance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_pharmakon",
+      "target": "derrida_logocentrism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_dissemination",
+      "target": "derrida_differance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_dissemination",
+      "target": "derrida_presence",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_dissemination",
+      "target": "derrida_signifier_signified",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_white_mythology",
+      "target": "derrida_logocentrism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_white_mythology",
+      "target": "derrida_catachresis",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_iterability",
+      "target": "derrida_sign",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_iterability",
+      "target": "derrida_presence",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_iterability",
+      "target": "derrida_iterability_early",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_signature",
+      "target": "derrida_iterability",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_signature",
+      "target": "derrida_presence",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_event",
+      "target": "derrida_iterability",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_event",
+      "target": "derrida_context",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_context",
+      "target": "derrida_iterability",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_austin_critique",
+      "target": "derrida_iterability",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_austin_critique",
+      "target": "derrida_logocentrism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_tympan",
+      "target": "derrida_logocentrism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_tympan",
+      "target": "derrida_differance",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_hegel_aufhebung_critique",
+      "target": "derrida_differance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_hegel_aufhebung_critique",
+      "target": "derrida_logocentrism",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_catachresis",
+      "target": "derrida_white_mythology",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_catachresis",
+      "target": "derrida_signifier_signified",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_hauntology",
+      "target": "derrida_presence",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_hauntology",
+      "target": "derrida_trace",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_hauntology",
+      "target": "derrida_differance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_specter",
+      "target": "derrida_hauntology",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_specter",
+      "target": "derrida_presence",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_justice",
+      "target": "derrida_differance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_justice",
+      "target": "derrida_to_come",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_messianic",
+      "target": "derrida_to_come",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_messianic",
+      "target": "derrida_presence",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_messianic",
+      "target": "derrida_justice",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_inheritance",
+      "target": "derrida_specter",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_inheritance",
+      "target": "derrida_iterability",
+      "edge_type": "reference",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_conjuration",
+      "target": "derrida_specter",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_conjuration",
+      "target": "derrida_presence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_new_international",
+      "target": "derrida_justice",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_end_of_history_critique",
+      "target": "derrida_hauntology",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_end_of_history_critique",
+      "target": "derrida_presence",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_visor_effect",
+      "target": "derrida_specter",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_visor_effect",
+      "target": "derrida_presence",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_to_come",
+      "target": "derrida_differance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_to_come",
+      "target": "derrida_presence",
+      "edge_type": "negation",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_mourning",
+      "target": "derrida_specter",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_mourning",
+      "target": "derrida_absence",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_gift",
+      "target": "derrida_differance",
+      "edge_type": "dependency",
+      "created_at": 0
+    },
+    {
+      "source": "derrida_gift",
+      "target": "derrida_presence",
+      "edge_type": "negation",
+      "created_at": 0
+    }
+  ]
+}
