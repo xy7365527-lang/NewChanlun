@@ -19,6 +19,7 @@
 import { useState, useMemo } from "react";
 import { T, FONT } from "../tokens";
 import { TopologyView } from "../components/TopologyView";
+import type { InstanceTraversal } from "../components/TopologyView";
 import { GalaxyView } from "./GalaxyView";
 import { PersistenceDiagram } from "./PersistenceDiagram";
 import { FTerrainHeatmap } from "./FTerrainHeatmap";
@@ -39,6 +40,7 @@ interface Beta1Point {
 interface Props {
   data: TopologyResponse | null;
   traversalPosition?: string;
+  instanceTraversals?: InstanceTraversal[];
   focusConcept?: string | null;
   onSelectNode?: (node: TopologyNode) => void;
   onSelectConcept?: (concept: string) => void;
@@ -93,7 +95,7 @@ const VIEW_TABS: Array<{ id: ViewId; label: string; shortLabel: string }> = [
 // ── 组件 ─────────────────────────────────────────────────────────
 
 export function TopologyViewSwitcher({
-  data, traversalPosition, focusConcept,
+  data, traversalPosition, instanceTraversals, focusConcept,
   onSelectNode, onSelectConcept,
   status, beta1History, narrative,
 }: Props) {
@@ -191,6 +193,7 @@ export function TopologyViewSwitcher({
           <TopologyView
             data={data}
             traversalPosition={traversalPosition}
+            instanceTraversals={instanceTraversals}
             focusConcept={focusConcept}
             onSelectNode={onSelectNode}
           />
