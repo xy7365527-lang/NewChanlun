@@ -865,6 +865,7 @@ def start_multiprocess_daemon(
 
     class _ThreadingHTTPServer(ThreadingMixIn, HTTPServer):
         daemon_threads = True
+        allow_reuse_address = True
 
     server = _ThreadingHTTPServer(("0.0.0.0", port), _MPHTTPHandler)
     print(f"  HTTP API: http://localhost:{port}", file=sys.stderr)
@@ -963,7 +964,7 @@ def main() -> None:
     parser.add_argument("--load", type=str, help="Load graph from JSON file")
     parser.add_argument("--hegel", action="store_true",
                         help="Build from Hegel Phenomenology chapters (default)")
-    parser.add_argument("--port", type=int, default=8080, help="HTTP port")
+    parser.add_argument("--port", type=int, default=9090, help="HTTP port")
     parser.add_argument("--ws-port", type=int, default=8765, help="WebSocket port")
     parser.add_argument("--persist", type=str, nargs="?", const="default",
                         help="Enable JSONL persistence")
