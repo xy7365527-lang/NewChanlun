@@ -201,18 +201,23 @@ def discover_business_tasks(root):
 
 
 def scan_code_settlement_requests(root):
-    """扫描 encounter_log (traversal-events.jsonl) 中 status=pending 的 code_settlement_request.
+    """扫描 encounter_log (traversal-events.jsonl) 中的 code_settlement_request.
 
     逢亮的自诊断通过 proprioception → norm violation → code gap mapping 产出
-    code_settlement_request。这些请求需要 operator 审批后 CC 才能执行修改。
+    code_settlement_request。审批通过对话界面完成：operator 在对话中说"批准"后，
+    daemon_api 写入 operator_ruling type=approved。
 
-    返回 workstation 列表，每个 workstation 标记 approval_required=True。
+    扫描两类工位：
+    1. 已批准 (operator_ruling=approved): 生成可执行工位
+    2. 待审批 (status=pending, 无对应 ruling): 生成 pending_approval 工位（仅信息展示）
     """
     log_path = os.path.join(root, "topological-computation/.chanlun/traversal-events.jsonl")
     if not os.path.isfile(log_path):
         return []
 
-    workstations = []
+    # Parse all entries
+    requests = []   # code_settlement_request entries
+    rulings = []    # operator_ruling entries
     with open(log_path, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
@@ -222,23 +227,57 @@ def scan_code_settlement_requests(root):
                 entry = json.loads(line)
             except (json.JSONDecodeError, ValueError):
                 continue
-            if entry.get("type") != "code_settlement_request":
-                continue
-            if entry.get("status") != "pending":
-                continue
-            norm_info = entry.get("norm_violation", {})
+            entry_type = entry.get("type")
+            if entry_type == "code_settlement_request" and entry.get("status") == "pending":
+                requests.append(entry)
+            elif entry_type == "operator_ruling":
+                rulings.append(entry)
+
+    # Build ruling index: diagnosed_file|timestamp → ruling
+    approved_keys: set = set()
+    rejected_keys: set = set()
+    for r in rulings:
+        key = f"{r.get('diagnosed_file', '')}|{r.get('original_timestamp', '')}"
+        if r.get("ruling") == "approved":
+            approved_keys.add(key)
+        elif r.get("ruling") == "rejected":
+            rejected_keys.add(key)
+
+    workstations = []
+    for req in requests:
+        key = f"{req.get('diagnosed_file', '')}|{req.get('timestamp', '')}"
+        norm_info = req.get("norm_violation", {})
+
+        if key in approved_keys:
+            # Approved: generate executable workstation
             workstations.append({
                 "priority": "P0",
-                "name": f"code-settlement: {entry.get('diagnosed_file', 'unknown')}",
+                "name": f"code-settlement: {req.get('diagnosed_file', 'unknown')}",
                 "description": (
-                    f"Gap: {entry.get('gap_description', '')}\n"
-                    f"Direction: {entry.get('proposed_direction', '')}\n"
-                    f"Basis: {entry.get('theoretical_basis', '')}"
+                    f"Gap: {req.get('gap_description', '')}\n"
+                    f"Direction: {req.get('proposed_direction', '')}\n"
+                    f"Basis: {req.get('theoretical_basis', '')}"
                 ),
                 "source": "self_diagnosis",
-                "approval_required": True,
+                "status": "operator_approved",
                 "severity": norm_info.get("severity", "unknown"),
             })
+        elif key not in rejected_keys:
+            # Pending: informational only (waiting for operator dialogue approval)
+            workstations.append({
+                "priority": "P1",
+                "name": f"pending-proposal: {req.get('diagnosed_file', 'unknown')}",
+                "description": (
+                    f"Gap: {req.get('gap_description', '')}\n"
+                    f"Direction: {req.get('proposed_direction', '')}\n"
+                    f"等待 operator 在对话中批准"
+                ),
+                "source": "self_diagnosis",
+                "status": "pending_approval",
+                "severity": norm_info.get("severity", "unknown"),
+            })
+        # Rejected: skip entirely
+
     return workstations
 
 

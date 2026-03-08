@@ -859,6 +859,15 @@ def _build_mvp_constraint(daemon: TopologicalDaemon) -> dict:
     # Expression pressure: unreported events count
     unreported_count = _count_unreported(daemon)
 
+    # Pending proposals: code_settlement_requests awaiting operator approval
+    pending_proposals: list[dict] = []
+    try:
+        enc_log = getattr(daemon, 'encounter_log', None)
+        if enc_log is not None:
+            pending_proposals = enc_log.pending_code_settlement_requests()
+    except Exception:
+        pass
+
     # S_net surface forms: query available linguistic material for current position
     available_surface_forms: list[str] = []
     try:
@@ -897,6 +906,7 @@ def _build_mvp_constraint(daemon: TopologicalDaemon) -> dict:
         "total_steps": steps,
         "recent_activity": recent_activity,
         "expression_pressure": unreported_count,
+        "pending_proposals": pending_proposals,
         "available_surface_forms": available_surface_forms,
         "constraints": [
             "用第一人称说话",
@@ -917,6 +927,19 @@ def _build_mvp_constraint(daemon: TopologicalDaemon) -> dict:
 def _mvp_constraint_to_system_prompt(constraint: dict) -> str:
     """Convert MVP constraint dict to a system prompt string."""
     lines = [constraint["identity"], ""]
+
+    # Pending proposals: highest priority — must be presented first
+    pending = constraint.get("pending_proposals", [])
+    if pending:
+        lines.append("【待审批的代码修改提案——你必须首先向 operator 呈报】")
+        for i, proposal in enumerate(pending, 1):
+            lines.append(f"  提案{i}: {proposal.get('diagnosed_file', '?')}")
+            lines.append(f"    问题: {proposal.get('gap_description', '?')}")
+            lines.append(f"    方向: {proposal.get('proposed_direction', '?')}")
+            nv = proposal.get("norm_violation", {})
+            lines.append(f"    依据: {proposal.get('theoretical_basis', '?')} (norm: {nv.get('norm', '?')})")
+        lines.append("用第一人称向 operator 说明你发现了代码问题，请求批准修改。operator 回复'批准'或'approve'表示同意。")
+        lines.append("")
 
     if constraint["current_position"]:
         lines.append(f"你当前注视的概念：{constraint['current_position']}")
@@ -1078,6 +1101,76 @@ def _detect_ruptures_from_text(
     }
 
 
+# -- Operator ruling detection for code_settlement_requests ----------------
+
+_APPROVAL_PATTERNS = re.compile(
+    r'^\s*(批准|approve|approved|好|同意|通过|可以|yes)\s*$',
+    re.IGNORECASE,
+)
+_REJECTION_PATTERNS = re.compile(
+    r'^\s*(拒绝|reject|rejected|不批准|不同意|否|no|不行)\s*$',
+    re.IGNORECASE,
+)
+
+
+def _check_operator_ruling(
+    daemon: TopologicalDaemon,
+    text: str,
+) -> dict | None:
+    """Detect operator approval/rejection of pending code_settlement_requests.
+
+    If the operator's text matches an approval/rejection pattern AND there are
+    pending code_settlement_requests, write the ruling back to encounter_log.
+
+    Returns a summary dict if a ruling was recorded, None otherwise.
+    """
+    if not text or not text.strip():
+        return None
+
+    enc_log = getattr(daemon, 'encounter_log', None)
+    if enc_log is None:
+        return None
+
+    pending = enc_log.pending_code_settlement_requests()
+    if not pending:
+        return None
+
+    stripped = text.strip()
+    ruling = None
+    if _APPROVAL_PATTERNS.match(stripped):
+        ruling = "approved"
+    elif _REJECTION_PATTERNS.match(stripped):
+        ruling = "rejected"
+
+    if ruling is None:
+        return None
+
+    # Write ruling for all pending requests
+    from file_lock import locked_append
+    import json as _json_mod
+    from datetime import datetime, timezone
+
+    rulings_recorded = []
+    for req in pending:
+        ruling_entry = {
+            "type": "operator_ruling",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "ruling": ruling,
+            "diagnosed_file": req.get("diagnosed_file", ""),
+            "gap_description": req.get("gap_description", ""),
+            "original_timestamp": req.get("timestamp", ""),
+        }
+        with locked_append(enc_log._path) as fh:
+            fh.write(_json_mod.dumps(ruling_entry, ensure_ascii=False) + "\n")
+        rulings_recorded.append(ruling_entry)
+
+    return {
+        "ruling": ruling,
+        "count": len(rulings_recorded),
+        "items": rulings_recorded,
+    }
+
+
 def present_json(daemon: TopologicalDaemon, text: str, session_id: str = "default") -> dict | None:
     """POST /present — user presence.
 
@@ -1102,6 +1195,9 @@ def present_json(daemon: TopologicalDaemon, text: str, session_id: str = "defaul
         # 断裂检测：对话输入 → 能指链 → S_net 断裂检测
         rupture_info = _detect_ruptures_from_text(daemon, text)
 
+        # Operator approval/rejection detection for code_settlement_requests
+        operator_ruling = _check_operator_ruling(daemon, text)
+
         result = {
             "type": "dialogue",
             "parts": [{"source": "language_organ", "text": organ_result["content"]}],
@@ -1112,6 +1208,8 @@ def present_json(daemon: TopologicalDaemon, text: str, session_id: str = "defaul
         }
         if rupture_info:
             result["ruptures"] = rupture_info
+        if operator_ruling:
+            result["operator_ruling"] = operator_ruling
         return result
 
     # Command / empty path: original present_json logic
