@@ -12,9 +12,10 @@
  * 数据来自 /query?concept=X（返回 neighbors 和 f_terrain）。
  */
 
-import { useEffect, useState, useCallback } from "react";
-import { T, FONT, fToColor, DAEMON_HTTP } from "../tokens";
+import { useEffect, useState, useCallback, useMemo } from "react";
+import { T, FONT, fToColor } from "../tokens";
 import type { QueryResponse, NeighborInfo } from "../types";
+import { useStore } from "../hooks/useStore";
 
 // ── 类型 ────────────────────────────────────────────────────────
 
@@ -34,16 +35,18 @@ interface Props {
 
 // ── 工具 ────────────────────────────────────────────────────────
 
-async function queryNeighbors(concept: string): Promise<QueryResponse | null> {
-  try {
-    const res = await fetch(
-      `${DAEMON_HTTP}/query?concept=${encodeURIComponent(concept)}`
-    );
-    if (!res.ok) return null;
-    return res.json();
-  } catch {
-    return null;
-  }
+function makeQueryNeighbors(httpBase: string) {
+  return async function queryNeighbors(concept: string): Promise<QueryResponse | null> {
+    try {
+      const res = await fetch(
+        `${httpBase}/query?concept=${encodeURIComponent(concept)}`
+      );
+      if (!res.ok) return null;
+      return res.json();
+    } catch {
+      return null;
+    }
+  };
 }
 
 /** 截断标签用于显示 */
@@ -64,6 +67,8 @@ function fToHeatColor(f: number): string {
 // ── 组件 ────────────────────────────────────────────────────────
 
 export function FTerrainHeatmap({ focusConcept, onSelectConcept }: Props) {
+  const httpBase = useStore((s) => s.getActiveHttpBase());
+  const queryNeighbors = useMemo(() => makeQueryNeighbors(httpBase), [httpBase]);
   const [queryResult, setQueryResult] = useState<QueryResponse | null>(null);
   const [neighborDetails, setNeighborDetails] = useState<Map<string, QueryResponse>>(new Map());
   const [hoveredCell, setHoveredCell] = useState<TerrainCell | null>(null);
@@ -83,7 +88,7 @@ export function FTerrainHeatmap({ focusConcept, onSelectConcept }: Props) {
     });
 
     return () => { alive = false; };
-  }, [focusConcept]);
+  }, [focusConcept, queryNeighbors]);
 
   // ── 加载邻居的邻居（二阶，限制 5 个） ──────────────────────
   useEffect(() => {
@@ -104,7 +109,7 @@ export function FTerrainHeatmap({ focusConcept, onSelectConcept }: Props) {
 
     loadNeighborDetails();
     return () => { alive = false; };
-  }, [queryResult]);
+  }, [queryResult, queryNeighbors]);
 
   // ── 构建热力图矩阵 ───────────────────────────────────────────
   const { rowLabels, colLabels, matrix } = (() => {

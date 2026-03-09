@@ -123,12 +123,14 @@ class _IngestVisitor(ast.NodeVisitor):
         self._defined_names.add(vid)
 
         parent_id = self._current_scope_id()
-        if parent_id:
-            self.edges.append(Edge(
-                source=parent_id,
-                target=vid,
-                edge_type=EdgeType.DEPENDENCY,
-            ))
+        if parent_id is None:
+            # Top-level definition: connect to module vertex
+            parent_id = self._make_id("<module>")
+        self.edges.append(Edge(
+            source=parent_id,
+            target=vid,
+            edge_type=EdgeType.DEPENDENCY,
+        ))
 
         self._scope_stack.append(qualified)
         self.generic_visit(node)
@@ -160,12 +162,14 @@ class _IngestVisitor(ast.NodeVisitor):
                 ))
 
         parent_id = self._current_scope_id()
-        if parent_id:
-            self.edges.append(Edge(
-                source=parent_id,
-                target=vid,
-                edge_type=EdgeType.DEPENDENCY,
-            ))
+        if parent_id is None:
+            # Top-level class: connect to module vertex
+            parent_id = self._make_id("<module>")
+        self.edges.append(Edge(
+            source=parent_id,
+            target=vid,
+            edge_type=EdgeType.DEPENDENCY,
+        ))
 
         self._scope_stack.append(qualified)
         self.generic_visit(node)

@@ -1,5 +1,7 @@
-import { T, FONT } from "../tokens";
+import { T, FONT, INSTANCE_COLORS } from "../tokens";
 import type { StatusResponse } from "../types";
+import type { DaemonInstance } from "../tokens";
+import type { InstanceState } from "../hooks/useStore";
 
 interface Props {
   status: StatusResponse | null;
@@ -7,6 +9,8 @@ interface Props {
   currentPositionLabel: string;
   expressionPressure: number;
   onPressureClick: () => void;
+  instances: DaemonInstance[];
+  instanceStates: Record<string, InstanceState>;
 }
 
 export function MetricsBar({
@@ -15,6 +19,8 @@ export function MetricsBar({
   currentPositionLabel,
   expressionPressure,
   onPressureClick,
+  instances,
+  instanceStates,
 }: Props) {
   const s = status ?? {
     beta_1: 0, vertices: 0, edges: 0, settled: 0,
@@ -61,6 +67,31 @@ export function MetricsBar({
         marginRight: 10,
         transition: "background 0.3s",
       }} />
+
+      {/* Multi-instance connection dots */}
+      {instances.length > 1 && (
+        <div style={{ display: "flex", gap: 3, marginRight: 10 }}>
+          {instances.map((inst, idx) => {
+            const state = instanceStates[inst.id];
+            const connected = state?.wsConnected || state?.reachable;
+            const color = INSTANCE_COLORS[idx % INSTANCE_COLORS.length];
+            const st = state?.status;
+            return (
+              <div
+                key={inst.id}
+                title={`${inst.name}: ${connected ? `V${st?.vertices ?? "?"} E${st?.edges ?? "?"} s${st?.steps ?? "?"}` : "断开"}`}
+                style={{
+                  width: 5, height: 5, borderRadius: "50%",
+                  background: connected ? color : T.textMuted,
+                  boxShadow: connected ? `0 0 4px ${color}66` : "none",
+                  opacity: connected ? 1 : 0.4,
+                  transition: "background 0.3s, opacity 0.3s",
+                }}
+              />
+            );
+          })}
+        </div>
+      )}
 
       <span style={{ color: T.textDim, marginRight: 4 }}>beta_1</span>
       <span style={{ color: T.text, fontWeight: 600, marginRight: 20 }}>

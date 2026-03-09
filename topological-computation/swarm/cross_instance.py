@@ -49,12 +49,19 @@ class CrossInstanceSync:
         self.negated_count: int = 0   # 否定对方 fold 的次数
         self.deferred_count: int = 0  # defer（灰色区）的次数
 
+        # Peer state tracking (from new block types)
+        self.peer_snet_states: dict[str, dict] = {}  # instance_id -> last snet_update
+        self.peer_settlements: dict[str, list[dict]] = {}  # instance_id -> settlement events
+
     def sync(self) -> int:
         """Scan for new blocks, inject those from other instances.
 
-        对每个外来块：
-        1. traversal_position 块 → 更新 peer_positions（不注入图）
-        2. 其他块 → 注入顶点/边 + 解读
+        对每个外来块按 type 分发：
+        - traversal_position → 更新 peer_positions（不注入图）
+        - graph_delta / feed_event → 注入顶点/边 + 解读（graph_delta only）
+        - settlement_event → 记录 peer settlement（不注入图）
+        - snet_update → 记录 peer S_net 激活态（不注入图）
+        - interpretation → 跳过（是对方的解读回应，不注入）
 
         Returns the number of blocks injected.
         """
@@ -63,17 +70,35 @@ class CrossInstanceSync:
         for block in new_blocks:
             block_hash = block.get("hash", "")
             self.known_blocks.add(block_hash)
-            if block.get("instance") != self.instance_id:
-                if block.get("type") == "traversal_position":
-                    # 穿越位置是区块事件，不走注入流程（不修改概念图）
-                    self._update_peer_position(block)
-                    continue
+            if block.get("instance") == self.instance_id:
+                continue
 
-                # Phase 1: 注入
+            block_type = block.get("type", "")
+
+            if block_type == "traversal_position":
+                self._update_peer_position(block)
+
+            elif block_type == "settlement_event":
+                self._update_peer_settlement(block)
+
+            elif block_type == "snet_update":
+                self._update_peer_snet(block)
+
+            elif block_type == "interpretation":
+                pass  # 对方的解读回应，不需要注入
+
+            elif block_type in ("graph_delta", "feed_event"):
+                # 这两种块都携带 vertices + edges → 注入到本地图
                 self._inject_external_operation(block)
                 injected += 1
+                # 只有 graph_delta 需要解读（feed_event 不含 fold 操作）
+                if block_type == "graph_delta":
+                    self._interpret_and_respond(block, block_hash)
 
-                # Phase 2: 解读（在注入之后，用更新后的图做判断）
+            else:
+                # 未知 type 的旧格式块 → 走原有注入+解读路径
+                self._inject_external_operation(block)
+                injected += 1
                 self._interpret_and_respond(block, block_hash)
 
         self.injected_count += injected
@@ -89,6 +114,40 @@ class CrossInstanceSync:
             return
         self.daemon.peer_positions[instance_id] = {
             "position_label": block.get("position_label", ""),
+            "step": block.get("step", 0),
+            "timestamp": block.get("timestamp", 0),
+        }
+
+    def _update_peer_settlement(self, block: dict) -> None:
+        """Record peer settlement event (informational, no graph injection).
+
+        Settlement events from other instances are tracked for visibility
+        but not injected into the local graph — each instance settles
+        its own cycles based on its own traversal.
+        """
+        instance_id = block.get("instance")
+        if not instance_id or instance_id == self.instance_id:
+            return
+        self.peer_settlements.setdefault(instance_id, []).append({
+            "settled_at_step": block.get("settled_at_step", 0),
+            "cycle_edges": block.get("cycle_edges", []),
+            "step": block.get("step", 0),
+            "timestamp": block.get("timestamp", 0),
+        })
+
+    def _update_peer_snet(self, block: dict) -> None:
+        """Record peer S_net activation state (informational).
+
+        Peer S_net states are tracked for multi-instance visualization
+        and potential cross-instance resonance detection.
+        """
+        instance_id = block.get("instance")
+        if not instance_id or instance_id == self.instance_id:
+            return
+        self.peer_snet_states[instance_id] = {
+            "currently_active": block.get("currently_active", []),
+            "dialogue_focus_set": block.get("dialogue_focus_set", []),
+            "edge_suggestions_count": len(block.get("edge_suggestions", [])),
             "step": block.get("step", 0),
             "timestamp": block.get("timestamp", 0),
         }
@@ -190,7 +249,7 @@ class CrossInstanceSync:
             )
 
     def interpretation_summary(self) -> dict:
-        """返回解读统计摘要。"""
+        """返回解读统计摘要（含 peer state tracking）。"""
         total = self.agreed_count + self.negated_count + self.deferred_count
         return {
             "instance_id": self.instance_id,
@@ -204,5 +263,9 @@ class CrossInstanceSync:
             ),
             "negation_rate": (
                 round(self.negated_count / total, 4) if total > 0 else 0.0
+            ),
+            "peer_snet_tracked": len(self.peer_snet_states),
+            "peer_settlements_tracked": sum(
+                len(v) for v in self.peer_settlements.values()
             ),
         }

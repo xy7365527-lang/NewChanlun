@@ -10,23 +10,30 @@
  *   - 穿越轨迹（TraversalTimeline）
  *
  * 自适应视图推荐（★）：
- *   - β₁ 高且增长中 → 推荐 Persistence Diagram
+ *   - beta_1 高且增长中 → 推荐 Persistence Diagram
  *   - encounter 密集 → 推荐 f 地形
  *   - 穿越稳定（walk 为主）→ 推荐 Traversal Timeline
  *   - 默认 → 推荐宇宙星系图（galaxy）
+ *
+ * Includes TopologyFilterBar for domain/activity/settlement/instance filtering.
  */
 
 import { useState, useMemo } from "react";
 import { T, FONT } from "../tokens";
 import { TopologyView } from "../components/TopologyView";
 import type { InstanceTraversal } from "../components/TopologyView";
+import { TopologyFilterBar } from "../components/TopologyFilterBar";
 import { GalaxyView } from "./GalaxyView";
 import { PersistenceDiagram } from "./PersistenceDiagram";
 import { FTerrainHeatmap } from "./FTerrainHeatmap";
 import { TraversalTimeline } from "./TraversalTimeline";
+import { useFilteredTopology } from "../hooks/useFilteredTopology";
+import { useStore } from "../hooks/useStore";
 import type {
   TopologyResponse, TopologyNode, StatusResponse, NarrativeEvent,
 } from "../types";
+import type { DaemonInstance } from "../tokens";
+import type { InstanceState } from "../hooks/useStore";
 
 // ── 类型 ────────────────────────────────────────────────────────
 
@@ -58,7 +65,7 @@ function recommendView(
 ): ViewId {
   if (!status) return "galaxy";
 
-  // β₁ 高（>100）且在增长 → Persistence Diagram
+  // beta_1 高（>100）且在增长 → Persistence Diagram
   if (status.beta_1 > 100) {
     if (beta1History.length >= 2) {
       const last = beta1History[beta1History.length - 1].beta1;
@@ -100,10 +107,18 @@ export function TopologyViewSwitcher({
   status, beta1History, narrative,
 }: Props) {
   const [activeView, setActiveView] = useState<ViewId>("galaxy");
+  const instances = useStore((s) => s.instances);
+  const instanceStates = useStore((s) => s.instanceStates);
 
   const recommended = useMemo(
     () => recommendView(status, beta1History, narrative),
     [status, beta1History, narrative]
+  );
+
+  // Apply filters to topology data
+  const { filteredData, filteredTraversals, maxDegree } = useFilteredTopology(
+    data,
+    instanceTraversals ?? [],
   );
 
   // 包装 onSelectNode 为 onSelectConcept（对热力图）
@@ -122,6 +137,9 @@ export function TopologyViewSwitcher({
       onSelectNode(syntheticNode);
     }
   };
+
+  // Show filter bar for 2D and galaxy views (where node filtering is meaningful)
+  const showFilterBar = activeView === "2d" || activeView === "galaxy";
 
   return (
     <div style={{
@@ -187,22 +205,31 @@ export function TopologyViewSwitcher({
         </div>
       </div>
 
+      {/* Filter bar (for 2D/galaxy views) */}
+      {showFilterBar && (
+        <TopologyFilterBar
+          instances={instances}
+          instanceStates={instanceStates}
+          maxDegree={maxDegree}
+        />
+      )}
+
       {/* 视图内容区域 */}
       <div style={{ flex: 1, overflow: "hidden", position: "relative" }}>
         {activeView === "2d" && (
           <TopologyView
-            data={data}
+            data={filteredData}
             traversalPosition={traversalPosition}
-            instanceTraversals={instanceTraversals}
+            instanceTraversals={filteredTraversals.length > 0 ? filteredTraversals : undefined}
             focusConcept={focusConcept}
             onSelectNode={onSelectNode}
           />
         )}
         {activeView === "galaxy" && (
           <GalaxyView
-            data={data}
+            data={filteredData}
             traversalPosition={traversalPosition}
-            instanceTraversals={instanceTraversals}
+            instanceTraversals={filteredTraversals.length > 0 ? filteredTraversals : undefined}
             focusConcept={focusConcept}
             onSelectNode={onSelectNode}
           />

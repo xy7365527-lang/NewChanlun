@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
-import { T, FONT, STATUS_POLL_MS } from "./tokens";
+import { T, FONT } from "./tokens";
 import { useStore } from "./hooks/useStore";
-import { useDaemonWS } from "./hooks/useDaemonWS";
-import { daemonAPI } from "./hooks/useDaemonAPI";
+import { useMultiDaemon, useInstanceTraversals } from "./hooks/useMultiDaemon";
+import { createDaemonAPI } from "./hooks/useDaemonAPI";
 import type { TopologyNode, ChatMessage } from "./types";
 
 import { MetricsBar } from "./components/MetricsBar";
@@ -15,7 +15,7 @@ import { TabSwitcher } from "./components/TabSwitcher";
 import { CodePanel } from "./components/CodePanel";
 import { QueryDetail } from "./components/QueryDetail";
 import { TopologyViewSwitcher } from "./views/TopologyViewSwitcher";
-import type { InstanceTraversal } from "./components/TopologyView";
+import { InstanceManager } from "./components/InstanceManager";
 
 const TABS = [
   { id: "chat", label: "\u5BF9\u8BDD" },
@@ -36,109 +36,30 @@ export default function App() {
   const focusConcept = useStore((s) => s.focusConcept);
   const currentPositionLabel = useStore((s) => s.currentPositionLabel);
   const expressionPressure = useStore((s) => s.expressionPressure);
+  const instances = useStore((s) => s.instances);
+  const instanceStates = useStore((s) => s.instanceStates);
 
-  const setStatus = useStore((s) => s.setStatus);
-  const setTopology = useStore((s) => s.setTopology);
-  const setNarrative = useStore((s) => s.setNarrative);
-  const setGaps = useStore((s) => s.setGaps);
-  const setOperations = useStore((s) => s.setOperations);
   const setFocusConcept = useStore((s) => s.setFocusConcept);
   const setQueryResult = useStore((s) => s.setQueryResult);
   const addMessage = useStore((s) => s.addMessage);
 
-  // ── Peer positions from SharedLayer (scheme C) ────────────────
-  const peersPositions = useStore((s) => s.peersPositions);
+  // ── Multi-daemon: WS + polls for all instances ─────────────
+  useMultiDaemon();
 
-  const currentPositionId = useStore((s) => s.currentPositionId);
+  // ── Instance traversals (merged from all instances) ────────
+  const instanceTraversals = useInstanceTraversals();
 
-  // ── Connect primary WS (for store: narrative, gaps, peer_position, etc.) ───
-  useDaemonWS();
+  // ── Active instance API for POST requests ────────────────
+  const activeHttpBase = useStore((s) => s.getActiveHttpBase());
+  const activeApi = useMemo(
+    () => createDaemonAPI(activeHttpBase),
+    [activeHttpBase]
+  );
 
   // ── Local UI state ───────────────────────────────────────────
   const [activeTab, setActiveTab] = useState("chat");
   const [pending, setPending] = useState(false);
   const chatBottomRef = useRef<HTMLDivElement>(null);
-
-  // ── Status poll ──────────────────────────────────────────────
-  useEffect(() => {
-    let alive = true;
-    async function poll() {
-      try {
-        const s = await daemonAPI.status();
-        if (alive) setStatus(s);
-      } catch {
-        // daemon not reachable
-      }
-    }
-    poll();
-    const id = setInterval(poll, STATUS_POLL_MS);
-    return () => { alive = false; clearInterval(id); };
-  }, [setStatus]);
-
-  // ── Topology poll (every 5s) ──────────────────────────────────
-  useEffect(() => {
-    let alive = true;
-    async function fetchTopo() {
-      try {
-        const t = await daemonAPI.topology();
-        if (alive) setTopology(t);
-      } catch {
-        // ignore
-      }
-    }
-    fetchTopo();
-    const id = setInterval(fetchTopo, 5000);
-    return () => { alive = false; clearInterval(id); };
-  }, [setTopology]);
-
-  // ── Narrative poll (every 3s, only if WS unavailable) ────────
-  useEffect(() => {
-    let alive = true;
-    async function fetchNarrative() {
-      if (wsConnected) return;
-      try {
-        const events = await daemonAPI.narrative(30);
-        if (alive) setNarrative(events);
-      } catch {
-        // ignore
-      }
-    }
-    fetchNarrative();
-    const id = setInterval(fetchNarrative, 3000);
-    return () => { alive = false; clearInterval(id); };
-  }, [wsConnected, setNarrative]);
-
-  // ── Gaps poll (every 10s) ─────────────────────────────────────
-  useEffect(() => {
-    let alive = true;
-    async function fetchGaps() {
-      try {
-        const g = await daemonAPI.gaps();
-        if (alive) setGaps(g);
-      } catch {
-        // ignore
-      }
-    }
-    fetchGaps();
-    const id = setInterval(fetchGaps, 10000);
-    return () => { alive = false; clearInterval(id); };
-  }, [setGaps]);
-
-  // ── Operations poll (every 5s) ────────────────────────────────
-  useEffect(() => {
-    let alive = true;
-    async function fetchOps() {
-      try {
-        const ops = await daemonAPI.operations();
-        if (alive) setOperations(ops);
-      } catch {
-        // ignore
-      }
-    }
-    fetchOps();
-    const id = setInterval(fetchOps, 5000);
-    return () => { alive = false; clearInterval(id); };
-  }, [setOperations]);
 
   // ── Auto-scroll chat ─────────────────────────────────────────
   useEffect(() => {
@@ -152,7 +73,7 @@ export default function App() {
       setActiveTab("chat");
       setQueryResult(null);
       try {
-        const result = await daemonAPI.query(node.label);
+        const result = await activeApi.query(node.label);
         setQueryResult(result);
       } catch (e) {
         addMessage({
@@ -162,7 +83,7 @@ export default function App() {
         });
       }
     },
-    [setFocusConcept, setQueryResult, addMessage]
+    [setFocusConcept, setQueryResult, addMessage, activeApi]
   );
 
   const handleSelectConcept = useCallback(
@@ -182,7 +103,7 @@ export default function App() {
       setPending(true);
 
       try {
-        const res = await daemonAPI.present(text);
+        const res = await activeApi.present(text);
 
         if (res.type === "silence") {
           addMessage({
@@ -215,14 +136,14 @@ export default function App() {
         setPending(false);
       }
     },
-    [addMessage, setFocusConcept]
+    [addMessage, setFocusConcept, activeApi]
   );
 
   const handlePressureClick = useCallback(async () => {
     if (pending) return;
     setPending(true);
     try {
-      const res = await daemonAPI.present("");
+      const res = await activeApi.present("");
       if (res.type === "silence") {
         addMessage({
           role: "daemon",
@@ -248,51 +169,12 @@ export default function App() {
     } finally {
       setPending(false);
     }
-  }, [pending, addMessage]);
-
-  // ── Build instance traversals for TopologyView ──
-  // Includes BOTH self-instance (from WS step messages) AND peers (from SharedLayer sync)
-  // Match by vertex ID first (reliable), then fallback to label match
-  const selfVertexId = topology?.nodes.find(
-    (n) => n.id === currentPositionId || n.label === currentPositionLabel
-  )?.id;
-
-  const instanceTraversals: InstanceTraversal[] = useMemo(() => {
-    const result: InstanceTraversal[] = [];
-
-    // Self-instance: always include when we have a position
-    if (selfVertexId && currentPositionLabel) {
-      result.push({
-        instanceId: "self",
-        instanceName: "local",
-        position: selfVertexId,
-        color: "#00ccff",
-        history: [],
-      });
-    }
-
-    // Peer instances from SharedLayer cross-instance sync
-    for (const [instanceId, peer] of Object.entries(peersPositions)) {
-      if (!peer.online || !peer.posLabel) continue;
-
-      const vertexId = topology?.nodes.find(
-        (n) => n.label === peer.posLabel
-      )?.id;
-      if (!vertexId) continue;
-
-      result.push({
-        instanceId,
-        instanceName: instanceId,
-        position: vertexId,
-        color: peer.color,
-        history: [],
-      });
-    }
-    return result;
-  }, [peersPositions, topology, selfVertexId, currentPositionLabel, currentPositionId]);
+  }, [pending, addMessage, activeApi]);
 
   // ── Fallback traversal for single-instance mode (used by views that don't support instanceTraversals) ──
-  const traversalVertexId = selfVertexId;
+  const traversalVertexId = topology?.nodes.find(
+    (n) => n.label === currentPositionLabel
+  )?.id;
 
   // ── Render ───────────────────────────────────────────────────
   return (
@@ -308,6 +190,8 @@ export default function App() {
         currentPositionLabel={currentPositionLabel}
         expressionPressure={expressionPressure}
         onPressureClick={handlePressureClick}
+        instances={instances}
+        instanceStates={instanceStates}
       />
 
       {/* Main content */}
@@ -341,6 +225,7 @@ export default function App() {
           width: 440, display: "flex", flexDirection: "column",
           background: T.bgPanel, overflow: "hidden",
         }}>
+          <InstanceManager />
           <TabSwitcher tabs={TABS} active={activeTab} onChange={setActiveTab} />
 
           {activeTab === "chat" ? (

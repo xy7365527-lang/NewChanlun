@@ -326,10 +326,14 @@ class TopologicalDaemon:
             if backfilled > 0:
                 print(f"396号 backfill: {backfilled} settled cycles received residue", file=sys.stderr)
 
-        # Plan C: peer_positions + traversal position write throttle
+        # Plan C: peer_positions + sync throttle state
         self.peer_positions: dict[str, dict] = {}
         self._last_position_write_time: float = 0.0
         self._last_position_write_label: str = ""
+        self._last_graph_delta_write_time: float = 0.0
+        self._last_settlement_write_count: int = 0
+        self._last_snet_write_time: float = 0.0
+        self._last_snet_active_snapshot: set[str] = set()
 
         # Plan C: SharedLayer via IPFS（不降级到本地）
         self._shared_layer: SharedLayer | None = None
@@ -544,6 +548,7 @@ class TopologicalDaemon:
             from signifier_net_ingest import (
                 ingest_all_dictionaries, format_ingest_report,
                 ingest_bilingual_dict, ingest_morpheme_dict,
+                ingest_synonym_dict, ingest_collocation_dict,
             )
 
             script_dir = Path(os.path.dirname(os.path.abspath(__file__)))
@@ -589,6 +594,37 @@ class TopologicalDaemon:
                     )
                 except Exception as exc:
                     print(f"  morpheme {mf.name}: ERROR - {exc}", file=sys.stderr)
+
+            # 4. 同义词辞典（synonym_*.jsonl）
+            synonym_files = sorted(dict_dir.glob("synonym_*.jsonl"))
+            for sf in synonym_files:
+                try:
+                    self.snet, sstats = ingest_synonym_dict(self.snet, sf)
+                    print(
+                        f"  synonym {sf.name}: "
+                        f"{sstats.get('entries_total', 0)} entries, "
+                        f"{sstats.get('entries_matched', 0)} matched, "
+                        f"+{sstats.get('synonyms_added', 0)} syn, "
+                        f"+{sstats.get('near_synonyms_added', 0)} near_syn",
+                        file=sys.stderr,
+                    )
+                except Exception as exc:
+                    print(f"  synonym {sf.name}: ERROR - {exc}", file=sys.stderr)
+
+            # 5. 搭配辞典（collocations_*.jsonl）
+            collocation_files = sorted(dict_dir.glob("collocations_*.jsonl"))
+            for cf in collocation_files:
+                try:
+                    self.snet, cstats = ingest_collocation_dict(self.snet, cf)
+                    print(
+                        f"  collocation {cf.name}: "
+                        f"{cstats.get('entries_total', 0)} entries, "
+                        f"{cstats.get('entries_matched', 0)} matched, "
+                        f"+{cstats.get('syntagmatic_added', 0)} syntag",
+                        file=sys.stderr,
+                    )
+                except Exception as exc:
+                    print(f"  collocation {cf.name}: ERROR - {exc}", file=sys.stderr)
 
             n_sigs = len(self.snet.signifiers)
             n_edges = len(self.snet.edges)
@@ -753,8 +789,9 @@ class TopologicalDaemon:
         """One step: traverse -> encounter -> operate -> terrain -> gap detect -> crystallization."""
         self.total_steps += 1
 
-        # Capture pre-step state for persistence diff
-        if self._persist:
+        # Capture pre-step state for persistence diff and SharedLayer sync
+        _need_diff = self._persist or self._shared_layer is not None
+        if _need_diff:
             pre_vids = set(self.k_full.vertices.keys())
             pre_edges = set(self.k_full.edges)
             # Track K_active vertex statuses to detect fold state changes
@@ -863,16 +900,25 @@ class TopologicalDaemon:
             self._local_f_history.clear()
             self._beta_1_history.clear()
 
-        # Persist graph state changes (always, not just for significant events)
-        if self._persist:
-            # Write new vertices created by this step (in K_full)
-            for vid, v in self.k_full.vertices.items():
+        # Compute graph diffs (used by both persistence and SharedLayer sync)
+        new_vids: set[str] = set()
+        new_edges: set = set()
+        if _need_diff:
+            for vid in self.k_full.vertices:
                 if vid not in pre_vids:
-                    self._persist.append_vertex(v)
-            # Write new edges created by this step (in K_full)
+                    new_vids.add(vid)
             for e in self.k_full.edges:
                 if e not in pre_edges:
-                    self._persist.append_edge(e)
+                    new_edges.add(e)
+
+        # Persist graph state changes (always, not just for significant events)
+        if self._persist:
+            for vid in new_vids:
+                v = self.k_full.vertices.get(vid)
+                if v is not None:
+                    self._persist.append_vertex(v)
+            for e in new_edges:
+                self._persist.append_edge(e)
             # Detect and write fold merges (ACTIVE → FOLDED with edge redirect)
             for vid, v in self.k_active.vertices.items():
                 old_status = pre_active_statuses.get(vid)
@@ -938,9 +984,12 @@ class TopologicalDaemon:
             self._last_gap_check_step = self.total_steps
             self._cumulative_delta_beta_1 = 0.0
 
-        # Plan C: write traversal position to SharedLayer (throttled)
+        # Plan C: write sync blocks to SharedLayer (each method self-throttles)
         if self._shared_layer is not None:
             self._write_traversal_position(log)
+            self._write_graph_delta(log, new_vids, new_edges)
+            self._write_settlement_event(new_settled)
+            self._write_snet_update()
 
     def _write_traversal_position(self, log) -> None:
         """Write traversal_position block to SharedLayer.
@@ -985,6 +1034,167 @@ class TopologicalDaemon:
         self._last_position_write_time = now
         self._last_position_write_label = position_label
 
+    def _write_graph_delta(self, log, new_vids: set[str], new_edges: set) -> None:
+        """Write graph delta block to SharedLayer on significant events.
+
+        Only fires on fold/negate/sublate — the operations that change topology.
+        Throttled: at most once per 3 seconds (unless forced by sublate).
+        Includes new vertices and edges created by this step.
+        """
+        if not log.operation in ("fold", "negate", "sublate"):
+            return
+        if not new_vids and not new_edges:
+            return
+
+        now = time.time()
+        elapsed = now - self._last_graph_delta_write_time
+        if elapsed < 3.0 and log.operation != "sublate":
+            return
+
+        vertices_data = []
+        for vid in new_vids:
+            v = self.k_active.vertex(vid)
+            if v is not None:
+                vertices_data.append({
+                    "id": v.id,
+                    "status": v.status.value,
+                    "content": v.content,
+                    "created_at": v.created_at,
+                })
+
+        edges_data = []
+        for e in new_edges:
+            edges_data.append({
+                "source": e.source,
+                "target": e.target,
+                "edge_type": e.edge_type.value,
+                "created_at": e.created_at,
+            })
+
+        block = {
+            "type": "graph_delta",
+            "instance": self._instance_id,
+            "step": self.total_steps,
+            "timestamp": now,
+            "operation": log.operation,
+            "position": log.position,
+            "encounter": log.encounter or "",
+            "f_value": log.f_value,
+            "vertices": vertices_data,
+            "edges": edges_data,
+        }
+        try:
+            block_hash = self._shared_layer.write_block(block)
+            self._cross_instance_sync.known_blocks.add(block_hash)
+            self._last_graph_delta_write_time = now
+        except Exception:
+            pass  # graceful degradation: log failure, don't crash
+
+    def _write_settlement_event(self, new_settled: list) -> None:
+        """Write settlement event blocks to SharedLayer for newly settled cycles.
+
+        One block per newly settled cycle. No throttle — settlements are rare
+        and each one is significant.
+        """
+        if not new_settled:
+            return
+
+        now = time.time()
+        for sc in new_settled:
+            block = {
+                "type": "settlement_event",
+                "instance": self._instance_id,
+                "step": self.total_steps,
+                "timestamp": now,
+                "settled_at_step": sc.settled_at_step,
+                "cycle_edges": sorted(sc.edges),
+                "residue": sc.residue or [],
+            }
+            try:
+                block_hash = self._shared_layer.write_block(block)
+                self._cross_instance_sync.known_blocks.add(block_hash)
+            except Exception:
+                pass
+
+    def _write_snet_update(self) -> None:
+        """Write S_net activation state to SharedLayer when activation set changes.
+
+        Throttled: at most once per 5 seconds AND only when the active set changed.
+        """
+        if self.snet_activation is None:
+            return
+
+        current_active = frozenset(self.snet_activation.currently_active)
+        if current_active == self._last_snet_active_snapshot:
+            return
+
+        now = time.time()
+        elapsed = now - self._last_snet_write_time
+        if elapsed < 5.0:
+            return
+
+        block = {
+            "type": "snet_update",
+            "instance": self._instance_id,
+            "step": self.total_steps,
+            "timestamp": now,
+            "currently_active": sorted(current_active),
+            "dialogue_focus_set": sorted(self.snet_activation._dialogue_focus_set),
+            "edge_suggestions": [
+                s.to_dict() for s in self.snet_activation.edge_suggestions[-10:]
+            ],
+            "internal_speech_buffer": [
+                f.to_dict() for f in self.snet_activation.internal_speech_buffer[-5:]
+            ],
+        }
+        try:
+            block_hash = self._shared_layer.write_block(block)
+            self._cross_instance_sync.known_blocks.add(block_hash)
+            self._last_snet_write_time = now
+            self._last_snet_active_snapshot = set(current_active)
+        except Exception:
+            pass
+
+    def _write_feed_event(self, sub_graph: "Graph", text: str) -> None:
+        """Write feed event block to SharedLayer.
+
+        Every feed is significant (external input). No throttle.
+        """
+        vertices_data = []
+        for vid in sub_graph.active_vertex_ids():
+            v = sub_graph.vertex(vid)
+            if v is not None:
+                vertices_data.append({
+                    "id": v.id,
+                    "status": v.status.value,
+                    "content": v.content,
+                    "created_at": v.created_at,
+                })
+
+        edges_data = []
+        for e in sub_graph.edges:
+            edges_data.append({
+                "source": e.source,
+                "target": e.target,
+                "edge_type": e.edge_type.value,
+                "created_at": e.created_at,
+            })
+
+        block = {
+            "type": "feed_event",
+            "instance": self._instance_id,
+            "step": self.total_steps,
+            "timestamp": time.time(),
+            "text_hash": hash(text) & 0xFFFFFFFF,
+            "vertices": vertices_data,
+            "edges": edges_data,
+        }
+        try:
+            block_hash = self._shared_layer.write_block(block)
+            self._cross_instance_sync.known_blocks.add(block_hash)
+        except Exception:
+            pass
+
     def feed(self, text: str) -> Graph:
         """External text injection. phi_L processes, then inject into K_active."""
         from phi_L import phi_L
@@ -992,6 +1202,9 @@ class TopologicalDaemon:
         self._inject(sub_graph)
         self._fire("on_feed", sub_graph)
         self.total_feeds += 1
+        # Sync feed event to SharedLayer
+        if self._shared_layer is not None:
+            self._write_feed_event(sub_graph, text)
         return sub_graph
 
     def ingest_code(self, dirpath: str, source: str = "") -> Graph:

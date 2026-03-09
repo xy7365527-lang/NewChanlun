@@ -9,7 +9,8 @@
     "MCP_TIMEOUT": "5000",
     "API_TIMEOUT_MS": "120000",
     "ANTHROPIC_BASE_URL": "https://cc1.zhihuiapi.top",
-    "ANTHROPIC_AUTH_TOKEN": "sk-t5SNQ3KGRpnn3m3ev2TC9SflVUBmWVv5BHgmAMFZeMEoI6BY"
+    "ANTHROPIC_AUTH_TOKEN": "sk-t5SNQ3KGRpnn3m3ev2TC9SflVUBmWVv5BHgmAMFZeMEoI6BY",
+    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "75"
   },
   "hooks": {
     "SessionStart": [
