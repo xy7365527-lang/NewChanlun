@@ -441,8 +441,9 @@ def _drain_present_queue(daemon, present_queue: Queue,
             text = request.get("text", "")
             session_id = request.get("session_id", "default")
             request_id = request.get("request_id", "")
+            force_llm = request.get("force_llm", False)
 
-            result = present_json(daemon, text, session_id)
+            result = present_json(daemon, text, session_id, force_llm=force_llm)
             if result is None:
                 result = {
                     "type": "silence",

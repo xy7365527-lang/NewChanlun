@@ -151,12 +151,14 @@ class DaemonHTTPHandler(BaseHTTPRequestHandler):
             if not text:
                 self._json_response({"error": "missing text parameter"}, status=400)
                 return
-            result = self._handle_feed(text)
+            force_llm = data.get("force_llm", False)
+            result = self._handle_feed(text, force_llm=force_llm)
             self._json_response(result)
         elif path == "/present":
             # text can be empty string (user clicked expression pressure indicator)
             text = data.get("text", "")
-            result = present_json(self.daemon, text)
+            force_llm = data.get("force_llm", False)
+            result = present_json(self.daemon, text, force_llm=force_llm)
             if result is None:
                 self._json_response({
                     "type": "silence",
@@ -225,14 +227,14 @@ class DaemonHTTPHandler(BaseHTTPRequestHandler):
             "crystallized": crystallized,
         }
 
-    def _handle_feed(self, text: str) -> dict:
+    def _handle_feed(self, text: str, force_llm: bool = False) -> dict:
         """Manual text injection via S_net unified path (v204).
 
         No longer bypasses S_net to inject directly into K_active.
         Flow: text → phi_L whitelist → S_net writeback → resonate → externalize.
         """
         daemon = self.daemon
-        result = feed_via_snet(daemon, text, source_type="api_feed")
+        result = feed_via_snet(daemon, text, source_type="api_feed", force_llm=force_llm)
         return {
             "accepted": True,
             "writeback_edges": result["writeback_edges"],
