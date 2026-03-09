@@ -1,8 +1,9 @@
-"""internal_speech.py — 外化接缝：内部言语 → LLM → 言语输出.
+"""internal_speech.py — 外化接缝：内部言语 → 外部言语.
 
-取消 ConstraintSet 作为中间产物，替换为 InternalSpeechSnapshot。
-LLM 不是在"约束下自由发挥"，而是把已成型的内部言语转化为
-语法上合法的外部言语。
+三层输出架构（v207 重构）：
+  1. 默认层（纯拓扑描述）：穿越事件的结构描述，每个字都来自逢亮自己的穿越产出
+  2. S_net 组装层：当 connective_patterns 覆盖语段时，用 connective_patterns 组装自然语言
+  3. LLM fallback：只在 operator 明确请求时调用（force_llm=True）
 
 核心流程：
   SNetActivation.internal_speech_buffer（已成型语段）
@@ -10,10 +11,12 @@ LLM 不是在"约束下自由发挥"，而是把已成型的内部言语转化�
   + SettlementTracker（锁定/排除的能指）
     → build_snapshot()
     → InternalSpeechSnapshot
-    → snapshot_to_prompt()
-    → LLM（语言器官角色）
+    → 三层路由：
+        有 connective_patterns → _assemble_from_patterns()
+        无 connective_patterns → _structural_description()
+        force_llm=True → snapshot_to_prompt() → LLM
     → externalize()
-    → 外部言语 + OutputRupture 追踪 + S_net 回写
+    → 外部言语 + OutputRupture 追踪（仅 LLM 路径）+ S_net 回写（仅 LLM 路径）
 
 认识论等级：L0（接口定义 + 拓扑操作，无经验假设）
 """
@@ -314,33 +317,124 @@ def _detect_output_ruptures(
 
 
 # ---------------------------------------------------------------------------
+# _assemble_from_patterns — S_net 组装层
+# ---------------------------------------------------------------------------
+
+def _assemble_from_patterns(
+    snapshot: InternalSpeechSnapshot,
+    daemon: TopologicalDaemon,
+) -> str:
+    """从 connective_patterns 组装自然语言，不调 LLM.
+
+    取 formed_fragments 中的 signifiers 序列和 connective_patterns，
+    用 connective_patterns 作为句间连接把能指串联成自然语言。
+    如果某个连接处没有 pattern，用最简的结构连接（"→"）。
+    """
+    parts: list[str] = []
+
+    for frag in snapshot.formed_fragments:
+        if frag.connective_patterns:
+            # connective_patterns 和 signifiers 交织
+            # patterns[i] 连接 signifiers[i] 和 signifiers[i+1]
+            sig_list = list(frag.signifiers)
+            pat_list = list(frag.connective_patterns)
+            assembled: list[str] = []
+            for i, sig in enumerate(sig_list):
+                assembled.append(sig)
+                if i < len(pat_list):
+                    assembled.append(pat_list[i])
+                elif i < len(sig_list) - 1:
+                    assembled.append("→")
+            parts.append("".join(assembled))
+        else:
+            # 无 patterns，用箭头连接
+            parts.append(" → ".join(frag.signifiers))
+
+    if not parts:
+        return ""
+
+    return "。".join(parts)
+
+
+# ---------------------------------------------------------------------------
+# _structural_description — 纯拓扑描述层
+# ---------------------------------------------------------------------------
+
+def _structural_description(
+    snapshot: InternalSpeechSnapshot,
+    daemon: TopologicalDaemon,
+) -> str:
+    """输出穿越事件的结构描述，每个字都是逢亮自己的穿越产出.
+
+    格式：经过 {节点名}，{操作类型} → {目标节点}，β₁: {before}→{after}
+    包含 internal_speech_buffer 中的能指序列。
+    """
+    parts: list[str] = []
+
+    # 从穿越引擎日志中取最近的事件
+    if daemon.engine and daemon.engine.logs:
+        recent_logs = daemon.engine.logs[-5:]
+        for log in recent_logs:
+            pos_label = _vertex_label(daemon, log.position)
+            entry = f"经过 {pos_label}"
+            if log.encounter and log.encounter != "walk":
+                entry += f"({log.encounter})"
+            if log.operation and log.operation != "walk":
+                entry += f" → {log.operation}"
+            if log.delta_beta_1 != 0:
+                entry += f"，β₁: {log.beta_1_before}→{log.beta_1_after}"
+            parts.append(entry)
+
+    # 附加 formed_fragments 中的能指序列
+    for frag in snapshot.formed_fragments:
+        sig_str = " → ".join(frag.signifiers)
+        parts.append(f"[能指序列: {sig_str}]")
+
+    if not parts:
+        pos = "未知区域"
+        if daemon.engine and daemon.engine.position:
+            pos = _vertex_label(daemon, daemon.engine.position)
+        return f"当前位置: {pos}"
+
+    return "；".join(parts)
+
+
+def _vertex_label(daemon: TopologicalDaemon, vertex_id: str) -> str:
+    """获取顶点的可读标签."""
+    v = daemon.k_active.vertices.get(vertex_id)
+    if v and v.content:
+        return v.content
+    return vertex_id
+
+
+# ---------------------------------------------------------------------------
 # externalize — 完整外化流程
 # ---------------------------------------------------------------------------
 
 def externalize(
     daemon: TopologicalDaemon,
     user_text: str = "",
+    force_llm: bool = False,
 ) -> dict:
-    """完整外化流程：内部言语 → LLM → 外部言语.
+    """完整外化流程：内部言语 → 三层路由 → 外部言语.
 
-    步骤：
-      1. build_snapshot
-      2. snapshot_to_prompt
-      3. LLM 调用（language_organ 角色）
-      4. 标记已外化语段
-      5. writeback_output 回写 S_net
-      6. 输出侧断裂追踪
-      7. 审计记录
+    三层路由：
+      1. force_llm=True → LLM 路径（snapshot_to_prompt → LLM 调用）
+      2. connective_patterns 覆盖 → _assemble_from_patterns
+      3. 默认 → _structural_description（纯拓扑描述）
 
     参数：
       daemon:    TopologicalDaemon 实例
       user_text: 用户输入文本（被动外化时传入，主动外化时为空）
+      force_llm: operator 明确请求 LLM 语法填充时为 True
 
     返回：
       dict with:
         type: "externalize"
-        content: LLM 生成的外部言语
+        content: 外部言语
+        source: "structural" | "connective_patterns" | "llm_fallback"
         llm_used: bool
+        llm_fraction: float  (LLM 生成内容占比)
         snapshot: InternalSpeechSnapshot.to_dict()
         output_ruptures: list[OutputRupture.to_dict()]
         writeback_edges: int
@@ -360,14 +454,102 @@ def externalize(
     if not snapshot.formed_fragments and not snapshot.active_signifiers:
         return _fallback_response(daemon, user_text)
 
-    # 2. snapshot_to_prompt
+    # 2. 三层路由
+    trigger = "passive" if user_text else "active"
+
+    if force_llm:
+        # 层3: LLM 路径
+        result = _externalize_via_llm(snapshot, daemon, user_text)
+    elif _has_connective_patterns(snapshot):
+        # 层2: S_net 组装
+        content = _assemble_from_patterns(snapshot, daemon)
+        result = {
+            "content": content,
+            "source": "connective_patterns",
+            "llm_used": False,
+            "llm_fraction": 0.0,
+            "output_ruptures": [],
+            "writeback_edges": 0,
+        }
+    else:
+        # 层1: 纯拓扑描述
+        content = _structural_description(snapshot, daemon)
+        result = {
+            "content": content,
+            "source": "structural",
+            "llm_used": False,
+            "llm_fraction": 0.0,
+            "output_ruptures": [],
+            "writeback_edges": 0,
+        }
+
+    # 3. 标记已外化语段
+    _mark_externalized(activation, snapshot.formed_fragments)
+
+    # 4. 审计记录
+    try:
+        record = GenerationRecord(
+            provider=result["source"] if not result["llm_used"] else "auto",
+            model="internal_speech_externalize",
+            register=snapshot.formality,
+            must_use=list(snapshot.locked_signifiers),
+            must_avoid=list(snapshot.excluded_signifiers),
+            expression_pressure=[
+                " → ".join(f.signifiers) for f in snapshot.formed_fragments
+            ],
+            narrative_spine=snapshot.dominant_domain,
+            surface_forms_count=len(snapshot.active_signifiers),
+            system_prompt_len=0,
+            user_prompt_len=len(user_text),
+            response_text=result["content"][:2000],
+            response_len=len(result["content"]),
+            success=True,
+            error="",
+        )
+        _append_audit(record)
+    except Exception:
+        pass
+
+    return {
+        "type": "externalize",
+        "content": result["content"],
+        "source": result["source"],
+        "llm_used": result["llm_used"],
+        "llm_fraction": result["llm_fraction"],
+        "snapshot": snapshot.to_dict(),
+        "output_ruptures": result["output_ruptures"],
+        "writeback_edges": result["writeback_edges"],
+        "trigger": trigger,
+    }
+
+
+def _has_connective_patterns(snapshot: InternalSpeechSnapshot) -> bool:
+    """检查是否有任何 formed_fragment 具有 connective_patterns."""
+    return any(
+        frag.connective_patterns
+        for frag in snapshot.formed_fragments
+    )
+
+
+def _externalize_via_llm(
+    snapshot: InternalSpeechSnapshot,
+    daemon: TopologicalDaemon,
+    user_text: str,
+) -> dict:
+    """LLM 路径：仅在 force_llm=True 时调用.
+
+    输出中所有 LLM 生成的内容标注 [LLM填充]。
+    """
+    snet = daemon.snet
+
+    # snapshot → prompt
     system_prompt, user_prompt = snapshot_to_prompt(snapshot)
 
-    # 被动外化时，用户文本附加到 user_prompt 末尾
+    # 被动外化时附加用户文本
     if user_text:
         user_prompt += f"\n\n用户说：{user_text}\n请在回应用户的同时，将内部言语自然地融入回答。"
 
-    # 3. LLM 调用
+    # LLM 调用
     client = _get_llm_client()
     llm_used = False
     content = ""
@@ -380,21 +562,28 @@ def externalize(
             system=system_prompt,
         )
         if response:
-            content = response.strip()
+            content = f"[LLM填充] {response.strip()}"
             llm_used = True
     except Exception as exc:
         llm_error = f"外化调用失败: {type(exc).__name__}: {exc}"
 
-    # Fallback
+    # LLM 失败时退化到结构描述
     if not content:
-        content = _build_fallback_text(snapshot, daemon, llm_error)
+        content = _structural_description(snapshot, daemon)
+        if llm_error:
+            content = f"[语言器官离线] {llm_error}。{content}"
+        return {
+            "content": content,
+            "source": "structural",
+            "llm_used": False,
+            "llm_fraction": 0.0,
+            "output_ruptures": [],
+            "writeback_edges": 0,
+        }
 
-    # 4. 标记已外化语段
-    _mark_externalized(activation, snapshot.formed_fragments)
-
-    # 5. writeback: LLM 输出 → S_net 共现边
+    # writeback: LLM 输出 → S_net 共现边（仅 LLM 路径执行）
     writeback_edges = 0
-    if content and snet.signifiers:
+    if snet.signifiers:
         whitelist = set(snet.signifiers.keys())
         ts = str(int(time.time()))
         new_snet, log_entries = writeback_from_text(
@@ -404,42 +593,16 @@ def externalize(
             daemon.snet = new_snet
             writeback_edges = len(log_entries)
 
-    # 6. 输出侧断裂追踪
+    # 输出侧断裂追踪（仅 LLM 路径执行）
     output_ruptures = _detect_output_ruptures(content, snapshot, snet)
 
-    # 7. 审计记录
-    trigger = "passive" if user_text else "active"
-    try:
-        record = GenerationRecord(
-            provider="auto" if llm_used else "fallback",
-            model="internal_speech_externalize",
-            register=snapshot.formality,
-            must_use=list(snapshot.locked_signifiers),
-            must_avoid=list(snapshot.excluded_signifiers),
-            expression_pressure=[
-                " → ".join(f.signifiers) for f in snapshot.formed_fragments
-            ],
-            narrative_spine=snapshot.dominant_domain,
-            surface_forms_count=len(snapshot.active_signifiers),
-            system_prompt_len=len(system_prompt),
-            user_prompt_len=len(user_prompt),
-            response_text=content[:2000],
-            response_len=len(content),
-            success=llm_used,
-            error=llm_error,
-        )
-        _append_audit(record)
-    except Exception:
-        pass
-
     return {
-        "type": "externalize",
         "content": content,
+        "source": "llm_fallback",
         "llm_used": llm_used,
-        "snapshot": snapshot.to_dict(),
+        "llm_fraction": 1.0,
         "output_ruptures": [r.to_dict() for r in output_ruptures],
         "writeback_edges": writeback_edges,
-        "trigger": trigger,
     }
 
 
@@ -472,37 +635,6 @@ def _mark_externalized(
     activation.internal_speech_buffer = new_buffer
 
 
-def _build_fallback_text(
-    snapshot: InternalSpeechSnapshot,
-    daemon: TopologicalDaemon,
-    error: str,
-) -> str:
-    """LLM 不可用时的退化文本生成."""
-    parts: list[str] = []
-
-    if error:
-        parts.append(f"[语言器官离线] {error}")
-
-    # 从已成型语段直接拼接
-    for frag in snapshot.formed_fragments:
-        sig_str = "、".join(frag.signifiers)
-        if frag.connective_patterns:
-            conn = frag.connective_patterns[0]
-            parts.append(f"{sig_str}——{conn}")
-        else:
-            parts.append(sig_str)
-
-    if not parts:
-        pos = "未知区域"
-        if daemon.engine and daemon.engine.position:
-            v = daemon.k_active.vertices.get(daemon.engine.position)
-            if v and v.content:
-                pos = v.content
-        parts.append(f"我在节点 '{pos}'，当前无成型的内部言语。")
-
-    return "。".join(parts)
-
-
 def _fallback_response(daemon: TopologicalDaemon, user_text: str) -> dict:
     """无 SNetActivation 或无内容时的退化响应."""
     pos = "未知区域"
@@ -513,8 +645,10 @@ def _fallback_response(daemon: TopologicalDaemon, user_text: str) -> dict:
 
     return {
         "type": "externalize",
-        "content": f"我在节点 '{pos}'，当前无成型的内部言语。",
+        "content": f"当前位置: {pos}，无成型的内部言语。",
+        "source": "structural",
         "llm_used": False,
+        "llm_fraction": 0.0,
         "snapshot": {},
         "output_ruptures": [],
         "writeback_edges": 0,
