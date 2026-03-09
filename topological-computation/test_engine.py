@@ -193,14 +193,11 @@ def test_sublate_after_negate():
 
 
 def test_sublate_requires_negation():
-    """Sublate without prior negation should raise."""
+    """Sublate without prior negation should return blocked result."""
     g = _make_triangle()
     s = SettlementTracker()
-    try:
-        sublate(g, "A", "B", step=1, settlement=s, **_make_sublation_args("A", "B"))
-        assert False, "Should have raised ValueError"
-    except ValueError:
-        pass
+    result = sublate(g, "A", "B", step=1, settlement=s, **_make_sublation_args("A", "B"))
+    assert result.blocked, "Sublate without negation edge should be blocked"
 
 
 # ---------------------------------------------------------------------------

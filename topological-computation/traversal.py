@@ -447,8 +447,32 @@ class TraversalEngine:
                         f_value=f_val,
                     )
 
-        # 3. Fold: current position shares multiple neighbors with a previously visited vertex
-        # (Nachträglichkeit — identity detected across traversal history, not local neighborhood)
+        # 3. Fold: two detection paths (393号 categorical criterion)
+        #    Path A (393·4): f(pos, nb) == 0 for any active neighbor → categorical fold
+        #       f=0 means (c=1 ∧ n_loop=0) — shared neighbors fully connected, no loops.
+        #       This is a categorical sufficient condition, not a continuous threshold.
+        #    Path B (original): current position shares ≥2 neighbors with historical vertex
+        #       (Nachträglichkeit — identity detected across traversal history)
+
+        # Path A: f=0 categorical fold (393·4)
+        for nb in neighbors:
+            if nb == pos or nb not in active:
+                continue
+            nb_is_synthetic = nb.startswith("syn_") or nb.startswith("anti_")
+            if pos.startswith("syn_") or pos.startswith("anti_") or nb_is_synthetic:
+                continue
+            pair_key = frozenset((pos, nb))
+            if pair_key in self._attempted_folds:
+                continue
+            f_val = self._compute_f(pos, nb)
+            if f_val == 0:
+                return Encounter(
+                    EncounterType.FOLD, pos, nb,
+                    f"f=0 categorical fold: {pos} and {nb} are topologically equivalent (c=1, n_loop=0)",
+                    f_value=f_val,
+                )
+
+        # Path B: shared neighbor fold (Nachträglichkeit)
         if len(self.visit_history) > 3:
             pos_nbs = set(self.k_active.neighbors(pos))
             seen: set[str] = set()
