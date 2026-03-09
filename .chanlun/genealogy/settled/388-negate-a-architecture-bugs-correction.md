@@ -9,7 +9,7 @@ session: v168
 source: v167-swarm/v168-swarm 实验（Phase 3 调试过程）
 negation_source: homogeneous
 negation_form: expansion
-topo_effect: "split:negate_a:local — negate_a 原始实现分裂为两个：一个保留bidirectional检测框架，一个携带自引用振荡+hub效应两条违反记录"
+topo_effect: "split:negate_a:local — negate_a 原始实现分裂为两个：一个保留bidirectional检测框架，一个携带自引用振荡+hub效应两条违反记录 [executed: v208-swarm]"
 depends_on: []
 epistemological_level: L2
 ---

@@ -60,8 +60,8 @@ Gemini对拓扑计算引擎中f(v,w)和g(v,w)两个函数的代数性质进行�
 
 1. **f ≤ g-1 的实验验证** → `resolved: 被392号数据回答——f的预测方向被否定（fold发生在f较大的对上而非f较小的对），但f<g-1在数据中成立（fold的f均值10.85 < negate的g均值49.5）。不等式的数值关系成立，但原始语义解读（"f小=fold候选"）被推翻` [audited: v198, consumed — 393号进一步修正：392号P1否定本身是测量错误，f小=fold在初始图上成立]
 2. **g作为negate判据的验证** → `resolved: 被392号数据强烈支持——negate的g均值49.5 >> 随机3.71（p≈0, d=7.03）。g是有效的negate判据` [audited: v198, consumed]
-3. **Φ势函数的实验验证** → `deferred: 需要在实验数据上计算Φ并验证极值位置是否对应fold/negate目标。依赖λ的内禀定义（特征环长度倒数）的计算实现` [audited: v198, deferred — Φ未计算，λ未实现]
-4. **λ的内禀计算实现** → `deferred: 需要在traversal.py中实现特征环长度的计算。依赖图的环结构分析，计算复杂度待评估` [audited: v198, deferred — 未实现]
+3. **Φ势函数的实验验证** → `deferred: 需要在实验数据上计算Φ并验证极值位置是否对应fold/negate目标。依赖λ的内禀定义（特征环长度倒数）的计算实现` [audited: v198, deferred — Φ未计算，λ未实现] [deferred-ack: v208-swarm]
+4. **λ的内禀计算实现** → `deferred: 需要在traversal.py中实现特征环长度的计算。依赖图的环结构分析，计算复杂度待评估` [audited: v198, deferred — 未实现] [deferred-ack: v208-swarm]
 
 ## 5. 谱系引用
 

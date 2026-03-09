@@ -9,7 +9,7 @@ session: v165
 source: 编排者否定 → CC修正 → Gemini derive验证（三方协作修正链）
 negation_source: homogeneous
 negation_form: expansion
-topo_effect: "split:Q-R3-2:downstream — Q-R3-2原始结论分裂为两个节点：一个保留梯度流语义框架，一个携带collapse≠quotient的违反记录"
+topo_effect: "split:Q-R3-2:downstream — Q-R3-2原始结论分裂为两个节点：一个保留梯度流语义框架，一个携带collapse≠quotient的违反记录 [executed: v208-swarm]"
 depends_on:
   - '382'   # 架构路径研究方向——Gemini decide
   - '378'   # 持续同调研究线

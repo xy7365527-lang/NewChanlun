@@ -21,6 +21,7 @@ import json
 import glob
 import os
 import re
+import subprocess
 import yaml
 
 
@@ -187,6 +188,34 @@ def compute_downstream_resolution_rate(root, t_minus_1_ids):
     }
 
 
+def check_git_activity(root, t_minus_1_session, t_session):
+    """检查两个 session 之间是否有 git commit 活动。
+
+    从 session 文件的修改时间推断时间范围，用 git log --after/--before
+    统计 commit 数量。有 commit 说明 swarm 有产出（即使 settled 没变化）。
+
+    返回 (commit_count: int, has_activity: bool)。
+    异常时返回 (0, False)，不阻塞主流程。
+    """
+    try:
+        t_minus_1_mtime = os.path.getmtime(t_minus_1_session)
+        t_mtime = os.path.getmtime(t_session)
+        # git log --after 使用 ISO 格式
+        import datetime
+        after = datetime.datetime.fromtimestamp(t_minus_1_mtime).strftime("%Y-%m-%dT%H:%M:%S")
+        before = datetime.datetime.fromtimestamp(t_mtime).strftime("%Y-%m-%dT%H:%M:%S")
+        result = subprocess.run(
+            ["git", "log", "--oneline", f"--after={after}", f"--before={before}"],
+            capture_output=True, text=True, cwd=root, timeout=10,
+        )
+        if result.returncode == 0:
+            lines = [l for l in result.stdout.strip().split("\n") if l.strip()]
+            return len(lines), len(lines) > 0
+    except Exception:
+        pass
+    return 0, False
+
+
 def classify_finding(finding_type, detail):
     """构造一个标准 finding 条目。"""
     return {"type": finding_type, "detail": detail}
@@ -234,11 +263,21 @@ def audit(root=None):
         t_minus_1_summary["delta_settled"] = delta_settled
 
         if delta_settled == 0:
-            findings.append(classify_finding(
-                "stagnation",
-                f"t-1({t_minus_1_time}) 到 t({t_time}) 之间 settled 计数未变化"
-                f"（均为 {t_settled}），RTAS 循环可能停滞",
-            ))
+            # 406号修复：检查 git commit 活动——settled 不变但有代码产出不算停滞
+            git_commits, has_git_activity = check_git_activity(root, t_minus_1_session, t_session)
+            if has_git_activity:
+                findings.append(classify_finding(
+                    "progression",
+                    f"t-1({t_minus_1_time}) 到 t({t_time}) 之间 settled 计数未变化"
+                    f"（均为 {t_settled}），但有 {git_commits} 个 git commit，"
+                    f"swarm 产出为基础设施/代码工作",
+                ))
+            else:
+                findings.append(classify_finding(
+                    "stagnation",
+                    f"t-1({t_minus_1_time}) 到 t({t_time}) 之间 settled 计数未变化"
+                    f"（均为 {t_settled}）且无 git commit 活动，RTAS 循环可能停滞",
+                ))
         elif delta_settled < 0:
             findings.append(classify_finding(
                 "anomaly",

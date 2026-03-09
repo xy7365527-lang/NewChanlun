@@ -1857,7 +1857,7 @@ nodes:
   type: meta-rule
   file: settled/383-meta-observation-v164-swarm.md
 - id: '384'
-  title: 'R3-Q2 β₁差值分解公式精确化——编排者双重否定驱动'
+  title: R3-Q2 β₁差值分解公式精确化——编排者双重否定驱动
   status: 已结算
   type: bias-correction
   file: settled/384-R3-Q2-beta1-formula-correction.md
@@ -1962,6 +1962,11 @@ nodes:
   status: 已结算
   type: 矛盾发现
   file: settled/405-alphago-isomorphic-overclaim.md
+- id: '406'
+  title: 元观察——v207-swarm（LLM填充否定 + auto-feed默认化 + 语言器官三层重构 + 基础设施连续性 + ceremony_scan精度问题）
+  status: 已结算
+  type: meta-rule
+  file: settled/406-meta-observation-v207-swarm.md
 edges:
   depends_on:
   - from: '136'
@@ -4122,6 +4127,12 @@ edges:
     to: '397'
   - from: '399'
     to: '398'
+  - from: '406'
+    to: '399'
+  - from: '406'
+    to: '401'
+  - from: '406'
+    to: '402'
   triggered:
   - from: '005'
     to: 005a

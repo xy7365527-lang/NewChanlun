@@ -913,6 +913,13 @@ def _scan_genealogy_proposals(root, gangmu_data):
                 if any(kw in check_text for kw in ("已执行", "resolved", "已完成", "— **已执行**", "superseded")):
                     continue
 
+                # 406号修复：识别 [audited: vNNN, consumed/deferred] 标记
+                # 实际格式可能含附加说明：[audited: v198, consumed — 方法论记录]
+                if re.search(r'\[audited:\s*v?\d+[^]]*,\s*consumed\b', check_text):
+                    continue
+                if re.search(r'\[audited:\s*v?\d+[^]]*,\s*deferred\b', check_text):
+                    continue
+
                 # 精确匹配：推论文本中引用了某个 target
                 covered = False
                 for target in existing_targets:
