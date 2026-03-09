@@ -9,3 +9,16 @@
 {"term": "Dasein", "lang": "de", "definition": "Thesaurus entry: existence, being-there, presence.", "synonyms": ["Existenz", "Leben", "Anwesenheit", "Beisein", "Gegenwart", "Praesenz", "Bestehen", "Vorhandensein"], "source": "openthesaurus", "domain": "general"}
 {"term": "Wesen", "lang": "de", "definition": "Thesaurus entry: essence, being, creature, character.", "synonyms": ["Essenz", "Hauptsache", "Kernstueck", "Substanz", "Lebewesen", "Geschoepf", "Kreatur", "Organismus", "Charakter", "Eigenart", "Gemuet", "Naturell", "Persoenlichkeit", "Temperament"], "source": "openthesaurus", "domain": "general"}
 {"term": "Begriff", "lang": "de", "definition": "Thesaurus entry: concept, notion, term.", "synonyms": ["Anschauung", "Auffassung", "Bild", "Idee", "Vorstellung", "Bezeichnung", "Name", "Begrifflichkeit", "Designator", "Ausdruck", "Wort"], "source": "openthesaurus", "domain": "general"}
+{"term": "Erkenntnis", "definition": "Synonyme: Wissen, Einsicht, Verständnis, Bewusstsein, Kenntnis, Durchblick, Klarsicht", "source": "openthesaurus", "domain": "thesaurus", "lang": "de"}
+{"term": "Freiheit", "definition": "Synonyme: Unabhängigkeit, Autonomie, Selbstbestimmung, Souveränität, Selbständigkeit, Ungebundenheit", "source": "openthesaurus", "domain": "thesaurus", "lang": "de"}
+{"term": "Wahrheit", "definition": "Synonyme: Wirklichkeit, Realität, Tatsache, Richtigkeit, Authentizität, Wahrhaftigkeit", "source": "openthesaurus", "domain": "thesaurus", "lang": "de"}
+{"term": "Widerspruch", "definition": "Synonyme: Gegensatz, Konflikt, Diskrepanz, Inkongruenz, Unvereinbarkeit, Antinomie, Paradox", "source": "openthesaurus", "domain": "thesaurus", "lang": "de"}
+{"term": "Entwicklung", "definition": "Synonyme: Entfaltung, Evolution, Fortschritt, Wachstum, Reifung, Progression, Genese", "source": "openthesaurus", "domain": "thesaurus", "lang": "de"}
+{"term": "Vernunft", "definition": "Synonyme: Verstand, Rationalität, Logik, Besonnenheit, Klugheit, Urteilskraft", "source": "openthesaurus", "domain": "thesaurus", "lang": "de"}
+{"term": "Wesen", "definition": "Synonyme: Essenz, Natur, Substanz, Kern, Beschaffenheit, Charakter, Grundwesen", "source": "openthesaurus", "domain": "thesaurus", "lang": "de"}
+{"term": "Erscheinung", "definition": "Synonyme: Phänomen, Manifestation, Auftritt, Äußeres, Anschein, Gestalt", "source": "openthesaurus", "domain": "thesaurus", "lang": "de"}
+{"term": "Bestimmung", "definition": "Synonyme: Determination, Festlegung, Zweck, Berufung, Schicksal, Vorsehung", "source": "openthesaurus", "domain": "thesaurus", "lang": "de"}
+{"term": "Aufklärung", "definition": "Synonyme: Erleuchtung, Illumination, Bildung, Emanzipation, Befreiung des Denkens", "source": "openthesaurus", "domain": "thesaurus", "lang": "de"}
+{"term": "Entfremdung", "definition": "Synonyme: Alienation, Verfremdung, Distanzierung, Isolation, Vereinsamung", "source": "openthesaurus", "domain": "thesaurus", "lang": "de"}
+{"term": "Vermittlung", "definition": "Synonyme: Mediation, Schlichtung, Verknüpfung, Übermittlung, Brücke", "source": "openthesaurus", "domain": "thesaurus", "lang": "de"}
+{"term": "Überwindung", "definition": "Synonyme: Bewältigung, Überbrückung, Transzendenz, Auflösung, Meisterung", "source": "openthesaurus", "domain": "thesaurus", "lang": "de"}

@@ -5,3 +5,19 @@
 {"term": "nbunch", "domain": "code", "definition": "An nbunch is a single node, container of nodes or None (representing all nodes). It can be a list, set, graph, etc. To filter an nbunch so that only nodes actually in G appear, use G.nbunch_iter(nbunch).", "lang": "en", "source": "networkx-glossary", "synonyms": [], "contrasts": []}
 {"term": "node", "domain": "code", "definition": "A node can be any hashable Python object except None.", "lang": "en", "source": "networkx-glossary", "synonyms": [], "contrasts": []}
 {"term": "node attribute", "domain": "code", "definition": "Nodes can have arbitrary Python objects assigned as attributes by using keyword/value pairs when adding a node or assigning to the G.nodes[n] attribute dictionary for the specified node n.", "lang": "en", "source": "networkx-glossary", "synonyms": [], "contrasts": []}
+{"term": "digraph", "definition": "A directed graph where edges have a direction. Created with nx.DiGraph().", "source": "networkx", "domain": "code", "lang": "en"}
+{"term": "multigraph", "definition": "A graph allowing multiple edges between the same pair of nodes. nx.MultiGraph() for undirected.", "source": "networkx", "domain": "code", "lang": "en"}
+{"term": "adjacency matrix", "definition": "Square matrix A where A[i][j]=1 if edge (i,j) exists. nx.adjacency_matrix(G).", "source": "networkx", "domain": "code", "lang": "en"}
+{"term": "degree centrality", "definition": "Fraction of nodes a node is connected to. nx.degree_centrality(G).", "source": "networkx", "domain": "code", "lang": "en"}
+{"term": "betweenness centrality", "definition": "Fraction of shortest paths through a node. Identifies bridges. nx.betweenness_centrality(G).", "source": "networkx", "domain": "code", "lang": "en"}
+{"term": "closeness centrality", "definition": "Reciprocal of average shortest path distance to all other nodes. nx.closeness_centrality(G).", "source": "networkx", "domain": "code", "lang": "en"}
+{"term": "connected component", "definition": "Maximal subgraph where every pair is connected by a path. nx.connected_components(G).", "source": "networkx", "domain": "code", "lang": "en"}
+{"term": "strongly connected", "definition": "In a digraph, every node reachable from every other. nx.strongly_connected_components(G).", "source": "networkx", "domain": "code", "lang": "en"}
+{"term": "shortest path", "definition": "Path with minimum total weight. nx.shortest_path(G, source, target).", "source": "networkx", "domain": "code", "lang": "en"}
+{"term": "clustering coefficient", "definition": "Fraction of neighbor pairs that are also neighbors. nx.clustering(G).", "source": "networkx", "domain": "code", "lang": "en"}
+{"term": "bipartite graph", "definition": "Nodes divide into two sets with edges only between sets. nx.bipartite module.", "source": "networkx", "domain": "code", "lang": "en"}
+{"term": "DAG", "definition": "Directed Acyclic Graph: no cycles. nx.is_directed_acyclic_graph(G).", "source": "networkx", "domain": "code", "lang": "en"}
+{"term": "topological sort", "definition": "Linear ordering where for every edge (u,v), u before v. nx.topological_sort(G).", "source": "networkx", "domain": "code", "lang": "en"}
+{"term": "Laplacian matrix", "definition": "L = D - A. Eigenvalues encode connectivity. nx.laplacian_matrix(G).", "source": "networkx", "domain": "code", "lang": "en"}
+{"term": "pagerank", "definition": "Probability of arriving at node via random walk. nx.pagerank(G).", "source": "networkx", "domain": "code", "lang": "en"}
+{"term": "minimum spanning tree", "definition": "Tree connecting all nodes with minimum total weight. nx.minimum_spanning_tree(G).", "source": "networkx", "domain": "code", "lang": "en"}
