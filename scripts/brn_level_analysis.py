@@ -1,0 +1,398 @@
+#!/usr/bin/env python3
+"""布伦特原油(BRN)级别分析 — 多数据源获取 K 线，RecursiveOrchestrator 计算全级别结构。
+
+数据源：
+  - databento: ICE Brent Crude (IFEU.IMPACT / BRN)，支持 1 分钟级别，需 DATABENTO_API_KEY
+  - yfinance: BZ=F，免费但 1 分钟数据仅 7 天
+
+用法：
+    python scripts/brn_level_analysis.py --source databento --interval 1m --start 2020-01-01
+    python scripts/brn_level_analysis.py --source yfinance --interval 1h --period 2y
+"""
+from __future__ import annotations
+
+import os
+import sys
+from datetime import datetime, date
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+
+import yfinance as yf
+import pandas as pd
+
+from newchan.orchestrator.recursive import RecursiveOrchestrator
+from newchan.types import Bar
+
+
+# ── yfinance → Bar 适配 ──
+
+
+def fetch_bars_yf(
+    ticker: str = "BZ=F",
+    interval: str = "1h",
+    period: str = "2y",
+) -> list[Bar]:
+    """从 yfinance 获取 K 线并转为 Bar 列表。
+
+    Parameters
+    ----------
+    ticker : yfinance ticker（BZ=F = 布伦特原油期货）
+    interval : K线周期 — 1m/2m/5m/15m/30m/60m/90m/1h/1d/5d/1wk/1mo/3mo
+    period : 回溯期 — 1d/5d/1mo/3mo/6mo/1y/2y/5y/10y/ytd/max
+    """
+    t = yf.Ticker(ticker)
+    df = t.history(period=period, interval=interval)
+    if df.empty:
+        raise ValueError(f"yfinance 返回空数据: ticker={ticker}, interval={interval}, period={period}")
+
+    bars: list[Bar] = []
+    for ts, row in df.iterrows():
+        bars.append(Bar(
+            ts=ts.to_pydatetime() if hasattr(ts, "to_pydatetime") else ts,
+            open=float(row["Open"]),
+            high=float(row["High"]),
+            low=float(row["Low"]),
+            close=float(row["Close"]),
+            volume=float(row["Volume"]) if pd.notna(row.get("Volume")) else None,
+        ))
+    return bars
+
+
+# ── Databento → Bar 适配 ──
+
+
+def _load_databento_key() -> str:
+    """从环境变量或 .env 文件加载 DATABENTO_API_KEY。"""
+    key = os.environ.get("DATABENTO_API_KEY")
+    if key:
+        return key
+
+    env_path = Path(__file__).resolve().parent.parent / ".env"
+    if env_path.exists():
+        for line in env_path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line.startswith("DATABENTO_API_KEY=") and not line.startswith("#"):
+                key = line.split("=", 1)[1].strip()
+                if key:
+                    return key
+
+    raise ValueError(
+        "DATABENTO_API_KEY 未设置。请设置环境变量或在 .env 文件中配置。"
+    )
+
+
+def fetch_bars_databento(
+    symbol: str = "BRN.c.0",
+    dataset: str = "IFEU.IMPACT",
+    schema: str = "ohlcv-1m",
+    start: str = "2020-01-01",
+    end: str | None = None,
+) -> list[Bar]:
+    """从 Databento Historical API 获取 K 线并转为 Bar 列表。
+
+    Parameters
+    ----------
+    symbol : Databento 连续合约符号（BRN.c.0 = 布伦特原油期货前月连续）
+    dataset : Databento 数据集（IFEU.IMPACT = ICE Futures Europe）
+    schema : K 线 schema — ohlcv-1m / ohlcv-1h / ohlcv-1d
+    start : 起始日期（ISO 格式）
+    end : 结束日期（ISO 格式），None 表示至今
+    """
+    import databento as db
+
+    key = _load_databento_key()
+    client = db.Historical(key=key)
+
+    cache_dir = Path(__file__).resolve().parent.parent / "tmp" / "databento_cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+
+    # 按年分段下载，避免单次请求过大
+    from datetime import date as date_cls
+    start_date = date_cls.fromisoformat(start)
+    end_date = date_cls.fromisoformat(end) if end else date_cls.today()
+
+    all_dfs = []
+    year = start_date.year
+    while True:
+        seg_start = max(start_date, date_cls(year, 1, 1))
+        seg_end = min(end_date, date_cls(year, 12, 31))
+        if seg_start > end_date:
+            break
+
+        seg_start_str = seg_start.isoformat()
+        seg_end_str = seg_end.isoformat()
+        cache_file = cache_dir / f"{dataset}_{symbol}_{schema}_{seg_start_str}_{seg_end_str}.dbn.zst"
+
+        if cache_file.exists() and cache_file.stat().st_size > 100:
+            print(f"  [{year}] 使用缓存: {cache_file.name}", flush=True)
+            data = db.DBNStore.from_file(str(cache_file))
+        else:
+            print(f"  [{year}] 下载 {seg_start_str} ~ {seg_end_str} ...", flush=True)
+            if cache_file.exists():
+                cache_file.unlink()
+            data = client.timeseries.get_range(
+                dataset=dataset,
+                symbols=symbol,
+                schema=schema,
+                stype_in="continuous",
+                start=seg_start_str,
+                end=seg_end_str,
+                path=str(cache_file),
+            )
+
+        df = data.to_df()
+        if not df.empty:
+            all_dfs.append(df)
+            print(f"  [{year}] {len(df)} 行", flush=True)
+        else:
+            print(f"  [{year}] 无数据", flush=True)
+
+        year += 1
+
+    if not all_dfs:
+        raise ValueError(
+            f"Databento 返回空数据: dataset={dataset}, symbol={symbol}, schema={schema}"
+        )
+
+    combined = pd.concat(all_dfs).sort_index()
+    combined = combined[~combined.index.duplicated(keep='first')]
+    print(f"  合计 {len(combined)} 行1分钟数据", flush=True)
+
+    bars: list[Bar] = []
+    for ts, row in combined.iterrows():
+        ts_dt = ts.to_pydatetime() if hasattr(ts, "to_pydatetime") else ts
+        if hasattr(ts_dt, "tzinfo") and ts_dt.tzinfo is not None:
+            ts_dt = ts_dt.replace(tzinfo=None)
+        o = float(row["open"])
+        h = float(row["high"])
+        l = float(row["low"])
+        c = float(row["close"])
+        # databento fixed-point: 价格 > 1e6 说明是 fixed-point 格式
+        if o > 1e6:
+            o, h, l, c = o / 1e9, h / 1e9, l / 1e9, c / 1e9
+        bars.append(Bar(
+            ts=ts_dt,
+            open=o,
+            high=h,
+            low=l,
+            close=c,
+            volume=int(row["volume"]) if pd.notna(row.get("volume")) else None,
+        ))
+    return bars
+
+
+# ── 级别分析 ──
+
+
+def analyze_levels(bars: list[Bar], stream_id: str = "BRN") -> dict:
+    """运行 RecursiveOrchestrator 并提取全级别结构。"""
+    orch = RecursiveOrchestrator(stream_id=stream_id)
+
+    # 逐 bar 处理
+    snap = None
+    for i, bar in enumerate(bars):
+        snap = orch.process_bar(bar)
+        if i % 100000 == 0:
+            print(f"  已处理 {i}/{len(bars)} 根 K 线...", flush=True)
+
+    if snap is None:
+        return {"error": "no bars processed"}
+
+    result = {
+        "ticker": stream_id,
+        "bar_count": len(bars),
+        "bar_range": f"{bars[0].ts} ~ {bars[-1].ts}",
+        "last_close": bars[-1].close,
+        "levels": {},
+    }
+
+    # Level-1: 笔/线段/中枢/走势/买卖点
+    l1 = {
+        "strokes": len(snap.bi_snapshot.strokes),
+        "segments": len(snap.seg_snapshot.segments),
+        "zhongshus": [],
+        "moves": [],
+        "buysellpoints": [],
+    }
+
+    for zs in snap.zs_snapshot.zhongshus:
+        l1["zhongshus"].append({
+            "zd": round(zs.zd, 2),
+            "zg": round(zs.zg, 2),
+            "seg_count": zs.seg_count,
+            "settled": zs.settled,
+            "break_direction": getattr(zs, "break_direction", ""),
+        })
+
+    for mv in snap.move_snapshot.moves:
+        l1["moves"].append({
+            "direction": mv.direction,
+            "kind": mv.kind,
+            "settled": mv.settled,
+            "zhongshu_count": len(mv.zhongshus),
+        })
+
+    for bsp in snap.bsp_snapshot.buysellpoints:
+        l1["buysellpoints"].append({
+            "kind": bsp.kind,
+            "side": bsp.side,
+            "seg_idx": bsp.seg_idx,
+            "level_id": bsp.level_id,
+        })
+
+    result["levels"]["L1"] = l1
+
+    # Level-2+ 递归层
+    for rsnap in snap.recursive_snapshots:
+        lvl_key = f"L{rsnap.level_id}"
+        lvl = {
+            "zhongshus": [],
+            "moves": [],
+        }
+        for zs in rsnap.zhongshus:
+            lvl["zhongshus"].append({
+                "zd": round(zs.zd, 2),
+                "zg": round(zs.zg, 2),
+                "comp_count": zs.comp_count,
+                "settled": zs.settled,
+            })
+        for mv in rsnap.moves:
+            lvl["moves"].append({
+                "direction": mv.direction,
+                "kind": mv.kind,
+                "settled": mv.settled,
+                "zhongshu_count": len(mv.zhongshus),
+            })
+        result["levels"][lvl_key] = lvl
+
+    return result
+
+
+def print_report(result: dict) -> None:
+    """打印人类可读的级别报告。"""
+    print(f"\n{'='*60}", flush=True)
+    print(f"  布伦特原油 (BRN) 级别分析", flush=True)
+    print(f"{'='*60}", flush=True)
+    print(f"  K线数量: {result['bar_count']}", flush=True)
+    print(f"  时间范围: {result['bar_range']}", flush=True)
+    print(f"  最新收盘: {result['last_close']}", flush=True)
+    print(flush=True)
+
+    for lvl_key in sorted(result["levels"].keys(), key=lambda x: int(x[1:])):
+        lvl = result["levels"][lvl_key]
+        print(f"── {lvl_key} {'─'*50}", flush=True)
+
+        if "strokes" in lvl:
+            print(f"  笔: {lvl['strokes']}  线段: {lvl['segments']}", flush=True)
+
+        zs_list = lvl["zhongshus"]
+        mv_list = lvl["moves"]
+        bsp_list = lvl.get("buysellpoints", [])
+
+        print(f"  中枢: {len(zs_list)} 个", flush=True)
+        for i, zs in enumerate(zs_list[-3:]):  # 只显示最近3个
+            settled_mark = "已破" if zs["settled"] else "运行中"
+            print(f"    [{len(zs_list)-3+i+1 if len(zs_list)>3 else i+1}] "
+                  f"[{zs['zd']:.2f}, {zs['zg']:.2f}] "
+                  f"({zs.get('seg_count', zs.get('comp_count', '?'))}段) {settled_mark}", flush=True)
+
+        print(f"  走势: {len(mv_list)} 段", flush=True)
+        for i, mv in enumerate(mv_list[-3:]):
+            settled_mark = "已完成" if mv["settled"] else "进行中"
+            kind_zh = "盘整" if mv["kind"] == "consolidation" else "趋势"
+            dir_zh = "上" if mv["direction"] == "up" else "下"
+            print(f"    [{len(mv_list)-3+i+1 if len(mv_list)>3 else i+1}] "
+                  f"{dir_zh}{kind_zh} (含{mv['zhongshu_count']}中枢) {settled_mark}", flush=True)
+
+        if bsp_list:
+            recent_bsp = bsp_list[-5:]
+            print(f"  买卖点: {len(bsp_list)} 个 (最近{len(recent_bsp)}个)", flush=True)
+            for bsp in recent_bsp:
+                side_zh = "买" if bsp["side"] == "buy" else "卖"
+                print(f"    第{bsp['kind']}类{side_zh}点 (seg={bsp['seg_idx']}, L{bsp['level_id']})", flush=True)
+        print(flush=True)
+
+    # 当前位置判断
+    levels = result["levels"]
+    print(f"── 综合判断 {'─'*46}", flush=True)
+
+    max_level = 0
+    for lvl_key, lvl in levels.items():
+        lid = int(lvl_key[1:])
+        if lvl["zhongshus"] or lvl["moves"]:
+            max_level = max(max_level, lid)
+
+    print(f"  最高有效级别: L{max_level}", flush=True)
+
+    # 当前走势状态
+    for lid in range(max_level, 0, -1):
+        lvl_key = f"L{lid}"
+        if lvl_key not in levels:
+            continue
+        mvs = levels[lvl_key]["moves"]
+        zss = levels[lvl_key]["zhongshus"]
+        if mvs:
+            latest = mvs[-1]
+            kind_zh = "盘整" if latest["kind"] == "consolidation" else "趋势"
+            dir_zh = "上涨" if latest["direction"] == "up" else "下跌"
+            status = "进行中" if not latest["settled"] else "已完成"
+            print(f"  L{lid}: {dir_zh}{kind_zh} ({status})", flush=True)
+        if zss:
+            latest_zs = zss[-1]
+            zs_status = "已破" if latest_zs["settled"] else "运行中"
+            print(f"       中枢 [{latest_zs['zd']:.2f}, {latest_zs['zg']:.2f}] {zs_status}", flush=True)
+
+    print(f"\n{'='*60}\n", flush=True)
+
+
+def main():
+    import argparse
+    parser = argparse.ArgumentParser(description="布伦特原油级别分析")
+    parser.add_argument("--source", choices=["databento", "yfinance"], default="databento",
+                        help="数据源 (default: databento)")
+    # yfinance 参数
+    parser.add_argument("--ticker", default="BZ=F", help="yfinance ticker")
+    parser.add_argument("--interval", default="1m", help="K线周期 (databento: ohlcv-1m/1h/1d; yfinance: 1m/1h/1d)")
+    parser.add_argument("--period", default="2y", help="yfinance 回溯期")
+    # databento 参数
+    parser.add_argument("--symbol", default="BRN.c.0", help="Databento 连续合约符号")
+    parser.add_argument("--dataset", default="IFEU.IMPACT", help="Databento 数据集")
+    parser.add_argument("--start", default="2020-01-01", help="Databento 起始日期")
+    parser.add_argument("--end", default=None, help="Databento 结束日期 (default: now)")
+    args = parser.parse_args()
+
+    if args.source == "databento":
+        # 将简写 interval 映射为 databento schema
+        interval_to_schema = {"1m": "ohlcv-1m", "1h": "ohlcv-1h", "1d": "ohlcv-1d"}
+        schema = interval_to_schema.get(args.interval, f"ohlcv-{args.interval}")
+
+        print(f"获取 {args.symbol} 数据 (source=databento, schema={schema})...", flush=True)
+        bars = fetch_bars_databento(
+            symbol=args.symbol,
+            dataset=args.dataset,
+            schema=schema,
+            start=args.start,
+            end=args.end,
+        )
+    else:
+        print(f"获取 {args.ticker} 数据 (source=yfinance, interval={args.interval}, period={args.period})...", flush=True)
+        bars = fetch_bars_yf(ticker=args.ticker, interval=args.interval, period=args.period)
+
+    print(f"获取到 {len(bars)} 根 K 线", flush=True)
+
+    print("计算级别结构...", flush=True)
+    result = analyze_levels(bars, stream_id="BRN")
+
+    # 保存 JSON
+    import json
+    out_path = Path(__file__).resolve().parent.parent / "tmp" / "brn-level-report.json"
+    out_path.write_text(json.dumps(result, indent=2, default=str, ensure_ascii=False), encoding="utf-8")
+    print(f"JSON 报告已保存: {out_path}", flush=True)
+
+    # 打印可读报告
+    print_report(result)
+
+
+if __name__ == "__main__":
+    main()
