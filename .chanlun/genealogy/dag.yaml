@@ -1967,6 +1967,11 @@ nodes:
   status: 已结算
   type: meta-rule
   file: settled/406-meta-observation-v207-swarm.md
+- id: '407'
+  title: Lead 角色越界的 compact 回归机制——226号类型C的触发条件精化
+  status: 已结算
+  type: meta-rule
+  file: settled/407-lead-role-boundary-compact-regression.md
 edges:
   depends_on:
   - from: '136'
@@ -4133,6 +4138,14 @@ edges:
     to: '401'
   - from: '406'
     to: '402'
+  - from: '407'
+    to: '226'
+  - from: '407'
+    to: '137'
+  - from: '407'
+    to: '057'
+  - from: '407'
+    to: '218'
   triggered:
   - from: '005'
     to: 005a

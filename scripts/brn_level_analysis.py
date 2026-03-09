@@ -24,6 +24,26 @@ import pandas as pd
 from newchan.orchestrator.recursive import RecursiveOrchestrator
 from newchan.types import Bar
 
+# batch mode imports (top-level to fail fast if missing)
+import numpy as np
+from newchan.a_inclusion import merge_inclusion
+from newchan.a_fractal import fractals_from_merged
+from newchan.a_stroke import strokes_from_fractals
+from newchan.a_segment_v1 import segments_from_strokes_v1
+from newchan.a_zhongshu_v1 import zhongshu_from_segments
+from newchan.a_move_v1 import moves_from_zhongshus
+from newchan.a_divergence_v1 import divergences_from_moves_v1
+from newchan.a_buysellpoint_v1 import buysellpoints_from_level
+from newchan.a_level_protocol import adapt_moves
+from newchan.a_zhongshu_level import zhongshu_from_components, moves_from_level_zhongshus
+from newchan.bi_engine import BiEngineSnapshot
+from newchan.core.recursion.segment_state import SegmentSnapshot
+from newchan.core.recursion.zhongshu_state import ZhongshuSnapshot
+from newchan.core.recursion.move_state import MoveSnapshot
+from newchan.core.recursion.buysellpoint_state import BuySellPointSnapshot
+from newchan.core.recursion.recursive_level_state import RecursiveLevelSnapshot
+from newchan.orchestrator.recursive import RecursiveOrchestratorSnapshot
+
 
 # ── yfinance → Bar 适配 ──
 
@@ -230,7 +250,7 @@ def analyze_levels(bars: list[Bar], stream_id: str = "BRN") -> dict:
             "direction": mv.direction,
             "kind": mv.kind,
             "settled": mv.settled,
-            "zhongshu_count": len(mv.zhongshus),
+            "zhongshu_count": mv.zs_count,
         })
 
     for bsp in snap.bsp_snapshot.buysellpoints:
@@ -262,7 +282,222 @@ def analyze_levels(bars: list[Bar], stream_id: str = "BRN") -> dict:
                 "direction": mv.direction,
                 "kind": mv.kind,
                 "settled": mv.settled,
-                "zhongshu_count": len(mv.zhongshus),
+                "zhongshu_count": mv.zs_count,
+            })
+        result["levels"][lvl_key] = lvl
+
+    return result
+
+
+def _dt_to_epoch(dt: datetime) -> float:
+    """datetime -> epoch seconds. Naive datetime treated as UTC."""
+    from datetime import timezone
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.timestamp()
+
+
+def _recursive_levels(
+    move_snap: MoveSnapshot, max_levels: int = 6,
+) -> list[RecursiveLevelSnapshot]:
+    """Run recursive stack logic without engine state — pure function chain."""
+    snapshots: list[RecursiveLevelSnapshot] = []
+    current_move_snap = move_snap
+    current_level = 1
+
+    while current_level < max_levels:
+        next_level = current_level + 1
+        settled_moves = [m for m in current_move_snap.moves if m.settled]
+        components = adapt_moves(settled_moves, level_id=current_level)
+        curr_zhongshus = zhongshu_from_components(components)
+        curr_moves = moves_from_level_zhongshus(curr_zhongshus)
+
+        snap = RecursiveLevelSnapshot(
+            bar_idx=current_move_snap.bar_idx,
+            bar_ts=current_move_snap.bar_ts,
+            level_id=next_level,
+            zhongshus=curr_zhongshus,
+            moves=curr_moves,
+            zhongshu_events=[],
+            move_events=[],
+        )
+        snapshots.append(snap)
+
+        if len(curr_moves) < 3:
+            break
+
+        current_move_snap = MoveSnapshot(
+            bar_idx=snap.bar_idx,
+            bar_ts=snap.bar_ts,
+            moves=curr_moves,
+            events=[],
+        )
+        current_level = next_level
+
+    return snapshots
+
+
+def analyze_levels_batch(bars: list[Bar], stream_id: str = "BRN") -> dict:
+    """Batch mode: O(n) single-pass analysis — no per-bar rebuild.
+
+    Builds the DataFrame once from all bars, runs each pure function
+    layer exactly once, and constructs the final result dict.
+    """
+    if not bars:
+        return {"error": "no bars"}
+
+    # 1. Build DataFrame once
+    print("  [batch] 构建 DataFrame...", flush=True)
+    arr = np.array(
+        [[b.open, b.high, b.low, b.close] for b in bars],
+        dtype=np.float64,
+    )
+    df = pd.DataFrame(
+        arr,
+        columns=["open", "high", "low", "close"],
+        index=pd.DatetimeIndex([b.ts for b in bars], name="time"),
+    )
+
+    # 2. Inclusion → Fractals → Strokes (once)
+    print("  [batch] 包含处理...", flush=True)
+    df_merged, merged_to_raw = merge_inclusion(df)
+    print(f"  [batch] 合并K线: {len(df_merged)}", flush=True)
+
+    print("  [batch] 分型检测...", flush=True)
+    fractals = fractals_from_merged(df_merged)
+    print(f"  [batch] 分型: {len(fractals)}", flush=True)
+
+    print("  [batch] 笔构造...", flush=True)
+    all_strokes = strokes_from_fractals(
+        df_merged, fractals, mode="wide", min_strict_sep=5,
+        merged_to_raw=merged_to_raw,
+    )
+    print(f"  [batch] 笔: {len(all_strokes)}", flush=True)
+
+    # 3. Segments (once)
+    print("  [batch] 线段构造...", flush=True)
+    segments = segments_from_strokes_v1(all_strokes)
+    print(f"  [batch] 线段: {len(segments)}", flush=True)
+
+    # 4. Zhongshu (once)
+    print("  [batch] 中枢检测...", flush=True)
+    zhongshus = zhongshu_from_segments(segments)
+    print(f"  [batch] 中枢: {len(zhongshus)}", flush=True)
+
+    # 5. Moves (once)
+    print("  [batch] 走势分组...", flush=True)
+    moves = moves_from_zhongshus(zhongshus, num_segments=len(segments))
+    print(f"  [batch] 走势: {len(moves)}", flush=True)
+
+    # 6. Buy/sell points (once)
+    print("  [batch] 背驰+买卖点...", flush=True)
+    divergences = divergences_from_moves_v1(segments, zhongshus, moves, 1)
+    bsps = buysellpoints_from_level(segments, zhongshus, moves, divergences, 1)
+    print(f"  [batch] 买卖点: {len(bsps)}", flush=True)
+
+    # 7. Construct snapshots for recursive stack
+    last_bar = bars[-1]
+    bar_idx = len(bars) - 1
+    bar_ts = _dt_to_epoch(last_bar.ts)
+
+    move_snap = MoveSnapshot(
+        bar_idx=bar_idx,
+        bar_ts=bar_ts,
+        moves=moves,
+        events=[],
+    )
+
+    # 8. Recursive levels (once)
+    print("  [batch] 递归级别...", flush=True)
+    recursive_snaps = _recursive_levels(move_snap)
+    print(f"  [batch] 递归层数: {len(recursive_snaps)}", flush=True)
+
+    # 9. L* selection
+    bi_snap = BiEngineSnapshot(
+        bar_idx=bar_idx, bar_ts=bar_ts, strokes=all_strokes,
+        events=[], n_merged=len(df_merged), n_fractals=len(fractals),
+    )
+    seg_snap = SegmentSnapshot(
+        bar_idx=bar_idx, bar_ts=bar_ts, segments=segments, events=[],
+    )
+    zs_snap = ZhongshuSnapshot(
+        bar_idx=bar_idx, bar_ts=bar_ts, zhongshus=zhongshus, events=[],
+    )
+    bsp_snap = BuySellPointSnapshot(
+        bar_idx=bar_idx, bar_ts=bar_ts, buysellpoints=bsps, events=[],
+    )
+    orch_snap = RecursiveOrchestratorSnapshot(
+        bar_idx=bar_idx,
+        bar_ts=bar_ts,
+        bi_snapshot=bi_snap,
+        seg_snapshot=seg_snap,
+        zs_snapshot=zs_snap,
+        move_snapshot=move_snap,
+        bsp_snapshot=bsp_snap,
+        recursive_snapshots=recursive_snaps,
+        all_events=[],
+        lstar=None,
+    )
+
+    from newchan.a_level_fsm_adapter import select_lstar_from_recursive_snapshot
+    orch_snap.lstar = select_lstar_from_recursive_snapshot(orch_snap, last_bar.close)
+
+    # 10. Build result dict (same format as analyze_levels)
+    result = {
+        "ticker": stream_id,
+        "bar_count": len(bars),
+        "bar_range": f"{bars[0].ts} ~ {bars[-1].ts}",
+        "last_close": bars[-1].close,
+        "levels": {},
+    }
+
+    l1 = {
+        "strokes": len(all_strokes),
+        "segments": len(segments),
+        "zhongshus": [],
+        "moves": [],
+        "buysellpoints": [],
+    }
+    for zs in zhongshus:
+        l1["zhongshus"].append({
+            "zd": round(zs.zd, 2),
+            "zg": round(zs.zg, 2),
+            "seg_count": zs.seg_count,
+            "settled": zs.settled,
+            "break_direction": getattr(zs, "break_direction", ""),
+        })
+    for mv in moves:
+        l1["moves"].append({
+            "direction": mv.direction,
+            "kind": mv.kind,
+            "settled": mv.settled,
+            "zhongshu_count": mv.zs_count,
+        })
+    for bsp in bsps:
+        l1["buysellpoints"].append({
+            "kind": bsp.kind,
+            "side": bsp.side,
+            "seg_idx": bsp.seg_idx,
+            "level_id": bsp.level_id,
+        })
+    result["levels"]["L1"] = l1
+
+    for rsnap in recursive_snaps:
+        lvl_key = f"L{rsnap.level_id}"
+        lvl = {"zhongshus": [], "moves": []}
+        for zs in rsnap.zhongshus:
+            lvl["zhongshus"].append({
+                "zd": round(zs.zd, 2),
+                "zg": round(zs.zg, 2),
+                "comp_count": zs.comp_count,
+                "settled": zs.settled,
+            })
+        for mv in rsnap.moves:
+            lvl["moves"].append({
+                "direction": mv.direction,
+                "kind": mv.kind,
+                "settled": mv.settled,
+                "zhongshu_count": mv.zs_count,
             })
         result["levels"][lvl_key] = lvl
 
@@ -360,6 +595,8 @@ def main():
     parser.add_argument("--dataset", default="IFEU.IMPACT", help="Databento 数据集")
     parser.add_argument("--start", default="2020-01-01", help="Databento 起始日期")
     parser.add_argument("--end", default=None, help="Databento 结束日期 (default: now)")
+    parser.add_argument("--batch", action="store_true",
+                        help="批量模式: 一次性构建全量数据，O(n) 而非 O(n^2)")
     args = parser.parse_args()
 
     if args.source == "databento":
@@ -381,8 +618,12 @@ def main():
 
     print(f"获取到 {len(bars)} 根 K 线", flush=True)
 
-    print("计算级别结构...", flush=True)
-    result = analyze_levels(bars, stream_id="BRN")
+    if args.batch:
+        print("计算级别结构 (batch 模式)...", flush=True)
+        result = analyze_levels_batch(bars, stream_id="BRN")
+    else:
+        print("计算级别结构...", flush=True)
+        result = analyze_levels(bars, stream_id="BRN")
 
     # 保存 JSON
     import json
