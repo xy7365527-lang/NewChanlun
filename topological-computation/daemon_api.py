@@ -1067,6 +1067,7 @@ def feed_via_snet(
     daemon: TopologicalDaemon,
     text: str,
     source_type: str = "feed",
+    force_llm: bool = False,
 ) -> dict:
     """统一输入路径：所有文本经过 S_net resonate → 耦合振荡 → articulation feedback。
 
@@ -1074,7 +1075,7 @@ def feed_via_snet(
       1. phi_L 白名单匹配（确定输入中的已知概念）
       2. _writeback_to_snet — 文本回写 S_net 共现边
       3. _resonate_from_operator — S_net 能指共振叠加激活态
-      4. _externalize_speech — 如果有成型语段则外化
+      4. _externalize_speech — 如果有成型语段则外化（默认不调 LLM）
 
     返回 dict: {writeback_edges, resonated, externalize_result}
     """
@@ -1095,8 +1096,8 @@ def feed_via_snet(
     _resonate_from_operator(daemon, text)
     resonated = len(matched_signifiers) > 0
 
-    # Step 4: 外化（如果有成型语段）
-    ext_result = _externalize_speech(daemon, user_text=text)
+    # Step 4: 外化（如果有成型语段，默认不调 LLM）
+    ext_result = _externalize_speech(daemon, user_text=text, force_llm=force_llm)
 
     return {
         "writeback_edges": writeback_count,
@@ -1323,7 +1324,7 @@ def _check_operator_ruling(
     }
 
 
-def present_json(daemon: TopologicalDaemon, text: str, session_id: str = "default") -> dict | None:
+def present_json(daemon: TopologicalDaemon, text: str, session_id: str = "default", force_llm: bool = False) -> dict | None:
     """POST /present — user presence.
 
     Semantics: the user is present, not asking a question.
@@ -1338,6 +1339,7 @@ def present_json(daemon: TopologicalDaemon, text: str, session_id: str = "defaul
 
     session_id: identifier for the user session, used to create/reuse the
                 source vertex that anchors this user's concept region.
+    force_llm:  operator 明确请求 LLM 语法填充时为 True（默认 False）
     """
     # Dialogue routing: if user text is dialogue, use externalize flow
     input_class = _classify_input(text)
@@ -1348,8 +1350,8 @@ def present_json(daemon: TopologicalDaemon, text: str, session_id: str = "defaul
         # S_net 共振：operator 输入中的能指叠加到当前激活态
         _resonate_from_operator(daemon, text)
 
-        # 外化接缝：内部言语 → LLM → 外部言语
-        ext_result = _externalize_speech(daemon, user_text=text)
+        # 外化接缝：内部言语 → 外部言语（默认不调 LLM）
+        ext_result = _externalize_speech(daemon, user_text=text, force_llm=force_llm)
 
         # 断裂检测：对话输入 → 能指链 → S_net 断裂检测
         rupture_info = _detect_ruptures_from_text(daemon, text)
@@ -1370,6 +1372,8 @@ def present_json(daemon: TopologicalDaemon, text: str, session_id: str = "defaul
             },
             "externalize": {
                 "trigger": ext_result.get("trigger", "passive"),
+                "source": ext_result.get("source", "structural"),
+                "llm_fraction": ext_result.get("llm_fraction", 0.0),
                 "output_ruptures": ext_result.get("output_ruptures", []),
                 "snapshot_summary": {
                     "formed_fragments": len(ext_result.get("snapshot", {}).get("formed_fragments", [])),
