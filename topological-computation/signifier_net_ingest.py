@@ -708,19 +708,56 @@ def ingest_text_passage(
 # 双语辞典摄入
 # ---------------------------------------------------------------------------
 
+def _normalize_bilingual_entry(entry: dict) -> dict:
+    """将双语辞典条目归一化为内部格式。
+
+    支持两种 JSONL 字段名：
+      格式A（原始）: term_a/lang_a/term_b/lang_b
+      格式B（translation）: source_term/source_lang/target_term/target_lang
+
+    格式B 额外支持 pos 字段（词性标注）。
+
+    认识论等级：L0（确定性字段映射）
+    """
+    # 格式B → 格式A 映射
+    term_a = entry.get("term_a", "") or entry.get("source_term", "")
+    term_b = entry.get("term_b", "") or entry.get("target_term", "")
+    lang_a = entry.get("lang_a", "") or entry.get("source_lang", "")
+    lang_b = entry.get("lang_b", "") or entry.get("target_lang", "")
+
+    return {
+        "term_a": term_a.strip() if term_a else "",
+        "term_b": term_b.strip() if term_b else "",
+        "lang_a": lang_a.strip() if lang_a else "",
+        "lang_b": lang_b.strip() if lang_b else "",
+        "domain": (entry.get("domain", "") or "").strip(),
+        "differential": (entry.get("differential", "") or "").strip(),
+        "source": (entry.get("source", "") or "").strip(),
+        "pos": (entry.get("pos", "") or "").strip(),
+    }
+
+
 def ingest_bilingual_dict(
     snet: SNet,
     dict_path: str | Path,
 ) -> tuple[SNet, dict]:
     """从双语 JSONL 辞典文件向 S_net 注入跨语言翻译关系。
 
-    JSONL 格式（每行一个 JSON）：
-      {"term_a": str, "lang_a": str, "term_b": str, "lang_b": str,
-       "domain": str, "differential": str, "source": str}
+    支持两种 JSONL 格式：
+      格式A: {"term_a": str, "lang_a": str, "term_b": str, "lang_b": str,
+              "domain": str, "differential": str, "source": str}
+      格式B: {"source_term": str, "source_lang": str, "target_term": str,
+              "target_lang": str, "differential": str, "source": str,
+              "domain": str, "pos": str}
 
     处理逻辑：
-      1. 为 term_a 和 term_b 创建 Signifier（带 lang），若已存在则保留
-      2. 创建 PARADIGMATIC 边（relation="translation", differential=entry 的 differential）
+      1. 为两端术语创建 Signifier（带 lang + domain），若已存在则保留
+      2. 创建双向 PARADIGMATIC 边（relation="translation"）
+      3. translation 边是双向的——A→B 和 B→A 只创建一条对称边对
+      4. differential 记录翻译间的语义差异（S_net 的独特价值）
+
+    注意：同一概念在不同语言中各有一个 Signifier（lang 字段区分）。
+    跨语言用 translation 边连接，paradigmatic_class 内部是同一语言的同义词。
 
     参数：
       snet:      当前 S_net 实例
@@ -741,6 +778,7 @@ def ingest_bilingual_dict(
         "entries_total": 0,
         "translations_added": 0,
         "signifiers_created": 0,
+        "skipped_duplicate": 0,
     }
 
     entries: list[dict] = []
@@ -756,17 +794,28 @@ def ingest_bilingual_dict(
 
     stats["entries_total"] = len(entries)
 
-    for entry in entries:
-        term_a = entry.get("term_a", "").strip()
-        term_b = entry.get("term_b", "").strip()
-        lang_a = entry.get("lang_a", "").strip()
-        lang_b = entry.get("lang_b", "").strip()
-        domain = entry.get("domain", "").strip()
-        differential = entry.get("differential", "").strip()
-        source = entry.get("source", "").strip()
+    # 去重：同一对术语只创建一条翻译边（双向）
+    seen_pairs: set[tuple[str, str]] = set()
+
+    for raw_entry in entries:
+        entry = _normalize_bilingual_entry(raw_entry)
+        term_a = entry["term_a"]
+        term_b = entry["term_b"]
+        lang_a = entry["lang_a"]
+        lang_b = entry["lang_b"]
+        domain = entry["domain"]
+        differential = entry["differential"]
+        source = entry["source"]
 
         if not term_a or not term_b:
             continue
+
+        # 去重：(A,B) 和 (B,A) 视为同一对
+        pair_key = (min(term_a, term_b), max(term_a, term_b))
+        if pair_key in seen_pairs:
+            stats["skipped_duplicate"] += 1
+            continue
+        seen_pairs.add(pair_key)
 
         # 创建 Signifier（若不存在）
         if not snet.has_signifier(term_a):
@@ -815,6 +864,10 @@ def ingest_bilingual_dict(
     snet = snet.merge_edge_weights()
 
     return snet, stats
+
+
+# ingest_translation_dict 是 ingest_bilingual_dict 的别名（格式B兼容）
+ingest_translation_dict = ingest_bilingual_dict
 
 
 # ---------------------------------------------------------------------------
