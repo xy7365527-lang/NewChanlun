@@ -1,0 +1,56 @@
+{"term": "K线包含关系", "definition": "一根K线的高低点区间完全在另一根K线范围内。处理时按向上/向下方向合并。", "source": "chanlun_knowledge_base", "domain": "chanlun", "lang": "zh", "lesson": 65}
+{"term": "向上包含", "definition": "当high_n > high_{n-1}时，合并取max(high)和max(low)。", "source": "chanlun_knowledge_base", "domain": "chanlun", "lang": "zh", "lesson": 65}
+{"term": "向下包含", "definition": "当low_n < low_{n-1}时，合并取min(high)和min(low)。", "source": "chanlun_knowledge_base", "domain": "chanlun", "lang": "zh", "lesson": 65}
+{"term": "顶分型", "definition": "包含处理后三根相邻K线中，第二根的高点和低点都是三者中最高的。", "source": "chanlun_knowledge_base", "domain": "chanlun", "lang": "zh", "lesson": 62}
+{"term": "底分型", "definition": "包含处理后三根相邻K线中，第二根的低点和高点都是三者中最低的。", "source": "chanlun_knowledge_base", "domain": "chanlun", "lang": "zh", "lesson": 62}
+{"term": "笔", "definition": "两个相邻的顶分型与底分型之间构成一笔。上升笔：底→顶。下降笔：顶→底。笔至少由5根K线构成。", "source": "chanlun_knowledge_base", "domain": "chanlun", "lang": "zh", "lesson": 62}
+{"term": "上升笔", "definition": "底分型 + 上升K线 + 顶分型。方向向上。", "source": "chanlun_knowledge_base", "domain": "chanlun", "lang": "zh", "lesson": 62}
+{"term": "下降笔", "definition": "顶分型 + 下降K线 + 底分型。方向向下。", "source": "chanlun_knowledge_base", "domain": "chanlun", "lang": "zh", "lesson": 62}
+{"term": "新笔定义", "definition": "顶分型最高K线与底分型最低K线之间（不含这两根），至少有3根K线。比旧笔定义宽松。", "source": "chanlun_blog_忽闻台风可休市", "domain": "chanlun", "lang": "zh", "lesson": 81}
+{"term": "线段", "definition": "至少由三笔组成，且前三笔必须有重叠部分。线段被终结当且仅当新线段形成。", "source": "chanlun_knowledge_base", "domain": "chanlun", "lang": "zh", "lesson": 67}
+{"term": "特征序列", "definition": "线段中与线段方向相反的笔的序列。向上线段取向下笔序列，向下线段取向上笔序列。", "source": "chanlun_knowledge_base", "domain": "chanlun", "lang": "zh", "lesson": 67}
+{"term": "标准特征序列", "definition": "将特征序列的每个元素当作K线做包含处理后得到的序列。在此序列上判定线段终结。", "source": "chanlun_knowledge_base", "domain": "chanlun", "lang": "zh", "lesson": 67}
+{"term": "线段划分定理", "definition": "线段被终结的充要条件是新线段形成。原线段终结=新线段起始。", "source": "chanlun_knowledge_base", "domain": "chanlun", "lang": "zh", "lesson": 67}
+{"term": "古怪线段", "definition": "在旧笔定义下，因短促波动强制成笔导致的非正常线段划分。新笔定义消除此问题。", "source": "chanlun_blog_78", "domain": "chanlun", "lang": "zh", "lesson": 78}
+{"term": "线段硬约束", "definition": "一个线段两端的一顶一底，顶肯定要高于底（向上线段）或底要低于顶（向下线段）。", "source": "chanlun_blog_78", "domain": "chanlun", "lang": "zh", "lesson": 78}
+{"term": "走势中枢", "definition": "某级别走势类型中，至少三个连续次级别走势类型所重叠的部分。定义为区间[ZD, ZG]。", "source": "chanlun_knowledge_base", "domain": "chanlun", "lang": "zh", "lesson": 17}
+{"term": "中枢区间", "definition": "ZG为中枢上沿（重叠区最高低点的最低），ZD为中枢下沿（重叠区最低高点的最高）。", "source": "chanlun_knowledge_base", "domain": "chanlun", "lang": "zh", "lesson": 17}
+{"term": "中枢扩展", "definition": "新的次级别走势与中枢有重叠，使中枢的覆盖段数增加但级别不变。", "source": "chanlun_knowledge_base", "domain": "chanlun", "lang": "zh", "lesson": 18}
+{"term": "中枢新生", "definition": "连续三段次级别走势产生新的重叠区域，形成新的同级别中枢。", "source": "chanlun_knowledge_base", "domain": "chanlun", "lang": "zh", "lesson": 18}
+{"term": "中枢升级", "definition": "当中枢扩展达到一定程度（如9段次级别走势类型重叠），中枢升级为更高级别。", "source": "chanlun_knowledge_base", "domain": "chanlun", "lang": "zh", "lesson": 20}
+{"term": "走势类型", "definition": "任何级别的走势都可分为盘整和趋势两种类型。由中枢的数量决定。", "source": "chanlun_knowledge_base", "domain": "chanlun", "lang": "zh", "lesson": 17}
+{"term": "盘整", "definition": "在任何级别的走势中，只包含一个该级别中枢的走势类型。", "source": "chanlun_knowledge_base", "domain": "chanlun", "lang": "zh", "lesson": 17}
+{"term": "趋势", "definition": "在任何级别的走势中，包含至少两个同级别中枢的走势类型。分为上涨趋势和下跌趋势。", "source": "chanlun_knowledge_base", "domain": "chanlun", "lang": "zh", "lesson": 17}
+{"term": "上涨趋势", "definition": "趋势中，后一个中枢的ZD高于前一个中枢的ZG（中枢依次向上）。", "source": "chanlun_knowledge_base", "domain": "chanlun", "lang": "zh", "lesson": 17}
+{"term": "下跌趋势", "definition": "趋势中，后一个中枢的ZG低于前一个中枢的ZD（中枢依次向下）。", "source": "chanlun_knowledge_base", "domain": "chanlun", "lang": "zh", "lesson": 17}
+{"term": "走势必完美", "definition": "任何级别的走势，在完成时，其结构必然是完美的（满足递归定义的所有约束）。", "source": "chanlun_knowledge_base", "domain": "chanlun", "lang": "zh", "lesson": 17}
+{"term": "走势分解", "definition": "任何高级别走势都可以分解为若干低级别走势的连接。遵守结合律。", "source": "chanlun_knowledge_base", "domain": "chanlun", "lang": "zh", "lesson": 36}
+{"term": "结合律", "definition": "走势分解中，A+B+C可以组合为(A+B)+C或A+(B+C)，不影响最终的走势判断。", "source": "chanlun_knowledge_base", "domain": "chanlun", "lang": "zh", "lesson": 36}
+{"term": "多义性", "definition": "同一段走势可以有不同的合法分解方式。不同分解对应不同的操作策略。", "source": "chanlun_knowledge_base", "domain": "chanlun", "lang": "zh", "lesson": 36}
+{"term": "背驰", "definition": "在趋势中，最后一个中枢后的走势力度弱于该中枢前同向走势的力度。趋势即将结束的信号。", "source": "chanlun_knowledge_base", "domain": "chanlun", "lang": "zh", "lesson": 24}
+{"term": "盘整背驰", "definition": "在盘整中，离开中枢后的走势力度弱于进入中枢前的同向走势力度。", "source": "chanlun_knowledge_base", "domain": "chanlun", "lang": "zh", "lesson": 29}
+{"term": "趋势背驰", "definition": "趋势中最后一段走势与前一段同向走势相比力度减弱。必然导致趋势至少回到最后一个中枢。", "source": "chanlun_knowledge_base", "domain": "chanlun", "lang": "zh", "lesson": 24}
+{"term": "力度", "definition": "走势的强度度量。可用MACD面积、斜率、K线数量等辅助判断。", "source": "chanlun_knowledge_base", "domain": "chanlun", "lang": "zh", "lesson": 24}
+{"term": "MACD辅助", "definition": "用MACD的黄白线回抽零轴和面积变化来辅助判断背驰。面积缩小=力度减弱。", "source": "chanlun_knowledge_base", "domain": "chanlun", "lang": "zh", "lesson": 24}
+{"term": "第一类买点", "definition": "某级别下跌趋势中，最后一个中枢之后的走势出现背驰时的买入点。最低级别的精确买点。", "source": "chanlun_knowledge_base", "domain": "chanlun", "lang": "zh", "lesson": 27}
+{"term": "第二类买点", "definition": "第一类买点之后的回抽不创新低时形成的买点。安全性高于第一类。", "source": "chanlun_knowledge_base", "domain": "chanlun", "lang": "zh", "lesson": 27}
+{"term": "第三类买点", "definition": "中枢上方第一次回调不跌回中枢区间时形成的买点。确认向上突破有效。", "source": "chanlun_knowledge_base", "domain": "chanlun", "lang": "zh", "lesson": 29}
+{"term": "第一类卖点", "definition": "某级别上涨趋势中，最后一个中枢之后的走势出现背驰时的卖出点。", "source": "chanlun_knowledge_base", "domain": "chanlun", "lang": "zh", "lesson": 27}
+{"term": "第二类卖点", "definition": "第一类卖点之后的反弹不创新高时形成的卖点。", "source": "chanlun_knowledge_base", "domain": "chanlun", "lang": "zh", "lesson": 27}
+{"term": "第三类卖点", "definition": "中枢下方第一次反弹不回到中枢区间时形成的卖点。确认向下突破有效。", "source": "chanlun_knowledge_base", "domain": "chanlun", "lang": "zh", "lesson": 29}
+{"term": "区间套", "definition": "通过逐级降低级别来精确定位转折点。高级别确定方向，低级别精确定位。", "source": "chanlun_knowledge_base", "domain": "chanlun", "lang": "zh", "lesson": 42}
+{"term": "级别", "definition": "走势的时间尺度层次。高级别走势由低级别走势递归构成。", "source": "chanlun_knowledge_base", "domain": "chanlun", "lang": "zh", "lesson": 17}
+{"term": "递归", "definition": "缠论的核心方法。高级别走势的定义递归依赖于低级别走势。从最小级别（笔）开始逐级构建。", "source": "chanlun_knowledge_base", "domain": "chanlun", "lang": "zh", "lesson": 36}
+{"term": "同级别分解", "definition": "将走势分解为同一级别的多个走势类型的连接。是走势分析的基础操作。", "source": "chanlun_knowledge_base", "domain": "chanlun", "lang": "zh", "lesson": 37}
+{"term": "中枢定理一", "definition": "在趋势中，连接两个相邻中枢的走势，一定是次级别以下的走势。", "source": "chanlun_knowledge_base", "domain": "chanlun", "lang": "zh", "lesson": 18}
+{"term": "中枢定理二", "definition": "在盘整中，离开中枢的走势一定是次级别以下的走势。", "source": "chanlun_knowledge_base", "domain": "chanlun", "lang": "zh", "lesson": 18}
+{"term": "中枢定理三", "definition": "某级别的走势类型的完成，当且仅当一个该级别的中枢被完成（盘整）或两个以上被完成（趋势）。", "source": "chanlun_knowledge_base", "domain": "chanlun", "lang": "zh", "lesson": 20}
+{"term": "买卖点定律一", "definition": "任何级别的第二类买卖点都由次级别相应走势的第一类买卖点构成。", "source": "chanlun_knowledge_base", "domain": "chanlun", "lang": "zh", "lesson": 30}
+{"term": "买卖点定律二", "definition": "任何级别的第三类买卖点都由次级别相应走势的第一类买卖点构成。", "source": "chanlun_knowledge_base", "domain": "chanlun", "lang": "zh", "lesson": 30}
+{"term": "斜率", "definition": "走势段的价格变化率。可用于辅助力度比较。斜率减小暗示力度减弱。", "source": "chanlun_knowledge_base", "domain": "chanlun", "lang": "zh", "lesson": 24}
+{"term": "面积", "definition": "MACD柱状图围成的面积。面积缩小是背驰的辅助判断依据。", "source": "chanlun_knowledge_base", "domain": "chanlun", "lang": "zh", "lesson": 24}
+{"term": "顺序原则", "definition": "K线包含处理的先左后右原则。先用第1、2根合并，再用合并结果和第3根比较。遵守结合律。", "source": "chanlun_knowledge_base", "domain": "chanlun", "lang": "zh", "lesson": 65}
+{"term": "缺口", "definition": "特征序列中两相邻元素之间没有重合区间的情况。", "source": "chanlun_knowledge_base", "domain": "chanlun", "lang": "zh", "lesson": 67}
+{"term": "走势延续", "definition": "走势类型未完成时的延续状态。盘整延续或趋势延续，直到出现终结信号。", "source": "chanlun_knowledge_base", "domain": "chanlun", "lang": "zh", "lesson": 38}
+{"term": "类趋势", "definition": "形态上类似趋势但严格定义上不构成趋势的走势。在实际操作中需要谨慎处理。", "source": "chanlun_knowledge_base", "domain": "chanlun", "lang": "zh", "lesson": 43}
+{"term": "小转大", "definition": "低级别的背驰直接导致高级别走势的转折。是区间套应用的特殊情况。", "source": "chanlun_knowledge_base", "domain": "chanlun", "lang": "zh", "lesson": 44}
