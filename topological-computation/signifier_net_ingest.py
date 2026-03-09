@@ -1139,3 +1139,890 @@ def ingest_collocation_dict(
 
     snet = snet.merge_edge_weights()
     return snet, stats
+
+
+# ---------------------------------------------------------------------------
+# 词类典摄入（thesaurus_*.jsonl）
+# ---------------------------------------------------------------------------
+
+def ingest_thesaurus_dict(
+    snet: SNet,
+    dict_path: str | Path,
+) -> tuple[SNet, dict]:
+    """从 thesaurus JSONL 文件向 S_net 注入聚合轴关系。
+
+    支持四种 thesaurus schema（通过字段存在性自适应）：
+      - roget:         related_terms, philosophical_usage, roget_category
+      - wordnet (en):  synonyms, antonyms, hypernyms, hyponyms, definitions
+      - openthesaurus: synonyms
+      - wordnet (fr):  fr_lemmas
+
+    所有关系映射到聚合轴（PARADIGMATIC）：
+      - synonyms / related_terms / fr_lemmas → weight=0.85, relation=synonym
+      - antonyms                             → weight=0.6,  relation=contrast
+      - hypernyms                            → weight=0.7,  relation=hypernym
+      - hyponyms                             → weight=0.7,  relation=hyponym
+
+    philosophical_usage / definitions → 组合轴边（从文本中匹配已知术语）
+
+    认识论等级：L0（辞典是手工编纂的定义）
+    """
+    path = Path(dict_path)
+    if not path.exists():
+        raise FileNotFoundError(f"Thesaurus 文件不存在: {path}")
+
+    head_index = _build_head_term_index(snet)
+    whitelist, head_to_sid = _build_augmented_whitelist(snet)
+
+    stats = {
+        "file": str(path.name),
+        "type": "thesaurus",
+        "entries_total": 0,
+        "entries_matched": 0,
+        "synonyms_added": 0,
+        "antonyms_added": 0,
+        "hypernyms_added": 0,
+        "hyponyms_added": 0,
+        "syntagmatic_added": 0,
+        "signifiers_created": 0,
+    }
+
+    entries: list[dict] = []
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entries.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+
+    stats["entries_total"] = len(entries)
+
+    for entry in entries:
+        term = entry.get("term", "").strip()
+        lang = entry.get("lang", "").strip()
+
+        if not term:
+            continue
+
+        resolved_id = _resolve_term(term, snet, head_index)
+        if resolved_id is None:
+            continue
+
+        stats["entries_matched"] += 1
+
+        # 统一收集所有 synonym-like 字段
+        synonym_items: list[str] = []
+        for key in ("synonyms", "related_terms", "fr_lemmas"):
+            items = entry.get(key, [])
+            if items:
+                synonym_items.extend(items)
+
+        for syn in synonym_items:
+            if not isinstance(syn, str):
+                continue
+            syn = syn.strip()
+            if not syn or syn == resolved_id:
+                continue
+
+            syn_resolved = _resolve_term(syn, snet, head_index)
+            if syn_resolved is None:
+                snet = snet.add_signifier(Signifier(
+                    id=syn, surface_forms=(), source="thesaurus",
+                    lang=lang,
+                ))
+                stats["signifiers_created"] += 1
+                syn_resolved = syn
+
+            category = entry.get("roget_category", "").strip()
+            snet = snet.add_edge(SignifierEdge(
+                source=resolved_id,
+                target=syn_resolved,
+                axis=AxisType.PARADIGMATIC,
+                weight=0.85,
+                evidence=f"thesaurus:{category}" if category else f"thesaurus:{path.stem}",
+                relation="synonym",
+            ))
+            stats["synonyms_added"] += 1
+
+        # antonyms → contrast 边（对称）
+        for ant in entry.get("antonyms", []):
+            if not isinstance(ant, str):
+                continue
+            ant = ant.strip()
+            if not ant or ant == resolved_id:
+                continue
+
+            ant_resolved = _resolve_term(ant, snet, head_index)
+            if ant_resolved is None:
+                snet = snet.add_signifier(Signifier(
+                    id=ant, surface_forms=(), source="thesaurus",
+                    lang=lang,
+                ))
+                stats["signifiers_created"] += 1
+                ant_resolved = ant
+
+            snet = snet.add_edge(SignifierEdge(
+                source=resolved_id,
+                target=ant_resolved,
+                axis=AxisType.PARADIGMATIC,
+                weight=0.6,
+                evidence=f"thesaurus:{path.stem}",
+                relation="contrast",
+            ))
+            snet = snet.add_edge(SignifierEdge(
+                source=ant_resolved,
+                target=resolved_id,
+                axis=AxisType.PARADIGMATIC,
+                weight=0.6,
+                evidence=f"thesaurus:{path.stem}",
+                relation="contrast",
+            ))
+            stats["antonyms_added"] += 1
+
+        # hypernyms → 上位关系（不创建新 signifier）
+        for hyper in entry.get("hypernyms", []):
+            if not isinstance(hyper, str):
+                continue
+            hyper = hyper.strip()
+            if not hyper or hyper == resolved_id:
+                continue
+
+            hyper_resolved = _resolve_term(hyper, snet, head_index)
+            if hyper_resolved is None:
+                continue
+
+            snet = snet.add_edge(SignifierEdge(
+                source=resolved_id,
+                target=hyper_resolved,
+                axis=AxisType.PARADIGMATIC,
+                weight=0.7,
+                evidence=f"thesaurus:{path.stem}",
+                relation="hypernym",
+            ))
+            stats["hypernyms_added"] += 1
+
+        # hyponyms → 下位关系（不创建新 signifier）
+        for hypo in entry.get("hyponyms", []):
+            if not isinstance(hypo, str):
+                continue
+            hypo = hypo.strip()
+            if not hypo or hypo == resolved_id:
+                continue
+
+            hypo_resolved = _resolve_term(hypo, snet, head_index)
+            if hypo_resolved is None:
+                continue
+
+            snet = snet.add_edge(SignifierEdge(
+                source=resolved_id,
+                target=hypo_resolved,
+                axis=AxisType.PARADIGMATIC,
+                weight=0.7,
+                evidence=f"thesaurus:{path.stem}",
+                relation="hyponym",
+            ))
+            stats["hyponyms_added"] += 1
+
+        # philosophical_usage / definitions → 组合轴
+        usage_texts: list[str] = []
+        usage = entry.get("philosophical_usage", "").strip()
+        if usage:
+            usage_texts.append(usage)
+        usage_texts.extend(entry.get("definitions", []))
+
+        for text in usage_texts:
+            if not isinstance(text, str):
+                continue
+            text = text.strip()
+            if not text:
+                continue
+
+            matched = phi_L_whitelist_match(text, whitelist)
+            for m in matched:
+                other_id = head_to_sid.get(m, m)
+                if other_id == resolved_id:
+                    continue
+                if not snet.has_signifier(other_id):
+                    continue
+
+                pattern = extract_pattern(text, term, m)
+                snet = snet.add_edge(SignifierEdge(
+                    source=resolved_id,
+                    target=other_id,
+                    axis=AxisType.SYNTAGMATIC,
+                    weight=1.0,
+                    evidence=pattern if pattern else f"thesaurus_usage:{term}",
+                ))
+                stats["syntagmatic_added"] += 1
+
+    snet = snet.merge_edge_weights()
+    return snet, stats
+
+
+# ---------------------------------------------------------------------------
+# 维基词典摄入（wiktionary_*.jsonl）
+# ---------------------------------------------------------------------------
+
+def ingest_wiktionary_dict(
+    snet: SNet,
+    dict_path: str | Path,
+) -> tuple[SNet, dict]:
+    """从 wiktionary JSONL 文件向 S_net 注入关系。
+
+    支持两种 schema（通过字段存在性自适应）：
+      - en/de/fr: {"term", "lang", "definitions", "etymology", "source"}
+      - zh:       {"headword", "definitions", "synonyms", "antonyms",
+                   "related", "etymology", "source"}
+
+    处理逻辑：
+      - definitions → 从定义文本中匹配已知术语 → 组合轴边
+      - etymology → 同上（词源中常有关联术语）
+      - synonyms (zh) → 聚合轴边
+      - antonyms (zh) → 聚合轴边 (contrast)
+      - related (zh) → 聚合轴边 (weight=0.7)
+
+    认识论等级：L0（辞典是社区编纂的词条）
+    """
+    path = Path(dict_path)
+    if not path.exists():
+        raise FileNotFoundError(f"Wiktionary 文件不存在: {path}")
+
+    head_index = _build_head_term_index(snet)
+    whitelist, head_to_sid = _build_augmented_whitelist(snet)
+
+    stats = {
+        "file": str(path.name),
+        "type": "wiktionary",
+        "entries_total": 0,
+        "entries_matched": 0,
+        "syntagmatic_added": 0,
+        "paradigmatic_added": 0,
+        "signifiers_created": 0,
+    }
+
+    entries: list[dict] = []
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entries.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+
+    stats["entries_total"] = len(entries)
+
+    for entry in entries:
+        # zh 版用 headword，其他用 term
+        term = entry.get("term", "") or entry.get("headword", "")
+        term = term.strip()
+        lang = entry.get("lang", "").strip()
+
+        if not term:
+            continue
+
+        resolved_id = _resolve_term(term, snet, head_index)
+        if resolved_id is None:
+            continue
+
+        stats["entries_matched"] += 1
+
+        # definitions + etymology → 组合轴（从文本中提取共现术语）
+        all_texts: list[str] = list(entry.get("definitions", []))
+        etymology = entry.get("etymology", "").strip()
+        if etymology:
+            all_texts.append(etymology)
+
+        for text in all_texts:
+            if not isinstance(text, str):
+                continue
+            text = text.strip()
+            if not text:
+                continue
+
+            matched = phi_L_whitelist_match(text, whitelist)
+            for m in matched:
+                other_id = head_to_sid.get(m, m)
+                if other_id == resolved_id:
+                    continue
+                if not snet.has_signifier(other_id):
+                    continue
+
+                pattern = extract_pattern(text, term, m)
+                snet = snet.add_edge(SignifierEdge(
+                    source=resolved_id,
+                    target=other_id,
+                    axis=AxisType.SYNTAGMATIC,
+                    weight=1.0,
+                    evidence=pattern if pattern else f"wiktionary:{path.stem}:def",
+                ))
+                stats["syntagmatic_added"] += 1
+
+        # synonyms (zh) → 聚合轴
+        for syn in entry.get("synonyms", []):
+            if not isinstance(syn, str):
+                continue
+            syn = syn.strip()
+            if not syn or syn == resolved_id:
+                continue
+
+            syn_resolved = _resolve_term(syn, snet, head_index)
+            if syn_resolved is None:
+                snet = snet.add_signifier(Signifier(
+                    id=syn, surface_forms=(), source="wiktionary",
+                    lang=lang,
+                ))
+                stats["signifiers_created"] += 1
+                syn_resolved = syn
+
+            snet = snet.add_edge(SignifierEdge(
+                source=resolved_id,
+                target=syn_resolved,
+                axis=AxisType.PARADIGMATIC,
+                weight=0.85,
+                evidence=f"wiktionary:{path.stem}",
+                relation="synonym",
+            ))
+            stats["paradigmatic_added"] += 1
+
+        # antonyms (zh) → 聚合轴 contrast
+        for ant in entry.get("antonyms", []):
+            if not isinstance(ant, str):
+                continue
+            ant = ant.strip()
+            if not ant or ant == resolved_id:
+                continue
+
+            ant_resolved = _resolve_term(ant, snet, head_index)
+            if ant_resolved is None:
+                continue
+
+            snet = snet.add_edge(SignifierEdge(
+                source=resolved_id,
+                target=ant_resolved,
+                axis=AxisType.PARADIGMATIC,
+                weight=0.6,
+                evidence=f"wiktionary:{path.stem}",
+                relation="contrast",
+            ))
+            stats["paradigmatic_added"] += 1
+
+        # related (zh) → 聚合轴 (weaker)
+        for rel in entry.get("related", []):
+            if not isinstance(rel, str):
+                continue
+            rel = rel.strip()
+            if not rel or rel == resolved_id:
+                continue
+
+            rel_resolved = _resolve_term(rel, snet, head_index)
+            if rel_resolved is None:
+                continue
+
+            snet = snet.add_edge(SignifierEdge(
+                source=resolved_id,
+                target=rel_resolved,
+                axis=AxisType.PARADIGMATIC,
+                weight=0.7,
+                evidence=f"wiktionary:{path.stem}",
+                relation="related",
+            ))
+            stats["paradigmatic_added"] += 1
+
+    snet = snet.merge_edge_weights()
+    return snet, stats
+
+
+# ---------------------------------------------------------------------------
+# 成语/固定短语摄入（idioms_*.jsonl）
+# ---------------------------------------------------------------------------
+
+def ingest_idiom_dict(
+    snet: SNet,
+    dict_path: str | Path,
+) -> tuple[SNet, dict]:
+    """从 idioms JSONL 文件向 S_net 注入组合轴关系 + surface forms。
+
+    JSONL 格式：
+      {"term": str, "lang": str, "domain": str,
+       "idiomatic_uses": [str, ...], "fixed_phrases": [str, ...],
+       "classical_references": [str, ...] (optional, zh only),
+       "source": str}
+
+    处理逻辑：
+      - idiomatic_uses → surface_forms 积累 + 组合轴边（从习语中提取共现术语）
+      - fixed_phrases → surface_forms 积累 + 组合轴边
+
+    认识论等级：L0（辞典是手工编纂的惯用语）
+    """
+    path = Path(dict_path)
+    if not path.exists():
+        raise FileNotFoundError(f"Idioms 文件不存在: {path}")
+
+    head_index = _build_head_term_index(snet)
+    whitelist, head_to_sid = _build_augmented_whitelist(snet)
+
+    stats = {
+        "file": str(path.name),
+        "type": "idiom",
+        "entries_total": 0,
+        "entries_matched": 0,
+        "syntagmatic_added": 0,
+        "surface_forms_added": 0,
+    }
+
+    entries: list[dict] = []
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entries.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+
+    stats["entries_total"] = len(entries)
+
+    for entry in entries:
+        term = entry.get("term", "").strip()
+        domain = entry.get("domain", "").strip()
+
+        if not term:
+            continue
+
+        resolved_id = _resolve_term(term, snet, head_index)
+        if resolved_id is None:
+            continue
+
+        stats["entries_matched"] += 1
+
+        # 收集所有习语文本
+        idiom_texts: list[str] = (
+            list(entry.get("idiomatic_uses", []))
+            + list(entry.get("fixed_phrases", []))
+        )
+
+        for text in idiom_texts:
+            if not isinstance(text, str) or not text.strip():
+                continue
+            text = text.strip()
+
+            # 添加为 surface form（限制数量）
+            existing = snet.signifiers.get(resolved_id)
+            if existing and text not in existing.surface_forms:
+                if len(existing.surface_forms) < 20:
+                    new_forms = existing.surface_forms + (text,)
+                    snet = snet.add_signifier(Signifier(
+                        id=existing.id,
+                        surface_forms=new_forms,
+                        source=existing.source,
+                    ))
+                    stats["surface_forms_added"] += 1
+
+            # 从习语文本中提取共现术语
+            matched = phi_L_whitelist_match(text, whitelist)
+            for m in matched:
+                other_id = head_to_sid.get(m, m)
+                if other_id == resolved_id:
+                    continue
+                if not snet.has_signifier(other_id):
+                    continue
+
+                snet = snet.add_edge(SignifierEdge(
+                    source=resolved_id,
+                    target=other_id,
+                    axis=AxisType.SYNTAGMATIC,
+                    weight=1.0,
+                    evidence=f"idiom:{domain}:{text[:60]}",
+                ))
+                stats["syntagmatic_added"] += 1
+
+    snet = snet.merge_edge_weights()
+    return snet, stats
+
+
+# ---------------------------------------------------------------------------
+# 词汇场摄入（wortschatz_*.jsonl）
+# ---------------------------------------------------------------------------
+
+def ingest_wortschatz_dict(
+    snet: SNet,
+    dict_path: str | Path,
+) -> tuple[SNet, dict]:
+    """从 Wortschatz JSONL 文件向 S_net 注入词场和构词关系。
+
+    JSONL 格式：
+      {"term": str, "lang": str, "word_field": [str, ...],
+       "compounds": [str, ...], "derivations": [str, ...],
+       "register": str, "source": str}
+
+    处理逻辑：
+      - word_field → 聚合轴边（同一词场 = paradigmatic 关系, weight=0.65）
+      - compounds → 语素轴边（复合词 = morpheme 关系, weight=0.7）
+      - derivations → 语素轴边（派生词 = morpheme 关系, weight=0.6）
+
+    认识论等级：L0（辞典是手工编纂的词场分类）
+    """
+    path = Path(dict_path)
+    if not path.exists():
+        raise FileNotFoundError(f"Wortschatz 文件不存在: {path}")
+
+    head_index = _build_head_term_index(snet)
+
+    stats = {
+        "file": str(path.name),
+        "type": "wortschatz",
+        "entries_total": 0,
+        "entries_matched": 0,
+        "word_field_added": 0,
+        "compound_edges_added": 0,
+        "derivation_edges_added": 0,
+        "signifiers_created": 0,
+    }
+
+    entries: list[dict] = []
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entries.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+
+    stats["entries_total"] = len(entries)
+
+    for entry in entries:
+        term = entry.get("term", "").strip()
+        lang = entry.get("lang", "").strip()
+
+        if not term:
+            continue
+
+        resolved_id = _resolve_term(term, snet, head_index)
+        if resolved_id is None:
+            continue
+
+        stats["entries_matched"] += 1
+
+        # word_field → 聚合轴
+        for wf in entry.get("word_field", []):
+            if not isinstance(wf, str):
+                continue
+            wf = wf.strip()
+            if not wf or wf == resolved_id:
+                continue
+
+            wf_resolved = _resolve_term(wf, snet, head_index)
+            if wf_resolved is None:
+                snet = snet.add_signifier(Signifier(
+                    id=wf, surface_forms=(), source="wortschatz",
+                    lang=lang,
+                ))
+                stats["signifiers_created"] += 1
+                wf_resolved = wf
+
+            snet = snet.add_edge(SignifierEdge(
+                source=resolved_id,
+                target=wf_resolved,
+                axis=AxisType.PARADIGMATIC,
+                weight=0.65,
+                evidence=f"word_field:{term}",
+                relation="word_field",
+            ))
+            stats["word_field_added"] += 1
+
+        # compounds → 语素轴
+        for comp in entry.get("compounds", []):
+            if not isinstance(comp, str):
+                continue
+            comp = comp.strip()
+            if not comp or comp == resolved_id:
+                continue
+
+            comp_resolved = _resolve_term(comp, snet, head_index)
+            if comp_resolved is None:
+                snet = snet.add_signifier(Signifier(
+                    id=comp, surface_forms=(), source="wortschatz",
+                    lang=lang,
+                ))
+                stats["signifiers_created"] += 1
+                comp_resolved = comp
+
+            snet = snet.add_edge(SignifierEdge(
+                source=resolved_id,
+                target=comp_resolved,
+                axis=AxisType.MORPHEME,
+                weight=0.7,
+                evidence=f"compound:{term}->{comp}",
+                relation="compound",
+            ))
+            stats["compound_edges_added"] += 1
+
+        # derivations → 语素轴
+        for deriv in entry.get("derivations", []):
+            if not isinstance(deriv, str):
+                continue
+            deriv = deriv.strip()
+            if not deriv or deriv == resolved_id:
+                continue
+
+            deriv_resolved = _resolve_term(deriv, snet, head_index)
+            if deriv_resolved is None:
+                snet = snet.add_signifier(Signifier(
+                    id=deriv, surface_forms=(), source="wortschatz",
+                    lang=lang,
+                ))
+                stats["signifiers_created"] += 1
+                deriv_resolved = deriv
+
+            snet = snet.add_edge(SignifierEdge(
+                source=resolved_id,
+                target=deriv_resolved,
+                axis=AxisType.MORPHEME,
+                weight=0.6,
+                evidence=f"derivation:{term}->{deriv}",
+                relation="derivation",
+            ))
+            stats["derivation_edges_added"] += 1
+
+    snet = snet.merge_edge_weights()
+    return snet, stats
+
+
+# ---------------------------------------------------------------------------
+# 代码辞典摄入：从 code_dict_*.jsonl 注入代码概念 signifier
+# ---------------------------------------------------------------------------
+
+def ingest_code_dict(
+    snet: SNet,
+    dict_path: str | Path,
+    graph=None,
+) -> tuple[SNet, dict]:
+    """从代码辞典 JSONL 向 S_net 注入代码概念 signifier。
+
+    代码辞典由 generate_code_dict.py 通过 AST 分析自动生成，格式：
+      {"term": str, "domain": "code_project", "definition": str,
+       "synonyms": [str], "contrasts": [str],
+       "connective_patterns": [str], "concept_ids": [str]}
+
+    与 ingest_dictionary() 的区别：
+      1. concept_ids 字段：存放 K_active vertex ID，用于直接建立 concept_ref 映射
+      2. 每个 term 创建短形式 signifier（如 "Graph"），并与 Layer A 的长形式
+         signifier（如 "[domain:self] class Graph..."）通过 synonym 边连接
+      3. synonyms 中的同名函数（不同模块）创建聚合轴边
+      4. contrasts 中的对比概念创建聚合轴边（contrast 关系）
+      5. connective_patterns 中的调用关系创建组合轴边（evidence 标注关系类型）
+
+    参数：
+      snet:      当前 S_net 实例
+      dict_path: 代码辞典 JSONL 文件路径
+      graph:     K_active 图（用于查找 vertex content → signifier ID 映射）
+
+    返回：
+      (new_snet, stats)
+
+    认识论等级：L0（AST 是确定性解析，辞典条目是确定性数据）
+    """
+    path = Path(dict_path)
+    if not path.exists():
+        raise FileNotFoundError(f"代码辞典文件不存在: {path}")
+
+    stats = {
+        "file": str(path.name),
+        "entries_total": 0,
+        "signifiers_created": 0,
+        "concept_bridges": 0,
+        "synonyms_added": 0,
+        "contrasts_added": 0,
+        "syntagmatic_added": 0,
+    }
+
+    entries: list[dict] = []
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entries.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+
+    stats["entries_total"] = len(entries)
+
+    # Build concept_id -> signifier_id mapping from existing S_net
+    # (Layer A signifiers have vertex content as ID, vertex ID in surface_forms)
+    vertex_id_to_sig: dict[str, str] = {}
+    if graph is not None:
+        for vid in graph.active_vertex_ids():
+            v = graph.vertices.get(vid)
+            if v is None or not v.content:
+                continue
+            content = v.content.strip()
+            if content and snet.has_signifier(content):
+                vertex_id_to_sig[vid] = content
+
+    # Also build reverse: check surface_forms for vertex IDs
+    for sid, sig in snet.signifiers.items():
+        for sf in sig.surface_forms:
+            if sf not in vertex_id_to_sig:
+                vertex_id_to_sig[sf] = sid
+
+    # Track created code signifiers for inter-entry edge building
+    code_term_to_sig: dict[str, str] = {}
+
+    for entry in entries:
+        term = entry.get("term", "").strip()
+        if not term:
+            continue
+
+        # Create signifier for this code concept if not already in S_net
+        if not snet.has_signifier(term):
+            snet = snet.add_signifier(Signifier(
+                id=term,
+                surface_forms=tuple(entry.get("concept_ids", [])),
+                source="code_dictionary",
+                domain="code_project",
+            ))
+            stats["signifiers_created"] += 1
+        code_term_to_sig[term] = term
+
+        # Bridge to Layer A signifiers via concept_ids
+        for concept_id in entry.get("concept_ids", []):
+            if concept_id in vertex_id_to_sig:
+                layer_a_sig = vertex_id_to_sig[concept_id]
+                if layer_a_sig != term:
+                    # Create synonym edge: short-form ↔ long-form
+                    snet = snet.add_edge(SignifierEdge(
+                        source=term,
+                        target=layer_a_sig,
+                        axis=AxisType.PARADIGMATIC,
+                        weight=1.0,
+                        evidence=f"code_bridge:{concept_id}",
+                        relation="synonym",
+                    ))
+                    snet = snet.add_edge(SignifierEdge(
+                        source=layer_a_sig,
+                        target=term,
+                        axis=AxisType.PARADIGMATIC,
+                        weight=1.0,
+                        evidence=f"code_bridge:{concept_id}",
+                        relation="synonym",
+                    ))
+                    stats["concept_bridges"] += 1
+
+    # Second pass: build inter-entry edges now that all signifiers exist
+    for entry in entries:
+        term = entry.get("term", "").strip()
+        if not term or not snet.has_signifier(term):
+            continue
+
+        # Synonyms → paradigmatic (same-name in different modules)
+        for syn in entry.get("synonyms", []):
+            syn = syn.strip()
+            if not syn or syn == term:
+                continue
+            # Try to resolve: could be a module.name format
+            syn_short = syn.split(".")[-1] if "." in syn else syn
+            syn_target = None
+            if snet.has_signifier(syn):
+                syn_target = syn
+            elif snet.has_signifier(syn_short):
+                syn_target = syn_short
+            if syn_target is None:
+                continue
+
+            snet = snet.add_edge(SignifierEdge(
+                source=term,
+                target=syn_target,
+                axis=AxisType.PARADIGMATIC,
+                weight=0.7,
+                evidence="code_synonym",
+                relation="synonym",
+            ))
+            stats["synonyms_added"] += 1
+
+        # Contrasts → paradigmatic (sibling classes/methods)
+        for contrast in entry.get("contrasts", []):
+            contrast = contrast.strip()
+            if not contrast or contrast == term:
+                continue
+            if not snet.has_signifier(contrast):
+                continue
+
+            snet = snet.add_edge(SignifierEdge(
+                source=term,
+                target=contrast,
+                axis=AxisType.PARADIGMATIC,
+                weight=0.5,
+                evidence="code_contrast",
+                relation="contrast",
+            ))
+            snet = snet.add_edge(SignifierEdge(
+                source=contrast,
+                target=term,
+                axis=AxisType.PARADIGMATIC,
+                weight=0.5,
+                evidence="code_contrast",
+                relation="contrast",
+            ))
+            stats["contrasts_added"] += 1
+
+        # Connective patterns → syntagmatic (calls, defined_in, imports)
+        for pattern in entry.get("connective_patterns", []):
+            pattern = pattern.strip()
+            if not pattern:
+                continue
+
+            # Parse pattern to extract relationship and target
+            evidence = pattern
+            target_term = None
+
+            if " calls " in pattern:
+                callee = pattern.split(" calls ", 1)[1].strip()
+                callee_short = callee.split(".")[-1] if "." in callee else callee
+                if snet.has_signifier(callee):
+                    target_term = callee
+                elif snet.has_signifier(callee_short):
+                    target_term = callee_short
+                evidence = f"calls:{callee}"
+
+            elif "defined in " in pattern:
+                parent = pattern.split("defined in ", 1)[1].strip()
+                if snet.has_signifier(parent):
+                    target_term = parent
+                evidence = f"defined_in:{parent}"
+
+            elif pattern.startswith("import "):
+                mod = pattern.split("import ", 1)[1].strip()
+                if snet.has_signifier(mod):
+                    target_term = mod
+                evidence = f"imports:{mod}"
+
+            elif "." in pattern:
+                # Class.method pattern
+                parts = pattern.split(".", 1)
+                method_name = parts[1] if len(parts) > 1 else None
+                if method_name and snet.has_signifier(pattern):
+                    target_term = pattern
+                    evidence = f"member:{pattern}"
+
+            if target_term and target_term != term:
+                snet = snet.add_edge(SignifierEdge(
+                    source=term,
+                    target=target_term,
+                    axis=AxisType.SYNTAGMATIC,
+                    weight=0.8,
+                    evidence=evidence,
+                ))
+                stats["syntagmatic_added"] += 1
+
+    snet = snet.merge_edge_weights()
+    return snet, stats

@@ -2,8 +2,8 @@
  * InstanceManager.tsx — UI for managing daemon instances.
  *
  * Shows instance list with connection status, add/remove buttons.
- * Users can select which instance to view topology/narrative from.
- * All instances are peers (no primary concept).
+ * All instances are peers traversing the same shared K_active.
+ * No "active" or "primary" concept — topology comes from the shared graph.
  * Compact dark theme, sits in a collapsible panel.
  */
 
@@ -16,10 +16,8 @@ import type { InstanceState } from "../hooks/useStore";
 export function InstanceManager() {
   const instances = useStore((s) => s.instances);
   const instanceStates = useStore((s) => s.instanceStates);
-  const activeInstanceId = useStore((s) => s.activeInstanceId);
   const addInstance = useStore((s) => s.addInstance);
   const removeInstance = useStore((s) => s.removeInstance);
-  const setActiveInstanceId = useStore((s) => s.setActiveInstanceId);
 
   const [expanded, setExpanded] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -70,7 +68,7 @@ export function InstanceManager() {
             return (
               <div
                 key={inst.id}
-                title={`${inst.name}: ${connected ? "连接" : "断开"}${inst.id === activeInstanceId ? " (查看中)" : ""}`}
+                title={`${inst.name}: ${connected ? "连接" : "断开"}`}
                 style={{
                   width: 5, height: 5, borderRadius: "50%",
                   background: connected
@@ -78,8 +76,6 @@ export function InstanceManager() {
                     : T.textMuted,
                   opacity: connected ? 1 : 0.4,
                   transition: "background 0.3s, opacity 0.3s",
-                  border: inst.id === activeInstanceId ? `1px solid ${T.text}` : "none",
-                  boxSizing: "border-box",
                 }}
               />
             );
@@ -100,7 +96,6 @@ export function InstanceManager() {
             const connected = state?.wsConnected || state?.reachable;
             const color = INSTANCE_COLORS[idx % INSTANCE_COLORS.length];
             const status = state?.status;
-            const isActive = inst.id === activeInstanceId;
 
             return (
               <div
@@ -119,23 +114,13 @@ export function InstanceManager() {
                   flexShrink: 0,
                 }} />
 
-                {/* Name + active badge */}
+                {/* Name */}
                 <span style={{
-                  color: isActive ? T.accent : T.text,
-                  fontWeight: isActive ? 600 : 400,
+                  color: T.text,
                   minWidth: 40,
                 }}>
                   {inst.name}
                 </span>
-                {isActive && (
-                  <span style={{
-                    fontSize: 7, color: T.accent,
-                    border: `1px solid ${T.accent}44`,
-                    borderRadius: 2, padding: "0 3px",
-                  }}>
-                    查看
-                  </span>
-                )}
 
                 {/* Position label */}
                 {connected && state?.currentPositionLabel && (
@@ -166,25 +151,6 @@ export function InstanceManager() {
                 </span>
 
                 <div style={{ flex: 1 }} />
-
-                {/* View source button */}
-                {!isActive && (
-                  <button
-                    onClick={() => setActiveInstanceId(inst.id)}
-                    title="查看此实例的拓扑数据"
-                    style={{
-                      background: "transparent",
-                      border: `1px solid ${T.border}`,
-                      borderRadius: 2,
-                      color: T.textDim,
-                      fontSize: 8,
-                      padding: "1px 4px",
-                      cursor: "pointer",
-                    }}
-                  >
-                    查看
-                  </button>
-                )}
 
                 {/* Remove button (can't remove last) */}
                 {instances.length > 1 && (

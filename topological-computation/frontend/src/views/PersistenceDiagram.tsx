@@ -100,7 +100,7 @@ function syntheticPairs(status: StatusResponse): PersistencePair[] {
 // ── 组件 ────────────────────────────────────────────────────────
 
 export function PersistenceDiagram({ status }: Props) {
-  const httpBase = useStore((s) => s.getActiveHttpBase());
+  const httpBase = useStore((s) => s.getReachableHttpBase());
   const svgRef = useRef<SVGSVGElement>(null);
   const [pairs, setPairs] = useState<PersistencePair[]>([]);
   const [maxFiltration, setMaxFiltration] = useState<number>(100);

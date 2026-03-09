@@ -35,9 +35,8 @@ cwd=$(echo "$input" | python -c "import sys,json; print(json.loads(sys.stdin.rea
 # 确保在项目目录内
 cd "$cwd" 2>/dev/null || cd "$(git rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null || true
 
-# 调用独立 session 写入脚本
-SCRIPT_DIR_REL="$(cd "$(dirname "${BASH_SOURCE[0]}")/../scripts" && pwd)"
-SESSION_FILE=$(bash "$SCRIPT_DIR_REL/write_session.sh" 2>/dev/null || true)
+# 调用独立 session 写入脚本（已 cd 到项目根目录）
+SESSION_FILE=$(bash scripts/write_session.sh 2>/dev/null || true)
 
 if [ -z "$SESSION_FILE" ]; then
     # write_session.sh 失败或无 python，使用回退路径

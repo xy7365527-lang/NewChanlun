@@ -1857,10 +1857,10 @@ nodes:
   type: meta-rule
   file: settled/383-meta-observation-v164-swarm.md
 - id: '384'
-  title: ''
+  title: 'R3-Q2 β₁差值分解公式精确化——编排者双重否定驱动'
   status: 已结算
-  type: 矛盾发现
-  file: settled/384-alphago-isomorphic-overclaim.md
+  type: bias-correction
+  file: settled/384-R3-Q2-beta1-formula-correction.md
 - id: '385'
   title: 元观察——v165-swarm（编排者双重精确否定 + R3-Q2从开放到可执行 + scan假阳性部分改善 + 规则版本70连稳定）
   status: settled
@@ -1932,6 +1932,36 @@ nodes:
   status: 已结算
   type: meta-rule
   file: settled/399-meta-observation-v198-swarm.md
+- id: '396'
+  title: ''
+  status: 生成态
+  type: concept-separation
+  file: settled/396-settlement-thermal-death.md
+- id: '401'
+  title: 脚印不是宝藏 — 轨迹与产物的范畴区分
+  status: settled
+  type: meta-rule
+  file: settled/401-memory-injection-trajectory-vs-product.md
+- id: '402'
+  title: ''
+  status: 已结算
+  type: analysis
+  file: settled/402-dataflow-audit-v204.md
+- id: '403'
+  title: ''
+  status: 已结算
+  type: 矛盾发现
+  file: settled/403-T-formula-deadlock.md
+- id: '404'
+  title: ''
+  status: 已结算
+  type: 矛盾发现
+  file: settled/404-negate-sublate-no-positive-beta1.md
+- id: '405'
+  title: ''
+  status: 已结算
+  type: 矛盾发现
+  file: settled/405-alphago-isomorphic-overclaim.md
 edges:
   depends_on:
   - from: '136'
