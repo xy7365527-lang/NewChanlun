@@ -17,7 +17,8 @@
 
 import { useEffect, useState, useRef } from "react";
 import * as d3 from "d3";
-import { T, FONT, DAEMON_HTTP } from "../tokens";
+import { T, FONT } from "../tokens";
+import { useStore } from "../hooks/useStore";
 import type { StatusResponse } from "../types";
 
 // ── 类型 ────────────────────────────────────────────────────────
@@ -41,9 +42,9 @@ interface Props {
 
 // ── 工具 ────────────────────────────────────────────────────────
 
-async function fetchPersistence(): Promise<PersistenceResponse | null> {
+async function fetchPersistence(httpBase: string): Promise<PersistenceResponse | null> {
   try {
-    const res = await fetch(`${DAEMON_HTTP}/persistence`);
+    const res = await fetch(`${httpBase}/persistence`);
     if (!res.ok) return null;
     return res.json();
   } catch {
@@ -99,6 +100,7 @@ function syntheticPairs(status: StatusResponse): PersistencePair[] {
 // ── 组件 ────────────────────────────────────────────────────────
 
 export function PersistenceDiagram({ status }: Props) {
+  const httpBase = useStore((s) => s.getActiveHttpBase());
   const svgRef = useRef<SVGSVGElement>(null);
   const [pairs, setPairs] = useState<PersistencePair[]>([]);
   const [maxFiltration, setMaxFiltration] = useState<number>(100);
@@ -109,7 +111,7 @@ export function PersistenceDiagram({ status }: Props) {
   useEffect(() => {
     let alive = true;
     async function load() {
-      const data = await fetchPersistence();
+      const data = await fetchPersistence(httpBase);
       if (!alive) return;
 
       if (data) {
@@ -127,7 +129,7 @@ export function PersistenceDiagram({ status }: Props) {
     load();
     const id = setInterval(load, 8000);
     return () => { alive = false; clearInterval(id); };
-  }, [status]);
+  }, [status, httpBase]);
 
   // ── D3 渲染 ──────────────────────────────────────────────────
   useEffect(() => {

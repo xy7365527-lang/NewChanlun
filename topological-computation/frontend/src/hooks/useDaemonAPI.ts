@@ -12,70 +12,80 @@ import type {
   PersistenceResponse,
 } from "../types";
 
-async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`${DAEMON_HTTP}${path}`);
-  if (!res.ok) {
-    throw new Error(`HTTP ${res.status} for ${path}`);
-  }
-  return res.json() as Promise<T>;
+function makeGet(baseUrl: string) {
+  return async function get<T>(path: string): Promise<T> {
+    const res = await fetch(`${baseUrl}${path}`);
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status} for ${path}`);
+    }
+    return res.json() as Promise<T>;
+  };
 }
 
-async function post<T>(path: string, body: Record<string, unknown>): Promise<T> {
-  const res = await fetch(`${DAEMON_HTTP}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    throw new Error(`HTTP ${res.status} for ${path}`);
-  }
-  return res.json() as Promise<T>;
+function makePost(baseUrl: string) {
+  return async function post<T>(path: string, body: Record<string, unknown>): Promise<T> {
+    const res = await fetch(`${baseUrl}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status} for ${path}`);
+    }
+    return res.json() as Promise<T>;
+  };
 }
 
-export const daemonAPI = {
-  status: (): Promise<StatusResponse> => get<StatusResponse>("/status"),
+export interface DaemonAPI {
+  status: () => Promise<StatusResponse>;
+  topology: (center?: string, radius?: number) => Promise<TopologyResponse>;
+  query: (concept: string) => Promise<QueryResponse>;
+  narrative: (n?: number) => Promise<NarrativeEvent[]>;
+  gaps: () => Promise<GapEntry[]>;
+  operations: () => Promise<OperationStats>;
+  traverse: (start: string) => Promise<TraverseResponse>;
+  feed: (text: string) => Promise<FeedResponse>;
+  present: (text: string) => Promise<PresentResponse>;
+  persistence: () => Promise<PersistenceResponse>;
+}
 
-  topology: (center?: string, radius = 2): Promise<TopologyResponse> => {
-    const params = center
-      ? `?center=${encodeURIComponent(center)}&radius=${radius}`
-      : "";
-    return get<TopologyResponse>(`/topology${params}`);
-  },
+export function createDaemonAPI(baseUrl: string): DaemonAPI {
+  const get = makeGet(baseUrl);
+  const post = makePost(baseUrl);
 
-  query: (concept: string): Promise<QueryResponse> =>
-    get<QueryResponse>(`/query?concept=${encodeURIComponent(concept)}`),
+  return {
+    status: () => get<StatusResponse>("/status"),
 
-  narrative: (n = 20): Promise<NarrativeEvent[]> =>
-    get<NarrativeEvent[]>(`/narrative?n=${n}`),
+    topology: (center?: string, radius = 2) => {
+      const params = center
+        ? `?center=${encodeURIComponent(center)}&radius=${radius}`
+        : "";
+      return get<TopologyResponse>(`/topology${params}`);
+    },
 
-  gaps: (): Promise<GapEntry[]> => get<GapEntry[]>("/gaps"),
+    query: (concept: string) =>
+      get<QueryResponse>(`/query?concept=${encodeURIComponent(concept)}`),
 
-  operations: (): Promise<OperationStats> => get<OperationStats>("/operations"),
+    narrative: (n = 20) =>
+      get<NarrativeEvent[]>(`/narrative?n=${n}`),
 
-  traverse: (start: string): Promise<TraverseResponse> =>
-    post<TraverseResponse>("/traverse", { start }),
+    gaps: () => get<GapEntry[]>("/gaps"),
 
-  feed: (text: string): Promise<FeedResponse> =>
-    post<FeedResponse>("/feed", { text }),
+    operations: () => get<OperationStats>("/operations"),
 
-  /**
-   * POST /present — user presence.
-   *
-   * Semantics: the user is present, not asking a question.
-   * The system decides what (if anything) to share:
-   * - Unreported high-importance events (expression pressure)
-   * - Co-gaze traversal of user-named concepts
-   * - Silence (nothing to say right now)
-   *
-   * text can be empty string (when user clicks the pressure indicator).
-   */
-  present: (text: string): Promise<PresentResponse> =>
-    post<PresentResponse>("/present", { text }),
+    traverse: (start: string) =>
+      post<TraverseResponse>("/traverse", { start }),
 
-  /**
-   * 获取持久同调数据（birth-death 对列表）。
-   * 若 daemon 未实现此端点，调用方应降级处理（返回 null / 合成数据）。
-   */
-  persistence: (): Promise<PersistenceResponse> =>
-    get<PersistenceResponse>("/persistence"),
-};
+    feed: (text: string) =>
+      post<FeedResponse>("/feed", { text }),
+
+    present: (text: string) =>
+      post<PresentResponse>("/present", { text }),
+
+    persistence: () =>
+      get<PersistenceResponse>("/persistence"),
+  };
+}
+
+/** Backward-compatible default instance using DAEMON_HTTP from tokens */
+export const daemonAPI = createDaemonAPI(DAEMON_HTTP);

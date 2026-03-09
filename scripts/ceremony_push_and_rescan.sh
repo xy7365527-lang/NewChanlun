@@ -21,6 +21,9 @@ COMMIT_MSG="${1:-chore: ceremony atomic chain commit}"
 # --- Step 1: 写入 ceremony 状态（步骤7：push 阶段）---
 python "$SCRIPT_DIR/ceremony_state.py" write 7 push
 
+# --- Step 1b: 写入 session（确保 session 被 commit）---
+bash "$SCRIPT_DIR/write_session.sh" >/dev/null 2>&1 || true
+
 # --- Step 2: git add 已知文件类型（排除 tmp/）---
 git add -- '*.py' '*.md' '*.yaml' '*.sh' '*.json' '*.jsonl' 2>/dev/null
 git reset HEAD -- tmp/ 2>/dev/null

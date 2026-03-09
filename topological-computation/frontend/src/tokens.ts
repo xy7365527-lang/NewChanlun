@@ -39,6 +39,41 @@ export const DAEMON_WS = "ws://localhost:8765/ws";
 export const WS_THROTTLE_MS = 100;
 export const STATUS_POLL_MS = 1000;
 
+// ── Multi-instance ─────────────────────────────────────────────
+export interface DaemonInstance {
+  id: string;           // "vps-hetzner", "local" etc.
+  name: string;         // UI display name
+  httpBase: string;     // "http://46.225.187.39:9765"
+  wsUrl: string;        // "ws://46.225.187.39:8765/ws"
+}
+
+export const INSTANCE_STORAGE_KEY = "fl-daemon-instances";
+
+export const DEFAULT_INSTANCES: DaemonInstance[] = [
+  {
+    id: "vps-hetzner",
+    name: "VPS",
+    httpBase: "http://46.225.187.39:9765",
+    wsUrl: "ws://46.225.187.39:8765/ws",
+  },
+  {
+    id: "local",
+    name: "本地",
+    httpBase: "http://localhost:9765",
+    wsUrl: "ws://localhost:8765/ws",
+  },
+];
+
+export const INSTANCE_COLORS = [
+  "#00ccff",  // cyan (self/first)
+  "#ff4466",  // red
+  "#22d68a",  // green
+  "#f0c040",  // amber
+  "#cc66ff",  // purple
+  "#ff8c42",  // orange
+  "#42c6ff",  // light cyan
+] as const;
+
 // ── f-value color mapping ───────────────────────────────────────
 export function fToColor(f: number): string {
   if (f < 0) return T.textMuted;   // unknown / no terrain data

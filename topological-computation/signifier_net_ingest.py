@@ -112,6 +112,85 @@ def extract_pattern(
 # 辞典摄入主函数
 # ---------------------------------------------------------------------------
 
+def _build_head_term_index(snet: SNet) -> dict[str, str]:
+    """从 S_net 的所有 signifier ID 构建 head-term → signifier_id 索引。
+
+    Layer A 创建的 signifier ID 是复合描述短语（如 "culture industry — mass deception"）。
+    辞典术语是规范短语（如 "culture industry"）。需要一个桥接索引。
+
+    提取规则：
+      - "X — Y" 模式：head = X（em-dash 前部分）
+      - "X (Y)" 模式：head = X（括号前部分）
+      - 纯短语：head = 完整 ID（已经是规范形式）
+
+    冲突解决：当多个 signifier ID 映射到同一个 head term 时，保留最短的
+    signifier ID（最接近规范形式）。
+
+    认识论等级：L0（确定性字符串操作）
+    """
+    index: dict[str, str] = {}
+
+    for sid in snet.signifiers:
+        # 完整 ID 已经在 snet 中，无需索引
+        # 索引的是 head term → 完整 sid 的映射
+
+        head = sid  # 默认：完整 ID
+
+        # "X — Y" 模式
+        if " — " in sid:
+            head = sid.split(" — ")[0].strip()
+        # "X (Y)" 模式（不含 em-dash 的情况）
+        elif "(" in sid:
+            head = sid[:sid.index("(")].strip()
+
+        if head == sid:
+            # 完整 ID 就是 head term，无需索引（has_signifier 已覆盖）
+            continue
+
+        if not head:
+            continue
+
+        # 冲突解决：保留最短 signifier ID
+        if head in index:
+            if len(sid) < len(index[head]):
+                index[head] = sid
+        else:
+            index[head] = sid
+
+    return index
+
+
+def _resolve_term(
+    term: str,
+    snet: SNet,
+    head_index: dict[str, str],
+) -> str | None:
+    """解析辞典术语到 S_net signifier ID。
+
+    优先级：
+      1. 精确匹配（term 是 signifier ID）
+      2. Head-term 索引匹配（term 是某个复合 signifier 的 head）
+      3. 不区分大小写的 head-term 索引匹配
+
+    返回 signifier ID 或 None。
+    """
+    # 1. 精确匹配
+    if snet.has_signifier(term):
+        return term
+
+    # 2. Head-term 索引
+    if term in head_index:
+        return head_index[term]
+
+    # 3. 大小写不敏感
+    term_lower = term.lower()
+    for head, sid in head_index.items():
+        if head.lower() == term_lower:
+            return sid
+
+    return None
+
+
 def ingest_dictionary(
     snet: SNet,
     dict_path: str | Path,
@@ -130,6 +209,9 @@ def ingest_dictionary(
          - 从 definition 文本中匹配已知术语
          - 为匹配到的术语对创建/增强组合轴边
 
+    术语解析：辞典术语通过 head-term 索引桥接到 Layer A 的复合 signifier ID。
+    例如辞典术语 "culture industry" 桥接到 signifier ID "culture industry — mass deception"。
+
     参数：
       snet:             当前 S_net 实例
       dict_path:        辞典 JSONL 文件路径
@@ -145,6 +227,9 @@ def ingest_dictionary(
     if not path.exists():
         raise FileNotFoundError(f"辞典文件不存在: {path}")
 
+    # 构建 head-term 索引用于术语解析
+    head_index = _build_head_term_index(snet)
+
     # 如果没有提供白名单，使用 S_net 中所有 signifier id
     if domain_whitelist is None:
         domain_whitelist = set(snet.signifiers.keys())
@@ -153,6 +238,7 @@ def ingest_dictionary(
         "file": str(path.name),
         "entries_total": 0,
         "entries_matched": 0,
+        "entries_resolved_via_head": 0,
         "synonyms_added": 0,
         "contrasts_added": 0,
         "syntagmatic_added": 0,
@@ -180,20 +266,26 @@ def ingest_dictionary(
         if not term:
             continue
 
-        # 主术语必须已在 S_net 中（辞典不创建主节点，只丰富已有节点）
-        if not snet.has_signifier(term):
+        # 主术语解析：精确匹配 → head-term 索引
+        resolved_id = _resolve_term(term, snet, head_index)
+        if resolved_id is None:
             continue
+
+        if resolved_id != term:
+            stats["entries_resolved_via_head"] += 1
 
         stats["entries_matched"] += 1
 
         # 1. synonyms → 聚合轴
         for syn in entry.get("synonyms", []):
             syn = syn.strip()
-            if not syn or syn == term:
+            if not syn or syn == resolved_id:
                 continue
 
-            # 若 synonym 不在 S_net 中，创建新 signifier
-            if not snet.has_signifier(syn):
+            # synonym 也做术语解析
+            syn_resolved = _resolve_term(syn, snet, head_index)
+            if syn_resolved is None:
+                # synonym 不在 S_net 中，创建新 signifier
                 snet = snet.add_signifier(Signifier(
                     id=syn,
                     surface_forms=(),
@@ -201,11 +293,12 @@ def ingest_dictionary(
                     lang=entry_lang,
                 ))
                 stats["signifiers_created"] += 1
+                syn_resolved = syn
 
             # 添加聚合轴边（synonym 关系）
             snet = snet.add_edge(SignifierEdge(
-                source=term,
-                target=syn,
+                source=resolved_id,
+                target=syn_resolved,
                 axis=AxisType.PARADIGMATIC,
                 weight=0.85,
                 evidence=f"辞典近义项 ({domain})",
@@ -214,26 +307,32 @@ def ingest_dictionary(
 
         # 2. contrasts → 聚合轴
         for contrast in entry.get("contrasts", []):
-            c_term = contrast.get("term", "").strip()
-            c_diff = contrast.get("differential", "").strip()
-            if not c_term or c_term == term:
+            # 兼容两种格式：{"term": ..., "differential": ...} 或纯字符串
+            if isinstance(contrast, str):
+                c_term = contrast.strip()
+                c_diff = ""
+            else:
+                c_term = contrast.get("term", "").strip()
+                c_diff = contrast.get("differential", "").strip()
+            if not c_term or c_term == resolved_id:
                 continue
 
-            # contrast 边仅当对方已在 S_net 中时创建
-            if not snet.has_signifier(c_term):
+            # contrast 也做术语解析
+            c_resolved = _resolve_term(c_term, snet, head_index)
+            if c_resolved is None:
                 continue
 
             # 添加对称的 contrast 边（A→B 和 B→A）
             snet = snet.add_edge(SignifierEdge(
-                source=term,
-                target=c_term,
+                source=resolved_id,
+                target=c_resolved,
                 axis=AxisType.PARADIGMATIC,
                 weight=0.6,
                 evidence=c_diff or f"辞典对比项 ({domain})",
             ))
             snet = snet.add_edge(SignifierEdge(
-                source=c_term,
-                target=term,
+                source=c_resolved,
+                target=resolved_id,
                 axis=AxisType.PARADIGMATIC,
                 weight=0.6,
                 evidence=c_diff or f"辞典对比项 ({domain})",
@@ -247,17 +346,22 @@ def ingest_dictionary(
 
         mentioned = phi_L_whitelist_match(definition, domain_whitelist)
         for other_term in mentioned:
-            if other_term == term:
+            if other_term == resolved_id:
                 continue
-            if not snet.has_signifier(other_term):
-                continue
+
+            # definition 中提到的术语也走解析
+            other_resolved = _resolve_term(other_term, snet, head_index)
+            if other_resolved is None:
+                if not snet.has_signifier(other_term):
+                    continue
+                other_resolved = other_term
 
             pattern = extract_pattern(definition, term, other_term)
             evidence = pattern if pattern else f"dict:{term}:{domain}"
 
             snet = snet.add_edge(SignifierEdge(
-                source=term,
-                target=other_term,
+                source=resolved_id,
+                target=other_resolved,
                 axis=AxisType.SYNTAGMATIC,
                 weight=1.0,  # 辞典定义中的共现，固定权重
                 evidence=evidence,
@@ -441,6 +545,42 @@ def _find_surface_form(text: str, term: str) -> str | None:
     return form if form else None
 
 
+def _build_augmented_whitelist(
+    snet: SNet,
+) -> tuple[set[str], dict[str, str]]:
+    """构建增强白名单：signifier ID + head terms。
+
+    返回：
+      (whitelist, head_to_sid)
+      - whitelist: 用于 phi_L_whitelist_match 的增强白名单
+      - head_to_sid: head term → signifier ID 的映射（用于将匹配结果映射回 signifier ID）
+
+    对于文本匹配，full signifier ID "culture industry — mass deception" 几乎不会在
+    原文中出现。但 head term "culture industry" 经常出现。增强白名单同时包含两者，
+    phi_L_whitelist_match 的长度降序贪心保证 full ID 优先匹配（如果碰巧出现的话）。
+    """
+    whitelist = set(snet.signifiers.keys())
+    head_to_sid: dict[str, str] = {}
+
+    for sid in snet.signifiers:
+        head = None
+        if " — " in sid:
+            head = sid.split(" — ")[0].strip()
+        elif "(" in sid:
+            head = sid[:sid.index("(")].strip()
+
+        if head and head != sid and head not in whitelist:
+            whitelist.add(head)
+            # 冲突解决：保留最短的 signifier ID
+            if head in head_to_sid:
+                if len(sid) < len(head_to_sid[head]):
+                    head_to_sid[head] = sid
+            else:
+                head_to_sid[head] = sid
+
+    return whitelist, head_to_sid
+
+
 def ingest_text_passage(
     snet: SNet,
     text: str,
@@ -456,6 +596,10 @@ def ingest_text_passage(
 
     此函数不修改 K_active——它只丰富 S_net 的语言材料。
     K_active 的修改由 articulation feedback 在穿越中完成。
+
+    术语匹配使用增强白名单：除了 full signifier ID，还包含从复合 ID 中
+    提取的 head term（如 "culture industry" from "culture industry — mass deception"），
+    使得原文中的规范术语能够匹配到对应的 signifier。
 
     参数：
       snet:    当前 S_net 实例（不会被修改）
@@ -473,11 +617,19 @@ def ingest_text_passage(
     if not text or not snet.signifiers:
         return snet, []
 
-    # 构建白名单（S_net 中所有能指 id）
-    whitelist = set(snet.signifiers.keys())
+    # 构建增强白名单（signifier IDs + head terms）
+    whitelist, head_to_sid = _build_augmented_whitelist(snet)
 
     # 匹配段落中的已知术语（使用本模块的白名单匹配函数）
-    matched_terms = phi_L_whitelist_match(text, whitelist)
+    raw_matches = phi_L_whitelist_match(text, whitelist)
+
+    # 将 head term 匹配结果映射回 signifier ID
+    matched_terms = []
+    for m in raw_matches:
+        resolved = head_to_sid.get(m, m)  # head term → sid, 或保持原样
+        if resolved not in matched_terms:  # 去重
+            matched_terms.append(resolved)
+
     if len(matched_terms) < 2:
         # 不足两个术语，无法产生共现对
         # 但仍可提取 surface forms
@@ -770,4 +922,220 @@ def ingest_morpheme_dict(
     # 合并同键边
     snet = snet.merge_edge_weights()
 
+    return snet, stats
+
+
+# ---------------------------------------------------------------------------
+# 同义词辞典摄入（synonym_*.jsonl）
+# ---------------------------------------------------------------------------
+
+def ingest_synonym_dict(
+    snet: SNet,
+    dict_path: str | Path,
+) -> tuple[SNet, dict]:
+    """从同义词 JSONL 文件向 S_net 注入聚合轴关系。
+
+    JSONL 格式（每行一个 JSON）：
+      {"term": str, "lang": str, "synonyms": [str, ...],
+       "near_synonyms": [str, ...], "domain": str,
+       "differential": str}
+
+    处理逻辑：
+      - synonyms → 聚合轴边 (weight=0.85)
+      - near_synonyms → 聚合轴边 (weight=0.6)
+      - 主术语通过 head-term 索引解析到 signifier ID
+
+    认识论等级：L0（辞典是手工编纂的定义）
+    """
+    path = Path(dict_path)
+    if not path.exists():
+        raise FileNotFoundError(f"同义词辞典文件不存在: {path}")
+
+    head_index = _build_head_term_index(snet)
+
+    stats = {
+        "file": str(path.name),
+        "type": "synonym",
+        "entries_total": 0,
+        "entries_matched": 0,
+        "synonyms_added": 0,
+        "near_synonyms_added": 0,
+        "signifiers_created": 0,
+    }
+
+    entries: list[dict] = []
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entries.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+
+    stats["entries_total"] = len(entries)
+
+    for entry in entries:
+        term = entry.get("term", "").strip()
+        domain = entry.get("domain", "").strip()
+        lang = entry.get("lang", "").strip()
+        differential = entry.get("differential", "").strip()
+
+        if not term:
+            continue
+
+        resolved_id = _resolve_term(term, snet, head_index)
+        if resolved_id is None:
+            continue
+
+        stats["entries_matched"] += 1
+
+        # synonyms → 聚合轴 (higher weight)
+        for syn in entry.get("synonyms", []):
+            syn = syn.strip()
+            if not syn or syn == resolved_id:
+                continue
+
+            syn_resolved = _resolve_term(syn, snet, head_index)
+            if syn_resolved is None:
+                snet = snet.add_signifier(Signifier(
+                    id=syn, surface_forms=(), source="synonym_dict",
+                    lang=lang, domain=domain,
+                ))
+                stats["signifiers_created"] += 1
+                syn_resolved = syn
+
+            snet = snet.add_edge(SignifierEdge(
+                source=resolved_id,
+                target=syn_resolved,
+                axis=AxisType.PARADIGMATIC,
+                weight=0.85,
+                evidence=differential or f"synonym:{domain}",
+                relation="synonym",
+            ))
+            stats["synonyms_added"] += 1
+
+        # near_synonyms → 聚合轴 (lower weight)
+        for ns in entry.get("near_synonyms", []):
+            ns = ns.strip()
+            if not ns or ns == resolved_id:
+                continue
+
+            ns_resolved = _resolve_term(ns, snet, head_index)
+            if ns_resolved is None:
+                snet = snet.add_signifier(Signifier(
+                    id=ns, surface_forms=(), source="synonym_dict",
+                    lang=lang, domain=domain,
+                ))
+                stats["signifiers_created"] += 1
+                ns_resolved = ns
+
+            snet = snet.add_edge(SignifierEdge(
+                source=resolved_id,
+                target=ns_resolved,
+                axis=AxisType.PARADIGMATIC,
+                weight=0.6,
+                evidence=differential or f"near_synonym:{domain}",
+                relation="synonym",
+            ))
+            stats["near_synonyms_added"] += 1
+
+    snet = snet.merge_edge_weights()
+    return snet, stats
+
+
+# ---------------------------------------------------------------------------
+# 搭配辞典摄入（collocations_*.jsonl）
+# ---------------------------------------------------------------------------
+
+def ingest_collocation_dict(
+    snet: SNet,
+    dict_path: str | Path,
+) -> tuple[SNet, dict]:
+    """从搭配 JSONL 文件向 S_net 注入组合轴关系。
+
+    JSONL 格式（每行一个 JSON）：
+      {"term": str, "lang": str, "domain": str,
+       "collocations": {"adj": [str], "verb_subject": [str],
+                        "verb_object": [str], "noun_prep": [str],
+                        "common_phrases": [str]}}
+
+    处理逻辑：
+      - common_phrases → 组合轴边 evidence（用于 connective_pattern 积累）
+      - adj/verb/noun 搭配中出现的已知术语 → 组合轴边
+
+    认识论等级：L0（辞典是手工编纂的搭配）
+    """
+    path = Path(dict_path)
+    if not path.exists():
+        raise FileNotFoundError(f"搭配辞典文件不存在: {path}")
+
+    head_index = _build_head_term_index(snet)
+
+    stats = {
+        "file": str(path.name),
+        "type": "collocation",
+        "entries_total": 0,
+        "entries_matched": 0,
+        "syntagmatic_added": 0,
+    }
+
+    entries: list[dict] = []
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entries.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+
+    stats["entries_total"] = len(entries)
+
+    # 构建增强白名单用于搭配文本中的术语匹配
+    whitelist, head_to_sid = _build_augmented_whitelist(snet)
+
+    for entry in entries:
+        term = entry.get("term", "").strip()
+        domain = entry.get("domain", "").strip()
+
+        if not term:
+            continue
+
+        resolved_id = _resolve_term(term, snet, head_index)
+        if resolved_id is None:
+            continue
+
+        stats["entries_matched"] += 1
+
+        collocations = entry.get("collocations", {})
+
+        # 从所有搭配文本中提取已知术语
+        all_collocation_texts: list[str] = []
+        for key in ("adj", "verb_subject", "verb_object", "noun_prep", "common_phrases"):
+            items = collocations.get(key, [])
+            all_collocation_texts.extend(items)
+
+        for text in all_collocation_texts:
+            # 在搭配文本中匹配已知术语
+            matched = phi_L_whitelist_match(text, whitelist)
+            for m in matched:
+                other_id = head_to_sid.get(m, m)
+                if other_id == resolved_id:
+                    continue
+                if not snet.has_signifier(other_id):
+                    continue
+
+                snet = snet.add_edge(SignifierEdge(
+                    source=resolved_id,
+                    target=other_id,
+                    axis=AxisType.SYNTAGMATIC,
+                    weight=1.0,
+                    evidence=text,
+                ))
+                stats["syntagmatic_added"] += 1
+
+    snet = snet.merge_edge_weights()
     return snet, stats

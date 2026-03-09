@@ -27,7 +27,8 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import * as THREE from "three";
 import { CSS2DRenderer, CSS2DObject } from "three/examples/jsm/renderers/CSS2DRenderer.js";
-import { T, FONT, fToColor, DAEMON_HTTP } from "../tokens";
+import { T, FONT, fToColor } from "../tokens";
+import { useStore } from "../hooks/useStore";
 import type { TopologyNode, TopologyLink, TopologyResponse } from "../types";
 import type { InstanceTraversal } from "../components/TopologyView";
 
@@ -53,7 +54,10 @@ interface InstanceTrailState {
   color: THREE.Color;
 }
 
-// 新边动画状态
+// 边动画模式
+type EdgeBeamMode = "appear" | "flash" | "disappear";
+
+// 边动画状态
 interface EdgeBeam {
   line: THREE.Line;
   progress: number;       // 0→1
@@ -62,6 +66,7 @@ interface EdgeBeam {
   duration: number;        // seconds
   startTime: number;
   edgeType: string;
+  mode: EdgeBeamMode;
 }
 
 // ── 星系常数 ─────────────────────────────────────────────────────
@@ -327,8 +332,11 @@ export function GalaxyView({
   const instanceTraversalsRef = useRef(instanceTraversals);
   instanceTraversalsRef.current = instanceTraversals;
 
-  // 上一帧的 link 集合（用于检测新边）
+  // 上一帧的 link 集合（用于检测新边/消失边）
   const prevLinkKeysRef = useRef<Set<string>>(new Set());
+
+  // 上一次穿越位置（用于检测穿越边）
+  const prevTraversalPosRef = useRef<string>("");
 
   // 全量数据增量加载
   const [fullData, setFullData] = useState<TopologyResponse | null>(null);
@@ -338,7 +346,7 @@ export function GalaxyView({
     if (loadingFull || fullData) return;
     setLoadingFull(true);
     try {
-      const res = await fetch(`${DAEMON_HTTP}/topology?full=true`);
+      const res = await fetch(`${useStore.getState().getActiveHttpBase()}/topology?full=true`);
       if (res.ok) {
         const json: TopologyResponse = await res.json();
         setFullData(json);
@@ -723,6 +731,7 @@ export function GalaxyView({
     // 初始化 prevLinkKeys（第一帧不触发动画）
     const currentLinkKeys = buildLinkKeySet(links);
     const newLinkKeys: Array<{ srcId: string; tgtId: string; type: string }> = [];
+    const removedLinkKeys: Array<{ srcId: string; tgtId: string }> = [];
 
     // 检测新边（仅在非首帧时触发——prevLinkKeysRef 非空意味着有上一帧数据）
     if (prevLinkKeysRef.current.size > 0) {
@@ -734,30 +743,83 @@ export function GalaxyView({
           newLinkKeys.push({ srcId, tgtId, type: l.type });
         }
       }
+      // 检测消失的边（在上一帧存在但当前帧不存在）
+      for (const key of prevLinkKeysRef.current) {
+        if (!currentLinkKeys.has(key)) {
+          const [srcId, tgtId] = key.split("|");
+          removedLinkKeys.push({ srcId, tgtId });
+        }
+      }
     }
     prevLinkKeysRef.current = currentLinkKeys;
 
-    // 预加载新边动画（会在动画循环第一帧开始播放）
-    let pendingBeams = newLinkKeys;
+    // 构建 link 查找表（用于穿越边检测）
+    const linkLookup = new Set<string>();
+    for (const l of links) {
+      const srcId = typeof l.source === "string" ? l.source : (l.source as TopologyNode).id;
+      const tgtId = typeof l.target === "string" ? l.target : (l.target as TopologyNode).id;
+      const key = srcId < tgtId ? `${srcId}|${tgtId}` : `${tgtId}|${srcId}`;
+      linkLookup.add(key);
+    }
 
-    function spawnEdgeBeam(srcIdx: number, tgtIdx: number, edgeType: string, currentTime: number) {
+    // 预加载新边/消失边动画（会在动画循环第一帧开始播放）
+    let pendingBeams = newLinkKeys;
+    let pendingDisappear = removedLinkKeys;
+
+    function spawnEdgeBeam(srcIdx: number, tgtIdx: number, edgeType: string, currentTime: number, mode: EdgeBeamMode = "appear") {
       const ps = positions[srcIdx];
       const pt = positions[tgtIdx];
       const sourcePos = new THREE.Vector3(ps.x, ps.y, ps.z);
       const targetPos = new THREE.Vector3(pt.x, pt.y, pt.z);
 
-      const beamColor = edgeType === "negation" ? 0xff2244 : 0x22d68a;
+      // 颜色/亮度根据模式不同
+      let beamColor: number;
+      let initialOpacity: number;
+      let duration: number;
+
+      switch (mode) {
+        case "flash":
+          // 穿越闪光：白色高亮，快速衰减
+          beamColor = 0xeeffff;
+          initialOpacity = 1.0;
+          duration = 0.5;
+          break;
+        case "disappear":
+          // 消失动画：边从可见到不可见
+          beamColor = 0xff6644;
+          initialOpacity = 0.7;
+          duration = 0.8;
+          break;
+        default:
+          // 新边出现：原逻辑
+          beamColor = edgeType === "negation" ? 0xff2244 : 0x22d68a;
+          initialOpacity = 0.9;
+          duration = 0.7;
+          break;
+      }
+
       const geo = new THREE.BufferGeometry();
-      geo.setAttribute("position", new THREE.Float32BufferAttribute([
-        sourcePos.x, sourcePos.y, sourcePos.z,
-        sourcePos.x, sourcePos.y, sourcePos.z,
-      ], 3));
+      if (mode === "appear") {
+        // 出现模式：线从 source 生长到 target
+        geo.setAttribute("position", new THREE.Float32BufferAttribute([
+          sourcePos.x, sourcePos.y, sourcePos.z,
+          sourcePos.x, sourcePos.y, sourcePos.z,
+        ], 3));
+      } else {
+        // flash / disappear 模式：线已经是完整的
+        geo.setAttribute("position", new THREE.Float32BufferAttribute([
+          sourcePos.x, sourcePos.y, sourcePos.z,
+          targetPos.x, targetPos.y, targetPos.z,
+        ], 3));
+      }
+
       const mat = new THREE.LineBasicMaterial({
         color: beamColor,
         transparent: true,
-        opacity: 0.9,
+        opacity: initialOpacity,
         depthWrite: false,
         blending: THREE.AdditiveBlending,
+        linewidth: mode === "flash" ? 2 : 1,
       });
       const line = new THREE.Line(geo, mat);
       scene.add(line);
@@ -765,9 +827,10 @@ export function GalaxyView({
       activeBeams.push({
         line, progress: 0,
         sourcePos, targetPos,
-        duration: 0.7,
+        duration,
         startTime: currentTime,
         edgeType,
+        mode,
       });
     }
 
@@ -1119,42 +1182,107 @@ export function GalaxyView({
         }
       }
 
+      // ── 穿越边闪光检测 ───────────────────────────────────────────
+      const currentPos = traversalRef.current;
+      if (currentPos && currentPos !== prevTraversalPosRef.current) {
+        const prevPos = prevTraversalPosRef.current;
+        prevTraversalPosRef.current = currentPos;
+        if (prevPos) {
+          // 检查 prev→current 之间是否存在边
+          const tKey = prevPos < currentPos
+            ? `${prevPos}|${currentPos}`
+            : `${currentPos}|${prevPos}`;
+          if (linkLookup.has(tKey)) {
+            const si = nodeIdxMap.get(prevPos);
+            const ti = nodeIdxMap.get(currentPos);
+            if (si !== undefined && ti !== undefined) {
+              spawnEdgeBeam(si, ti, "traversal", t, "flash");
+            }
+          }
+        }
+      }
+
       // ── 新边光线动画：首帧 spawn ──────────────────────────────────
       if (pendingBeams.length > 0) {
         for (const { srcId, tgtId, type } of pendingBeams) {
           const si = nodeIdxMap.get(srcId);
           const ti = nodeIdxMap.get(tgtId);
           if (si !== undefined && ti !== undefined) {
-            spawnEdgeBeam(si, ti, type, t);
+            spawnEdgeBeam(si, ti, type, t, "appear");
           }
         }
         pendingBeams = [];
       }
 
-      // ── 新边光线动画更新 ─────────────────────────────────────────
+      // ── 消失边动画：首帧 spawn ────────────────────────────────────
+      if (pendingDisappear.length > 0) {
+        for (const { srcId, tgtId } of pendingDisappear) {
+          const si = nodeIdxMap.get(srcId);
+          const ti = nodeIdxMap.get(tgtId);
+          if (si !== undefined && ti !== undefined) {
+            spawnEdgeBeam(si, ti, "removed", t, "disappear");
+          }
+        }
+        pendingDisappear = [];
+      }
+
+      // ── 边光线动画更新 ──────────────────────────────────────────
       for (let i = activeBeams.length - 1; i >= 0; i--) {
         const beam = activeBeams[i];
         const elapsed = t - beam.startTime;
         beam.progress = Math.min(1, elapsed / beam.duration);
 
-        // 更新光线头部位置
-        const headPos = new THREE.Vector3().lerpVectors(
-          beam.sourcePos, beam.targetPos, beam.progress
-        );
         const posAttr = beam.line.geometry.attributes.position as THREE.BufferAttribute;
-        posAttr.setXYZ(1, headPos.x, headPos.y, headPos.z);
-        posAttr.needsUpdate = true;
+        const lineMat = beam.line.material as THREE.LineBasicMaterial;
+
+        switch (beam.mode) {
+          case "appear": {
+            // 线从 source 生长到 target
+            const headPos = new THREE.Vector3().lerpVectors(
+              beam.sourcePos, beam.targetPos, beam.progress
+            );
+            posAttr.setXYZ(1, headPos.x, headPos.y, headPos.z);
+            posAttr.needsUpdate = true;
+            // 亮度：中间最亮，两端渐暗
+            const brightness = Math.sin(beam.progress * Math.PI);
+            lineMat.opacity = 0.6 + 0.4 * brightness;
+            break;
+          }
+          case "flash": {
+            // 整条线同时闪亮然后快速衰减
+            // 快速上升（前20%），缓慢衰减（后80%）
+            const flashCurve = beam.progress < 0.2
+              ? beam.progress / 0.2
+              : 1.0 - (beam.progress - 0.2) / 0.8;
+            lineMat.opacity = flashCurve * flashCurve;
+            break;
+          }
+          case "disappear": {
+            // 边从可见渐变到不可见，同时收缩到中点
+            const shrinkProgress = beam.progress * beam.progress;  // ease-in
+            const midPos = new THREE.Vector3().lerpVectors(
+              beam.sourcePos, beam.targetPos, 0.5
+            );
+            const shrunkSrc = new THREE.Vector3().lerpVectors(
+              beam.sourcePos, midPos, shrinkProgress
+            );
+            const shrunkTgt = new THREE.Vector3().lerpVectors(
+              beam.targetPos, midPos, shrinkProgress
+            );
+            posAttr.setXYZ(0, shrunkSrc.x, shrunkSrc.y, shrunkSrc.z);
+            posAttr.setXYZ(1, shrunkTgt.x, shrunkTgt.y, shrunkTgt.z);
+            posAttr.needsUpdate = true;
+            lineMat.opacity = 0.7 * (1 - shrinkProgress);
+            break;
+          }
+        }
 
         // 动画完成后移除光线
         if (beam.progress >= 1) {
           scene.remove(beam.line);
           beam.line.geometry.dispose();
-          (beam.line.material as THREE.LineBasicMaterial).dispose();
+          lineMat.dispose();
           activeBeams.splice(i, 1);
-        } else {
-          // 光线亮度：中间最亮，两端渐暗
-          const brightness = Math.sin(beam.progress * Math.PI);
-          (beam.line.material as THREE.LineBasicMaterial).opacity = 0.6 + 0.4 * brightness;
         }
       }
 
@@ -1267,6 +1395,11 @@ export function GalaxyView({
           <span style={{ color: "#4488ff" }}>─</span> settled星座
           <span style={{ color: "#ffffff" }}>◉</span> 逢亮
           <span style={{ color: "#ff2244" }}>·</span> 否定脉冲
+        </div>
+        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <span style={{ color: "#eeffff" }}>⚡</span> 穿越闪光
+          <span style={{ color: "#22d68a" }}>→</span> 新边
+          <span style={{ color: "#ff6644" }}>×</span> 消失边
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
           <span style={{ color: "#ff7040", opacity: 0.7 }}>◎</span> 哲学
