@@ -7,6 +7,7 @@ Phase 2: encounters detected by LLM via semantic analysis of vertex content.
 from __future__ import annotations
 
 import random
+from collections import deque
 from dataclasses import dataclass
 from enum import Enum
 from typing import Optional
@@ -70,6 +71,7 @@ class Encounter:
     target_b: Optional[str] = None
     reason: str = ""
     f_value: int = -99  # terrain annotation: f(target_a, target_b) if applicable
+    g_value: int = -99  # vertex-disjoint path count g(target_a, target_b) — 392·2 annotation
 
 
 @dataclass
@@ -88,6 +90,7 @@ class StepLog:
     vertices_full: int
     edges_full: int
     f_value: int = -99  # f(v,w) terrain annotation: -1=no shared neighbors, 0=topo equivalent, high=topo distant
+    g_value: int = -99  # g(v,w) vertex-disjoint path count — 392·2 annotation
     resonance: bool = False  # S_net 耦合振荡：chosen candidate was in resonating set
 
 
@@ -175,6 +178,60 @@ class TraversalEngine:
                 ll_edges.append(frozenset((e.source, e.target)))
         c = _connected_components(sorted(lower_link), ll_edges)
         return (c - 1) + n_loop
+
+    def _compute_g(self, v: str, w: str) -> int:
+        """Compute g(v,w) = vertex-disjoint path count (Menger) for 392·2 annotation.
+
+        Uses iterative BFS path-removal on undirected view of k_active.
+        g annotates encounter robustness but does NOT decide whether to operate.
+        """
+        active = set(self.k_active.active_vertex_ids())
+        if v not in active or w not in active:
+            return 0
+
+        # Build undirected adjacency from active edges
+        adj: dict[str, set[str]] = {vid: set() for vid in active}
+        for e in self.k_active.active_edges():
+            if e.source in active and e.target in active and e.source != e.target:
+                adj[e.source].add(e.target)
+                adj[e.target].add(e.source)
+
+        count = 0
+        removed: set[str] = set()
+
+        for _ in range(50):  # cap at 50 disjoint paths
+            visited: set[str] = set()
+            parent: dict[str, str] = {}
+            queue = deque([v])
+            found = False
+
+            while queue:
+                cur = queue.popleft()
+                if cur == w:
+                    found = True
+                    break
+                if cur in visited:
+                    continue
+                visited.add(cur)
+                for nb in adj.get(cur, set()):
+                    if nb not in visited and nb not in removed:
+                        if nb not in parent:
+                            parent[nb] = cur
+                            queue.append(nb)
+
+            if not found:
+                break
+
+            count += 1
+            # Remove internal vertices of this path (not v or w)
+            node = w
+            while node in parent:
+                prev = parent[node]
+                if prev != v and node != w:
+                    removed.add(node)
+                node = prev
+
+        return count
 
     # -- encounter detection (topological rules) ----------------------------
 
@@ -441,10 +498,12 @@ class TraversalEngine:
                 )
                 if not has_neg:
                     f_val = self._compute_f(pos, nb)
+                    g_val = self._compute_g(pos, nb)
                     return Encounter(
                         EncounterType.NEGATE_A, pos, nb,
-                        f"Bidirectional {pos}<->{nb} with critical edge ({fwd_mark}/{rev_mark}) f={f_val}",
+                        f"Bidirectional {pos}<->{nb} with critical edge ({fwd_mark}/{rev_mark}) f={f_val} g={g_val}",
                         f_value=f_val,
+                        g_value=g_val,
                     )
 
         # 3. Fold: two detection paths (393号 categorical criterion)
@@ -1142,6 +1201,7 @@ class TraversalEngine:
             vertices_full=len(self.k_full.vertices),
             edges_full=len(self.k_full.edges),
             f_value=enc.f_value,
+            g_value=enc.g_value,
             resonance=self._last_resonance,
         )
         self.logs.append(log)
