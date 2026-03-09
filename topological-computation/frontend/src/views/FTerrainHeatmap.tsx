@@ -67,7 +67,7 @@ function fToHeatColor(f: number): string {
 // ── 组件 ────────────────────────────────────────────────────────
 
 export function FTerrainHeatmap({ focusConcept, onSelectConcept }: Props) {
-  const httpBase = useStore((s) => s.getActiveHttpBase());
+  const httpBase = useStore((s) => s.getReachableHttpBase());
   const queryNeighbors = useMemo(() => makeQueryNeighbors(httpBase), [httpBase]);
   const [queryResult, setQueryResult] = useState<QueryResponse | null>(null);
   const [neighborDetails, setNeighborDetails] = useState<Map<string, QueryResponse>>(new Map());

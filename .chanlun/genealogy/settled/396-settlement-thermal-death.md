@@ -1,8 +1,11 @@
-# 396号：settlement 热寂——closure 到 transformation 的扬弃
-
+---
+id: "396"
 status: 生成态
 type: concept-separation
-date: 2026-03-08
+date: "2026-03-08"
+---
+
+# 396号：settlement 热寂——closure 到 transformation 的扬弃
 
 ## 矛盾
 

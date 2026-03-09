@@ -346,7 +346,7 @@ export function GalaxyView({
     if (loadingFull || fullData) return;
     setLoadingFull(true);
     try {
-      const res = await fetch(`${useStore.getState().getActiveHttpBase()}/topology?full=true`);
+      const res = await fetch(`${useStore.getState().getReachableHttpBase()}/topology?full=true`);
       if (res.ok) {
         const json: TopologyResponse = await res.json();
         setFullData(json);

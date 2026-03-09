@@ -1,5 +1,5 @@
 ---
-id: "383"
+id: "404"
 status: 已结算
 resolution: 废弃——基于错误前提("Negate=从K_active移除v")。编排者修正后正题和反题都留在K_active中，Euler-Poincare计算完全不同
 type: 矛盾发现
@@ -7,12 +7,13 @@ negation_source: heterogeneous
 negation_form: unclassified
 negation_model: "gemini-3.1-pro-preview"
 created: "2026-03-05"
+date: "2026-03-05"
 trigger: "v166-swarm/spec-review Task #1 Gemini 数学审查"
 subject: "Negate/Sublate 在 K_active 中无法生产正向 β₁（Q-S2）"
 depends_on: []
 ---
 
-# 383号：Negate/Sublate 无法在 K_active 中生产正向 β₁
+# 404号：Negate/Sublate 无法在 K_active 中生产正向 β₁
 
 ## 矛盾描述
 

@@ -41,6 +41,12 @@ from traversal import TraversalEngine, StepLog
 from concept_registry import Registry, _tokenize
 from psi_L_narrative import generate_narrative, _ENCOUNTER_OPS
 from persistence import PersistentKFull, DEFAULT_PATH
+from block_topology_persistence import (
+    BlockTopologyWriter,
+    load_graph_from_block_topology,
+    rebuild_block_topology_from_jsonl,
+    DAEMON_BT_BASE,
+)
 from encounter_log import (
     EncounterLog,
     MEMORY_DOMAIN_PREFIX,
@@ -54,7 +60,9 @@ from file_lock import get_instance_id
 from signifier_net import SNet
 from snet_activation import (
     SNetActivation, InternalSpeechFragment, EdgeSuggestion,
+    ConceptCreationSuggestion,
     _build_concept_to_signifier, _build_signifier_to_concepts,
+    _expand_mappings,
 )
 from proprioception import (
     collect_metrics, update_proprioception_vertices,
@@ -228,25 +236,48 @@ class TopologicalDaemon:
         persist_path: str | Path | None = None,
         require_chain: bool = False,
     ) -> None:
-        # Persistence: if persist_path given, try to recover from JSONL first
-        self._persist: PersistentKFull | None = None
+        # Persistence: block topology is primary, jsonl is backup
+        self._persist: BlockTopologyWriter | None = None
         recovered_graph: Graph | None = None
 
         if persist_path is not None:
-            recovered_graph, _ = PersistentKFull.load(persist_path)
-            recovered_vids = recovered_graph.active_vertex_ids()
-            if recovered_vids:
-                # Check if --load graph is significantly larger than recovered
+            # Primary: load from block topology
+            bt_graph, _ = load_graph_from_block_topology(DAEMON_BT_BASE)
+            bt_vids = bt_graph.active_vertex_ids()
+
+            if bt_vids:
+                recovered_graph = bt_graph
+                print(f"Block topology: loaded {len(bt_vids)} active vertices", file=sys.stderr)
+            else:
+                # Fallback: load from jsonl backup
+                jsonl_graph, _ = PersistentKFull.load(persist_path)
+                jsonl_vids = jsonl_graph.active_vertex_ids()
+                if jsonl_vids:
+                    recovered_graph = jsonl_graph
+                    print(
+                        f"Block topology empty, recovered {len(jsonl_vids)} vertices from jsonl. "
+                        f"Rebuilding block topology...",
+                        file=sys.stderr,
+                    )
+                    count = rebuild_block_topology_from_jsonl(
+                        Path(persist_path), DAEMON_BT_BASE,
+                    )
+                    print(f"Block topology rebuilt: {count} records", file=sys.stderr)
+
+            if recovered_graph is not None:
+                recovered_vids = recovered_graph.active_vertex_ids()
                 loaded_size = len(graph.active_vertex_ids()) if graph is not None else 0
                 recovered_size = len(recovered_vids)
                 if graph is not None and loaded_size > recovered_size * 1.5:
-                    # Loaded graph is much larger — recovered is stale/partial
-                    # Keep loaded graph, will re-baseline persistence below
                     pass
                 else:
-                    # Successfully recovered — use recovered graph
                     graph = recovered_graph
-            self._persist = PersistentKFull(persist_path)
+
+            # BlockTopologyWriter as primary, with jsonl backup
+            self._persist = BlockTopologyWriter(
+                bt_base=DAEMON_BT_BASE,
+                jsonl_backup_path=Path(persist_path),
+            )
             self._persist.open()
 
         if graph is not None:
@@ -461,6 +492,7 @@ class TopologicalDaemon:
         """Initialize S_net coupled oscillation and attach to traversal engine.
 
         Builds concept<->signifier mappings from S_net + K_active,
+        expands mappings via paradigmatic edges and substring matching,
         creates SNetActivation, and sets it on the engine.
 
         Graceful degradation: if S_net is empty, no activation is created.
@@ -472,6 +504,11 @@ class TopologicalDaemon:
         concept_to_sig = _build_concept_to_signifier(self.snet, self.k_active)
         sig_to_concepts = _build_signifier_to_concepts(self.snet, self.k_active)
 
+        # Expand mappings via paradigmatic edges + substring matching
+        concept_to_sig, sig_to_concepts, expansion_stats = _expand_mappings(
+            self.snet, self.k_active, concept_to_sig, sig_to_concepts,
+        )
+
         self.snet_activation = SNetActivation(
             s_net=self.snet,
             concept_to_signifier=concept_to_sig,
@@ -479,9 +516,14 @@ class TopologicalDaemon:
         )
         self.engine.set_snet_activation(self.snet_activation)
 
-        n_mapped = len(concept_to_sig)
+        n_total = expansion_stats.get("total_signifiers", len(self.snet.signifiers))
+        n_before = expansion_stats.get("before", 0)
+        n_after = expansion_stats.get("after", 0)
+        n_par = expansion_stats.get("paradigmatic_added", 0)
+        n_sub = expansion_stats.get("substring_added", 0)
         print(
-            f"S_net coupling: {n_mapped} concepts mapped to signifiers",
+            f"S_net coupling: {n_after}/{n_total} signifiers mapped "
+            f"(base={n_before}, +paradigmatic={n_par}, +substring={n_sub})",
             file=sys.stderr,
         )
 
@@ -549,6 +591,9 @@ class TopologicalDaemon:
                 ingest_all_dictionaries, format_ingest_report,
                 ingest_bilingual_dict, ingest_morpheme_dict,
                 ingest_synonym_dict, ingest_collocation_dict,
+                ingest_thesaurus_dict, ingest_wiktionary_dict,
+                ingest_idiom_dict, ingest_wortschatz_dict,
+                ingest_code_dict,
             )
 
             script_dir = Path(os.path.dirname(os.path.abspath(__file__)))
@@ -625,6 +670,92 @@ class TopologicalDaemon:
                     )
                 except Exception as exc:
                     print(f"  collocation {cf.name}: ERROR - {exc}", file=sys.stderr)
+
+            # 6. 词类典（thesaurus_*.jsonl）
+            thesaurus_files = sorted(dict_dir.glob("thesaurus_*.jsonl"))
+            for tf in thesaurus_files:
+                try:
+                    self.snet, tstats = ingest_thesaurus_dict(self.snet, tf)
+                    print(
+                        f"  thesaurus {tf.name}: "
+                        f"{tstats.get('entries_total', 0)} entries, "
+                        f"{tstats.get('entries_matched', 0)} matched, "
+                        f"+{tstats.get('synonyms_added', 0)} syn, "
+                        f"+{tstats.get('antonyms_added', 0)} ant, "
+                        f"+{tstats.get('hypernyms_added', 0)} hyper, "
+                        f"+{tstats.get('hyponyms_added', 0)} hypo, "
+                        f"+{tstats.get('syntagmatic_added', 0)} syntag",
+                        file=sys.stderr,
+                    )
+                except Exception as exc:
+                    print(f"  thesaurus {tf.name}: ERROR - {exc}", file=sys.stderr)
+
+            # 7. 维基词典（wiktionary_*.jsonl）
+            wiktionary_files = sorted(dict_dir.glob("wiktionary_*.jsonl"))
+            for wf in wiktionary_files:
+                try:
+                    self.snet, wstats = ingest_wiktionary_dict(self.snet, wf)
+                    print(
+                        f"  wiktionary {wf.name}: "
+                        f"{wstats.get('entries_total', 0)} entries, "
+                        f"{wstats.get('entries_matched', 0)} matched, "
+                        f"+{wstats.get('syntagmatic_added', 0)} syntag, "
+                        f"+{wstats.get('paradigmatic_added', 0)} paradig",
+                        file=sys.stderr,
+                    )
+                except Exception as exc:
+                    print(f"  wiktionary {wf.name}: ERROR - {exc}", file=sys.stderr)
+
+            # 8. 成语/固定短语（idioms_*.jsonl）
+            idiom_files = sorted(dict_dir.glob("idioms_*.jsonl"))
+            for idf in idiom_files:
+                try:
+                    self.snet, istats = ingest_idiom_dict(self.snet, idf)
+                    print(
+                        f"  idiom {idf.name}: "
+                        f"{istats.get('entries_total', 0)} entries, "
+                        f"{istats.get('entries_matched', 0)} matched, "
+                        f"+{istats.get('syntagmatic_added', 0)} syntag",
+                        file=sys.stderr,
+                    )
+                except Exception as exc:
+                    print(f"  idiom {idf.name}: ERROR - {exc}", file=sys.stderr)
+
+            # 9. 词汇场（wortschatz_*.jsonl）
+            for wsf in wortschatz_files:
+                try:
+                    self.snet, wsstats = ingest_wortschatz_dict(self.snet, wsf)
+                    print(
+                        f"  wortschatz {wsf.name}: "
+                        f"{wsstats.get('entries_total', 0)} entries, "
+                        f"{wsstats.get('entries_matched', 0)} matched, "
+                        f"+{wsstats.get('word_field_added', 0)} word_field, "
+                        f"+{wsstats.get('compound_edges_added', 0)} compounds, "
+                        f"+{wsstats.get('derivation_edges_added', 0)} derivations",
+                        file=sys.stderr,
+                    )
+                except Exception as exc:
+                    print(f"  wortschatz {wsf.name}: ERROR - {exc}", file=sys.stderr)
+
+            # 10. 代码辞典（code_dict_*.jsonl）
+            code_dict_files = sorted(dict_dir.glob("code_dict_*.jsonl"))
+            for cdf in code_dict_files:
+                try:
+                    self.snet, cdstats = ingest_code_dict(
+                        self.snet, cdf, graph=self.k_active,
+                    )
+                    print(
+                        f"  code_dict {cdf.name}: "
+                        f"{cdstats.get('entries_total', 0)} entries, "
+                        f"+{cdstats.get('signifiers_created', 0)} new signifiers, "
+                        f"+{cdstats.get('concept_bridges', 0)} bridges, "
+                        f"+{cdstats.get('synonyms_added', 0)} syn, "
+                        f"+{cdstats.get('contrasts_added', 0)} contrast, "
+                        f"+{cdstats.get('syntagmatic_added', 0)} syntag",
+                        file=sys.stderr,
+                    )
+                except Exception as exc:
+                    print(f"  code_dict {cdf.name}: ERROR - {exc}", file=sys.stderr)
 
             n_sigs = len(self.snet.signifiers)
             n_edges = len(self.snet.edges)
@@ -1639,10 +1770,10 @@ def main() -> None:
         require_chain=not args.no_chain,
     )
 
-    # If persisting with a fresh file (no recovery), write initial graph
+    # If persisting with a fresh topology (no recovery), write initial graph
     if args.persist and daemon._persist and graph is not None:
-        recovered, _ = PersistentKFull.load(args.persist)
-        if not recovered.active_vertex_ids():
+        bt_check, _ = load_graph_from_block_topology(DAEMON_BT_BASE)
+        if not bt_check.active_vertex_ids():
             for vid, v in graph.vertices.items():
                 daemon._persist.append_vertex(v)
             for e in graph.edges:

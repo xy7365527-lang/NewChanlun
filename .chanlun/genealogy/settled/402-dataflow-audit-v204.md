@@ -1,8 +1,12 @@
-# 402号：数据流路径审查（v204-swarm/dataflow-audit）
-
+---
+id: "402"
 status: 已结算
-created: 2026-03-09
+type: analysis
+date: "2026-03-09"
 swarm: v204-swarm/dataflow-audit
+---
+
+# 402号：数据流路径审查（v204-swarm/dataflow-audit）
 
 ## 审查范围
 

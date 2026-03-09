@@ -46,7 +46,6 @@ interface Beta1Point {
 
 interface Props {
   data: TopologyResponse | null;
-  traversalPosition?: string;
   instanceTraversals?: InstanceTraversal[];
   focusConcept?: string | null;
   onSelectNode?: (node: TopologyNode) => void;
@@ -102,7 +101,7 @@ const VIEW_TABS: Array<{ id: ViewId; label: string; shortLabel: string }> = [
 // ── 组件 ─────────────────────────────────────────────────────────
 
 export function TopologyViewSwitcher({
-  data, traversalPosition, instanceTraversals, focusConcept,
+  data, instanceTraversals, focusConcept,
   onSelectNode, onSelectConcept,
   status, beta1History, narrative,
 }: Props) {
@@ -219,7 +218,6 @@ export function TopologyViewSwitcher({
         {activeView === "2d" && (
           <TopologyView
             data={filteredData}
-            traversalPosition={traversalPosition}
             instanceTraversals={filteredTraversals.length > 0 ? filteredTraversals : undefined}
             focusConcept={focusConcept}
             onSelectNode={onSelectNode}
@@ -228,7 +226,6 @@ export function TopologyViewSwitcher({
         {activeView === "galaxy" && (
           <GalaxyView
             data={filteredData}
-            traversalPosition={traversalPosition}
             instanceTraversals={filteredTraversals.length > 0 ? filteredTraversals : undefined}
             focusConcept={focusConcept}
             onSelectNode={onSelectNode}

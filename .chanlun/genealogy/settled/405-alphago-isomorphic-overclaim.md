@@ -1,5 +1,5 @@
 ---
-id: "384"
+id: "405"
 status: 已结算
 resolution: 吸收——"Isomorphic"降级为"structural analogy"，三处断裂分析成立
 type: 矛盾发现
@@ -7,12 +7,13 @@ negation_source: heterogeneous
 negation_form: unclassified
 negation_model: "gemini-3.1-pro-preview"
 created: "2026-03-05"
+date: "2026-03-05"
 trigger: "v166-swarm/spec-review Task #1 Gemini 数学审查"
 subject: "AlphaGo 类比声称'Isomorphic'——过强声称（Q-S3）"
 depends_on: []
 ---
 
-# 384号：AlphaGo 类比"Isomorphic"是过强声称
+# 405号：AlphaGo 类比"Isomorphic"是过强声称
 
 ## 矛盾描述
 

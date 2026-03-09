@@ -10,6 +10,8 @@ K_active 每步进一步，S_net 同步共振。S_net 的共振反馈给 K_activ
   InternalSpeechFragment — 被清出的能指如果构成连贯语段，存入内部言语缓冲区
   EdgeSuggestion — S_net 中两个激活能指有组合轴连接，但对应概念在 K_active 中
                    没有 edge → 注册为 edge_suggestion（articulation feedback）
+  ConceptCreationSuggestion — 共振激活无 concept_ref 的 signifier 且与有
+                   concept_ref 的 signifier 有组合轴连接时的概念创建建议
 
 认识论等级：L0（数据结构 + 拓扑操作，无经验假设）
 """
@@ -17,6 +19,7 @@ K_active 每步进一步，S_net 同步共振。S_net 的共振反馈给 K_activ
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import Optional
@@ -109,6 +112,51 @@ class EdgeSuggestion:
         )
 
 
+@dataclass(frozen=True, slots=True)
+class ConceptCreationSuggestion:
+    """concept_creation_suggestion: 无 concept_ref 的 signifier 通过共振激活,
+    且与有 concept_ref 的 signifier 有组合轴连接时的概念创建建议.
+
+    orphan_signifier:    无 concept_ref 的能指 ID
+    anchor_concept:      有 concept_ref 的锚定概念 ID (K_active vertex id)
+    anchor_signifier:    锚定能指 ID (有 concept_ref 的那个)
+    evidence_patterns:   组合轴边的 evidence 字符串列表
+    syntagmatic_weight:  组合轴连接强度
+    step:                生成时的穿越步数
+    reviewed:            是否已被审查/裁决
+    """
+    orphan_signifier: str
+    anchor_concept: str
+    anchor_signifier: str
+    evidence_patterns: tuple[str, ...] = ()
+    syntagmatic_weight: float = 0.0
+    step: int = 0
+    reviewed: bool = False
+
+    def to_dict(self) -> dict:
+        return {
+            "orphan_signifier": self.orphan_signifier,
+            "anchor_concept": self.anchor_concept,
+            "anchor_signifier": self.anchor_signifier,
+            "evidence_patterns": list(self.evidence_patterns),
+            "syntagmatic_weight": self.syntagmatic_weight,
+            "step": self.step,
+            "reviewed": self.reviewed,
+        }
+
+    @staticmethod
+    def from_dict(d: dict) -> "ConceptCreationSuggestion":
+        return ConceptCreationSuggestion(
+            orphan_signifier=d.get("orphan_signifier", ""),
+            anchor_concept=d.get("anchor_concept", ""),
+            anchor_signifier=d.get("anchor_signifier", ""),
+            evidence_patterns=tuple(d.get("evidence_patterns", [])),
+            syntagmatic_weight=d.get("syntagmatic_weight", 0.0),
+            step=d.get("step", 0),
+            reviewed=d.get("reviewed", False),
+        )
+
+
 # ---------------------------------------------------------------------------
 # concept_id <-> signifier_id 映射辅助
 # ---------------------------------------------------------------------------
@@ -154,6 +202,113 @@ def _build_signifier_to_concepts(s_net: SNet, graph) -> dict[str, list[str]]:
     return mapping
 
 
+def _expand_mappings(
+    s_net: SNet,
+    graph,
+    concept_to_sig: dict[str, str],
+    sig_to_concepts: dict[str, list[str]],
+) -> tuple[dict[str, str], dict[str, list[str]], dict]:
+    """扩展 concept↔signifier 映射，通过聚合轴传播和子串匹配.
+
+    三阶段扩展：
+      1. 聚合轴传播（迭代至收敛）：沿 paradigmatic/translation/synonym 边
+         将 concept_ref 从有映射的 signifier 传播到无映射的 signifier
+      2. 子串匹配：对仍无映射的 signifier，检查其 ID 是否作为词边界匹配
+         出现在某个 vertex.content 中
+      3. 反向填充 concept_to_sig：新发现的 signifier→concept 映射反向注入
+
+    参数：
+      s_net:           已 bootstrap 的 SNet（含 dictionary/bilingual ingest）
+      graph:           K_active 图
+      concept_to_sig:  基础 concept→signifier 映射（exact match）
+      sig_to_concepts: 基础 signifier→concept 映射（exact match）
+
+    返回：
+      (expanded_c2s, expanded_s2c, expansion_stats)
+
+    认识论等级：L0（拓扑操作 + 字符串匹配，无经验假设）
+    """
+    expanded_s2c: dict[str, list[str]] = {k: list(v) for k, v in sig_to_concepts.items()}
+    expanded_c2s: dict[str, str] = dict(concept_to_sig)
+    stats: dict = {"before": len(sig_to_concepts)}
+
+    # --- 阶段1：聚合轴传播 ---
+    # 收集所有聚合轴边（含反向）的邻接索引
+    par_neighbors: dict[str, list[str]] = {}
+    for edge in s_net.edges:
+        if edge.axis == AxisType.PARADIGMATIC:
+            par_neighbors.setdefault(edge.source, []).append(edge.target)
+            par_neighbors.setdefault(edge.target, []).append(edge.source)
+
+    paradigmatic_added = 0
+    max_rounds = 3
+    for round_idx in range(max_rounds):
+        changed = False
+        for sid in list(s_net.signifiers.keys()):
+            if sid in expanded_s2c:
+                # 传播给无映射的邻居
+                for neighbor in par_neighbors.get(sid, []):
+                    if neighbor not in expanded_s2c and s_net.has_signifier(neighbor):
+                        expanded_s2c[neighbor] = list(expanded_s2c[sid])
+                        paradigmatic_added += 1
+                        changed = True
+            else:
+                # 从有映射的邻居获取
+                for neighbor in par_neighbors.get(sid, []):
+                    if neighbor in expanded_s2c:
+                        expanded_s2c[sid] = list(expanded_s2c[neighbor])
+                        paradigmatic_added += 1
+                        changed = True
+                        break
+        if not changed:
+            break
+
+    stats["paradigmatic_added"] = paradigmatic_added
+    stats["paradigmatic_rounds"] = round_idx + 1
+
+    # --- 阶段2：子串匹配 ---
+    # 构建 content 索引（小写化）
+    content_index: dict[str, str] = {}  # vid -> lowercase content
+    for vid in graph.active_vertex_ids():
+        v = graph.vertices.get(vid)
+        if v and v.content:
+            content_index[vid] = v.content.strip().lower()
+
+    substring_added = 0
+    still_unmapped = [sid for sid in s_net.signifiers if sid not in expanded_s2c]
+    for sid in still_unmapped:
+        sid_lower = sid.lower()
+        if len(sid_lower) < 3:
+            continue
+        try:
+            pattern = r'\b' + re.escape(sid_lower) + r'\b'
+            matched_vids: list[str] = []
+            for vid, content_lower in content_index.items():
+                if re.search(pattern, content_lower):
+                    matched_vids.append(vid)
+            if matched_vids:
+                expanded_s2c[sid] = matched_vids[:3]
+                substring_added += 1
+        except re.error:
+            continue
+
+    stats["substring_added"] = substring_added
+
+    # --- 阶段3：反向填充 c2s ---
+    # 对新增的 s2c 映射，如果某个 concept 还没有 c2s 条目，添加一个
+    reverse_added = 0
+    for sid, concepts in expanded_s2c.items():
+        for cid in concepts:
+            if cid not in expanded_c2s:
+                expanded_c2s[cid] = sid
+                reverse_added += 1
+    stats["reverse_added"] = reverse_added
+    stats["after"] = len(expanded_s2c)
+    stats["total_signifiers"] = len(s_net.signifiers)
+
+    return expanded_c2s, expanded_s2c, stats
+
+
 # ---------------------------------------------------------------------------
 # SNetActivation
 # ---------------------------------------------------------------------------
@@ -179,6 +334,7 @@ class SNetActivation:
         self._dialogue_focus_set: set[str] = set()
         self.internal_speech_buffer: list[InternalSpeechFragment] = []
         self.edge_suggestions: list[EdgeSuggestion] = []
+        self.concept_creation_suggestions: list[ConceptCreationSuggestion] = []
         self.current_step: int = 0
 
     def activate(self, concept_id: str) -> None:
@@ -366,10 +522,20 @@ class SNetActivation:
 
         当一个能指有 concept_ref 而另一个没有（孤立 signifier）时，
         生成桥接建议而非跳过（articulation_bridge）。
+
+        同时：当共振激活一个无 concept_ref 的 signifier，且该 signifier
+        与某个有 concept_ref 的 signifier 有组合轴连接时，注册
+        concept_creation_suggestion。
         """
         suggestions: list[EdgeSuggestion] = []
         bridge_suggestions: list[dict] = []
+        creation_suggestions: list[ConceptCreationSuggestion] = []
         active_list = sorted(self.currently_active)
+
+        # 已注册过的 orphan signifier（防止重复注册 concept_creation_suggestion）
+        known_orphans: set[str] = {
+            s.orphan_signifier for s in self.concept_creation_suggestions
+        }
 
         for i, sig_a in enumerate(active_list):
             for sig_b in active_list[i + 1:]:
@@ -382,12 +548,17 @@ class SNetActivation:
 
                 # 收集 evidence patterns（桥接和标准路径都需要）
                 syntagmatic_evidence: list[str] = []
+                syntagmatic_weight = 0.0
                 for edge in self.s_net.syntagmatic_neighbors(sig_a):
-                    if edge.target == sig_b and edge.evidence:
-                        syntagmatic_evidence.append(edge.evidence)
+                    if edge.target == sig_b:
+                        if edge.evidence:
+                            syntagmatic_evidence.append(edge.evidence)
+                        syntagmatic_weight = max(syntagmatic_weight, edge.weight)
                 for edge in self.s_net.syntagmatic_neighbors(sig_b):
-                    if edge.target == sig_a and edge.evidence:
-                        syntagmatic_evidence.append(edge.evidence)
+                    if edge.target == sig_a:
+                        if edge.evidence:
+                            syntagmatic_evidence.append(edge.evidence)
+                        syntagmatic_weight = max(syntagmatic_weight, edge.weight)
 
                 # 桥接路径：一个有 concept_ref，另一个没有
                 if concepts_a and not concepts_b:
@@ -397,6 +568,17 @@ class SNetActivation:
                         "evidence_signifiers": (sig_a, sig_b),
                         "evidence_patterns": tuple(syntagmatic_evidence[:5]),
                     })
+                    # concept_creation_suggestion
+                    if sig_b not in known_orphans:
+                        creation_suggestions.append(ConceptCreationSuggestion(
+                            orphan_signifier=sig_b,
+                            anchor_concept=concepts_a[0],
+                            anchor_signifier=sig_a,
+                            evidence_patterns=tuple(syntagmatic_evidence[:5]),
+                            syntagmatic_weight=syntagmatic_weight,
+                            step=self.current_step,
+                        ))
+                        known_orphans.add(sig_b)
                     continue
                 elif concepts_b and not concepts_a:
                     bridge_suggestions.append({
@@ -405,6 +587,17 @@ class SNetActivation:
                         "evidence_signifiers": (sig_a, sig_b),
                         "evidence_patterns": tuple(syntagmatic_evidence[:5]),
                     })
+                    # concept_creation_suggestion
+                    if sig_a not in known_orphans:
+                        creation_suggestions.append(ConceptCreationSuggestion(
+                            orphan_signifier=sig_a,
+                            anchor_concept=concepts_b[0],
+                            anchor_signifier=sig_b,
+                            evidence_patterns=tuple(syntagmatic_evidence[:5]),
+                            syntagmatic_weight=syntagmatic_weight,
+                            step=self.current_step,
+                        ))
+                        known_orphans.add(sig_a)
                     continue
 
                 # 两个都没有 concept_ref → 不创建（避免大量孤立对注入）
@@ -434,6 +627,9 @@ class SNetActivation:
         # 处理桥接建议
         bridge_edges = self._bridge_orphan_signifiers(bridge_suggestions, graph)
         suggestions.extend(bridge_edges)
+
+        # 存入 concept_creation_suggestions 待审查列表
+        self.concept_creation_suggestions.extend(creation_suggestions)
 
         return suggestions
 
@@ -491,6 +687,9 @@ class SNetActivation:
             "edge_suggestions": [
                 s.to_dict() for s in self.edge_suggestions
             ],
+            "concept_creation_suggestions": [
+                s.to_dict() for s in self.concept_creation_suggestions
+            ],
         }
 
     def restore_from_dict(self, d: dict) -> None:
@@ -505,6 +704,10 @@ class SNetActivation:
         self.edge_suggestions = [
             EdgeSuggestion.from_dict(s)
             for s in d.get("edge_suggestions", [])
+        ]
+        self.concept_creation_suggestions = [
+            ConceptCreationSuggestion.from_dict(s)
+            for s in d.get("concept_creation_suggestions", [])
         ]
 
     def to_json(self) -> str:

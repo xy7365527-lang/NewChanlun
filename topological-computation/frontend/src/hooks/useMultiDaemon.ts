@@ -1,35 +1,34 @@
 /**
  * useMultiDaemon.ts — manages N daemon instance connections.
  *
- * All instances are peers. Each instance:
- *   - Creates a daemonAPI (factory function)
- *   - Connects WS (parameterized)
- *   - Polls /status every 1s
+ * All instances are peers traversing the same shared K_active.
+ * There is no "active" or "primary" instance — topology/narrative/gaps/operations
+ * come from the shared K_active (fetched from any reachable instance).
  *
- * The "active" instance (user-selected) provides topology/narrative/gaps/operations
- * to the store-level fields. Other instances update instanceStates only.
+ * Each instance:
+ *   - Connects WS — all WS messages feed into the shared store
+ *   - Polls /status every 1s — updates per-instance state
+ *   - Its traversal position is a colored marker on the shared topology
  *
- * Output: merged instanceTraversals for TopologyView.
+ * Topology/narrative/gaps/operations are fetched from the first reachable instance
+ * (they all see the same K_active via IPFS sync).
  */
 
-import { useEffect, useRef, useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { STATUS_POLL_MS, INSTANCE_COLORS } from "../tokens";
-import type { DaemonInstance } from "../tokens";
 import type { WsMessage } from "../types";
 import { createDaemonAPI } from "./useDaemonAPI";
 import { useStore } from "./useStore";
 import type { InstanceTraversal } from "../components/TopologyView";
 
 /**
- * Manages a single WS connection imperatively (not as a hook per-instance,
- * because hooks can't be called in a loop). Returns cleanup function.
+ * Manages a single WS connection imperatively. Returns cleanup function.
+ * All instances feed into handleBatch (no distinction between active/non-active).
  */
 function connectInstanceWS(
   wsUrl: string,
   instanceId: string,
-  isActive: boolean,
-  handleBatch: (msgs: WsMessage[]) => void,
-  handleInstanceBatch: (id: string, msgs: WsMessage[]) => void,
+  handleBatch: (instanceId: string, msgs: WsMessage[]) => void,
   setWsConnected: (v: boolean) => void,
   updateInstanceState: (id: string, partial: { wsConnected: boolean }) => void,
 ): () => void {
@@ -42,11 +41,7 @@ function connectInstanceWS(
   function flush() {
     if (buffer.length === 0) return;
     const batch = buffer.splice(0);
-    if (isActive) {
-      handleBatch(batch);
-    } else {
-      handleInstanceBatch(instanceId, batch);
-    }
+    handleBatch(instanceId, batch);
   }
 
   function connect() {
@@ -54,7 +49,7 @@ function connectInstanceWS(
     ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
-      if (isActive) setWsConnected(true);
+      setWsConnected(true);
       updateInstanceState(instanceId, { wsConnected: true });
     };
 
@@ -72,7 +67,6 @@ function connectInstanceWS(
     };
 
     ws.onclose = () => {
-      if (isActive) setWsConnected(false);
       updateInstanceState(instanceId, { wsConnected: false });
       ws = null;
       if (!destroyed) {
@@ -95,7 +89,6 @@ function connectInstanceWS(
 
 export function useMultiDaemon(): void {
   const instances = useStore((s) => s.instances);
-  const activeInstanceId = useStore((s) => s.activeInstanceId);
   const setStatus = useStore((s) => s.setStatus);
   const setTopology = useStore((s) => s.setTopology);
   const setNarrative = useStore((s) => s.setNarrative);
@@ -104,14 +97,13 @@ export function useMultiDaemon(): void {
   const setWsConnected = useStore((s) => s.setWsConnected);
   const setDaemonReachable = useStore((s) => s.setDaemonReachable);
   const handleBatch = useStore((s) => s.handleWsBatch);
-  const handleInstanceBatch = useStore((s) => s.handleInstanceWsBatch);
   const updateInstanceState = useStore((s) => s.updateInstanceState);
-  const wsConnected = useStore((s) => s.wsConnected);
 
   // Stable reference to instances for effects
-  const instancesKey = instances.map((i) => `${i.id}:${i.httpBase}:${i.wsUrl}`).join("|") + `|active:${activeInstanceId}`;
+  const instancesKey = instances.map((i) => `${i.id}:${i.httpBase}:${i.wsUrl}`).join("|");
 
   // ── WebSocket connections for all instances ──
+  // All WS connections feed into the same handleBatch
   useEffect(() => {
     const cleanups: (() => void)[] = [];
 
@@ -119,9 +111,7 @@ export function useMultiDaemon(): void {
       const cleanup = connectInstanceWS(
         inst.wsUrl,
         inst.id,
-        inst.id === activeInstanceId,
         handleBatch,
-        handleInstanceBatch,
         setWsConnected,
         updateInstanceState,
       );
@@ -132,6 +122,7 @@ export function useMultiDaemon(): void {
   }, [instancesKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Status poll for ALL instances (every 1s) ──
+  // First reachable instance's status goes to store-level (shared K_active)
   useEffect(() => {
     let alive = true;
     const apis = instances.map((inst) => ({
@@ -140,13 +131,17 @@ export function useMultiDaemon(): void {
     }));
 
     async function poll() {
+      let sharedStatusSet = false;
       for (const { inst, api } of apis) {
         if (!alive) break;
         try {
           const s = await api.status();
           if (!alive) break;
-          if (inst.id === activeInstanceId) {
+          // First reachable instance provides the shared status
+          if (!sharedStatusSet) {
             setStatus(s);
+            setDaemonReachable(true);
+            sharedStatusSet = true;
           }
           updateInstanceState(inst.id, {
             reachable: true,
@@ -156,8 +151,10 @@ export function useMultiDaemon(): void {
           });
         } catch {
           updateInstanceState(inst.id, { reachable: false });
-          if (inst.id === activeInstanceId) setDaemonReachable(false);
         }
+      }
+      if (!sharedStatusSet) {
+        setDaemonReachable(false);
       }
     }
 
@@ -166,13 +163,14 @@ export function useMultiDaemon(): void {
     return () => { alive = false; clearInterval(id); };
   }, [instancesKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Active instance polls: topology (5s), narrative (3s fallback), gaps (10s), operations (5s) ──
-  const activeInst = instances.find((i) => i.id === activeInstanceId);
-  const activeHttpBase = activeInst?.httpBase ?? instances[0]?.httpBase ?? "http://localhost:9765";
+  // ── Shared K_active polls: topology (5s), narrative (3s fallback), gaps (10s), operations (5s) ──
+  // Fetch from any reachable instance (they share the same K_active via IPFS)
+  const reachableHttpBase = useStore((s) => s.getReachableHttpBase());
+  const wsConnected = useStore((s) => s.wsConnected);
 
   useEffect(() => {
     let alive = true;
-    const api = createDaemonAPI(activeHttpBase);
+    const api = createDaemonAPI(reachableHttpBase);
 
     async function fetchTopo() {
       try {
@@ -183,11 +181,11 @@ export function useMultiDaemon(): void {
     fetchTopo();
     const id = setInterval(fetchTopo, 5000);
     return () => { alive = false; clearInterval(id); };
-  }, [activeHttpBase, setTopology]);
+  }, [reachableHttpBase, setTopology]);
 
   useEffect(() => {
     let alive = true;
-    const api = createDaemonAPI(activeHttpBase);
+    const api = createDaemonAPI(reachableHttpBase);
 
     async function fetchNarrative() {
       if (wsConnected) return; // WS provides narrative in real-time
@@ -199,11 +197,11 @@ export function useMultiDaemon(): void {
     fetchNarrative();
     const id = setInterval(fetchNarrative, 3000);
     return () => { alive = false; clearInterval(id); };
-  }, [activeHttpBase, wsConnected, setNarrative]);
+  }, [reachableHttpBase, wsConnected, setNarrative]);
 
   useEffect(() => {
     let alive = true;
-    const api = createDaemonAPI(activeHttpBase);
+    const api = createDaemonAPI(reachableHttpBase);
 
     async function fetchGaps() {
       try {
@@ -214,11 +212,11 @@ export function useMultiDaemon(): void {
     fetchGaps();
     const id = setInterval(fetchGaps, 10000);
     return () => { alive = false; clearInterval(id); };
-  }, [activeHttpBase, setGaps]);
+  }, [reachableHttpBase, setGaps]);
 
   useEffect(() => {
     let alive = true;
-    const api = createDaemonAPI(activeHttpBase);
+    const api = createDaemonAPI(reachableHttpBase);
 
     async function fetchOps() {
       try {
@@ -229,20 +227,17 @@ export function useMultiDaemon(): void {
     fetchOps();
     const id = setInterval(fetchOps, 5000);
     return () => { alive = false; clearInterval(id); };
-  }, [activeHttpBase, setOperations]);
+  }, [reachableHttpBase, setOperations]);
 }
 
 /**
  * Build merged instanceTraversals from all connected instances.
- * Call this in App.tsx to get the combined traversal positions for TopologyView.
+ * Each instance's current position is a colored marker on the shared topology.
  */
 export function useInstanceTraversals(): InstanceTraversal[] {
   const instances = useStore((s) => s.instances);
   const instanceStates = useStore((s) => s.instanceStates);
   const topology = useStore((s) => s.topology);
-  const activeInstanceId = useStore((s) => s.activeInstanceId);
-  const currentPositionLabel = useStore((s) => s.currentPositionLabel);
-  const currentPositionId = useStore((s) => s.currentPositionId);
   const peersPositions = useStore((s) => s.peersPositions);
 
   return useMemo(() => {
@@ -252,17 +247,12 @@ export function useInstanceTraversals(): InstanceTraversal[] {
       const inst = instances[idx];
       const state = instanceStates[inst.id];
 
-      // Determine position: active instance uses store-level, others use instanceStates
-      const posLabel = inst.id === activeInstanceId
-        ? currentPositionLabel
-        : (state?.currentPositionLabel || "");
-      const posId = inst.id === activeInstanceId
-        ? currentPositionId
-        : (state?.currentPositionId || "");
+      const posLabel = state?.currentPositionLabel || "";
+      const posId = state?.currentPositionId || "";
 
       if (!posLabel && !posId) continue;
 
-      // Find matching vertex in topology
+      // Find matching vertex in shared topology
       const vertexId = topology?.nodes.find(
         (n) => n.id === posId || n.label === posLabel
       )?.id;
@@ -299,5 +289,5 @@ export function useInstanceTraversals(): InstanceTraversal[] {
     }
 
     return result;
-  }, [instances, instanceStates, topology, activeInstanceId, currentPositionLabel, currentPositionId, peersPositions]);
+  }, [instances, instanceStates, topology, peersPositions]);
 }

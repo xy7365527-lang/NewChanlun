@@ -130,10 +130,6 @@ interface DaemonStore {
   // Chat messages
   messages: ChatMessage[];
 
-  // Current traversal position label (per-instance, not global)
-  currentPositionLabel: string;
-  currentPositionId: string;
-
   // Expression pressure: number of unreported high-I events
   expressionPressure: number;
 
@@ -209,8 +205,6 @@ export const useStore = create<DaemonStore>((set, get) => ({
   gaps: [],
   operations: null,
   messages: [],
-  currentPositionLabel: "",
-  currentPositionId: "",
   expressionPressure: 0,
   peersPositions: {},
 

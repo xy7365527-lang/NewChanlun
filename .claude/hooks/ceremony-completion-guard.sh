@@ -329,7 +329,7 @@ print(json.dumps({
 fi
 
 # ─── 全部检查通过：写入 session 后允许停止 ───
-SCRIPT_DIR_REL="$(cd "$(dirname "${BASH_SOURCE[0]}")/../scripts" && pwd)"
-bash "$SCRIPT_DIR_REL/write_session.sh" >/dev/null 2>&1 || true
+cd "$cwd" 2>/dev/null || true
+bash scripts/write_session.sh >/dev/null 2>&1 || true
 rm -f "$COUNTER" 2>/dev/null || true
 exit 0

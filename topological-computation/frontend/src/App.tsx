@@ -34,7 +34,6 @@ export default function App() {
   const messages = useStore((s) => s.messages);
   const queryResult = useStore((s) => s.queryResult);
   const focusConcept = useStore((s) => s.focusConcept);
-  const currentPositionLabel = useStore((s) => s.currentPositionLabel);
   const expressionPressure = useStore((s) => s.expressionPressure);
   const instances = useStore((s) => s.instances);
   const instanceStates = useStore((s) => s.instanceStates);
@@ -49,11 +48,11 @@ export default function App() {
   // ── Instance traversals (merged from all instances) ────────
   const instanceTraversals = useInstanceTraversals();
 
-  // ── Active instance API for POST requests ────────────────
-  const activeHttpBase = useStore((s) => s.getActiveHttpBase());
-  const activeApi = useMemo(
-    () => createDaemonAPI(activeHttpBase),
-    [activeHttpBase]
+  // ── Daemon API for POST requests (any reachable instance) ──
+  const reachableHttpBase = useStore((s) => s.getReachableHttpBase());
+  const daemonApi = useMemo(
+    () => createDaemonAPI(reachableHttpBase),
+    [reachableHttpBase]
   );
 
   // ── Local UI state ───────────────────────────────────────────
@@ -73,7 +72,7 @@ export default function App() {
       setActiveTab("chat");
       setQueryResult(null);
       try {
-        const result = await activeApi.query(node.label);
+        const result = await daemonApi.query(node.label);
         setQueryResult(result);
       } catch (e) {
         addMessage({
@@ -83,7 +82,7 @@ export default function App() {
         });
       }
     },
-    [setFocusConcept, setQueryResult, addMessage, activeApi]
+    [setFocusConcept, setQueryResult, addMessage, daemonApi]
   );
 
   const handleSelectConcept = useCallback(
@@ -103,7 +102,7 @@ export default function App() {
       setPending(true);
 
       try {
-        const res = await activeApi.present(text);
+        const res = await daemonApi.present(text);
 
         if (res.type === "silence") {
           addMessage({
@@ -136,14 +135,14 @@ export default function App() {
         setPending(false);
       }
     },
-    [addMessage, setFocusConcept, activeApi]
+    [addMessage, setFocusConcept, daemonApi]
   );
 
   const handlePressureClick = useCallback(async () => {
     if (pending) return;
     setPending(true);
     try {
-      const res = await activeApi.present("");
+      const res = await daemonApi.present("");
       if (res.type === "silence") {
         addMessage({
           role: "daemon",
@@ -169,12 +168,7 @@ export default function App() {
     } finally {
       setPending(false);
     }
-  }, [pending, addMessage, activeApi]);
-
-  // ── Fallback traversal for single-instance mode (used by views that don't support instanceTraversals) ──
-  const traversalVertexId = topology?.nodes.find(
-    (n) => n.label === currentPositionLabel
-  )?.id;
+  }, [pending, addMessage, daemonApi]);
 
   // ── Render ───────────────────────────────────────────────────
   return (
@@ -187,7 +181,6 @@ export default function App() {
       <MetricsBar
         status={status}
         wsConnected={wsConnected}
-        currentPositionLabel={currentPositionLabel}
         expressionPressure={expressionPressure}
         onPressureClick={handlePressureClick}
         instances={instances}
@@ -206,7 +199,6 @@ export default function App() {
           <div style={{ flex: 1, overflow: "hidden" }}>
             <TopologyViewSwitcher
               data={topology}
-              traversalPosition={traversalVertexId}
               instanceTraversals={instanceTraversals.length > 0 ? instanceTraversals : undefined}
               focusConcept={focusConcept}
               onSelectNode={handleSelectNode}

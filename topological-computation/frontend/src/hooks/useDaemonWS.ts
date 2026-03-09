@@ -7,12 +7,14 @@ import { useStore } from "./useStore";
  * Connects to a daemon WebSocket and feeds throttled messages into the store.
  * 100ms throttle: D3 doesn't need every single step.
  *
+ * All instances are peers — every WS connection feeds into handleWsBatch(instanceId, msgs).
+ *
  * @param wsUrl - WebSocket URL (defaults to DAEMON_WS from tokens)
- * @param instanceId - Instance ID for non-primary instances (null = primary, uses handleWsBatch)
+ * @param instanceId - Instance ID for attribution in the shared store
  */
 export function useDaemonWS(
   wsUrl: string = DAEMON_WS,
-  instanceId: string | null = null,
+  instanceId: string = "default",
 ): void {
   const wsRef = useRef<WebSocket | null>(null);
   const bufferRef = useRef<WsMessage[]>([]);
@@ -20,7 +22,6 @@ export function useDaemonWS(
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleBatch = useStore((s) => s.handleWsBatch);
-  const handleInstanceBatch = useStore((s) => s.handleInstanceWsBatch);
   const setWsConnected = useStore((s) => s.setWsConnected);
   const updateInstanceState = useStore((s) => s.updateInstanceState);
 
@@ -30,11 +31,7 @@ export function useDaemonWS(
     function flush() {
       if (bufferRef.current.length === 0) return;
       const batch = bufferRef.current.splice(0);
-      if (instanceId === null) {
-        handleBatch(batch);
-      } else {
-        handleInstanceBatch(instanceId, batch);
-      }
+      handleBatch(instanceId, batch);
     }
 
     function connect() {
@@ -44,11 +41,8 @@ export function useDaemonWS(
       wsRef.current = ws;
 
       ws.onopen = () => {
-        if (instanceId === null) {
-          setWsConnected(true);
-        } else {
-          updateInstanceState(instanceId, { wsConnected: true });
-        }
+        setWsConnected(true);
+        updateInstanceState(instanceId, { wsConnected: true });
       };
 
       ws.onmessage = (event) => {
@@ -68,11 +62,8 @@ export function useDaemonWS(
       };
 
       ws.onclose = () => {
-        if (instanceId === null) {
-          setWsConnected(false);
-        } else {
-          updateInstanceState(instanceId, { wsConnected: false });
-        }
+        setWsConnected(false);
+        updateInstanceState(instanceId, { wsConnected: false });
         wsRef.current = null;
         if (!destroyed) {
           reconnectTimerRef.current = setTimeout(connect, 3000);
@@ -97,5 +88,5 @@ export function useDaemonWS(
       }
       wsRef.current?.close();
     };
-  }, [wsUrl, instanceId, handleBatch, handleInstanceBatch, setWsConnected, updateInstanceState]);
+  }, [wsUrl, instanceId, handleBatch, setWsConnected, updateInstanceState]);
 }

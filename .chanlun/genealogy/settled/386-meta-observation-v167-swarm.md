@@ -48,7 +48,7 @@ v167-swarm：Phase 3 拓扑计算实验蜂群。4个工位并行执行（genealo
 | engine优化 | 邻接表索引（_adj_out/_adj_in）O(degree)替代O(E)扫描，22测试全过 |
 | experiment_dev | 4阶段全部涌现（幼年1-15/危机16-39/稳定40-200/成熟201-500），β₁ 18→36，FP fold率84.6%，14settled/5blocked。L1等级 |
 | experiment_real | 真实谱系穿越：β₁ 2325→2421(+96)，fold 58次(43成功+55blocked)，negate_a 121次，sublate 122次，44settled，71.4%步触发操作，覆盖率1.1%。L2等级 |
-| v166 spec-review | Gemini 规格审查：T公式死锁(382号)、Negate/Sublate β₁贡献(383号)、AlphaGo过强声称(384号)。3个否定 + 1个通过 |
+| v166 spec-review | Gemini 规格审查：T公式死锁(403号)、Negate/Sublate β₁贡献(404号)、AlphaGo过强声称(405号)。3个否定 + 1个通过 |
 | Phase 2 LLM实验 | β₁ 3→12(9x Phase 1)，9个settled，coverage 100%。4/5通过（blocking=0——LLM避免冲突） |
 | 对照实验 | A/B/C三组对照确认零fold根因是拓扑可达性（非感知偏向） |
 

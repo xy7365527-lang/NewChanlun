@@ -6,7 +6,6 @@ import type { InstanceState } from "../hooks/useStore";
 interface Props {
   status: StatusResponse | null;
   wsConnected: boolean;
-  currentPositionLabel: string;
   expressionPressure: number;
   onPressureClick: () => void;
   instances: DaemonInstance[];
@@ -16,12 +15,17 @@ interface Props {
 export function MetricsBar({
   status,
   wsConnected,
-  currentPositionLabel,
   expressionPressure,
   onPressureClick,
   instances,
   instanceStates,
 }: Props) {
+  // Derive position label from first reachable instance (peer model)
+  const currentPositionLabel = instances.reduce<string>((acc, inst) => {
+    if (acc) return acc;
+    const state = instanceStates[inst.id];
+    return (state?.reachable && state.currentPositionLabel) ? state.currentPositionLabel : "";
+  }, "");
   const s = status ?? {
     beta_1: 0, vertices: 0, edges: 0, settled: 0,
     steps: 0, encounter_density: 0, status: "traversing" as const,
