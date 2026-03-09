@@ -907,11 +907,13 @@ def sublate(
     if not has_negation:
         # Negation edge may have been removed between detection and execution (race condition).
         # Return a blocked result instead of crashing.
-        return SublateResult(
+        return OperationResult(
             graph=graph,
             new_vertex="",
+            delta_beta_1_predicted=0,
+            delta_beta_1_actual=0,
             blocked=True,
-            blocked_by=frozenset(),
+            blocked_by=None,
         )
 
     # Gate 2 — Generative: synthesis content must be articulable
