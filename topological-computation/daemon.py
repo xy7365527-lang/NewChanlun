@@ -191,10 +191,28 @@ def _build_registry(graph: Graph) -> Registry:
 # Single-event narrative formatter
 # ---------------------------------------------------------------------------
 
+def _friendly_pos_name(raw: str) -> str:
+    """Make memory/metadata vertex names more readable for narrative output."""
+    if raw.startswith("memory:"):
+        # "memory:residue:boundary_edge:4:244424" -> "[记忆节点] boundary_edge"
+        parts = raw.split(":")
+        key = parts[2] if len(parts) > 2 else parts[-1]
+        return f"[记忆节点] {key}"
+    if raw.startswith("[") and "]" in raw:
+        # "[tension] ..." or "[event] ..." -> keep the tag, trim long tails
+        bracket_end = raw.index("]") + 1
+        tag = raw[:bracket_end]
+        rest = raw[bracket_end:].strip()
+        if len(rest) > 30:
+            rest = rest[:27] + "..."
+        return f"{tag} {rest}" if rest else tag
+    return raw
+
+
 def format_event(log: StepLog, concept_names: dict[str, str] | None = None) -> str:
     """Format a single StepLog into a human-readable narrative line."""
     names = concept_names or {}
-    pos_name = names.get(log.position, log.position)
+    pos_name = _friendly_pos_name(names.get(log.position, log.position))
 
     if log.operation == "walk":
         return f"[step {log.step}] walk -> '{pos_name}'"
@@ -1998,19 +2016,18 @@ def _run_serve(
     start_ws_server(ws_port)
     bridge_daemon_to_ws(daemon)
 
-    # If autonomous, also register auto-feed
-    if autonomous:
-        from auto_feed import feed_from_gap
+    # Register auto-feed (always active in serve mode)
+    from auto_feed import feed_from_gap
 
-        def on_gap_feed(gap: GapInfo) -> None:
-            record = feed_from_gap(gap, daemon)
-            print(
-                f"  [auto-feed] '{gap.content}' -> {record.verdict} "
-                f"(source={record.source}, accepted={record.accepted})",
-                file=sys.stderr,
-            )
+    def on_gap_feed(gap: GapInfo) -> None:
+        record = feed_from_gap(gap, daemon)
+        print(
+            f"  [auto-feed] '{gap.content}' -> {record.verdict} "
+            f"(source={record.source}, accepted={record.accepted})",
+            file=sys.stderr,
+        )
 
-        daemon.register_callback("on_gap", on_gap_feed)
+    daemon.register_callback("on_gap", on_gap_feed)
 
     print(f"\n  Daemon running. Ctrl+C to stop.", file=sys.stderr)
 
