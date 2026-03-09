@@ -16,7 +16,7 @@ Architecture:
         - Runs daemon._step() in a tight loop
         - Updates status_dict every step
         - Rebuilds topology_cache every N steps
-        - Drains feed_queue -> daemon.feed()
+        - Drains feed_queue -> feed_via_snet() (S_net unified path)
         - Drains present_queue -> present_json() -> present_result_queue
         - Pushes WS events into event_queue
 
@@ -94,12 +94,14 @@ def _traversal_worker(
     seed = config.get("seed", 42)
     autonomous = config.get("autonomous", False)
     topology_refresh_interval = config.get("topology_refresh_interval", 50)
+    require_chain = config.get("require_chain", True)
 
     daemon = TopologicalDaemon(
         graph=graph,
         settlement_threshold=settlement_threshold,
         seed=seed,
         persist_path=persist_path,
+        require_chain=require_chain,
     )
 
     # If persisting, ensure initial graph is baselined in k_full.jsonl
@@ -136,18 +138,18 @@ def _traversal_worker(
 
         daemon.register_callback("on_gap", on_gap_feed)
 
-    # IPFS background uploader (graceful degradation)
+    # IPFS background uploader (graceful degradation — separate from SharedLayer)
+    # SharedLayer 上链由 daemon require_chain 控制；这里是额外的事件上传
     ipfs_uploader = None
-    if config.get("ipfs", False):
-        try:
-            from swarm.swarm_daemon import IPFSUploader
-            import logging
-            _ipfs_logger = logging.getLogger("ipfs-uploader")
-            _ipfs_logger.addHandler(logging.StreamHandler(sys.stderr))
-            ipfs_uploader = IPFSUploader(_ipfs_logger)
-            ipfs_uploader.start()
-        except Exception as exc:
-            print(f"[traversal-worker] IPFS init failed (graceful degradation): {exc}", file=sys.stderr)
+    try:
+        from swarm.swarm_daemon import IPFSUploader
+        import logging
+        _ipfs_logger = logging.getLogger("ipfs-uploader")
+        _ipfs_logger.addHandler(logging.StreamHandler(sys.stderr))
+        ipfs_uploader = IPFSUploader(_ipfs_logger)
+        ipfs_uploader.start()
+    except Exception as exc:
+        print(f"[traversal-worker] IPFS uploader init failed (non-fatal): {exc}", file=sys.stderr)
 
     # Track last-seen peer positions to detect changes for WS push
     _last_peer_snapshot: dict[str, str] = {}
@@ -402,8 +404,8 @@ def _update_api_caches(daemon, status_dict: dict,
 
 
 def _drain_feed_queue(daemon, feed_queue: Queue, event_queue: Queue) -> None:
-    """Process all pending feed requests."""
-    from engine import compute_beta_1
+    """Process all pending feed requests via S_net unified path (v204)."""
+    from daemon_api import feed_via_snet
 
     while True:
         try:
@@ -412,21 +414,15 @@ def _drain_feed_queue(daemon, feed_queue: Queue, event_queue: Queue) -> None:
             break
 
         try:
-            beta_before = compute_beta_1(daemon.k_active)
-            v_before = len(daemon.k_active.active_vertex_ids())
-
-            sub = daemon.feed(text)
-
-            beta_after = compute_beta_1(daemon.k_active)
-            v_after = len(daemon.k_active.active_vertex_ids())
+            result = feed_via_snet(daemon, text, source_type="api_feed")
 
             # Push feed result as event
             event_queue.put_nowait({
                 "type": "feed_result",
                 "accepted": True,
-                "new_vertices": v_after - v_before,
-                "new_edges": len(sub.active_edges()),
-                "delta_beta_1": beta_after - beta_before,
+                "writeback_edges": result["writeback_edges"],
+                "resonated": result["resonated"],
+                "verdict": "snet_unified",
             })
         except Exception as exc:
             event_queue.put_nowait({
@@ -868,7 +864,7 @@ def start_multiprocess_daemon(
     seed: int = 42,
     autonomous: bool = False,
     topology_refresh_interval: int = 50,
-    ipfs: bool = False,
+    require_chain: bool = True,
 ) -> None:
     """Start the multiprocess daemon: traversal subprocess + HTTP/WS in main.
 
@@ -894,7 +890,7 @@ def start_multiprocess_daemon(
         "seed": seed,
         "autonomous": autonomous,
         "topology_refresh_interval": topology_refresh_interval,
-        "ipfs": ipfs,
+        "require_chain": require_chain,
     }
 
     # Start traversal subprocess
@@ -1036,8 +1032,8 @@ def main() -> None:
                         help="Random seed for traversal")
     parser.add_argument("--topology-refresh", type=int, default=50,
                         help="Rebuild topology cache every N steps")
-    parser.add_argument("--ipfs", action="store_true",
-                        help="Enable IPFS background upload for significant events")
+    parser.add_argument("--no-chain", action="store_true",
+                        help="Allow running without IPFS SharedLayer (isolated instance)")
     parser.add_argument("--load-experiments", action="store_true",
                         help="Load all data/graph_*.json (experiment concept graphs) and merge")
     args = parser.parse_args()
@@ -1094,7 +1090,7 @@ def main() -> None:
         seed=args.seed,
         autonomous=args.autonomous,
         topology_refresh_interval=args.topology_refresh,
-        ipfs=args.ipfs,
+        require_chain=not args.no_chain,
     )
 
 

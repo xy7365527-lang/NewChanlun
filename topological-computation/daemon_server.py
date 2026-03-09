@@ -34,7 +34,7 @@ from daemon_api import (
     status_json, topology_json, query_json, narrative_json,
     gaps_json, operations_json, persistence_json, step_ws_message,
     present_json, expression_pressure_ws_message, _count_unreported,
-    instances_json,
+    instances_json, feed_via_snet,
 )
 
 
@@ -226,24 +226,19 @@ class DaemonHTTPHandler(BaseHTTPRequestHandler):
         }
 
     def _handle_feed(self, text: str) -> dict:
-        """Manual text injection via phi_L."""
+        """Manual text injection via S_net unified path (v204).
+
+        No longer bypasses S_net to inject directly into K_active.
+        Flow: text → phi_L whitelist → S_net writeback → resonate → externalize.
+        """
         daemon = self.daemon
-        from engine import compute_beta_1
-        beta_before = compute_beta_1(daemon.k_active)
-        v_before = len(daemon.k_active.active_vertex_ids())
-
-        sub = daemon.feed(text)
-
-        beta_after = compute_beta_1(daemon.k_active)
-        v_after = len(daemon.k_active.active_vertex_ids())
-
+        result = feed_via_snet(daemon, text, source_type="api_feed")
         return {
             "accepted": True,
-            "new_vertices": v_after - v_before,
-            "new_edges": len(sub.active_edges()),
-            "match_rate": 0.0,  # Not available for manual feed
-            "verdict": "manual",
-            "delta_beta_1": beta_after - beta_before,
+            "writeback_edges": result["writeback_edges"],
+            "resonated": result["resonated"],
+            "matched_signifiers": result.get("matched_signifiers", []),
+            "verdict": "snet_unified",
         }
 
     def _json_response(self, data, status: int = 200) -> None:
@@ -381,6 +376,8 @@ def main() -> None:
     parser.add_argument("--port", type=int, default=8080, help="HTTP port")
     parser.add_argument("--ws-port", type=int, default=8765, help="WebSocket port")
     parser.add_argument("--persist", type=str, nargs="?", const=None, help="JSONL persistence path")
+    parser.add_argument("--no-chain", action="store_true",
+                        help="Allow running without IPFS SharedLayer (isolated instance)")
     args = parser.parse_args()
 
     # Load graph
@@ -390,7 +387,10 @@ def main() -> None:
     print(f"Loaded: {len(graph.active_vertex_ids())}V, {len(graph.active_edges())}E, "
           f"beta_1={compute_beta_1(graph)}")
 
-    daemon = TopologicalDaemon(graph=graph, settlement_threshold=15, persist_path=args.persist)
+    daemon = TopologicalDaemon(
+        graph=graph, settlement_threshold=15, persist_path=args.persist,
+        require_chain=not args.no_chain,
+    )
 
     # Start servers
     start_http_server(daemon, args.port)
