@@ -158,7 +158,8 @@ def feed_from_academic_gap(gap_signal: dict, daemon: object) -> AcademicFeedReco
         match_rate, verdict = quality_check(sub, daemon.k_active)
 
         if verdict == "nutritious":
-            daemon.feed(text)
+            from daemon_api import feed_via_snet
+            feed_via_snet(daemon, text, source_type="academic_feed")
             return AcademicFeedRecord(
                 accepted=True, source=source, query=query,
                 paper_title=paper.get("title", ""),

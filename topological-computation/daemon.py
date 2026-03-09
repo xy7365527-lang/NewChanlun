@@ -226,6 +226,7 @@ class TopologicalDaemon:
         settlement_threshold: int = 15,
         seed: int = 42,
         persist_path: str | Path | None = None,
+        require_chain: bool = False,
     ) -> None:
         # Persistence: if persist_path given, try to recover from JSONL first
         self._persist: PersistentKFull | None = None
@@ -350,12 +351,23 @@ class TopologicalDaemon:
                     f"(api={ipfs.api_url})",
                     file=sys.stderr,
                 )
+            elif require_chain:
+                raise RuntimeError(
+                    "IPFS daemon 不可用 — SharedLayer 未启用。"
+                    "本地实例默认上链，不允许作为孤例运行。"
+                    "启动 IPFS daemon 或使用 --no-chain 显式选择孤立模式。"
+                )
             else:
                 print(
-                    "Plan C: IPFS daemon 不可用 — SharedLayer 未启用",
+                    "Plan C: IPFS daemon 不可用 — SharedLayer 未启用 (--no-chain)",
                     file=sys.stderr,
                 )
         except ImportError:
+            if require_chain:
+                raise RuntimeError(
+                    "SharedLayer 依赖缺失 (chain.ipfs_client / swarm.shared_layer)。"
+                    "本地实例默认上链，不允许作为孤例运行。"
+                )
             pass
 
         # 401号修复：清除已有的 encounter memory 节点（脚印不是宝藏）
@@ -1354,6 +1366,8 @@ def main() -> None:
     parser.add_argument("--hegel", action="store_true", help="Build from Hegel Phenomenology chapters")
     parser.add_argument("--persist", type=str, nargs="?", const=str(DEFAULT_PATH),
                         help="Enable JSONL persistence (optional path, default: ~/.topological-computation/k_full.jsonl)")
+    parser.add_argument("--no-chain", action="store_true",
+                        help="Allow running without IPFS SharedLayer (isolated instance)")
     args = parser.parse_args()
 
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -1409,6 +1423,7 @@ def main() -> None:
     daemon = TopologicalDaemon(
         graph=graph, settlement_threshold=15, seed=42,
         persist_path=args.persist,
+        require_chain=not args.no_chain,
     )
 
     # If persisting with a fresh file (no recovery), write initial graph

@@ -1063,6 +1063,49 @@ def language_organ_respond(
     }
 
 
+def feed_via_snet(
+    daemon: TopologicalDaemon,
+    text: str,
+    source_type: str = "feed",
+) -> dict:
+    """统一输入路径：所有文本经过 S_net resonate → 耦合振荡 → articulation feedback。
+
+    替代 daemon.feed() 的直接 K_active 注入。流程：
+      1. phi_L 白名单匹配（确定输入中的已知概念）
+      2. _writeback_to_snet — 文本回写 S_net 共现边
+      3. _resonate_from_operator — S_net 能指共振叠加激活态
+      4. _externalize_speech — 如果有成型语段则外化
+
+    返回 dict: {writeback_edges, resonated, externalize_result}
+    """
+    if not text or not text.strip():
+        return {"writeback_edges": 0, "resonated": False, "externalize_result": None}
+
+    # Step 1: phi_L 白名单匹配（引导共振，不直接注入 K_active）
+    snet = getattr(daemon, 'snet', None)
+    matched_signifiers: list[str] = []
+    if snet and snet.signifiers:
+        known_sigs = list(snet.signifiers.keys())
+        matched_signifiers = parse_signifier_chain(text, known_signifiers=known_sigs)
+
+    # Step 2: S_net 共现边回写
+    writeback_count = _writeback_to_snet(daemon, text, source_type)
+
+    # Step 3: S_net 能指共振
+    _resonate_from_operator(daemon, text)
+    resonated = len(matched_signifiers) > 0
+
+    # Step 4: 外化（如果有成型语段）
+    ext_result = _externalize_speech(daemon, user_text=text)
+
+    return {
+        "writeback_edges": writeback_count,
+        "resonated": resonated,
+        "matched_signifiers": matched_signifiers,
+        "externalize_result": ext_result,
+    }
+
+
 def _writeback_to_snet(
     daemon: TopologicalDaemon,
     text: str,
@@ -1341,19 +1384,19 @@ def present_json(daemon: TopologicalDaemon, text: str, session_id: str = "defaul
             result["operator_ruling"] = operator_ruling
         return result
 
-    # Command / empty path: original present_json logic
+    # Command / empty path: unified S_net input path (v204)
     parts: list[dict] = []
     injected = False
     concepts_found: list[str] = []
     llm_used = False
 
-    # 1. Inject — if text is substantial, feed it into K_active permanently
+    # 1. S_net 统一路径：文本 → writeback → resonate（不直接注入 K_active）
     if len(text) > 20:
         try:
-            daemon.feed(text)
-            injected = True
+            snet_result = feed_via_snet(daemon, text, source_type="command_input")
+            injected = snet_result["writeback_edges"] > 0 or snet_result["resonated"]
         except Exception:
-            pass  # Feed failure is non-fatal
+            pass  # S_net feed failure is non-fatal
 
     # 2. Extract concepts from user text (even short text may name things)
     if text.strip():

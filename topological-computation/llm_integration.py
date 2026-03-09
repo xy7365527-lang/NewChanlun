@@ -534,8 +534,9 @@ def inquire_and_digest(llm: LLMClient, question: str, daemon,
     if new_v == 0:
         return {"success": False, "reason": "phi_L produced empty graph"}
 
-    # Inject into K_active
-    daemon.feed(response_text)
+    # Inject via S_net unified path (v204)
+    from daemon_api import feed_via_snet
+    feed_via_snet(daemon, response_text, source_type="llm_response")
 
     return {
         "success": True,

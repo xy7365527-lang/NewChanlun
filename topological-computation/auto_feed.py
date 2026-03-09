@@ -393,7 +393,8 @@ def feed_from_gap(gap: dict | object, daemon: object) -> FeedRecord:
     match_rate, verdict = quality_check(sub, daemon.k_active)
 
     if verdict == "nutritious":
-        daemon.feed(result.text)
+        from daemon_api import feed_via_snet
+        feed_via_snet(daemon, result.text, source_type="auto_feed")
         return FeedRecord(
             accepted=True, source=result.source, query=query,
             vertices_added=sub_v_count, edges_added=sub_e_count,
