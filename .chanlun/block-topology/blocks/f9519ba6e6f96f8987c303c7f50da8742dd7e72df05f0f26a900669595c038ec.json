@@ -31,5 +31,26 @@
     "137",
     "057",
     "173"
-  ]
+  ],
+  "split_annotations": {
+    "type_C_split": {
+      "split_by": "407",
+      "timestamp": "2026-03-09T18:00:00.000000+00:00",
+      "original": "C: 角色边界僭越（一般）",
+      "subtypes": {
+        "C1": {
+          "name": "主动僭越",
+          "trigger": "session 中累积的行为漂移",
+          "characteristic": "渐进式，编排者纠正后可恢复",
+          "remediability": "规则层可缓解"
+        },
+        "C2": {
+          "name": "compact 回归僭越",
+          "trigger": "autocompact 后行为惯性丢失",
+          "characteristic": "突发式，恢复后立即出现",
+          "remediability": "需要 compact 后重建行为抑制"
+        }
+      }
+    }
+  }
 }

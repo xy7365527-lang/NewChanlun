@@ -34,8 +34,8 @@ from newchan.a_zhongshu_v1 import zhongshu_from_segments
 from newchan.a_move_v1 import moves_from_zhongshus
 from newchan.a_divergence_v1 import divergences_from_moves_v1
 from newchan.a_buysellpoint_v1 import buysellpoints_from_level
-from newchan.a_level_protocol import adapt_moves
-from newchan.a_zhongshu_level import zhongshu_from_components, moves_from_level_zhongshus
+from newchan.a_level_protocol import adapt_moves, MoveAsComponent
+from newchan.a_zhongshu_level import LevelZhongshu, zhongshu_from_components, moves_from_level_zhongshus
 from newchan.bi_engine import BiEngineSnapshot
 from newchan.core.recursion.segment_state import SegmentSnapshot
 from newchan.core.recursion.zhongshu_state import ZhongshuSnapshot
@@ -263,12 +263,13 @@ def analyze_levels(bars: list[Bar], stream_id: str = "BRN") -> dict:
 
     result["levels"]["L1"] = l1
 
-    # Level-2+ 递归层
+    # Level-2+ 递归层 (streaming mode does not compute recursive BSPs)
     for rsnap in snap.recursive_snapshots:
         lvl_key = f"L{rsnap.level_id}"
         lvl = {
             "zhongshus": [],
             "moves": [],
+            "buysellpoints": [],
         }
         for zs in rsnap.zhongshus:
             lvl["zhongshus"].append({
@@ -297,11 +298,76 @@ def _dt_to_epoch(dt: datetime) -> float:
     return dt.timestamp()
 
 
+class _ComponentAsSegment:
+    """Adapt MoveAsComponent to the segment-like interface needed by divergence functions.
+
+    Provides i0, i1, high, low, direction attributes so that
+    divergences_from_moves_v1 can compute force via the price-amplitude fallback.
+    """
+
+    __slots__ = ("i0", "i1", "high", "low", "direction")
+
+    def __init__(self, comp: MoveAsComponent) -> None:
+        self.i0 = comp.component_idx
+        self.i1 = comp.component_idx
+        self.high = comp.high
+        self.low = comp.low
+        self.direction = comp.direction
+
+
+class _LevelZhongshuAsZhongshu:
+    """Adapt LevelZhongshu to the Zhongshu-like interface needed by divergence/buysellpoint functions.
+
+    Maps comp_start/comp_end/comp_count/break_comp to seg_start/seg_end/seg_count/break_seg.
+    """
+
+    __slots__ = (
+        "zd", "zg", "seg_start", "seg_end", "seg_count", "settled",
+        "break_seg", "break_direction", "gg", "dd",
+    )
+
+    def __init__(self, lzs: LevelZhongshu) -> None:
+        self.zd = lzs.zd
+        self.zg = lzs.zg
+        self.seg_start = lzs.comp_start
+        self.seg_end = lzs.comp_end
+        self.seg_count = lzs.comp_count
+        self.settled = lzs.settled
+        self.break_seg = lzs.break_comp
+        self.break_direction = lzs.break_direction
+        self.gg = lzs.gg
+        self.dd = lzs.dd
+
+
+def _recursive_level_bsp(
+    components: list[MoveAsComponent],
+    level_zhongshus: list[LevelZhongshu],
+    level_moves: list,
+    level_id: int,
+) -> list:
+    """Compute divergences and buysellpoints for a recursive level.
+
+    Adapts LevelZhongshu → Zhongshu-like and MoveAsComponent → segment-like
+    so that the existing divergences_from_moves_v1 and buysellpoints_from_level
+    functions work without MACD (price-amplitude fallback).
+    """
+    seg_like = [_ComponentAsSegment(c) for c in components]
+    zs_like = [_LevelZhongshuAsZhongshu(lzs) for lzs in level_zhongshus]
+
+    divs = divergences_from_moves_v1(seg_like, zs_like, level_moves, level_id)
+    bsps = buysellpoints_from_level(seg_like, zs_like, level_moves, divs, level_id)
+    return bsps
+
+
 def _recursive_levels(
     move_snap: MoveSnapshot, max_levels: int = 6,
-) -> list[RecursiveLevelSnapshot]:
-    """Run recursive stack logic without engine state — pure function chain."""
+) -> tuple[list[RecursiveLevelSnapshot], dict[int, list]]:
+    """Run recursive stack logic without engine state — pure function chain.
+
+    Returns (snapshots, bsp_by_level) where bsp_by_level maps level_id to buysellpoints.
+    """
     snapshots: list[RecursiveLevelSnapshot] = []
+    bsp_by_level: dict[int, list] = {}
     current_move_snap = move_snap
     current_level = 1
 
@@ -311,6 +377,10 @@ def _recursive_levels(
         components = adapt_moves(settled_moves, level_id=current_level)
         curr_zhongshus = zhongshu_from_components(components)
         curr_moves = moves_from_level_zhongshus(curr_zhongshus)
+
+        # Divergences + buysellpoints for this recursive level
+        bsps = _recursive_level_bsp(components, curr_zhongshus, curr_moves, next_level)
+        bsp_by_level[next_level] = bsps
 
         snap = RecursiveLevelSnapshot(
             bar_idx=current_move_snap.bar_idx,
@@ -334,7 +404,7 @@ def _recursive_levels(
         )
         current_level = next_level
 
-    return snapshots
+    return snapshots, bsp_by_level
 
 
 def analyze_levels_batch(bars: list[Bar], stream_id: str = "BRN") -> dict:
@@ -409,8 +479,11 @@ def analyze_levels_batch(bars: list[Bar], stream_id: str = "BRN") -> dict:
 
     # 8. Recursive levels (once)
     print("  [batch] 递归级别...", flush=True)
-    recursive_snaps = _recursive_levels(move_snap)
+    recursive_snaps, recursive_bsps = _recursive_levels(move_snap)
     print(f"  [batch] 递归层数: {len(recursive_snaps)}", flush=True)
+    for lvl_id, lvl_bsps in recursive_bsps.items():
+        if lvl_bsps:
+            print(f"  [batch] L{lvl_id} 买卖点: {len(lvl_bsps)}", flush=True)
 
     # 9. L* selection
     bi_snap = BiEngineSnapshot(
@@ -484,7 +557,7 @@ def analyze_levels_batch(bars: list[Bar], stream_id: str = "BRN") -> dict:
 
     for rsnap in recursive_snaps:
         lvl_key = f"L{rsnap.level_id}"
-        lvl = {"zhongshus": [], "moves": []}
+        lvl = {"zhongshus": [], "moves": [], "buysellpoints": []}
         for zs in rsnap.zhongshus:
             lvl["zhongshus"].append({
                 "zd": round(zs.zd, 2),
@@ -498,6 +571,13 @@ def analyze_levels_batch(bars: list[Bar], stream_id: str = "BRN") -> dict:
                 "kind": mv.kind,
                 "settled": mv.settled,
                 "zhongshu_count": mv.zs_count,
+            })
+        for bsp in recursive_bsps.get(rsnap.level_id, []):
+            lvl["buysellpoints"].append({
+                "kind": bsp.kind,
+                "side": bsp.side,
+                "seg_idx": bsp.seg_idx,
+                "level_id": bsp.level_id,
             })
         result["levels"][lvl_key] = lvl
 

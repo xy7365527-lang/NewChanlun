@@ -1,0 +1,18 @@
+{
+  "id": "14aaf61b71e39c3d82575dd0094cb7489596092b404dd0c78613c1e34d040e63",
+  "timestamp": "2026-03-09T18:00:00.000000+00:00",
+  "content": {
+    "full_text": "---\nid: '407'\nnumber: 407\ntitle: Lead 角色越界的 compact 回归机制——226号类型C的触发条件精化\ntype: meta-rule\nstatus: 已结算\ndate: 2026-03-09\ndepends_on:\n  - '226'   # Lead 中断问题完整根因——三类断裂\n  - '137'   # 否定性禁令对行为执行层无效\n  - '057'   # LLM 不是状态机\n  - '218'   # Lead 并行化\nnegation_source: homogeneous\nnegation_form: expansion\ntopo_effect: \"split:226-type-C:trigger-conditions — 226号类型C从'角色边界僭越(一般)'分裂为两个子类型：C1-主动僭越 + C2-compact回归僭越\"\ntensions_with: []\n---\n\n# 407号：Lead 角色越界的 compact 回归机制\n\n## 现象\n\n编排者在 v210-swarm session 中观察到 Lead 直接执行了实质认知工作（读取代码、发现 O(n²) 性能问题、进行分析），而不是 spawn 工位来处理。\n\n## 根因分析\n\n226号类型C（角色边界僭越）的触发条件不完整。本次观察揭示了一个关键触发条件：autocompact 恢复。\n\nautocompact 在 context window 达到 75% 时自动触发，precompact-save.sh 保存状态快照（不含行为模式），compact 后行为层回归 RLHF 基底。\n\n### 三层恢复不对等\n\n| 层 | 恢复程度 | 载体 |\n|----|---------|------|\n| 声明层（规则） | 100% | CLAUDE.md 自动加载 |\n| 状态层（数据） | 95% | session 快照 |\n| 行为层（执行） | 0% | 对话历史（被丢弃） |\n\n### 226号类型C精化为C1+C2\n\n| 子类型 | 触发条件 | 特征 | 可修程度 |\n|--------|---------|------|----------|\n| C1：主动僭越 | session 中累积的行为漂移 | 渐进式，编排者纠正后可恢复 | 规则层可缓解 |\n| C2：compact 回归僭越 | compact 后行为惯性丢失 | 突发式，恢复后立即出现 | 需要 compact 后重建行为抑制 |\n\n## 修复建议\n\n1. session-start-ceremony.sh 注入角色边界锚点\n2. write_session.sh 增加编排者纠正记录字段\n3. swarm-architecture/SKILL.md 增加 Lead Read 分类表\n4. compact 恢复序列增加角色边界重建步骤\n",
+    "source_file": "settled/407-lead-role-boundary-compact-regression.md",
+    "id": "407"
+  },
+  "genealogy_id": "407",
+  "title": "Lead 角色越界的 compact 回归机制——226号类型C的触发条件精化",
+  "type": "meta-rule",
+  "depends_on": [
+    "226",
+    "137",
+    "057",
+    "218"
+  ]
+}
