@@ -303,14 +303,23 @@ class _ComponentAsSegment:
     """Adapt MoveAsComponent to the segment-like interface needed by divergence functions.
 
     Provides i0, i1, high, low, direction attributes so that
-    divergences_from_moves_v1 can compute force via the price-amplitude fallback.
+    divergences_from_moves_v1 can compute force via MACD (when merged bar indices
+    are provided) or price-amplitude fallback.
+
+    When merged_i0/merged_i1 are provided, they point into the L1 merged bar
+    index space, allowing _compute_force to use merged_to_raw → df_macd correctly.
     """
 
     __slots__ = ("i0", "i1", "high", "low", "direction")
 
-    def __init__(self, comp: MoveAsComponent) -> None:
-        self.i0 = comp.component_idx
-        self.i1 = comp.component_idx
+    def __init__(
+        self,
+        comp: MoveAsComponent,
+        merged_i0: int | None = None,
+        merged_i1: int | None = None,
+    ) -> None:
+        self.i0 = merged_i0 if merged_i0 is not None else comp.component_idx
+        self.i1 = merged_i1 if merged_i1 is not None else comp.component_idx
         self.high = comp.high
         self.low = comp.low
         self.direction = comp.direction
@@ -345,32 +354,100 @@ def _recursive_level_bsp(
     level_zhongshus: list[LevelZhongshu],
     level_moves: list,
     level_id: int,
+    comp_merged_ranges: list[tuple[int, int]] | None = None,
+    df_macd: pd.DataFrame | None = None,
+    merged_to_raw: list[tuple[int, int]] | None = None,
 ) -> list:
     """Compute divergences and buysellpoints for a recursive level.
 
-    Adapts LevelZhongshu → Zhongshu-like and MoveAsComponent → segment-like
-    so that the existing divergences_from_moves_v1 and buysellpoints_from_level
-    functions work without MACD (price-amplitude fallback).
+    Adapts LevelZhongshu → Zhongshu-like and MoveAsComponent → segment-like.
+    When comp_merged_ranges, df_macd, and merged_to_raw are provided, MACD
+    three-dimensional divergence detection is used (same as L1). Otherwise
+    falls back to price-amplitude.
+
+    Parameters
+    ----------
+    comp_merged_ranges : list[tuple[int, int]] | None
+        For each component (by component_idx), the (merged_i0, merged_i1)
+        range in L1 merged bar index space.
+    df_macd : pd.DataFrame | None
+        MACD computed on raw bars.
+    merged_to_raw : list[tuple[int, int]] | None
+        L1 merged → raw bar index mapping.
     """
-    seg_like = [_ComponentAsSegment(c) for c in components]
+    if comp_merged_ranges is not None:
+        seg_like = [
+            _ComponentAsSegment(c, *comp_merged_ranges[c.component_idx])
+            for c in components
+        ]
+    else:
+        seg_like = [_ComponentAsSegment(c) for c in components]
     zs_like = [_LevelZhongshuAsZhongshu(lzs) for lzs in level_zhongshus]
 
-    divs = divergences_from_moves_v1(seg_like, zs_like, level_moves, level_id)
+    divs = divergences_from_moves_v1(
+        seg_like, zs_like, level_moves, level_id,
+        df_macd=df_macd, merged_to_raw=merged_to_raw,
+    )
     bsps = buysellpoints_from_level(seg_like, zs_like, level_moves, divs, level_id)
     return bsps
 
 
+def _build_comp_merged_ranges(
+    components: list[MoveAsComponent],
+    l1_segments: list,
+    prev_comp_merged_ranges: list[tuple[int, int]] | None,
+) -> list[tuple[int, int]]:
+    """Build per-component (merged_i0, merged_i1) mapping for MACD lookups.
+
+    For L2 components (prev_comp_merged_ranges is None):
+        Each component wraps an L1 Move whose seg_start/seg_end index into
+        l1_segments. We read segments[seg_start].i0 and segments[seg_end].i1
+        to get merged bar indices.
+
+    For L3+ components (prev_comp_merged_ranges is provided):
+        Each component wraps a higher-level Move whose seg_start/seg_end are
+        component_idx values in the previous level's components list. We look
+        up those indices in prev_comp_merged_ranges and take the union range.
+    """
+    result: list[tuple[int, int]] = []
+    for comp in components:
+        move = comp._move
+        if prev_comp_merged_ranges is None:
+            # L2: Move.seg_start/seg_end → L1 segments → merged bar indices
+            seg_start = min(move.seg_start, len(l1_segments) - 1)
+            seg_end = min(move.seg_end, len(l1_segments) - 1)
+            merged_i0 = l1_segments[seg_start].i0
+            merged_i1 = l1_segments[seg_end].i1
+        else:
+            # L3+: Move.seg_start/seg_end → previous level component indices
+            idx_start = min(move.seg_start, len(prev_comp_merged_ranges) - 1)
+            idx_end = min(move.seg_end, len(prev_comp_merged_ranges) - 1)
+            merged_i0 = prev_comp_merged_ranges[idx_start][0]
+            merged_i1 = prev_comp_merged_ranges[idx_end][1]
+        result.append((merged_i0, merged_i1))
+    return result
+
+
 def _recursive_levels(
-    move_snap: MoveSnapshot, max_levels: int = 6,
+    move_snap: MoveSnapshot,
+    max_levels: int = 6,
+    l1_segments: list | None = None,
+    df_macd: pd.DataFrame | None = None,
+    merged_to_raw: list[tuple[int, int]] | None = None,
 ) -> tuple[list[RecursiveLevelSnapshot], dict[int, list]]:
     """Run recursive stack logic without engine state — pure function chain.
 
     Returns (snapshots, bsp_by_level) where bsp_by_level maps level_id to buysellpoints.
+
+    When l1_segments, df_macd, and merged_to_raw are all provided, MACD
+    three-dimensional divergence detection is used for all recursive levels.
     """
     snapshots: list[RecursiveLevelSnapshot] = []
     bsp_by_level: dict[int, list] = {}
     current_move_snap = move_snap
     current_level = 1
+    use_macd = l1_segments is not None and df_macd is not None and merged_to_raw is not None
+    prev_comp_merged_ranges: list[tuple[int, int]] | None = None
 
     while current_level < max_levels:
         next_level = current_level + 1
@@ -379,8 +456,21 @@ def _recursive_levels(
         curr_zhongshus = zhongshu_from_components(components)
         curr_moves = moves_from_level_zhongshus(curr_zhongshus)
 
+        # Build merged bar ranges for this level's components
+        comp_merged_ranges: list[tuple[int, int]] | None = None
+        if use_macd and len(components) > 0:
+            comp_merged_ranges = _build_comp_merged_ranges(
+                components, l1_segments,
+                prev_comp_merged_ranges if current_level > 1 else None,
+            )
+
         # Divergences + buysellpoints for this recursive level
-        bsps = _recursive_level_bsp(components, curr_zhongshus, curr_moves, next_level)
+        bsps = _recursive_level_bsp(
+            components, curr_zhongshus, curr_moves, next_level,
+            comp_merged_ranges=comp_merged_ranges,
+            df_macd=df_macd if use_macd else None,
+            merged_to_raw=merged_to_raw if use_macd else None,
+        )
         bsp_by_level[next_level] = bsps
 
         snap = RecursiveLevelSnapshot(
@@ -396,6 +486,9 @@ def _recursive_levels(
 
         if len(curr_moves) < 3:
             break
+
+        # Pass current level's merged ranges to next level
+        prev_comp_merged_ranges = comp_merged_ranges
 
         current_move_snap = MoveSnapshot(
             bar_idx=snap.bar_idx,
@@ -487,7 +580,12 @@ def analyze_levels_batch(bars: list[Bar], stream_id: str = "BRN") -> dict:
 
     # 8. Recursive levels (once)
     print("  [batch] 递归级别...", flush=True)
-    recursive_snaps, recursive_bsps = _recursive_levels(move_snap)
+    recursive_snaps, recursive_bsps = _recursive_levels(
+        move_snap,
+        l1_segments=segments,
+        df_macd=df_macd,
+        merged_to_raw=merged_to_raw,
+    )
     print(f"  [batch] 递归层数: {len(recursive_snaps)}", flush=True)
     for lvl_id, lvl_bsps in recursive_bsps.items():
         if lvl_bsps:
