@@ -33,6 +33,7 @@ from newchan.a_segment_v1 import segments_from_strokes_v1
 from newchan.a_zhongshu_v1 import zhongshu_from_segments
 from newchan.a_move_v1 import moves_from_zhongshus
 from newchan.a_divergence_v1 import divergences_from_moves_v1
+from newchan.a_macd import compute_macd
 from newchan.a_buysellpoint_v1 import buysellpoints_from_level
 from newchan.a_level_protocol import adapt_moves, MoveAsComponent
 from newchan.a_zhongshu_level import LevelZhongshu, zhongshu_from_components, moves_from_level_zhongshus
@@ -428,6 +429,10 @@ def analyze_levels_batch(bars: list[Bar], stream_id: str = "BRN") -> dict:
         index=pd.DatetimeIndex([b.ts for b in bars], name="time"),
     )
 
+    # 1b. Compute MACD on raw bars (L1 only — recursive levels lack raw K-lines)
+    print("  [batch] 计算 MACD...", flush=True)
+    df_macd = compute_macd(df)
+
     # 2. Inclusion → Fractals → Strokes (once)
     print("  [batch] 包含处理...", flush=True)
     df_merged, merged_to_raw = merge_inclusion(df)
@@ -461,7 +466,10 @@ def analyze_levels_batch(bars: list[Bar], stream_id: str = "BRN") -> dict:
 
     # 6. Buy/sell points (once)
     print("  [batch] 背驰+买卖点...", flush=True)
-    divergences = divergences_from_moves_v1(segments, zhongshus, moves, 1)
+    divergences = divergences_from_moves_v1(
+        segments, zhongshus, moves, 1,
+        df_macd=df_macd, merged_to_raw=merged_to_raw,
+    )
     bsps = buysellpoints_from_level(segments, zhongshus, moves, divergences, 1)
     print(f"  [batch] 买卖点: {len(bsps)}", flush=True)
 
