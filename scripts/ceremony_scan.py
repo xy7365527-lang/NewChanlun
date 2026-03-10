@@ -919,6 +919,9 @@ def _scan_genealogy_proposals(root, gangmu_data):
                     continue
                 if re.search(r'\[audited:\s*v?\d+[^]]*,\s*deferred\b', check_text):
                     continue
+                # 409号修复：识别 [covered: vNNN-swarm, ...] 标记
+                if re.search(r'\[covered:\s*v?\d+', check_text):
+                    continue
 
                 # 精确匹配：推论文本中引用了某个 target
                 covered = False

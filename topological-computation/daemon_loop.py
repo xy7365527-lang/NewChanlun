@@ -4,9 +4,10 @@
 
 主循环逻辑：
     while True:
+        events = drain(event_sources)      # 收集外部事件（channel/ACP）
         handoff = read_handoff()           # 读取上一轮状态
         scan = run_ceremony_scan()         # 扫描工位
-        context = build_cc_context(...)    # 构造 CC 输入
+        context = build_cc_context(...)    # 构造 CC 输入（含 events）
         result = invoke_cc_session(context)# CC 做认知判断
         new_handoff = parse_output(result) # 解析 CC 产出
         write_handoff(new_handoff)         # 持久化
@@ -16,12 +17,15 @@
 - Daemon 是纯调度器——读状态→构造上下文→唤起CC→解析结果→持久化
 - CC session 的短暂性是特性——每个 session 是一次性工作脉冲
 - 唯一长期状态在 handoff schema 中（持久化到文件系统）
+- Channel adapter/ACP bridge 是事件源，不是决策层（409号推论4/5）
 
 用法：
     python daemon_loop.py                    # 单次执行（默认）
     python daemon_loop.py --continuous       # 持续循环
     python daemon_loop.py --dry-run          # 只构造上下文，不唤起 CC
     python daemon_loop.py --interval 60      # 循环间隔（秒）
+    python daemon_loop.py --webhook 9800     # 启用 webhook adapter（端口 9800）
+    python daemon_loop.py --acp              # 启用 ACP bridge（stdin/stdout）
 
 纯 Python，零外部依赖。
 """
@@ -54,6 +58,7 @@ from handoff_schema import (
     write_handoff,
     HANDOFF_PATH,
 )
+from channel_adapter import EventSourceManager
 
 
 # ---------------------------------------------------------------------------
@@ -308,11 +313,22 @@ def _dict_to_session_output(data: dict) -> SessionOutput:
 # 主循环
 # ---------------------------------------------------------------------------
 
-def daemon_once() -> HandoffRecord:
-    """执行一次 daemon 循环：scan → context → invoke → parse → persist。
+def daemon_once(event_sources: EventSourceManager | None = None) -> HandoffRecord:
+    """执行一次 daemon 循环：drain events → scan → context → invoke → parse → persist。
+
+    Args:
+        event_sources: 事件源管理器（channel adapter + ACP bridge）。
+                       None 时不收集外部事件。
 
     返回完成后的 HandoffRecord。
     """
+    # 0. 收集外部事件（409号推论4/5）
+    pending_events: list[dict] = []
+    if event_sources is not None:
+        pending_events = event_sources.drain()
+        if pending_events:
+            log.info("收集到 %d 个外部事件", len(pending_events))
+
     # 1. 读取上一轮 handoff
     last_handoff = read_handoff()
     epoch = (last_handoff.epoch + 1) if last_handoff else 1
@@ -333,6 +349,7 @@ def daemon_once() -> HandoffRecord:
             epoch=epoch,
             last_handoff=last_handoff,
             ceremony_scan_output=scan_output,
+            pending_events=pending_events,
         )
         handoff = mark_session_complete(
             handoff,
@@ -356,6 +373,7 @@ def daemon_once() -> HandoffRecord:
         last_handoff=last_handoff,
         ceremony_scan_output=scan_output,
         traversal_status=traversal_status,
+        pending_events=pending_events,
     )
     write_handoff(handoff)  # 先持久化 pending 状态
 
@@ -389,19 +407,24 @@ def daemon_once() -> HandoffRecord:
     return completed
 
 
-def daemon_loop(interval: int = 60, max_epochs: int | None = None) -> None:
+def daemon_loop(
+    interval: int = 60,
+    max_epochs: int | None = None,
+    event_sources: EventSourceManager | None = None,
+) -> None:
     """持续执行 daemon 循环。
 
     Args:
         interval: 循环间隔（秒）
         max_epochs: 最大执行轮次（None = 无限）
+        event_sources: 事件源管理器（channel adapter + ACP bridge）
     """
     log.info("Daemon 主循环启动（间隔=%ds, max_epochs=%s）", interval, max_epochs)
     epochs_run = 0
 
     while max_epochs is None or epochs_run < max_epochs:
         try:
-            result = daemon_once()
+            result = daemon_once(event_sources=event_sources)
             epochs_run += 1
 
             # 干净终止：ceremony_scan 报告无工位
@@ -452,7 +475,28 @@ def main() -> None:
         "--dry-run", action="store_true",
         help="只构造上下文并打印，不唤起 CC session",
     )
+    parser.add_argument(
+        "--webhook", type=int, default=None, metavar="PORT",
+        help="启用 webhook adapter（指定端口，如 9800）",
+    )
+    parser.add_argument(
+        "--acp", action="store_true",
+        help="启用 ACP bridge（stdin/stdout NDJSON）",
+    )
     args = parser.parse_args()
+
+    # 初始化事件源管理器（409号推论4/5）
+    event_sources = EventSourceManager()
+
+    if args.webhook is not None:
+        event_sources.create_webhook(port=args.webhook)
+        log.info("已注册 WebhookAdapter（端口 %d）", args.webhook)
+
+    if args.acp:
+        from acp_bridge import ACPBridge
+        acp = ACPBridge(event_sources.queue)
+        event_sources.register(acp)
+        log.info("已注册 ACPBridge")
 
     if args.dry_run:
         # Dry run：只构造上下文
@@ -476,10 +520,20 @@ def main() -> None:
         print(json.dumps(handoff.to_dict(), ensure_ascii=False, indent=2))
         return
 
-    if args.continuous:
-        daemon_loop(interval=args.interval, max_epochs=args.max_epochs)
-    else:
-        daemon_once()
+    # 启动事件源
+    event_sources.start_all()
+
+    try:
+        if args.continuous:
+            daemon_loop(
+                interval=args.interval,
+                max_epochs=args.max_epochs,
+                event_sources=event_sources,
+            )
+        else:
+            daemon_once(event_sources=event_sources)
+    finally:
+        event_sources.stop_all()
 
 
 if __name__ == "__main__":

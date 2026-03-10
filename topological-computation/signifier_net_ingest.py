@@ -704,6 +704,137 @@ def ingest_text_passage(
     return new_snet, log_entries
 
 
+def ingest_text_passage_batch(
+    snet: SNet,
+    paragraphs: list[str],
+    domain: str,
+    source: str,
+) -> tuple[SNet, list[dict]]:
+    """批量摄入多个段落——性能优化版本。
+
+    与 ingest_text_passage 语义相同，但：
+      1. 增强白名单只构建一次（而非每段落一次）
+      2. phi_L_whitelist_match 的排序白名单只构建一次
+      3. 新边和 signifier 更新在内存中收集，最终一次性写入 SNet
+      4. merge_edge_weights 只在全部段落处理完后调用一次
+
+    对于大文件（数千段落），性能提升数个数量级。
+
+    参数与 ingest_text_passage 相同，但 text → paragraphs（段落列表）。
+
+    认识论等级：L0（确定性字符串匹配，不涉及经验假设）
+    """
+    if not paragraphs or not snet.signifiers:
+        return snet, []
+
+    # 构建增强白名单——一次性
+    whitelist, head_to_sid = _build_augmented_whitelist(snet)
+    # 预排序白名单（按长度降序），避免 phi_L_whitelist_match 每次重新排序
+    sorted_terms = sorted(whitelist, key=len, reverse=True)
+
+    # 收集所有变更，最终一次性应用到 SNet
+    pending_edges: list[SignifierEdge] = []
+    # signifier 更新：id → updated Signifier（新 surface_forms）
+    sig_updates: dict[str, Signifier] = {}
+    all_log_entries: list[dict] = []
+    evidence_tag = f"corpus:{domain}:{source}"
+
+    # 快照当前 signifier 的 surface_forms，用于去重
+    current_surface_forms: dict[str, set[str]] = {}
+    for sid, sig in snet.signifiers.items():
+        current_surface_forms[sid] = set(sig.surface_forms)
+
+    for text in paragraphs:
+        if not text:
+            continue
+
+        # 匹配段落中的已知术语（内联白名单匹配，避免重复排序）
+        matched: list[str] = []
+        remaining = text
+        for term in sorted_terms:
+            if term in remaining:
+                matched.append(term)
+                remaining = remaining.replace(term, " " * len(term))
+
+        # 将 head term 匹配结果映射回 signifier ID
+        matched_terms = []
+        for m in matched:
+            resolved = head_to_sid.get(m, m)
+            if resolved not in matched_terms:
+                matched_terms.append(resolved)
+
+        # 提取 surface forms（即使 <2 个术语）
+        for term in matched_terms:
+            sf = _find_surface_form(text, term)
+            if not sf:
+                continue
+            # 检查是否已有此 surface form
+            existing_forms = current_surface_forms.get(term, set())
+            if sf in existing_forms:
+                continue
+            if len(existing_forms) >= 20:
+                continue
+            # 记录新增 surface form
+            existing_forms.add(sf)
+            current_surface_forms[term] = existing_forms
+            # 构建更新后的 Signifier
+            existing_sig = snet.signifiers.get(term)
+            if existing_sig:
+                # 合并已有的 pending 更新
+                if term in sig_updates:
+                    prev = sig_updates[term]
+                    new_forms = prev.surface_forms + (sf,)
+                else:
+                    new_forms = existing_sig.surface_forms + (sf,)
+                sig_updates[term] = Signifier(
+                    id=existing_sig.id,
+                    surface_forms=new_forms,
+                    source=existing_sig.source,
+                )
+
+        if len(matched_terms) < 2:
+            continue
+
+        # 提取术语共现对 → 组合轴边
+        for i in range(len(matched_terms)):
+            for j in range(i + 1, len(matched_terms)):
+                term_a = matched_terms[i]
+                term_b = matched_terms[j]
+
+                if not snet.has_signifier(term_a) or not snet.has_signifier(term_b):
+                    continue
+
+                pattern = extract_pattern(text, term_a, term_b)
+                evidence = pattern if pattern else evidence_tag
+
+                pending_edges.append(SignifierEdge(
+                    source=term_a,
+                    target=term_b,
+                    axis=AxisType.SYNTAGMATIC,
+                    weight=1.0,
+                    evidence=evidence,
+                ))
+
+                all_log_entries.append({
+                    "type": "cooccurrence",
+                    "source": term_a,
+                    "target": term_b,
+                    "pattern": pattern,
+                    "domain": domain,
+                    "corpus_ref": evidence_tag,
+                })
+
+    # 一次性应用所有变更
+    new_snet = snet
+    if sig_updates:
+        new_snet = new_snet.add_signifiers(list(sig_updates.values()))
+    if pending_edges:
+        new_snet = new_snet.add_edges(pending_edges)
+        new_snet = new_snet.merge_edge_weights()
+
+    return new_snet, all_log_entries
+
+
 # ---------------------------------------------------------------------------
 # 双语辞典摄入
 # ---------------------------------------------------------------------------

@@ -243,6 +243,21 @@ class SNet:
         """添加边。不去重（允许累积权重后外部聚合）。"""
         return SNet(self._signifiers, self._edges + [edge], self._morphemes)
 
+    def add_edges(self, edges: list[SignifierEdge]) -> "SNet":
+        """批量添加边（一次性创建新 SNet，避免逐条 add_edge 的 O(n^2) 复制）。"""
+        if not edges:
+            return self
+        return SNet(self._signifiers, self._edges + edges, self._morphemes)
+
+    def add_signifiers(self, sigs: list[Signifier]) -> "SNet":
+        """批量添加能指（一次性创建新 SNet，避免逐条 add_signifier 的重复复制）。"""
+        if not sigs:
+            return self
+        new_sigs = dict(self._signifiers)
+        for sig in sigs:
+            new_sigs[sig.id] = sig
+        return SNet(new_sigs, self._edges, self._morphemes)
+
     def add_morpheme_structure(self, ms: MorphemeStructure) -> "SNet":
         """添加语素分解结构。若 signifier_id 已存在则覆盖。"""
         new_morphemes = dict(self._morphemes)
