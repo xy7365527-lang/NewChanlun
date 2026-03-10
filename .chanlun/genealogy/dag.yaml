@@ -1972,6 +1972,11 @@ nodes:
   status: 已结算
   type: meta-rule
   file: settled/407-lead-role-boundary-compact-regression.md
+- id: '408'
+  title: 元观察——v210-swarm（batch模式O(n)实装 + compact回归机制诊断 + 语法记录结晶确认 + 工程密集期第5轮）
+  status: 生成态
+  type: meta-rule
+  file: pending/408-meta-observation-v210-swarm.md
 edges:
   depends_on:
   - from: '136'
@@ -4146,6 +4151,14 @@ edges:
     to: '057'
   - from: '407'
     to: '218'
+  - from: '408'
+    to: '406'
+  - from: '408'
+    to: '407'
+  - from: '408'
+    to: '226'
+  - from: '408'
+    to: '137'
   triggered:
   - from: '005'
     to: 005a
