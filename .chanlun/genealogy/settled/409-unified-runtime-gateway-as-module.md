@@ -116,9 +116,9 @@ Codex 建议双进程是为了故障隔离（Node gateway crash 不影响 Python
 
 ## 下游推论
 
-1. **Session Handoff Schema 定义**：将 ceremony_scan 输出 + consensus ceremony 输出 + DAG 变更指令统一为一个固定 schema
-2. **Daemon 主循环实装**：while true → read schema → invoke CC → parse output → write schema
-3. **CC 输入/输出协议形式化**：每次唤起时灌什么（纲目+DAG+上session结论+pending agent结果），session 结束时输出什么（DAG变更+任务+tuché标记+升级标志）
+1. **Session Handoff Schema 定义**：将 ceremony_scan 输出 + consensus ceremony 输出 + DAG 变更指令统一为一个固定 schema [covered: v212-swarm, handoff_schema.py — SessionInput/SessionOutput/HandoffRecord dataclass + JSON 序列化]
+2. **Daemon 主循环实装**：while true → read schema → invoke CC → parse output → write schema [covered: v212-swarm, daemon_loop.py — DaemonLoop 类实现完整调度循环]
+3. **CC 输入/输出协议形式化**：每次唤起时灌什么（纲目+DAG+上session结论+pending agent结果），session 结束时输出什么（DAG变更+任务+tuché标记+升级标志） [covered: v212-swarm, handoff_schema.py — SessionInput(dag_snapshot/previous_conclusion/pending_results/external_events/gangmu_position) + SessionOutput(dag_mutations/tasks/tuche_markers/escalation_flags)]
 4. Channel adapter 作为事件源之一接入 daemon 事件循环
 5. ACP bridge 同上——另一个事件源
 6. Daemon 作为 systemd/launchd 服务部署（参考 OpenClaw daemon 适配层）
