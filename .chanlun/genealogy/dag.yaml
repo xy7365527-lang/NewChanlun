@@ -1977,6 +1977,11 @@ nodes:
   status: 生成态
   type: meta-rule
   file: pending/408-meta-observation-v210-swarm.md
+- id: '409'
+  title: 统一运行时裁决——Gateway 作为逢亮内部 channel adapter 模块
+  status: 已结算
+  type: grammar-record
+  file: settled/409-unified-runtime-gateway-as-module.md
 edges:
   depends_on:
   - from: '136'
@@ -4159,6 +4164,12 @@ edges:
     to: '226'
   - from: '408'
     to: '137'
+  - from: '409'
+    to: 069
+  - from: '409'
+    to: '020'
+  - from: '409'
+    to: 093
   triggered:
   - from: '005'
     to: 005a
