@@ -430,6 +430,7 @@ def _build_comp_merged_ranges(
 
 def _recursive_levels(
     move_snap: MoveSnapshot,
+    *,
     max_levels: int = 6,
     l1_segments: list | None = None,
     df_macd: pd.DataFrame | None = None,
@@ -473,6 +474,8 @@ def _recursive_levels(
         )
         bsp_by_level[next_level] = bsps
 
+        # Batch mode: no incremental diff — events are intentionally empty
+        # (streaming mode populates these via diff_level_zhongshu / diff_level_moves)
         snap = RecursiveLevelSnapshot(
             bar_idx=current_move_snap.bar_idx,
             bar_ts=current_move_snap.bar_ts,
@@ -490,6 +493,7 @@ def _recursive_levels(
         # Pass current level's merged ranges to next level
         prev_comp_merged_ranges = comp_merged_ranges
 
+        # Batch mode: no incremental diff events (same rationale as zhongshu/move_events above)
         current_move_snap = MoveSnapshot(
             bar_idx=snap.bar_idx,
             bar_ts=snap.bar_ts,
@@ -501,11 +505,24 @@ def _recursive_levels(
     return snapshots, bsp_by_level
 
 
-def analyze_levels_batch(bars: list[Bar], stream_id: str = "BRN") -> dict:
+def analyze_levels_batch(
+    bars: list[Bar],
+    stream_id: str = "BRN",
+    *,
+    stroke_mode: str = "wide",
+    min_strict_sep: int = 5,
+    max_levels: int = 6,
+) -> dict:
     """Batch mode: O(n) single-pass analysis — no per-bar rebuild.
 
     Builds the DataFrame once from all bars, runs each pure function
     layer exactly once, and constructs the final result dict.
+
+    Parameters
+    ----------
+    stroke_mode : Stroke construction mode passed to strokes_from_fractals.
+    min_strict_sep : Minimum strict separation for stroke construction.
+    max_levels : Maximum number of recursive levels to compute.
     """
     if not bars:
         return {"error": "no bars"}
@@ -522,6 +539,12 @@ def analyze_levels_batch(bars: list[Bar], stream_id: str = "BRN") -> dict:
         index=pd.DatetimeIndex([b.ts for b in bars], name="time"),
     )
 
+    # Validate time series ordering
+    if not df.index.is_monotonic_increasing:
+        raise ValueError("bars 时间序列非单调递增 — 请检查输入数据排序")
+    if not df.index.is_unique:
+        raise ValueError("bars 存在重复时间戳 — 请检查输入数据去重")
+
     # 1b. Compute MACD on raw bars (L1 only — recursive levels lack raw K-lines)
     print("  [batch] 计算 MACD...", flush=True)
     df_macd = compute_macd(df)
@@ -537,7 +560,7 @@ def analyze_levels_batch(bars: list[Bar], stream_id: str = "BRN") -> dict:
 
     print("  [batch] 笔构造...", flush=True)
     all_strokes = strokes_from_fractals(
-        df_merged, fractals, mode="wide", min_strict_sep=5,
+        df_merged, fractals, mode=stroke_mode, min_strict_sep=min_strict_sep,
         merged_to_raw=merged_to_raw,
     )
     print(f"  [batch] 笔: {len(all_strokes)}", flush=True)
@@ -571,6 +594,7 @@ def analyze_levels_batch(bars: list[Bar], stream_id: str = "BRN") -> dict:
     bar_idx = len(bars) - 1
     bar_ts = _dt_to_epoch(last_bar.ts)
 
+    # Batch mode: no incremental diff events (batch computes full state in one pass)
     move_snap = MoveSnapshot(
         bar_idx=bar_idx,
         bar_ts=bar_ts,
@@ -582,6 +606,7 @@ def analyze_levels_batch(bars: list[Bar], stream_id: str = "BRN") -> dict:
     print("  [batch] 递归级别...", flush=True)
     recursive_snaps, recursive_bsps = _recursive_levels(
         move_snap,
+        max_levels=max_levels,
         l1_segments=segments,
         df_macd=df_macd,
         merged_to_raw=merged_to_raw,
