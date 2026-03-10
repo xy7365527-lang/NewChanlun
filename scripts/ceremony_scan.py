@@ -852,7 +852,9 @@ def _scan_genealogy_proposals(root, gangmu_data):
         r'^##\s*(?:\d+\.?\s*)?(?:下游推论|downstream[_ ]?implications|downstream[_ ]?actions)',
         re.IGNORECASE,
     )
-    numbered_item_pattern = re.compile(r'^\d+\.\s+\*\*(.+?)\*\*(?:：|:)?\s*(.*)')
+    # 匹配两种格式：1. **标题**：描述  或  1. 无粗体的纯文本行
+    numbered_item_bold = re.compile(r'^\d+\.\s+\*\*(.+?)\*\*(?:：|:)?\s*(.*)')
+    numbered_item_plain = re.compile(r'^(\d+)\.\s+(.*)')
 
     for file_num, fname in settled_files:
         filepath = os.path.join(settled_dir, fname)
@@ -878,10 +880,16 @@ def _scan_genealogy_proposals(root, gangmu_data):
             i = 0
             while i < len(section_lines):
                 line = section_lines[i]
-                m = numbered_item_pattern.match(line.strip())
-                if m:
-                    item_title = m.group(1).strip()
-                    item_desc = m.group(2).strip()
+                m_bold = numbered_item_bold.match(line.strip())
+                m_plain = numbered_item_plain.match(line.strip()) if not m_bold else None
+                if m_bold or m_plain:
+                    if m_bold:
+                        item_title = m_bold.group(1).strip()
+                        item_desc = m_bold.group(2).strip()
+                    else:
+                        # plain: group(1)=编号, group(2)=整行剩余文本
+                        item_title = m_plain.group(2).strip()
+                        item_desc = ""
                     # 收集紧随的缩进子行（status 标记）
                     sub_text = ""
                     j = i + 1
