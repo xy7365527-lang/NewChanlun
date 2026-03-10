@@ -1,0 +1,259 @@
+{
+  "meta": {
+    "total_events": 227711,
+    "non_traversal": 1,
+    "data_file": "G:/NewChanlun/topological-computation/.chanlun/traversal-events.jsonl",
+    "available_fields": [
+      "encounter_type",
+      "f_value",
+      "beta_1_before",
+      "beta_1_after",
+      "concept_a",
+      "concept_b",
+      "context",
+      "timestamp",
+      "session",
+      "step"
+    ],
+    "missing_fields": [
+      "g_value",
+      "jaccard_similarity"
+    ]
+  },
+  "per_type": {
+    "fold": {
+      "count": 2187,
+      "f_value": {
+        "count": 2187,
+        "min": 0,
+        "max": 3934,
+        "mean": 578.7266,
+        "median": 44.0,
+        "std": 1029.3854,
+        "p25": 6.0,
+        "p75": 500.5,
+        "p5": 0.0,
+        "p95": 3222.9
+      },
+      "delta_beta1": {
+        "count": 2187,
+        "min": -2426,
+        "max": 25,
+        "mean": -2.6388,
+        "median": -1.0,
+        "std": 58.0034,
+        "p25": -1.0,
+        "p75": 1.0,
+        "p5": -5.0,
+        "p95": 3.0
+      },
+      "f_zero_count": 141,
+      "f_zero_pct": 6.45,
+      "f_value_excl_sentinel": {
+        "count": 2187,
+        "min": 0,
+        "max": 3934,
+        "mean": 578.7266,
+        "median": 44.0,
+        "std": 1029.3854,
+        "p25": 6.0,
+        "p75": 500.5,
+        "p5": 0.0,
+        "p95": 3222.9
+      }
+    },
+    "fold_blocked": {
+      "count": 51596,
+      "f_value": {
+        "count": 51596,
+        "min": 0,
+        "max": 5099,
+        "mean": 115.08,
+        "median": 14.0,
+        "std": 359.1797,
+        "p25": 5.0,
+        "p75": 56.0,
+        "p5": 1.0,
+        "p95": 419.0
+      },
+      "delta_beta1": {
+        "count": 51596,
+        "min": 0,
+        "max": 0,
+        "mean": 0.0,
+        "median": 0.0,
+        "std": 0.0,
+        "p25": 0.0,
+        "p75": 0.0,
+        "p5": 0.0,
+        "p95": 0.0
+      },
+      "f_zero_count": 1562,
+      "f_zero_pct": 3.03,
+      "f_value_excl_sentinel": {
+        "count": 51596,
+        "min": 0,
+        "max": 5099,
+        "mean": 115.08,
+        "median": 14.0,
+        "std": 359.1797,
+        "p25": 5.0,
+        "p75": 56.0,
+        "p5": 1.0,
+        "p95": 419.0
+      }
+    },
+    "negate_blocked": {
+      "count": 171338,
+      "f_value": {
+        "count": 171338,
+        "min": -99,
+        "max": 368,
+        "mean": -75.0539,
+        "median": -99.0,
+        "std": 66.2505,
+        "p25": -99.0,
+        "p75": -99.0,
+        "p5": -99.0,
+        "p95": 70.0
+      },
+      "delta_beta1": {
+        "count": 171338,
+        "min": 0,
+        "max": 0,
+        "mean": 0.0,
+        "median": 0.0,
+        "std": 0.0,
+        "p25": 0.0,
+        "p75": 0.0,
+        "p5": 0.0,
+        "p95": 0.0
+      },
+      "f_zero_count": 0,
+      "f_zero_pct": 0.0,
+      "f_value_excl_sentinel": {
+        "count": 24500,
+        "min": 2,
+        "max": 368,
+        "mean": 68.4642,
+        "median": 27.0,
+        "std": 81.6136,
+        "p25": 12.0,
+        "p75": 96.0,
+        "p5": 5.0,
+        "p95": 249.0
+      }
+    },
+    "sublate": {
+      "count": 2512,
+      "f_value": {
+        "count": 2512,
+        "min": -99,
+        "max": -99,
+        "mean": -99.0,
+        "median": -99.0,
+        "std": 0.0,
+        "p25": -99.0,
+        "p75": -99.0,
+        "p5": -99.0,
+        "p95": -99.0
+      },
+      "delta_beta1": {
+        "count": 2512,
+        "min": 1,
+        "max": 1,
+        "mean": 1.0,
+        "median": 1.0,
+        "std": 0.0,
+        "p25": 1.0,
+        "p75": 1.0,
+        "p5": 1.0,
+        "p95": 1.0
+      },
+      "f_zero_count": 0,
+      "f_zero_pct": 0.0,
+      "f_value_excl_sentinel": {
+        "note": "all values are -99"
+      }
+    },
+    "sublate_blocked": {
+      "count": 78,
+      "f_value": {
+        "count": 78,
+        "min": -99,
+        "max": -99,
+        "mean": -99.0,
+        "median": -99.0,
+        "std": 0.0,
+        "p25": -99.0,
+        "p75": -99.0,
+        "p5": -99.0,
+        "p95": -99.0
+      },
+      "delta_beta1": {
+        "count": 78,
+        "min": 0,
+        "max": 0,
+        "mean": 0.0,
+        "median": 0.0,
+        "std": 0.0,
+        "p25": 0.0,
+        "p75": 0.0,
+        "p5": 0.0,
+        "p95": 0.0
+      },
+      "f_zero_count": 0,
+      "f_zero_pct": 0.0,
+      "f_value_excl_sentinel": {
+        "note": "all values are -99"
+      }
+    }
+  },
+  "claim_tests": {
+    "391_1_f_leq_g_minus_1": {
+      "testable": false,
+      "reason": "g_value not recorded in traversal-events.jsonl",
+      "note": "392号 separate analysis confirmed f_mean(fold)=10.85 < g_mean(negate)-1=48.5"
+    },
+    "391_2_g_negate_discriminator": {
+      "testable": false,
+      "reason": "g_value not recorded in traversal-events.jsonl",
+      "note": "392号 reports d=7.03 effect size"
+    },
+    "392_1_jaccard_fold_predictor": {
+      "testable": false,
+      "reason": "jaccard not recorded in traversal-events.jsonl",
+      "note": "393号 reports 44x effect (0.622 vs 0.014)"
+    },
+    "393_1_f0_fold_sufficient": {
+      "testable": true,
+      "fold_f0_count": 141,
+      "fold_total": 2187,
+      "fold_f0_pct": 6.45,
+      "negate_blocked_f0_count": 0,
+      "negate_blocked_total": 171338,
+      "sublate_f0_count": 0,
+      "sublate_total": 2512,
+      "all_f0_breakdown": {
+        "fold": 141,
+        "fold_blocked": 1562,
+        "negate_blocked": 0,
+        "sublate": 0
+      }
+    },
+    "A1_fold_vs_fold_blocked_f": {
+      "fold_f_mean": 578.7266,
+      "fold_blocked_f_mean": 115.08,
+      "mann_whitney_z": -17.9278,
+      "p_value": 0.0,
+      "cohens_d": 1.135
+    },
+    "A2_fold_vs_negate_blocked_f": {
+      "fold_f_mean": 578.7266,
+      "negate_blocked_f_mean": -75.0539,
+      "mann_whitney_z": -69.9655,
+      "p_value": 0.0,
+      "cohens_d": 4.9156
+    }
+  }
+}
