@@ -223,12 +223,12 @@ autocompact 在 75% 阈值触发，`precompact-save.sh` 调用 `write_session.sh
 
 ## 下游推论
 
-1. 226号类型C需要更新为 C1+C2 分类
-2. `session-start-ceremony.sh` 需要修改以注入角色边界锚点（修复1）
-3. `write_session.sh` 需要修改以采集纠正记录（修复2）
-4. `swarm-architecture/SKILL.md` 需要修改以增加 Lead Read 分类表和角色边界恢复步骤（修复3/4）
-5. 所有 rules/skills 中关于 Lead 行为的声明，在 compact 后的效力需要假设为"零"——不是"降低"，是"零"——然后通过正面格式重建
-6. `lead-audit.sh` 的 matcher 是 Bash（PostToolUse），对 Lead 的 Read 操作无感知——这是一个覆盖缺口，但受平台限制（Read 工具当前无 PostToolUse hook 支持）
+1. 226号类型C需要更新为 C1+C2 分类 [covered: v215-session]
+2. `session-start-ceremony.sh` 需要修改以注入角色边界锚点（修复1） [covered: v215-session]
+3. `write_session.sh` 需要修改以采集纠正记录（修复2） [covered: v215-session]
+4. `swarm-architecture/SKILL.md` 需要修改以增加 Lead Read 分类表和角色边界恢复步骤（修复3/4） [covered: v215-session]
+5. 所有 rules/skills 中关于 Lead 行为的声明，在 compact 后的效力需要假设为"零"——不是"降低"，是"零"——然后通过正面格式重建 [covered: v215-session]
+6. `lead-audit.sh` 的 matcher 是 Bash（PostToolUse），对 Lead 的 Read 操作无感知——这是一个覆盖缺口，但受平台限制（Read 工具当前无 PostToolUse hook 支持） [covered: v215-session]
 
 ## 影响声明
 

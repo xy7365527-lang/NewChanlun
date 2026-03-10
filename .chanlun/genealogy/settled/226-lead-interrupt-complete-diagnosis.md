@@ -64,12 +64,26 @@ Lead 的"断掉"不是一个问题，是三类不同的结构性问题：
 2. 但 Stop hook 只在 session 结束时触发，不在每次输出后触发
 3. 平台层面无解——除非 Claude Code 增加 PostOutput hook
 
-### 类型 C：角色边界僭越
+### 类型 C：角色边界僭越（407号精化为 C1+C2）
 
-**现象**：Lead 直接执行白名单外的操作（修改 v4 文本、直接 resolve 下游推论而不 spawn 工位）。
+类型C包含两个子类型，触发条件和修复路径不同：
+
+#### C1：主动僭越（session 内累积）
+
+**现象**：Lead 在 session 进行中渐进式漂移，直接执行白名单外的操作（修改 v4 文本、直接 resolve 下游推论而不 spawn 工位）。
 **根因**：ceremony 白名单是规则层声明，没有 hook 层强制。Lead 的 PreToolUse hook（double-helix-verify.sh）不检查 ceremony 白名单。
+**特征**：渐进式，编排者纠正后可恢复。
 **修复方向**：在 PreToolUse 阶段检查 Lead 是否在执行白名单外的 Edit/Write 操作。但这需要 hook 能区分 Lead 和工位——当前 hook 无法获取调用者身份。
 **当前可行缓解**：ceremony skill 中更强的正面格式约束——"Lead 遇到需要修改文件的任务时，唯一合法行为是 spawn 工位"。
+
+#### C2：compact 回归僭越（407号新增）
+
+**现象**：autocompact 触发后，Lead 立即执行实质认知工作（读取代码、发现性能问题、进行分析），而非 spawn 工位。
+**根因**：compact 压缩掉了 in-context 中 Lead 正确委托的行为示范和编排者纠正记录。session 恢复只恢复状态指针，不恢复行为模式。三层恢复不对等（声明层100%/状态层95%/行为层0%）。
+**特征**：突发式，compact 恢复后立即出现。LLM 回归 RLHF 基底（看到代码就分析）。
+**触发条件**：autocompact（context 达到75%阈值）→ precompact-save.sh 保存状态快照（不含行为模式）→ 行为层归零。
+**修复**：session-start-ceremony.sh 注入角色边界锚点 + write_session.sh 采集纠正记录（407号修复1/2）。
+**谱系依据**：407号
 
 ## 结论
 
@@ -77,7 +91,8 @@ Lead 的"断掉"不是一个问题，是三类不同的结构性问题：
 |------|---------|---------|
 | A: Bash 后断裂 | 完全可修（hook 覆盖） | ✅ 已修 |
 | B: 纯文本后断裂 | 平台限制，只能缓解 | ⚠ Stop hook 部分覆盖 |
-| C: 角色边界僭越 | 规则层可强化，hook 层受限 | ⚠ 需要 ceremony skill 强化 |
+| C1: 主动僭越 | 规则层可强化，hook 层受限 | ⚠ 需要 ceremony skill 强化 |
+| C2: compact 回归僭越 | 基础设施可修（hook注入+session采集） | ⚠ 407号修复1-4 |
 
 类型 B 是 137号的直接推论：否定性禁令（"不允许停下来"）对行为执行层无效，正面格式约束（"必须以格式A/B/C结尾"）也只是概率性引导。这是 LLM 作为执行层的固有限制（057号），不是可以通过规则修复的 bug。
 

@@ -43,7 +43,7 @@ $$T(op) = \Delta g \cdot (1-1) + \Delta s \cdot g = 0 - \frac{\Delta \beta_1}{\b
 
 - 规格第 4 节 T 公式需要重构，例如引入非线性项（如对数）或分离两个目标为独立奖励
 - 规格第 10 节开放问题 1（"Is T optimal? Nonlinear coupling? Adaptive forms?"）与此矛盾直接相关
-- 本矛盾不影响规格的拓扑计算范式本身（K_full/K_active 架构），只影响选择机制
+- 本矛盾不影响规格的拓扑计算范式本身（K_full/K_active 架构），只影响选择机制 `[resolved: 范围界定声明——非行动项，确认拓扑计算范式不受T公式死锁影响]`
 
 ## 认识论等级
 
