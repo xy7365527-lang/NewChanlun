@@ -25,7 +25,7 @@ import sys
 from pathlib import Path
 
 from signifier_net import SNet
-from signifier_net_ingest import ingest_text_passage, _split_paragraphs
+from signifier_net_ingest import ingest_text_passage, ingest_text_passage_batch, _split_paragraphs
 
 
 _SUPPORTED_EXTENSIONS = {".txt", ".md"}
@@ -64,14 +64,11 @@ def load_text_file(
         return snet, []
 
     source = path.name
-    new_snet = snet
-    all_log_entries: list[dict] = []
 
-    for para in paragraphs:
-        new_snet, entries = ingest_text_passage(
-            new_snet, para, domain, source,
-        )
-        all_log_entries.extend(entries)
+    # Use batch version: builds whitelist once, merges edges once
+    new_snet, all_log_entries = ingest_text_passage_batch(
+        snet, paragraphs, domain, source,
+    )
 
     return new_snet, all_log_entries
 
