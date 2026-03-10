@@ -7,6 +7,13 @@
 #   147号：权限→拓扑转化（"修改即否定即拓扑操作"）
 #   153号：白名单→黑名单反转（白名单无法穷举 Lead 合法操作，导致恶性循环）
 #
+# 覆盖缺口（407号推论6，平台限制）：
+#   本 hook 的 matcher 是 Bash（PostToolUse），只检测 Write/Edit/Bash 操作。
+#   Lead 角色越界通常从 Read 代码文件开始（读取→分析→提出修复），
+#   但 Read 工具在 Claude Code 平台当前不支持 PostToolUse hook。
+#   因此 Lead 的 Read 操作（代码文件阅读）不触发任何 hook 检测。
+#   缓解措施：session-start-ceremony.sh 注入角色边界锚点（407号修复1）。
+#
 # 设计原则（153号修复）：
 #   1. 默认放行——Lead 的大部分操作是合法的
 #   2. 只有明确的基因组修改才记录拓扑效力

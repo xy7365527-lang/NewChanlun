@@ -2,6 +2,8 @@
 
 此规则优先级与 `no-workaround.md` 相同。
 
+**compact 后效力声明**（407号/137号联合推论）：本规则中所有关于 Lead 行为的声明，在 autocompact 后效力为**零**。行为层恢复依赖 `session-start-ceremony.sh` 注入的角色边界锚点，不依赖本声明层的概率性引导。
+
 ## 核心命题
 
 Lead 是 RTAS 的一环，不是 RTAS 之外的串行瓶颈。Lead 的一切操作遵守与工位相同的并行原则。

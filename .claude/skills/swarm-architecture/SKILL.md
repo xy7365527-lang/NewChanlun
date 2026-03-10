@@ -84,6 +84,18 @@ description: 蜂群架构完整描述。创建蜂群、评估架构决策、或�
 - quality-guard 通过后的 commit（COMMIT_REQUEST → quality-guard + genealogist 批准 → 执行）
 - "选择"类决断路由 Gemini decide 模式（041号），不推给人类
 
+**Lead Read 操作正面分类表**（407号修复3）：
+
+| Lead 读取的文件类型 | 唯一合法后续操作 |
+|-------------------|---------------|
+| 代码文件（src/、scripts/、tests/、topological-computation/） | 创建 Task → spawn 工位 |
+| session 文件 | 恢复 TaskList + 蜂群状态 |
+| scan 输出 | spawn 工位 |
+| 谱系/定义 | 写入谱系记录 / `/escalate` |
+| ceremony 流程文件 | 调整 ceremony 步骤 |
+
+**关键规则**：Lead 读取代码文件后，不产出代码分析、不发现 bug、不提出修复方案——这些都是工位的职责。O(n^2) 这样的性能发现，应由 spawn 的工位在阅读代码后发现并报告。
+
 必须阻断等待（020号反转条件）：
 - 逻辑/断言级测试失败（可能是概念分离信号，不是纯代码错误）
 - dispatch-dag 未定义的异常情况
@@ -112,7 +124,10 @@ description: 蜂群架构完整描述。创建蜂群、评估架构决策、或�
 **L1 — 同会话 compact 恢复**（已实现）：
 1. PreCompact 钩子（`.claude/hooks/precompact-save.sh`）：压缩前自动写入蜂群状态到 `*-precompact.md`
 2. 压缩后加载最近 session 记录，恢复定义基底、工作进度、待决事项
-3. 直接续接中断点，不需要重新 ceremony
+3. **恢复角色边界**（407号修复4）：从 session 文件的"行为纠正"章节加载纠正记录；`session-start-ceremony.sh` 自动注入角色边界锚点
+4. 直接续接中断点，不需要重新 ceremony
+
+**compact 后声明层效力假设**（407号/137号联合推论）：所有 rules/skills 中关于 Lead 行为的声明，在 compact 后效力为**零**——不是"降低"，是"零"。行为层通过 `session-start-ceremony.sh` 注入的正面格式锚点重建，不依赖声明层的概率性引导。
 
 **L2 — 跨会话热启动**（已实现）：
 1. 当 compact 后上下文依然不足（或会话被关闭/超时），启动新对话

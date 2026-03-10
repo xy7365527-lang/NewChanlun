@@ -188,6 +188,12 @@ else:
 " 2>/dev/null || echo "（checkpoint 采集失败）")
 fi
 
+# ─── 407号修复2：采集 Lead 行为纠正记录 ───
+CORRECTIONS_CONTENT=""
+if [ -f ".chanlun/.lead-corrections.log" ]; then
+    CORRECTIONS_CONTENT=$(cat .chanlun/.lead-corrections.log 2>/dev/null || true)
+fi
+
 # ─── 写入 session ───
 cat > "$SESSION_FILE" << SESSION_EOF
 # Session
@@ -215,6 +221,9 @@ ${CHECKPOINT_SUMMARY}
 
 ## 中断点
 ${PREV_INTERRUPTS:-"（自动快照，中断点待 CC 下次写入）"}
+
+## 行为纠正（407号）
+${CORRECTIONS_CONTENT:-"（无纠正记录）"}
 
 ## 恢复指引
 1. 读取此文件获取状态指针

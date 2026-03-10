@@ -144,6 +144,18 @@ if [ -n "$SWARM_INFO" ]; then
 else
     SWARM_MSG="${TEAM_BOOTSTRAP_MSG}"
 fi
-MSG="[Ceremony/热启动L2] 恢复自:${SESSION_FILE} (${SESSION_TIME}) | 分支:${GIT_BRANCH} | session提交:${SESSION_COMMIT} | 当前:${CURRENT_COMMIT} | 定义变更:${CHANGED}条 | 谱系:${SETTLED}settled/${PENDING}pending | 中断点:${INTERRUPTS}${SWARM_MSG} | ⚡自动进入蜂群循环：先评估可并行工位数(≥2即拉蜂群)，扫描代码/规范/谱系状态确定本轮工作目标"
+# 角色边界锚点（407号修复1：compact后行为层恢复）
+ROLE_BOUNDARY="⛔Lead角色边界：Lead只做spawn/shutdown/commit/scan/session写入。代码文件(src/,scripts/,tests/,topological-computation/)的阅读、分析、修复全部通过spawn工位执行。Lead读取代码后唯一合法出口=创建Task+spawn工位。"
+
+# 纠正记录注入（407号修复2：compact后纠正效果恢复）
+CORRECTIONS_MSG=""
+if [ -f ".chanlun/.lead-corrections.log" ]; then
+    RECENT_CORRECTIONS=$(tail -5 .chanlun/.lead-corrections.log 2>/dev/null || true)
+    if [ -n "$RECENT_CORRECTIONS" ]; then
+        CORRECTIONS_MSG=" | ⚠历史纠正: $(echo "$RECENT_CORRECTIONS" | tr '\n' '; ')"
+    fi
+fi
+
+MSG="[Ceremony/热启动L2] 恢复自:${SESSION_FILE} (${SESSION_TIME}) | 分支:${GIT_BRANCH} | session提交:${SESSION_COMMIT} | 当前:${CURRENT_COMMIT} | 定义变更:${CHANGED}条 | 谱系:${SETTLED}settled/${PENDING}pending | 中断点:${INTERRUPTS}${SWARM_MSG} | ${ROLE_BOUNDARY} | ⚡自动进入蜂群循环：先评估可并行工位数(≥2即拉蜂群)，扫描代码/规范/谱系状态确定本轮工作目标${CORRECTIONS_MSG}"
 
 emit_json "$MSG"
