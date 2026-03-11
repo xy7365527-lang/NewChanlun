@@ -35136,6 +35136,1664 @@
           "settled": false,
           "zhongshu_count": 1
         }
+      ],
+      "buysellpoints": [
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 12,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 12,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 24,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 24,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 24,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 29,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 34,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 42,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 42,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 49,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 49,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 60,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 60,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 66,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 66,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 75,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 78,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 91,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 105,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 105,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 105,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 112,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 118,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 118,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 135,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 138,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 143,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 150,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 154,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 160,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 160,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 163,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 167,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 171,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 187,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 210,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 210,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 216,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 225,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 227,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 241,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 245,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 252,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 264,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 264,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 282,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 291,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 294,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 315,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 315,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 315,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 315,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 315,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 319,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 323,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 331,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 337,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 337,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 341,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 344,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 350,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 370,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 370,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 380,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 385,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 401,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 407,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 407,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 412,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 417,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 417,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 424,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 424,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 425,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 432,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 443,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 453,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 457,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 461,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 466,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 471,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 484,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 489,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 489,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 494,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 504,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 508,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 518,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 518,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 530,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 536,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 544,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 547,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 563,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 572,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 579,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 588,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 594,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 594,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 600,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 601,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 610,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 610,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 618,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 622,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 631,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 645,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 651,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 655,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 666,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 666,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 672,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 672,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 675,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 680,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 681,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 688,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 692,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 694,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 712,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 715,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 722,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 733,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 740,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 751,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 753,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 768,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 793,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 793,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 801,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 806,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 814,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 823,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 831,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 832,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 837,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 837,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 844,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 845,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 857,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 857,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 858,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 863,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 868,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 878,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 894,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 909,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 909,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 915,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 915,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 925,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 925,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 929,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 937,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 940,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 956,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 961,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 981,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 986,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 991,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 991,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1001,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1006,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 1015,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 1021,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 1026,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1030,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 1035,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1040,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 1055,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1058,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1062,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 1069,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1081,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1094,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1094,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1102,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 1108,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 1114,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1120,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1129,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1129,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1129,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1129,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 1139,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 1143,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 1143,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1152,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 1161,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 1172,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 1180,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 1191,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 1193,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1204,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1233,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1233,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 1238,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1242,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1251,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1269,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1269,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1276,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1280,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1286,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 1299,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 1302,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 1308,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 1320,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 1321,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1325,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1326,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1332,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1335,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 1339,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 1344,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 1350,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 1356,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1362,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1362,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 1371,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 1371,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 1384,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 1387,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1393,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1405,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 1415,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1434,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 1441,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1448,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 1454,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1464,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1474,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1480,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 1487,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 1490,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 1496,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1501,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 1505,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1511,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 1518,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 1518,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 1523,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1534,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1534,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 1541,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 1563,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1572,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1572,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1574,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1594,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1594,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1599,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1599,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 1607,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1613,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1617,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1629,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 1633,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 1637,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1646,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1652,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 1656,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1664,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 1674,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 1681,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 1684,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1688,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 1711,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 1723,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 1723,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1726,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1736,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1741,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1752,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1770,
+          "level_id": 2
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 1771,
+          "level_id": 2
+        }
       ]
     },
     "L3": {
@@ -35946,6 +37604,374 @@
           "settled": false,
           "zhongshu_count": 1
         }
+      ],
+      "buysellpoints": [
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 9,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 9,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 19,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 19,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 23,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 31,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 45,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 63,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 63,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 63,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 63,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 63,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 63,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 67,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 71,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 76,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 89,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 89,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 96,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 107,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 107,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 115,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 127,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 127,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 127,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 127,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 154,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 163,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 171,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 178,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 179,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 186,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 194,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 201,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 212,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 218,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 218,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 226,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 226,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 232,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 243,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 243,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 243,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 247,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 251,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 254,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 259,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 260,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 266,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 270,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 277,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 283,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 288,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 293,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 296,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 304,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 304,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 320,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 320,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 326,
+          "level_id": 3
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 331,
+          "level_id": 3
+        }
       ]
     },
     "L4": {
@@ -36084,6 +38110,62 @@
           "settled": false,
           "zhongshu_count": 1
         }
+      ],
+      "buysellpoints": [
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 5,
+          "level_id": 4
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 14,
+          "level_id": 4
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 14,
+          "level_id": 4
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 14,
+          "level_id": 4
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 18,
+          "level_id": 4
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 28,
+          "level_id": 4
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 36,
+          "level_id": 4
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 59,
+          "level_id": 4
+        },
+        {
+          "kind": "type3",
+          "side": "sell",
+          "seg_idx": 60,
+          "level_id": 4
+        }
       ]
     },
     "L5": {
@@ -36119,6 +38201,20 @@
           "kind": "consolidation",
           "settled": false,
           "zhongshu_count": 1
+        }
+      ],
+      "buysellpoints": [
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 7,
+          "level_id": 5
+        },
+        {
+          "kind": "type3",
+          "side": "buy",
+          "seg_idx": 7,
+          "level_id": 5
         }
       ]
     }
