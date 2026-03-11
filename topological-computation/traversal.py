@@ -21,6 +21,7 @@ from encounter_log import EncounterLog
 from morse import compute_terrain, critical_neighbors
 from snet_activation import SNetActivation, EdgeSuggestion
 
+EXPLORATION_INTERVAL = 1000  # every N steps, jump to an under-explored vertex
 
 # -- norm violation → code gap mapping ------------------------------------
 
@@ -92,6 +93,7 @@ class StepLog:
     f_value: int = -99  # f(v,w) terrain annotation: -1=no shared neighbors, 0=topo equivalent, high=topo distant
     g_value: int = -99  # g(v,w) vertex-disjoint path count — 392·2 annotation
     resonance: bool = False  # S_net 耦合振荡：chosen candidate was in resonating set
+    exploration: bool = False  # exploration move: jumped to under-explored vertex
 
 
 class TraversalEngine:
@@ -885,6 +887,35 @@ class TraversalEngine:
         degrees = {v: len(self.k_active.neighbors(v)) for v in free_vids}
         return max(free_vids, key=lambda v: (degrees[v], v))
 
+    def _exploration_target(self) -> str | None:
+        """Pick an under-explored vertex for exploration move.
+
+        Priority: unreviewed concept_creation_suggestions (gap queue),
+        then low-degree (≤2) active vertices not recently visited.
+        Returns None if no suitable target found.
+        """
+        # 1. Gap queue: unreviewed concept_creation_suggestions → anchor_concept
+        if self._snet_activation is not None:
+            for suggestion in self._snet_activation.concept_creation_suggestions:
+                if not suggestion.reviewed:
+                    anchor = suggestion.anchor_concept
+                    if anchor in self.k_active.active_vertex_ids() and anchor != self.position:
+                        return anchor
+
+        # 2. Low-degree active vertices (degree ≤ 2), not recently visited
+        active = self.k_active.active_vertex_ids()
+        recent = set(self.visit_history[-100:]) if len(self.visit_history) > 100 else set(self.visit_history)
+        low_degree = [
+            v for v in active
+            if len(self.k_active.neighbors(v)) <= 2
+            and v not in recent
+            and v != self.position
+        ]
+        if low_degree:
+            return self.rng.choice(low_degree)
+
+        return None
+
     def _is_code_vertex(self, vid: str) -> bool:
         """Check if vertex belongs to code domain (content starts with [domain:code] or [domain:self])."""
         v = self.k_active.vertex(vid)
@@ -1038,6 +1069,16 @@ class TraversalEngine:
         """Execute one full step: detect encounter → execute or walk → update terrain → settle → S_net sync."""
         self.step += 1
         self._last_resonance = False
+        explored = False
+
+        # Exploration move: periodically jump to under-explored vertex
+        if self.step > 1 and self.step % EXPLORATION_INTERVAL == 0:
+            target = self._exploration_target()
+            if target is not None:
+                self.position = target
+                self.visit_history.append(self.position)
+                explored = True
+
         beta_before = compute_beta_1(self.k_active)
 
         # S_net: update current step
@@ -1203,6 +1244,7 @@ class TraversalEngine:
             f_value=enc.f_value,
             g_value=enc.g_value,
             resonance=self._last_resonance,
+            exploration=explored,
         )
         self.logs.append(log)
         return log
