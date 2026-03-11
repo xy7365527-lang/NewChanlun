@@ -1,0 +1,16 @@
+{
+  "id": "8db51c4041d457c11c84987f23399ef9b8c367cc75618e9cef3f237593cf8393",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.078622+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "self_contradictory_consciousness",
+    "status": "active",
+    "content": "self-contradictory consciousness",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

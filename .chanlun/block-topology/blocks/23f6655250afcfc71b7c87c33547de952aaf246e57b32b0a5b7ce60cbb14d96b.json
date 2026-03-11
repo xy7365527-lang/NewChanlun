@@ -1,0 +1,16 @@
+{
+  "id": "23f6655250afcfc71b7c87c33547de952aaf246e57b32b0a5b7ce60cbb14d96b",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.121787+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "dogmatism",
+    "target": "fixed_result",
+    "edge_type": "dependency",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

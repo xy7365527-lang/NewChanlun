@@ -1,0 +1,16 @@
+{
+  "id": "562647311630ac1cfb280ed5bba72e7a99ca827a98586f95f05b84cfd70b9d4d",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.273338+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "reason",
+    "target": "unhappy_consciousness",
+    "edge_type": "dependency",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

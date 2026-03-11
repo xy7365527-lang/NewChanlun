@@ -1,0 +1,16 @@
+{
+  "id": "4a9fda5ef52e30100284cab4b965b57db2cdf49494491cc90aef242a054f89e8",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.054349+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "singular_I",
+    "status": "active",
+    "content": "singular I",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

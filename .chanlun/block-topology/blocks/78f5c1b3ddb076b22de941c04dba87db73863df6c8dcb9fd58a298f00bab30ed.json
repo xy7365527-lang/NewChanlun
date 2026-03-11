@@ -1,0 +1,16 @@
+{
+  "id": "78f5c1b3ddb076b22de941c04dba87db73863df6c8dcb9fd58a298f00bab30ed",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.071629+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "recognition",
+    "status": "active",
+    "content": "recognition (Anerkennung)",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

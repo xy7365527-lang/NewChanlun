@@ -1,0 +1,16 @@
+{
+  "id": "10b14b536052b92fc12c8fb33a1484f7b3cab09237ab7f93bf22b5f659d529fe",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.216229+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "self_consciousness_emerges",
+    "target": "nothing_behind",
+    "edge_type": "dependency",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,16 @@
+{
+  "id": "6de0aebd901c7fe1f4c3e165b3d83ced3d7d021ec9cfe67d012a8cc51195cbcd",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.346340+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "judging_consciousness",
+    "target": "beautiful_soul",
+    "edge_type": "dependency",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

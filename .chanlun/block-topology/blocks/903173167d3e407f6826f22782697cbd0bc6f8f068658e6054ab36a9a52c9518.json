@@ -1,0 +1,16 @@
+{
+  "id": "903173167d3e407f6826f22782697cbd0bc6f8f068658e6054ab36a9a52c9518",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.369166+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "revealed_religion",
+    "target": "religion",
+    "edge_type": "dependency",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

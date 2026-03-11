@@ -1,0 +1,16 @@
+{
+  "id": "ca4d0151c7e35b259e841c57dd547d4114b80a3817af35886cb073e66ac7f753",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.331997+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "bildung",
+    "target": "ethical_substance",
+    "edge_type": "dependency",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

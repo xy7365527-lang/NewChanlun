@@ -1,0 +1,16 @@
+{
+  "id": "bbbc8df615664d6bd3f3310cbfa053eccd0c95a77fa8fba3482f75a28918bdeb",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.294706+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "individual_universal_unity",
+    "target": "die_sache_selbst",
+    "edge_type": "sublation",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

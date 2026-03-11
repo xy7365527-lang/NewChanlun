@@ -1,0 +1,16 @@
+{
+  "id": "898c489a1c8fee5c8a25ad48ee82562fcaec9d4bf2db31e55c004b73a65eed21",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.385836+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "calvary",
+    "target": "death_of_god",
+    "edge_type": "reference",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

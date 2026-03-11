@@ -1,0 +1,16 @@
+{
+  "id": "ef614be70a660a9344e78f0d2c204757851ef6bbb78141b014745d024413c1d1",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.311490+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "war",
+    "target": "state_polis",
+    "edge_type": "negation",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

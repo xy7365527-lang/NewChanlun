@@ -1,0 +1,16 @@
+{
+  "id": "2f21b5fa90ad607f12cb7181520da080b06a623809ddc993466637a3813ecd52",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.391335+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "spirit_knowing_itself",
+    "target": "science",
+    "edge_type": "dependency",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

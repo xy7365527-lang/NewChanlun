@@ -1,0 +1,16 @@
+{
+  "id": "8ae4cf90dedb2a1270c7a57b99aaf71b7f57139ea05b2552a47f19579321085a",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.047511+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "fear_of_error",
+    "status": "active",
+    "content": "fear of error",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

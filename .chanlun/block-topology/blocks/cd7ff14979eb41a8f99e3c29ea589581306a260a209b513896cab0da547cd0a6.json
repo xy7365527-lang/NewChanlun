@@ -1,0 +1,16 @@
+{
+  "id": "cd7ff14979eb41a8f99e3c29ea589581306a260a209b513896cab0da547cd0a6",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.077944+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "asceticism",
+    "status": "active",
+    "content": "asceticism (self-mortification)",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

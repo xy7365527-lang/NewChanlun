@@ -1,0 +1,16 @@
+{
+  "id": "8764a8e594558e181db7e55aa4c2bb48361d0427121ff2cd3ae7eaef911668d2",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.371550+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "spiritual_community",
+    "target": "death_of_god",
+    "edge_type": "dependency",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

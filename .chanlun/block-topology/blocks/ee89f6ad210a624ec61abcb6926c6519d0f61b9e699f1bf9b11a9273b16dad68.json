@@ -1,0 +1,16 @@
+{
+  "id": "ee89f6ad210a624ec61abcb6926c6519d0f61b9e699f1bf9b11a9273b16dad68",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.078979+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "mediation_priest",
+    "status": "active",
+    "content": "mediating consciousness (priest)",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

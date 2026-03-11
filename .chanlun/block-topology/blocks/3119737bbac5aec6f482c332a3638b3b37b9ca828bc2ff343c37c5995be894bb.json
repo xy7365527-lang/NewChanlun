@@ -1,0 +1,16 @@
+{
+  "id": "3119737bbac5aec6f482c332a3638b3b37b9ca828bc2ff343c37c5995be894bb",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.301104+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "human_law",
+    "target": "divine_law",
+    "edge_type": "negation",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

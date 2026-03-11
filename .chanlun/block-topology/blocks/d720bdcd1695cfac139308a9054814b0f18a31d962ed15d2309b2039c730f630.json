@@ -1,0 +1,16 @@
+{
+  "id": "d720bdcd1695cfac139308a9054814b0f18a31d962ed15d2309b2039c730f630",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.333600+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "faith",
+    "target": "unhappy_consciousness",
+    "edge_type": "reference",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

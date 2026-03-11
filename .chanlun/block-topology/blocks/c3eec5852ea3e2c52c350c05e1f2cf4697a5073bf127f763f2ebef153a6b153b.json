@@ -1,0 +1,16 @@
+{
+  "id": "c3eec5852ea3e2c52c350c05e1f2cf4697a5073bf127f763f2ebef153a6b153b",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.058139+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "many_properties",
+    "status": "active",
+    "content": "many properties",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

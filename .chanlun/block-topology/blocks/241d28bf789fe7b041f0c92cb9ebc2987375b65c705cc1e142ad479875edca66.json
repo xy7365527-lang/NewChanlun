@@ -1,0 +1,16 @@
+{
+  "id": "241d28bf789fe7b041f0c92cb9ebc2987375b65c705cc1e142ad479875edca66",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.073626+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "work",
+    "status": "active",
+    "content": "work (formative activity)",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

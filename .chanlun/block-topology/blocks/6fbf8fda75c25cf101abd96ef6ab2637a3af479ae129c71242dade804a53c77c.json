@@ -1,0 +1,16 @@
+{
+  "id": "6fbf8fda75c25cf101abd96ef6ab2637a3af479ae129c71242dade804a53c77c",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.093231+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "brother_sister",
+    "status": "active",
+    "content": "brother-sister relation (pure recognition)",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,16 @@
+{
+  "id": "3fb0a6be70576d6dfb8653dfe5d98d510d179a925d76f00cef7311f744bae5a8",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.090819+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "human_law",
+    "status": "active",
+    "content": "human law (state/polis)",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

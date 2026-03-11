@@ -1,0 +1,16 @@
+{
+  "id": "9f39f9fc7c05ce5899b0531829ff52b5a9309dd71d9db84d7f1a2852969873a8",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.072972+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "dependence",
+    "status": "active",
+    "content": "dependence",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,16 @@
+{
+  "id": "abdc04a97626ae6b40ec60b4b7645a0669d8012a54cd572e11bd0420220c8223",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.324025+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "language_disruption",
+    "target": "base_consciousness",
+    "edge_type": "dependency",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

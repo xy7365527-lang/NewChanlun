@@ -1,0 +1,16 @@
+{
+  "id": "b197aa6c05352a82a9bb04cd1a72f812225009150f3360005b6f95615a5758dc",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.119427+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "simple_repose",
+    "target": "bacchanalian_revel",
+    "edge_type": "negation",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

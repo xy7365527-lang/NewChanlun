@@ -1,0 +1,16 @@
+{
+  "id": "934ac3c0de62a2af465121b4c0f3a6cc1c0e73de01b515d2a46a43d5c7a7dd70",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.255246+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "asceticism",
+    "target": "unhappy_consciousness",
+    "edge_type": "dependency",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

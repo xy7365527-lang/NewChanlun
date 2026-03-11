@@ -1,0 +1,16 @@
+{
+  "id": "08619a2a6bd79328c7df83b553c93708547f836dd488711817097eec445b729f",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.104191+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "light_being",
+    "status": "active",
+    "content": "light-being (Zoroastrian)",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

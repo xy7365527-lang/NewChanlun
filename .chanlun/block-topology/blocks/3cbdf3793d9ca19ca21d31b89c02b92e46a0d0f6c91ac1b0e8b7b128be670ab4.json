@@ -1,0 +1,16 @@
+{
+  "id": "3cbdf3793d9ca19ca21d31b89c02b92e46a0d0f6c91ac1b0e8b7b128be670ab4",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.256030+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "mediation_priest",
+    "target": "changeable",
+    "edge_type": "dependency",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

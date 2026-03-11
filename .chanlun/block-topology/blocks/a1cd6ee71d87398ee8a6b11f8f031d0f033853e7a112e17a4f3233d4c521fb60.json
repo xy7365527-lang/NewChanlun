@@ -1,0 +1,16 @@
+{
+  "id": "a1cd6ee71d87398ee8a6b11f8f031d0f033853e7a112e17a4f3233d4c521fb60",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.131849+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "natural_consciousness",
+    "target": "real_knowledge",
+    "edge_type": "negation",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

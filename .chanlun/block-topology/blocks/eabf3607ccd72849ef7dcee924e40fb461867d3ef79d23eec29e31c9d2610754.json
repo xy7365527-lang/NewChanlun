@@ -1,0 +1,16 @@
+{
+  "id": "eabf3607ccd72849ef7dcee924e40fb461867d3ef79d23eec29e31c9d2610754",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.293098+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "ethical_substance_intro",
+    "target": "law_testing_reason",
+    "edge_type": "dependency",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

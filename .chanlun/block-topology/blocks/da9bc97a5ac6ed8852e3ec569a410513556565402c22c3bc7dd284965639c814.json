@@ -1,0 +1,16 @@
+{
+  "id": "da9bc97a5ac6ed8852e3ec569a410513556565402c22c3bc7dd284965639c814",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.302646+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "state_polis",
+    "target": "human_law",
+    "edge_type": "dependency",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

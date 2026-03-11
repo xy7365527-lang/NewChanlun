@@ -1,0 +1,16 @@
+{
+  "id": "5b4d2aa24b61c8c34b7f84dcb129169135ad063186a509ea5d03311770890612",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.209818+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "internal_distinction",
+    "target": "supersensible_world",
+    "edge_type": "sublation",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

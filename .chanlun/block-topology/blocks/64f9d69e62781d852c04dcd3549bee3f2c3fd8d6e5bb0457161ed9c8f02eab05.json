@@ -1,0 +1,16 @@
+{
+  "id": "64f9d69e62781d852c04dcd3549bee3f2c3fd8d6e5bb0457161ed9c8f02eab05",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.382675+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "science_of_experience",
+    "target": "experience",
+    "edge_type": "dependency",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

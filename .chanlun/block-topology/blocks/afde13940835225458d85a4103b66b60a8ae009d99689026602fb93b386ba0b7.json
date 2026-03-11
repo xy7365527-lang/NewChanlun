@@ -1,0 +1,16 @@
+{
+  "id": "afde13940835225458d85a4103b66b60a8ae009d99689026602fb93b386ba0b7",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.096927+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "faith",
+    "status": "active",
+    "content": "faith",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

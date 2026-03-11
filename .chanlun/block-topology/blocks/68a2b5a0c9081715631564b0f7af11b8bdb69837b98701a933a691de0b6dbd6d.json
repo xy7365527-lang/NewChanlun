@@ -1,0 +1,16 @@
+{
+  "id": "68a2b5a0c9081715631564b0f7af11b8bdb69837b98701a933a691de0b6dbd6d",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.359774+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "religion",
+    "target": "spirit",
+    "edge_type": "dependency",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

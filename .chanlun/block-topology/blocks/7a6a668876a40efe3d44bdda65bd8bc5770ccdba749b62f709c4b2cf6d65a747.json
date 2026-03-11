@@ -1,0 +1,16 @@
+{
+  "id": "7a6a668876a40efe3d44bdda65bd8bc5770ccdba749b62f709c4b2cf6d65a747",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.088807+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "law_testing_reason",
+    "status": "active",
+    "content": "law-testing reason",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

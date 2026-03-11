@@ -1,0 +1,16 @@
+{
+  "id": "f12ef8de6c6b64b566b9b0bc8b7c3c47ece784c3c5c085905e9b045c853efc04",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.239602+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "bondsman_freedom",
+    "target": "fear_of_death",
+    "edge_type": "dependency",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

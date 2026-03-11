@@ -1,0 +1,16 @@
+{
+  "id": "6bd2607ba7946899e84d2f38001df5341a1ba88dc9adcb0159ed3ee740ce63e1",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.080400+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "observation_nature",
+    "status": "active",
+    "content": "observation of nature",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,16 @@
+{
+  "id": "0ab707230c20d91c222ec81f3e6dcaac05cb99c5012a8149b504783ac96cb707",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.292236+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "law_testing_reason",
+    "target": "legislative_reason",
+    "edge_type": "negation",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

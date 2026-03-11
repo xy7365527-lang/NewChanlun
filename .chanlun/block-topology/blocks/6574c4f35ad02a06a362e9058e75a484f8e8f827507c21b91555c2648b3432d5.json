@@ -1,0 +1,16 @@
+{
+  "id": "6574c4f35ad02a06a362e9058e75a484f8e8f827507c21b91555c2648b3432d5",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.073292+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "fear_of_death",
+    "status": "active",
+    "content": "fear of death",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

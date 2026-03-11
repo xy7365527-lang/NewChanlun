@@ -1,0 +1,16 @@
+{
+  "id": "3004f64422ba5a979470cebdb72a742d93756274977dad4d60a31c2255367773",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.222544+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "self_consciousness",
+    "target": "life",
+    "edge_type": "dependency",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

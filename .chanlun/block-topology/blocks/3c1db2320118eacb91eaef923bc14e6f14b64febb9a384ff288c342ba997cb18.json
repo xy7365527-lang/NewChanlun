@@ -1,0 +1,16 @@
+{
+  "id": "3c1db2320118eacb91eaef923bc14e6f14b64febb9a384ff288c342ba997cb18",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.215387+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "self_consciousness_emerges",
+    "target": "curtain",
+    "edge_type": "sublation",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

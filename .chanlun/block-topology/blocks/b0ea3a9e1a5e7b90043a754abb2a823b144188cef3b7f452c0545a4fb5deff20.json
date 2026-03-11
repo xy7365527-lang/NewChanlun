@@ -1,0 +1,16 @@
+{
+  "id": "b0ea3a9e1a5e7b90043a754abb2a823b144188cef3b7f452c0545a4fb5deff20",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.313826+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "ethical_destruction",
+    "target": "war",
+    "edge_type": "dependency",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,16 @@
+{
+  "id": "ddcb0f4ca3389fb70adea4065ed84fa67db37a6b8136536de2333520bccb5178",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.068247+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "crime_punishment",
+    "status": "active",
+    "content": "crime becomes punishment",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

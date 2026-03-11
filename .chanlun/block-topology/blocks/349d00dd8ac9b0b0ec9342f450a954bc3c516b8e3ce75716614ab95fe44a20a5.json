@@ -1,0 +1,16 @@
+{
+  "id": "349d00dd8ac9b0b0ec9342f450a954bc3c516b8e3ce75716614ab95fe44a20a5",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.110519+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "comprehended_history",
+    "status": "active",
+    "content": "comprehended history",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,16 @@
+{
+  "id": "e71063e252a9ffeaf0edc7f307894d9e061195bc9ef73cca1ae13e6843f552a5",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.048171+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "experience",
+    "status": "active",
+    "content": "experience (dialectical movement)",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

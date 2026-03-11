@@ -1,0 +1,16 @@
+{
+  "id": "89f46c92a3e6a28b0cda2e4ef17a6caa5f30f313af765cfd705a833269076cbc",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.278933+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "law_of_heart",
+    "target": "heart_rebellion",
+    "edge_type": "dependency",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,16 @@
+{
+  "id": "326e0f66a4479a687fc4b9f5593091dee82e05c76be355e02afa76abe73ff4a7",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.117890+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "mutual_necessity",
+    "target": "fruit",
+    "edge_type": "dependency",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

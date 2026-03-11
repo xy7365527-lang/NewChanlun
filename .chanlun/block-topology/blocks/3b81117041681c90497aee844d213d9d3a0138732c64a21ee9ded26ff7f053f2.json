@@ -1,0 +1,16 @@
+{
+  "id": "3b81117041681c90497aee844d213d9d3a0138732c64a21ee9ded26ff7f053f2",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.044707+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "speculative_proposition",
+    "status": "active",
+    "content": "speculative proposition",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

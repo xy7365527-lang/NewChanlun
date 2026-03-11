@@ -1,0 +1,16 @@
+{
+  "id": "7633071f78cbff50beb79daf66aacef1fbb668477ea699d419b7955b32d9775a",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.056781+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "immediacy",
+    "status": "active",
+    "content": "immediacy",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

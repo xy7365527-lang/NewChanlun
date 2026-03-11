@@ -1,0 +1,16 @@
+{
+  "id": "1ae7acacf72da9c4d4bdace91d8507252ba38db48ee10e453b17014b446d43da",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.395974+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "absolute_knowing",
+    "target": "picture_thinking",
+    "edge_type": "negation",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

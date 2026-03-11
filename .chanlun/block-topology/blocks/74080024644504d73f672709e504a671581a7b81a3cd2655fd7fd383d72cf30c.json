@@ -1,0 +1,16 @@
+{
+  "id": "74080024644504d73f672709e504a671581a7b81a3cd2655fd7fd383d72cf30c",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.284395+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "individuality_real",
+    "target": "virtue_vs_world",
+    "edge_type": "sublation",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

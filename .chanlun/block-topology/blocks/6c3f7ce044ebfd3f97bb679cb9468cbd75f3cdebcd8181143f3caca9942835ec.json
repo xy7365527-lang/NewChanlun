@@ -1,0 +1,16 @@
+{
+  "id": "6c3f7ce044ebfd3f97bb679cb9468cbd75f3cdebcd8181143f3caca9942835ec",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.303503+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "antigone",
+    "target": "divine_law",
+    "edge_type": "dependency",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

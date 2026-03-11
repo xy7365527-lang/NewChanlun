@@ -1,0 +1,16 @@
+{
+  "id": "9165a9a2b17b49ab3eb4a0f2e05b5bf8c9f141f789225c9dd7474b2ef4e3427c",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.047840+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "fear_of_truth",
+    "status": "active",
+    "content": "fear of truth",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

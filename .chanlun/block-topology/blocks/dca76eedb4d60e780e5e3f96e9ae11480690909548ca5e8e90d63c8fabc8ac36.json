@@ -1,0 +1,16 @@
+{
+  "id": "dca76eedb4d60e780e5e3f96e9ae11480690909548ca5e8e90d63c8fabc8ac36",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.074951+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "lord_reversal",
+    "status": "active",
+    "content": "lord's truth in bondsman",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

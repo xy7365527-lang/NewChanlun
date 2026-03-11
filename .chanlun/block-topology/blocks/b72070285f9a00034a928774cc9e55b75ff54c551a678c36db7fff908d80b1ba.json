@@ -1,0 +1,16 @@
+{
+  "id": "b72070285f9a00034a928774cc9e55b75ff54c551a678c36db7fff908d80b1ba",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.101565+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "evil",
+    "status": "active",
+    "content": "evil (acting conscience)",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

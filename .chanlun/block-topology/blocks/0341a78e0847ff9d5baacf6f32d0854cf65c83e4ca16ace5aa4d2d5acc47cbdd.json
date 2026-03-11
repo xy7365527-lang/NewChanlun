@@ -1,0 +1,16 @@
+{
+  "id": "0341a78e0847ff9d5baacf6f32d0854cf65c83e4ca16ace5aa4d2d5acc47cbdd",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.347168+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "judging_consciousness",
+    "target": "evil",
+    "edge_type": "negation",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

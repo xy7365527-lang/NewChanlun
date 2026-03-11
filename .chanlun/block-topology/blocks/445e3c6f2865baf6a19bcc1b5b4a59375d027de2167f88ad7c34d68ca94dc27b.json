@@ -1,0 +1,16 @@
+{
+  "id": "445e3c6f2865baf6a19bcc1b5b4a59375d027de2167f88ad7c34d68ca94dc27b",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.309039+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "woman_man",
+    "target": "state_polis",
+    "edge_type": "dependency",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

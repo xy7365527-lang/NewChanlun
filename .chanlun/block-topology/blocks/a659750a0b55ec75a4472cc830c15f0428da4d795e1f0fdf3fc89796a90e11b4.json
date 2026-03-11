@@ -1,0 +1,16 @@
+{
+  "id": "a659750a0b55ec75a4472cc830c15f0428da4d795e1f0fdf3fc89796a90e11b4",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.337546+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "postulates",
+    "target": "moral_worldview",
+    "edge_type": "dependency",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

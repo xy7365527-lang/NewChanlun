@@ -1,0 +1,16 @@
+{
+  "id": "aeda5a26af4bf61562cd350687f594a649b0c739c2cffa03acc4cfd529887235",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.245034+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "stoicism",
+    "target": "bondsman_freedom",
+    "edge_type": "dependency",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,16 @@
+{
+  "id": "fe0ee9b3d578dd1383bb5497fd5293fa9e3271e00d7e5594d7adeaa6de987def",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.098263+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "self_alienation",
+    "status": "active",
+    "content": "self-alienation of spirit",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

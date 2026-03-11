@@ -1,0 +1,16 @@
+{
+  "id": "b86fea8c4f159101034332991c5ccc96a94e239517f1feff313e523e4e62c8e6",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.287544+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "spiritual_animal_kingdom",
+    "target": "work_product",
+    "edge_type": "dependency",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

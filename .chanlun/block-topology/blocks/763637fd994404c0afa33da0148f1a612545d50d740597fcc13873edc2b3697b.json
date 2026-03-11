@@ -1,0 +1,16 @@
+{
+  "id": "763637fd994404c0afa33da0148f1a612545d50d740597fcc13873edc2b3697b",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.126429+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "cognition_instrument",
+    "target": "absolute_being",
+    "edge_type": "dependency",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

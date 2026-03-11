@@ -1,0 +1,16 @@
+{
+  "id": "3aa7b56e1205d64f206ca00d423fb060dec789c2d8615434ecd01adceb1f25e3",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.234175+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "bondsman",
+    "target": "work",
+    "edge_type": "dependency",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

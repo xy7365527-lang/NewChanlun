@@ -1,0 +1,16 @@
+{
+  "id": "453be56183744d8e0390eda0c4c1cab3cd18c9db469a901f77f0ddec46305ce0",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.381885+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "science_of_experience",
+    "target": "absolute_knowing",
+    "edge_type": "dependency",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

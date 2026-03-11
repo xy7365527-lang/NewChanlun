@@ -1,0 +1,16 @@
+{
+  "id": "c06d1b3691df44e43702fcb9f8052be7e6be40ee6c301d023c2e991fd5e710ca",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.128773+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "fear_of_error",
+    "target": "fear_of_truth",
+    "edge_type": "negation",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

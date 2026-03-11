@@ -1,0 +1,16 @@
+{
+  "id": "aba8f670361ec81efdacb13be9870eef57f9df3fd4792bcb8a7c73f868466995",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.109865+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "recollection",
+    "status": "active",
+    "content": "recollection (Er-Innerung)",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

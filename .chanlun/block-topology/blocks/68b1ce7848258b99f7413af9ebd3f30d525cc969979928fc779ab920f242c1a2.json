@@ -1,0 +1,16 @@
+{
+  "id": "68b1ce7848258b99f7413af9ebd3f30d525cc969979928fc779ab920f242c1a2",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.229500+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "bondsman",
+    "target": "lord",
+    "edge_type": "negation",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

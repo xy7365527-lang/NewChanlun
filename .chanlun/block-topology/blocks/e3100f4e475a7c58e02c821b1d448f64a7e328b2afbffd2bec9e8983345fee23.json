@@ -1,0 +1,16 @@
+{
+  "id": "e3100f4e475a7c58e02c821b1d448f64a7e328b2afbffd2bec9e8983345fee23",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.235720+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "work",
+    "target": "thinghood_sc",
+    "edge_type": "dependency",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

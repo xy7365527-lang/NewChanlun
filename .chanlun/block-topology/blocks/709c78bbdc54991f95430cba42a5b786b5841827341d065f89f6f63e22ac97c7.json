@@ -1,0 +1,16 @@
+{
+  "id": "709c78bbdc54991f95430cba42a5b786b5841827341d065f89f6f63e22ac97c7",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.318473+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "base_consciousness",
+    "target": "wealth",
+    "edge_type": "dependency",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

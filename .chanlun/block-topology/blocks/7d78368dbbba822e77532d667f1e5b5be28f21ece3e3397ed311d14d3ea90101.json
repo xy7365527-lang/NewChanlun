@@ -1,0 +1,16 @@
+{
+  "id": "7d78368dbbba822e77532d667f1e5b5be28f21ece3e3397ed311d14d3ea90101",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.162470+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "mediation",
+    "target": "immediacy",
+    "edge_type": "negation",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

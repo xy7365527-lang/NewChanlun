@@ -1,0 +1,16 @@
+{
+  "id": "628894ebcc09d89af7ef8e8ff5870e08b5e4a8ae695f448404afed923ed63a29",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.100227+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "dissemblance",
+    "status": "active",
+    "content": "dissemblance (Verstellung)",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

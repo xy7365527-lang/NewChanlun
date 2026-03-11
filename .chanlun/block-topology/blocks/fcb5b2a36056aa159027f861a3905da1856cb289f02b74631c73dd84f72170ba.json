@@ -1,0 +1,16 @@
+{
+  "id": "fcb5b2a36056aa159027f861a3905da1856cb289f02b74631c73dd84f72170ba",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.069967+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "nothing_behind",
+    "status": "active",
+    "content": "nothing behind unless we go there",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

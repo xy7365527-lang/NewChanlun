@@ -1,0 +1,16 @@
+{
+  "id": "9517dd48e9b6e7d7ed74e153b7270078393774ba99c5dbd25c437c24f4f4e842",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.081393+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "logical_laws",
+    "status": "active",
+    "content": "logical and psychological laws",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

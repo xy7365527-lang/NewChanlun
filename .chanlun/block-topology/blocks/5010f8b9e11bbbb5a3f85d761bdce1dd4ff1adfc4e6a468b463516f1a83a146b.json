@@ -1,0 +1,16 @@
+{
+  "id": "5010f8b9e11bbbb5a3f85d761bdce1dd4ff1adfc4e6a468b463516f1a83a146b",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.313047+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "ethical_destruction",
+    "target": "human_law",
+    "edge_type": "negation",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

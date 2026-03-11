@@ -1,0 +1,16 @@
+{
+  "id": "0ec2dffa6d4d450b348e949eb75bc4507c15e9cacbfb41153a3c6f47f7acea88",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.090111+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "ethical_substance",
+    "status": "active",
+    "content": "ethical substance (Sittlichkeit)",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

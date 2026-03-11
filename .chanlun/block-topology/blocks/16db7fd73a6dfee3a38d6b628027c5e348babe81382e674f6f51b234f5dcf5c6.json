@@ -1,0 +1,16 @@
+{
+  "id": "16db7fd73a6dfee3a38d6b628027c5e348babe81382e674f6f51b234f5dcf5c6",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.086425+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "necessity_fate",
+    "status": "active",
+    "content": "necessity (fate)",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

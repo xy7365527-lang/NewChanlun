@@ -1,0 +1,16 @@
+{
+  "id": "8220a84012a50fc6d2af39ae4c79d28fef58c2944fd1446dcb602511dd6ac162",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.085434+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "way_of_world",
+    "status": "active",
+    "content": "the way of the world",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

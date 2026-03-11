@@ -1,0 +1,16 @@
+{
+  "id": "a96e7b8eec4a0740db76e45efebac6856effec62c8730dea3ee4693699a7f80b",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.082412+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "phrenology",
+    "status": "active",
+    "content": "phrenology",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}
