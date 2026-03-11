@@ -216,6 +216,12 @@ const haloFragGLSL = `
 
 // ── 主组件 ────────────────────────────────────────────────────────
 
+// Maximum node count for O(N^2) force layout — above this the view is unusable
+const MAX_FORCE_NODES = 2000;
+
+// Maximum number of negation pulse particles to avoid draw call explosion
+const MAX_PULSE_PARTICLES = 80;
+
 export function ForceGraph3DV2({
   data, traversalPosition, focusConcept, onSelectNode,
 }: Props) {
@@ -231,6 +237,28 @@ export function ForceGraph3DV2({
   const handleClusterClick = useCallback((src: SourceType) => {
     setActiveCluster((prev) => (prev === src ? null : src));
   }, []);
+
+  // Scale guard: O(N^2) force layout is not viable above MAX_FORCE_NODES
+  if (data && data.nodes.length > MAX_FORCE_NODES) {
+    return (
+      <div style={{
+        width: "100%", height: "100%",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        flexDirection: "column", gap: 12,
+        fontFamily: "'DM Mono', monospace",
+        color: "#6a6a8a",
+        background: "#08080f",
+      }}>
+        <div style={{ fontSize: 13 }}>
+          Deep Space V2 — {data.nodes.length.toLocaleString()} nodes
+        </div>
+        <div style={{ fontSize: 10, color: "#3a3a5a", maxWidth: 320, textAlign: "center" }}>
+          O(N^2) force layout cannot handle {data.nodes.length.toLocaleString()} nodes.
+          Use Galaxy View for full-scale rendering.
+        </div>
+      </div>
+    );
+  }
 
   useEffect(() => {
     const mount = mountRef.current;
@@ -463,12 +491,33 @@ export function ForceGraph3DV2({
       scene.add(bubbleLabel);
     });
 
-    // ── 边（LineSegments 批量） ───────────────────────────────────
+    // ── 边（LineSegments 批量，filtered by degree） ───────────────
+    const MIN_EDGE_DEGREE = 3;
     const negLinks: TopologyLink[] = [];
     const depLinks: TopologyLink[] = [];
     links.forEach((l) => {
+      const srcId = typeof l.source === "string" ? l.source : (l.source as TopologyNode).id;
+      const tgtId = typeof l.target === "string" ? l.target : (l.target as TopologyNode).id;
+      const si = nodeIdxMap.get(srcId);
+      const ti = nodeIdxMap.get(tgtId);
+      if (si === undefined || ti === undefined) return;
+      if (Math.max(nodes[si].degree, nodes[ti].degree) < MIN_EDGE_DEGREE) return;
       if (l.type === "negation") negLinks.push(l);
       else depLinks.push(l);
+    });
+
+    // Pre-built adjacency map: O(E) once, O(degree) per hover lookup
+    const adjacency = new Map<number, Set<number>>();
+    links.forEach((l) => {
+      const srcId = typeof l.source === "string" ? l.source : (l.source as TopologyNode).id;
+      const tgtId = typeof l.target === "string" ? l.target : (l.target as TopologyNode).id;
+      const si = nodeIdxMap.get(srcId);
+      const ti = nodeIdxMap.get(tgtId);
+      if (si === undefined || ti === undefined) return;
+      if (!adjacency.has(si)) adjacency.set(si, new Set());
+      if (!adjacency.has(ti)) adjacency.set(ti, new Set());
+      adjacency.get(si)!.add(ti);
+      adjacency.get(ti)!.add(si);
     });
 
     function buildLineSegs(
@@ -508,7 +557,7 @@ export function ForceGraph3DV2({
       tgtIdx: number;
       phase: number;
     }> = [];
-    negLinks.forEach((l, li) => {
+    negLinks.slice(0, MAX_PULSE_PARTICLES).forEach((l, li) => {
       const srcId = typeof l.source === "string" ? l.source : (l.source as TopologyNode).id;
       const tgtId = typeof l.target === "string" ? l.target : (l.target as TopologyNode).id;
       const si = nodeIdxMap.get(srcId);
@@ -575,15 +624,7 @@ export function ForceGraph3DV2({
     let neighborSet = new Set<number>();
 
     function computeNeighbors(idx: number): Set<number> {
-      const s = new Set<number>();
-      const nodeId = nodes[idx].id;
-      links.forEach((l) => {
-        const srcId = typeof l.source === "string" ? l.source : (l.source as TopologyNode).id;
-        const tgtId = typeof l.target === "string" ? l.target : (l.target as TopologyNode).id;
-        if (srcId === nodeId) { const ti = nodeIdxMap.get(tgtId); if (ti !== undefined) s.add(ti); }
-        if (tgtId === nodeId) { const si = nodeIdxMap.get(srcId); if (si !== undefined) s.add(si); }
-      });
-      return s;
+      return adjacency.get(idx) ?? new Set();
     }
 
     const raycaster = new THREE.Raycaster();

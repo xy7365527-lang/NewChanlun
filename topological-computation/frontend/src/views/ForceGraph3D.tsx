@@ -126,11 +126,36 @@ function runLayoutStep(
 
 // ── 组件 ────────────────────────────────────────────────────────
 
+// Maximum node count for O(N^2) force layout — above this the view is unusable
+const MAX_FORCE_NODES = 2000;
+
 export function ForceGraph3D({
   data, traversalPosition, focusConcept, onSelectNode,
 }: Props) {
   const mountRef = useRef<HTMLDivElement>(null);
   const [hoveredNode, setHoveredNode] = useState<TopologyNode | null>(null);
+
+  // Scale guard: O(N^2) force layout is not viable above MAX_FORCE_NODES
+  if (data && data.nodes.length > MAX_FORCE_NODES) {
+    return (
+      <div style={{
+        width: "100%", height: "100%",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        flexDirection: "column", gap: 12,
+        fontFamily: "'DM Mono', monospace",
+        color: "#6a6a8a",
+        background: "#0a0a0f",
+      }}>
+        <div style={{ fontSize: 13 }}>
+          3D Force — {data.nodes.length.toLocaleString()} nodes
+        </div>
+        <div style={{ fontSize: 10, color: "#3a3a5a", maxWidth: 320, textAlign: "center" }}>
+          O(N^2) force layout cannot handle {data.nodes.length.toLocaleString()} nodes.
+          Use Galaxy View for full-scale rendering.
+        </div>
+      </div>
+    );
+  }
 
   useEffect(() => {
     const mount = mountRef.current;

@@ -1,12 +1,12 @@
 [Unit]
-Description=FengLiang Daemon Swarm (Persistent Traversal)
+Description=FengLiang Daemon Swarm (3 instances, persistent traversal)
 After=network.target
 
 [Service]
 Type=simple
 User=root
 WorkingDirectory=/root/NewChanlun/topological-computation
-ExecStart=/usr/bin/python3 start_fengliang.py --instances 3 --serve --multiproc --load-experiments
+ExecStart=/usr/bin/python3 start_fengliang.py --instances 3 --multiproc --autonomous --port 9765 --ws-port 8765
 Restart=on-failure
 RestartSec=30
 StandardOutput=append:/root/NewChanlun/tmp/fengliang-daemon.log

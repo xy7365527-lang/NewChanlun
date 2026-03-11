@@ -753,18 +753,26 @@ class SettlementTracker:
             {(e.source, e.target) for e in graph_before.active_edges()}
             if graph_before is not None else None
         )
-        # 410号: purge ghost settlements (already broken before operation)
-        # 415号: sublated cycles are already non-blocking, skip them in ghost check
+        # 410号/415号: ghost settlements（操作前已失效的 cycle）标记为 SUBLATED
         if active_edges_before is not None:
             ghosts = [
                 sc for sc in self._settled
                 if sc.status == "active" and not sc.edges.issubset(active_edges_before)
             ]
             if ghosts:
-                self._settled = [
-                    sc for sc in self._settled
-                    if sc.status == "sublated" or sc.edges.issubset(active_edges_before)
-                ]
+                ghost_edges_set = {sc.edges for sc in ghosts}
+                updated: list[SettledCycle] = []
+                for sc in self._settled:
+                    if sc.edges in ghost_edges_set and sc.status == "active":
+                        updated.append(dataclasses.replace(
+                            sc,
+                            status="sublated",
+                            sublated_at_step=0,
+                            sublated_by="ghost_purge",
+                        ))
+                    else:
+                        updated.append(sc)
+                self._settled = updated
 
         for sc in self._settled:
             if sc.status == "sublated":
@@ -888,9 +896,14 @@ def fold(
             Edge(keep, keep, EdgeType.FOLD, step)
         ) if n_loop > 0 else result_graph
 
-    # Check settlement constraint (396号: pass operation vertices for residue check)
-    # 410号推论4方案B: build merge map for fold isomorphism detection
+    # 415号: fold 执行后，先将失去物理基础的 settled cycle 标记为 SUBLATED，
+    # 然后再检查是否有 active cycle 被破坏。
+    # 顺序至关重要：mark_sublated_cycles 必须在 would_destroy_settled 之前执行，
+    # 否则已失效的 cycle 会阻塞操作，而 mark_sublated 永远无法到达（死锁）。
     merge_map = {v: keep for v in vertices[1:]}
+    settlement.mark_sublated_cycles(result_graph, step=step, operation="fold")
+
+    # 410号推论4方案B: fold isomorphism detection — 仅检查 mark_sublated 后仍为 active 的 cycle
     violated = settlement.would_destroy_settled(
         result_graph, operation_vertices=frozenset(vertices),
         graph_before=graph,
@@ -904,10 +917,6 @@ def fold(
             blocked=True,
             blocked_by=violated,
         )
-
-    # 415号: 将因 fold 操作失效的 settled cycle 标记为 SUBLATED（而非删除）
-    # fold 的 merge 可能让未被直接检查的 cycle 的边失效
-    settlement.mark_sublated_cycles(result_graph, step=step, operation="fold")
 
     beta_after = compute_beta_1(result_graph)
     actual = beta_after - beta_before
@@ -959,10 +968,11 @@ def negate(
         )
         result_graph = result_graph.set_vertex_status(thesis, VertexStatus.CONTESTED)
 
-    # 415号: negate 免检(方案A)不再需要——sublated cycles 自然被 would_destroy_settled 跳过。
-    # negate 只加边不删边 → active cycles 不会被破坏。
-    # sublated cycles 不阻塞 → 无需特殊处理。
-    # 恢复 settlement 检查以保持操作一致性。
+    # 415号: negate 只加边不删边 → active cycles 不会被破坏。
+    # 但仍先执行 mark_sublated_cycles 以确保 ghost settlements 被清除，
+    # 避免 would_destroy_settled 的 ghost purge 路径删除 cycle 而非标记 SUBLATED。
+    settlement.mark_sublated_cycles(result_graph, step=step, operation="negate")
+
     violated = settlement.would_destroy_settled(
         result_graph, operation_vertices=frozenset({thesis, antithesis or ""}),
         graph_before=graph,
@@ -1064,7 +1074,10 @@ def sublate(
         Edge(synthesis_id, antithesis, EdgeType.SUBLATION, step)
     )
 
-    # Check settlement constraint (396号: pass operation vertices for residue check)
+    # 415号: sublate 执行后，先标记 SUBLATED，再检查 active cycle
+    # （与 fold 相同的顺序修复——避免死锁）
+    settlement.mark_sublated_cycles(result_graph, step=step, operation="sublate")
+
     violated = settlement.would_destroy_settled(
         result_graph, operation_vertices=frozenset({thesis, antithesis}),
         graph_before=graph,
@@ -1077,9 +1090,6 @@ def sublate(
             blocked=True,
             blocked_by=violated,
         )
-
-    # 415号: 将因 sublate 操作失效的 settled cycle 标记为 SUBLATED
-    settlement.mark_sublated_cycles(result_graph, step=step, operation="sublate")
 
     beta_after = compute_beta_1(result_graph)
     actual = beta_after - beta_before

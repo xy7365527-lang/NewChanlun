@@ -84,8 +84,22 @@ export function TopologyView({
     // Check if node is a traversal target for any instance
     const isTraversalNode = (id: string) => traversalMap.has(id);
 
+    // ── Performance: filter low-degree nodes for large graphs ────
+    const PERF_THRESHOLD = 5000; // only filter when graph is large
+    const MIN_RENDER_DEGREE = data.nodes.length > PERF_THRESHOLD ? 2 : 0;
+
+    const nodeIdSet = new Set<string>();
+    const filteredDataNodes = data.nodes.filter((n) => {
+      // Always keep: traversal targets, focus, settled, high-degree
+      if (isTraversalNode(n.id) || n.label === focusConcept || n.settled || n.degree >= MIN_RENDER_DEGREE) {
+        nodeIdSet.add(n.id);
+        return true;
+      }
+      return false;
+    });
+
     // Mark traversal node + restore previous positions
-    const nodes: TopologyNode[] = data.nodes.map((n) => {
+    const nodes: TopologyNode[] = filteredDataNodes.map((n) => {
       const prev = nodePositionsRef.current.get(n.id);
       return {
         ...n,
@@ -94,8 +108,14 @@ export function TopologyView({
       };
     });
 
-    // Deep-copy links because d3 mutates source/target from string -> object
-    const links: TopologyLink[] = data.links.map((l) => ({
+    // Deep-copy links — only keep links where both endpoints are rendered
+    const links: TopologyLink[] = data.links
+      .filter((l) => {
+        const src = typeof l.source === "string" ? l.source : (l.source as TopologyNode).id;
+        const tgt = typeof l.target === "string" ? l.target : (l.target as TopologyNode).id;
+        return nodeIdSet.has(src) && nodeIdSet.has(tgt);
+      })
+      .map((l) => ({
       source: typeof l.source === "string" ? l.source : (l.source as TopologyNode).id,
       target: typeof l.target === "string" ? l.target : (l.target as TopologyNode).id,
       type: l.type,
@@ -257,10 +277,10 @@ export function TopologyView({
     // ── Instance traversal path highlights ────────────────────
     // For each visible instance, draw faint colored rings on history nodes
     const pathGroup = g.append("g");
-    const nodeIdSet = new Set(nodes.map((n) => n.id));
+    const renderedNodeIds = new Set(nodes.map((n) => n.id));
     for (const [, { nodeIds, color }] of historyMap) {
       for (const nodeId of nodeIds) {
-        if (!nodeIdSet.has(nodeId) || traversalMap.has(nodeId)) continue;
+        if (!renderedNodeIds.has(nodeId) || traversalMap.has(nodeId)) continue;
         const matchNode = nodes.find((n) => n.id === nodeId);
         if (!matchNode) continue;
         pathGroup.append("circle")

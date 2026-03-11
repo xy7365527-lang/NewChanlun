@@ -6005,3 +6005,8 @@ edges:
   - target: '105'
     by: '116'
     scope: partial:过强声明修正，方向意图保留
+genealogy:
+  settled:
+  - '420'
+  - '421'
+  - '422'
