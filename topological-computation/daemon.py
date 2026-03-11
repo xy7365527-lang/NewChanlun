@@ -560,15 +560,54 @@ class TopologicalDaemon:
         Layer A: K_active vertex content -> signifier nodes
         Layer B: chanlun_surface_forms.jsonl -> syntagmatic edges (PMI weighted)
         Layer C: paradigmatic seeds (chanlun synonym/replacement pairs)
+        + Dictionary ingest + Text corpus ingest
+
+        Cache strategy (snet_cache.py):
+          1. Check if cached S_net exists and manifest matches current files
+             - Full match -> load from cache, skip all ingestion
+             - Partial match -> load cache + incremental ingest of changed files
+             - No match -> full ingest + save cache
+          2. Cache file: ~/.swarm/persist/snet_cache/snet_cache.pkl.gz
 
         Graceful degradation: if data file is missing or bootstrap fails,
         self.snet remains an empty SNet and daemon continues normally.
         """
         try:
-            from snet_bootstrap import bootstrap_snet
+            import time as _time
 
             script_dir = Path(os.path.dirname(os.path.abspath(__file__)))
             sf_path = script_dir / "data" / "chanlun_surface_forms.jsonl"
+            dict_dir = script_dir / "signifier_net" / "dictionaries"
+            corpus_root = script_dir / "signifier_net" / "corpora"
+
+            # --- Try cache first ---
+            try:
+                from snet_cache import try_load_cached_snet, save_after_full_ingest
+
+                t0 = _time.time()
+                cached_snet, used_cache = try_load_cached_snet(
+                    dict_dir=dict_dir if dict_dir.is_dir() else None,
+                    corpus_root=corpus_root if corpus_root.is_dir() else None,
+                    surface_forms_path=sf_path if sf_path.exists() else None,
+                    graph=self.k_active,
+                )
+                if used_cache and cached_snet is not None:
+                    self.snet = cached_snet
+                    elapsed = _time.time() - t0
+                    n_sigs = len(self.snet._signifiers)
+                    n_edges = len(self.snet._edges)
+                    print(
+                        f"S_net from cache: {n_sigs} signifiers, {n_edges} edges "
+                        f"({elapsed:.1f}s — skipped full ingest)",
+                        file=sys.stderr,
+                    )
+                    return
+            except Exception as cache_exc:
+                print(f"S_net cache check failed (proceeding with full ingest): {cache_exc}", file=sys.stderr)
+
+            # --- Full ingest (cache miss or cache unavailable) ---
+            t0 = _time.time()
+            from snet_bootstrap import bootstrap_snet
 
             snet, stats = bootstrap_snet(
                 graph=self.k_active,
@@ -598,6 +637,21 @@ class TopologicalDaemon:
 
             # Text corpus ingest: enrich S_net with raw text co-occurrences + surface forms
             self._ingest_text_corpora()
+
+            elapsed = _time.time() - t0
+            print(f"S_net full ingest completed in {elapsed:.1f}s", file=sys.stderr)
+
+            # --- Save cache after full ingest ---
+            try:
+                from snet_cache import save_after_full_ingest
+                save_after_full_ingest(
+                    self.snet,
+                    dict_dir=dict_dir if dict_dir.is_dir() else None,
+                    corpus_root=corpus_root if corpus_root.is_dir() else None,
+                    surface_forms_path=sf_path if sf_path.exists() else None,
+                )
+            except Exception as save_exc:
+                print(f"S_net cache save failed (non-fatal): {save_exc}", file=sys.stderr)
 
         except Exception as exc:
             print(f"S_net bootstrap failed (graceful degradation): {exc}", file=sys.stderr)
