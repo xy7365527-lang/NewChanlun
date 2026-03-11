@@ -1,0 +1,29 @@
+{
+  "timestamp": "20260311T065359",
+  "items": [
+    {
+      "level": "L1",
+      "type": "broken_dependency_chains",
+      "count": 39,
+      "top_5": [
+        "041",
+        "046",
+        "063",
+        "067",
+        "069"
+      ],
+      "action": "auto-diagnose"
+    },
+    {
+      "level": "L2",
+      "type": "unstable_settled",
+      "count": 2,
+      "ids": [
+        "122",
+        "067"
+      ],
+      "action": "review-premise-validity"
+    }
+  ],
+  "scan_head": "eccb5e1"
+}
