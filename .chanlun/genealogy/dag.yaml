@@ -2141,6 +2141,12 @@ nodes:
   status: 生成态
   type: meta-rule
   file: pending/428-meta-observation-v228-swarm.md
+- id: '429'
+  title: 元观察——v229-swarm（Phase 1.5 dialogue_ingest + Phase 2 ARTICULATE 实装 + 持久化溯源断裂
+    + scan 状态不可观测模式 + 蜂群节奏分析）
+  status: 生成态
+  type: meta-rule
+  file: pending/429-meta-observation-v229-swarm.md
 edges:
   depends_on:
   - from: '136'
@@ -4463,6 +4469,20 @@ edges:
     to: 090
   - from: '428'
     to: '275'
+  - from: '429'
+    to: '428'
+  - from: '429'
+    to: '427'
+  - from: '429'
+    to: '218'
+  - from: '429'
+    to: '137'
+  - from: '429'
+    to: 090
+  - from: '429'
+    to: '275'
+  - from: '429'
+    to: '425'
   triggered:
   - from: '005'
     to: 005a
@@ -6074,6 +6094,9 @@ edges:
   - between:
     - '427'
     - '428'
+  - between:
+    - '425'
+    - '429'
   negated_by:
   - target: '032'
     by: 088
@@ -6102,3 +6125,17 @@ genealogy:
   - '420'
   - '421'
   - '422'
+'429':
+  status: 已结算
+  type: meta-rule
+  file: settled/429-meta-observation-v229-swarm.md
+  depends_on:
+  - '428'
+  - '427'
+  - '218'
+  - '137'
+  - 090
+  - '275'
+  - '425'
+  tensions_with:
+  - '425'
