@@ -2116,9 +2116,9 @@ nodes:
   file: settled/423-meta-observation-v225-swarm.md
 - id: '424'
   title: S_net 持久化缓存实装——423号候选5的工程闭合
-  status: 生成态
+  status: 已结算
   type: 回溯结算
-  file: pending/424-snet-persistence-implementation.md
+  file: settled/424-snet-persistence-implementation.md
 - id: '425'
   title: S_net 入图问题——917K 共现边对穿越密度贡献为零
   status: 生成态
