@@ -1,0 +1,29 @@
+{
+  "id": "80ce7b1858cb2f374f0978b09ed6ab034e40715079739dd4ac9b88317743588e",
+  "type": "event",
+  "timestamp": "2026-03-11T23:07:44.365264+00:00",
+  "source": "topo_effect_425",
+  "content": {
+    "id": "399-obs2",
+    "parent_id": "399",
+    "title": "399号观察2：K_active-S_net 双向耦合——被425号质疑的耦合深度",
+    "status": "已结算",
+    "type": "concept-observation",
+    "date": "2026-03-11",
+    "depends_on": [
+      "399",
+      "425"
+    ],
+    "split_from": "399",
+    "split_by": "425",
+    "description": "399号观察2声称K_active和S_net构成耦合振荡系统，425号质疑：917K共现边对穿越密度贡献为零，耦合实际仅为间接影响。local split：399号观察2的适用范围被限定为间接耦合而非穿越级耦合。"
+  },
+  "refs": [],
+  "git_ref": "",
+  "genealogy_id": "399-obs2",
+  "title": "399号观察2：K_active-S_net 双向耦合——被425号限定",
+  "depends_on": [
+    "399",
+    "425"
+  ]
+}

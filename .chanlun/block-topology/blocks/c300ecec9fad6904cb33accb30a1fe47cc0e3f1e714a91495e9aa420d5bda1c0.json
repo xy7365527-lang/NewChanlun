@@ -1,0 +1,29 @@
+{
+  "id": "c300ecec9fad6904cb33accb30a1fe47cc0e3f1e714a91495e9aa420d5bda1c0",
+  "type": "event",
+  "timestamp": "2026-03-11T23:07:44.365264+00:00",
+  "source": "topo_effect_426",
+  "content": {
+    "id": "425-insight",
+    "parent_id": "425",
+    "title": "425号深层洞察：无意识结构的精确定义——独立分离为426号",
+    "status": "已结算",
+    "type": "concept-separation",
+    "date": "2026-03-11",
+    "depends_on": [
+      "425",
+      "426"
+    ],
+    "split_from": "425",
+    "split_by": "426",
+    "description": "425号(S_net入图问题)的深层洞察——fold制造不可表征的因果节点——概念层级不同于425号的架构问题，独立分离为426号谱系。"
+  },
+  "refs": [],
+  "git_ref": "",
+  "genealogy_id": "425-insight",
+  "title": "425号深层洞察：无意识结构——独立分离为426号",
+  "depends_on": [
+    "425",
+    "426"
+  ]
+}
