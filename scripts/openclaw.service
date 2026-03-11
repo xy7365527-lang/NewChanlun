@@ -1,12 +1,13 @@
 [Unit]
-Description=OpenClaw Dual-Coupling Scheduler
-After=network.target
+Description=OpenClaw Dual-Coupling Scheduler (切分端)
+After=fengliang.service
+Requires=fengliang.service
 
 [Service]
 Type=simple
 User=root
 WorkingDirectory=/root/NewChanlun
-ExecStart=/usr/bin/python3 scripts/openclaw_scheduler.py --loop --instances 3 --steps 1000 --interval 1800
+ExecStart=/usr/bin/python3 scripts/openclaw_scheduler.py --loop --interval 1800
 Restart=on-failure
 RestartSec=60
 StandardOutput=append:/root/NewChanlun/tmp/openclaw-scheduler.log

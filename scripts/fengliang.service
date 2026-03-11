@@ -1,0 +1,16 @@
+[Unit]
+Description=FengLiang Daemon Swarm (Persistent Traversal)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/NewChanlun/topological-computation
+ExecStart=/usr/bin/python3 start_fengliang.py --instances 3 --serve --multiproc --load-experiments
+Restart=on-failure
+RestartSec=30
+StandardOutput=append:/root/NewChanlun/tmp/fengliang-daemon.log
+StandardError=append:/root/NewChanlun/tmp/fengliang-daemon.log
+
+[Install]
+WantedBy=multi-user.target
