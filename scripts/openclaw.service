@@ -1,0 +1,16 @@
+[Unit]
+Description=OpenClaw Dual-Coupling Scheduler
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/NewChanlun
+ExecStart=/usr/bin/python3 scripts/openclaw_scheduler.py --loop --steps 100 --interval 1800
+Restart=on-failure
+RestartSec=60
+StandardOutput=append:/root/NewChanlun/tmp/openclaw-scheduler.log
+StandardError=append:/root/NewChanlun/tmp/openclaw-scheduler.log
+
+[Install]
+WantedBy=multi-user.target
