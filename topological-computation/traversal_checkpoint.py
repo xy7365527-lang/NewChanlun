@@ -38,7 +38,8 @@ class EncounterLogWriter:
 
     def record(self, step: int, operation: str, position: str,
                beta_1_before: int, beta_1_after: int,
-               f_value: float = -99, blocked: bool = False,
+               f_value: float = -99, g_value: float = -99,
+               blocked: bool = False,
                context: str = "") -> None:
         entry = {
             "ts": time.time(),
@@ -48,6 +49,7 @@ class EncounterLogWriter:
             "beta_1_before": beta_1_before,
             "beta_1_after": beta_1_after,
             "f_value": f_value,
+            "g_value": g_value,
             "blocked": blocked,
             "context": context[:200],
         }

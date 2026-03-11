@@ -658,6 +658,7 @@ class SettlementTracker:
         self,
         graph_after: Graph,
         operation_vertices: frozenset[str] | None = None,
+        graph_before: Graph | None = None,
     ) -> SettledCycle | None:
         """Check if graph_after destroys any settled cycle.
 
@@ -665,18 +666,41 @@ class SettlementTracker:
         referenced by residue items), allow it — settlement protects the
         cycle's edges, not its residue.
 
+        410号修复: if graph_before is provided, only report a cycle as
+        destroyed if it was intact before the operation but broken after.
+        Ghost settlements (already broken before the operation) are purged
+        rather than blocking the operation.
+
         Args:
             graph_after: the graph state after the proposed operation
             operation_vertices: vertices directly involved in the operation
                 (e.g., fold targets, negate endpoints). If all of these are
                 residue vertices, the operation is allowed even if it would
                 modify a settled cycle's edge set.
+            graph_before: the graph state before the operation. If provided,
+                cycles already broken in graph_before are purged (not blocked).
         """
-        active_edges = {(e.source, e.target) for e in graph_after.active_edges()}
+        active_edges_after = {(e.source, e.target) for e in graph_after.active_edges()}
+        active_edges_before = (
+            {(e.source, e.target) for e in graph_before.active_edges()}
+            if graph_before is not None else None
+        )
         residue_vids = self.residue_vertices() if operation_vertices else set()
 
+        # 410号: purge ghost settlements (already broken before operation)
+        if active_edges_before is not None:
+            ghosts = [
+                sc for sc in self._settled
+                if not sc.edges.issubset(active_edges_before)
+            ]
+            if ghosts:
+                self._settled = [
+                    sc for sc in self._settled
+                    if sc.edges.issubset(active_edges_before)
+                ]
+
         for sc in self._settled:
-            if not sc.edges.issubset(active_edges):
+            if not sc.edges.issubset(active_edges_after):
                 # This settled cycle would be destroyed.
                 # 396号: allow if the operation only touches residue vertices
                 if (
@@ -786,6 +810,7 @@ def fold(
     # Check settlement constraint (396号: pass operation vertices for residue check)
     violated = settlement.would_destroy_settled(
         result_graph, operation_vertices=frozenset(vertices),
+        graph_before=graph,
     )
     if violated is not None:
         return OperationResult(
@@ -850,6 +875,7 @@ def negate(
     negate_verts = frozenset({thesis} | ({antithesis} if antithesis in active else set()))
     violated = settlement.would_destroy_settled(
         result_graph, operation_vertices=negate_verts,
+        graph_before=graph,
     )
     if violated is not None:
         return OperationResult(
@@ -951,6 +977,7 @@ def sublate(
     # Check settlement constraint (396号: pass operation vertices for residue check)
     violated = settlement.would_destroy_settled(
         result_graph, operation_vertices=frozenset({thesis, antithesis}),
+        graph_before=graph,
     )
     if violated is not None:
         return OperationResult(

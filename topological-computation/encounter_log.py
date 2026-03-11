@@ -57,12 +57,20 @@ class EncounterLog:
         beta_1_after: Optional[int] = None,
         session: Optional[str] = None,
         step: Optional[int] = None,
+        graph_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+        g_value: int = -99,
+        jaccard_similarity: float = -1.0,
     ) -> dict:
         """Record one encounter event. Returns the event dict.
 
         Args:
             step: traversal step number (used for history node vertex_id).
                   If None, no history node metadata is attached.
+            graph_id: instance identity (hostname-PID) for session isolation.
+            session_id: walker session identifier (unique per daemon run).
+            g_value: vertex-disjoint path count g(v,w) — 392·2 annotation.
+            jaccard_similarity: Jaccard similarity of neighbor sets.
         """
         event = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -70,10 +78,14 @@ class EncounterLog:
             "concept_b": concept_b,
             "encounter_type": encounter_type,
             "f_value": f_value,
+            "g_value": g_value,
+            "jaccard_similarity": round(jaccard_similarity, 4),
             "context": context,
             "beta_1_before": beta_1_before,
             "beta_1_after": beta_1_after,
             "session": session,
+            "graph_id": graph_id,
+            "session_id": session_id,
         }
         if step is not None:
             event["step"] = step

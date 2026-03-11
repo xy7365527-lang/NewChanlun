@@ -7,7 +7,8 @@ status: 已结算
 date: 2026-03-10
 source: v215-session
 depends_on: ['390', '391', '392', '393', '395']
-topo_effect: ""
+negates: ['390']
+topo_effect: "split:390-1:local — β₁有界增长被否定为图依赖动态模式; split:390-2:local — settlement保护递增性在small图上不成立"
 tensions_with: []
 ---
 
@@ -74,11 +75,11 @@ tensions_with: []
 
 ## 下游推论
 
-1. **events.jsonl 需要 session 隔离标记**: 多图混合严重影响分析——每个 walker session 应有唯一 ID，每个事件记录应包含 graph_id 和 session_id
-2. **g_value/jaccard 应记录在事件日志**: 当前只记录 f_value，缺少 391-2/392-1 验证所需数据。encounter_step() 应在事件中附加 g_value 和 jaccard_similarity
-3. **negate 100% blocked 需要诊断**: settlement 锁区过大导致穿越引擎丧失否定能力——这是架构级问题，不是参数调优问题
-4. **β₁动态模式重新表征**: 390号的"有界增长"应修正为"图依赖的动态模式"——small图稳态振荡，medium图大幅震荡，不存在统一的增长形态
-5. **f-value与fold成功的强关联**: Cohen's d=1.135表明f值确实是fold可行性的强信号，但方向与直觉相反——f值更高时fold更可能成功（而非f=0时）
+1. **events.jsonl 需要 session 隔离标记**: 多图混合严重影响分析——每个 walker session 应有唯一 ID，每个事件记录应包含 graph_id 和 session_id → `deferred: 需要引擎层修改——encounter_step()和fold_step()的事件记录格式需增加graph_id/session_id字段` [covered: 410-1, deferred — 引擎层修改]
+2. **g_value/jaccard 应记录在事件日志**: 当前只记录 f_value，缺少 391-2/392-1 验证所需数据。encounter_step() 应在事件中附加 g_value 和 jaccard_similarity → `deferred: 需要引擎层修改——event schema扩展` [covered: 410-2, deferred — 引擎层修改]
+3. **negate 100% blocked 需要诊断**: settlement 锁区过大导致穿越引擎丧失否定能力——这是架构级问题，不是参数调优问题 → `deferred: 已知问题（MEMORY.md记录），需要settlement锁区缩小方案` [covered: 410-3, deferred — 架构级诊断]
+4. **β₁动态模式重新表征**: 390号的"有界增长"应修正为"图依赖的动态模式"——small图稳态振荡，medium图大幅震荡，不存在统一的增长形态 → `resolved: 已在390号中添加修正标记（2026-03-11），390-1被否定、390-2被分裂、390-3被确认` [covered: 410-4, resolved — 390号已更新]
+5. **f-value与fold成功的强关联**: Cohen's d=1.135表明f值确实是fold可行性的强信号，但方向与直觉相反——f值更高时fold更可能成功（而非f=0时） → `noted: 此发现与393号f=0充分条件形成张力——f=0排除negate/sublate（100%选择性），但fold成功更关联高f值（d=1.135）。两者不矛盾：f=0是必要条件方向的筛选器，高f值是充分条件方向的预测器` [covered: 410-5, noted — f值双向角色记录]
 
 ## 影响声明
 
