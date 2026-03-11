@@ -638,6 +638,9 @@ class TopologicalDaemon:
             # Text corpus ingest: enrich S_net with raw text co-occurrences + surface forms
             self._ingest_text_corpora()
 
+            # Dialogue session ingest: CC session text → S_net co-occurrences → block topology
+            self._ingest_dialogue_sessions()
+
             elapsed = _time.time() - t0
             print(f"S_net full ingest completed in {elapsed:.1f}s", file=sys.stderr)
 
@@ -735,6 +738,48 @@ class TopologicalDaemon:
 
         except Exception as exc:
             print(f"Text corpus ingest failed (graceful degradation): {exc}", file=sys.stderr)
+
+    def _ingest_dialogue_sessions(self) -> None:
+        """Ingest CC session dialogue text into S_net + block topology.
+
+        Scans .chanlun/sessions/*.md for dialogue text, extracts semantic
+        paragraphs, and feeds them through ingest_text_passage_batch.
+        Dedup via state file tracks processed file hashes.
+
+        Graceful degradation: if sessions dir is missing or ingest fails,
+        S_net remains unchanged.
+        """
+        try:
+            from dialogue_ingest import ingest_sessions
+
+            script_dir = Path(os.path.dirname(os.path.abspath(__file__)))
+            repo_root = script_dir.parent
+            sessions_dir = repo_root / ".chanlun" / "sessions"
+            state_file = script_dir / "signifier_net" / ".dialogue_ingest_state.json"
+
+            if not sessions_dir.is_dir():
+                return
+
+            self.snet, result = ingest_sessions(
+                snet=self.snet,
+                bt_writer=self._persist,
+                sessions_dir=sessions_dir,
+                state_file=state_file,
+            )
+
+            if result.files_processed > 0:
+                print(
+                    f"  dialogue ingest: {result.files_processed} files, "
+                    f"{result.paragraphs_ingested} paragraphs, "
+                    f"{result.cooccurrence_entries} cooccurrences",
+                    file=sys.stderr,
+                )
+            if result.errors:
+                for err in result.errors:
+                    print(f"  dialogue ingest error: {err}", file=sys.stderr)
+
+        except Exception as exc:
+            print(f"Dialogue session ingest failed (graceful degradation): {exc}", file=sys.stderr)
 
     def register_callback(self, event_type: str, callback) -> None:
         """Register a callback for an event type."""

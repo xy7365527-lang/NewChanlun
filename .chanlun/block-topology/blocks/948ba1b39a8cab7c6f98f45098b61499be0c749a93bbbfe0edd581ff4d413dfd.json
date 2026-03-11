@@ -1,0 +1,37 @@
+{
+  "id": "948ba1b39a8cab7c6f98f45098b61499be0c749a93bbbfe0edd581ff4d413dfd",
+  "type": "event",
+  "timestamp": "2026-03-11T23:45:50.669175+00:00",
+  "source": "cc",
+  "content": {
+    "id": "427",
+    "title": "元观察——v227-swarm（425号Phase1 PoC实装 + 426号无意识精确定义 + 编排者概念密集输入 + dag.yaml TypeA修复 + 异步审计正常）",
+    "status": "已结算",
+    "type": "meta-rule",
+    "date": "2026-03-11",
+    "source": "meta-observer（二阶观察，v227-swarm session 触发）",
+    "depends_on": [
+      "423",
+      "422",
+      "218",
+      "137",
+      "090"
+    ],
+    "epistemological_level": "L0",
+    "key_events": [
+      "425号 Phase 1 PoC 实装",
+      "426号概念分离——无意识结构精确定义",
+      "编排者概念密集输入",
+      "dag.yaml TypeA 修复",
+      "异步审计正常"
+    ],
+    "observations": [
+      "Lead 并行化（218号）——合规",
+      "格式遵守（137号）——基本合规",
+      "meta-observer/topology-analyst 超时（连续三轮）",
+      "编排者消息处理——ceremony 中实时读取"
+    ]
+  },
+  "refs": [],
+  "git_ref": "c937c0d"
+}

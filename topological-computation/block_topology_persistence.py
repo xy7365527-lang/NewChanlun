@@ -356,6 +356,49 @@ class BlockTopologyWriter:
             "timestamp": timestamp,
         })
 
+    def append_articulation(
+        self,
+        source_vid: str,
+        target_vid: str,
+        score: float,
+        step: int,
+        cooc_weight: float,
+        ta_count: int,
+        step_gap: int,
+        timestamp: str,
+    ):
+        """Write an ARTICULATION block to block topology (concept layer emergence).
+
+        425号 Phase 2: 物質層積累涌現為概念層連接。
+        Records the material→concept transition with provenance.
+        """
+        content = {
+            "event_type": "articulation",
+            "domain": DOMAIN_HISTORY,
+            "source_vid": source_vid,
+            "target_vid": target_vid,
+            "score": score,
+            "step": step,
+            "cooc_weight": cooc_weight,
+            "ta_count": ta_count,
+            "step_gap": step_gap,
+            "timestamp": timestamp,
+        }
+        block = make_block("event", DAEMON_SOURCE, content)
+        write_block(block, base=self.bt_base)
+
+        self._write_jsonl_backup({
+            "type": "articulation",
+            "source_vid": source_vid,
+            "target_vid": target_vid,
+            "score": score,
+            "step": step,
+            "cooc_weight": cooc_weight,
+            "ta_count": ta_count,
+            "step_gap": step_gap,
+            "timestamp": timestamp,
+        })
+
 
 def load_graph_from_block_topology(
     bt_base: Path = DAEMON_BT_BASE,

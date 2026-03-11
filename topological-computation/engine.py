@@ -31,6 +31,7 @@ class EdgeType(str, Enum):
     FOLD = "fold"
     COOCCURRENCE = "cooccurrence"  # 物质层(Dass): S_net共现边按需拉入，不参与fold/negate/sublate
     TRAVERSAL_ASSOCIATION = "traversal_association"  # 物质层(Dass): 穿越痕迹，immutable，不参与fold/negate/sublate
+    ARTICULATED = "articulated"  # 概念层: 物质层积累涌现的概念连接（ça parle），参与fold/negate/sublate
 
 
 # 概念层边类型集合——fold/negate/sublate/settlement 只操作这些边
@@ -40,6 +41,7 @@ CONCEPT_EDGE_TYPES = frozenset({
     EdgeType.SUBLATION,
     EdgeType.REFERENCE,
     EdgeType.FOLD,
+    EdgeType.ARTICULATED,
 })
 
 
