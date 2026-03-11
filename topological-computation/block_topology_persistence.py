@@ -45,6 +45,7 @@ DAEMON_SOURCE = "cc"
 DOMAIN_GRAPH = "graph"
 DOMAIN_HISTORY = "history"
 DOMAIN_GROWTH = "growth"
+DOMAIN_MATERIAL = "material"  # 425号: 物质层 (Dass) — COOCCURRENCE + TRAVERSAL_ASSOCIATION
 
 
 class BlockTopologyWriter:
@@ -283,6 +284,76 @@ class BlockTopologyWriter:
             "type": "settlement",
             "step": step,
             "edges": cycle_edges,
+        })
+
+    def append_cooccurrence(
+        self,
+        source_signifier: str,
+        target_signifier: str,
+        weight: float,
+        corpus_source: str,
+        ingest_params: dict,
+        timestamp: str,
+    ):
+        """Write a COOCCURRENCE block to block topology (immutable, material layer).
+
+        Each S_net co-occurrence edge becomes one block. Old blocks are never deleted;
+        new ingestion produces new blocks.
+        """
+        content = {
+            "event_type": "cooccurrence",
+            "domain": DOMAIN_MATERIAL,
+            "source_signifier": source_signifier,
+            "target_signifier": target_signifier,
+            "weight": weight,
+            "corpus_source": corpus_source,
+            "ingest_params": ingest_params,
+            "timestamp": timestamp,
+        }
+        block = make_block("event", DAEMON_SOURCE, content)
+        write_block(block, base=self.bt_base)
+
+        self._write_jsonl_backup({
+            "type": "cooccurrence",
+            "source_signifier": source_signifier,
+            "target_signifier": target_signifier,
+            "weight": weight,
+            "corpus_source": corpus_source,
+            "timestamp": timestamp,
+        })
+
+    def append_traversal_association(
+        self,
+        from_signifier: str,
+        to_signifier: str,
+        traversal_id: str,
+        step_number: int,
+        timestamp: str,
+    ):
+        """Write a TRAVERSAL_ASSOCIATION block to block topology (immutable, material layer).
+
+        Records traversal path as material-layer sediment. Each step that moves
+        between vertices with signifier mappings produces one block.
+        """
+        content = {
+            "event_type": "traversal_association",
+            "domain": DOMAIN_MATERIAL,
+            "from_signifier": from_signifier,
+            "to_signifier": to_signifier,
+            "traversal_id": traversal_id,
+            "step_number": step_number,
+            "timestamp": timestamp,
+        }
+        block = make_block("event", DAEMON_SOURCE, content)
+        write_block(block, base=self.bt_base)
+
+        self._write_jsonl_backup({
+            "type": "traversal_association",
+            "from_signifier": from_signifier,
+            "to_signifier": to_signifier,
+            "traversal_id": traversal_id,
+            "step_number": step_number,
+            "timestamp": timestamp,
         })
 
 

@@ -970,6 +970,132 @@ class TraversalEngine:
 
         return False
 
+    def _pull_cooccurrence_edges(self) -> None:
+        """Pull S_net co-occurrence neighbors into K_active as COOCCURRENCE edges on demand.
+
+        425号 Phase 1: 穿越到新节点时，查询 S_net 该节点对应能指的共现邻居。
+        共现邻居如果对应 K_active 中的已有顶点 → 添加 COOCCURRENCE 边（不创建概念层边）。
+        COOCCURRENCE 边参与导航（neighbors/all_active_edges）但不参与 fold/negate/sublate/beta_1。
+
+        Only pulls for the current position. Edges are deduplicated — if a COOCCURRENCE edge
+        already exists between two vertices, it is not added again.
+        """
+        if self._snet_activation is None:
+            return
+
+        concept_id = self.position
+        signifier_id = self._snet_activation._concept_to_sig.get(concept_id)
+        if not signifier_id:
+            return
+
+        snet = self._snet_activation.s_net
+        # Get degree-normalized co-occurrence neighbors (top 10)
+        cooc_neighbors = snet.degree_normalized_neighbors(signifier_id, n=10)
+        if not cooc_neighbors:
+            return
+
+        active_vids = set(self.k_active.active_vertex_ids())
+
+        # Build set of existing COOCCURRENCE edge targets from this vertex for dedup
+        existing_cooc_targets: set[str] = set()
+        for e in self.k_active.all_active_edges():
+            if e.edge_type == EdgeType.COOCCURRENCE and e.source == concept_id:
+                existing_cooc_targets.add(e.target)
+            elif e.edge_type == EdgeType.COOCCURRENCE and e.target == concept_id:
+                existing_cooc_targets.add(e.source)
+
+        for edge in cooc_neighbors:
+            target_sig = edge.target
+            # Map signifier back to K_active concept(s)
+            target_concepts = self._snet_activation._sig_to_concepts.get(target_sig, [])
+
+            if target_concepts:
+                # Existing K_active vertices — add COOCCURRENCE edge if not present
+                for tgt_cid in target_concepts:
+                    if tgt_cid == concept_id:
+                        continue
+                    if tgt_cid not in active_vids:
+                        continue
+                    if tgt_cid in existing_cooc_targets:
+                        continue
+                    cooc_edge = Edge(
+                        source=concept_id,
+                        target=tgt_cid,
+                        edge_type=EdgeType.COOCCURRENCE,
+                        created_at=self.step,
+                        surface=edge.evidence if edge.evidence else None,
+                        context=f"snet_cooccurrence: {signifier_id}->{target_sig} w={edge.weight:.3f}",
+                    )
+                    self.k_active = self.k_active.add_edge(cooc_edge)
+                    self.k_full = self.k_full.add_edge(cooc_edge)
+                    existing_cooc_targets.add(tgt_cid)
+            else:
+                # No K_active vertex for this signifier — create one + COOCCURRENCE edge
+                new_vid = f"cooc_{target_sig}"
+                if new_vid in active_vids:
+                    if new_vid not in existing_cooc_targets:
+                        cooc_edge = Edge(
+                            source=concept_id,
+                            target=new_vid,
+                            edge_type=EdgeType.COOCCURRENCE,
+                            created_at=self.step,
+                            surface=edge.evidence if edge.evidence else None,
+                            context=f"snet_cooccurrence: {signifier_id}->{target_sig} w={edge.weight:.3f}",
+                        )
+                        self.k_active = self.k_active.add_edge(cooc_edge)
+                        self.k_full = self.k_full.add_edge(cooc_edge)
+                        existing_cooc_targets.add(new_vid)
+                    continue
+                new_vertex = Vertex(
+                    id=new_vid,
+                    status=VertexStatus.ACTIVE,
+                    content=target_sig,
+                    created_at=self.step,
+                )
+                self.k_active = self.k_active.add_vertex(new_vertex)
+                self.k_full = self.k_full.add_vertex(new_vertex)
+                cooc_edge = Edge(
+                    source=concept_id,
+                    target=new_vid,
+                    edge_type=EdgeType.COOCCURRENCE,
+                    created_at=self.step,
+                    surface=edge.evidence if edge.evidence else None,
+                    context=f"snet_cooccurrence: {signifier_id}->{target_sig} w={edge.weight:.3f}",
+                )
+                self.k_active = self.k_active.add_edge(cooc_edge)
+                self.k_full = self.k_full.add_edge(cooc_edge)
+                # Update mapping so future lookups find this vertex
+                self._snet_activation._sig_to_concepts.setdefault(target_sig, []).append(new_vid)
+                active_vids.add(new_vid)
+                existing_cooc_targets.add(new_vid)
+
+    def _record_traversal_association(self, from_vid: str, to_vid: str) -> None:
+        """Record a TRAVERSAL_ASSOCIATION edge between two vertices (material layer sediment).
+
+        425号 Phase 1: 穿越步进后，记录穿越路径为 TRAVERSAL_ASSOCIATION 边。
+        Only records if both vertices have signifier mappings in S_net.
+        TRAVERSAL_ASSOCIATION edges are immutable, participate in navigation but not
+        fold/negate/sublate/beta_1.
+        """
+        if self._snet_activation is None:
+            return
+
+        from_sig = self._snet_activation._concept_to_sig.get(from_vid)
+        to_sig = self._snet_activation._concept_to_sig.get(to_vid)
+        if not from_sig or not to_sig:
+            return
+
+        ta_edge = Edge(
+            source=from_vid,
+            target=to_vid,
+            edge_type=EdgeType.TRAVERSAL_ASSOCIATION,
+            created_at=self.step,
+            surface=f"{from_sig}->{to_sig}",
+            context=f"traversal_step:{self.step}",
+        )
+        self.k_active = self.k_active.add_edge(ta_edge)
+        self.k_full = self.k_full.add_edge(ta_edge)
+
     def walk(self) -> None:
         """Move to an adjacent vertex. Prefer critical edges, then unvisited, then random.
 
@@ -1070,6 +1196,7 @@ class TraversalEngine:
         self.step += 1
         self._last_resonance = False
         explored = False
+        prev_position = self.position  # 425号: record for TRAVERSAL_ASSOCIATION
 
         # Exploration move: periodically jump to under-explored vertex
         if self.step > 1 and self.step % EXPLORATION_INTERVAL == 0:
@@ -1116,6 +1243,13 @@ class TraversalEngine:
         else:
             self._nothing_streak += 1
             self.walk()
+
+        # S_net material layer (Dass): pull COOCCURRENCE edges on demand
+        self._pull_cooccurrence_edges()
+
+        # 425号: record TRAVERSAL_ASSOCIATION edge (material layer sediment)
+        if prev_position != self.position:
+            self._record_traversal_association(prev_position, self.position)
 
         # S_net coupling: activate signifier for new position + check articulation feedback
         if self._snet_activation is not None:

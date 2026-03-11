@@ -29,6 +29,18 @@ class EdgeType(str, Enum):
     SUBLATION = "sublation"
     REFERENCE = "reference"
     FOLD = "fold"
+    COOCCURRENCE = "cooccurrence"  # 物质层(Dass): S_net共现边按需拉入，不参与fold/negate/sublate
+    TRAVERSAL_ASSOCIATION = "traversal_association"  # 物质层(Dass): 穿越痕迹，immutable，不参与fold/negate/sublate
+
+
+# 概念层边类型集合——fold/negate/sublate/settlement 只操作这些边
+CONCEPT_EDGE_TYPES = frozenset({
+    EdgeType.DEPENDENCY,
+    EdgeType.NEGATION,
+    EdgeType.SUBLATION,
+    EdgeType.REFERENCE,
+    EdgeType.FOLD,
+})
 
 
 # ---------------------------------------------------------------------------
@@ -97,6 +109,25 @@ class Graph:
         ]
 
     def active_edges(self) -> list[Edge]:
+        """Return edges between active vertices, excluding material layer (COOCCURRENCE, TRAVERSAL_ASSOCIATION).
+
+        Material layer edges are visible to traversal (via neighbors/all_active_edges)
+        but invisible to fold/negate/sublate/beta_1/settlement — they are material (Dass),
+        not conceptual (Was).
+        """
+        active = set(self.active_vertex_ids())
+        return [
+            e for e in self._edges
+            if e.source in active and e.target in active
+            and e.edge_type not in (EdgeType.COOCCURRENCE, EdgeType.TRAVERSAL_ASSOCIATION)
+        ]
+
+    def all_active_edges(self) -> list[Edge]:
+        """Return ALL edges between active vertices, including material layer.
+
+        Used by traversal for neighbor candidate selection — both concept layer
+        and material layer edges are visible during walk.
+        """
         active = set(self.active_vertex_ids())
         return [e for e in self._edges if e.source in active and e.target in active]
 
@@ -152,11 +183,16 @@ class Graph:
     # -- undirected projection for β₁ computation --------------------------
 
     def undirected_active_edges(self) -> list[frozenset[str]]:
-        """Return undirected edge set from active directed edges (no self-loops)."""
+        """Return undirected edge set from active directed edges (no self-loops).
+
+        Excludes material layer edges — beta_1 measures concept-layer topology only.
+        """
         active = set(self.active_vertex_ids())
         result: set[frozenset[str]] = set()
         for e in self._edges:
-            if e.source in active and e.target in active and e.source != e.target:
+            if (e.source in active and e.target in active
+                    and e.source != e.target
+                    and e.edge_type not in (EdgeType.COOCCURRENCE, EdgeType.TRAVERSAL_ASSOCIATION)):
                 result.add(frozenset((e.source, e.target)))
         return sorted(result, key=lambda fs: tuple(sorted(fs)))
 
