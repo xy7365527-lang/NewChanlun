@@ -694,16 +694,16 @@ nodes:
   status: 已结算
   type: 定理
   file: settled/131-005b-l62-trigger-resolution.md
-- id: '133'
-  title: 异质双向收敛协议——030a单向否定的对称化扩展，053号异质双引擎的操作化
-  status: 已结算
-  type: 语法记录
-  file: settled/133-heterogeneous-bilateral-convergence-protocol.md
 - id: '132'
   title: tensions_with边引入valid_until字段——活跃张力与历史失效张力的严格区分
   status: 已结算
   type: 选择
   file: settled/132-historical-tension-valid-until.md
+- id: '133'
+  title: 异质双向收敛协议——030a单向否定的对称化扩展，053号异质双引擎的操作化
+  status: 已结算
+  type: 语法记录
+  file: settled/133-heterogeneous-bilateral-convergence-protocol.md
 - id: '134'
   title: v37全体系声明-能力缺口审计——P0修复批
   status: 已结算
@@ -763,12 +763,67 @@ nodes:
   title: lead-audit hook 恶性循环——观测行为产生观测对象
   status: settled
   type: meta-rule
-  file: settled/153-hook-feedback-loop.md
+  file: settled/153-rtas-swarm-persistence-gap.md
 - id: '154'
   title: ''
   status: 已结算
   type: meta-rule
   file: settled/154-ceremony-empty-swarm-path.md
+- id: '155'
+  title: 引入 Codex 作为代码层异质审查者
+  status: 已结算
+  type: 选择
+  file: settled/155-codex-heterogeneous-code-review.md
+- id: '156'
+  title: 否定 ceremony 定理/行动类直接执行路径
+  status: 已结算
+  type: 语法记录
+  file: settled/156-negate-ceremony-empty-swarm-path.md
+- id: '157'
+  title: 否定 long_term 排除分类
+  status: 已结算
+  type: 语法记录
+  file: settled/157-negate-longterm-exclusion.md
+- id: '158'
+  title: 三步战略——让矛盾具有拓扑效力
+  status: 已结算
+  type: 语法记录
+  file: settled/158-three-step-strategy-topology-effect.md
+- id: '159'
+  title: Codex 持久化调用——写代码标配
+  status: 已结算
+  type: 语法记录
+  file: settled/159-codex-discussion-persistence.md
+- id: '160'
+  title: Plan 阶段多模型对审——修改循环前移
+  status: 已结算
+  type: 语法记录
+  file: settled/160-plan-stage-multimodel-review.md
+- id: '161'
+  title: 否定务实——严格是唯一合法行为模式
+  status: 已结算
+  type: 语法记录
+  file: settled/161-negate-pragmatism.md
+- id: '162'
+  title: 否定不执行TeamDelete作为持久化实现
+  status: 已结算
+  type: 语法记录
+  file: settled/162-negate-no-teamdelete-persistence.md
+- id: '163'
+  title: 铁壁垒——递归自身产生的不可通过点
+  status: 已结算
+  type: 语法记录
+  file: settled/163-iron-barrier-recursive-limit.md
+- id: '164'
+  title: 恒星聚变递归——离散阶段序列的结构同构
+  status: 已结算
+  type: 语法记录
+  file: settled/164-stellar-fusion-recursion-model.md
+- id: '165'
+  title: 收缩相——递归产生不可否定物后的自由度减少
+  status: 已结算
+  type: 语法记录
+  file: settled/165-contraction-phase.md
 - id: '166'
   title: 亏格/genus——递归运动的不可消除拓扑残余
   status: 已结算（附张力）
@@ -1470,8 +1525,7 @@ nodes:
   type: meta-rule
   file: settled/305-meta-observation-phase2-implementation-session.md
 - id: '306'
-  title: 元观察——Phase 2 图不变量实现 session（compute_graph_invariants + is_structurally_significant
-    接口预留）
+  title: 元观察——Phase 2 图不变量实现 session（compute_graph_invariants + is_structurally_significant 接口预留）
   status: 已结算
   type: meta-rule
   file: settled/306-meta-observation-phase2-graph-invariants.md
@@ -1730,6 +1784,11 @@ nodes:
   status: settled
   type: architectural-insight
   file: settled/357-ceremony-scan-proposer.md
+- id: '358'
+  title: ceremony_scan 双向扫描能力结算
+  status: 已结算
+  type: engineering-completion
+  file: settled/358-scan-bidirectional.md
 - id: '359'
   title: 区块拓扑张力消化审计
   status: settled
@@ -1851,8 +1910,7 @@ nodes:
   type: 研究方向讨论
   file: settled/382-architecture-research-direction-gemini-decide.md
 - id: '383'
-  title: 元观察——v164-swarm（Claude+Gemini联合研究首发 + 381号框架混淆编排者编辑干预 + ceremony_scan不动点假阳性
-    + L0→L2管线显式化）
+  title: 元观察——v164-swarm（Claude+Gemini联合研究首发 + 381号框架混淆编排者编辑干预 + ceremony_scan不动点假阳性 + L0→L2管线显式化）
   status: settled
   type: meta-rule
   file: settled/383-meta-observation-v164-swarm.md
@@ -1870,7 +1928,7 @@ nodes:
   title: 元观察——v167-swarm（Phase 3实验蜂群：编号冲突升级+LLM首入实验循环+发育假说L1验证+真实谱系L2穿越）
   status: pending
   type: meta-rule
-  file: pending/386-meta-observation-v167-swarm.md
+  file: settled/386-meta-observation-v167-swarm.md
 - id: '387'
   title: Phase 3 真实谱系穿越——Fold 在密度下自然涌现（L2）
   status: 已结算
@@ -1916,27 +1974,26 @@ nodes:
   status: settled
   type: correction
   file: settled/395-Q-R3-16-reachability-reversal.md
+- id: '396'
+  title: ''
+  status: 生成态
+  type: concept-separation
+  file: settled/396-settlement-thermal-death.md
 - id: '397'
   title: 元观察——v197-swarm（自反结构种子+396号residue补全+多实例共享+code_settlement_request桥接+VPS部署）
   status: 生成态
   type: meta-rule
-  file: pending/397-meta-observation-v197-swarm.md
+  file: settled/397-meta-observation-v197-swarm.md
 - id: '398'
   title: 元观察——v197热修复session（397号结算+重复bug修复+二阶观察）
   status: 已结算
   type: meta-rule
   file: settled/398-meta-observation-v197-hotfix.md
 - id: '399'
-  title: 元观察——v198-swarm（器官性阅读范式转变 + S_net耦合振荡 + fold-dedup落地 + articulation feedback闭环
-    + 辞典规模爆发 + 外化接缝）
+  title: 元观察——v198-swarm（器官性阅读范式转变 + S_net耦合振荡 + fold-dedup落地 + articulation feedback闭环 + 辞典规模爆发 + 外化接缝）
   status: 已结算
   type: meta-rule
   file: settled/399-meta-observation-v198-swarm.md
-- id: '396'
-  title: ''
-  status: 生成态
-  type: concept-separation
-  file: settled/396-settlement-thermal-death.md
 - id: '401'
   title: 脚印不是宝藏 — 轨迹与产物的范畴区分
   status: settled
@@ -1976,7 +2033,7 @@ nodes:
   title: 元观察——v210-swarm（batch模式O(n)实装 + compact回归机制诊断 + 语法记录结晶确认 + 工程密集期第5轮）
   status: 生成态
   type: meta-rule
-  file: pending/408-meta-observation-v210-swarm.md
+  file: settled/408-meta-observation-v210-swarm.md
 - id: '409'
   title: 统一运行时裁决——Gateway 作为逢亮内部 channel adapter 模块
   status: 已结算
@@ -1991,7 +2048,7 @@ nodes:
   title: 元观察——v215-swarm（L2否定性结果价值实证 + ghost settlement修复 + 410号推论闭环 + 工程密集期第6轮方法论回归）
   status: 生成态
   type: meta-rule
-  file: pending/411-meta-observation-v215-swarm.md
+  file: settled/411-meta-observation-v215-swarm.md
 - id: '412'
   title: OpenClaw 作为 ceremony 子系统 liveness 节点——非认知常驻心跳
   status: 已结算
@@ -2003,10 +2060,10 @@ nodes:
   type: meta-rule
   file: settled/413-meta-observation-v216-swarm.md
 - id: '414'
-  title: 保留历史的折叠（Fold-with-History）被否定——破坏性折叠是缠论扬弃的正确拓扑实现
-  status: 生成态
-  type: 矛盾发现
-  file: pending/414-fold-with-history-negated.md
+  title: 元观察——v219-swarm
+  status: 已结算
+  type: meta-rule
+  file: settled/414-meta-observation-v219-swarm.md
 - id: '415'
   title: 保留历史的折叠（Fold-with-History）被否定——破坏性折叠是缠论扬弃的正确拓扑实现
   status: 已结算
@@ -2016,7 +2073,7 @@ nodes:
   title: ceremony 穿越的 LLM 边界——谱系写入是语义跳跃还是拓扑游走
   status: 生成态
   type: 矛盾发现
-  file: pending/416-ceremony-traversal-llm-boundary.md
+  file: settled/416-ceremony-traversal-llm-boundary.md
 - id: '417'
   title: SUBLATED 标记——ghost settlement 从 bug 修复到语义操作的扬弃
   status: 已结算
@@ -2032,6 +2089,16 @@ nodes:
   status: 已结算
   type: 矛盾发现
   file: settled/419-fold-scission-duality.md
+- id: '420'
+  title: 元观察——v223-swarm（自否定过滤 + 407号split执行 + SUBLATED量化验证 + broken chains全量诊断 + 编排者双层耦合洞察）
+  status: 已结算
+  type: meta-rule
+  file: settled/420-meta-observation-v223-swarm.md
+- id: '421'
+  title: SUBLATED = 切分——逢亮同时承受 fold 和切分，这使它成为穿越主体而非引擎
+  status: 已结算
+  type: 矛盾发现
+  file: settled/421-sublated-is-scission.md
 edges:
   depends_on:
   - from: '136'
@@ -3177,7 +3244,7 @@ edges:
   - from: '248'
     to: '237'
   - from: '248'
-    to: '3'
+    to: '003'
   - from: '249'
     to: '247'
   - from: '249'
@@ -4286,6 +4353,16 @@ edges:
     to: '416'
   - from: '419'
     to: '415'
+  - from: '421'
+    to: '419'
+  - from: '421'
+    to: '417'
+  - from: '421'
+    to: '415'
+  - from: '420'
+    to: '418'
+  - from: '420'
+    to: '419'
   triggered:
   - from: '005'
     to: 005a
@@ -4356,11 +4433,14 @@ edges:
   - from: '215'
     to: '214'
   - from: '274'
-    to: 073a号（depth_budget 基因废除）
+    to: 073a
+    note: depth_budget 基因废除
   - from: '275'
-    to: 218号（扩展：218割掉串行尾巴，275割掉全局排序思维）
+    to: '218'
+    note: 扩展：218割掉串行尾巴，275割掉全局排序思维
   - from: '277'
-    to: 269号验证方法（直接在月线/年线K线上跑D算子——使用了被否定的口径B）
+    to: '269'
+    note: 验证方法（直接在月线/年线K线上跑D算子——使用了被否定的口径B）
   - from: '379'
     to: '373'
   - from: '410'
