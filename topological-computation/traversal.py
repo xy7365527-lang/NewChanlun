@@ -14,7 +14,7 @@ from typing import Optional
 
 from engine import (
     Graph, Vertex, Edge, VertexStatus, EdgeType, SettlementTracker, SettledCycle,
-    OperationResult, SublationRecord,
+    OperationResult, SublationRecord, CONCEPT_EDGE_TYPES,
     compute_beta_1, fold, negate, sublate, _connected_components,
 )
 from encounter_log import EncounterLog
@@ -22,6 +22,7 @@ from morse import compute_terrain, critical_neighbors
 from snet_activation import SNetActivation, EdgeSuggestion
 
 EXPLORATION_INTERVAL = 1000  # every N steps, jump to an under-explored vertex
+ARTICULATION_THRESHOLD = 2.0  # 425号 Phase 2: score threshold for material→concept emergence (L2 待验证)
 
 # -- norm violation → code gap mapping ------------------------------------
 
@@ -63,6 +64,7 @@ class EncounterType(str, Enum):
     NEGATE_B = "negate_b"      # create new antithesis
     SUBLATION = "sublation"
     NOTHING = "nothing"
+    ARTICULATE = "articulate"  # 425号 Phase 2: 物质層積累涌現為概念層連接（ça parle）
 
 
 @dataclass(frozen=True, slots=True)
@@ -1096,6 +1098,127 @@ class TraversalEngine:
         self.k_active = self.k_active.add_edge(ta_edge)
         self.k_full = self.k_full.add_edge(ta_edge)
 
+    def _check_articulation_encounter(self) -> Optional[tuple[Encounter, float]]:
+        """Check if material layer accumulation triggers ARTICULATE at current position.
+
+        425号 Phase 2: 三层合力判据——
+        1. COOCCURRENCE 边存在（S_net 物质層共現）
+        2. TRAVERSAL_ASSOCIATION 边存在（穿越路径經過這對頂點）
+        3. 概念層空白（K_active 無 REFERENCE/DEPENDENCY/... 等概念層邊）
+
+        Score = cooccurrence_weight * traversal_association_count / max(1, step_gap)
+
+        Returns (Encounter, score) or None.
+        """
+        if self._snet_activation is None:
+            return None
+
+        current = self.position
+        active_vids = set(self.k_active.active_vertex_ids())
+
+        # Collect COOCCURRENCE neighbors and weights from current position
+        cooc_targets: dict[str, float] = {}
+        for e in self.k_active.all_active_edges():
+            if e.edge_type != EdgeType.COOCCURRENCE:
+                continue
+            if e.source == current and e.target in active_vids:
+                weight = self._extract_cooc_weight(e)
+                cooc_targets[e.target] = max(cooc_targets.get(e.target, 0.0), weight)
+            elif e.target == current and e.source in active_vids:
+                weight = self._extract_cooc_weight(e)
+                cooc_targets[e.source] = max(cooc_targets.get(e.source, 0.0), weight)
+
+        if not cooc_targets:
+            return None
+
+        # For each COOCCURRENCE neighbor, check TRAVERSAL_ASSOCIATION + concept gap
+        best_score = 0.0
+        best_target: Optional[str] = None
+        best_cooc_weight = 0.0
+        best_ta_count = 0
+        best_step_gap = 1
+
+        for target, cooc_weight in cooc_targets.items():
+            # Check concept layer gap: no concept-type edges between current and target
+            has_concept_edge = False
+            for e in self.k_active.active_edges():
+                if e.edge_type not in CONCEPT_EDGE_TYPES:
+                    continue
+                if (e.source == current and e.target == target) or \
+                   (e.source == target and e.target == current):
+                    has_concept_edge = True
+                    break
+            if has_concept_edge:
+                continue
+
+            # Count TRAVERSAL_ASSOCIATION edges between current and target
+            ta_count = 0
+            latest_ta_step = 0
+            for e in self.k_active.all_active_edges():
+                if e.edge_type != EdgeType.TRAVERSAL_ASSOCIATION:
+                    continue
+                if (e.source == current and e.target == target) or \
+                   (e.source == target and e.target == current):
+                    ta_count += 1
+                    if e.created_at > latest_ta_step:
+                        latest_ta_step = e.created_at
+            if ta_count == 0:
+                continue
+
+            step_gap = max(1, self.step - latest_ta_step)
+            score = cooc_weight * ta_count / step_gap
+            if score > best_score:
+                best_score = score
+                best_target = target
+                best_cooc_weight = cooc_weight
+                best_ta_count = ta_count
+                best_step_gap = step_gap
+
+        if best_target is None or best_score < ARTICULATION_THRESHOLD:
+            return None
+
+        enc = Encounter(
+            encounter_type=EncounterType.ARTICULATE,
+            target_a=current,
+            target_b=best_target,
+            reason=(
+                f"articulation: score={best_score:.3f} "
+                f"(cooc_w={best_cooc_weight:.3f} * ta_count={best_ta_count} "
+                f"/ step_gap={best_step_gap})"
+            ),
+        )
+        return enc, best_score
+
+    @staticmethod
+    def _extract_cooc_weight(edge: Edge) -> float:
+        """Extract co-occurrence weight from edge context string."""
+        ctx = edge.context or ""
+        prefix = "w="
+        idx = ctx.rfind(prefix)
+        if idx < 0:
+            return 1.0
+        try:
+            return float(ctx[idx + len(prefix):])
+        except (ValueError, IndexError):
+            return 1.0
+
+    def _articulate(self, source_vid: str, target_vid: str, score: float) -> Edge:
+        """Create ARTICULATED concept-layer edge from material layer accumulation.
+
+        425号 Phase 2: 物質層涌現為概念層——ARTICULATED 邊參與 fold/negate/sublate。
+        """
+        new_edge = Edge(
+            source=source_vid,
+            target=target_vid,
+            edge_type=EdgeType.ARTICULATED,
+            created_at=self.step,
+            surface=None,
+            context=f"articulated: score={score:.3f} step={self.step}",
+        )
+        self.k_active = self.k_active.add_edge(new_edge)
+        self.k_full = self.k_full.add_edge(new_edge)
+        return new_edge
+
     def walk(self) -> None:
         """Move to an adjacent vertex. Prefer critical edges, then unvisited, then random.
 
@@ -1250,6 +1373,16 @@ class TraversalEngine:
         # 425号: record TRAVERSAL_ASSOCIATION edge (material layer sediment)
         if prev_position != self.position:
             self._record_traversal_association(prev_position, self.position)
+
+        # 425号 Phase 2: check if material layer accumulation triggers ARTICULATE
+        articulation_result = self._check_articulation_encounter()
+        if articulation_result is not None:
+            articulation_enc, articulation_score = articulation_result
+            self._articulate(
+                articulation_enc.target_a,
+                articulation_enc.target_b,
+                articulation_score,
+            )
 
         # S_net coupling: activate signifier for new position + check articulation feedback
         if self._snet_activation is not None:
