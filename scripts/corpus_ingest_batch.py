@@ -134,48 +134,14 @@ def bootstrap_snet() -> SNet:
     )
     print(f"SNet bootstrap: {len(snet.signifiers)} signifiers, {len(snet.edges)} edges ({time.time() - t0:.1f}s)", file=sys.stderr)
 
-    # Ingest dictionaries (same sequence as daemon._ingest_dictionaries)
+    # Ingest dictionaries (unified loop from signifier_net_ingest)
     t0 = time.time()
     try:
-        from signifier_net_ingest import (
-            ingest_all_dictionaries, format_ingest_report,
-            ingest_bilingual_dict, ingest_morpheme_dict,
-            ingest_synonym_dict, ingest_collocation_dict,
-            ingest_thesaurus_dict, ingest_wiktionary_dict,
-            ingest_idiom_dict, ingest_wortschatz_dict,
-            ingest_code_dict,
-        )
+        from signifier_net_ingest import ingest_all_dict_types
 
         dict_dir = TOPO_DIR / "signifier_net" / "dictionaries"
-        if dict_dir.is_dir():
-            # 1. 单语辞典（dict_*.jsonl）
-            snet, all_stats = ingest_all_dictionaries(snet, dict_dir)
-            if all_stats:
-                report = format_ingest_report(all_stats)
-                print(report, file=sys.stderr)
-
-            # 2-9: 各类辞典
-            _dict_types = [
-                ("bilingual_*.jsonl", ingest_bilingual_dict),
-                ("morpheme_*.jsonl", ingest_morpheme_dict),
-                ("synonym_*.jsonl", ingest_synonym_dict),
-                ("collocations_*.jsonl", ingest_collocation_dict),
-                ("thesaurus_*.jsonl", ingest_thesaurus_dict),
-                ("wiktionary_*.jsonl", ingest_wiktionary_dict),
-                ("idioms_*.jsonl", ingest_idiom_dict),
-                ("wortschatz_*.jsonl", ingest_wortschatz_dict),
-                ("code_dict_*.jsonl", ingest_code_dict),
-            ]
-            for glob_pattern, ingest_fn in _dict_types:
-                for fpath in sorted(dict_dir.glob(glob_pattern)):
-                    t_dict = time.time()
-                    try:
-                        snet, _ = ingest_fn(snet, fpath)
-                        print(f"  {fpath.name}: OK ({time.time() - t_dict:.1f}s)", file=sys.stderr)
-                    except Exception as exc:
-                        print(f"  {fpath.name}: ERROR ({time.time() - t_dict:.1f}s) - {exc}", file=sys.stderr)
-
-            print(f"SNet after dict ingest: {len(snet.signifiers)} signifiers, {len(snet.edges)} edges ({time.time() - t0:.1f}s)", file=sys.stderr)
+        snet = ingest_all_dict_types(snet, dict_dir, output=sys.stderr)
+        print(f"SNet after dict ingest: {len(snet.signifiers)} signifiers, {len(snet.edges)} edges ({time.time() - t0:.1f}s)", file=sys.stderr)
     except Exception as exc:
         print(f"Dictionary ingest failed: {exc}", file=sys.stderr)
 

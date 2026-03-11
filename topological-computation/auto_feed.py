@@ -336,7 +336,7 @@ def feed_from_gap(gap: dict | object, daemon: object) -> FeedRecord:
     """Complete feed flow: search -> phi_L -> quality check -> inject.
 
     gap can be a GapInfo dataclass or a dict with 'search_query' key.
-    daemon must have .k_active (Graph) and .feed(text) method.
+    daemon must have .k_active (Graph) and .snet (SNet) attributes.
 
     Returns a FeedRecord documenting the attempt.
     """
