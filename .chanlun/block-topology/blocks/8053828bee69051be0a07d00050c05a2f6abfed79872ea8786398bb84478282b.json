@@ -1,0 +1,16 @@
+{
+  "id": "8053828bee69051be0a07d00050c05a2f6abfed79872ea8786398bb84478282b",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.075943+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "scepticism",
+    "status": "active",
+    "content": "Scepticism",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

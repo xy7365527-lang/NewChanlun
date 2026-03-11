@@ -1,0 +1,16 @@
+{
+  "id": "98567d691c2e02e0f628d5330b315e186821c579d2635ceb6897ab6d6262d4bc",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.079305+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "reconciliation_beyond",
+    "status": "active",
+    "content": "reconciliation projected beyond",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

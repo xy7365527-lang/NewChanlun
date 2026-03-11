@@ -1,0 +1,16 @@
+{
+  "id": "af8f86512bf56ab5eccf1a786ec66ba1e01265336c76c8996a11ca951a980b06",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.194125+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "inner_being",
+    "target": "unconditioned_universal",
+    "edge_type": "reference",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

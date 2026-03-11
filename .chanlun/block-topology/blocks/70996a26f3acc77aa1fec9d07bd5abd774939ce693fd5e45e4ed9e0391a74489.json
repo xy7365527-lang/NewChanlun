@@ -1,0 +1,16 @@
+{
+  "id": "70996a26f3acc77aa1fec9d07bd5abd774939ce693fd5e45e4ed9e0391a74489",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.041482+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "mutual_necessity",
+    "status": "active",
+    "content": "mutual necessity",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

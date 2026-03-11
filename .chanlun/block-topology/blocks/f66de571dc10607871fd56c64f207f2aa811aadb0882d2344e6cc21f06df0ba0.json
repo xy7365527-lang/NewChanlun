@@ -1,0 +1,16 @@
+{
+  "id": "f66de571dc10607871fd56c64f207f2aa811aadb0882d2344e6cc21f06df0ba0",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.380314+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "absolute_knowing",
+    "target": "spirit_knowing_itself",
+    "edge_type": "dependency",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,16 @@
+{
+  "id": "253733f5ace09455f8643df644f90dd437a549184435829e6fdf63e76a6be97d",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.065582+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "incited",
+    "status": "active",
+    "content": "incited force",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

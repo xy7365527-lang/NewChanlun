@@ -1,0 +1,16 @@
+{
+  "id": "02cb9135fd05a86c1ecb607a8e8f0a6ffb58547a14a3aff60ed680250709d9ab",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.341575+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "conscience",
+    "target": "conviction",
+    "edge_type": "dependency",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

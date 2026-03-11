@@ -1,0 +1,16 @@
+{
+  "id": "485555fc433726f5c85c4ab5dd1d3ba05d0dd64c9dfdc6ca0c531c73e1fd5b17",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.344772+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "evil",
+    "target": "beautiful_soul",
+    "edge_type": "negation",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

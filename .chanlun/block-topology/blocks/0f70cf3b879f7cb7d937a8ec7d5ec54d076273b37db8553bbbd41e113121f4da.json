@@ -1,0 +1,16 @@
+{
+  "id": "0f70cf3b879f7cb7d937a8ec7d5ec54d076273b37db8553bbbd41e113121f4da",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.370761+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "death_of_god",
+    "target": "incarnation",
+    "edge_type": "negation",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,16 @@
+{
+  "id": "03826c5e59d3ac54dfc339ea34c3aa9efa26b4e4bfdf96f5ec860822aa3a0f4a",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.220193+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "self_consciousness_emerges",
+    "target": "spirit",
+    "edge_type": "reference",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

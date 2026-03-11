@@ -1,0 +1,16 @@
+{
+  "id": "7af6dac3f3b993139f957190cf0c813c3fc4dad1466cc029a1d1147bc0efd353",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.316140+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "bildung",
+    "target": "self_alienation",
+    "edge_type": "dependency",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

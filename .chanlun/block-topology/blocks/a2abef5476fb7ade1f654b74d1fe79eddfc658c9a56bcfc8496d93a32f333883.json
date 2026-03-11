@@ -1,0 +1,16 @@
+{
+  "id": "a2abef5476fb7ade1f654b74d1fe79eddfc658c9a56bcfc8496d93a32f333883",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.135661+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "dialectic_method",
+    "target": "experience",
+    "edge_type": "reference",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

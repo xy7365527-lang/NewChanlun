@@ -1,0 +1,16 @@
+{
+  "id": "2ac61a00111203dcc651d77c619108cd09fc345c21291a0cdeb6d56cfbfc2617",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.115507+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "fruit",
+    "target": "blossom",
+    "edge_type": "negation",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

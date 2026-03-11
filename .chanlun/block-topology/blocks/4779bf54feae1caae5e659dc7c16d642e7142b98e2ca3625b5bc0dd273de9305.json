@@ -1,0 +1,16 @@
+{
+  "id": "4779bf54feae1caae5e659dc7c16d642e7142b98e2ca3625b5bc0dd273de9305",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.128002+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "cognition_instrument",
+    "target": "cognition_medium",
+    "edge_type": "negation",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,16 @@
+{
+  "id": "85f91026c30c2339393ad2e4c12aa8710c78817916ccb97ba8f10b19e2e7d5eb",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.107201+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "death_of_god",
+    "status": "active",
+    "content": "death of God",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

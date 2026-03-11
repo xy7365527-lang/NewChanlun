@@ -1,0 +1,16 @@
+{
+  "id": "9b3fbcb9b0ce05a15b5d7736ca9368d1d29b313562370ece70c186484470b760",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.378726+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "death_of_god",
+    "target": "terror",
+    "edge_type": "reference",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

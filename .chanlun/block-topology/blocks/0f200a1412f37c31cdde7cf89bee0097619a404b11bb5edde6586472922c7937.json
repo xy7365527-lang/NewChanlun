@@ -1,0 +1,16 @@
+{
+  "id": "0f200a1412f37c31cdde7cf89bee0097619a404b11bb5edde6586472922c7937",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.099592+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "nature_morality",
+    "status": "active",
+    "content": "nature (amoral world)",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

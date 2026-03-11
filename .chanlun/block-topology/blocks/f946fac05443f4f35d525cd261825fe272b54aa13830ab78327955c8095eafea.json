@@ -1,0 +1,16 @@
+{
+  "id": "f946fac05443f4f35d525cd261825fe272b54aa13830ab78327955c8095eafea",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.069618+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "curtain",
+    "status": "active",
+    "content": "the curtain",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

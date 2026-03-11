@@ -1,0 +1,16 @@
+{
+  "id": "4b33b0552917fdf0b0b685de043f0dc1a21257bff28cdabcad11bb971fb49de5",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.108202+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "picture_thinking",
+    "status": "active",
+    "content": "picture-thinking (Vorstellung)",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

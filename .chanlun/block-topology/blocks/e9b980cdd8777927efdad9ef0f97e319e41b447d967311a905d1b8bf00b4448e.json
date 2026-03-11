@@ -1,0 +1,16 @@
+{
+  "id": "e9b980cdd8777927efdad9ef0f97e319e41b447d967311a905d1b8bf00b4448e",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.368399+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "revealed_religion",
+    "target": "art_religion",
+    "edge_type": "negation",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,16 @@
+{
+  "id": "7a0779d081bbf510ffbf2a402d3a24dc6bba9aebb8207faabdb93a7888015573",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.077619+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "crusades",
+    "status": "active",
+    "content": "crusades (here and now of beyond)",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

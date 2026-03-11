@@ -1,0 +1,16 @@
+{
+  "id": "f8859c24c01fe8997695e88b6437c483f3a457a472bf36efeec897c35b2e11d2",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.102872+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "hard_heart",
+    "status": "active",
+    "content": "the hard heart",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

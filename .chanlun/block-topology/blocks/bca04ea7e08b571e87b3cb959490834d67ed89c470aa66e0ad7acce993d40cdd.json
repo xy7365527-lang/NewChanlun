@@ -1,0 +1,16 @@
+{
+  "id": "bca04ea7e08b571e87b3cb959490834d67ed89c470aa66e0ad7acce993d40cdd",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.046092+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "appearance_truth",
+    "status": "active",
+    "content": "appearance as actuality",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

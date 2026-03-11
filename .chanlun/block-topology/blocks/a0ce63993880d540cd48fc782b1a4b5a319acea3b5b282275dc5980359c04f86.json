@@ -1,0 +1,16 @@
+{
+  "id": "a0ce63993880d540cd48fc782b1a4b5a319acea3b5b282275dc5980359c04f86",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.384996+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "calvary",
+    "target": "absolute_knowing",
+    "edge_type": "dependency",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

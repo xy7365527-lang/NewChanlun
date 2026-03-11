@@ -1,0 +1,16 @@
+{
+  "id": "45b294304fe143929c09d4ab58bc0ab1ba7211eb766b15024cd2149b617826dc",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.089474+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "work_product",
+    "status": "active",
+    "content": "work as product/expression",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

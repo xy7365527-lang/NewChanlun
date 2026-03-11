@@ -1,0 +1,16 @@
+{
+  "id": "31759b57a7e939ed2adcd7bc6eb8c2dbe8e00c40ae672604e26ce281c663e3f5",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.285206+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "pleasure",
+    "target": "self_consciousness",
+    "edge_type": "reference",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

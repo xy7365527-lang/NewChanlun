@@ -1,0 +1,16 @@
+{
+  "id": "18ef7e8f8f08473f02e72098c2711e9dfcdc42edbdcb25fbe897bbc26924b51c",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.356523+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "moral_worldview",
+    "target": "terror",
+    "edge_type": "dependency",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,16 @@
+{
+  "id": "0c19b63b62edebb3d5409ce17a8460401e803d70df100958d1c2cda8e2dafcf6",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.343158+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "beautiful_soul",
+    "target": "conscience",
+    "edge_type": "dependency",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

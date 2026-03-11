@@ -1,0 +1,16 @@
+{
+  "id": "ec2a593dd8eacfe3c9bb8305bdbcfd6565fe8a95c298aab9db57f2b3dadab493",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.263819+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "category",
+    "target": "universal",
+    "edge_type": "reference",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

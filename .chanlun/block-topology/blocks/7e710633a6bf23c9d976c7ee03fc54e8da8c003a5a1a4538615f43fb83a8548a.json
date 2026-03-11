@@ -1,0 +1,16 @@
+{
+  "id": "7e710633a6bf23c9d976c7ee03fc54e8da8c003a5a1a4538615f43fb83a8548a",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.325651+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "enlightenment",
+    "target": "pure_insight",
+    "edge_type": "dependency",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

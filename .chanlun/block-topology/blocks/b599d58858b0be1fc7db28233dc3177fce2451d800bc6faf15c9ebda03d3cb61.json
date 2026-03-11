@@ -1,0 +1,16 @@
+{
+  "id": "b599d58858b0be1fc7db28233dc3177fce2451d800bc6faf15c9ebda03d3cb61",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.354342+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "reconciliation_moral",
+    "target": "judging_consciousness",
+    "edge_type": "sublation",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

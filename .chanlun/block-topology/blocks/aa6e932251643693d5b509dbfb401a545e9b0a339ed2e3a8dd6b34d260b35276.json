@@ -1,0 +1,16 @@
+{
+  "id": "aa6e932251643693d5b509dbfb401a545e9b0a339ed2e3a8dd6b34d260b35276",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.376338+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "comedy",
+    "target": "ethical_destruction",
+    "edge_type": "reference",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

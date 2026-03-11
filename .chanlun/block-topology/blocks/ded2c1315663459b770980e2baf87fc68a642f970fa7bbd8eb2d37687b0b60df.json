@@ -1,0 +1,16 @@
+{
+  "id": "ded2c1315663459b770980e2baf87fc68a642f970fa7bbd8eb2d37687b0b60df",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.279747+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "frenzy_self_conceit",
+    "target": "law_of_heart",
+    "edge_type": "negation",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

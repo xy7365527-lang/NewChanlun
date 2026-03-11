@@ -1,0 +1,16 @@
+{
+  "id": "ff6ed51c015becb40e6e93c2fd05733579b9ae3896fc1fdffc86ae230073a77e",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.056103+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "universal",
+    "status": "active",
+    "content": "the universal",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

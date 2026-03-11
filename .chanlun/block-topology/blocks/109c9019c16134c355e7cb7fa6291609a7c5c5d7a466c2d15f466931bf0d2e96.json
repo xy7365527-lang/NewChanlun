@@ -1,0 +1,16 @@
+{
+  "id": "109c9019c16134c355e7cb7fa6291609a7c5c5d7a466c2d15f466931bf0d2e96",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.367610+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "comedy",
+    "target": "tragedy",
+    "edge_type": "negation",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

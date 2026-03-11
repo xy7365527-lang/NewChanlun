@@ -1,0 +1,16 @@
+{
+  "id": "78453999f79e25b37ac3838956d5aca914cb73752f9d51c0652cd7ca4d9a1856",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.308263+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "woman_man",
+    "target": "family",
+    "edge_type": "dependency",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

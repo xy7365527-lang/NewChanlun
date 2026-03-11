@@ -1,0 +1,16 @@
+{
+  "id": "78b358f0e3297884a7b256f82ab7ebcea03970c4fc503a375e44765b54b3ef60",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.226395+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "struggle_life_death",
+    "target": "fear_of_death",
+    "edge_type": "dependency",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

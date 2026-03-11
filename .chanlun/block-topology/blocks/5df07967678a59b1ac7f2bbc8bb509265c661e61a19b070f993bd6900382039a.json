@@ -1,0 +1,16 @@
+{
+  "id": "5df07967678a59b1ac7f2bbc8bb509265c661e61a19b070f993bd6900382039a",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.293923+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "ethical_substance_intro",
+    "target": "individual_universal_unity",
+    "edge_type": "dependency",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

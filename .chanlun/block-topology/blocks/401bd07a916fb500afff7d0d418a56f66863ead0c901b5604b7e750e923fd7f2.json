@@ -1,0 +1,16 @@
+{
+  "id": "401bd07a916fb500afff7d0d418a56f66863ead0c901b5604b7e750e923fd7f2",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.345577+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "evil",
+    "target": "conscience",
+    "edge_type": "dependency",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

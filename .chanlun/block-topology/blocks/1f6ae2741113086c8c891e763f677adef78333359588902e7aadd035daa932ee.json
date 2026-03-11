@@ -1,0 +1,16 @@
+{
+  "id": "1f6ae2741113086c8c891e763f677adef78333359588902e7aadd035daa932ee",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.299498+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "human_law",
+    "target": "ethical_substance",
+    "edge_type": "dependency",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

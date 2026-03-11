@@ -1,0 +1,16 @@
+{
+  "id": "2e20e24e09601075025bf5eebf5537aa724d04c220add811d74d45a2173195ac",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.205921+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "kingdom_of_laws",
+    "target": "supersensible_world",
+    "edge_type": "dependency",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

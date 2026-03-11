@@ -1,0 +1,16 @@
+{
+  "id": "6224ecd94e5824ef4ae003edb58afd1bd682f36569055b9f25ca678ebfe082cc",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.109522+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "science_of_experience",
+    "status": "active",
+    "content": "Science of the experience of consciousness",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

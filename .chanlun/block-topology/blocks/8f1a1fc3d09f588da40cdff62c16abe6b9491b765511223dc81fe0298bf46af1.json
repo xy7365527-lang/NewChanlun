@@ -1,0 +1,16 @@
+{
+  "id": "8f1a1fc3d09f588da40cdff62c16abe6b9491b765511223dc81fe0298bf46af1",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.107865+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "trinity",
+    "status": "active",
+    "content": "Trinity (immanent dialectic)",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

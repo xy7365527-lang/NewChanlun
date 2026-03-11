@@ -1,0 +1,16 @@
+{
+  "id": "f4ee131ed1c33b5fb77cc2fa52f8b6dba645d52b9ce73538ea80e8b6103a020a",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.252134+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "devotion",
+    "target": "unchangeable",
+    "edge_type": "dependency",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

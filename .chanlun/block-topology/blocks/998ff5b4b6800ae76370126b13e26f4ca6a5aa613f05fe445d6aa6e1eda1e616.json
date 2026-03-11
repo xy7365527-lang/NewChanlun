@@ -1,0 +1,16 @@
+{
+  "id": "998ff5b4b6800ae76370126b13e26f4ca6a5aa613f05fe445d6aa6e1eda1e616",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.328814+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "absolute_freedom",
+    "target": "utility",
+    "edge_type": "dependency",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

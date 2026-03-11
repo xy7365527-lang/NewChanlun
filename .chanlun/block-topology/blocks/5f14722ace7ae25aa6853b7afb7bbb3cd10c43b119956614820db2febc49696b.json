@@ -1,0 +1,16 @@
+{
+  "id": "5f14722ace7ae25aa6853b7afb7bbb3cd10c43b119956614820db2febc49696b",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.051562+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "now_day",
+    "status": "active",
+    "content": "Now is Day",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

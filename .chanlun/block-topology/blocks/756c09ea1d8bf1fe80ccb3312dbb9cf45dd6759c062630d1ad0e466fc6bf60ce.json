@@ -1,0 +1,16 @@
+{
+  "id": "756c09ea1d8bf1fe80ccb3312dbb9cf45dd6759c062630d1ad0e466fc6bf60ce",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.066237+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "appearance_flux",
+    "status": "active",
+    "content": "appearance (flux)",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

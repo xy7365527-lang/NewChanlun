@@ -1,0 +1,16 @@
+{
+  "id": "bd48db889f06cc6483cfe3b960f199f0a3ea04420ba461ca2f8865f0a3fd5e0d",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.319291+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "noble_consciousness",
+    "target": "base_consciousness",
+    "edge_type": "negation",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,16 @@
+{
+  "id": "6c283a07acc1093151758b7610e15338a6ba942279c0a07fdf272922fbad5c4b",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.071972+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "lord",
+    "status": "active",
+    "content": "the lord (master)",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

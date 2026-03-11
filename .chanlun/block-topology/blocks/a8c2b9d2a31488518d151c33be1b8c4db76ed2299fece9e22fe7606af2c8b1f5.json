@@ -1,0 +1,16 @@
+{
+  "id": "a8c2b9d2a31488518d151c33be1b8c4db76ed2299fece9e22fe7606af2c8b1f5",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.040627+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "bud",
+    "status": "active",
+    "content": "the bud",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

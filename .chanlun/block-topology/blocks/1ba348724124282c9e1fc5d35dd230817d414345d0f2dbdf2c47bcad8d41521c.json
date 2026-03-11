@@ -1,0 +1,16 @@
+{
+  "id": "1ba348724124282c9e1fc5d35dd230817d414345d0f2dbdf2c47bcad8d41521c",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.047163+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "absolute_being",
+    "status": "active",
+    "content": "the Absolute",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

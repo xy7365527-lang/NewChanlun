@@ -1,0 +1,16 @@
+{
+  "id": "f704834e899cad4489b8a0865d0c495c21aa5fb6f1077817f2573ca97e65a19f",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.073964+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "thinghood_sc",
+    "status": "active",
+    "content": "thinghood (object of desire)",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,16 @@
+{
+  "id": "5e138ebbb1dfc0a92534f3375bb6a1140cbd526817dd4b0105cef10d8f2966c1",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.278167+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "law_of_heart",
+    "target": "pleasure",
+    "edge_type": "dependency",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

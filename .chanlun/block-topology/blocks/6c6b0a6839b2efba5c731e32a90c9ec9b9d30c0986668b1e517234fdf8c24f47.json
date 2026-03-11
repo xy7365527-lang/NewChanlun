@@ -1,0 +1,16 @@
+{
+  "id": "6c6b0a6839b2efba5c731e32a90c9ec9b9d30c0986668b1e517234fdf8c24f47",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.050899+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "the_now",
+    "status": "active",
+    "content": "the Now",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

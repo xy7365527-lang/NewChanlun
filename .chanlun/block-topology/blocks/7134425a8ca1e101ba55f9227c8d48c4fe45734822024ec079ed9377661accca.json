@@ -1,0 +1,16 @@
+{
+  "id": "7134425a8ca1e101ba55f9227c8d48c4fe45734822024ec079ed9377661accca",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.351107+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "forgiveness",
+    "target": "confession",
+    "edge_type": "dependency",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

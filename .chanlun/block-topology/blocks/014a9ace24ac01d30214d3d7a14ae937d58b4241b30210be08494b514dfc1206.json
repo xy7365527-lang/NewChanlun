@@ -1,0 +1,16 @@
+{
+  "id": "014a9ace24ac01d30214d3d7a14ae937d58b4241b30210be08494b514dfc1206",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.267767+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "logical_laws",
+    "target": "psychological_laws",
+    "edge_type": "negation",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

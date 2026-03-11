@@ -1,0 +1,16 @@
+{
+  "id": "3167efea0748028cd19b1a0a7ae877fa9e5159add913ddc4dbf45f807e82a122",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.106193+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "comedy",
+    "status": "active",
+    "content": "comedy",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

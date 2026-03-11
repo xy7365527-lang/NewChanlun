@@ -1,0 +1,16 @@
+{
+  "id": "10193e7fe2c6fb233714bda09f877eaf67e223aae920d7473c7d03e1b5181616",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.238829+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "bondsman_freedom",
+    "target": "work",
+    "edge_type": "dependency",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

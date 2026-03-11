@@ -1,0 +1,16 @@
+{
+  "id": "6453c1b40be6c4bd4576053ef53bc73d655771bda684d0a2504838f5f045f854",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.211444+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "simple_infinity",
+    "target": "self_related_negation",
+    "edge_type": "dependency",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

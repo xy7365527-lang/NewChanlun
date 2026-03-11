@@ -1,0 +1,16 @@
+{
+  "id": "ac7245cd8290b789f924adcee1b6d908fe3f9d29792735d433d2e449a760a385",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.208278+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "crime_punishment",
+    "target": "inverted_world",
+    "edge_type": "reference",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

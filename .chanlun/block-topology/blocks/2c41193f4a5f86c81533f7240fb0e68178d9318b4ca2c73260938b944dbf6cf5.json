@@ -1,0 +1,16 @@
+{
+  "id": "2c41193f4a5f86c81533f7240fb0e68178d9318b4ca2c73260938b944dbf6cf5",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.362921+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "plant_animal_worship",
+    "target": "light_being",
+    "edge_type": "negation",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,16 @@
+{
+  "id": "42c6ca81319ef163a5817275477c60eae472fbd9a2ae2380bb61a9514619cc11",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.095592+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "state_power",
+    "status": "active",
+    "content": "state power",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

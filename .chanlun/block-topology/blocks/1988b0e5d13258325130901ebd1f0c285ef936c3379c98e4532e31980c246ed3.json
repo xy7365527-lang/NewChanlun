@@ -1,0 +1,16 @@
+{
+  "id": "1988b0e5d13258325130901ebd1f0c285ef936c3379c98e4532e31980c246ed3",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.245854+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "scepticism",
+    "target": "stoicism",
+    "edge_type": "negation",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

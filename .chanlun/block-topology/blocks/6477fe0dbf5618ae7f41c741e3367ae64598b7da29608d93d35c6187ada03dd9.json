@@ -1,0 +1,16 @@
+{
+  "id": "6477fe0dbf5618ae7f41c741e3367ae64598b7da29608d93d35c6187ada03dd9",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.052608+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "the_here",
+    "status": "active",
+    "content": "the Here",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

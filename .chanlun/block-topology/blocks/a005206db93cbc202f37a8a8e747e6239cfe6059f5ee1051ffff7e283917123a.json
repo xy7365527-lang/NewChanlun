@@ -1,0 +1,16 @@
+{
+  "id": "a005206db93cbc202f37a8a8e747e6239cfe6059f5ee1051ffff7e283917123a",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.268534+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "physiognomy",
+    "target": "inner_outer",
+    "edge_type": "dependency",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

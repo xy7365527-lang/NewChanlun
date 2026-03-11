@@ -1,0 +1,16 @@
+{
+  "id": "3039a7466beb09b17ef71e601636c250bd7cf39718e00423b1f5a7bebeb67e5e",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.081720+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "psychological_laws",
+    "status": "active",
+    "content": "psychological laws",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

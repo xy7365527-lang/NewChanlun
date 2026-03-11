@@ -1,0 +1,16 @@
+{
+  "id": "8a752f8f833278762fc6938b51fe2ca1fcfd098db5587722a409262dd1a6c1cc",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.108871+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "concept",
+    "status": "active",
+    "content": "the Concept (Begriff)",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,16 @@
+{
+  "id": "b9d0a0be33f14f5a0e8fe61c5c8b2ff1307636cd5fb9acb3e9341f4860b303ca",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.102543+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "confession",
+    "status": "active",
+    "content": "confession",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

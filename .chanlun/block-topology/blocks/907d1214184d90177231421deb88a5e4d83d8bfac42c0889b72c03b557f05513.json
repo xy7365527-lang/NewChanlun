@@ -1,0 +1,16 @@
+{
+  "id": "907d1214184d90177231421deb88a5e4d83d8bfac42c0889b72c03b557f05513",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.218669+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "play_of_forces",
+    "target": "mediation",
+    "edge_type": "reference",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

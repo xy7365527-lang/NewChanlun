@@ -1,0 +1,16 @@
+{
+  "id": "a14e5151cddc473989d57d4f94b6ea16f7ac3816ac025a7ae6a0db6eedcb4b41",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.194892+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "inner_being",
+    "target": "concrete_universal",
+    "edge_type": "dependency",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

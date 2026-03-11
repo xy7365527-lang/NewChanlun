@@ -1,0 +1,16 @@
+{
+  "id": "e5e59d7a608a1a876d0b7bec3fabbb912a34dd8d8f87cd97c8a8ab3507c8645a",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.042712+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "simple_repose",
+    "status": "active",
+    "content": "transparent simple repose",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,16 @@
+{
+  "id": "7b9fee0de2f5cff74127d1951bb0ef509249eedbb484573bc451416aec269448",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.309907+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "brother_sister",
+    "target": "family",
+    "edge_type": "dependency",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

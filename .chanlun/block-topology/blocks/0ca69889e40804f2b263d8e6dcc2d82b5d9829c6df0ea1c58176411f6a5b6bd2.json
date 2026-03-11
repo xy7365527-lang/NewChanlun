@@ -1,0 +1,16 @@
+{
+  "id": "0ca69889e40804f2b263d8e6dcc2d82b5d9829c6df0ea1c58176411f6a5b6bd2",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.083439+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "category",
+    "status": "active",
+    "content": "the category (unity of being and thinking)",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

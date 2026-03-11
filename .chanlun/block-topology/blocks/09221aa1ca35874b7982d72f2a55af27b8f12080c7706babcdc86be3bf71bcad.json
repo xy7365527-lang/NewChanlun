@@ -1,0 +1,16 @@
+{
+  "id": "09221aa1ca35874b7982d72f2a55af27b8f12080c7706babcdc86be3bf71bcad",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.393672+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "concept",
+    "target": "truth_whole",
+    "edge_type": "reference",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

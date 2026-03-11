@@ -1,0 +1,16 @@
+{
+  "id": "e727024c3258a36b1e5bacf981bbe67026aed7d4b092ffedbbb5a3eb76cec6cd",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.246654+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "scepticism",
+    "target": "self_contradictory_consciousness",
+    "edge_type": "dependency",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

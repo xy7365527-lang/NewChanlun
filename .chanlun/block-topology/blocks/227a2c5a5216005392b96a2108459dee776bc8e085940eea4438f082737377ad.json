@@ -1,0 +1,16 @@
+{
+  "id": "227a2c5a5216005392b96a2108459dee776bc8e085940eea4438f082737377ad",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.053616+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "mediated_simplicity",
+    "status": "active",
+    "content": "mediated simplicity",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

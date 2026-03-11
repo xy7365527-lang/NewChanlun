@@ -1,0 +1,16 @@
+{
+  "id": "87718319ecb140a8abf646a2e85a40d49d6ae03a407e51d7fa00802c31eb0184",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.320841+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "state_power",
+    "target": "wealth",
+    "edge_type": "negation",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

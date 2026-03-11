@@ -1,0 +1,16 @@
+{
+  "id": "a12d08d89c3840d9fa847c4d9ef15e6916c2f9d54b2f934d6e2208646a0de63a",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.049539+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "negative_procedure",
+    "status": "active",
+    "content": "negative procedure",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

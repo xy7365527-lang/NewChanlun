@@ -1,0 +1,16 @@
+{
+  "id": "deff669cd79ddab0ed56906504f3f8a619c399b7794671c56bfa641f0fb426d1",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.085769+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "virtue_vs_world",
+    "status": "active",
+    "content": "virtue vs way of the world",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

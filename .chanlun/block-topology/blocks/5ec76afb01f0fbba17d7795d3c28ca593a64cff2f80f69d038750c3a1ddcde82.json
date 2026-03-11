@@ -1,0 +1,16 @@
+{
+  "id": "5ec76afb01f0fbba17d7795d3c28ca593a64cff2f80f69d038750c3a1ddcde82",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.098607+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "pure_insight",
+    "status": "active",
+    "content": "pure insight",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,16 @@
+{
+  "id": "cb65e02f2e5188ca2eb8a2d6430685caa66601c064f73351ed8887e8a23e8389",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.377943+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "incarnation",
+    "target": "self_consciousness",
+    "edge_type": "reference",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

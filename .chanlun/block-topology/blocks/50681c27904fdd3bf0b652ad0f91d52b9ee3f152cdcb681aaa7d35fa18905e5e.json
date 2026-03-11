@@ -1,0 +1,16 @@
+{
+  "id": "50681c27904fdd3bf0b652ad0f91d52b9ee3f152cdcb681aaa7d35fa18905e5e",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.084098+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "pleasure",
+    "status": "active",
+    "content": "pleasure and necessity",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

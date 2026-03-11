@@ -1,0 +1,16 @@
+{
+  "id": "e26c5fc7cd0d39b58c7b279ca9b6d5d430417955b5008610ce9ecf643c11ef4c",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.076622+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "changeable",
+    "status": "active",
+    "content": "the changeable (finite self)",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

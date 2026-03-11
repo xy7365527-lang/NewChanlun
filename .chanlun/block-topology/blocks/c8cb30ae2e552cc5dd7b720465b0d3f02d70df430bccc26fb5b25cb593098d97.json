@@ -1,0 +1,16 @@
+{
+  "id": "c8cb30ae2e552cc5dd7b720465b0d3f02d70df430bccc26fb5b25cb593098d97",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.068604+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "internal_distinction",
+    "status": "active",
+    "content": "internal distinction",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

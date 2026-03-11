@@ -1,0 +1,16 @@
+{
+  "id": "85839eba8ddbf04cf091738dc45415dc4e02f32fc9e7b70fec0804608c5136a7",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.092881+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "woman_man",
+    "status": "active",
+    "content": "woman and man (ethical shapes)",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

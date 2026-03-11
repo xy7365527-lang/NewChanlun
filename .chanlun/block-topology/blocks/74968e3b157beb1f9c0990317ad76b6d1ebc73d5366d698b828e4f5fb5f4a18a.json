@@ -1,0 +1,16 @@
+{
+  "id": "74968e3b157beb1f9c0990317ad76b6d1ebc73d5366d698b828e4f5fb5f4a18a",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.062569+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "concrete_universal",
+    "status": "active",
+    "content": "concrete universal",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

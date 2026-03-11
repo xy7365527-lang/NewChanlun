@@ -1,0 +1,16 @@
+{
+  "id": "e9d3dca7ea179f44cb6223f398be0be19a4b3df6a2b7b9b787804ae8a513e09c",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.067565+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "inverted_world",
+    "status": "active",
+    "content": "inverted world",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

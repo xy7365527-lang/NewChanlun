@@ -1,0 +1,16 @@
+{
+  "id": "771576cfeda635e97ff3de52f76a929e627d2177a799779c829cdc08c2ae64a5",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.348762+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "hard_heart",
+    "target": "judging_consciousness",
+    "edge_type": "dependency",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,16 @@
+{
+  "id": "a35ca0472560037340e8898e70fa11b95ab8309601505b441e79d4be3e8a65d1",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.105853+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "tragedy",
+    "status": "active",
+    "content": "tragedy",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}

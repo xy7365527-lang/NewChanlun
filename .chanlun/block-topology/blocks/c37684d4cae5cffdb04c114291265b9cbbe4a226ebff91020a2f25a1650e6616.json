@@ -1,0 +1,16 @@
+{
+  "id": "c37684d4cae5cffdb04c114291265b9cbbe4a226ebff91020a2f25a1650e6616",
+  "type": "event",
+  "timestamp": "2026-03-11T21:01:09.066914+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "supersensible_world",
+    "status": "active",
+    "content": "supersensible world",
+    "created_at": 0
+  },
+  "refs": [],
+  "git_ref": ""
+}
