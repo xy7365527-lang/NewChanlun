@@ -222,6 +222,9 @@ def extract_daemon_state(daemon) -> dict:
                 "edges": sorted(sc.edges),
                 "settled_at": sc.settled_at_step,
                 "residue": list(sc.residue),
+                "status": sc.status,
+                "sublated_at_step": sc.sublated_at_step,
+                "sublated_by": sc.sublated_by,
             }
             for sc in daemon.settlement.settled_cycles
         ]
@@ -275,6 +278,9 @@ def restore_daemon_state(daemon, state: dict) -> None:
                 edges=edges,
                 settled_at_step=sc_data["settled_at"],
                 residue=residue,
+                status=sc_data.get("status", "active"),
+                sublated_at_step=sc_data.get("sublated_at_step"),
+                sublated_by=sc_data.get("sublated_by"),
             )
             if sc not in daemon.settlement._settled:
                 daemon.settlement._settled.append(sc)

@@ -1662,6 +1662,26 @@ def main():
         # Keep scan resilient, but do not hide failures.
         result["downstream_actions_error"] = f"{type(exc).__name__}: {exc}"
 
+    # 可计算拓扑判据：residue密度 / 依赖链断裂 / settled前提偏差
+    # 不动点后异常指标自动生成新工位（Gemini质询→编排者指令）
+    try:
+        try:
+            from scripts.topo_indicators import compute_all as _topo_compute_all
+            from scripts.topo_indicators import has_anomalies as _topo_has_anomalies
+            from scripts.topo_indicators import generate_workstations as _topo_gen_ws
+        except ImportError:
+            from topo_indicators import compute_all as _topo_compute_all
+            from topo_indicators import has_anomalies as _topo_has_anomalies
+            from topo_indicators import generate_workstations as _topo_gen_ws
+        topo_ind = _topo_compute_all(root)
+        result["topo_indicators"] = topo_ind
+        if _topo_has_anomalies(topo_ind):
+            topo_ws = _topo_gen_ws(topo_ind)
+            workstations.extend(topo_ws)
+            result["workstations"] = workstations
+    except Exception as exc:
+        result["topo_indicators_error"] = f"{type(exc).__name__}: {exc}"
+
     try:
         result["head"] = subprocess.check_output(
             ["git", "rev-parse", "--short", "HEAD"], cwd=root, text=True).strip()
