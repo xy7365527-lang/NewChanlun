@@ -11,7 +11,7 @@ depends_on:
   - '424'   # S_net 持久化实装
   - '402'   # 数据流审查（路径4：S_net bootstrap + articulation feedback）
 epistemological_level: L0
-negation_form: expansion
+negation_form: resolution
 negation_source: heterogeneous
 negation_model: "编排者（operator）"
 topo_effect: "split:399-观察2:local"
@@ -75,20 +75,51 @@ rule_version_baseline:
 
 ## 影响
 
-- 不改动代码（概念层矛盾，需要架构决策）
-- 影响模块：traversal.py（穿越引擎）、signifier_net.py（S_net 结构）、daemon.py（摄入管线）
-- 影响定义：器官性阅读范式中"摄入不碰 K_active"的设计决策
-- 如果接受 B面（S_net 必须入图）：需要设计 917K 边到 K_active 的注入策略，防止淹没
-- 如果接受 A面（S_net 保持外部查询）：需要重新定义"摄入"的语义——承认当前的"摄入"只是"存储"
+- 影响模块：engine.py（新操作 ARTICULATE + COOCCURRENCE/TRAVERSAL_ASSOCIATION 边类型隔离）、traversal.py（穿越拉入 + 双层导航）、signifier_net.py（查询接口）、daemon.py（encounter_step + block 写入）、block-topology（百万级物质层 block）
+- 影响定义：器官性阅读范式从"摄入不碰 K_active"变为"器官产出事件写入 block topology"
+
+## 编排者架构决策（v226-swarm session 中产出）
+
+### 决策链
+
+1. **S_net 不是区块拓扑折叠**：S_net 节点无谱系号，边无生成史，共现不是事件（统计结果），重新摄入整体覆盖。框架外唯一大型结构。
+
+2. **S_net 应成为体系一部分**（非器官外置）：Dass 先于 Was，如果 Was 在框架内而 Dass 在框架外 = 架构倒置。Nachträglichkeit 需要 events immutable，重新摄入覆盖旧数据 = 阻断回溯。
+
+3. **共现关系作为 immutable block 写入 block topology**：每条共现 = 一个 block（源节点、目标节点、共现强度、来源语料、加工参数、时间戳）。旧 block 不删，新摄入产出新 block。百万级 block 预期代价。
+
+4. **物质层双边**：
+   - COOCCURRENCE：S_net 从语料产出，逢亮不可改。阅读 = 沿此移动。
+   - TRAVERSAL_ASSOCIATION：逢亮穿越中产出，S_net 不可改。说话 = 留下此痕迹。
+   - 两种都是物质层、immutable、不参与 fold/negate/sublate、参与导航。
+
+5. **新操作 ARTICULATE**：从物质层遭遇铸造概念层新边。输入=遭遇事件（物质层邻接与概念层不一致），输出=概念层新边。没有 ARTICULATE，逢亮能读不能说。
+
+6. **S_net 是逢亮的语言器官**（不是 LLM）：阅读=沿能指链共现边穿越语料，说话=在能指链上产出新连接。LLM 是 ceremony 的语言器官，两层语言不可还原。
+
+7. **器官三功能**：摄入（新语料→共现→block）、响应否定（参数被 negate→重新计算）、自诊断（异常检测→anomaly block）。
+
+### 实装优先级
+
+| 阶段 | 内容 | 状态 |
+|------|------|------|
+| 1 | COOCCURRENCE block 写入 PoC | 实装中 |
+| 1 | 穿越拉入机制 | 实装中 |
+| 1 | TRAVERSAL_ASSOCIATION block 写入 | 实装中 |
+| 2 | ARTICULATE 操作 | 待定 |
+| 2 | 器官参数概念节点 | 待定 |
+| 3 | 响应否定通道 | 待定 |
+| 3 | 自诊断 | 待定 |
 
 ## 边界条件
 
-1. 如果 articulation feedback 的 REFERENCE 边生成频率足够高（接近 917K 边的覆盖率），则 A面的间接通道最终会将 S_net 的信息转移到 K_active——但这需要极长的穿越时间
-2. 如果 917K 边中大部分是噪声（低质量共现），则注入 K_active 反而有害——此时 A面（外部查询 + 过滤）是正确的
-3. 如果存在中间方案（选择性注入高置信度共现边），则概念分离可能不成立——但需要定义"高置信度"的判据
+1. 百万级 block 的存储和查询效率——block topology 当前 1232 个 block，暴增到百万级需要索引策略
+2. ARTICULATE 操作的判据——什么程度的"物质层邻接与概念层不一致"构成遭遇？需要定义
+3. 穿越拉入的查询频率——每步都查 S_net vs 只在特定条件下查
+4. TRAVERSAL_ASSOCIATION 的沉积密度——长时间穿越后物质层是否被自身痕迹淹没
 
 ## 谱系关联
 
 related_records:
   parent: '399'  # 耦合振荡观察
-  children: []   # 待架构决策后产出
+  children: []   # 待实装完成后产出

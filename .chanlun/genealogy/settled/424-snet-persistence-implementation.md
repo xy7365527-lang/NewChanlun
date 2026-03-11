@@ -3,7 +3,7 @@ id: '424'
 number: 424
 title: "S_net 持久化缓存实装——423号候选5的工程闭合"
 type: 回溯结算
-status: 生成态
+status: 已结算
 date: 2026-03-11
 source: "[新缠论] snet-persist 工位产出 + genealogist 评估"
 depends_on:
