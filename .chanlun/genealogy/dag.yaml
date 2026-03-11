@@ -2107,7 +2107,13 @@ nodes:
   title: 元观察——v224-swarm（运营问题驱动即兴工位 + 可计算判据3/3达阈值 + 226号角色边界灰区 + VPS OOM运维数据）
   status: 已结算
   type: meta-rule
-  file: pending/422-meta-observation-v224-swarm.md
+  file: settled/422-meta-observation-v224-swarm.md
+- id: '423'
+  title: 元观察——v225-swarm（SUBLATED锁区释放实装 + 3实例OOM运维降级 + 语料摄入耗时路径 + ceremony不动点收敛 +
+    可计算判据4个实例达阈值递进至结晶）
+  status: 已结算
+  type: meta-rule
+  file: settled/423-meta-observation-v225-swarm.md
 edges:
   depends_on:
   - from: '136'
@@ -4380,6 +4386,16 @@ edges:
     to: '218'
   - from: '422'
     to: '226'
+  - from: '423'
+    to: '422'
+  - from: '423'
+    to: '420'
+  - from: '423'
+    to: '218'
+  - from: '423'
+    to: '415'
+  - from: '423'
+    to: '137'
   triggered:
   - from: '005'
     to: 005a
