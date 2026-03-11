@@ -2002,6 +2002,16 @@ nodes:
   status: 已结算
   type: meta-rule
   file: settled/413-meta-observation-v216-swarm.md
+- id: '414'
+  title: 保留历史的折叠（Fold-with-History）被否定——破坏性折叠是缠论扬弃的正确拓扑实现
+  status: 生成态
+  type: 矛盾发现
+  file: pending/414-fold-with-history-negated.md
+- id: '415'
+  title: 保留历史的折叠（Fold-with-History）被否定——破坏性折叠是缠论扬弃的正确拓扑实现
+  status: 已结算
+  type: 矛盾发现
+  file: settled/415-fold-with-history-negated.md
 edges:
   depends_on:
   - from: '136'
@@ -4216,6 +4226,24 @@ edges:
     to: '412'
   - from: '413'
     to: '409'
+  - from: '414'
+    to: '393'
+  - from: '414'
+    to: '396'
+  - from: '414'
+    to: '404'
+  - from: '414'
+    to: '410'
+  - from: '414'
+    to: '413'
+  - from: '415'
+    to: '393'
+  - from: '415'
+    to: '396'
+  - from: '415'
+    to: '404'
+  - from: '415'
+    to: '410'
   triggered:
   - from: '005'
     to: 005a
