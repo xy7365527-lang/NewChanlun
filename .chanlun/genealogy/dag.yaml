@@ -1997,6 +1997,11 @@ nodes:
   status: 已结算
   type: grammar-record
   file: settled/412-openclaw-ceremony-liveness.md
+- id: '413'
+  title: 元观察——v216-swarm（OpenClaw liveness实装 + 语料提取 + 工程密集期第7轮延续 + 生产-消费不对等候选阈值达到）
+  status: 已结算
+  type: meta-rule
+  file: settled/413-meta-observation-v216-swarm.md
 edges:
   depends_on:
   - from: '136'
@@ -4205,6 +4210,12 @@ edges:
     to: '409'
   - from: '412'
     to: '411'
+  - from: '413'
+    to: '411'
+  - from: '413'
+    to: '412'
+  - from: '413'
+    to: '409'
   triggered:
   - from: '005'
     to: 005a
