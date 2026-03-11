@@ -2132,9 +2132,15 @@ nodes:
 - id: '427'
   title: 元观察——v227-swarm（425号Phase1 PoC实装 + 426号无意识精确定义 + 编排者概念密集输入 + dag.yaml TypeA修复
     + 异步审计正常）
+  status: 已结算
+  type: meta-rule
+  file: settled/427-meta-observation-v227-swarm.md
+- id: '428'
+  title: 元观察——v228-swarm（425/426结算 + snet Phase2设计 + 420-426拓扑映射全量完成 + meta-observer超时模式第3轮
+    + 427号生成态遗留）
   status: 生成态
   type: meta-rule
-  file: pending/427-meta-observation-v227-swarm.md
+  file: pending/428-meta-observation-v228-swarm.md
 edges:
   depends_on:
   - from: '136'
@@ -4445,6 +4451,18 @@ edges:
     to: '137'
   - from: '427'
     to: 090
+  - from: '428'
+    to: '423'
+  - from: '428'
+    to: '427'
+  - from: '428'
+    to: '218'
+  - from: '428'
+    to: '137'
+  - from: '428'
+    to: 090
+  - from: '428'
+    to: '275'
   triggered:
   - from: '005'
     to: 005a
@@ -6053,6 +6071,9 @@ edges:
   - between:
     - '399'
     - '425'
+  - between:
+    - '427'
+    - '428'
   negated_by:
   - target: '032'
     by: 088
