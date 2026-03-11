@@ -4,8 +4,8 @@ title: "续篇洞见提取——拓扑递归统一 + 连续流形否定 + 结算
 status: "已结算"
 type: "语法记录"
 date: "2026-02-20"
-depends_on: ["064", "065", "066"]
-related: ["020"]
+depends_on: ["064"]  # 064是真正的逻辑前提（异质对话谱系），065/066是被分析/否定的对象
+related: ["020", "065", "066"]  # 065/066降为related：067否定了066的连续流形假设，065的张力框架随之失效
 negated_by: []
 negates: []
 ---
@@ -15,7 +15,7 @@ negates: []
 **类型**: 语法记录
 **状态**: 已结算
 **日期**: 2026-02-20
-**前置**: 064, 065, 066
+**前置**: 064（065/066 降为 related——是被否定对象非逻辑前提）
 **源文件**: `.chanlun/genealogy/sources/067-claude-lacan-topology-round2.pdf`, `.chanlun/genealogy/sources/067-gemini-lacan-topology-round2.pdf`
 **特殊性**: 续篇对话（Claude 59页/142K字 + Gemini 61页/116K字）的穷尽式提取。多条洞见直接否定066号的结论。
 

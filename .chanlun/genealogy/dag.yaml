@@ -1525,7 +1525,8 @@ nodes:
   type: meta-rule
   file: settled/305-meta-observation-phase2-implementation-session.md
 - id: '306'
-  title: 元观察——Phase 2 图不变量实现 session（compute_graph_invariants + is_structurally_significant 接口预留）
+  title: 元观察——Phase 2 图不变量实现 session（compute_graph_invariants + is_structurally_significant
+    接口预留）
   status: 已结算
   type: meta-rule
   file: settled/306-meta-observation-phase2-graph-invariants.md
@@ -1910,7 +1911,8 @@ nodes:
   type: 研究方向讨论
   file: settled/382-architecture-research-direction-gemini-decide.md
 - id: '383'
-  title: 元观察——v164-swarm（Claude+Gemini联合研究首发 + 381号框架混淆编排者编辑干预 + ceremony_scan不动点假阳性 + L0→L2管线显式化）
+  title: 元观察——v164-swarm（Claude+Gemini联合研究首发 + 381号框架混淆编排者编辑干预 + ceremony_scan不动点假阳性
+    + L0→L2管线显式化）
   status: settled
   type: meta-rule
   file: settled/383-meta-observation-v164-swarm.md
@@ -1990,7 +1992,8 @@ nodes:
   type: meta-rule
   file: settled/398-meta-observation-v197-hotfix.md
 - id: '399'
-  title: 元观察——v198-swarm（器官性阅读范式转变 + S_net耦合振荡 + fold-dedup落地 + articulation feedback闭环 + 辞典规模爆发 + 外化接缝）
+  title: 元观察——v198-swarm（器官性阅读范式转变 + S_net耦合振荡 + fold-dedup落地 + articulation feedback闭环
+    + 辞典规模爆发 + 外化接缝）
   status: 已结算
   type: meta-rule
   file: settled/399-meta-observation-v198-swarm.md
@@ -2090,7 +2093,8 @@ nodes:
   type: 矛盾发现
   file: settled/419-fold-scission-duality.md
 - id: '420'
-  title: 元观察——v223-swarm（自否定过滤 + 407号split执行 + SUBLATED量化验证 + broken chains全量诊断 + 编排者双层耦合洞察）
+  title: 元观察——v223-swarm（自否定过滤 + 407号split执行 + SUBLATED量化验证 + broken chains全量诊断 +
+    编排者双层耦合洞察）
   status: 已结算
   type: meta-rule
   file: settled/420-meta-observation-v223-swarm.md
@@ -2099,6 +2103,11 @@ nodes:
   status: 已结算
   type: 矛盾发现
   file: settled/421-sublated-is-scission.md
+- id: '422'
+  title: 元观察——v224-swarm（运营问题驱动即兴工位 + 可计算判据3/3达阈值 + 226号角色边界灰区 + VPS OOM运维数据）
+  status: 已结算
+  type: meta-rule
+  file: pending/422-meta-observation-v224-swarm.md
 edges:
   depends_on:
   - from: '136'
@@ -4363,6 +4372,14 @@ edges:
     to: '418'
   - from: '420'
     to: '419'
+  - from: '248'
+    to: '3'
+  - from: '422'
+    to: '420'
+  - from: '422'
+    to: '218'
+  - from: '422'
+    to: '226'
   triggered:
   - from: '005'
     to: 005a
@@ -4445,6 +4462,12 @@ edges:
     to: '373'
   - from: '410'
     to: '390'
+  - from: '274'
+    to: 073a号（depth_budget 基因废除）
+  - from: '275'
+    to: 218号（扩展：218割掉串行尾巴，275割掉全局排序思维）
+  - from: '277'
+    to: 269号验证方法（直接在月线/年线K线上跑D算子——使用了被否定的口径B）
   related:
   - between:
     - '001'
@@ -5874,6 +5897,24 @@ edges:
   - between:
     - '231'
     - '378'
+  - between:
+    - '065'
+    - '067'
+  - between:
+    - '066'
+    - '067'
+  - between:
+    - '073'
+    - '122'
+  - between:
+    - 073a
+    - '122'
+  - between:
+    - 073b
+    - '122'
+  - between:
+    - '122'
+    - '274'
   tensions_with:
   - between:
     - '007'
