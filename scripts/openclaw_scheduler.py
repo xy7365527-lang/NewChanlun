@@ -2,22 +2,26 @@
 """双重耦合自动化调度器。
 
 在 VPS/OpenClaw 上运行，自动执行：
-1. 逢亮 daemon swarm 穿越（fold 端，多实例并行）
+1. 查询逢亮 daemon swarm 状态（fold 端，daemon 独立持久运行）
 2. ceremony_scan 拓扑指标检测（切分端的机器部分）
 3. 异常 → escalate 队列（等待人的切分）
 4. git sync（双向同步）
 
+前提：daemon 必须已作为持久进程运行：
+    cd topological-computation
+    python start_fengliang.py --instances 3 --serve --multiproc --load-experiments
+
 用法:
-    python scripts/openclaw_scheduler.py              # 单次（3×1000步，适合 cron）
+    python scripts/openclaw_scheduler.py              # 单次（查询daemon + scan + escalate）
     python scripts/openclaw_scheduler.py --loop       # 持续循环（适合 systemd）
-    python scripts/openclaw_scheduler.py --instances 5 --steps 2000  # 5实例×2000步
     python scripts/openclaw_scheduler.py --interval 1800  # 循环间隔秒数（默认30分钟）
     python scripts/openclaw_scheduler.py --dry-run    # 只检测不执行
 
 架构:
-    fold 端:  daemon swarm (N instances × M steps) → traversal-events.jsonl → git push
-    切分端:  ceremony_scan.py → topo_indicators → escalate 队列
+    fold 端:  daemon swarm (持久进程, N instances) → perpetual traversal
+    切分端:  scheduler → ceremony_scan → topo_indicators → escalate 队列
     人的切分: .chanlun/escalate/ 队列 → 编排者消费
+    同步层:  scheduler → git pull/push 双向同步
 
 谱系依据: 419号(fold/切分对偶性), 421号(SUBLATED=Aufhebung,切分⊂SUBLATED)
 """
@@ -116,111 +120,50 @@ def git_push(message: str) -> bool:
 
 
 def run_daemon(steps: int = 1000, instances: int = 3) -> dict:
-    """Run 逢亮 daemon swarm (multi-instance).
+    """Query 逢亮 daemon swarm status via HTTP API.
 
-    Uses start_fengliang.py for multi-instance traversal.
-    Each instance has different hash seed → traversal diversity.
-    Instance 0 exposes HTTP/WS API, others are pure traversal.
+    Daemon must be running as a persistent process:
+      cd topological-computation
+      python start_fengliang.py --instances 3 --serve --multiproc --load-experiments
 
-    steps: 每实例穿越步数（默认1000——2683顶点图需要足够步数覆盖）
-    instances: 并行实例数（默认3，与 start_fengliang.py 一致）
+    This function does NOT start the daemon — it queries the running daemon's status.
+    If daemon is not running, returns error status.
+
+    The daemon runs perpetually; each cycle we just check its state.
     """
-    _log(f"starting daemon swarm: {instances} instances × {steps} steps...")
+    _log(f"querying daemon status (expecting {instances} instances)...")
 
-    # Multi-instance wrapper: starts N instances, each runs max_steps, collects summary
-    wrapper = f"""
-import sys, os, json, time
-os.chdir(r'{TOPO_DIR}')
-sys.path.insert(0, r'{TOPO_DIR}')
+    import urllib.request
+    import urllib.error
 
-from daemon import TopologicalDaemon
-import threading
+    daemon_url = os.environ.get("FENGLIANG_API", "http://localhost:9765")
 
-results = {{}}
-lock = threading.Lock()
-
-def run_instance(instance_idx, seed):
-    \"\"\"Run one daemon instance.\"\"\"
     try:
-        d = TopologicalDaemon()
-        d.load_experiments()
-        # Different hash seed per instance for traversal diversity
-        if d.engine:
-            import hashlib
-            d.engine._rng_seed = seed
-        d.run(max_steps={steps})
-        summary = {{
-            'beta_1': d.engine.beta_1 if d.engine else None,
-            'position': d.engine.position if d.engine else None,
-            'settled_count': len(d.engine.settled_cycles) if d.engine else 0,
-            'sublated_count': sum(
-                1 for sc in (d.engine.settled_cycles if d.engine else [])
-                if getattr(sc, 'status', 'active') == 'sublated'
-            ),
-        }}
+        req = urllib.request.Request(f"{daemon_url}/status")
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            status = json.loads(resp.read().decode("utf-8"))
+
+        summary = {
+            "instances": instances,
+            "beta_1": status.get("beta_1"),
+            "position": status.get("position"),
+            "total_steps": status.get("total_steps", 0),
+            "settled_count": status.get("settled_count", 0),
+            "sublated_count": status.get("sublated_count", 0),
+            "api_status": "ok",
+        }
+        _log(f"daemon status: β₁={summary['beta_1']}, "
+             f"steps={summary['total_steps']}, "
+             f"settled={summary['settled_count']}, "
+             f"sublated={summary['sublated_count']}")
+        return summary
+
+    except urllib.error.URLError as e:
+        _log(f"daemon not reachable: {e}")
+        return {"error": f"daemon not reachable: {e}", "api_status": "unreachable"}
     except Exception as e:
-        summary = {{'error': str(e)}}
-    with lock:
-        results[f'instance_{{instance_idx}}'] = summary
-
-seeds = [42, 137, 271, 409, 547, 683, 821, 953, 1087, 1223]
-threads = []
-for i in range({instances}):
-    t = threading.Thread(target=run_instance, args=(i, seeds[i % len(seeds)]))
-    threads.append(t)
-    t.start()
-
-for t in threads:
-    t.join()
-
-# Aggregate
-total_settled = max(r.get('settled_count', 0) for r in results.values())
-total_sublated = max(r.get('sublated_count', 0) for r in results.values())
-# beta_1 should converge across instances (shared graph)
-beta_1_vals = [r.get('beta_1') for r in results.values() if r.get('beta_1') is not None]
-final_beta_1 = beta_1_vals[0] if beta_1_vals else None
-
-agg = {{
-    'instances': {instances},
-    'steps_per_instance': {steps},
-    'total_steps': {instances} * {steps},
-    'beta_1': final_beta_1,
-    'settled_count': total_settled,
-    'sublated_count': total_sublated,
-    'per_instance': results,
-}}
-print('DAEMON_SUMMARY:' + json.dumps(agg))
-"""
-    rc, out, err = _run_cmd(
-        [sys.executable, "-c", wrapper],
-        cwd=TOPO_DIR,
-        timeout=3600,  # 1h max for multi-instance
-    )
-
-    # Parse summary from output
-    summary = {"steps": steps, "instances": instances, "returncode": rc}
-    for line in out.splitlines():
-        if line.startswith("DAEMON_SUMMARY:"):
-            try:
-                summary.update(json.loads(line[len("DAEMON_SUMMARY:"):]))
-            except json.JSONDecodeError:
-                pass
-
-    if rc == 0:
-        _log(f"daemon swarm completed: {instances}×{steps} steps, "
-             f"β₁={summary.get('beta_1')}, "
-             f"settled={summary.get('settled_count')}, "
-             f"sublated={summary.get('sublated_count')}")
-    else:
-        _log(f"daemon swarm failed (rc={rc}): {err[:200]}")
-
-    if err:
-        err_path = REPO_ROOT / "tmp" / "daemon-stderr-latest.log"
-        err_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(err_path, "w", encoding="utf-8") as f:
-            f.write(err)
-
-    return summary
+        _log(f"daemon query failed: {e}")
+        return {"error": str(e), "api_status": "error"}
 
 
 def run_ceremony_scan() -> dict:
@@ -314,18 +257,14 @@ def run_cycle(steps: int = 1000, instances: int = 3, dry_run: bool = False) -> d
     if not dry_run:
         git_pull()
 
-    # 2. Run daemon swarm (fold 端, multi-instance)
-    if not dry_run:
-        daemon_summary = run_daemon(steps=steps, instances=instances)
-        result["daemon"] = daemon_summary
-    else:
-        _log("[dry-run] would run daemon")
-        result["daemon"] = {"dry_run": True}
+    # 2. Query daemon status (daemon runs as persistent process, not started per-cycle)
+    daemon_summary = run_daemon(steps=steps, instances=instances)
+    result["daemon"] = daemon_summary
 
-    # 3. Git push daemon results
-    if not dry_run:
-        total = daemon_summary.get('total_steps', steps)
-        git_push(f"auto: daemon {instances}×{steps}={total} steps, β₁={daemon_summary.get('beta_1')}")
+    # 3. Git push any daemon-generated changes (traversal events, block topology)
+    if not dry_run and daemon_summary.get("api_status") == "ok":
+        git_push(f"auto: daemon query β₁={daemon_summary.get('beta_1')}, "
+                 f"steps={daemon_summary.get('total_steps')}")
 
     # 4. Run ceremony_scan (切分端 - 机器部分)
     scan = run_ceremony_scan()
