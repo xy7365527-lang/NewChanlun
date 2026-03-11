@@ -79,7 +79,7 @@ def status_json(daemon: TopologicalDaemon) -> dict:
     }
 
 
-def topology_json(daemon: TopologicalDaemon, center: str | None = None, radius: int = 2) -> dict:
+def topology_json(daemon: TopologicalDaemon, center: str | None = None, radius: int = 2, full: bool = False) -> dict:
     """GET /topology — K_active subgraph snapshot with f-values.
 
     If center is given, returns local subgraph within radius hops.

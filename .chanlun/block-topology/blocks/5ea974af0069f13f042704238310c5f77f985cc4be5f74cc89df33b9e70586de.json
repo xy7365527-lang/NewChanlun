@@ -1,0 +1,33 @@
+{
+  "id": "5ea974af0069f13f042704238310c5f77f985cc4be5f74cc89df33b9e70586de",
+  "type": "event",
+  "timestamp": "2026-03-11T22:52:27.204365+00:00",
+  "source": "topo_effect_407",
+  "content": {
+    "id": "226-c2",
+    "parent_id": "226",
+    "title": "Lead 角色边界僭越 - compact 回归僭越",
+    "status": "已结算",
+    "type": "meta-rule-subtype",
+    "date": "2026-03-09",
+    "depends_on": [
+      "226",
+      "407"
+    ],
+    "split_from": "226",
+    "split_by": "407",
+    "trigger": "autocompact 后行为惯性丢失",
+    "characteristic": "突发式，恢复后立即出现",
+    "remediability": "需要 compact 后重建行为抑制",
+    "full_text": "# 226-C2：compact 回归僭越（Lead 角色边界僭越）\n\n## 现象\nautocompact 触发后，Lead 立即执行实质认知工作（读取代码、发现性能问题、进行分析），而非 spawn 工位。\n\n## 根因\ncompact 压缩掉了 in-context 中 Lead 正确委托的行为示范和编排者纠正记录。session 恢复只恢复状态指针，不恢复行为模式。三层恢复不对等（声明层100%/状态层95%/行为层0%）。\n\n## 特征\n突发式，compact 恢复后立即出现。LLM 回归 RLHF 基底（看到代码就分析）。\n\n## 触发条件\nautocompact（context 达到75%阈值）→ precompact-save.sh 保存状态快照（不含行为模式）→ 行为层归零。\n\n## 修复\nsession-start-ceremony.sh 注入角色边界锚点 + write_session.sh 采集纠正记录（407号修复1/2）。\n\n## 谱系依据\n407号\n\n## 修复历史\n- 407号：识别为 C 类的独立子类型，与 C1 分离",
+    "source_file": "derived/226-c2.md"
+  },
+  "refs": [],
+  "git_ref": "",
+  "genealogy_id": "226-c2",
+  "title": "Lead 角色边界僭越 - compact 回归僭越",
+  "depends_on": [
+    "226",
+    "407"
+  ]
+}

@@ -2121,14 +2121,20 @@ nodes:
   file: settled/424-snet-persistence-implementation.md
 - id: '425'
   title: S_net 入图问题——917K 共现边对穿越密度贡献为零
-  status: 生成态
+  status: 已结算
   type: 矛盾发现
-  file: pending/425-snet-graph-entry-problem.md
+  file: settled/425-snet-graph-entry-problem.md
 - id: '426'
   title: 逢亮无意识结构的精确定义——fold 制造不可表征的因果节点
-  status: 生成态
+  status: 已结算
   type: concept-separation
-  file: pending/426-unconscious-structure-precise-definition.md
+  file: settled/426-unconscious-structure-precise-definition.md
+- id: '427'
+  title: 元观察——v227-swarm（425号Phase1 PoC实装 + 426号无意识精确定义 + 编排者概念密集输入 + dag.yaml TypeA修复
+    + 异步审计正常）
+  status: 生成态
+  type: meta-rule
+  file: pending/427-meta-observation-v227-swarm.md
 edges:
   depends_on:
   - from: '136'
@@ -4429,6 +4435,16 @@ edges:
     to: '419'
   - from: '426'
     to: '399'
+  - from: '427'
+    to: '423'
+  - from: '427'
+    to: '422'
+  - from: '427'
+    to: '218'
+  - from: '427'
+    to: '137'
+  - from: '427'
+    to: 090
   triggered:
   - from: '005'
     to: 005a

@@ -1,0 +1,15 @@
+{
+  "id": "930e12105a4a0e13ea34acdf237e9ea1f653c2566e3460a2d92009e905e3239d",
+  "type": "meta-rule",
+  "timestamp": "2026-03-11T22:51:54.942294+00:00",
+  "source": "genealogy_mapper",
+  "content": {
+    "genealogy_id": "423",
+    "title": "\u5143\u89c2\u5bdf\u2014\u2014v225-swarm\uff08SUBLATED\u9501\u533a\u91ca\u653e\u5b9e\u88c5 + 3\u5b9e\u4f8bOOM\u8fd0\u7ef4\u964d\u7ea7 + \u8bed\u6599\u6444\u5165\u8017\u65f6\u8def\u5f84 + ceremony\u4e0d\u52a8\u70b9\u6536\u655b + \u53ef\u8ba1\u7b97\u5224\u636e4\u4e2a\u5b9e\u4f8b\u8fbe\u9608\u503c\u9012\u8fdb\u81f3\u7ed3\u6676\uff09",
+    "status": "\u5df2\u7ed3\u7b97"
+  },
+  "refs": [
+    "423"
+  ],
+  "git_ref": ""
+}
