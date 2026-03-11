@@ -41,8 +41,8 @@ $$T(op) = \Delta g \cdot (1-1) + \Delta s \cdot g = 0 - \frac{\Delta \beta_1}{\b
 
 ## 下游推论
 
-- 规格第 4 节 T 公式需要重构，例如引入非线性项（如对数）或分离两个目标为独立奖励
-- 规格第 10 节开放问题 1（"Is T optimal? Nonlinear coupling? Adaptive forms?"）与此矛盾直接相关
+- 规格第 4 节 T 公式需要重构，例如引入非线性项（如对数）或分离两个目标为独立奖励 → [resolved: spec v2已完成——T公式被整体移除。spec v2第4节改为Constraints（settlement-based），不再包含选择准则T。编排者采取了比重构更根本的方案：移除选择函数，代之以settlement约束体系（4.1-4.3）。T公式死锁问题因前提消失而解消]
+- 规格第 10 节开放问题 1（"Is T optimal? Nonlinear coupling? Adaptive forms?"）与此矛盾直接相关 → [resolved: spec v2已完成——原第10节open question 1在spec v2中已不存在。spec v2第9节Open Questions缩减为：Traversal policy, LLM perception quality, settlement criteria, scale, multi-agent, domain independence。T相关的开放问题随T公式移除而消失]
 - 本矛盾不影响规格的拓扑计算范式本身（K_full/K_active 架构），只影响选择机制 `[resolved: 范围界定声明——非行动项，确认拓扑计算范式不受T公式死锁影响]`
 
 ## 认识论等级

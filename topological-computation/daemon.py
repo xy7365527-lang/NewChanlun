@@ -360,6 +360,10 @@ class TopologicalDaemon:
         # Instance identity (auto-detected, used for multi-instance sharing)
         self._instance_id = get_instance_id()
 
+        # Walker session identity (unique per daemon run, for events.jsonl isolation)
+        import uuid
+        self._session_id = f"{self._instance_id}-{uuid.uuid4().hex[:8]}"
+
         # Traversal checkpoint — persistent state across restarts
         self._checkpoint = TraversalCheckpoint(instance_id="default")
 
@@ -1102,15 +1106,29 @@ class TopologicalDaemon:
             # Write to persistent encounter log (JSONL backup)
             pos_name = self.concept_names.get(log.position, log.position)
             encounter_name = self.concept_names.get(log.encounter, log.encounter) if log.encounter else ""
+
+            # Compute jaccard similarity between position and encounter target
+            jaccard_sim = -1.0
+            if log.encounter and log.position != log.encounter:
+                nbs_a = set(self.k_active.neighbors(log.position))
+                nbs_b = set(self.k_active.neighbors(log.encounter))
+                union = nbs_a | nbs_b
+                if union:
+                    jaccard_sim = len(nbs_a & nbs_b) / len(union)
+
             self.encounter_log.record_encounter(
                 concept_a=pos_name,
                 concept_b=encounter_name,
                 encounter_type=log.operation,
                 f_value=log.f_value,
+                g_value=log.g_value,
+                jaccard_similarity=jaccard_sim,
                 context=narrative,
                 beta_1_before=log.beta_1_before,
                 beta_1_after=log.beta_1_after,
                 step=log.step,
+                graph_id=self._instance_id,
+                session_id=self._session_id,
             )
 
             # 401号修复：不再将 encounter 注入 K_active。
@@ -1121,7 +1139,8 @@ class TopologicalDaemon:
             self._checkpoint.encounters.record(
                 step=log.step, operation=log.operation, position=log.position,
                 beta_1_before=log.beta_1_before, beta_1_after=log.beta_1_after,
-                f_value=log.f_value, blocked=log.blocked, context=narrative,
+                f_value=log.f_value, g_value=log.g_value,
+                blocked=log.blocked, context=narrative,
             )
 
         # Gap detection (topology-change driven)

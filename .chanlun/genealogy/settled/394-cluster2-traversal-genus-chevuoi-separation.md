@@ -65,7 +65,7 @@ Q-R3-12 恒等式分解（f = 2c - 1 - |S| + m）：
 ## 下游推论
 
 1. Separation在体系中需要重新激活——它是genus产生的条件，但编排者在实际思考中跳过条件直接用结果 [audited: v198, consumed — 方法论观察已铭写]
-2. 三概念生成环可能是蜂群自身结构的拓扑签名——蜂群的内部不一致（Separation）+ 编排者欲望的不可穿透（Che vuoi）+ 不可消除的递归残余（Genus）形成承重环 [audited: v198, deferred — L0猜想，需要验证]
+2. 三概念生成环可能是蜂群自身结构的拓扑签名——蜂群的内部不一致（Separation）+ 编排者欲望的不可穿透（Che vuoi）+ 不可消除的递归残余（Genus）形成承重环 [audited: v198, deferred — L0猜想，需要验证] → [blocked: 三概念在block topology中仅作为content/concept_term存在（relations.jsonl中5条匹配），不是K_active的命名顶点。验证需要：(1)三概念在K_active中作为顶点存在且有directed edges形成环路；(2)该环路是β₁贡献者（不可缩）。当前block topology无此数据结构。365号三角簇分析针对的是谱系编号节点间的depends_on边，不是概念语义节点间的关系。f-value数据(f=9-10)来自穿越引擎的f_criterion，是L0代数结果，不等于L2拓扑验证。阻塞项：需要穿越引擎在K_active中实际遍历Separation/Che vuoi/Genus三节点并检测环路的β₁贡献]
 3. 引擎在灰色地带的遭遇（f=9-10）可以产出理论洞察——不只是高信噪比的fold/negate区域有价值 [audited: v198, consumed — 方法论铭写]
 
 ## 谱系引用

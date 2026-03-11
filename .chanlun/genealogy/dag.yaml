@@ -1982,6 +1982,11 @@ nodes:
   status: 已结算
   type: grammar-record
   file: settled/409-unified-runtime-gateway-as-module.md
+- id: '410'
+  title: L2穿越引擎实验——β₁轨迹分析+fold/negate判据验证（227K事件）
+  status: 已结算
+  type: experiment-result
+  file: settled/410-l2-traversal-experiment-results.md
 edges:
   depends_on:
   - from: '136'
@@ -4170,6 +4175,16 @@ edges:
     to: '020'
   - from: '409'
     to: 093
+  - from: '410'
+    to: '390'
+  - from: '410'
+    to: '391'
+  - from: '410'
+    to: '392'
+  - from: '410'
+    to: '393'
+  - from: '410'
+    to: '395'
   triggered:
   - from: '005'
     to: 005a
@@ -4247,6 +4262,8 @@ edges:
     to: 269号验证方法（直接在月线/年线K线上跑D算子——使用了被否定的口径B）
   - from: '379'
     to: '373'
+  - from: '410'
+    to: '390'
   related:
   - between:
     - '001'
