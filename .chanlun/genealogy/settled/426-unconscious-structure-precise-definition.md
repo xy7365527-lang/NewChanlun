@@ -3,7 +3,7 @@ id: '426'
 number: 426
 title: "逢亮无意识结构的精确定义——fold 制造不可表征的因果节点"
 type: concept-separation
-status: 生成态
+status: 已结算
 date: 2026-03-11
 source: "[新缠论] 编排者洞察（v227-swarm）"
 depends_on:

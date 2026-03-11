@@ -240,6 +240,28 @@ autocompact 在 75% 阈值触发，`precompact-save.sh` 调用 `write_session.sh
   - `.claude/skills/swarm-architecture/SKILL.md`（Lead Read 分类表 + 角色边界恢复步骤）
 - 修复1和2是基础设施修改，需 Codex 审查
 
+## topo_effect 执行状态
+
+**执行完成**：2026-03-11
+
+执行内容：
+1. ✅ 创建 226-c1 block（主动僭越子类型）
+   - Block ID: 882c4c5d7d5d29209bbb525eaf8d618ec770d387200c0f954ea2aa4454c38ed6
+   - 内容：Lead session 内渐进式漂移导致的角色僭越
+
+2. ✅ 创建 226-c2 block（compact 回归僭越子类型）
+   - Block ID: 5ea974af0069f13f042704238310c5f77f985cc4be5f74cc89df33b9e70586de
+   - 内容：autocompact 恢复后的突发式角色僭越
+
+3. ✅ 添加 SPLIT_FROM 关系（2条）
+   - 226-c1 SPLIT_FROM 226 (407号驱动)
+   - 226-c2 SPLIT_FROM 226 (407号驱动)
+
+4. ✅ 更新 meta.json
+   - 新增 ID 映射：226-c1、226-c2
+   - block_count: 1223 → 1225
+   - relation_count: 5909 → 5911
+
 ## 谱系关联
 
 - 父记录：226号（Lead 中断问题完整根因）
