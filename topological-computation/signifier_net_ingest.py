@@ -2210,3 +2210,71 @@ def ingest_code_dict(
 
     snet = snet.merge_edge_weights()
     return snet, stats
+
+
+# ---------------------------------------------------------------------------
+# Unified dict-type ingest loop (shared by daemon and corpus_ingest_batch)
+# ---------------------------------------------------------------------------
+
+
+def ingest_all_dict_types(
+    snet: SNet,
+    dict_dir: str | Path,
+    graph=None,
+    output=sys.stderr,
+) -> SNet:
+    """Ingest all dictionary types from dict_dir into snet.
+
+    Runs ingest_all_dictionaries (dict_*.jsonl) first, then each specialized
+    dict type (bilingual, morpheme, synonym, etc.), and finally code_dict.
+
+    This is the single authoritative dict ingest loop -- both daemon startup
+    and corpus_ingest_batch.py should call this instead of duplicating the loop.
+
+    Args:
+        snet:     Current SNet instance (not mutated).
+        dict_dir: Path to signifier_net/dictionaries/.
+        graph:    Optional K_active graph (needed for code_dict bridge edges).
+        output:   File-like for progress output (default: stderr).
+
+    Returns:
+        New SNet with all dictionary entries ingested.
+    """
+    dict_dir = Path(dict_dir)
+    if not dict_dir.is_dir():
+        return snet
+
+    # 1. Monolingual dictionaries (dict_*.jsonl)
+    snet, all_stats = ingest_all_dictionaries(snet, dict_dir)
+    if all_stats:
+        report = format_ingest_report(all_stats)
+        print(report, file=output)
+
+    # 2-9: Specialized dict types
+    _dict_types: list[tuple[str, str, callable]] = [
+        ("bilingual_*.jsonl", "bilingual", ingest_bilingual_dict),
+        ("morpheme_*.jsonl", "morpheme", ingest_morpheme_dict),
+        ("synonym_*.jsonl", "synonym", ingest_synonym_dict),
+        ("collocations_*.jsonl", "collocation", ingest_collocation_dict),
+        ("thesaurus_*.jsonl", "thesaurus", ingest_thesaurus_dict),
+        ("wiktionary_*.jsonl", "wiktionary", ingest_wiktionary_dict),
+        ("idioms_*.jsonl", "idiom", ingest_idiom_dict),
+        ("wortschatz_*.jsonl", "wortschatz", ingest_wortschatz_dict),
+    ]
+    for glob_pattern, label, ingest_fn in _dict_types:
+        for fpath in sorted(dict_dir.glob(glob_pattern)):
+            try:
+                snet, _ = ingest_fn(snet, fpath)
+                print(f"  {label} {fpath.name}: OK", file=output)
+            except Exception as exc:
+                print(f"  {label} {fpath.name}: ERROR - {exc}", file=output)
+
+    # 10. Code dictionaries (code_dict_*.jsonl) -- needs graph for bridge edges
+    for cdf in sorted(dict_dir.glob("code_dict_*.jsonl")):
+        try:
+            snet, _ = ingest_code_dict(snet, cdf, graph=graph)
+            print(f"  code_dict {cdf.name}: OK", file=output)
+        except Exception as exc:
+            print(f"  code_dict {cdf.name}: ERROR - {exc}", file=output)
+
+    return snet

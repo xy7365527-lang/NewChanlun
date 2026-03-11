@@ -601,183 +601,21 @@ class TopologicalDaemon:
     def _ingest_dictionaries(self) -> None:
         """Ingest dictionary JSONL files into S_net after bootstrap.
 
-        Adds synonym/contrast (paradigmatic) and definition-based (syntagmatic)
-        edges from structured dictionary entries.
-        Also ingests bilingual (bilingual_*.jsonl) and morpheme (morpheme_*.jsonl) dictionaries.
+        Delegates to signifier_net_ingest.ingest_all_dict_types — the single
+        authoritative dict ingest loop shared with corpus_ingest_batch.py.
 
         Graceful degradation: if dictionaries dir is missing or ingest fails,
         S_net remains unchanged.
         """
         try:
-            from signifier_net_ingest import (
-                ingest_all_dictionaries, format_ingest_report,
-                ingest_bilingual_dict, ingest_morpheme_dict,
-                ingest_synonym_dict, ingest_collocation_dict,
-                ingest_thesaurus_dict, ingest_wiktionary_dict,
-                ingest_idiom_dict, ingest_wortschatz_dict,
-                ingest_code_dict,
-            )
+            from signifier_net_ingest import ingest_all_dict_types
 
             script_dir = Path(os.path.dirname(os.path.abspath(__file__)))
             dict_dir = script_dir / "signifier_net" / "dictionaries"
 
-            if not dict_dir.is_dir():
-                return
-
-            # 1. 单语辞典（dict_*.jsonl）
-            self.snet, all_stats = ingest_all_dictionaries(self.snet, dict_dir)
-
-            # Report
-            if all_stats:
-                report = format_ingest_report(all_stats)
-                print(report, file=sys.stderr)
-
-            # 2. 双语辞典（bilingual_*.jsonl）
-            bilingual_files = sorted(dict_dir.glob("bilingual_*.jsonl"))
-            for bf in bilingual_files:
-                try:
-                    self.snet, bstats = ingest_bilingual_dict(self.snet, bf)
-                    print(
-                        f"  bilingual {bf.name}: "
-                        f"{bstats.get('entries_total', 0)} entries, "
-                        f"+{bstats.get('translations_added', 0)} translations, "
-                        f"+{bstats.get('signifiers_created', 0)} new signifiers",
-                        file=sys.stderr,
-                    )
-                except Exception as exc:
-                    print(f"  bilingual {bf.name}: ERROR - {exc}", file=sys.stderr)
-
-            # 3. 语素辞典（morpheme_*.jsonl）
-            morpheme_files = sorted(dict_dir.glob("morpheme_*.jsonl"))
-            for mf in morpheme_files:
-                try:
-                    self.snet, mstats = ingest_morpheme_dict(self.snet, mf)
-                    print(
-                        f"  morpheme {mf.name}: "
-                        f"{mstats.get('entries_total', 0)} entries, "
-                        f"+{mstats.get('structures_added', 0)} structures, "
-                        f"+{mstats.get('morpheme_edges_added', 0)} morpheme edges",
-                        file=sys.stderr,
-                    )
-                except Exception as exc:
-                    print(f"  morpheme {mf.name}: ERROR - {exc}", file=sys.stderr)
-
-            # 4. 同义词辞典（synonym_*.jsonl）
-            synonym_files = sorted(dict_dir.glob("synonym_*.jsonl"))
-            for sf in synonym_files:
-                try:
-                    self.snet, sstats = ingest_synonym_dict(self.snet, sf)
-                    print(
-                        f"  synonym {sf.name}: "
-                        f"{sstats.get('entries_total', 0)} entries, "
-                        f"{sstats.get('entries_matched', 0)} matched, "
-                        f"+{sstats.get('synonyms_added', 0)} syn, "
-                        f"+{sstats.get('near_synonyms_added', 0)} near_syn",
-                        file=sys.stderr,
-                    )
-                except Exception as exc:
-                    print(f"  synonym {sf.name}: ERROR - {exc}", file=sys.stderr)
-
-            # 5. 搭配辞典（collocations_*.jsonl）
-            collocation_files = sorted(dict_dir.glob("collocations_*.jsonl"))
-            for cf in collocation_files:
-                try:
-                    self.snet, cstats = ingest_collocation_dict(self.snet, cf)
-                    print(
-                        f"  collocation {cf.name}: "
-                        f"{cstats.get('entries_total', 0)} entries, "
-                        f"{cstats.get('entries_matched', 0)} matched, "
-                        f"+{cstats.get('syntagmatic_added', 0)} syntag",
-                        file=sys.stderr,
-                    )
-                except Exception as exc:
-                    print(f"  collocation {cf.name}: ERROR - {exc}", file=sys.stderr)
-
-            # 6. 词类典（thesaurus_*.jsonl）
-            thesaurus_files = sorted(dict_dir.glob("thesaurus_*.jsonl"))
-            for tf in thesaurus_files:
-                try:
-                    self.snet, tstats = ingest_thesaurus_dict(self.snet, tf)
-                    print(
-                        f"  thesaurus {tf.name}: "
-                        f"{tstats.get('entries_total', 0)} entries, "
-                        f"{tstats.get('entries_matched', 0)} matched, "
-                        f"+{tstats.get('synonyms_added', 0)} syn, "
-                        f"+{tstats.get('antonyms_added', 0)} ant, "
-                        f"+{tstats.get('hypernyms_added', 0)} hyper, "
-                        f"+{tstats.get('hyponyms_added', 0)} hypo, "
-                        f"+{tstats.get('syntagmatic_added', 0)} syntag",
-                        file=sys.stderr,
-                    )
-                except Exception as exc:
-                    print(f"  thesaurus {tf.name}: ERROR - {exc}", file=sys.stderr)
-
-            # 7. 维基词典（wiktionary_*.jsonl）
-            wiktionary_files = sorted(dict_dir.glob("wiktionary_*.jsonl"))
-            for wf in wiktionary_files:
-                try:
-                    self.snet, wstats = ingest_wiktionary_dict(self.snet, wf)
-                    print(
-                        f"  wiktionary {wf.name}: "
-                        f"{wstats.get('entries_total', 0)} entries, "
-                        f"{wstats.get('entries_matched', 0)} matched, "
-                        f"+{wstats.get('syntagmatic_added', 0)} syntag, "
-                        f"+{wstats.get('paradigmatic_added', 0)} paradig",
-                        file=sys.stderr,
-                    )
-                except Exception as exc:
-                    print(f"  wiktionary {wf.name}: ERROR - {exc}", file=sys.stderr)
-
-            # 8. 成语/固定短语（idioms_*.jsonl）
-            idiom_files = sorted(dict_dir.glob("idioms_*.jsonl"))
-            for idf in idiom_files:
-                try:
-                    self.snet, istats = ingest_idiom_dict(self.snet, idf)
-                    print(
-                        f"  idiom {idf.name}: "
-                        f"{istats.get('entries_total', 0)} entries, "
-                        f"{istats.get('entries_matched', 0)} matched, "
-                        f"+{istats.get('syntagmatic_added', 0)} syntag",
-                        file=sys.stderr,
-                    )
-                except Exception as exc:
-                    print(f"  idiom {idf.name}: ERROR - {exc}", file=sys.stderr)
-
-            # 9. 词汇场（wortschatz_*.jsonl）
-            for wsf in wortschatz_files:
-                try:
-                    self.snet, wsstats = ingest_wortschatz_dict(self.snet, wsf)
-                    print(
-                        f"  wortschatz {wsf.name}: "
-                        f"{wsstats.get('entries_total', 0)} entries, "
-                        f"{wsstats.get('entries_matched', 0)} matched, "
-                        f"+{wsstats.get('word_field_added', 0)} word_field, "
-                        f"+{wsstats.get('compound_edges_added', 0)} compounds, "
-                        f"+{wsstats.get('derivation_edges_added', 0)} derivations",
-                        file=sys.stderr,
-                    )
-                except Exception as exc:
-                    print(f"  wortschatz {wsf.name}: ERROR - {exc}", file=sys.stderr)
-
-            # 10. 代码辞典（code_dict_*.jsonl）
-            code_dict_files = sorted(dict_dir.glob("code_dict_*.jsonl"))
-            for cdf in code_dict_files:
-                try:
-                    self.snet, cdstats = ingest_code_dict(
-                        self.snet, cdf, graph=self.k_active,
-                    )
-                    print(
-                        f"  code_dict {cdf.name}: "
-                        f"{cdstats.get('entries_total', 0)} entries, "
-                        f"+{cdstats.get('signifiers_created', 0)} new signifiers, "
-                        f"+{cdstats.get('concept_bridges', 0)} bridges, "
-                        f"+{cdstats.get('synonyms_added', 0)} syn, "
-                        f"+{cdstats.get('contrasts_added', 0)} contrast, "
-                        f"+{cdstats.get('syntagmatic_added', 0)} syntag",
-                        file=sys.stderr,
-                    )
-                except Exception as exc:
-                    print(f"  code_dict {cdf.name}: ERROR - {exc}", file=sys.stderr)
+            self.snet = ingest_all_dict_types(
+                self.snet, dict_dir, graph=self.k_active,
+            )
 
             n_sigs = len(self.snet.signifiers)
             n_edges = len(self.snet.edges)
@@ -1322,58 +1160,6 @@ class TopologicalDaemon:
             self._last_snet_active_snapshot = set(current_active)
         except Exception:
             pass
-
-    def _write_feed_event(self, sub_graph: "Graph", text: str) -> None:
-        """Write feed event block to SharedLayer.
-
-        Every feed is significant (external input). No throttle.
-        """
-        vertices_data = []
-        for vid in sub_graph.active_vertex_ids():
-            v = sub_graph.vertex(vid)
-            if v is not None:
-                vertices_data.append({
-                    "id": v.id,
-                    "status": v.status.value,
-                    "content": v.content,
-                    "created_at": v.created_at,
-                })
-
-        edges_data = []
-        for e in sub_graph.edges:
-            edges_data.append({
-                "source": e.source,
-                "target": e.target,
-                "edge_type": e.edge_type.value,
-                "created_at": e.created_at,
-            })
-
-        block = {
-            "type": "feed_event",
-            "instance": self._instance_id,
-            "step": self.total_steps,
-            "timestamp": time.time(),
-            "text_hash": hash(text) & 0xFFFFFFFF,
-            "vertices": vertices_data,
-            "edges": edges_data,
-        }
-        try:
-            block_hash = self._shared_layer.write_block(block)
-            self._cross_instance_sync.known_blocks.add(block_hash)
-        except Exception:
-            pass
-
-    def feed(self, text: str) -> Graph:
-        """External text injection. phi_L processes, then inject into K_active."""
-        from phi_L import phi_L
-        sub_graph = phi_L(text)
-        self._inject(sub_graph)
-        self._fire("on_feed", sub_graph)
-        self.total_feeds += 1
-        # Sync feed event to SharedLayer
-        if self._shared_layer is not None:
-            self._write_feed_event(sub_graph, text)
-        return sub_graph
 
     def ingest_code(self, dirpath: str, source: str = "") -> Graph:
         """Ingest Python source tree into K_active with domain:code tagging.
