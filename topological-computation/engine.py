@@ -6,6 +6,7 @@ Pure Python, no external dependencies. All data structures immutable-by-conventi
 
 from __future__ import annotations
 
+import dataclasses
 from collections import deque
 from dataclasses import dataclass, field
 from enum import Enum
@@ -253,10 +254,17 @@ class SettledCycle:
     Each entry: {"type": "edge"|"tension"|"pressure", "data": {...}}
     Settlement is transformation, not closure — every Aufhebung is also
     the starting point of a new contradiction.
+
+    status: "active" (protecting lockzone) or "sublated" (superseded by
+    topological motion — fold destroyed the cycle's physical basis).
+    415号: ghost settlement is a signal, not a bug.
     """
     edges: frozenset[tuple[str, str]]
     settled_at_step: int
     residue: tuple[dict, ...] = ()
+    status: str = "active"
+    sublated_at_step: int | None = None
+    sublated_by: str | None = None
 
 
 def find_new_cycle_edges(
@@ -668,25 +676,42 @@ class SettlementTracker:
                         vids.add(v)
         return vids
 
-    def purge_invalid_cycles(self, graph: Graph) -> int:
-        """Remove settled cycles whose edges no longer exist in the graph.
+    def mark_sublated_cycles(self, graph: Graph, step: int, operation: str = "fold") -> int:
+        """Mark settled cycles whose edges no longer exist as SUBLATED.
 
-        401号: after purging encounter memory nodes, some settled cycles may
-        reference edges between removed vertices. These "ghost settlements"
-        block operations without protecting anything real.
+        415号: ghost settlement is a signal, not a bug. Fold destroying a settled
+        cycle means the consensus has been superseded by topological motion.
+        The cycle is marked SUBLATED (not deleted) — acknowledging it completed
+        its historical mission and releasing its lockzone.
 
-        Returns the number of purged cycles.
+        Returns the number of newly sublated cycles.
         """
         active_edges = {(e.source, e.target) for e in graph.active_edges()}
-        valid: list[SettledCycle] = []
-        purged = 0
+        updated: list[SettledCycle] = []
+        sublated_count = 0
         for sc in self._settled:
-            if sc.edges.issubset(active_edges):
-                valid.append(sc)
+            if sc.status == "sublated":
+                updated.append(sc)  # already sublated, keep as-is
+            elif sc.edges.issubset(active_edges):
+                updated.append(sc)  # still valid, keep active
             else:
-                purged += 1
-        self._settled = valid
-        return purged
+                updated.append(dataclasses.replace(
+                    sc,
+                    status="sublated",
+                    sublated_at_step=step,
+                    sublated_by=operation,
+                ))
+                sublated_count += 1
+        self._settled = updated
+        return sublated_count
+
+    def purge_invalid_cycles(self, graph: Graph, step: int = 0, operation: str = "fold") -> int:
+        """Backward-compatible alias for mark_sublated_cycles.
+
+        Retains the old name so daemon.py call sites continue to work.
+        Semantics changed: cycles are marked SUBLATED, not deleted (415号).
+        """
+        return self.mark_sublated_cycles(graph, step=step, operation=operation)
 
     def would_destroy_settled(
         self,
@@ -729,18 +754,21 @@ class SettlementTracker:
             if graph_before is not None else None
         )
         # 410号: purge ghost settlements (already broken before operation)
+        # 415号: sublated cycles are already non-blocking, skip them in ghost check
         if active_edges_before is not None:
             ghosts = [
                 sc for sc in self._settled
-                if not sc.edges.issubset(active_edges_before)
+                if sc.status == "active" and not sc.edges.issubset(active_edges_before)
             ]
             if ghosts:
                 self._settled = [
                     sc for sc in self._settled
-                    if sc.edges.issubset(active_edges_before)
+                    if sc.status == "sublated" or sc.edges.issubset(active_edges_before)
                 ]
 
         for sc in self._settled:
+            if sc.status == "sublated":
+                continue  # 415号: sublated cycles don't block operations
             if not sc.edges.issubset(active_edges_after):
                 # This settled cycle would be destroyed.
                 # 410号推论4方案B: fold isomorphism — cycle survives if
@@ -774,7 +802,7 @@ class SettlementTracker:
         })
 
     def _is_settled(self, edges: frozenset[tuple[str, str]]) -> bool:
-        return any(sc.edges == edges for sc in self._settled)
+        return any(sc.edges == edges and sc.status == "active" for sc in self._settled)
 
 
 # ---------------------------------------------------------------------------
@@ -877,9 +905,9 @@ def fold(
             blocked_by=violated,
         )
 
-    # 410号推论4通用修复: 清理因 fold 操作失效的其他 settled cycle
+    # 415号: 将因 fold 操作失效的 settled cycle 标记为 SUBLATED（而非删除）
     # fold 的 merge 可能让未被直接检查的 cycle 的边失效
-    settlement.purge_invalid_cycles(result_graph)
+    settlement.mark_sublated_cycles(result_graph, step=step, operation="fold")
 
     beta_after = compute_beta_1(result_graph)
     actual = beta_after - beta_before
@@ -931,10 +959,22 @@ def negate(
         )
         result_graph = result_graph.set_vertex_status(thesis, VertexStatus.CONTESTED)
 
-    # 410号推论4方案A: negate 免检 settlement 约束
-    # negate 只添加边（NEGATION）和改变状态（CONTESTED），不删除/重定向任何边。
-    # active_edges 只增不减 → 不可能破坏 settled cycle 的边集。
-    # would_destroy_settled 检查对 negate 是纯冗余的（ghost 情况已由 graph_before purge 解决）。
+    # 415号: negate 免检(方案A)不再需要——sublated cycles 自然被 would_destroy_settled 跳过。
+    # negate 只加边不删边 → active cycles 不会被破坏。
+    # sublated cycles 不阻塞 → 无需特殊处理。
+    # 恢复 settlement 检查以保持操作一致性。
+    violated = settlement.would_destroy_settled(
+        result_graph, operation_vertices=frozenset({thesis, antithesis or ""}),
+        graph_before=graph,
+    )
+    if violated is not None:
+        return OperationResult(
+            graph=graph,
+            delta_beta_1_predicted=predicted,
+            delta_beta_1_actual=0,
+            blocked=True,
+            blocked_by=violated,
+        )
 
     beta_after = compute_beta_1(result_graph)
     actual = beta_after - beta_before
@@ -1038,8 +1078,8 @@ def sublate(
             blocked_by=violated,
         )
 
-    # 410号推论4通用修复: 清理因 sublate 操作失效的 settled cycle
-    settlement.purge_invalid_cycles(result_graph)
+    # 415号: 将因 sublate 操作失效的 settled cycle 标记为 SUBLATED
+    settlement.mark_sublated_cycles(result_graph, step=step, operation="sublate")
 
     beta_after = compute_beta_1(result_graph)
     actual = beta_after - beta_before
