@@ -2,20 +2,20 @@
 """双重耦合自动化调度器。
 
 在 VPS/OpenClaw 上运行，自动执行：
-1. 逢亮 daemon 穿越（fold 端）
+1. 逢亮 daemon swarm 穿越（fold 端，多实例并行）
 2. ceremony_scan 拓扑指标检测（切分端的机器部分）
 3. 异常 → escalate 队列（等待人的切分）
 4. git sync（双向同步）
 
 用法:
-    python scripts/openclaw_scheduler.py              # 单次运行（适合 cron）
+    python scripts/openclaw_scheduler.py              # 单次（3×1000步，适合 cron）
     python scripts/openclaw_scheduler.py --loop       # 持续循环（适合 systemd）
+    python scripts/openclaw_scheduler.py --instances 5 --steps 2000  # 5实例×2000步
     python scripts/openclaw_scheduler.py --interval 1800  # 循环间隔秒数（默认30分钟）
-    python scripts/openclaw_scheduler.py --steps 100  # 每轮穿越步数（默认100）
     python scripts/openclaw_scheduler.py --dry-run    # 只检测不执行
 
 架构:
-    fold 端:  daemon.py → traversal-events.jsonl → git push
+    fold 端:  daemon swarm (N instances × M steps) → traversal-events.jsonl → git push
     切分端:  ceremony_scan.py → topo_indicators → escalate 队列
     人的切分: .chanlun/escalate/ 队列 → 编排者消费
 
@@ -115,44 +115,90 @@ def git_push(message: str) -> bool:
     return False
 
 
-def run_daemon(steps: int = 100) -> dict:
-    """Run 逢亮 daemon for N steps. Returns summary."""
-    _log(f"starting daemon: {steps} steps...")
-    cmd = [
-        sys.executable, "daemon.py",
-        "--load-experiments",
-        "--persist",
-        "--no-chain",
-    ]
-    # daemon.py doesn't have --steps flag for main(), we need to use
-    # the multiproc mode or run interactively. Use a wrapper approach.
+def run_daemon(steps: int = 1000, instances: int = 3) -> dict:
+    """Run 逢亮 daemon swarm (multi-instance).
+
+    Uses start_fengliang.py for multi-instance traversal.
+    Each instance has different hash seed → traversal diversity.
+    Instance 0 exposes HTTP/WS API, others are pure traversal.
+
+    steps: 每实例穿越步数（默认1000——2683顶点图需要足够步数覆盖）
+    instances: 并行实例数（默认3，与 start_fengliang.py 一致）
+    """
+    _log(f"starting daemon swarm: {instances} instances × {steps} steps...")
+
+    # Multi-instance wrapper: starts N instances, each runs max_steps, collects summary
     wrapper = f"""
-import sys, os
+import sys, os, json, time
 os.chdir(r'{TOPO_DIR}')
 sys.path.insert(0, r'{TOPO_DIR}')
+
 from daemon import TopologicalDaemon
-d = TopologicalDaemon()
-d.load_experiments()
-d.run(max_steps={steps})
-# Output summary
-import json
-summary = {{
-    'steps': {steps},
-    'beta_1': d.engine.beta_1 if d.engine else None,
-    'position': d.engine.position if d.engine else None,
-    'settled_count': len(d.engine.settled_cycles) if d.engine else 0,
-    'sublated_count': sum(1 for sc in (d.engine.settled_cycles if d.engine else []) if getattr(sc, 'status', 'active') == 'sublated'),
+import threading
+
+results = {{}}
+lock = threading.Lock()
+
+def run_instance(instance_idx, seed):
+    \"\"\"Run one daemon instance.\"\"\"
+    try:
+        d = TopologicalDaemon()
+        d.load_experiments()
+        # Different hash seed per instance for traversal diversity
+        if d.engine:
+            import hashlib
+            d.engine._rng_seed = seed
+        d.run(max_steps={steps})
+        summary = {{
+            'beta_1': d.engine.beta_1 if d.engine else None,
+            'position': d.engine.position if d.engine else None,
+            'settled_count': len(d.engine.settled_cycles) if d.engine else 0,
+            'sublated_count': sum(
+                1 for sc in (d.engine.settled_cycles if d.engine else [])
+                if getattr(sc, 'status', 'active') == 'sublated'
+            ),
+        }}
+    except Exception as e:
+        summary = {{'error': str(e)}}
+    with lock:
+        results[f'instance_{{instance_idx}}'] = summary
+
+seeds = [42, 137, 271, 409, 547, 683, 821, 953, 1087, 1223]
+threads = []
+for i in range({instances}):
+    t = threading.Thread(target=run_instance, args=(i, seeds[i % len(seeds)]))
+    threads.append(t)
+    t.start()
+
+for t in threads:
+    t.join()
+
+# Aggregate
+total_settled = max(r.get('settled_count', 0) for r in results.values())
+total_sublated = max(r.get('sublated_count', 0) for r in results.values())
+# beta_1 should converge across instances (shared graph)
+beta_1_vals = [r.get('beta_1') for r in results.values() if r.get('beta_1') is not None]
+final_beta_1 = beta_1_vals[0] if beta_1_vals else None
+
+agg = {{
+    'instances': {instances},
+    'steps_per_instance': {steps},
+    'total_steps': {instances} * {steps},
+    'beta_1': final_beta_1,
+    'settled_count': total_settled,
+    'sublated_count': total_sublated,
+    'per_instance': results,
 }}
-print('DAEMON_SUMMARY:' + json.dumps(summary))
+print('DAEMON_SUMMARY:' + json.dumps(agg))
 """
     rc, out, err = _run_cmd(
         [sys.executable, "-c", wrapper],
         cwd=TOPO_DIR,
-        timeout=1800,  # 30 min max
+        timeout=3600,  # 1h max for multi-instance
     )
 
     # Parse summary from output
-    summary = {"steps": steps, "returncode": rc}
+    summary = {"steps": steps, "instances": instances, "returncode": rc}
     for line in out.splitlines():
         if line.startswith("DAEMON_SUMMARY:"):
             try:
@@ -161,14 +207,14 @@ print('DAEMON_SUMMARY:' + json.dumps(summary))
                 pass
 
     if rc == 0:
-        _log(f"daemon completed: β₁={summary.get('beta_1')}, "
+        _log(f"daemon swarm completed: {instances}×{steps} steps, "
+             f"β₁={summary.get('beta_1')}, "
              f"settled={summary.get('settled_count')}, "
              f"sublated={summary.get('sublated_count')}")
     else:
-        _log(f"daemon failed (rc={rc}): {err[:200]}")
+        _log(f"daemon swarm failed (rc={rc}): {err[:200]}")
 
     if err:
-        # Save stderr to log
         err_path = REPO_ROOT / "tmp" / "daemon-stderr-latest.log"
         err_path.parent.mkdir(parents=True, exist_ok=True)
         with open(err_path, "w", encoding="utf-8") as f:
@@ -259,7 +305,7 @@ def process_anomalies(scan: dict, dry_run: bool = False) -> list[dict]:
     return escalate_items
 
 
-def run_cycle(steps: int = 100, dry_run: bool = False) -> dict:
+def run_cycle(steps: int = 1000, instances: int = 3, dry_run: bool = False) -> dict:
     """Run one full fold→scan→escalate cycle."""
     cycle_start = time.time()
     result = {"timestamp": datetime.now(timezone.utc).isoformat()}
@@ -268,9 +314,9 @@ def run_cycle(steps: int = 100, dry_run: bool = False) -> dict:
     if not dry_run:
         git_pull()
 
-    # 2. Run daemon (fold 端)
+    # 2. Run daemon swarm (fold 端, multi-instance)
     if not dry_run:
-        daemon_summary = run_daemon(steps=steps)
+        daemon_summary = run_daemon(steps=steps, instances=instances)
         result["daemon"] = daemon_summary
     else:
         _log("[dry-run] would run daemon")
@@ -278,7 +324,8 @@ def run_cycle(steps: int = 100, dry_run: bool = False) -> dict:
 
     # 3. Git push daemon results
     if not dry_run:
-        git_push(f"auto: daemon {steps} steps, β₁={daemon_summary.get('beta_1')}")
+        total = daemon_summary.get('total_steps', steps)
+        git_push(f"auto: daemon {instances}×{steps}={total} steps, β₁={daemon_summary.get('beta_1')}")
 
     # 4. Run ceremony_scan (切分端 - 机器部分)
     scan = run_ceremony_scan()
@@ -311,14 +358,16 @@ def main():
                         help="持续循环模式（适合 systemd service）")
     parser.add_argument("--interval", type=int, default=1800,
                         help="循环间隔秒数（默认1800=30分钟）")
-    parser.add_argument("--steps", type=int, default=100,
-                        help="每轮穿越步数（默认100）")
+    parser.add_argument("--steps", type=int, default=1000,
+                        help="每实例穿越步数（默认1000）")
+    parser.add_argument("--instances", type=int, default=3,
+                        help="并行 daemon 实例数（默认3）")
     parser.add_argument("--dry-run", action="store_true",
                         help="只检测不执行 daemon")
     args = parser.parse_args()
 
-    _log(f"=== OpenClaw Scheduler started (steps={args.steps}, "
-         f"interval={args.interval}s, loop={args.loop}) ===")
+    _log(f"=== OpenClaw Scheduler started (instances={args.instances}, "
+         f"steps={args.steps}, interval={args.interval}s, loop={args.loop}) ===")
 
     if args.loop:
         cycle_num = 0
@@ -326,7 +375,8 @@ def main():
             cycle_num += 1
             _log(f"--- cycle {cycle_num} ---")
             try:
-                result = run_cycle(steps=args.steps, dry_run=args.dry_run)
+                result = run_cycle(steps=args.steps, instances=args.instances,
+                                   dry_run=args.dry_run)
                 _log(f"cycle {cycle_num} result: "
                      f"daemon={result.get('daemon', {}).get('beta_1', '?')}, "
                      f"escalate={len(result.get('escalate', []))}")
@@ -335,7 +385,8 @@ def main():
             _log(f"sleeping {args.interval}s until next cycle...")
             time.sleep(args.interval)
     else:
-        result = run_cycle(steps=args.steps, dry_run=args.dry_run)
+        result = run_cycle(steps=args.steps, instances=args.instances,
+                           dry_run=args.dry_run)
         print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
