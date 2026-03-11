@@ -3,7 +3,7 @@ id: '428'
 number: 428
 title: "元观察——v228-swarm（425/426结算 + snet Phase2设计 + 420-426拓扑映射全量完成 + meta-observer超时模式第3轮 + 427号生成态遗留）"
 type: meta-rule
-status: 生成态
+status: 已结算
 date: 2026-03-11
 source: meta-observer（二阶观察，v228-swarm session 触发）
 depends_on:
