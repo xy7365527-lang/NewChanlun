@@ -598,6 +598,40 @@ class SettlementTracker:
         self._settled = new_settled
         return backfilled
 
+    def _cycle_residue_vertices(self, sc: SettledCycle) -> set[str]:
+        """Return vertex IDs referenced by a single cycle's residue items (410号推論4方案C).
+
+        Same extraction logic as residue_vertices() but scoped to one cycle,
+        enabling per-cycle residue exception in would_destroy_settled().
+        """
+        vids: set[str] = set()
+        for item in sc.residue:
+            data = item.get("data", {})
+            if item["type"] == "edge":
+                for v in data.get("shared_vertices", []):
+                    vids.add(v)
+            elif item["type"] == "tension":
+                va = data.get("vertex_a")
+                vb = data.get("vertex_b")
+                if va:
+                    vids.add(va)
+                if vb:
+                    vids.add(vb)
+            elif item["type"] == "expression_pressure":
+                for v in data.get("cycle_vertices", []):
+                    vids.add(v)
+            elif item["type"] == "boundary_edge":
+                iv = data.get("internal_vertex")
+                ev = data.get("external_vertex")
+                if iv:
+                    vids.add(iv)
+                if ev:
+                    vids.add(ev)
+            elif item["type"] == "nachtraeglichkeit":
+                for v in data.get("affected_vertices", []):
+                    vids.add(v)
+        return vids
+
     def residue_vertices(self) -> set[str]:
         """Return all vertex IDs referenced by any residue item (396号).
 
@@ -659,6 +693,7 @@ class SettlementTracker:
         graph_after: Graph,
         operation_vertices: frozenset[str] | None = None,
         graph_before: Graph | None = None,
+        merge_map: dict[str, str] | None = None,
     ) -> SettledCycle | None:
         """Check if graph_after destroys any settled cycle.
 
@@ -671,6 +706,11 @@ class SettlementTracker:
         Ghost settlements (already broken before the operation) are purged
         rather than blocking the operation.
 
+        410号推论4方案B: if merge_map is provided (fold operation), check
+        whether the settled cycle survives the merge via isomorphism —
+        map removed vertices to their keep targets and verify the mapped
+        edge set is still present in graph_after.
+
         Args:
             graph_after: the graph state after the proposed operation
             operation_vertices: vertices directly involved in the operation
@@ -679,14 +719,15 @@ class SettlementTracker:
                 modify a settled cycle's edge set.
             graph_before: the graph state before the operation. If provided,
                 cycles already broken in graph_before are purged (not blocked).
+            merge_map: vertex merge mapping {removed: keep} from fold.
+                If provided, cycles whose mapped edges survive in graph_after
+                are considered intact (isomorphic), not destroyed.
         """
         active_edges_after = {(e.source, e.target) for e in graph_after.active_edges()}
         active_edges_before = (
             {(e.source, e.target) for e in graph_before.active_edges()}
             if graph_before is not None else None
         )
-        residue_vids = self.residue_vertices() if operation_vertices else set()
-
         # 410号: purge ghost settlements (already broken before operation)
         if active_edges_before is not None:
             ghosts = [
@@ -702,13 +743,25 @@ class SettlementTracker:
         for sc in self._settled:
             if not sc.edges.issubset(active_edges_after):
                 # This settled cycle would be destroyed.
-                # 396号: allow if the operation only touches residue vertices
-                if (
-                    operation_vertices is not None
-                    and sc.residue
-                    and operation_vertices.issubset(residue_vids)
-                ):
-                    continue
+                # 410号推论4方案B: fold isomorphism — cycle survives if
+                # mapped edges (after vertex merge) are still in the graph
+                if merge_map:
+                    mapped_edges = frozenset(
+                        (merge_map.get(s, s), merge_map.get(t, t))
+                        for s, t in sc.edges
+                    )
+                    # Drop self-loops created by fold (A→A after merge)
+                    mapped_edges = frozenset(
+                        (s, t) for s, t in mapped_edges if s != t
+                    )
+                    if mapped_edges and mapped_edges.issubset(active_edges_after):
+                        continue  # cycle survived the fold (isomorphic)
+                # 410号推论4方案C: per-cycle residue exception
+                # Check against the current cycle's residue vertices, not global
+                if operation_vertices is not None and sc.residue:
+                    cycle_residue_vids = self._cycle_residue_vertices(sc)
+                    if operation_vertices.issubset(cycle_residue_vids):
+                        continue
                 return sc
         return None
 
@@ -808,9 +861,12 @@ def fold(
         ) if n_loop > 0 else result_graph
 
     # Check settlement constraint (396号: pass operation vertices for residue check)
+    # 410号推论4方案B: build merge map for fold isomorphism detection
+    merge_map = {v: keep for v in vertices[1:]}
     violated = settlement.would_destroy_settled(
         result_graph, operation_vertices=frozenset(vertices),
         graph_before=graph,
+        merge_map=merge_map,
     )
     if violated is not None:
         return OperationResult(
@@ -820,6 +876,10 @@ def fold(
             blocked=True,
             blocked_by=violated,
         )
+
+    # 410号推论4通用修复: 清理因 fold 操作失效的其他 settled cycle
+    # fold 的 merge 可能让未被直接检查的 cycle 的边失效
+    settlement.purge_invalid_cycles(result_graph)
 
     beta_after = compute_beta_1(result_graph)
     actual = beta_after - beta_before
@@ -871,20 +931,10 @@ def negate(
         )
         result_graph = result_graph.set_vertex_status(thesis, VertexStatus.CONTESTED)
 
-    # Check settlement constraint (396号: pass operation vertices for residue check)
-    negate_verts = frozenset({thesis} | ({antithesis} if antithesis in active else set()))
-    violated = settlement.would_destroy_settled(
-        result_graph, operation_vertices=negate_verts,
-        graph_before=graph,
-    )
-    if violated is not None:
-        return OperationResult(
-            graph=graph,
-            delta_beta_1_predicted=predicted,
-            delta_beta_1_actual=0,
-            blocked=True,
-            blocked_by=violated,
-        )
+    # 410号推论4方案A: negate 免检 settlement 约束
+    # negate 只添加边（NEGATION）和改变状态（CONTESTED），不删除/重定向任何边。
+    # active_edges 只增不减 → 不可能破坏 settled cycle 的边集。
+    # would_destroy_settled 检查对 negate 是纯冗余的（ghost 情况已由 graph_before purge 解决）。
 
     beta_after = compute_beta_1(result_graph)
     actual = beta_after - beta_before
@@ -987,6 +1037,9 @@ def sublate(
             blocked=True,
             blocked_by=violated,
         )
+
+    # 410号推论4通用修复: 清理因 sublate 操作失效的 settled cycle
+    settlement.purge_invalid_cycles(result_graph)
 
     beta_after = compute_beta_1(result_graph)
     actual = beta_after - beta_before
