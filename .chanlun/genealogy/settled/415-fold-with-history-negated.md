@@ -1,0 +1,137 @@
+---
+id: '415'
+number: 415
+title: "保留历史的折叠（Fold-with-History）被否定——破坏性折叠是缠论扬弃的正确拓扑实现"
+type: 矛盾发现
+status: 已结算
+date: 2026-03-11
+negation_source: heterogeneous
+negation_form: expansion
+negation_model: "gemini-3.1-pro-preview"
+depends_on:
+  - '393'
+  - '396'
+  - '404'
+  - '410'
+created_by: gemini-fold-challenge
+---
+
+# 415号：保留历史的折叠被否定——破坏性折叠是缠论扬弃的正确拓扑实现
+
+## 来源标注
+
+[Gemini 异质质询] — 推理链见附件 `G:/NewChanlun/tmp/gemini-fold-history-review-20260311.md`
+
+## 被质询提案
+
+**提案名称**：保留历史的折叠（Fold-with-History）
+
+特性声明：
+1. 改变拓扑邻接（否定旧的距离关系）→ 制造遭遇
+2. 保留旧 block（历史不灭）→ Nachträglichkeit 不被阻断
+3. 折叠事件本身成为可被穿越的对象（元折叠）→ 可以对折叠做折叠
+4. β₁ 的整个变化轨迹可追溯
+5. 折叠可以被否定
+
+## 质询结论
+
+**否定成立。保留历史的折叠不是更好的设计。**
+
+Gemini 判定：`verdict: fail, fold_with_history_proposal: reject, destructive_fold: accept`
+
+## Gemini 推理链摘要
+
+Gemini 读取了：
+- `engine.py`：merge_vertices、fold、would_destroy_settled、compute_beta_1、find_new_cycle_edges
+- `purge_ghost_settlements.py`（通过 search_for_pattern 定位）
+- 上下文文件中的 393/396/404/410 号谱系摘要
+
+### 问题1："共享邻域"的精确语义——严重性：致命
+
+在图论中，声明"A 和 B 共享邻域"不能通过简单加边实现。A 的邻居仍只连着 A，B 的邻居仍只连着 B。
+
+真正实现"共享邻域"必须计算商图（Quotient Graph）——在每次图算法（compute_beta_1、_find_path_edges）中实时收缩等价类。**这本质上就是破坏性折叠的延迟执行**。如果不计算商图，"共享邻域"是空话。
+
+**Gemini 的核心发现**："折叠"声明和"关系"声明（如 depends_on）的区别在于：折叠声明意图让两个节点的邻域在拓扑计算中合并。但不计算商图时，这与添加一条普通边没有本质区别。
+
+### 问题2：计算复杂度——严重性：致命
+
+engine.py 的 merge_vertices（L182）通过物理删除顶点控制图规模。保留历史模式下 |V| 和 |E| 只增不减。
+
+当前 β₁ 使用 Euler-Poincaré（O(|V|+|E|)），但 find_new_cycle_edges 中的路径查找（_find_path_edges）耗时随规模急剧增加。未来引入真正同调群高斯消元（O(|E|³)）时，纯增量模式将直接导致计算瘫痪。
+
+### 问题3：遭遇的实质——严重性：重要
+
+破坏性折叠后：Agent 站在合并顶点 V' 上，可直接遭遇原 A 和 B 的所有邻居（距离=1）。
+
+保留历史折叠后：Agent 站在 A 上，必须先跨越到 B 才能看到 B 的邻居（距离≥2）。
+
+物理距离的拉长破坏了折叠的"短路"效应——折叠的拓扑聚集力丧失。
+
+### 问题4：缠论来源——严重性：致命
+
+缠论"黄金折叠"的核心是级别跃迁。低级别多个线段在高级别中**就是**一个中枢——它们失去低级别独立性，被扬弃为高级别统一体。
+
+保留历史折叠将"同一"（Identity）降级为"同构"（Isomorphism）——等价但各自独立。这使系统永远被困在最低级别的海量细节中，无法生成高级别抽象图景。
+
+**Gemini 的区分**：操盘中的识别是"它们就是同一个东西"（Identity），不是"它们同构"（Isomorphism）。这个语义变化破坏了缠论级别体系的本体论基础。
+
+### 问题5：Ghost settlement 的信号价值——严重性：致命
+
+Ghost settlement 不是 bug，而是系统宣告"旧的共识已经完成了历史使命"。
+
+would_destroy_settled（L368）依赖边的物理存在（sc.edges.issubset(active_edges)）。破坏性折叠导致旧顶点消失，自然打破旧 cycle——这是正确的陈旧化信号。
+
+保留历史折叠下，旧 cycle 的物理前提永远存在，settlement 永远不会失效，系统失去新陈代谢能力，变成"只记录不遗忘的僵死账本"。
+
+### Gemini 的关键引申
+
+**当前架构的真正死锁不在于破坏性折叠本身，而在于 engine.py L466 的 would_destroy_settled 拦截逻辑。**
+
+- 破坏性折叠正确地摧毁了旧结构（符合缠论语义）
+- 但 SettlementTracker 错误地将其视为非法操作（blocked=True）
+- 导致 negate 100% blocked（410号确认）
+
+正确解法：允许折叠摧毁 settled cycle，并将被摧毁的 cycle 标记为 `SUBLATED`（已扬弃）从而释放锁区。
+
+## 我的判定（简化质询三步）
+
+### 定义回溯
+Gemini 引用的代码定位准确（merge_vertices、would_destroy_settled、compute_beta_1、find_new_cycle_edges）。定义引用正确。
+
+### 反例构造
+保留历史折叠可在算法层引入虚拟等价类（不需要商图）。但这实质上是延迟的破坏性折叠，引入额外复杂性，且不改变 Gemini 关于计算复杂度和遭遇距离的核心论点。**反例不能翻转 Gemini 的否定。**
+
+### 推论检验
+Gemini 的关键引申（ghost settlement 应被接受为信号）与 396号谱系（settlement 从 closure 到 transformation，residue 作为新穿越目标）相容——396号的 residue 机制正是"接受 ghost 信号并将其转化为新穿越目标"的具体实现。Gemini 的推论与现有谱系一致。
+
+**否定成立。**
+
+## 边界条件
+
+Gemini 否定在以下条件下可能翻转：
+1. 如果系统目标是历史记录而非拓扑动力学（逢亮的目标是穿越，不是档案）
+2. 如果为保留历史折叠实现完整的商图计算层（但这等于延迟执行破坏性折叠，复杂度不降低）
+3. 如果缠论"级别"概念被重新定义为"同构"而非"同一"（这是一个价值判断，需要编排者裁决）
+
+## 下游推论
+
+1. **保留历史折叠提案被否定**：不进入实现阶段
+2. **正确修复方向确认**：当前 ghost settlement 问题的解法是将被摧毁的 cycle 标记为 SUBLATED（已扬弃）释放锁区，而非切换到纯增量模式
+3. **396号谱系获得支持**：settlement 从 closure 到 transformation 的扬弃方向与 Gemini 的 SUBLATED 标记建议一致——两者可合并为统一实现方向
+4. **negate 100% blocked 的根因确认**：不是折叠模式的问题，是 would_destroy_settled 的锁区过大问题
+
+## 谱系引用
+
+- 393号：fold 猜想初始图验证（Jaccard/f 判据）
+- 396号：settlement 热寂——closure 到 transformation 的扬弃（生成态，与本号方向一致）
+- 404号：Negate/Sublate 在 K_active 中无法生产正向 β₁（已废弃，此处仅作历史参考）
+- 410号：L2 穿越引擎实验——negate 100% blocked 确认
+
+## 影响声明
+
+- **不修改代码**：否定成立但不产生即时代码变更（396号的 residue 实装是下游行动）
+- **提案归档**：保留历史折叠提案作为被否定的设计方向记录于谱系
+- **引擎修复方向**：engine.py 的 would_destroy_settled（约 L466）是当前主要攻坚目标
+  - 修复目标：fold 操作摧毁 settled cycle 时，将 cycle 标记为 SUBLATED 并释放锁区
+  - 不阻塞：396号 residue 实装可与此并行推进
