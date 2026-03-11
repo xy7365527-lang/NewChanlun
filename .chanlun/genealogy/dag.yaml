@@ -2012,6 +2012,26 @@ nodes:
   status: 已结算
   type: 矛盾发现
   file: settled/415-fold-with-history-negated.md
+- id: '416'
+  title: ceremony 穿越的 LLM 边界——谱系写入是语义跳跃还是拓扑游走
+  status: 生成态
+  type: 矛盾发现
+  file: pending/416-ceremony-traversal-llm-boundary.md
+- id: '417'
+  title: SUBLATED 标记——ghost settlement 从 bug 修复到语义操作的扬弃
+  status: 已结算
+  type: 矛盾发现
+  file: settled/417-sublated-marker-architecture.md
+- id: '418'
+  title: 元观察——v220/v221-swarm（SUBLATED标记实装 + 可计算拓扑判据 + 阿多诺擦肩 + 拉康分析终结=fold）
+  status: 已结算
+  type: meta-rule
+  file: settled/418-meta-observation-v220-v221-swarm.md
+- id: '419'
+  title: fold/切分对偶性——图的两个基本构成只允许两种破坏性操作
+  status: 已结算
+  type: 矛盾发现
+  file: settled/419-fold-scission-duality.md
 edges:
   depends_on:
   - from: '136'
@@ -4244,6 +4264,28 @@ edges:
     to: '404'
   - from: '415'
     to: '410'
+  - from: '416'
+    to: '396'
+  - from: '416'
+    to: '412'
+  - from: '417'
+    to: '396'
+  - from: '417'
+    to: '415'
+  - from: '417'
+    to: '416'
+  - from: '418'
+    to: '414'
+  - from: '418'
+    to: '417'
+  - from: '418'
+    to: '415'
+  - from: '419'
+    to: '417'
+  - from: '419'
+    to: '416'
+  - from: '419'
+    to: '415'
   triggered:
   - from: '005'
     to: 005a

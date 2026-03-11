@@ -118,15 +118,20 @@ def compute_broken_dependency_chains(relations, sha_to_id):
     额外条件：A 本身未被否定或更新（没有 negates 边指向 A，也没有
     更新的 supersedes/refines 边 from A）。
 
+    过滤：自否定依赖（A depends_on B 且 A negates B）不算断链——
+    A 依赖 B 正是为了否定 B 的某些方面（否定源型，见 v222 诊断报告）。
+
     返回：依赖被动摇但自身未更新的 block 列表。
     """
-    # 收集 negated targets
+    # 收集 negated targets 和 negator->target 映射
     negated_blocks = set()
     blocks_that_negate = {}  # negated_target -> [negator_sha, ...]
+    negator_targets = {}  # negator_sha -> set(negated_target_sha)
     for rel in relations:
         if rel.get("relation") == "negates":
             negated_blocks.add(rel["to"])
             blocks_that_negate.setdefault(rel["to"], []).append(rel["from"])
+            negator_targets.setdefault(rel["from"], set()).add(rel["to"])
 
     if not negated_blocks:
         return []
@@ -141,14 +146,15 @@ def compute_broken_dependency_chains(relations, sha_to_id):
     updated_blocks = set()
     for rel in relations:
         if rel.get("relation") in ("negates", "supersedes", "refines"):
-            # 有人否定/超越了 rel["to"]，但我们关心的是 from 是否=某个 A
-            # 实际上，我们需要知道 A 自身是否被否定（作为 target）
             updated_blocks.add(rel["to"])
 
     broken = []
     seen = set()
     for from_sha, to_sha in deps:
         if to_sha in negated_blocks and from_sha not in updated_blocks:
+            # 自否定依赖过滤：如果 A 自身就是否定 B 的来源，跳过
+            if to_sha in negator_targets.get(from_sha, set()):
+                continue
             if from_sha not in seen:
                 seen.add(from_sha)
                 negators = blocks_that_negate.get(to_sha, [])
@@ -170,8 +176,12 @@ def compute_unstable_settled(relations, sha_to_id, root):
 
     对每个 settled 谱系（通过 id_mapping 在 block-topology 中有对应 block）：
     1. 收集该 block 的所有 depends_on targets
-    2. 统计其中被 negates 的比例
+    2. 统计其中被 negates 的比例（排除自否定依赖）
     3. 比例 > 50% 的标记为 unstable
+
+    过滤：自否定依赖（X depends_on Y 且 X negates Y）不计入
+    negation_ratio——X 依赖 Y 正是为了否定 Y（否定源型/元记录型，
+    见 v222 unstable-settled 诊断报告）。
 
     返回：按偏差比例降序排列的 unstable settled 谱系列表。
     """
@@ -187,6 +197,12 @@ def compute_unstable_settled(relations, sha_to_id, root):
 
     if not negated_blocks:
         return []
+
+    # 构建 negator->targets 映射（用于自否定过滤）
+    negator_targets = {}  # negator_sha -> set(negated_target_sha)
+    for rel in relations:
+        if rel.get("relation") == "negates":
+            negator_targets.setdefault(rel["from"], set()).add(rel["to"])
 
     # 构建 depends_on 映射：block_sha -> [target_sha, ...]
     deps_map = {}
@@ -204,13 +220,20 @@ def compute_unstable_settled(relations, sha_to_id, root):
         targets = deps_map.get(sha, [])
         if not targets:
             continue
-        negated_count = sum(1 for t in targets if t in negated_blocks)
-        ratio = negated_count / len(targets)
+        # 过滤自否定依赖：X depends_on Y 且 X negates Y → 不计入
+        self_negated = negator_targets.get(sha, set())
+        filtered_targets = [t for t in targets if t not in self_negated]
+        if not filtered_targets:
+            continue
+        negated_count = sum(1 for t in filtered_targets if t in negated_blocks)
+        ratio = negated_count / len(filtered_targets)
         if ratio > 0.5:
             unstable.append({
                 "genealogy_id": genealogy_id,
                 "block_sha": sha,
                 "total_deps": len(targets),
+                "self_negated_deps": len(targets) - len(filtered_targets),
+                "effective_deps": len(filtered_targets),
                 "negated_deps": negated_count,
                 "negation_ratio": round(ratio, 2),
             })

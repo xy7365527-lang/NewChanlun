@@ -451,3 +451,14 @@
 
 # === 384号 — β₁差值分解公式精确化 ===
 384-4: blocked    # L2 验证 Δβ₁=(c-1)+n_loop 在真实区块数据上运行——阻塞于实验调度
+
+# === 415号 — 保留历史折叠被否定 ===
+415-1: resolved    # 415号否定已记录——fold-with-history 不进入实装（SUBLATED v221-swarm commit 3b213c7）
+415-2: resolved    # SUBLATED 标记释放锁区——engine.py SUBLATED 实装完成（v221-swarm commit 3b213c7）
+415-3: resolved    # 396号谱系获得支持——SUBLATED 实装与 396号 settlement→transformation 方向一致（v221-swarm）
+415-4: resolved    # negate 100% blocked 根因确认——SUBLATED 机制使 negate 恢复正常检查（v221-swarm）
+
+# === 412号 — OpenClaw ceremony liveness 节点 ===
+412-1: blocked    # WhatsApp 通知集成（阻塞项：用户配置 WhatsApp channel——外部依赖）[deferred]
+412-2: blocked    # 多 channel 扩展 Telegram/Slack（阻塞项：channel 基础设施搭建——外部依赖）[deferred]
+412-3: blocked    # daemon 与 OpenClaw 交互（阻塞项：OpenClaw 部署完成 + daemon handoff schema 稳定——外部依赖）[deferred]

@@ -14,5 +14,15 @@
     "137",
     "057",
     "218"
-  ]
+  ],
+  "topo_effect_executed": {
+    "operation": "split",
+    "target": "226-type-C",
+    "result": {
+      "C1": "ead033e3892f0bb5540747d4ad7d4263b0a8ac8c0f066a12007ab493da643d79",
+      "C2": "94e3ff5cfa0d918ecc120f97d6025fe81be506e8e735e620343ab4d763de308f"
+    },
+    "timestamp": "2026-03-11T06:16:50.721602+00:00",
+    "executed_by": "v223-swarm/topo-mutator"
+  }
 }
