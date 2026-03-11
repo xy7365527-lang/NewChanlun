@@ -1,7 +1,7 @@
 [Unit]
 Description=OpenClaw Dual-Coupling Scheduler (切分端)
 After=fengliang.service
-Requires=fengliang.service
+Wants=fengliang.service
 
 [Service]
 Type=simple

@@ -1,0 +1,19 @@
+{
+  "type": "genealogy",
+  "timestamp": "2026-03-11T09:12:16.063522+00:00",
+  "source": "ceremony_v225",
+  "content": {
+    "action": "genealogy_mapping",
+    "genealogy_id": "421",
+    "type": "矛盾发现",
+    "title": "SUBLATED 包含切分但不等于切分",
+    "depends_on": [
+      "419",
+      "417",
+      "415"
+    ]
+  },
+  "refs": [],
+  "git_ref": "",
+  "id": "b23aaf7078845d3ab1200ce15f2f5efd5ffc08316186c245f154f278f7744668"
+}

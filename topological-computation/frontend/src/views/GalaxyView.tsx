@@ -877,16 +877,23 @@ export function GalaxyView({
     let hoveredIdx  = -1;
     const neighborSet = new Set<number>();
 
+    // ── 预计算邻接表（O(E) 一次，hover 时 O(degree)） ─────────────
+
+    const adjacency = new Map<number, Set<number>>();
+    links.forEach((l) => {
+      const srcId = typeof l.source === "string" ? l.source : (l.source as TopologyNode).id;
+      const tgtId = typeof l.target === "string" ? l.target : (l.target as TopologyNode).id;
+      const si = nodeIdxMap.get(srcId);
+      const ti = nodeIdxMap.get(tgtId);
+      if (si === undefined || ti === undefined) return;
+      if (!adjacency.has(si)) adjacency.set(si, new Set());
+      if (!adjacency.has(ti)) adjacency.set(ti, new Set());
+      adjacency.get(si)!.add(ti);
+      adjacency.get(ti)!.add(si);
+    });
+
     function computeNeighbors(idx: number): Set<number> {
-      const s = new Set<number>();
-      const id = nodes[idx].id;
-      links.forEach((l) => {
-        const srcId = typeof l.source === "string" ? l.source : (l.source as TopologyNode).id;
-        const tgtId = typeof l.target === "string" ? l.target : (l.target as TopologyNode).id;
-        if (srcId === id) { const ti = nodeIdxMap.get(tgtId); if (ti !== undefined) s.add(ti); }
-        if (tgtId === id) { const si = nodeIdxMap.get(srcId); if (si !== undefined) s.add(si); }
-      });
-      return s;
+      return adjacency.get(idx) ?? new Set();
     }
 
     // label 对象（懒创建）
