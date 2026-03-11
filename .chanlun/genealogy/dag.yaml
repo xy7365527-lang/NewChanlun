@@ -1983,7 +1983,7 @@ nodes:
   file: settled/396-settlement-thermal-death.md
 - id: '397'
   title: 元观察——v197-swarm（自反结构种子+396号residue补全+多实例共享+code_settlement_request桥接+VPS部署）
-  status: 生成态
+  status: 已结算
   type: meta-rule
   file: settled/397-meta-observation-v197-swarm.md
 - id: '398'
@@ -2034,7 +2034,7 @@ nodes:
   file: settled/407-lead-role-boundary-compact-regression.md
 - id: '408'
   title: 元观察——v210-swarm（batch模式O(n)实装 + compact回归机制诊断 + 语法记录结晶确认 + 工程密集期第5轮）
-  status: 生成态
+  status: 已结算
   type: meta-rule
   file: settled/408-meta-observation-v210-swarm.md
 - id: '409'
@@ -2049,7 +2049,7 @@ nodes:
   file: settled/410-l2-traversal-experiment-results.md
 - id: '411'
   title: 元观察——v215-swarm（L2否定性结果价值实证 + ghost settlement修复 + 410号推论闭环 + 工程密集期第6轮方法论回归）
-  status: 生成态
+  status: 已结算
   type: meta-rule
   file: settled/411-meta-observation-v215-swarm.md
 - id: '412'
@@ -2074,7 +2074,7 @@ nodes:
   file: settled/415-fold-with-history-negated.md
 - id: '416'
   title: ceremony 穿越的 LLM 边界——谱系写入是语义跳跃还是拓扑游走
-  status: 生成态
+  status: 已结算
   type: 矛盾发现
   file: settled/416-ceremony-traversal-llm-boundary.md
 - id: '417'
@@ -2124,6 +2124,11 @@ nodes:
   status: 生成态
   type: 矛盾发现
   file: pending/425-snet-graph-entry-problem.md
+- id: '426'
+  title: 逢亮无意识结构的精确定义——fold 制造不可表征的因果节点
+  status: 生成态
+  type: concept-separation
+  file: pending/426-unconscious-structure-precise-definition.md
 edges:
   depends_on:
   - from: '136'
@@ -4416,6 +4421,14 @@ edges:
     to: '424'
   - from: '425'
     to: '402'
+  - from: '426'
+    to: '425'
+  - from: '426'
+    to: '421'
+  - from: '426'
+    to: '419'
+  - from: '426'
+    to: '399'
   triggered:
   - from: '005'
     to: 005a
