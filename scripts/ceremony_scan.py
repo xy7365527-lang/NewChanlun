@@ -1303,6 +1303,8 @@ def main():
     # 保留 --structural 作为 --skills 的别名（向后兼容）
     parser.add_argument("--structural", action="store_true", help="(deprecated) 等同于 --skills")
     parser.add_argument("--workstations", nargs="*", help="指定业务工位名称")
+    parser.add_argument("--summary", action="store_true",
+                        help="输出简要摘要（供 OpenClaw cron liveness 节点使用）")
     args = parser.parse_args()
 
     root = os.getcwd()
@@ -1665,6 +1667,17 @@ def main():
             ["git", "rev-parse", "--short", "HEAD"], cwd=root, text=True).strip()
     except Exception:
         pass
+
+    if args.summary:
+        ws = result.get("workstations", [])
+        if ws:
+            names = [w.get("name", "?") for w in ws]
+            print(f"[ceremony-scan] {len(ws)}个工位待处理: {'; '.join(names[:5])}")
+            if len(names) > 5:
+                print(f"  ...及其他{len(names) - 5}个工位")
+        else:
+            print("[ceremony-scan] 无待处理工位")
+        return
 
     print(json.dumps(result, ensure_ascii=False, indent=2))
 

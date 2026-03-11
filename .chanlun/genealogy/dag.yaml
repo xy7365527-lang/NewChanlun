@@ -1992,6 +1992,11 @@ nodes:
   status: 生成态
   type: meta-rule
   file: pending/411-meta-observation-v215-swarm.md
+- id: '412'
+  title: OpenClaw 作为 ceremony 子系统 liveness 节点——非认知常驻心跳
+  status: 已结算
+  type: grammar-record
+  file: settled/412-openclaw-ceremony-liveness.md
 edges:
   depends_on:
   - from: '136'
@@ -4196,6 +4201,10 @@ edges:
     to: '410'
   - from: '411'
     to: '231'
+  - from: '412'
+    to: '409'
+  - from: '412'
+    to: '411'
   triggered:
   - from: '005'
     to: 005a
