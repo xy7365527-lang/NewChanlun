@@ -296,6 +296,108 @@ class SNet:
         ]
         return SNet(self._signifiers, new_edges, self._morphemes)
 
+    # ------------------------------------------------------------------
+    # 序列化 / 反序列化（持久化缓存用）
+    # ------------------------------------------------------------------
+
+    def to_dict(self) -> dict:
+        """将 SNet 序列化为纯 Python dict（可 JSON / pickle）。
+
+        包含所有数据：signifiers、edges、morphemes。
+        索引（_syn_out 等）不序列化——从 edges 重建。
+
+        认识论等级：L0（无损序列化，代数等价）
+        """
+        return {
+            "signifiers": {
+                sid: {
+                    "id": sig.id,
+                    "surface_forms": list(sig.surface_forms),
+                    "source": sig.source,
+                    "lang": sig.lang,
+                    "domain": sig.domain,
+                }
+                for sid, sig in self._signifiers.items()
+            },
+            "edges": [
+                {
+                    "source": e.source,
+                    "target": e.target,
+                    "axis": e.axis.value,
+                    "weight": e.weight,
+                    "evidence": e.evidence,
+                    "relation": e.relation,
+                    "differential": e.differential,
+                }
+                for e in self._edges
+            ],
+            "morphemes": {
+                sid: {
+                    "signifier_id": ms.signifier_id,
+                    "morphemes": [
+                        {
+                            "form": m.form,
+                            "meaning": m.meaning,
+                            "lang": m.lang,
+                            "shared_with": list(m.shared_with),
+                        }
+                        for m in ms.morphemes
+                    ],
+                    "etymology": ms.etymology,
+                }
+                for sid, ms in self._morphemes.items()
+            },
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "SNet":
+        """从 to_dict() 输出重建 SNet。
+
+        索引从 edges 自动重建（SNet.__init__ 内部完成）。
+
+        认识论等级：L0（无损反序列化，代数等价）
+        """
+        signifiers: dict[str, Signifier] = {}
+        for sid, sd in data.get("signifiers", {}).items():
+            signifiers[sid] = Signifier(
+                id=sd["id"],
+                surface_forms=tuple(sd.get("surface_forms", ())),
+                source=sd.get("source", "k_active_projection"),
+                lang=sd.get("lang", ""),
+                domain=sd.get("domain", ""),
+            )
+
+        edges: list[SignifierEdge] = []
+        for ed in data.get("edges", []):
+            edges.append(SignifierEdge(
+                source=ed["source"],
+                target=ed["target"],
+                axis=AxisType(ed["axis"]),
+                weight=ed.get("weight", 1.0),
+                evidence=ed.get("evidence", ""),
+                relation=ed.get("relation", ""),
+                differential=ed.get("differential", ""),
+            ))
+
+        morphemes: dict[str, MorphemeStructure] = {}
+        for sid, md in data.get("morphemes", {}).items():
+            morph_list = tuple(
+                Morpheme(
+                    form=m["form"],
+                    meaning=m["meaning"],
+                    lang=m["lang"],
+                    shared_with=tuple(m.get("shared_with", ())),
+                )
+                for m in md.get("morphemes", [])
+            )
+            morphemes[sid] = MorphemeStructure(
+                signifier_id=md["signifier_id"],
+                morphemes=morph_list,
+                etymology=md.get("etymology", ""),
+            )
+
+        return cls(signifiers=signifiers, edges=edges, morphemes=morphemes)
+
     def __repr__(self) -> str:
         return (
             f"SNet(signifiers={len(self._signifiers)}, "

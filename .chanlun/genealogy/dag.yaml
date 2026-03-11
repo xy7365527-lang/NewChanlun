@@ -2114,6 +2114,16 @@ nodes:
   status: 已结算
   type: meta-rule
   file: settled/423-meta-observation-v225-swarm.md
+- id: '424'
+  title: S_net 持久化缓存实装——423号候选5的工程闭合
+  status: 生成态
+  type: 回溯结算
+  file: pending/424-snet-persistence-implementation.md
+- id: '425'
+  title: S_net 入图问题——917K 共现边对穿越密度贡献为零
+  status: 生成态
+  type: 矛盾发现
+  file: pending/425-snet-graph-entry-problem.md
 edges:
   depends_on:
   - from: '136'
@@ -4396,6 +4406,16 @@ edges:
     to: '415'
   - from: '423'
     to: '137'
+  - from: '424'
+    to: '423'
+  - from: '424'
+    to: '399'
+  - from: '425'
+    to: '399'
+  - from: '425'
+    to: '424'
+  - from: '425'
+    to: '402'
   triggered:
   - from: '005'
     to: 005a
@@ -5998,6 +6018,12 @@ edges:
   - between:
     - 020a
     - 068
+  - between:
+    - '424'
+    - '425'
+  - between:
+    - '399'
+    - '425'
   negated_by:
   - target: '032'
     by: 088
