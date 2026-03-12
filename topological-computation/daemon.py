@@ -351,6 +351,9 @@ class TopologicalDaemon:
         # S_net (signifier network) — initialized during _initialize_engine
         self.snet: SNet = SNet()
 
+        # S_net SQLite persistence layer (423号: replace pickle with SQLite)
+        self._snet_persistence = None  # initialized in _bootstrap_snet
+
         # S_net activation (coupled oscillation) — initialized during _initialize_engine
         self.snet_activation: SNetActivation | None = None
 
@@ -563,12 +566,12 @@ class TopologicalDaemon:
         Layer C: paradigmatic seeds (chanlun synonym/replacement pairs)
         + Dictionary ingest + Text corpus ingest
 
-        Cache strategy (snet_cache.py):
-          1. Check if cached S_net exists and manifest matches current files
-             - Full match -> load from cache, skip all ingestion
-             - Partial match -> load cache + incremental ingest of changed files
-             - No match -> full ingest + save cache
-          2. Cache file: ~/.swarm/persist/snet_cache/snet_cache.pkl.gz
+        Persistence strategy (priority order):
+          1. SQLite (snet_persistence.py) — primary, WAL mode, incremental updates
+          2. pickle+gzip (snet_cache.py) — fallback if SQLite fails
+          3. Full ingest from source files
+
+        Cache validation uses manifest hash (same as snet_cache.py).
 
         Graceful degradation: if data file is missing or bootstrap fails,
         self.snet remains an empty SNet and daemon continues normally.
@@ -581,7 +584,47 @@ class TopologicalDaemon:
             dict_dir = script_dir / "signifier_net" / "dictionaries"
             corpus_root = script_dir / "signifier_net" / "corpora"
 
-            # --- Try cache first ---
+            # Build current manifest for cache validation
+            # (reuse snet_cache.build_manifest for consistency)
+            current_manifest = None
+            try:
+                from snet_cache import build_manifest
+                current_manifest = build_manifest(
+                    dict_dir=dict_dir if dict_dir.is_dir() else None,
+                    corpus_root=corpus_root if corpus_root.is_dir() else None,
+                    surface_forms_path=sf_path if sf_path.exists() else None,
+                )
+            except Exception:
+                pass
+
+            # --- Try SQLite persistence first (primary) ---
+            try:
+                from snet_persistence import SNetPersistence
+                persistence = SNetPersistence()
+                self._snet_persistence = persistence
+
+                if current_manifest is not None and persistence.manifest_valid(current_manifest):
+                    t0 = _time.time()
+                    cached_snet = persistence.load_full()
+                    if cached_snet is not None:
+                        self.snet = cached_snet
+                        elapsed = _time.time() - t0
+                        n_sigs = len(self.snet._signifiers)
+                        n_edges = len(self.snet._edges)
+                        print(
+                            f"S_net from SQLite: {n_sigs} signifiers, {n_edges} edges "
+                            f"({elapsed:.1f}s — skipped full ingest)",
+                            file=sys.stderr,
+                        )
+                        return
+                    else:
+                        print("S_net SQLite: DB exists but empty, proceeding to fallback", file=sys.stderr)
+                else:
+                    print("S_net SQLite: manifest mismatch or missing, proceeding to fallback", file=sys.stderr)
+            except Exception as sqlite_exc:
+                print(f"S_net SQLite load failed (trying pickle fallback): {sqlite_exc}", file=sys.stderr)
+
+            # --- Try pickle cache as fallback ---
             try:
                 from snet_cache import try_load_cached_snet, save_after_full_ingest
 
@@ -598,15 +641,17 @@ class TopologicalDaemon:
                     n_sigs = len(self.snet._signifiers)
                     n_edges = len(self.snet._edges)
                     print(
-                        f"S_net from cache: {n_sigs} signifiers, {n_edges} edges "
+                        f"S_net from pickle cache: {n_sigs} signifiers, {n_edges} edges "
                         f"({elapsed:.1f}s — skipped full ingest)",
                         file=sys.stderr,
                     )
+                    # Migrate pickle cache to SQLite for next startup
+                    self._migrate_snet_to_sqlite(current_manifest)
                     return
             except Exception as cache_exc:
-                print(f"S_net cache check failed (proceeding with full ingest): {cache_exc}", file=sys.stderr)
+                print(f"S_net pickle cache failed (proceeding with full ingest): {cache_exc}", file=sys.stderr)
 
-            # --- Full ingest (cache miss or cache unavailable) ---
+            # --- Full ingest (both caches missed) ---
             t0 = _time.time()
             from snet_bootstrap import bootstrap_snet
 
@@ -645,7 +690,16 @@ class TopologicalDaemon:
             elapsed = _time.time() - t0
             print(f"S_net full ingest completed in {elapsed:.1f}s", file=sys.stderr)
 
-            # --- Save cache after full ingest ---
+            # --- Save to SQLite (primary) ---
+            try:
+                if self._snet_persistence is not None:
+                    self._snet_persistence.save_full(self.snet)
+                    if current_manifest is not None:
+                        self._snet_persistence.set_manifest(current_manifest)
+            except Exception as sqlite_save_exc:
+                print(f"S_net SQLite save failed (non-fatal): {sqlite_save_exc}", file=sys.stderr)
+
+            # --- Also save pickle cache (fallback) ---
             try:
                 from snet_cache import save_after_full_ingest
                 save_after_full_ingest(
@@ -655,11 +709,33 @@ class TopologicalDaemon:
                     surface_forms_path=sf_path if sf_path.exists() else None,
                 )
             except Exception as save_exc:
-                print(f"S_net cache save failed (non-fatal): {save_exc}", file=sys.stderr)
+                print(f"S_net pickle cache save failed (non-fatal): {save_exc}", file=sys.stderr)
 
         except Exception as exc:
             print(f"S_net bootstrap failed (graceful degradation): {exc}", file=sys.stderr)
             self.snet = SNet()
+
+    def _migrate_snet_to_sqlite(self, manifest: dict | None) -> None:
+        """Migrate S_net from pickle cache to SQLite (one-time migration).
+
+        Called when pickle cache hit but SQLite was empty/stale.
+        Non-fatal: if migration fails, SQLite will be populated on next full ingest.
+        """
+        try:
+            if self._snet_persistence is None:
+                from snet_persistence import SNetPersistence
+                self._snet_persistence = SNetPersistence()
+            self._snet_persistence.save_full(self.snet)
+            if manifest is not None:
+                self._snet_persistence.set_manifest(manifest)
+            n_sigs = len(self.snet._signifiers)
+            n_edges = len(self.snet._edges)
+            print(
+                f"S_net migrated pickle→SQLite: {n_sigs} signifiers, {n_edges} edges",
+                file=sys.stderr,
+            )
+        except Exception as exc:
+            print(f"S_net pickle→SQLite migration failed (non-fatal): {exc}", file=sys.stderr)
 
     def _ingest_dictionaries(self) -> None:
         """Ingest dictionary JSONL files into S_net after bootstrap.
@@ -781,6 +857,33 @@ class TopologicalDaemon:
 
         except Exception as exc:
             print(f"Dialogue session ingest failed (graceful degradation): {exc}", file=sys.stderr)
+
+    def persist_snet_incremental(
+        self,
+        new_signifiers: list | None = None,
+        new_edges: list | None = None,
+        new_morphemes: list | None = None,
+    ) -> None:
+        """Incrementally persist S_net changes to SQLite.
+
+        Called after any runtime modification to self.snet (e.g., dialogue
+        writeback, articulation feedback edges). Uses INSERT OR IGNORE for
+        edge dedup via UNIQUE INDEX on (source, target, axis).
+
+        Graceful degradation: if SQLite persistence is not available, silently skips.
+
+        Performance: < 1ms per call (typically 0-3 rows).
+        """
+        if self._snet_persistence is None:
+            return
+        try:
+            self._snet_persistence.save_incremental(
+                new_signifiers=new_signifiers,
+                new_edges=new_edges,
+                new_morphemes=new_morphemes,
+            )
+        except Exception as exc:
+            print(f"S_net incremental persist failed (non-fatal): {exc}", file=sys.stderr)
 
     def register_callback(self, event_type: str, callback) -> None:
         """Register a callback for an event type."""
@@ -1535,6 +1638,8 @@ class TopologicalDaemon:
             self._checkpoint.close()
         if self._persist:
             self._persist.close()
+        if hasattr(self, '_snet_persistence') and self._snet_persistence is not None:
+            self._snet_persistence.close()
 
 
 # ---------------------------------------------------------------------------
