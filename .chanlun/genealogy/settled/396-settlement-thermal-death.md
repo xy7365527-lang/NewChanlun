@@ -1,6 +1,6 @@
 ---
 id: "396"
-status: 生成态
+status: 已结算
 type: concept-separation
 date: "2026-03-08"
 ---
