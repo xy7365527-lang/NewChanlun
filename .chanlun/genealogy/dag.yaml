@@ -2158,6 +2158,11 @@ nodes:
   status: 已结算
   type: concept-separation
   file: settled/431-articulate-topological-criterion.md
+- id: '432'
+  title: 元观察——v231-swarm（ARTICULATE拓扑判据重构 + 索绪尔两轴对应 + API通道不稳定下的降级策略）
+  status: 已结算
+  type: meta-rule
+  file: settled/432-meta-observation-v231-swarm.md
 edges:
   depends_on:
   - from: '136'
@@ -4508,6 +4513,12 @@ edges:
     to: '399'
   - from: '431'
     to: '429'
+  - from: '432'
+    to: '431'
+  - from: '432'
+    to: '430'
+  - from: '432'
+    to: '076'
   triggered:
   - from: '005'
     to: 005a
