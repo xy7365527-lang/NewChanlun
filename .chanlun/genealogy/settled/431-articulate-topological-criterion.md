@@ -85,12 +85,16 @@ if score >= ARTICULATION_THRESHOLD:  # 2.0
 
 1. **traversal.py 已修改**：`_check_articulation_encounter()` 从度量阈值改为拓扑不一致判据
    - status: executed（v231-swarm/articulate-refactor）
+   - covered: 行动——traversal.py:1102 方法已实装，使用 imbalance_type 布尔判据（v232-swarm/genealogy-proposals 验证）
 2. **daemon.py 已修改**：articulation block 写入格式从 cooc_weight/ta_count/step_gap 改为 imbalance_type/reason
    - status: executed（v231-swarm/articulate-refactor）
+   - covered: 行动——daemon.py:1027 使用 imbalance_type/reason 字段（v232-swarm/genealogy-proposals 验证）
 3. **block_topology_persistence.py 已修改**：`write_articulation_block()` 接口同步更新
    - status: executed（v231-swarm/articulate-refactor）
+   - covered: 行动——block_topology_persistence.py:365 接口包含 imbalance_type 参数（v232-swarm/genealogy-proposals 验证）
 4. **L2 验证需要**：在真实语料摄入后观察 A密B疏/B密A疏 的触发频率和分布
    - status: pending（需要 VPS daemon 重启后观察）
+   - not_covered: 行动——依赖外部条件（VPS daemon 真实语料摄入），非实装缺失
 
 ## 7. 谱系引用
 

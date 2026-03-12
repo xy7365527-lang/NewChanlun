@@ -116,10 +116,14 @@ Gemini 否定在以下条件下可能翻转：
 
 ## 下游推论
 
-1. **保留历史折叠提案被否定**：不进入实现阶段 → `[covered: 行动——415号影响声明"提案归档"即是执行，无需额外谱系]`
-2. **正确修复方向确认**：当前 ghost settlement 问题的解法是将被摧毁的 cycle 标记为 SUBLATED（已扬弃）释放锁区，而非切换到纯增量模式 → `[covered: 定理——417号结算SUBLATED架构 + 421号精化语义，engine.py mark_sublated_cycles()已实装]`
-3. **396号谱系获得支持**：settlement 从 closure 到 transformation 的扬弃方向与 Gemini 的 SUBLATED 标记建议一致——两者可合并为统一实现方向 → `[covered: 定理——417号(depends_on 396+415)是合并方向的结算记录，396号仍生成态因residue实装未完成(非方向未确认)]`
-4. **negate 100% blocked 的根因确认**：不是折叠模式的问题，是 would_destroy_settled 的锁区过大问题 → `[covered: 定理——410号推论4文档三方案已全部实装(v219-swarm)，417号SUBLATED机制替代方案A，根因已确认且已修复]`
+1. **保留历史折叠提案被否定**：不进入实现阶段
+   - covered: 行动——415号影响声明"提案归档"即是执行，无需额外谱系（v232-swarm/genealogy-proposals 验证）
+2. **正确修复方向确认**：当前 ghost settlement 问题的解法是将被摧毁的 cycle 标记为 SUBLATED（已扬弃）释放锁区，而非切换到纯增量模式
+   - covered: 定理——417号结算SUBLATED架构 + 421号精化语义，engine.py:717 mark_sublated_cycles() 已实装（v232-swarm/genealogy-proposals 验证）
+3. **396号谱系获得支持**：settlement 从 closure 到 transformation 的扬弃方向与 Gemini 的 SUBLATED 标记建议一致——两者可合并为统一实现方向
+   - covered: 定理——417号(depends_on 396+415)是合并方向的结算记录，396号仍生成态因 residue 实装未完成（非方向未确认）（v232-swarm/genealogy-proposals 验证）
+4. **negate 100% blocked 的根因确认**：不是折叠模式的问题，是 would_destroy_settled 的锁区过大问题
+   - covered: 定理——410号推论4文档三方案已全部实装(v219-swarm)，417号SUBLATED机制替代方案A，根因已确认且已修复。engine.py:1012 negate 中 mark_sublated_cycles 前置执行（v232-swarm/genealogy-proposals 验证）
 
 ## 谱系引用
 
