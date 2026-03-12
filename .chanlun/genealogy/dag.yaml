@@ -2147,6 +2147,17 @@ nodes:
   status: 生成态
   type: meta-rule
   file: pending/429-meta-observation-v229-swarm.md
+- id: '430'
+  title: 元观察——v230-swarm（全面实装轮：384号L2强否定 + 396号已结算确认 + JSONL重复bug修复 + 依赖链断裂全resolved
+    + 历时性/共时性区分候选）
+  status: 已结算
+  type: meta-rule
+  file: settled/430-meta-observation-v230-swarm.md
+- id: '431'
+  title: ARTICULATE 拓扑判据——从度量阈值到拓扑不一致（索绪尔两轴 + A/B密度失衡信号）
+  status: 已结算
+  type: concept-separation
+  file: settled/431-articulate-topological-criterion.md
 edges:
   depends_on:
   - from: '136'
@@ -4483,6 +4494,20 @@ edges:
     to: '275'
   - from: '429'
     to: '425'
+  - from: '430'
+    to: '429'
+  - from: '430'
+    to: '076'
+  - from: '430'
+    to: '036'
+  - from: '431'
+    to: '425'
+  - from: '431'
+    to: '426'
+  - from: '431'
+    to: '399'
+  - from: '431'
+    to: '429'
   triggered:
   - from: '005'
     to: 005a
@@ -4571,6 +4596,8 @@ edges:
     to: 218号（扩展：218割掉串行尾巴，275割掉全局排序思维）
   - from: '277'
     to: 269号验证方法（直接在月线/年线K线上跑D算子——使用了被否定的口径B）
+  - from: '431'
+    to: 429-ARTICULATION_THRESHOLD
   related:
   - between:
     - '001'
