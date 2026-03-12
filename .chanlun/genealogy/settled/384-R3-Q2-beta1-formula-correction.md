@@ -14,13 +14,24 @@ depends_on:
   - '382'   # 架构路径研究方向——Gemini decide
   - '378'   # 持续同调研究线
   - '381'   # 框架混淆诊断（231号有效域规则的同类实例）
-epistemological_level: "L0(证明) + L1(最小例子验证) + L2-ready(预测算法O(|E|)就绪)"
+epistemological_level: "L0(证明) + L1(最小例子验证) + L2(真实数据强否定: 95.5%不匹配)"
 review_result: ".chanlun/review-results/gemini-genealogy-review-20260305-Q-R3-2-correction.md"
 ---
 
 # 384号：R3-Q2 β₁差值分解公式精确化
 
-**认识论等级**: L0(修正公式证明) + L1(两个最小例子验证) + L2-ready(O(|E|)算法就绪待真实数据运行)
+**认识论等级**: L0(修正公式证明) + L1(两个最小例子验证) + L2(真实380区块数据强否定: 200对中95.5%不匹配)
+
+### L2 验证结果（v230-swarm, 2026-03-12）
+
+**强否定**：公式 Δβ₁=(c-1)+n_loop 在真实数据上 95.5% 不匹配。
+
+- 图规模：3162 active vertices, 6641 directed edges, β₁=2562, 345 connected components
+- 测试：200 对随机邻居顶点 fold
+- 匹配：9/200 (4.5%)，不匹配：191/200 (95.5%)
+- 系统性模式：actual Δβ₁ ≈ n_loop（≈1），(c-1) 项几乎无贡献
+- mismatch_delta 恒等于 -(c-1)：lower link 连通分量数在有向图 merge 下不产生预期的环贡献
+- 结果文件：`tmp/384-L2-verification.json`
 
 ## 1. 结论
 
@@ -74,7 +85,7 @@ v164 Gemini derive 产出的 Q-R3-2（折叠的 Discrete Morse Function 存在�
 
 | 条件 | 当前 | 翻转阈值 |
 |------|------|---------|
-| Δβ₁=(c-1)+n_loop 公式 | L0+L1 | L2 验证在真实 380 区块数据上运行后确认/否定 |
+| Δβ₁=(c-1)+n_loop 公式 | L0+L1 | **L2 强否定**：95.5%不匹配，(c-1)项系统性高估。公式有效域收窄至 c=1 的退化情形（此时 Δβ₁=n_loop） |
 | 分层 Morse 理论框架 | 研究方向 | 若具体构造在知识图谱折叠上成功，升级为 L0 |
 | Q-R3-4 条件性 | 条件性 L0 | 分层 Morse 框架确立后升级为无条件 L0 |
 | K 可收缩（无环） | 不适用 | 若 K 可收缩，商映射偶然与塌缩等价，Forman 3.3 偶然成立 |
@@ -88,7 +99,7 @@ v164 Gemini derive 产出的 Q-R3-2（折叠的 Discrete Morse Function 存在�
 3. **β₁(t)/t 曲线形状是演化阶段指示器**：Kingman 平稳性不满足时，曲线导数变化（相变点）本身是信息
    - status: acknowledged（定理类——平稳性不满足→λ不一定存在→曲线形状替代点估计）
 4. **L2 验证优先级**：Δβ₁=(c-1)+n_loop 的 L2 验证（在真实 380 区块数据上运行 O(|E|) 算法）应优先于分层 Morse 理论的理论探索
-   - status: pending（行动类——L2 验证可直接执行，不需编排者裁定）
+   - status: **executed — 强否定**（v230-swarm L2验证：95.5%不匹配，(c-1)项系统性高估，公式有效域收窄至 c=1 退化情形）
 
 ## 5. 谱系引用
 

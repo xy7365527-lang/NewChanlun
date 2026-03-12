@@ -1410,8 +1410,8 @@ class TopologicalDaemon:
                     self.k_full = self.k_full.add_edge(edge)
                     existing_edges.add(key)
                     added += 1
-                    if self._persist:
-                        self._persist.append_edge(edge)
+                    # Persistence handled by _step diff logic (998-1016)
+                    # to avoid double-write (was root cause of 3847x duplication bug)
 
         self._cross_domain_scanned_vids = current_vids
 
@@ -1428,8 +1428,8 @@ class TopologicalDaemon:
                 v = sub_graph.vertex(vid)
                 self.k_active = self.k_active.add_vertex(v)
                 self.k_full = self.k_full.add_vertex(v)
-                if self._persist:
-                    self._persist.append_vertex(v)
+                # Persistence handled by _step diff logic (998-1016)
+                # to avoid double-write (was root cause of 3847x duplication bug)
 
         for e in sub_graph.active_edges():
             key = (e.source, e.target, e.edge_type.value)
@@ -1439,8 +1439,8 @@ class TopologicalDaemon:
                     self.k_active = self.k_active.add_edge(e)
                     self.k_full = self.k_full.add_edge(e)
                     existing_edges.add(key)
-                    if self._persist:
-                        self._persist.append_edge(e)
+                    # Persistence handled by _step diff logic (998-1016)
+                    # to avoid double-write (was root cause of 3847x duplication bug)
 
         # Rebuild terrain, registry, engine
         self._initialize_engine()
@@ -1701,6 +1701,19 @@ def main() -> None:
     if args.persist and daemon._persist and graph is not None:
         bt_check, _ = load_graph_from_block_topology(DAEMON_BT_BASE)
         if not bt_check.active_vertex_ids():
+            # Truncate JSONL backup before writing initial graph to prevent
+            # cumulative duplication across restarts (3847x bug root cause #3)
+            jsonl_path = Path(args.persist)
+            if jsonl_path.exists() and jsonl_path.stat().st_size > 0:
+                print(
+                    f"Block topology empty but JSONL exists ({jsonl_path.stat().st_size} bytes). "
+                    f"Truncating stale JSONL before fresh write.",
+                    file=sys.stderr,
+                )
+                # Close, truncate, reopen
+                daemon._persist.close()
+                jsonl_path.write_text("", encoding="utf-8")
+                daemon._persist.open()
             for vid, v in graph.vertices.items():
                 daemon._persist.append_vertex(v)
             for e in graph.edges:
