@@ -138,6 +138,7 @@ class TraversalEngine:
         self._attempted_folds: set[frozenset[str]] = set()  # 398号: fold pairs already attempted & blocked
         self._snet_activation: SNetActivation | None = None  # 耦合振荡: S_net 激活态
         self._last_resonance: bool = False  # 上一步选择的候选是否处于共振区域
+        self._last_articulation: dict | None = None  # 上一步的 articulation 溯源元数据
 
     def _invalidate_attempted_folds(self, affected_vertices: set[str]) -> None:
         """Remove attempted-fold entries involving any of the affected vertices.
@@ -1098,7 +1099,7 @@ class TraversalEngine:
         self.k_active = self.k_active.add_edge(ta_edge)
         self.k_full = self.k_full.add_edge(ta_edge)
 
-    def _check_articulation_encounter(self) -> Optional[tuple[Encounter, float]]:
+    def _check_articulation_encounter(self) -> Optional[tuple[Encounter, float, dict]]:
         """Check if material layer accumulation triggers ARTICULATE at current position.
 
         425号 Phase 2: 三层合力判据——
@@ -1187,7 +1188,11 @@ class TraversalEngine:
                 f"/ step_gap={best_step_gap})"
             ),
         )
-        return enc, best_score
+        return enc, best_score, {
+            "cooc_weight": best_cooc_weight,
+            "ta_count": best_ta_count,
+            "step_gap": best_step_gap,
+        }
 
     @staticmethod
     def _extract_cooc_weight(edge: Edge) -> float:
@@ -1318,6 +1323,7 @@ class TraversalEngine:
         """Execute one full step: detect encounter → execute or walk → update terrain → settle → S_net sync."""
         self.step += 1
         self._last_resonance = False
+        self._last_articulation = None
         explored = False
         prev_position = self.position  # 425号: record for TRAVERSAL_ASSOCIATION
 
@@ -1377,12 +1383,21 @@ class TraversalEngine:
         # 425号 Phase 2: check if material layer accumulation triggers ARTICULATE
         articulation_result = self._check_articulation_encounter()
         if articulation_result is not None:
-            articulation_enc, articulation_score = articulation_result
+            articulation_enc, articulation_score, articulation_meta = articulation_result
             self._articulate(
                 articulation_enc.target_a,
                 articulation_enc.target_b,
                 articulation_score,
             )
+            self._last_articulation = {
+                "source_vid": articulation_enc.target_a,
+                "target_vid": articulation_enc.target_b,
+                "score": articulation_score,
+                "step": self.step,
+                "cooc_weight": articulation_meta["cooc_weight"],
+                "ta_count": articulation_meta["ta_count"],
+                "step_gap": articulation_meta["step_gap"],
+            }
 
         # S_net coupling: activate signifier for new position + check articulation feedback
         if self._snet_activation is not None:

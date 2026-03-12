@@ -424,7 +424,7 @@ def load_graph_from_block_topology(
         content = blk.get("content", {})
         event_type = content.get("event_type")
         if event_type in ("vertex", "edge", "vertex_status", "merge",
-                          "operation", "settlement"):
+                          "operation", "settlement", "articulation"):
             events.append(blk)
 
     if not events:
@@ -497,6 +497,19 @@ def load_graph_from_block_topology(
                     else:
                         new_edges.append(e)
                 edges = new_edges
+
+        elif event_type == "articulation":
+            # Rebuild ARTICULATED edge from articulation provenance block
+            e = Edge(
+                source=content["source_vid"],
+                target=content["target_vid"],
+                edge_type=EdgeType.ARTICULATED,
+                created_at=content.get("step", 0),
+                surface=None,
+                context=f"articulated: score={content.get('score', 0):.3f} step={content.get('step', 0)}",
+            )
+            if e.source in vertices and e.target in vertices:
+                edges.append(e)
 
         elif event_type in ("operation", "settlement"):
             operations.append(content)
@@ -575,6 +588,19 @@ def rebuild_block_topology_from_jsonl(
             elif rtype == "settlement":
                 writer.append_settlement(
                     record.get("step", 0), record.get("edges", []),
+                )
+                count += 1
+
+            elif rtype == "articulation":
+                writer.append_articulation(
+                    source_vid=record["source_vid"],
+                    target_vid=record["target_vid"],
+                    score=record.get("score", 0.0),
+                    step=record.get("step", 0),
+                    cooc_weight=record.get("cooc_weight", 0.0),
+                    ta_count=record.get("ta_count", 0),
+                    step_gap=record.get("step_gap", 1),
+                    timestamp=record.get("timestamp", ""),
                 )
                 count += 1
 

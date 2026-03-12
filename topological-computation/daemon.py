@@ -28,6 +28,7 @@ import os
 import sys
 import time
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -1012,8 +1013,24 @@ class TopologicalDaemon:
                 v = self.k_full.vertices.get(vid)
                 if v is not None:
                     self._persist.append_vertex(v)
+            # Persist ARTICULATED edges with full provenance via append_articulation
+            art_meta = self.engine._last_articulation
             for e in new_edges:
-                self._persist.append_edge(e)
+                if e.edge_type == EdgeType.ARTICULATED and art_meta is not None \
+                        and e.source == art_meta["source_vid"] \
+                        and e.target == art_meta["target_vid"]:
+                    self._persist.append_articulation(
+                        source_vid=art_meta["source_vid"],
+                        target_vid=art_meta["target_vid"],
+                        score=art_meta["score"],
+                        step=art_meta["step"],
+                        cooc_weight=art_meta["cooc_weight"],
+                        ta_count=art_meta["ta_count"],
+                        step_gap=art_meta["step_gap"],
+                        timestamp=datetime.utcnow().isoformat() + "Z",
+                    )
+                else:
+                    self._persist.append_edge(e)
             # Detect and write fold merges (ACTIVE → FOLDED with edge redirect)
             for vid, v in self.k_active.vertices.items():
                 old_status = pre_active_statuses.get(vid)
