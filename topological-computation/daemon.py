@@ -1024,9 +1024,8 @@ class TopologicalDaemon:
                         target_vid=art_meta["target_vid"],
                         score=art_meta["score"],
                         step=art_meta["step"],
-                        cooc_weight=art_meta["cooc_weight"],
-                        ta_count=art_meta["ta_count"],
-                        step_gap=art_meta["step_gap"],
+                        imbalance_type=art_meta["imbalance_type"],
+                        reason=art_meta["reason"],
                         timestamp=datetime.utcnow().isoformat() + "Z",
                     )
                 else:

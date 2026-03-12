@@ -22,7 +22,7 @@ from morse import compute_terrain, critical_neighbors
 from snet_activation import SNetActivation, EdgeSuggestion
 
 EXPLORATION_INTERVAL = 1000  # every N steps, jump to an under-explored vertex
-ARTICULATION_THRESHOLD = 2.0  # 425号 Phase 2: score threshold for material→concept emergence (L2 待验证)
+# 425号→431号: ARTICULATION_THRESHOLD 已移除。遭遇触发改为拓扑不一致判据（布尔），不再使用度量阈值。
 
 # -- norm violation → code gap mapping ------------------------------------
 
@@ -1100,117 +1100,131 @@ class TraversalEngine:
         self.k_full = self.k_full.add_edge(ta_edge)
 
     def _check_articulation_encounter(self) -> Optional[tuple[Encounter, float, dict]]:
-        """Check if material layer accumulation triggers ARTICULATE at current position.
+        """Check if topological inconsistency between Layer A and Layer B triggers ARTICULATE.
 
-        425号 Phase 2: 三层合力判据——
-        1. COOCCURRENCE 边存在（S_net 物质層共現）
-        2. TRAVERSAL_ASSOCIATION 边存在（穿越路径經過這對頂點）
-        3. 概念層空白（K_active 無 REFERENCE/DEPENDENCY/... 等概念層邊）
+        431号: 拓扑不一致判据（布尔）替代度量阈值——
+        Layer A = 组合轴 (syntagmatic) = COOCCURRENCE 边 + TRAVERSAL_ASSOCIATION 边
+        Layer B = 聚合轴 (paradigmatic) = S_net paradigmatic 边
 
-        Score = cooccurrence_weight * traversal_association_count / max(1, step_gap)
+        两种失衡模式：
+        - A密B疏：K_active 有 COOCCURRENCE 边，但 S_net 无 paradigmatic 边且 K_active 无概念层边
+        - B密A疏：S_net 有 paradigmatic 边，但 K_active 无 COOCCURRENCE 边
 
-        Returns (Encounter, score) or None.
+        Returns (Encounter, score=1.0, meta) or None.
         """
         if self._snet_activation is None:
             return None
 
         current = self.position
         active_vids = set(self.k_active.active_vertex_ids())
+        snet = self._snet_activation.s_net
+        current_sig = self._snet_activation._concept_to_sig.get(current)
 
-        # Collect COOCCURRENCE neighbors and weights from current position
-        cooc_targets: dict[str, float] = {}
+        # --- A密B疏: COOCCURRENCE exists but no paradigmatic edge and no concept edge ---
         for e in self.k_active.all_active_edges():
             if e.edge_type != EdgeType.COOCCURRENCE:
                 continue
-            if e.source == current and e.target in active_vids:
-                weight = self._extract_cooc_weight(e)
-                cooc_targets[e.target] = max(cooc_targets.get(e.target, 0.0), weight)
-            elif e.target == current and e.source in active_vids:
-                weight = self._extract_cooc_weight(e)
-                cooc_targets[e.source] = max(cooc_targets.get(e.source, 0.0), weight)
+            if e.source == current:
+                neighbor = e.target
+            elif e.target == current:
+                neighbor = e.source
+            else:
+                continue
+            if neighbor not in active_vids:
+                continue
 
-        if not cooc_targets:
-            return None
-
-        # For each COOCCURRENCE neighbor, check TRAVERSAL_ASSOCIATION + concept gap
-        best_score = 0.0
-        best_target: Optional[str] = None
-        best_cooc_weight = 0.0
-        best_ta_count = 0
-        best_step_gap = 1
-
-        for target, cooc_weight in cooc_targets.items():
-            # Check concept layer gap: no concept-type edges between current and target
+            # Check concept layer: if concept edge exists, this pair is already connected
             has_concept_edge = False
-            for e in self.k_active.active_edges():
-                if e.edge_type not in CONCEPT_EDGE_TYPES:
+            for ce in self.k_active.active_edges():
+                if ce.edge_type not in CONCEPT_EDGE_TYPES:
                     continue
-                if (e.source == current and e.target == target) or \
-                   (e.source == target and e.target == current):
+                if (ce.source == current and ce.target == neighbor) or \
+                   (ce.source == neighbor and ce.target == current):
                     has_concept_edge = True
                     break
             if has_concept_edge:
                 continue
 
-            # Count TRAVERSAL_ASSOCIATION edges between current and target
-            ta_count = 0
-            latest_ta_step = 0
-            for e in self.k_active.all_active_edges():
-                if e.edge_type != EdgeType.TRAVERSAL_ASSOCIATION:
-                    continue
-                if (e.source == current and e.target == target) or \
-                   (e.source == target and e.target == current):
-                    ta_count += 1
-                    if e.created_at > latest_ta_step:
-                        latest_ta_step = e.created_at
-            if ta_count == 0:
-                continue
+            # Check Layer B: paradigmatic edge between corresponding signifiers
+            neighbor_sig = self._snet_activation._concept_to_sig.get(neighbor)
+            has_paradigmatic = False
+            if current_sig and neighbor_sig:
+                for pe in snet.paradigmatic_alternatives(current_sig):
+                    if pe.target == neighbor_sig:
+                        has_paradigmatic = True
+                        break
+                if not has_paradigmatic:
+                    for pe in snet.paradigmatic_alternatives(neighbor_sig):
+                        if pe.target == current_sig:
+                            has_paradigmatic = True
+                            break
 
-            step_gap = max(1, self.step - latest_ta_step)
-            score = cooc_weight * ta_count / step_gap
-            if score > best_score:
-                best_score = score
-                best_target = target
-                best_cooc_weight = cooc_weight
-                best_ta_count = ta_count
-                best_step_gap = step_gap
+            if not has_paradigmatic:
+                # A密B疏: cooccurrence exists, no paradigmatic, no concept edge
+                enc = Encounter(
+                    encounter_type=EncounterType.ARTICULATE,
+                    target_a=current,
+                    target_b=neighbor,
+                    reason=(
+                        f"articulation[A密B疏]: cooccurrence between {current} and {neighbor} "
+                        f"but no paradigmatic edge in S_net and no concept edge in K_active"
+                    ),
+                )
+                return enc, 1.0, {"imbalance_type": "A_dense_B_sparse"}
 
-        if best_target is None or best_score < ARTICULATION_THRESHOLD:
-            return None
+        # --- B密A疏: paradigmatic edge exists but no COOCCURRENCE edge ---
+        if current_sig:
+            for pe in snet.paradigmatic_alternatives(current_sig):
+                target_sig = pe.target
+                # Map signifier back to K_active concept(s)
+                target_concepts = self._snet_activation._sig_to_concepts.get(target_sig, [])
+                for tgt_cid in target_concepts:
+                    if tgt_cid == current or tgt_cid not in active_vids:
+                        continue
 
-        enc = Encounter(
-            encounter_type=EncounterType.ARTICULATE,
-            target_a=current,
-            target_b=best_target,
-            reason=(
-                f"articulation: score={best_score:.3f} "
-                f"(cooc_w={best_cooc_weight:.3f} * ta_count={best_ta_count} "
-                f"/ step_gap={best_step_gap})"
-            ),
-        )
-        return enc, best_score, {
-            "cooc_weight": best_cooc_weight,
-            "ta_count": best_ta_count,
-            "step_gap": best_step_gap,
-        }
+                    # Check concept layer: skip if already connected
+                    has_concept_edge = False
+                    for ce in self.k_active.active_edges():
+                        if ce.edge_type not in CONCEPT_EDGE_TYPES:
+                            continue
+                        if (ce.source == current and ce.target == tgt_cid) or \
+                           (ce.source == tgt_cid and ce.target == current):
+                            has_concept_edge = True
+                            break
+                    if has_concept_edge:
+                        continue
 
-    @staticmethod
-    def _extract_cooc_weight(edge: Edge) -> float:
-        """Extract co-occurrence weight from edge context string."""
-        ctx = edge.context or ""
-        prefix = "w="
-        idx = ctx.rfind(prefix)
-        if idx < 0:
-            return 1.0
-        try:
-            return float(ctx[idx + len(prefix):])
-        except (ValueError, IndexError):
-            return 1.0
+                    # Check Layer A: any COOCCURRENCE edge?
+                    has_cooccurrence = False
+                    for ae in self.k_active.all_active_edges():
+                        if ae.edge_type != EdgeType.COOCCURRENCE:
+                            continue
+                        if (ae.source == current and ae.target == tgt_cid) or \
+                           (ae.source == tgt_cid and ae.target == current):
+                            has_cooccurrence = True
+                            break
+                    if has_cooccurrence:
+                        continue
+
+                    # B密A疏: paradigmatic exists, no cooccurrence, no concept edge
+                    enc = Encounter(
+                        encounter_type=EncounterType.ARTICULATE,
+                        target_a=current,
+                        target_b=tgt_cid,
+                        reason=(
+                            f"articulation[B密A疏]: paradigmatic edge between "
+                            f"{current_sig} and {target_sig} in S_net "
+                            f"but no cooccurrence edge between {current} and {tgt_cid} in K_active"
+                        ),
+                    )
+                    return enc, 1.0, {"imbalance_type": "B_dense_A_sparse"}
+
+        return None
 
     def _articulate(self, source_vid: str, target_vid: str, score: float) -> Edge:
-        """Create ARTICULATED concept-layer edge from material layer accumulation.
+        """Create ARTICULATED concept-layer edge from topological inconsistency.
 
-        425号 Phase 2: 物質層涌現為概念層——ARTICULATED 邊參與 fold/negate/sublate。
+        431号: 拓扑不一致（A密B疏 / B密A疏）涌現為概念層——ARTICULATED 邊參與 fold/negate/sublate。
         """
         new_edge = Edge(
             source=source_vid,
@@ -1380,7 +1394,7 @@ class TraversalEngine:
         if prev_position != self.position:
             self._record_traversal_association(prev_position, self.position)
 
-        # 425号 Phase 2: check if material layer accumulation triggers ARTICULATE
+        # 431号: check if topological inconsistency (A密B疏 / B密A疏) triggers ARTICULATE
         articulation_result = self._check_articulation_encounter()
         if articulation_result is not None:
             articulation_enc, articulation_score, articulation_meta = articulation_result
@@ -1394,9 +1408,8 @@ class TraversalEngine:
                 "target_vid": articulation_enc.target_b,
                 "score": articulation_score,
                 "step": self.step,
-                "cooc_weight": articulation_meta["cooc_weight"],
-                "ta_count": articulation_meta["ta_count"],
-                "step_gap": articulation_meta["step_gap"],
+                "imbalance_type": articulation_meta["imbalance_type"],
+                "reason": articulation_enc.reason,
             }
 
         # S_net coupling: activate signifier for new position + check articulation feedback

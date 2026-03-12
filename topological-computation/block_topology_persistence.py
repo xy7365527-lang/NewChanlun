@@ -362,15 +362,14 @@ class BlockTopologyWriter:
         target_vid: str,
         score: float,
         step: int,
-        cooc_weight: float,
-        ta_count: int,
-        step_gap: int,
+        imbalance_type: str,
+        reason: str,
         timestamp: str,
     ):
         """Write an ARTICULATION block to block topology (concept layer emergence).
 
-        425号 Phase 2: 物質層積累涌現為概念層連接。
-        Records the material→concept transition with provenance.
+        431号: 拓扑不一致判据——A密B疏 / B密A疏。
+        Records the topological inconsistency that triggered articulation.
         """
         content = {
             "event_type": "articulation",
@@ -379,9 +378,8 @@ class BlockTopologyWriter:
             "target_vid": target_vid,
             "score": score,
             "step": step,
-            "cooc_weight": cooc_weight,
-            "ta_count": ta_count,
-            "step_gap": step_gap,
+            "imbalance_type": imbalance_type,
+            "reason": reason,
             "timestamp": timestamp,
         }
         block = make_block("event", DAEMON_SOURCE, content)
@@ -393,9 +391,8 @@ class BlockTopologyWriter:
             "target_vid": target_vid,
             "score": score,
             "step": step,
-            "cooc_weight": cooc_weight,
-            "ta_count": ta_count,
-            "step_gap": step_gap,
+            "imbalance_type": imbalance_type,
+            "reason": reason,
             "timestamp": timestamp,
         })
 
