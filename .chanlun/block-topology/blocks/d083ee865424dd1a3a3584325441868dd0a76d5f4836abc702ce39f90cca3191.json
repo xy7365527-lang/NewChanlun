@@ -1,0 +1,34 @@
+{
+  "hash": "d083ee865424dd1a3a3584325441868dd0a76d5f4836abc702ce39f90cca3191",
+  "type": "genealogy",
+  "genealogy_id": "432",
+  "title": "元观察——v231-swarm（ARTICULATE拓扑判据重构 + 索绪尔两轴对应 + scan消费标记缺失再现 + 076号模式第N+1例 + API降级韧性 + 否定轮节奏扩展）",
+  "status": "已结算",
+  "genealogy_type": "meta-rule",
+  "depends_on": [
+    "430",
+    "429",
+    "076",
+    "231",
+    "431"
+  ],
+  "negates": [],
+  "tensions_with": [],
+  "observations": [
+    "观察1：编排者否定度量阈值与231号有效域规则同构（定理）",
+    "观察2：genealogist context耗尽Lead接手——076号收敛（定理）",
+    "观察3：scan消费标记缺失第4实例——429号观察3收敛（定理）",
+    "观察4：429号持久化溯源断裂已关闭（定理）",
+    "观察5：API降级下蜂群自适应韧性——接近阈值（候选）",
+    "观察6：否定轮扩展三拍节奏为概念→消化→实装→否定→再实装（定理）"
+  ],
+  "candidates": [
+    "候选1（继承430号，已达阈值）：scan状态不可观测",
+    "候选2（新增，接近阈值）：API降级下蜂群自适应韧性",
+    "候选3-8（继承）：topo_effect幂等性/compact后行为层归零/提案权执行权分离/Gemini三模式/meta-observer超时降级/编排者实时消息优先级"
+  ],
+  "epistemological_level": "L0",
+  "date": "2026-03-12",
+  "source": "meta-observer（二阶观察，v231-swarm session 触发）",
+  "git_ref": "d3363c9"
+}
