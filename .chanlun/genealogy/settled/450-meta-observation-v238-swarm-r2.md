@@ -1,3 +1,9 @@
+---
+id: "450"
+status: 已结算
+type: meta-rule
+date: "2026-03-13"
+---
 # 450号：v238-swarm 元观察（补充轮）
 
 - **status**: 已结算

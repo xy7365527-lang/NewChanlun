@@ -1,3 +1,9 @@
+---
+id: "446"
+status: 已结算
+type: meta-rule
+date: "2026-03-13"
+---
 # 446号：v238-swarm 元观察
 
 - **status**: 已结算
