@@ -3,7 +3,8 @@ id: '442'
 number: 442
 title: "S_net 加工参数作为概念层节点——逢亮可修改自己的器官（候选）"
 type: domain
-status: 生成态
+status: 已结算
+settlement_note: "概念本身已确立（逢亮可通过否定参数节点修改器官）。粒度选择（每参数/参数组/参数树）是实装层行动，不阻塞概念结算"
 date: 2026-03-13
 source: "[新缠论] 编排者（Gemini 对话 + CC 传达，v236-swarm）"
 negation_source: heterogeneous
