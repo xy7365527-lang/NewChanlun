@@ -157,8 +157,9 @@ S_net 参数 vs S_net 进程：
 ## 下游推论
 
 1. **fold 操作边界约束**：fold 的定义域是图内节点。S_net 进程不是图内节点，因此不在 fold 的定义域中。traversal.py 中的 fold 实装应包含此边界检查。
-   - status: pending（需检查 fold 实装是否有此约束）
-   - 四分法: 行动（边界检查可自主实装）
+   - status: 已完成（定理——fold 的 Python 实装 engine.py:935 检查 `s.issubset(active)`，S_net 进程不在图中，不可能成为 fold 输入。边界约束从定义域天然满足）
+   - [covered: v237-swarm, consumed — 定理：fold 定义域=active vertices，S_net 进程不在 active 中，边界约束天然满足无需额外代码]
+   - 四分法: 定理（从 fold 定义域 + S_net 进程不在图中逻辑推导）
 
 2. **S_net 参数节点化**：S_net 的参数（共现窗口、分词规则、alpha 权重）应作为概念层节点存在于图中，使逢亮可以通过 negate 操作改变感知方式。
    - status: 已完成（442号候选谱系已记录此需求的详细架构分析，参数节点化方案待架构决策）

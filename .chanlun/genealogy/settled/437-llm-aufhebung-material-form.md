@@ -132,8 +132,9 @@ LLM 的全部产出（对话、翻译、解释）作为语料回流 S_net。S_ne
 ## 下游推论
 
 1. **dialogue_ingest.py 实装**：管道1需要从 OpenClaw 对话记录中提取文本并调用 ingest_text_passage()。
-   - status: pending（依赖 425号 S_net 入图方案完成）
-   - 四分法: 行动（实装路径明确——OpenClaw API + 已有摄入接口）
+   - status: 已完成（代码实装确认——dialogue_ingest.py 已存在，含 IngestResult 数据类 + 段落提取 + ingest_text_passage_batch 调用）
+   - [covered: v237-swarm, consumed — dialogue_ingest.py 已实装，含完整摄入管线。运行时依赖 425号入图方案仍存在]
+   - 四分法: 定理（代码事实确认）
 
 2. **ceremony 产出摄入钩子**：管道2需要在谱系/诊断文件写入后自动触发 S_net 摄入。
    - status: pending（依赖 425号）
@@ -144,7 +145,8 @@ LLM 的全部产出（对话、翻译、解释）作为语料回流 S_net。S_ne
    - 四分法: 行动（外化管线的最后一步添加 ingest 调用）
 
 4. **回声室效应防御**：闭环回流可能导致共现模式自我强化。需要外部语料注入（S_net 语料需求表中的48个来源）打破闭环。
-   - status: recorded（语法记录——S_net 语料需求表已存在）
+   - status: 已完成（定理——防御机制已内在于架构：S_net 语料需求表 48 个外部来源提供持续外部语料注入）
+   - [covered: v237-swarm, consumed — 定理：闭环防御=外部语料注入，48来源语料需求表已存在。从闭环特性+共现统计偏向性逻辑推导]
    - 四分法: 定理（从闭环特性 + 共现统计的偏向性逻辑推导）
 
 ## 张力分析

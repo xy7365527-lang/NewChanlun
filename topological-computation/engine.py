@@ -90,6 +90,11 @@ class Graph:
         for e in self._edges:
             self._adj_out.setdefault(e.source, []).append(e)
             self._adj_in.setdefault(e.target, []).append(e)
+        # Cached active vertex ids — O(1) lookup instead of O(|V|) filter
+        self._active_ids: frozenset[str] = frozenset(
+            v.id for v in self._vertices.values()
+            if v.status != VertexStatus.FOLDED
+        )
 
     # -- accessors ----------------------------------------------------------
 
@@ -105,10 +110,7 @@ class Graph:
         return self._vertices.get(vid)
 
     def active_vertex_ids(self) -> list[str]:
-        return [
-            v.id for v in self._vertices.values()
-            if v.status != VertexStatus.FOLDED
-        ]
+        return list(self._active_ids)
 
     def active_edges(self) -> list[Edge]:
         """Return edges between active vertices, excluding material layer (COOCCURRENCE, TRAVERSAL_ASSOCIATION).
@@ -117,7 +119,7 @@ class Graph:
         but invisible to fold/negate/sublate/beta_1/settlement — they are material (Dass),
         not conceptual (Was).
         """
-        active = set(self.active_vertex_ids())
+        active = self._active_ids
         return [
             e for e in self._edges
             if e.source in active and e.target in active
@@ -130,27 +132,27 @@ class Graph:
         Used by traversal for neighbor candidate selection — both concept layer
         and material layer edges are visible during walk.
         """
-        active = set(self.active_vertex_ids())
+        active = self._active_ids
         return [e for e in self._edges if e.source in active and e.target in active]
 
     def neighbors(self, vid: str) -> list[str]:
         """Return ids of vertices adjacent to vid (outgoing + incoming) among active vertices."""
-        active = set(self.active_vertex_ids())
+        active = self._active_ids
         out = {e.target for e in self._adj_out.get(vid, ()) if e.target in active}
         inc = {e.source for e in self._adj_in.get(vid, ()) if e.source in active}
         return sorted(out | inc)
 
     def out_neighbors(self, vid: str) -> list[str]:
-        active = set(self.active_vertex_ids())
+        active = self._active_ids
         return sorted({e.target for e in self._adj_out.get(vid, ()) if e.target in active})
 
     def in_neighbors(self, vid: str) -> list[str]:
-        active = set(self.active_vertex_ids())
+        active = self._active_ids
         return sorted({e.source for e in self._adj_in.get(vid, ()) if e.source in active})
 
     def has_path(self, source: str, target: str) -> bool:
         """BFS on active subgraph (directed edges only)."""
-        active = set(self.active_vertex_ids())
+        active = self._active_ids
         if source not in active or target not in active:
             return False
         visited: set[str] = set()
@@ -169,7 +171,7 @@ class Graph:
 
     def local_subgraph(self, center: str, radius: int = 1) -> tuple[list[str], list[Edge]]:
         """Return vertices and edges within `radius` hops of `center`."""
-        active = set(self.active_vertex_ids())
+        active = self._active_ids
         verts: set[str] = {center}
         for _ in range(radius):
             new: set[str] = set()
@@ -189,7 +191,7 @@ class Graph:
 
         Excludes material layer edges — beta_1 measures concept-layer topology only.
         """
-        active = set(self.active_vertex_ids())
+        active = self._active_ids
         result: set[frozenset[str]] = set()
         for e in self._edges:
             if (e.source in active and e.target in active
@@ -200,24 +202,78 @@ class Graph:
 
     def self_loops(self) -> list[Edge]:
         """Return self-loops in active graph."""
-        active = set(self.active_vertex_ids())
+        active = self._active_ids
         return [e for e in self._edges if e.source == e.target and e.source in active]
 
     # -- mutation (returns new Graph) ---------------------------------------
 
     def add_vertex(self, v: Vertex) -> Graph:
+        new_graph = Graph.__new__(Graph)
         new_verts = dict(self._vertices)
         new_verts[v.id] = v
-        return Graph(new_verts, self._edges)
+        new_graph._vertices = new_verts
+        new_graph._edges = self._edges  # shared (not mutated)
+        new_graph._adj_out = self._adj_out  # shared (vertex add doesn't change edges)
+        new_graph._adj_in = self._adj_in
+        # Maintain _active_ids cache
+        if v.status != VertexStatus.FOLDED:
+            new_graph._active_ids = self._active_ids | {v.id}
+        else:
+            new_graph._active_ids = self._active_ids
+        return new_graph
 
     def add_edge(self, e: Edge) -> Graph:
-        return Graph(self._vertices, self._edges + [e])
+        new_graph = Graph.__new__(Graph)
+        new_graph._vertices = self._vertices  # shared (not mutated)
+        new_graph._edges = self._edges + [e]
+        # Incremental adjacency update — avoid full rebuild
+        new_graph._adj_out = dict(self._adj_out)
+        new_graph._adj_in = dict(self._adj_in)
+        new_graph._adj_out.setdefault(e.source, [])
+        if new_graph._adj_out[e.source] is self._adj_out.get(e.source):
+            new_graph._adj_out[e.source] = list(new_graph._adj_out[e.source])
+        new_graph._adj_out[e.source].append(e)
+        new_graph._adj_in.setdefault(e.target, [])
+        if new_graph._adj_in[e.target] is self._adj_in.get(e.target):
+            new_graph._adj_in[e.target] = list(new_graph._adj_in[e.target])
+        new_graph._adj_in[e.target].append(e)
+        new_graph._active_ids = self._active_ids  # edge ops don't change active set
+        return new_graph
+
+    def add_edges_batch(self, edges: list[Edge]) -> Graph:
+        """Add multiple edges in one operation — O(len(edges)) instead of O(n * len(edges))."""
+        if not edges:
+            return self
+        new_graph = Graph.__new__(Graph)
+        new_graph._vertices = self._vertices
+        new_graph._edges = self._edges + edges
+        new_graph._adj_out = {k: list(v) for k, v in self._adj_out.items()}
+        new_graph._adj_in = {k: list(v) for k, v in self._adj_in.items()}
+        for e in edges:
+            new_graph._adj_out.setdefault(e.source, []).append(e)
+            new_graph._adj_in.setdefault(e.target, []).append(e)
+        new_graph._active_ids = self._active_ids  # edge ops don't change active set
+        return new_graph
 
     def set_vertex_status(self, vid: str, status: VertexStatus) -> Graph:
+        new_graph = Graph.__new__(Graph)
         new_verts = dict(self._vertices)
         old = new_verts[vid]
         new_verts[vid] = Vertex(old.id, status, old.content, old.created_at)
-        return Graph(new_verts, self._edges)
+        new_graph._vertices = new_verts
+        new_graph._edges = self._edges  # shared (edges unchanged)
+        new_graph._adj_out = self._adj_out
+        new_graph._adj_in = self._adj_in
+        # Maintain _active_ids cache based on status transition
+        old_active = old.status != VertexStatus.FOLDED
+        new_active = status != VertexStatus.FOLDED
+        if old_active and not new_active:
+            new_graph._active_ids = self._active_ids - {vid}
+        elif not old_active and new_active:
+            new_graph._active_ids = self._active_ids | {vid}
+        else:
+            new_graph._active_ids = self._active_ids
+        return new_graph
 
     def merge_vertices(self, keep: str, remove: str) -> Graph:
         """Merge `remove` into `keep`. Redirect all edges, mark `remove` as folded."""
@@ -345,7 +401,7 @@ def find_new_cycle_edges(
 
 def _find_path_edges(graph: Graph, source: str, target: str) -> set[tuple[str, str]] | None:
     """BFS to find directed path from source to target, return edge set."""
-    active = set(graph.active_vertex_ids())
+    active = graph._active_ids
     if source not in active or target not in active:
         return None
 
@@ -892,7 +948,7 @@ def fold(
     if len(vertices) < 2:
         raise ValueError("Fold requires at least 2 vertices")
 
-    active = set(graph.active_vertex_ids())
+    active = graph._active_ids
     s = set(vertices)
     if not s.issubset(active):
         raise ValueError("All fold vertices must be active")
@@ -981,7 +1037,7 @@ def negate(
     Case A (antithesis exists in graph): add negation edge, Δβ₁ = +1 if path exists.
     Case B (antithesis is None -> create new): Δβ₁ = 0, position moves to new vertex.
     """
-    active = set(graph.active_vertex_ids())
+    active = graph._active_ids
     beta_before = compute_beta_1(graph)
 
     if antithesis is not None and antithesis in active:

@@ -113,29 +113,29 @@ def launch_swarm(
 
     for i in range(n_instances):
         instance_id = f"fengliang_{i}"
-        is_api_instance = (i == 0)
+        inst_port = port + i
+        inst_ws_port = ws_port + i
 
         cmd = _build_cmd(
             instance_id=instance_id,
             shared_dir=shared_dir,
             daemon_script=daemon_script,
-            serve=is_api_instance,
-            port=port,
-            ws_port=ws_port,
+            serve=True,
+            port=inst_port,
+            ws_port=inst_ws_port,
             autonomous=autonomous,
             hegel=hegel,
             load=load,
             seed=seed,
-            multiproc=multiproc and is_api_instance,
+            multiproc=multiproc,  # all instances need multiproc for GIL-free HTTP
         )
 
         # Log file per instance
         log_path = Path(shared_dir) / "output" / f"{instance_id}.log"
 
-        print(f"  [{instance_id}] {'API+traverse' if is_api_instance else 'traverse'}", file=sys.stderr)
-        if is_api_instance:
-            print(f"    HTTP: http://localhost:{port}", file=sys.stderr)
-            print(f"    WS:   ws://localhost:{ws_port}/ws", file=sys.stderr)
+        print(f"  [{instance_id}] API+traverse", file=sys.stderr)
+        print(f"    HTTP: http://localhost:{inst_port}", file=sys.stderr)
+        print(f"    WS:   ws://localhost:{inst_ws_port}/ws", file=sys.stderr)
 
         log_file = open(str(log_path), "w", encoding="utf-8")
         p = subprocess.Popen(
