@@ -124,9 +124,9 @@ rule_version_baseline:
 ## 下游推论
 
 1. **环路检测机制需实装**：traversal.py 需要检测穿越路径是否形成环路（回到起点区域）。
-   - status: pending（架构设计未启动）
-   - 四分法: 选择（环路的定义——精确回到同一节点 vs 回到起点的邻域，需要形式化）
-   - 与 433号 pending 否定3（不动点虚假性）的关系：环路闭合检测替代不动点检测
+   - status: 已完成（代码事实确认——thinking 循环已删除，环路检测已内联到 traversal.py。cycle_detection/open_path/nachtraeglich_return 三种环路结果的处理逻辑已实装）
+   - [covered: v237-swarm, consumed — traversal.py 已含 cycle_detection/open_path/nachtraeglich 三种环路结果处理。435号 settlement_note 确认]
+   - 四分法: 定理（代码事实确认——435号 settlement_note 已声明实装完成）
 
 2. **三种环路结果到三种谱系操作的映射**：闭合→ARTICULATE、开放→pending 张力、Nachträglichkeit→回溯结算。
    - status: 已完成（定理——映射关系从定义逻辑推导，已被 ARTICULATE 实装确认）

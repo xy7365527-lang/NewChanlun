@@ -71,13 +71,20 @@ function saveFilters(f: FilterState): void {
   }));
 }
 
+const INSTANCE_VERSION = 3; // bump to force reset cached instances
+
 function loadInstances(): DaemonInstance[] {
   try {
+    const ver = localStorage.getItem(INSTANCE_STORAGE_KEY + "_v");
+    if (ver !== String(INSTANCE_VERSION)) {
+      localStorage.removeItem(INSTANCE_STORAGE_KEY);
+      localStorage.setItem(INSTANCE_STORAGE_KEY + "_v", String(INSTANCE_VERSION));
+      return DEFAULT_INSTANCES;
+    }
     const raw = localStorage.getItem(INSTANCE_STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as DaemonInstance[];
       if (Array.isArray(parsed) && parsed.length > 0) {
-        // Migration: strip legacy `primary` field
         return parsed.map(({ id, name, httpBase, wsUrl }) => ({ id, name, httpBase, wsUrl }));
       }
     }

@@ -51,10 +51,22 @@ export const INSTANCE_STORAGE_KEY = "fl-daemon-instances";
 
 export const DEFAULT_INSTANCES: DaemonInstance[] = [
   {
-    id: "vps-hetzner",
-    name: "VPS",
+    id: "vps-0",
+    name: "VPS-0",
     httpBase: "http://46.225.187.39:9765",
     wsUrl: "ws://46.225.187.39:8765/ws",
+  },
+  {
+    id: "vps-1",
+    name: "VPS-1",
+    httpBase: "http://46.225.187.39:9766",
+    wsUrl: "ws://46.225.187.39:8766/ws",
+  },
+  {
+    id: "vps-2",
+    name: "VPS-2",
+    httpBase: "http://46.225.187.39:9767",
+    wsUrl: "ws://46.225.187.39:8767/ws",
   },
   {
     id: "local",

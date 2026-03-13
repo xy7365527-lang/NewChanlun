@@ -256,6 +256,9 @@ def inject_settlement_memory_node(
     vertex = Vertex(id=settle_vid, status=VertexStatus.ACTIVE, content=content, created_at=step)
     result = graph.add_vertex(vertex)
 
+    # Collect all edges to add in batch
+    new_edges: list[Edge] = []
+
     # Connect settlement to cycle vertices
     cycle_vids: set[str] = set()
     for src, tgt in cycle_edges:
@@ -263,11 +266,10 @@ def inject_settlement_memory_node(
         cycle_vids.add(tgt)
     for cvid in sorted(cycle_vids):
         if graph.vertex(cvid) is not None:
-            edge = Edge(
+            new_edges.append(Edge(
                 source=settle_vid, target=cvid,
                 edge_type=EdgeType.REFERENCE, created_at=step,
-            )
-            result = result.add_edge(edge)
+            ))
 
     # Residue nodes
     for idx, item in enumerate(residue):
@@ -282,7 +284,7 @@ def inject_settlement_memory_node(
         result = result.add_vertex(r_vertex)
 
         # Connect residue to settlement
-        result = result.add_edge(Edge(
+        new_edges.append(Edge(
             source=settle_vid, target=r_vid,
             edge_type=EdgeType.REFERENCE, created_at=step,
         ))
@@ -311,10 +313,14 @@ def inject_settlement_memory_node(
 
         for ref_vid in sorted(referenced_vids):
             if graph.vertex(ref_vid) is not None:
-                result = result.add_edge(Edge(
+                new_edges.append(Edge(
                     source=r_vid, target=ref_vid,
                     edge_type=EdgeType.REFERENCE, created_at=step,
                 ))
+
+    # Batch add all edges in one operation
+    if new_edges:
+        result = result.add_edges_batch(new_edges)
 
     return result
 
