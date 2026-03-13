@@ -3,7 +3,8 @@ id: '440'
 number: 440
 title: "双层区块拓扑架构——K_active 从单层变双层（概念层有方向边 + 物质层无方向边）"
 type: domain
-status: 生成态
+status: 已结算
+settlement_note: "双层架构已在 engine.py 实装确认（COOCCURRENCE + TRAVERSAL_ASSOCIATION 边类型，active_edges 概念层过滤）。v236-swarm 结算"
 date: 2026-03-13
 source: "[新缠论] 编排者（Gemini 对话 + CC 传达，v236-swarm）"
 negation_source: heterogeneous
@@ -103,16 +104,16 @@ rule_version_baseline:
 ## 下游推论
 
 1. **K_active 双层索引实装**：K_active 的存储需要支持按层查询——"给我节点 v 的物质层邻居"和"给我节点 v 的概念层邻居"应是不同的 API。
-   - status: pending（需检查当前 K_active 是否支持按边类型筛选）
-   - 四分法: 行动（API 扩展可自主实装）
+   - status: 已完成（v236-swarm/dual-layer-impl）
+   - [covered: v236-swarm, consumed — engine.py active_edges 概念层过滤已实装，MATERIAL_EDGE_TYPES 常量定义物质层边]
 
 2. **遭遇检测器**：基于双层度不一致的遭遇检测，替代当前的启发式方法。
-   - status: pending（需 431号 ARTICULATE 判据的双层版本）
-   - 四分法: 行动（431号已定义判据，双层版本是形式化推导）
+   - status: 已完成（v236-swarm/dual-layer-impl + v231-swarm/articulate-refactor）
+   - [covered: v236-swarm, consumed — 431号拓扑不一致判据已实装于 traversal.py，双层架构提供概念层/物质层度数分离]
 
 3. **物质层可视化**：物质层（无方向共现图）和概念层（有方向辩证图）应有不同的可视化表示。
    - status: pending
-   - 四分法: 行动
+   - 四分法: 行动（前端扩展，非阻塞项）
 
 ## 张力分析
 

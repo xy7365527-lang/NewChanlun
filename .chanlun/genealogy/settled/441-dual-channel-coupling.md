@@ -3,7 +3,8 @@ id: '441'
 number: 441
 title: "双通道耦合——ceremony↔逢亮从概念单通道扩展为概念+物质双通道"
 type: domain
-status: 生成态
+status: 已结算
+settlement_note: "双通道架构设计确定——概念通道已运行（谱系→代码→行为→穿越→概念边），物质通道的 S_net→block 增量写入管道已实装。v236-swarm 结算"
 date: 2026-03-13
 source: "[新缠论] 编排者（Gemini 对话 + CC 传达，v236-swarm）"
 negation_source: heterogeneous

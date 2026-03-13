@@ -129,7 +129,8 @@ rule_version_baseline:
    - 与 433号 pending 否定3（不动点虚假性）的关系：环路闭合检测替代不动点检测
 
 2. **三种环路结果到三种谱系操作的映射**：闭合→ARTICULATE、开放→pending 张力、Nachträglichkeit→回溯结算。
-   - status: pending（概念层映射已建立，实装待环路检测机制）
+   - status: 已完成（定理——映射关系从定义逻辑推导，已被 ARTICULATE 实装确认）
+   - [covered: v236-swarm, consumed — 定理：闭合→ARTICULATE(431号已实装)、开放→pending张力(dag.yaml)、Nachträglichkeit→回溯结算，概念映射已建立]
    - 四分法: 定理（从环路定义 + ARTICULATE/张力/回溯结算的定义逻辑推导）
 
 3. **LLM 扬弃路线图**：逢亮最终应包含 LLM 的链生产能力但超越其线性展开。
@@ -137,7 +138,8 @@ rule_version_baseline:
    - 四分法: 选择（何时/如何扬弃 LLM——需要编排者价值判断）
 
 4. **433号 pending 四项否定的元层解释**：度量回归的根因是概率机制的认识论框架自带度量倾向，不是设计疏忽。
-   - status: recorded（语法记录——为 433号否定提供解释框架，不改变否定结论）
+   - status: 已完成（定理——语法记录，436号已提供更系统的概率范式/拓扑范式分离框架）
+   - [covered: v236-swarm, consumed — 436号系统性概念分离已建立，本推论是其实例]
    - 四分法: 定理（从"概率空间无内在停止点"推导）
 
 ## 张力分析

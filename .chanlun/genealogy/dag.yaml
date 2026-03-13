@@ -2201,14 +2201,14 @@ nodes:
   file: settled/439-existence-architecture-graph-body-snet-organ.md
 - id: '440'
   title: 双层区块拓扑架构——K_active 从单层变双层（概念层有方向边 + 物质层无方向边）
-  status: 生成态
+  status: 已结算
   type: domain
-  file: pending/440-dual-layer-block-topology.md
+  file: settled/440-dual-layer-block-topology.md
 - id: '441'
   title: 双通道耦合——ceremony↔逢亮从概念单通道扩展为概念+物质双通道
-  status: 生成态
+  status: 已结算
   type: domain
-  file: pending/441-dual-channel-coupling.md
+  file: settled/441-dual-channel-coupling.md
 - id: '442'
   title: S_net 加工参数作为概念层节点——逢亮可修改自己的器官（候选）
   status: 生成态
