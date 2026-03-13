@@ -1,0 +1,20 @@
+{
+  "id": "97e1d26422e1363ebc0bf44c6b29626f5a7162cb88bdd0771a2d803a8210588b",
+  "type": "event",
+  "timestamp": "2026-03-12T14:01:44.630100+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "cooccurrence",
+    "domain": "material",
+    "source_signifier": "vie",
+    "target_signifier": "矛盾",
+    "weight": 1.0,
+    "corpus_source": "cc_session:2026-02-25-2046-session.md",
+    "ingest_params": {
+      "domain": "cc_session"
+    },
+    "timestamp": "2026-03-12T14:01:44.618841+00:00"
+  },
+  "refs": [],
+  "git_ref": ""
+}

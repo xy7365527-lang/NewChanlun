@@ -1,0 +1,20 @@
+{
+  "id": "43d2ee5a40f596e160eeba51baa6875824d0c4796c35fa7610d473ddb6d73f1b",
+  "type": "event",
+  "timestamp": "2026-03-12T14:05:00.748618+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "cooccurrence",
+    "domain": "material",
+    "source_signifier": "中枢",
+    "target_signifier": "不",
+    "weight": 1.0,
+    "corpus_source": "cc_session:2026-02-26-downstream-triage.md",
+    "ingest_params": {
+      "domain": "cc_session"
+    },
+    "timestamp": "2026-03-12T14:05:00.719725+00:00"
+  },
+  "refs": [],
+  "git_ref": ""
+}

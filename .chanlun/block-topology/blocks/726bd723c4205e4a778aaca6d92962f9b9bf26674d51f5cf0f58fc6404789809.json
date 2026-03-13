@@ -1,0 +1,19 @@
+{
+  "id": "726bd723c4205e4a778aaca6d92962f9b9bf26674d51f5cf0f58fc6404789809",
+  "type": "event",
+  "timestamp": "2026-03-12T15:00:37.961943+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "articulation",
+    "domain": "history",
+    "source_vid": "universal_I",
+    "target_vid": "work",
+    "score": 1.0,
+    "step": 246630,
+    "imbalance_type": "A_dense_B_sparse",
+    "reason": "articulation[A密B疏]: cooccurrence between universal_I and work but no paradigmatic edge in S_net and no concept edge in K_active",
+    "timestamp": "2026-03-12T15:00:37.961925Z"
+  },
+  "refs": [],
+  "git_ref": ""
+}

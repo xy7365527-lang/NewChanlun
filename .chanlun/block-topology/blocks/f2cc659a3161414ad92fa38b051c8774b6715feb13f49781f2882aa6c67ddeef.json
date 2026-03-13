@@ -1,0 +1,18 @@
+{
+  "id": "f2cc659a3161414ad92fa38b051c8774b6715feb13f49781f2882aa6c67ddeef",
+  "type": "event",
+  "timestamp": "2026-03-12T15:00:37.963325+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "operation",
+    "domain": "history",
+    "step": 246630,
+    "operation": "walk",
+    "position": "universal_I",
+    "beta_1_before": 134,
+    "beta_1_after": 135,
+    "blocked": false
+  },
+  "refs": [],
+  "git_ref": ""
+}

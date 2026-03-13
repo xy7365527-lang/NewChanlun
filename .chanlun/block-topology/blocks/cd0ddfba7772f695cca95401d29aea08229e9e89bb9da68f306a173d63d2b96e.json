@@ -1,0 +1,20 @@
+{
+  "id": "cd0ddfba7772f695cca95401d29aea08229e9e89bb9da68f306a173d63d2b96e",
+  "type": "event",
+  "timestamp": "2026-03-12T14:26:50.617495+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "cooccurrence",
+    "domain": "material",
+    "source_signifier": "linearize_complex",
+    "target_signifier": "phase",
+    "weight": 1.0,
+    "corpus_source": "cc_session:2026-03-05-2220-session.md",
+    "ingest_params": {
+      "domain": "cc_session"
+    },
+    "timestamp": "2026-03-12T14:26:50.594247+00:00"
+  },
+  "refs": [],
+  "git_ref": ""
+}

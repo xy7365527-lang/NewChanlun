@@ -1,0 +1,20 @@
+{
+  "id": "f36571ea6228dcd3c74eb9a34a582e6808911dd958e8c651fe14cbdb88b71c6c",
+  "type": "event",
+  "timestamp": "2026-03-12T14:05:00.725541+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "cooccurrence",
+    "domain": "material",
+    "source_signifier": "ceremony",
+    "target_signifier": "不",
+    "weight": 1.0,
+    "corpus_source": "cc_session:2026-02-26-downstream-triage.md",
+    "ingest_params": {
+      "domain": "cc_session"
+    },
+    "timestamp": "2026-03-12T14:05:00.719725+00:00"
+  },
+  "refs": [],
+  "git_ref": ""
+}

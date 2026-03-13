@@ -1,0 +1,20 @@
+{
+  "id": "b90ae0bc4c9131264197c8a182257399ebacddf5ff1463c6dc01b44619d1f568",
+  "type": "event",
+  "timestamp": "2026-03-12T14:26:50.605897+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "cooccurrence",
+    "domain": "material",
+    "source_signifier": "ConstraintSet",
+    "target_signifier": "phase",
+    "weight": 1.0,
+    "corpus_source": "cc_session:2026-03-05-2220-session.md",
+    "ingest_params": {
+      "domain": "cc_session"
+    },
+    "timestamp": "2026-03-12T14:26:50.594247+00:00"
+  },
+  "refs": [],
+  "git_ref": ""
+}

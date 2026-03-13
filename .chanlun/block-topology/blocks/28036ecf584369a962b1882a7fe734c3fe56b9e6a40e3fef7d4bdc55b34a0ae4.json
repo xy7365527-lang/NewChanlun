@@ -1,0 +1,18 @@
+{
+  "id": "28036ecf584369a962b1882a7fe734c3fe56b9e6a40e3fef7d4bdc55b34a0ae4",
+  "type": "event",
+  "timestamp": "2026-03-12T22:05:33.890574+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "operation",
+    "domain": "history",
+    "step": 147,
+    "operation": "sublate",
+    "position": "syn_syn_anti_anti_syn_anti_anti_syn_anti_subject_3_anti_anti_subject_3_25_27_39_60_anti_anti_anti_syn_anti_subject_3_anti_anti_subject_3_25_27_39_60_76_78_92_113_anti_anti_anti_syn_anti_anti_syn_anti_subject_3_anti_anti_subject_3_25_27_39_60_anti_anti_anti_syn_anti_subject_3_anti_anti_subject_3_25_27_39_60_76_78_92_113_129_131_anti_syn_anti_anti_syn_anti_anti_syn_anti_subject_3_anti_anti_subject_3_25_27_39_60_anti_anti_anti_syn_anti_subject_3_anti_anti_subject_3_25_27_39_60_76_78_92_113_anti_anti_anti_syn_anti_anti_syn_anti_subject_3_anti_anti_subject_3_25_27_39_60_anti_anti_anti_syn_anti_subject_3_anti_anti_subject_3_25_27_39_60_76_78_92_113_129_131_145_147",
+    "beta_1_before": 62488,
+    "beta_1_after": 62489,
+    "blocked": false
+  },
+  "refs": [],
+  "git_ref": ""
+}

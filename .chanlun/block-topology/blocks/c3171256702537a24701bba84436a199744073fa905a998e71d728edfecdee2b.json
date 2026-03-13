@@ -1,0 +1,16 @@
+{
+  "id": "c3171256702537a24701bba84436a199744073fa905a998e71d728edfecdee2b",
+  "type": "event",
+  "timestamp": "2026-03-12T18:23:13.134362+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "memory:residue:boundary_edge:43:73",
+    "target": "absolute_freedom",
+    "edge_type": "reference",
+    "created_at": 73
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,20 @@
+{
+  "id": "63648cc75c30db139d4757e2c338ed10ffd75370be5975babe12740bef6f67e5",
+  "type": "event",
+  "timestamp": "2026-03-12T14:25:48.357183+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "cooccurrence",
+    "domain": "material",
+    "source_signifier": "Aufhebung",
+    "target_signifier": "check",
+    "weight": 1.0,
+    "corpus_source": "cc_session:2026-03-05-1057-session.md",
+    "ingest_params": {
+      "domain": "cc_session"
+    },
+    "timestamp": "2026-03-12T14:25:48.352558+00:00"
+  },
+  "refs": [],
+  "git_ref": ""
+}

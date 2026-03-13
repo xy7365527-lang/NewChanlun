@@ -1,0 +1,18 @@
+{
+  "id": "4e89f697022b56e690e335d104ad7784650854bbda711ee21c455b70c80c972a",
+  "type": "event",
+  "timestamp": "2026-03-12T18:13:37.704197+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "syn_category_universal_246637",
+    "target": "work",
+    "edge_type": "cooccurrence",
+    "created_at": 1,
+    "surface": "between the particular and the universal",
+    "context": "snet_cooccurrence: the universal->be w=2056.000"
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,18 @@
+{
+  "id": "460c97e044091ae7d2200c4c169c6df0d50f9034e2b4f9d29b2dde94b0a70fd3",
+  "type": "event",
+  "timestamp": "2026-03-12T15:00:37.962788+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "universal_I",
+    "target": "spirit",
+    "edge_type": "cooccurrence",
+    "created_at": 246630,
+    "surface": "self, in tenns of loss of\npotentia, positivity, self-awareness, and inner freedon1.\nThis lnove away ",
+    "context": "snet_cooccurrence: universal I->self w=4.000"
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,20 @@
+{
+  "id": "31ab6f2de79f6ef50eccb071d29e61c37c583d3c79bc9e3fce795b22272439fb",
+  "type": "event",
+  "timestamp": "2026-03-12T14:49:39.666623+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "cooccurrence",
+    "domain": "material",
+    "source_signifier": "war (negation of ethical order)",
+    "target_signifier": "穿越",
+    "weight": 1.0,
+    "corpus_source": "cc_session:2026-03-11-0422-session.md",
+    "ingest_params": {
+      "domain": "cc_session"
+    },
+    "timestamp": "2026-03-12T14:49:39.659446+00:00"
+  },
+  "refs": [],
+  "git_ref": ""
+}

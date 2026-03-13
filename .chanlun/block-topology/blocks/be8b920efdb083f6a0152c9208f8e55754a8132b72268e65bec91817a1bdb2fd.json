@@ -1,0 +1,18 @@
+{
+  "id": "be8b920efdb083f6a0152c9208f8e55754a8132b72268e65bec91817a1bdb2fd",
+  "type": "event",
+  "timestamp": "2026-03-13T02:43:00.236659+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "operation",
+    "domain": "history",
+    "step": 163,
+    "operation": "fold",
+    "position": "anti_syn_anti_anti_syn_anti_anti_syn_anti_subject_3_anti_anti_subject_3_25_27_39_60_anti_anti_anti_syn_anti_subject_3_anti_anti_subject_3_25_27_39_60_76_78_92_113_anti_anti_anti_syn_anti_anti_syn_anti_subject_3_anti_anti_subject_3_25_27_39_60_anti_anti_anti_syn_anti_subject_3_anti_anti_subject_3_25_27_39_60_76_78_92_113_129_131_145",
+    "beta_1_before": 131124,
+    "beta_1_after": 131123,
+    "blocked": false
+  },
+  "refs": [],
+  "git_ref": ""
+}

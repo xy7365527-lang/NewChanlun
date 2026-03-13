@@ -1,0 +1,18 @@
+{
+  "id": "9b1801fe44a1feff175966a6ce174fc08f9a28505a5ad5c4524d17f7f832c266",
+  "type": "event",
+  "timestamp": "2026-03-12T15:00:50.431156+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "operation",
+    "domain": "history",
+    "step": 246631,
+    "operation": "negate_a",
+    "position": "universal_I",
+    "beta_1_before": 135,
+    "beta_1_after": 136,
+    "blocked": false
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,20 @@
+{
+  "id": "79c440418e8a03003815fa18bf0596fdc2734c3b8c06a0eeadfb96b86de46245",
+  "type": "event",
+  "timestamp": "2026-03-12T14:26:50.677908+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "cooccurrence",
+    "domain": "material",
+    "source_signifier": "phi_L_batch",
+    "target_signifier": "语言",
+    "weight": 1.0,
+    "corpus_source": "cc_session:2026-03-05-2220-session.md",
+    "ingest_params": {
+      "domain": "cc_session"
+    },
+    "timestamp": "2026-03-12T14:26:50.594247+00:00"
+  },
+  "refs": [],
+  "git_ref": ""
+}

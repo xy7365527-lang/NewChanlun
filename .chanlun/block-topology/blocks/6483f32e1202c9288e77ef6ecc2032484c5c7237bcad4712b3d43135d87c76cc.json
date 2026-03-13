@@ -1,0 +1,20 @@
+{
+  "id": "6483f32e1202c9288e77ef6ecc2032484c5c7237bcad4712b3d43135d87c76cc",
+  "type": "event",
+  "timestamp": "2026-03-12T14:58:28.798598+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "cooccurrence",
+    "domain": "material",
+    "source_signifier": "war (negation of ethical order)",
+    "target_signifier": "周期",
+    "weight": 1.0,
+    "corpus_source": "cc_session:stagnation-audit-v207.md",
+    "ingest_params": {
+      "domain": "cc_session"
+    },
+    "timestamp": "2026-03-12T14:58:28.770919+00:00"
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,18 @@
+{
+  "id": "69ceefd616dd8b1525b6582d04ccf951585c801a0514a4c9d4a9f0b3c96dd129",
+  "type": "event",
+  "timestamp": "2026-03-12T18:13:37.700163+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "syn_category_universal_246637",
+    "target": "life",
+    "edge_type": "cooccurrence",
+    "created_at": 1,
+    "surface": "the universal",
+    "context": "snet_cooccurrence: the universal->univers w=1116.000"
+  },
+  "refs": [],
+  "git_ref": ""
+}

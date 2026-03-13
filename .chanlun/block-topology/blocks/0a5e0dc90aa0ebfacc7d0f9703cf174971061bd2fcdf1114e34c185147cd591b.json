@@ -1,0 +1,16 @@
+{
+  "id": "0a5e0dc90aa0ebfacc7d0f9703cf174971061bd2fcdf1114e34c185147cd591b",
+  "type": "event",
+  "timestamp": "2026-03-12T18:47:57.163207+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "memory:residue:expression_pressure:5750:126",
+    "target": "force",
+    "edge_type": "reference",
+    "created_at": 126
+  },
+  "refs": [],
+  "git_ref": ""
+}

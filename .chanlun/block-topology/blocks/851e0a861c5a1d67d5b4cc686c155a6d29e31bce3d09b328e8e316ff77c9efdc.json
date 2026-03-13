@@ -1,0 +1,18 @@
+{
+  "id": "851e0a861c5a1d67d5b4cc686c155a6d29e31bce3d09b328e8e316ff77c9efdc",
+  "type": "event",
+  "timestamp": "2026-03-12T15:01:28.707808+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "category",
+    "target": "substance",
+    "edge_type": "cooccurrence",
+    "created_at": 246635,
+    "surface": "corpus:adorno:Adorno_Aesthetic_Theory.md",
+    "context": "snet_cooccurrence: the category (unity of being and thinking)->way w=419.000"
+  },
+  "refs": [],
+  "git_ref": ""
+}

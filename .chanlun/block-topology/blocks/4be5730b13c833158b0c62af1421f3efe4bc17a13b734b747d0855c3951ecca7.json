@@ -1,0 +1,20 @@
+{
+  "id": "4be5730b13c833158b0c62af1421f3efe4bc17a13b734b747d0855c3951ecca7",
+  "type": "event",
+  "timestamp": "2026-03-12T14:09:52.611126+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "cooccurrence",
+    "domain": "material",
+    "source_signifier": "infrastructure",
+    "target_signifier": "stand",
+    "weight": 1.0,
+    "corpus_source": "cc_session:2026-02-28-0506-session.md",
+    "ingest_params": {
+      "domain": "cc_session"
+    },
+    "timestamp": "2026-03-12T14:09:52.610001+00:00"
+  },
+  "refs": [],
+  "git_ref": ""
+}

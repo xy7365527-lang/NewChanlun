@@ -1,0 +1,18 @@
+{
+  "id": "92441956e2d9e992cef6e6fa7222896b0f2fe357810b46633ebc938221381d4c",
+  "type": "event",
+  "timestamp": "2026-03-12T18:13:50.200963+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "syn_category_universal_246637",
+    "target": "subject",
+    "edge_type": "traversal_association",
+    "created_at": 2,
+    "surface": "the universal->subject (self-developing)",
+    "context": "traversal_step:2"
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,19 @@
+{
+  "id": "1adfb550c0b002550c00b7253840df96c919edef791fa5f97bd3e391ae7b9e9b",
+  "type": "event",
+  "timestamp": "2026-03-12T15:02:37.196634+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "articulation",
+    "domain": "history",
+    "source_vid": "syn_syn_syn_category_universal_246637_category_246640_syn_category_universal_246637_246643",
+    "target_vid": "recognition",
+    "score": 1.0,
+    "step": 246644,
+    "imbalance_type": "A_dense_B_sparse",
+    "reason": "articulation[A密B疏]: cooccurrence between syn_syn_syn_category_universal_246637_category_246640_syn_category_universal_246637_246643 and recognition but no paradigmatic edge in S_net and no concept edge in K_active",
+    "timestamp": "2026-03-12T15:02:37.196583Z"
+  },
+  "refs": [],
+  "git_ref": ""
+}

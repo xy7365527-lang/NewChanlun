@@ -1,0 +1,20 @@
+{
+  "id": "249f137cadff0147522cc9f705fd62ee35caf3b930920e13014ce15c99e0da3d",
+  "type": "event",
+  "timestamp": "2026-03-12T14:24:48.327936+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "cooccurrence",
+    "domain": "material",
+    "source_signifier": "war (negation of ethical order)",
+    "target_signifier": "谱系",
+    "weight": 1.0,
+    "corpus_source": "cc_session:2026-03-04-v149-gangmu-integration.md",
+    "ingest_params": {
+      "domain": "cc_session"
+    },
+    "timestamp": "2026-03-12T14:24:48.323961+00:00"
+  },
+  "refs": [],
+  "git_ref": ""
+}

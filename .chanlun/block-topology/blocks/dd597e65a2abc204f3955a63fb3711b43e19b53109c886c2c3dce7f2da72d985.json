@@ -1,0 +1,16 @@
+{
+  "id": "dd597e65a2abc204f3955a63fb3711b43e19b53109c886c2c3dce7f2da72d985",
+  "type": "event",
+  "timestamp": "2026-03-12T15:01:02.923625+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "cooc_bi",
+    "status": "active",
+    "content": "bi",
+    "created_at": 246633
+  },
+  "refs": [],
+  "git_ref": ""
+}

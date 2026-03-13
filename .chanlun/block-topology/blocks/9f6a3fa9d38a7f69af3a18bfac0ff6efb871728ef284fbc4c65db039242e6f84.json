@@ -1,0 +1,15 @@
+{
+  "id": "9f6a3fa9d38a7f69af3a18bfac0ff6efb871728ef284fbc4c65db039242e6f84",
+  "type": "event",
+  "timestamp": "2026-03-12T15:00:50.430852+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex_status",
+    "domain": "history",
+    "vertex_id": "universal_I",
+    "status": "contested",
+    "step": 246631
+  },
+  "refs": [],
+  "git_ref": ""
+}

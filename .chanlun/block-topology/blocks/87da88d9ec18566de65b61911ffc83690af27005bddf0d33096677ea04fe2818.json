@@ -1,0 +1,15 @@
+{
+  "id": "87da88d9ec18566de65b61911ffc83690af27005bddf0d33096677ea04fe2818",
+  "type": "event",
+  "timestamp": "2026-03-12T18:16:42.262776+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "merge",
+    "domain": "history",
+    "keep": "anti_subject_3",
+    "remove": "syn_category_universal_246637",
+    "step": 23
+  },
+  "refs": [],
+  "git_ref": ""
+}

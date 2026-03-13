@@ -1,0 +1,20 @@
+{
+  "id": "3f02b7852cf60f449113533258ca1fed622bb17e1c92c9c1599ad0513ad22c27",
+  "type": "event",
+  "timestamp": "2026-03-12T14:58:28.798099+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "cooccurrence",
+    "domain": "material",
+    "source_signifier": "consume",
+    "target_signifier": "不",
+    "weight": 1.0,
+    "corpus_source": "cc_session:stagnation-audit-v207.md",
+    "ingest_params": {
+      "domain": "cc_session"
+    },
+    "timestamp": "2026-03-12T14:58:28.770919+00:00"
+  },
+  "refs": [],
+  "git_ref": ""
+}

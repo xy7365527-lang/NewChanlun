@@ -1,0 +1,16 @@
+{
+  "id": "36f440c32dc92b824a77c938b95138857cc32cf56700f3583b9fb06ae92739bd",
+  "type": "event",
+  "timestamp": "2026-03-12T18:18:28.295780+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "memory:residue:boundary_edge:42:37",
+    "target": "self_consciousness_emerges",
+    "edge_type": "reference",
+    "created_at": 37
+  },
+  "refs": [],
+  "git_ref": ""
+}

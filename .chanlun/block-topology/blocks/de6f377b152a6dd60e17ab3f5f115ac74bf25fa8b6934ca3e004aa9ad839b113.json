@@ -1,0 +1,20 @@
+{
+  "id": "de6f377b152a6dd60e17ab3f5f115ac74bf25fa8b6934ca3e004aa9ad839b113",
+  "type": "event",
+  "timestamp": "2026-03-12T14:26:50.620317+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "cooccurrence",
+    "domain": "material",
+    "source_signifier": "generate_topological_narrative",
+    "target_signifier": "activity",
+    "weight": 1.0,
+    "corpus_source": "cc_session:2026-03-05-2220-session.md",
+    "ingest_params": {
+      "domain": "cc_session"
+    },
+    "timestamp": "2026-03-12T14:26:50.594247+00:00"
+  },
+  "refs": [],
+  "git_ref": ""
+}

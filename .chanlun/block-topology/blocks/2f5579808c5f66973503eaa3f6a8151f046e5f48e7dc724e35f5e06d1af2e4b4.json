@@ -1,0 +1,16 @@
+{
+  "id": "2f5579808c5f66973503eaa3f6a8151f046e5f48e7dc724e35f5e06d1af2e4b4",
+  "type": "event",
+  "timestamp": "2026-03-12T18:14:02.717479+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "anti_subject_3",
+    "status": "active",
+    "content": null,
+    "created_at": 3
+  },
+  "refs": [],
+  "git_ref": ""
+}

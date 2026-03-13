@@ -1,0 +1,20 @@
+{
+  "id": "7b8a6b7982ba149d6d32820355c070434539145c63dd9d76e42f38596cccc3a0",
+  "type": "event",
+  "timestamp": "2026-03-12T14:54:19.518871+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "cooccurrence",
+    "domain": "material",
+    "source_signifier": "穿越",
+    "target_signifier": "矛盾",
+    "weight": 1.0,
+    "corpus_source": "cc_session:2026-03-11-1852-session.md",
+    "ingest_params": {
+      "domain": "cc_session"
+    },
+    "timestamp": "2026-03-12T14:54:19.514799+00:00"
+  },
+  "refs": [],
+  "git_ref": ""
+}

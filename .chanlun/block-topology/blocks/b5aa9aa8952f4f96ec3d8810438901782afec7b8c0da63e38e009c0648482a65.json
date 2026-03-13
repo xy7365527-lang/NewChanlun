@@ -1,0 +1,16 @@
+{
+  "id": "b5aa9aa8952f4f96ec3d8810438901782afec7b8c0da63e38e009c0648482a65",
+  "type": "event",
+  "timestamp": "2026-03-12T18:18:28.302427+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "memory:residue:boundary_edge:28:37",
+    "target": "spirit",
+    "edge_type": "reference",
+    "created_at": 37
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,16 @@
+{
+  "id": "822e9fb3db0d94c5dcf6d074f695fe914716083d5ec397ad47b07310865d0551",
+  "type": "event",
+  "timestamp": "2026-03-13T02:42:33.136875+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "memory:settlement:162",
+    "target": "memory:residue:boundary_edge:8785:162",
+    "edge_type": "reference",
+    "created_at": 162
+  },
+  "refs": [],
+  "git_ref": ""
+}

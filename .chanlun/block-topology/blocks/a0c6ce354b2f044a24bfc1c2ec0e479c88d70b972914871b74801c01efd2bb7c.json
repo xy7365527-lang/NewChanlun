@@ -1,0 +1,20 @@
+{
+  "id": "a0c6ce354b2f044a24bfc1c2ec0e479c88d70b972914871b74801c01efd2bb7c",
+  "type": "event",
+  "timestamp": "2026-03-12T14:58:28.806630+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "cooccurrence",
+    "domain": "material",
+    "source_signifier": "genealogy",
+    "target_signifier": "行动",
+    "weight": 1.0,
+    "corpus_source": "cc_session:stagnation-audit-v207.md",
+    "ingest_params": {
+      "domain": "cc_session"
+    },
+    "timestamp": "2026-03-12T14:58:28.770919+00:00"
+  },
+  "refs": [],
+  "git_ref": ""
+}

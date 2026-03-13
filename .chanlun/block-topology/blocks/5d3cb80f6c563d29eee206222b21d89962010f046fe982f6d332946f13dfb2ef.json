@@ -1,0 +1,20 @@
+{
+  "id": "5d3cb80f6c563d29eee206222b21d89962010f046fe982f6d332946f13dfb2ef",
+  "type": "event",
+  "timestamp": "2026-03-12T14:24:39.418532+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "cooccurrence",
+    "domain": "material",
+    "source_signifier": "text",
+    "target_signifier": "段",
+    "weight": 1.0,
+    "corpus_source": "cc_session:2026-03-04-v148-swarm.md",
+    "ingest_params": {
+      "domain": "cc_session"
+    },
+    "timestamp": "2026-03-12T14:24:39.389545+00:00"
+  },
+  "refs": [],
+  "git_ref": ""
+}

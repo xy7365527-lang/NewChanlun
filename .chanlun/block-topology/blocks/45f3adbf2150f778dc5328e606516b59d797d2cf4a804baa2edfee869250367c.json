@@ -1,0 +1,16 @@
+{
+  "id": "45f3adbf2150f778dc5328e606516b59d797d2cf4a804baa2edfee869250367c",
+  "type": "event",
+  "timestamp": "2026-03-12T15:03:02.115764+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "anti_syn_syn_syn_category_universal_246637_category_246640_syn_category_universal_246637_246643_246646",
+    "status": "active",
+    "content": null,
+    "created_at": 246646
+  },
+  "refs": [],
+  "git_ref": ""
+}

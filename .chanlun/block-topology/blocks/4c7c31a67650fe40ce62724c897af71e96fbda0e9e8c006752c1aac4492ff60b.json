@@ -1,0 +1,20 @@
+{
+  "id": "4c7c31a67650fe40ce62724c897af71e96fbda0e9e8c006752c1aac4492ff60b",
+  "type": "event",
+  "timestamp": "2026-03-12T14:10:52.033750+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "cooccurrence",
+    "domain": "material",
+    "source_signifier": "走势",
+    "target_signifier": "力度",
+    "weight": 1.0,
+    "corpus_source": "cc_session:2026-02-28-0830-session.md",
+    "ingest_params": {
+      "domain": "cc_session"
+    },
+    "timestamp": "2026-03-12T14:10:52.025430+00:00"
+  },
+  "refs": [],
+  "git_ref": ""
+}

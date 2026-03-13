@@ -1,0 +1,20 @@
+{
+  "id": "2c99510bb1e5eec7c9bcad86804ca019110ca09e2ffb91c050dcde24c17390c2",
+  "type": "event",
+  "timestamp": "2026-03-12T14:20:47.212010+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "cooccurrence",
+    "domain": "material",
+    "source_signifier": "resolve",
+    "target_signifier": "war (negation of ethical order)",
+    "weight": 1.0,
+    "corpus_source": "cc_session:2026-03-03-0358-session.md",
+    "ingest_params": {
+      "domain": "cc_session"
+    },
+    "timestamp": "2026-03-12T14:20:47.203292+00:00"
+  },
+  "refs": [],
+  "git_ref": ""
+}

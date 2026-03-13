@@ -1,0 +1,20 @@
+{
+  "id": "a6bb9b1a22252fbb18d1dc73b616716ef7603f9711f31fca346802a0bd3c725a",
+  "type": "event",
+  "timestamp": "2026-03-12T14:26:50.676238+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "cooccurrence",
+    "domain": "material",
+    "source_signifier": "psi_L_narrative",
+    "target_signifier": "语言",
+    "weight": 1.0,
+    "corpus_source": "cc_session:2026-03-05-2220-session.md",
+    "ingest_params": {
+      "domain": "cc_session"
+    },
+    "timestamp": "2026-03-12T14:26:50.594247+00:00"
+  },
+  "refs": [],
+  "git_ref": ""
+}

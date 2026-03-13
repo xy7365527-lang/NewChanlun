@@ -1,0 +1,16 @@
+{
+  "id": "9bade3606a56e20c1d2ba5adffea71dd3d726bb1aa0f17795d0e0704139fea7d",
+  "type": "event",
+  "timestamp": "2026-03-12T18:16:02.614466+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "memory:settlement:20",
+    "status": "active",
+    "content": "[domain:memory] settlement step=20 cycle=[syn_subject_anti_subject_3_5->anti_subject_3, syn_subject_anti_subject_3_5->subject]",
+    "created_at": 20
+  },
+  "refs": [],
+  "git_ref": ""
+}

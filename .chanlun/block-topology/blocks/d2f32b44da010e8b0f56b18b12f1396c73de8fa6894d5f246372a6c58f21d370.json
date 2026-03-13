@@ -1,0 +1,20 @@
+{
+  "id": "d2f32b44da010e8b0f56b18b12f1396c73de8fa6894d5f246372a6c58f21d370",
+  "type": "event",
+  "timestamp": "2026-03-12T14:19:34.064778+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "cooccurrence",
+    "domain": "material",
+    "source_signifier": "concept_registry",
+    "target_signifier": "land",
+    "weight": 1.0,
+    "corpus_source": "cc_session:2026-03-02-0845-session.md",
+    "ingest_params": {
+      "domain": "cc_session"
+    },
+    "timestamp": "2026-03-12T14:19:34.062656+00:00"
+  },
+  "refs": [],
+  "git_ref": ""
+}

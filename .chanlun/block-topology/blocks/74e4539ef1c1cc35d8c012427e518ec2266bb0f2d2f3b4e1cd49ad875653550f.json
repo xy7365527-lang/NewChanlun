@@ -1,0 +1,16 @@
+{
+  "id": "74e4539ef1c1cc35d8c012427e518ec2266bb0f2d2f3b4e1cd49ad875653550f",
+  "type": "event",
+  "timestamp": "2026-03-12T20:06:22.484360+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "memory:residue:boundary_edge:9390:143",
+    "status": "active",
+    "content": "[domain:memory] residue type=boundary_edge settlement_step=143",
+    "created_at": 143
+  },
+  "refs": [],
+  "git_ref": ""
+}

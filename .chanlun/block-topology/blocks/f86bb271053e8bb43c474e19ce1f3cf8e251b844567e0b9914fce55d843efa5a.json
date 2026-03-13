@@ -1,0 +1,20 @@
+{
+  "id": "f86bb271053e8bb43c474e19ce1f3cf8e251b844567e0b9914fce55d843efa5a",
+  "type": "event",
+  "timestamp": "2026-03-12T14:58:51.995123+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "cooccurrence",
+    "domain": "material",
+    "source_signifier": "content",
+    "target_signifier": "变",
+    "weight": 1.0,
+    "corpus_source": "cc_session:v69-swarm-session.md",
+    "ingest_params": {
+      "domain": "cc_session"
+    },
+    "timestamp": "2026-03-12T14:58:51.990036+00:00"
+  },
+  "refs": [],
+  "git_ref": ""
+}

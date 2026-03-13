@@ -1,0 +1,20 @@
+{
+  "id": "8fdd9e516b18ff9ff6fd995402f2183a000343aa6d7992a27c71f80426efb131",
+  "type": "event",
+  "timestamp": "2026-03-12T14:26:58.611384+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "cooccurrence",
+    "domain": "material",
+    "source_signifier": "main",
+    "target_signifier": "无",
+    "weight": 1.0,
+    "corpus_source": "cc_session:2026-03-08-0039-session.md",
+    "ingest_params": {
+      "domain": "cc_session"
+    },
+    "timestamp": "2026-03-12T14:26:58.596817+00:00"
+  },
+  "refs": [],
+  "git_ref": ""
+}

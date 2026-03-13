@@ -1,0 +1,18 @@
+{
+  "id": "007effa9bfaf95fb0d782a4a9e818692bc445b85d70932d35329b6095527e42f",
+  "type": "event",
+  "timestamp": "2026-03-12T18:13:37.701097+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "syn_syn_category_universal_246637_category_246640",
+    "target": "syn_category_universal_246637",
+    "edge_type": "traversal_association",
+    "created_at": 1,
+    "surface": "the universal->the universal",
+    "context": "traversal_step:1"
+  },
+  "refs": [],
+  "git_ref": ""
+}

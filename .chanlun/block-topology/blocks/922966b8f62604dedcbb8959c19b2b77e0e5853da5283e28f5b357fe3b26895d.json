@@ -1,0 +1,20 @@
+{
+  "id": "922966b8f62604dedcbb8959c19b2b77e0e5853da5283e28f5b357fe3b26895d",
+  "type": "event",
+  "timestamp": "2026-03-12T14:05:15.534025+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "cooccurrence",
+    "domain": "material",
+    "source_signifier": "走势类型",
+    "target_signifier": "make",
+    "weight": 1.0,
+    "corpus_source": "cc_session:2026-02-27-0039-session.md",
+    "ingest_params": {
+      "domain": "cc_session"
+    },
+    "timestamp": "2026-03-12T14:05:15.511448+00:00"
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,20 @@
+{
+  "id": "3a262fdaebf47d4ff00400915e91516b889d1aeaa575229b0db4b733f5c7b249",
+  "type": "event",
+  "timestamp": "2026-03-12T14:05:00.741318+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "cooccurrence",
+    "domain": "material",
+    "source_signifier": "买卖点",
+    "target_signifier": "不",
+    "weight": 1.0,
+    "corpus_source": "cc_session:2026-02-26-downstream-triage.md",
+    "ingest_params": {
+      "domain": "cc_session"
+    },
+    "timestamp": "2026-03-12T14:05:00.719725+00:00"
+  },
+  "refs": [],
+  "git_ref": ""
+}

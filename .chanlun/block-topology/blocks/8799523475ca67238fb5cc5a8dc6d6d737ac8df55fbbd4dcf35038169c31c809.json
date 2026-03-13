@@ -1,0 +1,18 @@
+{
+  "id": "8799523475ca67238fb5cc5a8dc6d6d737ac8df55fbbd4dcf35038169c31c809",
+  "type": "event",
+  "timestamp": "2026-03-12T18:21:53.989343+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "operation",
+    "domain": "history",
+    "step": 62,
+    "operation": "sublate",
+    "position": "syn_anti_syn_anti_subject_3_anti_anti_subject_3_25_27_39_anti_anti_syn_anti_subject_3_anti_anti_subject_3_25_27_39_60_62",
+    "beta_1_before": 945,
+    "beta_1_after": 946,
+    "blocked": false
+  },
+  "refs": [],
+  "git_ref": ""
+}

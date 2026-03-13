@@ -1,0 +1,18 @@
+{
+  "id": "c5980a99335b4a76a957bfa0896c51c0fdd70250f91190d405fab29512878bfd",
+  "type": "event",
+  "timestamp": "2026-03-12T18:13:37.703250+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "syn_category_universal_246637",
+    "target": "cooc_bi",
+    "edge_type": "cooccurrence",
+    "created_at": 1,
+    "surface": "bility of reconciliation. The main oppositions\noccur between the particular and the universal",
+    "context": "snet_cooccurrence: the universal->bi w=1103.000"
+  },
+  "refs": [],
+  "git_ref": ""
+}

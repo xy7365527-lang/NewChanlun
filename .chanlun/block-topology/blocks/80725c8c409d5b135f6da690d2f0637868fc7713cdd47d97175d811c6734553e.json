@@ -1,0 +1,16 @@
+{
+  "id": "80725c8c409d5b135f6da690d2f0637868fc7713cdd47d97175d811c6734553e",
+  "type": "event",
+  "timestamp": "2026-03-12T18:18:28.193782+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "memory:residue:boundary_edge:14:37",
+    "target": "cooc_bi",
+    "edge_type": "reference",
+    "created_at": 37
+  },
+  "refs": [],
+  "git_ref": ""
+}

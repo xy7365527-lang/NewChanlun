@@ -1,0 +1,16 @@
+{
+  "id": "8d1f6fc315116c3e3332349d0a7bd5d3c89806944a30b2269fc8682a6e332e00",
+  "type": "event",
+  "timestamp": "2026-03-12T18:14:15.148293+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "syn_subject_anti_subject_3_5",
+    "target": "subject",
+    "edge_type": "sublation",
+    "created_at": 5
+  },
+  "refs": [],
+  "git_ref": ""
+}
