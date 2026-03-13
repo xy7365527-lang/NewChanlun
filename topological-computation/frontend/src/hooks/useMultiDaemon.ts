@@ -252,10 +252,25 @@ export function useInstanceTraversals(): InstanceTraversal[] {
 
       if (!posLabel && !posId) continue;
 
-      // Find matching vertex in shared topology
-      const vertexId = topology?.nodes.find(
+      // Find matching vertex in shared topology by id or label
+      let vertexId = topology?.nodes.find(
         (n) => n.id === posId || n.label === posLabel
       )?.id;
+
+      // Fallback: use the position id directly if it exists in topology node ids
+      // (handles case where label matching fails due to truncation)
+      if (!vertexId && posId && topology?.nodes.some((n) => n.id === posId)) {
+        vertexId = posId;
+      }
+
+      // Fallback: use meta.traversal_position if available and matches
+      if (!vertexId && topology?.meta?.traversal_position) {
+        const metaPos = topology.meta.traversal_position;
+        if (metaPos === posId) {
+          // The backend guarantees this vertex is in the skeleton
+          vertexId = topology.nodes.find((n) => n.id === metaPos)?.id;
+        }
+      }
 
       if (!vertexId) continue;
 
