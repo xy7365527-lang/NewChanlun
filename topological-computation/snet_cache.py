@@ -342,8 +342,8 @@ def incremental_ingest_dicts(
         try:
             if fname.startswith("code_dict_"):
                 snet, _ = ingest_code_dict(snet, fpath, graph=graph)
-            elif fname.startswith("dict_"):
-                # Monolingual dict: ingest individually
+            elif fname.startswith("dict_") or fname.startswith("text_"):
+                # Monolingual dict or text passage: ingest individually
                 from signifier_net_ingest import ingest_dictionary
                 snet, _ = ingest_dictionary(snet, fpath)
             else:

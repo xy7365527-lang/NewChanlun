@@ -399,8 +399,10 @@ def ingest_all_dictionaries(
 
     all_stats: list[dict] = []
 
-    # 按文件名排序（确定性顺序）
-    dict_files = sorted(dir_path.glob("dict_*.jsonl"))
+    # 按文件名排序（确定性顺序）——dict_ 为词典，text_ 为论述文本
+    dict_files = sorted(
+        list(dir_path.glob("dict_*.jsonl")) + list(dir_path.glob("text_*.jsonl"))
+    )
 
     for dict_file in dict_files:
         try:
@@ -2244,7 +2246,7 @@ def ingest_all_dict_types(
     if not dict_dir.is_dir():
         return snet
 
-    # 1. Monolingual dictionaries (dict_*.jsonl)
+    # 1. Monolingual dictionaries (dict_*.jsonl) and text passages (text_*.jsonl)
     snet, all_stats = ingest_all_dictionaries(snet, dict_dir)
     if all_stats:
         report = format_ingest_report(all_stats)

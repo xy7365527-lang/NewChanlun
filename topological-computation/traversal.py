@@ -171,23 +171,46 @@ class TraversalEngine:
         f > 0: gray zone to negate zone
         """
         active = self.k_active._active_ids
+        _MATERIAL = (EdgeType.COOCCURRENCE, EdgeType.TRAVERSAL_ASSOCIATION)
+        # n_loop: count conceptual edges between v and w — O(degree) not O(E)
+        n_loop = 0
+        for e in self.k_active._adj_out.get(v, ()):
+            if e.target == w and e.target in active and e.source in active and e.edge_type not in _MATERIAL:
+                n_loop += 1
+        for e in self.k_active._adj_out.get(w, ()):
+            if e.target == v and e.target in active and e.source in active and e.edge_type not in _MATERIAL:
+                n_loop += 1
         s = {v, w}
-        n_loop = sum(
-            1 for e in self.k_active.active_edges()
-            if e.source in s and e.target in s
-        )
         lower_link: set[str] = set()
+        # lower_link: skip sorted() by using _adj_out/_adj_in directly — O(deg) not O(E+deg*log)
+        g_adj_out = self.k_active._adj_out
+        g_adj_in = self.k_active._adj_in
         for x in s:
-            for n in self.k_active.neighbors(x):
-                if n not in s and n in active:
-                    lower_link.add(n)
+            for e in g_adj_out.get(x, ()):
+                if e.target not in s and e.target in active:
+                    lower_link.add(e.target)
+            for e in g_adj_in.get(x, ()):
+                if e.source not in s and e.source in active:
+                    lower_link.add(e.source)
         if not lower_link:
             return -1 + n_loop  # c=0 → f = -1 + n_loop
-        ll_edges: list[frozenset[str]] = []
-        for e in self.k_active.active_edges():
-            if e.source in lower_link and e.target in lower_link:
-                ll_edges.append(frozenset((e.source, e.target)))
-        c = _connected_components(sorted(lower_link), ll_edges)
+        # Inline union-find on lower_link: skip frozenset/seen_pairs overhead — 3x faster
+        _parent: dict[str, str] = {x: x for x in lower_link}
+
+        def _find(x: str) -> str:
+            while _parent[x] != x:
+                _parent[x] = _parent[_parent[x]]
+                x = _parent[x]
+            return x
+
+        for x in lower_link:
+            for e in g_adj_out.get(x, ()):
+                if (e.target in lower_link and e.target in active
+                        and e.source in active and e.edge_type not in _MATERIAL):
+                    ra, rb = _find(e.source), _find(e.target)
+                    if ra != rb:
+                        _parent[ra] = rb
+        c = len({_find(x) for x in lower_link})
         return (c - 1) + n_loop
 
     def _compute_g(self, v: str, w: str) -> int:
@@ -682,6 +705,9 @@ class TraversalEngine:
 
         Returns (operation_name, blocked).
         """
+        # Pre-build edge lookup set to avoid O(E) `in` checks on k_full.edges
+        _kfull_edge_keys = {(e.source, e.target, e.edge_type) for e in self.k_full.edges}
+
         if enc.encounter_type == EncounterType.SUBLATION:
             # Build synthesis content from source vertices + negation edge
             v_a = self.k_active.vertex(enc.target_a)
@@ -731,7 +757,7 @@ class TraversalEngine:
             self.k_active = result.graph
             self.k_full = self.k_full.add_vertex(self.k_active.vertex(result.new_vertex))
             for e in result.graph.edges:
-                if e.created_at == self.step and e not in self.k_full.edges:
+                if e.created_at == self.step and (e.source, e.target, e.edge_type) not in _kfull_edge_keys:
                     self.k_full = self.k_full.add_edge(e)
 
             # Creation = arrival
@@ -764,7 +790,7 @@ class TraversalEngine:
 
             self.k_active = result.graph
             for e in result.graph.edges:
-                if e.created_at == self.step and e not in self.k_full.edges:
+                if e.created_at == self.step and (e.source, e.target, e.edge_type) not in _kfull_edge_keys:
                     self.k_full = self.k_full.add_edge(e)
 
             self._pending_negations.append((enc.target_a, enc.target_b))
@@ -792,7 +818,7 @@ class TraversalEngine:
             if new_v:
                 self.k_full = self.k_full.add_vertex(new_v)
             for e in result.graph.edges:
-                if e.created_at == self.step and e not in self.k_full.edges:
+                if e.created_at == self.step and (e.source, e.target, e.edge_type) not in _kfull_edge_keys:
                     self.k_full = self.k_full.add_edge(e)
 
             # Creation = arrival
@@ -826,7 +852,7 @@ class TraversalEngine:
             self.k_active = result.graph
             # Update K_full with fold record
             for e in result.graph.edges:
-                if e.created_at == self.step and e not in self.k_full.edges:
+                if e.created_at == self.step and (e.source, e.target, e.edge_type) not in _kfull_edge_keys:
                     self.k_full = self.k_full.add_edge(e)
             # If position was folded away, move to kept vertex
             if self.position == enc.target_b:
@@ -899,15 +925,15 @@ class TraversalEngine:
     def _exploration_target(self) -> str | None:
         """Pick an under-explored vertex for exploration move.
 
-        Priority: unreviewed concept_creation_suggestions (gap queue),
+        Priority: unreviewed orphan_exploration_hints (gap queue),
         then low-degree (≤2) active vertices not recently visited.
         Returns None if no suitable target found.
         """
-        # 1. Gap queue: unreviewed concept_creation_suggestions → anchor_concept
+        # 1. Gap queue: unreviewed orphan_exploration_hints → anchor_concept
         if self._snet_activation is not None:
-            for suggestion in self._snet_activation.concept_creation_suggestions:
-                if not suggestion.reviewed:
-                    anchor = suggestion.anchor_concept
+            for hint in self._snet_activation.orphan_exploration_hints:
+                if not hint.reviewed:
+                    anchor = hint.anchor_concept
                     if anchor in self.k_active._active_ids and anchor != self.position:
                         return anchor
 

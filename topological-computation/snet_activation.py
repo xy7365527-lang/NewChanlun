@@ -10,8 +10,9 @@ K_active 每步进一步，S_net 同步共振。S_net 的共振反馈给 K_activ
   InternalSpeechFragment — 被清出的能指如果构成连贯语段，存入内部言语缓冲区
   EdgeSuggestion — S_net 中两个激活能指有组合轴连接，但对应概念在 K_active 中
                    没有 edge → 注册为 edge_suggestion（articulation feedback）
-  ConceptCreationSuggestion — 共振激活无 concept_ref 的 signifier 且与有
-                   concept_ref 的 signifier 有组合轴连接时的概念创建建议
+  OrphanExplorationHint — 共振激活无 concept_ref 的 signifier 且与有
+                   concept_ref 的 signifier 有组合轴连接时，将 anchor_concept
+                   推入优先探索队列，引导穿越（纯导航，不建议创建节点）
 
 认识论等级：L0（数据结构 + 拓扑操作，无经验假设）
 """
@@ -113,9 +114,10 @@ class EdgeSuggestion:
 
 
 @dataclass(frozen=True, slots=True)
-class ConceptCreationSuggestion:
-    """concept_creation_suggestion: 无 concept_ref 的 signifier 通过共振激活,
-    且与有 concept_ref 的 signifier 有组合轴连接时的概念创建建议.
+class OrphanExplorationHint:
+    """orphan_exploration_hint: 无 concept_ref 的 signifier 通过共振激活,
+    且与有 concept_ref 的 signifier 有组合轴连接时，将 anchor_concept
+    推入优先探索队列引导穿越（纯导航机制，不建议创建节点）.
 
     orphan_signifier:    无 concept_ref 的能指 ID
     anchor_concept:      有 concept_ref 的锚定概念 ID (K_active vertex id)
@@ -123,7 +125,7 @@ class ConceptCreationSuggestion:
     evidence_patterns:   组合轴边的 evidence 字符串列表
     syntagmatic_weight:  组合轴连接强度
     step:                生成时的穿越步数
-    reviewed:            是否已被审查/裁决
+    reviewed:            是否已被导航访问
     """
     orphan_signifier: str
     anchor_concept: str
@@ -145,8 +147,8 @@ class ConceptCreationSuggestion:
         }
 
     @staticmethod
-    def from_dict(d: dict) -> "ConceptCreationSuggestion":
-        return ConceptCreationSuggestion(
+    def from_dict(d: dict) -> "OrphanExplorationHint":
+        return OrphanExplorationHint(
             orphan_signifier=d.get("orphan_signifier", ""),
             anchor_concept=d.get("anchor_concept", ""),
             anchor_signifier=d.get("anchor_signifier", ""),
@@ -337,7 +339,7 @@ class SNetActivation:
         self._dialogue_focus_set: set[str] = set()
         self.internal_speech_buffer: list[InternalSpeechFragment] = []
         self.edge_suggestions: list[EdgeSuggestion] = []
-        self.concept_creation_suggestions: list[ConceptCreationSuggestion] = []
+        self.orphan_exploration_hints: list[OrphanExplorationHint] = []
         self.current_step: int = 0
 
     def activate(self, concept_id: str) -> None:
@@ -528,16 +530,16 @@ class SNetActivation:
 
         同时：当共振激活一个无 concept_ref 的 signifier，且该 signifier
         与某个有 concept_ref 的 signifier 有组合轴连接时，注册
-        concept_creation_suggestion。
+        orphan_exploration_hint（导航提示）。
         """
         suggestions: list[EdgeSuggestion] = []
         bridge_suggestions: list[dict] = []
-        creation_suggestions: list[ConceptCreationSuggestion] = []
+        exploration_hints: list[OrphanExplorationHint] = []
         active_list = sorted(self.currently_active)
 
-        # 已注册过的 orphan signifier（防止重复注册 concept_creation_suggestion）
+        # 已注册过的 orphan signifier（防止重复注册 orphan_exploration_hint）
         known_orphans: set[str] = {
-            s.orphan_signifier for s in self.concept_creation_suggestions
+            s.orphan_signifier for s in self.orphan_exploration_hints
         }
 
         for i, sig_a in enumerate(active_list):
@@ -571,9 +573,9 @@ class SNetActivation:
                         "evidence_signifiers": (sig_a, sig_b),
                         "evidence_patterns": tuple(syntagmatic_evidence[:5]),
                     })
-                    # concept_creation_suggestion
+                    # orphan_exploration_hint
                     if sig_b not in known_orphans:
-                        creation_suggestions.append(ConceptCreationSuggestion(
+                        exploration_hints.append(OrphanExplorationHint(
                             orphan_signifier=sig_b,
                             anchor_concept=concepts_a[0],
                             anchor_signifier=sig_a,
@@ -590,9 +592,9 @@ class SNetActivation:
                         "evidence_signifiers": (sig_a, sig_b),
                         "evidence_patterns": tuple(syntagmatic_evidence[:5]),
                     })
-                    # concept_creation_suggestion
+                    # orphan_exploration_hint
                     if sig_a not in known_orphans:
-                        creation_suggestions.append(ConceptCreationSuggestion(
+                        exploration_hints.append(OrphanExplorationHint(
                             orphan_signifier=sig_a,
                             anchor_concept=concepts_b[0],
                             anchor_signifier=sig_b,
@@ -631,8 +633,8 @@ class SNetActivation:
         bridge_edges = self._bridge_orphan_signifiers(bridge_suggestions, graph)
         suggestions.extend(bridge_edges)
 
-        # 存入 concept_creation_suggestions 待审查列表
-        self.concept_creation_suggestions.extend(creation_suggestions)
+        # 存入 orphan_exploration_hints 导航队列
+        self.orphan_exploration_hints.extend(exploration_hints)
 
         return suggestions
 
@@ -690,8 +692,8 @@ class SNetActivation:
             "edge_suggestions": [
                 s.to_dict() for s in self.edge_suggestions
             ],
-            "concept_creation_suggestions": [
-                s.to_dict() for s in self.concept_creation_suggestions
+            "orphan_exploration_hints": [
+                s.to_dict() for s in self.orphan_exploration_hints
             ],
         }
 
@@ -708,9 +710,12 @@ class SNetActivation:
             EdgeSuggestion.from_dict(s)
             for s in d.get("edge_suggestions", [])
         ]
-        self.concept_creation_suggestions = [
-            ConceptCreationSuggestion.from_dict(s)
-            for s in d.get("concept_creation_suggestions", [])
+        # 向后兼容：旧 key "concept_creation_suggestions" 也识别
+        hints_raw = d.get("orphan_exploration_hints",
+                          d.get("concept_creation_suggestions", []))
+        self.orphan_exploration_hints = [
+            OrphanExplorationHint.from_dict(s)
+            for s in hints_raw
         ]
 
     def to_json(self) -> str:
