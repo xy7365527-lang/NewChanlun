@@ -1,8 +1,8 @@
 {
   "version": "1.0.0",
   "genesis_block_id": "4731eec2bd9959ccb6baffd17ff2df17688b6ab31065e972f543af366e357fcf",
-  "block_count": 1826,
-  "relation_count": 6701,
+  "block_count": 1836,
+  "relation_count": 6743,
   "id_mapping": {
     "001": "d288fedd6eb715a747a5b7059f89dbb650e0d8a23e82dd508caade3045dcc748",
     "002": "bf1ab849bdb1758a2257132a754f5b0b0e7af3f14323c8ab9bd1f614e8efeef4",
@@ -437,7 +437,17 @@
     "428": "e5fa846cb6cf8dfc7879bc1effa085cfb11ac712b7302713234ae0f0f0901a05",
     "429": "3c65bda8b2e49e879a75d2ef7a55928539a091a58c8af29f2582dfdbba1da793",
     "430": "90264b413ea774357facd521b3e15723305fdafea8d7b6eb9c0df7d9fd1010d0",
-    "431": "ced0fb74eb29490d73eaaaa23c6126dc1c74e765f4f3911c66ef8cabf79f493b"
+    "431": "ced0fb74eb29490d73eaaaa23c6126dc1c74e765f4f3911c66ef8cabf79f493b",
+    "432": "6327ec57b2aa9088892e3fc6d0c4aaf70ca12efdd1be18ec323d95e160a1b80b",
+    "433": "a4168aaa8f32ccb7589226724de76383617e998decc9d778214529a013b61010",
+    "434": "f7d295c28c6b5c18fb1aecceea703d1757d0e493b6ff8105bd9b674e5b6527a5",
+    "435": "4551090159a1749a546a754e0a2b4ae150c278de996f98b9dbaddfdedeb7c8fb",
+    "436": "64473908f25222f128ec3f40028c6249e662cdb133d1d372f43857cbd7de19a7",
+    "437": "887be3bb5f9a9f6219547fd83cf2ffe1cbf0291f91eeb0b5f776860b3f7933fd",
+    "438": "46f4641f448cb88118269293f26b3fcfb7adca86a7f8bd2817c61d295988a9c5",
+    "439": "b8898cb2a2bea0ba9e72472aa15bcfec584246e221e5f6f9b17b44106ef507f7",
+    "440": "29b191c03652701f1c8b5f754a87e76e4d137334709acf938691d5505acd8b36",
+    "441": "7262db3ba6566c306bcbf91e45ecf6fdd4a6c7d168bd450be2c92bf92324adb5"
   },
   "migrated_at": "2026-03-02T07:07:41.973292+00:00",
   "content_enrichment": {
@@ -445,5 +455,5 @@
     "relations_written": 1313,
     "concepts_defined": 1148
   },
-  "last_mapped_genealogy": 431
+  "last_mapped_genealogy": 441
 }
