@@ -1,0 +1,16 @@
+{
+  "id": "2581b48a3185428e725097bc38b5016a08f06798a3455b003f1e3f8e85a34c5f",
+  "type": "event",
+  "timestamp": "2026-03-12T18:15:31.484861+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "memory:settlement:16",
+    "status": "active",
+    "content": "[domain:memory] settlement step=16 cycle=[syn_category_universal_246637->work]",
+    "created_at": 16
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,20 @@
+{
+  "id": "009e2f310a76dc1cb8d90207a88866487684706234ea2836653e86fbc6964fa2",
+  "type": "event",
+  "timestamp": "2026-03-12T14:26:27.150894+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "cooccurrence",
+    "domain": "material",
+    "source_signifier": "谱系学",
+    "target_signifier": "谱系",
+    "weight": 1.0,
+    "corpus_source": "cc_session:2026-03-05-1236-session.md",
+    "ingest_params": {
+      "domain": "cc_session"
+    },
+    "timestamp": "2026-03-12T14:26:27.141738+00:00"
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,15 @@
+{
+  "id": "f59decb4274f1d412b40ea9bb711dfe35362e549fd4408f5738625ff2df4b33d",
+  "type": "event",
+  "timestamp": "2026-03-12T18:21:38.877657+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex_status",
+    "domain": "history",
+    "vertex_id": "anti_syn_anti_subject_3_anti_anti_subject_3_25_27_39",
+    "status": "contested",
+    "step": 60
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,20 @@
+{
+  "id": "ec986103ae73330e5d55aac925392af8d5c08bdc5434aefbc2377a18a8be7d24",
+  "type": "event",
+  "timestamp": "2026-03-12T14:24:24.622006+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "cooccurrence",
+    "domain": "material",
+    "source_signifier": "concept_registry",
+    "target_signifier": "偶遇",
+    "weight": 1.0,
+    "corpus_source": "cc_session:2026-03-04-v146-swarm.md",
+    "ingest_params": {
+      "domain": "cc_session"
+    },
+    "timestamp": "2026-03-12T14:24:24.610595+00:00"
+  },
+  "refs": [],
+  "git_ref": ""
+}

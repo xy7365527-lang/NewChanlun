@@ -1,0 +1,20 @@
+{
+  "id": "21bc02ac5a254cd8ed6fc98fa2a05823194d705d0547db93185298cfec167fd0",
+  "type": "event",
+  "timestamp": "2026-03-12T14:06:30.942252+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "cooccurrence",
+    "domain": "material",
+    "source_signifier": "ceremony",
+    "target_signifier": "缺口",
+    "weight": 1.0,
+    "corpus_source": "cc_session:2026-02-27-0724-session.md",
+    "ingest_params": {
+      "domain": "cc_session"
+    },
+    "timestamp": "2026-03-12T14:06:30.933659+00:00"
+  },
+  "refs": [],
+  "git_ref": ""
+}

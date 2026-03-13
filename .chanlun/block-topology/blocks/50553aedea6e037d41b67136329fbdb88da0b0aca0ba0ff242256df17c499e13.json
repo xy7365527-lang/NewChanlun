@@ -1,0 +1,20 @@
+{
+  "id": "50553aedea6e037d41b67136329fbdb88da0b0aca0ba0ff242256df17c499e13",
+  "type": "event",
+  "timestamp": "2026-03-12T14:56:05.475416+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "cooccurrence",
+    "domain": "material",
+    "source_signifier": "block_topology_persistence",
+    "target_signifier": "缺口",
+    "weight": 1.0,
+    "corpus_source": "cc_session:2026-03-11-2333-session.md",
+    "ingest_params": {
+      "domain": "cc_session"
+    },
+    "timestamp": "2026-03-12T14:56:05.470930+00:00"
+  },
+  "refs": [],
+  "git_ref": ""
+}

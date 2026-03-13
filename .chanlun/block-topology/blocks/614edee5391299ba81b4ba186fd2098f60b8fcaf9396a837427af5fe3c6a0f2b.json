@@ -1,0 +1,20 @@
+{
+  "id": "614edee5391299ba81b4ba186fd2098f60b8fcaf9396a837427af5fe3c6a0f2b",
+  "type": "event",
+  "timestamp": "2026-03-12T13:55:28.050734+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "cooccurrence",
+    "domain": "material",
+    "source_signifier": "desire",
+    "target_signifier": "概念",
+    "weight": 1.0,
+    "corpus_source": "cc_session:2026-02-23-2240-session.md",
+    "ingest_params": {
+      "domain": "cc_session"
+    },
+    "timestamp": "2026-03-12T13:55:28.042035+00:00"
+  },
+  "refs": [],
+  "git_ref": ""
+}

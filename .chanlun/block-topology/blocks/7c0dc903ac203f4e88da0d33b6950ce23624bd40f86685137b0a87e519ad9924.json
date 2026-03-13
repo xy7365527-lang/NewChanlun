@@ -1,0 +1,18 @@
+{
+  "id": "7c0dc903ac203f4e88da0d33b6950ce23624bd40f86685137b0a87e519ad9924",
+  "type": "event",
+  "timestamp": "2026-03-12T15:00:37.961030+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "universal_I",
+    "target": "the_I",
+    "edge_type": "cooccurrence",
+    "created_at": 246630,
+    "surface": "the Idea\nthat is too powerful to exist, the absolute Idea, the Idea of the Ideas, Truth.\nThis is how",
+    "context": "snet_cooccurrence: universal I->the I w=3.000"
+  },
+  "refs": [],
+  "git_ref": ""
+}

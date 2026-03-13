@@ -1,0 +1,16 @@
+{
+  "id": "b4f72357e3f78764567e3b3b7009fcdaf1261230633b9839b68b69a49ec2596a",
+  "type": "event",
+  "timestamp": "2026-03-12T20:06:29.303653+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "memory:residue:boundary_edge:35:143",
+    "target": "pure_being",
+    "edge_type": "reference",
+    "created_at": 143
+  },
+  "refs": [],
+  "git_ref": ""
+}

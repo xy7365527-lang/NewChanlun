@@ -1,0 +1,16 @@
+{
+  "id": "085bc3c4a5ff800cde13f4877b241382f69af05c686c22e69e9a001627b1a6cb",
+  "type": "event",
+  "timestamp": "2026-03-12T15:02:12.337897+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "syn_syn_category_universal_246637_category_246640",
+    "target": "syn_syn_category_universal_246637_category_246640",
+    "edge_type": "fold",
+    "created_at": 246641
+  },
+  "refs": [],
+  "git_ref": ""
+}

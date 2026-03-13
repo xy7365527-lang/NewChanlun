@@ -1,0 +1,20 @@
+{
+  "id": "d6b4907f29521ae7dea357e22f4fe1f82f811cc8b8aed47a4764526a84e1323d",
+  "type": "event",
+  "timestamp": "2026-03-12T14:24:17.641266+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "cooccurrence",
+    "domain": "material",
+    "source_signifier": "ending",
+    "target_signifier": "mode",
+    "weight": 1.0,
+    "corpus_source": "cc_session:2026-03-04-ceremony-v145.md",
+    "ingest_params": {
+      "domain": "cc_session"
+    },
+    "timestamp": "2026-03-12T14:24:17.637121+00:00"
+  },
+  "refs": [],
+  "git_ref": ""
+}

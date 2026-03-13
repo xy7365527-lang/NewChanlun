@@ -1,0 +1,20 @@
+{
+  "id": "e6e96a51a79d3eded4490796ba1b00c6a88a98444ed5adbe53debfc98283060f",
+  "type": "event",
+  "timestamp": "2026-03-12T14:56:05.474015+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "cooccurrence",
+    "domain": "material",
+    "source_signifier": "block_topology_persistence",
+    "target_signifier": "append",
+    "weight": 1.0,
+    "corpus_source": "cc_session:2026-03-11-2333-session.md",
+    "ingest_params": {
+      "domain": "cc_session"
+    },
+    "timestamp": "2026-03-12T14:56:05.470930+00:00"
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,16 @@
+{
+  "id": "bd80e525067ee6272d61d580fcdcbd3a8f41f304a8aed1c7a74d5e9db18ee3a2",
+  "type": "event",
+  "timestamp": "2026-03-12T18:18:28.166236+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "memory:residue:nachtraeglichkeit:1:37",
+    "status": "active",
+    "content": "[domain:memory] residue type=nachtraeglichkeit settlement_step=37",
+    "created_at": 37
+  },
+  "refs": [],
+  "git_ref": ""
+}

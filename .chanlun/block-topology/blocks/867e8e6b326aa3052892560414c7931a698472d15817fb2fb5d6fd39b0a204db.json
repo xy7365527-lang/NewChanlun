@@ -1,0 +1,20 @@
+{
+  "id": "867e8e6b326aa3052892560414c7931a698472d15817fb2fb5d6fd39b0a204db",
+  "type": "event",
+  "timestamp": "2026-03-12T13:54:52.367018+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "cooccurrence",
+    "domain": "material",
+    "source_signifier": "ceremony",
+    "target_signifier": "ride",
+    "weight": 1.0,
+    "corpus_source": "cc_session:2026-02-23-2112-session.md",
+    "ingest_params": {
+      "domain": "cc_session"
+    },
+    "timestamp": "2026-03-12T13:54:52.357117+00:00"
+  },
+  "refs": [],
+  "git_ref": ""
+}

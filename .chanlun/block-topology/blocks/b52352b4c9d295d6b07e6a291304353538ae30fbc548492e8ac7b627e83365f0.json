@@ -1,0 +1,20 @@
+{
+  "id": "b52352b4c9d295d6b07e6a291304353538ae30fbc548492e8ac7b627e83365f0",
+  "type": "event",
+  "timestamp": "2026-03-12T14:11:23.811991+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "cooccurrence",
+    "domain": "material",
+    "source_signifier": "桥梁",
+    "target_signifier": "力度",
+    "weight": 1.0,
+    "corpus_source": "cc_session:2026-02-28-1000-session.md",
+    "ingest_params": {
+      "domain": "cc_session"
+    },
+    "timestamp": "2026-03-12T14:11:23.800411+00:00"
+  },
+  "refs": [],
+  "git_ref": ""
+}

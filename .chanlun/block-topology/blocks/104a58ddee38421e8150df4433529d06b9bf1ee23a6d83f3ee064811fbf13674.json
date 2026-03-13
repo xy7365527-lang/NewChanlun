@@ -1,0 +1,16 @@
+{
+  "id": "104a58ddee38421e8150df4433529d06b9bf1ee23a6d83f3ee064811fbf13674",
+  "type": "event",
+  "timestamp": "2026-03-12T15:01:59.868959+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "syn_syn_category_universal_246637_category_246640",
+    "status": "active",
+    "content": "[[the category (unity of being and thinking)] + [the universal] → sublated via: the category (unity of being and thinking) vs the universal] + [the category (unity of being and thinking)] → sublated via: [the category (unity of being and thinking)] + [the universal] → sublated via: the category (unity of being and thinking) vs the universal vs the category (unity of being and thinking)",
+    "created_at": 246640
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,20 @@
+{
+  "id": "e0d7f53ea11b7fe2ef4ea38a039442a2258ed68523e1749db0212b3fadccb1da",
+  "type": "event",
+  "timestamp": "2026-03-12T14:47:38.265905+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "cooccurrence",
+    "domain": "material",
+    "source_signifier": "net",
+    "target_signifier": "law (stable image)",
+    "weight": 1.0,
+    "corpus_source": "cc_session:2026-03-11-0339-session.md",
+    "ingest_params": {
+      "domain": "cc_session"
+    },
+    "timestamp": "2026-03-12T14:47:38.257542+00:00"
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,16 @@
+{
+  "id": "d241a8ed67c4521f1d3eb1e9894af2a9ef579fdb7adcc95ec6edd34dd58991c0",
+  "type": "event",
+  "timestamp": "2026-03-12T18:23:12.919320+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "memory:residue:boundary_edge:39:73",
+    "target": "law",
+    "edge_type": "reference",
+    "created_at": 73
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,20 @@
+{
+  "id": "afb1204efb95628fb65dbebcf95a39c201610e0d685849d0e8d654a1969bf552",
+  "type": "event",
+  "timestamp": "2026-03-12T14:47:15.931210+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "cooccurrence",
+    "domain": "material",
+    "source_signifier": "open",
+    "target_signifier": "law (stable image)",
+    "weight": 1.0,
+    "corpus_source": "cc_session:2026-03-11-0331-session.md",
+    "ingest_params": {
+      "domain": "cc_session"
+    },
+    "timestamp": "2026-03-12T14:47:15.925200+00:00"
+  },
+  "refs": [],
+  "git_ref": ""
+}

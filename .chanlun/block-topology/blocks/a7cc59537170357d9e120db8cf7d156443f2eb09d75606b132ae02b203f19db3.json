@@ -1,0 +1,19 @@
+{
+  "id": "a7cc59537170357d9e120db8cf7d156443f2eb09d75606b132ae02b203f19db3",
+  "type": "event",
+  "timestamp": "2026-03-12T15:00:50.429964+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "articulation",
+    "domain": "history",
+    "source_vid": "universal_I",
+    "target_vid": "spirit",
+    "score": 1.0,
+    "step": 246631,
+    "imbalance_type": "A_dense_B_sparse",
+    "reason": "articulation[A密B疏]: cooccurrence between universal_I and spirit but no paradigmatic edge in S_net and no concept edge in K_active",
+    "timestamp": "2026-03-12T15:00:50.429920Z"
+  },
+  "refs": [],
+  "git_ref": ""
+}

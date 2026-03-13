@@ -1,0 +1,16 @@
+{
+  "id": "7183c5deb1fda6ae278abbc9a090ee0f16e742dd01a1972264ba27b93090783e",
+  "type": "event",
+  "timestamp": "2026-03-12T18:16:17.338859+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "anti_subject_3",
+    "target": "anti_subject_3",
+    "edge_type": "fold",
+    "created_at": 21
+  },
+  "refs": [],
+  "git_ref": ""
+}

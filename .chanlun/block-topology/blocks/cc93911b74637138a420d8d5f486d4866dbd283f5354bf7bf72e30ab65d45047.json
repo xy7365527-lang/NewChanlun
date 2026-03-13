@@ -1,0 +1,16 @@
+{
+  "id": "cc93911b74637138a420d8d5f486d4866dbd283f5354bf7bf72e30ab65d45047",
+  "type": "event",
+  "timestamp": "2026-03-12T15:02:24.823602+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "syn_syn_syn_category_universal_246637_category_246640_syn_category_universal_246637_246643",
+    "target": "syn_syn_category_universal_246637_category_246640",
+    "edge_type": "sublation",
+    "created_at": 246643
+  },
+  "refs": [],
+  "git_ref": ""
+}

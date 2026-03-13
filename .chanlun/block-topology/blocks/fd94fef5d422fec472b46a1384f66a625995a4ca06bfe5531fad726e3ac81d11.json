@@ -1,0 +1,20 @@
+{
+  "id": "fd94fef5d422fec472b46a1384f66a625995a4ca06bfe5531fad726e3ac81d11",
+  "type": "event",
+  "timestamp": "2026-03-12T14:10:52.027998+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "cooccurrence",
+    "domain": "material",
+    "source_signifier": "close",
+    "target_signifier": "work (formative activity)",
+    "weight": 1.0,
+    "corpus_source": "cc_session:2026-02-28-0830-session.md",
+    "ingest_params": {
+      "domain": "cc_session"
+    },
+    "timestamp": "2026-03-12T14:10:52.025430+00:00"
+  },
+  "refs": [],
+  "git_ref": ""
+}

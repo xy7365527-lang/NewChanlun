@@ -1,0 +1,20 @@
+{
+  "id": "d1c713f215c610c7a83d0cef6d5e9e81e551bd809fc92a3f2666e3e9a082121a",
+  "type": "event",
+  "timestamp": "2026-03-12T14:24:39.416779+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "cooccurrence",
+    "domain": "material",
+    "source_signifier": "ceremony",
+    "target_signifier": "变",
+    "weight": 1.0,
+    "corpus_source": "cc_session:2026-03-04-v148-swarm.md",
+    "ingest_params": {
+      "domain": "cc_session"
+    },
+    "timestamp": "2026-03-12T14:24:39.389545+00:00"
+  },
+  "refs": [],
+  "git_ref": ""
+}

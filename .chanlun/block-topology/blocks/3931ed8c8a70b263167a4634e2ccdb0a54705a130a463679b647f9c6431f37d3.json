@@ -1,0 +1,18 @@
+{
+  "id": "3931ed8c8a70b263167a4634e2ccdb0a54705a130a463679b647f9c6431f37d3",
+  "type": "event",
+  "timestamp": "2026-03-12T15:00:50.480140+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "operation",
+    "domain": "history",
+    "step": 246632,
+    "operation": "sublate",
+    "position": "syn_universal_I_universal_246632",
+    "beta_1_before": 136,
+    "beta_1_after": 137,
+    "blocked": false
+  },
+  "refs": [],
+  "git_ref": ""
+}

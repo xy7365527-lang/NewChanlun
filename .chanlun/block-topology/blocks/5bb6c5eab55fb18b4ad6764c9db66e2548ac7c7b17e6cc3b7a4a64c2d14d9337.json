@@ -1,0 +1,20 @@
+{
+  "id": "5bb6c5eab55fb18b4ad6764c9db66e2548ac7c7b17e6cc3b7a4a64c2d14d9337",
+  "type": "event",
+  "timestamp": "2026-03-12T14:24:54.641977+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "cooccurrence",
+    "domain": "material",
+    "source_signifier": "知识",
+    "target_signifier": "谱系",
+    "weight": 1.0,
+    "corpus_source": "cc_session:2026-03-04-v150-encounter-scan.md",
+    "ingest_params": {
+      "domain": "cc_session"
+    },
+    "timestamp": "2026-03-12T14:24:54.639531+00:00"
+  },
+  "refs": [],
+  "git_ref": ""
+}

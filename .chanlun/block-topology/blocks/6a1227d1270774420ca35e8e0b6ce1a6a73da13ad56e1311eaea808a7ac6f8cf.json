@@ -1,0 +1,20 @@
+{
+  "id": "6a1227d1270774420ca35e8e0b6ce1a6a73da13ad56e1311eaea808a7ac6f8cf",
+  "type": "event",
+  "timestamp": "2026-03-12T14:58:51.998865+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "cooccurrence",
+    "domain": "material",
+    "source_signifier": "体制",
+    "target_signifier": "不",
+    "weight": 1.0,
+    "corpus_source": "cc_session:v69-swarm-session.md",
+    "ingest_params": {
+      "domain": "cc_session"
+    },
+    "timestamp": "2026-03-12T14:58:51.990036+00:00"
+  },
+  "refs": [],
+  "git_ref": ""
+}

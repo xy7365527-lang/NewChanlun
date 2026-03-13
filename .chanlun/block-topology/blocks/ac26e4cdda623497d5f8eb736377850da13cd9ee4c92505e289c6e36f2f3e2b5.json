@@ -1,0 +1,20 @@
+{
+  "id": "ac26e4cdda623497d5f8eb736377850da13cd9ee4c92505e289c6e36f2f3e2b5",
+  "type": "event",
+  "timestamp": "2026-03-12T14:24:54.643894+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "cooccurrence",
+    "domain": "material",
+    "source_signifier": "否定",
+    "target_signifier": "有",
+    "weight": 1.0,
+    "corpus_source": "cc_session:2026-03-04-v150-encounter-scan.md",
+    "ingest_params": {
+      "domain": "cc_session"
+    },
+    "timestamp": "2026-03-12T14:24:54.639531+00:00"
+  },
+  "refs": [],
+  "git_ref": ""
+}

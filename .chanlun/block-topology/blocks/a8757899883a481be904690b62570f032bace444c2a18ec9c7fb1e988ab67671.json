@@ -1,0 +1,20 @@
+{
+  "id": "a8757899883a481be904690b62570f032bace444c2a18ec9c7fb1e988ab67671",
+  "type": "event",
+  "timestamp": "2026-03-12T14:05:15.545255+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "cooccurrence",
+    "domain": "material",
+    "source_signifier": "K线",
+    "target_signifier": "行动",
+    "weight": 1.0,
+    "corpus_source": "cc_session:2026-02-27-0039-session.md",
+    "ingest_params": {
+      "domain": "cc_session"
+    },
+    "timestamp": "2026-03-12T14:05:15.511448+00:00"
+  },
+  "refs": [],
+  "git_ref": ""
+}

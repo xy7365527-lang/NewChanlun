@@ -1,0 +1,18 @@
+{
+  "id": "6d8b349ebd5da26e4c0812a0252dc54c9f82a5eeb318f548c4bc3f76189d9138",
+  "type": "event",
+  "timestamp": "2026-03-12T15:01:53.605140+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "operation",
+    "domain": "history",
+    "step": 246638,
+    "operation": "fold",
+    "position": "syn_category_universal_246637",
+    "beta_1_before": 144,
+    "beta_1_after": 145,
+    "blocked": false
+  },
+  "refs": [],
+  "git_ref": ""
+}

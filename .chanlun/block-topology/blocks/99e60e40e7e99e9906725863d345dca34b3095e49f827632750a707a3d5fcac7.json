@@ -1,0 +1,20 @@
+{
+  "id": "99e60e40e7e99e9906725863d345dca34b3095e49f827632750a707a3d5fcac7",
+  "type": "event",
+  "timestamp": "2026-03-12T14:25:02.856526+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "cooccurrence",
+    "domain": "material",
+    "source_signifier": "ceremony",
+    "target_signifier": "偶遇",
+    "weight": 1.0,
+    "corpus_source": "cc_session:2026-03-04-v151-swarm.md",
+    "ingest_params": {
+      "domain": "cc_session"
+    },
+    "timestamp": "2026-03-12T14:25:02.853169+00:00"
+  },
+  "refs": [],
+  "git_ref": ""
+}

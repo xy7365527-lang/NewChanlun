@@ -1,0 +1,16 @@
+{
+  "id": "b5efc2bc3f265ee812bfea6160bd72de468a1cd156ae07c8a8ee5c3557d8f35c",
+  "type": "event",
+  "timestamp": "2026-03-12T18:47:53.293763+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "memory:settlement:126",
+    "status": "active",
+    "content": "[domain:memory] settlement step=126 cycle=[anti_syn_anti_anti_syn_anti_subject_3_anti_anti_subject_3_25_27_39_60_anti_anti_anti_syn_anti_subject_3_anti_anti_subject_3_25_27_39_60_76_78_92->anti]",
+    "created_at": 126
+  },
+  "refs": [],
+  "git_ref": ""
+}

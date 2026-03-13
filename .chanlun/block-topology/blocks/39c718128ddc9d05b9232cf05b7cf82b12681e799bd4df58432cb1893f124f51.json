@@ -1,0 +1,20 @@
+{
+  "id": "39c718128ddc9d05b9232cf05b7cf82b12681e799bd4df58432cb1893f124f51",
+  "type": "event",
+  "timestamp": "2026-03-12T14:50:25.169755+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "cooccurrence",
+    "domain": "material",
+    "source_signifier": "辩证法",
+    "target_signifier": "折叠",
+    "weight": 1.0,
+    "corpus_source": "cc_session:2026-03-11-0553-session.md",
+    "ingest_params": {
+      "domain": "cc_session"
+    },
+    "timestamp": "2026-03-12T14:50:25.161876+00:00"
+  },
+  "refs": [],
+  "git_ref": ""
+}

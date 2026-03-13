@@ -1,0 +1,20 @@
+{
+  "id": "955146d23db129f22746463de95dc91aabcc9b1e9925315bea84d69f2d850e4f",
+  "type": "event",
+  "timestamp": "2026-03-12T14:05:15.532497+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "cooccurrence",
+    "domain": "material",
+    "source_signifier": "Registry",
+    "target_signifier": "Edge",
+    "weight": 1.0,
+    "corpus_source": "cc_session:2026-02-27-0039-session.md",
+    "ingest_params": {
+      "domain": "cc_session"
+    },
+    "timestamp": "2026-03-12T14:05:15.511448+00:00"
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,18 @@
+{
+  "id": "7d13f4593c381e11e53ef49f012d9fb6b6dd49ae7bb87377d5608ce302d406d3",
+  "type": "event",
+  "timestamp": "2026-03-12T19:14:23.843527+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "operation",
+    "domain": "history",
+    "step": 131,
+    "operation": "sublate",
+    "position": "syn_anti_anti_syn_anti_anti_syn_anti_subject_3_anti_anti_subject_3_25_27_39_60_anti_anti_anti_syn_anti_subject_3_anti_anti_subject_3_25_27_39_60_76_78_92_113_anti_anti_anti_syn_anti_anti_syn_anti_subject_3_anti_anti_subject_3_25_27_39_60_anti_anti_anti_syn_anti_subject_3_anti_anti_subject_3_25_27_39_60_76_78_92_113_129_131",
+    "beta_1_before": 28174,
+    "beta_1_after": 28175,
+    "blocked": false
+  },
+  "refs": [],
+  "git_ref": ""
+}

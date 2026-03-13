@@ -1,0 +1,16 @@
+{
+  "id": "6e4f0a82137f5880e9d53db92db94da88c2be20d269805007ecc4af6a3ddd6c0",
+  "type": "event",
+  "timestamp": "2026-03-12T18:15:31.496525+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "memory:residue:boundary_edge:22:16",
+    "target": "bondsman_freedom",
+    "edge_type": "reference",
+    "created_at": 16
+  },
+  "refs": [],
+  "git_ref": ""
+}

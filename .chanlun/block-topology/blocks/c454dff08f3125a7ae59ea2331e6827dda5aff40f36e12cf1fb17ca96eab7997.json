@@ -1,0 +1,20 @@
+{
+  "id": "c454dff08f3125a7ae59ea2331e6827dda5aff40f36e12cf1fb17ca96eab7997",
+  "type": "event",
+  "timestamp": "2026-03-12T14:39:31.718197+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "cooccurrence",
+    "domain": "material",
+    "source_signifier": "daemon",
+    "target_signifier": "无",
+    "weight": 1.0,
+    "corpus_source": "cc_session:2026-03-10-2104-session.md",
+    "ingest_params": {
+      "domain": "cc_session"
+    },
+    "timestamp": "2026-03-12T14:39:31.715969+00:00"
+  },
+  "refs": [],
+  "git_ref": ""
+}

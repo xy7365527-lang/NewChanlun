@@ -1,0 +1,20 @@
+{
+  "id": "bb718f8799909587cb527128de9caf1faf4d953f3084c81a9b7eae3068e064bc",
+  "type": "event",
+  "timestamp": "2026-03-12T14:24:48.327034+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "cooccurrence",
+    "domain": "material",
+    "source_signifier": "ceremony",
+    "target_signifier": "是",
+    "weight": 1.0,
+    "corpus_source": "cc_session:2026-03-04-v149-gangmu-integration.md",
+    "ingest_params": {
+      "domain": "cc_session"
+    },
+    "timestamp": "2026-03-12T14:24:48.323961+00:00"
+  },
+  "refs": [],
+  "git_ref": ""
+}

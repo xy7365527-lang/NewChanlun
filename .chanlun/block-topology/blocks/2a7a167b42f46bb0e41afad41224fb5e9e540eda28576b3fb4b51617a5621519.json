@@ -1,0 +1,20 @@
+{
+  "id": "2a7a167b42f46bb0e41afad41224fb5e9e540eda28576b3fb4b51617a5621519",
+  "type": "event",
+  "timestamp": "2026-03-12T13:54:24.179904+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "cooccurrence",
+    "domain": "material",
+    "source_signifier": "alienation",
+    "target_signifier": "驱力",
+    "weight": 1.0,
+    "corpus_source": "cc_session:2026-02-23-1948-session.md",
+    "ingest_params": {
+      "domain": "cc_session"
+    },
+    "timestamp": "2026-03-12T13:54:24.058487+00:00"
+  },
+  "refs": [],
+  "git_ref": ""
+}

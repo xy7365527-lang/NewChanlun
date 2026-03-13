@@ -1,0 +1,16 @@
+{
+  "id": "53780ac5566605de3a3ad43d79fb298d0b8f531abdb0d6512686aaf2b8c6e717",
+  "type": "event",
+  "timestamp": "2026-03-12T15:03:02.116356+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "edge",
+    "domain": "graph",
+    "source": "anti_syn_syn_syn_category_universal_246637_category_246640_syn_category_universal_246637_246643_246646",
+    "target": "syn_syn_syn_category_universal_246637_category_246640_syn_category_universal_246637_246643",
+    "edge_type": "negation",
+    "created_at": 246646
+  },
+  "refs": [],
+  "git_ref": ""
+}

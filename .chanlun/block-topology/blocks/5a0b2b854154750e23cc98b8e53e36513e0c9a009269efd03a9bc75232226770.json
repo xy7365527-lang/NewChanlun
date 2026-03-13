@@ -1,0 +1,20 @@
+{
+  "id": "5a0b2b854154750e23cc98b8e53e36513e0c9a009269efd03a9bc75232226770",
+  "type": "event",
+  "timestamp": "2026-03-12T14:26:50.616539+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "cooccurrence",
+    "domain": "material",
+    "source_signifier": "psi_L_topological",
+    "target_signifier": "linearize_complex",
+    "weight": 1.0,
+    "corpus_source": "cc_session:2026-03-05-2220-session.md",
+    "ingest_params": {
+      "domain": "cc_session"
+    },
+    "timestamp": "2026-03-12T14:26:50.594247+00:00"
+  },
+  "refs": [],
+  "git_ref": ""
+}

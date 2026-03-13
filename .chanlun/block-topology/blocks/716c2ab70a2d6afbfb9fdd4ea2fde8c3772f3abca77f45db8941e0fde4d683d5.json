@@ -1,0 +1,16 @@
+{
+  "id": "716c2ab70a2d6afbfb9fdd4ea2fde8c3772f3abca77f45db8941e0fde4d683d5",
+  "type": "event",
+  "timestamp": "2026-03-12T18:16:02.616696+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "vertex",
+    "domain": "graph",
+    "vertex_id": "memory:residue:expression_pressure:13:20",
+    "status": "active",
+    "content": "[domain:memory] residue type=expression_pressure settlement_step=20",
+    "created_at": 20
+  },
+  "refs": [],
+  "git_ref": ""
+}

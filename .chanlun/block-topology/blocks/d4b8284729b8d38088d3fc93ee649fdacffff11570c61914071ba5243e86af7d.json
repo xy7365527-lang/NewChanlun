@@ -1,0 +1,20 @@
+{
+  "id": "d4b8284729b8d38088d3fc93ee649fdacffff11570c61914071ba5243e86af7d",
+  "type": "event",
+  "timestamp": "2026-03-12T14:26:50.617754+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "cooccurrence",
+    "domain": "material",
+    "source_signifier": "linearize_complex",
+    "target_signifier": "叙事",
+    "weight": 1.0,
+    "corpus_source": "cc_session:2026-03-05-2220-session.md",
+    "ingest_params": {
+      "domain": "cc_session"
+    },
+    "timestamp": "2026-03-12T14:26:50.594247+00:00"
+  },
+  "refs": [],
+  "git_ref": ""
+}

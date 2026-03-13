@@ -1,0 +1,20 @@
+{
+  "id": "ac6cac4241534f19f71ecb9462e88d001ff7e1d938b924fd4e04f7877f2d1e3b",
+  "type": "event",
+  "timestamp": "2026-03-12T14:24:48.335106+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "cooccurrence",
+    "domain": "material",
+    "source_signifier": "line",
+    "target_signifier": "dol",
+    "weight": 1.0,
+    "corpus_source": "cc_session:2026-03-04-v149-gangmu-integration.md",
+    "ingest_params": {
+      "domain": "cc_session"
+    },
+    "timestamp": "2026-03-12T14:24:48.323961+00:00"
+  },
+  "refs": [],
+  "git_ref": ""
+}

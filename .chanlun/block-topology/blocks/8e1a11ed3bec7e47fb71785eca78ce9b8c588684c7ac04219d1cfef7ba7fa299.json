@@ -1,0 +1,20 @@
+{
+  "id": "8e1a11ed3bec7e47fb71785eca78ce9b8c588684c7ac04219d1cfef7ba7fa299",
+  "type": "event",
+  "timestamp": "2026-03-12T14:24:39.422093+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "cooccurrence",
+    "domain": "material",
+    "source_signifier": "区间套",
+    "target_signifier": "级别",
+    "weight": 1.0,
+    "corpus_source": "cc_session:2026-03-04-v148-swarm.md",
+    "ingest_params": {
+      "domain": "cc_session"
+    },
+    "timestamp": "2026-03-12T14:24:39.389545+00:00"
+  },
+  "refs": [],
+  "git_ref": ""
+}

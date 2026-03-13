@@ -1,0 +1,20 @@
+{
+  "id": "5d46cf53953acd6e1eef376c8c7b309f3d1b8e3c91cefd9e718bf6be29d6a10c",
+  "type": "event",
+  "timestamp": "2026-03-12T13:55:20.364964+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "cooccurrence",
+    "domain": "material",
+    "source_signifier": "mechanism",
+    "target_signifier": "走势分解定理",
+    "weight": 1.0,
+    "corpus_source": "cc_session:2026-02-23-2237-session.md",
+    "ingest_params": {
+      "domain": "cc_session"
+    },
+    "timestamp": "2026-03-12T13:55:20.362758+00:00"
+  },
+  "refs": [],
+  "git_ref": ""
+}
