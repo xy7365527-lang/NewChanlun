@@ -534,6 +534,145 @@ class SNetPersistence:
             "db_path": str(self._db_path),
         }
 
+    # ------------------------------------------------------------------
+    # 按需查询（lazy-load 模式用）
+    # ------------------------------------------------------------------
+
+    def load_signifiers(self) -> dict[str, Signifier]:
+        """加载所有 signifiers 到内存（数量级 ~数万，内存可忽略）。"""
+        conn = self._conn
+        signifiers: dict[str, Signifier] = {}
+        cursor = conn.execute(
+            "SELECT id, surface_forms, source, lang, domain FROM signifiers"
+        )
+        for sid, sf_json, source, lang, domain in cursor:
+            surface_forms = tuple(json.loads(sf_json))
+            signifiers[sid] = Signifier(
+                id=sid,
+                surface_forms=surface_forms,
+                source=source,
+                lang=lang,
+                domain=domain,
+            )
+        return signifiers
+
+    def load_morphemes(self) -> dict[str, MorphemeStructure]:
+        """加载所有 morphemes 到内存。"""
+        conn = self._conn
+        morphemes: dict[str, MorphemeStructure] = {}
+        cursor = conn.execute(
+            "SELECT signifier_id, morphemes_json, etymology FROM morphemes"
+        )
+        for sig_id, morph_json, etymology in cursor:
+            morph_list = tuple(
+                Morpheme(
+                    form=m["form"],
+                    meaning=m["meaning"],
+                    lang=m["lang"],
+                    shared_with=tuple(m.get("shared_with", ())),
+                )
+                for m in json.loads(morph_json)
+            )
+            morphemes[sig_id] = MorphemeStructure(
+                signifier_id=sig_id,
+                morphemes=morph_list,
+                etymology=etymology,
+            )
+        return morphemes
+
+    def query_edges_by_source(self, source: str) -> list[SignifierEdge]:
+        """按 source 查询边（组合轴邻居查询的核心路径）。"""
+        conn = self._conn
+        cursor = conn.execute(
+            "SELECT source, target, axis, weight, evidence, relation, differential "
+            "FROM edges WHERE source = ?",
+            (source,),
+        )
+        return [
+            SignifierEdge(
+                source=src, target=tgt, axis=AxisType(axis_str),
+                weight=weight, evidence=evidence,
+                relation=relation, differential=differential,
+            )
+            for src, tgt, axis_str, weight, evidence, relation, differential in cursor
+        ]
+
+    def query_edges_by_source_and_axis(
+        self, source: str, axis: str,
+    ) -> list[SignifierEdge]:
+        """按 source + axis 查询边。"""
+        conn = self._conn
+        cursor = conn.execute(
+            "SELECT source, target, axis, weight, evidence, relation, differential "
+            "FROM edges WHERE source = ? AND axis = ?",
+            (source, axis),
+        )
+        return [
+            SignifierEdge(
+                source=src, target=tgt, axis=AxisType(axis_str),
+                weight=weight, evidence=evidence,
+                relation=relation, differential=differential,
+            )
+            for src, tgt, axis_str, weight, evidence, relation, differential in cursor
+        ]
+
+    def query_cooccurrence_weight(self, source: str, target: str) -> float:
+        """查询两个能指之间的组合轴共现权重。"""
+        conn = self._conn
+        row = conn.execute(
+            "SELECT weight FROM edges WHERE source = ? AND target = ? AND axis = 'syntagmatic'",
+            (source, target),
+        ).fetchone()
+        return row[0] if row else 0.0
+
+    def query_syn_degree(self, sid: str) -> int:
+        """查询能指的组合轴度数（无向 = 作为 source 的次数 + 作为 target 的次数）。"""
+        conn = self._conn
+        row = conn.execute(
+            "SELECT "
+            "(SELECT COUNT(*) FROM edges WHERE source = ? AND axis = 'syntagmatic') + "
+            "(SELECT COUNT(*) FROM edges WHERE target = ? AND axis = 'syntagmatic')",
+            (sid, sid),
+        ).fetchone()
+        return row[0] if row else 0
+
+    def query_edges_by_axis(self, axis: str) -> list[SignifierEdge]:
+        """按 axis 类型查询所有边（冷路径，用于 _expand_mappings 等）。"""
+        conn = self._conn
+        cursor = conn.execute(
+            "SELECT source, target, axis, weight, evidence, relation, differential "
+            "FROM edges WHERE axis = ?",
+            (axis,),
+        )
+        return [
+            SignifierEdge(
+                source=src, target=tgt, axis=AxisType(axis_str),
+                weight=weight, evidence=evidence,
+                relation=relation, differential=differential,
+            )
+            for src, tgt, axis_str, weight, evidence, relation, differential in cursor
+        ]
+
+    def edge_count(self) -> int:
+        """返回边总数。"""
+        conn = self._conn
+        row = conn.execute("SELECT COUNT(*) FROM edges").fetchone()
+        return row[0] if row else 0
+
+    def iter_all_edges(self):
+        """迭代所有边（流式读取，不全部加载到内存）。"""
+        conn = self._conn
+        cursor = conn.execute(
+            "SELECT source, target, axis, weight, evidence, relation, differential "
+            "FROM edges"
+        )
+        for src, tgt, axis_str, weight, evidence, relation, differential in cursor:
+            yield SignifierEdge(
+                source=src, target=tgt, axis=AxisType(axis_str),
+                weight=weight, evidence=evidence,
+                relation=relation, differential=differential,
+            )
+
     def __repr__(self) -> str:
         s = self.stats()
         return (

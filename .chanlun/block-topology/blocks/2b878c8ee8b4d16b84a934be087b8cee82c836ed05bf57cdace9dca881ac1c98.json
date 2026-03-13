@@ -1,0 +1,15 @@
+{
+  "id": "2b878c8ee8b4d16b84a934be087b8cee82c836ed05bf57cdace9dca881ac1c98",
+  "type": "event",
+  "timestamp": "2026-03-13T12:46:15.222903+00:00",
+  "source": "cc",
+  "content": {
+    "event_type": "merge",
+    "domain": "history",
+    "keep": "anti_syn_anti_anti_syn_anti_anti_syn_anti_subject_3_anti_anti_subject_3_25_27_39_60_anti_anti_anti_syn_anti_subject_3_anti_anti_subject_3_25_27_39_60_76_78_92_113_anti_anti_anti_syn_anti_anti_syn_anti_subject_3_anti_anti_subject_3_25_27_39_60_anti_anti_anti_syn_anti_subject_3_anti_anti_subject_3_25_27_39_60_76_78_92_113_129_131_145",
+    "remove": "anti_anti_anti_syn_anti_anti_syn_anti_subject_3_anti_anti_subject_3_25_27_39_60_anti_anti_anti_syn_anti_subject_3_anti_anti_subject_3_25_27_39_60_76_78_92_113_129",
+    "step": 165
+  },
+  "refs": [],
+  "git_ref": ""
+}

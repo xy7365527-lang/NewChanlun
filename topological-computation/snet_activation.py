@@ -238,11 +238,19 @@ def _expand_mappings(
 
     # --- 阶段1：聚合轴传播 ---
     # 收集所有聚合轴边（含反向）的邻接索引
+    # SNetLazy: 用 query_edges_by_axis 避免全量加载
+    # SNet: 遍历 edges 属性
     par_neighbors: dict[str, list[str]] = {}
-    for edge in s_net.edges:
-        if edge.axis == AxisType.PARADIGMATIC:
-            par_neighbors.setdefault(edge.source, []).append(edge.target)
-            par_neighbors.setdefault(edge.target, []).append(edge.source)
+
+    par_edges: list
+    if hasattr(s_net, '_persistence') and s_net._persistence is not None:
+        par_edges = s_net._persistence.query_edges_by_axis("paradigmatic")
+    else:
+        par_edges = [e for e in s_net.edges if e.axis == AxisType.PARADIGMATIC]
+
+    for edge in par_edges:
+        par_neighbors.setdefault(edge.source, []).append(edge.target)
+        par_neighbors.setdefault(edge.target, []).append(edge.source)
 
     paradigmatic_added = 0
     max_rounds = 3
