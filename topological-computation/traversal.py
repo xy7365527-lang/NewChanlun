@@ -170,7 +170,7 @@ class TraversalEngine:
         f = 0: topo nearly equivalent (safe fold zone)
         f > 0: gray zone to negate zone
         """
-        active = set(self.k_active.active_vertex_ids())
+        active = self.k_active._active_ids
         s = {v, w}
         n_loop = sum(
             1 for e in self.k_active.active_edges()
@@ -196,7 +196,7 @@ class TraversalEngine:
         Uses iterative BFS path-removal on undirected view of k_active.
         g annotates encounter robustness but does NOT decide whether to operate.
         """
-        active = set(self.k_active.active_vertex_ids())
+        active = self.k_active._active_ids
         if v not in active or w not in active:
             return 0
 
@@ -284,7 +284,7 @@ class TraversalEngine:
 
         # Collect metrics from proprioception vertices in the graph
         metric_values: dict[str, int] = {}
-        for vid in self.k_active.active_vertex_ids():
+        for vid in self.k_active._active_ids:
             if vid.startswith("proprioception:"):
                 v = self.k_active.vertex(vid)
                 if v and v.content and v.content.startswith(PROPRIOCEPTION_PREFIX):
@@ -411,7 +411,7 @@ class TraversalEngine:
             "reasoning": result.reasoning,
         })
 
-        active = set(self.k_active.active_vertex_ids())
+        active = self.k_active._active_ids
         neighbors = set(self.k_active.neighbors(self.position))
 
         if result.action == "SUBLATE" and result.target_a and result.target_b:
@@ -471,7 +471,7 @@ class TraversalEngine:
         Priority: Sublation > Negate_A > Fold > Negate_B > Nothing
         """
         pos = self.position
-        active = set(self.k_active.active_vertex_ids())
+        active = self.k_active._active_ids
 
         # 1. Sublation: current position is contested + has pending negation pair
         v = self.k_active.vertex(pos)
@@ -585,7 +585,7 @@ class TraversalEngine:
         Sublation: same as rule-based (pending negation pair + contested vertex).
         """
         pos = self.position
-        active = set(self.k_active.active_vertex_ids())
+        active = self.k_active._active_ids
 
         # 1. Sublation: contested vertex with pending negation pair
         v = self.k_active.vertex(pos)
@@ -868,7 +868,7 @@ class TraversalEngine:
         Previous bug: sqrt(16827) = 129, making the jump unreachable
         while the walker oscillated in synthetic vertex traps.
         """
-        return max(3, min(20, int(len(self.k_active.active_vertex_ids()) ** 0.5)))
+        return max(3, min(20, int(len(self.k_active._active_ids) ** 0.5)))
 
     def _find_free_zone_target(self) -> str | None:
         """Find a high-degree vertex not in any settled cycle's edge set.
@@ -886,7 +886,7 @@ class TraversalEngine:
                 locked_vids.add(src)
                 locked_vids.add(tgt)
 
-        active = self.k_active.active_vertex_ids()
+        active = self.k_active._active_ids
         free_vids = [v for v in active if v not in locked_vids]
 
         if not free_vids:
@@ -908,11 +908,11 @@ class TraversalEngine:
             for suggestion in self._snet_activation.concept_creation_suggestions:
                 if not suggestion.reviewed:
                     anchor = suggestion.anchor_concept
-                    if anchor in self.k_active.active_vertex_ids() and anchor != self.position:
+                    if anchor in self.k_active._active_ids and anchor != self.position:
                         return anchor
 
         # 2. Low-degree active vertices (degree ≤ 2), not recently visited
-        active = self.k_active.active_vertex_ids()
+        active = self.k_active._active_ids
         recent = set(self.visit_history[-100:]) if len(self.visit_history) > 100 else set(self.visit_history)
         low_degree = [
             v for v in active
@@ -944,7 +944,7 @@ class TraversalEngine:
         if blocked_by is None or not blocked_by.residue:
             return False
 
-        active = set(self.k_active.active_vertex_ids())
+        active = self.k_active._active_ids
 
         # Collect boundary_edge targets (external vertices)
         boundary_targets: list[str] = []
@@ -1003,7 +1003,7 @@ class TraversalEngine:
         if not cooc_neighbors:
             return
 
-        active_vids = set(self.k_active.active_vertex_ids())
+        active_vids = self.k_active._active_ids
 
         # Build set of existing COOCCURRENCE edge targets from this vertex for dedup
         existing_cooc_targets: set[str] = set()
@@ -1151,7 +1151,7 @@ class TraversalEngine:
             return None
 
         current = self.position
-        active_vids = set(self.k_active.active_vertex_ids())
+        active_vids = self.k_active._active_ids
         snet = self._snet_activation.s_net
         current_sig = self._snet_activation._concept_to_sig.get(current)
 
@@ -1283,7 +1283,7 @@ class TraversalEngine:
         """
         if self._nothing_streak >= self._nothing_threshold:
             # Jump to least-visited active vertex to escape local trap
-            active = self.k_active.active_vertex_ids()
+            active = self.k_active._active_ids
             # Count visits efficiently using Counter over history
             visit_counts = {}
             for h in self.visit_history:
@@ -1483,9 +1483,9 @@ class TraversalEngine:
                     delta_beta_1=compute_beta_1(self.k_active) - beta_before,
                     settled_count=len(self.settlement.settled_cycles),
                     blocked=False,
-                    vertices_active=len(list(self.k_active.active_vertex_ids())),
+                    vertices_active=len(self.k_active._active_ids),
                     edges_active=len(list(self.k_active.active_edges())),
-                    vertices_full=len(list(self.k_full.active_vertex_ids())),
+                    vertices_full=len(self.k_full._active_ids),
                     edges_full=len(list(self.k_full.active_edges())),
                 ))
 
@@ -1511,11 +1511,11 @@ class TraversalEngine:
                     # Use signifier ID as the vertex ID (bridge_ prefix for protection)
                     bridge_vid = f"bridge_{orphan_sig}"
                     # Check not already created
-                    if bridge_vid in self.k_active.active_vertex_ids():
+                    if bridge_vid in self.k_active._active_ids:
                         consumed.append(idx)
                         continue
                     # Verify anchor concept still active
-                    if src not in self.k_active.active_vertex_ids():
+                    if src not in self.k_active._active_ids:
                         continue
                     # Create new vertex for orphan signifier
                     bridge_vertex = Vertex(
@@ -1545,9 +1545,9 @@ class TraversalEngine:
 
                 # Standard path: both concepts already exist in K_active
                 # Verify both concepts still active in K_active
-                if src not in self.k_active.active_vertex_ids():
+                if src not in self.k_active._active_ids:
                     continue
-                if tgt not in self.k_active.active_vertex_ids():
+                if tgt not in self.k_active._active_ids:
                     continue
                 # Check edge doesn't already exist
                 if tgt in self.k_active.neighbors(src):
@@ -1609,7 +1609,7 @@ class TraversalEngine:
             delta_beta_1=beta_after - beta_before,
             settled_count=len(self.settlement.settled_cycles),
             blocked=blocked,
-            vertices_active=len(self.k_active.active_vertex_ids()),
+            vertices_active=len(self.k_active._active_ids),
             edges_active=len(self.k_active.active_edges()),
             vertices_full=len(self.k_full.vertices),
             edges_full=len(self.k_full.edges),

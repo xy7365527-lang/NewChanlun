@@ -1101,8 +1101,13 @@ class TopologicalDaemon:
         self._cumulative_delta_beta_1 += abs(log.delta_beta_1)
 
         # Local f terrain tracking for adaptive traversal
-        local_f = self._compute_local_f_terrain()
-        self._local_f_history.append(local_f)
+        # Compute every 100 steps to avoid O(N*E) cost per step on large graphs
+        # (125K+ edges makes per-step computation infeasible)
+        if self.total_steps % 100 == 0:
+            local_f = self._compute_local_f_terrain()
+            self._local_f_history.append(local_f)
+        elif not self._local_f_history:
+            self._local_f_history.append(0.0)
 
         # Crystallization + jump logic
         if self._is_locally_crystallized():
