@@ -132,3 +132,13 @@ related_records:
   parent: '425'  # S_net 入图问题（触发语境）
   siblings: ['421', '419']  # fold/切分/Aufhebung 概念族
   children: []   # 待 ceremony agent 外化管线重构时产出
+
+## topo_effect 执行状态
+
+**执行完成**：2026-03-13
+
+执行内容：
+1. 创建 425-insight block（425号深层洞察独立分离为426号）
+   - Block ID: c300ecec9fad6904cb33accb30a1fe47cc0e3f1e714a91495e9aa420d5bda1c0
+   - splits 关系已写入 relations.jsonl
+2. 更新 meta.json id_mapping（425-insight 条目已存在）

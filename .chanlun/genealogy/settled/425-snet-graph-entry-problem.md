@@ -198,3 +198,13 @@ related_records:
   parent: '399'  # 耦合振荡观察
   children: []   # 待实装完成后产出
   related: '426' # 逢亮无意识结构的精确定义（v227-swarm 编排者洞察独立谱系化）
+
+## topo_effect 执行状态
+
+**执行完成**：2026-03-13
+
+执行内容：
+1. 创建 399-obs2 block（399号观察2限定为间接耦合）
+   - Block ID: 80ce7b1858cb2f374f0978b09ed6ab034e40715079739dd4ac9b88317743588e
+   - splits 关系已写入 relations.jsonl
+2. 更新 meta.json id_mapping（399-obs2 条目已存在）

@@ -255,7 +255,7 @@ class SwarmDaemon(TopologicalDaemon):
         if self.total_steps % self.sync_interval == 0:
             self.syncer.sync()
 
-    def _write_traversal_position(self) -> None:
+    def _write_traversal_position(self, log=None) -> None:
         """Write traversal_position block to SharedLayer.
 
         Throttled: only write when position changes and at least 2s have passed,

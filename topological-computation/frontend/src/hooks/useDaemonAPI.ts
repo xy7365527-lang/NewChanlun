@@ -59,7 +59,7 @@ export function createDaemonAPI(baseUrl: string): DaemonAPI {
     topology: (center?: string, radius = 2) => {
       const params = center
         ? `?center=${encodeURIComponent(center)}&radius=${radius}`
-        : "";
+        : "?full=true";
       return get<TopologyResponse>(`/topology${params}`);
     },
 

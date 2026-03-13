@@ -1029,6 +1029,10 @@ class TopologicalDaemon:
         self.k_full = self.engine.k_full
         self.terrain = self.engine.terrain
 
+        # Sync S_net from engine (traversal co-occurrence writeback may have updated it)
+        if self.snet_activation is not None and self.snet_activation.s_net is not self.snet:
+            self.snet = self.snet_activation.s_net
+
         # Inject settlement memory nodes for newly settled cycles
         new_settled = self.settlement.settled_cycles[pre_settled_count:]
         for sc in new_settled:
@@ -1411,6 +1415,10 @@ class TopologicalDaemon:
         Unlike feed() which uses phi_L for text, this uses code_ingest
         for AST-based parsing. Vertices carry [domain:code] content prefix.
 
+        S_net 界面原则：代码摄入后，将代码顶点的 content 回写 S_net 共现边，
+        确保所有外部输入都经过 S_net。K_active 注入是代码图的结构需求（AST 关系），
+        S_net 回写是语言材料的摄入（函数名/类名作为能指）。
+
         Args:
             dirpath: Root directory to scan for .py files.
             source: Source label prefix for vertex IDs (e.g. "NewChanlun").
@@ -1418,6 +1426,24 @@ class TopologicalDaemon:
         from code_ingest import ingest_tree
         code_graph = ingest_tree(dirpath, source=source)
         self._inject(code_graph)
+        # S_net 回写：将代码顶点的 content 作为语言材料摄入 S_net
+        if self.snet and self.snet.signifiers:
+            try:
+                from signifier_net import writeback_from_text
+                code_contents = [
+                    v.content for v in code_graph.vertices.values()
+                    if v.content and not v.content.startswith("[")
+                ]
+                if code_contents:
+                    combined_text = "\n".join(code_contents[:100])  # cap to avoid flooding
+                    new_snet, _log = writeback_from_text(
+                        snet=self.snet,
+                        text=combined_text,
+                        source_label=f"code_ingest:{source or 'unknown'}",
+                    )
+                    self.snet = new_snet
+            except Exception:
+                pass  # S_net writeback failure is non-fatal
         self._fire("on_feed", code_graph)
         self.total_feeds += 1
         return code_graph
@@ -1492,6 +1518,10 @@ class TopologicalDaemon:
         vertices to avoid O(V^2) on every crystallization.
 
         Checks that multiple source prefixes exist before scanning.
+
+        S_net 界面原则审计：此操作是**K_active 内部拓扑发现**——在已有顶点之间
+        检测跨域语义关系并添加边。不引入外部输入，不创建新概念。
+        属于穿越引擎的内在行为（类似 fold/negate 修改 K_active），合法直接写入。
         """
         current_vids = set(self.k_active.active_vertex_ids())
         new_vids = current_vids - self._cross_domain_scanned_vids
@@ -1556,7 +1586,12 @@ class TopologicalDaemon:
         self._cross_domain_scanned_vids = current_vids
 
     def _inject(self, sub_graph: Graph) -> None:
-        """Inject a sub-graph into K_active. Merge by vertex ID."""
+        """Inject a sub-graph into K_active. Merge by vertex ID.
+
+        S_net 界面原则：此方法是底层注入工具，调用者负责确保外部输入
+        已通过 S_net 回写。内部拓扑操作（settlement memory, proprioception 等）
+        可直接调用。外部摄入（如 ingest_code）必须在调用前/后回写 S_net。
+        """
         existing_vids = set(self.k_active.active_vertex_ids())
         existing_edges = {
             (e.source, e.target, e.edge_type.value)
