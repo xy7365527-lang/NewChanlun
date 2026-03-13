@@ -548,7 +548,10 @@ class TraversalEngine:
         #       (Nachträglichkeit — identity detected across traversal history)
 
         # Path A: f=0 categorical fold (393·4)
-        for nb in neighbors:
+        # Sample neighbors when too many to avoid O(neighbors × degree) bottleneck
+        import random as _rnd
+        _fold_candidates = neighbors if len(neighbors) <= 20 else _rnd.sample(neighbors, 20)
+        for nb in _fold_candidates:
             if nb == pos or nb not in active:
                 continue
             nb_is_synthetic = nb.startswith("syn_") or nb.startswith("anti_")
