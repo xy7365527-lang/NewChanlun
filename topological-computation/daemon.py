@@ -495,7 +495,11 @@ class TopologicalDaemon:
         # Set watermark to current S_net edge count after bootstrap.
         # Bootstrap edges (corpus/dictionary) are already persisted by their
         # respective ingest paths — only runtime-new edges should be written.
-        self._snet_block_watermark = len(self.snet.edges)
+        # Use edge_count if available (SNetLazy) to avoid full edge load.
+        if hasattr(self.snet, 'edge_count'):
+            self._snet_block_watermark = self.snet.edge_count
+        else:
+            self._snet_block_watermark = len(self.snet.edges)
 
         # Proprioception: initial metrics snapshot + self-reflexive norms
         # Order matters: proprioception vertices first, then norms (norms reference proprioception)
@@ -614,50 +618,44 @@ class TopologicalDaemon:
                 pass
 
             # --- Try SQLite persistence first (primary) ---
+            # SNetLazy mode: load signifiers+morphemes to memory, edges stay in SQLite
             try:
                 from snet_persistence import SNetPersistence
+                from snet_lazy import SNetLazy
                 persistence = SNetPersistence()
                 self._snet_persistence = persistence
 
-                if current_manifest is not None and persistence.manifest_valid(current_manifest):
+                db_stats = persistence.stats()
+                has_data = db_stats.get("signifiers", 0) > 0
+
+                if has_data:
                     t0 = _time.time()
-                    cached_snet = persistence.load_full()
-                    if cached_snet is not None:
-                        self.snet = cached_snet
-                        elapsed = _time.time() - t0
-                        n_sigs = len(self.snet._signifiers)
-                        n_edges = len(self.snet._edges)
-                        print(
-                            f"S_net from SQLite: {n_sigs} signifiers, {n_edges} edges "
-                            f"({elapsed:.1f}s — skipped full ingest)",
-                            file=sys.stderr,
-                        )
-                        return
-                    else:
-                        print("S_net SQLite: DB exists but empty, proceeding to fallback", file=sys.stderr)
+                    # Lazy load: only signifiers + morphemes to memory
+                    lazy_snet = SNetLazy.from_persistence(persistence)
+                    self.snet = lazy_snet
+                    elapsed = _time.time() - t0
+                    n_sigs = len(self.snet._signifiers)
+                    n_edges = db_stats.get("edges", 0)
+
+                    manifest_ok = (
+                        current_manifest is not None
+                        and persistence.manifest_valid(current_manifest)
+                    )
+                    reason = "match" if manifest_ok else (
+                        "missing" if current_manifest is None else "mismatch"
+                    )
+                    print(
+                        f"S_net lazy from SQLite (manifest {reason}): "
+                        f"{n_sigs} signifiers, {n_edges} edges "
+                        f"({elapsed:.1f}s — edges stay in SQLite)",
+                        file=sys.stderr,
+                    )
+                    # Update manifest to current so next restart is clean
+                    if not manifest_ok and current_manifest is not None:
+                        persistence.set_manifest(current_manifest)
+                    return
                 else:
-                    # Manifest mismatch or missing — still try loading SQLite data
-                    # (graceful degradation: stale data better than full re-ingest)
-                    stats = persistence.stats()
-                    if stats.get("signifiers", 0) > 0:
-                        t0 = _time.time()
-                        cached_snet = persistence.load_full()
-                        if cached_snet is not None:
-                            self.snet = cached_snet
-                            elapsed = _time.time() - t0
-                            n_sigs = len(self.snet._signifiers)
-                            n_edges = len(self.snet._edges)
-                            reason = "missing" if current_manifest is None else "mismatch"
-                            print(
-                                f"S_net from SQLite (manifest {reason}, loaded anyway): "
-                                f"{n_sigs} signifiers, {n_edges} edges ({elapsed:.1f}s)",
-                                file=sys.stderr,
-                            )
-                            # Update manifest to current so next restart is clean
-                            if current_manifest is not None:
-                                persistence.set_manifest(current_manifest)
-                            return
-                    print("S_net SQLite: manifest mismatch/missing and DB empty, proceeding to fallback", file=sys.stderr)
+                    print("S_net SQLite: DB empty, proceeding to fallback", file=sys.stderr)
             except Exception as sqlite_exc:
                 print(f"S_net SQLite load failed (trying pickle fallback): {sqlite_exc}", file=sys.stderr)
 
@@ -673,17 +671,33 @@ class TopologicalDaemon:
                     graph=self.k_active,
                 )
                 if used_cache and cached_snet is not None:
-                    self.snet = cached_snet
                     elapsed = _time.time() - t0
-                    n_sigs = len(self.snet._signifiers)
-                    n_edges = len(self.snet._edges)
+                    n_sigs = len(cached_snet._signifiers)
+                    n_edges = len(cached_snet._edges)
                     print(
                         f"S_net from pickle cache: {n_sigs} signifiers, {n_edges} edges "
-                        f"({elapsed:.1f}s — skipped full ingest)",
+                        f"({elapsed:.1f}s — migrating to SQLite lazy mode)",
                         file=sys.stderr,
                     )
-                    # Migrate pickle cache to SQLite for next startup
+                    # Migrate pickle cache to SQLite, then switch to SNetLazy
+                    self.snet = cached_snet  # temp: full SNet for migration
                     self._migrate_snet_to_sqlite(current_manifest)
+                    # Now switch to lazy mode
+                    try:
+                        from snet_lazy import SNetLazy
+                        if self._snet_persistence is not None:
+                            lazy_snet = SNetLazy.from_persistence(
+                                self._snet_persistence,
+                                signifiers=dict(cached_snet._signifiers),
+                                morphemes=dict(cached_snet._morphemes),
+                            )
+                            self.snet = lazy_snet
+                            print(
+                                f"S_net switched to lazy mode after pickle→SQLite migration",
+                                file=sys.stderr,
+                            )
+                    except Exception as lazy_exc:
+                        print(f"S_net lazy switch failed (keeping full SNet): {lazy_exc}", file=sys.stderr)
                     return
             except Exception as cache_exc:
                 print(f"S_net pickle cache failed (proceeding with full ingest): {cache_exc}", file=sys.stderr)
@@ -735,6 +749,23 @@ class TopologicalDaemon:
                         self._snet_persistence.set_manifest(current_manifest)
             except Exception as sqlite_save_exc:
                 print(f"S_net SQLite save failed (non-fatal): {sqlite_save_exc}", file=sys.stderr)
+
+            # --- Switch to lazy mode after full ingest + SQLite save ---
+            try:
+                from snet_lazy import SNetLazy
+                if self._snet_persistence is not None:
+                    lazy_snet = SNetLazy.from_persistence(
+                        self._snet_persistence,
+                        signifiers=dict(self.snet._signifiers),
+                        morphemes=dict(self.snet._morphemes),
+                    )
+                    self.snet = lazy_snet
+                    print(
+                        "S_net switched to lazy mode after full ingest",
+                        file=sys.stderr,
+                    )
+            except Exception as lazy_exc:
+                print(f"S_net lazy switch failed (keeping full SNet): {lazy_exc}", file=sys.stderr)
 
             # --- Also save pickle cache (fallback) ---
             try:
@@ -1442,9 +1473,8 @@ class TopologicalDaemon:
     def _write_snet_cooccurrence_blocks(self) -> None:
         """Write new S_net co-occurrence edges to block topology as material layer blocks.
 
-        Incremental: uses _snet_block_watermark to track the last-written edge index.
-        Only edges added after the watermark are written. This avoids re-writing the
-        entire 778K+ edge set on every step.
+        Incremental: for SNetLazy, uses drain_runtime_new_edges() buffer.
+        For full SNet, uses _snet_block_watermark to track the last-written edge index.
 
         Source type classification via evidence field prefix:
           - "traversal:{step}" → source_type "traversal"
@@ -1456,18 +1486,27 @@ class TopologicalDaemon:
         if self._persist is None:
             return
 
-        current_edges = self.snet.edges
-        current_count = len(current_edges)
-        watermark = self._snet_block_watermark
+        # SNetLazy: use runtime buffer (no full edge load)
+        from snet_lazy import SNetLazy
+        if isinstance(self.snet, SNetLazy):
+            new_edges = self.snet.drain_runtime_new_edges()
+            if not new_edges:
+                return
+            batch = new_edges[:200]
+            # Put remaining edges back if batch was capped
+            if len(new_edges) > 200:
+                self.snet._runtime_new_edges = new_edges[200:] + self.snet._runtime_new_edges
+        else:
+            current_edges = self.snet.edges
+            current_count = len(current_edges)
+            watermark = self._snet_block_watermark
+            if current_count <= watermark:
+                return
+            new_edges = current_edges[watermark:]
+            batch = new_edges[:200]
+            self._snet_block_watermark = watermark + len(batch)
 
-        if current_count <= watermark:
-            return
-
-        new_edges = current_edges[watermark:]
         timestamp = datetime.utcnow().isoformat() + "Z"
-
-        # Batch cap: at most 200 per step
-        batch = new_edges[:200]
 
         for edge in batch:
             if edge.axis != AxisType.SYNTAGMATIC:
@@ -1493,8 +1532,6 @@ class TopologicalDaemon:
                 },
                 timestamp=timestamp,
             )
-
-        self._snet_block_watermark = watermark + len(batch)
 
     def ingest_code(self, dirpath: str, source: str = "") -> Graph:
         """Ingest Python source tree into K_active with domain:code tagging.

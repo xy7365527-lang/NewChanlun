@@ -239,9 +239,10 @@ def save_snet_cache(snet: SNet, manifest: dict) -> Path:
     elapsed = time.time() - t0
 
     # 保存 manifest
+    n_edges = snet.edge_count if hasattr(snet, 'edge_count') else len(snet._edges)
     manifest["cache_info"] = {
         "n_signifiers": len(snet._signifiers),
-        "n_edges": len(snet._edges),
+        "n_edges": n_edges,
         "n_morphemes": len(snet._morphemes),
         "save_time": elapsed,
         "cache_path": str(_CACHE_PATH),
