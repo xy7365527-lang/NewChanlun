@@ -61,7 +61,7 @@ from file_lock import get_instance_id
 from signifier_net import SNet, AxisType
 from snet_activation import (
     SNetActivation, InternalSpeechFragment, EdgeSuggestion,
-    ConceptCreationSuggestion,
+    OrphanExplorationHint,
     _build_concept_to_signifier, _build_signifier_to_concepts,
     _expand_mappings,
 )
@@ -969,10 +969,11 @@ class TopologicalDaemon:
             return random.choice(active)
 
         # Collect 2-hop neighborhood: neighbors of neighbors
+        neighbor_set = set(neighbors)  # build once, not per-iteration
         two_hop: set[str] = set()
         for nb in neighbors:
             for nb2 in self.k_active.neighbors(nb):
-                if nb2 != pos and nb2 not in set(neighbors):
+                if nb2 != pos and nb2 not in neighbor_set:
                     two_hop.add(nb2)
 
         if not two_hop:
@@ -983,7 +984,9 @@ class TopologicalDaemon:
         # High f = structurally distant = most interesting jump target
         best_vid = pos
         best_f = -1
-        for vid in list(two_hop)[:200]:  # Cap for performance
+        import random
+        sample = random.sample(list(two_hop), min(20, len(two_hop)))
+        for vid in sample:
             f_val = self.engine._compute_f(pos, vid)
             if f_val > best_f:
                 best_f = f_val
@@ -995,12 +998,15 @@ class TopologicalDaemon:
         """Average f value of current position's neighbors.
 
         Uses traversal engine's _compute_f. Returns 0.0 if no neighbors.
+        Samples up to 10 neighbors when count exceeds 10 for O(degree) budget.
         """
         pos = self.engine.position
         neighbors = self.k_active.neighbors(pos)
         if not neighbors:
             return 0.0
-        f_values = [self.engine._compute_f(pos, nb) for nb in neighbors]
+        import random
+        sample = random.sample(neighbors, min(10, len(neighbors)))
+        f_values = [self.engine._compute_f(pos, nb) for nb in sample]
         return sum(f_values) / len(f_values)
 
     def _should_check_gaps(self) -> bool:

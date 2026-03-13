@@ -773,11 +773,21 @@ def _llm_generate_part(
                 if len(snet_surface_forms) >= 6:
                     break
 
+        # narrative_spine: 从穿越引擎的 visit_history 提取，不用 operator 对话上下文
+        narrative_spine = ""
+        if daemon.engine and daemon.engine.visit_history:
+            spine_labels = []
+            for vid in daemon.engine.visit_history[-8:]:
+                v = daemon.k_active.vertex(vid) if daemon.k_active else None
+                label = v.content if (v and v.content) else vid
+                spine_labels.append(label)
+            narrative_spine = " → ".join(spine_labels)
+
         cs = ConstraintSet(
             must_use=must_use,
             must_avoid=[],
             register=register,
-            narrative_spine=context_fragment,
+            narrative_spine=narrative_spine,
             expression_pressure=must_use,
             surface_forms=snet_surface_forms,
         )
