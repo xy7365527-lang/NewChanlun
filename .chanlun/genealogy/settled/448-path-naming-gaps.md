@@ -1,18 +1,8 @@
 ---
 id: "448"
 status: 已吸收
-settlement_reason: 缺口2已修复。缺口1被444号消解。缺口3降级为可选优化
 type: 矛盾发现
-created_at: "2026-03-13"
-negation_source: heterogeneous
-negation_form: waiting
-negation_source_model: gemini-3.1-pro-preview
-subject: 路径即命名的三个实装缺口
-depends_on:
-  - "431"
-  - "425"
-  - "444"
-review_result: ".chanlun/review-results/gemini-genealogy-review-20260313-061956.md"
+date: "2026-03-13"
 ---
 
 # 448号：路径即命名的三个实装缺口

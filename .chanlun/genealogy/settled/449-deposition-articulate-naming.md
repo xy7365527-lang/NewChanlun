@@ -1,18 +1,8 @@
 ---
 id: "449"
 status: 已吸收
-settlement_reason: 核心命题已被444号结算。推论2（CCS重构）已实装
 type: 概念发现
-created_at: "2026-03-13"
-negation_source: homogeneous
-negation_form: unclassified
-subject: 沉积+ARTICULATE=命名（命名的存在论位置）
-depends_on:
-  - "431"
-  - "425"
-  - "444"
-  - "445"
-review_result: ".chanlun/review-results/gemini-genealogy-review-20260313-061956.md"
+date: "2026-03-13"
 ---
 
 # 449号：沉积+ARTICULATE=命名（命名的存在论位置）

@@ -1,3 +1,9 @@
+---
+id: "444"
+status: 已结算
+type: meta-rule
+date: "2026-03-13"
+---
 # 444号：命名是 ARTICULATE 的结构必然附随产物
 
 - **status**: 已结算

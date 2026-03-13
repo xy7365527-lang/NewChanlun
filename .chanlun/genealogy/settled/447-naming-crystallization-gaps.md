@@ -1,19 +1,8 @@
 ---
 id: "447"
 status: 废弃
-settlement_reason: 编排者对话否定了造词结晶方向（444号已结算）。三个缺口基于已被否定的前提
 type: 矛盾发现
-created_at: "2026-03-13"
-negation_source: heterogeneous
-negation_form: unclassified
-negation_source_model: claude-sonnet-4-6
-note: Gemini 工具链失败（Serena 路径不匹配），降级为 Claude 自身质询 [非异质]
-subject: 命名结晶能力的实装缺口
-depends_on:
-  - "431"
-  - "439"
-  - "441"
-review_result: ".chanlun/review-results/gemini-genealogy-review-20260313-061032.md"
+date: "2026-03-13"
 ---
 
 # 447号：命名结晶能力的实装缺口
