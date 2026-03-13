@@ -176,8 +176,9 @@ def _build_concept_to_signifier(s_net: SNet, graph) -> dict[str, str]:
       dict[concept_id, signifier_id]
     """
     mapping: dict[str, str] = {}
-    for vid in graph.active_vertex_ids():
-        v = graph.vertices.get(vid)
+    verts = graph.vertices
+    for vid in graph._active_ids:
+        v = verts.get(vid)
         if v is None or not v.content:
             continue
         content = v.content.strip()
@@ -192,8 +193,9 @@ def _build_signifier_to_concepts(s_net: SNet, graph) -> dict[str, list[str]]:
     一个能指可能对应多个概念顶点（不同 vertex.id 但相同 content）。
     """
     mapping: dict[str, list[str]] = {}
-    for vid in graph.active_vertex_ids():
-        v = graph.vertices.get(vid)
+    verts = graph.vertices
+    for vid in graph._active_ids:
+        v = verts.get(vid)
         if v is None or not v.content:
             continue
         content = v.content.strip()
@@ -269,8 +271,9 @@ def _expand_mappings(
     # --- 阶段2：子串匹配 ---
     # 构建 content 索引（小写化）
     content_index: dict[str, str] = {}  # vid -> lowercase content
-    for vid in graph.active_vertex_ids():
-        v = graph.vertices.get(vid)
+    verts2 = graph.vertices
+    for vid in graph._active_ids:
+        v = verts2.get(vid)
         if v and v.content:
             content_index[vid] = v.content.strip().lower()
 

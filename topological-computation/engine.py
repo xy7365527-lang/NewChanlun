@@ -100,11 +100,11 @@ class Graph:
 
     @property
     def vertices(self) -> dict[str, Vertex]:
-        return dict(self._vertices)
+        return self._vertices  # return internal dict directly (immutable Graph — callers should not mutate)
 
     @property
     def edges(self) -> list[Edge]:
-        return list(self._edges)
+        return self._edges  # return internal list directly (immutable Graph — callers should not mutate)
 
     def vertex(self, vid: str) -> Vertex | None:
         return self._vertices.get(vid)
@@ -118,22 +118,36 @@ class Graph:
         Material layer edges are visible to traversal (via neighbors/all_active_edges)
         but invisible to fold/negate/sublate/beta_1/settlement — they are material (Dass),
         not conceptual (Was).
+
+        Cached since Graph is immutable — result never changes for same instance.
         """
-        active = self._active_ids
-        return [
-            e for e in self._edges
-            if e.source in active and e.target in active
-            and e.edge_type not in (EdgeType.COOCCURRENCE, EdgeType.TRAVERSAL_ASSOCIATION)
-        ]
+        try:
+            return self._cached_active_edges
+        except AttributeError:
+            active = self._active_ids
+            result = [
+                e for e in self._edges
+                if e.source in active and e.target in active
+                and e.edge_type not in (EdgeType.COOCCURRENCE, EdgeType.TRAVERSAL_ASSOCIATION)
+            ]
+            object.__setattr__(self, '_cached_active_edges', result)
+            return result
 
     def all_active_edges(self) -> list[Edge]:
         """Return ALL edges between active vertices, including material layer.
 
         Used by traversal for neighbor candidate selection — both concept layer
         and material layer edges are visible during walk.
+
+        Cached since Graph is immutable.
         """
-        active = self._active_ids
-        return [e for e in self._edges if e.source in active and e.target in active]
+        try:
+            return self._cached_all_active_edges
+        except AttributeError:
+            active = self._active_ids
+            result = [e for e in self._edges if e.source in active and e.target in active]
+            object.__setattr__(self, '_cached_all_active_edges', result)
+            return result
 
     def neighbors(self, vid: str) -> list[str]:
         """Return ids of vertices adjacent to vid (outgoing + incoming) among active vertices."""
