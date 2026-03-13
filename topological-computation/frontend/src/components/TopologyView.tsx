@@ -487,7 +487,8 @@ export function TopologyView({
           fontFamily: FONT.mono, fontSize: 9, color: T.textMuted,
           pointerEvents: "none",
         }}>
-          showing {data.meta.shown_vertices.toLocaleString()}V /&nbsp;
+          {data.meta.total_edges === -1 ? "skeleton " : ""}
+          {data.meta.shown_vertices.toLocaleString()}V /&nbsp;
           {data.meta.total_vertices.toLocaleString()} total
         </div>
       )}

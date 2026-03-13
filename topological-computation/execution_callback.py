@@ -190,6 +190,10 @@ def execution_callback(edge_data: dict, daemon: object) -> None:
     1. Run tests
     2. Convert results to edges
     3. Inject into daemon's K_active
+    4. S_net 回写：测试结果中的函数名作为语言材料摄入 S_net
+
+    S_net 界面原则：外部输入（测试结果）经过 S_net 回写后再注入 K_active。
+    K_active 注入保留（测试拓扑需要直接边），S_net 回写补全语言层。
 
     edge_data should contain:
         test_dir: str (directory to run tests in)
@@ -202,6 +206,21 @@ def execution_callback(edge_data: dict, daemon: object) -> None:
 
     result = run_tests(test_dir=test_dir, test_file=test_file)
     edges = test_result_to_edges(result, tested_functions)
+
+    # S_net 回写：测试函数名作为语言材料
+    snet = getattr(daemon, 'snet', None)
+    if snet and snet.signifiers and tested_functions:
+        try:
+            from signifier_net import writeback_from_text
+            test_text = " ".join(tested_functions)
+            new_snet, _log = writeback_from_text(
+                snet=snet,
+                text=test_text,
+                source_label="test_execution",
+            )
+            daemon.snet = new_snet  # type: ignore[attr-defined]
+        except Exception:
+            pass  # S_net writeback failure is non-fatal
 
     # Inject test vertex if not present
     k_active: Graph = daemon.k_active  # type: ignore[attr-defined]

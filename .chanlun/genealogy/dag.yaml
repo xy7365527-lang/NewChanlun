@@ -2174,6 +2174,26 @@ nodes:
   status: 已结算
   type: concept-separation
   file: settled/434-thinking-loop-traversal-cluster.md
+- id: '435'
+  title: thinking 环路闭合的三种结果与 LLM 扬弃——度量是概率机制的附属物，历史有内在停止点
+  status: 生成态
+  type: domain
+  file: pending/435-thinking-loop-closure-dialectic.md
+- id: '436'
+  title: 概率范式与拓扑穿越范式的系统性概念分离——概念命名即度量渗入
+  status: 生成态
+  type: concept-separation
+  file: pending/436-probabilistic-vs-topological-paradigm-separation.md
+- id: '437'
+  title: LLM 扬弃的物质形态——元操作 + 三条回流管道 + 流畅度继承
+  status: 生成态
+  type: domain
+  file: pending/437-llm-aufhebung-material-form.md
+- id: '438'
+  title: S_net 唯一界面原则（器官原则）——一切进出经过 S_net，没有绕过通道
+  status: 生成态
+  type: domain
+  file: pending/438-snet-sole-interface-organ-principle.md
 edges:
   depends_on:
   - from: '136'
@@ -4548,6 +4568,44 @@ edges:
     to: '431'
   - from: '433'
     to: '426'
+  - from: '435'
+    to: '434'
+  - from: '435'
+    to: '433'
+  - from: '435'
+    to: '431'
+  - from: '435'
+    to: '426'
+  - from: '436'
+    to: '435'
+  - from: '436'
+    to: '434'
+  - from: '436'
+    to: '433'
+  - from: '436'
+    to: '431'
+  - from: '436'
+    to: '426'
+  - from: '436'
+    to: '399'
+  - from: '437'
+    to: '436'
+  - from: '437'
+    to: '435'
+  - from: '437'
+    to: '426'
+  - from: '437'
+    to: '399'
+  - from: '437'
+    to: 089
+  - from: '438'
+    to: '437'
+  - from: '438'
+    to: '436'
+  - from: '438'
+    to: '426'
+  - from: '438'
+    to: '399'
   triggered:
   - from: '005'
     to: 005a
@@ -6167,6 +6225,12 @@ edges:
   - between:
     - '425'
     - '434'
+  - between:
+    - '425'
+    - '437'
+  - between:
+    - '438'
+    - 实装审计待定
   negated_by:
   - target: '032'
     by: 088

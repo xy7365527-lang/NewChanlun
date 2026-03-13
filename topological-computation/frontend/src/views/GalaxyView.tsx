@@ -1440,7 +1440,7 @@ export function GalaxyView({
       }}>
         可观测宇宙 · {nodeCount > 0 ? nodeCount.toLocaleString() : (activeData?.meta.shown_vertices ?? 0)} 颗星
         {activeData?.meta.total_vertices && activeData.meta.total_vertices > (activeData.meta.shown_vertices ?? 0)
-          ? ` / ${activeData.meta.total_vertices.toLocaleString()} total`
+          ? ` / ${activeData.meta.total_vertices.toLocaleString()} total${activeData.meta.total_edges === -1 ? " (skeleton)" : ""}`
           : ""
         }
       </div>

@@ -631,6 +631,10 @@ def _ensure_source_vertex(daemon: TopologicalDaemon, session_id: str) -> str:
     The source vertex `source:{session_id}` anchors all concepts injected
     in this session. Its neighborhood = the user's concept region.
 
+    S_net 界面原则审计：此操作是**系统拓扑标记**（类似 proprioception / self-reflexive norms），
+    不是外部语言材料摄入。source vertex 不携带用户输入的语义内容，
+    只标记 session 来源——因此直接写 K_active 合法，无需经过 S_net。
+
     Returns the vertex id.
     """
     vid = f"source:{session_id}"
@@ -651,6 +655,10 @@ def _link_concepts_to_source(
 
     These edges mark which concepts the user introduced in this session.
     Edges are added only if not already present.
+
+    S_net 界面原则审计：此操作连接**已存在的 K_active 概念**到 source vertex，
+    不引入新概念，不携带新语言材料。是 K_active 内部的拓扑重连操作（类似
+    cross-domain edge detection），因此直接写 K_active 合法。
     """
     existing = {
         (e.source, e.target)

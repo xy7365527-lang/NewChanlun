@@ -20,12 +20,13 @@ from engine import (
 from encounter_log import EncounterLog
 from morse import compute_terrain, critical_neighbors
 from snet_activation import SNetActivation, EdgeSuggestion
+from signifier_net import SignifierEdge, AxisType
 
 EXPLORATION_INTERVAL = 1000  # every N steps, jump to an under-explored vertex
 # 425号→431号: ARTICULATION_THRESHOLD 已移除。遭遇触发改为拓扑不一致判据（布尔），不再使用度量阈值。
 
-THINKING_BLIND_SPOT_THRESHOLD = 5  # consecutive nothing+no-articulation steps before thinking triggers
-THINKING_MAX_PATHS = 20  # upper bound on paths in thinking loop (normal convergence: 5-10)
+
+
 
 # -- norm violation → code gap mapping ------------------------------------
 
@@ -101,25 +102,6 @@ class StepLog:
     exploration: bool = False  # exploration move: jumped to under-explored vertex
 
 
-@dataclass(frozen=True, slots=True)
-class ThinkingResult:
-    """Result of a multi-path thinking loop from an encounter point.
-
-    convergence_points: nodes visited by multiple paths (by visit_count descending)
-    edge_nodes: nodes visited by exactly 1 path
-    avoidance_zones: neighbors of encounter_point that no path traversed
-    paths_count: total paths explored
-    rounds_to_fixpoint: rounds until convergence structure stabilized
-    cluster_density: convergence_nodes / total_visited_nodes
-    """
-    convergence_points: tuple[str, ...]
-    edge_nodes: tuple[str, ...]
-    avoidance_zones: tuple[str, ...]
-    paths_count: int
-    rounds_to_fixpoint: int
-    cluster_density: float
-
-
 class TraversalEngine:
     """Traversal + encounter detection + operation execution."""
 
@@ -159,10 +141,10 @@ class TraversalEngine:
         self._encounter_log = encounter_log
         self._attempted_folds: set[frozenset[str]] = set()  # 398号: fold pairs already attempted & blocked
         self._snet_activation: SNetActivation | None = None  # 耦合振荡: S_net 激活态
+        self._traversal_cooc_buffer: list[SignifierEdge] = []  # S_net 穿越共现回流缓冲
+        self._traversal_cooc_flush_interval: int = 50  # 每 N 步 flush 一次
         self._last_resonance: bool = False  # 上一步选择的候选是否处于共振区域
         self._last_articulation: dict | None = None  # 上一步的 articulation 溯源元数据
-        self._no_articulation_streak: int = 0  # consecutive nothing steps without articulation
-        self._last_thinking_result: ThinkingResult | None = None  # most recent thinking loop result
 
     def _invalidate_attempted_folds(self, affected_vertices: set[str]) -> None:
         """Remove attempted-fold entries involving any of the affected vertices.
@@ -1103,6 +1085,12 @@ class TraversalEngine:
         Only records if both vertices have signifier mappings in S_net.
         TRAVERSAL_ASSOCIATION edges are immutable, participate in navigation but not
         fold/negate/sublate/beta_1.
+
+        S_net 唯一界面原则：穿越路径同时回流 S_net 作为 traversal 类型共现边。
+        相邻节点对 (from_sig, to_sig) 以 AxisType.SYNTAGMATIC 写入 S_net，
+        evidence 标记为 "traversal:{step}" 以区别于 corpus/dialogue 共现。
+        回流使用批量缓冲（_traversal_cooc_buffer），每 N 步 flush 一次，
+        避免每步创建新 SNet 实例的开销。
         """
         if self._snet_activation is None:
             return
@@ -1122,6 +1110,29 @@ class TraversalEngine:
         )
         self.k_active = self.k_active.add_edge(ta_edge)
         self.k_full = self.k_full.add_edge(ta_edge)
+
+        # S_net 回流：穿越共现缓冲
+        snet_cooc = SignifierEdge(
+            source=from_sig,
+            target=to_sig,
+            axis=AxisType.SYNTAGMATIC,
+            weight=1.0,
+            evidence=f"traversal:{self.step}",
+        )
+        self._traversal_cooc_buffer.append(snet_cooc)
+
+    def _flush_traversal_cooccurrences(self) -> None:
+        """Flush buffered traversal co-occurrences to S_net.
+
+        Called periodically (every _traversal_cooc_flush_interval steps) from run_step.
+        Uses batch add_edges to avoid per-edge SNet copy overhead.
+        """
+        if not self._traversal_cooc_buffer or self._snet_activation is None:
+            return
+        self._snet_activation.s_net = self._snet_activation.s_net.add_edges(
+            self._traversal_cooc_buffer,
+        )
+        self._traversal_cooc_buffer.clear()
 
     def _check_articulation_encounter(self) -> Optional[tuple[Encounter, float, dict]]:
         """Check if topological inconsistency between Layer A and Layer B triggers ARTICULATE.
@@ -1262,249 +1273,6 @@ class TraversalEngine:
         self.k_full = self.k_full.add_edge(new_edge)
         return new_edge
 
-    # -- thinking loop (multi-path traversal for structural blind spots) -----
-
-    def _thinking_loop(self, encounter_point: str) -> ThinkingResult:
-        """Multi-path traversal thinking loop.
-
-        From encounter_point, explore multiple paths along different starting edges.
-        Each path accumulates TRAVERSAL_ASSOCIATION edges (via existing mechanism).
-        Detect convergence structure of the trajectory cluster.
-        Stop when convergence structure stabilizes (topological fixpoint).
-
-        Pure function on the read side: only reads K_active/S_net topology.
-        Side effect: records TRAVERSAL_ASSOCIATION edges for each path step.
-
-        Returns ThinkingResult with convergence_points, edge_nodes, avoidance_zones.
-        """
-        if encounter_point not in self.k_active.active_vertex_ids():
-            return ThinkingResult(
-                convergence_points=(),
-                edge_nodes=(),
-                avoidance_zones=(),
-                paths_count=0,
-                rounds_to_fixpoint=0,
-                cluster_density=0.0,
-            )
-
-        # Gather starting directions: all neighbors of encounter_point
-        neighbors = list(self.k_active.neighbors(encounter_point))
-        if not neighbors:
-            return ThinkingResult(
-                convergence_points=(),
-                edge_nodes=(),
-                avoidance_zones=(),
-                paths_count=0,
-                rounds_to_fixpoint=0,
-                cluster_density=0.0,
-            )
-
-        # If S_net is available, also include syntagmatic neighbors for diversity
-        if self._snet_activation is not None:
-            sig = self._snet_activation._concept_to_sig.get(encounter_point)
-            if sig:
-                snet = self._snet_activation.s_net
-                for edge in snet.syntagmatic_neighbors(sig)[:10]:
-                    target_concepts = self._snet_activation._sig_to_concepts.get(edge.target, [])
-                    for cid in target_concepts:
-                        if cid in self.k_active.active_vertex_ids() and cid not in neighbors:
-                            neighbors.append(cid)
-
-        # visit_count[vid] = number of distinct paths that visited vid
-        visit_count: dict[str, int] = {}
-        all_visited: set[str] = set()
-        prev_top_k: frozenset[str] = frozenset()
-        rounds_to_fixpoint = 0
-        path_count = 0
-        path_depth = max(5, min(15, int(len(self.k_active.active_vertex_ids()) ** 0.3)))
-
-        for round_idx in range(THINKING_MAX_PATHS):
-            if round_idx >= len(neighbors):
-                # Cycle through neighbors if more rounds than neighbors
-                start_neighbor = neighbors[round_idx % len(neighbors)]
-            else:
-                start_neighbor = neighbors[round_idx]
-
-            # Run one path: walk from start_neighbor for path_depth steps
-            path_visited = self._thinking_single_path(encounter_point, start_neighbor, path_depth)
-            path_count += 1
-
-            # Update visit counts
-            for vid in path_visited:
-                all_visited.add(vid)
-                visit_count[vid] = visit_count.get(vid, 0) + 1
-
-            # Record TRAVERSAL_ASSOCIATION for each consecutive pair in the path
-            # (reuse existing mechanism)
-            prev_vid = encounter_point
-            for vid in path_visited:
-                if prev_vid != vid:
-                    self._record_traversal_association(prev_vid, vid)
-                prev_vid = vid
-
-            # Fixpoint check: compare top-K convergence nodes with previous round
-            top_k_size = max(3, len(all_visited) // 5)
-            sorted_by_count = sorted(visit_count.items(), key=lambda x: -x[1])
-            current_top_k = frozenset(vid for vid, _ in sorted_by_count[:top_k_size] if visit_count[vid] > 1)
-
-            if current_top_k and current_top_k == prev_top_k and path_count >= 3:
-                rounds_to_fixpoint = round_idx + 1
-                break
-            prev_top_k = current_top_k
-
-        if rounds_to_fixpoint == 0:
-            rounds_to_fixpoint = path_count
-
-        # Classify nodes
-        convergence_nodes = tuple(
-            vid for vid, count in sorted(visit_count.items(), key=lambda x: -x[1])
-            if count > 1
-        )
-        edge_nodes = tuple(
-            vid for vid, count in visit_count.items()
-            if count == 1
-        )
-
-        # Avoidance zones: neighbors of encounter_point that no path visited
-        neighbor_set = set(neighbors)
-        avoidance_zones = tuple(
-            vid for vid in neighbor_set
-            if vid not in all_visited
-        )
-
-        total_visited = len(all_visited)
-        cluster_density = len(convergence_nodes) / total_visited if total_visited > 0 else 0.0
-
-        return ThinkingResult(
-            convergence_points=convergence_nodes,
-            edge_nodes=edge_nodes,
-            avoidance_zones=avoidance_zones,
-            paths_count=path_count,
-            rounds_to_fixpoint=rounds_to_fixpoint,
-            cluster_density=cluster_density,
-        )
-
-    def _thinking_single_path(
-        self, origin: str, start: str, depth: int
-    ) -> list[str]:
-        """Execute a single thinking path from origin→start for depth steps.
-
-        Uses the same walk heuristics (critical edges, unvisited preference)
-        but on a local rng to avoid affecting main traversal state.
-        Does NOT modify self.position or self.visit_history.
-
-        Returns list of visited vertex IDs (excluding origin, starting with start).
-        """
-        path: list[str] = [start]
-        current = start
-        local_visited: set[str] = {origin, start}
-
-        for _ in range(depth - 1):
-            nbs = self.k_active.neighbors(current)
-            if not nbs:
-                break
-
-            # Prefer unvisited critical neighbors, then unvisited any, then random
-            crit = critical_neighbors(self.k_active, current, self.terrain)
-            unvisited_crit = [n for n in crit if n not in local_visited]
-            if unvisited_crit:
-                current = self.rng.choice(unvisited_crit)
-            else:
-                unvisited_any = [n for n in nbs if n not in local_visited]
-                if unvisited_any:
-                    current = self.rng.choice(unvisited_any)
-                else:
-                    current = self.rng.choice(nbs)
-
-            path.append(current)
-            local_visited.add(current)
-
-        return path
-
-    def _apply_thinking_result(self, result: ThinkingResult) -> list[dict]:
-        """Attempt ARTICULATE at convergence points from thinking loop result.
-
-        For each convergence point that forms a topological inconsistency pair
-        with the encounter point or another convergence point, create ARTICULATED edge.
-
-        Returns list of articulation metadata dicts (same format as _last_articulation).
-        """
-        articulations: list[dict] = []
-        if not result.convergence_points or self._snet_activation is None:
-            return articulations
-
-        # Try articulation between pairs of convergence points
-        active_vids = set(self.k_active.active_vertex_ids())
-        tried: set[frozenset[str]] = set()
-
-        for vid in result.convergence_points[:5]:  # limit to top-5 convergence nodes
-            if vid not in active_vids:
-                continue
-            for other in result.convergence_points[:5]:
-                if other == vid or other not in active_vids:
-                    continue
-                pair = frozenset((vid, other))
-                if pair in tried:
-                    continue
-                tried.add(pair)
-
-                # Check if concept edge already exists
-                has_concept_edge = False
-                for ce in self.k_active.active_edges():
-                    if ce.edge_type not in CONCEPT_EDGE_TYPES:
-                        continue
-                    if (ce.source == vid and ce.target == other) or \
-                       (ce.source == other and ce.target == vid):
-                        has_concept_edge = True
-                        break
-                if has_concept_edge:
-                    continue
-
-                # Check for topological inconsistency between this pair
-                # A密B疏: COOCCURRENCE exists but no paradigmatic
-                has_cooc = False
-                for ae in self.k_active.all_active_edges():
-                    if ae.edge_type == EdgeType.COOCCURRENCE:
-                        if (ae.source == vid and ae.target == other) or \
-                           (ae.source == other and ae.target == vid):
-                            has_cooc = True
-                            break
-
-                vid_sig = self._snet_activation._concept_to_sig.get(vid)
-                other_sig = self._snet_activation._concept_to_sig.get(other)
-                has_paradigmatic = False
-                if vid_sig and other_sig:
-                    snet = self._snet_activation.s_net
-                    for pe in snet.paradigmatic_alternatives(vid_sig):
-                        if pe.target == other_sig:
-                            has_paradigmatic = True
-                            break
-                    if not has_paradigmatic:
-                        for pe in snet.paradigmatic_alternatives(other_sig):
-                            if pe.target == vid_sig:
-                                has_paradigmatic = True
-                                break
-
-                # A密B疏 or B密A疏 → ARTICULATE
-                if has_cooc and not has_paradigmatic:
-                    imbalance = "A_dense_B_sparse"
-                elif has_paradigmatic and not has_cooc:
-                    imbalance = "B_dense_A_sparse"
-                else:
-                    continue
-
-                self._articulate(vid, other, 1.0)
-                meta = {
-                    "source_vid": vid,
-                    "target_vid": other,
-                    "score": 1.0,
-                    "step": self.step,
-                    "imbalance_type": imbalance,
-                    "reason": f"thinking_loop convergence: {vid} and {other} ({imbalance})",
-                }
-                articulations.append(meta)
-
-        return articulations
 
     def walk(self) -> None:
         """Move to an adjacent vertex. Prefer critical edges, then unvisited, then random.
@@ -1679,27 +1447,47 @@ class TraversalEngine:
                 "imbalance_type": articulation_meta["imbalance_type"],
                 "reason": articulation_enc.reason,
             }
-            self._no_articulation_streak = 0
-        else:
-            # Track blind spot: nothing step + no articulation
-            if op_name in ("walk", "nothing"):
-                self._no_articulation_streak += 1
-            else:
-                self._no_articulation_streak = 0
 
-            # Thinking loop: structural blind spot detected
-            if (self._no_articulation_streak >= THINKING_BLIND_SPOT_THRESHOLD
-                    and self._snet_activation is not None):
-                thinking_result = self._thinking_loop(self.position)
-                self._last_thinking_result = thinking_result
-                self._no_articulation_streak = 0  # reset after thinking
-
-                # Apply: attempt ARTICULATE at convergence points
-                if thinking_result.convergence_points:
-                    thinking_articulations = self._apply_thinking_result(thinking_result)
-                    if thinking_articulations:
-                        # Use last articulation for persistence metadata
-                        self._last_articulation = thinking_articulations[-1]
+        # -- cycle detection: intrinsic property of traversal -----------------
+        # Every step checks if position has been visited before in recent history.
+        # Three outcomes: cycle_closed, open_path, nachtraeglich_return.
+        # This is not a special mode — it is how traversal observes its own topology.
+        recent_window = self.visit_history[-EXPLORATION_INTERVAL:] if len(self.visit_history) > 1 else []
+        if self.position in recent_window[:-1]:
+            # Cycle detected: current position was visited within recent window
+            first_visit_idx = None
+            for i, vid in enumerate(recent_window):
+                if vid == self.position and i < len(recent_window) - 1:
+                    first_visit_idx = i
+                    break
+            if first_visit_idx is not None:
+                cycle_path = tuple(recent_window[first_visit_idx:])
+                # Nachträglichkeit check: did the neighborhood change between visits?
+                # The first visit's neighborhood was different from now (TA edges deposited since then)
+                # We detect this by checking if any TA edges were created between the two visits
+                cycle_start_step = max(0, self.step - len(recent_window) + first_visit_idx)
+                nachtraeglich = any(
+                    e.edge_type == EdgeType.TRAVERSAL_ASSOCIATION
+                    and e.created_at > cycle_start_step
+                    and (e.source == self.position or e.target == self.position)
+                    for e in self.k_active.active_edges()
+                )
+                # Log cycle detection as traversal event (not a separate module)
+                self.logs.append(StepLog(
+                    step=self.step,
+                    position=self.position,
+                    encounter="cycle_detection",
+                    operation="nachtraeglich_return" if nachtraeglich else "cycle_closed",
+                    beta_1_before=beta_before,
+                    beta_1_after=compute_beta_1(self.k_active),
+                    delta_beta_1=compute_beta_1(self.k_active) - beta_before,
+                    settled_count=len(self.settlement.settled_cycles),
+                    blocked=False,
+                    vertices_active=len(list(self.k_active.active_vertex_ids())),
+                    edges_active=len(list(self.k_active.active_edges())),
+                    vertices_full=len(list(self.k_full.active_vertex_ids())),
+                    edges_full=len(list(self.k_full.active_edges())),
+                ))
 
         # S_net coupling: activate signifier for new position + check articulation feedback
         if self._snet_activation is not None:
@@ -1831,4 +1619,9 @@ class TraversalEngine:
             exploration=explored,
         )
         self.logs.append(log)
+
+        # S_net 穿越共现回流：定期 flush 缓冲到 S_net
+        if self.step % self._traversal_cooc_flush_interval == 0:
+            self._flush_traversal_cooccurrences()
+
         return log
