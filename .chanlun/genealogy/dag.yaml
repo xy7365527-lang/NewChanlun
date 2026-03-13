@@ -2176,24 +2176,44 @@ nodes:
   file: settled/434-thinking-loop-traversal-cluster.md
 - id: '435'
   title: thinking 环路闭合的三种结果与 LLM 扬弃——度量是概率机制的附属物，历史有内在停止点
-  status: 生成态
+  status: 已结算
   type: domain
-  file: pending/435-thinking-loop-closure-dialectic.md
+  file: settled/435-thinking-loop-closure-dialectic.md
 - id: '436'
   title: 概率范式与拓扑穿越范式的系统性概念分离——概念命名即度量渗入
-  status: 生成态
+  status: 已结算
   type: concept-separation
-  file: pending/436-probabilistic-vs-topological-paradigm-separation.md
+  file: settled/436-probabilistic-vs-topological-paradigm-separation.md
 - id: '437'
   title: LLM 扬弃的物质形态——元操作 + 三条回流管道 + 流畅度继承
-  status: 生成态
+  status: 已结算
   type: domain
-  file: pending/437-llm-aufhebung-material-form.md
+  file: settled/437-llm-aufhebung-material-form.md
 - id: '438'
   title: S_net 唯一界面原则（器官原则）——一切进出经过 S_net，没有绕过通道
+  status: 已结算
+  type: domain
+  file: settled/438-snet-sole-interface-organ-principle.md
+- id: '439'
+  title: 逢亮存在论架构——图是身体，S_net 是器官，遭遇是两层不一致
+  status: 已结算
+  type: domain
+  file: settled/439-existence-architecture-graph-body-snet-organ.md
+- id: '440'
+  title: 双层区块拓扑架构——K_active 从单层变双层（概念层有方向边 + 物质层无方向边）
   status: 生成态
   type: domain
-  file: pending/438-snet-sole-interface-organ-principle.md
+  file: pending/440-dual-layer-block-topology.md
+- id: '441'
+  title: 双通道耦合——ceremony↔逢亮从概念单通道扩展为概念+物质双通道
+  status: 生成态
+  type: domain
+  file: pending/441-dual-channel-coupling.md
+- id: '442'
+  title: S_net 加工参数作为概念层节点——逢亮可修改自己的器官（候选）
+  status: 生成态
+  type: domain
+  file: pending/442-snet-params-as-concept-nodes.md
 edges:
   depends_on:
   - from: '136'
@@ -4606,6 +4626,28 @@ edges:
     to: '426'
   - from: '438'
     to: '399'
+  - from: '439'
+    to: '438'
+  - from: '439'
+    to: '426'
+  - from: '439'
+    to: '425'
+  - from: '439'
+    to: '431'
+  - from: '440'
+    to: '439'
+  - from: '440'
+    to: '438'
+  - from: '440'
+    to: '425'
+  - from: '441'
+    to: '440'
+  - from: '441'
+    to: '437'
+  - from: '442'
+    to: '440'
+  - from: '442'
+    to: '438'
   triggered:
   - from: '005'
     to: 005a

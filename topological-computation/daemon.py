@@ -58,7 +58,7 @@ from encounter_log import (
 from cross_domain import detect_cross_domain_edges, _source_prefix
 from traversal_checkpoint import TraversalCheckpoint, extract_daemon_state, restore_daemon_state
 from file_lock import get_instance_id
-from signifier_net import SNet
+from signifier_net import SNet, AxisType
 from snet_activation import (
     SNetActivation, InternalSpeechFragment, EdgeSuggestion,
     ConceptCreationSuggestion,
@@ -354,6 +354,10 @@ class TopologicalDaemon:
         # S_net SQLite persistence layer (423号: replace pickle with SQLite)
         self._snet_persistence = None  # initialized in _bootstrap_snet
 
+        # S_net → block topology watermark: tracks edge count at last block write
+        # Used for incremental delta detection (only new edges get written)
+        self._snet_block_watermark: int = 0
+
         # S_net activation (coupled oscillation) — initialized during _initialize_engine
         self.snet_activation: SNetActivation | None = None
 
@@ -487,6 +491,11 @@ class TopologicalDaemon:
 
         # S_net bootstrap: Layer A (K_active projection) + Layer B (surface forms) + Layer C (paradigmatic seeds)
         self._bootstrap_snet()
+
+        # Set watermark to current S_net edge count after bootstrap.
+        # Bootstrap edges (corpus/dictionary) are already persisted by their
+        # respective ingest paths — only runtime-new edges should be written.
+        self._snet_block_watermark = len(self.snet.edges)
 
         # Proprioception: initial metrics snapshot + self-reflexive norms
         # Order matters: proprioception vertices first, then norms (norms reference proprioception)
@@ -1033,6 +1042,9 @@ class TopologicalDaemon:
         if self.snet_activation is not None and self.snet_activation.s_net is not self.snet:
             self.snet = self.snet_activation.s_net
 
+        # S_net → block topology: write new co-occurrence edges as material layer blocks
+        self._write_snet_cooccurrence_blocks()
+
         # Inject settlement memory nodes for newly settled cycles
         new_settled = self.settlement.settled_cycles[pre_settled_count:]
         for sc in new_settled:
@@ -1408,6 +1420,63 @@ class TopologicalDaemon:
             self._last_snet_active_snapshot = set(current_active)
         except Exception:
             pass
+
+    def _write_snet_cooccurrence_blocks(self) -> None:
+        """Write new S_net co-occurrence edges to block topology as material layer blocks.
+
+        Incremental: uses _snet_block_watermark to track the last-written edge index.
+        Only edges added after the watermark are written. This avoids re-writing the
+        entire 778K+ edge set on every step.
+
+        Source type classification via evidence field prefix:
+          - "traversal:{step}" → source_type "traversal"
+          - "dialogue:{...}"  → source_type "dialogue"
+          - everything else   → source_type "corpus"
+
+        Throttled: batch writes at most 200 edges per step to avoid I/O spikes.
+        """
+        if self._persist is None:
+            return
+
+        current_edges = self.snet.edges
+        current_count = len(current_edges)
+        watermark = self._snet_block_watermark
+
+        if current_count <= watermark:
+            return
+
+        new_edges = current_edges[watermark:]
+        timestamp = datetime.utcnow().isoformat() + "Z"
+
+        # Batch cap: at most 200 per step
+        batch = new_edges[:200]
+
+        for edge in batch:
+            if edge.axis != AxisType.SYNTAGMATIC:
+                continue
+
+            # Classify source type from evidence field
+            evidence = edge.evidence or ""
+            if evidence.startswith("traversal:"):
+                source_type = "traversal"
+            elif evidence.startswith("dialogue:"):
+                source_type = "dialogue"
+            else:
+                source_type = "corpus"
+
+            self._persist.append_cooccurrence(
+                source_signifier=edge.source,
+                target_signifier=edge.target,
+                weight=edge.weight,
+                corpus_source=source_type,
+                ingest_params={
+                    "evidence": evidence,
+                    "relation": edge.relation,
+                },
+                timestamp=timestamp,
+            )
+
+        self._snet_block_watermark = watermark + len(batch)
 
     def ingest_code(self, dirpath: str, source: str = "") -> Graph:
         """Ingest Python source tree into K_active with domain:code tagging.
