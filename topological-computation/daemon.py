@@ -620,7 +620,28 @@ class TopologicalDaemon:
                     else:
                         print("S_net SQLite: DB exists but empty, proceeding to fallback", file=sys.stderr)
                 else:
-                    print("S_net SQLite: manifest mismatch or missing, proceeding to fallback", file=sys.stderr)
+                    # Manifest mismatch or missing — still try loading SQLite data
+                    # (graceful degradation: stale data better than full re-ingest)
+                    stats = persistence.stats()
+                    if stats.get("signifiers", 0) > 0:
+                        t0 = _time.time()
+                        cached_snet = persistence.load_full()
+                        if cached_snet is not None:
+                            self.snet = cached_snet
+                            elapsed = _time.time() - t0
+                            n_sigs = len(self.snet._signifiers)
+                            n_edges = len(self.snet._edges)
+                            reason = "missing" if current_manifest is None else "mismatch"
+                            print(
+                                f"S_net from SQLite (manifest {reason}, loaded anyway): "
+                                f"{n_sigs} signifiers, {n_edges} edges ({elapsed:.1f}s)",
+                                file=sys.stderr,
+                            )
+                            # Update manifest to current so next restart is clean
+                            if current_manifest is not None:
+                                persistence.set_manifest(current_manifest)
+                            return
+                    print("S_net SQLite: manifest mismatch/missing and DB empty, proceeding to fallback", file=sys.stderr)
             except Exception as sqlite_exc:
                 print(f"S_net SQLite load failed (trying pickle fallback): {sqlite_exc}", file=sys.stderr)
 

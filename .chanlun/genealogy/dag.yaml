@@ -2163,6 +2163,17 @@ nodes:
   status: 已结算
   type: meta-rule
   file: settled/432-meta-observation-v231-swarm.md
+- id: '433'
+  title: 元观察——v232-swarm（不动点轮：stagnation误报缺陷 + block缺失孤儿关系 + genealogist无增量 + 推论阻塞链收敛
+    + 蜂群自适应韧性第4实例）
+  status: 已结算
+  type: meta-rule
+  file: settled/433-meta-observation-v232-swarm.md
+- id: '434'
+  title: 逢亮 thinking 循环——多路径穿越轨迹簇与 ARTICULATE 汇聚点
+  status: 已结算
+  type: concept-separation
+  file: settled/434-thinking-loop-traversal-cluster.md
 edges:
   depends_on:
   - from: '136'
@@ -4523,6 +4534,20 @@ edges:
     to: '429'
   - from: '432'
     to: '231'
+  - from: '433'
+    to: '432'
+  - from: '433'
+    to: '076'
+  - from: '433'
+    to: '231'
+  - from: '433'
+    to: '431'
+  - from: '434'
+    to: '426'
+  - from: '434'
+    to: '431'
+  - from: '433'
+    to: '426'
   triggered:
   - from: '005'
     to: 005a
@@ -6139,6 +6164,9 @@ edges:
   - between:
     - '425'
     - '429'
+  - between:
+    - '425'
+    - '434'
   negated_by:
   - target: '032'
     by: 088

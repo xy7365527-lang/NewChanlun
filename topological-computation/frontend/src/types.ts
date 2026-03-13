@@ -43,6 +43,7 @@ export interface TopologyMeta {
   total_edges: number;
   shown_vertices: number;
   shown_edges: number;
+  traversal_position?: string;
 }
 
 export interface TopologyResponse {

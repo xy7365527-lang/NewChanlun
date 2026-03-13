@@ -437,6 +437,29 @@ class SNetPersistence:
     # Manifest（缓存有效性判断）
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _stable_fingerprint(manifest: dict) -> str:
+        """从 manifest 提取稳定指纹（排除 created/mtime 等不稳定字段）。
+
+        只保留决定缓存有效性的字段：version、文件 hash、文件路径。
+        与 snet_cache.manifests_match() 的语义一致。
+        """
+        stable = {
+            "version": manifest.get("version"),
+            "surface_forms_hash": None,
+            "dictionaries": [],
+            "corpora": [],
+        }
+        sf = manifest.get("surface_forms")
+        if sf is not None:
+            stable["surface_forms_hash"] = sf.get("hash")
+        for d in sorted(manifest.get("dictionaries", []), key=lambda x: x.get("path", "")):
+            stable["dictionaries"].append((d.get("path", ""), d.get("hash", "")))
+        for c in sorted(manifest.get("corpora", []), key=lambda x: x.get("path", "")):
+            stable["corpora"].append((c.get("path", ""), c.get("hash", "")))
+        fingerprint_json = json.dumps(stable, sort_keys=True, ensure_ascii=False)
+        return hashlib.sha256(fingerprint_json.encode("utf-8")).hexdigest()
+
     def get_manifest_hash(self) -> Optional[str]:
         """获取存储的 manifest hash，用于判断缓存有效性。
 
@@ -451,14 +474,14 @@ class SNetPersistence:
         return row[0]
 
     def set_manifest(self, manifest: dict) -> None:
-        """保存 manifest 并计算 hash。
+        """保存 manifest 并计算稳定 hash。
 
-        manifest hash = SHA-256(canonical JSON)。
+        稳定 hash = SHA-256(稳定指纹)，排除 created/mtime 等不稳定字段。
         同时保存完整 manifest JSON 以供调试。
         """
         conn = self._conn
         manifest_json = json.dumps(manifest, sort_keys=True, ensure_ascii=False)
-        manifest_hash = hashlib.sha256(manifest_json.encode("utf-8")).hexdigest()
+        manifest_hash = self._stable_fingerprint(manifest)
 
         conn.execute("BEGIN")
         try:
@@ -482,13 +505,14 @@ class SNetPersistence:
     def manifest_valid(self, manifest: dict) -> bool:
         """判断当前 manifest 是否与存储的一致。
 
-        比较逻辑：canonical JSON → SHA-256 hash 比对。
+        比较逻辑：提取稳定指纹（排除 created/mtime），SHA-256 比对。
+        与 snet_cache.manifests_match() 的语义一致——只比较 version、
+        文件 hash、文件路径，不比较时间戳。
         """
         stored_hash = self.get_manifest_hash()
         if stored_hash is None:
             return False
-        manifest_json = json.dumps(manifest, sort_keys=True, ensure_ascii=False)
-        current_hash = hashlib.sha256(manifest_json.encode("utf-8")).hexdigest()
+        current_hash = self._stable_fingerprint(manifest)
         return stored_hash == current_hash
 
     # ------------------------------------------------------------------

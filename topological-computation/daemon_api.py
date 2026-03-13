@@ -83,41 +83,83 @@ def topology_json(daemon: TopologicalDaemon, center: str | None = None, radius: 
     """GET /topology — K_active subgraph snapshot with f-values.
 
     If center is given, returns local subgraph within radius hops.
-    Otherwise returns top-100 highest-degree vertices as skeleton.
+    If full=true, returns all vertices (may be slow for large graphs).
+    Otherwise returns top-N highest-degree vertices as skeleton,
+    always including the current traversal position and settled vertices.
     """
     graph = daemon.k_active
     active = graph.active_vertex_ids()
+    active_set = set(active)
     total_v = len(active)
-    total_e = len(graph.active_edges())
 
-    if center and center in set(active):
+    if center and center in active_set:
         # Local subgraph
         vids, edges = graph.local_subgraph(center, radius)
-    else:
-        # Full graph — all active vertices and edges
+    elif full or total_v <= 500:
+        # Small graph or explicit full request — return everything
         vids = active
         edges = graph.active_edges()
+    else:
+        # Large graph: build skeleton from top-N + settled + traversal position
+        # Pre-compute degrees once using adjacency lists (O(E), not O(V^2))
+        adj: dict[str, list[str]] = {v: [] for v in active}
+        all_edges = graph.active_edges()
+        for e in all_edges:
+            if e.source in active_set and e.target in active_set:
+                adj[e.source].append(e.target)
+                adj[e.target].append(e.source)
 
-    # Build f-value map for vertices
+        degree_map = {v: len(nbs) for v, nbs in adj.items()}
+
+        # Select skeleton vertices
+        SKELETON_SIZE = 300
+        sorted_by_degree = sorted(active, key=lambda v: degree_map.get(v, 0), reverse=True)
+        skeleton_vids = set(sorted_by_degree[:SKELETON_SIZE])
+
+        # Always include traversal position
+        if daemon.engine and daemon.engine.position and daemon.engine.position in active_set:
+            skeleton_vids.add(daemon.engine.position)
+            # Include neighbors of traversal position for context
+            for nb in adj.get(daemon.engine.position, []):
+                skeleton_vids.add(nb)
+
+        # Always include settled vertices
+        if daemon.settlement:
+            for sc in daemon.settlement.settled_cycles:
+                for src, tgt in sc.edges:
+                    if src in active_set:
+                        skeleton_vids.add(src)
+                    if tgt in active_set:
+                        skeleton_vids.add(tgt)
+
+        vids = list(skeleton_vids)
+        edges = [e for e in all_edges if e.source in skeleton_vids and e.target in skeleton_vids]
+
+    # Pre-compute adjacency for selected vertices (avoids O(V^2) from repeated neighbors())
     vid_set = set(vids)
-    degrees = {v: len(graph.neighbors(v)) for v in vids}
+    adj_selected: dict[str, list[str]] = {v: [] for v in vids}
+    for e in edges:
+        if e.source in vid_set and e.target in vid_set:
+            adj_selected[e.source].append(e.target)
+            adj_selected[e.target].append(e.source)
 
-    # Compute average f for each vertex from terrain
+    degrees = {v: len(nbs) for v, nbs in adj_selected.items()}
+
+    # Compute average f for each vertex from terrain using pre-computed adjacency
     f_avgs: dict[str, float] = {}
     for vid in vids:
-        neighbors = graph.neighbors(vid)
-        if not neighbors:
+        nbs = adj_selected.get(vid, [])
+        if not nbs:
             f_avgs[vid] = -1.0
             continue
         f_vals = []
-        for nb in neighbors:
+        for nb in nbs:
             key = (vid, nb)
             mark = daemon.terrain.get(key, "critical")
-            # f-value approximation from terrain mark
             if mark == "tree":
                 f_vals.append(0.0)
             else:
-                f_vals.append(5.0)  # critical = higher f
+                f_vals.append(5.0)
         f_avgs[vid] = sum(f_vals) / len(f_vals) if f_vals else -1.0
 
     # Settled vertices
@@ -136,6 +178,11 @@ def topology_json(daemon: TopologicalDaemon, center: str | None = None, radius: 
         if v and v.content and any(c > '\u4e00' for c in (v.content or "")[:20]):
             return "text"
         return "system"
+
+    # Current traversal position id for frontend
+    traversal_position = ""
+    if daemon.engine and daemon.engine.position:
+        traversal_position = daemon.engine.position
 
     nodes = []
     for vid in vids:
@@ -164,9 +211,10 @@ def topology_json(daemon: TopologicalDaemon, center: str | None = None, radius: 
         "links": links,
         "meta": {
             "total_vertices": total_v,
-            "total_edges": total_e,
+            "total_edges": len(graph.active_edges()) if total_v <= 500 else -1,
             "shown_vertices": len(nodes),
             "shown_edges": len(links),
+            "traversal_position": traversal_position,
         },
     }
 
