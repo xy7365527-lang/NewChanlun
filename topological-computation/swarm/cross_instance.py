@@ -190,7 +190,11 @@ class CrossInstanceSync:
         # Update daemon state
         self.daemon.k_active = graph
         self.daemon.k_full = graph
-        self.daemon._initialize_engine()
+        # Hot-update engine graph reference instead of full re-initialization
+        if self.daemon.engine is not None:
+            self.daemon.engine.k_active = graph
+        else:
+            self.daemon._initialize_engine()
 
     def _interpret_and_respond(self, block: dict, block_hash: str) -> None:
         """用自己的拓扑解读外来操作，将回应写入共享层 relations。

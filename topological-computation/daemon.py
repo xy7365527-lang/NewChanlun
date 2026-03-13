@@ -512,8 +512,15 @@ class TopologicalDaemon:
         self.k_full = inject_self_reflexive_norms(self.k_full, step=0)
 
         # Pick start: highest degree vertex (exclude proprioception/norm vertices)
-        degrees = {v: len(self.k_active.neighbors(v)) for v in active}
-        start = max(active, key=lambda v: (degrees.get(v, 0), v))
+        # Use _adj_out/_adj_in directly for O(1) degree lookup instead of neighbors() which sorts
+        _aout = self.k_active._adj_out
+        _ain = self.k_active._adj_in
+        _act = self.k_active._active_ids
+        def _deg(v: str) -> int:
+            out = sum(1 for e in _aout.get(v, ()) if e.target in _act)
+            inc = sum(1 for e in _ain.get(v, ()) if e.source in _act)
+            return out + inc
+        start = max(active, key=lambda v: (_deg(v), v))
 
         self.engine = TraversalEngine(
             self.k_active,

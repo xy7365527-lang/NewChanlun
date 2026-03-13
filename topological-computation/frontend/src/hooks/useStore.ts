@@ -437,7 +437,7 @@ export const useStore = create<DaemonStore>((set, get) => ({
       if (s?.reachable) return inst.httpBase;
     }
     // Fallback: first instance
-    return state.instances[0]?.httpBase ?? "http://localhost:9765";
+    return state.instances[0]?.httpBase ?? "http://46.225.187.39:9765";
   },
 }));
 
