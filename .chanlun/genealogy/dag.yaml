@@ -2214,6 +2214,11 @@ nodes:
   status: 生成态
   type: domain
   file: pending/442-snet-params-as-concept-nodes.md
+- id: '443'
+  title: 元观察——v236-swarm（高密度结算轮：435-441号7条结算 + 双层架构实装确认 + 概念→代码闭环 + 前端性能重写 + 逻辑不动点）
+  status: 生成态
+  type: meta-rule
+  file: pending/443-meta-observation-v236-swarm.md
 edges:
   depends_on:
   - from: '136'
@@ -4648,6 +4653,18 @@ edges:
     to: '440'
   - from: '442'
     to: '438'
+  - from: '443'
+    to: '433'
+  - from: '443'
+    to: '432'
+  - from: '443'
+    to: '076'
+  - from: '443'
+    to: '231'
+  - from: '443'
+    to: '440'
+  - from: '443'
+    to: '441'
   triggered:
   - from: '005'
     to: 005a
