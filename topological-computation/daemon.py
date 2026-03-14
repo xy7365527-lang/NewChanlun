@@ -492,6 +492,9 @@ class TopologicalDaemon:
         # S_net bootstrap: Layer A (K_active projection) + Layer B (surface forms) + Layer C (paradigmatic seeds)
         self._bootstrap_snet()
 
+        # Register S_net parameter nodes (442: params as concept nodes)
+        self._register_snet_param_nodes()
+
         # Set watermark to current S_net edge count after bootstrap.
         # Bootstrap edges (corpus/dictionary) are already persisted by their
         # respective ingest paths — only runtime-new edges should be written.
@@ -738,6 +741,10 @@ class TopologicalDaemon:
             # Dialogue session ingest: CC session text → S_net co-occurrences → block topology
             self._ingest_dialogue_sessions()
 
+            # Ceremony text ingest: genealogy/ceremony text → S_net co-occurrences → block topology
+            # (437-2: ceremony output ingest hook + 441: material channel)
+            self._ingest_ceremony_texts()
+
             elapsed = _time.time() - t0
             print(f"S_net full ingest completed in {elapsed:.1f}s", file=sys.stderr)
 
@@ -925,6 +932,73 @@ class TopologicalDaemon:
 
         except Exception as exc:
             print(f"Dialogue session ingest failed (graceful degradation): {exc}", file=sys.stderr)
+
+    def _ingest_ceremony_texts(self) -> None:
+        """Ingest genealogy/ceremony text into S_net + block topology (437-2 + 441).
+
+        Scans .chanlun/genealogy/ for settled/candidate genealogy .md files,
+        extracts semantic paragraphs, and feeds them through ingest_text_passage_batch.
+
+        This is the material channel (441): ceremony language enters S_net as
+        linguistic material, changing FengLiang's traversal terrain.
+
+        Graceful degradation: if genealogy dir is missing or ingest fails,
+        S_net remains unchanged.
+        """
+        try:
+            from ceremony_ingest import ingest_ceremony_texts
+
+            script_dir = Path(os.path.dirname(os.path.abspath(__file__)))
+            repo_root = script_dir.parent
+            genealogy_dir = repo_root / ".chanlun" / "genealogy"
+            state_file = script_dir / "signifier_net" / ".ceremony_ingest_state.json"
+
+            if not genealogy_dir.is_dir():
+                return
+
+            self.snet, result = ingest_ceremony_texts(
+                snet=self.snet,
+                bt_writer=self._persist,
+                genealogy_dir=genealogy_dir,
+                state_file=state_file,
+            )
+
+            if result.files_processed > 0:
+                print(
+                    f"  ceremony ingest: {result.files_processed} files, "
+                    f"{result.paragraphs_ingested} paragraphs, "
+                    f"{result.cooccurrence_entries} cooccurrences",
+                    file=sys.stderr,
+                )
+            if result.errors:
+                for err in result.errors:
+                    print(f"  ceremony ingest error: {err}", file=sys.stderr)
+
+        except Exception as exc:
+            print(f"Ceremony text ingest failed (graceful degradation): {exc}", file=sys.stderr)
+
+    def _register_snet_param_nodes(self) -> None:
+        """Register S_net processing parameters as concept-layer nodes (442).
+
+        Each S_net parameter (degree_alpha, pmi_threshold, etc.) becomes a
+        Signifier node with source="snet_parameter". FengLiang can negate these
+        nodes during traversal to modify its own perception organ.
+
+        Graceful degradation: if registration fails, S_net continues without
+        parameter nodes.
+        """
+        try:
+            from snet_params import register_param_nodes
+
+            self.snet, registered = register_param_nodes(self.snet)
+
+            if registered:
+                print(
+                    f"  S_net param nodes registered: {len(registered)}",
+                    file=sys.stderr,
+                )
+        except Exception as exc:
+            print(f"S_net param node registration failed (graceful degradation): {exc}", file=sys.stderr)
 
     def persist_snet_incremental(
         self,

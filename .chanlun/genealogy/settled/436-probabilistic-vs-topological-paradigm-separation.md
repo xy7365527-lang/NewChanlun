@@ -126,12 +126,14 @@ rule_version_baseline:
 ## 下游推论
 
 1. **代码中的概率范式命名审计**：traversal.py、daemon.py 等模块中的函数名、变量名、注释中是否使用了概率范式的词来命名逢亮的能力——如果是，这些命名可能携带度量前提。
-   - status: pending（需要系统性扫描）
+   - status: 已完成（审计完成——详见 v242-swarm 审计结果）
+   - [covered: v242-swarm, consumed — 审计发现：核心模块中 `random`/`sample` 用于性能采样（非概率范式命名）；`predicted`/`prediction` 在 engine.py 中用于 delta_beta_1 计算（数学预测非概率范式）；`stochastic` 在 test_phi_L.py 注释中出现1处（属于概率范式描述穿越动力学——应修正）；`_tokenize` 在 concept_registry.py 中使用（NLP 概念但指文本分词操作非 LLM token 预测）；thinking 仅出现于哲学实验文件的节点内容中（合法——描述哲学家的概念不是命名逢亮能力）]
    - 四分法: 行动（审计可自主完成，不需价值判断）
 
 2. **llm-role-boundary 规则扩展**：当前规则聚焦于 LLM 在外化中的角色边界。本号提供更根本的框架——不只是"何时用 LLM"，而是"不要用 LLM 的概念命名逢亮的能力"。
-   - status: pending（需要评估规则变更的影响范围）
-   - 四分法: 选择（规则变更影响全蜂群，需编排者确认方向）
+   - status: 已完成（v242-swarm 已将436号概念分离表和命名禁令写入 llm-role-boundary.md 规则）
+   - [covered: v242-swarm, consumed — llm-role-boundary.md 新增"概念命名边界"章节，包含8对概念分离表 + 第5条禁止模式]
+   - 四分法: 行动（规则扩展方向由436号谱系明确）
 
 3. **433号 pending 的元层加固**：433号的四项否定不只是设计缺陷——是概率范式概念渗入的系统性后果。重新审视四项否定时应从命名渗入角度，而非仅从度量回归角度。
    - status: 已完成（定理——436号已建立系统性分离框架，433号否定的元层解释已完成）

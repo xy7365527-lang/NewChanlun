@@ -2249,6 +2249,31 @@ nodes:
   status: 生成态
   type: 概念发现
   file: pending/449-deposition-articulate-naming.md
+- id: '450'
+  title: ''
+  status: 已结算
+  type: meta-rule
+  file: settled/450-meta-observation-v238-swarm-r2.md
+- id: '451'
+  title: ''
+  status: 已结算
+  type: meta-rule
+  file: settled/451-condensation-vs-fold.md
+- id: '452'
+  title: ''
+  status: 已结算
+  type: 概念发现
+  file: settled/452-grammar-as-terrain.md
+- id: '453'
+  title: ''
+  status: 已结算
+  type: meta-rule
+  file: settled/453-condensation-expansion-cycle.md
+- id: '454'
+  title: 元观察——v242-swarm（全面推进轮启动：31工位6并行流 + stagnation间歇确认 + 下游推论批量实装首例）
+  status: 已结算
+  type: meta-rule
+  file: settled/454-meta-observation-v242-swarm.md
 edges:
   depends_on:
   - from: '136'
@@ -4735,6 +4760,14 @@ edges:
     to: '444'
   - from: '449'
     to: '445'
+  - from: '454'
+    to: '433'
+  - from: '454'
+    to: '076'
+  - from: '454'
+    to: '218'
+  - from: '454'
+    to: '275'
   triggered:
   - from: '005'
     to: 005a

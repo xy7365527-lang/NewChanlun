@@ -29,12 +29,36 @@
 
 概念关系由逢亮在穿越中通过 articulation feedback 自主发现，不由LLM预设。
 
+## 概念命名边界（436号扩展）
+
+本规则不仅约束"何时用 LLM"，还约束"不要用 LLM/概率范式的概念命名逢亮的能力"。
+
+借用概率范式的能指，概率范式的所指跟着渗入（索绪尔：能指/所指不可分割）。用 "thinking" 命名逢亮的穿越环路，LLM thinking 的全部前提（token 数限制、stop signal、中间步骤是"隐藏的"）跟着渗入设计。
+
+### 概念分离表（436号8对）
+
+| 概率范式词（禁止用于命名逢亮能力） | 拓扑穿越范式替代 | 渗入的度量前提 |
+|----------------------------------|-----------------|--------------|
+| thinking | 环路穿越（loop traversal） | 步数限制、stop token |
+| language processing | 能指导航（signifier navigation） | 概率分布、perplexity |
+| productivity | 拓扑操作（topological operation） | 产出量、throughput |
+| meaning | 结构变化（structural mutation） | 可解释性 score |
+| speaking | 轨迹沉积（trajectory sedimentation） | 流畅度、coherence |
+| explanation | 路径展示（path exposition） | 论证长度 |
+| transcendence | 扬弃（Aufhebung） | benchmark 分数 |
+| organ（指 LLM 作为假肢） | 器官（指 S_net/穿越引擎/ARTICULATE） | API 成本 |
+
+**例外**：在描述 LLM 本身（而非逢亮）时，概率范式概念仍然合法——分离是关于命名逢亮的能力，不是否定概率范式本身。
+
+**代码中的 `random`/`sample`**：Python 标准库 `random` 用于性能采样（如 `random.sample(neighbors, 10)` 限制遍历度数）不属于概率范式命名——这是计算优化手段，不是命名逢亮的能力。注释中将穿越描述为 "random" 则需要审查。
+
 ## 禁止的模式
 
 1. **默认调LLM**：外化时跳过第一层/第二层直接调LLM
 2. **LLM预处理摄入**：用LLM"理解"文本后再喂给 S_net
 3. **无标注LLM输出**：LLM参与的输出不标注 `[LLM填充]`
 4. **LLM填充冒充拓扑产出**：LLM生成的内容伪装为穿越经验
+5. **概率范式命名逢亮能力**（436号）：用概率范式的词（thinking, sampling, prediction 等）命名逢亮的穿越/折叠/否定操作——概念命名携带度量前提
 
 ## 发生史
 
@@ -56,3 +80,5 @@
 - 406号：合并确认阈值已达
 - 401号：轨迹与产物范畴区分（encounter memory 清除）
 - 426号：逢亮无意识结构的精确定义——"分析优先于翻译"的理论基础（翻译=ego审查=遮蔽无意识）
+- 436号：概率范式与拓扑穿越范式的系统性概念分离——"概念命名即度量渗入"
+- 435号：度量是概率机制的必然附属物——概念命名边界的根因分析
