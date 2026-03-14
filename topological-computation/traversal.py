@@ -21,6 +21,7 @@ from encounter_log import EncounterLog
 from morse import compute_terrain, critical_neighbors
 from snet_activation import SNetActivation, EdgeSuggestion
 from signifier_net import SignifierEdge, AxisType
+from trajectory_cluster import TrajectoryCluster, DisplacementEvent
 
 EXPLORATION_INTERVAL = 1000  # every N steps, jump to an under-explored vertex
 # 425号→431号: ARTICULATION_THRESHOLD 已移除。遭遇触发改为拓扑不一致判据（布尔），不再使用度量阈值。
@@ -145,6 +146,9 @@ class TraversalEngine:
         self._traversal_cooc_flush_interval: int = 50  # 每 N 步 flush 一次
         self._last_resonance: bool = False  # 上一步选择的候选是否处于共振区域
         self._last_articulation: dict | None = None  # 上一步的 articulation 溯源元数据
+        # 434号: 轨迹簇记录 — thinking 循环的多路径穿越结构
+        self._trajectory_cluster = TrajectoryCluster()
+        self._trajectory_cluster.begin_path(start, 0)
 
     def _invalidate_attempted_folds(self, affected_vertices: set[str]) -> None:
         """Remove attempted-fold entries involving any of the affected vertices.
@@ -858,6 +862,14 @@ class TraversalEngine:
 
             if result.new_cycle_edges:
                 self.settlement.register_new_cycle(result.new_cycle_edges, self.step)
+
+            # 451号-3/4: SUBLATED event becomes condensation material
+            # fold destroys target_b; if SUBLATED record exists, it's available for naming
+            self._trajectory_cluster.record_sublated_condensation(
+                sublated_id=enc.target_b,
+                surviving_id=enc.target_a,
+                fold_step=self.step,
+            )
             return "fold", False
 
         return "nothing", False
@@ -1293,6 +1305,31 @@ class TraversalEngine:
         self.k_full = self.k_full.add_edge(new_edge)
         return new_edge
 
+    @property
+    def trajectory_snapshot(self) -> dict:
+        """434号/451号: Return trajectory cluster snapshot for external consumers."""
+        return self._trajectory_cluster.snapshot()
+
+    def _detect_displacement(self, from_v: str, to_v: str) -> None:
+        """451号-2: Detect displacement (metonymic jump along material edges).
+
+        If the traversal step from from_v to to_v used a COOCCURRENCE or
+        TRAVERSAL_ASSOCIATION edge (material layer), this is a displacement —
+        signification shifted along the combinatory axis.
+        """
+        _MATERIAL = (EdgeType.COOCCURRENCE, EdgeType.TRAVERSAL_ASSOCIATION)
+        for e in self.k_active._adj_out.get(from_v, ()):
+            if e.target == to_v and e.edge_type in _MATERIAL:
+                self._trajectory_cluster.record_displacement(
+                    from_v, to_v, self.step, e.edge_type.value,
+                )
+                return
+        for e in self.k_active._adj_in.get(from_v, ()):
+            if e.source == to_v and e.edge_type in _MATERIAL:
+                self._trajectory_cluster.record_displacement(
+                    from_v, to_v, self.step, e.edge_type.value,
+                )
+                return
 
     def walk(self) -> None:
         """Move to an adjacent vertex. Prefer critical edges, then unvisited, then random.
@@ -1418,6 +1455,8 @@ class TraversalEngine:
                 self.position = target
                 self.visit_history.append(self.position)
                 explored = True
+                # 434号: exploration jump creates a new path segment
+                self._trajectory_cluster.begin_path(self.position, self.step)
 
         beta_before = compute_beta_1(self.k_active)
 
@@ -1463,6 +1502,12 @@ class TraversalEngine:
         # 425号: record TRAVERSAL_ASSOCIATION edge (material layer sediment)
         if prev_position != self.position:
             self._record_traversal_association(prev_position, self.position)
+
+            # 434号: extend trajectory cluster path
+            self._trajectory_cluster.extend_path(self.position)
+
+            # 451号-2: detect displacement (metonymic jump along material edges)
+            self._detect_displacement(prev_position, self.position)
 
         # 431号: check if topological inconsistency (A密B疏 / B密A疏) triggers ARTICULATE
         articulation_result = self._check_articulation_encounter()
@@ -1633,6 +1678,11 @@ class TraversalEngine:
                 self.settlement.register_new_cycle(new_edges, self.step)
 
         self.settlement.check_settlement(self.step, self.k_active)
+
+        # 434号: periodic convergence fixpoint check (every 50 steps to bound overhead)
+        fixpoint_reached = False
+        if self.step % 50 == 0:
+            fixpoint_reached = self._trajectory_cluster.check_fixpoint(self.step)
 
         log = StepLog(
             step=self.step,

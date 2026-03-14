@@ -582,16 +582,32 @@ def _externalize_via_llm(
         }
 
     # writeback: LLM 输出 → S_net 共现边（仅 LLM 路径执行）
+    # 437号管道3: ceremony agent LLM 翻译结果回流 S_net
+    # 使用 ingest_text_passage_batch 完整管线（增强白名单 + surface form 提取）
     writeback_edges = 0
     if snet.signifiers:
-        whitelist = set(snet.signifiers.keys())
-        ts = str(int(time.time()))
-        new_snet, log_entries = writeback_from_text(
-            snet, content, whitelist, "llm_externalize", ts,
-        )
-        if log_entries:
-            daemon.snet = new_snet
-            writeback_edges = len(log_entries)
+        try:
+            from signifier_net_ingest import ingest_text_passage_batch
+            new_snet, log_entries = ingest_text_passage_batch(
+                snet, [content],
+                domain="llm_externalization",
+                source="ceremony_agent",
+            )
+            if log_entries:
+                daemon.snet = new_snet
+                writeback_edges = sum(
+                    1 for e in log_entries if e.get("type") == "cooccurrence"
+                )
+        except ImportError:
+            # fallback to simpler writeback_from_text
+            whitelist = set(snet.signifiers.keys())
+            ts = str(int(time.time()))
+            new_snet, log_entries = writeback_from_text(
+                snet, content, whitelist, "llm_externalize", ts,
+            )
+            if log_entries:
+                daemon.snet = new_snet
+                writeback_edges = len(log_entries)
 
     # 输出侧断裂追踪（仅 LLM 路径执行）
     output_ruptures = _detect_output_ruptures(content, snapshot, snet)

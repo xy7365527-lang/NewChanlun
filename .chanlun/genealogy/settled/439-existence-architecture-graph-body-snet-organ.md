@@ -171,7 +171,8 @@ S_net 参数 vs S_net 进程：
    - 四分法: 行动（431号已定义判据，实装路径明确）
 
 4. **架构文档更新**：本号的架构总图应写入逢亮的架构文档，作为所有组件存在论位置的权威参考。
-   - status: pending
+   - status: 已完成（v242-swarm 已创建 `topological-computation/ARCHITECTURE.md`）
+   - [covered: v242-swarm, consumed — ARCHITECTURE.md 包含：架构总图、存在论位置表、双层结构定义、S_net 两个面向区分、遭遇判据]
    - 四分法: 行动（文档更新可自主完成）
 
 ## 张力分析
