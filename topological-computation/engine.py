@@ -34,6 +34,10 @@ class EdgeType(str, Enum):
     ARTICULATED = "articulated"  # 概念层: 物质层积累涌现的概念连接（ça parle），参与fold/negate/sublate
 
 
+# Material edge types excluded from beta_1 and terrain computations
+_MATERIAL_EDGE_TYPES = frozenset((EdgeType.COOCCURRENCE, EdgeType.TRAVERSAL_ASSOCIATION))
+
+
 # 概念层边类型集合——fold/negate/sublate/settlement 只操作这些边
 CONCEPT_EDGE_TYPES = frozenset({
     EdgeType.DEPENDENCY,
@@ -266,6 +270,13 @@ class Graph:
             new_graph._adj_in[e.target] = list(new_graph._adj_in[e.target])
         new_graph._adj_in[e.target].append(e)
         new_graph._active_ids = self._active_ids  # edge ops don't change active set
+        # Propagate topology caches if material edge (excluded from beta_1/terrain)
+        if e.edge_type in _MATERIAL_EDGE_TYPES:
+            for attr in ('_cached_beta_1', '_cached_terrain'):
+                try:
+                    object.__setattr__(new_graph, attr, getattr(self, attr))
+                except AttributeError:
+                    pass
         return new_graph
 
     def add_edges_batch(self, edges: list[Edge]) -> Graph:
@@ -281,6 +292,13 @@ class Graph:
             new_graph._adj_out.setdefault(e.source, []).append(e)
             new_graph._adj_in.setdefault(e.target, []).append(e)
         new_graph._active_ids = self._active_ids  # edge ops don't change active set
+        # Propagate topology caches if all added edges are material (excluded from beta_1/terrain)
+        if all(e.edge_type in _MATERIAL_EDGE_TYPES for e in edges):
+            for attr in ('_cached_beta_1', '_cached_terrain'):
+                try:
+                    object.__setattr__(new_graph, attr, getattr(self, attr))
+                except AttributeError:
+                    pass
         return new_graph
 
     def add_vertices_and_edges_batch(self, vertices: list[Vertex], edges: list[Edge]) -> "Graph":

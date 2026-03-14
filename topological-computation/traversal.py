@@ -458,11 +458,7 @@ class TraversalEngine:
                     a, b = b, a  # ensure a = current position
                 # Check if b is a neighbor and negation edge doesn't already exist
                 if b in neighbors:
-                    has_neg = any(
-                        e.edge_type == EdgeType.NEGATION
-                        and ((e.source == a and e.target == b) or (e.source == b and e.target == a))
-                        for e in self.k_active.active_edges()
-                    )
+                    has_neg = frozenset((a, b)) in self._step_neg_pairs
                     if not has_neg:
                         return Encounter(
                             EncounterType.NEGATE_A, a, b,
@@ -525,13 +521,7 @@ class TraversalEngine:
                     continue  # both tree edges → hub-internal redundancy, not contradiction
                 # Bidirectional relationship with topological weight — contradiction signal
                 # But skip if already negation edge between them
-                has_neg = any(
-                    e.edge_type == EdgeType.NEGATION and e.target == nb
-                    for e in self.k_active._adj_out.get(pos, ())
-                ) or any(
-                    e.edge_type == EdgeType.NEGATION and e.target == pos
-                    for e in self.k_active._adj_out.get(nb, ())
-                )
+                has_neg = frozenset((pos, nb)) in self._step_neg_pairs
                 if not has_neg:
                     f_val = self._compute_f(pos, nb)
                     g_val = self._compute_g(pos, nb)
@@ -651,12 +641,7 @@ class TraversalEngine:
                 continue
             if nb not in out_nbs or nb not in in_nbs:
                 continue
-            has_neg = any(
-                e.edge_type == EdgeType.NEGATION
-                and ((e.source == pos and e.target == nb)
-                     or (e.source == nb and e.target == pos))
-                for e in self.k_active.active_edges()
-            )
+            has_neg = frozenset((pos, nb)) in self._step_neg_pairs
             if has_neg:
                 continue
             if best_negate is None or f_val > best_negate[1]:
@@ -1414,6 +1399,17 @@ class TraversalEngine:
         self._last_articulation = None
         explored = False
         prev_position = self.position  # 425号: record for TRAVERSAL_ASSOCIATION
+
+        # Pre-build negation pair lookup: O(deg) once, O(1) per check
+        pos = self.position
+        neg_pairs: set[frozenset[str]] = set()
+        for e in self.k_active._adj_out.get(pos, ()):
+            if e.edge_type == EdgeType.NEGATION:
+                neg_pairs.add(frozenset((e.source, e.target)))
+        for e in self.k_active._adj_in.get(pos, ()):
+            if e.edge_type == EdgeType.NEGATION:
+                neg_pairs.add(frozenset((e.source, e.target)))
+        self._step_neg_pairs = neg_pairs
 
         # Exploration move: periodically jump to under-explored vertex
         if self.step > 1 and self.step % EXPLORATION_INTERVAL == 0:

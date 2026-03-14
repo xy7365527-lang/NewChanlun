@@ -1069,7 +1069,7 @@ class TopologicalDaemon:
         if _need_diff:
             pre_vid_count = len(self.k_full._vertices)
             pre_edge_count = len(self.k_full._edges)
-            pre_vid_keys = set(self.k_full._vertices.keys())
+            pre_vid_keys = self.k_full._vertices.keys()  # dict_keys view: O(1) lookup, no copy
             # Track K_active vertex statuses to detect fold state changes
             pre_active_statuses = {
                 vid: v.status for vid, v in self.k_active.vertices.items()
