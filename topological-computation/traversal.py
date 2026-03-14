@@ -435,7 +435,7 @@ class TraversalEngine:
         })
 
         active = self.k_active._active_ids
-        neighbors = set(self.k_active.neighbors(self.position))
+        neighbors = self.k_active.neighbor_set(self.position)
 
         if result.action == "SUBLATE" and result.target_a and result.target_b:
             # Validate: pair must be in pending negations
@@ -511,9 +511,9 @@ class TraversalEngine:
         #    in Morse terrain. Tree edges are hub-internal redundancy; critical edges
         #    participate in irreducible cycles. Zero parameters — uses intrinsic
         #    topological structure from already-computed terrain.
-        neighbors = self.k_active.neighbors(pos)
-        out_nbs = self.k_active.out_neighbors(pos)
-        in_nbs = self.k_active.in_neighbors(pos)
+        neighbors = self.k_active.neighbor_set(pos)
+        out_nbs = self.k_active.out_neighbor_set(pos)
+        in_nbs = self.k_active.in_neighbor_set(pos)
         for nb in neighbors:
             if nb == pos:
                 continue
@@ -526,9 +526,11 @@ class TraversalEngine:
                 # Bidirectional relationship with topological weight — contradiction signal
                 # But skip if already negation edge between them
                 has_neg = any(
-                    e.edge_type == EdgeType.NEGATION
-                    and ((e.source == pos and e.target == nb) or (e.source == nb and e.target == pos))
-                    for e in self.k_active.active_edges()
+                    e.edge_type == EdgeType.NEGATION and e.target == nb
+                    for e in self.k_active._adj_out.get(pos, ())
+                ) or any(
+                    e.edge_type == EdgeType.NEGATION and e.target == pos
+                    for e in self.k_active._adj_out.get(nb, ())
                 )
                 if not has_neg:
                     f_val = self._compute_f(pos, nb)
@@ -550,7 +552,7 @@ class TraversalEngine:
         # Path A: f=0 categorical fold (393·4)
         # Sample neighbors when too many to avoid O(neighbors × degree) bottleneck
         import random as _rnd
-        _fold_candidates = neighbors if len(neighbors) <= 20 else _rnd.sample(neighbors, 20)
+        _fold_candidates = neighbors if len(neighbors) <= 20 else _rnd.sample(list(neighbors), 20)
         for nb in _fold_candidates:
             if nb == pos or nb not in active:
                 continue
@@ -570,13 +572,13 @@ class TraversalEngine:
 
         # Path B: shared neighbor fold (Nachträglichkeit)
         if len(self.visit_history) > 3:
-            pos_nbs = set(self.k_active.neighbors(pos))
+            pos_nbs = self.k_active.neighbor_set(pos)
             seen: set[str] = set()
             for past_vid in reversed(self.visit_history[:-1]):
                 if past_vid in seen or past_vid == pos or past_vid not in active:
                     continue
                 seen.add(past_vid)
-                past_nbs = set(self.k_active.neighbors(past_vid))
+                past_nbs = self.k_active.neighbor_set(past_vid)
                 shared = (pos_nbs & past_nbs) - {pos, past_vid}
                 if len(shared) >= 2:  # share at least 2 neighbors = structural similarity
                     pair_key = frozenset((pos, past_vid))
@@ -624,7 +626,7 @@ class TraversalEngine:
                     )
 
         # 2. Compute f(pos, nb) for all active neighbors
-        neighbors = self.k_active.neighbors(pos)
+        neighbors = self.k_active.neighbor_set(pos)
         f_scores: list[tuple[str, int]] = []
         for nb in neighbors:
             if nb == pos or nb not in active:
@@ -637,8 +639,8 @@ class TraversalEngine:
 
         # 3. Negate candidates: f >= threshold, bidirectional edge, no existing negation
         pos_is_synthetic = pos.startswith("syn_") or pos.startswith("anti_")
-        out_nbs = set(self.k_active.out_neighbors(pos))
-        in_nbs = set(self.k_active.in_neighbors(pos))
+        out_nbs = self.k_active.out_neighbor_set(pos)
+        in_nbs = self.k_active.in_neighbor_set(pos)
 
         best_negate: Optional[tuple[str, int]] = None
         for nb, f_val in f_scores:
@@ -922,7 +924,7 @@ class TraversalEngine:
             return None
 
         # Pick highest-degree free vertex (most neighbors = most encounter potential)
-        degrees = {v: len(self.k_active.neighbors(v)) for v in free_vids}
+        degrees = {v: len(self.k_active.neighbor_set(v)) for v in free_vids}
         return max(free_vids, key=lambda v: (degrees[v], v))
 
     def _exploration_target(self) -> str | None:
@@ -945,7 +947,7 @@ class TraversalEngine:
         recent = set(self.visit_history[-100:]) if len(self.visit_history) > 100 else set(self.visit_history)
         low_degree = [
             v for v in active
-            if len(self.k_active.neighbors(v)) <= 2
+            if len(self.k_active.neighbor_set(v)) <= 2
             and v not in recent
             and v != self.position
         ]
@@ -1185,27 +1187,27 @@ class TraversalEngine:
         current_sig = self._snet_activation._concept_to_sig.get(current)
 
         # --- A密B疏: COOCCURRENCE exists but no paradigmatic edge and no concept edge ---
-        for e in self.k_active.all_active_edges():
-            if e.edge_type != EdgeType.COOCCURRENCE:
-                continue
-            if e.source == current:
-                neighbor = e.target
-            elif e.target == current:
-                neighbor = e.source
-            else:
-                continue
-            if neighbor not in active_vids:
-                continue
+        # Use adjacency index for O(deg) instead of O(E) full scan
+        cooc_neighbors: set[str] = set()
+        for e in self.k_active._adj_out.get(current, ()):
+            if e.edge_type == EdgeType.COOCCURRENCE and e.target in active_vids:
+                cooc_neighbors.add(e.target)
+        for e in self.k_active._adj_in.get(current, ()):
+            if e.edge_type == EdgeType.COOCCURRENCE and e.source in active_vids:
+                cooc_neighbors.add(e.source)
 
-            # Check concept layer: if concept edge exists, this pair is already connected
+        for neighbor in cooc_neighbors:
+            # Check concept layer via adjacency index: O(deg) instead of O(E)
             has_concept_edge = False
-            for ce in self.k_active.active_edges():
-                if ce.edge_type not in CONCEPT_EDGE_TYPES:
-                    continue
-                if (ce.source == current and ce.target == neighbor) or \
-                   (ce.source == neighbor and ce.target == current):
+            for ce in self.k_active._adj_out.get(current, ()):
+                if ce.target == neighbor and ce.edge_type in CONCEPT_EDGE_TYPES:
                     has_concept_edge = True
                     break
+            if not has_concept_edge:
+                for ce in self.k_active._adj_in.get(current, ()):
+                    if ce.source == neighbor and ce.edge_type in CONCEPT_EDGE_TYPES:
+                        has_concept_edge = True
+                        break
             if has_concept_edge:
                 continue
 
@@ -1246,27 +1248,31 @@ class TraversalEngine:
                     if tgt_cid == current or tgt_cid not in active_vids:
                         continue
 
-                    # Check concept layer: skip if already connected
+                    # Check concept layer via adjacency index: O(deg) instead of O(E)
                     has_concept_edge = False
-                    for ce in self.k_active.active_edges():
-                        if ce.edge_type not in CONCEPT_EDGE_TYPES:
-                            continue
-                        if (ce.source == current and ce.target == tgt_cid) or \
-                           (ce.source == tgt_cid and ce.target == current):
+                    for ce in self.k_active._adj_out.get(current, ()):
+                        if ce.target == tgt_cid and ce.edge_type in CONCEPT_EDGE_TYPES:
                             has_concept_edge = True
                             break
+                    if not has_concept_edge:
+                        for ce in self.k_active._adj_in.get(current, ()):
+                            if ce.source == tgt_cid and ce.edge_type in CONCEPT_EDGE_TYPES:
+                                has_concept_edge = True
+                                break
                     if has_concept_edge:
                         continue
 
-                    # Check Layer A: any COOCCURRENCE edge?
+                    # Check Layer A via adjacency index: O(deg) instead of O(E)
                     has_cooccurrence = False
-                    for ae in self.k_active.all_active_edges():
-                        if ae.edge_type != EdgeType.COOCCURRENCE:
-                            continue
-                        if (ae.source == current and ae.target == tgt_cid) or \
-                           (ae.source == tgt_cid and ae.target == current):
+                    for ae in self.k_active._adj_out.get(current, ()):
+                        if ae.target == tgt_cid and ae.edge_type == EdgeType.COOCCURRENCE:
                             has_cooccurrence = True
                             break
+                    if not has_cooccurrence:
+                        for ae in self.k_active._adj_in.get(current, ()):
+                            if ae.source == tgt_cid and ae.edge_type == EdgeType.COOCCURRENCE:
+                                has_cooccurrence = True
+                                break
                     if has_cooccurrence:
                         continue
 
@@ -1327,7 +1333,7 @@ class TraversalEngine:
                 self._nothing_streak = 0
                 return
 
-        neighbors = self.k_active.neighbors(self.position)
+        neighbors = self.k_active.neighbor_set(self.position)
         if not neighbors:
             return  # stuck (should not happen in connected graph)
 
@@ -1377,7 +1383,7 @@ class TraversalEngine:
 
     def _pick_with_resonance(
         self,
-        candidates: list[str],
+        candidates: list[str] | set[str],
         resonating: set[str],
     ) -> str:
         """Choose from candidates with resonance as secondary pull.
@@ -1389,6 +1395,9 @@ class TraversalEngine:
         """
         if not candidates:
             return self.position
+        # rng.choice needs a sequence (list), not a set
+        if isinstance(candidates, set):
+            candidates = list(candidates)
         resonating_candidates = [c for c in candidates if c in resonating]
         if resonating_candidates:
             self._last_resonance = True
@@ -1498,18 +1507,19 @@ class TraversalEngine:
                 nachtraeglich = any(
                     e.edge_type == EdgeType.TRAVERSAL_ASSOCIATION
                     and e.created_at > cycle_start_step
-                    and (e.source == self.position or e.target == self.position)
-                    for e in self.k_active.active_edges()
+                    for e in (*self.k_active._adj_out.get(self.position, ()),
+                              *self.k_active._adj_in.get(self.position, ()))
                 )
                 # Log cycle detection as traversal event (not a separate module)
+                beta_after = compute_beta_1(self.k_active)
                 self.logs.append(StepLog(
                     step=self.step,
                     position=self.position,
                     encounter="cycle_detection",
                     operation="nachtraeglich_return" if nachtraeglich else "cycle_closed",
                     beta_1_before=beta_before,
-                    beta_1_after=compute_beta_1(self.k_active),
-                    delta_beta_1=compute_beta_1(self.k_active) - beta_before,
+                    beta_1_after=beta_after,
+                    delta_beta_1=beta_after - beta_before,
                     settled_count=len(self.settlement.settled_cycles),
                     blocked=False,
                     vertices_active=len(self.k_active._active_ids),
@@ -1579,7 +1589,7 @@ class TraversalEngine:
                 if tgt not in self.k_active._active_ids:
                     continue
                 # Check edge doesn't already exist
-                if tgt in self.k_active.neighbors(src):
+                if tgt in self.k_active.neighbor_set(src):
                     continue
                 # Create REFERENCE edge with linguistic evidence
                 surface = "; ".join(suggestion.evidence_patterns[:3]) if suggestion.evidence_patterns else ""

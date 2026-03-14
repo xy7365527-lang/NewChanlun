@@ -151,18 +151,32 @@ class Graph:
 
     def neighbors(self, vid: str) -> list[str]:
         """Return ids of vertices adjacent to vid (outgoing + incoming) among active vertices."""
+        return sorted(self.neighbor_set(vid))
+
+    def neighbor_set(self, vid: str) -> set[str]:
+        """Return set of vertex ids adjacent to vid among active vertices (no sorting)."""
         active = self._active_ids
         out = {e.target for e in self._adj_out.get(vid, ()) if e.target in active}
         inc = {e.source for e in self._adj_in.get(vid, ()) if e.source in active}
-        return sorted(out | inc)
+        return out | inc
 
     def out_neighbors(self, vid: str) -> list[str]:
         active = self._active_ids
         return sorted({e.target for e in self._adj_out.get(vid, ()) if e.target in active})
 
+    def out_neighbor_set(self, vid: str) -> set[str]:
+        """Return set of outgoing neighbor ids (no sorting)."""
+        active = self._active_ids
+        return {e.target for e in self._adj_out.get(vid, ()) if e.target in active}
+
     def in_neighbors(self, vid: str) -> list[str]:
         active = self._active_ids
         return sorted({e.source for e in self._adj_in.get(vid, ()) if e.source in active})
+
+    def in_neighbor_set(self, vid: str) -> set[str]:
+        """Return set of incoming neighbor ids (no sorting)."""
+        active = self._active_ids
+        return {e.source for e in self._adj_in.get(vid, ()) if e.source in active}
 
     def has_path(self, source: str, target: str) -> bool:
         """BFS on active subgraph (directed edges only)."""
@@ -212,7 +226,7 @@ class Graph:
                     and e.source != e.target
                     and e.edge_type not in (EdgeType.COOCCURRENCE, EdgeType.TRAVERSAL_ASSOCIATION)):
                 result.add(frozenset((e.source, e.target)))
-        return sorted(result, key=lambda fs: tuple(sorted(fs)))
+        return list(result)
 
     def self_loops(self) -> list[Edge]:
         """Return self-loops in active graph."""
@@ -266,6 +280,8 @@ class Graph:
         for e in edges:
             new_graph._adj_out.setdefault(e.source, []).append(e)
             new_graph._adj_in.setdefault(e.target, []).append(e)
+        new_graph._active_ids = self._active_ids  # edge ops don't change active set
+        return new_graph
 
     def add_vertices_and_edges_batch(self, vertices: list[Vertex], edges: list[Edge]) -> "Graph":
         """Add multiple vertices and edges in one operation — single dict copy."""
@@ -289,8 +305,6 @@ class Graph:
             new_graph._edges = self._edges
             new_graph._adj_out = self._adj_out
             new_graph._adj_in = self._adj_in
-        return new_graph
-        new_graph._active_ids = self._active_ids  # edge ops don't change active set
         return new_graph
 
     def set_vertex_status(self, vid: str, status: VertexStatus) -> Graph:
@@ -362,16 +376,25 @@ def compute_beta_1(graph: Graph) -> int:
     β₁ = |E_undirected| - |V_active| + connected_components + self_loops
 
     Self-loops each contribute +1 to β₁ (∂(loop) = 0, each is an independent 1-cycle).
+
+    Cached on Graph instance since Graph is immutable — result never changes.
     """
-    active_vids = graph.active_vertex_ids()
+    try:
+        return graph._cached_beta_1
+    except AttributeError:
+        pass
+    active_vids = list(graph._active_ids)
     if not active_vids:
+        object.__setattr__(graph, '_cached_beta_1', 0)
         return 0
     undirected = graph.undirected_active_edges()
     n_loops = len(graph.self_loops())
     n_v = len(active_vids)
     n_e = len(undirected)
     c = _connected_components(active_vids, undirected)
-    return n_e - n_v + c + n_loops
+    result = n_e - n_v + c + n_loops
+    object.__setattr__(graph, '_cached_beta_1', result)
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -605,6 +628,9 @@ class SettlementTracker:
 
         396号: settlement produces residue (transformation, not closure).
         """
+        if not self._pending:
+            return []
+
         newly_settled: list[SettledCycle] = []
         active_edges = {(e.source, e.target) for e in graph.active_edges()}
 
