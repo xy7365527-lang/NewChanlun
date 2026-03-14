@@ -254,7 +254,8 @@ def inject_settlement_memory_node(
         f"cycle=[{cycle_desc[:150]}]"
     )
     vertex = Vertex(id=settle_vid, status=VertexStatus.ACTIVE, content=content, created_at=step)
-    result = graph.add_vertex(vertex)
+    # Collect all vertices for batch addition
+    new_vertices: list[Vertex] = [vertex]
 
     # Collect all edges to add in batch
     new_edges: list[Edge] = []
@@ -281,7 +282,7 @@ def inject_settlement_memory_node(
             f"settlement_step={step}"
         )
         r_vertex = Vertex(id=r_vid, status=VertexStatus.ACTIVE, content=r_content, created_at=step)
-        result = result.add_vertex(r_vertex)
+        new_vertices.append(r_vertex)
 
         # Connect residue to settlement
         new_edges.append(Edge(
@@ -318,9 +319,8 @@ def inject_settlement_memory_node(
                     edge_type=EdgeType.REFERENCE, created_at=step,
                 ))
 
-    # Batch add all edges in one operation
-    if new_edges:
-        result = result.add_edges_batch(new_edges)
+    # Batch add all vertices and edges in one operation
+    result = graph.add_vertices_and_edges_batch(new_vertices, new_edges)
 
     return result
 

@@ -266,6 +266,30 @@ class Graph:
         for e in edges:
             new_graph._adj_out.setdefault(e.source, []).append(e)
             new_graph._adj_in.setdefault(e.target, []).append(e)
+
+    def add_vertices_and_edges_batch(self, vertices: list[Vertex], edges: list[Edge]) -> "Graph":
+        """Add multiple vertices and edges in one operation — single dict copy."""
+        new_graph = Graph.__new__(Graph)
+        new_verts = dict(self._vertices)
+        new_active = set(self._active_ids)
+        for v in vertices:
+            new_verts[v.id] = v
+            if v.status != VertexStatus.FOLDED:
+                new_active.add(v.id)
+        new_graph._vertices = new_verts
+        new_graph._active_ids = frozenset(new_active)
+        if edges:
+            new_graph._edges = self._edges + edges
+            new_graph._adj_out = {k: list(v) for k, v in self._adj_out.items()}
+            new_graph._adj_in = {k: list(v) for k, v in self._adj_in.items()}
+            for e in edges:
+                new_graph._adj_out.setdefault(e.source, []).append(e)
+                new_graph._adj_in.setdefault(e.target, []).append(e)
+        else:
+            new_graph._edges = self._edges
+            new_graph._adj_out = self._adj_out
+            new_graph._adj_in = self._adj_in
+        return new_graph
         new_graph._active_ids = self._active_ids  # edge ops don't change active set
         return new_graph
 
