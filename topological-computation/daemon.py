@@ -1063,10 +1063,13 @@ class TopologicalDaemon:
         self.total_steps += 1
 
         # Capture pre-step state for persistence diff and SharedLayer sync
+        # Use count-based diff (O(1)) instead of set-based diff (O(E))
+        # Graph.add_edge appends to _edges list, so new edges are always at tail
         _need_diff = self._persist or self._shared_layer is not None
         if _need_diff:
-            pre_vids = set(self.k_full.vertices.keys())
-            pre_edges = set(self.k_full.edges)
+            pre_vid_count = len(self.k_full._vertices)
+            pre_edge_count = len(self.k_full._edges)
+            pre_vid_keys = set(self.k_full._vertices.keys())
             # Track K_active vertex statuses to detect fold state changes
             pre_active_statuses = {
                 vid: v.status for vid, v in self.k_active.vertices.items()
@@ -1185,16 +1188,16 @@ class TopologicalDaemon:
             self._local_f_history.clear()
             self._beta_1_history.clear()
 
-        # Compute graph diffs (used by both persistence and SharedLayer sync)
+        # Compute graph diffs using count-based tail slice — O(new) instead of O(E)
         new_vids: set[str] = set()
-        new_edges: set = set()
+        new_edges_list: list = []
         if _need_diff:
-            for vid in self.k_full.vertices:
-                if vid not in pre_vids:
+            # New vertices: keys not in pre snapshot
+            for vid in self.k_full._vertices:
+                if vid not in pre_vid_keys:
                     new_vids.add(vid)
-            for e in self.k_full.edges:
-                if e not in pre_edges:
-                    new_edges.add(e)
+            # New edges: tail slice (Graph.add_edge appends)
+            new_edges_list = self.k_full._edges[pre_edge_count:]
 
         # Persist graph state changes (always, not just for significant events)
         if self._persist:
@@ -1204,7 +1207,7 @@ class TopologicalDaemon:
                     self._persist.append_vertex(v)
             # Persist ARTICULATED edges with full provenance via append_articulation
             art_meta = self.engine._last_articulation
-            for e in new_edges:
+            for e in new_edges_list:
                 if e.edge_type == EdgeType.ARTICULATED and art_meta is not None \
                         and e.source == art_meta["source_vid"] \
                         and e.target == art_meta["target_vid"]:
@@ -1302,7 +1305,7 @@ class TopologicalDaemon:
         # Plan C: write sync blocks to SharedLayer (each method self-throttles)
         if self._shared_layer is not None:
             self._write_traversal_position(log)
-            self._write_graph_delta(log, new_vids, new_edges)
+            self._write_graph_delta(log, new_vids, new_edges_list)
             self._write_settlement_event(new_settled)
             self._write_snet_update()
 
