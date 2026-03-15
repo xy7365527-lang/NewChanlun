@@ -751,7 +751,7 @@ class TraversalEngine:
             self.k_active = result.graph
             self.k_full = self.k_full.add_vertex(self.k_active.vertex(result.new_vertex))
             for e in result.graph.edges:
-                if e.created_at == self.step and (e.source, e.target, e.edge_type) not in self.k_full._edge_keys:
+                if e.created_at == self.step and not self.k_full.has_edge_key(e.source, e.target, e.edge_type):
                     self.k_full = self.k_full.add_edge(e)
 
             # Creation = arrival
@@ -784,7 +784,7 @@ class TraversalEngine:
 
             self.k_active = result.graph
             for e in result.graph.edges:
-                if e.created_at == self.step and (e.source, e.target, e.edge_type) not in self.k_full._edge_keys:
+                if e.created_at == self.step and not self.k_full.has_edge_key(e.source, e.target, e.edge_type):
                     self.k_full = self.k_full.add_edge(e)
 
             self._pending_negations.append((enc.target_a, enc.target_b))
@@ -812,7 +812,7 @@ class TraversalEngine:
             if new_v:
                 self.k_full = self.k_full.add_vertex(new_v)
             for e in result.graph.edges:
-                if e.created_at == self.step and (e.source, e.target, e.edge_type) not in self.k_full._edge_keys:
+                if e.created_at == self.step and not self.k_full.has_edge_key(e.source, e.target, e.edge_type):
                     self.k_full = self.k_full.add_edge(e)
 
             # Creation = arrival
@@ -846,7 +846,7 @@ class TraversalEngine:
             self.k_active = result.graph
             # Update K_full with fold record
             for e in result.graph.edges:
-                if e.created_at == self.step and (e.source, e.target, e.edge_type) not in self.k_full._edge_keys:
+                if e.created_at == self.step and not self.k_full.has_edge_key(e.source, e.target, e.edge_type):
                     self.k_full = self.k_full.add_edge(e)
             # If position was folded away, move to kept vertex
             if self.position == enc.target_b:
