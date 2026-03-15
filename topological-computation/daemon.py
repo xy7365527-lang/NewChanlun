@@ -1811,20 +1811,21 @@ class TopologicalDaemon:
 
         # Inject into K_active (max 10 per crystallization to avoid flooding)
         existing_edges = set(self.k_active._edge_keys)  # mutable copy for .add()
-        added = 0
+        new_edges: list = []
         for edge, _score in candidates:
-            if added >= 10:
+            if len(new_edges) >= 10:
                 break
             key = (edge.source, edge.target, edge.edge_type)
             if key not in existing_edges:
                 if (self.k_active.vertex(edge.source) is not None
                         and self.k_active.vertex(edge.target) is not None):
-                    self.k_active = self.k_active.add_edge(edge)
-                    self.k_full = self.k_full.add_edge(edge)
+                    new_edges.append(edge)
                     existing_edges.add(key)
-                    added += 1
                     # Persistence handled by _step diff logic (998-1016)
                     # to avoid double-write (was root cause of 3847x duplication bug)
+        if new_edges:
+            self.k_active = self.k_active.add_vertices_and_edges_batch([], new_edges)
+            self.k_full = self.k_full.add_vertices_and_edges_batch([], new_edges)
 
         self._cross_domain_scanned_vids = current_vids
 
@@ -1838,24 +1839,31 @@ class TopologicalDaemon:
         existing_vids = set(self.k_active.active_vertex_ids())
         existing_edges = set(self.k_active._edge_keys)  # mutable copy for .add()
 
+        new_vertices: list = []
         for vid in sub_graph.active_vertex_ids():
             if vid not in existing_vids:
-                v = sub_graph.vertex(vid)
-                self.k_active = self.k_active.add_vertex(v)
-                self.k_full = self.k_full.add_vertex(v)
+                new_vertices.append(sub_graph.vertex(vid))
                 # Persistence handled by _step diff logic (998-1016)
                 # to avoid double-write (was root cause of 3847x duplication bug)
 
+        if new_vertices:
+            self.k_active = self.k_active.add_vertices_and_edges_batch(new_vertices, [])
+            self.k_full = self.k_full.add_vertices_and_edges_batch(new_vertices, [])
+
+        new_edges: list = []
         for e in sub_graph.active_edges():
             key = (e.source, e.target, e.edge_type)
             if key not in existing_edges:
                 if (self.k_active.vertex(e.source) is not None
                         and self.k_active.vertex(e.target) is not None):
-                    self.k_active = self.k_active.add_edge(e)
-                    self.k_full = self.k_full.add_edge(e)
+                    new_edges.append(e)
                     existing_edges.add(key)
                     # Persistence handled by _step diff logic (998-1016)
                     # to avoid double-write (was root cause of 3847x duplication bug)
+
+        if new_edges:
+            self.k_active = self.k_active.add_vertices_and_edges_batch([], new_edges)
+            self.k_full = self.k_full.add_vertices_and_edges_batch([], new_edges)
 
         # Rebuild terrain, registry, engine
         self._initialize_engine()
