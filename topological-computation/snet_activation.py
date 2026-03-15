@@ -256,7 +256,7 @@ def _expand_mappings(
     max_rounds = 3
     for round_idx in range(max_rounds):
         changed = False
-        for sid in list(s_net.signifiers.keys()):
+        for sid in list(s_net._signifiers.keys()):
             if sid in expanded_s2c:
                 # 传播给无映射的邻居
                 for neighbor in par_neighbors.get(sid, []):
@@ -288,7 +288,7 @@ def _expand_mappings(
             content_index[vid] = v.content.strip().lower()
 
     substring_added = 0
-    still_unmapped = [sid for sid in s_net.signifiers if sid not in expanded_s2c]
+    still_unmapped = [sid for sid in s_net._signifiers if sid not in expanded_s2c]
     for sid in still_unmapped:
         sid_lower = sid.lower()
         if len(sid_lower) < 3:
@@ -317,7 +317,7 @@ def _expand_mappings(
                 reverse_added += 1
     stats["reverse_added"] = reverse_added
     stats["after"] = len(expanded_s2c)
-    stats["total_signifiers"] = len(s_net.signifiers)
+    stats["total_signifiers"] = len(s_net._signifiers)
 
     return expanded_c2s, expanded_s2c, stats
 
