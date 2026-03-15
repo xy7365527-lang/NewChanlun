@@ -278,7 +278,7 @@ def _expand_mappings(
     stats["paradigmatic_added"] = paradigmatic_added
     stats["paradigmatic_rounds"] = round_idx + 1
 
-    # --- 阶段2：子串匹配 ---
+    # --- 阶段2：子串匹配（反转搜索：从少量 content 出发匹配 signifiers）---
     # 构建 content 索引（小写化）
     content_index: dict[str, str] = {}  # vid -> lowercase content
     verts2 = graph.vertices
@@ -289,21 +289,42 @@ def _expand_mappings(
 
     substring_added = 0
     still_unmapped = [sid for sid in s_net._signifiers if sid not in expanded_s2c]
+
+    # 优化：反转搜索方向。content_index 通常只有 ~200 条目，
+    # 而 still_unmapped 可能有 200K+ 条。逐 content 搜索比逐 signifier 搜索快 1000x。
+    # 构建 unmapped signifiers 的 set 用于 O(1) 查找
+    unmapped_set = set(still_unmapped)
+    unmapped_lower_map: dict[str, str] = {}  # lowercase → original id
     for sid in still_unmapped:
         sid_lower = sid.lower()
-        if len(sid_lower) < 3:
-            continue
-        try:
-            pattern = r'\b' + re.escape(sid_lower) + r'\b'
-            matched_vids: list[str] = []
-            for vid, content_lower in content_index.items():
-                if re.search(pattern, content_lower):
-                    matched_vids.append(vid)
-            if matched_vids:
-                expanded_s2c[sid] = matched_vids[:3]
-                substring_added += 1
-        except re.error:
-            continue
+        if len(sid_lower) >= 3:
+            unmapped_lower_map[sid_lower] = sid
+
+    # 对每个 content，提取其中包含的 unmapped signifiers
+    for vid, content_lower in content_index.items():
+        # 用空格分割 content 中的 token，然后检查哪些 token 是 unmapped signifiers
+        content_words = set(content_lower.split())
+        for sid_lower, sid in unmapped_lower_map.items():
+            if sid in expanded_s2c:
+                continue  # 可能已被另一个 content 匹配
+            # 单词级匹配（代替正则 \b）
+            if ' ' in sid_lower:
+                # 多词术语：用 in 检查
+                if sid_lower in content_lower:
+                    expanded_s2c.setdefault(sid, []).append(vid)
+                    if len(expanded_s2c[sid]) <= 3:
+                        substring_added += 1
+            else:
+                # 单词术语：用 set 查找
+                if sid_lower in content_words:
+                    expanded_s2c.setdefault(sid, []).append(vid)
+                    if len(expanded_s2c[sid]) <= 3:
+                        substring_added += 1
+
+    # 限制每个 signifier 最多映射 3 个概念
+    for sid in list(expanded_s2c.keys()):
+        if len(expanded_s2c[sid]) > 3:
+            expanded_s2c[sid] = expanded_s2c[sid][:3]
 
     stats["substring_added"] = substring_added
 
