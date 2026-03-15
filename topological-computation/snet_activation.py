@@ -354,6 +354,8 @@ class SNetActivation:
         """K_active 步进到新概念时调用.
 
         激活对应能指，清理失去组合轴连接的旧激活。
+        超边消费：到达节点 A 时，查询 snet.hyperedges_containing(A) 获取完整语境，
+        超边中的共现邻居也保留在激活态。
         """
         new_signifier = self._concept_to_sig.get(concept_id)
         if not new_signifier:
@@ -361,11 +363,14 @@ class SNetActivation:
 
         new_active: set[str] = {new_signifier}
 
-        # 保留与新能指有组合轴连接的旧激活
+        # 超边中与新能指共现的所有术语也保留激活
+        hyperedge_cooccurrents = self._hyperedge_context(new_signifier)
+
+        # 保留与新能指有组合轴连接或同一超边中的旧激活
         for sig in self.currently_active:
             if sig == new_signifier:
                 continue
-            if self._has_syntagmatic_edge(sig, new_signifier):
+            if sig in hyperedge_cooccurrents or self._has_syntagmatic_edge(sig, new_signifier):
                 new_active.add(sig)
 
         self._check_fragment_formation(self.currently_active, new_active)
@@ -439,6 +444,32 @@ class SNetActivation:
             return True
         w = self.s_net.cooccurrence_weight(sig_b, sig_a)
         return w > 0.0
+
+    def _hyperedge_context(self, signifier_id: str) -> set[str]:
+        """返回与 signifier_id 在同一超边中的所有术语（不含自身）."""
+        result: set[str] = set()
+        for he in self.s_net.hyperedges_containing(signifier_id):
+            result.update(he.vertices)
+        result.discard(signifier_id)
+        return result
+
+    def context_vertices(self, concept_id: str) -> set[str]:
+        """返回与 concept_id 在同一超边中的所有术语的 concept IDs.
+
+        查询路径：concept_id → signifier_id → hyperedges_containing → 其他 vertices → concept IDs。
+        "同时在场"信息是超边保留而成对边丢失的关键价值。
+        """
+        signifier_id = self._concept_to_sig.get(concept_id)
+        if not signifier_id:
+            return set()
+
+        cooccurrents = self._hyperedge_context(signifier_id)
+        result: set[str] = set()
+        for sig in cooccurrents:
+            for cid in self._sig_to_concepts.get(sig, []):
+                if cid != concept_id:
+                    result.add(cid)
+        return result
 
     def _check_fragment_formation(
         self,
@@ -530,8 +561,11 @@ class SNetActivation:
     def check_articulation_feedback(self, graph) -> list[EdgeSuggestion]:
         """检查 articulation feedback.
 
-        S_net 中两个激活能指有组合轴连接，但对应概念在 K_active 中
+        S_net 中两个激活能指有组合轴连接或在同一超边中，但对应概念在 K_active 中
         没有 edge → 注册为 edge_suggestion。
+
+        超边信息增强：如果 A 和 B 在同一超边中但 K_active 无边 → EdgeSuggestion
+        附带超边上下文（evidence_patterns 中包含 hyperedge evidence_tag）。
 
         当一个能指有 concept_ref 而另一个没有（孤立 signifier）时，
         生成桥接建议而非跳过（articulation_bridge）。
@@ -552,7 +586,9 @@ class SNetActivation:
 
         for i, sig_a in enumerate(active_list):
             for sig_b in active_list[i + 1:]:
-                if not self._has_syntagmatic_edge(sig_a, sig_b):
+                has_syntagmatic = self._has_syntagmatic_edge(sig_a, sig_b)
+                shared_hyperedges = self.s_net.cooccurrence_context(sig_a, sig_b)
+                if not has_syntagmatic and not shared_hyperedges:
                     continue
 
                 # 获取对应概念
@@ -572,6 +608,11 @@ class SNetActivation:
                         if edge.evidence:
                             syntagmatic_evidence.append(edge.evidence)
                         syntagmatic_weight = max(syntagmatic_weight, edge.weight)
+
+                # 超边 evidence 附加
+                for he in shared_hyperedges:
+                    if he.evidence_tag and he.evidence_tag not in syntagmatic_evidence:
+                        syntagmatic_evidence.append(he.evidence_tag)
 
                 # 桥接路径：一个有 concept_ref，另一个没有
                 if concepts_a and not concepts_b:

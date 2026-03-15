@@ -30,6 +30,12 @@ from enum import Enum
 from pathlib import Path
 from typing import Optional
 
+from cooccurrence_hyperedge import (
+    CooccurrenceHyperedge,
+    hyperedge_to_dict,
+    hyperedge_from_dict,
+)
+
 
 # ---------------------------------------------------------------------------
 # 轴类型
@@ -124,10 +130,12 @@ class SNet:
         signifiers: dict[str, Signifier] | None = None,
         edges: list[SignifierEdge] | None = None,
         morphemes: dict[str, MorphemeStructure] | None = None,
+        hyperedges: list[CooccurrenceHyperedge] | None = None,
     ) -> None:
         self._signifiers: dict[str, Signifier] = dict(signifiers) if signifiers else {}
         self._edges: list[SignifierEdge] = list(edges) if edges else []
         self._morphemes: dict[str, MorphemeStructure] = dict(morphemes) if morphemes else {}
+        self._hyperedges: list[CooccurrenceHyperedge] = list(hyperedges) if hyperedges else []
         # 组合轴邻接索引（source -> list[SignifierEdge]）
         self._syn_out: dict[str, list[SignifierEdge]] = {}
         # 聚合轴替换索引（id -> list[SignifierEdge]）
@@ -145,6 +153,11 @@ class SNet:
                 self._morpheme_out.setdefault(e.source, []).append(e)
             else:
                 self._par_out.setdefault(e.source, []).append(e)
+        # 超边索引（vertex_id -> list[hyperedge index]）
+        self._vertex_to_hyperedges: dict[str, list[int]] = {}
+        for idx, he in enumerate(self._hyperedges):
+            for v in he.vertices:
+                self._vertex_to_hyperedges.setdefault(v, []).append(idx)
 
     @property
     def signifiers(self) -> dict[str, Signifier]:
@@ -153,6 +166,10 @@ class SNet:
     @property
     def edges(self) -> list[SignifierEdge]:
         return list(self._edges)
+
+    @property
+    def hyperedges(self) -> list[CooccurrenceHyperedge]:
+        return list(self._hyperedges)
 
     # ------------------------------------------------------------------
     # 只读查询
@@ -181,7 +198,19 @@ class SNet:
         return self._morphemes.get(signifier_id)
 
     def cooccurrence_weight(self, sid_a: str, sid_b: str) -> float:
-        """返回两个能指之间的组合轴共现权重（无边则 0.0）。"""
+        """返回两个能指之间的共现权重。
+
+        优先使用超边计数（a 和 b 共同参与的超边数量）。
+        如果无超边，fallback 到组合轴边权重（向后兼容旧数据）。
+        """
+        # 超边计数：共同参与的超边数量
+        a_indices = set(self._vertex_to_hyperedges.get(sid_a, []))
+        if a_indices:
+            b_indices = set(self._vertex_to_hyperedges.get(sid_b, []))
+            shared_count = len(a_indices & b_indices)
+            if shared_count > 0:
+                return float(shared_count)
+        # Fallback: 组合轴边权重（旧路径，向后兼容）
         for e in self._syn_out.get(sid_a, []):
             if e.target == sid_b:
                 return e.weight
@@ -194,6 +223,43 @@ class SNet:
     def syn_degree(self, sid: str) -> int:
         """返回能指 sid 的组合轴度数（无向）。"""
         return self._syn_degree.get(sid, 0)
+
+    def hyperedges_containing(self, vertex_id: str) -> list[CooccurrenceHyperedge]:
+        """返回包含指定顶点的所有超边。"""
+        indices = self._vertex_to_hyperedges.get(vertex_id, [])
+        return [self._hyperedges[i] for i in indices]
+
+    def cooccurrence_context(
+        self, a: str, b: str,
+    ) -> list[CooccurrenceHyperedge]:
+        """返回同时包含 a 和 b 的所有超边。"""
+        a_indices = set(self._vertex_to_hyperedges.get(a, []))
+        b_indices = set(self._vertex_to_hyperedges.get(b, []))
+        shared = sorted(a_indices & b_indices)
+        return [self._hyperedges[i] for i in shared]
+
+    def derive_pairwise_edges(
+        self, hyperedge: CooccurrenceHyperedge, weight: float = 1.0,
+    ) -> list[SignifierEdge]:
+        """从超边 lazy 派生成对组合轴边。
+
+        将 N 个术语的超边展开为 C(N,2) 条 SignifierEdge。
+        排序保证确定性：vertices 按字典序排列后生成有序对。
+
+        认识论等级：L0（代数操作，从超边确定性生成成对边）
+        """
+        sorted_verts = sorted(hyperedge.vertices)
+        edges: list[SignifierEdge] = []
+        for i in range(len(sorted_verts)):
+            for j in range(i + 1, len(sorted_verts)):
+                edges.append(SignifierEdge(
+                    source=sorted_verts[i],
+                    target=sorted_verts[j],
+                    axis=AxisType.SYNTAGMATIC,
+                    weight=weight,
+                    evidence=hyperedge.evidence_tag,
+                ))
+        return edges
 
     def degree_normalized_neighbors(
         self,
@@ -237,17 +303,17 @@ class SNet:
         """添加能指。若 id 已存在则覆盖。"""
         new_sigs = dict(self._signifiers)
         new_sigs[sig.id] = sig
-        return SNet(new_sigs, self._edges, self._morphemes)
+        return SNet(new_sigs, self._edges, self._morphemes, self._hyperedges)
 
     def add_edge(self, edge: SignifierEdge) -> "SNet":
         """添加边。不去重（允许累积权重后外部聚合）。"""
-        return SNet(self._signifiers, self._edges + [edge], self._morphemes)
+        return SNet(self._signifiers, self._edges + [edge], self._morphemes, self._hyperedges)
 
     def add_edges(self, edges: list[SignifierEdge]) -> "SNet":
         """批量添加边（一次性创建新 SNet，避免逐条 add_edge 的 O(n^2) 复制）。"""
         if not edges:
             return self
-        return SNet(self._signifiers, self._edges + edges, self._morphemes)
+        return SNet(self._signifiers, self._edges + edges, self._morphemes, self._hyperedges)
 
     def add_signifiers(self, sigs: list[Signifier]) -> "SNet":
         """批量添加能指（一次性创建新 SNet，避免逐条 add_signifier 的重复复制）。"""
@@ -256,13 +322,25 @@ class SNet:
         new_sigs = dict(self._signifiers)
         for sig in sigs:
             new_sigs[sig.id] = sig
-        return SNet(new_sigs, self._edges, self._morphemes)
+        return SNet(new_sigs, self._edges, self._morphemes, self._hyperedges)
 
     def add_morpheme_structure(self, ms: MorphemeStructure) -> "SNet":
         """添加语素分解结构。若 signifier_id 已存在则覆盖。"""
         new_morphemes = dict(self._morphemes)
         new_morphemes[ms.signifier_id] = ms
-        return SNet(self._signifiers, self._edges, new_morphemes)
+        return SNet(self._signifiers, self._edges, new_morphemes, self._hyperedges)
+
+    def add_hyperedge(self, he: CooccurrenceHyperedge) -> "SNet":
+        """添加超边。返回新 SNet 实例。"""
+        return SNet(self._signifiers, self._edges, self._morphemes,
+                    self._hyperedges + [he])
+
+    def add_hyperedges(self, hes: list[CooccurrenceHyperedge]) -> "SNet":
+        """批量添加超边。返回新 SNet 实例。"""
+        if not hes:
+            return self
+        return SNet(self._signifiers, self._edges, self._morphemes,
+                    self._hyperedges + hes)
 
     def merge_edge_weights(self) -> "SNet":
         """将同 (source, target, axis) 的边合并，weight 求和。
@@ -294,7 +372,7 @@ class SNet:
             )
             for k, w in merged.items()
         ]
-        return SNet(self._signifiers, new_edges, self._morphemes)
+        return SNet(self._signifiers, new_edges, self._morphemes, self._hyperedges)
 
     # ------------------------------------------------------------------
     # 序列化 / 反序列化（持久化缓存用）
@@ -347,6 +425,9 @@ class SNet:
                 }
                 for sid, ms in self._morphemes.items()
             },
+            "hyperedges": [
+                hyperedge_to_dict(he) for he in self._hyperedges
+            ],
         }
 
     @classmethod
@@ -396,12 +477,18 @@ class SNet:
                 etymology=md.get("etymology", ""),
             )
 
-        return cls(signifiers=signifiers, edges=edges, morphemes=morphemes)
+        hyperedges: list[CooccurrenceHyperedge] = [
+            hyperedge_from_dict(hd) for hd in data.get("hyperedges", [])
+        ]
+
+        return cls(signifiers=signifiers, edges=edges, morphemes=morphemes,
+                   hyperedges=hyperedges)
 
     def __repr__(self) -> str:
         return (
             f"SNet(signifiers={len(self._signifiers)}, "
             f"edges={len(self._edges)}, "
+            f"hyperedges={len(self._hyperedges)}, "
             f"morphemes={len(self._morphemes)})"
         )
 

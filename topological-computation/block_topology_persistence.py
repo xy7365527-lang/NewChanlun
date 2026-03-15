@@ -396,6 +396,50 @@ class BlockTopologyWriter:
             "timestamp": timestamp,
         })
 
+    def append_hyperedge(
+        self,
+        vertices: list[str],
+        source: str,
+        domain: str,
+        timestamp: str,
+        evidence_tag: str = "",
+        ingest_param_refs: list[str] | None = None,
+    ):
+        """Write a hyperedge block to block topology (immutable, material layer).
+
+        Each CooccurrenceHyperedge becomes one block. Old blocks are never deleted;
+        new ingestion produces new blocks.
+
+        Parameters:
+            vertices: sorted list of signifier IDs in the hyperedge
+            source: corpus source identifier
+            domain: domain tag (e.g. "hegel")
+            timestamp: ingestion timestamp
+            evidence_tag: corpus reference tag
+            ingest_param_refs: references to snet_param concept nodes
+        """
+        content = {
+            "event_type": "hyperedge",
+            "domain": DOMAIN_MATERIAL,
+            "vertices": sorted(vertices),
+            "source": source,
+            "hyperedge_domain": domain,
+            "timestamp": timestamp,
+            "evidence_tag": evidence_tag,
+            "ingest_param_refs": list(ingest_param_refs) if ingest_param_refs else [],
+        }
+        block = make_block("event", DAEMON_SOURCE, content)
+        write_block(block, base=self.bt_base)
+
+        self._write_jsonl_backup({
+            "type": "hyperedge",
+            "vertices": sorted(vertices),
+            "source": source,
+            "domain": domain,
+            "timestamp": timestamp,
+            "evidence_tag": evidence_tag,
+        })
+
 
 def load_graph_from_block_topology(
     bt_base: Path = DAEMON_BT_BASE,
