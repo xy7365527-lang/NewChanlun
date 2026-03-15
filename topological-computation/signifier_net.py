@@ -330,6 +330,15 @@ class SNet:
         new_morphemes[ms.signifier_id] = ms
         return SNet(self._signifiers, self._edges, new_morphemes, self._hyperedges)
 
+    def add_morpheme_structures(self, structures: list[MorphemeStructure]) -> "SNet":
+        """批量添加语素分解结构（一次性创建新 SNet，避免逐条重建）。"""
+        if not structures:
+            return self
+        new_morphemes = dict(self._morphemes)
+        for ms in structures:
+            new_morphemes[ms.signifier_id] = ms
+        return SNet(self._signifiers, self._edges, new_morphemes, self._hyperedges)
+
     def add_hyperedge(self, he: CooccurrenceHyperedge) -> "SNet":
         """添加超边。返回新 SNet 实例。"""
         return SNet(self._signifiers, self._edges, self._morphemes,

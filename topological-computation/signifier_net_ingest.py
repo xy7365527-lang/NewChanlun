@@ -259,6 +259,10 @@ def ingest_dictionary(
 
     stats["entries_total"] = len(entries)
 
+    pending_signifiers: list[Signifier] = []
+    pending_edges: list[SignifierEdge] = []
+    existing_sig_ids: set[str] = set(snet.signifiers.keys())
+
     for entry in entries:
         term = entry.get("term", "").strip()
         domain = entry.get("domain", "").strip()
@@ -287,17 +291,19 @@ def ingest_dictionary(
             syn_resolved = _resolve_term(syn, snet, head_index)
             if syn_resolved is None:
                 # synonym 不在 S_net 中，创建新 signifier
-                snet = snet.add_signifier(Signifier(
-                    id=syn,
-                    surface_forms=(),
-                    source="dictionary",
-                    lang=entry_lang,
-                ))
-                stats["signifiers_created"] += 1
+                if syn not in existing_sig_ids:
+                    pending_signifiers.append(Signifier(
+                        id=syn,
+                        surface_forms=(),
+                        source="dictionary",
+                        lang=entry_lang,
+                    ))
+                    existing_sig_ids.add(syn)
+                    stats["signifiers_created"] += 1
                 syn_resolved = syn
 
             # 添加聚合轴边（synonym 关系）
-            snet = snet.add_edge(SignifierEdge(
+            pending_edges.append(SignifierEdge(
                 source=resolved_id,
                 target=syn_resolved,
                 axis=AxisType.PARADIGMATIC,
@@ -324,14 +330,14 @@ def ingest_dictionary(
                 continue
 
             # 添加对称的 contrast 边（A→B 和 B→A）
-            snet = snet.add_edge(SignifierEdge(
+            pending_edges.append(SignifierEdge(
                 source=resolved_id,
                 target=c_resolved,
                 axis=AxisType.PARADIGMATIC,
                 weight=0.6,
                 evidence=c_diff or f"辞典对比项 ({domain})",
             ))
-            snet = snet.add_edge(SignifierEdge(
+            pending_edges.append(SignifierEdge(
                 source=c_resolved,
                 target=resolved_id,
                 axis=AxisType.PARADIGMATIC,
@@ -360,7 +366,7 @@ def ingest_dictionary(
             pattern = extract_pattern(definition, term, other_term)
             evidence = pattern if pattern else f"dict:{term}:{domain}"
 
-            snet = snet.add_edge(SignifierEdge(
+            pending_edges.append(SignifierEdge(
                 source=resolved_id,
                 target=other_resolved,
                 axis=AxisType.SYNTAGMATIC,
@@ -369,7 +375,11 @@ def ingest_dictionary(
             ))
             stats["syntagmatic_added"] += 1
 
-    # 合并同键边（weight 求和）
+    # 批量写入（一次性重建 SNet，避免逐条重建的 O(n^2) 复制）
+    if pending_signifiers:
+        snet = snet.add_signifiers(pending_signifiers)
+    if pending_edges:
+        snet = snet.add_edges(pending_edges)
     snet = snet.merge_edge_weights()
 
     return snet, stats
@@ -1043,6 +1053,9 @@ def ingest_morpheme_dict(
 
     stats["entries_total"] = len(entries)
 
+    pending_morphemes: list[MorphemeStructure] = []
+    pending_edges: list[SignifierEdge] = []
+
     for entry in entries:
         sig_id = entry.get("signifier_id", "").strip()
         lang = entry.get("lang", "").strip()
@@ -1075,14 +1088,14 @@ def ingest_morpheme_dict(
             morphemes=tuple(morphemes),
             etymology=etymology,
         )
-        snet = snet.add_morpheme_structure(ms)
+        pending_morphemes.append(ms)
         stats["structures_added"] += 1
 
         # 对 shared_with 中的能指对创建 MORPHEME 边
         for morph in morphemes:
             for other_id in morph.shared_with:
                 if other_id != sig_id and snet.has_signifier(other_id):
-                    snet = snet.add_edge(SignifierEdge(
+                    pending_edges.append(SignifierEdge(
                         source=sig_id,
                         target=other_id,
                         axis=AxisType.MORPHEME,
@@ -1092,7 +1105,11 @@ def ingest_morpheme_dict(
                     ))
                     stats["morpheme_edges_added"] += 1
 
-    # 合并同键边
+    # 批量写入
+    if pending_morphemes:
+        snet = snet.add_morpheme_structures(pending_morphemes)
+    if pending_edges:
+        snet = snet.add_edges(pending_edges)
     snet = snet.merge_edge_weights()
 
     return snet, stats
@@ -1149,6 +1166,10 @@ def ingest_synonym_dict(
 
     stats["entries_total"] = len(entries)
 
+    pending_signifiers: list[Signifier] = []
+    pending_edges: list[SignifierEdge] = []
+    existing_sig_ids: set[str] = set(snet.signifiers.keys())
+
     for entry in entries:
         term = entry.get("term", "").strip()
         domain = entry.get("domain", "").strip()
@@ -1172,14 +1193,16 @@ def ingest_synonym_dict(
 
             syn_resolved = _resolve_term(syn, snet, head_index)
             if syn_resolved is None:
-                snet = snet.add_signifier(Signifier(
-                    id=syn, surface_forms=(), source="synonym_dict",
-                    lang=lang, domain=domain,
-                ))
-                stats["signifiers_created"] += 1
+                if syn not in existing_sig_ids:
+                    pending_signifiers.append(Signifier(
+                        id=syn, surface_forms=(), source="synonym_dict",
+                        lang=lang, domain=domain,
+                    ))
+                    existing_sig_ids.add(syn)
+                    stats["signifiers_created"] += 1
                 syn_resolved = syn
 
-            snet = snet.add_edge(SignifierEdge(
+            pending_edges.append(SignifierEdge(
                 source=resolved_id,
                 target=syn_resolved,
                 axis=AxisType.PARADIGMATIC,
@@ -1197,14 +1220,16 @@ def ingest_synonym_dict(
 
             ns_resolved = _resolve_term(ns, snet, head_index)
             if ns_resolved is None:
-                snet = snet.add_signifier(Signifier(
-                    id=ns, surface_forms=(), source="synonym_dict",
-                    lang=lang, domain=domain,
-                ))
-                stats["signifiers_created"] += 1
+                if ns not in existing_sig_ids:
+                    pending_signifiers.append(Signifier(
+                        id=ns, surface_forms=(), source="synonym_dict",
+                        lang=lang, domain=domain,
+                    ))
+                    existing_sig_ids.add(ns)
+                    stats["signifiers_created"] += 1
                 ns_resolved = ns
 
-            snet = snet.add_edge(SignifierEdge(
+            pending_edges.append(SignifierEdge(
                 source=resolved_id,
                 target=ns_resolved,
                 axis=AxisType.PARADIGMATIC,
@@ -1214,6 +1239,11 @@ def ingest_synonym_dict(
             ))
             stats["near_synonyms_added"] += 1
 
+    # 批量写入
+    if pending_signifiers:
+        snet = snet.add_signifiers(pending_signifiers)
+    if pending_edges:
+        snet = snet.add_edges(pending_edges)
     snet = snet.merge_edge_weights()
     return snet, stats
 
@@ -1270,6 +1300,8 @@ def ingest_collocation_dict(
     # 构建增强白名单用于搭配文本中的术语匹配
     whitelist, head_to_sid = _build_augmented_whitelist(snet)
 
+    pending_edges: list[SignifierEdge] = []
+
     for entry in entries:
         term = entry.get("term", "").strip()
         domain = entry.get("domain", "").strip()
@@ -1301,7 +1333,7 @@ def ingest_collocation_dict(
                 if not snet.has_signifier(other_id):
                     continue
 
-                snet = snet.add_edge(SignifierEdge(
+                pending_edges.append(SignifierEdge(
                     source=resolved_id,
                     target=other_id,
                     axis=AxisType.SYNTAGMATIC,
@@ -1310,6 +1342,9 @@ def ingest_collocation_dict(
                 ))
                 stats["syntagmatic_added"] += 1
 
+    # 批量写入
+    if pending_edges:
+        snet = snet.add_edges(pending_edges)
     snet = snet.merge_edge_weights()
     return snet, stats
 
@@ -1373,6 +1408,10 @@ def ingest_thesaurus_dict(
 
     stats["entries_total"] = len(entries)
 
+    pending_signifiers: list[Signifier] = []
+    pending_edges: list[SignifierEdge] = []
+    existing_sig_ids: set[str] = set(snet.signifiers.keys())
+
     for entry in entries:
         term = entry.get("term", "").strip()
         lang = entry.get("lang", "").strip()
@@ -1402,15 +1441,17 @@ def ingest_thesaurus_dict(
 
             syn_resolved = _resolve_term(syn, snet, head_index)
             if syn_resolved is None:
-                snet = snet.add_signifier(Signifier(
-                    id=syn, surface_forms=(), source="thesaurus",
-                    lang=lang,
-                ))
-                stats["signifiers_created"] += 1
+                if syn not in existing_sig_ids:
+                    pending_signifiers.append(Signifier(
+                        id=syn, surface_forms=(), source="thesaurus",
+                        lang=lang,
+                    ))
+                    existing_sig_ids.add(syn)
+                    stats["signifiers_created"] += 1
                 syn_resolved = syn
 
             category = entry.get("roget_category", "").strip()
-            snet = snet.add_edge(SignifierEdge(
+            pending_edges.append(SignifierEdge(
                 source=resolved_id,
                 target=syn_resolved,
                 axis=AxisType.PARADIGMATIC,
@@ -1430,14 +1471,16 @@ def ingest_thesaurus_dict(
 
             ant_resolved = _resolve_term(ant, snet, head_index)
             if ant_resolved is None:
-                snet = snet.add_signifier(Signifier(
-                    id=ant, surface_forms=(), source="thesaurus",
-                    lang=lang,
-                ))
-                stats["signifiers_created"] += 1
+                if ant not in existing_sig_ids:
+                    pending_signifiers.append(Signifier(
+                        id=ant, surface_forms=(), source="thesaurus",
+                        lang=lang,
+                    ))
+                    existing_sig_ids.add(ant)
+                    stats["signifiers_created"] += 1
                 ant_resolved = ant
 
-            snet = snet.add_edge(SignifierEdge(
+            pending_edges.append(SignifierEdge(
                 source=resolved_id,
                 target=ant_resolved,
                 axis=AxisType.PARADIGMATIC,
@@ -1445,7 +1488,7 @@ def ingest_thesaurus_dict(
                 evidence=f"thesaurus:{path.stem}",
                 relation="contrast",
             ))
-            snet = snet.add_edge(SignifierEdge(
+            pending_edges.append(SignifierEdge(
                 source=ant_resolved,
                 target=resolved_id,
                 axis=AxisType.PARADIGMATIC,
@@ -1467,7 +1510,7 @@ def ingest_thesaurus_dict(
             if hyper_resolved is None:
                 continue
 
-            snet = snet.add_edge(SignifierEdge(
+            pending_edges.append(SignifierEdge(
                 source=resolved_id,
                 target=hyper_resolved,
                 axis=AxisType.PARADIGMATIC,
@@ -1489,7 +1532,7 @@ def ingest_thesaurus_dict(
             if hypo_resolved is None:
                 continue
 
-            snet = snet.add_edge(SignifierEdge(
+            pending_edges.append(SignifierEdge(
                 source=resolved_id,
                 target=hypo_resolved,
                 axis=AxisType.PARADIGMATIC,
@@ -1522,7 +1565,7 @@ def ingest_thesaurus_dict(
                     continue
 
                 pattern = extract_pattern(text, term, m)
-                snet = snet.add_edge(SignifierEdge(
+                pending_edges.append(SignifierEdge(
                     source=resolved_id,
                     target=other_id,
                     axis=AxisType.SYNTAGMATIC,
@@ -1531,6 +1574,11 @@ def ingest_thesaurus_dict(
                 ))
                 stats["syntagmatic_added"] += 1
 
+    # 批量写入
+    if pending_signifiers:
+        snet = snet.add_signifiers(pending_signifiers)
+    if pending_edges:
+        snet = snet.add_edges(pending_edges)
     snet = snet.merge_edge_weights()
     return snet, stats
 
@@ -1589,6 +1637,10 @@ def ingest_wiktionary_dict(
 
     stats["entries_total"] = len(entries)
 
+    pending_signifiers: list[Signifier] = []
+    pending_edges: list[SignifierEdge] = []
+    existing_sig_ids: set[str] = set(snet.signifiers.keys())
+
     for entry in entries:
         # zh 版用 headword，其他用 term
         term = entry.get("term", "") or entry.get("headword", "")
@@ -1626,7 +1678,7 @@ def ingest_wiktionary_dict(
                     continue
 
                 pattern = extract_pattern(text, term, m)
-                snet = snet.add_edge(SignifierEdge(
+                pending_edges.append(SignifierEdge(
                     source=resolved_id,
                     target=other_id,
                     axis=AxisType.SYNTAGMATIC,
@@ -1645,14 +1697,16 @@ def ingest_wiktionary_dict(
 
             syn_resolved = _resolve_term(syn, snet, head_index)
             if syn_resolved is None:
-                snet = snet.add_signifier(Signifier(
-                    id=syn, surface_forms=(), source="wiktionary",
-                    lang=lang,
-                ))
-                stats["signifiers_created"] += 1
+                if syn not in existing_sig_ids:
+                    pending_signifiers.append(Signifier(
+                        id=syn, surface_forms=(), source="wiktionary",
+                        lang=lang,
+                    ))
+                    existing_sig_ids.add(syn)
+                    stats["signifiers_created"] += 1
                 syn_resolved = syn
 
-            snet = snet.add_edge(SignifierEdge(
+            pending_edges.append(SignifierEdge(
                 source=resolved_id,
                 target=syn_resolved,
                 axis=AxisType.PARADIGMATIC,
@@ -1674,7 +1728,7 @@ def ingest_wiktionary_dict(
             if ant_resolved is None:
                 continue
 
-            snet = snet.add_edge(SignifierEdge(
+            pending_edges.append(SignifierEdge(
                 source=resolved_id,
                 target=ant_resolved,
                 axis=AxisType.PARADIGMATIC,
@@ -1696,7 +1750,7 @@ def ingest_wiktionary_dict(
             if rel_resolved is None:
                 continue
 
-            snet = snet.add_edge(SignifierEdge(
+            pending_edges.append(SignifierEdge(
                 source=resolved_id,
                 target=rel_resolved,
                 axis=AxisType.PARADIGMATIC,
@@ -1706,6 +1760,11 @@ def ingest_wiktionary_dict(
             ))
             stats["paradigmatic_added"] += 1
 
+    # 批量写入
+    if pending_signifiers:
+        snet = snet.add_signifiers(pending_signifiers)
+    if pending_edges:
+        snet = snet.add_edges(pending_edges)
     snet = snet.merge_edge_weights()
     return snet, stats
 
@@ -1761,6 +1820,11 @@ def ingest_idiom_dict(
 
     stats["entries_total"] = len(entries)
 
+    pending_signifiers: list[Signifier] = []
+    pending_edges: list[SignifierEdge] = []
+    # Track updated signifiers to avoid duplicate surface_forms appends
+    updated_surface_forms: dict[str, tuple] = {}
+
     for entry in entries:
         term = entry.get("term", "").strip()
         domain = entry.get("domain", "").strip()
@@ -1787,14 +1851,11 @@ def ingest_idiom_dict(
 
             # 添加为 surface form（限制数量）
             existing = snet.signifiers.get(resolved_id)
-            if existing and text not in existing.surface_forms:
-                if len(existing.surface_forms) < 20:
-                    new_forms = existing.surface_forms + (text,)
-                    snet = snet.add_signifier(Signifier(
-                        id=existing.id,
-                        surface_forms=new_forms,
-                        source=existing.source,
-                    ))
+            if existing:
+                current_forms = updated_surface_forms.get(resolved_id, existing.surface_forms)
+                if text not in current_forms and len(current_forms) < 20:
+                    new_forms = current_forms + (text,)
+                    updated_surface_forms[resolved_id] = new_forms
                     stats["surface_forms_added"] += 1
 
             # 从习语文本中提取共现术语
@@ -1806,7 +1867,7 @@ def ingest_idiom_dict(
                 if not snet.has_signifier(other_id):
                     continue
 
-                snet = snet.add_edge(SignifierEdge(
+                pending_edges.append(SignifierEdge(
                     source=resolved_id,
                     target=other_id,
                     axis=AxisType.SYNTAGMATIC,
@@ -1815,6 +1876,20 @@ def ingest_idiom_dict(
                 ))
                 stats["syntagmatic_added"] += 1
 
+    # 批量写入 surface_forms 更新
+    for sig_id, new_forms in updated_surface_forms.items():
+        existing = snet.signifiers.get(sig_id)
+        if existing:
+            pending_signifiers.append(Signifier(
+                id=existing.id,
+                surface_forms=new_forms,
+                source=existing.source,
+            ))
+
+    if pending_signifiers:
+        snet = snet.add_signifiers(pending_signifiers)
+    if pending_edges:
+        snet = snet.add_edges(pending_edges)
     snet = snet.merge_edge_weights()
     return snet, stats
 
@@ -1871,6 +1946,10 @@ def ingest_wortschatz_dict(
 
     stats["entries_total"] = len(entries)
 
+    pending_signifiers: list[Signifier] = []
+    pending_edges: list[SignifierEdge] = []
+    existing_sig_ids: set[str] = set(snet.signifiers.keys())
+
     for entry in entries:
         term = entry.get("term", "").strip()
         lang = entry.get("lang", "").strip()
@@ -1894,14 +1973,16 @@ def ingest_wortschatz_dict(
 
             wf_resolved = _resolve_term(wf, snet, head_index)
             if wf_resolved is None:
-                snet = snet.add_signifier(Signifier(
-                    id=wf, surface_forms=(), source="wortschatz",
-                    lang=lang,
-                ))
-                stats["signifiers_created"] += 1
+                if wf not in existing_sig_ids:
+                    pending_signifiers.append(Signifier(
+                        id=wf, surface_forms=(), source="wortschatz",
+                        lang=lang,
+                    ))
+                    existing_sig_ids.add(wf)
+                    stats["signifiers_created"] += 1
                 wf_resolved = wf
 
-            snet = snet.add_edge(SignifierEdge(
+            pending_edges.append(SignifierEdge(
                 source=resolved_id,
                 target=wf_resolved,
                 axis=AxisType.PARADIGMATIC,
@@ -1921,14 +2002,16 @@ def ingest_wortschatz_dict(
 
             comp_resolved = _resolve_term(comp, snet, head_index)
             if comp_resolved is None:
-                snet = snet.add_signifier(Signifier(
-                    id=comp, surface_forms=(), source="wortschatz",
-                    lang=lang,
-                ))
-                stats["signifiers_created"] += 1
+                if comp not in existing_sig_ids:
+                    pending_signifiers.append(Signifier(
+                        id=comp, surface_forms=(), source="wortschatz",
+                        lang=lang,
+                    ))
+                    existing_sig_ids.add(comp)
+                    stats["signifiers_created"] += 1
                 comp_resolved = comp
 
-            snet = snet.add_edge(SignifierEdge(
+            pending_edges.append(SignifierEdge(
                 source=resolved_id,
                 target=comp_resolved,
                 axis=AxisType.MORPHEME,
@@ -1948,14 +2031,16 @@ def ingest_wortschatz_dict(
 
             deriv_resolved = _resolve_term(deriv, snet, head_index)
             if deriv_resolved is None:
-                snet = snet.add_signifier(Signifier(
-                    id=deriv, surface_forms=(), source="wortschatz",
-                    lang=lang,
-                ))
-                stats["signifiers_created"] += 1
+                if deriv not in existing_sig_ids:
+                    pending_signifiers.append(Signifier(
+                        id=deriv, surface_forms=(), source="wortschatz",
+                        lang=lang,
+                    ))
+                    existing_sig_ids.add(deriv)
+                    stats["signifiers_created"] += 1
                 deriv_resolved = deriv
 
-            snet = snet.add_edge(SignifierEdge(
+            pending_edges.append(SignifierEdge(
                 source=resolved_id,
                 target=deriv_resolved,
                 axis=AxisType.MORPHEME,
@@ -1965,6 +2050,11 @@ def ingest_wortschatz_dict(
             ))
             stats["derivation_edges_added"] += 1
 
+    # 批量写入
+    if pending_signifiers:
+        snet = snet.add_signifiers(pending_signifiers)
+    if pending_edges:
+        snet = snet.add_edges(pending_edges)
     snet = snet.merge_edge_weights()
     return snet, stats
 
@@ -2050,6 +2140,9 @@ def ingest_code_dict(
 
     # Track created code signifiers for inter-entry edge building
     code_term_to_sig: dict[str, str] = {}
+    pending_signifiers: list[Signifier] = []
+    pending_edges: list[SignifierEdge] = []
+    existing_sig_ids: set[str] = set(snet.signifiers.keys())
 
     for entry in entries:
         term = entry.get("term", "").strip()
@@ -2057,13 +2150,14 @@ def ingest_code_dict(
             continue
 
         # Create signifier for this code concept if not already in S_net
-        if not snet.has_signifier(term):
-            snet = snet.add_signifier(Signifier(
+        if term not in existing_sig_ids:
+            pending_signifiers.append(Signifier(
                 id=term,
                 surface_forms=tuple(entry.get("concept_ids", [])),
                 source="code_dictionary",
                 domain="code_project",
             ))
+            existing_sig_ids.add(term)
             stats["signifiers_created"] += 1
         code_term_to_sig[term] = term
 
@@ -2073,7 +2167,7 @@ def ingest_code_dict(
                 layer_a_sig = vertex_id_to_sig[concept_id]
                 if layer_a_sig != term:
                     # Create synonym edge: short-form ↔ long-form
-                    snet = snet.add_edge(SignifierEdge(
+                    pending_edges.append(SignifierEdge(
                         source=term,
                         target=layer_a_sig,
                         axis=AxisType.PARADIGMATIC,
@@ -2081,7 +2175,7 @@ def ingest_code_dict(
                         evidence=f"code_bridge:{concept_id}",
                         relation="synonym",
                     ))
-                    snet = snet.add_edge(SignifierEdge(
+                    pending_edges.append(SignifierEdge(
                         source=layer_a_sig,
                         target=term,
                         axis=AxisType.PARADIGMATIC,
@@ -2090,6 +2184,10 @@ def ingest_code_dict(
                         relation="synonym",
                     ))
                     stats["concept_bridges"] += 1
+
+    # Batch write first-pass signifiers so second pass can check has_signifier
+    if pending_signifiers:
+        snet = snet.add_signifiers(pending_signifiers)
 
     # Second pass: build inter-entry edges now that all signifiers exist
     for entry in entries:
@@ -2112,7 +2210,7 @@ def ingest_code_dict(
             if syn_target is None:
                 continue
 
-            snet = snet.add_edge(SignifierEdge(
+            pending_edges.append(SignifierEdge(
                 source=term,
                 target=syn_target,
                 axis=AxisType.PARADIGMATIC,
@@ -2130,7 +2228,7 @@ def ingest_code_dict(
             if not snet.has_signifier(contrast):
                 continue
 
-            snet = snet.add_edge(SignifierEdge(
+            pending_edges.append(SignifierEdge(
                 source=term,
                 target=contrast,
                 axis=AxisType.PARADIGMATIC,
@@ -2138,7 +2236,7 @@ def ingest_code_dict(
                 evidence="code_contrast",
                 relation="contrast",
             ))
-            snet = snet.add_edge(SignifierEdge(
+            pending_edges.append(SignifierEdge(
                 source=contrast,
                 target=term,
                 axis=AxisType.PARADIGMATIC,
@@ -2188,7 +2286,7 @@ def ingest_code_dict(
                     evidence = f"member:{pattern}"
 
             if target_term and target_term != term:
-                snet = snet.add_edge(SignifierEdge(
+                pending_edges.append(SignifierEdge(
                     source=term,
                     target=target_term,
                     axis=AxisType.SYNTAGMATIC,
@@ -2197,6 +2295,9 @@ def ingest_code_dict(
                 ))
                 stats["syntagmatic_added"] += 1
 
+    # 批量写入
+    if pending_edges:
+        snet = snet.add_edges(pending_edges)
     snet = snet.merge_edge_weights()
     return snet, stats
 
