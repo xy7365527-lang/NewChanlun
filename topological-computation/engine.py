@@ -99,6 +99,10 @@ class Graph:
             v.id for v in self._vertices.values()
             if v.status != VertexStatus.FOLDED
         )
+        # Cached edge key set — O(1) membership test instead of O(E) scan
+        self._edge_keys: frozenset[tuple[str, str, EdgeType]] = frozenset(
+            (e.source, e.target, e.edge_type) for e in self._edges
+        )
 
     # -- accessors ----------------------------------------------------------
 
@@ -115,6 +119,10 @@ class Graph:
 
     def active_vertex_ids(self) -> list[str]:
         return list(self._active_ids)
+
+    def has_edge_key(self, source: str, target: str, edge_type: EdgeType) -> bool:
+        """O(1) check whether an edge with (source, target, edge_type) exists."""
+        return (source, target, edge_type) in self._edge_keys
 
     def active_edges(self) -> list[Edge]:
         """Return edges between active vertices, excluding material layer (COOCCURRENCE, TRAVERSAL_ASSOCIATION).
