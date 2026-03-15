@@ -357,6 +357,8 @@ class TopologicalDaemon:
         # S_net → block topology watermark: tracks edge count at last block write
         # Used for incremental delta detection (only new edges get written)
         self._snet_block_watermark: int = 0
+        # S_net → block topology hyperedge watermark: tracks hyperedge count
+        self._snet_hyperedge_watermark: int = 0
 
         # S_net activation (coupled oscillation) — initialized during _initialize_engine
         self.snet_activation: SNetActivation | None = None
@@ -503,6 +505,11 @@ class TopologicalDaemon:
             self._snet_block_watermark = self.snet.edge_count
         else:
             self._snet_block_watermark = len(self.snet.edges)
+        # Set hyperedge watermark similarly
+        if hasattr(self.snet, 'hyperedge_count'):
+            self._snet_hyperedge_watermark = self.snet.hyperedge_count
+        else:
+            self._snet_hyperedge_watermark = len(self.snet.hyperedges)
 
         # Proprioception: initial metrics snapshot + self-reflexive norms
         # Order matters: proprioception vertices first, then norms (norms reference proprioception)
@@ -1548,67 +1555,105 @@ class TopologicalDaemon:
             pass
 
     def _write_snet_cooccurrence_blocks(self) -> None:
-        """Write new S_net co-occurrence edges to block topology as material layer blocks.
+        """Write new S_net co-occurrence edges and hyperedges to block topology as material layer blocks.
 
         Incremental: for SNetLazy, uses drain_runtime_new_edges() buffer.
-        For full SNet, uses _snet_block_watermark to track the last-written edge index.
+        For full SNet, uses _snet_block_watermark to track the last-written edge index,
+        and _snet_hyperedge_watermark for hyperedges.
 
         Source type classification via evidence field prefix:
           - "traversal:{step}" → source_type "traversal"
           - "dialogue:{...}"  → source_type "dialogue"
           - everything else   → source_type "corpus"
 
-        Throttled: batch writes at most 200 edges per step to avoid I/O spikes.
+        Throttled: batch writes at most 200 edges and 100 hyperedges per step.
         """
         if self._persist is None:
             return
 
+        timestamp = datetime.utcnow().isoformat() + "Z"
+
+        # --- Edge writing (existing logic) ---
         # SNetLazy: use runtime buffer (no full edge load)
         from snet_lazy import SNetLazy
         if isinstance(self.snet, SNetLazy):
             new_edges = self.snet.drain_runtime_new_edges()
-            if not new_edges:
-                return
-            batch = new_edges[:200]
-            # Put remaining edges back if batch was capped
-            if len(new_edges) > 200:
-                self.snet._runtime_new_edges = new_edges[200:] + self.snet._runtime_new_edges
+            if new_edges:
+                batch = new_edges[:200]
+                # Put remaining edges back if batch was capped
+                if len(new_edges) > 200:
+                    self.snet._runtime_new_edges = new_edges[200:] + self.snet._runtime_new_edges
+
+                for edge in batch:
+                    if edge.axis != AxisType.SYNTAGMATIC:
+                        continue
+                    evidence = edge.evidence or ""
+                    if evidence.startswith("traversal:"):
+                        source_type = "traversal"
+                    elif evidence.startswith("dialogue:"):
+                        source_type = "dialogue"
+                    else:
+                        source_type = "corpus"
+                    self._persist.append_cooccurrence(
+                        source_signifier=edge.source,
+                        target_signifier=edge.target,
+                        weight=edge.weight,
+                        corpus_source=source_type,
+                        ingest_params={
+                            "evidence": evidence,
+                            "relation": edge.relation,
+                        },
+                        timestamp=timestamp,
+                    )
         else:
             current_edges = self.snet.edges
             current_count = len(current_edges)
             watermark = self._snet_block_watermark
-            if current_count <= watermark:
-                return
-            new_edges = current_edges[watermark:]
-            batch = new_edges[:200]
-            self._snet_block_watermark = watermark + len(batch)
+            if current_count > watermark:
+                new_edges = current_edges[watermark:]
+                batch = new_edges[:200]
+                self._snet_block_watermark = watermark + len(batch)
 
-        timestamp = datetime.utcnow().isoformat() + "Z"
+                for edge in batch:
+                    if edge.axis != AxisType.SYNTAGMATIC:
+                        continue
+                    evidence = edge.evidence or ""
+                    if evidence.startswith("traversal:"):
+                        source_type = "traversal"
+                    elif evidence.startswith("dialogue:"):
+                        source_type = "dialogue"
+                    else:
+                        source_type = "corpus"
+                    self._persist.append_cooccurrence(
+                        source_signifier=edge.source,
+                        target_signifier=edge.target,
+                        weight=edge.weight,
+                        corpus_source=source_type,
+                        ingest_params={
+                            "evidence": evidence,
+                            "relation": edge.relation,
+                        },
+                        timestamp=timestamp,
+                    )
 
-        for edge in batch:
-            if edge.axis != AxisType.SYNTAGMATIC:
-                continue
+        # --- Hyperedge writing (v243 新增) ---
+        current_hyperedges = self.snet.hyperedges
+        he_count = len(current_hyperedges)
+        he_watermark = self._snet_hyperedge_watermark
+        if he_count > he_watermark:
+            new_hes = current_hyperedges[he_watermark:]
+            he_batch = new_hes[:100]
+            self._snet_hyperedge_watermark = he_watermark + len(he_batch)
 
-            # Classify source type from evidence field
-            evidence = edge.evidence or ""
-            if evidence.startswith("traversal:"):
-                source_type = "traversal"
-            elif evidence.startswith("dialogue:"):
-                source_type = "dialogue"
-            else:
-                source_type = "corpus"
-
-            self._persist.append_cooccurrence(
-                source_signifier=edge.source,
-                target_signifier=edge.target,
-                weight=edge.weight,
-                corpus_source=source_type,
-                ingest_params={
-                    "evidence": evidence,
-                    "relation": edge.relation,
-                },
-                timestamp=timestamp,
-            )
+            for he in he_batch:
+                self._persist.append_hyperedge(
+                    vertices=sorted(he.vertices),
+                    source=he.source,
+                    domain=he.domain,
+                    timestamp=timestamp,
+                    evidence_tag=he.evidence_tag,
+                    ingest_param_refs=list(he.ingest_param_refs) if he.ingest_param_refs else None,
+                )
 
     def ingest_code(self, dirpath: str, source: str = "") -> Graph:
         """Ingest Python source tree into K_active with domain:code tagging.

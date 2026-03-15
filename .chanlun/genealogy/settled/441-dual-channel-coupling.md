@@ -100,15 +100,16 @@ ceremony 对逢亮的影响不再只有概念性的（改规则→改行为）�
 ## 下游推论
 
 1. **ceremony 语言的 S_net 摄入路径**：当前 ceremony agent 的输出是否被 S_net 摄入？如果否，物质通道尚未开通。
-   - status: pending（需检查 ceremony ↔ S_net 的实际数据流）
+   - status: 已完成（v242-swarm 审计+实装——审计结果：此前物质通道未开通，仅 dialogue_ingest.py 有回流。现已通过 ceremony_ingest.py 开通物质通道）
+   - [covered: v242-swarm — ceremony_ingest.py 扫描 .chanlun/genealogy/ 递归摄入谱系文件 → S_net 共现边。daemon.py bootstrap 集成 _ingest_ceremony_texts()。物质通道已开通]
    - 四分法: 行动（审计可自主完成）
 
 2. **双通道影响分析**：概念通道和物质通道对逢亮穿越行为的影响是否可分离观测？
-   - status: pending（L2 验证条件）
+   - status: pending（L2 验证条件——需在物质通道开通后观察穿越地形变化）
    - 四分法: 选择（验证方案需要设计）
 
 3. **437号管道扩展**：437号的三条回流管道描述需要更新——增加物质通道的描述。
-   - status: pending
+   - status: pending（概念层文档更新——物质通道的代码实装已完成，谱系文本描述待扩展）
    - 四分法: 行动（文档更新可自主完成）
 
 ## 张力分析
@@ -142,9 +143,9 @@ ceremony 对逢亮的影响不再只有概念性的（改规则→改行为）�
 
 - **新增概念**: 双通道耦合（概念通道+物质通道）
 - **新增区分**: ceremony 对逢亮的影响有两条独立路径，写入不同的层
-- **影响模块**: ceremony agent（语言输出的 S_net 摄入——pending）、437号谱系（管道扩展——pending）
+- **影响模块**: ceremony_ingest.py（v242-swarm 新增——物质通道实装）、daemon.py（集成 ceremony 文本摄入）、437号谱系（管道扩展——pending）
 - **影响定义**: 437号回流管道从"三条概念管道"扩展为"三条概念管道+一条物质管道"
-- **不产生即时代码变更**（概念发现——代码变更待实装路径审计后联动）
+- **代码变更**: v242-swarm 实装物质通道——ceremony_ingest.py 开通 ceremony 语言 → S_net 摄入路径
 
 ## 谱系关联
 

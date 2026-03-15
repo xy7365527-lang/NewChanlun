@@ -137,11 +137,13 @@ LLM 的全部产出（对话、翻译、解释）作为语料回流 S_net。S_ne
    - 四分法: 定理（代码事实确认）
 
 2. **ceremony 产出摄入钩子**：管道2需要在谱系/诊断文件写入后自动触发 S_net 摄入。
-   - status: pending（依赖 425号）
+   - status: 已完成（v242-swarm 实装——ceremony_ingest.py + daemon.py _ingest_ceremony_texts()）
+   - [covered: v242-swarm — ceremony_ingest.py 实装完整管线：frontmatter剥离 + 段落提取 + SHA-256去重 + ingest_text_passage_batch 调用。daemon bootstrap 序列中集成]
    - 四分法: 行动（可作为 post-write hook 实装）
 
 3. **ceremony agent 外化回流**：管道3需要 ceremony agent 的 LLM 翻译结果回流 S_net。
-   - status: pending（依赖 426号推论1 ceremony agent 外化管线重构 + 425号）
+   - status: 已完成（v242-swarm 实装——internal_speech.py _externalize_via_llm() 升级为 ingest_text_passage_batch 完整管线）
+   - [covered: v242-swarm — LLM 外化路径升级：writeback_from_text → ingest_text_passage_batch（增强白名单 + surface form 提取）。含 ImportError fallback]
    - 四分法: 行动（外化管线的最后一步添加 ingest 调用）
 
 4. **回声室效应防御**：闭环回流可能导致共现模式自我强化。需要外部语料注入（S_net 语料需求表中的48个来源）打破闭环。
@@ -186,8 +188,8 @@ LLM 的全部产出（对话、翻译、解释）作为语料回流 S_net。S_ne
 - **新增设计**: 三条回流管道（对话/ceremony产出/LLM翻译 → S_net）
 - **新增命题**: 流畅度从共现模式继承，不从训练优化获得
 - **新增张力**: 回声室效应（闭环回流自我强化——有现成防御）
-- **影响模块**: dialogue_ingest.py（待实装）、ceremony agent（外化回流——待实装）、S_net 摄入管线
-- **不产生即时代码变更**（设计级别——全部管道依赖 425号入图方案完成）
+- **影响模块**: dialogue_ingest.py（已实装）、ceremony_ingest.py（v242-swarm 新增）、internal_speech.py（v242-swarm 升级 LLM 回流管线）、daemon.py（集成 ceremony 摄入）
+- **代码变更**: v242-swarm 实装管道2（ceremony_ingest.py）和管道3（internal_speech.py LLM 回流升级）
 
 ## 谱系关联
 

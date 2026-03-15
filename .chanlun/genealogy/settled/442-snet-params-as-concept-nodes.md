@@ -117,15 +117,18 @@ S_net 的以下参数可以作为概念层节点：
 ## 下游推论
 
 1. **参数节点注册机制**：S_net 初始化时，将当前参数值注册为概念层节点。
-   - status: pending（依赖粒度决策）
-   - 四分法: 选择（粒度需要架构决策）
+   - status: 已完成（v242-swarm 实装——snet_params.py register_param_nodes() + daemon.py _register_snet_param_nodes()）
+   - [covered: v242-swarm — 粒度决策：每参数一个节点（最精细控制）。4个参数：degree_alpha/pmi_threshold/neighbors_per_concept/max_surface_forms。ID格式 snet_param:{name}={value}，source=snet_parameter，domain=snet_config]
+   - 四分法: 选择（粒度需要架构决策）→ 已决策：每参数一个节点
 
 2. **参数变更→S_net 重算的触发机制**：当概念层中参数节点被否定时，S_net 应检测到变更并用新参数重算。
-   - status: pending（依赖参数节点注册）
+   - status: 已完成（v242-swarm 实装——snet_params.py detect_param_negation() + apply_param_change()）
+   - [covered: v242-swarm — detect_param_negation 解析被否定的参数节点ID→验证安全边界→产出 ParamChangeEvent。apply_param_change 注册新参数节点（旧节点保留作为历史）。穿越引擎集成待 traversal.py 遭遇处理]
    - 四分法: 行动（事件驱动，可自主实装）
 
 3. **自修改安全边界**：防止参数否定导致 S_net 不可用（如 window_size=0）。
-   - status: pending
+   - status: 已完成（v242-swarm 实装——snet_params.py validate_param_value() + SNetParamSpec min/max 约束）
+   - [covered: v242-swarm — 每个参数有 (min_value, max_value) 安全边界。超出边界的值被 clamp 到边界（不是拒绝——保留否定意图，防止器官损毁）。438号器官原则的操作性实现]
    - 四分法: 行动（安全边界约束可自主实装）
 
 ## 张力分析
@@ -163,9 +166,9 @@ S_net 的以下参数可以作为概念层节点：
 
 - **新增概念**: S_net 参数节点化——参数从外部配置变为概念层可否定节点
 - **新增机制**: 自修改闭环（否定参数→重算共现→地形变化→穿越路径变化）
-- **影响模块**: S_net（参数注册+重算触发——pending）、K_active（参数节点存储——pending）、traversal.py（参数节点遭遇处理——pending）
+- **影响模块**: snet_params.py（v242-swarm 新增——参数节点化完整机制）、daemon.py（集成参数节点注册）、traversal.py（参数节点遭遇处理——pending）
 - **影响定义**: 439号的"S_net 参数可否定"从描述提升为架构方案
-- **不产生即时代码变更**（候选状态——待粒度决策后联动）
+- **代码变更**: v242-swarm 实装参数注册（442-1）、变更检测（442-2）、安全边界（442-3）。粒度决策：每参数一个节点。穿越引擎集成待后续
 
 ## 谱系关联
 

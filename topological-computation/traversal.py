@@ -1010,12 +1010,12 @@ class TraversalEngine:
     def _pull_cooccurrence_edges(self) -> None:
         """Pull S_net co-occurrence neighbors into K_active as COOCCURRENCE edges on demand.
 
-        425号 Phase 1: 穿越到新节点时，查询 S_net 该节点对应能指的共现邻居。
-        共现邻居如果对应 K_active 中的已有顶点 → 添加 COOCCURRENCE 边（不创建概念层边）。
-        COOCCURRENCE 边参与导航（neighbors/all_active_edges）但不参与 fold/negate/sublate/beta_1。
+        425号 Phase 1 + v243 超边重构：
+        穿越到新节点时，查询该节点对应能指的超边，超边中的其他顶点作为 COOCCURRENCE 候选。
+        超边中的邻居是真实语境共现——比 degree_normalized_neighbors 更精确。
+        保留 degree_normalized_neighbors 作为 fallback（当没有超边时）。
 
-        Only pulls for the current position. Edges are deduplicated — if a COOCCURRENCE edge
-        already exists between two vertices, it is not added again.
+        COOCCURRENCE 边参与导航但不参与 fold/negate/sublate/beta_1。
         """
         if self._snet_activation is None:
             return
@@ -1026,11 +1026,6 @@ class TraversalEngine:
             return
 
         snet = self._snet_activation.s_net
-        # Get degree-normalized co-occurrence neighbors (top 10)
-        cooc_neighbors = snet.degree_normalized_neighbors(signifier_id, n=10)
-        if not cooc_neighbors:
-            return
-
         active_vids = self.k_active._active_ids
 
         # Build set of existing COOCCURRENCE edge targets from this vertex for dedup
@@ -1041,8 +1036,20 @@ class TraversalEngine:
             elif e.edge_type == EdgeType.COOCCURRENCE and e.target == concept_id:
                 existing_cooc_targets.add(e.source)
 
-        for edge in cooc_neighbors:
-            target_sig = edge.target
+        # Primary path: hyperedge-based neighbors (真实语境共现)
+        hyperedge_neighbors: set[str] = set()
+        for he in snet.hyperedges_containing(signifier_id):
+            for v in he.vertices:
+                if v != signifier_id:
+                    hyperedge_neighbors.add(v)
+
+        # Fallback: degree_normalized_neighbors if no hyperedges found
+        if not hyperedge_neighbors:
+            cooc_neighbors = snet.degree_normalized_neighbors(signifier_id, n=10)
+            for edge in cooc_neighbors:
+                hyperedge_neighbors.add(edge.target)
+
+        for target_sig in hyperedge_neighbors:
             # Map signifier back to K_active concept(s)
             target_concepts = self._snet_activation._sig_to_concepts.get(target_sig, [])
 
@@ -1060,8 +1067,8 @@ class TraversalEngine:
                         target=tgt_cid,
                         edge_type=EdgeType.COOCCURRENCE,
                         created_at=self.step,
-                        surface=edge.evidence if edge.evidence else None,
-                        context=f"snet_cooccurrence: {signifier_id}->{target_sig} w={edge.weight:.3f}",
+                        surface=None,
+                        context=f"snet_hyperedge: {signifier_id}->{target_sig}",
                     )
                     self.k_active = self.k_active.add_edge(cooc_edge)
                     self.k_full = self.k_full.add_edge(cooc_edge)
@@ -1076,8 +1083,8 @@ class TraversalEngine:
                             target=new_vid,
                             edge_type=EdgeType.COOCCURRENCE,
                             created_at=self.step,
-                            surface=edge.evidence if edge.evidence else None,
-                            context=f"snet_cooccurrence: {signifier_id}->{target_sig} w={edge.weight:.3f}",
+                            surface=None,
+                            context=f"snet_hyperedge: {signifier_id}->{target_sig}",
                         )
                         self.k_active = self.k_active.add_edge(cooc_edge)
                         self.k_full = self.k_full.add_edge(cooc_edge)
@@ -1096,8 +1103,8 @@ class TraversalEngine:
                     target=new_vid,
                     edge_type=EdgeType.COOCCURRENCE,
                     created_at=self.step,
-                    surface=edge.evidence if edge.evidence else None,
-                    context=f"snet_cooccurrence: {signifier_id}->{target_sig} w={edge.weight:.3f}",
+                    surface=None,
+                    context=f"snet_hyperedge: {signifier_id}->{target_sig}",
                 )
                 self.k_active = self.k_active.add_edge(cooc_edge)
                 self.k_full = self.k_full.add_edge(cooc_edge)

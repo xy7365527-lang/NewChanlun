@@ -94,6 +94,8 @@ class SNetLazy(SNet):
         self._signifiers: dict[str, Signifier] = dict(signifiers) if signifiers else {}
         self._edges: list[SignifierEdge] = []  # 空，不用
         self._morphemes: dict[str, MorphemeStructure] = dict(morphemes) if morphemes else {}
+        self._hyperedges: list = []  # 超边（SNetLazy 暂不持久化超边到 SQLite）
+        self._vertex_to_hyperedges: dict[str, list[int]] = {}
         self._syn_out: dict[str, list[SignifierEdge]] = {}
         self._par_out: dict[str, list[SignifierEdge]] = {}
         self._morpheme_out: dict[str, list[SignifierEdge]] = {}

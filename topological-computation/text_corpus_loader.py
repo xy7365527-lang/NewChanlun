@@ -128,18 +128,23 @@ def format_corpus_report(
     log_entries: list[dict],
 ) -> str:
     """格式化语料摄入统计报告。"""
+    hyperedge_count = sum(
+        1 for e in log_entries if e.get("type") == "hyperedge"
+    )
+    total_vertices = sum(
+        len(e.get("vertices", []))
+        for e in log_entries
+        if e.get("type") == "hyperedge"
+    )
+    # 向后兼容：也统计旧格式的 cooccurrence 日志
     cooccurrence_count = sum(
         1 for e in log_entries if e.get("type") == "cooccurrence"
     )
-    unique_pairs = len({
-        (e["source"], e["target"])
-        for e in log_entries
-        if e.get("type") == "cooccurrence"
-    })
 
     return (
         f"  corpus:{domain}: "
         f"{len(log_entries)} log entries, "
-        f"{cooccurrence_count} cooccurrences, "
-        f"{unique_pairs} unique pairs"
+        f"{hyperedge_count} hyperedges, "
+        f"{total_vertices} total vertices"
+        + (f", {cooccurrence_count} legacy cooccurrences" if cooccurrence_count else "")
     )

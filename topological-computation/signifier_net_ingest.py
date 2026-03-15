@@ -30,6 +30,7 @@ from signifier_net import (
     SNet, Signifier, SignifierEdge, AxisType,
     Morpheme, MorphemeStructure,
 )
+from cooccurrence_hyperedge import CooccurrenceHyperedge
 
 
 # ---------------------------------------------------------------------------
@@ -589,19 +590,13 @@ def ingest_text_passage(
     domain: str,
     source: str,
 ) -> tuple[SNet, list[dict]]:
-    """从原文段落中提取 connective_patterns 并写入 S_net。
+    """从原文段落中提取共现超边并写入 S_net。
 
-    不提取 vertices/edges！只提取：
-    1. 术语共现（同一段落中出现的已知术语对）→ 组合轴边的 connective_patterns
-    2. 术语的 surface forms（该术语在原文中的实际出现形式）
-    3. 段落上下文（用于后续 articulation feedback 共振时参照）
+    基本事件是"段落 P 包含 {A, B, C, ...}"，产出 1 个 CooccurrenceHyperedge。
+    不再展开为 C(N,2) 成对边——成对边是超边的 lazy 派生物。
 
     此函数不修改 K_active——它只丰富 S_net 的语言材料。
     K_active 的修改由 articulation feedback 在穿越中完成。
-
-    术语匹配使用增强白名单：除了 full signifier ID，还包含从复合 ID 中
-    提取的 head term（如 "culture industry" from "culture industry — mass deception"），
-    使得原文中的规范术语能够匹配到对应的 signifier。
 
     参数：
       snet:    当前 S_net 实例（不会被修改）
@@ -611,11 +606,13 @@ def ingest_text_passage(
 
     返回：
       (new_snet, log_entries)
-      - new_snet: 包含新增共现边和 surface forms 的 SNet
+      - new_snet: 包含新增超边和 surface forms 的 SNet
       - log_entries: 摄入日志条目列表
 
     认识论等级：L0（确定性字符串匹配，不涉及经验假设）
     """
+    import time as _time
+
     if not text or not snet.signifiers:
         return snet, []
 
@@ -633,7 +630,7 @@ def ingest_text_passage(
             matched_terms.append(resolved)
 
     if len(matched_terms) < 2:
-        # 不足两个术语，无法产生共现对
+        # 不足两个术语，无法产生超边
         # 但仍可提取 surface forms
         if matched_terms:
             term = matched_terms[0]
@@ -669,39 +666,26 @@ def ingest_text_passage(
                     source=existing.source,
                 ))
 
-    # 2. 提取术语共现对 → 组合轴边
-    for i in range(len(matched_terms)):
-        for j in range(i + 1, len(matched_terms)):
-            term_a = matched_terms[i]
-            term_b = matched_terms[j]
+    # 2. 产出 1 个超边（不是 C(N,2) 成对边）
+    vertices = frozenset(
+        t for t in matched_terms if new_snet.has_signifier(t)
+    )
+    if len(vertices) >= 2:
+        he = CooccurrenceHyperedge(
+            vertices=vertices,
+            source=source,
+            domain=domain,
+            timestamp=str(_time.time()),
+            evidence_tag=evidence_tag,
+        )
+        new_snet = new_snet.add_hyperedge(he)
 
-            if not new_snet.has_signifier(term_a) or not new_snet.has_signifier(term_b):
-                continue
-
-            # 提取两个术语之间的连接模式
-            pattern = extract_pattern(text, term_a, term_b)
-            evidence = pattern if pattern else evidence_tag
-
-            new_snet = new_snet.add_edge(SignifierEdge(
-                source=term_a,
-                target=term_b,
-                axis=AxisType.SYNTAGMATIC,
-                weight=1.0,
-                evidence=evidence,
-            ))
-
-            log_entries.append({
-                "type": "cooccurrence",
-                "source": term_a,
-                "target": term_b,
-                "pattern": pattern,
-                "domain": domain,
-                "corpus_ref": evidence_tag,
-            })
-
-    # 合并同键边（weight 求和）
-    if log_entries:
-        new_snet = new_snet.merge_edge_weights()
+        log_entries.append({
+            "type": "hyperedge",
+            "vertices": sorted(vertices),
+            "domain": domain,
+            "corpus_ref": evidence_tag,
+        })
 
     return new_snet, log_entries
 
@@ -714,18 +698,21 @@ def ingest_text_passage_batch(
 ) -> tuple[SNet, list[dict]]:
     """批量摄入多个段落——性能优化版本。
 
-    与 ingest_text_passage 语义相同，但：
+    每段落产出 1 个 CooccurrenceHyperedge（vertices = matched_terms 的 frozenset），
+    不再生成 C(N,2) 成对 SignifierEdge。
+
+    性能优化：
       1. 增强白名单只构建一次（而非每段落一次）
-      2. phi_L_whitelist_match 的排序白名单只构建一次
-      3. 新边和 signifier 更新在内存中收集，最终一次性写入 SNet
-      4. merge_edge_weights 只在全部段落处理完后调用一次
+      2. 预排序白名单只构建一次
+      3. signifier 更新在内存中收集，最终一次性写入 SNet
+      4. 超边批量添加
 
-    对于大文件（数千段落），性能提升数个数量级。
-
-    参数与 ingest_text_passage 相同，但 text → paragraphs（段落列表）。
+    参数与 ingest_text_passage 相同，但 text -> paragraphs（段落列表）。
 
     认识论等级：L0（确定性字符串匹配，不涉及经验假设）
     """
+    import time as _time
+
     if not paragraphs or not snet.signifiers:
         return snet, []
 
@@ -735,7 +722,7 @@ def ingest_text_passage_batch(
     sorted_terms = sorted(whitelist, key=len, reverse=True)
 
     # 收集所有变更，最终一次性应用到 SNet
-    pending_edges: list[SignifierEdge] = []
+    pending_hyperedges: list[CooccurrenceHyperedge] = []
     # signifier 更新：id → updated Signifier（新 surface_forms）
     sig_updates: dict[str, Signifier] = {}
     all_log_entries: list[dict] = []
@@ -797,42 +784,33 @@ def ingest_text_passage_batch(
         if len(matched_terms) < 2:
             continue
 
-        # 提取术语共现对 → 组合轴边
-        for i in range(len(matched_terms)):
-            for j in range(i + 1, len(matched_terms)):
-                term_a = matched_terms[i]
-                term_b = matched_terms[j]
+        # 产出 1 个超边（不是 C(N,2) 成对边）
+        vertices = frozenset(
+            t for t in matched_terms if snet.has_signifier(t)
+        )
+        if len(vertices) >= 2:
+            he = CooccurrenceHyperedge(
+                vertices=vertices,
+                source=source,
+                domain=domain,
+                timestamp=str(_time.time()),
+                evidence_tag=evidence_tag,
+            )
+            pending_hyperedges.append(he)
 
-                if not snet.has_signifier(term_a) or not snet.has_signifier(term_b):
-                    continue
-
-                pattern = extract_pattern(text, term_a, term_b)
-                evidence = pattern if pattern else evidence_tag
-
-                pending_edges.append(SignifierEdge(
-                    source=term_a,
-                    target=term_b,
-                    axis=AxisType.SYNTAGMATIC,
-                    weight=1.0,
-                    evidence=evidence,
-                ))
-
-                all_log_entries.append({
-                    "type": "cooccurrence",
-                    "source": term_a,
-                    "target": term_b,
-                    "pattern": pattern,
-                    "domain": domain,
-                    "corpus_ref": evidence_tag,
-                })
+            all_log_entries.append({
+                "type": "hyperedge",
+                "vertices": sorted(vertices),
+                "domain": domain,
+                "corpus_ref": evidence_tag,
+            })
 
     # 一次性应用所有变更
     new_snet = snet
     if sig_updates:
         new_snet = new_snet.add_signifiers(list(sig_updates.values()))
-    if pending_edges:
-        new_snet = new_snet.add_edges(pending_edges)
-        new_snet = new_snet.merge_edge_weights()
+    if pending_hyperedges:
+        new_snet = new_snet.add_hyperedges(pending_hyperedges)
 
     return new_snet, all_log_entries
 
