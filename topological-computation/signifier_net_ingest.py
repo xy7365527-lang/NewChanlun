@@ -131,7 +131,7 @@ def _build_head_term_index(snet: SNet) -> dict[str, str]:
     """
     index: dict[str, str] = {}
 
-    for sid in snet.signifiers:
+    for sid in snet._signifiers:
         # 完整 ID 已经在 snet 中，无需索引
         # 索引的是 head term → 完整 sid 的映射
 
@@ -233,7 +233,7 @@ def ingest_dictionary(
 
     # 如果没有提供白名单，使用 S_net 中所有 signifier id
     if domain_whitelist is None:
-        domain_whitelist = set(snet.signifiers.keys())
+        domain_whitelist = set(snet._signifiers.keys())
 
     stats = {
         "file": str(path.name),
@@ -261,7 +261,7 @@ def ingest_dictionary(
 
     pending_signifiers: list[Signifier] = []
     pending_edges: list[SignifierEdge] = []
-    existing_sig_ids: set[str] = set(snet.signifiers.keys())
+    existing_sig_ids: set[str] = set(snet._signifiers.keys())
 
     for entry in entries:
         term = entry.get("term", "").strip()
@@ -572,10 +572,10 @@ def _build_augmented_whitelist(
     原文中出现。但 head term "culture industry" 经常出现。增强白名单同时包含两者，
     phi_L_whitelist_match 的长度降序贪心保证 full ID 优先匹配（如果碰巧出现的话）。
     """
-    whitelist = set(snet.signifiers.keys())
+    whitelist = set(snet._signifiers.keys())
     head_to_sid: dict[str, str] = {}
 
-    for sid in snet.signifiers:
+    for sid in snet._signifiers:
         head = None
         if " — " in sid:
             head = sid.split(" — ")[0].strip()
@@ -623,7 +623,7 @@ def ingest_text_passage(
     """
     import time as _time
 
-    if not text or not snet.signifiers:
+    if not text or not snet._signifiers:
         return snet, []
 
     # 构建增强白名单（signifier IDs + head terms）
@@ -646,7 +646,7 @@ def ingest_text_passage(
             term = matched_terms[0]
             sf = _find_surface_form(text, term)
             if sf:
-                existing = snet.signifiers.get(term)
+                existing = snet._signifiers.get(term)
                 if existing and sf not in existing.surface_forms:
                     new_forms = existing.surface_forms + (sf,)
                     snet = snet.add_signifier(Signifier(
@@ -665,7 +665,7 @@ def ingest_text_passage(
         sf = _find_surface_form(text, term)
         if not sf:
             continue
-        existing = new_snet.signifiers.get(term)
+        existing = new_snet._signifiers.get(term)
         if existing and sf not in existing.surface_forms:
             # 限制 surface_forms 数量，避免内存膨胀
             if len(existing.surface_forms) < 20:
@@ -705,6 +705,8 @@ def ingest_text_passage_batch(
     paragraphs: list[str],
     domain: str,
     source: str,
+    *,
+    _prebuilt_whitelist: tuple[list[str], dict[str, str]] | None = None,
 ) -> tuple[SNet, list[dict]]:
     """批量摄入多个段落——性能优化版本。
 
@@ -716,20 +718,25 @@ def ingest_text_passage_batch(
       2. 预排序白名单只构建一次
       3. signifier 更新在内存中收集，最终一次性写入 SNet
       4. 超边批量添加
+      5. _prebuilt_whitelist 允许跨域复用白名单（避免多域重复构建）
 
     参数与 ingest_text_passage 相同，但 text -> paragraphs（段落列表）。
+    _prebuilt_whitelist: 可选 (sorted_terms, head_to_sid)，跳过白名单构建。
 
     认识论等级：L0（确定性字符串匹配，不涉及经验假设）
     """
     import time as _time
 
-    if not paragraphs or not snet.signifiers:
+    if not paragraphs or not snet._signifiers:
         return snet, []
 
-    # 构建增强白名单——一次性
-    whitelist, head_to_sid = _build_augmented_whitelist(snet)
-    # 预排序白名单（按长度降序），避免 phi_L_whitelist_match 每次重新排序
-    sorted_terms = sorted(whitelist, key=len, reverse=True)
+    # 构建增强白名单——一次性（或复用预构建的）
+    if _prebuilt_whitelist is not None:
+        sorted_terms, head_to_sid = _prebuilt_whitelist
+    else:
+        whitelist, head_to_sid = _build_augmented_whitelist(snet)
+        # 预排序白名单（按长度降序），避免 phi_L_whitelist_match 每次重新排序
+        sorted_terms = sorted(whitelist, key=len, reverse=True)
 
     # 收集所有变更，最终一次性应用到 SNet
     pending_hyperedges: list[CooccurrenceHyperedge] = []
@@ -740,20 +747,59 @@ def ingest_text_passage_batch(
 
     # 快照当前 signifier 的 surface_forms，用于去重
     current_surface_forms: dict[str, set[str]] = {}
-    for sid, sig in snet.signifiers.items():
+    for sid, sig in snet._signifiers.items():
         current_surface_forms[sid] = set(sig.surface_forms)
+
+    # 预构建匹配索引——将 263K 白名单按匹配策略分组
+    # ASCII 单词术语用 set 交集预筛；非 ASCII / 多词术语用首词预筛
+    _min_term_len = 2  # 过滤噪声（1字符术语如 "a", "I" 几乎匹配一切）
+    _ascii_single: set[str] = set()       # 纯 ASCII 无空格术语 → set O(1) 查找
+    _non_ascii_terms: list[str] = []      # 含非 ASCII 字符的术语（中文等）→ 子串匹配
+    _multi_word_first: dict[str, list[str]] = {}  # 首词 → [完整多词术语...]
+
+    for term in sorted_terms:
+        if len(term) < _min_term_len:
+            continue
+        words = term.split()
+        if len(words) > 1:
+            _multi_word_first.setdefault(words[0], []).append(term)
+        elif term.isascii():
+            _ascii_single.add(term)
+        else:
+            _non_ascii_terms.append(term)
+
+    # 预构建多词首词 set 用于交集查找
+    _multi_first_set = set(_multi_word_first.keys())
 
     for text in paragraphs:
         if not text:
             continue
 
-        # 匹配段落中的已知术语（内联白名单匹配，避免重复排序）
+        # 段落级预筛：提取段落中的空格分隔 token（适用于英文/德文）
+        text_words = set(text.split())
+
         matched: list[str] = []
         remaining = text
-        for term in sorted_terms:
+
+        # 阶段1：ASCII 单词术语 — set 交集预筛
+        ascii_hits = text_words & _ascii_single
+        for term in sorted(ascii_hits, key=len, reverse=True):
             if term in remaining:
                 matched.append(term)
                 remaining = remaining.replace(term, " " * len(term))
+
+        # 阶段2：非 ASCII 术语（中文等）— 子串匹配（按长度降序已排好序）
+        for term in _non_ascii_terms:
+            if term in remaining:
+                matched.append(term)
+                remaining = remaining.replace(term, " " * len(term))
+
+        # 阶段3：多词术语 — 只检查首词在段落 token 中出现的
+        for first_word in (text_words & _multi_first_set):
+            for term in _multi_word_first[first_word]:
+                if term in remaining:
+                    matched.append(term)
+                    remaining = remaining.replace(term, " " * len(term))
 
         # 将 head term 匹配结果映射回 signifier ID
         matched_terms = []
@@ -777,7 +823,7 @@ def ingest_text_passage_batch(
             existing_forms.add(sf)
             current_surface_forms[term] = existing_forms
             # 构建更新后的 Signifier
-            existing_sig = snet.signifiers.get(term)
+            existing_sig = snet._signifiers.get(term)
             if existing_sig:
                 # 合并已有的 pending 更新
                 if term in sig_updates:
@@ -919,7 +965,7 @@ def ingest_bilingual_dict(
     seen_pairs: set[tuple[str, str]] = set()
     pending_signifiers: list[Signifier] = []
     pending_edges: list[SignifierEdge] = []
-    existing_sig_ids: set[str] = set(snet.signifiers.keys())
+    existing_sig_ids: set[str] = set(snet._signifiers.keys())
 
     for raw_entry in entries:
         entry = _normalize_bilingual_entry(raw_entry)
@@ -1168,7 +1214,7 @@ def ingest_synonym_dict(
 
     pending_signifiers: list[Signifier] = []
     pending_edges: list[SignifierEdge] = []
-    existing_sig_ids: set[str] = set(snet.signifiers.keys())
+    existing_sig_ids: set[str] = set(snet._signifiers.keys())
 
     for entry in entries:
         term = entry.get("term", "").strip()
@@ -1410,7 +1456,7 @@ def ingest_thesaurus_dict(
 
     pending_signifiers: list[Signifier] = []
     pending_edges: list[SignifierEdge] = []
-    existing_sig_ids: set[str] = set(snet.signifiers.keys())
+    existing_sig_ids: set[str] = set(snet._signifiers.keys())
 
     for entry in entries:
         term = entry.get("term", "").strip()
@@ -1639,7 +1685,7 @@ def ingest_wiktionary_dict(
 
     pending_signifiers: list[Signifier] = []
     pending_edges: list[SignifierEdge] = []
-    existing_sig_ids: set[str] = set(snet.signifiers.keys())
+    existing_sig_ids: set[str] = set(snet._signifiers.keys())
 
     for entry in entries:
         # zh 版用 headword，其他用 term
@@ -1850,7 +1896,7 @@ def ingest_idiom_dict(
             text = text.strip()
 
             # 添加为 surface form（限制数量）
-            existing = snet.signifiers.get(resolved_id)
+            existing = snet._signifiers.get(resolved_id)
             if existing:
                 current_forms = updated_surface_forms.get(resolved_id, existing.surface_forms)
                 if text not in current_forms and len(current_forms) < 20:
@@ -1878,7 +1924,7 @@ def ingest_idiom_dict(
 
     # 批量写入 surface_forms 更新
     for sig_id, new_forms in updated_surface_forms.items():
-        existing = snet.signifiers.get(sig_id)
+        existing = snet._signifiers.get(sig_id)
         if existing:
             pending_signifiers.append(Signifier(
                 id=existing.id,
@@ -1948,7 +1994,7 @@ def ingest_wortschatz_dict(
 
     pending_signifiers: list[Signifier] = []
     pending_edges: list[SignifierEdge] = []
-    existing_sig_ids: set[str] = set(snet.signifiers.keys())
+    existing_sig_ids: set[str] = set(snet._signifiers.keys())
 
     for entry in entries:
         term = entry.get("term", "").strip()
@@ -2133,7 +2179,7 @@ def ingest_code_dict(
                 vertex_id_to_sig[vid] = content
 
     # Also build reverse: check surface_forms for vertex IDs
-    for sid, sig in snet.signifiers.items():
+    for sid, sig in snet._signifiers.items():
         for sf in sig.surface_forms:
             if sf not in vertex_id_to_sig:
                 vertex_id_to_sig[sf] = sid
@@ -2142,7 +2188,7 @@ def ingest_code_dict(
     code_term_to_sig: dict[str, str] = {}
     pending_signifiers: list[Signifier] = []
     pending_edges: list[SignifierEdge] = []
-    existing_sig_ids: set[str] = set(snet.signifiers.keys())
+    existing_sig_ids: set[str] = set(snet._signifiers.keys())
 
     for entry in entries:
         term = entry.get("term", "").strip()

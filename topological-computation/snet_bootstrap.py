@@ -226,7 +226,7 @@ def bootstrap_layer_b(
     # 添加缺失能指（批量添加）
     if add_missing_signifiers and missing_signifiers:
         pending_signifiers: list[Signifier] = []
-        existing_sig_ids: set[str] = set(snet.signifiers.keys())
+        existing_sig_ids: set[str] = set(snet._signifiers.keys())
         for term in missing_signifiers:
             if term not in existing_sig_ids:
                 pending_signifiers.append(Signifier(
@@ -277,7 +277,7 @@ def bootstrap_layer_b(
         "high_pmi_pairs": [(a, b, round(p, 3)) for a, b, p in high_pmi_top],
     }
 
-    new_snet = SNet(snet.signifiers, all_edges)
+    new_snet = SNet(snet._signifiers, all_edges)
     return new_snet, stats
 
 
@@ -434,8 +434,8 @@ def report_snet(snet: SNet, top_n: int = 10, layer_b_stats: dict | None = None) 
     layer_b_stats: bootstrap_layer_b 返回的统计字典（可选，用于报告 PMI 过滤情况）
     """
     lines: list[str] = []
-    sigs = snet.signifiers
-    edges = snet.edges
+    sigs = snet._signifiers
+    edges = snet._edges
 
     syn_edges = [e for e in edges if e.axis == AxisType.SYNTAGMATIC]
     par_edges = [e for e in edges if e.axis == AxisType.PARADIGMATIC]
