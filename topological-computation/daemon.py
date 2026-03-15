@@ -1810,15 +1810,12 @@ class TopologicalDaemon:
         candidates = detect_cross_domain_edges(scope_graph, min_score=0.15)
 
         # Inject into K_active (max 10 per crystallization to avoid flooding)
-        existing_edges = {
-            (e.source, e.target, e.edge_type.value)
-            for e in self.k_active.edges
-        }
+        existing_edges = set(self.k_active._edge_keys)  # mutable copy for .add()
         added = 0
         for edge, _score in candidates:
             if added >= 10:
                 break
-            key = (edge.source, edge.target, edge.edge_type.value)
+            key = (edge.source, edge.target, edge.edge_type)
             if key not in existing_edges:
                 if (self.k_active.vertex(edge.source) is not None
                         and self.k_active.vertex(edge.target) is not None):
@@ -1839,10 +1836,7 @@ class TopologicalDaemon:
         可直接调用。外部摄入（如 ingest_code）必须在调用前/后回写 S_net。
         """
         existing_vids = set(self.k_active.active_vertex_ids())
-        existing_edges = {
-            (e.source, e.target, e.edge_type.value)
-            for e in self.k_active.edges
-        }
+        existing_edges = set(self.k_active._edge_keys)  # mutable copy for .add()
 
         for vid in sub_graph.active_vertex_ids():
             if vid not in existing_vids:
@@ -1853,7 +1847,7 @@ class TopologicalDaemon:
                 # to avoid double-write (was root cause of 3847x duplication bug)
 
         for e in sub_graph.active_edges():
-            key = (e.source, e.target, e.edge_type.value)
+            key = (e.source, e.target, e.edge_type)
             if key not in existing_edges:
                 if (self.k_active.vertex(e.source) is not None
                         and self.k_active.vertex(e.target) is not None):

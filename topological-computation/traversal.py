@@ -699,8 +699,8 @@ class TraversalEngine:
 
         Returns (operation_name, blocked).
         """
-        # Pre-build edge lookup set to avoid O(E) `in` checks on k_full.edges
-        _kfull_edge_keys = {(e.source, e.target, e.edge_type) for e in self.k_full.edges}
+        # Use Graph._edge_keys cache for O(1) membership test (instead of O(E) set construction)
+        _kfull_has_key = self.k_full.has_edge_key
 
         if enc.encounter_type == EncounterType.SUBLATION:
             # Build synthesis content from source vertices + negation edge
@@ -751,7 +751,7 @@ class TraversalEngine:
             self.k_active = result.graph
             self.k_full = self.k_full.add_vertex(self.k_active.vertex(result.new_vertex))
             for e in result.graph.edges:
-                if e.created_at == self.step and (e.source, e.target, e.edge_type) not in _kfull_edge_keys:
+                if e.created_at == self.step and (e.source, e.target, e.edge_type) not in self.k_full._edge_keys:
                     self.k_full = self.k_full.add_edge(e)
 
             # Creation = arrival
@@ -784,7 +784,7 @@ class TraversalEngine:
 
             self.k_active = result.graph
             for e in result.graph.edges:
-                if e.created_at == self.step and (e.source, e.target, e.edge_type) not in _kfull_edge_keys:
+                if e.created_at == self.step and (e.source, e.target, e.edge_type) not in self.k_full._edge_keys:
                     self.k_full = self.k_full.add_edge(e)
 
             self._pending_negations.append((enc.target_a, enc.target_b))
@@ -812,7 +812,7 @@ class TraversalEngine:
             if new_v:
                 self.k_full = self.k_full.add_vertex(new_v)
             for e in result.graph.edges:
-                if e.created_at == self.step and (e.source, e.target, e.edge_type) not in _kfull_edge_keys:
+                if e.created_at == self.step and (e.source, e.target, e.edge_type) not in self.k_full._edge_keys:
                     self.k_full = self.k_full.add_edge(e)
 
             # Creation = arrival
@@ -846,7 +846,7 @@ class TraversalEngine:
             self.k_active = result.graph
             # Update K_full with fold record
             for e in result.graph.edges:
-                if e.created_at == self.step and (e.source, e.target, e.edge_type) not in _kfull_edge_keys:
+                if e.created_at == self.step and (e.source, e.target, e.edge_type) not in self.k_full._edge_keys:
                     self.k_full = self.k_full.add_edge(e)
             # If position was folded away, move to kept vertex
             if self.position == enc.target_b:
