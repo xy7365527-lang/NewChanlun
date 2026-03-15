@@ -797,31 +797,17 @@ def ingest_text_passage_batch(
         if len(matched_terms) < 2:
             continue
 
-        # 性能优化：限制每段落的组合数上限
-        # 100 个术语 = 4950 对，已足够捕获共现信号
-        # 超过上限时采样（random.sample 用于性能优化，非概率范式命名）
-        terms_for_pairs = matched_terms
-        if len(matched_terms) > 30:
-            import random
-            terms_for_pairs = random.sample(matched_terms, 30)
-
         # 提取术语共现对 → 组合轴边
-        # 性能优化：匹配术语多时跳过 extract_pattern（O(n²) 瓶颈）
-        # extract_pattern 只提取上下文片段作为 evidence，非必需
-        skip_pattern = len(terms_for_pairs) > 10
-        for i in range(len(terms_for_pairs)):
-            for j in range(i + 1, len(terms_for_pairs)):
-                term_a = terms_for_pairs[i]
-                term_b = terms_for_pairs[j]
+        for i in range(len(matched_terms)):
+            for j in range(i + 1, len(matched_terms)):
+                term_a = matched_terms[i]
+                term_b = matched_terms[j]
 
                 if not snet.has_signifier(term_a) or not snet.has_signifier(term_b):
                     continue
 
-                if skip_pattern:
-                    evidence = evidence_tag
-                else:
-                    pattern = extract_pattern(text, term_a, term_b)
-                    evidence = pattern if pattern else evidence_tag
+                pattern = extract_pattern(text, term_a, term_b)
+                evidence = pattern if pattern else evidence_tag
 
                 pending_edges.append(SignifierEdge(
                     source=term_a,
