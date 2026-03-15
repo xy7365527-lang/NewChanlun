@@ -290,10 +290,10 @@ def _detect_output_ruptures(
       2. 构建快照中的"已授权能指集合"（formed + active + locked）
       3. 差集 = 未授权能指 = OutputRupture
     """
-    if not llm_output or not snet.signifiers:
+    if not llm_output or not snet._signifiers:
         return []
 
-    whitelist = list(snet.signifiers.keys())
+    whitelist = list(snet._signifiers.keys())
     output_chain = parse_signifier_chain(llm_output, known_signifiers=whitelist)
 
     # 已授权能指集合
@@ -444,7 +444,7 @@ def externalize(
     snet = daemon.snet
 
     # 无 activation 时退化为模板响应
-    if activation is None or not snet.signifiers:
+    if activation is None or not snet._signifiers:
         return _fallback_response(daemon, user_text)
 
     # 1. build_snapshot
@@ -585,7 +585,7 @@ def _externalize_via_llm(
     # 437号管道3: ceremony agent LLM 翻译结果回流 S_net
     # 使用 ingest_text_passage_batch 完整管线（增强白名单 + surface form 提取）
     writeback_edges = 0
-    if snet.signifiers:
+    if snet._signifiers:
         try:
             from signifier_net_ingest import ingest_text_passage_batch
             new_snet, log_entries = ingest_text_passage_batch(
@@ -600,7 +600,7 @@ def _externalize_via_llm(
                 )
         except ImportError:
             # fallback to simpler writeback_from_text
-            whitelist = set(snet.signifiers.keys())
+            whitelist = set(snet._signifiers.keys())
             ts = str(int(time.time()))
             new_snet, log_entries = writeback_from_text(
                 snet, content, whitelist, "llm_externalize", ts,

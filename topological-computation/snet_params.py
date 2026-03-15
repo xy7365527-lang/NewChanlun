@@ -292,7 +292,7 @@ def get_current_params(snet: SNet) -> dict[str, float | int]:
     """
     param_nodes: dict[str, list[tuple[str, float | int]]] = {}
 
-    for sid, sig in snet.signifiers.items():
+    for sid, sig in snet._signifiers.items():
         if sig.source != "snet_parameter":
             continue
         if not sid.startswith("snet_param:"):
