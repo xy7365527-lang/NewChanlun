@@ -907,6 +907,9 @@ def ingest_bilingual_dict(
 
     # 去重：同一对术语只创建一条翻译边（双向）
     seen_pairs: set[tuple[str, str]] = set()
+    pending_signifiers: list[Signifier] = []
+    pending_edges: list[SignifierEdge] = []
+    existing_sig_ids: set[str] = set(snet.signifiers.keys())
 
     for raw_entry in entries:
         entry = _normalize_bilingual_entry(raw_entry)
@@ -928,30 +931,32 @@ def ingest_bilingual_dict(
             continue
         seen_pairs.add(pair_key)
 
-        # 创建 Signifier（若不存在）
-        if not snet.has_signifier(term_a):
-            snet = snet.add_signifier(Signifier(
+        # 收集 Signifier（若不存在）
+        if term_a not in existing_sig_ids:
+            pending_signifiers.append(Signifier(
                 id=term_a,
                 surface_forms=(),
                 source="bilingual_dictionary",
                 lang=lang_a,
                 domain=domain,
             ))
+            existing_sig_ids.add(term_a)
             stats["signifiers_created"] += 1
 
-        if not snet.has_signifier(term_b):
-            snet = snet.add_signifier(Signifier(
+        if term_b not in existing_sig_ids:
+            pending_signifiers.append(Signifier(
                 id=term_b,
                 surface_forms=(),
                 source="bilingual_dictionary",
                 lang=lang_b,
                 domain=domain,
             ))
+            existing_sig_ids.add(term_b)
             stats["signifiers_created"] += 1
 
-        # 创建翻译边（双向）
+        # 收集翻译边（双向）
         evidence = f"bilingual:{source}" if source else f"bilingual:{path.stem}"
-        snet = snet.add_edge(SignifierEdge(
+        pending_edges.append(SignifierEdge(
             source=term_a,
             target=term_b,
             axis=AxisType.PARADIGMATIC,
@@ -960,7 +965,7 @@ def ingest_bilingual_dict(
             relation="translation",
             differential=differential,
         ))
-        snet = snet.add_edge(SignifierEdge(
+        pending_edges.append(SignifierEdge(
             source=term_b,
             target=term_a,
             axis=AxisType.PARADIGMATIC,
@@ -971,8 +976,12 @@ def ingest_bilingual_dict(
         ))
         stats["translations_added"] += 1
 
-    # 合并同键边
-    snet = snet.merge_edge_weights()
+    # 批量写入（一次性重建 SNet，避免 211K 次逐条重建）
+    if pending_signifiers:
+        snet = snet.add_signifiers(pending_signifiers)
+    if pending_edges:
+        snet = snet.add_edges(pending_edges)
+        snet = snet.merge_edge_weights()
 
     return snet, stats
 
