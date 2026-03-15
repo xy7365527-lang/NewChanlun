@@ -1029,11 +1029,13 @@ class TraversalEngine:
         active_vids = self.k_active._active_ids
 
         # Build set of existing COOCCURRENCE edge targets from this vertex for dedup
+        # Use adjacency index O(deg) instead of all_active_edges() O(E)
         existing_cooc_targets: set[str] = set()
-        for e in self.k_active.all_active_edges():
-            if e.edge_type == EdgeType.COOCCURRENCE and e.source == concept_id:
+        for e in self.k_active._adj_out.get(concept_id, ()):
+            if e.edge_type == EdgeType.COOCCURRENCE:
                 existing_cooc_targets.add(e.target)
-            elif e.edge_type == EdgeType.COOCCURRENCE and e.target == concept_id:
+        for e in self.k_active._adj_in.get(concept_id, ()):
+            if e.edge_type == EdgeType.COOCCURRENCE:
                 existing_cooc_targets.add(e.source)
 
         # Primary path: hyperedge-based neighbors (真实语境共现)
