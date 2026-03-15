@@ -199,7 +199,7 @@ def inject_cross_domain_edges(
         candidates = detect_cross_domain_edges(graph, min_score=min_score)
 
     # Avoid duplicate edges
-    existing: set[tuple[str, str, EdgeType]] = set(graph._edge_keys)
+    existing: set[tuple[str, str, EdgeType]] = set(graph.edge_keys)
 
     new_edges: list[Edge] = []
     for edge, _score in candidates:
