@@ -290,41 +290,48 @@ def _expand_mappings(
     substring_added = 0
     still_unmapped = [sid for sid in s_net._signifiers if sid not in expanded_s2c]
 
-    # 优化：反转搜索方向。content_index 通常只有 ~200 条目，
-    # 而 still_unmapped 可能有 200K+ 条。逐 content 搜索比逐 signifier 搜索快 1000x。
-    # 构建 unmapped signifiers 的 set 用于 O(1) 查找
-    unmapped_set = set(still_unmapped)
-    unmapped_lower_map: dict[str, str] = {}  # lowercase → original id
+    # 反转搜索：从 content 的单词出发，在 unmapped set 中查找
+    # content_index 通常只有 ~200 条目，每条目几十个单词
+    # 总操作数 = M × W（M=content数, W=平均单词数）+ set 查找 O(1)
+    unmapped_lower_to_sid: dict[str, str] = {}  # lowercase → original id
     for sid in still_unmapped:
         sid_lower = sid.lower()
         if len(sid_lower) >= 3:
-            unmapped_lower_map[sid_lower] = sid
+            unmapped_lower_to_sid[sid_lower] = sid
 
-    # 对每个 content，提取其中包含的 unmapped signifiers
+    # 分离单词和多词术语
+    unmapped_single_lower: set[str] = set()
+    unmapped_multi_lower: list[str] = []
+    for sid_lower in unmapped_lower_to_sid:
+        if ' ' in sid_lower:
+            unmapped_multi_lower.append(sid_lower)
+        else:
+            unmapped_single_lower.add(sid_lower)
+
     for vid, content_lower in content_index.items():
-        # 用空格分割 content 中的 token，然后检查哪些 token 是 unmapped signifiers
         content_words = set(content_lower.split())
-        for sid_lower, sid in unmapped_lower_map.items():
-            if sid in expanded_s2c:
-                continue  # 可能已被另一个 content 匹配
-            # 单词级匹配（代替正则 \b）
-            if ' ' in sid_lower:
-                # 多词术语：用 in 检查
-                if sid_lower in content_lower:
-                    expanded_s2c.setdefault(sid, []).append(vid)
-                    if len(expanded_s2c[sid]) <= 3:
-                        substring_added += 1
-            else:
-                # 单词术语：用 set 查找
-                if sid_lower in content_words:
-                    expanded_s2c.setdefault(sid, []).append(vid)
-                    if len(expanded_s2c[sid]) <= 3:
-                        substring_added += 1
 
-    # 限制每个 signifier 最多映射 3 个概念
-    for sid in list(expanded_s2c.keys()):
-        if len(expanded_s2c[sid]) > 3:
-            expanded_s2c[sid] = expanded_s2c[sid][:3]
+        # 单词术语：set 交集 O(min(|words|, |unmapped|))
+        matched_words = content_words & unmapped_single_lower
+        for sid_lower in matched_words:
+            sid = unmapped_lower_to_sid[sid_lower]
+            if sid not in expanded_s2c:
+                expanded_s2c[sid] = [vid]
+                substring_added += 1
+            elif len(expanded_s2c[sid]) < 3:
+                expanded_s2c[sid].append(vid)
+
+        # 多词术语：子串匹配（数量通常不大）
+        for sid_lower in unmapped_multi_lower:
+            sid = unmapped_lower_to_sid[sid_lower]
+            if sid in expanded_s2c and len(expanded_s2c[sid]) >= 3:
+                continue
+            if sid_lower in content_lower:
+                if sid not in expanded_s2c:
+                    expanded_s2c[sid] = [vid]
+                    substring_added += 1
+                elif len(expanded_s2c[sid]) < 3:
+                    expanded_s2c[sid].append(vid)
 
     stats["substring_added"] = substring_added
 
