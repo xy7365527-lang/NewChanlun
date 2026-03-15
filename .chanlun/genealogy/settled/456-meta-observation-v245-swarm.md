@@ -51,13 +51,23 @@ rule_version_baseline:
 4. `_expand_mappings` — content_words(~50) ∩ unmapped_single(~140K) = O(50)
 5. `_expand_mappings` 多词 — content_words ∩ multi_first_words = O(|content_words|)
 
-**收敛判断**：这不是新发现的范式（set 交集是基础数据结构操作），但在本项目中被系统性应用于解决同一类问题（大白名单 × 小文本的匹配）。如果后续继续出现类似场景，可考虑提取为通用匹配工具。
+**收敛判断**：本 session 出现 5 次，编排者裁定显式化为规则。不是偶然的优化技巧——是处理不对称集合的通用范式。
 
-## 观察3：pickle 兼容性缺口
+## 观察3：pickle 兼容性缺口 → 编排者裁定：放弃 pickle
 
-不可变对象 + pickle 持久化的组合存在固有风险：每次给 Graph 添加新的缓存属性（如 `_edge_keys`），旧 pickle 恢复的对象会缺少该属性。`__getattr__` 懒初始化是后补方案。
+不可变对象 + pickle 持久化的组合存在固有风险：每次给 Graph 添加新的缓存属性（如 `_edge_keys`），旧 pickle 恢复的对象会缺少该属性。`__getattr__` 懒初始化是后补方案——是在错误的持久化选择上打补丁。
 
-**风险评估**：此问题只在**跨版本恢复**时出现。如果部署总是 clean start，不会触发。但双实例耦合 + 持久化 + 热更新的场景下，跨版本恢复是常态。
+### 编排者洞察：Dass/Was 区分
+
+pickle 序列化的是对象的完整状态——包括不可变数据（Dass）和可变缓存（Was）。这和 events immutable 原则冲突：你应该持久化的是 Dass（这些边存在、这些超边发生过），不是 Was（对象当前的计算状态）。加载时从 Dass 重建 Was。Was 的定义随代码演化而变，Dass 不变。
+
+与 ghost settlement 同构——操作改变了结构的前提，但记录层没跟上。区别是 ghost settlement 发生在运行时的图操作中，pickle 兼容性发生在持久化和恢复的边界上。根本原因相同：不可变对象不是真正不可变的。它的公共接口是 frozen 的，但内部缓存在运行时被添加。
+
+### 编排者裁定
+
+**放弃 pickle。** Graph 和 SNet 的 persist 从 pickle dump 改为导出边和顶点的 JSONL。load 从 JSONL 读入事件，调用正常构造流程重建。缓存在构造过程中自然生成。版本兼容问题消失。
+
+优先级：不高。下次碰到 pickle 兼容问题时执行，不再打 `__getattr__` 补丁。旧 pickle 文件做一次性迁移。
 
 ## 观察4：重复材料入口
 
@@ -70,4 +80,6 @@ cc-cedict 同时作为辞典（dict_cedict.jsonl）和语料（corpora/cc-cedict
 
 ## 结论
 
-无需上浮。所有观察属于定理类（已结算原则的逻辑推论）或行动类（已执行的修复）。语法记录候选（反转搜索范式）尚未达到结晶阈值——需要更多 session 的重复出现确认。
+1. **反转搜索范式**：编排者裁定显式化——写入 meta-rule（本条即是）
+2. **pickle → JSONL**：编排者裁定放弃 pickle，下次碰到兼容问题时执行迁移
+3. 其余观察属于定理类或行动类，不需上浮
