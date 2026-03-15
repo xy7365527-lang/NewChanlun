@@ -754,8 +754,13 @@ def ingest_text_passage_batch(
     # ASCII 单词术语用 set 交集预筛；非 ASCII / 多词术语用首词预筛
     _min_term_len = 2  # 过滤噪声（1字符术语如 "a", "I" 几乎匹配一切）
     _ascii_single: set[str] = set()       # 纯 ASCII 无空格术语 → set O(1) 查找
-    _non_ascii_terms: list[str] = []      # 含非 ASCII 字符的术语（中文等）→ 子串匹配
+    _cjk_terms: list[str] = []            # CJK 术语（中日韩）→ CJK 预筛后子串匹配
+    _latin_ext_terms: list[str] = []      # 非 ASCII 拉丁字母术语（德/法变音符号）→ 子串匹配
     _multi_word_first: dict[str, list[str]] = {}  # 首词 → [完整多词术语...]
+
+    def _is_cjk_term(t: str) -> bool:
+        """检查术语是否包含 CJK 字符（中日韩统一表意文字）。"""
+        return any('\u4e00' <= c <= '\u9fff' or '\u3400' <= c <= '\u4dbf' for c in t)
 
     for term in sorted_terms:
         if len(term) < _min_term_len:
@@ -765,8 +770,10 @@ def ingest_text_passage_batch(
             _multi_word_first.setdefault(words[0], []).append(term)
         elif term.isascii():
             _ascii_single.add(term)
+        elif _is_cjk_term(term):
+            _cjk_terms.append(term)
         else:
-            _non_ascii_terms.append(term)
+            _latin_ext_terms.append(term)
 
     # 预构建多词首词 set 用于交集查找
     _multi_first_set = set(_multi_word_first.keys())
@@ -788,8 +795,17 @@ def ingest_text_passage_batch(
                 matched.append(term)
                 remaining = remaining.replace(term, " " * len(term))
 
-        # 阶段2：非 ASCII 术语（中文等）— 子串匹配（按长度降序已排好序）
-        for term in _non_ascii_terms:
+        # 阶段2a：CJK 术语 — 仅当段落含 CJK 字符时匹配
+        # （107K 中文术语在纯英文/德文段落中不可能匹配，跳过节省 O(107K) 次 `in` 检查）
+        _has_cjk = any('\u4e00' <= c <= '\u9fff' or '\u3400' <= c <= '\u4dbf' for c in remaining[:200])
+        if _has_cjk:
+            for term in _cjk_terms:
+                if term in remaining:
+                    matched.append(term)
+                    remaining = remaining.replace(term, " " * len(term))
+
+        # 阶段2b：非 ASCII 拉丁字母术语（德/法变音符号）— 子串匹配
+        for term in _latin_ext_terms:
             if term in remaining:
                 matched.append(term)
                 remaining = remaining.replace(term, " " * len(term))
