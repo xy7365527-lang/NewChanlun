@@ -504,7 +504,7 @@ class TopologicalDaemon:
         if hasattr(self.snet, 'edge_count'):
             self._snet_block_watermark = self.snet.edge_count
         else:
-            self._snet_block_watermark = len(self.snet.edges)
+            self._snet_block_watermark = len(self.snet._edges)
         # Set hyperedge watermark similarly
         if hasattr(self.snet, 'hyperedge_count'):
             self._snet_hyperedge_watermark = self.snet.hyperedge_count
@@ -558,7 +558,7 @@ class TopologicalDaemon:
 
         Graceful degradation: if S_net is empty, no activation is created.
         """
-        if not self.snet.signifiers or self.engine is None:
+        if not self.snet._signifiers or self.engine is None:
             self.snet_activation = None
             return
 
@@ -577,7 +577,7 @@ class TopologicalDaemon:
         )
         self.engine.set_snet_activation(self.snet_activation)
 
-        n_total = expansion_stats.get("total_signifiers", len(self.snet.signifiers))
+        n_total = expansion_stats.get("total_signifiers", len(self.snet._signifiers))
         n_before = expansion_stats.get("before", 0)
         n_after = expansion_stats.get("after", 0)
         n_par = expansion_stats.get("paradigmatic_added", 0)
@@ -838,8 +838,8 @@ class TopologicalDaemon:
                 self.snet, dict_dir, graph=self.k_active,
             )
 
-            n_sigs = len(self.snet.signifiers)
-            n_edges = len(self.snet.edges)
+            n_sigs = len(self.snet._signifiers)
+            n_edges = len(self.snet._edges)
             print(
                 f"S_net after dictionary ingest: {n_sigs} signifiers, {n_edges} edges",
                 file=sys.stderr,
@@ -853,6 +853,8 @@ class TopologicalDaemon:
         Scans signifier_net/corpora/ for domain subdirectories, loads .txt and .md
         files, extracts term co-occurrences and surface forms into S_net.
 
+        预构建白名单一次，跨所有域复用（避免32域×263K术语排序）。
+
         Does NOT modify K_active. Text material enriches S_net only — K_active
         modification happens via articulation feedback during traversal.
 
@@ -860,7 +862,8 @@ class TopologicalDaemon:
         S_net remains unchanged.
         """
         try:
-            from text_corpus_loader import load_text_corpus, format_corpus_report
+            from text_corpus_loader import load_text_corpus, format_corpus_report, _split_paragraphs, _SUPPORTED_EXTENSIONS
+            from signifier_net_ingest import _build_augmented_whitelist, ingest_text_passage_batch
 
             script_dir = Path(os.path.dirname(os.path.abspath(__file__)))
             corpus_root = script_dir / "signifier_net" / "corpora"
@@ -876,11 +879,46 @@ class TopologicalDaemon:
             if not domain_dirs:
                 return
 
+            # 预构建白名单——一次，跨所有域复用
+            whitelist, head_to_sid = _build_augmented_whitelist(self.snet)
+            sorted_terms = sorted(whitelist, key=len, reverse=True)
+            prebuilt = (sorted_terms, head_to_sid)
+
             total_entries = 0
             for domain_dir in domain_dirs:
                 domain = domain_dir.name
-                self.snet, log_entries = load_text_corpus(
-                    self.snet, domain_dir, domain,
+                # 收集该域所有段落
+                text_files = sorted(
+                    f for f in domain_dir.iterdir()
+                    if f.is_file() and f.suffix.lower() in _SUPPORTED_EXTENSIONS
+                )
+                if not text_files:
+                    continue
+
+                all_paragraphs: list[str] = []
+                source_parts: list[str] = []
+                for text_file in text_files:
+                    try:
+                        text = text_file.read_text(encoding="utf-8")
+                        if not text.strip():
+                            continue
+                        paragraphs = _split_paragraphs(text)
+                        if paragraphs:
+                            all_paragraphs.extend(paragraphs)
+                            source_parts.append(text_file.name)
+                    except Exception as exc:
+                        print(f"文本读取失败 ({text_file.name}): {exc}", file=sys.stderr)
+
+                if not all_paragraphs:
+                    continue
+
+                source = "+".join(source_parts[:5])
+                if len(source_parts) > 5:
+                    source += f"+...({len(source_parts)} files)"
+
+                self.snet, log_entries = ingest_text_passage_batch(
+                    self.snet, all_paragraphs, domain, source,
+                    _prebuilt_whitelist=prebuilt,
                 )
                 if log_entries:
                     report = format_corpus_report(domain, log_entries)
@@ -888,8 +926,8 @@ class TopologicalDaemon:
                     total_entries += len(log_entries)
 
             if total_entries > 0:
-                n_sigs = len(self.snet.signifiers)
-                n_edges = len(self.snet.edges)
+                n_sigs = len(self.snet._signifiers)
+                n_edges = len(self.snet._edges)
                 print(
                     f"S_net after corpus ingest: {n_sigs} signifiers, {n_edges} edges",
                     file=sys.stderr,
@@ -1606,7 +1644,7 @@ class TopologicalDaemon:
                         timestamp=timestamp,
                     )
         else:
-            current_edges = self.snet.edges
+            current_edges = self.snet._edges
             current_count = len(current_edges)
             watermark = self._snet_block_watermark
             if current_count > watermark:
@@ -1673,7 +1711,7 @@ class TopologicalDaemon:
         code_graph = ingest_tree(dirpath, source=source)
         self._inject(code_graph)
         # S_net 回写：将代码顶点的 content 作为语言材料摄入 S_net
-        if self.snet and self.snet.signifiers:
+        if self.snet and self.snet._signifiers:
             try:
                 from signifier_net import writeback_from_text
                 code_contents = [

@@ -78,10 +78,10 @@ def load_text_corpus(
     corpus_dir: str | Path,
     domain: str,
 ) -> tuple[SNet, list[dict]]:
-    """加载目录下的所有文本文件，逐段落 ingest 到 S_net。
+    """加载目录下的所有文本文件，批量 ingest 到 S_net。
 
-    遍历 corpus_dir 下的所有 .txt 和 .md 文件（非递归），
-    按文件名排序（确定性顺序）处理。
+    收集目录下所有 .txt 和 .md 文件的段落，一次性调用
+    ingest_text_passage_batch（白名单只构建一次、排序一次）。
 
     参数：
       snet:       当前 S_net 实例（不会被修改）
@@ -105,20 +105,35 @@ def load_text_corpus(
     if not text_files:
         return snet, []
 
-    new_snet = snet
-    all_log_entries: list[dict] = []
-
+    # 收集所有段落，一次批处理（白名单只构建一次）
+    all_paragraphs: list[str] = []
+    source_parts: list[str] = []
     for text_file in text_files:
         try:
-            new_snet, entries = load_text_file(
-                new_snet, text_file, domain,
-            )
-            all_log_entries.extend(entries)
+            text = text_file.read_text(encoding="utf-8")
+            if not text.strip():
+                continue
+            paragraphs = _split_paragraphs(text)
+            if paragraphs:
+                all_paragraphs.extend(paragraphs)
+                source_parts.append(text_file.name)
         except Exception as exc:
             print(
-                f"文本摄入失败 ({text_file.name}): {exc}",
+                f"文本读取失败 ({text_file.name}): {exc}",
                 file=sys.stderr,
             )
+
+    if not all_paragraphs:
+        return snet, []
+
+    # 合成来源标记
+    source = "+".join(source_parts[:5])
+    if len(source_parts) > 5:
+        source += f"+...({len(source_parts)} files)"
+
+    new_snet, all_log_entries = ingest_text_passage_batch(
+        snet, all_paragraphs, domain, source,
+    )
 
     return new_snet, all_log_entries
 
