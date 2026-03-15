@@ -239,13 +239,14 @@ def ingest_ceremony_texts(
     total_cooccurrences = 0
     errors: list[str] = []
 
+    # 第一轮：收集所有待处理段落（去重检查 + 文件读取）
+    all_paragraphs: list[str] = []
+    processed_keys: list[tuple[str, str]] = []  # (rel_key, file_hash) 待更新 state
     for md_file in md_files:
         try:
-            # 用相对路径作为 state key（避免绝对路径差异）
             rel_key = str(md_file.relative_to(genealogy_path))
             file_hash = _compute_file_hash(md_file)
 
-            # 去重检查
             if state.get(rel_key) == file_hash:
                 files_skipped += 1
                 continue
@@ -258,40 +259,45 @@ def ingest_ceremony_texts(
                 files_skipped += 1
                 continue
 
-            # 批量摄入到 S_net
-            new_snet, log_entries = ingest_text_passage_batch(
-                new_snet, paragraphs,
-                domain="ceremony_genealogy",
-                source=rel_key,
-            )
-
-            # 写入 block topology
-            if bt_writer is not None and log_entries:
-                timestamp = datetime.now(timezone.utc).isoformat()
-                for entry in log_entries:
-                    if entry.get("type") == "cooccurrence":
-                        bt_writer.append_cooccurrence(
-                            source_signifier=entry["source"],
-                            target_signifier=entry["target"],
-                            weight=1.0,
-                            corpus_source=f"ceremony_genealogy:{rel_key}",
-                            ingest_params={"domain": "ceremony_genealogy"},
-                            timestamp=timestamp,
-                        )
-
-            cooccurrence_count = sum(
-                1 for e in log_entries if e.get("type") == "cooccurrence"
-            )
-
+            all_paragraphs.extend(paragraphs)
+            processed_keys.append((rel_key, file_hash))
             files_processed += 1
             total_paragraphs += len(paragraphs)
-            total_cooccurrences += cooccurrence_count
-
-            # 更新状态
-            state[rel_key] = file_hash
 
         except Exception as exc:
             errors.append(f"{md_file.name}: {exc}")
+
+    # 第二轮：一次性批量摄入所有段落（白名单只构建一次）
+    all_log_entries: list[dict] = []
+    if all_paragraphs:
+        source = f"ceremony_genealogy({files_processed} files)"
+        new_snet, all_log_entries = ingest_text_passage_batch(
+            new_snet, all_paragraphs,
+            domain="ceremony_genealogy",
+            source=source,
+        )
+
+        # 写入 block topology
+        if bt_writer is not None and all_log_entries:
+            timestamp = datetime.now(timezone.utc).isoformat()
+            for entry in all_log_entries:
+                if entry.get("type") == "cooccurrence":
+                    bt_writer.append_cooccurrence(
+                        source_signifier=entry["source"],
+                        target_signifier=entry["target"],
+                        weight=1.0,
+                        corpus_source=f"ceremony_genealogy:batch",
+                        ingest_params={"domain": "ceremony_genealogy"},
+                        timestamp=timestamp,
+                    )
+
+        total_cooccurrences = sum(
+            1 for e in all_log_entries if e.get("type") == "cooccurrence"
+        )
+
+    # 更新 state（所有已处理文件标记为已完成）
+    for rel_key, file_hash in processed_keys:
+        state[rel_key] = file_hash
 
     # 保存状态
     _save_state(state_path, state)
