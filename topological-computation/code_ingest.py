@@ -286,23 +286,28 @@ def ingest_file(filepath: str, graph: Graph, source: str = "") -> Graph:
 
     visitor.visit(tree)
 
-    # Merge into existing graph
+    # Merge into existing graph (batch to avoid O(n²) per-item copies)
     existing_ids = set(graph.active_vertex_ids())
+    new_vertices = []
     for v in visitor.vertices:
         if v.id not in existing_ids:
-            graph = graph.add_vertex(v)
+            new_vertices.append(v)
             existing_ids.add(v.id)
 
     existing_edges: set[tuple[str, str, str]] = {
         (e.source, e.target, e.edge_type.value)
         for e in graph.edges
     }
+    new_edges = []
     for e in visitor.edges:
         key = (e.source, e.target, e.edge_type.value)
         if key not in existing_edges:
             if e.source in existing_ids and e.target in existing_ids:
-                graph = graph.add_edge(e)
+                new_edges.append(e)
                 existing_edges.add(key)
+
+    if new_vertices or new_edges:
+        graph = graph.add_vertices_and_edges_batch(new_vertices, new_edges)
 
     return graph
 

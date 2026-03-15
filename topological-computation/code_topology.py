@@ -216,19 +216,19 @@ def parse_file(filepath: str) -> Graph:
 
     visitor.visit(tree)
 
-    # Build graph, resolving edges
-    graph = Graph()
+    # Build graph, resolving edges (batch to avoid O(n²) per-item copies)
     all_ids: set[str] = set()
 
+    new_vertices = []
     for v in visitor.vertices:
         if v.id not in all_ids:
-            graph = graph.add_vertex(v)
+            new_vertices.append(v)
             all_ids.add(v.id)
 
     # Only add edges where both endpoints exist
-    for e in visitor.edges:
-        if e.source in all_ids and e.target in all_ids:
-            graph = graph.add_edge(e)
+    new_edges = [e for e in visitor.edges if e.source in all_ids and e.target in all_ids]
+
+    graph = Graph().add_vertices_and_edges_batch(new_vertices, new_edges) if (new_vertices or new_edges) else Graph()
 
     return graph
 
@@ -243,18 +243,22 @@ def parse_directory(dirpath: str, pattern: str = "*.py") -> Graph:
     for py_file in py_files:
         sub = parse_file(str(py_file))
 
+        new_vertices = []
         for vid in sub.active_vertex_ids():
             if vid not in existing_ids:
-                v = sub.vertex(vid)
-                graph = graph.add_vertex(v)
+                new_vertices.append(sub.vertex(vid))
                 existing_ids.add(vid)
 
+        new_edges = []
         for e in sub.edges:
             key = (e.source, e.target, e.edge_type.value)
             if key not in existing_edges:
                 if e.source in existing_ids and e.target in existing_ids:
-                    graph = graph.add_edge(e)
+                    new_edges.append(e)
                     existing_edges.add(key)
+
+        if new_vertices or new_edges:
+            graph = graph.add_vertices_and_edges_batch(new_vertices, new_edges)
 
     return graph
 
@@ -268,17 +272,21 @@ def code_to_complex(filepaths: list[str]) -> Graph:
     for filepath in filepaths:
         sub = parse_file(filepath)
 
+        new_vertices = []
         for vid in sub.active_vertex_ids():
             if vid not in existing_ids:
-                v = sub.vertex(vid)
-                graph = graph.add_vertex(v)
+                new_vertices.append(sub.vertex(vid))
                 existing_ids.add(vid)
 
+        new_edges = []
         for e in sub.edges:
             key = (e.source, e.target, e.edge_type.value)
             if key not in existing_edges:
                 if e.source in existing_ids and e.target in existing_ids:
-                    graph = graph.add_edge(e)
+                    new_edges.append(e)
                     existing_edges.add(key)
+
+        if new_vertices or new_edges:
+            graph = graph.add_vertices_and_edges_batch(new_vertices, new_edges)
 
     return graph

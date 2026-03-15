@@ -70,14 +70,16 @@ def bootstrap_layer_a(graph: Graph) -> SNet:
             continue
         seen_content.setdefault(content, []).append(vid)
 
-    # 为每个唯一 content 创建 Signifier
+    # 为每个唯一 content 创建 Signifier（批量添加）
+    pending_signifiers: list[Signifier] = []
     for content, vids in seen_content.items():
-        sig = Signifier(
+        pending_signifiers.append(Signifier(
             id=content,
             surface_forms=tuple(vids),   # 顶点 id 列表作为 source trace
             source="k_active_projection",
-        )
-        snet = snet.add_signifier(sig)
+        ))
+    if pending_signifiers:
+        snet = snet.add_signifiers(pending_signifiers)
 
     return snet
 
@@ -221,15 +223,20 @@ def bootstrap_layer_b(
 
     edges_before = len(raw_edges)
 
-    # 添加缺失能指
-    if add_missing_signifiers:
+    # 添加缺失能指（批量添加）
+    if add_missing_signifiers and missing_signifiers:
+        pending_signifiers: list[Signifier] = []
+        existing_sig_ids: set[str] = set(snet.signifiers.keys())
         for term in missing_signifiers:
-            if not snet.has_signifier(term):
-                snet = snet.add_signifier(Signifier(
+            if term not in existing_sig_ids:
+                pending_signifiers.append(Signifier(
                     id=term,
                     surface_forms=(),
                     source="corpus",
                 ))
+                existing_sig_ids.add(term)
+        if pending_signifiers:
+            snet = snet.add_signifiers(pending_signifiers)
 
     # 计算 PMI
     pmi_scores = _compute_pmi(raw_edges, term_sentence_counts, total_records)
@@ -323,11 +330,12 @@ def bootstrap_layer_c(
 
     extra_pairs: [(term_a, term_b, weight), ...] — 额外同义/替换关系
     """
-    # 写入缠论种子（只添加两端都在 snet 中的对）
+    # 写入缠论种子（只添加两端都在 snet 中的对，批量添加）
+    pending_edges: list[SignifierEdge] = []
     for canonical, alternative, weight, differential in _CHANLUN_PARADIGMATIC_SEEDS:
         if not snet.has_signifier(canonical) or not snet.has_signifier(alternative):
             continue
-        snet = snet.add_edge(SignifierEdge(
+        pending_edges.append(SignifierEdge(
             source=canonical,
             target=alternative,
             axis=AxisType.PARADIGMATIC,
@@ -340,13 +348,16 @@ def bootstrap_layer_c(
         for term_a, term_b, weight in extra_pairs:
             if not snet.has_signifier(term_a) or not snet.has_signifier(term_b):
                 continue
-            snet = snet.add_edge(SignifierEdge(
+            pending_edges.append(SignifierEdge(
                 source=term_a,
                 target=term_b,
                 axis=AxisType.PARADIGMATIC,
                 weight=weight,
                 evidence="",
             ))
+
+    if pending_edges:
+        snet = snet.add_edges(pending_edges)
 
     return snet
 

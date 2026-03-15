@@ -199,18 +199,18 @@ def inject_cross_domain_edges(
         candidates = detect_cross_domain_edges(graph, min_score=min_score)
 
     # Avoid duplicate edges
-    existing: set[tuple[str, str, str]] = {
-        (e.source, e.target, e.edge_type.value) for e in graph.edges
-    }
+    existing: set[tuple[str, str, EdgeType]] = set(graph._edge_keys)
 
-    added = 0
+    new_edges: list[Edge] = []
     for edge, _score in candidates:
-        if added >= max_edges:
+        if len(new_edges) >= max_edges:
             break
-        key = (edge.source, edge.target, edge.edge_type.value)
+        key = (edge.source, edge.target, edge.edge_type)
         if key not in existing:
-            graph = graph.add_edge(edge)
+            new_edges.append(edge)
             existing.add(key)
-            added += 1
+
+    if new_edges:
+        graph = graph.add_vertices_and_edges_batch([], new_edges)
 
     return graph

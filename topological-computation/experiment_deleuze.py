@@ -344,22 +344,28 @@ def run_experiment():
         print(f"Work {w_idx + 1}/{len(ALL_WORKS)}: {work_name}")
         print(f"{'─' * 60}")
 
-        new_v_count = 0
+        # Collect new vertices
+        new_vertices = []
         existing_vids = set(graph.vertices.keys())
         for v in w_vertices:
             if v.id not in existing_vids:
-                graph = graph.add_vertex(v)
-                new_v_count += 1
+                new_vertices.append(v)
+                existing_vids.add(v.id)
+        new_v_count = len(new_vertices)
 
+        # Collect new edges (skip duplicates, check endpoints in existing + new vids)
         existing_edges = {(e.source, e.target, e.edge_type) for e in graph.edges}
-        new_e_count = 0
+        new_edges = []
         for e in w_edges:
             key = (e.source, e.target, e.edge_type)
             if key not in existing_edges:
-                if e.source in graph.vertices and e.target in graph.vertices:
-                    graph = graph.add_edge(e)
+                if e.source in existing_vids and e.target in existing_vids:
+                    new_edges.append(e)
                     existing_edges.add(key)
-                    new_e_count += 1
+        new_e_count = len(new_edges)
+
+        if new_vertices or new_edges:
+            graph = graph.add_vertices_and_edges_batch(new_vertices, new_edges)
 
         beta_before = compute_beta_1(graph)
         print(f"  Injected: {new_v_count} vertices, {new_e_count} edges")
