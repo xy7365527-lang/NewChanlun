@@ -124,6 +124,11 @@ class Graph:
         """O(1) check whether an edge with (source, target, edge_type) exists."""
         return (source, target, edge_type) in self._edge_keys
 
+    @property
+    def edge_keys(self) -> frozenset[tuple[str, str, EdgeType]]:
+        """Return edge key set (safe for external use). For mutable copy: set(g.edge_keys)."""
+        return self._edge_keys
+
     def active_edges(self) -> list[Edge]:
         """Return edges between active vertices, excluding material layer (COOCCURRENCE, TRAVERSAL_ASSOCIATION).
 

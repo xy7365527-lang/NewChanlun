@@ -1848,7 +1848,7 @@ class TopologicalDaemon:
         candidates = detect_cross_domain_edges(scope_graph, min_score=0.15)
 
         # Inject into K_active (max 10 per crystallization to avoid flooding)
-        existing_edges = set(self.k_active._edge_keys)  # mutable copy for .add()
+        existing_edges = set(self.k_active.edge_keys)  # mutable copy for .add()
         new_edges: list = []
         for edge, _score in candidates:
             if len(new_edges) >= 10:
@@ -1875,7 +1875,7 @@ class TopologicalDaemon:
         可直接调用。外部摄入（如 ingest_code）必须在调用前/后回写 S_net。
         """
         existing_vids = set(self.k_active.active_vertex_ids())
-        existing_edges = set(self.k_active._edge_keys)  # mutable copy for .add()
+        existing_edges = set(self.k_active.edge_keys)  # mutable copy for .add()
 
         new_vertices: list = []
         for vid in sub_graph.active_vertex_ids():
