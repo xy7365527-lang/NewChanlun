@@ -724,8 +724,8 @@ class TopologicalDaemon:
             self.snet = snet
 
             # Report
-            n_sigs = len(snet.signifiers)
-            n_edges = len(snet.edges)
+            n_sigs = len(snet._signifiers)
+            n_edges = len(snet._edges)
             layer_b = stats.get("layer_b")
             if layer_b:
                 print(
