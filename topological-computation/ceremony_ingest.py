@@ -329,7 +329,7 @@ def ingest_llm_externalization(
 
     认识论等级：L0
     """
-    if not llm_output or not snet.signifiers:
+    if not llm_output or not snet._signifiers:
         return snet, 0
 
     # 使用 ingest_text_passage_batch 而非 writeback_from_text
