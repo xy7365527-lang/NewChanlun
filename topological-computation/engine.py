@@ -104,6 +104,17 @@ class Graph:
             (e.source, e.target, e.edge_type) for e in self._edges
         )
 
+    def __getattr__(self, name: str):
+        """Lazy init for attributes missing in old pickles."""
+        if name == '_edge_keys':
+            # Graph restored from pickle before _edge_keys was added
+            keys = frozenset(
+                (e.source, e.target, e.edge_type) for e in self._edges
+            )
+            object.__setattr__(self, '_edge_keys', keys)
+            return keys
+        raise AttributeError(f"'Graph' object has no attribute '{name}'")
+
     # -- accessors ----------------------------------------------------------
 
     @property
