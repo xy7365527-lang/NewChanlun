@@ -301,12 +301,16 @@ def _expand_mappings(
 
     # 分离单词和多词术语
     unmapped_single_lower: set[str] = set()
-    unmapped_multi_lower: list[str] = []
+    # 多词术语按首词分组——首词不在 content 中则跳过
+    unmapped_multi_by_first: dict[str, list[str]] = {}  # first_word → [full_term...]
     for sid_lower in unmapped_lower_to_sid:
         if ' ' in sid_lower:
-            unmapped_multi_lower.append(sid_lower)
+            first_word = sid_lower.split()[0]
+            unmapped_multi_by_first.setdefault(first_word, []).append(sid_lower)
         else:
             unmapped_single_lower.add(sid_lower)
+
+    multi_first_words = set(unmapped_multi_by_first.keys())
 
     for vid, content_lower in content_index.items():
         content_words = set(content_lower.split())
@@ -321,17 +325,19 @@ def _expand_mappings(
             elif len(expanded_s2c[sid]) < 3:
                 expanded_s2c[sid].append(vid)
 
-        # 多词术语：子串匹配（数量通常不大）
-        for sid_lower in unmapped_multi_lower:
-            sid = unmapped_lower_to_sid[sid_lower]
-            if sid in expanded_s2c and len(expanded_s2c[sid]) >= 3:
-                continue
-            if sid_lower in content_lower:
-                if sid not in expanded_s2c:
-                    expanded_s2c[sid] = [vid]
-                    substring_added += 1
-                elif len(expanded_s2c[sid]) < 3:
-                    expanded_s2c[sid].append(vid)
+        # 多词术语：首词预筛 + 子串匹配
+        candidate_firsts = content_words & multi_first_words
+        for first_word in candidate_firsts:
+            for sid_lower in unmapped_multi_by_first[first_word]:
+                sid = unmapped_lower_to_sid[sid_lower]
+                if sid in expanded_s2c and len(expanded_s2c[sid]) >= 3:
+                    continue
+                if sid_lower in content_lower:
+                    if sid not in expanded_s2c:
+                        expanded_s2c[sid] = [vid]
+                        substring_added += 1
+                    elif len(expanded_s2c[sid]) < 3:
+                        expanded_s2c[sid].append(vid)
 
     stats["substring_added"] = substring_added
 
