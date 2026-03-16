@@ -740,6 +740,64 @@ impl Graph {
         g
     }
 
+    // -- zero-copy adapter support ------------------------------------------
+
+    /// Return count of vertices.
+    fn vertex_count(&self) -> usize {
+        self.vertices.len()
+    }
+
+    /// Return count of edges.
+    fn edge_count(&self) -> usize {
+        self.edges.len()
+    }
+
+    /// Return count of active (non-folded) vertices.
+    fn active_count(&self) -> usize {
+        self.active_ids.len()
+    }
+
+    /// O(1) check whether a vertex id is in the active set.
+    fn contains_active(&self, vid: &str) -> bool {
+        self.active_ids.contains(vid)
+    }
+
+    /// Return all outgoing edges from a specific vertex (unfiltered by active status).
+    fn out_edges_of(&self, vid: &str) -> Vec<Edge> {
+        match self.adj_out.get(vid) {
+            Some(indices) => indices.iter().map(|&i| self.edges[i].clone()).collect(),
+            None => Vec::new(),
+        }
+    }
+
+    /// Return all incoming edges to a specific vertex (unfiltered by active status).
+    fn in_edges_of(&self, vid: &str) -> Vec<Edge> {
+        match self.adj_in.get(vid) {
+            Some(indices) => indices.iter().map(|&i| self.edges[i].clone()).collect(),
+            None => Vec::new(),
+        }
+    }
+
+    /// Return all vertex ids (keys of vertices map).
+    fn vertex_ids(&self) -> Vec<String> {
+        self.vertices.keys().cloned().collect()
+    }
+
+    /// Return edges from index `start` to end (tail slice for diff).
+    fn edges_tail(&self, start: usize) -> Vec<Edge> {
+        if start >= self.edges.len() {
+            Vec::new()
+        } else {
+            self.edges[start..].to_vec()
+        }
+    }
+
+    /// Check if (source, target, edge_type) is in the edge_keys set.
+    /// Same as has_edge_key but provided for symmetry.
+    fn contains_edge_key(&self, source: &str, target: &str, edge_type: EdgeType) -> bool {
+        self.edge_keys.contains(&(source.to_string(), target.to_string(), edge_type))
+    }
+
     // -- diagnostics --------------------------------------------------------
 
     fn __repr__(&self) -> String {
