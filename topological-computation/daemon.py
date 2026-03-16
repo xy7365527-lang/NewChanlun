@@ -526,15 +526,21 @@ class TopologicalDaemon:
         self.k_full = inject_self_reflexive_norms(self.k_full, step=0)
 
         # Pick start: highest degree vertex (exclude proprioception/norm vertices)
-        # Use _adj_out/_adj_in directly for O(1) degree lookup instead of neighbors() which sorts
-        _aout = self.k_active._adj_out
-        _ain = self.k_active._adj_in
-        _act = self.k_active._active_ids
-        def _deg(v: str) -> int:
-            out = sum(1 for e in _aout.get(v, ()) if e.target in _act)
-            inc = sum(1 for e in _ain.get(v, ()) if e.source in _act)
-            return out + inc
-        start = max(active, key=lambda v: (_deg(v), v))
+        # Use Rust-side max_degree_vertex — single FFI call replaces N*_deg() calls
+        if hasattr(self.k_active, '_rg') and hasattr(self.k_active._rg, 'max_degree_vertex'):
+            start = self.k_active._rg.max_degree_vertex(list(active))
+            if start is None:
+                start = next(iter(active))
+        else:
+            # Fallback for pure-Python Graph
+            _aout = self.k_active._adj_out
+            _ain = self.k_active._adj_in
+            _act = self.k_active._active_ids
+            def _deg(v: str) -> int:
+                out = sum(1 for e in _aout.get(v, ()) if e.target in _act)
+                inc = sum(1 for e in _ain.get(v, ()) if e.source in _act)
+                return out + inc
+            start = max(active, key=lambda v: (_deg(v), v))
 
         self.engine = TraversalEngine(
             self.k_active,
