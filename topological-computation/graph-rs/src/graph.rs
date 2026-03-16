@@ -6,7 +6,7 @@ use std::collections::{HashMap, HashSet, VecDeque};
 // ---------------------------------------------------------------------------
 
 /// Mirrors Python engine.py VertexStatus.
-#[pyclass(eq, eq_int, hash)]
+#[pyclass(frozen, eq, eq_int, hash)]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum VertexStatus {
     Active,
@@ -48,7 +48,7 @@ impl VertexStatus {
 }
 
 /// Mirrors Python engine.py EdgeType.
-#[pyclass(eq, eq_int, hash)]
+#[pyclass(frozen, eq, eq_int, hash)]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum EdgeType {
     Dependency,
