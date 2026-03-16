@@ -227,6 +227,8 @@ pub struct Graph {
     adj_in: HashMap<String, Vec<usize>>,   // vertex_id -> edge indices
     active_ids: HashSet<String>,
     edge_keys: HashSet<EdgeKey>,
+    active_rev: u64,  // incremented on active_ids change
+    edge_rev: u64,    // incremented on edges change
 }
 
 impl Graph {
@@ -388,6 +390,8 @@ impl Graph {
             adj_in: HashMap::new(),
             active_ids: HashSet::new(),
             edge_keys: HashSet::new(),
+            active_rev: 0,
+            edge_rev: 0,
         };
 
         if let Some(verts) = vertices {
@@ -610,6 +614,7 @@ impl Graph {
         g.vertices.insert(vid.clone(), v);
         if is_active {
             g.active_ids.insert(vid);
+            g.active_rev += 1;
         }
         g
     }
@@ -623,6 +628,7 @@ impl Graph {
         g.adj_in.entry(e.target.clone()).or_default().push(idx);
         g.edge_keys.insert(key);
         g.edges.push(e);
+        g.edge_rev += 1;
         g
     }
 
@@ -640,27 +646,36 @@ impl Graph {
             g.edge_keys.insert(key);
             g.edges.push(e);
         }
+        g.edge_rev += 1;
         g
     }
 
     /// Add multiple vertices and edges in one operation, return new Graph.
     fn add_vertices_and_edges_batch(&self, vertices: Vec<Vertex>, edges: Vec<Edge>) -> Self {
         let mut g = self.clone();
+        let mut active_changed = false;
         for v in vertices {
             let is_active = v.status != VertexStatus::Folded;
             let vid = v.id.clone();
             g.vertices.insert(vid.clone(), v);
             if is_active {
                 g.active_ids.insert(vid);
+                active_changed = true;
             }
         }
-        for e in edges {
-            let idx = g.edges.len();
-            let key = edge_key(&e);
-            g.adj_out.entry(e.source.clone()).or_default().push(idx);
-            g.adj_in.entry(e.target.clone()).or_default().push(idx);
-            g.edge_keys.insert(key);
-            g.edges.push(e);
+        if active_changed {
+            g.active_rev += 1;
+        }
+        if !edges.is_empty() {
+            for e in edges {
+                let idx = g.edges.len();
+                let key = edge_key(&e);
+                g.adj_out.entry(e.source.clone()).or_default().push(idx);
+                g.adj_in.entry(e.target.clone()).or_default().push(idx);
+                g.edge_keys.insert(key);
+                g.edges.push(e);
+            }
+            g.edge_rev += 1;
         }
         g
     }
@@ -684,8 +699,10 @@ impl Graph {
         g.vertices.insert(vid.to_string(), updated);
         if old_active && !new_active {
             g.active_ids.remove(vid);
+            g.active_rev += 1;
         } else if !old_active && new_active {
             g.active_ids.insert(vid.to_string());
+            g.active_rev += 1;
         }
         Ok(g)
     }
@@ -737,6 +754,8 @@ impl Graph {
         g.rebuild_adjacency();
         g.rebuild_active_ids();
         g.rebuild_edge_keys();
+        g.active_rev += 1;
+        g.edge_rev += 1;
         g
     }
 
@@ -796,6 +815,60 @@ impl Graph {
     /// Same as has_edge_key but provided for symmetry.
     fn contains_edge_key(&self, source: &str, target: &str, edge_type: EdgeType) -> bool {
         self.edge_keys.contains(&(source.to_string(), target.to_string(), edge_type))
+    }
+
+    // -- revision tracking ---------------------------------------------------
+
+    /// Return the current active_ids revision counter.
+    fn active_revision(&self) -> u64 {
+        self.active_rev
+    }
+
+    /// Return the current edges revision counter.
+    fn edge_revision(&self) -> u64 {
+        self.edge_rev
+    }
+
+    /// Batch degree query: return (out_deg, in_deg) for each vid among active vertices.
+    fn active_degree_batch(&self, vids: Vec<String>) -> Vec<(usize, usize)> {
+        vids.iter()
+            .map(|vid| {
+                let out_deg = self.adj_out.get(vid.as_str()).map_or(0, |indices| {
+                    indices.iter().filter(|&&idx| {
+                        self.active_ids.contains(&self.edges[idx].target)
+                    }).count()
+                });
+                let in_deg = self.adj_in.get(vid.as_str()).map_or(0, |indices| {
+                    indices.iter().filter(|&&idx| {
+                        self.active_ids.contains(&self.edges[idx].source)
+                    }).count()
+                });
+                (out_deg, in_deg)
+            })
+            .collect()
+    }
+
+    /// Return the vertex id with maximum degree among the given vids (active edges only).
+    /// Ties broken by lexicographic order (largest id wins, matching Python's max with (deg, vid) key).
+    fn max_degree_vertex(&self, vids: Vec<String>) -> Option<String> {
+        vids.into_iter()
+            .map(|vid| {
+                let out_deg = self.adj_out.get(vid.as_str()).map_or(0, |indices| {
+                    indices.iter().filter(|&&idx| {
+                        self.active_ids.contains(&self.edges[idx].target)
+                    }).count()
+                });
+                let in_deg = self.adj_in.get(vid.as_str()).map_or(0, |indices| {
+                    indices.iter().filter(|&&idx| {
+                        self.active_ids.contains(&self.edges[idx].source)
+                    }).count()
+                });
+                (out_deg + in_deg, vid)
+            })
+            .max_by(|(deg_a, vid_a), (deg_b, vid_b)| {
+                deg_a.cmp(deg_b).then_with(|| vid_a.cmp(vid_b))
+            })
+            .map(|(_, vid)| vid)
     }
 
     // -- diagnostics --------------------------------------------------------

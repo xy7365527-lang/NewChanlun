@@ -653,30 +653,54 @@ class _EdgeKeysProxy:
 
 
 class RustGraphAdapter:
-    """Zero-copy wrapper: holds only a Rust Graph handle.
+    """Versioned-cache wrapper: holds a Rust Graph handle + revision-gated caches.
 
-    All queries proxy to Rust via lightweight proxy objects.
-    No Python-side data copies — eliminates ~20MB/add_edge OOM.
-    Downstream code using ``graph._adj_out.get(vid, ())``,
-    ``graph._active_ids``, ``graph._vertices``, ``graph._edges``,
-    ``graph._edge_keys`` works unchanged via proxy objects.
+    _active_ids and _edge_keys are rebuilt only when the Rust-side revision
+    counters change.  All other queries proxy to Rust via lightweight proxy
+    objects.  Mutation methods propagate caches where revision hasn't changed.
     """
 
     __slots__ = (
         "_rg",
-        "_adj_out", "_adj_in", "_active_ids", "_vertices", "_edges", "_edge_keys",
+        "_adj_out", "_adj_in", "_vertices", "_edges",
+        # versioned caches
+        "_cached_active_ids", "_cached_active_rev",
+        "_cached_edge_keys", "_cached_edge_rev",
+        # runtime caches (invalidated on mutation)
         "_cached_active_edges", "_cached_all_active_edges",
         "_cached_beta_1", "_cached_terrain",
+        "_cached_undirected",
     )
 
     def __init__(self, rg: "RustGraph") -> None:
         self._rg = rg
         self._adj_out = _AdjProxy(rg, "out")
         self._adj_in = _AdjProxy(rg, "in")
-        self._active_ids = _ActiveIdsProxy(rg)
         self._vertices = _VerticesProxy(rg)
         self._edges = _EdgesProxy(rg)
-        self._edge_keys = _EdgeKeysProxy(rg)
+        # versioned caches: built lazily on first access
+        self._cached_active_ids = None
+        self._cached_active_rev = -1
+        self._cached_edge_keys = None
+        self._cached_edge_rev = -1
+
+    # -- versioned cache properties -----------------------------------------
+
+    @property
+    def _active_ids(self):
+        rev = self._rg.active_revision()
+        if self._cached_active_rev != rev:
+            object.__setattr__(self, '_cached_active_ids', frozenset(self._rg.active_vertex_ids()))
+            object.__setattr__(self, '_cached_active_rev', rev)
+        return self._cached_active_ids
+
+    @property
+    def _edge_keys(self):
+        rev = self._rg.edge_revision()
+        if self._cached_edge_rev != rev:
+            object.__setattr__(self, '_cached_edge_keys', _EdgeKeysProxy(self._rg))
+            object.__setattr__(self, '_cached_edge_rev', rev)
+        return self._cached_edge_keys
 
     # -- accessors ----------------------------------------------------------
 
@@ -752,27 +776,54 @@ class RustGraphAdapter:
         return rust_vids, [_rust_edge_to_py(re) for re in rust_edges]
 
     def undirected_active_edges(self) -> list[frozenset[str]]:
-        pairs = self._rg.undirected_active_edges()
-        return [frozenset(p) for p in pairs]
+        try:
+            return self._cached_undirected
+        except AttributeError:
+            pairs = self._rg.undirected_active_edges()
+            result = [frozenset(p) for p in pairs]
+            object.__setattr__(self, '_cached_undirected', result)
+            return result
 
     def self_loops(self) -> list[Edge]:
         return [_rust_edge_to_py(re) for re in self._rg.self_loops()]
 
     # -- mutation (returns new RustGraphAdapter) --------------------------------
 
-    def _wrap(self, new_rg: "RustGraph") -> "RustGraphAdapter":
-        return RustGraphAdapter(new_rg)
+    def _wrap_versioned(self, new_rg: "RustGraph", active_changed: bool, edge_changed: bool) -> "RustGraphAdapter":
+        """Create new adapter, inheriting caches that haven't been invalidated."""
+        a = RustGraphAdapter.__new__(RustGraphAdapter)
+        object.__setattr__(a, '_rg', new_rg)
+        # Proxies: lightweight, always recreated
+        object.__setattr__(a, '_adj_out', _AdjProxy(new_rg, "out"))
+        object.__setattr__(a, '_adj_in', _AdjProxy(new_rg, "in"))
+        object.__setattr__(a, '_vertices', _VerticesProxy(new_rg))
+        object.__setattr__(a, '_edges', _EdgesProxy(new_rg))
+        # Versioned caches: inherit if revision unchanged, else mark stale
+        if active_changed:
+            object.__setattr__(a, '_cached_active_ids', None)
+            object.__setattr__(a, '_cached_active_rev', -1)
+        else:
+            object.__setattr__(a, '_cached_active_ids', self._cached_active_ids)
+            object.__setattr__(a, '_cached_active_rev', self._cached_active_rev)
+        if edge_changed:
+            object.__setattr__(a, '_cached_edge_keys', None)
+            object.__setattr__(a, '_cached_edge_rev', -1)
+        else:
+            object.__setattr__(a, '_cached_edge_keys', self._cached_edge_keys)
+            object.__setattr__(a, '_cached_edge_rev', self._cached_edge_rev)
+        return a
 
     def add_vertex(self, v: Vertex) -> "RustGraphAdapter":
         new_rg = self._rg.add_vertex(_py_vertex_to_rust(v))
-        return self._wrap(new_rg)
+        active_changed = v.status != VertexStatus.FOLDED
+        return self._wrap_versioned(new_rg, active_changed=active_changed, edge_changed=False)
 
     def add_edge(self, e: Edge) -> "RustGraphAdapter":
         new_rg = self._rg.add_edge(_py_edge_to_rust(e))
-        adapter = self._wrap(new_rg)
-        # Propagate topology caches if material edge
+        adapter = self._wrap_versioned(new_rg, active_changed=False, edge_changed=True)
+        # Propagate topology caches if material edge (beta_1/terrain unaffected)
         if e.edge_type in _MATERIAL_EDGE_TYPES:
-            for attr in ('_cached_beta_1', '_cached_terrain'):
+            for attr in ('_cached_beta_1', '_cached_terrain', '_cached_undirected'):
                 try:
                     object.__setattr__(adapter, attr, getattr(self, attr))
                 except AttributeError:
@@ -783,9 +834,9 @@ class RustGraphAdapter:
         if not edges:
             return self
         new_rg = self._rg.add_edges_batch([_py_edge_to_rust(e) for e in edges])
-        adapter = self._wrap(new_rg)
+        adapter = self._wrap_versioned(new_rg, active_changed=False, edge_changed=True)
         if all(e.edge_type in _MATERIAL_EDGE_TYPES for e in edges):
-            for attr in ('_cached_beta_1', '_cached_terrain'):
+            for attr in ('_cached_beta_1', '_cached_terrain', '_cached_undirected'):
                 try:
                     object.__setattr__(adapter, attr, getattr(self, attr))
                 except AttributeError:
@@ -799,15 +850,17 @@ class RustGraphAdapter:
             [_py_vertex_to_rust(v) for v in vertices],
             [_py_edge_to_rust(e) for e in edges],
         )
-        return self._wrap(new_rg)
+        active_changed = any(v.status != VertexStatus.FOLDED for v in vertices)
+        edge_changed = bool(edges)
+        return self._wrap_versioned(new_rg, active_changed=active_changed, edge_changed=edge_changed)
 
     def set_vertex_status(self, vid: str, status: VertexStatus) -> "RustGraphAdapter":
         new_rg = self._rg.set_vertex_status(vid, _PY_TO_RUST_VERTEX_STATUS[status])
-        return self._wrap(new_rg)
+        return self._wrap_versioned(new_rg, active_changed=True, edge_changed=False)
 
     def merge_vertices(self, keep: str, remove: str) -> "RustGraphAdapter":
         new_rg = self._rg.merge_vertices(keep, remove)
-        return self._wrap(new_rg)
+        return self._wrap_versioned(new_rg, active_changed=True, edge_changed=True)
 
     # -- diagnostics --------------------------------------------------------
 
