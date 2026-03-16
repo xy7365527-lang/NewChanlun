@@ -120,7 +120,7 @@ class TraversalEngine:
         encounter_log: EncounterLog | None = None,
     ):
         self.k_full = graph
-        self.k_active = graph  # initially same
+        self.k_active = graph.copy()  # independent copy: k_active mutates on fold/negate/sublate
         self.position = start
         self.step = 0
         self.settlement = SettlementTracker(settlement_threshold)
