@@ -506,92 +506,215 @@ def _rust_edge_to_py(re: "RustEdge") -> Edge:
     )
 
 
+# ---------------------------------------------------------------------------
+# Zero-copy proxy objects for RustGraphAdapter
+# ---------------------------------------------------------------------------
+
+class _AdjProxy:
+    """Proxy for _adj_out / _adj_in that delegates to Rust per-vertex edge queries.
+
+    Supports the `.get(vid, default)` pattern used throughout the codebase.
+    Each call returns a list of Python Edge objects converted from Rust.
+    """
+
+    __slots__ = ("_rg", "_direction")
+
+    def __init__(self, rg: "RustGraph", direction: str) -> None:
+        self._rg = rg
+        self._direction = direction  # "out" or "in"
+
+    def get(self, vid: str, default=()):
+        if self._direction == "out":
+            rust_edges = self._rg.out_edges_of(vid)
+        else:
+            rust_edges = self._rg.in_edges_of(vid)
+        if not rust_edges:
+            return default
+        return [_rust_edge_to_py(re) for re in rust_edges]
+
+
+class _ActiveIdsProxy:
+    """Proxy for _active_ids that delegates to Rust.
+
+    Supports: `in` operator, `len()`, iteration, `set()` / `frozenset()` copy.
+    """
+
+    __slots__ = ("_rg",)
+
+    def __init__(self, rg: "RustGraph") -> None:
+        self._rg = rg
+
+    def __contains__(self, vid: str) -> bool:
+        return self._rg.contains_active(vid)
+
+    def __len__(self) -> int:
+        return self._rg.active_count()
+
+    def __iter__(self):
+        return iter(self._rg.active_vertex_ids())
+
+    def __or__(self, other):
+        return frozenset(self._rg.active_vertex_ids()) | other
+
+    def __sub__(self, other):
+        return frozenset(self._rg.active_vertex_ids()) - other
+
+    def __and__(self, other):
+        return frozenset(self._rg.active_vertex_ids()) & other
+
+
+class _VerticesProxy:
+    """Proxy for _vertices that delegates to Rust.
+
+    Supports: `.get(vid)`, `.keys()`, `dict()` copy, `len()`, iteration,
+    `.items()`, `vid in proxy`.
+    """
+
+    __slots__ = ("_rg",)
+
+    def __init__(self, rg: "RustGraph") -> None:
+        self._rg = rg
+
+    def get(self, vid: str, default=None):
+        rv = self._rg.vertex(vid)
+        if rv is None:
+            return default
+        return _rust_vertex_to_py(rv)
+
+    def __getitem__(self, vid: str):
+        rv = self._rg.vertex(vid)
+        if rv is None:
+            raise KeyError(vid)
+        return _rust_vertex_to_py(rv)
+
+    def __contains__(self, vid: str) -> bool:
+        return self._rg.vertex(vid) is not None
+
+    def __len__(self) -> int:
+        return self._rg.vertex_count()
+
+    def keys(self):
+        return self._rg.vertex_ids()
+
+    def __iter__(self):
+        return iter(self._rg.vertex_ids())
+
+    def items(self):
+        rust_verts = self._rg.vertices
+        return ((vid, _rust_vertex_to_py(rv)) for vid, rv in rust_verts.items())
+
+    def values(self):
+        rust_verts = self._rg.vertices
+        return (_rust_vertex_to_py(rv) for rv in rust_verts.values())
+
+
+class _EdgesProxy:
+    """Proxy for _edges that delegates to Rust.
+
+    Supports: `len()`, index slicing `[n:]`, full iteration.
+    """
+
+    __slots__ = ("_rg",)
+
+    def __init__(self, rg: "RustGraph") -> None:
+        self._rg = rg
+
+    def __len__(self) -> int:
+        return self._rg.edge_count()
+
+    def __iter__(self):
+        return iter(_rust_edge_to_py(re) for re in self._rg.edges)
+
+    def __getitem__(self, key):
+        if isinstance(key, slice):
+            start = key.start or 0
+            # Only tail slices (graph._edges[n:]) are used in codebase
+            rust_edges = self._rg.edges_tail(start)
+            return [_rust_edge_to_py(re) for re in rust_edges]
+        # Single index access
+        all_edges = self._rg.edges
+        return _rust_edge_to_py(all_edges[key])
+
+
+class _EdgeKeysProxy:
+    """Proxy for _edge_keys that delegates to Rust.
+
+    Supports: `(source, target, edge_type) in proxy` membership test.
+    """
+
+    __slots__ = ("_rg",)
+
+    def __init__(self, rg: "RustGraph") -> None:
+        self._rg = rg
+
+    def __contains__(self, key: tuple) -> bool:
+        source, target, edge_type = key
+        return self._rg.contains_edge_key(source, target, _PY_TO_RUST_EDGE_TYPE[edge_type])
+
+
 class RustGraphAdapter:
-    """Wraps the Rust ``Graph`` to expose the same interface as the Python ``Graph``.
+    """Zero-copy wrapper: holds only a Rust Graph handle.
 
-    This includes the internal attributes ``_active_ids``, ``_adj_out``,
-    ``_adj_in``, ``_vertices``, ``_edges``, ``_edge_keys`` that are accessed
-    directly by free functions in engine.py (``compute_beta_1``, ``fold``, etc.)
-    and by daemon.py.
-
-    Mutation methods return a new ``RustGraphAdapter`` wrapping the new Rust
-    Graph (preserving immutable-by-convention semantics).
+    All queries proxy to Rust via lightweight proxy objects.
+    No Python-side data copies — eliminates ~20MB/add_edge OOM.
+    Downstream code using ``graph._adj_out.get(vid, ())``,
+    ``graph._active_ids``, ``graph._vertices``, ``graph._edges``,
+    ``graph._edge_keys`` works unchanged via proxy objects.
     """
 
     __slots__ = (
         "_rg",
-        "_vertices", "_edges", "_active_ids", "_adj_out", "_adj_in", "_edge_keys",
+        "_adj_out", "_adj_in", "_active_ids", "_vertices", "_edges", "_edge_keys",
         "_cached_active_edges", "_cached_all_active_edges",
+        "_cached_beta_1", "_cached_terrain",
     )
 
     def __init__(self, rg: "RustGraph") -> None:
         self._rg = rg
-        # Materialise internal attributes from the Rust Graph so that
-        # downstream code accessing graph._active_ids etc. works unchanged.
-        # These are computed once (Graph is immutable).
-        rust_verts = rg.vertices  # dict[str, RustVertex]
-        rust_edges = rg.edges     # list[RustEdge]
-
-        self._vertices: dict[str, Vertex] = {
-            vid: _rust_vertex_to_py(rv) for vid, rv in rust_verts.items()
-        }
-        self._edges: list[Edge] = [_rust_edge_to_py(re) for re in rust_edges]
-        self._active_ids: frozenset[str] = frozenset(rg.active_vertex_ids())
-        # Build adjacency indexes from Python edges
-        adj_out: dict[str, list[Edge]] = {}
-        adj_in: dict[str, list[Edge]] = {}
-        for e in self._edges:
-            adj_out.setdefault(e.source, []).append(e)
-            adj_in.setdefault(e.target, []).append(e)
-        self._adj_out = adj_out
-        self._adj_in = adj_in
-        self._edge_keys: frozenset[tuple[str, str, EdgeType]] = frozenset(
-            (e.source, e.target, e.edge_type) for e in self._edges
-        )
-
-    def __getattr__(self, name: str):
-        """Lazy init for cache attributes."""
-        if name == '_edge_keys':
-            keys = frozenset(
-                (e.source, e.target, e.edge_type) for e in self._edges
-            )
-            object.__setattr__(self, '_edge_keys', keys)
-            return keys
-        raise AttributeError(f"'RustGraphAdapter' object has no attribute '{name}'")
+        self._adj_out = _AdjProxy(rg, "out")
+        self._adj_in = _AdjProxy(rg, "in")
+        self._active_ids = _ActiveIdsProxy(rg)
+        self._vertices = _VerticesProxy(rg)
+        self._edges = _EdgesProxy(rg)
+        self._edge_keys = _EdgeKeysProxy(rg)
 
     # -- accessors ----------------------------------------------------------
 
     @property
     def vertices(self) -> dict[str, Vertex]:
-        return self._vertices
+        """Materialise full vertices dict (for callers that need a real dict)."""
+        return {vid: _rust_vertex_to_py(rv) for vid, rv in self._rg.vertices.items()}
 
     @property
     def edges(self) -> list[Edge]:
-        return self._edges
+        """Materialise full edges list (for callers that need a real list)."""
+        return [_rust_edge_to_py(re) for re in self._rg.edges]
 
     def vertex(self, vid: str) -> Vertex | None:
-        return self._vertices.get(vid)
+        rv = self._rg.vertex(vid)
+        if rv is None:
+            return None
+        return _rust_vertex_to_py(rv)
 
     def active_vertex_ids(self) -> list[str]:
-        return list(self._active_ids)
+        return self._rg.active_vertex_ids()
 
     def has_edge_key(self, source: str, target: str, edge_type: EdgeType) -> bool:
-        return (source, target, edge_type) in self._edge_keys
+        return self._rg.contains_edge_key(source, target, _PY_TO_RUST_EDGE_TYPE[edge_type])
 
     @property
-    def edge_keys(self) -> frozenset[tuple[str, str, EdgeType]]:
+    def edge_keys(self) -> "_EdgeKeysProxy":
         return self._edge_keys
+
+    @property
+    def edge_count(self) -> int:
+        return self._rg.edge_count()
 
     def active_edges(self) -> list[Edge]:
         try:
             return self._cached_active_edges
         except AttributeError:
-            active = self._active_ids
-            result = [
-                e for e in self._edges
-                if e.source in active and e.target in active
-                and e.edge_type not in (EdgeType.COOCCURRENCE, EdgeType.TRAVERSAL_ASSOCIATION)
-            ]
+            result = [_rust_edge_to_py(re) for re in self._rg.active_edges()]
             object.__setattr__(self, '_cached_active_edges', result)
             return result
 
@@ -599,8 +722,7 @@ class RustGraphAdapter:
         try:
             return self._cached_all_active_edges
         except AttributeError:
-            active = self._active_ids
-            result = [e for e in self._edges if e.source in active and e.target in active]
+            result = [_rust_edge_to_py(re) for re in self._rg.all_active_edges()]
             object.__setattr__(self, '_cached_all_active_edges', result)
             return result
 
@@ -608,26 +730,19 @@ class RustGraphAdapter:
         return sorted(self.neighbor_set(vid))
 
     def neighbor_set(self, vid: str) -> set[str]:
-        active = self._active_ids
-        out = {e.target for e in self._adj_out.get(vid, ()) if e.target in active}
-        inc = {e.source for e in self._adj_in.get(vid, ()) if e.source in active}
-        return out | inc
+        return self._rg.neighbor_set(vid)
 
     def out_neighbors(self, vid: str) -> list[str]:
-        active = self._active_ids
-        return sorted({e.target for e in self._adj_out.get(vid, ()) if e.target in active})
+        return self._rg.out_neighbors(vid)
 
     def out_neighbor_set(self, vid: str) -> set[str]:
-        active = self._active_ids
-        return {e.target for e in self._adj_out.get(vid, ()) if e.target in active}
+        return self._rg.out_neighbor_set(vid)
 
     def in_neighbors(self, vid: str) -> list[str]:
-        active = self._active_ids
-        return sorted({e.source for e in self._adj_in.get(vid, ()) if e.source in active})
+        return self._rg.in_neighbors(vid)
 
     def in_neighbor_set(self, vid: str) -> set[str]:
-        active = self._active_ids
-        return {e.source for e in self._adj_in.get(vid, ()) if e.source in active}
+        return self._rg.in_neighbor_set(vid)
 
     def has_path(self, source: str, target: str) -> bool:
         return self._rg.has_path(source, target)
@@ -698,12 +813,12 @@ class RustGraphAdapter:
 
     def __repr__(self) -> str:
         return (
-            f"RustGraphAdapter(vertices={len(self._vertices)}, "
-            f"edges={len(self._edges)}, active={len(self._active_ids)})"
+            f"RustGraphAdapter(vertices={self._rg.vertex_count()}, "
+            f"edges={self._rg.edge_count()}, active={self._rg.active_count()})"
         )
 
     def __len__(self) -> int:
-        return len(self._vertices)
+        return self._rg.vertex_count()
 
 
 def create_graph(
