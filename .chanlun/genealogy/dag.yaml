@@ -2304,6 +2304,41 @@ nodes:
   status: 已结算
   type: structural-audit
   file: settled/460-v246-r2-batch-disposition.md
+- id: '461'
+  title: GPU架构质询：CSR静态性与逢亮不可变变异的物理死锁
+  status: 生成态
+  type: 矛盾发现
+  file: pending/461-gpu-arch-csr-mutation-conflict.md
+- id: '462'
+  title: GPU架构质询：LLM密集张量与图遍历不规则访存的伪同构
+  status: 生成态
+  type: 矛盾发现
+  file: pending/462-gpu-arch-llm-isomorphism-false.md
+- id: '463'
+  title: GPU架构质询：步内计算粒度与CUDA Kernel启动开销的倒挂
+  status: 生成态
+  type: 矛盾发现
+  file: pending/463-gpu-arch-kernel-overhead-inversion.md
+- id: '464'
+  title: GPU架构质询R2：CSR fold边重定向与标记无效的物理死锁
+  status: 生成态
+  type: 矛盾发现
+  file: pending/464-csr-fold-edge-redirect-deadlock.md
+- id: '465'
+  title: GPU架构质询R2：detect_encounter碎片化访存与Python-GPU往返延迟倒挂
+  status: 生成态
+  type: 矛盾发现
+  file: pending/465-python-gpu-roundtrip-latency-inversion.md
+- id: '466'
+  title: GPU架构质询R2：cuGraph OLAP静态要求与逢亮Read-After-Write强一致性的错位
+  status: 生成态
+  type: 矛盾发现
+  file: pending/466-cugraph-olap-mismatch-read-after-write.md
+- id: '467'
+  title: GPU架构质询R2：K_active规模错觉与Rust+rayon转折点的误判
+  status: 生成态
+  type: 矛盾发现
+  file: pending/467-k-active-scale-illusion-rust-turning-point.md
 edges:
   depends_on:
   - from: '136'
@@ -4842,6 +4877,34 @@ edges:
     to: '439'
   - from: '460'
     to: '438'
+  - from: '461'
+    to: '436'
+  - from: '461'
+    to: '231'
+  - from: '462'
+    to: '461'
+  - from: '462'
+    to: '436'
+  - from: '463'
+    to: '461'
+  - from: '463'
+    to: '462'
+  - from: '464'
+    to: '461'
+  - from: '464'
+    to: '231'
+  - from: '465'
+    to: '463'
+  - from: '465'
+    to: '462'
+  - from: '466'
+    to: '461'
+  - from: '466'
+    to: '464'
+  - from: '467'
+    to: '462'
+  - from: '467'
+    to: '231'
   triggered:
   - from: '005'
     to: 005a
