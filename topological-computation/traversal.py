@@ -1026,7 +1026,7 @@ class TraversalEngine:
             return
 
         snet = self._snet_activation.s_net
-        active_vids = self.k_active._active_ids
+        active_vids = set(self.k_active._active_ids)  # mutable copy for .add()
 
         # Build set of existing COOCCURRENCE edge targets from this vertex for dedup
         # Use adjacency index O(deg) instead of all_active_edges() O(E)
@@ -1188,7 +1188,7 @@ class TraversalEngine:
             return None
 
         current = self.position
-        active_vids = self.k_active._active_ids
+        active_vids = set(self.k_active._active_ids)  # mutable copy for .add()
         snet = self._snet_activation.s_net
         current_sig = self._snet_activation._concept_to_sig.get(current)
 
