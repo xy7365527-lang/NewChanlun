@@ -271,6 +271,7 @@ class Graph:
         new_graph._edges = self._edges  # shared (not mutated)
         new_graph._adj_out = self._adj_out  # shared (vertex add doesn't change edges)
         new_graph._adj_in = self._adj_in
+        new_graph._edge_keys = self._edge_keys  # shared (edges unchanged)
         # Maintain _active_ids cache
         if v.status != VertexStatus.FOLDED:
             new_graph._active_ids = self._active_ids | {v.id}
@@ -294,6 +295,8 @@ class Graph:
             new_graph._adj_in[e.target] = list(new_graph._adj_in[e.target])
         new_graph._adj_in[e.target].append(e)
         new_graph._active_ids = self._active_ids  # edge ops don't change active set
+        # Incremental _edge_keys — O(1) instead of O(E) rebuild
+        new_graph._edge_keys = self._edge_keys | frozenset([(e.source, e.target, e.edge_type)])
         # Propagate topology caches if material edge (excluded from beta_1/terrain)
         if e.edge_type in _MATERIAL_EDGE_TYPES:
             for attr in ('_cached_beta_1', '_cached_terrain'):
@@ -316,6 +319,10 @@ class Graph:
             new_graph._adj_out.setdefault(e.source, []).append(e)
             new_graph._adj_in.setdefault(e.target, []).append(e)
         new_graph._active_ids = self._active_ids  # edge ops don't change active set
+        # Incremental _edge_keys — O(len(edges)) instead of O(E) rebuild
+        new_graph._edge_keys = self._edge_keys | frozenset(
+            (e.source, e.target, e.edge_type) for e in edges
+        )
         # Propagate topology caches if all added edges are material (excluded from beta_1/terrain)
         if all(e.edge_type in _MATERIAL_EDGE_TYPES for e in edges):
             for attr in ('_cached_beta_1', '_cached_terrain'):
@@ -343,10 +350,15 @@ class Graph:
             for e in edges:
                 new_graph._adj_out.setdefault(e.source, []).append(e)
                 new_graph._adj_in.setdefault(e.target, []).append(e)
+            # Incremental _edge_keys
+            new_graph._edge_keys = self._edge_keys | frozenset(
+                (e.source, e.target, e.edge_type) for e in edges
+            )
         else:
             new_graph._edges = self._edges
             new_graph._adj_out = self._adj_out
             new_graph._adj_in = self._adj_in
+            new_graph._edge_keys = self._edge_keys  # shared (no edges added)
         return new_graph
 
     def set_vertex_status(self, vid: str, status: VertexStatus) -> Graph:
@@ -358,6 +370,7 @@ class Graph:
         new_graph._edges = self._edges  # shared (edges unchanged)
         new_graph._adj_out = self._adj_out
         new_graph._adj_in = self._adj_in
+        new_graph._edge_keys = self._edge_keys  # shared (edges unchanged)
         # Maintain _active_ids cache based on status transition
         old_active = old.status != VertexStatus.FOLDED
         new_active = status != VertexStatus.FOLDED
