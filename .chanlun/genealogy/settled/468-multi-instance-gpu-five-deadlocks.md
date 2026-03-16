@@ -1,0 +1,103 @@
+---
+id: "468"
+title: "多实例 GPU 并行穿越——五重死锁否定"
+status: 已结算
+type: 矛盾发现
+resolution: 吸收——多实例GPU架构质询的已知约束，设计时逐个处理
+negation_source: heterogeneous
+negation_form: waiting
+negation_model: gemini-2.5-pro-preview
+created_at: "2026-03-16"
+depends_on: []
+blocks: []
+---
+
+# 468号：多实例 GPU 并行穿越——五重死锁否定
+
+## 来源标注
+
+[Gemini 异质质询] 针对编排者提出的"500实例共享 CSR 图多 GPU 并行穿越"方案的五点质询结果。
+
+## 质询背景
+
+编排者提出新方案：R1+R2 否定了单实例 GPU 加速后，提出 500 个实例共享同一 CSR 图，各自在不同位置穿越。步内查询并行（只读），写入批量化，fold/negate 由协调者串行执行。
+
+## Gemini 推理链摘要
+
+Gemini 读取 `topological-computation/traversal.py` 的 `run_step`、`_record_traversal_association`、`_pull_cooccurrence_edges`、`detect_encounter`、`_compute_f` 等方法后，发现五重结构性否定：
+
+### 否定 1：SIMT 发散（致命）
+
+`run_step` 内有 6 种 EncounterType 分支 + `walk()` 内多层 if/elif（code_streak/crit/unvisited）。GPU SIMT 要求 warp 内线程走同一分支——500 实例在不同位置随机游走将使 GPU warp 利用率暴跌至个位数。
+
+**冲突方**：编排者假设"步内查询并行" vs traversal.py 的高发散控制流。
+
+### 否定 2：写冲突与语义破坏（致命）
+
+代码在每步执行以下写操作（非只读）：
+- `_record_traversal_association`：每步写入 TRAVERSAL_ASSOCIATION 边到 k_active/k_full
+- `_pull_cooccurrence_edges`：每步写入 COOCCURRENCE 边，可能创建新顶点
+- `_articulate`：写入 ARTICULATED 边
+- `execute_encounter`：fold/negate/sublate 修改 k_active 结构
+
+批量延迟写入后，`detect_encounter` 的 `_compute_f` 和双向边检测看到的是过期图状态——fold 和 negate_a 的触发条件被改变，穿越语义与单实例串行执行彻底断裂。
+
+**冲突方**：新方案"写入批量化" vs traversal.py 每步依赖实时图拓扑状态。
+
+### 否定 3：协调者 Barrier 瓶颈（致命）
+
+每次 fold 触发：
+1. 全局 Barrier（500实例暂停）
+2. fold 执行（修改 k_active，删除顶点）
+3. `compute_terrain(self.k_active)`：O(E) 生成树重算（traversal.py 第1675行，每步调用）
+4. CSR 重建
+5. 所有实例继续
+
+在密集图中 f=0 触发频率高，系统退化为比单核 CPU 更慢的串行执行。Amdahl 定律极端惩罚场景。
+
+### 否定 4：TRAVERSAL_ASSOCIATION 噪声过载（致命）
+
+500 实例各自产生 TRAVERSAL_ASSOCIATION 边写入同一个 k_active。`detect_encounter` Path B（Nachträglichkeit）用共享邻居判定概念相似性：
+
+- 单实例：共享邻居 = 同一轨迹的折返 = 真实拓扑信号
+- 500 实例：任意两个高度顶点被不同实例偶然访问 = 虚假共享邻居 = 度数效应
+
+编排者"无意识密度和实例数量成正比"的声明，在共享写入模式下等价于"噪声与实例数量成正比"。系统迅速坍缩为毫无意义的完全图。
+
+### 否定 5：LLM batch inference 类比断裂（reject）
+
+| 维度 | LLM batch inference | 多实例穿越 |
+|------|---------------------|-----------|
+| 权重/图 | 只读（frozen weights） | 可变（每步写入） |
+| KV cache | 固定维度张量 | visit_history 无限增长 |
+| 计算 | 规则矩阵乘法 | 不规则图遍历 |
+| 内存 | 可预分配 | CSR 动态重构 |
+
+类比在数据结构层就断裂——动态可变图无法张量化预分配。
+
+## 五重死锁核心
+
+1. **计算死锁**：SIMT 无法处理 run_step 的高发散状态机
+2. **内存死锁**：动态图 CSR 重构 + O(E) terrain 无法张量化，串行瓶颈极高
+3. **语义死锁**：批量写入导致的"脏读"与跨实例 TA 污染，摧毁拓扑因果性
+4. **信号死锁**：多实例 TA 共享写入使 Nachträglichkeit 退化为度数效应
+5. **类比死锁**：LLM 类比掩盖动态图与静态权重的本质差异
+
+## 简化质询判定
+
+**否定成立**。
+
+**定义回溯**：五条均有代码依据（traversal.py 第1675行 terrain 每步重算、第1148行 k_active 写入、第520-537行 实时双向边检测）。
+
+**反例构造**：唯一可能翻转的条件——若 500 实例被严格分区访问（互不重叠区域），问题4（噪声）和问题2（语义）的强度减弱。但当前代码 `walk()` 无分区约束，全图随机游走，反例条件不成立。
+
+**推论检验**：否定成立则下游推论：多 GPU 方案需根本性架构重设计——k_active 只读化（参考功能性不可变模式 + 分离写视图）、terrain 增量化、fold 语义解耦（延迟 fold 需新的正确性证明）。
+
+## 影响声明
+
+涉及模块：
+- `topological-computation/traversal.py`（TraversalEngine.run_step 及全部写操作方法）
+- 所有依赖 k_active 可变状态的 encounter 检测逻辑
+- 多实例部署架构（daemon.py 的 multiproc 模式）
+
+未涉及：CPU 多实例（multiproc 双实例）——该方案无共享图写冲突，不受此否定影响。

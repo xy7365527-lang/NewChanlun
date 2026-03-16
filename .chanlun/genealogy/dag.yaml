@@ -2339,6 +2339,11 @@ nodes:
   status: 生成态
   type: 矛盾发现
   file: pending/467-k-active-scale-illusion-rust-turning-point.md
+- id: '468'
+  title: 多实例 GPU 并行穿越——五重死锁否定
+  status: 生成态
+  type: 矛盾发现
+  file: pending/468-multi-instance-gpu-five-deadlocks.md
 edges:
   depends_on:
   - from: '136'
