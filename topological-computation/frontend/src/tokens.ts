@@ -34,8 +34,8 @@ export const FONT = {
 } as const;
 
 // ── Config ─────────────────────────────────────────────────────
-export const DAEMON_HTTP = "http://46.225.187.39:9765";
-export const DAEMON_WS = "ws://46.225.187.39:8765/ws";
+export const DAEMON_HTTP = "http://46.4.204.119:9765";
+export const DAEMON_WS = "ws://46.4.204.119:8765/ws";
 export const WS_THROTTLE_MS = 100;
 export const STATUS_POLL_MS = 1000;
 
@@ -53,20 +53,20 @@ export const DEFAULT_INSTANCES: DaemonInstance[] = [
   {
     id: "vps-0",
     name: "VPS-0",
-    httpBase: "http://46.225.187.39:9765",
-    wsUrl: "ws://46.225.187.39:8765/ws",
+    httpBase: "http://46.4.204.119:9765",
+    wsUrl: "ws://46.4.204.119:8765/ws",
   },
   {
     id: "vps-1",
     name: "VPS-1",
-    httpBase: "http://46.225.187.39:9766",
-    wsUrl: "ws://46.225.187.39:8766/ws",
+    httpBase: "http://46.4.204.119:9766",
+    wsUrl: "ws://46.4.204.119:8766/ws",
   },
   {
     id: "vps-2",
     name: "VPS-2",
-    httpBase: "http://46.225.187.39:9767",
-    wsUrl: "ws://46.225.187.39:8767/ws",
+    httpBase: "http://46.4.204.119:9767",
+    wsUrl: "ws://46.4.204.119:8767/ws",
   },
   {
     id: "local",

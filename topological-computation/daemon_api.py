@@ -112,7 +112,7 @@ def topology_json(daemon: TopologicalDaemon, center: str | None = None, radius: 
         degree_map = {v: len(nbs) for v, nbs in adj.items()}
 
         # Select skeleton vertices
-        SKELETON_SIZE = 300
+        SKELETON_SIZE = 800
         sorted_by_degree = sorted(active, key=lambda v: degree_map.get(v, 0), reverse=True)
         skeleton_vids = set(sorted_by_degree[:SKELETON_SIZE])
 
@@ -195,6 +195,7 @@ def topology_json(daemon: TopologicalDaemon, center: str | None = None, radius: 
             "degree": degrees.get(vid, 0),
             "settled": vid in settled_vids,
             "type": _vertex_type(vid),
+            "non_critical": v.non_critical if v else False,
         })
 
     links = []
@@ -425,6 +426,26 @@ def persistence_json(daemon: TopologicalDaemon) -> dict:
     }
 
 
+def step_detail_json(daemon: TopologicalDaemon, step_number: int) -> dict:
+    """GET /step?n=N — query the full record of step N from JSONL persistence.
+
+    Returns all events (operation, vertices, edges, articulations, etc.)
+    that occurred at step N.
+    """
+    from pathlib import Path
+    from block_topology_persistence import query_step
+
+    # Find the persist path from the daemon's writer
+    if daemon._persist is None or daemon._persist._jsonl_path is None:
+        return {"error": "persistence not enabled", "step": step_number}
+
+    result = query_step(daemon._persist._jsonl_path, step_number)
+    if result is None:
+        return {"found": False, "step": step_number}
+
+    return {"found": True, **result}
+
+
 def gaps_json(daemon: TopologicalDaemon) -> list[dict]:
     """GET /gaps — current gap candidates."""
     daemon._gap_cooldown.clear()
@@ -487,6 +508,7 @@ def step_ws_message(log, daemon: TopologicalDaemon) -> dict:
         "operation": log.operation,
         "f_value": log.f_value,
         "crystallized": False,
+        "critical": log.critical,
     }
 
 

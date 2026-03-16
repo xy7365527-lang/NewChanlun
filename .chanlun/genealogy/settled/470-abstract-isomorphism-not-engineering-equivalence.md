@@ -8,6 +8,7 @@ negation_source: heterogeneous
 negation_form: expansion
 negation_model: gemini-3.1-pro-preview
 created_at: "2026-03-16"
+date: 2026-03-16
 depends_on:
   - "462"   # LLM 伪同构——第一例
   - "231"   # 形式化有效域规则

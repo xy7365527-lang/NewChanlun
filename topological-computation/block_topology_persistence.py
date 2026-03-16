@@ -483,3 +483,86 @@ def list_articulation_events(
 
     results.sort(key=lambda r: r.get("step", 0))
     return results
+
+
+def query_step(jsonl_path: Path, step_number: int) -> dict | None:
+    """Query all records for a specific step number from the JSONL log.
+
+    Returns a dict with:
+      - step: the step number
+      - operation: the operation record (if any)
+      - vertices: list of vertex records created at this step
+      - edges: list of edge records created at this step
+      - articulations: list of articulation records at this step
+      - settlements: list of settlement records at this step
+      - merges: list of merge records at this step
+      - vertex_status_changes: list of vertex status change records at this step
+
+    Returns None if JSONL file does not exist.
+    """
+    if not jsonl_path.exists():
+        return None
+
+    result = {
+        "step": step_number,
+        "operation": None,
+        "vertices": [],
+        "edges": [],
+        "articulations": [],
+        "settlements": [],
+        "merges": [],
+        "vertex_status_changes": [],
+    }
+
+    with open(jsonl_path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+            record_type = record.get("type")
+
+            if record_type == "operation" and record.get("step") == step_number:
+                # Strip block_hash for cleaner output
+                r = {k: v for k, v in record.items() if k != "block_hash"}
+                result["operation"] = r
+
+            elif record_type == "vertex" and record.get("created_at") == step_number:
+                r = {k: v for k, v in record.items() if k != "block_hash"}
+                result["vertices"].append(r)
+
+            elif record_type == "edge" and record.get("created_at") == step_number:
+                r = {k: v for k, v in record.items() if k != "block_hash"}
+                result["edges"].append(r)
+
+            elif record_type == "articulation" and record.get("step") == step_number:
+                r = {k: v for k, v in record.items() if k != "block_hash"}
+                result["articulations"].append(r)
+
+            elif record_type == "settlement" and record.get("step") == step_number:
+                r = {k: v for k, v in record.items() if k != "block_hash"}
+                result["settlements"].append(r)
+
+            elif record_type == "merge" and record.get("step") == step_number:
+                r = {k: v for k, v in record.items() if k != "block_hash"}
+                result["merges"].append(r)
+
+            elif record_type == "vertex_status" and record.get("step") == step_number:
+                r = {k: v for k, v in record.items() if k != "block_hash"}
+                result["vertex_status_changes"].append(r)
+
+    # Return None if no records found for this step at all
+    has_data = (
+        result["operation"] is not None
+        or result["vertices"]
+        or result["edges"]
+        or result["articulations"]
+        or result["settlements"]
+        or result["merges"]
+        or result["vertex_status_changes"]
+    )
+    return result if has_data else None

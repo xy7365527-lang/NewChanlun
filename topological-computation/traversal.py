@@ -101,6 +101,7 @@ class StepLog:
     g_value: int = -99  # g(v,w) vertex-disjoint path count — 392·2 annotation
     resonance: bool = False  # S_net 耦合振荡：chosen candidate was in resonating set
     exploration: bool = False  # exploration move: jumped to under-explored vertex
+    critical: bool | None = None  # 473号: Morse 命名门槛——None=无新顶点, True=D≠0, False=D=0
 
 
 class TraversalEngine:
@@ -141,6 +142,7 @@ class TraversalEngine:
         self._f_negate_threshold = f_negate_threshold
         self._encounter_log = encounter_log
         self._attempted_folds: set[frozenset[str]] = set()  # 398号: fold pairs already attempted & blocked
+        self._folded_pairs: set[frozenset[str]] = set()  # 成功 fold 的对——永不重复（"已扬弃不重复"）
         self._snet_activation: SNetActivation | None = None  # 耦合振荡: S_net 激活态
         self._traversal_cooc_buffer: list[SignifierEdge] = []  # S_net 穿越共现回流缓冲
         self._traversal_cooc_flush_interval: int = 50  # 每 N 步 flush 一次
@@ -477,7 +479,8 @@ class TraversalEngine:
             #   (2) a is current position and b is any active vertex (LLM history-based fold)
             if a in active and b in active and a != b:
                 # 398号: skip already-attempted & blocked fold pairs
-                if frozenset((a, b)) in self._attempted_folds:
+                _pair = frozenset((a, b))
+                if _pair in self._attempted_folds or _pair in self._folded_pairs:
                     pass  # fall through to NOTHING
                 elif (a in neighbors and b in neighbors) or \
                    (a == self.position) or (b == self.position):
@@ -554,7 +557,7 @@ class TraversalEngine:
             if pos.startswith("syn_") or pos.startswith("anti_") or nb_is_synthetic:
                 continue
             pair_key = frozenset((pos, nb))
-            if pair_key in self._attempted_folds:
+            if pair_key in self._attempted_folds or pair_key in self._folded_pairs:
                 continue
             f_val = self._compute_f(pos, nb)
             if f_val == 0:
@@ -576,8 +579,8 @@ class TraversalEngine:
                 shared = (pos_nbs & past_nbs) - {pos, past_vid}
                 if len(shared) >= 2:  # share at least 2 neighbors = structural similarity
                     pair_key = frozenset((pos, past_vid))
-                    if pair_key in self._attempted_folds:
-                        continue  # 398号: already attempted & blocked, skip
+                    if pair_key in self._attempted_folds or pair_key in self._folded_pairs:
+                        continue  # 398号: already attempted & blocked, or already folded, skip
                     f_val = self._compute_f(pos, past_vid)
                     return Encounter(
                         EncounterType.FOLD, pos, past_vid,
@@ -667,8 +670,9 @@ class TraversalEngine:
             nb_is_synthetic = nb.startswith("syn_") or nb.startswith("anti_")
             if pos_is_synthetic or nb_is_synthetic:
                 continue
-            # 398号: skip already-attempted & blocked fold pairs
-            if frozenset((pos, nb)) in self._attempted_folds:
+            # 398号: skip already-attempted & blocked fold pairs, or already folded
+            _pair = frozenset((pos, nb))
+            if _pair in self._attempted_folds or _pair in self._folded_pairs:
                 continue
             if best_fold is None or f_val < best_fold[1]:
                 best_fold = (nb, f_val)
@@ -694,10 +698,11 @@ class TraversalEngine:
 
     # -- operation execution ------------------------------------------------
 
-    def execute_encounter(self, enc: Encounter) -> tuple[str, bool]:
+    def execute_encounter(self, enc: Encounter) -> tuple[str, bool, bool | None]:
         """Execute the operation corresponding to an encounter.
 
-        Returns (operation_name, blocked).
+        Returns (operation_name, blocked, critical).
+        critical: True if β₁ changed (D≠0), False if not (D=0), None if no new vertex.
         """
         # Use Graph._edge_keys cache for O(1) membership test (instead of O(E) set construction)
         _kfull_has_key = self.k_full.has_edge_key
@@ -746,9 +751,15 @@ class TraversalEngine:
                     result.blocked_by,
                 )
                 self._last_blocked_by = result.blocked_by
-                return "sublate_blocked", True
+                return "sublate_blocked", True, None
 
             self.k_active = result.graph
+            # 473号: Morse 命名门槛——D=beta_after-beta_before, D≠0 → critical
+            is_critical = result.delta_beta_1_actual != 0
+            if not is_critical:
+                old_v = self.k_active.vertex(result.new_vertex)
+                marked_v = Vertex(old_v.id, old_v.status, old_v.content, old_v.created_at, non_critical=True)
+                self.k_active = self.k_active.add_vertex(marked_v)
             self.k_full = self.k_full.add_vertex(self.k_active.vertex(result.new_vertex))
             for e in result.graph.edges:
                 if e.created_at == self.step and not self.k_full.has_edge_key(e.source, e.target, e.edge_type):
@@ -767,7 +778,7 @@ class TraversalEngine:
                 self.settlement.register_new_cycle(result.new_cycle_edges, self.step)
             # 398号: sublation changes graph structure — invalidate affected fold pairs
             self._invalidate_attempted_folds({enc.target_a, enc.target_b, result.new_vertex})
-            return "sublate", False
+            return "sublate", False, is_critical
 
         elif enc.encounter_type == EncounterType.NEGATE_A:
             result = negate(
@@ -780,7 +791,7 @@ class TraversalEngine:
                     result.blocked_by,
                 )
                 self._last_blocked_by = result.blocked_by
-                return "negate_blocked", True
+                return "negate_blocked", True, None
 
             self.k_active = result.graph
             for e in result.graph.edges:
@@ -792,7 +803,7 @@ class TraversalEngine:
                 self.settlement.register_new_cycle(result.new_cycle_edges, self.step)
             # 398号: negate adds edges — invalidate affected fold pairs
             self._invalidate_attempted_folds({enc.target_a, enc.target_b})
-            return "negate_a", False
+            return "negate_a", False, None
 
         elif enc.encounter_type == EncounterType.NEGATE_B:
             result = negate(
@@ -805,11 +816,17 @@ class TraversalEngine:
                     result.blocked_by,
                 )
                 self._last_blocked_by = result.blocked_by
-                return "negate_blocked", True
+                return "negate_blocked", True, None
 
             self.k_active = result.graph
+            # 473号: Morse 命名门槛——negate_b creates new vertex, check D
+            is_critical = result.delta_beta_1_actual != 0 if result.new_vertex else None
             new_v = self.k_active.vertex(result.new_vertex)
             if new_v:
+                if is_critical is False:
+                    marked_v = Vertex(new_v.id, new_v.status, new_v.content, new_v.created_at, non_critical=True)
+                    self.k_active = self.k_active.add_vertex(marked_v)
+                    new_v = marked_v
                 self.k_full = self.k_full.add_vertex(new_v)
             for e in result.graph.edges:
                 if e.created_at == self.step and not self.k_full.has_edge_key(e.source, e.target, e.edge_type):
@@ -826,7 +843,7 @@ class TraversalEngine:
             if result.new_vertex:
                 affected.add(result.new_vertex)
             self._invalidate_attempted_folds(affected)
-            return "negate_b", False
+            return "negate_b", False, is_critical
 
         elif enc.encounter_type == EncounterType.FOLD:
             result = fold(
@@ -841,7 +858,7 @@ class TraversalEngine:
                 self._last_blocked_by = result.blocked_by
                 # 398号: remember this blocked fold pair
                 self._attempted_folds.add(frozenset((enc.target_a, enc.target_b)))
-                return "fold_blocked", True
+                return "fold_blocked", True, None
 
             self.k_active = result.graph
             # Update K_full with fold record
@@ -860,6 +877,9 @@ class TraversalEngine:
                 if merged_away not in pair
             }
 
+            # 记录成功的 fold 对——"已扬弃不重复"，永不再 fold 同一对
+            self._folded_pairs.add(frozenset((enc.target_a, enc.target_b)))
+
             if result.new_cycle_edges:
                 self.settlement.register_new_cycle(result.new_cycle_edges, self.step)
 
@@ -870,9 +890,9 @@ class TraversalEngine:
                 surviving_id=enc.target_a,
                 fold_step=self.step,
             )
-            return "fold", False
+            return "fold", False, None
 
-        return "nothing", False
+        return "nothing", False, None
 
     # -- S_net coupling -----------------------------------------------------
 
@@ -1464,13 +1484,14 @@ class TraversalEngine:
         enc = self.detect_encounter()
         blocked = False
         op_name = "walk"
+        critical_flag: bool | None = None  # 473号: Morse 命名门槛
 
         # Skip encounter if recently blocked at this position
         if enc.encounter_type != EncounterType.NOTHING and self._blocked_at.get(self.position, -99) >= self.step - 2:
             enc = Encounter(EncounterType.NOTHING, reason="Recently blocked here, walking away")
 
         if enc.encounter_type != EncounterType.NOTHING:
-            op_name, blocked = self.execute_encounter(enc)
+            op_name, blocked, critical_flag = self.execute_encounter(enc)
             self._nothing_streak = 0
             if blocked:
                 self._blocked_at[self.position] = self.step
@@ -1595,11 +1616,13 @@ class TraversalEngine:
                     if src not in self.k_active._active_ids:
                         continue
                     # Create new vertex for orphan signifier
+                    # 473号: bridge vertices are material layer, always non_critical
                     bridge_vertex = Vertex(
                         id=bridge_vid,
                         status=VertexStatus.ACTIVE,
                         content=orphan_sig,
                         created_at=self.step,
+                        non_critical=True,
                     )
                     self.k_active = self.k_active.add_vertex(bridge_vertex)
                     self.k_full = self.k_full.add_vertex(bridge_vertex)
@@ -1699,6 +1722,7 @@ class TraversalEngine:
             g_value=enc.g_value,
             resonance=self._last_resonance,
             exploration=explored,
+            critical=critical_flag,
         )
         self.logs.append(log)
 

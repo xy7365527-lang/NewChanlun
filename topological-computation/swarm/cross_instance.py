@@ -41,7 +41,10 @@ class CrossInstanceSync:
         self.shared = shared_layer
         self.instance_id = instance_id
         self.daemon = daemon
-        self.known_blocks: set[str] = set()
+        # Pre-fill known_blocks with all existing CIDs to skip historical blocks.
+        # Without this, first sync() downloads ALL historical blocks (3000+),
+        # which takes minutes and hangs the traversal worker.
+        self.known_blocks: set[str] = shared_layer.all_block_hashes()
         self.injected_count: int = 0
 
         # 解读统计
@@ -52,6 +55,9 @@ class CrossInstanceSync:
         # Peer state tracking (from new block types)
         self.peer_snet_states: dict[str, dict] = {}  # instance_id -> last snet_update
         self.peer_settlements: dict[str, list[dict]] = {}  # instance_id -> settlement events
+
+    # Max blocks to download per sync call — prevents unbounded IPFS I/O
+    _MAX_BLOCKS_PER_SYNC = 100
 
     def sync(self) -> int:
         """Scan for new blocks, inject those from other instances.
@@ -65,11 +71,28 @@ class CrossInstanceSync:
 
         Returns the number of blocks injected.
         """
-        new_blocks = self.shared.read_new_blocks(self.known_blocks)
+        all_cids = self.shared.all_block_hashes()
+        new_cids = all_cids - self.known_blocks
+
+        # If too many new blocks, mark excess as known (skip) to avoid
+        # downloading thousands of historical blocks on first sync.
+        if len(new_cids) > self._MAX_BLOCKS_PER_SYNC:
+            # Process only the most recent MAX blocks; mark the rest as known
+            cid_list = list(new_cids)
+            skip = cid_list[self._MAX_BLOCKS_PER_SYNC:]
+            self.known_blocks.update(skip)
+            new_cids = set(cid_list[:self._MAX_BLOCKS_PER_SYNC])
+
+        new_blocks: list[dict] = []
+        for cid in new_cids:
+            self.known_blocks.add(cid)
+            content = self.shared.read_block(cid)
+            if content is not None:
+                content["hash"] = cid
+                new_blocks.append(content)
+
         injected = 0
         for block in new_blocks:
-            block_hash = block.get("hash", "")
-            self.known_blocks.add(block_hash)
             if block.get("instance") == self.instance_id:
                 continue
 
@@ -88,18 +111,15 @@ class CrossInstanceSync:
                 pass  # 对方的解读回应，不需要注入
 
             elif block_type in ("graph_delta", "feed_event"):
-                # 这两种块都携带 vertices + edges → 注入到本地图
                 self._inject_external_operation(block)
                 injected += 1
-                # 只有 graph_delta 需要解读（feed_event 不含 fold 操作）
                 if block_type == "graph_delta":
-                    self._interpret_and_respond(block, block_hash)
+                    self._interpret_and_respond(block, block.get("hash", ""))
 
             else:
-                # 未知 type 的旧格式块 → 走原有注入+解读路径
                 self._inject_external_operation(block)
                 injected += 1
-                self._interpret_and_respond(block, block_hash)
+                self._interpret_and_respond(block, block.get("hash", ""))
 
         self.injected_count += injected
         return injected

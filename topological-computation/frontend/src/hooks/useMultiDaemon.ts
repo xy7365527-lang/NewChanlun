@@ -175,7 +175,37 @@ export function useMultiDaemon(): void {
     async function fetchTopo() {
       try {
         const t = await api.topology();
-        if (alive) setTopology(t);
+        if (!alive) return;
+
+        // Inject traversal position nodes if missing from topology skeleton.
+        // The topology cache refreshes every N steps, but status updates every step,
+        // so the current traversal position may have moved beyond the cached skeleton.
+        const state = useStore.getState();
+        const nodeIdSet = new Set(t.nodes.map((n) => n.id));
+        const nodeLabelSet = new Set(t.nodes.map((n) => n.label));
+
+        for (const inst of state.instances) {
+          const instState = state.instanceStates[inst.id];
+          if (!instState) continue;
+          const posId = instState.currentPositionId;
+          const posLabel = instState.currentPositionLabel;
+          if (!posId && !posLabel) continue;
+          // Already present by id or label
+          if ((posId && nodeIdSet.has(posId)) || (posLabel && nodeLabelSet.has(posLabel))) continue;
+          // Synthesize a minimal node for the traversal position
+          const syntheticId = posId || `traversal-${inst.id}`;
+          t.nodes.push({
+            id: syntheticId,
+            label: posLabel || posId || "?",
+            f_avg: -1,
+            degree: 1,
+            settled: false,
+            type: "text",
+          });
+          nodeIdSet.add(syntheticId);
+        }
+
+        setTopology(t);
       } catch { /* ignore */ }
     }
     fetchTopo();

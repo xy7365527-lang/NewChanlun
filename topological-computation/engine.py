@@ -79,6 +79,7 @@ class Vertex:
     status: VertexStatus = VertexStatus.ACTIVE
     content: Optional[str] = None
     created_at: int = 0
+    non_critical: bool = False  # 473号: Morse 命名门槛——β₁变化量D=0的顶点
 
 
 @dataclass(frozen=True, slots=True)
@@ -370,7 +371,7 @@ class Graph:
 
     def set_vertex_status(self, vid: str, status: VertexStatus) -> "Graph":
         old = self._vertices[vid]
-        self._vertices[vid] = Vertex(old.id, status, old.content, old.created_at)
+        self._vertices[vid] = Vertex(old.id, status, old.content, old.created_at, old.non_critical)
         old_active = old.status != VertexStatus.FOLDED
         new_active = status != VertexStatus.FOLDED
         if old_active and not new_active:
@@ -383,7 +384,7 @@ class Graph:
     def merge_vertices(self, keep: str, remove: str) -> "Graph":
         """Merge `remove` into `keep`. Redirect all edges, mark `remove` as folded."""
         old = self._vertices[remove]
-        self._vertices[remove] = Vertex(old.id, VertexStatus.FOLDED, old.content, old.created_at)
+        self._vertices[remove] = Vertex(old.id, VertexStatus.FOLDED, old.content, old.created_at, old.non_critical)
         self._active_ids.discard(remove)
 
         # Redirect edges: rebuild _edges, _adj_out, _adj_in, _edge_keys
@@ -1669,10 +1670,10 @@ def negate(
     else:
         # Case B: create new antithesis
         if antithesis is None:
-            antithesis = f"anti_{thesis}_{step}"
+            antithesis = f"anti_{step}"
         predicted = 0
 
-        new_v = Vertex(antithesis, VertexStatus.ACTIVE, created_at=step)
+        new_v = Vertex(antithesis, VertexStatus.ACTIVE, content=f"negate({thesis})", created_at=step)
         result_graph = graph.add_vertex(new_v)
         result_graph = result_graph.add_edge(
             Edge(antithesis, thesis, EdgeType.NEGATION, step)
@@ -1776,7 +1777,7 @@ def sublate(
     edges_before = {(e.source, e.target) for e in graph.active_edges()}
     predicted = 1
 
-    synthesis_id = f"syn_{thesis}_{antithesis}_{step}"
+    synthesis_id = f"syn_{step}"
     new_v = Vertex(synthesis_id, VertexStatus.ACTIVE, content=synthesis_content, created_at=step)
 
     result_graph = graph.add_vertex(new_v)
