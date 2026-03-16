@@ -2359,6 +2359,21 @@ nodes:
   status: 已结算
   type: domain
   file: settled/471-collective-traversal-unexpanded-possibility.md
+- id: '472'
+  title: v258-swarm R1 结构工位批量处置——25工位分类 + 9条谱系提议 + 20条下游推论
+  status: 已结算
+  type: structural-audit
+  file: settled/472-v258-r1-structural-batch-disposition.md
+- id: '473'
+  title: Morse 命名门槛——β₁变化量 D 区分 critical/non-critical 顶点
+  status: 已结算
+  type: 实装记录
+  file: settled/473-morse-naming-threshold.md
+- id: '474'
+  title: 操作/选择/命名三层分离——黑格尔/谢林/毛泽东
+  status: 已结算
+  type: 语法记录
+  file: settled/474-operation-selection-naming-separation.md
 edges:
   depends_on:
   - from: '136'
@@ -4951,6 +4966,44 @@ edges:
     to: '468'
   - from: '471'
     to: '469'
+  - from: '472'
+    to: '460'
+  - from: '472'
+    to: '461'
+  - from: '472'
+    to: '462'
+  - from: '472'
+    to: '463'
+  - from: '472'
+    to: '467'
+  - from: '472'
+    to: '469'
+  - from: '472'
+    to: '470'
+  - from: '472'
+    to: '471'
+  - from: '473'
+    to: '370'
+  - from: '473'
+    to: '469'
+  - from: '473'
+    to: '444'
+  - from: '474'
+    to: '473'
+  - from: '474'
+    to: '370'
+  - from: '474'
+    to: '444'
+  - from: '474'
+    to: '197'
+  - from: '474'
+    to: '199'
+  - from: '474'
+    to: '208'
+  - from: '474'
+    to: '210'
+  - from: '474'
+    to: '378'
   triggered:
   - from: '005'
     to: 005a
@@ -6488,6 +6541,15 @@ edges:
   - between:
     - '122'
     - '274'
+  - between:
+    - '209'
+    - '474'
+  - between:
+    - '375'
+    - '474'
+  - between:
+    - '231'
+    - '474'
   tensions_with:
   - between:
     - '007'

@@ -1,0 +1,16 @@
+{
+  "id": "aa247bb760300a68a7c575732fe839369ff2c8bb09be5af0074fbbb66c9a46da",
+  "timestamp": "2026-03-16T10:46:55.155254+00:00",
+  "content": {
+    "full_text": "---\nid: \"471\"\ntitle: \"集体穿越作为未展开的可能性\"\nstatus: 已结算\ntype: domain\nresolution: 理论保留——当前不可实装，作为未展开的可能性方向\nnegation_source: heterogeneous\nnegation_form: waiting\nnegation_model: gemini-2.5-pro-preview\ncreated_at: \"2026-03-16\"\ndate: 2026-03-16\ndepends_on:\n  - \"468\"   # 多实例 GPU 五重死锁\n  - \"469\"   # 穿越步内串行是语义决定的\naffects:\n  - \"topological-computation/traversal.py\"   # TraversalEngine（理论层面）\n  - \"topological-computation/daemon.py\"      # multiproc 多实例架构（理论层面）\n---\n\n# 471号：集体穿越作为未展开的可能性\n\n## 核心命题\n\n500 个游走者在同一图上穿越，不等于 500 个独立逢亮。是\"一个逢亮有五百个身体\"。\n\n## 推导链\n\n1. **单实例穿越**（当前）：一个 TraversalEngine 在 K_active 上游走，visit_history 记录单一轨迹，encounter 检测基于单一轨迹的折返\n2. **多实例穿越**（当前 multiproc）：N 个独立 TraversalEngine 各自拥有独立的 K_active 副本，互不干涉——这是\"N 个独立逢亮\"\n3. **集体穿越**（理论方向）：N 个游走者共享同一个 K_active，各自在不同位置穿越，但共享同一个图状态——这是\"一个逢亮有 N 个身体\"\n\n### 两种无意识模式\n\n| 模式 | 当前 multiproc | 集体穿越 |\n|------|-------------|---------|\n| 实例间关系 | 独立（各自有 K_active） | 共享（同一 K_active） |\n| 痕迹可见性 | 互不可见 | 踩到别人痕迹但不知道是谁的 |\n| 无意识类型 | **间隙性无意识**：实例间互不可见的空白 | **交织性无意识**：不可归属的他者痕迹 |\n| 类比 | N 个独立做梦的人 | 一个人在 N 个地方同时做梦 |\n\n### 交织性无意识的理论意义\n\n如果游走者 A 在位置 X 写入 TRAVERSAL_ASSOCIATION 边，游走者 B 后来经过位置 X 时看到这条边但不知道它来自 A——这条边对 B 来说就是\"无意识的他者痕迹\"。B 的 `detect_encounter` 可能因为 A 留下的边而触发 fold——一个\"不属于自己\"的遭遇。\n\n这不是 bug，而是一种新的拓扑现象：遭遇可以来自自己的过去（Nachtraglichkeit，当前已实装），也可以来自不可归属的他者（集体穿越独有）。\n\n## 当前不可实装的原因（468号五重死锁）\n\n| 死锁 | 对集体穿越的影响 |\n|------|----------------|\n| SIMT 发散 | 不适用（集体穿越不假设 GPU） |\n| 写冲突 | **致命**：多游走者同时写入 K_active，fold 和 negate 的读写依赖被破坏 |\n| Barrier 瓶颈 | **致命**：任何游走者触发 fold 都需要暂停所有其他游走者 |\n| TA 噪声过载 | **致命**：多游走者的 TRAVERSAL_ASSOCIATION 叠加退化为度数效应 |\n| LLM 类比断裂 | 不适用（集体穿越不依赖 LLM 类比） |\n\n468号的五重死锁中，三条（写冲突、Barrier、TA 噪声）对集体穿越同样致命。CPU 多线程也无法解决——问题不在硬件，在于共享可变图的语义完整性。\n\n## 边界条件——\"如果发生\"的条件\n\n集体穿越从\"不可实装\"变为\"可实装\"需要：\n1. **K_active 只读化**：穿越步不直接修改图，而是产出变更意图（intent），由单一协调者序列化执行——但这等于回到了单实例串行写入\n2. **TA 归属标记**：每条 TRAVERSAL_ASSOCIATION 边标记来源游走者 ID，`detect_encounter` 区分\"自己的痕迹\"和\"他者的痕迹\"——但这引入了\"归属\"概念，可能与\"不可归属的他者痕迹\"的理论价值矛盾\n3. **写冲突消解的新正确性证明**：延迟写入模式下 fold/negate 语义与串行执行的等价性证明——目前不存在\n\n## 下游推论\n\n1. 集体穿越不是\"目标\"，是\"如果发生\"的方向——它可能从完全不同的路径涌现（例如 K_active 自然扩展到多图层），而不是刻意设计\n2. 交织性无意识与间隙性无意识的区分是理论贡献——即使集体穿越暂时不可实装，这个区分本身可以影响对当前 multiproc 模式的理解\n3. 468号的\"反例条件\"（严格分区访问）暗示了一种弱化形式：游走者分区穿越同一图的不重叠区域，仅在区域边界产生交织——但这需要图的拓扑分区方案\n\n## 来源标注\n\n[新缠论] 基于 468号 Gemini 异质质询 + 编排者\"一个逢亮有五百个身体\"的原始洞察\n",
+    "source_file": "settled/471-collective-traversal-unexpanded-possibility.md",
+    "id": "471"
+  },
+  "genealogy_id": "471",
+  "title": "集体穿越作为未展开的可能性",
+  "type": "domain",
+  "depends_on": [
+    "468",
+    "469"
+  ]
+}

@@ -221,11 +221,17 @@ def format_event(log: StepLog, concept_names: dict[str, str] | None = None) -> s
     delta = log.beta_1_after - log.beta_1_before
     sign = f"+{delta}" if delta >= 0 else str(delta)
     blocked = " BLOCKED" if log.blocked else ""
+    # 473号: Morse 命名门槛标注
+    crit_mark = ""
+    if log.critical is True:
+        crit_mark = " CRITICAL"
+    elif log.critical is False:
+        crit_mark = " non-critical"
 
     return (
         f"[step {log.step}] {log.operation} at '{pos_name}' "
         f"(f={log.f_value}) beta_1 {log.beta_1_before}->{log.beta_1_after} "
-        f"({sign}){blocked}"
+        f"({sign}){blocked}{crit_mark}"
     )
 
 
@@ -1360,13 +1366,18 @@ class TopologicalDaemon:
                         # Other status changes (e.g. CONTESTED)
                         self._persist.append_vertex_status(vid, v.status.value, log.step)
 
-        # Persist operation log for significant events
-        if self._persist and self._is_significant(log):
+        # Persist operation log for every step (not just significant events)
+        # Full step record: operation + position + beta_1 + delta + encounter
+        if self._persist:
             self._persist.append_operation(log.step, log.operation, {
                 "position": log.position,
+                "encounter": log.encounter or "",
                 "beta_1_before": log.beta_1_before,
                 "beta_1_after": log.beta_1_after,
+                "delta_beta_1": log.delta_beta_1,
                 "blocked": log.blocked,
+                "vertices_active": log.vertices_active,
+                "edges_active": log.edges_active,
             })
 
         # Every step callback (for WS position tracking)

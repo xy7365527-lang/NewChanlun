@@ -71,7 +71,7 @@ function saveFilters(f: FilterState): void {
   }));
 }
 
-const INSTANCE_VERSION = 3; // bump to force reset cached instances
+const INSTANCE_VERSION = 4; // bump to force reset cached instances
 
 function loadInstances(): DaemonInstance[] {
   try {

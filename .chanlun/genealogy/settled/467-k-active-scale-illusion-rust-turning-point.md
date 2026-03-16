@@ -8,6 +8,7 @@ negation_source: heterogeneous
 negation_form: waiting
 negation_model: gemini-3.1-pro-preview
 created_at: "2026-03-16"
+date: 2026-03-16
 trigger: v247-swarm/gemini-gpu-r2-challenge
 depends_on:
   - "462"   # LLM 伪同构矛盾（R1——BFS 规模阈值论证）

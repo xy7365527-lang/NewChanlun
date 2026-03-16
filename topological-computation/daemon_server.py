@@ -32,7 +32,8 @@ if TYPE_CHECKING:
 
 from daemon_api import (
     status_json, topology_json, query_json, narrative_json,
-    gaps_json, operations_json, persistence_json, step_ws_message,
+    gaps_json, operations_json, persistence_json, step_detail_json,
+    step_ws_message,
     present_json, expression_pressure_ws_message, _count_unreported,
     instances_json, feed_via_snet,
 )
@@ -121,10 +122,16 @@ class DaemonHTTPHandler(BaseHTTPRequestHandler):
             self._json_response(persistence_json(self.daemon))
         elif path == "/instances":
             self._json_response(instances_json(self.daemon))
+        elif path == "/step":
+            n = params.get("n", [""])[0]
+            if not n or not n.isdigit():
+                self._json_response({"error": "missing or invalid n parameter"}, status=400)
+            else:
+                self._json_response(step_detail_json(self.daemon, int(n)))
         else:
             self._json_response({"error": "not found", "endpoints": [
                 "/status", "/topology", "/query", "/narrative", "/gaps", "/operations",
-                "/present", "/instances",
+                "/present", "/instances", "/step",
             ]}, status=404)
 
     def do_POST(self) -> None:

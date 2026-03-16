@@ -30,10 +30,13 @@ export function useFilteredTopology(
 
     const maxDegree = data.nodes.reduce((max, n) => Math.max(max, n.degree), 0);
 
+    // Traversal position node IDs should never be filtered out
+    const traversalNodeIds = new Set(instanceTraversals.map((t) => t.position));
+
     // Build set of accepted node IDs
     const acceptedNodes = new Set<string>();
     for (const node of data.nodes) {
-      if (!passesFilter(node, filters)) continue;
+      if (!traversalNodeIds.has(node.id) && !passesFilter(node, filters)) continue;
       acceptedNodes.add(node.id);
     }
 

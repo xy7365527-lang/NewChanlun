@@ -249,6 +249,10 @@ def _traversal_worker(
     _update_api_caches(daemon, status_dict, _narrative_json, _gaps_json,
                        _operations_json, _persistence_json)
 
+    # Store persist_path for /step endpoint access from HTTP handler
+    if persist_path:
+        status_dict["_persist_path"] = persist_path
+
     # Main loop
     step_count = 0
     if daemon.engine is None:
@@ -575,10 +579,24 @@ class MultiprocessHTTPHandler:
         elif path == "/instances":
             return _build_instances_response(status_dict), 200
 
+        elif path == "/step":
+            n_str = params.get("n", [""])[0] if isinstance(params.get("n"), list) else params.get("n", "")
+            if not n_str or not str(n_str).isdigit():
+                return {"error": "missing or invalid n parameter"}, 400
+            persist_path = status_dict.get("_persist_path")
+            if not persist_path:
+                return {"error": "persistence not enabled"}, 200
+            from pathlib import Path as _Path
+            from block_topology_persistence import query_step
+            result = query_step(_Path(persist_path), int(n_str))
+            if result is None:
+                return {"found": False, "step": int(n_str)}, 200
+            return {"found": True, **result}, 200
+
         return {"error": "not found", "endpoints": [
             "/status", "/topology", "/narrative", "/gaps",
             "/operations", "/persistence", "/feed", "/present",
-            "/instances",
+            "/instances", "/step",
         ]}, 404
 
     @staticmethod
