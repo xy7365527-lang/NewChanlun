@@ -17,6 +17,7 @@ JSONL 追加是 O(1) 写入，不创建新文件，不消耗 inode。
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sys
 from datetime import datetime, timezone
@@ -76,8 +77,16 @@ class BlockTopologyWriter:
         return False
 
     def _write_event(self, record: dict):
-        """Append an immutable event to the JSONL log."""
+        """Append an immutable event to the JSONL log.
+
+        Merkle DAG: each record gets a SHA-256 hash of its canonical JSON
+        (sort_keys=True, ensure_ascii=False) stored in record["block_hash"].
+        Hash is computed over the record *without* the block_hash field itself.
+        """
         if self._jsonl_file:
+            canonical = json.dumps(record, sort_keys=True, ensure_ascii=False)
+            block_hash = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+            record["block_hash"] = block_hash
             self._jsonl_file.write(
                 json.dumps(record, ensure_ascii=False) + "\n"
             )
@@ -228,6 +237,35 @@ class BlockTopologyWriter:
         })
 
 
+def verify_jsonl(path: Path) -> bool:
+    """Verify integrity of a JSONL event log by recomputing block hashes.
+
+    For each line, strips the block_hash field, recomputes SHA-256 over the
+    canonical JSON (sort_keys=True), and compares against the stored hash.
+    Returns True if all lines verify (or file is empty/missing).
+    Returns False if any line fails verification.
+    """
+    if not path.exists():
+        return True
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                record = json.loads(line)
+                stored_hash = record.pop("block_hash", None)
+                if stored_hash is None:
+                    return False
+                canonical = json.dumps(record, sort_keys=True, ensure_ascii=False)
+                computed = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+                if computed != stored_hash:
+                    return False
+    except (json.JSONDecodeError, OSError):
+        return False
+    return True
+
+
 def load_graph_from_block_topology(
     bt_base: Path = DAEMON_BT_BASE,
 ) -> tuple[Graph, list[dict]]:
@@ -351,3 +389,97 @@ def rebuild_block_topology_from_jsonl(
 ) -> int:
     """No-op: block topology is now JSONL-native. Returns 0."""
     return 0
+
+
+def trace_concept_edge(
+    jsonl_path: Path,
+    source_vid: str,
+    target_vid: str,
+) -> dict | None:
+    """438号-推论2/3: 概念边追溯——从概念边回溯到 S_net 能指来源.
+
+    追溯链：概念边 → ARTICULATION block → 遭遇位置 → imbalance_type → reason（含能指对信息）
+
+    Returns dict with traceability info, or None if edge not found in JSONL.
+    Keys:
+      - source_vid, target_vid: 概念边端点
+      - step: 产出步数
+      - imbalance_type: A_dense_B_sparse / B_dense_A_sparse
+      - reason: 完整遭遇描述（含 S_net 能指对信息）
+      - score: articulation score
+      - extra: 额外字段（cooc_weight, ta_count 等）
+    """
+    if not jsonl_path.exists():
+        return None
+
+    with open(jsonl_path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if record.get("type") != "articulation":
+                continue
+            if (record.get("source_vid") == source_vid
+                    and record.get("target_vid") == target_vid):
+                extra = {
+                    k: v for k, v in record.items()
+                    if k not in (
+                        "type", "source_vid", "target_vid", "score",
+                        "step", "imbalance_type", "reason", "timestamp",
+                        "block_hash",
+                    )
+                }
+                return {
+                    "source_vid": source_vid,
+                    "target_vid": target_vid,
+                    "step": record.get("step"),
+                    "imbalance_type": record.get("imbalance_type", ""),
+                    "reason": record.get("reason", ""),
+                    "score": record.get("score"),
+                    "timestamp": record.get("timestamp", ""),
+                    "extra": extra,
+                }
+
+    return None
+
+
+def list_articulation_events(
+    jsonl_path: Path,
+    imbalance_type: str | None = None,
+) -> list[dict]:
+    """438号-推论2: 列出所有 ARTICULATION 事件，可按 imbalance_type 过滤.
+
+    Returns list of articulation event dicts sorted by step.
+    """
+    results: list[dict] = []
+    if not jsonl_path.exists():
+        return results
+
+    with open(jsonl_path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if record.get("type") != "articulation":
+                continue
+            if imbalance_type and record.get("imbalance_type") != imbalance_type:
+                continue
+            results.append({
+                "source_vid": record.get("source_vid"),
+                "target_vid": record.get("target_vid"),
+                "step": record.get("step"),
+                "imbalance_type": record.get("imbalance_type", ""),
+                "reason": record.get("reason", ""),
+                "score": record.get("score"),
+            })
+
+    results.sort(key=lambda r: r.get("step", 0))
+    return results

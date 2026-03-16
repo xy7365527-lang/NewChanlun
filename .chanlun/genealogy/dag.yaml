@@ -2279,6 +2279,16 @@ nodes:
   status: 已结算
   type: meta-rule
   file: settled/455-meta-observation-v243-swarm.md
+- id: '456'
+  title: 元观察——v245-swarm（规模跃升后的隐性退化：正确代码在 263K signifiers 下的 O(N) 属性复制退化 + 反转搜索范式结晶）
+  status: 已结算
+  type: meta-rule
+  file: settled/456-meta-observation-v245-swarm.md
+- id: '457'
+  title: SUBLATED 事件作为凝缩材料——fold 的破坏性通过铭刻进入凝缩逻辑
+  status: 已结算
+  type: domain
+  file: settled/457-sublated-as-condensation-material.md
 edges:
   depends_on:
   - from: '136'
@@ -4779,6 +4789,14 @@ edges:
     to: '438'
   - from: '455'
     to: '425'
+  - from: '456'
+    to: '455'
+  - from: '456'
+    to: 090
+  - from: '457'
+    to: '451'
+  - from: '457'
+    to: '410'
   triggered:
   - from: '005'
     to: 005a

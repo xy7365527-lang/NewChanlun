@@ -1,8 +1,8 @@
-"""Tests for block_topology_persistence — BlockTopologyWriter + loader."""
+"""Tests for block_topology_persistence — BlockTopologyWriter + JSONL + Merkle DAG hash."""
 
+import hashlib
 import json
 import sys
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -15,6 +15,7 @@ from block_topology_persistence import (
     BlockTopologyWriter,
     load_graph_from_block_topology,
     rebuild_block_topology_from_jsonl,
+    verify_jsonl,
 )
 
 
@@ -42,31 +43,23 @@ def _make_edge(src, tgt, edge_type=EdgeType.DEPENDENCY):
 
 
 class TestBlockTopologyWriter:
-    """Test BlockTopologyWriter writes blocks and jsonl backup."""
+    """Test BlockTopologyWriter writes JSONL with Merkle DAG hashes."""
 
-    def test_append_vertex_creates_block(self, tmp_bt, tmp_jsonl):
+    def test_append_vertex_writes_jsonl(self, tmp_bt, tmp_jsonl):
         writer = BlockTopologyWriter(bt_base=tmp_bt, jsonl_backup_path=tmp_jsonl)
         writer.open()
         v = _make_vertex("v1", content="test vertex")
         writer.append_vertex(v)
         writer.close()
 
-        # Block file created
-        blocks = list((tmp_bt / "blocks").iterdir())
-        assert len(blocks) == 1
-        blk = json.loads(blocks[0].read_text(encoding="utf-8"))
-        assert blk["content"]["event_type"] == "vertex"
-        assert blk["content"]["vertex_id"] == "v1"
-        assert blk["type"] == "event"
-
-        # jsonl backup written
         lines = tmp_jsonl.read_text(encoding="utf-8").strip().split("\n")
         assert len(lines) == 1
         rec = json.loads(lines[0])
         assert rec["type"] == "vertex"
         assert rec["id"] == "v1"
+        assert "block_hash" in rec
 
-    def test_append_edge_creates_block(self, tmp_bt, tmp_jsonl):
+    def test_append_edge_writes_jsonl(self, tmp_bt, tmp_jsonl):
         writer = BlockTopologyWriter(bt_base=tmp_bt, jsonl_backup_path=tmp_jsonl)
         writer.open()
         writer.append_vertex(_make_vertex("a"))
@@ -75,153 +68,230 @@ class TestBlockTopologyWriter:
         writer.append_edge(e)
         writer.close()
 
-        blocks = list((tmp_bt / "blocks").iterdir())
-        # 2 vertex blocks + 1 edge block
-        assert len(blocks) == 3
-
-        # jsonl should have 3 lines
         lines = tmp_jsonl.read_text(encoding="utf-8").strip().split("\n")
         assert len(lines) == 3
 
-    def test_append_operation(self, tmp_bt):
-        writer = BlockTopologyWriter(bt_base=tmp_bt)
+    def test_append_operation_writes_jsonl(self, tmp_bt, tmp_jsonl):
+        writer = BlockTopologyWriter(bt_base=tmp_bt, jsonl_backup_path=tmp_jsonl)
+        writer.open()
         writer.append_operation(42, "fold", {"position": "v1", "beta_1_before": 3, "beta_1_after": 2, "blocked": False})
+        writer.close()
 
-        blocks = list((tmp_bt / "blocks").iterdir())
-        assert len(blocks) == 1
-        blk = json.loads(blocks[0].read_text(encoding="utf-8"))
-        assert blk["content"]["event_type"] == "operation"
-        assert blk["content"]["step"] == 42
-        assert blk["content"]["operation"] == "fold"
+        lines = tmp_jsonl.read_text(encoding="utf-8").strip().split("\n")
+        assert len(lines) == 1
+        rec = json.loads(lines[0])
+        assert rec["type"] == "operation"
+        assert rec["step"] == 42
+        assert rec["operation"] == "fold"
+        assert "block_hash" in rec
 
-    def test_append_vertex_status(self, tmp_bt):
-        writer = BlockTopologyWriter(bt_base=tmp_bt)
+    def test_append_vertex_status_writes_jsonl(self, tmp_bt, tmp_jsonl):
+        writer = BlockTopologyWriter(bt_base=tmp_bt, jsonl_backup_path=tmp_jsonl)
+        writer.open()
         writer.append_vertex_status("v1", "contested", step=10)
+        writer.close()
 
-        blocks = list((tmp_bt / "blocks").iterdir())
-        assert len(blocks) == 1
-        blk = json.loads(blocks[0].read_text(encoding="utf-8"))
-        assert blk["content"]["event_type"] == "vertex_status"
-        assert blk["content"]["vertex_id"] == "v1"
+        lines = tmp_jsonl.read_text(encoding="utf-8").strip().split("\n")
+        assert len(lines) == 1
+        rec = json.loads(lines[0])
+        assert rec["type"] == "vertex_status"
+        assert rec["id"] == "v1"
+        assert "block_hash" in rec
 
-    def test_append_merge(self, tmp_bt):
-        writer = BlockTopologyWriter(bt_base=tmp_bt)
+    def test_append_merge_writes_jsonl(self, tmp_bt, tmp_jsonl):
+        writer = BlockTopologyWriter(bt_base=tmp_bt, jsonl_backup_path=tmp_jsonl)
+        writer.open()
         writer.append_merge("keep_v", "remove_v", step=20)
+        writer.close()
 
-        blocks = list((tmp_bt / "blocks").iterdir())
-        assert len(blocks) == 1
-        blk = json.loads(blocks[0].read_text(encoding="utf-8"))
-        assert blk["content"]["event_type"] == "merge"
-        assert blk["content"]["keep"] == "keep_v"
-        assert blk["content"]["remove"] == "remove_v"
+        lines = tmp_jsonl.read_text(encoding="utf-8").strip().split("\n")
+        assert len(lines) == 1
+        rec = json.loads(lines[0])
+        assert rec["type"] == "merge"
+        assert rec["keep"] == "keep_v"
+        assert rec["remove"] == "remove_v"
+        assert "block_hash" in rec
 
-    def test_append_settlement(self, tmp_bt):
-        writer = BlockTopologyWriter(bt_base=tmp_bt)
+    def test_append_settlement_writes_jsonl(self, tmp_bt, tmp_jsonl):
+        writer = BlockTopologyWriter(bt_base=tmp_bt, jsonl_backup_path=tmp_jsonl)
+        writer.open()
         edges = [["a", "b", "dependency"], ["b", "c", "negation"]]
         writer.append_settlement(step=30, cycle_edges=edges)
+        writer.close()
 
-        blocks = list((tmp_bt / "blocks").iterdir())
-        assert len(blocks) == 1
-        blk = json.loads(blocks[0].read_text(encoding="utf-8"))
-        assert blk["content"]["event_type"] == "settlement"
-        assert blk["content"]["step"] == 30
+        lines = tmp_jsonl.read_text(encoding="utf-8").strip().split("\n")
+        assert len(lines) == 1
+        rec = json.loads(lines[0])
+        assert rec["type"] == "settlement"
+        assert rec["step"] == 30
+        assert "block_hash" in rec
 
     def test_context_manager(self, tmp_bt, tmp_jsonl):
         with BlockTopologyWriter(bt_base=tmp_bt, jsonl_backup_path=tmp_jsonl) as writer:
             writer.append_vertex(_make_vertex("cm_test"))
-        # After context exit, file should be closed
         assert writer._jsonl_file is None
-        # But block should exist
-        blocks = list((tmp_bt / "blocks").iterdir())
-        assert len(blocks) == 1
+
+        lines = tmp_jsonl.read_text(encoding="utf-8").strip().split("\n")
+        assert len(lines) == 1
+
+    def test_no_write_without_jsonl_file(self, tmp_bt):
+        """Writer without jsonl_backup_path should not crash."""
+        writer = BlockTopologyWriter(bt_base=tmp_bt)
+        writer.append_vertex(_make_vertex("no_jsonl"))
+
+
+class TestMerkleDAGHash:
+    """Test Merkle DAG SHA-256 hashing in _write_event."""
+
+    def test_block_hash_present(self, tmp_bt, tmp_jsonl):
+        with BlockTopologyWriter(bt_base=tmp_bt, jsonl_backup_path=tmp_jsonl) as writer:
+            writer.append_vertex(_make_vertex("h1", content="hash test"))
+
+        rec = json.loads(tmp_jsonl.read_text(encoding="utf-8").strip())
+        assert "block_hash" in rec
+        assert len(rec["block_hash"]) == 64  # SHA-256 hex digest
+
+    def test_block_hash_is_correct(self, tmp_bt, tmp_jsonl):
+        with BlockTopologyWriter(bt_base=tmp_bt, jsonl_backup_path=tmp_jsonl) as writer:
+            writer.append_vertex(_make_vertex("h2", content="verify hash"))
+
+        rec = json.loads(tmp_jsonl.read_text(encoding="utf-8").strip())
+        stored_hash = rec.pop("block_hash")
+        canonical = json.dumps(rec, sort_keys=True, ensure_ascii=False)
+        expected = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+        assert stored_hash == expected
+
+    def test_block_hash_deterministic(self, tmp_bt, tmp_jsonl):
+        """Same record content produces same hash."""
+        with BlockTopologyWriter(bt_base=tmp_bt, jsonl_backup_path=tmp_jsonl) as writer:
+            writer.append_vertex(_make_vertex("det", content="deterministic"))
+
+        rec = json.loads(tmp_jsonl.read_text(encoding="utf-8").strip())
+
+        # Recompute independently
+        rec_without_hash = {k: v for k, v in rec.items() if k != "block_hash"}
+        canonical = json.dumps(rec_without_hash, sort_keys=True, ensure_ascii=False)
+        expected = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+        assert rec["block_hash"] == expected
+
+    def test_different_records_different_hashes(self, tmp_bt, tmp_jsonl):
+        with BlockTopologyWriter(bt_base=tmp_bt, jsonl_backup_path=tmp_jsonl) as writer:
+            writer.append_vertex(_make_vertex("a", content="alpha"))
+            writer.append_vertex(_make_vertex("b", content="beta"))
+
+        lines = tmp_jsonl.read_text(encoding="utf-8").strip().split("\n")
+        h1 = json.loads(lines[0])["block_hash"]
+        h2 = json.loads(lines[1])["block_hash"]
+        assert h1 != h2
+
+    def test_unicode_content_hashed_correctly(self, tmp_bt, tmp_jsonl):
+        with BlockTopologyWriter(bt_base=tmp_bt, jsonl_backup_path=tmp_jsonl) as writer:
+            writer.append_vertex(_make_vertex("zh", content="缠论测试"))
+
+        rec = json.loads(tmp_jsonl.read_text(encoding="utf-8").strip())
+        stored_hash = rec.pop("block_hash")
+        canonical = json.dumps(rec, sort_keys=True, ensure_ascii=False)
+        expected = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+        assert stored_hash == expected
+
+
+class TestVerifyJsonl:
+    """Test verify_jsonl integrity checking."""
+
+    def test_verify_valid_file(self, tmp_bt, tmp_jsonl):
+        with BlockTopologyWriter(bt_base=tmp_bt, jsonl_backup_path=tmp_jsonl) as writer:
+            writer.append_vertex(_make_vertex("v1", content="valid"))
+            writer.append_vertex(_make_vertex("v2", content="also valid"))
+            writer.append_edge(_make_edge("v1", "v2"))
+
+        assert verify_jsonl(tmp_jsonl) is True
+
+    def test_verify_nonexistent_file(self, tmp_path):
+        assert verify_jsonl(tmp_path / "no_such_file.jsonl") is True
+
+    def test_verify_empty_file(self, tmp_jsonl):
+        tmp_jsonl.write_text("", encoding="utf-8")
+        assert verify_jsonl(tmp_jsonl) is True
+
+    def test_verify_tampered_content(self, tmp_bt, tmp_jsonl):
+        with BlockTopologyWriter(bt_base=tmp_bt, jsonl_backup_path=tmp_jsonl) as writer:
+            writer.append_vertex(_make_vertex("v1", content="original"))
+
+        # Tamper with content
+        lines = tmp_jsonl.read_text(encoding="utf-8").strip().split("\n")
+        rec = json.loads(lines[0])
+        rec["content"] = "tampered"
+        tmp_jsonl.write_text(json.dumps(rec) + "\n", encoding="utf-8")
+
+        assert verify_jsonl(tmp_jsonl) is False
+
+    def test_verify_tampered_hash(self, tmp_bt, tmp_jsonl):
+        with BlockTopologyWriter(bt_base=tmp_bt, jsonl_backup_path=tmp_jsonl) as writer:
+            writer.append_vertex(_make_vertex("v1", content="original"))
+
+        lines = tmp_jsonl.read_text(encoding="utf-8").strip().split("\n")
+        rec = json.loads(lines[0])
+        rec["block_hash"] = "0" * 64
+        tmp_jsonl.write_text(json.dumps(rec) + "\n", encoding="utf-8")
+
+        assert verify_jsonl(tmp_jsonl) is False
+
+    def test_verify_missing_hash(self, tmp_jsonl):
+        rec = {"type": "vertex", "id": "v1", "content": "no hash"}
+        tmp_jsonl.write_text(json.dumps(rec) + "\n", encoding="utf-8")
+
+        assert verify_jsonl(tmp_jsonl) is False
+
+    def test_verify_malformed_json(self, tmp_jsonl):
+        tmp_jsonl.write_text("not json at all\n", encoding="utf-8")
+        assert verify_jsonl(tmp_jsonl) is False
+
+    def test_verify_multiple_records_one_bad(self, tmp_bt, tmp_jsonl):
+        with BlockTopologyWriter(bt_base=tmp_bt, jsonl_backup_path=tmp_jsonl) as writer:
+            writer.append_vertex(_make_vertex("v1", content="good"))
+            writer.append_vertex(_make_vertex("v2", content="good too"))
+
+        lines = tmp_jsonl.read_text(encoding="utf-8").strip().split("\n")
+        rec = json.loads(lines[1])
+        rec["content"] = "evil"
+        lines[1] = json.dumps(rec)
+        tmp_jsonl.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+        assert verify_jsonl(tmp_jsonl) is False
 
 
 class TestLoadGraphFromBlockTopology:
-    """Test loading Graph from block topology blocks."""
+    """Test loading Graph from legacy block topology blocks."""
 
     def test_empty_directory(self, tmp_bt):
         graph, ops = load_graph_from_block_topology(tmp_bt)
         assert len(graph.active_vertex_ids()) == 0
         assert ops == []
 
-    def test_load_vertices_and_edges(self, tmp_bt):
-        writer = BlockTopologyWriter(bt_base=tmp_bt)
-        writer.append_vertex(_make_vertex("x", content="node X"))
-        writer.append_vertex(_make_vertex("y", content="node Y"))
-        writer.append_edge(_make_edge("x", "y"))
-
-        graph, ops = load_graph_from_block_topology(tmp_bt)
-        assert sorted(graph.active_vertex_ids()) == ["x", "y"]
-        assert len(graph.edges) == 1
-        assert graph.vertex("x").content == "node X"
-
-    def test_load_vertex_status_change(self, tmp_bt):
-        writer = BlockTopologyWriter(bt_base=tmp_bt)
-        writer.append_vertex(_make_vertex("z", content="node Z"))
-        writer.append_vertex_status("z", "contested", step=5)
-
-        graph, _ = load_graph_from_block_topology(tmp_bt)
-        assert graph.vertex("z").status == VertexStatus.CONTESTED
-
-    def test_load_merge(self, tmp_bt):
-        writer = BlockTopologyWriter(bt_base=tmp_bt)
-        writer.append_vertex(_make_vertex("a"))
-        writer.append_vertex(_make_vertex("b"))
-        writer.append_edge(_make_edge("b", "a"))
-        writer.append_merge("a", "b", step=10)
-
-        graph, _ = load_graph_from_block_topology(tmp_bt)
-        assert graph.vertex("b").status == VertexStatus.FOLDED
-        assert "b" not in graph.active_vertex_ids()
-        assert "a" in graph.active_vertex_ids()
-
-    def test_load_operations(self, tmp_bt):
-        writer = BlockTopologyWriter(bt_base=tmp_bt)
-        writer.append_vertex(_make_vertex("v1"))
-        writer.append_operation(1, "sublate", {"position": "v1"})
-        writer.append_settlement(2, [["v1", "v1", "dependency"]])
-
-        _, ops = load_graph_from_block_topology(tmp_bt)
-        assert len(ops) == 2
-        assert ops[0]["event_type"] == "operation"
-        assert ops[1]["event_type"] == "settlement"
-
 
 class TestRebuildFromJsonl:
-    """Test crash recovery: rebuild block topology from jsonl."""
+    """Test rebuild_block_topology_from_jsonl (no-op since JSONL migration)."""
 
-    def test_rebuild_from_jsonl(self, tmp_bt, tmp_jsonl):
-        # Write some jsonl records
+    def test_rebuild_returns_zero(self, tmp_bt, tmp_jsonl):
         records = [
             {"type": "vertex", "id": "r1", "status": "active", "content": "rebuilt 1", "created_at": 0},
-            {"type": "vertex", "id": "r2", "status": "active", "content": "rebuilt 2", "created_at": 0},
-            {"type": "edge", "source": "r1", "target": "r2", "edge_type": "dependency", "created_at": 0},
-            {"type": "operation", "step": 1, "operation": "fold", "position": "r1"},
-            {"type": "vertex_status", "id": "r1", "status": "contested", "step": 2},
-            {"type": "merge", "keep": "r1", "remove": "r2", "step": 3},
-            {"type": "settlement", "step": 4, "edges": []},
         ]
         with open(tmp_jsonl, "w", encoding="utf-8") as f:
             for r in records:
                 f.write(json.dumps(r) + "\n")
 
         count = rebuild_block_topology_from_jsonl(tmp_jsonl, tmp_bt)
-        assert count == 7
-
-        # Verify blocks were created
-        blocks = list((tmp_bt / "blocks").iterdir())
-        assert len(blocks) == 7
+        assert count == 0
 
     def test_rebuild_nonexistent_jsonl(self, tmp_bt, tmp_path):
         count = rebuild_block_topology_from_jsonl(tmp_path / "nope.jsonl", tmp_bt)
         assert count == 0
 
 
-class TestRoundTrip:
-    """Test write-then-load round trip."""
+class TestWriteAndVerifyRoundTrip:
+    """Test write → verify round trip."""
 
-    def test_full_round_trip(self, tmp_bt, tmp_jsonl):
-        # Write via BlockTopologyWriter
+    def test_full_round_trip_with_verification(self, tmp_bt, tmp_jsonl):
         with BlockTopologyWriter(bt_base=tmp_bt, jsonl_backup_path=tmp_jsonl) as writer:
             writer.append_vertex(_make_vertex("rt1", content="round trip 1"))
             writer.append_vertex(_make_vertex("rt2", content="round trip 2"))
@@ -231,15 +301,13 @@ class TestRoundTrip:
             writer.append_vertex_status("rt1", "contested", step=1)
             writer.append_operation(2, "negate", {"position": "rt1"})
 
-        # Load from block topology
-        graph, ops = load_graph_from_block_topology(tmp_bt)
-        assert sorted(graph.active_vertex_ids()) == ["rt1", "rt2", "rt3"]
-        assert len(graph.edges) == 2
-        assert graph.vertex("rt1").status == VertexStatus.CONTESTED
-        assert graph.vertex("rt1").content == "round trip 1"
-        assert len(ops) == 1
-        assert ops[0]["operation"] == "negate"
-
-        # Verify jsonl backup also contains all records
         lines = tmp_jsonl.read_text(encoding="utf-8").strip().split("\n")
         assert len(lines) == 7  # 3 vertices + 2 edges + 1 status + 1 operation
+
+        # All records should have block_hash
+        for line in lines:
+            rec = json.loads(line)
+            assert "block_hash" in rec
+
+        # Verify integrity
+        assert verify_jsonl(tmp_jsonl) is True
