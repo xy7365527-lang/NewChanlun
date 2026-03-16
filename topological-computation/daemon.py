@@ -293,11 +293,15 @@ class TopologicalDaemon:
                     graph = recovered_graph
 
             # BlockTopologyWriter as primary, with jsonl backup
-            self._persist = BlockTopologyWriter(
-                bt_base=DAEMON_BT_BASE,
-                jsonl_backup_path=Path(persist_path),
-            )
-            self._persist.open()
+            # DISABLE_BLOCK_TOPOLOGY=1 disables per-step block writes (persist via jsonl only)
+            if os.environ.get("DISABLE_BLOCK_TOPOLOGY") != "1":
+                self._persist = BlockTopologyWriter(
+                    bt_base=DAEMON_BT_BASE,
+                    jsonl_backup_path=Path(persist_path),
+                )
+                self._persist.open()
+            else:
+                print("Block topology writes DISABLED (DISABLE_BLOCK_TOPOLOGY=1)", file=sys.stderr)
 
         if graph is not None:
             self.k_active = graph
