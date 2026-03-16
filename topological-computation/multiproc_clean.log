@@ -1,0 +1,71 @@
+============================================================
+FENGLIANG MULTIPROCESS DAEMON
+============================================================
+  Traversal worker: PID 60196
+  WebSocket: ws://localhost:8765/ws
+S_net bootstrap: 281 signifiers, 276 edges (PMI filtered: 1013 removed)
+=== 辞典摄入报告 ===
+  dict_adorno.jsonl: 0/13 条匹配, +0 synonym, +0 contrast, +0 syntagmatic, +0 new signifiers
+  dict_badiou.jsonl: 0/14 条匹配, +0 synonym, +0 contrast, +0 syntagmatic, +0 new signifiers
+  dict_bataille.jsonl: 0/14 条匹配, +0 synonym, +0 contrast, +0 syntagmatic, +0 new signifiers
+  dict_benjamin.jsonl: 0/12 条匹配, +0 synonym, +0 contrast, +0 syntagmatic, +0 new signifiers
+  dict_chanlun.jsonl: 34/34 条匹配, +8 synonym, +29 contrast, +110 syntagmatic, +3 new signifiers
+  dict_code_python.jsonl: 0/59 条匹配, +0 synonym, +0 contrast, +0 syntagmatic, +0 new signifiers
+  dict_deleuze.jsonl: 0/20 条匹配, +0 synonym, +0 contrast, +0 syntagmatic, +0 new signifiers
+  dict_derrida.jsonl: 0/17 条匹配, +0 synonym, +0 contrast, +0 syntagmatic, +0 new signifiers
+  dict_english_connectives.jsonl: 0/36 条匹配, +0 synonym, +0 contrast, +0 syntagmatic, +0 new signifiers
+  dict_foucault.jsonl: 0/16 条匹配, +0 synonym, +0 contrast, +0 syntagmatic, +0 new signifiers
+  dict_fr_cnrtl.jsonl: 4/1109 条匹配, +0 synonym, +0 contrast, +0 syntagmatic, +0 new signifiers
+  dict_fr_tresor_style.jsonl: 0/31 条匹配, +0 synonym, +0 contrast, +0 syntagmatic, +0 new signifiers
+  dict_freud.jsonl: 0/20 条匹配, +0 synonym, +0 contrast, +0 syntagmatic, +0 new signifiers
+  dict_hegel.jsonl: 0/25 条匹配, +0 synonym, +0 contrast, +0 syntagmatic, +0 new signifiers
+  dict_hegel_inwood.jsonl: 0/19 条匹配, +0 synonym, +0 contrast, +0 syntagmatic, +0 new signifiers
+  dict_hegel_phenomenology.jsonl: 0/7 条匹配, +0 synonym, +0 contrast, +0 syntagmatic, +0 new signifiers
+  dict_heidegger.jsonl: 0/12 条匹配, +0 synonym, +0 contrast, +0 syntagmatic, +0 new signifiers
+  dict_holderlin.jsonl: 0/15 条匹配, +0 synonym, +0 contrast, +0 syntagmatic, +0 new signifiers
+  dict_k4.jsonl: 1/15 条匹配, +2 synonym, +1 contrast, +4 syntagmatic, +2 new signifiers
+  dict_kant.jsonl: 0/14 条匹配, +0 synonym, +0 contrast, +0 syntagmatic, +0 new signifiers
+  dict_kierkegaard.jsonl: 0/14 条匹配, +0 synonym, +0 contrast, +0 syntagmatic, +0 new signifiers
+  dict_lacan.jsonl: 1/22 条匹配, +2 synonym, +0 contrast, +0 syntagmatic, +2 new signifiers
+  dict_lacan_evans.jsonl: 0/11 条匹配, +0 synonym, +0 contrast, +0 syntagmatic, +0 new signifiers
+  dict_lacan_laplanche.jsonl: 1/10 条匹配, +2 synonym, +0 contrast, +2 syntagmatic, +0 new signifiers
+  dict_lenin.jsonl: 0/15 条匹配, +0 synonym, +0 contrast, +0 syntagmatic, +0 new signifiers
+  dict_mao.jsonl: 0/63 条匹配, +0 synonym, +0 contrast, +0 syntagmatic, +0 new signifiers
+  dict_marx.jsonl: 0/20 条匹配, +0 synonym, +0 contrast, +0 syntagmatic, +0 new signifiers
+  dict_marx_bottomore.jsonl: 0/10 条匹配, +0 synonym, +0 contrast, +0 syntagmatic, +0 new signifiers
+  dict_marx_capital.jsonl: 0/10 条匹配, +0 synonym, +0 contrast, +0 syntagmatic, +0 new signifiers
+  dict_math_category.jsonl: 0/15 条匹配, +0 synonym, +0 contrast, +0 syntagmatic, +0 new signifiers
+  dict_math_graph.jsonl: 0/19 条匹配, +0 synonym, +0 contrast, +0 syntagmatic, +0 new signifiers
+  dict_math_measure.jsonl: 0/8 条匹配, +0 synonym, +0 contrast, +0 syntagmatic, +0 new signifiers
+  dict_math_morse.jsonl: 0/9 条匹配, +0 synonym, +0 contrast, +0 syntagmatic, +0 new signifiers
+  dict_math_topology.jsonl: 0/23 条匹配, +0 synonym, +0 contrast, +0 syntagmatic, +0 new signifiers
+  dict_merleau_ponty.jsonl: 0/14 条匹配, +0 synonym, +0 contrast, +0 syntagmatic, +0 new signifiers
+  dict_meta.jsonl: 0/20 条匹配, +0 synonym, +0 contrast, +0 syntagmatic, +0 new signifiers
+  dict_nietzsche.jsonl: 0/14 条匹配, +0 synonym, +0 contrast, +0 syntagmatic, +0 new signifiers
+  dict_postman.jsonl: 0/10 条匹配, +0 synonym, +0 contrast, +0 syntagmatic, +0 new signifiers
+  dict_schelling.jsonl: 0/17 条匹配, +0 synonym, +0 contrast, +0 syntagmatic, +0 new signifiers
+  dict_simmel.jsonl: 0/17 条匹配, +0 synonym, +0 contrast, +0 syntagmatic, +0 new signifiers
+  dict_spinoza.jsonl: 1/15 条匹配, +5 synonym, +0 contrast, +0 syntagmatic, +5 new signifiers
+  dict_wittgenstein.jsonl: 0/14 条匹配, +0 synonym, +0 contrast, +0 syntagmatic, +0 new signifiers
+  dict_zh_philosophical_terms.jsonl: 8/39 条匹配, +0 synonym, +0 contrast, +31 syntagmatic, +0 new signifiers
+  dict_zizek.jsonl: 0/13 条匹配, +0 synonym, +0 contrast, +0 syntagmatic, +0 new signifiers
+  合计: 50 条匹配, +19 synonym, +30 contrast, +147 syntagmatic, +12 new signifiers
+  bilingual bilingual_de_en_simmel.jsonl: 17 entries, +17 translations, +34 new signifiers
+  bilingual bilingual_de_fr_philosophy.jsonl: 45 entries, +45 translations, +90 new signifiers
+  bilingual bilingual_de_zh_simmel.jsonl: 17 entries, +17 translations, +17 new signifiers
+  bilingual bilingual_en_de_philosophy.jsonl: 65 entries, +65 translations, +92 new signifiers
+  bilingual bilingual_en_fr_philosophy.jsonl: 37 entries, +37 translations, +55 new signifiers
+  bilingual bilingual_zh_de_philosophy.jsonl: 61 entries, +61 translations, +87 new signifiers
+  bilingual bilingual_zh_en_cedict.jsonl: 79 entries, +79 translations, +127 new signifiers
+  bilingual bilingual_zh_en_philosophy.jsonl: 77 entries, +77 translations, +55 new signifiers
+  bilingual bilingual_zh_fr_philosophy.jsonl: 30 entries, +30 translations, +15 new signifiers
+  morpheme morpheme_de_philosophy.jsonl: 36 entries, +36 structures, +53 morpheme edges
+  morpheme morpheme_zh_philosophy.jsonl: 38 entries, +38 structures, +53 morpheme edges
+S_net after dictionary ingest: 865 signifiers, 1342 edges
+S_net coupling: 210 concepts mapped to signifiers
+Restored: step=216609, settled=201
+  HTTP API: http://localhost:9765
+  Mode: multiprocess (GIL-free HTTP)
+Plan C: SharedLayer IPFS backend enabled (api=http://localhost:5001)
+401号 purge: 201 ghost settlements removed (0 valid remain)
+Memory rebuild: 198 settlement/residue memory nodes from JSONL

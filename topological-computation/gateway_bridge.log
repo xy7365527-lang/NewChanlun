@@ -1,0 +1,4 @@
+2026-03-10 20:50:06,449 [INFO] Gateway Bridge 启动: http://localhost:8081/bridge
+2026-03-10 20:50:06,450 [INFO]   逢亮 URL: http://localhost:8080
+2026-03-10 20:50:06,450 [INFO]   Daemon Webhook URL: http://localhost:9800
+2026-03-10 20:50:06,450 [INFO]   路由规则: 体系命令 /ceremony, /status, /scan, /escalate, /inquire, /ritual, /plan, /tdd, /code-review → system, 其他 → fengliang
