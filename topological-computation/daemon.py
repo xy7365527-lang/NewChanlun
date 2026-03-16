@@ -308,6 +308,7 @@ class TopologicalDaemon:
             self.k_active = Graph()
 
         self.k_full = self.k_active
+        self.k_active = self.k_active.copy()  # independent copy: k_active mutates on fold/negate/sublate
         self.settlement = SettlementTracker(threshold=settlement_threshold)
         self.terrain: dict[tuple[str, str], str] = {}
         self.registry: Registry = Registry()
@@ -1194,7 +1195,7 @@ class TopologicalDaemon:
         if _need_diff:
             pre_vid_count = len(self.k_full._vertices)
             pre_edge_count = len(self.k_full._edges)
-            pre_vid_keys = self.k_full._vertices.keys()  # dict_keys view: O(1) lookup, no copy
+            pre_vid_keys = set(self.k_full._vertices.keys())  # snapshot: mutable Graph needs copy
             # Track K_active vertex statuses to detect fold state changes
             pre_active_statuses = {
                 vid: v.status for vid, v in self.k_active.vertices.items()

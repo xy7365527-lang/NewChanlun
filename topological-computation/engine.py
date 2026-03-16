@@ -1,7 +1,7 @@
 """Topological Computation Engine — graph, operations, β₁, settlement.
 
-Pure Python, no external dependencies. All data structures immutable-by-convention
-(operations return new objects, originals unchanged).
+Pure Python, no external dependencies. Graph is mutable — mutation methods
+modify in-place and return self (v254: O(1) add_edge instead of O(E) copy).
 
 When the optional graph_rs Rust extension is available (compiled via maturin),
 ``create_graph()`` returns a ``RustGraphAdapter`` that delegates to the Rust
@@ -98,7 +98,7 @@ class Edge:
 class Graph:
     """Directed typed graph with dual-view (K_full / K_active).
 
-    Mutation methods return *new* Graph instances.
+    Mutation methods modify in-place and return self (v254: mutable Graph).
     """
 
     def __init__(
@@ -115,12 +115,12 @@ class Graph:
             self._adj_out.setdefault(e.source, []).append(e)
             self._adj_in.setdefault(e.target, []).append(e)
         # Cached active vertex ids — O(1) lookup instead of O(|V|) filter
-        self._active_ids: frozenset[str] = frozenset(
+        self._active_ids: set[str] = set(
             v.id for v in self._vertices.values()
             if v.status != VertexStatus.FOLDED
         )
         # Cached edge key set — O(1) membership test instead of O(E) scan
-        self._edge_keys: frozenset[tuple[str, str, EdgeType]] = frozenset(
+        self._edge_keys: set[tuple[str, str, EdgeType]] = set(
             (e.source, e.target, e.edge_type) for e in self._edges
         )
 
@@ -128,7 +128,7 @@ class Graph:
         """Lazy init for attributes missing in old pickles."""
         if name == '_edge_keys':
             # Graph restored from pickle before _edge_keys was added
-            keys = frozenset(
+            keys = set(
                 (e.source, e.target, e.edge_type) for e in self._edges
             )
             object.__setattr__(self, '_edge_keys', keys)
@@ -139,11 +139,11 @@ class Graph:
 
     @property
     def vertices(self) -> dict[str, Vertex]:
-        return self._vertices  # return internal dict directly (immutable Graph — callers should not mutate)
+        return self._vertices
 
     @property
     def edges(self) -> list[Edge]:
-        return self._edges  # return internal list directly (immutable Graph — callers should not mutate)
+        return self._edges
 
     def vertex(self, vid: str) -> Vertex | None:
         return self._vertices.get(vid)
@@ -156,8 +156,8 @@ class Graph:
         return (source, target, edge_type) in self._edge_keys
 
     @property
-    def edge_keys(self) -> frozenset[tuple[str, str, EdgeType]]:
-        """Return edge key set (safe for external use). For mutable copy: set(g.edge_keys)."""
+    def edge_keys(self) -> set[tuple[str, str, EdgeType]]:
+        """Return edge key set."""
         return self._edge_keys
 
     def active_edges(self) -> list[Edge]:
@@ -167,7 +167,7 @@ class Graph:
         but invisible to fold/negate/sublate/beta_1/settlement — they are material (Dass),
         not conceptual (Was).
 
-        Cached since Graph is immutable — result never changes for same instance.
+        Cached; invalidated by mutation methods.
         """
         try:
             return self._cached_active_edges
@@ -187,7 +187,7 @@ class Graph:
         Used by traversal for neighbor candidate selection — both concept layer
         and material layer edges are visible during walk.
 
-        Cached since Graph is immutable.
+        Cached; invalidated by mutation methods.
         """
         try:
             return self._cached_all_active_edges
@@ -260,13 +260,24 @@ class Graph:
         ]
         return sorted(verts), edges
 
+    def copy(self) -> "Graph":
+        """Return an independent shallow copy of this graph."""
+        g = Graph.__new__(Graph)
+        g._vertices = dict(self._vertices)
+        g._edges = list(self._edges)
+        g._adj_out = {k: list(v) for k, v in self._adj_out.items()}
+        g._adj_in = {k: list(v) for k, v in self._adj_in.items()}
+        g._active_ids = set(self._active_ids)
+        g._edge_keys = set(self._edge_keys)
+        return g
+
     # -- undirected projection for β₁ computation --------------------------
 
     def undirected_active_edges(self) -> list[frozenset[str]]:
         """Return undirected edge set from active directed edges (no self-loops).
 
         Excludes material layer edges — beta_1 measures concept-layer topology only.
-        Cached on Graph instance (immutable — result never changes).
+        Cached; invalidated by mutation methods.
         """
         try:
             return self._cached_undirected
@@ -288,141 +299,111 @@ class Graph:
         active = self._active_ids
         return [e for e in self._edges if e.source == e.target and e.source in active]
 
-    # -- mutation (returns new Graph) ---------------------------------------
+    # -- mutation (in-place, returns self) -----------------------------------
 
-    def add_vertex(self, v: Vertex) -> Graph:
-        new_graph = Graph.__new__(Graph)
-        new_verts = dict(self._vertices)
-        new_verts[v.id] = v
-        new_graph._vertices = new_verts
-        new_graph._edges = self._edges  # shared (not mutated)
-        new_graph._adj_out = self._adj_out  # shared (vertex add doesn't change edges)
-        new_graph._adj_in = self._adj_in
-        new_graph._edge_keys = self._edge_keys  # shared (edges unchanged)
-        # Maintain _active_ids cache
+    def _invalidate_caches(self) -> None:
+        """Clear all derived caches after mutation."""
+        for attr in ('_cached_active_edges', '_cached_all_active_edges',
+                     '_cached_undirected', '_cached_beta_1', '_cached_terrain'):
+            try:
+                delattr(self, attr)
+            except AttributeError:
+                pass
+
+    def add_vertex(self, v: Vertex) -> "Graph":
+        self._vertices[v.id] = v
         if v.status != VertexStatus.FOLDED:
-            new_graph._active_ids = self._active_ids | {v.id}
-        else:
-            new_graph._active_ids = self._active_ids
-        return new_graph
+            self._active_ids.add(v.id)
+        self._invalidate_caches()
+        return self
 
-    def add_edge(self, e: Edge) -> Graph:
-        new_graph = Graph.__new__(Graph)
-        new_graph._vertices = self._vertices  # shared (not mutated)
-        new_graph._edges = self._edges + [e]
-        # Incremental adjacency update — avoid full rebuild
-        new_graph._adj_out = dict(self._adj_out)
-        new_graph._adj_in = dict(self._adj_in)
-        new_graph._adj_out.setdefault(e.source, [])
-        if new_graph._adj_out[e.source] is self._adj_out.get(e.source):
-            new_graph._adj_out[e.source] = list(new_graph._adj_out[e.source])
-        new_graph._adj_out[e.source].append(e)
-        new_graph._adj_in.setdefault(e.target, [])
-        if new_graph._adj_in[e.target] is self._adj_in.get(e.target):
-            new_graph._adj_in[e.target] = list(new_graph._adj_in[e.target])
-        new_graph._adj_in[e.target].append(e)
-        new_graph._active_ids = self._active_ids  # edge ops don't change active set
-        # Incremental _edge_keys — O(1) instead of O(E) rebuild
-        new_graph._edge_keys = self._edge_keys | frozenset([(e.source, e.target, e.edge_type)])
-        # Propagate topology caches if material edge (excluded from beta_1/terrain)
+    def add_edge(self, e: Edge) -> "Graph":
+        self._edges.append(e)
+        self._adj_out.setdefault(e.source, []).append(e)
+        self._adj_in.setdefault(e.target, []).append(e)
+        self._edge_keys.add((e.source, e.target, e.edge_type))
+        # Only invalidate topology caches for concept edges
         if e.edge_type in _MATERIAL_EDGE_TYPES:
-            for attr in ('_cached_beta_1', '_cached_terrain'):
+            # Material edges don't affect beta_1/terrain — only invalidate edge-list caches
+            for attr in ('_cached_active_edges', '_cached_all_active_edges'):
                 try:
-                    object.__setattr__(new_graph, attr, getattr(self, attr))
+                    delattr(self, attr)
                 except AttributeError:
                     pass
-        return new_graph
+        else:
+            self._invalidate_caches()
+        return self
 
-    def add_edges_batch(self, edges: list[Edge]) -> Graph:
-        """Add multiple edges in one operation — O(len(edges)) instead of O(n * len(edges))."""
+    def add_edges_batch(self, edges: list[Edge]) -> "Graph":
+        """Add multiple edges in one operation — O(len(edges))."""
         if not edges:
             return self
-        new_graph = Graph.__new__(Graph)
-        new_graph._vertices = self._vertices
-        new_graph._edges = self._edges + edges
-        new_graph._adj_out = {k: list(v) for k, v in self._adj_out.items()}
-        new_graph._adj_in = {k: list(v) for k, v in self._adj_in.items()}
+        self._edges.extend(edges)
         for e in edges:
-            new_graph._adj_out.setdefault(e.source, []).append(e)
-            new_graph._adj_in.setdefault(e.target, []).append(e)
-        new_graph._active_ids = self._active_ids  # edge ops don't change active set
-        # Incremental _edge_keys — O(len(edges)) instead of O(E) rebuild
-        new_graph._edge_keys = self._edge_keys | frozenset(
-            (e.source, e.target, e.edge_type) for e in edges
-        )
-        # Propagate topology caches if all added edges are material (excluded from beta_1/terrain)
+            self._adj_out.setdefault(e.source, []).append(e)
+            self._adj_in.setdefault(e.target, []).append(e)
+            self._edge_keys.add((e.source, e.target, e.edge_type))
         if all(e.edge_type in _MATERIAL_EDGE_TYPES for e in edges):
-            for attr in ('_cached_beta_1', '_cached_terrain'):
+            for attr in ('_cached_active_edges', '_cached_all_active_edges'):
                 try:
-                    object.__setattr__(new_graph, attr, getattr(self, attr))
+                    delattr(self, attr)
                 except AttributeError:
                     pass
-        return new_graph
+        else:
+            self._invalidate_caches()
+        return self
 
     def add_vertices_and_edges_batch(self, vertices: list[Vertex], edges: list[Edge]) -> "Graph":
-        """Add multiple vertices and edges in one operation — single dict copy."""
-        new_graph = Graph.__new__(Graph)
-        new_verts = dict(self._vertices)
-        new_active = set(self._active_ids)
+        """Add multiple vertices and edges in one operation."""
         for v in vertices:
-            new_verts[v.id] = v
+            self._vertices[v.id] = v
             if v.status != VertexStatus.FOLDED:
-                new_active.add(v.id)
-        new_graph._vertices = new_verts
-        new_graph._active_ids = frozenset(new_active)
+                self._active_ids.add(v.id)
         if edges:
-            new_graph._edges = self._edges + edges
-            new_graph._adj_out = {k: list(v) for k, v in self._adj_out.items()}
-            new_graph._adj_in = {k: list(v) for k, v in self._adj_in.items()}
+            self._edges.extend(edges)
             for e in edges:
-                new_graph._adj_out.setdefault(e.source, []).append(e)
-                new_graph._adj_in.setdefault(e.target, []).append(e)
-            # Incremental _edge_keys
-            new_graph._edge_keys = self._edge_keys | frozenset(
-                (e.source, e.target, e.edge_type) for e in edges
-            )
-        else:
-            new_graph._edges = self._edges
-            new_graph._adj_out = self._adj_out
-            new_graph._adj_in = self._adj_in
-            new_graph._edge_keys = self._edge_keys  # shared (no edges added)
-        return new_graph
+                self._adj_out.setdefault(e.source, []).append(e)
+                self._adj_in.setdefault(e.target, []).append(e)
+                self._edge_keys.add((e.source, e.target, e.edge_type))
+        self._invalidate_caches()
+        return self
 
-    def set_vertex_status(self, vid: str, status: VertexStatus) -> Graph:
-        new_graph = Graph.__new__(Graph)
-        new_verts = dict(self._vertices)
-        old = new_verts[vid]
-        new_verts[vid] = Vertex(old.id, status, old.content, old.created_at)
-        new_graph._vertices = new_verts
-        new_graph._edges = self._edges  # shared (edges unchanged)
-        new_graph._adj_out = self._adj_out
-        new_graph._adj_in = self._adj_in
-        new_graph._edge_keys = self._edge_keys  # shared (edges unchanged)
-        # Maintain _active_ids cache based on status transition
+    def set_vertex_status(self, vid: str, status: VertexStatus) -> "Graph":
+        old = self._vertices[vid]
+        self._vertices[vid] = Vertex(old.id, status, old.content, old.created_at)
         old_active = old.status != VertexStatus.FOLDED
         new_active = status != VertexStatus.FOLDED
         if old_active and not new_active:
-            new_graph._active_ids = self._active_ids - {vid}
+            self._active_ids.discard(vid)
         elif not old_active and new_active:
-            new_graph._active_ids = self._active_ids | {vid}
-        else:
-            new_graph._active_ids = self._active_ids
-        return new_graph
+            self._active_ids.add(vid)
+        self._invalidate_caches()
+        return self
 
-    def merge_vertices(self, keep: str, remove: str) -> Graph:
+    def merge_vertices(self, keep: str, remove: str) -> "Graph":
         """Merge `remove` into `keep`. Redirect all edges, mark `remove` as folded."""
-        new_verts = dict(self._vertices)
-        old = new_verts[remove]
-        new_verts[remove] = Vertex(old.id, VertexStatus.FOLDED, old.content, old.created_at)
+        old = self._vertices[remove]
+        self._vertices[remove] = Vertex(old.id, VertexStatus.FOLDED, old.content, old.created_at)
+        self._active_ids.discard(remove)
 
+        # Redirect edges: rebuild _edges, _adj_out, _adj_in, _edge_keys
         new_edges: list[Edge] = []
         for e in self._edges:
             src = keep if e.source == remove else e.source
             tgt = keep if e.target == remove else e.target
-            # Preserve surface/context fields when redirecting edges
             new_edges.append(Edge(src, tgt, e.edge_type, e.created_at, e.surface, e.context))
 
-        return Graph(new_verts, new_edges)
+        self._edges = new_edges
+        self._adj_out = {}
+        self._adj_in = {}
+        for e in self._edges:
+            self._adj_out.setdefault(e.source, []).append(e)
+            self._adj_in.setdefault(e.target, []).append(e)
+        self._edge_keys = set(
+            (e.source, e.target, e.edge_type) for e in self._edges
+        )
+        self._invalidate_caches()
+        return self
 
 
 # ---------------------------------------------------------------------------
@@ -985,16 +966,24 @@ class SettledCycle:
 def find_new_cycle_edges(
     graph_before: Graph,
     graph_after: Graph,
+    *,
+    before_edge_keys: set[tuple[str, str]] | None = None,
 ) -> frozenset[tuple[str, str]] | None:
     """Find the edges of a newly created cycle (if β₁ increased).
 
     Simple approach: find an edge in graph_after but not graph_before
     that participates in a cycle. Return the cycle's edge set.
+
+    If before_edge_keys is provided, use it instead of computing from graph_before
+    (needed for mutable Graph where graph_before is the same object as graph_after).
     """
-    before_edges = {
-        (e.source, e.target)
-        for e in graph_before.active_edges()
-    }
+    if before_edge_keys is not None:
+        before_edges = before_edge_keys
+    else:
+        before_edges = {
+            (e.source, e.target)
+            for e in graph_before.active_edges()
+        }
     after_edges = {
         (e.source, e.target)
         for e in graph_after.active_edges()
@@ -1604,6 +1593,8 @@ def fold(
     predicted = (c - 1 if c > 0 else 0) + n_loop
 
     beta_before = compute_beta_1(graph)
+    # Snapshot active edge keys before mutation for find_new_cycle_edges
+    edges_before = {(e.source, e.target) for e in graph.active_edges()}
 
     # Execute fold
     keep = vertices[0]
@@ -1639,7 +1630,7 @@ def fold(
     beta_after = compute_beta_1(result_graph)
     actual = beta_after - beta_before
 
-    new_cycle = find_new_cycle_edges(graph, result_graph) if actual > 0 else None
+    new_cycle = find_new_cycle_edges(graph, result_graph, before_edge_keys=edges_before) if actual > 0 else None
 
     return OperationResult(
         graph=result_graph,
@@ -1661,10 +1652,12 @@ def negate(
     Case A (antithesis exists in graph): add negation edge, Δβ₁ = +1 if path exists.
     Case B (antithesis is None -> create new): Δβ₁ = 0, position moves to new vertex.
     """
-    active = graph._active_ids
+    active_before = set(graph._active_ids)  # snapshot before mutation
     beta_before = compute_beta_1(graph)
+    # Snapshot active edge keys before mutation for find_new_cycle_edges
+    edges_before = {(e.source, e.target) for e in graph.active_edges()}
 
-    if antithesis is not None and antithesis in active:
+    if antithesis is not None and antithesis in active_before:
         # Case A: w already exists
         has_connecting_path = graph.has_path(thesis, antithesis)
         predicted = 1 if has_connecting_path else 0
@@ -1707,8 +1700,8 @@ def negate(
     beta_after = compute_beta_1(result_graph)
     actual = beta_after - beta_before
 
-    new_cycle = find_new_cycle_edges(graph, result_graph) if actual > 0 else None
-    new_vertex = antithesis if antithesis not in active else None
+    new_cycle = find_new_cycle_edges(graph, result_graph, before_edge_keys=edges_before) if actual > 0 else None
+    new_vertex = antithesis if antithesis not in active_before else None
 
     return OperationResult(
         graph=result_graph,
@@ -1779,6 +1772,8 @@ def sublate(
         raise ValueError("Sublation gate: sublation_record.elevated must be non-empty.")
 
     beta_before = compute_beta_1(graph)
+    # Snapshot active edge keys before mutation for find_new_cycle_edges
+    edges_before = {(e.source, e.target) for e in graph.active_edges()}
     predicted = 1
 
     synthesis_id = f"syn_{thesis}_{antithesis}_{step}"
@@ -1812,7 +1807,7 @@ def sublate(
     beta_after = compute_beta_1(result_graph)
     actual = beta_after - beta_before
 
-    new_cycle = find_new_cycle_edges(graph, result_graph) if actual > 0 else None
+    new_cycle = find_new_cycle_edges(graph, result_graph, before_edge_keys=edges_before) if actual > 0 else None
 
     return OperationResult(
         graph=result_graph,
