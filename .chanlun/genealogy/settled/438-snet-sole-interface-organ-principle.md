@@ -20,7 +20,9 @@ depends_on:
   - '399'   # 器官性阅读——S_net 摄入是器官原则的第一个实例
 epistemological_level: "L0（架构原则声明——从器官类比 + 已有 S_net 架构推导）"
 tensions_with:
-  - '实装审计待定'   # 当前代码中可能存在绕过 S_net 直接写入 K_active 的路径
+  - target: '实装审计待定'
+    status: resolved
+    resolved_by: '459'   # v246-swarm R2 K_active 写入路径审计——0 违规，器官原则成立
 rule_version_baseline:
   claude_md_commit: "4d476de"
   rules_dir_mtime: "2026-03-13"

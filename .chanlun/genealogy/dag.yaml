@@ -2289,6 +2289,21 @@ nodes:
   status: 已结算
   type: domain
   file: settled/457-sublated-as-condensation-material.md
+- id: '458'
+  title: SUBLATED 铭刻点穿越可达性审计——SUBLATED 标记在 SettledCycle 层面，不在 Vertex 层面
+  status: 已结算
+  type: structural-audit
+  file: settled/458-sublated-traversal-reachability-audit.md
+- id: '459'
+  title: K_active 写入路径审计——5类写入路径的器官原则合规性判定
+  status: 已结算
+  type: structural-audit
+  file: settled/459-k-active-write-path-audit.md
+- id: '460'
+  title: v246-swarm R2 批量处置——13条下游推论分类 + 23条张力扫描
+  status: 已结算
+  type: structural-audit
+  file: settled/460-v246-r2-batch-disposition.md
 edges:
   depends_on:
   - from: '136'
@@ -4797,6 +4812,36 @@ edges:
     to: '451'
   - from: '457'
     to: '410'
+  - from: '458'
+    to: '457'
+  - from: '458'
+    to: '451'
+  - from: '458'
+    to: '410'
+  - from: '459'
+    to: '438'
+  - from: '459'
+    to: '439'
+  - from: '460'
+    to: '458'
+  - from: '460'
+    to: '459'
+  - from: '460'
+    to: '457'
+  - from: '460'
+    to: '451'
+  - from: '460'
+    to: '449'
+  - from: '460'
+    to: '444'
+  - from: '460'
+    to: '441'
+  - from: '460'
+    to: '440'
+  - from: '460'
+    to: '439'
+  - from: '460'
+    to: '438'
   triggered:
   - from: '005'
     to: 005a
