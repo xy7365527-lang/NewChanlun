@@ -2,6 +2,13 @@
 
 Pure Python, no external dependencies. All data structures immutable-by-convention
 (operations return new objects, originals unchanged).
+
+When the optional graph_rs Rust extension is available (compiled via maturin),
+``create_graph()`` returns a ``RustGraphAdapter`` that delegates to the Rust
+implementation while exposing the same interface (including internal attributes
+like ``_active_ids``, ``_adj_out``, ``_adj_in``) so that downstream code in
+daemon.py, traversal.py, and the free functions in this module work unchanged.
+When graph_rs is not installed, everything falls back to the pure-Python Graph.
 """
 
 from __future__ import annotations
@@ -11,6 +18,17 @@ from collections import deque
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional
+
+# ---------------------------------------------------------------------------
+# Optional Rust backend
+# ---------------------------------------------------------------------------
+
+try:
+    from graph_rs import Graph as RustGraph, Vertex as RustVertex, Edge as RustEdge
+    from graph_rs import VertexStatus as RustVertexStatus, EdgeType as RustEdgeType
+    _RUST_GRAPH_AVAILABLE = True
+except ImportError:
+    _RUST_GRAPH_AVAILABLE = False
 
 
 # ---------------------------------------------------------------------------
@@ -396,6 +414,316 @@ class Graph:
             new_edges.append(Edge(src, tgt, e.edge_type, e.created_at, e.surface, e.context))
 
         return Graph(new_verts, new_edges)
+
+
+# ---------------------------------------------------------------------------
+# Rust Graph adapter + factory
+# ---------------------------------------------------------------------------
+
+# Enum mapping tables — used by RustGraphAdapter to convert between
+# Rust pyclass enums and Python str enums so downstream code that does
+# ``e.edge_type == EdgeType.NEGATION`` continues to work.
+
+_PY_TO_RUST_EDGE_TYPE: dict[EdgeType, object] | None = None
+_RUST_TO_PY_EDGE_TYPE: dict[object, EdgeType] | None = None
+_PY_TO_RUST_VERTEX_STATUS: dict[VertexStatus, object] | None = None
+_RUST_TO_PY_VERTEX_STATUS: dict[object, VertexStatus] | None = None
+
+
+def _init_enum_maps() -> None:
+    """Build bidirectional enum mapping tables (called once on first use)."""
+    global _PY_TO_RUST_EDGE_TYPE, _RUST_TO_PY_EDGE_TYPE
+    global _PY_TO_RUST_VERTEX_STATUS, _RUST_TO_PY_VERTEX_STATUS
+    if _PY_TO_RUST_EDGE_TYPE is not None:
+        return
+    _PY_TO_RUST_EDGE_TYPE = {
+        EdgeType.DEPENDENCY: RustEdgeType.Dependency,
+        EdgeType.NEGATION: RustEdgeType.Negation,
+        EdgeType.SUBLATION: RustEdgeType.Sublation,
+        EdgeType.REFERENCE: RustEdgeType.Reference,
+        EdgeType.FOLD: RustEdgeType.Fold,
+        EdgeType.COOCCURRENCE: RustEdgeType.Cooccurrence,
+        EdgeType.TRAVERSAL_ASSOCIATION: RustEdgeType.TraversalAssociation,
+        EdgeType.ARTICULATED: RustEdgeType.Articulated,
+    }
+    _RUST_TO_PY_EDGE_TYPE = {v: k for k, v in _PY_TO_RUST_EDGE_TYPE.items()}
+    _PY_TO_RUST_VERTEX_STATUS = {
+        VertexStatus.ACTIVE: RustVertexStatus.Active,
+        VertexStatus.CONTESTED: RustVertexStatus.Contested,
+        VertexStatus.FOLDED: RustVertexStatus.Folded,
+    }
+    _RUST_TO_PY_VERTEX_STATUS = {v: k for k, v in _PY_TO_RUST_VERTEX_STATUS.items()}
+
+
+def _py_vertex_to_rust(v: Vertex) -> "RustVertex":
+    """Convert a Python Vertex to a Rust Vertex."""
+    return RustVertex(
+        id=v.id,
+        status=_PY_TO_RUST_VERTEX_STATUS[v.status],
+        content=v.content,
+        created_at=v.created_at,
+    )
+
+
+def _rust_vertex_to_py(rv: "RustVertex") -> Vertex:
+    """Convert a Rust Vertex to a Python Vertex."""
+    return Vertex(
+        id=rv.id,
+        status=_RUST_TO_PY_VERTEX_STATUS[rv.status],
+        content=rv.content,
+        created_at=rv.created_at,
+    )
+
+
+def _py_edge_to_rust(e: Edge) -> "RustEdge":
+    """Convert a Python Edge to a Rust Edge."""
+    return RustEdge(
+        source=e.source,
+        target=e.target,
+        edge_type=_PY_TO_RUST_EDGE_TYPE[e.edge_type],
+        created_at=e.created_at,
+        surface=e.surface,
+        context=e.context,
+    )
+
+
+def _rust_edge_to_py(re: "RustEdge") -> Edge:
+    """Convert a Rust Edge to a Python Edge."""
+    return Edge(
+        source=re.source,
+        target=re.target,
+        edge_type=_RUST_TO_PY_EDGE_TYPE[re.edge_type],
+        created_at=re.created_at,
+        surface=re.surface,
+        context=re.context,
+    )
+
+
+class RustGraphAdapter:
+    """Wraps the Rust ``Graph`` to expose the same interface as the Python ``Graph``.
+
+    This includes the internal attributes ``_active_ids``, ``_adj_out``,
+    ``_adj_in``, ``_vertices``, ``_edges``, ``_edge_keys`` that are accessed
+    directly by free functions in engine.py (``compute_beta_1``, ``fold``, etc.)
+    and by daemon.py.
+
+    Mutation methods return a new ``RustGraphAdapter`` wrapping the new Rust
+    Graph (preserving immutable-by-convention semantics).
+    """
+
+    __slots__ = (
+        "_rg",
+        "_vertices", "_edges", "_active_ids", "_adj_out", "_adj_in", "_edge_keys",
+        "_cached_active_edges", "_cached_all_active_edges",
+    )
+
+    def __init__(self, rg: "RustGraph") -> None:
+        self._rg = rg
+        # Materialise internal attributes from the Rust Graph so that
+        # downstream code accessing graph._active_ids etc. works unchanged.
+        # These are computed once (Graph is immutable).
+        rust_verts = rg.vertices  # dict[str, RustVertex]
+        rust_edges = rg.edges     # list[RustEdge]
+
+        self._vertices: dict[str, Vertex] = {
+            vid: _rust_vertex_to_py(rv) for vid, rv in rust_verts.items()
+        }
+        self._edges: list[Edge] = [_rust_edge_to_py(re) for re in rust_edges]
+        self._active_ids: frozenset[str] = frozenset(rg.active_vertex_ids())
+        # Build adjacency indexes from Python edges
+        adj_out: dict[str, list[Edge]] = {}
+        adj_in: dict[str, list[Edge]] = {}
+        for e in self._edges:
+            adj_out.setdefault(e.source, []).append(e)
+            adj_in.setdefault(e.target, []).append(e)
+        self._adj_out = adj_out
+        self._adj_in = adj_in
+        self._edge_keys: frozenset[tuple[str, str, EdgeType]] = frozenset(
+            (e.source, e.target, e.edge_type) for e in self._edges
+        )
+
+    def __getattr__(self, name: str):
+        """Lazy init for cache attributes."""
+        if name == '_edge_keys':
+            keys = frozenset(
+                (e.source, e.target, e.edge_type) for e in self._edges
+            )
+            object.__setattr__(self, '_edge_keys', keys)
+            return keys
+        raise AttributeError(f"'RustGraphAdapter' object has no attribute '{name}'")
+
+    # -- accessors ----------------------------------------------------------
+
+    @property
+    def vertices(self) -> dict[str, Vertex]:
+        return self._vertices
+
+    @property
+    def edges(self) -> list[Edge]:
+        return self._edges
+
+    def vertex(self, vid: str) -> Vertex | None:
+        return self._vertices.get(vid)
+
+    def active_vertex_ids(self) -> list[str]:
+        return list(self._active_ids)
+
+    def has_edge_key(self, source: str, target: str, edge_type: EdgeType) -> bool:
+        return (source, target, edge_type) in self._edge_keys
+
+    @property
+    def edge_keys(self) -> frozenset[tuple[str, str, EdgeType]]:
+        return self._edge_keys
+
+    def active_edges(self) -> list[Edge]:
+        try:
+            return self._cached_active_edges
+        except AttributeError:
+            active = self._active_ids
+            result = [
+                e for e in self._edges
+                if e.source in active and e.target in active
+                and e.edge_type not in (EdgeType.COOCCURRENCE, EdgeType.TRAVERSAL_ASSOCIATION)
+            ]
+            object.__setattr__(self, '_cached_active_edges', result)
+            return result
+
+    def all_active_edges(self) -> list[Edge]:
+        try:
+            return self._cached_all_active_edges
+        except AttributeError:
+            active = self._active_ids
+            result = [e for e in self._edges if e.source in active and e.target in active]
+            object.__setattr__(self, '_cached_all_active_edges', result)
+            return result
+
+    def neighbors(self, vid: str) -> list[str]:
+        return sorted(self.neighbor_set(vid))
+
+    def neighbor_set(self, vid: str) -> set[str]:
+        active = self._active_ids
+        out = {e.target for e in self._adj_out.get(vid, ()) if e.target in active}
+        inc = {e.source for e in self._adj_in.get(vid, ()) if e.source in active}
+        return out | inc
+
+    def out_neighbors(self, vid: str) -> list[str]:
+        active = self._active_ids
+        return sorted({e.target for e in self._adj_out.get(vid, ()) if e.target in active})
+
+    def out_neighbor_set(self, vid: str) -> set[str]:
+        active = self._active_ids
+        return {e.target for e in self._adj_out.get(vid, ()) if e.target in active}
+
+    def in_neighbors(self, vid: str) -> list[str]:
+        active = self._active_ids
+        return sorted({e.source for e in self._adj_in.get(vid, ()) if e.source in active})
+
+    def in_neighbor_set(self, vid: str) -> set[str]:
+        active = self._active_ids
+        return {e.source for e in self._adj_in.get(vid, ()) if e.source in active}
+
+    def has_path(self, source: str, target: str) -> bool:
+        return self._rg.has_path(source, target)
+
+    def local_subgraph(self, center: str, radius: int = 1) -> tuple[list[str], list[Edge]]:
+        rust_vids, rust_edges = self._rg.local_subgraph(center, radius)
+        return rust_vids, [_rust_edge_to_py(re) for re in rust_edges]
+
+    def undirected_active_edges(self) -> list[frozenset[str]]:
+        pairs = self._rg.undirected_active_edges()
+        return [frozenset(p) for p in pairs]
+
+    def self_loops(self) -> list[Edge]:
+        return [_rust_edge_to_py(re) for re in self._rg.self_loops()]
+
+    # -- mutation (returns new RustGraphAdapter) --------------------------------
+
+    def _wrap(self, new_rg: "RustGraph") -> "RustGraphAdapter":
+        return RustGraphAdapter(new_rg)
+
+    def add_vertex(self, v: Vertex) -> "RustGraphAdapter":
+        new_rg = self._rg.add_vertex(_py_vertex_to_rust(v))
+        return self._wrap(new_rg)
+
+    def add_edge(self, e: Edge) -> "RustGraphAdapter":
+        new_rg = self._rg.add_edge(_py_edge_to_rust(e))
+        adapter = self._wrap(new_rg)
+        # Propagate topology caches if material edge
+        if e.edge_type in _MATERIAL_EDGE_TYPES:
+            for attr in ('_cached_beta_1', '_cached_terrain'):
+                try:
+                    object.__setattr__(adapter, attr, getattr(self, attr))
+                except AttributeError:
+                    pass
+        return adapter
+
+    def add_edges_batch(self, edges: list[Edge]) -> "RustGraphAdapter":
+        if not edges:
+            return self
+        new_rg = self._rg.add_edges_batch([_py_edge_to_rust(e) for e in edges])
+        adapter = self._wrap(new_rg)
+        if all(e.edge_type in _MATERIAL_EDGE_TYPES for e in edges):
+            for attr in ('_cached_beta_1', '_cached_terrain'):
+                try:
+                    object.__setattr__(adapter, attr, getattr(self, attr))
+                except AttributeError:
+                    pass
+        return adapter
+
+    def add_vertices_and_edges_batch(
+        self, vertices: list[Vertex], edges: list[Edge],
+    ) -> "RustGraphAdapter":
+        new_rg = self._rg.add_vertices_and_edges_batch(
+            [_py_vertex_to_rust(v) for v in vertices],
+            [_py_edge_to_rust(e) for e in edges],
+        )
+        return self._wrap(new_rg)
+
+    def set_vertex_status(self, vid: str, status: VertexStatus) -> "RustGraphAdapter":
+        new_rg = self._rg.set_vertex_status(vid, _PY_TO_RUST_VERTEX_STATUS[status])
+        return self._wrap(new_rg)
+
+    def merge_vertices(self, keep: str, remove: str) -> "RustGraphAdapter":
+        new_rg = self._rg.merge_vertices(keep, remove)
+        return self._wrap(new_rg)
+
+    # -- diagnostics --------------------------------------------------------
+
+    def __repr__(self) -> str:
+        return (
+            f"RustGraphAdapter(vertices={len(self._vertices)}, "
+            f"edges={len(self._edges)}, active={len(self._active_ids)})"
+        )
+
+    def __len__(self) -> int:
+        return len(self._vertices)
+
+
+def create_graph(
+    vertices: dict[str, Vertex] | list[Vertex] | None = None,
+    edges: list[Edge] | None = None,
+) -> Graph | RustGraphAdapter:
+    """Factory: return Rust-backed graph when available, else pure-Python.
+
+    Accepts the same signatures as both Graph (dict vertices) and RustGraph
+    (list vertices) constructors, normalising as needed.
+    """
+    if _RUST_GRAPH_AVAILABLE:
+        _init_enum_maps()
+        # Normalise vertices to list[RustVertex]
+        if vertices is None:
+            rv_list: list = []
+        elif isinstance(vertices, dict):
+            rv_list = [_py_vertex_to_rust(v) for v in vertices.values()]
+        else:
+            rv_list = [_py_vertex_to_rust(v) for v in vertices]
+        re_list = [_py_edge_to_rust(e) for e in edges] if edges else []
+        rg = RustGraph(rv_list or None, re_list or None)
+        return RustGraphAdapter(rg)
+    # Fallback: pure Python
+    if vertices is not None and isinstance(vertices, list):
+        vertices = {v.id: v for v in vertices}
+    return Graph(vertices, edges)
 
 
 # ---------------------------------------------------------------------------
