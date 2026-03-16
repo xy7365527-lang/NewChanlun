@@ -26,7 +26,9 @@ from typing import Optional
 try:
     from graph_rs import Graph as RustGraph, Vertex as RustVertex, Edge as RustEdge
     from graph_rs import VertexStatus as RustVertexStatus, EdgeType as RustEdgeType
-    _RUST_GRAPH_AVAILABLE = True
+    # 临时禁用 Rust Graph——Rust clone() 比 Python 浅拷贝更重（全图深克隆）
+    # 等 Rust 侧实装增量 add_edge（COW/persistent DS）后再启用
+    _RUST_GRAPH_AVAILABLE = False  # TODO: 改回 True when Rust add_edge is incremental
 except ImportError:
     _RUST_GRAPH_AVAILABLE = False
 

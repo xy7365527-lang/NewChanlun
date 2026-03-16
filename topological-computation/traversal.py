@@ -1051,69 +1051,57 @@ class TraversalEngine:
             for edge in cooc_neighbors:
                 hyperedge_neighbors.add(edge.target)
 
+        # Hard cap: 避免超边邻域无限展开导致 O(N) Rust clone 风暴
+        _COOC_CAP = 50
+        if len(hyperedge_neighbors) > _COOC_CAP:
+            import random
+            hyperedge_neighbors = set(random.sample(list(hyperedge_neighbors), _COOC_CAP))
+
+        # 批量收集——一次 add_vertices_and_edges_batch 代替 N 次逐条 add
+        pending_vertices: list[Vertex] = []
+        pending_edges: list[Edge] = []
+
         for target_sig in hyperedge_neighbors:
-            # Map signifier back to K_active concept(s)
             target_concepts = self._snet_activation._sig_to_concepts.get(target_sig, [])
 
             if target_concepts:
-                # Existing K_active vertices — add COOCCURRENCE edge if not present
                 for tgt_cid in target_concepts:
-                    if tgt_cid == concept_id:
+                    if tgt_cid == concept_id or tgt_cid not in active_vids or tgt_cid in existing_cooc_targets:
                         continue
-                    if tgt_cid not in active_vids:
-                        continue
-                    if tgt_cid in existing_cooc_targets:
-                        continue
-                    cooc_edge = Edge(
-                        source=concept_id,
-                        target=tgt_cid,
-                        edge_type=EdgeType.COOCCURRENCE,
-                        created_at=self.step,
-                        surface=None,
-                        context=f"snet_hyperedge: {signifier_id}->{target_sig}",
-                    )
-                    self.k_active = self.k_active.add_edge(cooc_edge)
-                    self.k_full = self.k_full.add_edge(cooc_edge)
+                    pending_edges.append(Edge(
+                        source=concept_id, target=tgt_cid,
+                        edge_type=EdgeType.COOCCURRENCE, created_at=self.step,
+                        surface=None, context=f"snet_hyperedge: {signifier_id}->{target_sig}",
+                    ))
                     existing_cooc_targets.add(tgt_cid)
             else:
-                # No K_active vertex for this signifier — create one + COOCCURRENCE edge
                 new_vid = f"cooc_{target_sig}"
                 if new_vid in active_vids:
                     if new_vid not in existing_cooc_targets:
-                        cooc_edge = Edge(
-                            source=concept_id,
-                            target=new_vid,
-                            edge_type=EdgeType.COOCCURRENCE,
-                            created_at=self.step,
-                            surface=None,
-                            context=f"snet_hyperedge: {signifier_id}->{target_sig}",
-                        )
-                        self.k_active = self.k_active.add_edge(cooc_edge)
-                        self.k_full = self.k_full.add_edge(cooc_edge)
+                        pending_edges.append(Edge(
+                            source=concept_id, target=new_vid,
+                            edge_type=EdgeType.COOCCURRENCE, created_at=self.step,
+                            surface=None, context=f"snet_hyperedge: {signifier_id}->{target_sig}",
+                        ))
                         existing_cooc_targets.add(new_vid)
                     continue
-                new_vertex = Vertex(
-                    id=new_vid,
-                    status=VertexStatus.ACTIVE,
-                    content=target_sig,
-                    created_at=self.step,
-                )
-                self.k_active = self.k_active.add_vertex(new_vertex)
-                self.k_full = self.k_full.add_vertex(new_vertex)
-                cooc_edge = Edge(
-                    source=concept_id,
-                    target=new_vid,
-                    edge_type=EdgeType.COOCCURRENCE,
-                    created_at=self.step,
-                    surface=None,
-                    context=f"snet_hyperedge: {signifier_id}->{target_sig}",
-                )
-                self.k_active = self.k_active.add_edge(cooc_edge)
-                self.k_full = self.k_full.add_edge(cooc_edge)
-                # Update mapping so future lookups find this vertex
+                pending_vertices.append(Vertex(
+                    id=new_vid, status=VertexStatus.ACTIVE,
+                    content=target_sig, created_at=self.step,
+                ))
+                pending_edges.append(Edge(
+                    source=concept_id, target=new_vid,
+                    edge_type=EdgeType.COOCCURRENCE, created_at=self.step,
+                    surface=None, context=f"snet_hyperedge: {signifier_id}->{target_sig}",
+                ))
                 self._snet_activation._sig_to_concepts.setdefault(target_sig, []).append(new_vid)
                 active_vids.add(new_vid)
                 existing_cooc_targets.add(new_vid)
+
+        # 一次性批量写入（1 次 Rust clone 代替 N 次）
+        if pending_vertices or pending_edges:
+            self.k_active = self.k_active.add_vertices_and_edges_batch(pending_vertices, pending_edges)
+            self.k_full = self.k_full.add_vertices_and_edges_batch(pending_vertices, pending_edges)
 
     def _record_traversal_association(self, from_vid: str, to_vid: str) -> None:
         """Record a TRAVERSAL_ASSOCIATION edge between two vertices (material layer sediment).
