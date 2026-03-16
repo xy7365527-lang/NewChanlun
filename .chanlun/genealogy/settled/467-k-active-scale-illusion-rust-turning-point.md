@@ -1,8 +1,9 @@
 ---
 id: "467"
 title: "GPU架构质询R2：K_active规模错觉与Rust+rayon转折点的误判"
-status: 生成态
+status: 已结算
 type: 矛盾发现
+resolution: 吸收——GPU架构质询的已知约束，迁移时逐个处理
 negation_source: heterogeneous
 negation_form: waiting
 negation_model: gemini-3.1-pro-preview
