@@ -264,7 +264,12 @@ class Graph:
         """Return undirected edge set from active directed edges (no self-loops).
 
         Excludes material layer edges — beta_1 measures concept-layer topology only.
+        Cached on Graph instance (immutable — result never changes).
         """
+        try:
+            return self._cached_undirected
+        except AttributeError:
+            pass
         active = self._active_ids
         result: set[frozenset[str]] = set()
         for e in self._edges:
@@ -272,7 +277,9 @@ class Graph:
                     and e.source != e.target
                     and e.edge_type not in (EdgeType.COOCCURRENCE, EdgeType.TRAVERSAL_ASSOCIATION)):
                 result.add(frozenset((e.source, e.target)))
-        return list(result)
+        out = list(result)
+        object.__setattr__(self, '_cached_undirected', out)
+        return out
 
     def self_loops(self) -> list[Edge]:
         """Return self-loops in active graph."""
