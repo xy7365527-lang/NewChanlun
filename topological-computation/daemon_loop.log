@@ -1,0 +1,26 @@
+2026-03-10 19:11:04,907 [INFO] === Epoch 1 开始 ===
+2026-03-10 19:11:04,907 [INFO] 执行 ceremony_scan...
+2026-03-10 19:11:09,717 [INFO] 逢亮穿越状态: steps=None, beta_1=35751
+2026-03-10 19:11:09,718 [INFO] CC 上下文已构造（1518 字符）
+2026-03-10 19:11:09,718 [INFO] 唤起 CC session...
+2026-03-10 19:11:09,829 [ERROR] CC session 失败 (rc=1): Error: Claude Code cannot be launched inside another Claude Code session.
+Nested sessions share runtime resources and will crash all active sessions.
+To bypass this check, unset the CLAUDECODE environment variable.
+
+2026-03-10 19:11:09,829 [ERROR] CC session 唤起失败
+2026-03-10 19:11:09,846 [INFO] Epoch 1 完成: CC session 唤起失败
+2026-03-10 19:11:09,846 [WARNING] 需要升级: CC session 唤起失败——检查 claude CLI
+2026-03-10 20:34:32,994 [INFO] === Epoch 1 开始 ===
+2026-03-10 20:34:32,994 [INFO] 执行 ceremony_scan...
+2026-03-10 20:34:37,879 [INFO] 逢亮穿越状态: steps=None, beta_1=35754
+2026-03-10 20:34:37,881 [INFO] CC 上下文已构造（1521 字符）
+2026-03-10 20:34:37,881 [INFO] 唤起 CC session...
+2026-03-10 20:37:58,618 [INFO] 已注册 WebhookAdapter（端口 9800）
+2026-03-10 20:37:59,894 [INFO] WebhookAdapter started on port 9800
+2026-03-10 20:37:59,895 [INFO] === Epoch 2 开始 ===
+2026-03-10 20:37:59,895 [INFO] 执行 ceremony_scan...
+2026-03-10 20:38:04,768 [INFO] 逢亮穿越状态: steps=None, beta_1=35754
+2026-03-10 20:38:04,770 [INFO] CC 上下文已构造（1521 字符）
+2026-03-10 20:38:04,770 [INFO] 唤起 CC session...
+2026-03-10 20:39:20,673 [ERROR] CC session 失败 (rc=3221225786): 
+2026-03-10 20:39:21,490 [ERROR] CC session 失败 (rc=3221225786): 

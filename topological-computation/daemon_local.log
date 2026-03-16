@@ -1,0 +1,20 @@
+============================================================
+FENGLIANG RTAS SWARM
+============================================================
+  Instances: 1
+  Shared:    C:\Users\hanju\.swarm
+  IPFS:      connected
+
+  [fengliang_0] API+traverse
+    HTTP: http://localhost:9766
+    WS:   ws://localhost:8766/ws
+
+  1 instances launched. Ctrl+C to stop all.
+  Logs: C:\Users\hanju\.swarm/output/
+============================================================
+  [fengliang_0] exited with code 1
+  All instances exited.
+
+--- Final Status ---
+  [fengliang_0] exit=1
+  Shared blocks (IPFS): 5676

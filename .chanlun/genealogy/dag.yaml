@@ -2344,6 +2344,21 @@ nodes:
   status: 生成态
   type: 矛盾发现
   file: pending/468-multi-instance-gpu-five-deadlocks.md
+- id: '469'
+  title: 穿越步内串行是语义决定的（非工程选择）
+  status: 已结算
+  type: 已结算
+  file: settled/469-traversal-step-serial-is-semantic.md
+- id: '470'
+  title: 抽象同构不等于工程等价（元规则）
+  status: 已结算
+  type: meta-rule
+  file: settled/470-abstract-isomorphism-not-engineering-equivalence.md
+- id: '471'
+  title: 集体穿越作为未展开的可能性
+  status: 已结算
+  type: domain
+  file: settled/471-collective-traversal-unexpanded-possibility.md
 edges:
   depends_on:
   - from: '136'
@@ -4910,6 +4925,32 @@ edges:
     to: '462'
   - from: '467'
     to: '231'
+  - from: '469'
+    to: '461'
+  - from: '469'
+    to: '462'
+  - from: '469'
+    to: '463'
+  - from: '469'
+    to: '464'
+  - from: '469'
+    to: '465'
+  - from: '469'
+    to: '466'
+  - from: '469'
+    to: '467'
+  - from: '469'
+    to: '468'
+  - from: '470'
+    to: '462'
+  - from: '470'
+    to: '231'
+  - from: '470'
+    to: '436'
+  - from: '471'
+    to: '468'
+  - from: '471'
+    to: '469'
   triggered:
   - from: '005'
     to: 005a
