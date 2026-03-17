@@ -1,0 +1,83 @@
+---
+id: '478'
+number: 478
+title: "settlement 产物类型约束——产物不回流为输入（正反馈循环免疫机制）"
+type: domain
+status: 已结算
+date: 2026-03-17
+source: "[新缠论] v261-swarm——P0 正反馈循环修复（运行时层）"
+depends_on:
+  - '401'   # 脚印不是宝藏——轨迹与产物的范畴区分
+  - '476'   # JSONL append-only 与长期运行不兼容
+  - '396'   # settlement 热寂定理
+epistemological_level: L0
+negation_source: homogeneous
+negation_form: expansion
+negates: '401'
+topo_effect: "split:401:local"
+tensions_with: []
+---
+
+# 478号：settlement 产物类型约束——产物不回流为输入
+
+## 推导链
+
+1. **401号的修复范围不完整**：
+   - 401号识别了范畴错误（轨迹不是产物），修复了 encounter memory 节点的注入
+   - 但 401号**保留了 settlement 和 residue memory 节点**（daemon.py L466 原注释："保留 settlement 和 residue memory 节点，移除 encounter 类型"）
+   - 保留的理由：settlement/residue 是"产物"，encounter 是"轨迹"，只需清除轨迹
+
+2. **保留 settlement/residue memory 节点导致正反馈循环**：
+   - settlement 结算时产出 residue（boundary_edge 类型）
+   - residue 注入 K_active 为 memory: 前缀顶点
+   - boundary_edge 扫描时扫到 memory: 顶点 → 产出更多 residue
+   - 更多 residue → 更多 memory: 顶点 → 更多 boundary_edge → 超线性膨胀
+   - 路径：`residue → REFERENCE边 → boundary_edge → 更多residue`
+
+3. **类型约束的发现**：
+   - settlement 结算 concept 层的边，不结算自己产出的 memory 层顶点
+   - 这是一个**类型约束**：settlement 的输入域和输出域不相交
+   - `memory:` 前缀顶点是 settlement 的产物（输出域）
+   - settlement 的操作对象是 concept 层顶点（输入域）
+   - 产物不能回流为输入 = 输入域 ∩ 输出域 = ∅
+   - 违反此约束 = 正反馈循环（系统穿越自己的副产物）
+
+4. **与 401号的关系**：
+   - 401号说"脚印不是宝藏"（轨迹 vs 产物）
+   - 478号说"宝藏也不是矿脉"（产物 vs 对象）
+   - 401号的范畴区分是正确的，本号扩展其适用范围
+
+## 代码变更（运行时层：engine.py / traversal.py）
+
+| 文件 | 位置 | 变更 | 作用 |
+|------|------|------|------|
+| engine.py | L1139-1159 | boundary_edge 扫描跳过 memory: 前缀顶点 | 阻断正反馈循环的源头——settlement 不结算自己的产物 |
+| traversal.py | L626 | encounter 检测跳过 memory: 前缀顶点 | settlement 产物不是 encounter 的操作对象 |
+| traversal.py | L1381-1383 | 穿越步进跳过 memory: 前缀邻居 | 防止穿越陷入记忆碎片（正反馈循环的下游症状） |
+
+这三处过滤构成运行时的类型约束屏障：settlement/encounter/穿越在执行时自动跳过 memory: 前缀顶点，从源头阻断正反馈循环。
+
+## 与 476号的关系
+
+476号识别了 JSONL 膨胀问题（24GB/18GB），其中 8.5M 顶点的 99.997% 是 memory 域。478号的类型约束从源头阻断 memory 顶点的超线性增长，是 476号 snapshot+truncate 方案的**前置条件**——如果不先阻断正反馈循环，snapshot 后 JSONL 仍会快速膨胀。
+
+## 边界条件
+
+| 条件 | 当前 | 翻转阈值 |
+|------|------|----------|
+| memory: 顶点是否有合法的穿越/结算用途 | 无（纯记录用途） | 如果未来 memory 节点需要参与穿越（如记忆回溯机制），需重新设计类型约束 |
+| 正反馈循环是否还有其他路径 | 已知路径已阻断 | 如果出现非 memory: 前缀的膨胀路径，需扩展约束 |
+
+## 影响声明
+
+- engine.py / traversal.py 的运行时过滤（3 处）
+- 正反馈循环路径被阻断：`residue → REFERENCE边 → boundary_edge → 更多residue` 不再可能
+- 476号的 snapshot 方案获得前置条件（源头止血）
+- 启动时清理和持久化层过滤见 479号
+
+## 谱系关联
+
+related_records:
+  parent: '401'   # 脚印不是宝藏——本号扩展其适用范围
+  siblings: ['476']   # JSONL 膨胀问题——本号阻断源头
+  children: ['479']   # 全量清理扩展（启动时 + 持久化层）

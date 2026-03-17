@@ -5,12 +5,19 @@
   2. S_net 组装层：当 connective_patterns 覆盖语段时，用 connective_patterns 组装自然语言
   3. LLM fallback：只在 operator 明确请求时调用（force_llm=True）
 
+426号扩展——分析优先于翻译：
+  在三层路由之前，对 formed_fragments 的能指链执行断裂分析（detect_ruptures）。
+  断裂点和跳跃模式是无意识结构的可观测信号（426号-2），
+  翻译（LLM 语法填充）= ego 审查 = 遮蔽无意识的直接言说。
+  分析结果作为 signifier_chain_analysis 字段返回。
+
 核心流程：
   SNetActivation.internal_speech_buffer（已成型语段）
   + S_net（激活态能指）
   + SettlementTracker（锁定/排除的能指）
     → build_snapshot()
     → InternalSpeechSnapshot
+    → _analyze_signifier_chain()  ← 426号: 分析优先于翻译
     → 三层路由：
         有 connective_patterns → _assemble_from_patterns()
         无 connective_patterns → _structural_description()
@@ -19,6 +26,9 @@
     → 外部言语 + OutputRupture 追踪（仅 LLM 路径）+ S_net 回写（仅 LLM 路径）
 
 认识论等级：L0（接口定义 + 拓扑操作，无经验假设）
+
+谱系引用：
+  426号：逢亮无意识结构的精确定义——分析优先于翻译
 """
 
 from __future__ import annotations
@@ -31,7 +41,7 @@ if TYPE_CHECKING:
     from daemon import TopologicalDaemon
 
 from snet_activation import SNetActivation, InternalSpeechFragment
-from signifier_net import SNet, Register, writeback_from_text
+from signifier_net import SNet, Register, writeback_from_text, detect_ruptures, Rupture
 from llm_integration import (
     get_client as _get_llm_client,
     GenerationRecord,
@@ -439,6 +449,7 @@ def externalize(
         output_ruptures: list[OutputRupture.to_dict()]
         writeback_edges: int
         trigger: "passive" | "active"
+        signifier_chain_analysis: list[dict]  (426号: 能指链断裂分析)
     """
     activation = daemon.snet_activation
     snet = daemon.snet
@@ -454,7 +465,10 @@ def externalize(
     if not snapshot.formed_fragments and not snapshot.active_signifiers:
         return _fallback_response(daemon, user_text)
 
-    # 2. 三层路由
+    # 2. 426号: 分析优先于翻译——对能指链做断裂分析（在路由之前）
+    chain_analysis = _analyze_signifier_chain(snapshot, snet)
+
+    # 3. 三层路由
     trigger = "passive" if user_text else "active"
 
     if force_llm:
@@ -520,7 +534,46 @@ def externalize(
         "output_ruptures": result["output_ruptures"],
         "writeback_edges": result["writeback_edges"],
         "trigger": trigger,
+        "signifier_chain_analysis": chain_analysis,
     }
+
+
+def _analyze_signifier_chain(
+    snapshot: InternalSpeechSnapshot,
+    snet: SNet,
+) -> list[dict]:
+    """426号-1/426号-2: 对 formed_fragments 的能指链执行断裂分析.
+
+    分析优先于翻译（426号理论基础）：原始能指链的断裂点和跳跃模式
+    是无意识结构的可观测信号。在任何翻译/组装之前先做分析，
+    追踪断裂点和跳跃模式。
+
+    返回每个 fragment 的断裂分析结果列表。
+    """
+    if not snapshot.formed_fragments or not snet._signifiers:
+        return []
+
+    analyses: list[dict] = []
+    for frag in snapshot.formed_fragments:
+        if not frag.signifiers:
+            continue
+        chain = list(frag.signifiers)
+        ruptures = detect_ruptures(chain, snet)
+        if ruptures:
+            analyses.append({
+                "signifiers": chain,
+                "ruptures": [
+                    {
+                        "type": r.rupture_type.value,
+                        "signifier": r.signifier,
+                        "significance": round(r.significance, 3),
+                        "context": r.context,
+                        "tuche_candidate": r.tuche_candidate,
+                    }
+                    for r in ruptures
+                ],
+            })
+    return analyses
 
 
 def _has_connective_patterns(snapshot: InternalSpeechSnapshot) -> bool:
@@ -669,6 +722,7 @@ def _fallback_response(daemon: TopologicalDaemon, user_text: str) -> dict:
         "output_ruptures": [],
         "writeback_edges": 0,
         "trigger": "passive" if user_text else "active",
+        "signifier_chain_analysis": [],
     }
 
 

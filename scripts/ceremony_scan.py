@@ -836,16 +836,51 @@ def _scan_genealogy_proposals(root, gangmu_data):
                     if desc:
                         existing_descriptions.add(desc.lower())
 
-    # 3. 按编号倒序扫描最近 20 条谱系
-    settled_files = []
+    # 3. 构建"已被后续谱系消化"的编号集合
+    # 如果编号 X 被某个 type 含 消化/audit/consume/disposition 的后续谱系 depends_on 引用，
+    # 则 X 的下游推论视为已覆盖
+    consumed_sources = set()
+    consume_types = {"消化记录", "structural-audit", "consumption", "disposition", "batch-disposition"}
+    all_settled = []
     for fname in os.listdir(settled_dir):
         if not fname.endswith(".md"):
             continue
         m = re.match(r'^(\d+)', fname)
         if m:
-            settled_files.append((int(m.group(1)), fname))
-    settled_files.sort(key=lambda x: x[0], reverse=True)
-    settled_files = settled_files[:20]
+            all_settled.append((int(m.group(1)), fname))
+    all_settled.sort(key=lambda x: x[0], reverse=True)
+
+    for _, fname in all_settled:
+        fpath = os.path.join(settled_dir, fname)
+        try:
+            with open(fpath, encoding="utf-8") as f:
+                head = f.read(2000)
+            fm_match = re.match(r"^---\s*\n(.+?)\n---", head, re.DOTALL)
+            if not fm_match:
+                continue
+            fm = yaml.safe_load(fm_match.group(1))
+            if not isinstance(fm, dict):
+                continue
+            ftype = str(fm.get("type", "")).lower()
+            title = str(fm.get("title", "")).lower()
+            # 识别消化类谱系：type 匹配或 title 含关键词
+            is_consume = (
+                ftype in consume_types
+                or "消化" in title or "consume" in title
+                or "disposition" in title or "批量处置" in title
+            )
+            if not is_consume:
+                continue
+            deps = fm.get("depends_on", [])
+            if isinstance(deps, list):
+                for dep in deps:
+                    dep_str = str(dep).strip().strip("'\"")
+                    consumed_sources.add(dep_str)
+        except Exception:
+            continue
+
+    # 4. 按编号倒序扫描最近 20 条谱系
+    settled_files = all_settled[:20]
 
     proposals = []
     downstream_section_pattern = re.compile(
@@ -939,6 +974,10 @@ def _scan_genealogy_proposals(root, gangmu_data):
                         break
 
                 if covered:
+                    continue
+
+                # 检查来源谱系是否已被消化类谱系引用
+                if str(file_num) in consumed_sources:
                     continue
 
                 # 推断建议归属的纲

@@ -1510,6 +1510,7 @@ def present_json(daemon: TopologicalDaemon, text: str, session_id: str = "defaul
                 "source": ext_result.get("source", "structural"),
                 "llm_fraction": ext_result.get("llm_fraction", 0.0),
                 "output_ruptures": ext_result.get("output_ruptures", []),
+                "signifier_chain_analysis": ext_result.get("signifier_chain_analysis", []),
                 "snapshot_summary": {
                     "formed_fragments": len(ext_result.get("snapshot", {}).get("formed_fragments", [])),
                     "active_signifiers": len(ext_result.get("snapshot", {}).get("active_signifiers", [])),
