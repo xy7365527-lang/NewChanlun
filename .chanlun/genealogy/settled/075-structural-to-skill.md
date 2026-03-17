@@ -4,7 +4,8 @@ title: "结构工位从teammate转为skill+事件驱动——消除孤岛"
 type: "语法记录"
 status: "已结算"
 date: "2026-02-21"
-depends_on: ["073", "069", "057", "062"]
+depends_on: ["069", "057"]
+related: ["062", "073"]
 negation_source: ""
 negation_form: ""
 negates: []
@@ -25,8 +26,8 @@ negated_by: []
 
 1. 原则 11 推论："元编排本身也是 skill 的集合——编排能力分布式地结晶在 skill 中，按需加载，用完析出。"
 2. 057号：LLM 不是状态机——"主动审查"是时间幻觉，审查应该是事件驱动的
-3. 062号：异质碰撞——Gemini 是 skill（能力），不是 teammate（实体）
-4. 073号：蜂群能修改一切——包括自己的架构
+3. 062号（related，非 depends_on）：异质碰撞——Gemini 是 skill（能力），不是 teammate（实体）。062被064部分否定（NegationObject定义修正），但075依赖的"Gemini是skill"论点未被否定
+4. 073号（related，非 depends_on）：蜂群能修改一切——包括自己的架构。073被073a否定（控制流与数据流解耦），但075的skill转换不依赖073的平台约束前提
 
 ## 结论
 

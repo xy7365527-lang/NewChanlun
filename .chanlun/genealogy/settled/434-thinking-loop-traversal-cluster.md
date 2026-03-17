@@ -139,12 +139,14 @@ ARTICULATE 被触发 → 概念层新边铸造（speaking = 被迫产出）
 ## 下游推论
 
 1. **traversal.py 需要轨迹簇记录机制**：当前穿越引擎只记录单条路径。thinking 循环需要记录多条路径的汇聚结构。
-   - status: pending（架构设计未启动）
-   - 四分法: 选择（如何记录轨迹簇——内存 vs block topology，需要架构决策）
+   - status: 已完成（trajectory_cluster.py TrajectoryCluster 类已实装，traversal.py 已集成 begin_path/extend_path/check_fixpoint/record_sublated_condensation）
+   - [covered: v262-swarm, consumed — TrajectoryCluster 完整实装，多路径汇聚结构记录+不动点检测+位移事件]
+   - 四分法: 定理（代码事实确认）
 
 2. **汇聚结构不动点检测**：需要实装 C(n) 的比较机制——判断新路径是否改变了汇聚结构。
-   - status: pending（依赖推论1的架构决策）
-   - 四分法: 选择（不动点的精确定义需要形式化——拓扑同构 vs 弱等价）
+   - status: 已完成（trajectory_cluster.py check_fixpoint() 方法——C(n) 汇聚结构比较，fixpoint_threshold 连续不变则终止）
+   - [covered: v262-swarm, consumed — check_fixpoint() 实装完整 C(n)≅C(N) 判据]
+   - 四分法: 定理（代码事实确认）
 
 3. **425号张力具体化**：thinking 循环对能指网络边密度有下界要求——边太少则轨迹簇退化。这为 425号 S_net 入图方案提供了新的紧迫性论证。
    - status: 已完成（440号双层架构已实现——共现边写入物质层，S_net 入图路径已通）

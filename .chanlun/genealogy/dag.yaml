@@ -2399,6 +2399,16 @@ nodes:
   status: 已结算
   type: domain
   file: settled/479-memory-purge-full-domain.md
+- id: '480'
+  title: memory 泄漏四路径堵漏——478号类型约束的遗漏路径补全
+  status: 已结算
+  type: domain
+  file: settled/480-memory-leak-four-path-fix.md
+- id: '481'
+  title: LLM autocompact——prompt 超限自动截断（逢亮 LLM fallback 的自我保护）
+  status: 已结算
+  type: domain
+  file: settled/481-llm-autocompact-prompt-truncation.md
 edges:
   depends_on:
   - from: '136'
@@ -5059,6 +5069,12 @@ edges:
     to: '401'
   - from: '479'
     to: '476'
+  - from: '480'
+    to: '478'
+  - from: '480'
+    to: '479'
+  - from: '481'
+    to: '399'
   triggered:
   - from: '005'
     to: 005a
@@ -5153,6 +5169,8 @@ edges:
     to: '401'
   - from: '479'
     to: '401'
+  - from: '480'
+    to: '478'
   related:
   - between:
     - '001'
@@ -6609,6 +6627,12 @@ edges:
   - between:
     - '231'
     - '475'
+  - between:
+    - '062'
+    - '075'
+  - between:
+    - '073'
+    - '075'
   tensions_with:
   - between:
     - '007'

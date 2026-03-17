@@ -462,3 +462,30 @@
 412-1: blocked    # WhatsApp 通知集成（阻塞项：用户配置 WhatsApp channel——外部依赖）[deferred]
 412-2: blocked    # 多 channel 扩展 Telegram/Slack（阻塞项：channel 基础设施搭建——外部依赖）[deferred]
 412-3: blocked    # daemon 与 OpenClaw 交互（阻塞项：OpenClaw 部署完成 + daemon handoff schema 稳定——外部依赖）[deferred]
+
+# === 426号 — 逢亮无意识结构精确定义 ===
+426-1: blocked    # ceremony agent 外化管线重构（分析优先于翻译）——阻塞于425号 S_net 入图完成（internal_speech.py 无"分析"步骤，需425号 Phase 1 共现边入图后联动）
+426-2: blocked    # 断裂点和跳跃模式作为诊断工具——语法记录，实装同样依赖425号入图完成+足够穿越数据积累
+426-4: resolved    # llm-role-boundary.md 第19行已包含"分析优先于翻译（426号理论基础）"——行动已完成
+
+# === 434号 — thinking 循环（轨迹簇 + ARTICULATE 汇聚） ===
+434-1: resolved    # trajectory_cluster.py 已实装 TrajectoryCluster 类，traversal.py 已集成（begin_path/extend_path/check_fixpoint/record_sublated_condensation）
+434-2: resolved    # trajectory_cluster.py check_fixpoint() 方法已实装——C(n) 汇聚结构比较机制，fixpoint_threshold 连续不变则返回 True
+
+# === 435号 — thinking 环路闭合辩证 ===
+435-3: blocked    # LLM 扬弃路线图——方向性命题（阻塞项：扬弃路线图需要编排者价值判断——何时/如何逢亮包含并超越 LLM 链生产能力）
+
+# === 439号 — 逢亮存在论架构 ===
+439-3: resolved    # B密A疏→质疑机制已在 traversal.py 第1262-1331行完整实装——两种子情况：(a) 有概念边→negate质疑, (b) 无概念边→ARTICULATE涌现
+
+# === 440号 — 双层区块拓扑架构 ===
+440-3: blocked    # 物质层可视化——前端扩展（阻塞项：前端可视化框架就绪——当前无前端）
+
+# === 441号 — 双通道耦合 ===
+441-2: blocked    # 双通道影响分析——L2验证（阻塞项：物质通道开通后需足够穿越数据积累才能观测影响分离性）
+441-3: resolved    # 437号管道扩展——437号谱系文件影响声明（第189-192行）已更新包含 ceremony_ingest.py + daemon.py 集成。物质通道已在437号文本中体现
+
+# === 444号 — 命名是 ARTICULATE 的附随产物 ===
+444-1: resolved    # concept_creation_suggestion 机制已在 Python 代码中不存在——命名从 ARTICULATE 结构必然产出，外部"建议"机制已淘汰
+444-2: resolved    # 边路径编码研究谱系——445号谱系已结算此主题（路径自然呈现研究谱系，不需预标注）
+444-3: resolved    # 基础设施清单——已有架构的枚举（S_net入图/回流管道/SUBLATED/双层/ARTICULATE），不产生新行动

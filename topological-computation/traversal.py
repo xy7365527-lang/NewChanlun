@@ -18,7 +18,7 @@ from engine import (
     compute_beta_1, fold, negate, sublate, _connected_components,
 )
 from encounter_log import EncounterLog
-from morse import compute_terrain, critical_neighbors
+from morse import compute_terrain, critical_neighbors, tree_neighbors
 from snet_activation import SNetActivation, EdgeSuggestion
 from signifier_net import SignifierEdge, AxisType
 from trajectory_cluster import TrajectoryCluster, DisplacementEvent
@@ -166,6 +166,95 @@ class TraversalEngine:
             pair for pair in self._attempted_folds
             if not pair & affected_vertices
         }
+
+    # -- contraction phase: Morse free-face collapse ----------------------------
+
+    _MAX_COLLAPSE_PER_STEP = 3  # cap per-step contraction to prevent over-collapse
+
+    def _contract_free_edges(self) -> int:
+        """Contraction phase: collapse non-critical free-edge endpoints.
+
+        For each tree neighbor of the current position whose out-degree in
+        k_active is exactly 1 and which is not a critical vertex (i.e. not
+        involved in any critical edge), fold it back into its sole neighbor.
+
+        Skips vertices inside settled cycles (lockzone protection) and
+        memory: prefixed vertices (type constraint).
+
+        Returns the number of collapsed vertices.
+        """
+        pos = self.position
+        terrain = self.terrain
+        tn = tree_neighbors(self.k_active, pos, terrain)
+        if not tn:
+            return 0
+
+        # Collect settled vertex set for lockzone check
+        settled_vids: set[str] = set()
+        for sc in self.settlement.settled_cycles:
+            if sc.status != "active":
+                continue
+            for src, tgt in sc.edges:
+                settled_vids.add(src)
+                settled_vids.add(tgt)
+
+        collapsed = 0
+        for nb in tn:
+            if collapsed >= self._MAX_COLLAPSE_PER_STEP:
+                break
+            # Skip settled vertices
+            if nb in settled_vids:
+                continue
+            # Skip memory: prefixed vertices (type constraint)
+            if nb.startswith("memory:"):
+                continue
+            # Skip current position itself
+            if nb == pos:
+                continue
+            # Check out-degree in k_active: only collapse degree-1 (leaf on tree)
+            out_edges = [
+                e for e in self.k_active._adj_out.get(nb, ())
+                if e.target in self.k_active._active_ids and e.target != nb
+            ]
+            in_edges = [
+                e for e in self.k_active._adj_in.get(nb, ())
+                if e.source in self.k_active._active_ids and e.source != nb
+            ]
+            total_degree = len(out_edges) + len(in_edges)
+            if total_degree != 1:
+                continue
+            # Verify not critical: no critical edges touch this vertex
+            has_critical = any(
+                terrain.get((nb, e.target)) == "critical"
+                for e in self.k_active._adj_out.get(nb, ())
+                if e.target in self.k_active._active_ids
+            ) or any(
+                terrain.get((e.source, nb)) == "critical"
+                for e in self.k_active._adj_in.get(nb, ())
+                if e.source in self.k_active._active_ids
+            )
+            if has_critical:
+                continue
+            # Determine fold target: the sole connected vertex
+            sole_neighbor = (
+                out_edges[0].target if out_edges else in_edges[0].source
+            )
+            # Execute fold: merge nb into sole_neighbor
+            result = fold(
+                self.k_active, [sole_neighbor, nb],
+                self.step, self.settlement,
+            )
+            if not result.blocked:
+                self.k_active = result.graph
+                # Update k_full with the fold edge
+                for e in result.graph.edges:
+                    if e.created_at == self.step and not self.k_full.has_edge_key(
+                        e.source, e.target, e.edge_type
+                    ):
+                        self.k_full = self.k_full.add_edge(e)
+                collapsed += 1
+
+        return collapsed
 
     # -- f(v,w) terrain annotation (not a filter, not a trigger) ---------------
 
@@ -999,11 +1088,12 @@ class TraversalEngine:
         active = self.k_active._active_ids
 
         # Collect boundary_edge targets (external vertices)
+        # 类型约束：memory: 前缀顶点是 settlement 产物，不参与穿越
         boundary_targets: list[str] = []
         for item in blocked_by.residue:
             if item["type"] == "boundary_edge":
                 ev = item["data"].get("external_vertex")
-                if ev and ev in active and ev != self.position:
+                if ev and ev in active and ev != self.position and not ev.startswith("memory:"):
                     boundary_targets.append(ev)
 
         if boundary_targets:
@@ -1016,11 +1106,12 @@ class TraversalEngine:
             return True
 
         # Collect nachtraeglichkeit targets (affected vertices in prior settlements)
+        # 类型约束：memory: 前缀顶点是 settlement 产物，不参与穿越
         nachtraeg_targets: list[str] = []
         for item in blocked_by.residue:
             if item["type"] == "nachtraeglichkeit":
                 for v in item["data"].get("affected_vertices", []):
-                    if v in active and v != self.position:
+                    if v in active and v != self.position and not v.startswith("memory:"):
                         nachtraeg_targets.append(v)
 
         if nachtraeg_targets:
@@ -1737,6 +1828,13 @@ class TraversalEngine:
                     ) if i in consumed_set else s
                     for i, s in enumerate(self._snet_activation.edge_suggestions)
                 ]
+
+        # Contraction phase: Morse free-face collapse after expansion
+        # Only triggers when beta_1 increased (new topological output)
+        beta_mid = compute_beta_1(self.k_active)
+        contracted = 0
+        if beta_mid > beta_before:
+            contracted = self._contract_free_edges()
 
         # Update terrain after any graph change
         self.terrain = compute_terrain(self.k_active)
