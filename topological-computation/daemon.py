@@ -1220,18 +1220,19 @@ class TopologicalDaemon:
             return self.engine.position
 
         pos = self.engine.position
-        neighbors = self.k_active.neighbors(pos)
+        neighbors = [n for n in self.k_active.neighbors(pos) if not n.startswith("memory:")]
         if not neighbors:
-            # Isolated — jump to random active vertex
+            # Isolated — jump to random concept-layer active vertex
             import random
-            return random.choice(active)
+            concept = [v for v in active if not v.startswith("memory:")]
+            return random.choice(concept) if concept else self.engine.position
 
         # Collect 2-hop neighborhood: neighbors of neighbors
         neighbor_set = set(neighbors)  # build once, not per-iteration
         two_hop: set[str] = set()
         for nb in neighbors:
             for nb2 in self.k_active.neighbors(nb):
-                if nb2 != pos and nb2 not in neighbor_set:
+                if nb2 != pos and nb2 not in neighbor_set and not nb2.startswith("memory:"):
                     two_hop.add(nb2)
 
         if not two_hop:
