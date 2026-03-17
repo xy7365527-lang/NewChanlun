@@ -35,7 +35,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from engine import (
     Graph, Vertex, Edge, EdgeType, VertexStatus,
-    SettlementTracker, compute_beta_1,
+    SettlementTracker, compute_beta_1, fold,
 )
 from morse import compute_terrain
 from traversal import TraversalEngine, StepLog
@@ -1134,6 +1134,76 @@ class TopologicalDaemon:
         recent = self._beta_1_history[-window:]
         return all(v == recent[0] for v in recent)
 
+    def _absorb_process_vertices(self, crystallized_region: set[str]) -> int:
+        """Absorb process-state vertices (anti_*, syn_* intermediates) into nearest settled vertex.
+
+        After crystallization, intermediate products from negate (anti_*) and
+        sublate (syn_*) that are inside the crystallized region get folded
+        into the nearest settled vertex, reducing topological noise.
+
+        Returns the number of absorbed vertices.
+        """
+        if not crystallized_region:
+            return 0
+
+        # Collect settled vertex IDs
+        settled_vids: set[str] = set()
+        for sc in self.settlement.settled_cycles:
+            if sc.status != "active":
+                continue
+            for src, tgt in sc.edges:
+                settled_vids.add(src)
+                settled_vids.add(tgt)
+
+        if not settled_vids:
+            return 0
+
+        # Find process vertices: anti_* and syn_* prefixed, inside crystallized region
+        process_vids = [
+            vid for vid in crystallized_region
+            if (vid.startswith("anti_") or vid.startswith("syn_"))
+            and vid in self.k_active._active_ids
+            and vid not in settled_vids
+        ]
+        if not process_vids:
+            return 0
+
+        absorbed = 0
+        for vid in process_vids:
+            # Find nearest settled vertex: check direct neighbors first
+            best_target = None
+            neighbors = self.k_active.neighbors(vid)
+            for nb in neighbors:
+                if nb in settled_vids and nb in self.k_active._active_ids:
+                    best_target = nb
+                    break
+
+            if best_target is None:
+                continue
+
+            # Execute fold: merge process vertex into settled vertex
+            result = fold(
+                self.k_active, [best_target, vid],
+                self.total_steps, self.settlement,
+            )
+            if not result.blocked:
+                self.k_active = result.graph
+                # Propagate to k_full
+                for e in result.graph.edges:
+                    if e.created_at == self.total_steps and not self.k_full.has_edge_key(
+                        e.source, e.target, e.edge_type
+                    ):
+                        self.k_full = self.k_full.add_edge(e)
+                absorbed += 1
+
+        if absorbed > 0:
+            # Sync back to engine
+            self.engine.k_active = self.k_active
+            self.engine.k_full = self.k_full
+            print(f"[contraction] absorbed {absorbed} process vertices at step {self.total_steps}", file=sys.stderr)
+
+        return absorbed
+
     def _find_most_unstable_region(self) -> str:
         """Find jump target after crystallization — topologically intrinsic.
 
@@ -1309,6 +1379,13 @@ class TopologicalDaemon:
         # Crystallization + jump logic
         if self._is_locally_crystallized():
             self._crystallization_count += 1
+
+            # Contraction: absorb process vertices in crystallized region
+            # Crystallized region = current position's 1-hop neighborhood
+            pos = self.engine.position
+            crystallized_region = set(self.k_active.neighbors(pos))
+            crystallized_region.add(pos)
+            self._absorb_process_vertices(crystallized_region)
 
             # Save settlement history for newly settled cycles
             for sc in self.settlement.settled_cycles:
@@ -1845,6 +1922,8 @@ class TopologicalDaemon:
         """
         current_vids = set(self.k_active.active_vertex_ids())
         new_vids = current_vids - self._cross_domain_scanned_vids
+        # 类型约束：memory: 前缀顶点是 settlement 产物，不参与 cross-domain 扫描
+        new_vids = {v for v in new_vids if not v.startswith("memory:")}
 
         if not new_vids:
             self._cross_domain_scanned_vids = current_vids

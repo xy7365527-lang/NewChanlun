@@ -167,8 +167,9 @@ S_net 参数 vs S_net 进程：
    - 四分法: 选择（节点化的粒度——每个参数一个节点？参数组一个节点？需架构决策）
 
 3. **B密A疏→质疑机制**：431号只实装了 A密B疏→ARTICULATE。B密A疏→质疑（可能 negate）尚未实装。
-   - status: pending（概念层定义已完成，实装待 S_net 入图完成）
-   - 四分法: 行动（431号已定义判据，实装路径明确）
+   - status: 已完成（traversal.py 第1262-1331行完整实装——两种子情况：(a) 有概念边+无共现→negate质疑, (b) 无概念边+无共现→ARTICULATE涌现）
+   - [covered: v262-swarm, consumed — _check_articulation_encounter() 双模式分派 + B_dense_A_sparse_challenge negate 路径]
+   - 四分法: 定理（代码事实确认）
 
 4. **架构文档更新**：本号的架构总图应写入逢亮的架构文档，作为所有组件存在论位置的权威参考。
    - status: 已完成（v242-swarm 已创建 `topological-computation/ARCHITECTURE.md`）

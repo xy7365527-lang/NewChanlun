@@ -47,6 +47,7 @@ traversal events), not LLM-generated text.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import time
@@ -54,6 +55,8 @@ import urllib.request
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 from psi_L_constraint import constraint_set_to_prompt
 from signifier_net import ConstraintSet, parse_llm_prompt
@@ -420,6 +423,11 @@ class LLMClient:
         system: str,
         max_tokens: int = 2000,
     ) -> str | None:
+        # autocompact: 发送前检查并截断
+        question, system, _ = self._compact_prompt(
+            question, system, max_tokens, config["model"],
+        )
+
         messages = []
         if system:
             messages.append({"role": "system", "content": system})
@@ -449,6 +457,11 @@ class LLMClient:
         system: str,
         max_tokens: int = 2000,
     ) -> str | None:
+        # autocompact: 发送前检查并截断
+        question, system, _ = self._compact_prompt(
+            question, system, max_tokens, config["model"],
+        )
+
         prompt = f"{system}\n\n{question}" if system else question
         body = json.dumps({
             "contents": [{"parts": [{"text": prompt}]}],
@@ -463,6 +476,98 @@ class LLMClient:
             data = json.loads(resp.read().decode("utf-8"))
         return data["candidates"][0]["content"]["parts"][0]["text"]
 
+    # ------------------------------------------------------------------
+    # Autocompact — 防止 API 请求超过 token 限制
+    # ------------------------------------------------------------------
+
+    # 模型 token 限制映射（input tokens）。未列出的模型使用 _DEFAULT_TOKEN_LIMIT。
+    _MODEL_TOKEN_LIMITS: dict[str, int] = {
+        "claude-sonnet-4-20250514": 180_000,
+        "claude-3-5-sonnet-20241022": 200_000,
+        "claude-3-opus-20240229": 200_000,
+        "gpt-4o": 128_000,
+        "gemini-2.0-flash": 1_000_000,
+    }
+    _DEFAULT_TOKEN_LIMIT = 180_000
+    # compact 触发阈值：模型限制的 83%
+    _COMPACT_RATIO = 0.83
+    # 字符/token 近似比率（保守估计）
+    _CHARS_PER_TOKEN = 4
+
+    @staticmethod
+    def _estimate_tokens(text: str) -> int:
+        """用字符数/4 近似估算 token 数。"""
+        return len(text) // LLMClient._CHARS_PER_TOKEN
+
+    @staticmethod
+    def _compact_prompt(
+        question: str,
+        system: str,
+        max_tokens_output: int,
+        model: str,
+    ) -> tuple[str, str, bool]:
+        """如果 prompt 估算 token 数超过阈值，截断 question 的中间部分。
+
+        截断策略：保留 question 的前 40% 和后 20%，丢弃中间部分。
+        前部通常包含指令和上下文，后部包含最近的/最关键的信息。
+        system prompt 不截断（通常很短且全部关键）。
+
+        返回：(compacted_question, system, was_compacted)
+        """
+        limit = LLMClient._MODEL_TOKEN_LIMITS.get(
+            model, LLMClient._DEFAULT_TOKEN_LIMIT
+        )
+        threshold = int(limit * LLMClient._COMPACT_RATIO)
+
+        total_est = (
+            LLMClient._estimate_tokens(system)
+            + LLMClient._estimate_tokens(question)
+            + max_tokens_output
+        )
+
+        if total_est <= threshold:
+            return question, system, False
+
+        # 需要 compact：计算 question 可用的 token 预算
+        system_tokens = LLMClient._estimate_tokens(system)
+        available_for_question = threshold - system_tokens - max_tokens_output
+        if available_for_question < 200:
+            # system + max_tokens 已经占满，给 question 最少 200 tokens
+            available_for_question = 200
+
+        target_chars = available_for_question * LLMClient._CHARS_PER_TOKEN
+        original_chars = len(question)
+
+        if original_chars <= target_chars:
+            return question, system, False
+
+        # 截断：保留前 40%、后 20% 的目标字符数
+        head_chars = int(target_chars * 0.40)
+        tail_chars = int(target_chars * 0.20)
+        # 中间填充截断标记
+        truncation_marker = (
+            f"\n\n[... autocompact: 截断了 {original_chars - head_chars - tail_chars} 字符"
+            f" ({(original_chars - target_chars) * 100 // original_chars}% 的 question) ...]\n\n"
+        )
+        marker_chars = len(truncation_marker)
+        # 调整 head/tail 以容纳 marker
+        remaining = target_chars - marker_chars
+        if remaining < 100:
+            remaining = 100
+        head_chars = int(remaining * 0.67)
+        tail_chars = remaining - head_chars
+
+        compacted = question[:head_chars] + truncation_marker + question[-tail_chars:]
+
+        logger.warning(
+            "autocompact 触发: model=%s, 估算 tokens=%d, 阈值=%d, "
+            "question 从 %d 字符截断到 %d 字符 (system=%d 字符, max_output=%d)",
+            model, total_est, threshold, original_chars, len(compacted),
+            len(system), max_tokens_output,
+        )
+
+        return compacted, system, True
+
     def _query_anthropic(
         self,
         config: dict,
@@ -470,6 +575,11 @@ class LLMClient:
         system: str,
         max_tokens: int = 2000,
     ) -> str | None:
+        # autocompact: 发送前检查并截断
+        question, system, compacted = self._compact_prompt(
+            question, system, max_tokens, config["model"],
+        )
+
         body = json.dumps({
             "model": config["model"],
             "max_tokens": max_tokens,

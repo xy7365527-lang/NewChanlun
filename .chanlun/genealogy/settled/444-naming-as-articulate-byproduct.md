@@ -55,8 +55,17 @@ date: "2026-03-13"
 ## 下游推论
 
 1. concept_creation_suggestion 机制需要重新评估——命名从穿越中结构必然产出，不需要外部"建议"
+   - status: 已完成（concept_creation_suggestion 在 Python 代码中已不存在——机制已淘汰，命名从 ARTICULATE 结构必然产出）
+   - [covered: v262-swarm, consumed — 代码事实确认：concept_creation_suggestion 无 .py 文件引用]
+   - 四分法: 定理（代码事实确认）
 2. 边路径编码研究谱系——物质层共现带自然呈现研究谱系，不需要预标注
+   - status: 已完成（445号谱系已结算此主题——边路径编码自然涌现，无需预标注）
+   - [covered: v262-swarm, consumed — 445号谱系结算确认]
+   - 四分法: 定理（445号已结算）
 3. 基础设施清单不变：S_net 入图、三条回流管道、SUBLATED 机制、概念层/物质层区分、ARTICULATE 触发条件
+   - status: 已完成（已有架构的枚举——不产生新行动）
+   - [covered: v262-swarm, consumed — 信息性推论，架构组件均已实装]
+   - 四分法: 定理（架构枚举，无新行动）
 
 ## 边界条件
 

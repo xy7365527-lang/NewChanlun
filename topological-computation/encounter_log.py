@@ -312,6 +312,8 @@ def inject_settlement_memory_node(
             for v in r_data.get("cycle_vertices", []):
                 referenced_vids.add(v)
 
+        # 类型约束：memory: 前缀顶点是 settlement 产物，不参与引用连接
+        referenced_vids = {v for v in referenced_vids if not v.startswith("memory:")}
         for ref_vid in sorted(referenced_vids):
             if graph.vertex(ref_vid) is not None:
                 new_edges.append(Edge(
