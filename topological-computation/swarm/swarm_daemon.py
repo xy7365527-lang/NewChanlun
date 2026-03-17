@@ -213,12 +213,19 @@ class SwarmDaemon(TopologicalDaemon):
             if self._logger:
                 self._logger.info(f"Restored: step={self.total_steps}, settled={len(self.settlement.settled_cycles)}")
 
-        # Shared layer — IPFS backend（不降级到本地）
-        self.shared = SharedLayer(ipfs_client)
-        self.syncer = CrossInstanceSync(self.shared, instance_id, self)
-
-        # Initialize known blocks with whatever is already on disk
-        self.syncer.known_blocks = self.shared.all_block_hashes()
+        # Shared layer — IPFS backend（IPFS 不可用时降级）
+        self.shared = None
+        self.syncer = None
+        if ipfs_client is not None:
+            try:
+                self.shared = SharedLayer(ipfs_client)
+                self.syncer = CrossInstanceSync(self.shared, instance_id, self)
+                self.syncer.known_blocks = self.shared.all_block_hashes()
+            except (TimeoutError, OSError, Exception) as e:
+                if self._logger:
+                    self._logger.warning(f"SharedLayer init failed ({e}), degrading to no shared layer")
+                self.shared = None
+                self.syncer = None
 
         # Track blocks written by this instance
         self._blocks_written: int = 0
@@ -252,7 +259,7 @@ class SwarmDaemon(TopologicalDaemon):
         self._write_traversal_position()
 
         # Cross-instance sync
-        if self.total_steps % self.sync_interval == 0:
+        if self.syncer is not None and self.total_steps % self.sync_interval == 0:
             self.syncer.sync()
 
     def _write_traversal_position(self, log=None) -> None:
@@ -262,7 +269,7 @@ class SwarmDaemon(TopologicalDaemon):
         or when a significant topolological event (fold/negate) occurs on this step.
         This prevents storage bloat from high-frequency traversal (Gemini v2 陷阱1).
         """
-        if not self.engine:
+        if not self.engine or self.shared is None:
             return
 
         current_position = self.engine.position
@@ -301,6 +308,8 @@ class SwarmDaemon(TopologicalDaemon):
 
     def _write_event_block(self) -> None:
         """Write current graph snapshot as a content-addressed block."""
+        if self.shared is None:
+            return
         # Only write if there was a significant event on this step
         if not self.engine or not self.engine.logs:
             return
@@ -349,8 +358,8 @@ class SwarmDaemon(TopologicalDaemon):
         base = self.status()
         base["instance_id"] = self.instance_id
         base["blocks_written"] = self._blocks_written
-        base["blocks_injected"] = self.syncer.injected_count
-        base["known_blocks"] = len(self.syncer.known_blocks)
+        base["blocks_injected"] = self.syncer.injected_count if self.syncer else 0
+        base["known_blocks"] = len(self.syncer.known_blocks) if self.syncer else 0
         base["peer_positions"] = dict(self.peer_positions)
         if self._ipfs_uploader:
             base["ipfs_uploaded"] = self._ipfs_uploader.uploaded_count
@@ -484,7 +493,8 @@ def _run_once(args, parent_dir: str, logger: logging.Logger) -> dict:
         )
 
         # start_multiprocess_daemon blocks forever, cleanup on return
-        ipfs_uploader.stop()
+        if ipfs_uploader:
+            ipfs_uploader.stop()
         _remove_pid(pid_path)
         return {"mode": "multiproc", "instance_id": args.instance_id}
 
@@ -550,7 +560,8 @@ def _run_once(args, parent_dir: str, logger: logging.Logger) -> dict:
             f.write(json.dumps(status, indent=2, ensure_ascii=False) + "\n")
 
     # Cleanup
-    ipfs_uploader.stop()
+    if ipfs_uploader:
+        ipfs_uploader.stop()
     if http_server:
         http_server.shutdown()
     daemon.close()
