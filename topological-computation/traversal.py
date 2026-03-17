@@ -1464,6 +1464,28 @@ class TraversalEngine:
                 )
                 return
 
+    def _escape_memory_domain(self) -> bool:
+        """If current position is a memory: vertex, jump to a concept-layer vertex.
+
+        This is the last line of defense: no matter how the position was set
+        (restore, residue escape, fold result, etc.), if we find ourselves in
+        the memory domain, immediately relocate to the least-visited concept
+        vertex.  Returns True if escape happened.
+        """
+        if not self.position.startswith("memory:"):
+            return False
+        active = self.k_active._active_ids
+        concept = {v for v in active if not v.startswith("memory:")}
+        if not concept:
+            return False  # degenerate: no concept vertices at all
+        visit_counts: dict[str, int] = {}
+        for h in self.visit_history:
+            visit_counts[h] = visit_counts.get(h, 0) + 1
+        target = min(concept, key=lambda v: (visit_counts.get(v, 0), v))
+        self.position = target
+        self.visit_history.append(self.position)
+        return True
+
     def walk(self) -> None:
         """Move to an adjacent vertex. Prefer critical edges, then unvisited, then random.
 
@@ -1471,6 +1493,11 @@ class TraversalEngine:
         Domain awareness: if last 5 steps all in code domain, prefer core/text neighbors.
         S_net coupling: resonating candidates get preference within same priority tier (pull, not override).
         """
+        # 类型约束：穿越不应在 memory 域内。如果在，立刻逃离。
+        if self._escape_memory_domain():
+            self._nothing_streak = 0
+            return
+
         if self._nothing_streak >= self._nothing_threshold:
             # Jump to least-visited active vertex to escape local trap
             active = self.k_active._active_ids

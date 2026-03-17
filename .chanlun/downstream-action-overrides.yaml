@@ -489,3 +489,7 @@
 444-1: resolved    # concept_creation_suggestion 机制已在 Python 代码中不存在——命名从 ARTICULATE 结构必然产出，外部"建议"机制已淘汰
 444-2: resolved    # 边路径编码研究谱系——445号谱系已结算此主题（路径自然呈现研究谱系，不需预标注）
 444-3: resolved    # 基础设施清单——已有架构的枚举（S_net入图/回流管道/SUBLATED/双层/ARTICULATE），不产生新行动
+
+# === 480号 — memory 泄漏四路径堵漏 ===
+480-1: resolved    # 确认性声明——478号类型约束现在完整覆盖所有已知路径（478+480联合7处过滤）
+480-2: resolved    # 编码约定——新增 K_active 消费路径应检查 memory: 前缀过滤（防御性编程模式已在代码中实践）
