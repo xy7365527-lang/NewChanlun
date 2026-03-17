@@ -91,24 +91,6 @@
             "command": ".claude/hooks/ceremony-completion-guard.sh"
           }
         ]
-      },
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": ".claude/hooks/post-session-pattern-detect.sh"
-          }
-        ]
-      },
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": ".claude/hooks/meta-observer-guard.sh"
-          }
-        ]
       }
     ],
     "PostToolUse": [
@@ -199,15 +181,6 @@
           {
             "type": "command",
             "command": ".claude/hooks/source-auditor-prompt.sh"
-          }
-        ]
-      },
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": ".claude/hooks/lead-audit.sh"
           }
         ]
       },

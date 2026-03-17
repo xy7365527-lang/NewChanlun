@@ -223,19 +223,33 @@ class PersistentKFull:
 
         # Deduplicate edges by key (Graph may contain duplicate edges from
         # append-only JSONL replay without dedup checks)
+        # 类型约束：memory: 前缀顶点是 settlement 产物，不写入 snapshot
+        _MEMORY_PREFIX = "memory:"
+        memory_vids: set[str] = set()
+        for vid in graph.vertices:
+            if vid.startswith(_MEMORY_PREFIX):
+                memory_vids.add(vid)
+
         seen_edges: set[tuple[str, str, str]] = set()
         unique_edges: list[Edge] = []
         for e in graph.edges:
+            if e.source in memory_vids or e.target in memory_vids:
+                continue
             key = (e.source, e.target, e.edge_type.value)
             if key not in seen_edges:
                 seen_edges.add(key)
                 unique_edges.append(e)
 
+        snapshot_vertices = {
+            vid: v for vid, v in graph.vertices.items()
+            if vid not in memory_vids
+        }
+
         header = {
             "type": "snapshot_header",
             "version": 1,
             "timestamp": time.time(),
-            "vertex_count": len(graph.vertices),
+            "vertex_count": len(snapshot_vertices),
             "edge_count": len(unique_edges),
         }
 
@@ -243,7 +257,7 @@ class PersistentKFull:
             f.write(json.dumps(header, ensure_ascii=False) + "\n")
             count += 1
 
-            for v in graph.vertices.values():
+            for v in snapshot_vertices.values():
                 record = {
                     "type": "vertex",
                     "id": v.id,
