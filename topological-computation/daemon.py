@@ -432,17 +432,26 @@ class TopologicalDaemon:
             from swarm.cross_instance import CrossInstanceSync
             ipfs = IPFSClient()
             if ipfs.is_available():
-                self._shared_layer = SharedLayer(ipfs)
-                self._cross_instance_sync = CrossInstanceSync(
-                    shared_layer=self._shared_layer,
-                    instance_id=self._instance_id,
-                    daemon=self,
-                )
-                print(
-                    f"Plan C: SharedLayer IPFS backend enabled "
-                    f"(api={ipfs.api_url})",
-                    file=sys.stderr,
-                )
+                try:
+                    self._shared_layer = SharedLayer(ipfs)
+                    self._cross_instance_sync = CrossInstanceSync(
+                        shared_layer=self._shared_layer,
+                        instance_id=self._instance_id,
+                        daemon=self,
+                    )
+                    print(
+                        f"Plan C: SharedLayer IPFS backend enabled "
+                        f"(api={ipfs.api_url})",
+                        file=sys.stderr,
+                    )
+                except (TimeoutError, OSError, Exception) as e:
+                    self._shared_layer = None
+                    self._cross_instance_sync = None
+                    print(
+                        f"Plan C: SharedLayer init failed ({e}), "
+                        f"degrading to no shared layer",
+                        file=sys.stderr,
+                    )
             elif require_chain:
                 raise RuntimeError(
                     "IPFS daemon 不可用 — SharedLayer 未启用。"
