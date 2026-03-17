@@ -402,16 +402,19 @@ def _run_once(args, parent_dir: str, logger: logging.Logger) -> dict:
         logger.warning(f"Daemon already running (PID {existing_pid}), proceeding anyway")
     _write_pid(pid_path)
 
-    # IPFS client — SharedLayer 的唯一后端
+    # IPFS client — SharedLayer 的唯一后端（IPFS 不可用时降级运行）
     ipfs_client = IPFSClient()
     if not ipfs_client.is_available():
-        logger.error("IPFS daemon 不可用。SharedLayer 要求 IPFS 在线。")
-        raise RuntimeError("IPFS daemon 不可用 — SwarmDaemon 拒绝启动")
-    logger.info(f"IPFS daemon 在线 (api={ipfs_client.api_url})")
+        logger.warning("IPFS daemon 不可用。降级为无 SharedLayer 模式运行。")
+        ipfs_client = None
+    else:
+        logger.info(f"IPFS daemon 在线 (api={ipfs_client.api_url})")
 
     # IPFS uploader（后台上传线程，用于非 SharedLayer 的额外上传）
-    ipfs_uploader = IPFSUploader(logger)
-    ipfs_uploader.start()
+    ipfs_uploader = None
+    if ipfs_client is not None:
+        ipfs_uploader = IPFSUploader(logger)
+        ipfs_uploader.start()
 
     # Persistence path — each instance gets its own file to avoid conflicts
     persist_path = None
