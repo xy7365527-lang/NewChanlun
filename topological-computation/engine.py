@@ -1136,30 +1136,36 @@ class SettlementTracker:
                 })
 
         # Type 4: boundary_edge — edges with one end inside, one end outside
+        # 类型约束：settlement 只结算 concept 层的边，不结算自己产出的 memory 层顶点。
+        # memory: 前缀顶点是 settlement 的产物，不是 settlement 的对象——产物不能回流为输入。
+        # 不过滤会导致正反馈循环：residue→REFERENCE边→boundary_edge→更多residue→超线性膨胀。
+        _MEMORY_PREFIX = "memory:"
         if graph is not None:
             for vid in cycle_vids:
                 for e in graph._adj_out.get(vid, ()):
                     if (e.source, e.target) not in cycle_edges and e.target not in cycle_vids:
-                        residue.append({
-                            "type": "boundary_edge",
-                            "data": {
-                                "internal_vertex": vid,
-                                "external_vertex": e.target,
-                                "edge_source": e.source,
-                                "edge_target": e.target,
-                            },
-                        })
+                        if not e.target.startswith(_MEMORY_PREFIX):
+                            residue.append({
+                                "type": "boundary_edge",
+                                "data": {
+                                    "internal_vertex": vid,
+                                    "external_vertex": e.target,
+                                    "edge_source": e.source,
+                                    "edge_target": e.target,
+                                },
+                            })
                 for e in graph._adj_in.get(vid, ()):
                     if (e.source, e.target) not in cycle_edges and e.source not in cycle_vids:
-                        residue.append({
-                            "type": "boundary_edge",
-                            "data": {
-                                "internal_vertex": vid,
-                                "external_vertex": e.source,
-                                "edge_source": e.source,
-                                "edge_target": e.target,
-                            },
-                        })
+                        if not e.source.startswith(_MEMORY_PREFIX):
+                            residue.append({
+                                "type": "boundary_edge",
+                                "data": {
+                                    "internal_vertex": vid,
+                                    "external_vertex": e.source,
+                                    "edge_source": e.source,
+                                    "edge_target": e.target,
+                                },
+                            })
 
         # Type 3: expression_pressure — always produced
         residue.append({

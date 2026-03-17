@@ -623,10 +623,13 @@ class TraversalEngine:
                     )
 
         # 2. Compute f(pos, nb) for all active neighbors
+        # 类型约束：memory: 前缀顶点不参与 encounter 检测（settlement 产物不是操作对象）
         neighbors = self.k_active.neighbor_set(pos)
         f_scores: list[tuple[str, int]] = []
         for nb in neighbors:
             if nb == pos or nb not in active:
+                continue
+            if nb.startswith("memory:"):
                 continue
             f_val = self._compute_f(pos, nb)
             f_scores.append((nb, f_val))
@@ -1358,6 +1361,8 @@ class TraversalEngine:
         if self._nothing_streak >= self._nothing_threshold:
             # Jump to least-visited active vertex to escape local trap
             active = self.k_active._active_ids
+            # 类型约束：memory: 前缀顶点不参与穿越
+            active = {v for v in active if not v.startswith("memory:")}
             # Count visits efficiently using Counter over history
             visit_counts = {}
             for h in self.visit_history:
@@ -1373,6 +1378,9 @@ class TraversalEngine:
                 return
 
         neighbors = self.k_active.neighbor_set(self.position)
+        # 类型约束：memory: 前缀顶点是 settlement 产物，不是穿越对象。
+        # 不过滤会导致穿越陷入记忆碎片（正反馈循环的下游症状）。
+        neighbors = {n for n in neighbors if not n.startswith("memory:")}
         if not neighbors:
             return  # stuck (should not happen in connected graph)
 
