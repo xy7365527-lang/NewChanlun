@@ -152,6 +152,7 @@ class TraversalEngine:
         # 434号: 轨迹簇记录 — thinking 循环的多路径穿越结构
         self._trajectory_cluster = TrajectoryCluster()
         self._trajectory_cluster.begin_path(start, 0)
+        self._step_new_vertices: set[str] = set()  # 本步新增顶点，收缩相位消费
 
     def _invalidate_attempted_folds(self, affected_vertices: set[str]) -> None:
         """Remove attempted-fold entries involving any of the affected vertices.
@@ -171,79 +172,101 @@ class TraversalEngine:
 
     _MAX_COLLAPSE_PER_STEP = 3  # cap per-step contraction to prevent over-collapse
 
-    def _contract_free_edges(self) -> int:
-        """Contraction phase: collapse non-critical free-edge endpoints.
+    def _contract(self) -> int:
+        """收缩相位：collapse 本步新增的 non-critical 顶点。
 
-        For each tree neighbor of the current position whose out-degree in
-        k_active is exactly 1 and which is not a critical vertex (i.e. not
-        involved in any critical edge), fold it back into its sole neighbor.
-
-        Skips vertices inside settled cycles (lockzone protection) and
-        memory: prefixed vertices (type constraint).
+        只收缩 _step_new_vertices 中的顶点（本步膨胀产生的），
+        不触碰本步之前就存在的顶点。
 
         Returns the number of collapsed vertices.
         """
-        pos = self.position
-        terrain = self.terrain
-        tn = tree_neighbors(self.k_active, pos, terrain)
-        if not tn:
+        if not self._step_new_vertices:
             return 0
 
-        # Collect settled vertex set for lockzone check
-        settled_vids: set[str] = set()
-        for sc in self.settlement.settled_cycles:
-            if sc.status != "active":
-                continue
-            for src, tgt in sc.edges:
-                settled_vids.add(src)
-                settled_vids.add(tgt)
+        terrain = compute_terrain(self.k_active)
 
-        collapsed = 0
-        for nb in tn:
-            if collapsed >= self._MAX_COLLAPSE_PER_STEP:
-                break
-            # Skip settled vertices
-            if nb in settled_vids:
+        collapsible = []
+        for vid in self._step_new_vertices:
+            if vid == self.position:
                 continue
-            # Skip memory: prefixed vertices (type constraint)
-            if nb.startswith("memory:"):
+            if vid.startswith("memory:"):
                 continue
-            # Skip current position itself
-            if nb == pos:
+            if vid not in self.k_active._active_ids:
                 continue
-            # Check out-degree in k_active: only collapse degree-1 (leaf on tree)
-            out_edges = [
-                e for e in self.k_active._adj_out.get(nb, ())
-                if e.target in self.k_active._active_ids and e.target != nb
-            ]
-            in_edges = [
-                e for e in self.k_active._adj_in.get(nb, ())
-                if e.source in self.k_active._active_ids and e.source != nb
-            ]
-            total_degree = len(out_edges) + len(in_edges)
-            if total_degree != 1:
-                continue
-            # Verify not critical: no critical edges touch this vertex
+            # critical = 至少有一条 critical 边
             has_critical = any(
-                terrain.get((nb, e.target)) == "critical"
-                for e in self.k_active._adj_out.get(nb, ())
+                terrain.get((vid, e.target)) == "critical"
+                for e in self.k_active._adj_out.get(vid, ())
                 if e.target in self.k_active._active_ids
             ) or any(
-                terrain.get((e.source, nb)) == "critical"
-                for e in self.k_active._adj_in.get(nb, ())
+                terrain.get((e.source, vid)) == "critical"
+                for e in self.k_active._adj_in.get(vid, ())
                 if e.source in self.k_active._active_ids
             )
             if has_critical:
                 continue
-            # Determine fold target: the sole connected vertex
-            sole_neighbor = (
-                out_edges[0].target if out_edges else in_edges[0].source
-            )
-            # Execute fold: merge nb into sole_neighbor
-            result = fold(
-                self.k_active, [sole_neighbor, nb],
-                self.step, self.settlement,
-            )
+            collapsible.append(vid)
+
+        collapsed = 0
+        for vid in collapsible:
+            if collapsed >= self._MAX_COLLAPSE_PER_STEP:
+                break
+            # 找邻居作为 absorber（优先 critical 邻居）
+            absorber = None
+            fallback = None
+            for e in self.k_active._adj_out.get(vid, ()):
+                nb = e.target
+                if nb not in self.k_active._active_ids or nb == vid:
+                    continue
+                nb_critical = any(
+                    terrain.get((nb, e2.target)) == "critical"
+                    for e2 in self.k_active._adj_out.get(nb, ())
+                    if e2.target in self.k_active._active_ids
+                ) or any(
+                    terrain.get((e2.source, nb)) == "critical"
+                    for e2 in self.k_active._adj_in.get(nb, ())
+                    if e2.source in self.k_active._active_ids
+                )
+                if nb_critical:
+                    absorber = nb
+                    break
+                if fallback is None:
+                    fallback = nb
+            if absorber is None:
+                for e in self.k_active._adj_in.get(vid, ()):
+                    nb = e.source
+                    if nb not in self.k_active._active_ids or nb == vid:
+                        continue
+                    nb_critical = any(
+                        terrain.get((nb, e2.target)) == "critical"
+                        for e2 in self.k_active._adj_out.get(nb, ())
+                        if e2.target in self.k_active._active_ids
+                    ) or any(
+                        terrain.get((e2.source, nb)) == "critical"
+                        for e2 in self.k_active._adj_in.get(nb, ())
+                        if e2.source in self.k_active._active_ids
+                    )
+                    if nb_critical:
+                        absorber = nb
+                        break
+                    if fallback is None:
+                        fallback = nb
+            if absorber is None:
+                absorber = fallback
+            if absorber is None:
+                continue
+
+            # 保存谱系到 absorber 的 collapse_history
+            v = self.k_active.vertex(vid)
+            collapse_meta = {
+                "collapsed_id": vid,
+                "created_at": v.created_at if v else None,
+                "content": v.content if v else None,
+                "step": self.step,
+            }
+
+            # 执行 fold（复用已有的 fold 函数）
+            result = fold(self.k_active, [absorber, vid], self.step, self.settlement)
             if not result.blocked:
                 self.k_active = result.graph
                 # Update k_full with the fold edge
@@ -252,8 +275,18 @@ class TraversalEngine:
                         e.source, e.target, e.edge_type
                     ):
                         self.k_full = self.k_full.add_edge(e)
+                # 记录 collapse_history（通过 vertex metadata）
+                absorber_v = self.k_active.vertex(absorber)
+                if absorber_v:
+                    existing_history = getattr(absorber_v, "collapse_history", None) or []
+                    new_history = [*existing_history, collapse_meta]
+                    # Vertex is frozen dataclass — store via graph metadata
+                    if not hasattr(self.k_active, "_collapse_history"):
+                        self.k_active._collapse_history = {}
+                    self.k_active._collapse_history[absorber] = new_history
                 collapsed += 1
 
+        self._step_new_vertices.clear()
         return collapsed
 
     # -- f(v,w) terrain annotation (not a filter, not a trigger) ---------------
@@ -860,6 +893,7 @@ class TraversalEngine:
 
             # Creation = arrival
             self.position = result.new_vertex
+            self._step_new_vertices.add(result.new_vertex)
 
             # Remove from pending
             self._pending_negations = [
@@ -928,6 +962,7 @@ class TraversalEngine:
             # Creation = arrival
             if result.new_vertex:
                 self.position = result.new_vertex
+                self._step_new_vertices.add(result.new_vertex)
                 self._pending_negations.append((enc.target_a, result.new_vertex))
             if result.new_cycle_edges:
                 self.settlement.register_new_cycle(result.new_cycle_edges, self.step)
@@ -1599,6 +1634,7 @@ class TraversalEngine:
         self.step += 1
         self._last_resonance = False
         self._last_articulation = None
+        self._step_new_vertices.clear()  # 每步开始时重置
         explored = False
         prev_position = self.position  # 425号: record for TRAVERSAL_ASSOCIATION
 
@@ -1812,6 +1848,7 @@ class TraversalEngine:
                     )
                     self.k_active = self.k_active.add_edge(new_edge)
                     self.k_full = self.k_full.add_edge(new_edge)
+                    self._step_new_vertices.add(bridge_vid)
                     # Update _sig_to_concepts mapping for consistency
                     self._snet_activation._sig_to_concepts.setdefault(orphan_sig, []).append(bridge_vid)
                     consumed.append(idx)
@@ -1856,12 +1893,8 @@ class TraversalEngine:
                     for i, s in enumerate(self._snet_activation.edge_suggestions)
                 ]
 
-        # Contraction phase: Morse free-face collapse after expansion
-        # Only triggers when beta_1 increased (new topological output)
-        beta_mid = compute_beta_1(self.k_active)
-        contracted = 0
-        if beta_mid > beta_before:
-            contracted = self._contract_free_edges()
+        # Contraction phase: collapse 本步新增的 non-critical 顶点
+        contracted = self._contract()
 
         # Update terrain after any graph change
         self.terrain = compute_terrain(self.k_active)

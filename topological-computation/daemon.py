@@ -51,9 +51,6 @@ from block_topology_persistence import (
 from encounter_log import (
     EncounterLog,
     MEMORY_DOMAIN_PREFIX,
-    inject_settlement_memory_node,
-    inject_settlement_nachtraeglichkeit_edge,
-    rebuild_memory_from_jsonl,
 )
 from cross_domain import detect_cross_domain_edges, _source_prefix
 from traversal_checkpoint import TraversalCheckpoint, extract_daemon_state, restore_daemon_state
@@ -488,23 +485,8 @@ class TopologicalDaemon:
                 print(f"415号: {sublated} ghost settlements marked SUBLATED "
                       f"({active_count} active remain)", file=sys.stderr)
 
-        # Rebuild memory nodes from JSONL (crash recovery)
-        # 401号后只重建 settlement + residue memory 节点（不再重建 encounter）
-        settlement_path = str(self._checkpoint._settlement_path) if hasattr(self._checkpoint, '_settlement_path') else None
-        pre_memory_vids = len(self.k_active.active_vertex_ids())
-        self.k_active = rebuild_memory_from_jsonl(
-            self.k_active,
-            encounter_log_path=str(self.encounter_log._path),
-            settlement_history_path=settlement_path,
-        )
-        self.k_full = rebuild_memory_from_jsonl(
-            self.k_full,
-            encounter_log_path=str(self.encounter_log._path),
-            settlement_history_path=settlement_path,
-        )
-        memory_added = len(self.k_active.active_vertex_ids()) - pre_memory_vids
-        if memory_added > 0:
-            print(f"Memory rebuild: {memory_added} settlement/residue memory nodes from JSONL", file=sys.stderr)
+        # Memory node rebuild disabled: settlement records live in JSONL persistence layer,
+        # no longer injected into K_active/K_full (memory: vertices were 99% of K_active).
             # Re-sync engine if already initialized
             if self.engine is not None:
                 self.engine.k_active = self.k_active
@@ -1305,9 +1287,6 @@ class TopologicalDaemon:
                 vid: v.status for vid, v in self.k_active.vertices.items()
             }
 
-        # Track settlement count before step to detect new settlements
-        pre_settled_count = len(self.settlement.settled_cycles)
-
         log = self.engine.run_step()
 
         # Sync graph state from engine
@@ -1322,37 +1301,9 @@ class TopologicalDaemon:
         # S_net → block topology: write new co-occurrence edges as material layer blocks
         self._write_snet_cooccurrence_blocks()
 
-        # Inject settlement memory nodes for newly settled cycles
-        new_settled = self.settlement.settled_cycles[pre_settled_count:]
-        for sc in new_settled:
-            self.k_active = inject_settlement_memory_node(
-                self.k_active,
-                step=sc.settled_at_step,
-                cycle_edges=sc.edges,
-                residue=sc.residue,
-            )
-            self.k_full = inject_settlement_memory_node(
-                self.k_full,
-                step=sc.settled_at_step,
-                cycle_edges=sc.edges,
-                residue=sc.residue,
-            )
-            # Nachträglichkeit edges between settlements
-            if sc.residue:
-                for item in sc.residue:
-                    if item.get("type") == "nachtraeglichkeit":
-                        prior_step = item["data"].get("prior_settled_at")
-                        if prior_step is not None:
-                            self.k_active = inject_settlement_nachtraeglichkeit_edge(
-                                self.k_active, prior_step, sc.settled_at_step, log.step,
-                            )
-                            self.k_full = inject_settlement_nachtraeglichkeit_edge(
-                                self.k_full, prior_step, sc.settled_at_step, log.step,
-                            )
-        if new_settled:
-            # Sync back to engine after history node injection
-            self.engine.k_active = self.k_active
-            self.engine.k_full = self.k_full
+        # Settlement memory node injection disabled: settlement records live in JSONL
+        # persistence layer, no longer injected into K_active/K_full.
+        # Function definitions preserved in encounter_log.py for future contraction mechanism.
 
         # Proprioception: update system self-sensing vertices every 100 steps
         if self.total_steps % 100 == 0:
