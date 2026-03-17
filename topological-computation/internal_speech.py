@@ -673,6 +673,75 @@ def _fallback_response(daemon: TopologicalDaemon, user_text: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# externalize_from_history — 从 JSONL 历史记录构建拓扑描述
+# ---------------------------------------------------------------------------
+
+def externalize_from_history(step_records: dict, step_num: int) -> str:
+    """从 query_step() 返回的历史记录构建拓扑描述。纯结构层，无 LLM。
+
+    step_records: query_step() 的返回值（dict with operation, vertices, edges, etc.）
+    step_num: 查询的步数
+
+    返回纯拓扑描述字符串。
+    """
+    parts: list[str] = []
+
+    # operation 记录
+    op = step_records.get("operation")
+    if op:
+        op_name = op.get("operation", "unknown")
+        b1_before = op.get("beta_1_before", "?")
+        b1_after = op.get("beta_1_after", "?")
+        critical = op.get("critical", False)
+        line = f"步 {step_num}: {op_name}，β₁: {b1_before}→{b1_after}"
+        if critical:
+            line += " [CRITICAL]"
+        parts.append(line)
+
+    # vertex 记录
+    for v in step_records.get("vertices", []):
+        vid = v.get("id", "?")
+        content = v.get("content", "")
+        label = content if content else vid
+        parts.append(f"  顶点: {label}")
+
+    # edge 记录
+    for e in step_records.get("edges", []):
+        src = e.get("source", "?")
+        tgt = e.get("target", "?")
+        etype = e.get("edge_type", "?")
+        parts.append(f"  边: {src} →[{etype}]→ {tgt}")
+
+    # articulation 记录
+    for a in step_records.get("articulations", []):
+        src = a.get("source_vid", "?")
+        tgt = a.get("target_vid", "?")
+        score = a.get("score", 0)
+        parts.append(f"  能指接合: {src} ↔ {tgt} (score={score:.3f})")
+
+    # settlement 记录
+    for s in step_records.get("settlements", []):
+        edges = s.get("edges", [])
+        parts.append(f"  结算: {len(edges)} 条边")
+
+    # merge 记录
+    for m in step_records.get("merges", []):
+        keep = m.get("keep", "?")
+        remove = m.get("remove", "?")
+        parts.append(f"  合并: {remove} → {keep}")
+
+    # vertex_status_changes 记录
+    for vs in step_records.get("vertex_status_changes", []):
+        vid = vs.get("id", "?")
+        status = vs.get("status", "?")
+        parts.append(f"  状态变更: {vid} → {status}")
+
+    if not parts:
+        return f"步 {step_num} 无记录。"
+    return "\n".join(parts)
+
+
+# ---------------------------------------------------------------------------
 # has_pending_externalization — 主动外化触发检查
 # ---------------------------------------------------------------------------
 

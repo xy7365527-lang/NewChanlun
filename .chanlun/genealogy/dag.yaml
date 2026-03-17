@@ -2374,6 +2374,11 @@ nodes:
   status: 已结算
   type: 语法记录
   file: settled/474-operation-selection-naming-separation.md
+- id: '475'
+  title: T8 重新表述——背驰=条形码 Wasserstein-1 递减 + 三算子方案定位
+  status: 生成态
+  type: 概念发现
+  file: settled/475-t8-wasserstein-barcode-reformulation.md
 edges:
   depends_on:
   - from: '136'
@@ -4994,15 +4999,17 @@ edges:
     to: '370'
   - from: '474'
     to: '444'
-  - from: '474'
+  - from: '475'
     to: '197'
-  - from: '474'
+  - from: '475'
     to: '199'
-  - from: '474'
+  - from: '475'
     to: '208'
-  - from: '474'
+  - from: '475'
     to: '210'
-  - from: '474'
+  - from: '475'
+    to: '370'
+  - from: '475'
     to: '378'
   triggered:
   - from: '005'
@@ -6543,13 +6550,13 @@ edges:
     - '274'
   - between:
     - '209'
-    - '474'
+    - '475'
   - between:
     - '375'
-    - '474'
+    - '475'
   - between:
     - '231'
-    - '474'
+    - '475'
   tensions_with:
   - between:
     - '007'
