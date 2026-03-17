@@ -7,7 +7,7 @@ status: 已结算
 date: 2026-03-17
 source: "[新缠论] v261-swarm——P0 正反馈循环修复（启动时 + 持久化层）"
 depends_on:
-  - '478'   # settlement 产物类型约束（运行时层）
+  - '480'   # settlement 产物类型约束完整覆盖（480=478扩展，redirect from 478）
   - '401'   # 脚印不是宝藏——轨迹与产物的范畴区分
   - '476'   # JSONL append-only 与长期运行不兼容
 epistemological_level: L0
@@ -50,14 +50,16 @@ tensions_with: []
 | daemon.py | L467-468 | 调用 `_purge_memory_nodes(self.k_active)` 和 `_purge_memory_nodes(self.k_full)` | K_active 和 K_full 同步清理 |
 | persistence.py | L226-246 | `dump_snapshot()` 跳过 memory: 前缀顶点和关联边 | 防止 memory 节点通过 snapshot 持久化后在重启时复活 |
 
-## 与 478号的分工
+## 与 478/480号的分工
 
 | 层级 | 谱系 | 文件 | 职责 |
 |------|------|------|------|
-| 运行时层 | 478号 | engine.py, traversal.py | 阻断正反馈循环源头——settlement/encounter/穿越跳过 memory: 顶点 |
+| 运行时层（3处） | 478号 | engine.py, traversal.py | 阻断正反馈循环源头——settlement/encounter/穿越跳过 memory: 顶点 |
+| 运行时层（4处补全） | 480号 | engine.py, traversal.py, encounter_log.py, daemon.py | 478号遗漏路径堵漏 |
 | 启动时 + 持久化层 | 479号（本号） | daemon.py, persistence.py | 清除历史遗留 + 防止 snapshot 复活 |
 
-478号是免疫机制（防止新感染），479号是清创手术（清除已有感染 + 防止复发）。
+478+480号是免疫机制（防止新感染，7路径完整覆盖），479号是清创手术（清除已有感染 + 防止复发）。
+本号 depends_on 从 478 redirect 至 480（480 是 478 的严格超集，传递依赖保留 478）。
 
 ## 边界条件
 
@@ -76,6 +78,6 @@ tensions_with: []
 ## 谱系关联
 
 related_records:
-  parent: '478'   # 类型约束（运行时层）——本号是其启动时/持久化层的对应
+  parent: '480'   # 类型约束完整覆盖（480=478超集）——本号是其启动时/持久化层的对应
   siblings: ['401', '476']   # 401号的扩展 + 476号的止血
   children: []
