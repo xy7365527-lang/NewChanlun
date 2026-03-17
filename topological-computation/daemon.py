@@ -76,34 +76,35 @@ from proprioception import (
 # 401号: encounter memory node 清除 — "脚印不是宝藏"
 # ---------------------------------------------------------------------------
 
-def _purge_encounter_memory_nodes(graph: Graph) -> Graph:
-    """Remove encounter memory nodes from K_active/K_full.
+def _purge_memory_nodes(graph: Graph) -> Graph:
+    """Remove ALL memory: prefix nodes from K_active/K_full.
 
-    Keeps: settlement (memory:settlement:*) and residue (memory:residue:*) nodes.
-    Removes: encounter (memory:encounter:*) nodes and their edges.
+    类型约束（P0 修复的启动时清理）：memory: 前缀顶点是 settlement 的产物，
+    不是 settlement 的对象。产物不能回流为输入。历史遗留的 8.5M memory 顶点
+    （正反馈循环的病理产物）在此一次性清除。
 
-    Returns a new Graph without encounter memory nodes.
+    Returns a new Graph without any memory: prefix nodes.
     """
-    encounter_vids: set[str] = set()
+    _PREFIX = "memory:"
+    memory_vids: set[str] = set()
     for vid in graph.vertices:
-        if vid.startswith("memory:encounter:"):
-            encounter_vids.add(vid)
+        if vid.startswith(_PREFIX):
+            memory_vids.add(vid)
 
-    if not encounter_vids:
+    if not memory_vids:
         return graph
 
-    # Build new graph excluding encounter memory nodes and their edges
     keep_vertices = {
         vid: v for vid, v in graph.vertices.items()
-        if vid not in encounter_vids
+        if vid not in memory_vids
     }
     keep_edges = [
         e for e in graph.edges
-        if e.source not in encounter_vids and e.target not in encounter_vids
+        if e.source not in memory_vids and e.target not in memory_vids
     ]
     purged = Graph(vertices=keep_vertices, edges=keep_edges)
     print(
-        f"401号 purge: removed {len(encounter_vids)} encounter memory nodes "
+        f"P0 purge: removed {len(memory_vids)} memory nodes "
         f"({len(graph.edges) - len(keep_edges)} edges)",
         file=sys.stderr,
     )
@@ -463,8 +464,8 @@ class TopologicalDaemon:
 
         # 401号修复：清除已有的 encounter memory 节点（脚印不是宝藏）
         # 保留 settlement 和 residue memory 节点，移除 encounter 类型
-        self.k_active = _purge_encounter_memory_nodes(self.k_active)
-        self.k_full = _purge_encounter_memory_nodes(self.k_full)
+        self.k_active = _purge_memory_nodes(self.k_active)
+        self.k_full = _purge_memory_nodes(self.k_full)
 
         # 401号/415号: 幽灵 settlement 标记为 SUBLATED（不再删除）
         if self.settlement.settled_cycles:
