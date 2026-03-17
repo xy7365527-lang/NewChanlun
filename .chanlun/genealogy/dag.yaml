@@ -2379,6 +2379,16 @@ nodes:
   status: 生成态
   type: 概念发现
   file: settled/475-t8-wasserstein-barcode-reformulation.md
+- id: '476'
+  title: JSONL append-only 持久化与 daemon 长期运行不兼容——快照+增量架构需求
+  status: 已结算
+  type: domain
+  file: settled/476-jsonl-append-only-incompatible-long-running.md
+- id: '477'
+  title: 473/474/475号下游推论批量消化——22条四分法处置
+  status: 已结算
+  type: 消化记录
+  file: settled/477-downstream-consume-473-474-475.md
 edges:
   depends_on:
   - from: '136'
@@ -5011,6 +5021,22 @@ edges:
     to: '370'
   - from: '475'
     to: '378'
+  - from: '476'
+    to: '423'
+  - from: '476'
+    to: '424'
+  - from: '476'
+    to: '401'
+  - from: '476'
+    to: '178'
+  - from: '476'
+    to: '347'
+  - from: '477'
+    to: '473'
+  - from: '477'
+    to: '474'
+  - from: '477'
+    to: '475'
   triggered:
   - from: '005'
     to: 005a
@@ -6645,6 +6671,9 @@ edges:
   - between:
     - '438'
     - 实装审计待定
+  - between:
+    - '178'
+    - '476'
   negated_by:
   - target: '032'
     by: 088

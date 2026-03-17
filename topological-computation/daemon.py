@@ -263,9 +263,13 @@ class TopologicalDaemon:
     ) -> None:
         # Persistence: block topology is primary, jsonl is backup
         self._persist: BlockTopologyWriter | None = None
+        self._persist_path: Path | None = None
         recovered_graph: Graph | None = None
 
         if persist_path is not None:
+            jsonl_p = Path(persist_path)
+            snapshot_p = PersistentKFull.snapshot_path_for(jsonl_p)
+
             # Primary: load from block topology
             bt_graph, _ = load_graph_from_block_topology(DAEMON_BT_BASE)
             bt_vids = bt_graph.active_vertex_ids()
@@ -273,8 +277,20 @@ class TopologicalDaemon:
             if bt_vids:
                 recovered_graph = bt_graph
                 print(f"Block topology: loaded {len(bt_vids)} active vertices", file=sys.stderr)
+            elif snapshot_p.exists():
+                # Snapshot + incremental replay (fast path)
+                snap_graph, _ = PersistentKFull.load_snapshot_then_incremental(
+                    snapshot_p, jsonl_p,
+                )
+                snap_vids = snap_graph.active_vertex_ids()
+                if snap_vids:
+                    recovered_graph = snap_graph
+                    print(
+                        f"Snapshot recovery: {len(snap_vids)} active vertices",
+                        file=sys.stderr,
+                    )
             else:
-                # Fallback: load from jsonl backup
+                # Fallback: full JSONL replay (slow path for legacy data)
                 jsonl_graph, _ = PersistentKFull.load(persist_path)
                 jsonl_vids = jsonl_graph.active_vertex_ids()
                 if jsonl_vids:
@@ -299,6 +315,7 @@ class TopologicalDaemon:
                     graph = recovered_graph
 
             # BlockTopologyWriter — JSONL append-only (456号裁定)
+            self._persist_path = Path(persist_path)
             self._persist = BlockTopologyWriter(
                 bt_base=DAEMON_BT_BASE,
                 jsonl_backup_path=Path(persist_path),
@@ -1992,10 +2009,34 @@ class TopologicalDaemon:
         )
 
     def close(self):
-        """Close persistence handle if open."""
+        """Close persistence handle. Dump snapshot + truncate JSONL if persisting."""
         if hasattr(self, '_checkpoint'):
             self._checkpoint.save_state(extract_daemon_state(self))
             self._checkpoint.close()
+        # Snapshot: dump current k_full state, then truncate incremental JSONL
+        if self._persist_path is not None:
+            snapshot_p = PersistentKFull.snapshot_path_for(self._persist_path)
+            try:
+                count = PersistentKFull.dump_snapshot(self.k_full, snapshot_p)
+                print(
+                    f"Snapshot dumped: {count} records to {snapshot_p}",
+                    file=sys.stderr,
+                )
+                # Close JSONL handle before truncating
+                if self._persist:
+                    self._persist.close()
+                # Truncate incremental JSONL — snapshot has the full state
+                self._persist_path.write_text("", encoding="utf-8")
+                print(
+                    f"JSONL truncated: {self._persist_path}",
+                    file=sys.stderr,
+                )
+                self._persist = None  # already closed
+            except Exception as e:
+                print(
+                    f"Snapshot dump failed: {e} — JSONL preserved",
+                    file=sys.stderr,
+                )
         if self._persist:
             self._persist.close()
         if hasattr(self, '_snet_persistence') and self._snet_persistence is not None:
