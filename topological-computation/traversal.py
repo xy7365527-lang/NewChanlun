@@ -102,6 +102,7 @@ class StepLog:
     resonance: bool = False  # S_net 耦合振荡：chosen candidate was in resonating set
     exploration: bool = False  # exploration move: jumped to under-explored vertex
     critical: bool | None = None  # 473号: Morse 命名门槛——None=无新顶点, True=D≠0, False=D=0
+    fixpoint_reached: bool = False  # 434号-2: 汇聚结构不动点——C(n) ≅ C(n-1) 持续达阈值
 
 
 class TraversalEngine:
@@ -1256,6 +1257,9 @@ class TraversalEngine:
                 return enc, 1.0, {"imbalance_type": "A_dense_B_sparse"}
 
         # --- B密A疏: paradigmatic edge exists but no COOCCURRENCE edge ---
+        # 439号-3: 两种子情况——
+        #   (a) 有概念边 + 无共现 → 质疑（概念关联缺乏物质层支撑，可能 negate）
+        #   (b) 无概念边 + 无共现 → ARTICULATE（S_net 认为有关联，涌现为概念层）
         if current_sig:
             for pe in snet.paradigmatic_alternatives(current_sig):
                 target_sig = pe.target
@@ -1263,20 +1267,6 @@ class TraversalEngine:
                 target_concepts = self._snet_activation._sig_to_concepts.get(target_sig, [])
                 for tgt_cid in target_concepts:
                     if tgt_cid == current or tgt_cid not in active_vids:
-                        continue
-
-                    # Check concept layer via adjacency index: O(deg) instead of O(E)
-                    has_concept_edge = False
-                    for ce in self.k_active._adj_out.get(current, ()):
-                        if ce.target == tgt_cid and ce.edge_type in CONCEPT_EDGE_TYPES:
-                            has_concept_edge = True
-                            break
-                    if not has_concept_edge:
-                        for ce in self.k_active._adj_in.get(current, ()):
-                            if ce.source == tgt_cid and ce.edge_type in CONCEPT_EDGE_TYPES:
-                                has_concept_edge = True
-                                break
-                    if has_concept_edge:
                         continue
 
                     # Check Layer A via adjacency index: O(deg) instead of O(E)
@@ -1293,7 +1283,39 @@ class TraversalEngine:
                     if has_cooccurrence:
                         continue
 
-                    # B密A疏: paradigmatic exists, no cooccurrence, no concept edge
+                    # Check concept layer via adjacency index: O(deg) instead of O(E)
+                    has_concept_edge = False
+                    concept_edge_ref = None  # 记录被质疑的概念边
+                    for ce in self.k_active._adj_out.get(current, ()):
+                        if ce.target == tgt_cid and ce.edge_type in CONCEPT_EDGE_TYPES:
+                            has_concept_edge = True
+                            concept_edge_ref = ce
+                            break
+                    if not has_concept_edge:
+                        for ce in self.k_active._adj_in.get(current, ()):
+                            if ce.source == tgt_cid and ce.edge_type in CONCEPT_EDGE_TYPES:
+                                has_concept_edge = True
+                                concept_edge_ref = ce
+                                break
+
+                    if has_concept_edge:
+                        # 439号-3 (a): B密A疏 + 有概念边 → 质疑（negate）
+                        # 概念层声称有关联，但物质层（共现）不支持 → 质疑
+                        enc = Encounter(
+                            encounter_type=EncounterType.NEGATE_A,
+                            target_a=current,
+                            target_b=tgt_cid,
+                            reason=(
+                                f"challenge[B密A疏]: paradigmatic edge between "
+                                f"{current_sig} and {target_sig} in S_net, "
+                                f"concept edge ({concept_edge_ref.edge_type.value}) exists "
+                                f"between {current} and {tgt_cid}, "
+                                f"but no cooccurrence support in K_active"
+                            ),
+                        )
+                        return enc, 1.0, {"imbalance_type": "B_dense_A_sparse_challenge"}
+
+                    # 439号-3 (b): B密A疏 + 无概念边 → ARTICULATE（涌现）
                     enc = Encounter(
                         encounter_type=EncounterType.ARTICULATE,
                         target_a=current,
@@ -1535,23 +1557,49 @@ class TraversalEngine:
             # 451号-2: detect displacement (metonymic jump along material edges)
             self._detect_displacement(prev_position, self.position)
 
-        # 431号: check if topological inconsistency (A密B疏 / B密A疏) triggers ARTICULATE
+        # 431号/439号-3: check topological inconsistency (A密B疏 / B密A疏)
+        # A密B疏 → ARTICULATE（涌现）; B密A疏+有概念边 → negate（质疑）
         articulation_result = self._check_articulation_encounter()
         if articulation_result is not None:
             articulation_enc, articulation_score, articulation_meta = articulation_result
-            self._articulate(
-                articulation_enc.target_a,
-                articulation_enc.target_b,
-                articulation_score,
-            )
-            self._last_articulation = {
-                "source_vid": articulation_enc.target_a,
-                "target_vid": articulation_enc.target_b,
-                "score": articulation_score,
-                "step": self.step,
-                "imbalance_type": articulation_meta["imbalance_type"],
-                "reason": articulation_enc.reason,
-            }
+            imbalance_type = articulation_meta["imbalance_type"]
+
+            if imbalance_type == "B_dense_A_sparse_challenge":
+                # 439号-3: B密A疏质疑——概念边缺乏物质层支撑，negate
+                result = negate(
+                    self.k_active, articulation_enc.target_a,
+                    articulation_enc.target_b, self.step, self.settlement,
+                )
+                if not result.blocked:
+                    self.k_active = result.graph
+                    for e in result.graph.edges:
+                        if e.created_at == self.step and not self.k_full.has_edge_key(e.source, e.target, e.edge_type):
+                            self.k_full = self.k_full.add_edge(e)
+                    self._pending_negations.append((articulation_enc.target_a, articulation_enc.target_b))
+                    if result.new_cycle_edges:
+                        self.settlement.register_new_cycle(result.new_cycle_edges, self.step)
+                    self._invalidate_attempted_folds({articulation_enc.target_a, articulation_enc.target_b})
+                else:
+                    self.settlement.record_blocked(
+                        self.step, "negate",
+                        {"thesis": articulation_enc.target_a, "antithesis": articulation_enc.target_b},
+                        result.blocked_by,
+                    )
+            else:
+                # A密B疏 / B密A疏(无概念边) → ARTICULATE
+                self._articulate(
+                    articulation_enc.target_a,
+                    articulation_enc.target_b,
+                    articulation_score,
+                )
+                self._last_articulation = {
+                    "source_vid": articulation_enc.target_a,
+                    "target_vid": articulation_enc.target_b,
+                    "score": articulation_score,
+                    "step": self.step,
+                    "imbalance_type": imbalance_type,
+                    "reason": articulation_enc.reason,
+                }
 
         # -- cycle detection: intrinsic property of traversal -----------------
         # Every step checks if position has been visited before in recent history.
@@ -1731,6 +1779,7 @@ class TraversalEngine:
             resonance=self._last_resonance,
             exploration=explored,
             critical=critical_flag,
+            fixpoint_reached=fixpoint_reached,
         )
         self.logs.append(log)
 

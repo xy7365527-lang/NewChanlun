@@ -793,9 +793,7 @@ class SNetActivation:
             EdgeSuggestion.from_dict(s)
             for s in d.get("edge_suggestions", [])
         ]
-        # 向后兼容：旧 key "concept_creation_suggestions" 也识别
-        hints_raw = d.get("orphan_exploration_hints",
-                          d.get("concept_creation_suggestions", []))
+        hints_raw = d.get("orphan_exploration_hints", [])
         self.orphan_exploration_hints = [
             OrphanExplorationHint.from_dict(s)
             for s in hints_raw
