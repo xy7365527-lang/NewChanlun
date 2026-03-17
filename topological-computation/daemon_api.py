@@ -20,7 +20,8 @@ from engine import compute_beta_1, Edge, EdgeType, Vertex
 from psi_L_constraint import ConstraintSet
 from llm_integration import get_client as _get_llm_client, GenerationRecord, parse_signifier_chain
 from signifier_net import detect_ruptures, persist_rupture_log, writeback_from_text
-from internal_speech import externalize as _externalize_speech
+from internal_speech import externalize as _externalize_speech, externalize_from_history as _externalize_from_history
+from block_topology_persistence import query_step as _query_step
 
 def status_json(daemon: TopologicalDaemon) -> dict:
     """GET /status — current daemon state snapshot."""
@@ -1412,6 +1413,16 @@ def _check_operator_ruling(
     }
 
 
+def _route_input(text: str, max_step: int) -> tuple[str, int | None]:
+    """结构检测，不是意图识别。检测输入中是否包含可查询的步数标识符。"""
+    step_match = re.search(r'(\d+)\s*步|步\s*(\d+)|step\s*(\d+)|第\s*(\d+)\s*步', text, re.IGNORECASE)
+    if step_match:
+        n = int(next(g for g in step_match.groups() if g))
+        if 0 <= n <= max_step:
+            return ("history", n)
+    return ("current", None)
+
+
 def present_json(daemon: TopologicalDaemon, text: str, session_id: str = "default", force_llm: bool = False) -> dict | None:
     """POST /present — user presence.
 
@@ -1437,6 +1448,42 @@ def present_json(daemon: TopologicalDaemon, text: str, session_id: str = "defaul
 
         # S_net 共振：operator 输入中的能指叠加到当前激活态
         _resonate_from_operator(daemon, text)
+
+        # 路由层：检测输入是否包含可查询的历史步数
+        route_type, route_param = _route_input(text, daemon.total_steps)
+        if route_type == "history" and route_param is not None:
+            # 从 JSONL 查询历史记录
+            jsonl_path = None
+            if daemon._persist and daemon._persist._jsonl_path:
+                jsonl_path = daemon._persist._jsonl_path
+            if jsonl_path is not None:
+                step_records = _query_step(jsonl_path, route_param)
+                if step_records is not None:
+                    history_content = _externalize_from_history(step_records, route_param)
+                    return {
+                        "type": "dialogue",
+                        "parts": [{"source": "history", "text": history_content}],
+                        "injected": False,
+                        "concepts_found": [],
+                        "expression_pressure": _count_unreported(daemon),
+                        "llm_used": False,
+                        "writeback": {
+                            "input_edges": writeback_input_count,
+                            "output_edges": 0,
+                        },
+                        "externalize": {
+                            "trigger": "passive",
+                            "source": "history",
+                            "llm_fraction": 0.0,
+                            "output_ruptures": [],
+                            "snapshot_summary": {
+                                "formed_fragments": 0,
+                                "active_signifiers": 0,
+                                "locked_signifiers": 0,
+                            },
+                        },
+                    }
+                # step_records is None → 该步无记录，fallthrough 到现有逻辑
 
         # 外化接缝：内部言语 → 外部言语（默认不调 LLM）
         ext_result = _externalize_speech(daemon, user_text=text, force_llm=force_llm)
