@@ -1,8 +1,8 @@
 """IPFS HTTP API client for block upload/download/pin + MFS operations.
 
 Works with both public and private IPFS networks — transparent to client.
-Uses IPFS HTTP API (default: localhost:5001).
-Pure Python, stdlib only (urllib).
+Uses IPFS HTTP API (default: localhost:5001, overridable via IPFS_API env var).
+Pure Python, stdlib only (urllib + os).
 
 MFS (Mutable File System) 方法用于 SharedLayer 的索引机制：
 IPFS 是内容寻址的（没有"列目录"），MFS 提供类文件系统操作来跟踪已知 CID。
@@ -10,16 +10,19 @@ IPFS 是内容寻址的（没有"列目录"），MFS 提供类文件系统操作
 from __future__ import annotations
 
 import json
+import os
 import urllib.request
 import urllib.error
 import urllib.parse
+
+_DEFAULT_IPFS_API = "http://localhost:5001"
 
 
 class IPFSClient:
     """IPFS HTTP API client: content-addressed storage + MFS index."""
 
-    def __init__(self, api_url: str = "http://localhost:5001"):
-        self.api_url = api_url.rstrip("/")
+    def __init__(self, api_url: str | None = None):
+        self.api_url = (api_url or os.environ.get("IPFS_API") or _DEFAULT_IPFS_API).rstrip("/")
 
     # ------------------------------------------------------------------
     # Core: upload / download / pin

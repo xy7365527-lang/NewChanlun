@@ -16,8 +16,15 @@ def env_flag(name: str, default: bool = False) -> bool:
         return default
     return v.strip().lower() in {"1", "true", "yes", "y", "on"}
 
+# LLM API 密钥
+ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
+OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
+GOOGLE_API_KEY: str = os.getenv("GOOGLE_API_KEY", "")
+
+# 数据源 API
 ALPHAVANTAGE_API_KEY: str = os.getenv("ALPHAVANTAGE_API_KEY", "")
 DATABENTO_API_KEY: str = os.getenv("DATABENTO_API_KEY", "")
+
 CACHE_DIR: str = os.getenv("CACHE_DIR", ".cache")
 
 # IBKR (TWS / IB Gateway) 连接配置
