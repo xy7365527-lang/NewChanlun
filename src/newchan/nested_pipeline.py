@@ -49,6 +49,7 @@ def run_nested_search(
     stroke_mode: str = "wide",
     min_strict_sep: int = 5,
     max_levels: int = 6,
+    reset_dir_on_fractal: bool = False,
 ) -> tuple[list[NestedDivergence], RecursiveOrchestratorSnapshot | None]:
     """从 K 线序列出发，执行区间套跨级别背驰搜索。"""
     if len(bars) < 3:
@@ -59,6 +60,7 @@ def run_nested_search(
         max_levels=max_levels,
         stroke_mode=stroke_mode,
         min_strict_sep=min_strict_sep,
+        reset_dir_on_fractal=reset_dir_on_fractal,
     )
     snap: RecursiveOrchestratorSnapshot | None = None
     for bar in bars:
@@ -75,7 +77,9 @@ def run_nested_search(
         "low": [b.low for b in bars],
         "close": [b.close for b in bars],
     }, index=pd.DatetimeIndex([b.ts for b in bars]))
-    _, merged_to_raw = merge_inclusion(df_raw)
+    _, merged_to_raw = merge_inclusion(
+        df_raw, reset_dir_on_fractal=reset_dir_on_fractal,
+    )
 
     results = nested_divergence_search(
         snap, df_macd=df_macd_final, merged_to_raw=merged_to_raw,

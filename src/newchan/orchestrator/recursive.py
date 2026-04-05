@@ -72,6 +72,7 @@ class RecursiveOrchestrator:
         max_levels: int = 6,
         stroke_mode: str = "wide",
         min_strict_sep: int = 5,
+        reset_dir_on_fractal: bool = False,
     ) -> None:
         self._stream_id = stream_id
         self._max_levels = max_levels
@@ -80,6 +81,7 @@ class RecursiveOrchestrator:
         self._bi_engine = BiEngine(
             stroke_mode=stroke_mode,
             min_strict_sep=min_strict_sep,
+            reset_dir_on_fractal=reset_dir_on_fractal,
         )
         self._seg_engine = SegmentEngine(stream_id=stream_id)
         self._zs_engine = ZhongshuEngine(stream_id=stream_id)
