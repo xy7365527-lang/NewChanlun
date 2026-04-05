@@ -27,14 +27,45 @@ import pandas as pd
 import numpy as np
 
 
+def _is_fractal_pattern(buf: list[list[float | int]], length: int) -> bool:
+    """检测 buf 末尾三根 merged bar 是否形成分型模式。
+
+    顶分型：中间 bar 的 high 高于左右两侧且 low 也高于左右两侧。
+    底分型：中间 bar 的 low 低于左右两侧且 high 也低于左右两侧。
+    """
+    if length < 3:
+        return False
+    h_prev, l_prev = buf[length - 3][1], buf[length - 3][2]
+    h_curr, l_curr = buf[length - 2][1], buf[length - 2][2]
+    h_next, l_next = buf[length - 1][1], buf[length - 1][2]
+    is_top = (
+        h_curr > h_prev and h_curr > h_next
+        and l_curr > l_prev and l_curr > l_next
+    )
+    is_bottom = (
+        l_curr < l_prev and l_curr < l_next
+        and h_curr < h_prev and h_curr < h_next
+    )
+    return is_top or is_bottom
+
+
 def _merge_loop(
     highs: np.ndarray, lows: np.ndarray,
     opens: np.ndarray, closes: np.ndarray,
     n: int,
+    *,
+    reset_dir_on_fractal: bool = False,
 ) -> list[list[float | int]]:
     """执行包含关系合并的主循环，返回 merged bar 缓冲。
 
     每个 merged bar: [open, high, low, close, raw_start, raw_end]。
+
+    Parameters
+    ----------
+    reset_dir_on_fractal : bool
+        为 True 时，包含方向在分型形成后重置，且在方向翻转时也重置。
+        这使后续包含处理不受之前长趋势方向的累积锁定，
+        适用于大振幅标的（如金油比）。
     """
     buf: list[list[float | int]] = [
         [opens[0], highs[0], lows[0], closes[0], 0, 0]
@@ -61,11 +92,21 @@ def _merge_loop(
             last[3] = closes[i]
             last[5] = i
         else:
+            prev_dir = dir_state
             if curr_h > last_h and curr_l > last_l:
                 dir_state = "UP"
             elif curr_h < last_h and curr_l < last_l:
                 dir_state = "DOWN"
             buf.append([opens[i], curr_h, curr_l, closes[i], i, i])
+
+            if reset_dir_on_fractal:
+                # 方向翻转时重置：让下一次包含用默认 UP 处理，
+                # 避免长趋势方向锁定掩盖反转信号
+                if prev_dir is not None and dir_state != prev_dir:
+                    dir_state = None
+                # 分型形成后重置
+                elif _is_fractal_pattern(buf, len(buf)):
+                    dir_state = None
 
     return buf
 
@@ -89,10 +130,18 @@ def _buf_to_dataframe(
 
 def merge_inclusion(
     df: pd.DataFrame,
+    *,
+    reset_dir_on_fractal: bool = False,
 ) -> tuple[pd.DataFrame, list[tuple[int, int]]]:
     """对 K 线序列执行包含关系处理。
 
     合并规则严格遵循 docs/chan_spec.md §2（§2.1-§2.4）。
+
+    Parameters
+    ----------
+    reset_dir_on_fractal : bool
+        为 True 时，每当 merged bar 序列形成分型模式，重置包含方向。
+        默认 False，保持原有行为。
     """
     n = len(df)
     if n == 0:
@@ -105,5 +154,8 @@ def merge_inclusion(
     opens = df["open"].values.astype(np.float64)
     closes = df["close"].values.astype(np.float64)
 
-    buf = _merge_loop(highs, lows, opens, closes, n)
+    buf = _merge_loop(
+        highs, lows, opens, closes, n,
+        reset_dir_on_fractal=reset_dir_on_fractal,
+    )
     return _buf_to_dataframe(buf, df.index, df.index.name)

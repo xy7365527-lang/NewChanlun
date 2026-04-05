@@ -64,9 +64,11 @@ class BiEngine:
         self,
         stroke_mode: str = "new",
         min_strict_sep: int = 5,
+        reset_dir_on_fractal: bool = False,
     ) -> None:
         self._stroke_mode = stroke_mode
         self._min_strict_sep = min_strict_sep
+        self._reset_dir_on_fractal = reset_dir_on_fractal
 
         # 累积的原始 bar 数据（用于构造 DataFrame）
         self._bar_ohlc: list[list[float]] = []  # [open, high, low, close]
@@ -110,7 +112,9 @@ class BiEngine:
         Returns (strokes, fractals, n_merged)。
         """
         df = _build_df(self._bar_ohlc, self._bar_timestamps)
-        df_merged, _merged_to_raw = merge_inclusion(df)
+        df_merged, _merged_to_raw = merge_inclusion(
+            df, reset_dir_on_fractal=self._reset_dir_on_fractal,
+        )
         fractals = fractals_from_merged(df_merged)
         strokes = strokes_from_fractals(
             df_merged,
