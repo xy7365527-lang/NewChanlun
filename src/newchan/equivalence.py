@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass
 
 import numpy as np
@@ -136,7 +137,9 @@ def _layer2_and_3(
     t_stroke_pct: float, t_dynamics_pct: float,
 ) -> ValidationResult:
     """Layer 2 (结构退化) + Layer 3 (动力退化) 检测。"""
-    ratio_kline = make_ratio_kline(a_aligned, b_aligned)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        ratio_kline = make_ratio_kline(a_aligned, b_aligned)
     stroke_mean_pct, n_strokes = _compute_stroke_intensity(ratio_kline)
 
     if n_strokes == 0:
@@ -242,21 +245,98 @@ def _compute_macd_dynamics(ratio_kline: pd.DataFrame, ratio_mean: float) -> floa
     return norm
 
 
-def make_ratio_kline(df_a: pd.DataFrame, df_b: pd.DataFrame) -> pd.DataFrame:
+def _infer_target_freq(idx: pd.DatetimeIndex) -> str | None:
+    """从 DatetimeIndex 推断目标频率标签。"""
+    if len(idx) < 2:
+        return None
+    median_delta = pd.Series(idx).diff().dropna().median()
+    seconds = median_delta.total_seconds()
+    if seconds <= 120:
+        return "1min"
+    if seconds <= 600:
+        return "5min"
+    if seconds <= 1800:
+        return "30min"
+    if seconds <= 5400:
+        return "1h"
+    if seconds <= 18000:
+        return "4h"
+    if seconds <= 100800:
+        return "1D"
+    if seconds <= 604800:
+        return "1W"
+    return "1ME"
+
+
+def _aggregate_ratio_to_kline(
+    ratio_series: pd.Series,
+    volume_series: pd.Series | None,
+    target_freq: str,
+) -> pd.DataFrame:
+    """将 ratio 标量时间序列按目标频率聚合为 OHLCV K线。"""
+    resampler = ratio_series.resample(target_freq)
+    result = pd.DataFrame({
+        "open": resampler.first(),
+        "high": resampler.max(),
+        "low": resampler.min(),
+        "close": resampler.last(),
+    })
+    if volume_series is not None:
+        result["volume"] = volume_series.resample(target_freq).sum()
+    result = result.dropna(subset=["open"])
+    return result
+
+
+def make_ratio_kline(
+    df_a: pd.DataFrame,
+    df_b: pd.DataFrame,
+    *,
+    sub_a: pd.DataFrame | None = None,
+    sub_b: pd.DataFrame | None = None,
+    target_freq: str | None = None,
+) -> pd.DataFrame:
     """构造比价K线：A / B。
 
-    对 OHLC 四列分别除法，volume 取 A。
-    自动按时间戳对齐（inner join）。
-
-    已知缺陷：当前实现对 OHLC 四列各自除法，A_high/B_high 没有明确含义
-    （两者的最高价不一定发生在同一时刻），任何粒度的 K 线都存在此问题。
-    严格的构造原则（v4 §1.1）：在单价格点层面做除法（ratio = A(t)/B(t)），
+    严格构造原则（v4 §1.1）：在单价格点层面做除法（ratio = A(t)/B(t)），
     然后从 ratio 序列向上聚合 K 线（open=首, high=max, low=min, close=末）。
-    正确的接口应该是：输入已完成除法的标量时间序列，输出指定周期的 OHLC。
-    本函数待重构为该接口。当前作为过渡，下游调用者应意识到 high/low 不精确。
+
+    当提供 sub_a / sub_b（更高频率数据）时，用子频率的 close 做除法后
+    聚合到目标频率。目标频率从 df_a 的索引间隔推断，或由 target_freq 指定。
+
+    当不提供子频率数据时，fallback 到对 OHLC 四列分别除法（不精确），
+    并发出 warning。
 
     概念溯源：[旧缠论:隐含] 比价K线构造
     """
+    if sub_a is not None and sub_b is not None:
+        sub_idx = sub_a.index.intersection(sub_b.index)
+        sa, sb = sub_a.loc[sub_idx], sub_b.loc[sub_idx]
+        ratio = sa["close"] / sb["close"]
+        volume = sa["volume"] if "volume" in sa.columns else None
+
+        freq = target_freq or _infer_target_freq(df_a.index)
+        if freq is None:
+            warnings.warn(
+                "make_ratio_kline: cannot infer target_freq from df_a, "
+                "falling back to naive OHLC division",
+                stacklevel=2,
+            )
+            return _make_ratio_kline_naive(df_a, df_b)
+
+        return _aggregate_ratio_to_kline(ratio, volume, freq)
+
+    warnings.warn(
+        "make_ratio_kline: no sub-frequency data provided, "
+        "falling back to naive OHLC division (high/low imprecise)",
+        stacklevel=2,
+    )
+    return _make_ratio_kline_naive(df_a, df_b)
+
+
+def _make_ratio_kline_naive(
+    df_a: pd.DataFrame, df_b: pd.DataFrame,
+) -> pd.DataFrame:
+    """Fallback：对 OHLC 四列分别除法。high/low 不精确。"""
     idx = df_a.index.intersection(df_b.index)
     a, b = df_a.loc[idx], df_b.loc[idx]
     result = pd.DataFrame(index=a.index)

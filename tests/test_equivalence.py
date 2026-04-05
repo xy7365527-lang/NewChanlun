@@ -11,6 +11,8 @@ import math
 import pandas as pd
 import pytest
 
+import warnings
+
 from newchan.equivalence import EquivalencePair, validate_pair, make_ratio_kline
 
 
@@ -203,3 +205,101 @@ class TestMakeRatioKline:
         ratio = make_ratio_kline(df_a, df_b)
         for col in ["open", "high", "low", "close", "volume"]:
             assert col in ratio.columns
+
+
+# ── 子频率聚合构造比价K线 ──────────────────────────────────
+
+
+def _hourly_ohlcv(prices: list[float], start: str = "2024-01-01") -> pd.DataFrame:
+    """从 close 列表生成小时频率 OHLCV。"""
+    n = len(prices)
+    idx = pd.date_range(start, periods=n, freq="h")
+    return pd.DataFrame(
+        {
+            "open": prices,
+            "high": [p + 1 for p in prices],
+            "low": [p - 1 for p in prices],
+            "close": prices,
+            "volume": [100] * n,
+        },
+        index=idx,
+    )
+
+
+class TestMakeRatioKlineSubFreq:
+    """子频率聚合路径测试。"""
+
+    def test_sub_freq_aggregation(self):
+        """提供小时子频率数据，聚合到日频。"""
+        # 日频目标（2天，用于推断目标频率）
+        df_a = _ohlcv([100, 110], start="2024-01-01")
+        df_b = _ohlcv([50, 55], start="2024-01-01")
+
+        # 小时子频率数据（每天24小时，共48小时）
+        sub_prices_a = [100 + i * 0.5 for i in range(48)]
+        sub_prices_b = [50 + i * 0.2 for i in range(48)]
+        sub_a = _hourly_ohlcv(sub_prices_a, start="2024-01-01")
+        sub_b = _hourly_ohlcv(sub_prices_b, start="2024-01-01")
+
+        ratio = make_ratio_kline(df_a, df_b, sub_a=sub_a, sub_b=sub_b)
+
+        # 应该产出日频K线
+        assert len(ratio) == 2
+        for col in ["open", "high", "low", "close"]:
+            assert col in ratio.columns
+        assert "volume" in ratio.columns
+
+    def test_sub_freq_high_low_from_ratio_series(self):
+        """子频率聚合的 high/low 来自 ratio 序列的 max/min，不是 OHLC 各自除法。"""
+        df_a = _ohlcv([100, 110], start="2024-01-01")
+        df_b = _ohlcv([50, 55], start="2024-01-01")
+
+        # 构造子频率（第一天24小时）：A 在第6小时达峰，B 在第12小时达峰
+        sub_a_prices = [100.0] * 24 + [110.0] * 24
+        sub_a_prices[6] = 120.0  # A 峰值在第一天
+        sub_b_prices = [50.0] * 24 + [55.0] * 24
+        sub_b_prices[12] = 70.0  # B 峰值在第一天
+
+        sub_a = _hourly_ohlcv(sub_a_prices, start="2024-01-01")
+        sub_b = _hourly_ohlcv(sub_b_prices, start="2024-01-01")
+
+        ratio = make_ratio_kline(df_a, df_b, sub_a=sub_a, sub_b=sub_b)
+
+        # ratio 最高点应出现在 A 高且 B 低的时刻：120/50 = 2.4
+        assert ratio["high"].iloc[0] == pytest.approx(120.0 / 50.0)
+        # ratio 最低点应出现在 A 低且 B 高的时刻：100/70 ≈ 1.4286
+        assert ratio["low"].iloc[0] == pytest.approx(100.0 / 70.0)
+
+    def test_sub_freq_explicit_target_freq(self):
+        """显式指定 target_freq 覆盖自动推断。"""
+        df_a = _ohlcv([100, 110], start="2024-01-01")
+        df_b = _ohlcv([50, 55], start="2024-01-01")
+
+        sub_prices_a = [100 + i for i in range(48)]
+        sub_prices_b = [50 + i * 0.5 for i in range(48)]
+        sub_a = _hourly_ohlcv(sub_prices_a, start="2024-01-01")
+        sub_b = _hourly_ohlcv(sub_prices_b, start="2024-01-01")
+
+        ratio = make_ratio_kline(
+            df_a, df_b, sub_a=sub_a, sub_b=sub_b, target_freq="1D",
+        )
+        assert len(ratio) == 2
+
+    def test_fallback_warns(self):
+        """不提供子频率数据时发出 warning。"""
+        df_a = _ohlcv([100, 110])
+        df_b = _ohlcv([50, 55])
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            make_ratio_kline(df_a, df_b)
+            assert len(w) == 1
+            assert "naive OHLC division" in str(w[0].message)
+
+    def test_fallback_result_matches_old_behavior(self):
+        """Fallback 路径结果与旧行为一致。"""
+        df_a = _ohlcv([100, 200, 150])
+        df_b = _ohlcv([50, 100, 50])
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            ratio = make_ratio_kline(df_a, df_b)
+        assert list(ratio["close"]) == [2.0, 2.0, 3.0]

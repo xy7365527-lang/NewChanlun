@@ -37,16 +37,27 @@ def make_spread(df_a: pd.DataFrame, df_b: pd.DataFrame) -> pd.DataFrame:
     return result
 
 
-def make_ratio(df_a: pd.DataFrame, df_b: pd.DataFrame) -> pd.DataFrame:
+def make_ratio(
+    df_a: pd.DataFrame,
+    df_b: pd.DataFrame,
+    *,
+    sub_a: pd.DataFrame | None = None,
+    sub_b: pd.DataFrame | None = None,
+    target_freq: str | None = None,
+) -> pd.DataFrame:
     """计算比值：A / B。
 
-    对 OHLC 四列分别做除法，volume 取 A 的成交量。
-    委托给 equivalence.make_ratio_kline 实现。
+    委托给 equivalence.make_ratio_kline 实现。当提供 sub_a/sub_b
+    （更高频率数据）时，用子频率 close 做除法后聚合到目标频率。
 
     Parameters
     ----------
     df_a, df_b : pd.DataFrame
         均需有 DatetimeIndex 以及 open/high/low/close 列。
+    sub_a, sub_b : pd.DataFrame, optional
+        更高频率的 OHLCV 数据，用于精确构造比价K线。
+    target_freq : str, optional
+        目标聚合频率，如不指定则从 df_a 索引间隔推断。
 
     Returns
     -------
@@ -55,4 +66,4 @@ def make_ratio(df_a: pd.DataFrame, df_b: pd.DataFrame) -> pd.DataFrame:
     """
     from newchan.equivalence import make_ratio_kline
 
-    return make_ratio_kline(df_a, df_b)
+    return make_ratio_kline(df_a, df_b, sub_a=sub_a, sub_b=sub_b, target_freq=target_freq)
