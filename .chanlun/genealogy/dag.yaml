@@ -2426,9 +2426,9 @@ nodes:
   file: settled/484-multi-tf-architecture-audit.md
 - id: '485'
   title: 拓扑化索罗斯——敞口分离显式化为多层加权有向图
-  status: 生成态
+  status: 已结算
   type: 概念发现
-  file: pending/485-topologized-soros.md
+  file: settled/485-topologized-soros.md
 edges:
   depends_on:
   - from: '136'
