@@ -523,46 +523,49 @@ def run_cross_scale_nested_search(
         low_bars = tf_bars.get(low_tf_name)
         high_result = multi_result.levels.get(high_tf_name)
 
-        # 缺失条件：跳过该背驰
+        # v71: 数据缺失属于"可恢复错误"（跳过当前背驰，继续下一个），
+        # 但日志升至 warning 级别，附 skip_reason 字段，避免生产环境下静默吞掉。
         if not high_bars or not low_bars:
-            logger.debug(
-                "Missing bars for divergence %d (high=%s low=%s), skip",
+            logger.warning(
+                "Cross-scale divergence %d skipped: missing bars "
+                "(high=%s low=%s); skip_reason=missing_bars",
                 idx, high_tf_name, low_tf_name,
             )
             continue
         if high_result is None or high_result.snapshot is None:
-            logger.debug(
-                "High TF snapshot missing for divergence %d, skip", idx,
+            logger.warning(
+                "Cross-scale divergence %d skipped: high TF snapshot missing; "
+                "skip_reason=missing_high_snapshot",
+                idx,
             )
             continue
 
         segments = high_result.snapshot.seg_snapshot.segments
         if not segments:
-            logger.debug(
-                "High TF segments empty for divergence %d, skip", idx,
+            logger.warning(
+                "Cross-scale divergence %d skipped: high TF segments empty; "
+                "skip_reason=empty_high_segments",
+                idx,
             )
             continue
 
-        # 下游推论 1-2: 高级别 C 段 → 时间戳
-        try:
-            ts_start, ts_end = extract_c_segment_timestamps(
-                div.high_move, segments, high_bars,
-            )
-        except (ValueError, IndexError) as e:
-            logger.debug(
-                "extract_c_segment_timestamps failed for divergence %d: %s",
-                idx, e,
-            )
-            continue
+        # v71: extract_c_segment_timestamps 抛错是严格不变量违反
+        # （snapshot 与 bars 不一致），不是"边界条件"——必须向上传播，
+        # 不允许 try/except 吞掉（no-workaround 要求）。
+        ts_start, ts_end = extract_c_segment_timestamps(
+            div.high_move, segments, high_bars,
+        )
 
         # 下游推论 3: 低级别 bars 过滤
         filtered_low_bars = align_bars_by_timestamp(
             low_bars, ts_start, ts_end,
         )
         if not filtered_low_bars:
-            logger.debug(
-                "No low-TF bars in range [%s, %s] for divergence %d",
-                ts_start, ts_end, idx,
+            # 时间窗内无低级别 bars：数据端可恢复错误
+            logger.warning(
+                "Cross-scale divergence %d skipped: no low-TF bars in range "
+                "[%s, %s]; skip_reason=empty_low_bars_in_range",
+                idx, ts_start, ts_end,
             )
             continue
 
@@ -576,9 +579,12 @@ def run_cross_scale_nested_search(
         for bar in filtered_low_bars:
             low_snap = low_orch.process_bar(bar)
         if low_snap is None:
-            logger.debug(
-                "Low TF RecursiveOrchestrator produced no snapshot "
-                "for divergence %d", idx,
+            # RecursiveOrchestrator 处理完所有 bars 却无 snapshot：
+            # 属于可恢复错误（低级别数据不足以生成任何结构）
+            logger.warning(
+                "Cross-scale divergence %d skipped: low TF RecursiveOrchestrator "
+                "produced no snapshot; skip_reason=no_low_snapshot",
+                idx,
             )
             continue
 

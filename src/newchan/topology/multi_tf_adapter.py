@@ -335,6 +335,14 @@ def extract_c_segment_timestamps(
     本地重建 merged_to_raw 是 adapter 层的幂等重建——不修改
     BiEngineSnapshot 的公共接口，仅为时间戳对齐复算一次索引映射。
 
+    接口合约（v71 codex 质询后强化）
+    ----------------------------------
+    调用方**必须**保证 `bars` 与 `segments` 来自同源 snapshot：即
+    本次调用中传入的 `bars` 与产生 `segments` 的原始 bar 列表完全一致
+    （相同顺序、相同时间戳、无追加/删除）。merge_inclusion 幂等依赖
+    此同源约束：若 bars 非 frozen/不可变，merged_to_raw 重建可能漂移，
+    导致 i0/i1 越界——该情形下本函数抛 IndexError，不 clamp（no-patch-mentality）。
+
     Parameters
     ----------
     move : Move
@@ -342,19 +350,27 @@ def extract_c_segment_timestamps(
     segments : list
         高级别 snapshot.seg_snapshot.segments 列表。
     bars : list[Bar]
-        高级别原始 bar 列表（与 snapshot 同源）。
+        高级别原始 bar 列表（**必须与 snapshot 同源，不可变更**）。
 
     Returns
     -------
     tuple[datetime, datetime]
         (ts_start, ts_end)：C段在原始时间轴上的起止时间戳。
+        保证 ts_start <= ts_end（由 merged_to_raw 单调性保证）。
 
     Raises
     ------
     ValueError
-        segments 或 bars 为空；或 seg_start/seg_end 越界。
+        segments 或 bars 为空；seg_start/seg_end 越界；
+        merge_inclusion 返回空映射；或 ts_start > ts_end（单调性违反）。
     IndexError
-        合并 bar 索引越出 merged_to_raw 范围。
+        seg_end >= len(segments)；seg.i0/i1 越出 merged_to_raw 范围；
+        或 merged_to_raw 映射出的 raw 索引越出 bars 范围。
+
+    Notes
+    -----
+    v71 修复：原实现使用 `max(0, min(...))` clamp 补丁将越界值截断到合法范围，
+    会静默掩盖 snapshot-bars 不一致。修复后改为严格断言，越界直接抛错。
     """
     if not segments:
         raise ValueError("segments must not be empty")
@@ -393,16 +409,47 @@ def extract_c_segment_timestamps(
     n_merged = len(merged_to_raw)
     n_raw = len(bars)
 
-    i0 = max(0, min(seg_first.i0, n_merged - 1))
-    i1 = max(0, min(seg_last.i1, n_merged - 1))
+    # v71 严格不变量（替换原 clamp 补丁）：
+    # 映射链 segments[*].i0/i1 → merged_to_raw 索引必须在合法范围内。
+    # 越界不是"边界条件"而是上游 snapshot 与 bars 的不一致，必须暴露。
+    if not (0 <= seg_first.i0 < n_merged):
+        raise IndexError(
+            f"seg_first.i0={seg_first.i0} out of merged range "
+            f"[0, {n_merged}); snapshot and bars may be inconsistent",
+        )
+    if not (0 <= seg_last.i1 < n_merged):
+        raise IndexError(
+            f"seg_last.i1={seg_last.i1} out of merged range "
+            f"[0, {n_merged}); snapshot and bars may be inconsistent",
+        )
 
     # merged idx → raw idx (取合并区间的逻辑终点，与 ab_bridge 约定一致)
-    raw_start = merged_to_raw[i0][0]  # 起点段：取合并块起始
-    raw_end = merged_to_raw[i1][1]    # 终点段：取合并块终点
-    raw_start = max(0, min(raw_start, n_raw - 1))
-    raw_end = max(0, min(raw_end, n_raw - 1))
+    raw_start = merged_to_raw[seg_first.i0][0]  # 起点段：取合并块起始
+    raw_end = merged_to_raw[seg_last.i1][1]     # 终点段：取合并块终点
 
-    return bars[raw_start].ts, bars[raw_end].ts
+    if not (0 <= raw_start < n_raw):
+        raise IndexError(
+            f"raw_start={raw_start} out of bars range [0, {n_raw}); "
+            f"merged_to_raw mapping invariant violated",
+        )
+    if not (0 <= raw_end < n_raw):
+        raise IndexError(
+            f"raw_end={raw_end} out of bars range [0, {n_raw}); "
+            f"merged_to_raw mapping invariant violated",
+        )
+
+    ts_start = bars[raw_start].ts
+    ts_end = bars[raw_end].ts
+
+    # sanity check: 去 clamp 后这应该不会违反（除非 merged_to_raw 本身非单调）
+    if ts_start > ts_end:
+        raise ValueError(
+            f"ts_start={ts_start} > ts_end={ts_end}; "
+            f"merged_to_raw monotonicity invariant violated "
+            f"(seg_first.i0={seg_first.i0}, seg_last.i1={seg_last.i1})",
+        )
+
+    return ts_start, ts_end
 
 
 # ── 核心编排器 ────────────────────────────────────────────

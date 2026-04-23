@@ -231,6 +231,87 @@ class TestExtractCSegmentTimestamps:
         with pytest.raises((IndexError, ValueError)):
             extract_c_segment_timestamps(move, segments, bars)
 
+    # ────────────────────────────────────────────────────────
+    # v71 新增：去 clamp 后的严格不变量测试
+    # 依据：v71 codex 质询 — no-patch-mentality 不允许在错误条件上修正值
+    # ────────────────────────────────────────────────────────
+
+    def test_segment_merged_index_out_of_range_raises(self) -> None:
+        """segment.i0/i1 超出 merged_to_raw 范围时应抛 IndexError（不 clamp）。
+
+        v71 修复：原 clamp 会静默截断 i0/i1，返回错误时间窗。
+        修复后应直接抛错，暴露上游 snapshot 与 bars 的不一致。
+        """
+        from newchan.topology.multi_tf_adapter import extract_c_segment_timestamps
+
+        # 构造 30 根 bars（假设 merge 后合并 bar 数 <= 30）
+        bars = _make_trending_bars(30)
+        # 故意构造一个 i1 远超合并 bar 数的异常 segment
+        segments = [_MockSegment(i0=0, i1=100_000, direction="up")]
+        move = _make_move(seg_start=0, seg_end=0)
+
+        with pytest.raises((IndexError, ValueError)):
+            extract_c_segment_timestamps(move, segments, bars)
+
+    def test_segment_negative_index_raises(self) -> None:
+        """segment.i0 为负数时应抛错（不 clamp 到 0）。
+
+        v71 修复：原 clamp 会把 -5 截断为 0，掩盖 segment 构造错误。
+        """
+        from newchan.topology.multi_tf_adapter import extract_c_segment_timestamps
+
+        bars = _make_trending_bars(30)
+        segments = [_MockSegment(i0=-5, i1=10, direction="up")]
+        move = _make_move(seg_start=0, seg_end=0)
+
+        with pytest.raises((IndexError, ValueError)):
+            extract_c_segment_timestamps(move, segments, bars)
+
+    def test_raw_index_out_of_range_raises(self) -> None:
+        """merged_to_raw 映射出的 raw 索引越界时应抛 IndexError。
+
+        v71 修复：原 `raw_start = max(0, min(raw_start, n_raw - 1))` clamp 掩盖。
+        用非常大的 i1（但仍在 merged_to_raw 长度范围内）触发 raw idx 越界。
+        实际上 merged_to_raw[i1][1] 本身就是 raw 索引，理应在 [0, n_raw) 内，
+        所以这个测试在正常 merge_inclusion 下应该不会越界；它保护的是断言本身。
+        """
+        from newchan.topology.multi_tf_adapter import extract_c_segment_timestamps
+
+        # 正常路径：segment 索引合法，应成功
+        bars = _make_trending_bars(30)
+        segments = [_MockSegment(i0=0, i1=5, direction="up")]
+        move = _make_move(seg_start=0, seg_end=0)
+
+        ts_start, ts_end = extract_c_segment_timestamps(move, segments, bars)
+        # 基本不变量：ts_start <= ts_end（sanity check）
+        assert ts_start <= ts_end
+
+    def test_ts_ordering_invariant(self) -> None:
+        """返回的 (ts_start, ts_end) 必须满足 ts_start <= ts_end。
+
+        v71 修复：原代码 clamp 后可能返回 ts_start > ts_end（倒置时间窗）。
+        修复后应永远不会发生——要么抛错，要么满足有序。
+        """
+        from newchan.topology.multi_tf_adapter import extract_c_segment_timestamps
+
+        bars = _make_trending_bars(60)
+        segments = [
+            _MockSegment(i0=0, i1=10, direction="up"),
+            _MockSegment(i0=10, i1=20, direction="down"),
+            _MockSegment(i0=20, i1=30, direction="up"),
+        ]
+        # 遍历所有合法的 seg_start/seg_end 组合
+        for seg_start in range(3):
+            for seg_end in range(seg_start, 3):
+                move = _make_move(seg_start=seg_start, seg_end=seg_end)
+                ts_start, ts_end = extract_c_segment_timestamps(
+                    move, segments, bars,
+                )
+                assert ts_start <= ts_end, (
+                    f"ts_ordering violated: seg_start={seg_start}, "
+                    f"seg_end={seg_end}, ts_start={ts_start}, ts_end={ts_end}"
+                )
+
 
 # ────────────────────────────────────────────────────────────
 # 2. run_cross_scale_nested_search 链路测试

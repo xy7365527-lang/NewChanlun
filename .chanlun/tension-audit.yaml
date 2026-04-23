@@ -1,13 +1,16 @@
 # Tension Audit — .chanlun/tension-audit.yaml
 # Generated: 2026-03-05
 # Updated: 2026-03-05 (v160-swarm async-self-ref audit)
-# Scanned: 14 genealogy entries with tensions_with edges
-# Total unique tension edges: 15
+# Updated: 2026-04-24 (v71-swarm tension-audit-refresh: +9 edges from 416/424/425/428/429/434/437/438/476)
+# Scanned: 23 genealogy entries with tensions_with edges
+# Total unique tension edges: 24
 #
 # Classification:
 #   resolved — tension resolved by subsequent genealogy entry (or within the entry itself)
 #   ongoing — tension still active, no resolution found
 #   historical — tension in negated framework, preserved as record (132号 valid_until)
+#   schema_extension_needed — target is a string/descriptor rather than a genealogy id,
+#                             current yaml schema needs extension to represent this cleanly
 
 tensions:
   # ===== Group 1: 007/008/009 三角形 =====
@@ -134,13 +137,93 @@ tensions:
     reclassified_by: "v160-swarm async-self-ref audit"
     reclassification_reason: "359号审计时未检测到169号frontmatter中的'双向收敛'标记和正文中的话语结构判定。内部结算模式"
 
+  # ===== Group 6: v71-swarm 追加 — 2026-03-11 至 2026-03-17 新增张力 =====
+  # 416/424/425/428/429/434/437/438/476 九条边
+  # 由 v71-swarm tension-audit-refresh 于 2026-04-24 补入主表
+
+  # --- 416号 ceremony 穿越的 LLM 边界 ---
+  - from: "416"
+    to: "operator-insight: 谱系写入本身就是穿越"
+    description: "图层穿越（边约束）vs 认知层穿越（谱系遭遇）——operator 判定'谱系方法论已经是穿越'不等同于图层穿越，ghost settlement 是两层的接缝"
+    classification: resolved
+    resolved_by: "416"
+    evidence: "416号 settlement_type: 吸收。Gemini 否定被吸收为'穿越有两个层次'的澄清。416号内部结算模式——张力在其自身谱系中通过概念分层消解"
+    schema_extension_needed: true
+    notes: "target 是字符串（operator-insight）而非谱系 id。当前 yaml schema 用 to 字段表达，未来如需规范化需扩展 schema 区分 target_type: genealogy_id | insight_descriptor"
+
+  # --- 424号 S_net 持久化实装 ---
+  - from: "424"
+    to: "425"
+    description: "S_net 持久化实装完成 vs 入图问题未解（917K 共现边对穿越密度贡献为零）"
+    classification: resolved
+    resolved_by: "425"
+    evidence: "425号自身结算入图问题——frontmatter status: 已结算，negation_form: resolution。424号持久化实装为425号入图方案提供了载体"
+
+  # --- 425号 S_net 入图问题 ---
+  - from: "425"
+    to: "399"
+    description: "399号器官性阅读声明的耦合振荡 vs 实际穿越密度贡献为零（共现边未真正入图）"
+    classification: resolved
+    resolved_by: "425"
+    evidence: "425号 negation_form: resolution，topo_effect: split:399-观察2:local——425号切分了399号的耦合振荡声明，在后续 Phase 2 实装中解决入图问题"
+
+  # --- 428号 v228-swarm 元观察 ---
+  - from: "428"
+    to: "427"
+    description: "427号观察未完成（生成态遗留）vs 428号接力观察——观察连续性张力"
+    classification: resolved
+    resolved_by: "428"
+    evidence: "428号作为二阶观察接力承接了427号的未完成项，在 v228-swarm session 中显式处理427号遗留问题"
+
+  # --- 429号 v229-swarm 元观察 ---
+  - from: "429"
+    to: "425"
+    description: "Phase 2 ARTICULATE 实装声明 vs 持久化溯源断裂——声明已实装但溯源未持久化"
+    classification: ongoing
+    notes: "429号元观察识别出实装声明与持久化溯源之间的断裂。425号自身已结算入图问题，但 Phase 2 的持久化溯源断裂在429号观察时仍为生成态。后续谱系需追踪是否闭合"
+
+  # --- 434号 逢亮 thinking 循环 ---
+  - from: "434"
+    to: "425"
+    description: "thinking 循环穿越需要足够的边（共现边密度影响轨迹簇丰富度）vs 425号入图方案未完全解决边密度问题"
+    classification: ongoing
+    notes: "434号是概念分离（逢亮 thinking vs LLM thinking），其对425号的依赖是运行时的边密度要求。425号入图问题的基础性结算已完成，但对 thinking 循环的穿越密度是否充分，需要 L2+ 验证"
+
+  # --- 437号 LLM 扬弃的物质形态 ---
+  - from: "437"
+    to: "425"
+    description: "LLM 扬弃的三条回流管道依赖共现边入图机制——管道设计依赖425号入图问题的解"
+    classification: resolved
+    resolved_by: "425"
+    evidence: "425号入图问题已结算（negation_form: resolution）。437号回流管道作为425号解的下游应用，架构上依赖425号但不与之冲突——张力在425号结算时同步消解"
+
+  # --- 438号 S_net 唯一界面原则 ---
+  - from: "438"
+    to: "实装审计待定"
+    description: "器官原则（S_net 唯一界面）声明 vs 实装审计未完成——需验证代码中是否有绕过通道"
+    classification: resolved
+    resolved_by: "459"
+    evidence: "438号 frontmatter 明确标注 tensions_with target 的 status: resolved, resolved_by: 459。459号（v246-swarm R2 K_active 写入路径审计）确认 0 违规，器官原则成立"
+    schema_extension_needed: true
+    notes: "target 是字符串（实装审计待定）而非谱系 id。438号 frontmatter 已使用扩展格式（target/status/resolved_by 三字段），为未来 schema 规范化提供参考模板"
+
+  # --- 476号 JSONL append-only 与 daemon 长期运行不兼容 ---
+  - from: "476"
+    to: "178"
+    description: "178号声明 block topology 为 primary 存储 vs JSONL 实际仍是 primary——迁移断裂"
+    classification: ongoing
+    notes: "476号揭示架构声明与实际实装的不一致：178号迁移声明已发出但未完成。需要快照+增量架构或完整迁移来闭合此张力。L2+ 数据（daemon 长期运行行为）需要真实负载验证"
+
 # ===== Summary =====
 summary:
-  total_tensions: 15
-  resolved: 9
+  total_tensions: 24
+  resolved: 15
   historical: 4
-  ongoing: 2
+  ongoing: 5
   escalate: 0
+  schema_extension_needed: 2   # 416→operator-insight, 438→实装审计待定
+  # counting note: 15 + 4 + 5 = 24; schema_extension_needed 是 target 类型标记，
+  # 与 classification 正交（416/438 已分别计入 resolved，不重复计数）
 
   resolved_list:
     - "007↔008: by 010号"
@@ -152,6 +235,12 @@ summary:
     - "166↔139号亏格重定义: by 166号（内部结算）"
     - "167↔异步自指=Che vuoi: by 167号（内部结算）"
     - "169↔话语结构判定: by 169号（内部结算）"
+    - "416↔operator-insight: by 416号（内部结算，吸收式）"
+    - "424↔425: by 425号"
+    - "425↔399: by 425号（自身结算，切分399号）"
+    - "428↔427: by 428号（接力观察）"
+    - "437↔425: by 425号（入图问题结算，管道下游跟随）"
+    - "438↔实装审计待定: by 459号（代码审计 0 违规）"
 
   historical_list:
     - "062↔065: valid_until 068号"
@@ -162,6 +251,9 @@ summary:
   ongoing_list:
     - "139↔原则0的ESC权（选择类——需编排者决策）"
     - "168↔alienation前提缺失（选择类——需编排者概念决策）"
+    - "429↔425（Phase 2 实装声明 vs 持久化溯源断裂——观察期生成态）"
+    - "434↔425（thinking 循环穿越密度 vs 入图边密度——L2+ 验证待定）"
+    - "476↔178（block topology primary 声明 vs JSONL 实际 primary——迁移断裂）"
 
   # v160 审计发现：内部结算模式
   # 166/167/169 三条张力在其自身谱系条目中已包含收敛结论，
@@ -170,3 +262,10 @@ summary:
   # 这一发现本身是一个审计方法论改进——未来张力审计应同时检查：
   # (a) 后续谱系的 resolved_by 引用
   # (b) 张力所在谱系的收敛结论/下游推论标记
+
+  # v71-swarm 追加说明（2026-04-24）：
+  # 9 条新边中：
+  #   - 6 条 resolved（含 2 条内部结算、1 条 frontmatter 已声明 resolved_by 459）
+  #   - 3 条 ongoing（429/434/476——429号/434号需后续谱系追踪，476号需实装闭合）
+  # schema_extension_needed 标记 2 条（416/438）——target 是字符串而非谱系 id。
+  # 438号 frontmatter 已使用扩展格式（target/status/resolved_by），可作 schema 规范化模板。

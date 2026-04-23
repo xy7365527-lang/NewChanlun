@@ -18,6 +18,22 @@ negation_form: internal
 negation_source: ""
 topo_effect: null
 tensions_with: []
+downstream_inferences:
+  - id: "484-1"
+    description: "在 `MultiTFOrchestrator.run()` 或新建函数中，遍历高级别TF的背驰列表"
+    status: resolved（v71 codex 质询后修复：`run_cross_scale_nested_search` 软失败策略区分可恢复/不可恢复错误——数据缺失升级至 `logger.warning`+`skip_reason`，`extract_c_segment_timestamps` 抛错移除 try/except 包裹向上传播；见 `.chanlun/pdf-review/v71-fix-484-clamp.md` 修复3）
+  - id: "484-2"
+    description: "对每个背驰，提取C段的起止时间戳"
+    status: resolved（v71 codex 质询后修复：`extract_c_segment_timestamps` 去 clamp 改为严格不变量断言——`segments[*].i0/i1` 越 `merged_to_raw` 范围直接抛 IndexError；`raw_start/raw_end` 越 bars 范围抛 IndexError；加 ts_ordering sanity check 保证 `ts_start <= ts_end`；接口 docstring 强化同源合约；见 `.chanlun/pdf-review/v71-fix-484-clamp.md` 修复1/2）
+  - id: "484-3"
+    description: "调用已有的 `align_bars_by_timestamp()` 过滤低级别bars"
+    status: resolved（v71 codex 质询后修复：上游 484-2 去 clamp 后，错误时间窗不再被 clamp 掩盖——若上游抛 IndexError/ValueError，异常向上传播；若正常返回，则 `ts_start <= ts_end` 有保证；empty range 在下游触发 `skip_reason=empty_low_bars_in_range` warning；见 `.chanlun/pdf-review/v71-fix-484-clamp.md` 修复1/3）
+  - id: "484-4"
+    description: "对过滤后的bars跑低级别RecursiveOrchestrator"
+    status: resolved（v71 codex 质询后修复：低级别快照缺失时升级至 `logger.warning`+`skip_reason=no_low_snapshot`；low_snap/max_levels 路径经 codex 审查与 agent 质询确认已有正确初始化与保护；见 `.chanlun/pdf-review/v71-fix-484-clamp.md` 修复3）
+  - id: "484-5"
+    description: "在低级别结果上调用 `a_nested_divergence.py` 搜索区间套"
+    status: resolved（v71 codex 质询后修复：补充 4 个测试覆盖——`test_segment_merged_index_out_of_range_raises`（i1 越界）、`test_segment_negative_index_raises`（负索引）、`test_raw_index_out_of_range_raises`（raw 越界 sanity）、`test_ts_ordering_invariant`（参数化遍历 ts 有序性），共 14 测试通过，85 个相关测试无回归；见 `.chanlun/pdf-review/v71-fix-484-clamp.md` 修复4）
 ---
 
 # 484号：multi_tf架构审计——完整实现 + 跨TF区间套链路缺口
