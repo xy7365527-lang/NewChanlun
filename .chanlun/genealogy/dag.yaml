@@ -2409,6 +2409,26 @@ nodes:
   status: 已结算
   type: domain
   file: settled/481-llm-autocompact-prompt-truncation.md
+- id: '482'
+  title: 资本旋转动力学——金油比=ω(剥削率), 一阶差分负相关(剥削签名), 协整是脚手架
+  status: 已结算
+  type: 概念发现
+  file: settled/482-capital-rotation-dynamics.md
+- id: '483'
+  title: 元观察——v69-swarm（跨域接枝点治理 + 重复让步局部奇点 + LFS外部依赖阻塞模式）
+  status: 已结算
+  type: meta-rule
+  file: settled/483-meta-observation-v69-swarm.md
+- id: '484'
+  title: multi_tf架构审计——完整实现 + 跨TF区间套链路缺口
+  status: 已结算
+  type: 概念发现
+  file: settled/484-multi-tf-architecture-audit.md
+- id: '485'
+  title: 拓扑化索罗斯——敞口分离显式化为多层加权有向图
+  status: 生成态
+  type: 概念发现
+  file: pending/485-topologized-soros.md
 edges:
   depends_on:
   - from: '136'
@@ -5077,6 +5097,16 @@ edges:
     to: '399'
   - from: '479'
     to: '480'
+  - from: '484'
+    to: '237'
+  - from: '484'
+    to: '238'
+  - from: '484'
+    to: '239'
+  - from: '485'
+    to: '482'
+  - from: '485'
+    to: '230'
   triggered:
   - from: '005'
     to: 005a
