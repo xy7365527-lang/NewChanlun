@@ -33,13 +33,23 @@ if [ -z "$LATEST" ] || [ ! -f "$LATEST" ]; then
 fi
 
 # 调用 session_update.py --append
+# session_update.py 使用 3.10+ 类型语法（Path | None）——必须跳过 3.9
+# 优先 venv，其次 3.12/3.11/3.10，最后回退 python3（如果版本足够）
 PYTHON_BIN=""
-for candidate in python python3; do
-    if command -v "$candidate" >/dev/null 2>&1; then
-        PYTHON_BIN="$candidate"
-        break
-    fi
-done
+VENV_PY="$REPO_ROOT/.venv/bin/python"
+if [ -x "$VENV_PY" ]; then
+    PYTHON_BIN="$VENV_PY"
+else
+    for candidate in python3.12 python3.11 python3.10 python3 python; do
+        if command -v "$candidate" >/dev/null 2>&1; then
+            VER=$("$candidate" -c 'import sys; print(sys.version_info[0]*100+sys.version_info[1])' 2>/dev/null || echo 0)
+            if [ "$VER" -ge 310 ]; then
+                PYTHON_BIN="$candidate"
+                break
+            fi
+        fi
+    done
+fi
 
 if [ -z "$PYTHON_BIN" ]; then
     echo "[session_append] 无可用 python" >&2

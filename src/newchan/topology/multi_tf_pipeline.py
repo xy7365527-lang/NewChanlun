@@ -23,6 +23,11 @@ from typing import Literal, Sequence
 from newchan.a_move_v1 import Move
 from newchan.nesting.bsp import BSP, BSPType, DivergenceType
 from newchan.nesting.resonance import ResonanceSignal, SignalLayer
+from newchan.a_nested_divergence import (
+    NestedDivergence,
+    nested_divergence_search,
+)
+from newchan.orchestrator.recursive import RecursiveOrchestrator
 from newchan.topology.multi_tf_adapter import (
     BuySellPoint,
     CrossLevelDivergence,
@@ -30,6 +35,8 @@ from newchan.topology.multi_tf_adapter import (
     MultiTFOrchestrator,
     MultiTFResult,
     TimeframeLevel,
+    align_bars_by_timestamp,
+    extract_c_segment_timestamps,
 )
 from newchan.types import Bar
 
@@ -463,3 +470,120 @@ class MultiTFPipelineAdapter:
             recursive_levels_equivalent=active_levels,
             t6_reachable=t6_reachable,
         )
+
+
+# ── 跨TF区间套链路（484号谱系下游推论3-5）────────────────────
+
+
+def run_cross_scale_nested_search(
+    multi_result: MultiTFResult,
+    tf_bars: dict[str, list[Bar]],
+    *,
+    stroke_mode: str = "wide",
+    max_levels: int = 6,
+) -> dict[int, list[NestedDivergence]]:
+    """跨TF区间套搜索——484号谱系下游推论 3-5 实现。
+
+    对 multi_result.cross_level_divergences 中的每个高级别背驰：
+      1. 提取高级别 C 段时间范围 (下游推论 1-2)
+      2. 用 align_bars_by_timestamp 过滤低级别 bars (下游推论 3)
+      3. 在过滤后的 bars 上跑独立的 RecursiveOrchestrator (下游推论 4)
+      4. 对低级别 snapshot 跑 nested_divergence_search (下游推论 5)
+
+    这完成了 484号谱系缺口：
+      "align_bars_by_timestamp 存在但无调用方从高级别背驰提取 C 段时间范围。"
+
+    Parameters
+    ----------
+    multi_result : MultiTFResult
+        MultiTFOrchestrator.run() 的输出。
+    tf_bars : dict[str, list[Bar]]
+        每个 TF 的原始 bars（key = tf_name），与 multi_result 同源。
+    stroke_mode : str
+        低级别 RecursiveOrchestrator 的笔模式。
+    max_levels : int
+        低级别 RecursiveOrchestrator 的最大递归深度。
+
+    Returns
+    -------
+    dict[int, list[NestedDivergence]]
+        key = 背驰在 cross_level_divergences 中的索引；
+        value = 在低级别 snapshot 上搜索到的区间套链列表。
+        跳过的背驰（缺失 bars / snapshot / 时间戳提取失败）不出现在结果中。
+
+    认识论等级: L1（代码层验证链路正确性，不验证假设）。
+    """
+    result: dict[int, list[NestedDivergence]] = {}
+
+    for idx, div in enumerate(multi_result.cross_level_divergences):
+        high_tf_name = div.high_tf.tf_name
+        low_tf_name = div.low_tf.tf_name
+
+        high_bars = tf_bars.get(high_tf_name)
+        low_bars = tf_bars.get(low_tf_name)
+        high_result = multi_result.levels.get(high_tf_name)
+
+        # 缺失条件：跳过该背驰
+        if not high_bars or not low_bars:
+            logger.debug(
+                "Missing bars for divergence %d (high=%s low=%s), skip",
+                idx, high_tf_name, low_tf_name,
+            )
+            continue
+        if high_result is None or high_result.snapshot is None:
+            logger.debug(
+                "High TF snapshot missing for divergence %d, skip", idx,
+            )
+            continue
+
+        segments = high_result.snapshot.seg_snapshot.segments
+        if not segments:
+            logger.debug(
+                "High TF segments empty for divergence %d, skip", idx,
+            )
+            continue
+
+        # 下游推论 1-2: 高级别 C 段 → 时间戳
+        try:
+            ts_start, ts_end = extract_c_segment_timestamps(
+                div.high_move, segments, high_bars,
+            )
+        except (ValueError, IndexError) as e:
+            logger.debug(
+                "extract_c_segment_timestamps failed for divergence %d: %s",
+                idx, e,
+            )
+            continue
+
+        # 下游推论 3: 低级别 bars 过滤
+        filtered_low_bars = align_bars_by_timestamp(
+            low_bars, ts_start, ts_end,
+        )
+        if not filtered_low_bars:
+            logger.debug(
+                "No low-TF bars in range [%s, %s] for divergence %d",
+                ts_start, ts_end, idx,
+            )
+            continue
+
+        # 下游推论 4: 在过滤后的低级别 bars 上跑独立的 RecursiveOrchestrator
+        low_orch = RecursiveOrchestrator(
+            stream_id=f"cross_scale_{low_tf_name}_div{idx}",
+            max_levels=max_levels,
+            stroke_mode=stroke_mode,
+        )
+        low_snap = None
+        for bar in filtered_low_bars:
+            low_snap = low_orch.process_bar(bar)
+        if low_snap is None:
+            logger.debug(
+                "Low TF RecursiveOrchestrator produced no snapshot "
+                "for divergence %d", idx,
+            )
+            continue
+
+        # 下游推论 5: 在低级别 snapshot 上搜索区间套
+        nested = nested_divergence_search(low_snap)
+        result[idx] = nested
+
+    return result

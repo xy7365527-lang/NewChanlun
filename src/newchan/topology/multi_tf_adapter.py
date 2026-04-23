@@ -319,6 +319,92 @@ def align_bars_by_timestamp(
     ]
 
 
+def extract_c_segment_timestamps(
+    move: Move,
+    segments: list,
+    bars: list[Bar],
+) -> tuple[datetime, datetime]:
+    """从 Move 提取 C 段时间范围（484号谱系下游推论1-2）。
+
+    映射链：
+      Move.seg_start/seg_end
+        → segments[seg_*].i0/i1（合并 bar 索引）
+        → 重建 merged_to_raw（本地重跑 merge_inclusion）
+        → bars[raw_idx].ts
+
+    本地重建 merged_to_raw 是 adapter 层的幂等重建——不修改
+    BiEngineSnapshot 的公共接口，仅为时间戳对齐复算一次索引映射。
+
+    Parameters
+    ----------
+    move : Move
+        高级别走势实例（C段 = seg_start..seg_end 范围）。
+    segments : list
+        高级别 snapshot.seg_snapshot.segments 列表。
+    bars : list[Bar]
+        高级别原始 bar 列表（与 snapshot 同源）。
+
+    Returns
+    -------
+    tuple[datetime, datetime]
+        (ts_start, ts_end)：C段在原始时间轴上的起止时间戳。
+
+    Raises
+    ------
+    ValueError
+        segments 或 bars 为空；或 seg_start/seg_end 越界。
+    IndexError
+        合并 bar 索引越出 merged_to_raw 范围。
+    """
+    if not segments:
+        raise ValueError("segments must not be empty")
+    if not bars:
+        raise ValueError("bars must not be empty")
+    if move.seg_start < 0 or move.seg_end < move.seg_start:
+        raise ValueError(
+            f"invalid seg range: seg_start={move.seg_start}, "
+            f"seg_end={move.seg_end}",
+        )
+    if move.seg_end >= len(segments):
+        raise IndexError(
+            f"seg_end={move.seg_end} exceeds segments length={len(segments)}",
+        )
+
+    # 本地重建 merged_to_raw（209号商空间映射的幂等重跑）
+    import pandas as pd
+    from newchan.a_inclusion import merge_inclusion
+
+    df_raw = pd.DataFrame(
+        {
+            "open": [b.open for b in bars],
+            "high": [b.high for b in bars],
+            "low": [b.low for b in bars],
+            "close": [b.close for b in bars],
+        },
+        index=[b.ts for b in bars],
+    )
+    _, merged_to_raw = merge_inclusion(df_raw)
+
+    if not merged_to_raw:
+        raise ValueError("merge_inclusion returned empty merged_to_raw")
+
+    seg_first = segments[move.seg_start]
+    seg_last = segments[move.seg_end]
+    n_merged = len(merged_to_raw)
+    n_raw = len(bars)
+
+    i0 = max(0, min(seg_first.i0, n_merged - 1))
+    i1 = max(0, min(seg_last.i1, n_merged - 1))
+
+    # merged idx → raw idx (取合并区间的逻辑终点，与 ab_bridge 约定一致)
+    raw_start = merged_to_raw[i0][0]  # 起点段：取合并块起始
+    raw_end = merged_to_raw[i1][1]    # 终点段：取合并块终点
+    raw_start = max(0, min(raw_start, n_raw - 1))
+    raw_end = max(0, min(raw_end, n_raw - 1))
+
+    return bars[raw_start].ts, bars[raw_end].ts
+
+
 # ── 核心编排器 ────────────────────────────────────────────
 
 
