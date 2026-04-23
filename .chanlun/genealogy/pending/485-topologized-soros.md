@@ -34,6 +34,22 @@ challenges:
       Gemini API 恢复后执行广度+深度两轮质询。上下文文件备用路径：
       /tmp/challenge-ctx-485-487-focused.md
     judgment: challenge_pending
+  - source: soros-merger-concept-precheck
+    round: post-merge-tension-scan
+    date: 2026-04-24
+    status: noted
+    claim: >
+      v71-soros-challenges.md C1+C2 下游推论：486/487号 jet bundle/纤维化链被否定后，
+      485号推论1（"对 jet bundle k-jet 分量的约束"）和推论2（"Merkle DAG 对接"的
+      数学基础依赖 jet bundle）受间接影响。485号核心扬弃（投影→多层有向图）仍有效
+      （challenges报告第111行确认），但推论1/2的数学形式化需从 jet bundle 降级为
+      "多层约束系统的组织原则"（challenges报告第79行）。与438号S_net唯一界面的
+      张力方向：485推论2声称"敞口=逢亮的一个view"，438号要求一切经过S_net——
+      两者兼容当且仅当敞口view的读写路径经过S_net（不绕过）。
+    resolution_needed: >
+      (1) 推论1/2的数学术语从 jet bundle 改为多层约束系统；
+      (2) 推论2与438号的兼容性需在实装时确保敞口view经过S_net。
+    judgment: tension_noted_no_escalation
 ---
 
 # 485号：拓扑化索罗斯——把敞口分离的边显式化
