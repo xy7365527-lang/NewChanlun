@@ -17,5 +17,6 @@
   "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
     "claude-audit"
-  ]
+  ],
+  "outputStyle": "default"
 }
