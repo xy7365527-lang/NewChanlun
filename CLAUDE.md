@@ -104,3 +104,42 @@ python topological-computation/ceremony.py --check
 ```
 
 文档：`topological-computation/CEREMONY.md`
+
+## TradingView 实时数据源
+
+tradingview-mcp 已通过 `~/.claude/.mcp.json` 全局注册，在本项目的任何 Claude Code session 中均可直接调用 78 个 MCP 工具，无需额外配置。
+
+**前置条件**：TradingView Desktop 必须以 debug 模式运行：
+```bash
+~/Projects/tradingview-mcp/scripts/launch_tv_debug_mac.sh
+# 或手动：/Applications/TradingView.app/Contents/MacOS/TradingView --remote-debugging-port=9222
+```
+连接验证：`tv_health_check`
+
+### 缠论操盘核心工具映射
+
+| 缠论概念 | MCP 工具 | 参数示例 |
+|---------|---------|---------|
+| 读自定义指标标注（笔/买卖点） | `data_get_pine_labels` | `study_filter: "缠论"` |
+| 读水平线（中枢边界/关键价位） | `data_get_pine_lines` | `study_filter: "缠论"` |
+| 读中枢矩形框 | `data_get_pine_boxes` | `study_filter: "缠论"` |
+| 读状态表格 | `data_get_pine_tables` | `study_filter: "缠论"` |
+| 读实时价格 OHLC | `quote_get` | — |
+| 读 K 线数据 | `data_get_ohlcv` | `summary: true` |
+| 截图（含指标叠加） | `capture_screenshot` | `region: "chart"` |
+| 切换品种/周期 | `chart_set_symbol` / `chart_set_timeframe` | `"NYMEX:CL1!"`, `"30"` |
+
+**关键约束**：被 `study_filter` 指定的指标必须在图表上**可见**（不能隐藏）。
+
+### 标准分析 prompt 模板
+
+```
+# 单图分析
+"读取当前图表上缠论指标的标注，判断当前走势级别、有无买卖点"
+
+# 截图 + 全分析
+"截取当前 Brent 原油图表，结合缠论指标输出给出操盘建议"
+
+# 多周期联动
+"对比 Brent 原油 30 分钟和 5 分钟的缠论标注，判断是否有背驰"
+```

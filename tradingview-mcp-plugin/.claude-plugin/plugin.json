@@ -1,0 +1,9 @@
+{
+  "name": "tradingview-chanlun",
+  "version": "0.1.0",
+  "description": "Connect TradingView Desktop to read Chanlun indicators, chart data, quotes, and control chart navigation. Requires TradingView Desktop running in debug mode (--remote-debugging-port=9222).",
+  "author": {
+    "name": "silencehan"
+  },
+  "keywords": ["tradingview", "chanlun", "trading", "technical-analysis"]
+}
