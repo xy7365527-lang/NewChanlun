@@ -24,7 +24,9 @@ from datetime import datetime
 from typing import Literal
 
 from newchan.a_divergence import Divergence
+from newchan.a_divergence_v1 import divergences_from_moves_v1
 from newchan.a_move_v1 import Move
+from newchan.a_nested_divergence import NestedDivergence, nested_divergence_search
 from newchan.orchestrator.recursive import (
     RecursiveOrchestrator,
     RecursiveOrchestratorSnapshot,
@@ -175,6 +177,40 @@ class MultiTFResult:
     buysellpoints: list[BuySellPoint] = field(default_factory=list)
 
 
+@dataclass(frozen=True, slots=True)
+class CrossTFNestedDivergence:
+    """跨 TF 区间套背驰 — 高级别背驰 C 段内低级别的嵌套背驰链。
+
+    484号谱系下游推论：将单 TF 递归区间套扩展到跨 TF 维度。
+    高级别 TF 的背驰 C 段时间范围约束低级别 TF 的搜索空间。
+
+    Attributes
+    ----------
+    high_tf : TimeframeLevel
+        高级别 TF。
+    low_tf : TimeframeLevel
+        低级别 TF。
+    high_divergence : Divergence
+        高级别背驰（提供 C 段时间约束）。
+    low_nested : list[NestedDivergence]
+        低级别在 C 段时间范围内的区间套搜索结果。
+    c_start_ts : datetime
+        C 段起始时间戳。
+    c_end_ts : datetime
+        C 段结束时间戳。
+    low_bar_count : int
+        C 段时间范围内低级别 bar 数量。
+    """
+
+    high_tf: TimeframeLevel
+    low_tf: TimeframeLevel
+    high_divergence: Divergence
+    low_nested: list[NestedDivergence]
+    c_start_ts: datetime
+    c_end_ts: datetime
+    low_bar_count: int
+
+
 # ── 力度计算 ──────────────────────────────────────────────
 
 
@@ -319,6 +355,72 @@ def align_bars_by_timestamp(
     ]
 
 
+# ── 跨 TF 区间套辅助函数 ────────────────────────────────
+
+
+def _extract_divergences_from_snapshot(
+    snap: RecursiveOrchestratorSnapshot,
+) -> list[Divergence]:
+    """从 RecursiveOrchestratorSnapshot 提取 level=1 的背驰列表。"""
+    return divergences_from_moves_v1(
+        snap.seg_snapshot.segments,
+        snap.zs_snapshot.zhongshus,
+        snap.move_snapshot.moves,
+        level_id=1,
+    )
+
+
+def _c_segment_bar_indices(
+    div: Divergence,
+    snap: RecursiveOrchestratorSnapshot,
+) -> tuple[int, int] | None:
+    """将背驰 C 段映射到 merged bar 索引范围。无效时返回 None。"""
+    segments = snap.seg_snapshot.segments
+    if div.seg_c_start >= len(segments) or div.seg_c_end >= len(segments):
+        return None
+    i0 = segments[div.seg_c_start].i0
+    i1 = segments[div.seg_c_end].i1
+    if i0 >= i1:
+        return None
+    return (i0, i1)
+
+
+def _merged_idx_to_timestamp(
+    merged_idx: int,
+    bars: list[Bar],
+) -> datetime | None:
+    """将 merged bar 索引近似映射到原始 bar 时间戳。
+
+    merged bar 索引 ≤ 原始 bar 索引（包含处理只合并不新增）。
+    用 min(merged_idx, len(bars)-1) 做保守映射。
+    """
+    if not bars:
+        return None
+    clamped = min(merged_idx, len(bars) - 1)
+    return bars[clamped].ts
+
+
+def _run_nested_on_filtered_bars(
+    filtered_bars: list[Bar],
+    stroke_mode: str,
+    max_levels: int,
+) -> list[NestedDivergence]:
+    """对过滤后的 bars 运行独立 RecursiveOrchestrator + 区间套搜索。"""
+    if len(filtered_bars) < 3:
+        return []
+    orch = RecursiveOrchestrator(
+        stream_id="cross_tf_nested",
+        max_levels=max_levels,
+        stroke_mode=stroke_mode,
+    )
+    snap: RecursiveOrchestratorSnapshot | None = None
+    for bar in filtered_bars:
+        snap = orch.process_bar(bar)
+    if snap is None:
+        return []
+    return nested_divergence_search(snap)
+
+
 # ── 核心编排器 ────────────────────────────────────────────
 
 
@@ -349,8 +451,9 @@ class MultiTFOrchestrator:
         if not timeframes:
             raise ValueError("timeframes must not be empty")
 
-        # 按 level_index 排序
         self._timeframes = sorted(timeframes, key=lambda tf: tf.level_index)
+        self._stroke_mode = stroke_mode
+        self._max_levels = max_levels
 
         # 每个 TF 一个独立的 RecursiveOrchestrator
         self._orchestrators: dict[str, RecursiveOrchestrator] = {}
@@ -467,4 +570,104 @@ class MultiTFOrchestrator:
             levels=levels,
             cross_level_divergences=divergences,
             buysellpoints=buysellpoints,
+        )
+
+    def cross_tf_nested_divergence(
+        self,
+        result: MultiTFResult,
+        tf_bars: dict[str, list[Bar]],
+    ) -> list[CrossTFNestedDivergence]:
+        """跨 TF 区间套背驰搜索。
+
+        遍历相邻 TF 对，从高级别背驰的 C 段时间范围内
+        搜索低级别的区间套嵌套背驰链。
+
+        Parameters
+        ----------
+        result : MultiTFResult
+            run() 的输出。
+        tf_bars : dict[str, list[Bar]]
+            与 run() 相同的原始 bar 数据。
+
+        Returns
+        -------
+        list[CrossTFNestedDivergence]
+            跨 TF 区间套背驰列表。
+        """
+        nested_results: list[CrossTFNestedDivergence] = []
+
+        for i in range(len(self._timeframes) - 1):
+            high_tf = self._timeframes[i + 1]
+            low_tf = self._timeframes[i]
+            items = self._search_pair(
+                high_tf, low_tf, result, tf_bars,
+            )
+            nested_results.extend(items)
+
+        return nested_results
+
+    def _search_pair(
+        self,
+        high_tf: TimeframeLevel,
+        low_tf: TimeframeLevel,
+        result: MultiTFResult,
+        tf_bars: dict[str, list[Bar]],
+    ) -> list[CrossTFNestedDivergence]:
+        """搜索单个 TF 对的跨 TF 区间套。"""
+        high_result = result.levels.get(high_tf.tf_name)
+        if high_result is None or high_result.snapshot is None:
+            return []
+
+        low_bars = tf_bars.get(low_tf.tf_name, [])
+        if not low_bars:
+            return []
+
+        high_bars = tf_bars.get(high_tf.tf_name, [])
+        high_snap = high_result.snapshot
+        high_divs = _extract_divergences_from_snapshot(high_snap)
+
+        items: list[CrossTFNestedDivergence] = []
+        for div in high_divs:
+            item = self._process_single_divergence(
+                div, high_tf, low_tf, high_snap, high_bars, low_bars,
+            )
+            if item is not None:
+                items.append(item)
+        return items
+
+    def _process_single_divergence(
+        self,
+        div: Divergence,
+        high_tf: TimeframeLevel,
+        low_tf: TimeframeLevel,
+        high_snap: RecursiveOrchestratorSnapshot,
+        high_bars: list[Bar],
+        low_bars: list[Bar],
+    ) -> CrossTFNestedDivergence | None:
+        """处理单个高级别背驰，搜索低级别区间套。"""
+        bar_range = _c_segment_bar_indices(div, high_snap)
+        if bar_range is None:
+            return None
+
+        c_start_ts = _merged_idx_to_timestamp(bar_range[0], high_bars)
+        c_end_ts = _merged_idx_to_timestamp(bar_range[1], high_bars)
+        if c_start_ts is None or c_end_ts is None:
+            return None
+
+        filtered = align_bars_by_timestamp(low_bars, c_start_ts, c_end_ts)
+        if len(filtered) < 3:
+            return None
+
+        low_nested = _run_nested_on_filtered_bars(
+            filtered, self._stroke_mode, self._max_levels,
+        )
+
+        return CrossTFNestedDivergence(
+            high_tf=high_tf,
+            low_tf=low_tf,
+            high_divergence=div,
+            low_nested=low_nested,
+            c_start_ts=c_start_ts,
+            c_end_ts=c_end_ts,
+            low_bar_count=len(filtered),
         )

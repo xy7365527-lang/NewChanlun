@@ -15,17 +15,23 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
+from newchan.a_divergence import Divergence
 from newchan.a_move_v1 import Move
 from newchan.topology.multi_tf_adapter import (
     BuySellPoint,
     CrossLevelDivergence,
+    CrossTFNestedDivergence,
     LevelResult,
     MultiTFOrchestrator,
     MultiTFResult,
     TimeframeLevel,
+    _c_segment_bar_indices,
     _detect_cross_level_divergence,
     _derive_buysellpoints,
+    _extract_divergences_from_snapshot,
+    _merged_idx_to_timestamp,
     _move_amplitude,
+    _run_nested_on_filtered_bars,
     align_bars_by_timestamp,
 )
 from newchan.types import Bar
@@ -342,3 +348,108 @@ class TestMultiTFResult:
         assert result.levels == {}
         assert result.cross_level_divergences == []
         assert result.buysellpoints == []
+
+
+# ── CrossTFNestedDivergence helper tests ──────────────────
+
+
+class TestMergedIdxToTimestamp:
+    def test_valid_index(self) -> None:
+        start = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        bars = _make_bars(10, start=start)
+        ts = _merged_idx_to_timestamp(3, bars)
+        assert ts == bars[3].ts
+
+    def test_index_beyond_length_clamps(self) -> None:
+        start = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        bars = _make_bars(5, start=start)
+        ts = _merged_idx_to_timestamp(100, bars)
+        assert ts == bars[4].ts
+
+    def test_empty_bars_returns_none(self) -> None:
+        assert _merged_idx_to_timestamp(0, []) is None
+
+
+class TestRunNestedOnFilteredBars:
+    def test_too_few_bars_returns_empty(self) -> None:
+        start = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        bars = _make_bars(2, start=start)
+        result = _run_nested_on_filtered_bars(bars, "wide", 6)
+        assert result == []
+
+    def test_runs_without_error(self) -> None:
+        start = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        bars = _make_bars(100, start=start)
+        result = _run_nested_on_filtered_bars(bars, "wide", 6)
+        assert isinstance(result, list)
+
+
+class TestExtractDivergencesFromSnapshot:
+    def test_returns_list_from_synthetic_data(self) -> None:
+        from newchan.orchestrator.recursive import RecursiveOrchestrator
+        start = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        bars = _make_bars(200, start=start)
+        orch = RecursiveOrchestrator(stroke_mode="wide")
+        snap = None
+        for bar in bars:
+            snap = orch.process_bar(bar)
+        assert snap is not None
+        divs = _extract_divergences_from_snapshot(snap)
+        assert isinstance(divs, list)
+
+
+class TestCrossTFNestedDivergenceDataclass:
+    def test_frozen(self) -> None:
+        from newchan.a_nested_divergence import NestedDivergence
+        high_tf = _make_tf("weekly", 1)
+        low_tf = _make_tf("daily", 0)
+        div = Divergence(
+            kind="trend", direction="top", level_id=1,
+            seg_a_start=0, seg_a_end=1, seg_c_start=2, seg_c_end=3,
+            center_idx=0, force_a=10.0, force_c=5.0, confirmed=True,
+        )
+        ts = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        obj = CrossTFNestedDivergence(
+            high_tf=high_tf, low_tf=low_tf,
+            high_divergence=div, low_nested=[],
+            c_start_ts=ts, c_end_ts=ts + timedelta(hours=1),
+            low_bar_count=50,
+        )
+        assert obj.high_tf == high_tf
+        assert obj.low_bar_count == 50
+        with pytest.raises(AttributeError):
+            obj.low_bar_count = 99  # type: ignore[misc]
+
+
+class TestCrossTFNestedDivergenceIntegration:
+    def test_returns_list_on_synthetic_data(self) -> None:
+        tfs = [_make_tf("1min", 0), _make_tf("5min", 1)]
+        orch = MultiTFOrchestrator(tfs, stroke_mode="wide")
+        start = datetime(2024, 1, 1, 9, 30, tzinfo=timezone.utc)
+        bars_1min = _make_bars(200, base_price=100.0, start=start)
+        bars_5min = _make_bars(40, base_price=100.0, start=start)
+        tf_bars = {"1min": bars_1min, "5min": bars_5min}
+        result = orch.run(tf_bars)
+        nested = orch.cross_tf_nested_divergence(result, tf_bars)
+        assert isinstance(nested, list)
+
+    def test_empty_when_no_high_level_data(self) -> None:
+        tfs = [_make_tf("1min", 0), _make_tf("5min", 1)]
+        orch = MultiTFOrchestrator(tfs, stroke_mode="wide")
+        start = datetime(2024, 1, 1, 9, 30, tzinfo=timezone.utc)
+        bars_1min = _make_bars(200, start=start)
+        tf_bars = {"1min": bars_1min}
+        result = orch.run(tf_bars)
+        nested = orch.cross_tf_nested_divergence(result, tf_bars)
+        assert nested == []
+
+    def test_empty_when_no_low_level_bars(self) -> None:
+        tfs = [_make_tf("1min", 0), _make_tf("5min", 1)]
+        orch = MultiTFOrchestrator(tfs, stroke_mode="wide")
+        start = datetime(2024, 1, 1, 9, 30, tzinfo=timezone.utc)
+        bars_5min = _make_bars(40, start=start)
+        tf_bars_run = {"5min": bars_5min}
+        result = orch.run(tf_bars_run)
+        tf_bars_nested = {"5min": bars_5min}
+        nested = orch.cross_tf_nested_divergence(result, tf_bars_nested)
+        assert nested == []
