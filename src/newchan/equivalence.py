@@ -247,6 +247,8 @@ def _compute_macd_dynamics(ratio_kline: pd.DataFrame, ratio_mean: float) -> floa
 
 def _infer_target_freq(idx: pd.DatetimeIndex) -> str | None:
     """从 DatetimeIndex 推断目标频率标签。"""
+    if not isinstance(idx, pd.DatetimeIndex):
+        return None
     if len(idx) < 2:
         return None
     median_delta = pd.Series(idx).diff().dropna().median()
@@ -311,6 +313,8 @@ def make_ratio_kline(
     if sub_a is not None and sub_b is not None:
         sub_idx = sub_a.index.intersection(sub_b.index)
         sa, sb = sub_a.loc[sub_idx], sub_b.loc[sub_idx]
+        if (sb["close"] == 0).any():
+            raise ValueError("Zero price in sub_b close — division undefined")
         ratio = sa["close"] / sb["close"]
         volume = sa["volume"] if "volume" in sa.columns else None
 
