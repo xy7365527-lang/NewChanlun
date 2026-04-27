@@ -11,6 +11,8 @@ build/
 
 # Environment
 .env
+.env.*
+.env.bak-*
 
 # IDE / tools
 .cursor/
@@ -41,6 +43,7 @@ Thumbs.db
 # Data / temp
 _test_db.py
 charting-library-context.txt
+tmp/
 
 # Deploy package (reference only)
 deploy/
@@ -48,4 +51,3 @@ deploy/
 # Data files
 data/
 .coverage
-.env.local
