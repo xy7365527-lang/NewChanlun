@@ -285,6 +285,36 @@ class TestMakeRatioKlineSubFreq:
         )
         assert len(ratio) == 2
 
+    def test_sub_freq_non_datetime_target_falls_back(self):
+        """无法从目标索引推断频率时走 fallback，不应崩溃。"""
+        df_a = _ohlcv([100, 110], start="2024-01-01").reset_index(drop=True)
+        df_b = _ohlcv([50, 55], start="2024-01-01").reset_index(drop=True)
+
+        sub_prices_a = [100 + i for i in range(48)]
+        sub_prices_b = [50 + i * 0.5 for i in range(48)]
+        sub_a = _hourly_ohlcv(sub_prices_a, start="2024-01-01")
+        sub_b = _hourly_ohlcv(sub_prices_b, start="2024-01-01")
+
+        with pytest.warns(UserWarning, match="cannot infer target_freq"):
+            ratio = make_ratio_kline(df_a, df_b, sub_a=sub_a, sub_b=sub_b)
+        assert list(ratio["close"]) == [2.0, 2.0]
+
+    def test_sub_freq_zero_denominator_rejected(self):
+        """子频率 B 的 close 为 0 时拒绝，避免静默产出 inf K线。"""
+        df_a = _ohlcv([100, 110], start="2024-01-01")
+        df_b = _ohlcv([50, 55], start="2024-01-01")
+
+        sub_prices_a = [100 + i for i in range(48)]
+        sub_prices_b = [50 + i * 0.5 for i in range(48)]
+        sub_prices_b[6] = 0.0
+        sub_a = _hourly_ohlcv(sub_prices_a, start="2024-01-01")
+        sub_b = _hourly_ohlcv(sub_prices_b, start="2024-01-01")
+
+        with pytest.raises(ValueError, match="Zero price in sub_b close"):
+            make_ratio_kline(
+                df_a, df_b, sub_a=sub_a, sub_b=sub_b, target_freq="1D",
+            )
+
     def test_fallback_warns(self):
         """不提供子频率数据时发出 warning。"""
         df_a = _ohlcv([100, 110])
