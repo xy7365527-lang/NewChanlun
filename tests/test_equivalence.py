@@ -206,6 +206,14 @@ class TestMakeRatioKline:
         for col in ["open", "high", "low", "close", "volume"]:
             assert col in ratio.columns
 
+    def test_naive_zero_b_price_raises(self):
+        """直接构造 fallback 比价K线时也拒绝 B 端零价格。"""
+        df_a = _ohlcv([100, 110, 120])
+        df_b = _ohlcv([50, 0, 60])
+
+        with pytest.raises(ValueError, match="Zero price in B"):
+            make_ratio_kline(df_a, df_b)
+
 
 # ── 子频率聚合构造比价K线 ──────────────────────────────────
 
@@ -284,6 +292,19 @@ class TestMakeRatioKlineSubFreq:
             df_a, df_b, sub_a=sub_a, sub_b=sub_b, target_freq="1D",
         )
         assert len(ratio) == 2
+
+    def test_sub_freq_zero_b_close_raises(self):
+        """子频率 B 端 close 为 0 时拒绝构造，避免 inf 污染后续管线。"""
+        df_a = _ohlcv([100, 110], start="2024-01-01")
+        df_b = _ohlcv([50, 55], start="2024-01-01")
+
+        sub_a = _hourly_ohlcv([100.0] * 48, start="2024-01-01")
+        sub_b_prices = [50.0] * 48
+        sub_b_prices[6] = 0.0
+        sub_b = _hourly_ohlcv(sub_b_prices, start="2024-01-01")
+
+        with pytest.raises(ValueError, match="Zero price in B"):
+            make_ratio_kline(df_a, df_b, sub_a=sub_a, sub_b=sub_b)
 
     def test_fallback_warns(self):
         """不提供子频率数据时发出 warning。"""
