@@ -206,6 +206,14 @@ class TestMakeRatioKline:
         for col in ["open", "high", "low", "close", "volume"]:
             assert col in ratio.columns
 
+    def test_naive_zero_b_price_raises(self):
+        """直接构造 fallback 比价K线时也拒绝 B 端零价格。"""
+        df_a = _ohlcv([100, 110, 120])
+        df_b = _ohlcv([50, 0, 60])
+
+        with pytest.raises(ValueError, match="Zero price in B"):
+            make_ratio_kline(df_a, df_b)
+
 
 # ── 子频率聚合构造比价K线 ──────────────────────────────────
 
