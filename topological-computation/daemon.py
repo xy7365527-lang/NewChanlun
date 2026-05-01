@@ -1539,8 +1539,17 @@ class TopologicalDaemon:
             "step": self.total_steps,
             "timestamp": now,
         }
-        block_hash = self._shared_layer.write_block(block)
-        self._cross_instance_sync.known_blocks.add(block_hash)
+        try:
+            block_hash = self._shared_layer.write_block(block)
+            if self._cross_instance_sync is not None:
+                self._cross_instance_sync.known_blocks.add(block_hash)
+        except Exception as exc:
+            print(
+                f"Plan C: traversal_position write failed ({exc}), "
+                "skipping shared-layer update",
+                file=sys.stderr,
+            )
+            return
 
         self._last_position_write_time = now
         self._last_position_write_label = position_label
