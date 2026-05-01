@@ -263,8 +263,9 @@ class SwarmDaemon(TopologicalDaemon):
             try:
                 self.syncer.sync()
             except Exception as e:
-                if self._logger:
-                    self._logger.warning(f"SharedLayer sync failed ({e}), skipping this sync")
+                logger = getattr(self, "_logger", None)
+                if logger:
+                    logger.warning(f"SharedLayer sync failed ({e}), skipping this sync")
 
     def _write_traversal_position(self, log=None) -> None:
         """Write traversal_position block to SharedLayer.
@@ -310,8 +311,9 @@ class SwarmDaemon(TopologicalDaemon):
             self._last_position_write_time = now
             self._last_position_write_label = position_label
         except Exception as e:
-            if self._logger:
-                self._logger.warning(f"SharedLayer traversal_position write failed ({e})")
+            logger = getattr(self, "_logger", None)
+            if logger:
+                logger.warning(f"SharedLayer traversal_position write failed ({e})")
 
     def _write_event_block(self) -> None:
         """Write current graph snapshot as a content-addressed block."""
@@ -361,8 +363,9 @@ class SwarmDaemon(TopologicalDaemon):
             self.syncer.known_blocks.add(block_hash)
             self._blocks_written += 1
         except Exception as e:
-            if self._logger:
-                self._logger.warning(f"SharedLayer event block write failed ({e})")
+            logger = getattr(self, "_logger", None)
+            if logger:
+                logger.warning(f"SharedLayer event block write failed ({e})")
 
     def swarm_status(self) -> dict:
         """Extended status with swarm-specific info."""
