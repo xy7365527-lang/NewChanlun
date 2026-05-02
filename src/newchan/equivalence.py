@@ -284,7 +284,12 @@ def _aggregate_ratio_to_kline(
     })
     if volume_series is not None:
         result["volume"] = volume_series.resample(target_freq).sum()
-    result = result.reindex(target_index)
+
+    target_dt_index = pd.DatetimeIndex(target_index)
+    target_periods = target_dt_index.to_period(target_freq)
+    result.index = result.index.to_period(target_freq)
+    result = result.reindex(target_periods)
+    result.index = target_dt_index
     result = result.dropna(subset=["open"])
     return result
 
