@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+from types import SimpleNamespace
 from pathlib import Path
 
 import pytest
@@ -11,6 +12,8 @@ if str(TOPO_DIR) not in sys.path:
     sys.path.insert(0, str(TOPO_DIR))
 
 from swarm.shared_layer import SharedLayer  # noqa: E402
+from swarm.cross_instance import CrossInstanceSync  # noqa: E402
+import swarm.identity as swarm_identity  # noqa: E402
 
 
 class FakeIPFS:
@@ -42,3 +45,44 @@ def test_write_block_does_not_index_unpinned_cid() -> None:
         shared.write_block({"type": "critical"})
 
     assert ipfs.written_paths == []
+
+
+class FailingSharedLayer:
+    def write_block(self, content: dict) -> str:
+        raise RuntimeError("IPFS pin failed for CID bafy-response")
+
+    def write_relation(self, **kwargs) -> None:
+        raise AssertionError("relation must not be written when response block is unpinned")
+
+
+def test_interpretation_write_failure_does_not_escape(monkeypatch) -> None:
+    response = SimpleNamespace(
+        response="agree",
+        operation="fold",
+        my_f=0,
+        other_f=0,
+        target_v="v1",
+        target_w="v2",
+        reason="test",
+    )
+    monkeypatch.setattr(swarm_identity, "process_other_operation", lambda snapshot, block: response)
+
+    sync = CrossInstanceSync.__new__(CrossInstanceSync)
+    sync.shared = FailingSharedLayer()
+    sync.instance_id = "local"
+    sync.daemon = SimpleNamespace(k_active=object(), settlement=object(), total_steps=1)
+    sync.known_blocks = set()
+    sync.agreed_count = 0
+    sync.negated_count = 0
+    sync.deferred_count = 0
+
+    sync._interpret_and_respond(
+        {
+            "instance": "peer",
+            "vertices": [],
+            "edges": [],
+        },
+        "bafy-source",
+    )
+
+    assert sync.known_blocks == set()
