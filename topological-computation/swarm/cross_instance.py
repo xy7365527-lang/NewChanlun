@@ -261,16 +261,19 @@ class CrossInstanceSync:
                 "target_w": response.target_w,
                 "reason": response.reason,
             }
-            response_hash = self.shared.write_block(response_block)
-            self.known_blocks.add(response_hash)
+            try:
+                response_hash = self.shared.write_block(response_block)
+                self.known_blocks.add(response_hash)
 
-            # relation: block_hash --[agree|negate]--> response_hash
-            self.shared.write_relation(
-                from_hash=block_hash,
-                to_hash=response_hash,
-                relation=response.response,
-                instance_id=self.instance_id,
-            )
+                # relation: block_hash --[agree|negate]--> response_hash
+                self.shared.write_relation(
+                    from_hash=block_hash,
+                    to_hash=response_hash,
+                    relation=response.response,
+                    instance_id=self.instance_id,
+                )
+            except Exception:
+                return
 
     def interpretation_summary(self) -> dict:
         """返回解读统计摘要（含 peer state tracking）。"""

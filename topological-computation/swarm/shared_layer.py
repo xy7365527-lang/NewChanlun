@@ -48,11 +48,17 @@ class SharedLayer:
         写入后在 MFS 索引中注册 CID，并 pin 防止 GC。
         """
         data = json.dumps(content, sort_keys=True, ensure_ascii=False)
-        cid = self._ipfs.upload(data)
-        self._ipfs.pin(cid)
+        cid = self._upload_pinned(data)
         # 在 MFS 中注册 CID（文件名 = CID，内容为空占位）
         mfs_path = f"{_MFS_BLOCKS}/{cid}"
         self._ipfs.files_write(mfs_path, b"", create=True, truncate=True)
+        return cid
+
+    def _upload_pinned(self, data: str) -> str:
+        """Upload and require pin before exposing the CID through MFS indexes."""
+        cid = self._ipfs.upload(data)
+        if not self._ipfs.pin(cid):
+            raise RuntimeError(f"IPFS pin failed for CID {cid}")
         return cid
 
     def read_block(self, cid: str) -> dict | None:
@@ -82,8 +88,7 @@ class SharedLayer:
             "timestamp": time.time(),
         }
         data = json.dumps(record, sort_keys=True, ensure_ascii=False)
-        cid = self._ipfs.upload(data)
-        self._ipfs.pin(cid)
+        cid = self._upload_pinned(data)
         # 注册到 MFS relations 索引
         mfs_path = f"{_MFS_RELATIONS}/{cid}"
         self._ipfs.files_write(mfs_path, b"", create=True, truncate=True)
