@@ -358,7 +358,7 @@ class TestMovesFromLevelZhongshus:
                 comp_start=0, comp_end=2, comp_count=3,
                 settled=True,
                 break_comp=3, break_direction="down",
-                gg=35.0, dd=18.0, level_id=1,
+                gg=35.0, dd=12.0, level_id=1,
             ),
             LevelZhongshu(
                 zd=5.0, zg=15.0,

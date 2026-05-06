@@ -300,7 +300,12 @@ class SwarmDaemon(TopologicalDaemon):
             "step": self.total_steps,
             "timestamp": now,
         }
-        block_hash = self.shared.write_block(block)
+        try:
+            block_hash = self.shared.write_block(block)
+        except Exception as exc:
+            if self._logger:
+                self._logger.warning(f"SharedLayer traversal_position write failed: {exc}")
+            return
         self.syncer.known_blocks.add(block_hash)
 
         self._last_position_write_time = now
@@ -349,7 +354,12 @@ class SwarmDaemon(TopologicalDaemon):
             "vertices": new_vertices,
             "edges": new_edges,
         }
-        block_hash = self.shared.write_block(block)
+        try:
+            block_hash = self.shared.write_block(block)
+        except Exception as exc:
+            if self._logger:
+                self._logger.warning(f"SharedLayer event write failed: {exc}")
+            return
         self.syncer.known_blocks.add(block_hash)
         self._blocks_written += 1
 

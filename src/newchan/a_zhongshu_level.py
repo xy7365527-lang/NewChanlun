@@ -176,13 +176,13 @@ def zhongshu_from_components(
 
 
 def _is_ascending(c1: LevelZhongshu, c2: LevelZhongshu) -> bool:
-    """后枢 DD 严格高于 前枢 GG → 上涨延续。"""
-    return c2.dd > c1.gg
+    """后枢 ZD 严格高于 前枢 ZG → 上涨延续（固定区间递升）。"""
+    return c2.zd > c1.zg
 
 
 def _is_descending(c1: LevelZhongshu, c2: LevelZhongshu) -> bool:
-    """后枢 GG 严格低于 前枢 DD → 下跌延续。"""
-    return c2.gg < c1.dd
+    """后枢 ZG 严格低于 前枢 ZD → 下跌延续（固定区间递降）。"""
+    return c2.zg < c1.zd
 
 
 def _greedy_group_zhongshus(
