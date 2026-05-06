@@ -326,6 +326,54 @@ class TestMovesFromLevelZhongshus:
         assert m.high == 35.0  # max(gg: 18, 35)
         assert m.low == 5.0   # min(dd: 5, 20)
 
+    def test_moves_from_level_zhongshus_uses_zd_zg_for_trend(self) -> None:
+        """递归层趋势判断必须与 level-1 一样使用固定区间 ZD/ZG。"""
+        zhongshus = [
+            LevelZhongshu(
+                zd=10.0, zg=18.0,
+                comp_start=0, comp_end=2, comp_count=3,
+                settled=True,
+                break_comp=3, break_direction="up",
+                gg=25.0, dd=5.0, level_id=1,
+            ),
+            LevelZhongshu(
+                zd=20.0, zg=28.0,
+                comp_start=6, comp_end=8, comp_count=3,
+                settled=True,
+                break_comp=9, break_direction="up",
+                gg=35.0, dd=15.0, level_id=1,
+            ),
+        ]
+        result = moves_from_level_zhongshus(zhongshus)
+
+        assert len(result) == 1
+        assert result[0].kind == "trend"
+        assert result[0].direction == "up"
+
+    def test_moves_from_level_zhongshus_uses_zd_zg_for_downtrend(self) -> None:
+        """递归层下跌趋势同样按固定区间 ZD/ZG 递降判断。"""
+        zhongshus = [
+            LevelZhongshu(
+                zd=20.0, zg=30.0,
+                comp_start=0, comp_end=2, comp_count=3,
+                settled=True,
+                break_comp=3, break_direction="down",
+                gg=35.0, dd=18.0, level_id=1,
+            ),
+            LevelZhongshu(
+                zd=5.0, zg=15.0,
+                comp_start=6, comp_end=8, comp_count=3,
+                settled=True,
+                break_comp=9, break_direction="down",
+                gg=17.0, dd=3.0, level_id=1,
+            ),
+        ]
+        result = moves_from_level_zhongshus(zhongshus)
+
+        assert len(result) == 1
+        assert result[0].kind == "trend"
+        assert result[0].direction == "down"
+
     def test_moves_from_level_zhongshus_last_unsettled(self) -> None:
         """最后一个 move 的 settled 必须为 False。"""
         zhongshus = [
