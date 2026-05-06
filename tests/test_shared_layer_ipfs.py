@@ -11,8 +11,9 @@ TOPO_DIR = Path(__file__).resolve().parents[1] / "topological-computation"
 if str(TOPO_DIR) not in sys.path:
     sys.path.insert(0, str(TOPO_DIR))
 
-from swarm.shared_layer import SharedLayer  # noqa: E402
 from swarm.cross_instance import CrossInstanceSync  # noqa: E402
+from daemon import TopologicalDaemon  # noqa: E402
+from swarm.shared_layer import SharedLayer  # noqa: E402
 import swarm.identity as swarm_identity  # noqa: E402
 
 
@@ -86,3 +87,26 @@ def test_interpretation_write_failure_does_not_escape(monkeypatch) -> None:
     )
 
     assert sync.known_blocks == set()
+
+
+class FakeGraph:
+    def vertex(self, vertex_id: str):
+        return SimpleNamespace(content=f"label:{vertex_id}")
+
+
+def test_topological_daemon_traversal_write_failure_does_not_escape() -> None:
+    daemon = TopologicalDaemon.__new__(TopologicalDaemon)
+    daemon.engine = SimpleNamespace(position="v1")
+    daemon.k_active = FakeGraph()
+    daemon._last_position_write_time = 0.0
+    daemon._last_position_write_label = ""
+    daemon._instance_id = "local"
+    daemon.total_steps = 1
+    daemon._shared_layer = FailingSharedLayer()
+    daemon._cross_instance_sync = SimpleNamespace(known_blocks=set())
+    log = SimpleNamespace(operation="fold")
+
+    daemon._write_traversal_position(log)
+
+    assert daemon._cross_instance_sync.known_blocks == set()
+    assert daemon._last_position_write_label == ""
