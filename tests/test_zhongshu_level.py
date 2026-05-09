@@ -313,7 +313,7 @@ class TestMovesFromLevelZhongshus:
                 comp_start=3, comp_end=5, comp_count=3,
                 settled=True,
                 break_comp=6, break_direction="up",
-                gg=35.0, dd=20.0, level_id=1,  # DD=20 > GG=18 → ascending
+                gg=35.0, dd=20.0, level_id=1,  # ZD=25 > ZG=15 → ascending
             ),
         ]
         result = moves_from_level_zhongshus(zhongshus)
@@ -325,6 +325,32 @@ class TestMovesFromLevelZhongshus:
         assert m.zs_count == 2
         assert m.high == 35.0  # max(gg: 18, 35)
         assert m.low == 5.0   # min(dd: 5, 20)
+
+    def test_moves_from_level_zhongshus_uses_fixed_interval_for_trend(self) -> None:
+        """趋势判定使用 ZD/ZG 固定区间，而不是 GG/DD 波动区间。"""
+        zhongshus = [
+            LevelZhongshu(
+                zd=10.0, zg=18.0,
+                comp_start=0, comp_end=2, comp_count=3,
+                settled=True,
+                break_comp=3, break_direction="up",
+                gg=40.0, dd=5.0, level_id=1,
+            ),
+            LevelZhongshu(
+                zd=20.0, zg=28.0,
+                comp_start=3, comp_end=5, comp_count=3,
+                settled=True,
+                break_comp=6, break_direction="up",
+                gg=35.0, dd=15.0, level_id=1,
+            ),
+        ]
+
+        result = moves_from_level_zhongshus(zhongshus)
+
+        assert len(result) == 1
+        assert result[0].kind == "trend"
+        assert result[0].direction == "up"
+        assert result[0].zs_count == 2
 
     def test_moves_from_level_zhongshus_last_unsettled(self) -> None:
         """最后一个 move 的 settled 必须为 False。"""

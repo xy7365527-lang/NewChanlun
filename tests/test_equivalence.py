@@ -285,6 +285,183 @@ class TestMakeRatioKlineSubFreq:
         )
         assert len(ratio) == 2
 
+    def test_sub_freq_result_is_limited_to_target_overlap(self):
+        """子频率缓存比目标窗口更长时，输出仍只覆盖目标K线窗口。"""
+        df_a = _ohlcv([100, 110], start="2024-01-03")
+        df_b = _ohlcv([50, 55], start="2024-01-03")
+
+        sub_a = _hourly_ohlcv([100.0] * 96, start="2024-01-01")
+        sub_b = _hourly_ohlcv([50.0] * 96, start="2024-01-01")
+
+        ratio = make_ratio_kline(
+            df_a, df_b, sub_a=sub_a, sub_b=sub_b, target_freq="1D",
+        )
+
+        assert list(ratio.index) == list(df_a.index.intersection(df_b.index))
+        assert len(ratio) == 2
+
+    def test_sub_freq_aggregation_respects_offset_target_index(self):
+        """目标K线不从整点开始时，聚合标签仍与目标索引对齐。"""
+        target_idx = pd.date_range("2024-01-01 09:30", periods=2, freq="h")
+        df_a = pd.DataFrame(
+            {
+                "open": [100.0, 110.0],
+                "high": [100.0, 110.0],
+                "low": [100.0, 110.0],
+                "close": [100.0, 110.0],
+                "volume": [1000, 1000],
+            },
+            index=target_idx,
+        )
+        df_b = pd.DataFrame(
+            {
+                "open": [50.0, 55.0],
+                "high": [50.0, 55.0],
+                "low": [50.0, 55.0],
+                "close": [50.0, 55.0],
+                "volume": [1000, 1000],
+            },
+            index=target_idx,
+        )
+        sub_idx = pd.date_range("2024-01-01 09:30", periods=8, freq="15min")
+        sub_a = pd.DataFrame(
+            {
+                "open": [100.0] * 8,
+                "high": [100.0] * 8,
+                "low": [100.0] * 8,
+                "close": [100.0, 110.0, 120.0, 130.0, 200.0, 220.0, 240.0, 260.0],
+                "volume": [1] * 8,
+            },
+            index=sub_idx,
+        )
+        sub_b = pd.DataFrame(
+            {
+                "open": [50.0] * 8,
+                "high": [50.0] * 8,
+                "low": [50.0] * 8,
+                "close": [50.0] * 8,
+                "volume": [1] * 8,
+            },
+            index=sub_idx,
+        )
+
+        ratio = make_ratio_kline(
+            df_a, df_b, sub_a=sub_a, sub_b=sub_b, target_freq="1h",
+        )
+
+        assert list(ratio.index) == list(target_idx)
+        assert ratio["open"].iloc[0] == pytest.approx(2.0)
+        assert ratio["close"].iloc[0] == pytest.approx(2.6)
+        assert ratio["open"].iloc[1] == pytest.approx(4.0)
+        assert ratio["close"].iloc[1] == pytest.approx(5.2)
+
+    def test_sub_freq_aggregation_does_not_cross_target_gaps(self):
+        """目标K线有交易日缺口时，单根窗口不吸入缺口内子频率数据。"""
+        target_idx = pd.to_datetime(["2024-01-05", "2024-01-08"])
+        df_a = pd.DataFrame(
+            {
+                "open": [100.0, 110.0],
+                "high": [100.0, 110.0],
+                "low": [100.0, 110.0],
+                "close": [100.0, 110.0],
+                "volume": [1000, 1000],
+            },
+            index=target_idx,
+        )
+        df_b = pd.DataFrame(
+            {
+                "open": [50.0, 55.0],
+                "high": [50.0, 55.0],
+                "low": [50.0, 55.0],
+                "close": [50.0, 55.0],
+                "volume": [1000, 1000],
+            },
+            index=target_idx,
+        )
+        sub_idx = pd.to_datetime(["2024-01-05", "2024-01-06", "2024-01-08"])
+        sub_a = pd.DataFrame(
+            {
+                "open": [100.0, 1000.0, 110.0],
+                "high": [100.0, 1000.0, 110.0],
+                "low": [100.0, 1000.0, 110.0],
+                "close": [100.0, 1000.0, 110.0],
+                "volume": [1, 1, 1],
+            },
+            index=sub_idx,
+        )
+        sub_b = pd.DataFrame(
+            {
+                "open": [50.0, 50.0, 55.0],
+                "high": [50.0, 50.0, 55.0],
+                "low": [50.0, 50.0, 55.0],
+                "close": [50.0, 50.0, 55.0],
+                "volume": [1, 1, 1],
+            },
+            index=sub_idx,
+        )
+
+        ratio = make_ratio_kline(
+            df_a, df_b, sub_a=sub_a, sub_b=sub_b, target_freq="1D",
+        )
+
+        assert list(ratio.index) == list(target_idx)
+        assert ratio["high"].iloc[0] == pytest.approx(2.0)
+        assert ratio["close"].iloc[0] == pytest.approx(2.0)
+
+    def test_sub_freq_aggregation_handles_mixed_timezone_state(self):
+        """目标索引无时区而子频率索引带本地时区时，不应比较时报错。"""
+        target_idx = pd.date_range("2024-01-01 09:30", periods=1, freq="h")
+        df_a = pd.DataFrame(
+            {
+                "open": [100.0],
+                "high": [100.0],
+                "low": [100.0],
+                "close": [100.0],
+                "volume": [1000],
+            },
+            index=target_idx,
+        )
+        df_b = pd.DataFrame(
+            {
+                "open": [50.0],
+                "high": [50.0],
+                "low": [50.0],
+                "close": [50.0],
+                "volume": [1000],
+            },
+            index=target_idx,
+        )
+        sub_idx = pd.date_range(
+            "2024-01-01 09:30", periods=4, freq="15min", tz="Asia/Shanghai",
+        )
+        sub_a = pd.DataFrame(
+            {
+                "open": [100.0] * 4,
+                "high": [100.0] * 4,
+                "low": [100.0] * 4,
+                "close": [100.0, 110.0, 120.0, 130.0],
+                "volume": [1] * 4,
+            },
+            index=sub_idx,
+        )
+        sub_b = pd.DataFrame(
+            {
+                "open": [50.0] * 4,
+                "high": [50.0] * 4,
+                "low": [50.0] * 4,
+                "close": [50.0] * 4,
+                "volume": [1] * 4,
+            },
+            index=sub_idx,
+        )
+
+        ratio = make_ratio_kline(
+            df_a, df_b, sub_a=sub_a, sub_b=sub_b, target_freq="1h",
+        )
+
+        assert list(ratio.index) == list(target_idx)
+        assert ratio["close"].iloc[0] == pytest.approx(2.6)
+
     def test_fallback_warns(self):
         """不提供子频率数据时发出 warning。"""
         df_a = _ohlcv([100, 110])

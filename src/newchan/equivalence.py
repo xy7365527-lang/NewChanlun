@@ -287,6 +287,54 @@ def _aggregate_ratio_to_kline(
     return result
 
 
+def _index_for_time_compare(index: pd.Index) -> pd.Index:
+    """返回可互相比较的时间索引；项目缓存约定是去除时区信息。"""
+    if hasattr(index, "tz") and index.tz is not None:
+        return index.tz_localize(None)
+    return index
+
+
+def _aggregate_ratio_to_target_index(
+    ratio_series: pd.Series,
+    volume_series: pd.Series | None,
+    target_idx: pd.Index,
+    target_freq: str,
+) -> pd.DataFrame:
+    """按目标 K 线索引的窗口聚合，避免 resample 标签与目标索引错位。"""
+    columns = ["open", "high", "low", "close"]
+    if volume_series is not None:
+        columns.append("volume")
+    if len(target_idx) == 0:
+        return pd.DataFrame(columns=columns, index=target_idx)
+
+    offset = pd.tseries.frequencies.to_offset(target_freq)
+    target_labels = pd.Index(target_idx)
+    target_cmp = _index_for_time_compare(target_labels)
+    ratio_cmp = _index_for_time_compare(ratio_series.index)
+    rows: list[dict[str, float]] = []
+    index = []
+
+    for pos, start in enumerate(target_cmp):
+        freq_end = start + offset
+        end = min(target_cmp[pos + 1], freq_end) if pos + 1 < len(target_cmp) else freq_end
+        window = ratio_series[(ratio_cmp >= start) & (ratio_cmp < end)]
+        if window.empty:
+            continue
+
+        row = {
+            "open": window.iloc[0],
+            "high": window.max(),
+            "low": window.min(),
+            "close": window.iloc[-1],
+        }
+        if volume_series is not None:
+            row["volume"] = volume_series.loc[window.index].sum()
+        rows.append(row)
+        index.append(target_labels[pos])
+
+    return pd.DataFrame(rows, index=pd.Index(index, name=target_idx.name), columns=columns)
+
+
 def make_ratio_kline(
     df_a: pd.DataFrame,
     df_b: pd.DataFrame,
@@ -309,6 +357,7 @@ def make_ratio_kline(
     概念溯源：[旧缠论:隐含] 比价K线构造
     """
     if sub_a is not None and sub_b is not None:
+        target_idx = df_a.index.intersection(df_b.index)
         sub_idx = sub_a.index.intersection(sub_b.index)
         sa, sb = sub_a.loc[sub_idx], sub_b.loc[sub_idx]
         ratio = sa["close"] / sb["close"]
@@ -323,7 +372,7 @@ def make_ratio_kline(
             )
             return _make_ratio_kline_naive(df_a, df_b)
 
-        return _aggregate_ratio_to_kline(ratio, volume, freq)
+        return _aggregate_ratio_to_target_index(ratio, volume, target_idx, freq)
 
     warnings.warn(
         "make_ratio_kline: no sub-frequency data provided, "
