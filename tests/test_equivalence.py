@@ -285,6 +285,21 @@ class TestMakeRatioKlineSubFreq:
         )
         assert len(ratio) == 2
 
+    def test_sub_freq_result_is_limited_to_target_overlap(self):
+        """子频率缓存比目标窗口更长时，输出仍只覆盖目标K线窗口。"""
+        df_a = _ohlcv([100, 110], start="2024-01-03")
+        df_b = _ohlcv([50, 55], start="2024-01-03")
+
+        sub_a = _hourly_ohlcv([100.0] * 96, start="2024-01-01")
+        sub_b = _hourly_ohlcv([50.0] * 96, start="2024-01-01")
+
+        ratio = make_ratio_kline(
+            df_a, df_b, sub_a=sub_a, sub_b=sub_b, target_freq="1D",
+        )
+
+        assert list(ratio.index) == list(df_a.index.intersection(df_b.index))
+        assert len(ratio) == 2
+
     def test_fallback_warns(self):
         """不提供子频率数据时发出 warning。"""
         df_a = _ohlcv([100, 110])
