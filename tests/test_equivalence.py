@@ -409,7 +409,7 @@ class TestMakeRatioKlineSubFreq:
         assert ratio["close"].iloc[0] == pytest.approx(2.0)
 
     def test_sub_freq_aggregation_handles_mixed_timezone_state(self):
-        """目标索引无时区而子频率索引带时区时，不应比较时报错。"""
+        """目标索引无时区而子频率索引带本地时区时，不应比较时报错。"""
         target_idx = pd.date_range("2024-01-01 09:30", periods=1, freq="h")
         df_a = pd.DataFrame(
             {
@@ -431,7 +431,9 @@ class TestMakeRatioKlineSubFreq:
             },
             index=target_idx,
         )
-        sub_idx = pd.date_range("2024-01-01 09:30", periods=4, freq="15min", tz="UTC")
+        sub_idx = pd.date_range(
+            "2024-01-01 09:30", periods=4, freq="15min", tz="Asia/Shanghai",
+        )
         sub_a = pd.DataFrame(
             {
                 "open": [100.0] * 4,
