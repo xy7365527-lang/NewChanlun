@@ -313,7 +313,7 @@ class TestMovesFromLevelZhongshus:
                 comp_start=3, comp_end=5, comp_count=3,
                 settled=True,
                 break_comp=6, break_direction="up",
-                gg=35.0, dd=20.0, level_id=1,  # DD=20 > GG=18 → ascending
+                gg=35.0, dd=20.0, level_id=1,  # ZD=25 > ZG=15 → ascending
             ),
         ]
         result = moves_from_level_zhongshus(zhongshus)

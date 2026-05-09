@@ -287,6 +287,43 @@ def _aggregate_ratio_to_kline(
     return result
 
 
+def _aggregate_ratio_to_target_index(
+    ratio_series: pd.Series,
+    volume_series: pd.Series | None,
+    target_idx: pd.Index,
+    target_freq: str,
+) -> pd.DataFrame:
+    """按目标 K 线索引的窗口聚合，避免 resample 标签与目标索引错位。"""
+    columns = ["open", "high", "low", "close"]
+    if volume_series is not None:
+        columns.append("volume")
+    if len(target_idx) == 0:
+        return pd.DataFrame(columns=columns, index=target_idx)
+
+    offset = pd.tseries.frequencies.to_offset(target_freq)
+    rows: list[dict[str, float]] = []
+    index = []
+
+    for pos, start in enumerate(target_idx):
+        end = target_idx[pos + 1] if pos + 1 < len(target_idx) else start + offset
+        window = ratio_series[(ratio_series.index >= start) & (ratio_series.index < end)]
+        if window.empty:
+            continue
+
+        row = {
+            "open": window.iloc[0],
+            "high": window.max(),
+            "low": window.min(),
+            "close": window.iloc[-1],
+        }
+        if volume_series is not None:
+            row["volume"] = volume_series.loc[window.index].sum()
+        rows.append(row)
+        index.append(start)
+
+    return pd.DataFrame(rows, index=pd.Index(index, name=target_idx.name), columns=columns)
+
+
 def make_ratio_kline(
     df_a: pd.DataFrame,
     df_b: pd.DataFrame,
@@ -324,8 +361,7 @@ def make_ratio_kline(
             )
             return _make_ratio_kline_naive(df_a, df_b)
 
-        result = _aggregate_ratio_to_kline(ratio, volume, freq)
-        return result.loc[result.index.intersection(target_idx)]
+        return _aggregate_ratio_to_target_index(ratio, volume, target_idx, freq)
 
     warnings.warn(
         "make_ratio_kline: no sub-frequency data provided, "
