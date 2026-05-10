@@ -85,9 +85,8 @@ def _merge_loop(
             if dir_state is not None:
                 effective_up = dir_state == "UP"
             else:
-                # dir 未确定时，用前一根 merged bar 的 close vs open 推断方向
-                # 这避免了默认 UP 偏置导致的过度合并
-                effective_up = last[3] >= last[0]  # close >= open → 阳线 → UP
+                # §2.3: dir 只能由相邻无包含 K 线的 high/low 双条件建立。
+                effective_up = True
             if effective_up:
                 last[1] = max(last_h, curr_h)
                 last[2] = max(last_l, curr_l)
