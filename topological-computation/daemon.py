@@ -441,9 +441,14 @@ class TopologicalDaemon:
                         f"(api={ipfs.api_url})",
                         file=sys.stderr,
                     )
-                except (TimeoutError, OSError, Exception) as e:
+                except Exception as e:
                     self._shared_layer = None
                     self._cross_instance_sync = None
+                    if require_chain:
+                        raise RuntimeError(
+                            "SharedLayer 初始化失败 — 本地实例默认上链，"
+                            "不允许静默降级为孤例运行。"
+                        ) from e
                     print(
                         f"Plan C: SharedLayer init failed ({e}), "
                         f"degrading to no shared layer",
@@ -487,10 +492,11 @@ class TopologicalDaemon:
 
         # Memory node rebuild disabled: settlement records live in JSONL persistence layer,
         # no longer injected into K_active/K_full (memory: vertices were 99% of K_active).
-            # Re-sync engine if already initialized
-            if self.engine is not None:
-                self.engine.k_active = self.k_active
-                self.engine.k_full = self.k_full
+        # Re-sync engine if already initialized; otherwise the first step restores
+        # the pre-purge graph from TraversalEngine back onto the daemon.
+        if self.engine is not None:
+            self.engine.k_active = self.k_active
+            self.engine.k_full = self.k_full
 
     def _initialize_engine(self) -> None:
         """Initialize or reinitialize the traversal engine from current graph."""
@@ -1281,6 +1287,7 @@ class TopologicalDaemon:
         if _need_diff:
             pre_vid_count = len(self.k_full._vertices)
             pre_edge_count = len(self.k_full._edges)
+            pre_settled_count = len(self.settlement.settled_cycles)
             pre_vid_keys = set(self.k_full._vertices.keys())  # snapshot: mutable Graph needs copy
             # Track K_active vertex statuses to detect fold state changes
             pre_active_statuses = {
@@ -1379,6 +1386,7 @@ class TopologicalDaemon:
         # Compute graph diffs using count-based tail slice — O(new) instead of O(E)
         new_vids: set[str] = set()
         new_edges_list: list = []
+        new_settled: list = []
         if _need_diff:
             # New vertices: keys not in pre snapshot
             for vid in self.k_full._vertices:
@@ -1386,6 +1394,7 @@ class TopologicalDaemon:
                     new_vids.add(vid)
             # New edges: tail slice (Graph.add_edge appends)
             new_edges_list = self.k_full._edges[pre_edge_count:]
+            new_settled = self.settlement.settled_cycles[pre_settled_count:]
 
         # Persist graph state changes (always, not just for significant events)
         if self._persist:
