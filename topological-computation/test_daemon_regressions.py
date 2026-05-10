@@ -150,6 +150,7 @@ def test_shared_layer_step_passes_new_settlements_without_name_error():
     daemon.snet = None
     daemon.settlement = settlement
     daemon._beta_1_history = []
+    daemon._local_f_history = []
     daemon._cumulative_delta_beta_1 = 0.0
     daemon.total_gaps_detected = 0
     daemon.total_events = 0
