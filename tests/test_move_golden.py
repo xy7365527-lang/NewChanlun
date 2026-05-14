@@ -1,6 +1,6 @@
 """走势类型 golden 测试 — MVP-D0
 
-覆盖 15 个场景：
+覆盖 16 个场景：
   1. 单中枢 → 盘整
   2. 两个上涨中枢 → 上涨趋势
   3. 两个下跌中枢 → 下跌趋势
@@ -16,6 +16,7 @@
   13. diff 同身份更新无 Invalidate
   14. diff 不同身份 → Invalidate
   15. diff 确定性
+  16. GG/DD 波动区间区分趋势
 """
 
 from __future__ import annotations
@@ -90,10 +91,10 @@ class TestSingleCenterConsolidation:
 
 class TestTwoAscendingCentersTrend:
     def test_ascending_trend(self):
-        """C2.zd > C1.zg → 上涨趋势。"""
+        """C2.DD > C1.GG → 上涨趋势。"""
         zhongshus = [
             _zs(0, 2, 10.0, 18.0, break_direction="up"),    # [10, 18]
-            _zs(6, 8, 20.0, 28.0, break_direction="up"),    # [20, 28] — zd=20 > zg=18
+            _zs(6, 8, 20.0, 28.0, break_direction="up"),    # [20, 28] — dd=20 > gg=18
         ]
         moves = moves_from_zhongshus(zhongshus)
         assert len(moves) == 1
@@ -110,10 +111,10 @@ class TestTwoAscendingCentersTrend:
 
 class TestTwoDescendingCentersTrend:
     def test_descending_trend(self):
-        """C2.zg < C1.zd → 下跌趋势。"""
+        """C2.GG < C1.DD → 下跌趋势。"""
         zhongshus = [
             _zs(0, 2, 20.0, 30.0, break_direction="down"),  # [20, 30]
-            _zs(6, 8, 5.0, 18.0, break_direction="down"),   # [5, 18] — zg=18 < zd=20
+            _zs(6, 8, 5.0, 18.0, break_direction="down"),   # [5, 18] — gg=18 < dd=20
         ]
         moves = moves_from_zhongshus(zhongshus)
         assert len(moves) == 1
@@ -258,7 +259,7 @@ class TestDirectionFromBreak:
 
 class TestHighLowFromCenters:
     def test_trend_high_low(self):
-        """趋势 high/low = max(zg)/min(zd)。"""
+        """趋势 high/low = max(gg)/min(dd)。"""
         zhongshus = [
             _zs(0, 2, 10.0, 18.0, break_direction="up"),    # zd=10, zg=18
             _zs(6, 8, 20.0, 30.0, break_direction="up"),    # zd=20, zg=30
@@ -389,50 +390,50 @@ class TestDiffDeterminism:
 
 
 # =====================================================================
-# 16) ZD/ZG 固定区间区分趋势
+# 16) GG/DD 波动区间区分趋势
 # =====================================================================
 
-class TestZDZGTrendDistinction:
-    """趋势判断使用固定区间 ZD/ZG（非波动区间 DD/GG）。"""
+class TestGGDDTrendDistinction:
+    """趋势判断使用波动区间 GG/DD（中心定理二）。"""
 
-    def test_zd_above_zg_is_trend(self):
-        """C2.ZD > C1.ZG → 上涨趋势（固定区间递升）。
+    def test_dd_above_gg_is_trend(self):
+        """C2.DD > C1.GG → 上涨趋势（波动区间递升）。
 
         C1: zd=10, zg=18
         C2: zd=20, zg=28
-        C2.zd=20 > C1.zg=18 → 上涨
+        C1.gg=18, C2.dd=20 → 上涨
         """
         zhongshus = [
-            _zs(0, 2, 10.0, 18.0, break_direction="up", dd=5.0, gg=25.0),
-            _zs(6, 8, 20.0, 28.0, break_direction="up", dd=15.0, gg=35.0),
+            _zs(0, 2, 10.0, 18.0, break_direction="up", dd=10.0, gg=18.0),
+            _zs(6, 8, 20.0, 28.0, break_direction="up", dd=20.0, gg=28.0),
         ]
         moves = moves_from_zhongshus(zhongshus)
         assert len(moves) == 1
         assert moves[0].kind == "trend"
         assert moves[0].direction == "up"
 
-    def test_zd_not_above_zg_is_not_trend(self):
-        """C2.ZD <= C1.ZG → 非趋势（固定区间未递升）。
+    def test_fixed_interval_separation_with_overlapping_wave_interval_is_not_trend(self):
+        """ZD/ZG 分离但 GG/DD 重叠 → 更高级别中枢/扩展，不是趋势。
 
         C1: zd=10, zg=22
-        C2: zd=20, zg=28
-        C2.zd=20 < C1.zg=22 → 非趋势
+        C2: zd=25, zg=33
+        C2.zd=25 > C1.zg=22，但 C2.dd=18 <= C1.gg=30 → 非趋势
         """
         zhongshus = [
-            _zs(0, 2, 10.0, 22.0, break_direction="up", dd=5.0, gg=25.0),
-            _zs(6, 8, 20.0, 28.0, break_direction="up", dd=15.0, gg=35.0),
+            _zs(0, 2, 10.0, 22.0, break_direction="up", dd=5.0, gg=30.0),
+            _zs(6, 8, 25.0, 33.0, break_direction="up", dd=18.0, gg=40.0),
         ]
         moves = moves_from_zhongshus(zhongshus)
         assert len(moves) == 2
         assert moves[0].kind == "consolidation"
         assert moves[1].kind == "consolidation"
 
-    def test_zd_above_zg_ascending(self):
-        """ZD/ZG 递升 → 上涨趋势。
+    def test_dd_above_gg_ascending(self):
+        """GG/DD 递升 → 上涨趋势。
 
         C1: zd=10, zg=18
         C2: zd=25, zg=33
-        C2.zd=25 > C1.zg=18 → 上涨
+        C2.dd=23 > C1.gg=22 → 上涨
         """
         zhongshus = [
             _zs(0, 2, 10.0, 18.0, break_direction="up", dd=5.0, gg=22.0),
@@ -443,12 +444,12 @@ class TestZDZGTrendDistinction:
         assert moves[0].kind == "trend"
         assert moves[0].direction == "up"
 
-    def test_zg_below_zd_descending(self):
-        """C2.ZG < C1.ZD → 下跌趋势（固定区间递降）。
+    def test_gg_below_dd_descending(self):
+        """C2.GG < C1.DD → 下跌趋势（波动区间递降）。
 
         C1: zd=20, zg=30
         C2: zd=5, zg=15
-        C2.zg=15 < C1.zd=20 → 下跌
+        C2.gg=17 < C1.dd=18 → 下跌
         """
         zhongshus = [
             _zs(0, 2, 20.0, 30.0, break_direction="down", dd=18.0, gg=35.0),
