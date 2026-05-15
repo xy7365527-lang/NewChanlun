@@ -136,6 +136,15 @@ def test_startup_memory_purge_resyncs_initialized_engine(
             return False
 
     monkeypatch.setattr("chain.ipfs_client.IPFSClient", UnavailableIPFS)
+    monkeypatch.setattr(
+        TopologicalDaemon,
+        "_initialize_engine",
+        lambda self: setattr(
+            self,
+            "engine",
+            SimpleNamespace(k_active=self.k_active, k_full=self.k_full),
+        ),
+    )
 
     graph = Graph()
     graph = graph.add_vertex(Vertex("A", content="alpha"))
