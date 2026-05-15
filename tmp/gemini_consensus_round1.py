@@ -4,7 +4,7 @@
 import os
 from google import genai
 
-client = genai.Client(api_key=os.environ.get("GOOGLE_API_KEY", "AIzaSyD8eB39hxIxqsEk6sIwSpuD4nAc7OgufdQ"))
+client = genai.Client(api_key=os.environ["GOOGLE_API_KEY"])
 
 PROMPT = r"""你是严格的代数拓扑学家。你之前和 Codex 5.3 各自独立设计了缠论统一递归拓扑方案。
 现在编排者（对缠论有深刻理解的人类）给出了他的分层采纳决断。请严格评审。

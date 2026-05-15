@@ -142,6 +142,6 @@ Gemini（gemini-3.1-pro-preview）对六个核心架构问题给出了完整决�
 本次执行发现 .env 更新后仍失败的原因：
 - `.env` 文件已正确更新为新密钥
 - 但 Python `load_dotenv()` 默认不覆盖系统环境变量
-- 系统环境变量中仍有旧密钥（`AIzaSyD8eB39hxIxqsEk...`）
+- 系统环境变量中仍有旧密钥（`[REDACTED_GOOGLE_API_KEY]...`）
 - 解决方式：调用时临时覆盖 `GOOGLE_API_KEY=<new_key> python -m ...`
 - 根本修复：`__main__.py` 中 `load_dotenv()` 改为 `load_dotenv(override=True)`

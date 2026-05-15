@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Gemini 3.1 Pro: design unified recursive topology scheme (seeing Codex's work)."""
 
+import os
+
 from google import genai
 
-client = genai.Client(api_key="AIzaSyD8eB39hxIxqsEk6sIwSpuD4nAc7OgufdQ")
+client = genai.Client(api_key=os.environ["GOOGLE_API_KEY"])
 
 PROMPT = r"""你是一个严格的代数拓扑学家。你之前独立设计了缠论拓扑化方案（Extended PH + 层理论 + 离散 Morse，5个定理）。
 

@@ -421,6 +421,7 @@ class TopologicalDaemon:
         self._last_snet_active_snapshot: set[str] = set()
 
         # Plan C: SharedLayer via IPFS（不降级到本地）
+        self._require_chain = require_chain
         self._shared_layer: SharedLayer | None = None
         self._cross_instance_sync: CrossInstanceSync | None = None
         try:
@@ -441,9 +442,14 @@ class TopologicalDaemon:
                         f"(api={ipfs.api_url})",
                         file=sys.stderr,
                     )
-                except (TimeoutError, OSError, Exception) as e:
+                except Exception as e:
                     self._shared_layer = None
                     self._cross_instance_sync = None
+                    if require_chain:
+                        raise RuntimeError(
+                            "SharedLayer init failed while chain mode is required. "
+                            "Start IPFS/MFS successfully or use --no-chain explicitly."
+                        ) from e
                     print(
                         f"Plan C: SharedLayer init failed ({e}), "
                         f"degrading to no shared layer",
@@ -487,10 +493,10 @@ class TopologicalDaemon:
 
         # Memory node rebuild disabled: settlement records live in JSONL persistence layer,
         # no longer injected into K_active/K_full (memory: vertices were 99% of K_active).
-            # Re-sync engine if already initialized
-            if self.engine is not None:
-                self.engine.k_active = self.k_active
-                self.engine.k_full = self.k_full
+        # Re-sync engine if it was initialized before the startup purge.
+        if self.engine is not None:
+            self.engine.k_active = self.k_active
+            self.engine.k_full = self.k_full
 
     def _initialize_engine(self) -> None:
         """Initialize or reinitialize the traversal engine from current graph."""
@@ -1273,6 +1279,7 @@ class TopologicalDaemon:
     def _step(self) -> None:
         """One step: traverse -> encounter -> operate -> terrain -> gap detect -> crystallization."""
         self.total_steps += 1
+        pre_settled_count = len(self.settlement.settled_cycles)
 
         # Capture pre-step state for persistence diff and SharedLayer sync
         # Use count-based diff (O(1)) instead of set-based diff (O(E))
@@ -1386,6 +1393,7 @@ class TopologicalDaemon:
                     new_vids.add(vid)
             # New edges: tail slice (Graph.add_edge appends)
             new_edges_list = self.k_full._edges[pre_edge_count:]
+        new_settled = self.settlement.settled_cycles[pre_settled_count:]
 
         # Persist graph state changes (always, not just for significant events)
         if self._persist:
@@ -1539,11 +1547,14 @@ class TopologicalDaemon:
             "step": self.total_steps,
             "timestamp": now,
         }
-        block_hash = self._shared_layer.write_block(block)
-        self._cross_instance_sync.known_blocks.add(block_hash)
-
-        self._last_position_write_time = now
-        self._last_position_write_label = position_label
+        try:
+            block_hash = self._shared_layer.write_block(block)
+            if self._cross_instance_sync is not None:
+                self._cross_instance_sync.known_blocks.add(block_hash)
+            self._last_position_write_time = now
+            self._last_position_write_label = position_label
+        except Exception:
+            self._handle_shared_layer_write_failure()
 
     def _write_graph_delta(self, log, new_vids: set[str], new_edges: set) -> None:
         """Write graph delta block to SharedLayer on significant events.
@@ -1552,6 +1563,8 @@ class TopologicalDaemon:
         Throttled: at most once per 3 seconds (unless forced by sublate).
         Includes new vertices and edges created by this step.
         """
+        if self._shared_layer is None:
+            return
         if not log.operation in ("fold", "negate", "sublate"):
             return
         if not new_vids and not new_edges:
@@ -1596,10 +1609,11 @@ class TopologicalDaemon:
         }
         try:
             block_hash = self._shared_layer.write_block(block)
-            self._cross_instance_sync.known_blocks.add(block_hash)
+            if self._cross_instance_sync is not None:
+                self._cross_instance_sync.known_blocks.add(block_hash)
             self._last_graph_delta_write_time = now
         except Exception:
-            pass  # graceful degradation: log failure, don't crash
+            self._handle_shared_layer_write_failure()
 
     def _write_settlement_event(self, new_settled: list) -> None:
         """Write settlement event blocks to SharedLayer for newly settled cycles.
@@ -1607,6 +1621,8 @@ class TopologicalDaemon:
         One block per newly settled cycle. No throttle — settlements are rare
         and each one is significant.
         """
+        if self._shared_layer is None:
+            return
         if not new_settled:
             return
 
@@ -1623,15 +1639,18 @@ class TopologicalDaemon:
             }
             try:
                 block_hash = self._shared_layer.write_block(block)
-                self._cross_instance_sync.known_blocks.add(block_hash)
+                if self._cross_instance_sync is not None:
+                    self._cross_instance_sync.known_blocks.add(block_hash)
             except Exception:
-                pass
+                self._handle_shared_layer_write_failure()
 
     def _write_snet_update(self) -> None:
         """Write S_net activation state to SharedLayer when activation set changes.
 
         Throttled: at most once per 5 seconds AND only when the active set changed.
         """
+        if self._shared_layer is None:
+            return
         if self.snet_activation is None:
             return
 
@@ -1660,11 +1679,22 @@ class TopologicalDaemon:
         }
         try:
             block_hash = self._shared_layer.write_block(block)
-            self._cross_instance_sync.known_blocks.add(block_hash)
+            if self._cross_instance_sync is not None:
+                self._cross_instance_sync.known_blocks.add(block_hash)
             self._last_snet_write_time = now
             self._last_snet_active_snapshot = set(current_active)
         except Exception:
-            pass
+            self._handle_shared_layer_write_failure()
+
+    def _handle_shared_layer_write_failure(self) -> None:
+        """Handle runtime SharedLayer write failures according to chain policy."""
+        if self._require_chain:
+            raise RuntimeError(
+                "SharedLayer write failed while chain mode is required. "
+                "Stop the daemon or restart IPFS/MFS before continuing."
+            )
+        self._shared_layer = None
+        self._cross_instance_sync = None
 
     def _write_snet_cooccurrence_blocks(self) -> None:
         """Write new S_net co-occurrence edges and hyperedges to block topology as material layer blocks.

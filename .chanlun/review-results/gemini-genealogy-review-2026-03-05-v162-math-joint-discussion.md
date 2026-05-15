@@ -12,7 +12,7 @@ session: v162
 
 ## 执行状态
 
-**Gemini 可用**。API key 正常（AIzaSyAHnGHGdEHcsz--WVbnOcj46QJFQoxSEUc）。
+**Gemini 可用**。API key 正常（[REDACTED_GOOGLE_API_KEY]）。
 Gemini 读取了正确的上下文文件（/tmp/challenge-ctx.md，v4 版本），
 并读取了代码文件：`scripts/optimal_morse.py`、`scripts/weighted_morse.py`。
 

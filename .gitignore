@@ -21,7 +21,6 @@ build/
 !.claude/skills/
 !.claude/hooks/
 !.claude/settings.json
-!.claude/settings.local.json
 !.claude/team-topology.json
 .serena/
 .cache/
