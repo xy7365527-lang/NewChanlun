@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Gemini 3.1 Pro: verify editor's genus construction + recursive topology."""
 
+import os
+
 from google import genai
 
-client = genai.Client(api_key="AIzaSyD8eB39hxIxqsEk6sIwSpuD4nAc7OgufdQ")
+client = genai.Client(api_key=os.environ["GOOGLE_API_KEY"])
 
 PROMPT = r"""你是一个严格的代数拓扑学家。请对以下**编排者提出的亏格构造**进行严格数学验证。
 不允许"类比"、"精神一致"等模糊表述。如果某处有错，直说"这里有错，原因是..."

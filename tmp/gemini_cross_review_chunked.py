@@ -7,13 +7,15 @@
 import sys
 import time
 import pathlib
+import os
+
 from google import genai
 
 sys.stdout.reconfigure(line_buffering=True)
 
 from google.genai import types
 
-client = genai.Client(api_key="AIzaSyD8eB39hxIxqsEk6sIwSpuD4nAc7OgufdQ")
+client = genai.Client(api_key=os.environ["GOOGLE_API_KEY"])
 
 MODELS = ["gemini-3.1-pro-preview", "gemini-2.5-pro"]
 GEN_CONFIG = types.GenerateContentConfig(

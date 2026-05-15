@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Call Gemini 3.1 Pro Preview (thinking) via new google-genai SDK."""
 
+import os
+
 from google import genai
 
-client = genai.Client(api_key="AIzaSyD8eB39hxIxqsEk6sIwSpuD4nAc7OgufdQ")
+client = genai.Client(api_key=os.environ["GOOGLE_API_KEY"])
 
 AUDIT_PROMPT = r"""你是一个严格的数学审计员。以下是一个代码项目对缠论（一种技术分析理论）实现的拓扑语义标注。
 

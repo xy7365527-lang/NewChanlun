@@ -441,9 +441,14 @@ class TopologicalDaemon:
                         f"(api={ipfs.api_url})",
                         file=sys.stderr,
                     )
-                except (TimeoutError, OSError, Exception) as e:
+                except Exception as e:
                     self._shared_layer = None
                     self._cross_instance_sync = None
+                    if require_chain:
+                        raise RuntimeError(
+                            "SharedLayer init failed while chain mode is required. "
+                            "Start IPFS/MFS successfully or use --no-chain explicitly."
+                        ) from e
                     print(
                         f"Plan C: SharedLayer init failed ({e}), "
                         f"degrading to no shared layer",
@@ -487,10 +492,10 @@ class TopologicalDaemon:
 
         # Memory node rebuild disabled: settlement records live in JSONL persistence layer,
         # no longer injected into K_active/K_full (memory: vertices were 99% of K_active).
-            # Re-sync engine if already initialized
-            if self.engine is not None:
-                self.engine.k_active = self.k_active
-                self.engine.k_full = self.k_full
+        # Re-sync engine if it was initialized before the startup purge.
+        if self.engine is not None:
+            self.engine.k_active = self.k_active
+            self.engine.k_full = self.k_full
 
     def _initialize_engine(self) -> None:
         """Initialize or reinitialize the traversal engine from current graph."""
@@ -1273,6 +1278,7 @@ class TopologicalDaemon:
     def _step(self) -> None:
         """One step: traverse -> encounter -> operate -> terrain -> gap detect -> crystallization."""
         self.total_steps += 1
+        pre_settled_count = len(self.settlement.settled_cycles)
 
         # Capture pre-step state for persistence diff and SharedLayer sync
         # Use count-based diff (O(1)) instead of set-based diff (O(E))
@@ -1386,6 +1392,7 @@ class TopologicalDaemon:
                     new_vids.add(vid)
             # New edges: tail slice (Graph.add_edge appends)
             new_edges_list = self.k_full._edges[pre_edge_count:]
+        new_settled = self.settlement.settled_cycles[pre_settled_count:]
 
         # Persist graph state changes (always, not just for significant events)
         if self._persist:
@@ -1539,11 +1546,14 @@ class TopologicalDaemon:
             "step": self.total_steps,
             "timestamp": now,
         }
-        block_hash = self._shared_layer.write_block(block)
-        self._cross_instance_sync.known_blocks.add(block_hash)
-
-        self._last_position_write_time = now
-        self._last_position_write_label = position_label
+        try:
+            block_hash = self._shared_layer.write_block(block)
+            if self._cross_instance_sync is not None:
+                self._cross_instance_sync.known_blocks.add(block_hash)
+            self._last_position_write_time = now
+            self._last_position_write_label = position_label
+        except Exception:
+            pass  # graceful degradation: transient IPFS failures must not stop traversal
 
     def _write_graph_delta(self, log, new_vids: set[str], new_edges: set) -> None:
         """Write graph delta block to SharedLayer on significant events.

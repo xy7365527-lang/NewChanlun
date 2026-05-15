@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Gemini 3.1 Pro: design the strictest possible topologization scheme."""
 
+import os
+
 from google import genai
 
-client = genai.Client(api_key="AIzaSyD8eB39hxIxqsEk6sIwSpuD4nAc7OgufdQ")
+client = genai.Client(api_key=os.environ["GOOGLE_API_KEY"])
 
 PROMPT = r"""你是一个严格的代数拓扑学家。不要评估方向——**设计一个完整的、最严格的拓扑化方案**。
 

@@ -124,3 +124,25 @@ def test_require_chain_fails_when_shared_layer_init_fails(monkeypatch: pytest.Mo
 
     with pytest.raises(RuntimeError, match="SharedLayer init failed"):
         TopologicalDaemon(graph=Graph(), require_chain=True)
+
+
+def test_startup_memory_purge_resyncs_initialized_engine(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class UnavailableIPFS:
+        api_url = "http://127.0.0.1:5001"
+
+        def is_available(self) -> bool:
+            return False
+
+    monkeypatch.setattr("chain.ipfs_client.IPFSClient", UnavailableIPFS)
+
+    graph = Graph()
+    graph = graph.add_vertex(Vertex("A", content="alpha"))
+    graph = graph.add_vertex(Vertex("memory:old", content="stale memory"))
+
+    daemon = TopologicalDaemon(graph=graph, require_chain=False)
+
+    assert daemon.engine is not None
+    assert "memory:old" not in daemon.k_active.vertices
+    assert "memory:old" not in daemon.engine.k_active.vertices

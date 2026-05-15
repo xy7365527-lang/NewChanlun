@@ -4,7 +4,7 @@
 import os
 from google import genai
 
-client = genai.Client(api_key=os.environ.get("GOOGLE_API_KEY", "AIzaSyD8eB39hxIxqsEk6sIwSpuD4nAc7OgufdQ"))
+client = genai.Client(api_key=os.environ["GOOGLE_API_KEY"])
 
 PROMPT = r"""你是严格的代数拓扑学家。这是共识讨论的第二轮。
 

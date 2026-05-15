@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Call Gemini 3.1 Pro to discuss stricter topologization approaches (homology, genus, etc.)."""
 
+import os
+
 from google import genai
 
-client = genai.Client(api_key="AIzaSyD8eB39hxIxqsEk6sIwSpuD4nAc7OgufdQ")
+client = genai.Client(api_key=os.environ["GOOGLE_API_KEY"])
 
 DISCUSSION_PROMPT = r"""你是一个严格的代数拓扑学家和数学物理学家。
 

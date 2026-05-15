@@ -12,7 +12,7 @@ session: v162
 
 ## 执行状态
 
-**Gemini 不可用**：新 key（AIzaSyAHnGHGdEHcsz--WVbnOcj46QJFQoxSEUc）返回 `400 INVALID_ARGUMENT — API key expired: Please renew the API key`。
+**Gemini 不可用**：新 key（[REDACTED_GOOGLE_API_KEY]）返回 `400 INVALID_ARGUMENT — API key expired: Please renew the API key`。
 
 错误类型与上次不同：
 - 上次（gemini-genealogy-review-2026-03-05-v162-math-research.md）：403 PERMISSION_DENIED — key leaked
@@ -40,7 +40,7 @@ session: v162
 ## 待编排者处理
 
 1. 更新 Google API key（在 Google Cloud Console 生成新 key，更新 .env）
-2. 确认 .env 的 key 格式是否正确（当前 key 前缀 AIzaSy... 可能是 v2 格式）
+2. 确认 .env 的 key 格式是否正确（当前 key 前缀 [REDACTED_GOOGLE_API_KEY]... 可能是 v2 格式）
 3. key 更新后，本工位可重新执行质询
 
 ## 影响声明
