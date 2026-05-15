@@ -421,6 +421,7 @@ class TopologicalDaemon:
         self._last_snet_active_snapshot: set[str] = set()
 
         # Plan C: SharedLayer via IPFS（不降级到本地）
+        self._require_chain = require_chain
         self._shared_layer: SharedLayer | None = None
         self._cross_instance_sync: CrossInstanceSync | None = None
         try:
@@ -1553,7 +1554,7 @@ class TopologicalDaemon:
             self._last_position_write_time = now
             self._last_position_write_label = position_label
         except Exception:
-            pass  # graceful degradation: transient IPFS failures must not stop traversal
+            self._handle_shared_layer_write_failure()
 
     def _write_graph_delta(self, log, new_vids: set[str], new_edges: set) -> None:
         """Write graph delta block to SharedLayer on significant events.
@@ -1562,6 +1563,8 @@ class TopologicalDaemon:
         Throttled: at most once per 3 seconds (unless forced by sublate).
         Includes new vertices and edges created by this step.
         """
+        if self._shared_layer is None:
+            return
         if not log.operation in ("fold", "negate", "sublate"):
             return
         if not new_vids and not new_edges:
@@ -1606,10 +1609,11 @@ class TopologicalDaemon:
         }
         try:
             block_hash = self._shared_layer.write_block(block)
-            self._cross_instance_sync.known_blocks.add(block_hash)
+            if self._cross_instance_sync is not None:
+                self._cross_instance_sync.known_blocks.add(block_hash)
             self._last_graph_delta_write_time = now
         except Exception:
-            pass  # graceful degradation: log failure, don't crash
+            self._handle_shared_layer_write_failure()
 
     def _write_settlement_event(self, new_settled: list) -> None:
         """Write settlement event blocks to SharedLayer for newly settled cycles.
@@ -1617,6 +1621,8 @@ class TopologicalDaemon:
         One block per newly settled cycle. No throttle — settlements are rare
         and each one is significant.
         """
+        if self._shared_layer is None:
+            return
         if not new_settled:
             return
 
@@ -1633,15 +1639,18 @@ class TopologicalDaemon:
             }
             try:
                 block_hash = self._shared_layer.write_block(block)
-                self._cross_instance_sync.known_blocks.add(block_hash)
+                if self._cross_instance_sync is not None:
+                    self._cross_instance_sync.known_blocks.add(block_hash)
             except Exception:
-                pass
+                self._handle_shared_layer_write_failure()
 
     def _write_snet_update(self) -> None:
         """Write S_net activation state to SharedLayer when activation set changes.
 
         Throttled: at most once per 5 seconds AND only when the active set changed.
         """
+        if self._shared_layer is None:
+            return
         if self.snet_activation is None:
             return
 
@@ -1670,11 +1679,22 @@ class TopologicalDaemon:
         }
         try:
             block_hash = self._shared_layer.write_block(block)
-            self._cross_instance_sync.known_blocks.add(block_hash)
+            if self._cross_instance_sync is not None:
+                self._cross_instance_sync.known_blocks.add(block_hash)
             self._last_snet_write_time = now
             self._last_snet_active_snapshot = set(current_active)
         except Exception:
-            pass
+            self._handle_shared_layer_write_failure()
+
+    def _handle_shared_layer_write_failure(self) -> None:
+        """Handle runtime SharedLayer write failures according to chain policy."""
+        if self._require_chain:
+            raise RuntimeError(
+                "SharedLayer write failed while chain mode is required. "
+                "Stop the daemon or restart IPFS/MFS before continuing."
+            )
+        self._shared_layer = None
+        self._cross_instance_sync = None
 
     def _write_snet_cooccurrence_blocks(self) -> None:
         """Write new S_net co-occurrence edges and hyperedges to block topology as material layer blocks.
