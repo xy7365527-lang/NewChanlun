@@ -40,8 +40,10 @@ class _RecordingSharedLayer:
     def __init__(self, *, fail: bool = False) -> None:
         self.fail = fail
         self.blocks: list[dict] = []
+        self.write_attempts = 0
 
     def write_block(self, block: dict) -> str:
+        self.write_attempts += 1
         if self.fail:
             raise TimeoutError("ipfs write timed out")
         self.blocks.append(block)
@@ -58,6 +60,7 @@ def _daemon_with_shared_layer(shared_layer: _RecordingSharedLayer) -> Topologica
     daemon.snet_activation = None
     daemon.settlement = SimpleNamespace(settled_cycles=[])
     daemon._persist = None
+    daemon._require_chain = False
     daemon._shared_layer = shared_layer
     daemon._cross_instance_sync = SimpleNamespace(known_blocks=set())
     daemon._instance_id = "test-instance"
@@ -106,6 +109,26 @@ def test_traversal_position_write_failure_does_not_crash_step() -> None:
     daemon._step()
 
     assert shared_layer.blocks == []
+    assert daemon._shared_layer is None
+
+
+def test_shared_layer_write_failure_does_not_retry_every_step() -> None:
+    shared_layer = _RecordingSharedLayer(fail=True)
+    daemon = _daemon_with_shared_layer(shared_layer)
+
+    daemon._step()
+    daemon._step()
+
+    assert shared_layer.write_attempts == 1
+
+
+def test_require_chain_runtime_write_failure_fails_closed() -> None:
+    shared_layer = _RecordingSharedLayer(fail=True)
+    daemon = _daemon_with_shared_layer(shared_layer)
+    daemon._require_chain = True
+
+    with pytest.raises(RuntimeError, match="SharedLayer write failed"):
+        daemon._step()
 
 
 def test_require_chain_fails_when_shared_layer_init_fails(monkeypatch: pytest.MonkeyPatch) -> None:
