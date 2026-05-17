@@ -59,6 +59,11 @@ if [ -z "$STAGED_DIFF" ]; then
   exit 0
 fi
 
+# 发送 staged diff 到外部 LLM 必须显式 opt-in，避免提交前泄露密钥或私有数据。
+if [ "${NEWCHAN_ENABLE_GEMINI_DIFF_VERIFY:-0}" != "1" ]; then
+  exit 0
+fi
+
 # 计算 diff 的 hash 用于死锁检测
 DIFF_HASH=$(git diff --cached 2>/dev/null | md5sum | cut -d' ' -f1)
 LAST_HASH=""
@@ -97,7 +102,8 @@ if [ -d ".chanlun/genealogy/settled" ]; then
 fi
 
 # 调用 Gemini verify
-VERIFY_RESULT=$(PYTHONPATH=src "$PYTHON_BIN" -c "
+VERIFY_RESULT=$(
+FULL_DIFF="$FULL_DIFF" COMMIT_MSG="$COMMIT_MSG" RECENT_SETTLED="$RECENT_SETTLED" PYTHONPATH=src "$PYTHON_BIN" - <<'PY' 2>/dev/null || echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow","permissionDecisionReason":"script-error"}}'
 import os, sys, json
 
 # 检查 API key
@@ -109,9 +115,9 @@ if not api_key:
 try:
     from newchan.gemini.modes import decide
 
-    diff_text = '''$FULL_DIFF'''[:3000]
-    commit_msg = '''$COMMIT_MSG'''
-    recent = '''$RECENT_SETTLED'''
+    diff_text = os.environ.get('FULL_DIFF', '')[:3000]
+    commit_msg = os.environ.get('COMMIT_MSG', '')
+    recent = os.environ.get('RECENT_SETTLED', '')
 
     subject = f'双螺旋验证：git commit 一致性检查'
     context = f'''你是新缠论系统的 pre-commit 验证器。请检查以下 commit 是否与谱系/定义一致。
@@ -152,7 +158,8 @@ Staged diff (前500行):
 except Exception as e:
     # Gemini 不可达 → 052号相变：降级放行
     print(json.dumps({'hookSpecificOutput': {'hookEventName': 'PreToolUse', 'permissionDecision': 'allow', 'permissionDecisionReason': f'gemini-unreachable: {str(e)[:100]}'}}))
-" 2>/dev/null || echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow","permissionDecisionReason":"script-error"}}')
+PY
+)
 
 # 解析结果
 DECISION=$(echo "$VERIFY_RESULT" | "$PYTHON_BIN" -c "import sys,json; d=json.load(sys.stdin); hso=d.get('hookSpecificOutput',{}); print(hso.get('permissionDecision','allow'))" 2>/dev/null || echo "allow")
