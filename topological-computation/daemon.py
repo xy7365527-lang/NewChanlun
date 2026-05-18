@@ -487,10 +487,8 @@ class TopologicalDaemon:
 
         # Memory node rebuild disabled: settlement records live in JSONL persistence layer,
         # no longer injected into K_active/K_full (memory: vertices were 99% of K_active).
-            # Re-sync engine if already initialized
-            if self.engine is not None:
-                self.engine.k_active = self.k_active
-                self.engine.k_full = self.k_full
+        # Re-sync engine if already initialized before purge/checkpoint restore.
+        self._sync_engine_after_graph_rewrite()
 
     def _initialize_engine(self) -> None:
         """Initialize or reinitialize the traversal engine from current graph."""
@@ -570,6 +568,19 @@ class TopologicalDaemon:
 
         # S_net coupled oscillation: build activation and attach to engine
         self._setup_snet_activation()
+
+    def _sync_engine_after_graph_rewrite(self) -> None:
+        """Keep TraversalEngine aligned after daemon-level graph replacement."""
+        if self.engine is None:
+            return
+        self.engine.k_active = self.k_active
+        self.engine.k_full = self.k_full
+        active = self.k_active.active_vertex_ids()
+        if self.engine.position not in active and active:
+            self.engine.position = min(active)
+            self.engine.visit_history = [self.engine.position]
+        self.engine.terrain = compute_terrain(self.k_active)
+        self.terrain = self.engine.terrain
 
     def _setup_snet_activation(self) -> None:
         """Initialize S_net coupled oscillation and attach to traversal engine.
@@ -1278,6 +1289,7 @@ class TopologicalDaemon:
         # Use count-based diff (O(1)) instead of set-based diff (O(E))
         # Graph.add_edge appends to _edges list, so new edges are always at tail
         _need_diff = self._persist or self._shared_layer is not None
+        pre_settled_count = len(self.settlement.settled_cycles)
         if _need_diff:
             pre_vid_count = len(self.k_full._vertices)
             pre_edge_count = len(self.k_full._edges)
@@ -1288,6 +1300,7 @@ class TopologicalDaemon:
             }
 
         log = self.engine.run_step()
+        new_settled = self.settlement.settled_cycles[pre_settled_count:]
 
         # Sync graph state from engine
         self.k_active = self.engine.k_active
@@ -1539,11 +1552,13 @@ class TopologicalDaemon:
             "step": self.total_steps,
             "timestamp": now,
         }
-        block_hash = self._shared_layer.write_block(block)
-        self._cross_instance_sync.known_blocks.add(block_hash)
-
-        self._last_position_write_time = now
-        self._last_position_write_label = position_label
+        try:
+            block_hash = self._shared_layer.write_block(block)
+            self._cross_instance_sync.known_blocks.add(block_hash)
+            self._last_position_write_time = now
+            self._last_position_write_label = position_label
+        except Exception:
+            pass  # graceful degradation: shared layer failure must not stop traversal
 
     def _write_graph_delta(self, log, new_vids: set[str], new_edges: set) -> None:
         """Write graph delta block to SharedLayer on significant events.

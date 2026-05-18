@@ -186,6 +186,19 @@ class TestDirectionRule:
         assert m["high"].iloc[0] == 20.0
         assert m["low"].iloc[0] == 2.0  # max(1,2)=2, 不是 min
 
+    def test_dir_none_defaults_up_even_when_first_bar_is_bearish(self):
+        """dir=None 的默认方向不由 open/close 阴阳线推断。"""
+        df = pd.DataFrame({
+            "open":  [10, 8],
+            "high":  [20, 19],
+            "low":   [1, 2],
+            "close": [5, 10],
+        })
+        m, _ = merge_inclusion(df)
+        assert len(m) == 1
+        assert m["high"].iloc[0] == 20.0
+        assert m["low"].iloc[0] == 2.0
+
     def test_chain_default_up(self):
         """dir=None 全程包含链 → 持续按 UP 合并。"""
         df = pd.DataFrame({
