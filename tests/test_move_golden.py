@@ -90,7 +90,7 @@ class TestSingleCenterConsolidation:
 
 class TestTwoAscendingCentersTrend:
     def test_ascending_trend(self):
-        """C2.zd > C1.zg → 上涨趋势。"""
+        """C2.dd > C1.gg → 上涨趋势。"""
         zhongshus = [
             _zs(0, 2, 10.0, 18.0, break_direction="up"),    # [10, 18]
             _zs(6, 8, 20.0, 28.0, break_direction="up"),    # [20, 28] — zd=20 > zg=18
@@ -110,7 +110,7 @@ class TestTwoAscendingCentersTrend:
 
 class TestTwoDescendingCentersTrend:
     def test_descending_trend(self):
-        """C2.zg < C1.zd → 下跌趋势。"""
+        """C2.gg < C1.dd → 下跌趋势。"""
         zhongshus = [
             _zs(0, 2, 20.0, 30.0, break_direction="down"),  # [20, 30]
             _zs(6, 8, 5.0, 18.0, break_direction="down"),   # [5, 18] — zg=18 < zd=20
@@ -389,37 +389,22 @@ class TestDiffDeterminism:
 
 
 # =====================================================================
-# 16) ZD/ZG 固定区间区分趋势
+# 16) GG/DD 波动区间区分趋势（中心定理二）
 # =====================================================================
 
-class TestZDZGTrendDistinction:
-    """趋势判断使用固定区间 ZD/ZG（非波动区间 DD/GG）。"""
+class TestGGDDTrendDistinction:
+    """趋势判断使用波动区间 DD/GG（非固定区间 ZD/ZG）。"""
 
-    def test_zd_above_zg_is_trend(self):
-        """C2.ZD > C1.ZG → 上涨趋势（固定区间递升）。
+    def test_zd_above_zg_but_gg_dd_overlap(self):
+        """ZD/ZG 不重叠但 GG/DD 重叠 → 非趋势（级别扩张）。
 
-        C1: zd=10, zg=18
-        C2: zd=20, zg=28
-        C2.zd=20 > C1.zg=18 → 上涨
+        C1: zd=10, zg=18, dd=5, gg=25
+        C2: zd=20, zg=28, dd=15, gg=35
+        ZD比较: C2.zd=20 > C1.zg=18
+        GG/DD比较: C2.dd=15 < C1.gg=25 → 波动区间重叠 → 非趋势
         """
         zhongshus = [
             _zs(0, 2, 10.0, 18.0, break_direction="up", dd=5.0, gg=25.0),
-            _zs(6, 8, 20.0, 28.0, break_direction="up", dd=15.0, gg=35.0),
-        ]
-        moves = moves_from_zhongshus(zhongshus)
-        assert len(moves) == 1
-        assert moves[0].kind == "trend"
-        assert moves[0].direction == "up"
-
-    def test_zd_not_above_zg_is_not_trend(self):
-        """C2.ZD <= C1.ZG → 非趋势（固定区间未递升）。
-
-        C1: zd=10, zg=22
-        C2: zd=20, zg=28
-        C2.zd=20 < C1.zg=22 → 非趋势
-        """
-        zhongshus = [
-            _zs(0, 2, 10.0, 22.0, break_direction="up", dd=5.0, gg=25.0),
             _zs(6, 8, 20.0, 28.0, break_direction="up", dd=15.0, gg=35.0),
         ]
         moves = moves_from_zhongshus(zhongshus)
@@ -427,12 +412,12 @@ class TestZDZGTrendDistinction:
         assert moves[0].kind == "consolidation"
         assert moves[1].kind == "consolidation"
 
-    def test_zd_above_zg_ascending(self):
-        """ZD/ZG 递升 → 上涨趋势。
+    def test_gg_dd_no_overlap_ascending(self):
+        """GG/DD 完全不重叠 → 真正的上涨趋势。
 
-        C1: zd=10, zg=18
-        C2: zd=25, zg=33
-        C2.zd=25 > C1.zg=18 → 上涨
+        C1: zd=10, zg=18, dd=5, gg=22
+        C2: zd=25, zg=33, dd=23, gg=38
+        C2.dd=23 > C1.gg=22 → 波动区间不重叠 → 上涨
         """
         zhongshus = [
             _zs(0, 2, 10.0, 18.0, break_direction="up", dd=5.0, gg=22.0),
@@ -443,12 +428,12 @@ class TestZDZGTrendDistinction:
         assert moves[0].kind == "trend"
         assert moves[0].direction == "up"
 
-    def test_zg_below_zd_descending(self):
-        """C2.ZG < C1.ZD → 下跌趋势（固定区间递降）。
+    def test_gg_dd_no_overlap_descending(self):
+        """GG/DD 完全不重叠 → 真正的下跌趋势。
 
-        C1: zd=20, zg=30
-        C2: zd=5, zg=15
-        C2.zg=15 < C1.zd=20 → 下跌
+        C1: zd=20, zg=30, dd=18, gg=35
+        C2: zd=5, zg=15, dd=3, gg=17
+        C2.gg=17 < C1.dd=18 → 波动区间不重叠 → 下跌
         """
         zhongshus = [
             _zs(0, 2, 20.0, 30.0, break_direction="down", dd=18.0, gg=35.0),

@@ -260,7 +260,10 @@ class SwarmDaemon(TopologicalDaemon):
 
         # Cross-instance sync
         if self.syncer is not None and self.total_steps % self.sync_interval == 0:
-            self.syncer.sync()
+            try:
+                self.syncer.sync()
+            except Exception as exc:
+                self.logger.warning("Cross-instance sync failed: %s", exc)
 
     def _write_traversal_position(self, log=None) -> None:
         """Write traversal_position block to SharedLayer.
@@ -300,11 +303,13 @@ class SwarmDaemon(TopologicalDaemon):
             "step": self.total_steps,
             "timestamp": now,
         }
-        block_hash = self.shared.write_block(block)
-        self.syncer.known_blocks.add(block_hash)
-
-        self._last_position_write_time = now
-        self._last_position_write_label = position_label
+        try:
+            block_hash = self.shared.write_block(block)
+            self.syncer.known_blocks.add(block_hash)
+            self._last_position_write_time = now
+            self._last_position_write_label = position_label
+        except Exception as exc:
+            self.logger.warning("Traversal position write failed: %s", exc)
 
     def _write_event_block(self) -> None:
         """Write current graph snapshot as a content-addressed block."""
@@ -349,9 +354,12 @@ class SwarmDaemon(TopologicalDaemon):
             "vertices": new_vertices,
             "edges": new_edges,
         }
-        block_hash = self.shared.write_block(block)
-        self.syncer.known_blocks.add(block_hash)
-        self._blocks_written += 1
+        try:
+            block_hash = self.shared.write_block(block)
+            self.syncer.known_blocks.add(block_hash)
+            self._blocks_written += 1
+        except Exception as exc:
+            self.logger.warning("Event block write failed: %s", exc)
 
     def swarm_status(self) -> dict:
         """Extended status with swarm-specific info."""
