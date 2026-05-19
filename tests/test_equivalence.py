@@ -140,6 +140,16 @@ class TestValidatePairThreeLayer:
         assert result.stroke_mean_pct is None
         assert result.macd_norm_hist is None
 
+    def test_no_strokes_rejected_after_pipeline_runs(self):
+        """CV 通过但管线没有产出笔时，结构层应拒绝而不是放行。"""
+        df_a = _ohlcv([100 + i for i in range(60)])
+        df_b = _ohlcv([100] * 60)
+        result = validate_pair(df_a, df_b)
+
+        assert result.valid is False
+        assert result.n_strokes == 0
+        assert "no strokes" in result.reason.lower()
+
     def test_diagnostics_populated_on_valid(self):
         """通过三层的 pair 应有完整诊断信息。"""
         df_a = _oscillating(100, 20, 60, freq=0.3)
