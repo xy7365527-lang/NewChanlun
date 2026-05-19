@@ -143,7 +143,10 @@ def _layer2_and_3(
     stroke_mean_pct, n_strokes = _compute_stroke_intensity(ratio_kline)
 
     if n_strokes == 0:
-        return ValidationResult(valid=True, cv=cv, n_strokes=0)
+        return ValidationResult(
+            valid=False, cv=cv, stroke_mean_pct=0.0, n_strokes=0,
+            reason="Structure degenerate — pipeline produced no strokes",
+        )
     if stroke_mean_pct < t_stroke_pct:
         return ValidationResult(
             valid=False, cv=cv, stroke_mean_pct=stroke_mean_pct, n_strokes=n_strokes,
