@@ -1273,6 +1273,7 @@ class TopologicalDaemon:
     def _step(self) -> None:
         """One step: traverse -> encounter -> operate -> terrain -> gap detect -> crystallization."""
         self.total_steps += 1
+        pre_settled_count = len(self.settlement.settled_cycles)
 
         # Capture pre-step state for persistence diff and SharedLayer sync
         # Use count-based diff (O(1)) instead of set-based diff (O(E))
@@ -1293,6 +1294,7 @@ class TopologicalDaemon:
         self.k_active = self.engine.k_active
         self.k_full = self.engine.k_full
         self.terrain = self.engine.terrain
+        new_settled = self.settlement.settled_cycles[pre_settled_count:]
 
         # Sync S_net from engine (traversal co-occurrence writeback may have updated it)
         if self.snet_activation is not None and self.snet_activation.s_net is not self.snet:
