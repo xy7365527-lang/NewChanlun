@@ -47,6 +47,7 @@ def test_shared_layer_step_uses_empty_settlement_delta_without_crashing():
     daemon.total_events = 0
     daemon.total_gaps_detected = 0
     daemon.event_log = []
+    daemon._callbacks = {"on_step": [], "on_event": [], "on_gap": [], "on_feed": []}
     daemon.concept_names = {}
     daemon.k_active = graph
     daemon.k_full = graph
