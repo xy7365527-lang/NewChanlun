@@ -287,6 +287,41 @@ def _aggregate_ratio_to_kline(
     return result
 
 
+def _period_freq_for(freq: str) -> str:
+    """转换为 DatetimeIndex.to_period 可接受的频率标签。"""
+    if freq.endswith("ME"):
+        prefix = freq[:-2]
+        return f"{prefix}M" if prefix else "M"
+    return freq
+
+
+def _select_target_bins(
+    result: pd.DataFrame,
+    target_idx: pd.DatetimeIndex,
+    target_freq: str,
+) -> pd.DataFrame:
+    """只保留目标窗口对应的聚合 K 线。"""
+    exact_idx = result.index.intersection(target_idx)
+    if len(exact_idx) > 0:
+        return result.loc[exact_idx]
+
+    period_freq = _period_freq_for(target_freq)
+    try:
+        result_periods = result.index.to_period(period_freq)
+        target_periods = target_idx.to_period(period_freq)
+    except ValueError:
+        return result.loc[exact_idx]
+
+    target_labels = dict(zip(target_periods, target_idx))
+    keep = [period in target_labels for period in result_periods]
+    selected = result.loc[keep].copy()
+    selected.index = pd.DatetimeIndex(
+        [target_labels[period] for period in result_periods[keep]],
+        name=target_idx.name,
+    )
+    return selected
+
+
 def make_ratio_kline(
     df_a: pd.DataFrame,
     df_b: pd.DataFrame,
@@ -323,16 +358,11 @@ def make_ratio_kline(
             return _make_ratio_kline_naive(df_a, df_b)
 
         sub_idx = sub_a.index.intersection(sub_b.index)
-        start = target_idx.min()
-        end = target_idx.max()
-        end_exclusive = end + pd.tseries.frequencies.to_offset(freq)
-        sub_idx = sub_idx[(sub_idx >= start) & (sub_idx < end_exclusive)]
-
         sa, sb = sub_a.loc[sub_idx], sub_b.loc[sub_idx]
         ratio = sa["close"] / sb["close"]
         volume = sa["volume"] if "volume" in sa.columns else None
         result = _aggregate_ratio_to_kline(ratio, volume, freq)
-        return result.loc[result.index.intersection(target_idx)]
+        return _select_target_bins(result, target_idx, freq)
 
     warnings.warn(
         "make_ratio_kline: no sub-frequency data provided, "
