@@ -3,7 +3,7 @@
 手工构造 K 线样本，覆盖 docs/chan_spec.md §2 全部规则:
   - §2.1 包含判定
   - §2.2 向上合并（high=max, low=max）/ 向下合并（high=min, low=min）
-  - §2.3 方向判定：双条件规则 + dir=None 默认 UP
+  - §2.3 方向判定：双条件规则 + dir=None 时按最近结构方向/阴阳线推断
   - §2.4 先左后右递推、连续包含递推合并、合并后无残留包含
   - merged_to_raw 映射正确（闭区间、覆盖全部原始行、单调递增）
   - assert_inclusion_no_residual 集成验证
@@ -171,10 +171,10 @@ class TestDirectionRule:
         assert m["low"].iloc[1] == 8.0
         assert r == [(0, 0), (1, 2)]
 
-    def test_dir_none_defaults_up(self):
-        """§2.3: dir=None 时遇到包含，默认按 UP 合并。"""
+    def test_dir_none_uses_bullish_bar_as_up(self):
+        """dir=None 且无结构方向可读时，阳线按 UP 合并。"""
         # Bar0 和 Bar1 直接包含（从未出现无包含对来确定 dir）
-        # dir=None → 按 UP: H=max(20,19)=20, L=max(1,2)=2
+        # dir=None + Bar0阳线 → 按 UP: H=max(20,19)=20, L=max(1,2)=2
         df = pd.DataFrame({
             "open":  [1, 2],
             "high":  [20, 19],
@@ -186,8 +186,8 @@ class TestDirectionRule:
         assert m["high"].iloc[0] == 20.0
         assert m["low"].iloc[0] == 2.0  # max(1,2)=2, 不是 min
 
-    def test_chain_default_up(self):
-        """dir=None 全程包含链 → 持续按 UP 合并。"""
+    def test_chain_uses_bullish_bar_as_up(self):
+        """dir=None 全程包含链且首根为阳线 → 持续按 UP 合并。"""
         df = pd.DataFrame({
             "open":  [1, 2, 3, 4],
             "high":  [20, 19, 18, 17],
@@ -217,6 +217,23 @@ class TestDirectionRule:
         # 合并后最后一根应该是 down merge 的结果
         assert m["high"].iloc[-1] == 12.0
         assert m["low"].iloc[-1] == 9.0
+
+    def test_reset_dir_keeps_new_structural_direction_for_next_inclusion(self):
+        """reset 后下一次包含仍按最近结构方向合并，而不是按蜡烛颜色。"""
+        # Bar0→1 建立 UP；Bar1→2 形成 DOWN 反转且 bar2 是阳线。
+        # reset_dir_on_fractal=True 会清空旧方向锁定，但 bar3 被 bar2 包含时
+        # 应沿用 Bar1→2 的 DOWN 结构方向，保留反转段低点。
+        df = pd.DataFrame({
+            "open":  [5.0, 7.0, 7.0, 7.0],
+            "high":  [10.0, 12.0, 11.0, 10.5],
+            "low":   [5.0, 7.0, 6.0, 6.5],
+            "close": [9.0, 11.0, 10.0, 8.0],
+        })
+        m, r = merge_inclusion(df, reset_dir_on_fractal=True)
+        assert len(m) == 3
+        assert m["high"].iloc[-1] == 10.5
+        assert m["low"].iloc[-1] == 6.0
+        assert r[-1] == (2, 3)
 
 
 # =====================================================================

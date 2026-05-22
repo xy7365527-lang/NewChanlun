@@ -309,11 +309,6 @@ def make_ratio_kline(
     概念溯源：[旧缠论:隐含] 比价K线构造
     """
     if sub_a is not None and sub_b is not None:
-        sub_idx = sub_a.index.intersection(sub_b.index)
-        sa, sb = sub_a.loc[sub_idx], sub_b.loc[sub_idx]
-        ratio = sa["close"] / sb["close"]
-        volume = sa["volume"] if "volume" in sa.columns else None
-
         freq = target_freq or _infer_target_freq(df_a.index)
         if freq is None:
             warnings.warn(
@@ -323,7 +318,21 @@ def make_ratio_kline(
             )
             return _make_ratio_kline_naive(df_a, df_b)
 
-        return _aggregate_ratio_to_kline(ratio, volume, freq)
+        target_idx = df_a.index.intersection(df_b.index)
+        if len(target_idx) == 0:
+            return _make_ratio_kline_naive(df_a, df_b)
+
+        sub_idx = sub_a.index.intersection(sub_b.index)
+        start = target_idx.min()
+        end = target_idx.max()
+        end_exclusive = end + pd.tseries.frequencies.to_offset(freq)
+        sub_idx = sub_idx[(sub_idx >= start) & (sub_idx < end_exclusive)]
+
+        sa, sb = sub_a.loc[sub_idx], sub_b.loc[sub_idx]
+        ratio = sa["close"] / sb["close"]
+        volume = sa["volume"] if "volume" in sa.columns else None
+        result = _aggregate_ratio_to_kline(ratio, volume, freq)
+        return result.loc[result.index.intersection(target_idx)]
 
     warnings.warn(
         "make_ratio_kline: no sub-frequency data provided, "
