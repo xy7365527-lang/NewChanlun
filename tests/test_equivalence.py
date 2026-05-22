@@ -285,6 +285,73 @@ class TestMakeRatioKlineSubFreq:
         )
         assert len(ratio) == 2
 
+    def test_sub_freq_is_limited_to_target_overlap(self):
+        """子频率缓存覆盖更长历史时，只输出目标 df 的重叠窗口。"""
+        df_a = _ohlcv([100, 110], start="2024-01-10")
+        df_b = _ohlcv([50, 55], start="2024-01-10")
+
+        sub_prices_a = [100 + i * 0.1 for i in range(31 * 24)]
+        sub_prices_b = [50 + i * 0.05 for i in range(31 * 24)]
+        sub_a = _hourly_ohlcv(sub_prices_a, start="2024-01-01")
+        sub_b = _hourly_ohlcv(sub_prices_b, start="2024-01-01")
+
+        ratio = make_ratio_kline(
+            df_a, df_b, sub_a=sub_a, sub_b=sub_b, target_freq="1D",
+        )
+
+        assert list(ratio.index) == list(df_a.index.intersection(df_b.index))
+
+    def test_sub_freq_month_end_label_keeps_full_first_period(self):
+        """月末标签选择目标月，但不能截掉月初到标签之间的子频率数据。"""
+        target_idx = pd.to_datetime(["2024-01-31", "2024-02-29"])
+        df_a = pd.DataFrame({"open": [1, 2], "high": [1, 2], "low": [1, 2], "close": [1, 2]}, index=target_idx)
+        df_b = pd.DataFrame({"open": [1, 1], "high": [1, 1], "low": [1, 1], "close": [1, 1]}, index=target_idx)
+
+        sub_a = _hourly_ohlcv([float(i) for i in range(1, 60 * 24 + 1)], start="2024-01-01")
+        sub_b = _hourly_ohlcv([1.0] * (60 * 24), start="2024-01-01")
+
+        ratio = make_ratio_kline(
+            df_a, df_b, sub_a=sub_a, sub_b=sub_b, target_freq="1ME",
+        )
+
+        assert list(ratio.index) == list(target_idx)
+        assert ratio["open"].iloc[0] == pytest.approx(1.0)
+        assert ratio["low"].iloc[0] == pytest.approx(1.0)
+        assert ratio["high"].iloc[0] == pytest.approx(31 * 24)
+        assert ratio["close"].iloc[0] == pytest.approx(31 * 24)
+
+    def test_sub_freq_daily_market_close_labels_are_preserved(self):
+        """目标日线若用收盘时间作标签，输出仍映射回原目标标签。"""
+        target_idx = pd.to_datetime(["2024-01-10 16:00", "2024-01-11 16:00"])
+        df_a = pd.DataFrame({"open": [1, 2], "high": [1, 2], "low": [1, 2], "close": [1, 2]}, index=target_idx)
+        df_b = pd.DataFrame({"open": [1, 1], "high": [1, 1], "low": [1, 1], "close": [1, 1]}, index=target_idx)
+
+        sub_a = _hourly_ohlcv([float(i) for i in range(1, 48 + 1)], start="2024-01-10")
+        sub_b = _hourly_ohlcv([1.0] * 48, start="2024-01-10")
+
+        ratio = make_ratio_kline(
+            df_a, df_b, sub_a=sub_a, sub_b=sub_b, target_freq="1D",
+        )
+
+        assert list(ratio.index) == list(target_idx)
+        assert ratio["close"].iloc[0] == pytest.approx(24.0)
+        assert ratio["close"].iloc[1] == pytest.approx(48.0)
+
+    def test_sub_freq_mixed_exact_and_period_labels_are_preserved(self):
+        """部分 exact、部分需周期映射时，不能只返回 exact 命中的行。"""
+        target_idx = pd.to_datetime(["2024-01-31 00:00", "2024-02-29 16:00"])
+        df_a = pd.DataFrame({"open": [1, 2], "high": [1, 2], "low": [1, 2], "close": [1, 2]}, index=target_idx)
+        df_b = pd.DataFrame({"open": [1, 1], "high": [1, 1], "low": [1, 1], "close": [1, 1]}, index=target_idx)
+
+        sub_a = _hourly_ohlcv([float(i) for i in range(1, 60 * 24 + 1)], start="2024-01-01")
+        sub_b = _hourly_ohlcv([1.0] * (60 * 24), start="2024-01-01")
+
+        ratio = make_ratio_kline(
+            df_a, df_b, sub_a=sub_a, sub_b=sub_b, target_freq="1ME",
+        )
+
+        assert list(ratio.index) == list(target_idx)
+
     def test_fallback_warns(self):
         """不提供子频率数据时发出 warning。"""
         df_a = _ohlcv([100, 110])

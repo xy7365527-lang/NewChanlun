@@ -49,6 +49,23 @@ def _is_fractal_pattern(buf: list[list[float | int]], length: int) -> bool:
     return is_top or is_bottom
 
 
+def _infer_effective_up(buf: list[list[float | int]]) -> bool:
+    """dir 未确定时，从最近两根 merged bar 推断包含方向。
+
+    reset_dir_on_fractal 会清空旧的方向锁定，但下一次包含仍应优先沿用
+    最近一对无包含 bar 刚形成的结构方向；只有没有结构方向可读时，
+    才退回到当前 merged bar 的阴阳线方向。
+    """
+    last = buf[-1]
+    if len(buf) >= 2:
+        prev = buf[-2]
+        if last[1] > prev[1] and last[2] > prev[2]:
+            return True
+        if last[1] < prev[1] and last[2] < prev[2]:
+            return False
+    return last[3] >= last[0]  # close >= open → 阳线 → UP
+
+
 def _merge_loop(
     highs: np.ndarray, lows: np.ndarray,
     opens: np.ndarray, closes: np.ndarray,
@@ -85,9 +102,7 @@ def _merge_loop(
             if dir_state is not None:
                 effective_up = dir_state == "UP"
             else:
-                # dir 未确定时，用前一根 merged bar 的 close vs open 推断方向
-                # 这避免了默认 UP 偏置导致的过度合并
-                effective_up = last[3] >= last[0]  # close >= open → 阳线 → UP
+                effective_up = _infer_effective_up(buf)
             if effective_up:
                 last[1] = max(last_h, curr_h)
                 last[2] = max(last_l, curr_l)
