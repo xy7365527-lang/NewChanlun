@@ -302,8 +302,8 @@ def _select_target_bins(
 ) -> pd.DataFrame:
     """只保留目标窗口对应的聚合 K 线。"""
     exact_idx = result.index.intersection(target_idx)
-    if len(exact_idx) > 0:
-        return result.loc[exact_idx]
+    if len(exact_idx) == len(target_idx):
+        return result.loc[target_idx]
 
     period_freq = _period_freq_for(target_freq)
     try:

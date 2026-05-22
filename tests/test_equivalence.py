@@ -337,6 +337,21 @@ class TestMakeRatioKlineSubFreq:
         assert ratio["close"].iloc[0] == pytest.approx(24.0)
         assert ratio["close"].iloc[1] == pytest.approx(48.0)
 
+    def test_sub_freq_mixed_exact_and_period_labels_are_preserved(self):
+        """部分 exact、部分需周期映射时，不能只返回 exact 命中的行。"""
+        target_idx = pd.to_datetime(["2024-01-31 00:00", "2024-02-29 16:00"])
+        df_a = pd.DataFrame({"open": [1, 2], "high": [1, 2], "low": [1, 2], "close": [1, 2]}, index=target_idx)
+        df_b = pd.DataFrame({"open": [1, 1], "high": [1, 1], "low": [1, 1], "close": [1, 1]}, index=target_idx)
+
+        sub_a = _hourly_ohlcv([float(i) for i in range(1, 60 * 24 + 1)], start="2024-01-01")
+        sub_b = _hourly_ohlcv([1.0] * (60 * 24), start="2024-01-01")
+
+        ratio = make_ratio_kline(
+            df_a, df_b, sub_a=sub_a, sub_b=sub_b, target_freq="1ME",
+        )
+
+        assert list(ratio.index) == list(target_idx)
+
     def test_fallback_warns(self):
         """不提供子频率数据时发出 warning。"""
         df_a = _ohlcv([100, 110])
