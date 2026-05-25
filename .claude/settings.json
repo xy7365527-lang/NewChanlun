@@ -6,7 +6,7 @@
     "MCP_TIMEOUT": "5000",
     "API_TIMEOUT_MS": "120000",
     "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "75",
-    "MAX_THINKING_TOKENS": "0"
+    "MAX_THINKING_TOKENS": "31999"
   },
   "hooks": {
     "SessionStart": [

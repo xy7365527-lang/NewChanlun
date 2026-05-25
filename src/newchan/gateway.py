@@ -58,6 +58,8 @@ from newchan.orchestrator.timeframes import TFOrchestrator
 from newchan.replay import ReplaySession
 from newchan.types import Bar
 
+logger = logging.getLogger(__name__)
+
 # ── FastAPI 应用 ──
 
 app = FastAPI(title="NewChan Gateway", version="0.1.0")
@@ -95,8 +97,6 @@ _play_tasks: dict[str, asyncio.Task] = {}
 _ws_clients: dict[str, set[WebSocket]] = {}
 
 # ── Live 模式全局状态 ──
-
-logger = logging.getLogger(__name__)
 
 # Live 模式：symbol -> RecursiveOrchestrator（每个标的一个引擎）
 _live_engines: dict[str, RecursiveOrchestrator] = {}
