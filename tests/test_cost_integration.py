@@ -113,7 +113,6 @@ class TestNoCostModel:
         assert cs.total_slippage == 0.0
         assert cs.total_commission == 0.0
         assert cs.total_cost == 0.0
-        assert cs.cost_to_gross_profit_ratio == 0.0
 
 
 class TestSlippageOnly:
@@ -195,7 +194,6 @@ class TestSlippageAndCommission:
         assert abs(cs.total_slippage - 0.2) < 1e-9
         assert abs(cs.total_commission - 0.21) < 1e-9
         assert abs(cs.total_cost - 0.41) < 1e-9
-        assert cs.cost_to_gross_profit_ratio > 0
 
 
 class TestBackwardCompatibility:
@@ -226,7 +224,6 @@ class TestCostSummaryNoTrades:
         engine = BacktestEngine()
         cs = engine.result().cost_summary
         assert cs.total_cost == 0.0
-        assert cs.cost_to_gross_profit_ratio == 0.0
 
 
 class TestMultipleTrades:

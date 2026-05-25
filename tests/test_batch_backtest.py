@@ -64,22 +64,16 @@ class TestBacktestResultToRow:
         row = batch_bt.backtest_result_to_row("AAPL", result)
         assert row["symbol"] == "AAPL"
         assert row["trade_count"] == 3
-        assert row["win_count"] == 2
-        assert row["loss_count"] == 1
-        assert abs(row["win_rate"] - 2 / 3) < 1e-9
         assert row["total_bars"] == 100
+        assert row["total_cost"] >= 0.0
 
     def test_empty_result(self):
         result = _make_result([])
         row = batch_bt.backtest_result_to_row("EMPTY", result)
         assert row["trade_count"] == 0
-        assert row["win_rate"] == 0.0
-        assert row["max_drawdown_pct"] == 0.0
 
-    def test_profit_loss_ratio(self):
-        result = _make_result([0.10, -0.05])
-        row = batch_bt.backtest_result_to_row("TEST", result)
-        assert row["profit_loss_ratio"] == pytest.approx(2.0, rel=1e-6)
+    # 注：test_profit_loss_ratio 已删除（pending-004）——profit_loss_ratio 是策略
+    # 评价指标，已从 BacktestResult/batch row 移除。
 
 
 # ── results_to_dataframe ──
@@ -94,7 +88,7 @@ class TestResultsToDataframe:
         df = batch_bt.results_to_dataframe(results)
         assert len(df) == 2
         assert "symbol" in df.columns
-        assert "win_rate" in df.columns
+        assert "trade_count" in df.columns
         assert set(df["symbol"]) == {"AAPL", "MSFT"}
 
     def test_sorted_by_symbol(self):

@@ -522,8 +522,11 @@ class TestPositionPhase:
 class TestStatistics:
     """统计指标。"""
 
-    def test_win_rate_and_ratio(self):
-        """两笔交易：一盈一亏，验证胜率和盈亏比。"""
+    def test_two_trades_generated(self):
+        """两笔交易（一盈一亏）→ 验证生成 2 笔 Trade 事实。
+
+        策略评价（胜率/盈亏比）已删除（pending-004）；此处只验证交易生成正确。
+        """
         engine = BacktestEngine()
 
         # 第一笔：买100 卖120 → +20
@@ -564,35 +567,14 @@ class TestStatistics:
 
         result = engine.result()
         assert result.trade_count == 2
-        assert result.win_count == 1
-        assert result.loss_count == 1
-        assert result.win_rate == 0.5
-        # 盈亏比 = 20 / 10 = 2.0
-        assert result.profit_loss_ratio == 2.0
 
-    def test_max_drawdown(self):
-        """最大回撤计算。"""
-        t1 = Trade(
-            side="long", bsp_kind="type1", bsp_level=1,
-            entry_bar=0, exit_bar=1, entry_price=100.0, exit_price=120.0,
-            exit_reason="reverse_bsp",
-        )
-        t2 = Trade(
-            side="long", bsp_kind="type1", bsp_level=1,
-            entry_bar=2, exit_bar=3, entry_price=110.0, exit_price=88.0,
-            exit_reason="bsp_negated",
-        )
-        result = BacktestResult(trades=(t1, t2), total_bars=4)
-        # t1: pnl_pct = 20/100 = 0.2, cum=0.2, peak=0.2
-        # t2: pnl_pct = -22/110 = -0.2, cum=0.0, dd=0.2
-        assert result.max_drawdown_pct == 0.2
+    # 注：test_max_drawdown 已删除（pending-004）——max_drawdown_pct 是策略评价指标。
 
     def test_empty_result(self):
-        """无交易时统计指标安全返回。"""
+        """无交易时 result 安全返回（策略评价指标已删，pending-004）。"""
         result = BacktestResult(trades=(), total_bars=0)
-        assert result.win_rate == 0.0
-        assert result.profit_loss_ratio == 0.0
-        assert result.max_drawdown_pct == 0.0
+        assert result.trade_count == 0
+        assert result.total_bars == 0
 
 
 # ── 做空 ──

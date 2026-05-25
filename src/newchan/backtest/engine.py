@@ -150,12 +150,11 @@ class Trade:
 
 @dataclass(frozen=True, slots=True)
 class CostSummary:
-    """成本统计摘要。"""
+    """成本统计摘要（纯执行成本事实，L1 管线度量；不含成本/毛利比=策略评价）。"""
 
     total_slippage: float
     total_commission: float
     total_cost: float
-    cost_to_gross_profit_ratio: float
 
 
 # ── 回测结果 ──
@@ -172,51 +171,11 @@ class BacktestResult:
     def trade_count(self) -> int:
         return len(self.trades)
 
-    @property
-    def win_count(self) -> int:
-        return sum(1 for t in self.trades if t.pnl > 0)
-
-    @property
-    def loss_count(self) -> int:
-        return sum(1 for t in self.trades if t.pnl <= 0)
-
-    @property
-    def win_rate(self) -> float:
-        if not self.trades:
-            return 0.0
-        return self.win_count / len(self.trades)
-
-    @property
-    def profit_loss_ratio(self) -> float:
-        """盈亏比 = 平均盈利 / 平均亏损绝对值。"""
-        wins = [t.pnl for t in self.trades if t.pnl > 0]
-        losses = [t.pnl for t in self.trades if t.pnl <= 0]
-        if not losses:
-            return float("inf") if wins else 0.0
-        if not wins:
-            return 0.0
-        avg_win = sum(wins) / len(wins)
-        avg_loss = abs(sum(losses) / len(losses))
-        if avg_loss == 0:
-            return float("inf")
-        return avg_win / avg_loss
-
-    @property
-    def max_drawdown_pct(self) -> float:
-        """最大回撤百分比（基于累计 PnL 曲线）。"""
-        if not self.trades:
-            return 0.0
-        cumulative = 0.0
-        peak = 0.0
-        max_dd = 0.0
-        for t in self.trades:
-            cumulative += t.pnl_pct
-            if cumulative > peak:
-                peak = cumulative
-            dd = peak - cumulative
-            if dd > max_dd:
-                max_dd = dd
-        return max_dd
+    # 注：win_rate/profit_loss_ratio/max_drawdown_pct/win_count/loss_count 已删除
+    # （pending-004 结算，2026-05-24）。这些是"测策略好不好"的绩效指标，违反
+    # SKILL.md § 2.2（仅允许测代码对不对）、220号（风控非独立度量）、295号（第四层
+    # 决断质量不可形式化）、蓝图第一原则（不回测策略）。回测只产 Trade 单笔事实 +
+    # 成本统计（L1 管线度量），不评价策略优劣。
 
     @property
     def cost_summary(self) -> CostSummary:
@@ -227,21 +186,10 @@ class BacktestResult:
             t.entry_commission + t.exit_commission for t in self.trades
         )
         total_cost = total_slippage + total_commission
-        gross_profit = 0.0
-        for t in self.trades:
-            raw = (
-                (t.exit_price - t.entry_price)
-                if t.side == "long"
-                else (t.entry_price - t.exit_price)
-            )
-            if raw > 0:
-                gross_profit += raw
-        ratio = total_cost / gross_profit if gross_profit > 0 else 0.0
         return CostSummary(
             total_slippage=total_slippage,
             total_commission=total_commission,
             total_cost=total_cost,
-            cost_to_gross_profit_ratio=ratio,
         )
 
 

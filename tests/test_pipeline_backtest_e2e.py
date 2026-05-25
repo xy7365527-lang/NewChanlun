@@ -238,8 +238,6 @@ class TestBasicE2E:
         assert result.total_bars == len(bars)
         # 无论是否产生交易，result 结构正确
         assert result.trade_count >= 0
-        assert result.win_rate >= 0.0
-        assert result.max_drawdown_pct >= 0.0
 
     def test_uptrend_reversal_snapshot_has_bsp_snapshot(self):
         """验证 RecursiveOrchestratorSnapshot 有 bsp_snapshot 属性。"""
@@ -310,10 +308,7 @@ class TestNoTradeScenario:
 
         result = engine.result()
         assert result.total_bars == 300
-        assert result.max_drawdown_pct >= 0.0
-        if result.trade_count == 0:
-            assert result.win_rate == 0.0
-            assert result.profit_loss_ratio == 0.0
+        assert result.trade_count >= 0
 
 
 class TestMultiTradeScenario:
@@ -361,11 +356,9 @@ class TestMultiTradeScenario:
             engine.process_snapshot(snapshot, bar)
 
         result = engine.result()
-        # 统计一致性
-        assert result.win_count + result.loss_count == result.trade_count
-        if result.trade_count > 0:
-            assert 0.0 <= result.win_rate <= 1.0
-            assert result.max_drawdown_pct >= 0.0
+        # 统计一致性（trade_count = Trade 单笔事实数；策略评价指标已删，pending-004）
+        assert result.trade_count == len(result.trades)
+        assert result.trade_count >= 0
 
 
 class TestBacktestEngineComparison:

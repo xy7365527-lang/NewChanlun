@@ -78,18 +78,18 @@ def run_single_backtest(symbol: str, config: BacktestConfig | None = None) -> Ba
 
 
 def backtest_result_to_row(symbol: str, result: BacktestResult) -> dict[str, Any]:
-    """BacktestResult → 扁平 dict（一行 CSV）。"""
+    """BacktestResult → 扁平 dict（一行 CSV）。
+
+    pending-004 结算（2026-05-24）：移除 win_count/loss_count/win_rate/
+    profit_loss_ratio/max_drawdown_pct/cost_to_gross_profit_ratio——这些是跨标的
+    策略表现排名（"测策略好不好"），违反蓝图第一原则/220/295/SKILL§2.2。
+    batch 报告只保留 L1 管线事实：交易计数 + 执行成本。
+    """
     return {
         "symbol": symbol,
         "total_bars": result.total_bars,
         "trade_count": result.trade_count,
-        "win_count": result.win_count,
-        "loss_count": result.loss_count,
-        "win_rate": result.win_rate,
-        "profit_loss_ratio": result.profit_loss_ratio,
-        "max_drawdown_pct": result.max_drawdown_pct,
         "total_cost": result.cost_summary.total_cost,
-        "cost_to_gross_profit_ratio": result.cost_summary.cost_to_gross_profit_ratio,
     }
 
 
@@ -132,8 +132,8 @@ def main() -> None:
             try:
                 results[sym] = future.result()
                 r = results[sym]
-                print(f"  {sym}: {r.trade_count} trades, win_rate={r.win_rate:.1%}, "
-                      f"PL_ratio={r.profit_loss_ratio:.2f}, max_dd={r.max_drawdown_pct:.2%}")
+                # pending-004：不再打印 win_rate/PL_ratio/max_dd（策略评价指标）
+                print(f"  {sym}: {r.trade_count} trades, total_cost={r.cost_summary.total_cost:.2f}")
             except Exception as e:
                 print(f"  {sym}: 失败 — {e}")
 

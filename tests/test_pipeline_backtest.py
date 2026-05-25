@@ -412,8 +412,6 @@ class TestResultConsistency:
         assert isinstance(result, BacktestResult)
         assert result.trade_count == 0
         assert result.total_bars == 0
-        assert result.win_rate == 0.0
-        assert result.max_drawdown_pct == 0.0
 
     def test_result_type(self):
         """result() 返回 BacktestResult 类型。"""
@@ -486,10 +484,6 @@ class TestResultConsistency:
 
         result = engine.result()
         assert result.trade_count == 2
-        assert result.win_count == 1
-        assert result.loss_count == 1
-        assert result.win_rate == 0.5
-        assert result.profit_loss_ratio == 2.0
         assert result.total_bars == 4
 
 
