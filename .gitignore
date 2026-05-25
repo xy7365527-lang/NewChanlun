@@ -51,3 +51,12 @@ deploy/
 # Data files
 data/
 .coverage
+
+# K4 soros reports (cron 写入，不入库；保留目录占位)
+external/k4-soros-reports/*
+!external/k4-soros-reports/.gitkeep
+
+# 运行时状态/日志（非源码，不入库）
+scripts/.ph_push_state.json
+.chanlun/.stop-guard-counter
+.chanlun/.lead-corrections.log

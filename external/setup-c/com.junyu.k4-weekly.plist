@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  com.junyu.k4-weekly.plist
+  ==========================
+  macOS launchd job：周一早 9:00 运行 chanlun-soros K4 pipeline
+
+  安装:
+    cp ~/Projects/NewChanlun/external/setup-c/com.junyu.k4-weekly.plist ~/Library/LaunchAgents/
+    launchctl load ~/Library/LaunchAgents/com.junyu.k4-weekly.plist
+
+  手动触发:
+    launchctl start com.junyu.k4-weekly
+
+  卸载:
+    launchctl unload ~/Library/LaunchAgents/com.junyu.k4-weekly.plist
+
+  日志位置:
+    /tmp/k4-weekly.stdout.log
+    /tmp/k4-weekly.stderr.log
+
+  注意: USER 路径需要替换为你的实际 home 路径（PlaceholderUser）
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.junyu.k4-weekly</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>-c</string>
+        <string>$HOME/Projects/chanlun-soros/scripts/launchd_wrapper.sh</string>
+    </array>
+
+    <!-- 周一 9:00 触发（Weekday: 1=Mon, 2=Tue, ..., 7=Sun） -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Weekday</key>
+        <integer>1</integer>
+        <key>Hour</key>
+        <integer>9</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <!-- 如果触发时机器睡眠中，醒来后立即补跑 -->
+    <key>RunAtLoad</key>
+    <false/>
+
+    <!-- 环境变量传递（确保 python、pip 等可执行） -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/tmp/k4-weekly.stdout.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/tmp/k4-weekly.stderr.log</string>
+
+    <!-- 超时保护：10 分钟未结束则杀死 -->
+    <key>ExitTimeOut</key>
+    <integer>600</integer>
+</dict>
+</plist>
