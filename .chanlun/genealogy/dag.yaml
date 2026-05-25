@@ -2429,6 +2429,86 @@ nodes:
   status: 已结算
   type: 概念发现
   file: settled/485-topologized-soros.md
+- id: '516'
+  title: W4 持仓展开器缺少 Intent_Cycle_Tag——自下而上聚合的本体论错误
+  status: 已结算
+  type: 矛盾发现
+  file: settled/516-intent-cycle-tag-missing.md
+- id: '517'
+  title: EdgeState 中 h（和乐）字段的层级错误——边属性与循环属性混淆
+  status: 已结算
+  type: 矛盾发现
+  file: settled/517-holonomy-in-edgestate-level-error.md
+- id: '518'
+  title: SKILL.md 第 2.4 节扬弃：从机械否定到辩证扬弃
+  status: 已结算
+  type: 语法记录
+  file: settled/518-skill-md-section-2-4-aufhebung.md
+- id: '519'
+  title: 凭证泄露 + git 清理 + SKILL 修订执行：v3 工程化第二次执行的失败档案
+  status: 已结算
+  type: 矛盾发现
+  file: settled/519-credential-leak-skill-revision-execution.md
+- id: pending-001-scan-state-unobservable
+  title: ''
+  status: 生成态
+  type: meta-rule
+  file: pending/pending-001-scan-state-unobservable.md
+- id: pending-002-fengkong-trading-system-twin-emergent
+  title: fengkong/chanlun-trading-system 双生成态——风控独立性由220号吸收
+  status: 已结算
+  type: domain（吸收 by 220）
+  file: archive/pending-002-fengkong-trading-system-twin-emergent.md
+- id: pending-003-blueprint-circle4-force-comparison-gap
+  title: ''
+  status: 生成态
+  type: domain
+  file: pending/pending-003-blueprint-circle4-force-comparison-gap.md
+- id: pending-004-engine-py-strategy-evaluation-violation
+  title: ''
+  status: 生成态
+  type: domain
+  file: pending/pending-004-engine-py-strategy-evaluation-violation.md
+- id: pending-005-orchestrator-proxy-decide-reverse-gap
+  title: ''
+  status: 生成态
+  type: bias-correction
+  file: pending/pending-005-orchestrator-proxy-decide-reverse-gap.md
+- id: pending-006-physical-resource-gap-fourth-type
+  title: ''
+  status: 生成态
+  type: meta-rule
+  file: pending/pending-006-physical-resource-gap-fourth-type.md
+- id: pending-007-blueprint-cycle1-vs-330-layer-tension
+  title: ''
+  status: 生成态
+  type: domain
+  file: pending/pending-007-blueprint-cycle1-vs-330-layer-tension.md
+- id: pending-008-jsonl-vs-block-primary-migration-incomplete
+  title: ''
+  status: 生成态
+  type: domain
+  file: pending/pending-008-jsonl-vs-block-primary-migration-incomplete.md
+- id: pending-009-data-blueprint-vs-code-coverage-gap
+  title: ''
+  status: 生成态
+  type: domain
+  file: pending/pending-009-data-blueprint-vs-code-coverage-gap.md
+- id: pending-010-lead-overreach-business-vs-structural
+  title: ''
+  status: 生成态
+  type: meta-rule
+  file: pending/pending-010-lead-overreach-business-vs-structural.md
+- id: pending-011-topo-divergence-vs-yichan-alignment-gap
+  title: ''
+  status: 生成态
+  type: domain
+  file: pending/pending-011-topo-divergence-vs-yichan-alignment-gap.md
+- id: pending-012-ph-operational-position-vs-chanlun
+  title: ''
+  status: 生成态
+  type: domain
+  file: pending/pending-012-ph-operational-position-vs-chanlun.md
 edges:
   depends_on:
   - from: '136'
@@ -5107,6 +5187,38 @@ edges:
     to: '482'
   - from: '485'
     to: '230'
+  - from: '482'
+    to: '475'
+  - from: '482'
+    to: '230'
+  - from: '483'
+    to: '456'
+  - from: '483'
+    to: 090
+  - from: '483'
+    to: '218'
+  - from: '516'
+    to: '485'
+  - from: '516'
+    to: '487'
+  - from: '517'
+    to: '485'
+  - from: '517'
+    to: '486'
+  - from: '519'
+    to: '518'
+  - from: pending-011-topo-divergence-vs-yichan-alignment-gap
+    to: '378'
+  - from: pending-011-topo-divergence-vs-yichan-alignment-gap
+    to: '231'
+  - from: pending-011-topo-divergence-vs-yichan-alignment-gap
+    to: '239'
+  - from: pending-012-ph-operational-position-vs-chanlun
+    to: '239'
+  - from: pending-012-ph-operational-position-vs-chanlun
+    to: '378'
+  - from: pending-012-ph-operational-position-vs-chanlun
+    to: '231'
   triggered:
   - from: '005'
     to: 005a
@@ -6665,6 +6777,45 @@ edges:
   - between:
     - '073'
     - '075'
+  - between:
+    - '254'
+    - '482'
+  - between:
+    - '292'
+    - '482'
+  - between:
+    - '294'
+    - '482'
+  - between:
+    - '482'
+    - '484'
+  - between:
+    - '230'
+    - '484'
+  - between:
+    - '254'
+    - '485'
+  - between:
+    - '294'
+    - '485'
+  - between:
+    - '292'
+    - '485'
+  - between:
+    - '516'
+    - '517'
+  - between:
+    - '516'
+    - '519'
+  - between:
+    - '517'
+    - '519'
+  - between:
+    - pending-003-blueprint-circle4-force-comparison-gap
+    - pending-011-topo-divergence-vs-yichan-alignment-gap
+  - between:
+    - pending-011-topo-divergence-vs-yichan-alignment-gap
+    - pending-012-ph-operational-position-vs-chanlun
   tensions_with:
   - between:
     - '007'

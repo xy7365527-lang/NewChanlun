@@ -1,0 +1,56 @@
+pattern_id: scan-state-unobservable
+status: candidate
+frequency: 5
+promotion_threshold: 3
+first_observed: 2026-04-15  # v213+ ARTICULATE 实装期
+last_observed: 2026-04-27   # 本 session
+source_pendings:
+  - pending-001-scan-state-unobservable
+source_genealogy:
+  - 429   # 候选1（前身）
+  - 430
+  - 432
+  - 433
+instances:
+  - id: pending_topo_effects
+    description: "谱系 frontmatter 的 topo_effect 字段未被 ceremony_scan 消费校验"
+    workstation_witnessed: ["W-1", "W-6"]
+  - id:推论_coverage_status
+    description: "谱系 frontmatter 中下游推论是否实现的 coverage_status 维度无消费"
+    workstation_witnessed: ["W-1"]
+  - id: ARTICULATE_实装状态
+    description: "概念层声明（431号 ARTICULATE 拓扑判据）vs 工程层运行时（traversal.py:1312）的对齐状态无消费"
+    workstation_witnessed: ["W-1", "W-5"]
+  - id: scan_状态_v系列_4
+    description: "W-5 自标 4-5 个边缘候选——429/430/432/433 同模式"
+    workstation_witnessed: ["W-5", "W-10"]
+  - id: meta_observer_可靠性低
+    description: "W-10 自标 meta-observer 工位的可靠性低于其他工位类型，且未被显式监控"
+    workstation_witnessed: ["W-10"]
+formal_pattern: |
+  当蜂群有"全局状态"X 满足：
+    (a) X 不被任何业务工位消费（无局部消费者）
+    (b) X 不被 ceremony_scan 消费
+    (c) X 是 frontmatter 字段或运行时变量
+  则 X 处于"scan 状态不可观测"状态——成为 Lead 盲点 = 094号审计层断裂 Gap 在工程基础设施层的复现。
+  消除条件：将 X 加入 ceremony_scan 的消费器。
+candidate_skill_section:
+  target_skill: ceremony-scan-completeness
+  proposed_section: |
+    ## scan 状态不可观测模式（结晶自 429候选1+pending-001）
+
+    无局部消费者的全局状态需要 ceremony_scan 强制消费，否则形成盲点。
+
+    ### 检查清单（每次新增 frontmatter 字段或运行时变量时）
+    1. 是否有业务工位消费此字段/变量？
+    2. 若无，是否在 ceremony_scan 的消费列表中？
+    3. 若都无，立即提交 pending 谱系（同 pending-001）
+
+    ### 已知应消费但未消费列表（消费器待实装）
+    - topo_effect 字段一致性
+    - 推论 coverage_status
+    - ARTICULATE 实装状态对齐
+notes:
+  - "本候选由 genealogist 工位（pending-001）于 2026-04-27 评估推送"
+  - "skill-crystallizer 接收后应做 N=5 实例的形式化抽取"
+  - "异质审计降级——本号产出未经 Gemini 质询"

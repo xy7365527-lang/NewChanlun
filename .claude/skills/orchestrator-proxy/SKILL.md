@@ -95,11 +95,11 @@ genealogy_source: "030a"
 ## 调用方式
 
 ```bash
-.venv/Scripts/python -m newchan.gemini_challenger decide "<subject>" \
+python -m newchan.gemini decide "<subject>" \
   --context-file /tmp/decide-ctx.md --verbose
 ```
 
-> **注意**：截至当前，CLI 的 `choices` 参数尚未包含 `decide`（仅有 `challenge` 和 `verify`）。Task #2（code-worker）负责将 `decide` 加入 CLI 并实现对应的 system prompt 和输出解析。在运行时就绪前，本 skill 的调用部分处于待激活状态。
+> **运行时状态（2026-05-24 更新，pending-005 结算）**：`decide` 已在 CLI 完整实装——`newchan.gemini.__main__` 的 `choices` 含 `{challenge,verify,decide,derive}`，`modes.py:decide()/decide_with_tools()` + `registry.py` decide ModeConfig 全谱就绪。本 skill 调用部分**已激活**（曾误标"待激活"=声明萎缩，反向缺口，见 pending-005）。
 
 -----
 
@@ -195,15 +195,15 @@ negation_form: "[视情况标注]"
 - 没有上下文的 decide 调用是被禁止的。
 - INTERRUPT 是正常运作，不是异常。
 - 质询（找问题）和决策（做选择）使用不同的 system prompt，不可混用。
-- 本 skill 依赖 Task #2 完成 decide() 运行时实现后才能实际调用。
+- decide() 运行时已实装（`newchan.gemini`，2026-05-24 经 pending-005 验证），本 skill 可实际调用。
 
 -----
 
-## 当前限制（353号消费断裂标注）
+## 当前限制（353号消费断裂标注，2026-05-24 经 pending-005 更新）
 
-| 声明 | 当前状态 | 替代路径 |
+| 声明 | 当前状态 | 路径 |
 |------|---------|---------|
-| decide 子命令自动路由 | **未实现**——CLI 仅支持 challenge/verify 模式 | 手动 `/challenge` 调用 Gemini，人工判断决策语境 |
-| escalate_choice 事件自动触发 | **平台不支持**——Claude Code 无语义事件总线 | Lead 在 `/escalate` 流程中手动识别"选择/语法记录"类型并手动调用 Gemini |
+| decide 子命令（CLI 调用） | **已实现**——`newchan.gemini` CLI 含 decide，modes/registry 全谱就绪 | `python -m newchan.gemini decide "<subject>" --context-file <ctx>` |
+| escalate_choice 事件**自动**触发 | **平台仍不支持**——Claude Code 无语义事件总线 | Lead 在 `/escalate` 流程中手动识别"选择/语法记录"类型并手动调用 decide |
 
-**触发条件降级**：dispatch-dag.yaml 中 `escalate_choice → gemini-challenger decide` 的声明当前为手动触发，非自动路由。待 decide 子命令实现后恢复自动路由声明。
+**剩余限制澄清**：decide 子命令本身已就绪（反向缺口已闭合）；尚未解决的是 escalate_choice → decide 的**自动事件路由**（平台无语义事件总线，正向缺口，与 016号同模式）。即"能调用"已成立，"自动被触发"仍需 Lead 手动识别四分法类型后调用。dispatch-dag.yaml 的 `escalate_choice → gemini decide` 当前为手动触发。
