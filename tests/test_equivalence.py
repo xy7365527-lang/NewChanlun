@@ -249,6 +249,22 @@ class TestMakeRatioKlineSubFreq:
             assert col in ratio.columns
         assert "volume" in ratio.columns
 
+    def test_sub_freq_aggregation_clips_to_target_window(self):
+        """子频率数据超出目标窗口时，不应生成额外目标K线。"""
+        df_a = _ohlcv([100, 110], start="2024-01-01")
+        df_b = _ohlcv([50, 55], start="2024-01-01")
+
+        # 子频率多给一天；输出仍必须只覆盖 df_a/df_b 的两根目标日线。
+        sub_prices_a = [100 + i * 0.5 for i in range(72)]
+        sub_prices_b = [50 + i * 0.2 for i in range(72)]
+        sub_a = _hourly_ohlcv(sub_prices_a, start="2024-01-01")
+        sub_b = _hourly_ohlcv(sub_prices_b, start="2024-01-01")
+
+        ratio = make_ratio_kline(df_a, df_b, sub_a=sub_a, sub_b=sub_b)
+
+        assert list(ratio.index) == list(df_a.index)
+        assert len(ratio) == 2
+
     def test_sub_freq_high_low_from_ratio_series(self):
         """子频率聚合的 high/low 来自 ratio 序列的 max/min，不是 OHLC 各自除法。"""
         df_a = _ohlcv([100, 110], start="2024-01-01")
