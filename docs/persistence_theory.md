@@ -219,6 +219,35 @@ MACD 携带、PH 定义上无法表达：
 
 反之 **PH 独有 H1 中枢 loop 几何**（相空间往返），MACD 完全无。**二者互补，互不归约。**
 
+### 静态结构基线的正交验证（523 号，L2）
+
+§5 原因二（0 轴依赖全局连续 EMA）的一个自然反问：能否用**结构性 0 轴**替代 EMA 0 轴？
+中枢中间价 M = (ZD+ZG)/2 是缠论中枢定义的几何中心，**无参数**。523 号在腾讯 700 日线
+检验「中枢基线偏离积分」force = Σ|close(t) − M| 能否承担 MACD 的力度角色——这是对
+§5 原因二的**正交验证**（换静态结构基线，区别于上文决定性实验的重置 EMA）。
+
+**否定性结果**（L2，`scripts/tencent_zhongshu_force.py`，与本节 #33/#37 同一 zigzag 设置）：
+
+| 检验 | 中枢偏离积分 | 对照（amp / H0） | MACD 基准 |
+|------|------------|-----------------|-----------|
+| 决定性 #33 vs #37 比值 | force 0.71×（**反向**）、norm 0.51×（反向） | amp 0.98×（反向）、H0 1.13×（同向弱） | **20.9×** |
+| 跨 15 下跌段 vs MACD Pearson | force **+0.58**、norm +0.53 | amp **+0.715**、H0 +0.647 | 1.0 |
+| 背驰一致率（19 对） | force 58%、norm **68%** | H0 **74%** | 100% |
+
+偏离积分与 MACD 相关度（+0.53~0.58）**低于纯振幅**（+0.715），背驰一致率（58~68%）
+**低于 H0**（74%），决定性 case 上**反向** MACD。**结论：静态结构 0 轴无法复刻 MACD 移动
+EMA 0 轴的跨段路径记忆**——与 §5 原因二一致，且与 §8（路径空间 PH 否决）同构（又一个
+"非 MACD 动量替代"失败）。
+
+> **附 523 号编排者裁定（语法记录）**：第24课红绿柱"面积"的本质是**动量强度**
+> （force_normalized = 每 bar 平均偏离 = 推进强度），不是时间外延积分（Σ）。故
+> `a_zhongshu_force.compare_force` 默认字段 = `force_normalized`。此裁定不改变"不可平替
+> MACD"的否定（norm 一致率 68% 仍 < H0 74%）。
+>
+> **附 522/523 号联合 caveat**：无参数 / 参数鲁棒 **≠ 有效**。中枢偏离积分 L0 层 100%
+> 参数鲁棒（根本不读 MACD 参数，同义反复），但 L2 无效——常函数也 100% 鲁棒。鲁棒性
+> 必须与有效性联合评估（231 号 L0 警示）。
+
 ---
 
 ## 6. PH ↔ 缠论接口 —— 完整规则
@@ -353,6 +382,884 @@ H0 sublevel persistence 的 bar 按 [birth, death] 价格区间嵌套形成 **me
 > **认识论等级**：7.1 区间套结构 = L0（merge tree 数学必然）+ L2 验证（0 违例）；
 > 7.2~7.4 相关性/分布 = L2（腾讯 700 单标的，日线+30分跨周期 = 弱 L3，可否证）；
 > 7.5 定位判定 = 定理类（非因果性是 persistence diagram 的数学属性，非价值参数）。
+
+---
+
+## 8. 路径空间 (t,p) Rips PH —— 时间盲候选解的双重否决（L0 Gemini + L2 实测）
+
+> **本节记录位置说明**：编排者要求记为 §11；当前文档严格止于 §7，§8 为下一个无跳空序号，故记于此。
+>
+> **存在论位置**：编排者（2026-05-27）提出"路径空间 PH"作为时间盲（239号）的内在解——
+> 不用 sublevel set（按价格扫描，时间盲），改用 (t,p) 联合空间上的 Vietoris-Rips。
+> 本节记录 Gemini decide 的 L0 否决 + 腾讯 700 的 L2 经验证实，结论：**双重否决，
+> 维持 §5/§6 架构（sublevel H0 + MACD，PH 作监视层）不变。**
+> 代码：`src/newchan/a_path_persistence.py`（实验性证伪通道）；
+> 实测：`scripts/tencent_path_persistence.py`（L2）。
+
+### 8.1 提案与动机
+
+每根 K 线视为 (t,p) 平面上的点 `P_i = (t_i, p_i)`，距离 `d = √((Δt/σ_t)² + (Δp/σ_p)²)`，
+σ 声称"数据内生"。对点云做 Rips filtration，主张 persistence 天然含时，消除时间盲，
+并期望一并解决级别 / 力度（替代 MACD？）/ 真假买点。
+
+### 8.2 Gemini decide 原文回复（orchestrator-proxy/decide，model=gemini-3.1-pro-preview，2026-05-27）
+
+**决策：选项 C — 拒绝。维持当前架构（sublevel H0 + MACD，PH 作监视层）。**
+
+推理链（原文五要点）：
+1. **信息论否决（回应 §5）**：§5 的 MACD 区分（缓跌/急跌面积差 20×）信息来源是**跨笔
+   全局 EMA 记忆与 0 轴相对基准**，不是笔内路径几何（急跌笔 #37 的 span 反而更大）。
+   路径空间 Rips 只对单笔内部点云计算，**信息论上绝对无法访问笔外历史状态** → 不可能
+   复现 MACD 区分度，绝不可能替代 MACD。
+2. **度量空间自由参数陷阱（回应 σ）**：时间与价格不可通约，σ_p/σ_t 比值控制 (t,p) 平面
+   纵横比，**本质是伪装成数据内生的自由参数**。换 MAD/ATR/Range 会改变 Rips 连通顺序 →
+   改变 persistence diagram。违反系统无量纲、无预设参数原则。
+3. **数学退化与语义错位（回应陷阱）**：单调笔路径空间 H1 恒空；H0 Rips 退化为相邻点
+   最大距离（**最大单根 K 线变化率/跳空**）= "局部最大瞬时速度"，与缠论"背驰/力度"
+   所指"整体累积动量衰竭"**语义完全错位**。
+4. **架构简洁性与有效域（回应 231号）**：既无法替代 MACD，作补充通道则引入 O(n³) 复杂度 +
+   非因果性（death 落未来）；且"局部最大速度"用简单差分即可获取，动用 Rips 杀鸡用牛刀，
+   导致声明膨胀（违反 231号）。
+5. **时间盲的现实张力（回应 §7.2）**：`corr(persistence, span)≈+0.92~+0.99`，幅度与
+   时间跨度高度共线，时间盲在 sublevel H0 中并未撕裂层级 → 没有引入昂贵联合度量的现实压力。
+
+边界条件（决策推翻条件，须同时满足）：① L2/L3 大规模交叉验证证明"笔内最大瞬时速度/
+跳空拓扑"对真假买点过滤有决定性贡献且与 MACD 跨笔动量统计正交；② 找到数学严格且
+**绝对无参数**（无需任何 σ 归一化）的 (t,p) 联合度量构造。
+
+风险：彻底放弃路径空间 → 系统对笔内极端微观结构（闪崩、连续一字板跳空）的拓扑层不敏感，
+只能靠价格差分 / MACD 滞后反应处理。
+
+### 8.3 L2 实测三项验证（腾讯 700 日线，n=300，ATR=12.73，zigzag 40 笔）
+
+Gemini 的 L0 否决在真实数据上**逐项证实**（否定性结果，价值在缩小有效域边界——231号）：
+
+**P1 · 信息论否决（#33 缓跌 vs #37 急跌）——证实，且强于预期**
+
+| 度量 | #33 | #37 | #37/#33 | 判定 |
+|------|-----|-----|---------|------|
+| MACD 面积 | 0.644 | 13.467 | **20.9×** | 决定性区分 |
+| path-H0tot[std] | 5.469 | 6.040 | 1.10× | 区分塌缩 |
+| path-H0tot[mad] | 12.283 | 4.920 | 0.40× | **方向翻转** |
+| path-H0tot[range] | 6.383 | 6.778 | 1.06× | 区分塌缩 |
+
+**P1′ · 全局 σ 厘清（排除归一化伪影，使否决更严密）**
+
+初版 P1 用**各段自归一化**（每段除以自身 σ）得 path-H0tot vs MACD = +0.21/−0.06/+0.02
+（≈噪声）。但这个低相关**部分是伪影**——各段自归一化把每段缩放到单位方差，**抹除幅度**
+（一个跌 100 与跌 10 的同形段几何全等）。用**全局 σ**（整条序列同一把尺子，σ_p=62.3、
+σ_t=86.6）重做才公平：
+
+| 度量（vs MACD 面积，n=27） | Pearson | 含义 |
+|---------------------------|---------|------|
+| 纯幅度 amp | +0.724 | 基线 |
+| sublevel-H0tot | +0.714 | 现状 |
+| path-H0 各段自归一 | +0.208 | 幅度被抹除（伪影） |
+| **path-H0 全局σ（σ_t=87）** | **+0.724** | **恢复幅度，= 纯幅度，无增量** |
+| path-H0 全局σ（σ_t→∞塌缩） | +0.711 | 退回 1D 价格=时间盲 |
+| 全局σ塌缩 vs 纯幅度 | **+0.992** | 验证：σ_t→∞ ≡ 振幅 |
+
+→ **更严格的否决**：σ_p/σ_t 是「幅度 ↔ 时间」的旋钮，**两端都不增信息**——σ_t→∞ 端
+= 纯幅度（时间盲，≡ sublevel H0）；σ_t≈Δt 端 = 幅度被时间冲淡（伪影）。中间任何取值
+（含数据内生全局 σ）也只回到「幅度」这个 sublevel-H0 已有的量。**不存在同时保幅度+保时间
+的 σ_t**（用户 2026-05-27 扩展 `test_global_sigma_recovers_amplitude_only_when_time_axis_collapsed`
+的 L0 锚定）。且 #33/#37 在全局 σ 下仍 1.03 vs 1.04（不可分）——两笔幅度几乎相等，20×
+MACD 差来自跨段 EMA，**任何 σ 的单段路径空间都访问不到**。Gemini 论断1+2 在 L2 联合证实。
+
+**P2 · 自由参数陷阱——证实**
+
+| 归一化对 | Pearson | top3 笔交集 | 排序 |
+|---------|---------|-----------|------|
+| std vs mad | +0.55 | **0/3** | 改变 |
+| std vs range | +0.94 | 2/3 | 改变 |
+| mad vs range | +0.45 | **0/3** | 改变 |
+
+#33/#37 谁更强的**定性结论随归一化翻转**（std/range: #37>#33；mad: #37<#33）。σ 是改变
+答案的自由参数，L2 坐实。
+
+**P3 · 数学退化——证实**
+
+`corr(path-H0max, max_step_distance)`：std=+0.91、mad=+0.99、range=+0.95；**中位相对误差=0.0000**
+（完全相等）。→ H0 Rips 的主导 persistence ≡ 路径图相邻点最大边长 = 最大单根速度，
+一行差分即可得。H1：35 笔中 25 笔（单调笔）恒空，10 笔（含内部振荡）非空。
+
+### 8.4 操盘问题回答
+
+**Q-a 买卖点成立/否定的完整条件**（`maimai.md`，第17/20/21课，一级权威）：
+- **1B** = 下跌趋势（≥2 依次向下同级别中枢）中，次级别向下破最后中枢后的**背驰点**；
+  **2B** = 1B 后次级别上涨结束、再次下跌的次级别走势**结束点**；
+  **3B** = 次级别离开中枢后回试**低点不破 ZG**（中枢上沿）。卖点对称。
+- **否定/确认**：`BSP.confirmed = underlying_Move.settled`（C段/回调段/回试段走势完成），
+  confirmed **不可逆**（背驰→转折是定理级必然）。买卖点是**因果离散触发**（左→右确认）。
+- **真假核心 = 背驰判断**：1B/1S 真假取决于趋势背驰（C 段力度 < A 段），而背驰本质依赖
+  **0 轴跨段相对基准 + 红绿柱面积**（第24课，§5 原因二）。
+
+**Q-a′ 原文考据：充分必要条件 + 真假底操作指南**（一级权威博文，2026-05-27 补，回溯 017/024/025/029 课）：
+
+*1B 成立的充分条件*（第24课 L24，标准趋势背驰）：① A、B、C 三段在同一大趋势内；
+② A 之前已有一个中枢；③ B 是该趋势的另一中枢，把 MACD 黄白线（DIFF/DEA）**回拉到 0 轴附近**；
+④ **C 段走势类型完成时**对应 MACD 柱面积（向下看绿柱）< A 段面积 → 标准背驰 → 1B。
+（第24课 L50：仅 MACD 准确率 90%+，配合中枢边界 100%——纯数学可证。）
+
+*否定 / 真假底的判别*（操作核心）：
+- **背驰不会失效**（第29课 L408、第25课答疑 L392）："背驰不存在失效的问题，只要理论的两个前提
+  存在，结论不变"。所谓"假底"**不是背驰失效，而是操作者误判**——把以下三者当成趋势背驰：
+  (a) **盘整背驰**当趋势背驰（第24课 L32/L46：趋势背驰回跌"一定至少重新回到 B 段中枢"，
+  盘整背驰只配"盘整中弄短差"）；(b) **C 段未完成**就当背驰（第24课 L40："C 段还没形成中枢→
+  根据走势必完美→C 段肯定没完→继续"）；(c) **低级别背驰**当大级别（第29课答疑：1分钟背驰
+  常被一个盘中震荡化解，须区间套从大级别看起）。
+- **真假底的精确操作判别**（第29课 L52，三种情况分类的判别钥匙）：看**背驰后第 1 个
+  "前趋势最后中枢级别的次级别"反弹**是否重新回抽进最后一个中枢——
+  **不能回抽 → 最弱反弹（第一种情况），反弹力度值得怀疑**（中枢扩展为更大级别，第29课 L30）；
+  能回抽且站稳 → 中枢脱离确认（更强）。即真假底不靠单点判据，靠**背驰 + 后续次级别反弹相对
+  中枢的位置**联合确认。
+- **1B 绝对安全性**（第29课 L32）：即使最弱反弹，第一类买点也有足够获利空间——但这是
+  *真* 1B（趋势背驰）才成立；误判的假底无此保证。
+- **操作层 vs 结构层**（第25课 L126/L477）："操作上不能等确认，有买点就买"（操作层机动），
+  与 `confirmed = Move.settled`（结构层走势完成）不矛盾（maimai.md #3 已结算）。
+
+→ **对路径空间的再确认**：真假底判别的两个支柱——(1) 背驰（依赖 0 轴跨段 EMA + 红绿柱面积）、
+(2) 反弹相对中枢的位置（依赖中枢结构 ZG/ZD + 区间套级别）——**全部是路径空间单段 (t,p) 点云
+无法访问的笔外/跨段/结构信息**。从一级权威原文层面再次确认 Q-b：路径空间不能区分真假买点。
+
+**Q-a″ 三类买卖点逐条充分/必要/否定 + 区间套 + 对象否定对象**（补全孤儿任务 #4 scope）：
+
+| 类型 | 充分条件 | 必要条件 | 否定（不成立） |
+|------|---------|---------|--------------|
+| 1B | 下跌趋势(≥2 中枢)末段破最后中枢 + 趋势背驰(C段完成,面积<A) | 趋势已确立 + 背驰 | 盘整背驰/C段未完成/低级别误判(非真背驰失效) |
+| 2B | 1B 后次级别上涨结束、再次下跌的次级别走势结束 | 1B 已成立 | 1B 本身被否(则 2B 无依托) |
+| 3B | 次级别离开中枢后**第一次**回试,低点不破 ZG | 第一次离开 + 完成的次级别回试 | 非第一次/回试破 ZG(则中枢未有效突破) |
+
+- **区间套成立/否定**（第29课 L256/L302）：精确买卖点定位 = **从大级别背驰段起,按区间套逐级
+  向下**，在每一级别确认同向背驰直到最小级别。区间套**成立** = 各级别背驰嵌套共振(大威力);
+  **否定** = 大级别非背驰段(则小级别背驰仅"盘中震荡化解",无操作意义)。这是"多级别共振"的
+  精确机制,也是为何"光看 1 分钟背驰会乱套"。
+- **对象否定对象**（005b 语法规则）：缠论中对象被否定的**唯一两个来源**——① 内在否定(走势被
+  自身背驰段否定)；② 外部对象生成(更大级别走势生成)。**无第三种**。买卖点(走势完成)的成立/
+  否定完全落在这两个内生来源内。**这是 pending-012"PH 不进决策层"的语法根因**：PH 是外部
+  测量层,既非走势的内在否定、也非缠论对象的生成 → 在缠论语法中**不能成为否定来源** →
+  结构上不能产出/否定买卖点(无论 sublevel 还是路径空间)。
+
+**Q-a‴ 缠论自身解真假底的局限 + PH 补充点 + 最终操作流程**：
+- **缠论自身局限**（第24课 L48/L50）：背驰技术"绝对无或然",但 **MACD 有局限**——精确背驰须从
+  中枢本身出发,MACD 仅辅助(单用 90%+,配中枢 100%)。局限在**操作者判断准确性**(区分趋势/盘整
+  背驰、C段是否完成、级别),非技术本身。
+- **PH 的合法补充点**(§6,不进决策层):H1 中枢 loop 几何 + Wasserstein 结构重组报警 + 在线
+  merge tree 因果级别谱(§8.4 Q-c)——**印证/质疑**缠论离散判断,不替代背驰、不触发买卖点。
+- **最终操作流程**(原文综合):① 大级别定方向(走势/中枢状态) → ② 大级别背驰段定位 → ③ 区间套
+  逐级向下到操作级别 → ④ 该级别背驰(MACD 面积<前段 + 0轴 + 中枢)→ 1B/1S → ⑤ confirmed=
+  Move.settled(不可逆) → ⑥ "不能等确认"机动执行(操作层) → ⑦ 反弹相对最后中枢位置判真假底强弱。
+
+**Q-b 路径空间 PH 能否区分真假买点？——否（三重否决）**：
+1. 真假买点核心是**背驰**（累积动量衰竭，依赖跨段 EMA/0 轴）；路径空间只看笔内点云，
+   信息论上访问不到跨段基准（P1 实测 path-H0 与 MACD 相关≈0）。
+2. P3 证实路径空间对单笔只贡献"最大单根速度"——这是**陡峭度/跳空**信息，不是背驰。
+3. 买卖点是**因果触发**（pending-012），路径空间 Rips **非因果**（death 落未来），
+   结构上不能产出可触发的买卖点。
+→ 路径空间不能进入真假买点过滤。**力度/背驰维度仍用 MACD（§6 接口规则不变）。**
+
+**Q-b′ L3 回测尝试（真假买点过滤器，腾讯 700 日线+30分，`scripts/tencent_truefalse_bsp_backtest.py`）**：
+对候选买点（下跌 leg 终点）比较 MACD背驰 / sublevel-H0 / 路径空间(全局σ) 三过滤器预测"真反转"
+（后续 25 根上行回撤 ≥ 下跌幅度×0.5）的精度。结果（n=26，基础真反转率 0.731）：
+
+| 过滤器 | 判真精度 | 相对基础率 | 显著性(lift>2SE) | corr(背驰比值,前向回撤) |
+|--------|---------|-----------|-----------------|----------------------|
+| MACD 背驰 | 0.800 | +0.069 | ✗不显著 | −0.097 |
+| sublevel-H0 | 0.867 | +0.136 | ✗不显著 | −0.255 |
+| 路径空间(全局σ) | 0.875 | +0.144 | ✗不显著 | −0.276 |
+
+**诚实判读（不spin）**：三过滤器 lift 全部**统计不显著**（n=26，精度 SE≈0.08，2SE>lift）→ 统计上
+**不可区分**，回测**欠功效**，**既不证实也不推翻** §8 的 L0+L2 否决。表面上 PH 精度略高于 MACD
+**是噪声**（把它读成"PH 能区分真假"= 合成确认偏差，231号禁止）。且 path(全局σ)≈sublevel≈幅度
+（§8.3 P1′），PH 仍未超出 sublevel-H0。**真正的 L3 裁决需多标的大样本**；单标的窗口不足以
+做 PH 真假过滤的判据。L0(Gemini 信息论)+L2(#33/#37 case) 的否决仍是更强证据。
+
+**Q-c 大级别 alive 分量 persistence 增长停滞作次级别过滤器？——朴素表述 L2 未通过，但因果方向是对的**：
+- 正确的载体是**在线 merge tree**（`a_online_persistence.py`），不是路径空间——它**完全
+  因果、无 σ 自由参数**，且 settle 判据（death 因果确定 ⟺ 右侧出现 ≥P 价格点）正是
+  缠论"分型需后续 K 线确认"的拓扑形式化。
+- **L2 探针（腾讯 700 日线）**：主导 alive 分量是**全局**（最低 valley→running_max），
+  其增长停滞是**常态**（仅创新极值时增长），朴素"增长停滞→反转"在笔级别**未通过**——
+  反转点前窗口平均增长反而更高（+1.23 vs 非反转 +0.48）。根因：主导 alive=最大级别，
+  其停滞与次级别（笔）反转**级别错配**，且朴素表述未区分方向。
+- **严格的可行形式（待 L3 验证，当前 L1）**：须做**大级别/次级别分离** + **方向化**——
+  当大级别 alive 分量**沿其方向仍在增长**（持续创极值）时，逆大级别方向的次级别买卖点
+  可靠性低；当大级别 alive **方向性停滞**（不再创极值，alive death 估计被未来反复改写）
+  时，顺转折的次级别信号可靠性高。这需要在线 merge tree 的多级别 active_bars 横切（§4 τ）
+  + alive/settled 状态联合判据，尚未形式化，**不声称 L2+**。
+
+**Q-c 建设性正面结果（级别判断，L2）**：与路径空间相反，**在线因果 merge tree 能自动
+涌现可用级别**。`a_level_detection.detect_levels` 在 persistence 分布的**对数间隙**上递归
+横切（§4/§7.3 横切的自动化），**无预设阈值、无预选周期、无 σ 自由参数、完全因果**。
+腾讯 700 实测（`scripts/tencent_online_levels.py`，L2）：
+
+| 周期 | 涌现级别 | 主导特征 span | 叶级别 | 对照 §4 |
+|------|---------|--------------|--------|--------|
+| 日线 | 3（月线/日线） | 300（全序列）→月线级 | 月线级 + 日线级 | §4 主导内部特征 span≈124=周线级（参照点不同） |
+| 30分 | 3（日线/30分） | 300（≈27 日历日）→**日线级** | 日线级 + 30分级 | §4 span≈285=**日线级**（**一致 ✓**） |
+
+→ 时间盲的"级别判断"下游问题，**不靠路径空间（已否决），靠在线 merge tree 的因果 log-gap
+横切解决**——这是 §7.5"唯一合法因果升级方向"的 L2 兑现。**剩余 L2 缺口**：自动级别 vs
+一禅指标真值的逐级吻合度尚未量化（需 ground-truth）。
+> **spec-execution-gap 标注**：`SplitPolicy.max_levels` docstring 称"级别总数上界"，但
+> 实现在递归分裂点前检查 `current_level_count`，已提交子树仍完成 → 总数可溢出
+> （max_levels=4 实测 7）。docstring"总数上界"与"深度保护"措辞自相矛盾，封顶语义
+> （总数 vs 深度）为**语法记录类待裁决**，不猜测性 patch（见 `test_level_detection.py`
+> 的 xfail 记录）。
+
+### 8.5 定位结论与认识论标注
+
+**结论**：路径空间 (t,p) Rips PH 被 **L0（Gemini 信息论+自由参数+退化三论证）+ L2（腾讯 700
+P1/P2/P3 逐项证实）双重否决**。它对单笔只提供"最大单根速度"（可被一行差分平替），无法
+复现 MACD 的跨段动量、引入伪装成数据内生的自由参数（σ）、且非因果。**维持 §5/§6 架构。**
+时间盲的真正两类信息——(1) 笔内速度（H0 盲，但路径空间也只给退化的"最大单根速度"，非
+累积动量）；(2) 跨笔 EMA 记忆/0 轴（路径空间与 sublevel 都盲，唯 MACD 有）——确认 MACD
+**不可被 PH 扬弃**（强化 pending-013）。
+
+> **认识论等级**：8.2 Gemini 推理 = **L0**（信息论/代数论证，零数据增量）；8.3 P1/P2/P3 =
+> **L2**（腾讯 700 单标的，可否证，已产生否定性结果——比确认更有价值，231号）；
+> 8.4 Q-a = 定义引用（一级权威原文）；Q-b = 定理类（非因果性 + 信息论必然）；
+> Q-c 朴素表述否定 = **L2**，可行形式 = **L1**（尚未跨标的验证，不声称 L2+）。
+
+---
+
+## 9. 段间路径空间 PH（走势级）—— 时间盲与真假买点的三问 L2 实测
+
+> **存在论位置**：编排者（2026-05-27 第二次）对 §8 的否决提出再质询——§8 在**单笔**
+> 上做路径空间 PH，论点"MACD 差异来自跨笔记忆而非笔内几何"是**笔内**的；若在**整段
+> 走势**（A段整体 vs C段整体，段内含多笔+中枢）上做**段间对比**，是否同时解决时间盲
+> （§5）+ 真假买点过滤（§8.4 Q-c 的 dP/dt 已被否证）？
+> 代码：`scripts/tencent_path_persistence_segments.py`（L2）；`a_path_persistence` 新增
+> 全局 σ 覆盖（`sigma_t`/`sigma_p`，段间对比的前提，见 `test_path_persistence` 新增 2 测试）。
+
+### 9.0 段间对比的前提：必须用全局 σ（否则幅度被抹除）——L0 定理
+
+段间背驰对比（C段力度 < A段力度）**要求保留各段的幅度差**。但若路径空间 σ 按**各段
+内部 std** 归一化，每段被缩放到单位方差 → 一个跌 100 点的段与跌 10 点的段几何全等 →
+**幅度信息被抹除 → 段间对比失效**（`test_per_segment_normalization_erases_amplitude`，
+L0 锁定）。故段间实验必须用**全局 σ**（整条序列的尺度作公共尺子）。
+
+但全局 σ 引出 §8 否决之二的更深形式：**σ_p/σ_t 比值同时控制"幅度保真"与"时间信息"，
+不可兼得**（`test_global_sigma_recovers_amplitude_only_when_time_axis_collapsed`，L0）：
+σ_t→∞（时间塌缩）→ 价格主导 → 退化为 1D 价格空间（≈ 时间盲 sublevel H0，幅度全保留）；
+σ_t→0（时间拉伸）→ 时间主导 → 幅度被时间冲淡。**没有哪个比值能既保幅度又获时间维度。**
+
+### 9.1 Q1 · #33/#37 时间盲（笔级忠实复现，走势级 σ）——证实失败
+
+| 笔 | 区间 | Δ | MACD面积 | path-H0(时间主导) | path-H0(平衡) | path-H0(价格主导) | path-H1 |
+|----|------|---|---------|------------------|--------------|------------------|---------|
+| #33 缓跌 | [250→259] | −55.1 | **0.644** | 10.940 | 1.858 | 1.036 | 0 |
+| #37 急跌 | [274→287] | −54.0 | **13.467** | 15.651 | 2.325 | 1.044 | 0 |
+| **#37/#33** | | ≈1.0× | **20.9×** | 1.43× | 1.25× | 1.01× | — |
+
+幅度几乎相同，MACD 差 20.9×。path-H0 即使在**最有利的时间主导 σ** 下也只差 1.43×
+（方向对、量级差 ~15 倍），价格主导下塌缩到 1.01×，H1 恒 0。**走势级 σ 不改变 §8.3
+笔级结论：路径空间无法复现 MACD 对缓跌/急跌的区分。**
+
+### 9.2 Q2 · 段间相关性与背驰判定（中级别 6% 子段，n=10 日线 + m30 弱 L3）——无独立价值
+
+**Q2a 相关性**（path-space 须显著高于 sublevel/幅度才有独立价值）：
+
+| 度量 vs MACD面积 | 日线 Pearson | m30(2.5%) Pearson |
+|------------------|-------------|-------------------|
+| 纯幅度 amp | +0.721 | +0.945 |
+| sublevel-H0 | +0.784 | +0.971 |
+| **path-H0[std]** | **+0.769** | **+0.973** |
+| path-H1[std] | −0.190（噪声） | — |
+
+→ path-H0 **不优于** sublevel-H0、甚至不优于纯幅度（跨日线/30分一致）；path-H1 是噪声。
+段级路径空间 H0 携带的 MACD 信息**不多于幅度本已携带的**。
+
+**Q2b 背驰判定一致性**（相邻 A/C 对，3 对）：path-H0 与 MACD 判定 **3/3 一致**——但
+sublevel-H0 也 3/3 一致。一致**是平凡的**：段间幅度差足够大时所有幅度类度量都与 MACD
+同判，path-space 不贡献 sublevel 没有的信息。
+
+### 9.3 Q3 · σ 比值权衡（自由参数证实，但揭示 §5 维度二）——L2
+
+| σ_t 档位 | 中位(Δp步/Δt步) | corr(pH0,幅度) | corr(pH0,MACD) |
+|---------|----------------|----------------|----------------|
+| 时间主导 0.1× | 0.09 | +0.428 | +0.877 |
+| 平衡 1× | 0.87 | +0.627 | **+0.951** |
+| 价格主导 10× | 8.73 | +0.943 | +0.907 |
+| 极端价格 100× | 87.26 | +1.000 | +0.761 |
+
+随 σ_t 减小（时间更主导），corr(pH0,幅度) 单调下降（pH0 脱离幅度），而 corr(pH0,MACD)
+在平衡处达峰（+0.951 > 幅度-MACD 的 +0.721）。**表面像正面信号，实质三重打折**：
+(1) **n=10 不鲁棒**；(2) **自由参数依赖**——"好"值只在调出的 σ_t 出现，坐实 §8 否决之二；
+(3) **机制是 span/时长加权**（MACD 面积 = 动量×时间积分，长段积分更大），即 §5 的
+**维度二（笔内时间分布/速度）**，**不是维度一（0轴/跨段基准）**。即：路径空间时间维度
+能找回 §5 的次要时间维度（证实其为真），但需自由参数且被 span 混淆，不严格。
+
+### 9.4 Q4 · 真假买点段间判据——决定性否定（0轴不可达）+ 结构性盲区
+
+**结构性盲区**：700 唯一**已确认反转的真底 idx23** 内部只有**1 个**中级别下跌子段
+（单推赶底，无 A/C 结构）→ **段间背驰判据对它结构性不适用**。这与编排者前提3（真底是
+加速赶底）一致：赶底单推底没有多段背驰。段间判据连唯一的确认真底都无法验证。
+
+**决定性否定**（大下跌2 [147→298] 内 首段 A vs 末段 C 的缠论式背驰对比）：
+
+| 度量 | A=[172→196] | C=[276→298] | 判定 |
+|------|-------------|-------------|------|
+| **MACD 面积** | 37.168 | 24.655 | **C<A → 背驰（真底信号）** |
+| sublevel-H0 | 99.5 | **124.7** | C>A → 无背驰 |
+| path-H0[std] | 3.885 | 3.889 | C≈A → 无背驰 |
+| path-H1[std] | 0 | 0 | 无背驰 |
+
+C段跌幅（83.5）**大于** A段（60.5）→ 幅度类度量（sublevel/path）判**无背驰**；但 C 在
+趋势后段、EMA/0轴已下移，同样跌幅产生**更小** MACD 面积 → MACD 判**背驰**。**path-space
+在真正需要段间背驰的多段底给出与 MACD 相反的判定**——分歧恰是 §5 的 0轴/跨段基准
+依赖。这是路径空间**无法访问跨段 EMA 记忆**的直接经验证据（§8 否决之一在走势级再次证实）。
+
+### 9.5 定位结论与认识论标注
+
+**三问全否，强化而非推翻 §5/§8/pending-013**：
+- Q1（时间盲）：走势级 σ 仍无法复现 MACD 的缓跌/急跌区分（H1=0，H0 差 1.43× vs 20.9×）。
+- Q2（段间对比有独立价值）：path-H0 ≈ sublevel ≈ 幅度（跨周期一致），无独立信息。
+- Q4（真假买点）：唯一确认真底是单推无段间结构；多段底处 path-space 与 MACD **判定相反**
+  （0轴不可达）。
+
+编排者前提的精确回应：① "整段走势上无跨笔问题"——段内几何确实可见，但**跨段 0轴基准**
+（缠论背驰核心）仍不可达（Q4）；② "C段<A段段间对比"——判据是缠论的、正确的，但 path-space
+度量的是**幅度**而非 MACD 的**0轴相对动量**，在决定性多段底给出**错误**的背驰判定；
+③ dP/dt 被否证 → 段级总力度替代——替代项（path-H0 段力度）继承 sublevel 的时间盲。
+
+**唯一被精炼的点**：§5 的二维分解得到独立佐证——路径空间时间维度（时间主导 σ）能找回
+**维度二**（笔内时间分布/速度，证实其为真信号），但需自由参数 + 被 span 混淆；
+**维度一**（0轴跨段基准）路径空间结构上不可达。**MACD 不可被路径空间 PH 扬弃（pending-013
+再次强化）。维持 §5/§6 架构（sublevel H0 + MACD，PH 作监视层）不变。**
+
+> **认识论等级**：9.0 = **L0**（归一化代数性质，测试锁定）；9.1 Q1 = **L2**（700 单标的
+> 笔级，可否证，证实失败）；9.2 = **L2**（日线 n=10 + m30 弱 L3，path-H0≈sublevel 跨周期
+> 一致）；9.3 σ 权衡 = **L2**（n=10，自由参数效应可否证；"平衡处 MACD 相关达峰"因 n=10 +
+> span 混淆**不声称鲁棒**）；9.4 Q4 = **L2**（决定性否定，path 与 MACD 判定相反）+ 定理类
+> （0轴不可达是信息论必然，§5 原因一/二）。**否定性结果缩小有效域边界，比确认更有价值（231号）。**
+>
+> **决策翻转边界**（§8.2 Gemini 边界条件仍适用，本实验未满足）：须 ① L3 多标的证明段级
+> 路径空间力度对真假买点有决定性贡献且与 MACD 跨段动量正交；② 找到无 σ 自由参数的 (t,p)
+> 联合度量。本实验在 ② 上进一步证实**不存在兼得幅度与时间的比值**（9.0/9.3）。
+
+---
+
+## 10. 在线（因果）merge tree —— §7.5 升级方向的实现 + 因果 settle 定理
+
+> **存在论位置**：§7.5 把 PH 内在递归定位为"因果性受限的、按 prominence 组织的**事后**
+> 区间套"（整棵树用含未来的全序列算出，death = 未来鞍点），并给出唯一升级方向：
+> "只用截至当前的序列做**在线 merge tree**，但 death 会随未来改写"。本节实现该方向，
+> 并把"death 随未来改写"的模糊张力转化为一个**精确的因果判据**。
+> 代码：`src/newchan/a_online_persistence.py`（OnlineMergeTree）+ `a_level_detection.py`
+> （log-gap 自动定级）；测试 `tests/test_online_persistence.py`（59 例）；实测
+> `scripts/tencent_online_levels.py`（L2，6 步）。级别检测的实测结果见 §8.4 Q-c（不重复）。
+
+### 10.1 因果 settle 判据（核心定理，L0）
+
+H0 sublevel merge tree 的一个合并事件发生在鞍点 peak `P`（两个相邻分量在阈值升到 P
+时连通，elder rule 下年轻分量死亡）。
+
+> **定理**：该合并的配对结果（谁死、persistence 多少）在因果上确定，**当且仅当 P 右侧
+> 已经出现 ≥ P 的价格点**。
+
+**证明**：合并把 P 左、右两区域连通，死亡者是两侧 elder（最低 valley）中较年轻者。
+P 左侧 elder 在 P 之前已定。P 右侧 elder 在"右侧 P-region 被一个 ≥ P 的屏障封闭"前可能
+继续降低（未来创新低翻转 elder rule）。一旦右侧出现 ≥ P 的点 Q，P 右侧低于 P 的区域被 Q
+封闭，右侧 elder 定格 → 配对定格。反之未出现 Q 时，未来更低 valley 会改写右侧 elder，
+翻转死亡方与 persistence。∎（反例见 `test_alive_death_rewritten_by_future_low`）
+
+**与缠论的同构**：此判据正是缠论"顶/底分型需后续 K 线确认才成立"的拓扑形式化——
+分型的因果确认 = persistence 合并事件的因果 settle。settled bar 锁定（未来不可改写）；
+alive bar 的 death 是估计（运行最高价封顶），随未来改写——这就是 §7.5 所指"稳定性代价"
+的**精确形态**：不稳定的恰是 alive，settled 严格稳定。
+
+### 10.2 算法（单调栈，O(n) 流式）
+
+逐根 `update(price)`：维护 alive 分量栈 + 分量间屏障 peak 栈（不变量：**屏障值从栈底到
+栈顶严格递减**）。价格**上升越过栈顶屏障** → cascade 合并（settle 年轻分量，死亡值=屏障
+值）——这正是"右侧出现 ≥ P 的点"的因果时刻；价格在已触底分量上**回落** → 确认新 peak
+（新屏障）+ 新分量诞生。仍在栈中者 = alive，栈底 = 全局最低 valley（finalize 封顶）。
+分量时间区间 [lo,hi] 在 settle 时由 death 反推（= 含 valley 的、价格 < death 的极大连续段），
+与批量定义同构，消除鞍点/端点归属歧义。
+
+### 10.3 在线 = 批量（精度不变性，L1 验证 + 真实数据 L2）
+
+> **命题**：在线版 finalize 后的 persistence diagram（birth/death/persistence 多重集）
+> **与批量 `sublevel_h0_bars()` 完全一致**——因果性不牺牲精度。
+
+diagram 是持续同调的拓扑不变量，是"精度"的精确含义。验证：
+
+| 验证层 | 数据 | 结果 |
+|--------|------|------|
+| L1 property-based | 8000+ 随机浮点（无 ties） | diagram + lo/hi/span **逐项一致** |
+| L1 property-based | 5000+ 整数（大量精确 ties/平台段） | diagram **逐项一致**；lo/hi 在精确值相等时因 tie-break 约定可差 1（诚实标注） |
+| L2 真实数据 | 腾讯 700 日线 n=300 + 30分 n=300 | diagram **完全一致 max\|Δ\|=0.00e+00**（步骤6） |
+
+**含义**：因果在线版没有为"只看过去"付出 persistence 精度代价——付出的代价是 alive
+bar 的 death 估计不稳定（10.1），而 settled bar 与事后批量逐项相同。§7.5 的"稳定性优势
+随之削弱"被精确化为：**只有 alive 子集削弱，settled 子集与事后分解严格相等**。
+
+### 10.4 自动级别检测（log-gap）与残余缺口
+
+`detect_levels` 在 persistence 分布的**对数间隙**上递归横切自动定级（§4/§7.3 横切的
+自动化，无预设阈值/周期/σ 自由参数）。级别是**乘性**的（次级别 ~ 主级别固定比例），
+乘性在对数尺度变加性 → 同级别聚成簇、相邻级别留间隙 → 最大对数间隙 = 自然边界。
+分裂灵敏度由 `SplitPolicy.min_gap_ratio` 控制（编排者 2026-05-27 裁定默认 1.8×）。
+腾讯 700 实测结果见 **§8.4 Q-c**（日线/30分各涌现 3 级，叶级别映射周期）。
+
+> **spec-execution-gap（待裁决，不猜测性 patch）**：`SplitPolicy.max_levels` 当前是
+> **软性分裂闸**而非严格总数上界——DFS 递归跨兄弟子树时 `len(levels)` 可溢出（实测
+> max_levels=4→5）。封顶语义（总数上界 vs 深度上界）是**语法记录类待裁决**项，已由
+> `test_level_detection.py` 的 xfail 诚实记录缺口，不在语义裁决前猜测性修补
+> （no-patch-mentality + spec-execution-gap）。
+
+### 10.5 结果包六要素
+
+1. **结论**：§7.5 的"唯一合法因果升级方向"（在线 merge tree）已实现并 L2 兑现：
+   (a) 因果 settle 判据（10.1，settle ⟺ 右侧出现 ≥ peak）把 PH 的非因果性转化为可操作的
+   settled/alive 划分，与缠论分型确认同构；(b) 在线 diagram 与批量逐项一致（10.3，腾讯
+   700 max|Δ|=0），因果不牺牲精度；(c) log-gap 从 persistence 自动涌现多级别（10.4/§8.4）。
+2. **定义依据**：sublevel H0 merge tree（§1，birth=局部极小/death=鞍点/elder rule）；
+   缠论分型确认需后续 K 线（知识库，一级权威）；级别 = persistence 横切（§4/§7.3）。
+3. **边界条件**：若放弃 alive bar 估计稳定性要求，则在线版在任意时刻都可给出与"截至当前
+   批量"一致的快照；若未来证明 alive/settled 联合状态能产因果可触发买卖点（如大级别 alive
+   方向停滞 + 次级别 settled 转折，§9 表后讨论），则 PH 可升入决策层——当前**不声称 L2+**。
+4. **下游推论**：在线 merge tree 是 PH 进决策层的因果接口候选——settled bar 可作因果离散
+   事件（不像事后树的非因果 death）；级别判断的时间盲下游问题靠因果 log-gap 横切解决
+   （非路径空间，§8/§9 已否决路径空间）。
+5. **谱系引用**：§7.5（事后非因果性 → 升级方向）、§8.4 Q-c（级别检测 L2 正面结果）、
+   pending-012（PH=结构监视层，本节给出其因果化路径但未推翻定位）、231号（L0-L3 等级 +
+   否定性结果价值）、090号（声明膨胀禁止 → 10.3 精度声明须 diagram 逐项验证）。
+6. **影响声明**：新增 `a_online_persistence.py`（OnlineMergeTree + MergeBar/OnlineBarcode，
+   frozen+slots）、`a_level_detection.py`（detect_levels + Level/LevelStructure/SplitPolicy/
+   PeriodNamer）；测试 `test_online_persistence.py`（59 例，含批量等价 + 因果 settle +
+   级别检测）；实测 `tencent_online_levels.py`（6 步 L2）。不改既有 `a_persistence_barcode.py`/
+   `a_divergence_topo.py`，不推翻 §5/§6/§7/§8/§9 任何定位。max_levels 封顶语义留作
+   spec-execution-gap 待裁决（10.4）。
+
+> **认识论等级**：10.1 因果 settle 判据 = **L0**（merge tree 数学属性，已证）；
+> 10.2 算法 + 10.3 在线=批量 = **L0 算法 / L1 管线**（property-based 确认无 bug，零信息
+> 增量）+ **L2**（腾讯 700 真实数据 diagram 逐项一致）；10.4 级别检测经验有效性 = **L2**
+> （§8.4，单标的跨周期=弱 L3），与一禅真值的逐级吻合度 = **剩余 L2 缺口**（缓存标签无
+> 时间索引，需时间索引笔 ground-truth，步骤5 诚实标注）。
+
+---
+
+## 11. PH 八应用的理论严格性审计（数学严格度 / 操作意义 / 边界条件）
+
+> **存在论位置**（编排者 2026-05-27）：对每个 PH 应用明确三问——(a) 数学严格度（有无
+> 定理保证）(b) 操作意义（能否产生 MACD/缠论给不了的信号）(c) 边界条件（何时失效）。
+> 目的是把全文散落的结论压成一张可质询的有效域地图，杜绝声明膨胀（090号）。
+
+| 应用 | (a) 数学严格度 | (b) 操作意义 | (c) 边界条件（失效） |
+|------|--------------|------------|---------------------|
+| **persistence 排序 = 级别序** | 同维度内：**L0**（排序确定）。"排序=级别"：**L1/L2**（经验，§4） | 一次读全级别谱，免逐级切周期重算 | **跨维度失效**：H0（价格单位）与 H1（相空间距离单位）不可比（§7.5），跨维排序无意义；同分布连续无簇时"级别"是人为切分 |
+| **嵌套树 = 次级别关系** | 区间套结构：**L0 数学必然**（§7.1，0 时间嵌套违例）；"深度=级别"：**被 L2 否证**（§7.3） | 一次计算给出完整区间套树，无需人为预选 L0 | **深度≠级别**（根因：树不平衡，小摆动贴主干挂浅层）。根因**不可在深度框架内修复**——级别只能是 persistence 横切（§7.3/§4），换框架而非补丁 |
+| **gap 分级** | log-gap 是**启发式**，无"gap=级别边界"定理。数学动机：级别乘性→对数加性→簇间隙（合理非定理）。自适应 MAD：**L0 稳健统计**，"离群 gap=级别"仍 **L2** | 数据驱动自动定级，不预设级别数/阈值 | persistence 分布连续无明显簇时 gap 不稳定；少特征（<3）无法分级；递归版 max_levels 软闸非严格上界（§10.4 待裁决） |
+| **在线 merge tree 因果性** | 因果 settle 判据：**L0 定理**（§10.1 已证）；在线=批量：**L0/L1**（8000+ 验证）+ **L2**（700 max\|Δ\|=0） | 把 PH 非因果性转为 settled/alive 划分，settled 可作因果离散事件 | **稳定性损失可量化且全部落在 alive 子集**：settled 与事后批量**逐项相同（损失=0）**；alive 的 death 用 running_max 估计，误差随新极值改写。**因果性恢复的代价精确等于 alive 估计不稳定，settled 无损** |
+| **alive 增长 = 趋势健康** | **恒等式（L0）**：alive persistence = running_max − minval，增长 ⟺ 创新极值。"创新极值=趋势健康"：**直觉，无定理** | 实时读"是否还在创新极值" | **震荡市失效**：running_max 与 minval 都不更新 → growth=0 但趋势未必衰竭；**幅度速度 ≠ 力度衰竭**（§5，∈ker(D)），不能据此判真假底（§12 实证） |
+| **止损信号（反向超阈/主分量 death）** | 无"更早/更准"定理；判据本身 **L0 可计算** | 提供**独立于 MACD 的幅度维度**否定器 | **700 实测仅 25%(日线)/67%(30分) 在创新低当根或前触发**（§12）；reverse 阈值依赖入场 persistence（半主观）；与 MACD 金叉死叉**未直接对比**且属不同维度（§5），**不声称更准** |
+| **压制比** | 段内结构比值，**L0 可计算**（§3） | 度量"对手抵抗相对强度"，概念不同于 MACD 面积（动量积分） | **独立领先信号存在性尚未量化**（§3 标注待 L2）；n_bars==1（纯单调）时比值=∞ 退化 |
+| **H1 loop** | Takens+Rips：**L0 算法**（§2） | 理论上携带中枢循环几何（MACD 全无） | **实测否定**：§9 中 H1[std] 与 MACD corr=−0.19（噪声）、loop 多低于 ATR → 当前数据上**无操作意义**；点云过小/中枢不规整时 H1 不稳定 |
+
+> **认识论总结**：八应用中**严格成立（L0 定理）的只有 4 个结构性事实**——区间套嵌套
+> （非深度映射）、因果 settle 判据、在线=批量、alive=创新极值恒等式。其余（排序=级别、
+> gap=边界、增长=健康、止损更准、压制比领先、H1 有用）皆为**经验断言**，其中 H1 操作
+> 意义已被 §9 **实测否定**。**没有任何 PH 应用能产生 MACD 力度维度（0轴/动量）的信号**
+> （§5 不可约），这是贯穿八项的硬边界。
+
+---
+
+## 12. 真假买点的 PH 过滤 —— 缠论否定逻辑 + 700 L2 实证（否定性结果）
+
+> **核心操盘问题**（编排者 2026-05-27）：区间套在下跌中多次给出次级别背驰买点，多数被
+> 后续走势破坏（创新低），只有最后一次是真底。PH 能分辨真假吗？
+> 代码：`scripts/tencent_truefalse_bottom.py`（L2）。
+
+### 12.1 缠论原文：买点确认是单调否定过程（一级权威）
+
+原文考据（2026-05-27，引缠师博文）确立买卖点的**否定逻辑**：
+
+- **买点被否定 = 创新低**（第37/61课）："背驰如果没有创新高（低），是不存在的"；背驰段是
+  **被假设的**，"一旦力度大于前者，就可断定背驰段不成立"——后一段走势否定前一段背驰假设
+  （**"对象否定对象"**：新走势否定前背驰段）。
+- **没有"假背驰"**（第27课）："背驰就是背驰，错了是判断错了，最多是把盘整背驰误判为趋势
+  背驰"。
+- **真底 vs 中继**（第27课）：真背驰 = 创新低 + **力度衰竭**；中继（假底）= 创新低 + **力度
+  未减**。
+- **只有必要条件，没有充分条件**（第44课）：次级别三卖结构是大级别转折的必要非充分条件
+  → 量化系统应把次级别背驰标注为**待证伪假设**，给确认信号 = 声明膨胀。
+
+### 12.2 PH 假设的映射与 §5 先验边界
+
+用户假设：大级别下跌 alive 分量 persistence **仍增长** → 次级别买点更可能**假底**；增长
+**停滞** → 更可能**真底**。映射：
+
+| PH 量 | 缠论对应 | 严格性 |
+|-------|---------|--------|
+| alive persistence 仍增长 | 大级别仍创新低 = "力度未减" = 中继 | 创新低部分：**L0 恒等式**（§11） |
+| alive persistence 停滞 | 不再创新低 = 接近"力度衰竭" | **力度衰竭部分：PH 不可及**（§5，persistence=幅度∈ker(D)≠MACD 动量） |
+
+**先验预期**（非事后）：PH 至多复现缠论的**创新低必要条件**（否定假买点），**不能**复现
+区分真假所需的**力度衰竭**（§5 不可约）。故"停滞→真底"方向**先验上不可能严格成立**。
+
+### 12.3 700 实测：否定性结果（假设不被数据支持）
+
+把"大级别 alive persistence 仍增长（healthy）"作为"预测假底"，与前向真值（候选买点后
+`LOOKAHEAD=20` 根内创出更低 low = 假底/买点被破坏）对比：
+
+| 周期 | 候选买点 | 假底基准率 | PH 过滤准确率 | 预测真底精度 vs 基准真底率 | 判定 |
+|------|---------|-----------|--------------|--------------------------|------|
+| 日线 | 10 | 80% | **20%**（劣于基准） | 20% vs 20%，**提升 +0%** | 无独立区分力 |
+| 30分 | 10 | 90% | **40%**（劣于基准） | 0% vs 10%，**提升 −10%** | 无独立区分力 |
+
+**结论：PH 幅度过滤器对真假底无独立区分力**——`healthy` 信号预测真底的精度不超过（甚至
+低于）基准真底率。这**证实 §5**：alive persistence（幅度∈ker(D)）捕捉不到区分真假底所需的
+"力度衰竭"（MACD），"停滞→真底"方向不被数据支持。**否定性结果缩小有效域边界（231号），
+比确认更有价值**——精确划定 PH 在真假买点问题上的能力上限。
+
+> **止损信号实测**：在被破坏的买点入场，`stop_signal`（反向分量超入场阈值/入场分量 death）
+> 在创新低当根或之前触发 = 日线 **2/8 (25%)** / 30分 **6/9 (67%)**。作为**事后否定器**部分
+> 有效（30 分尚可），但**不是前瞻的真假底分类器**。
+
+> **样本警告（formalization-validity-domain）**：n=300、每周期仅 ~10 候选，**弱 L2**，不
+> 声称跨标的鲁棒（L3）；但否定方向与 §5 定理一致（幅度≠力度），结论稳健。
+
+### 12.4 结果包六要素
+
+1. **结论**：PH 在真假买点问题上是**否定性必要条件过滤器**，非充分确认器。它能（且仅能）
+   操作化缠论的**创新低否定逻辑**（"对象否定对象"的拓扑形态：新更低 valley 的 alive 分量
+   否定前一次级别买点假设——§10.1 因果 settle 即此）；它**不能**区分真底/中继（需 MACD
+   力度衰竭，§5）。700 实测：幅度过滤器对真假底无独立区分力（日线/30分提升 ≤0）。
+2. **定义依据**：第37/61课（背驰须创新低；背驰段被后续力度否定）；第27课（真背驰=创新低+
+   力度衰竭，中继=创新低+力度未减）；第44课（只有必要条件）；§5（H0≈幅度∈ker(D)）；§10.1
+   （因果 settle = 分型/创新低否定）。
+3. **边界条件**：若 PH 与 MACD **联合**（PH 给创新低必要条件 + MACD 给力度衰竭充分线索），
+   可能优于单独 MACD——**未验证，不声称**；单独 PH 在 700 上连"粗否定闸"都不优于基准。
+4. **下游推论**：决策层真假底判别**必须保留 MACD**（§5/§6/pending-013 再强化）；PH 贡献限于
+   结构监视（创新低否定、级别横切），不进真假底因果确认；实现应把次级别背驰标注为**待证伪
+   假设**，由创新低（PH 可算）+ 力度衰竭（MACD 算）联合证伪/证实，不单独由 PH 给确认信号。
+5. **谱系引用**：§5（ker(D) 不可约）、§10.1（因果 settle=创新低否定）、§11（八应用严格性，
+   "alive 增长=趋势健康"是直觉非定理）、pending-013（PH 不扬弃 MACD）、231号（否定性结果
+   价值 + 弱 L2）、域语法"对象否定对象"（买点 = 未被后续否定者）。
+6. **影响声明**：新增 `scripts/tencent_truefalse_bottom.py`（L2 真假买点回测 + 止损实测），
+   依赖 §10 的 `trend_health`/`stop_signal`。本节为**否定性 L2 结果**，强化 §5/§6 架构，
+   不引入新代码定义，不推翻既有定位。
+
+---
+
+## 13. PH vs MACD: 严格证明（Gemini derive 完整推导 + 反例校验）
+
+**谱系**：本节是 §5/pending-013 的形式化升级——把"PH 不能平替 MACD"从实测论证
+（L2，单标的）提升为**全变体的数学证伪**（L0，不依赖数据，从算子类型公理推导）。
+认识论等级：**L0（纯代数/不变量论证）**，信息增量来自"对所有 PH 变体的穷尽否决"，
+不来自数据。Gemini 模型：`gemini-3.1-pro-preview`，`derive` 模式，域 = 代数拓扑 +
+信号处理(IIR) + 信息论。
+
+### 中文结论（结果包六要素）
+
+1. **结论**：命题 P「存在可计算映射 Φ 使 Φ(PD_V(x)) = MACD(x) 对所有价格序列 x、
+   对任一 PH 变体 V 成立」**被证伪（DISPROVEN）**。PH 范畴上不能完全替代 MACD。
+   - **可恢复边界**：H0 sublevel 可恢复幅度/摆动 prominence/局部极值 = 段内重置 EMA 的
+     **退化 MACD**。
+   - **不可恢复边界**：跨段无限记忆移动基准（0 轴）。0 轴是稠密 IIR 卷积，破坏了拓扑
+     filtration 数学上必须保持的对称性（时间重参数化、时间反演等距），无法从任何原始价格
+     的 persistence diagram 中提取，除非先显式计算 MACD 本身。
+2. **定义依据**：
+   - MACD = 因果 IIR 滤波器（公理1）：`EMA_n(x)_t = Σ_k α(1-α)^k x_{t-k} + (1-α)^t x_1`，
+     无限记忆、时间不对称、有序依赖。0 轴 = `EMA_12 = EMA_26` 移动均衡轨迹。
+   - PH = filtration 上的拓扑不变量（公理2），在所选 filtration 的对称群下不变
+     （H0 sublevel：单调时间重参数化不变；Rips：环境等距/反射=时间反演不变）。
+   - 替代 vs 叠加（公理4）：若 PH_V 需要 MACD(x) 作输入，则它是复合 PH∘MACD（叠加），
+     不满足"替代"。
+3. **边界条件**（结论翻转条件）：
+   - 若缠论背驰**放弃 0 轴判据**、只用段内幅度/极值结构 → 退化 MACD，此时 H0 可平替
+     （§5 日线 R²=0.954）。这不是 P 成立，是 P 的论域被缩小到不含 0 轴的退化版本。
+   - 若未来定义出**因果加权/有记忆的 persistence**（破坏时间反演不变性的非标准 filtration）
+     → 需重新审视，但那已不是标准 PH（且很可能等价于显式嵌入 IIR = 计算 MACD）。
+4. **下游推论**：§6 接口规则被 L0 强化——力度维度**必须用 MACD**，PH 仅作结构监视层
+   （H1 中枢几何 + Wasserstein 重组）。"对 MACD 序列做 PH"(V5) 被判定为**叠加非替代**，
+   即使有用也不构成 PH 替代 MACD 的证据，且其输入已含 0 轴（不是 PH 生成的）。
+5. **谱系引用**：§5（ker(D) + 0 轴依赖全局 EMA）、pending-013（PH 不扬弃 MACD）、
+   239 号（H0≈振幅∈ker(D)）、231 号（有效域 L0-L3，本节是 L0 上界论证）。
+6. **影响声明**：本节不改 src/，不引入新代码定义；将既有 L2 实测结论提升为 L0 数学证伪，
+   强化 §5/§6/pending-013 架构。verify 双盲二次校验因 Gemini API 访问受限未能完成
+   （见下"校验状态"），故标注为 **derive 单证 + 人工反例校验**，尚未经 Gemini verify 闭环。
+
+### Gemini derive 完整回复（原文，verbatim）
+
+> 模型 `gemini-3.1-pro-preview`，`derive` 模式。以下为 Gemini 原始输出，未经编辑。
+
+```
+### 1. Formal Restatement (形式化重述)
+**Proposition $P$**: Let $\mathcal{X} = \mathbb{R}^T$ be the space of finite price series of length $T$. Let $\text{MACD}: \mathcal{X} \to \mathbb{R}^{T \times 4}$ be the MACD operator producing the tuple $(\text{DIFF}, \text{DEA}, \text{HIST}, \text{0-axis})$. Let $\text{PH}_V: \mathcal{X} \to \mathcal{D}$ be a Persistent Homology operator under variant $V \in \{V1, \dots, V6\}$, producing a topological summary in the space of persistence diagrams $\mathcal{D}$.
+
+The proposition asserts: $\exists V, \exists \text{ computable map } \Phi: \mathcal{D} \to \mathbb{R}^{T \times 4}$ such that $\forall x \in \mathcal{X}, \Phi(\text{PH}_V(x)) = \text{MACD}(x)$. Furthermore, $\Phi$ must recover the MACD intrinsically from the topological summary, meaning it does not trivially invert $\text{PH}_V$ to reconstruct $x$ and then compute MACD from scratch.
+
+### 2. Definitions & Axioms (定义与公理)
+**Axiom 1 (MACD & IIR Filter)**: The MACD operator is built upon the Exponential Moving Average (EMA), defined recursively as $\text{EMA}_n(x)_t = \alpha x_t + (1-\alpha) \text{EMA}_n(x)_{t-1}$. Expanded, this is a causal, time-asymmetric, infinite-memory linear convolution: $\text{EMA}_n(x)_t = \sum_{k=0}^{t-1} \alpha(1-\alpha)^k x_{t-k} + (1-\alpha)^t x_1$. The 0-axis is the moving equilibrium locus where $\text{EMA}_{12} = \text{EMA}_{26}$.
+**Axiom 2 (Filtration & Topological Invariance)**: A filtration is a nested sequence of simplicial complexes. Persistent Homology ($\text{PH}$) computes the birth and death of homological features across this sequence. The resulting diagram $PD(x)$ is a topological invariant, meaning it is invariant under the symmetries of the chosen filtration (e.g., time-warping for sublevel sets, global isometries for Rips complexes).
+**Axiom 3 (Information Sufficiency)**: For the map $\Phi$ to exist, $\text{PH}_V(x)$ must be a sufficient statistic for $\text{MACD}(x)$. That is, $\text{PH}_V(x) = \text{PH}_V(y) \implies \text{MACD}(x) = \text{MACD}(y)$.
+**Axiom 4 (Algorithmic Replacement vs. Stacking)**: An algorithm $A$ "replaces" $B$ only if $A$ computes the output of $B$ without invoking $B$ as a prerequisite. If $\text{PH}_V$ requires $\text{MACD}(x)$ as its input, it is a composition $\text{PH} \circ \text{MACD}$ ("stacking"), which violates the definition of "replacing".
+
+### 3. Proof Chain (推导链)
+
+**Step 1: Refutation of V1 (H0 Sublevel-set Filtration)**
+- *Assertion*: $PH_{V1}$ is invariant under strictly monotone time reparameterization, whereas MACD is not.
+- *Justification*: Let $x_t = t$ and $y_t = 1 + (t-1)^2$ for $t \ge 1$. Both are strictly increasing series starting at $x_1 = y_1 = 1$. The only local minimum is at $t=1$. Thus, $PD_{V1}(x) = PD_{V1}(y) = \{[1, \infty)\}$. However, by Axiom 1, the EMA convolution yields different values for linear vs. quadratic growth, so $\text{MACD}(x) \neq \text{MACD}(y)$.
+- *Result*: By Axiom 3, $\Phi$ cannot exist for V1.
+
+**Step 2: Refutation of V2 (Takens Embedding) and V3 (Path Space)**
+- *Assertion*: Rips filtrations on metric spaces are invariant under global isometries, whereas MACD is strictly causal and time-asymmetric.
+- *Justification*: Let $x = (10, 20, 10, 0)$ and $y = (0, 10, 20, 10)$. Notice $y$ is the time-reversal of $x$ ($y_t = x_{5-t}$).
+  - For V3: The path space $P_x = \{(t, x_t)\}$ and $P_y = \{(t, y_t)\}$. $P_y$ is the exact geometric reflection of $P_x$ across the vertical axis $t=2.5$. Reflection is an isometry in $\mathbb{R}^2$. The filtered simplicial complexes are isomorphic at every scale $\epsilon$. Thus, $PD_{V3}(x) = PD_{V3}(y)$.
+  - For V2: The Takens embedding (delay 1, dim 2) yields $T_x = \{(10,20), (20,10), (10,0)\}$ and $T_y = \{(0,10), (10,20), (20,10)\}$. The pairwise distance matrices are identical. Thus, $PD_{V2}(x) = PD_{V2}(y)$.
+  - However, by Axiom 1, MACD is causal. $\text{EMA}(x)_4$ heavily weights $x_4=0$, while $\text{EMA}(y)_4$ heavily weights $y_4=10$. Thus $\text{MACD}(x) \neq \text{MACD}(y)$.
+- *Result*: V2 and V3 fail Axiom 3.
+
+**Step 4: Refutation of V4 (Weighted / Multiparameter Filtrations)**
+- *Assertion*: Multiparameter filtrations either suffer from the same isometry collisions, or they violate Axiom 4.
+- *Justification*: If a multiparameter filtration is not injective, it fails Axiom 3 via permutation/isometry arguments. If it *is* injective (i.e., $x$ can be perfectly reconstructed from $PD_{V4}(x)$), then $\Phi$ must operate as $\Phi(PD) = \text{MACD}(PD^{-1}(PD))$. In this case, the 0-axis does not emerge intrinsically from the topological summary; the summary merely acts as a lossless compression algorithm, and the actual moving-equilibrium baseline is computed by the IIR filter on the decrypted raw data. This violates Axiom 4.
+
+**Step 5: Refutation of V5 (PH Stacked on MACD)**
+- *Assertion*: V5 is a categorical violation of the proposition.
+- *Justification*: If the filtration is applied to the MACD series itself, the input to the PH operator is $\text{MACD}(x)$. By Axiom 4, this requires MACD to be computed *first*. This is "stacking", not "replacing". The Chanlun divergence criterion relies on the global 0-axis, which is already present in the input to V5, not generated by PH.
+
+**Step 6: The 0-Axis Emergence Impossibility (V6 & General Case)**
+- *Assertion*: A moving-equilibrium baseline (0-axis) cannot emerge intrinsically from any topological filtration on raw price.
+- *Justification*: By Axiom 1, the 0-axis is the locus $\sum_{k=0}^{t-1} [\alpha_{12}(1-\alpha_{12})^k - \alpha_{26}(1-\alpha_{26})^k] x_{t-k} = 0$. This requires an unbounded-memory, dense linear combination of past states. By Axiom 2, a filtration evaluates the topology of simplicial complexes, producing a multiset of critical values. Topological invariants are locally constant with respect to continuous deformations that do not alter critical points, whereas the IIR convolution is strictly continuous and nowhere locally constant. A locally constant topological summary cannot intrinsically compute an infinite-memory exponential convolution.
+
+### 4. Conclusion (结论)
+**DISPROVEN (证伪)**.
+
+Persistent Homology categorically CANNOT fully replace MACD.
+
+**Boundary of Recoverability**:
+PH (specifically H0 sublevel sets) can successfully recover the amplitude, swing prominence, and local extrema of the price series. This is equivalent to a "memory-stripped" degenerate MACD where the EMA is artificially reset per segment.
+
+However, PH categorically fails to recover the cross-segment, infinite-memory moving baseline (the 0-axis). The 0-axis is a dense algebraic convolution (IIR filter) that breaks the fundamental symmetries (time-warping, time-reversal isometries) that topological filtrations are mathematically designed to preserve. Therefore, the global continuous EMA required for the Chanlun divergence criterion cannot be extracted from any persistence diagram of the raw price without explicitly computing the MACD itself. Q.E.D.
+```
+
+### 校验状态（诚实标注，no-patch-mentality）
+
+- **derive 已完成**（`gemini-3.1-pro-preview`）：证伪 + 三组反例 + 0 轴不可能性论证。
+- **verify 双盲复核未完成**：`gemini-3.1-pro-preview` 间歇不可用，降级到
+  `gemini-2.5-pro` 返回 `403 PERMISSION_DENIED`（项目级访问受限）。gemini-math skill
+  要求的 derive→verify 闭环**未达成**，本节结论为 **derive 单证**，不冒充已闭环。
+- **人工反例校验（替代 verify 的最小严格性）**：三组反例经手算独立确认有效：
+  - Step 1：`x_t=t` 与 `y_t=1+(t-1)²` 均严格递增、唯一局部极小在 t=1 → H0 PD0 同为
+    `{[1,∞)}`；EMA(线性)≠EMA(二次) → MACD 不同。✓
+  - Step 2 时间反演：`x=(10,20,10,0)`、`y=(0,10,20,10)`。path-space 反射=等距 → Rips PD 同；
+    Takens 距离多重集 `{√200,√200,20}` 两者相同 → Rips PD 同；EMA 因果 → MACD 不同。✓
+  - Step 6：0 轴 = 无限记忆稠密 IIR 卷积，破坏 filtration 必须保持的时间重参数化/反演对称性
+    → 拓扑不变量（关于不改变临界点的形变局部常数）无法内在地算出处处非局部常数的指数卷积。✓
+- **遗留**：Gemini API 恢复后应补跑 `python -m newchan.gemini verify ...`（上下文文件
+  `/tmp/ph_vs_macd_verify_ctx.md` 的内容）完成双盲闭环；在此之前结论标 **L0 derive 单证**。
+
+---
+
+## 14. PH 框架内纯拓扑动量的不可能性（定理，由 §13 + 520 推导）
+
+**谱系**：521号（已结算，定理类）。认识论等级 **L0**（由 §13 Gemini derive + 520 逻辑推导，
+非数据）。**诚实标注**：Gemini 独立 verify 因项目级 403 封禁未完成，定理状态由 §13/520
+已结算地位 + 四分法定理类自动结算保证。
+
+### 问题（编排者问题3，2026-05-27 方向纠正）
+
+不是"PH 补充 MACD"，而是 **PH 作为统一框架重新推导缠论全部判据（含动量衰竭），不依赖
+MACD/EMA/IIR，因果可算**。精确问题：能否在 PH 框架内（persistence diagram / filtration /
+稳定性定理）定义一个等价于"动量衰竭"的**纯拓扑**概念？
+
+### 命题与判定
+
+**命题**：存在一个纯拓扑、不依赖任何移动平均/EMA/IIR/MACD、因果在线可算的不变量 I(x)，
+编码"走势推进力在减弱"（背驰）。
+
+**判定：不存在（定理级否定）。**
+
+### 推导链
+
+**Step 1（动量的本质类型）**：背驰（第24课，一级权威）操作上 = 红绿柱面积的**时间积分**
+（单位时间带符号进展），跨段比较 + 黄白线回拉 0 轴。积分/速率本质需要 **时间度量**（t 轴
+duration）与**幅度度量**的组合。
+
+**Step 2（拓扑不变量的本质对称性）**：拓扑不变量在定义域同胚（**时间重参数化**）下不变
+——它**定义上**丢弃时间参数化。H0 sublevel 在单调时间重参数化下不变（§13 Step1）；
+Rips（Takens/路径空间）在时间反演等距下不变（§13 Step2）。
+
+**Step 3（直接冲突）**：Step1 要求依赖时间参数化，Step2 要求独立于时间参数化 → 任何
+纯拓扑不变量无法编码动量。这是 §13 证伪的同一机制在"是否存在替代构造"问法下的推论。
+
+**Step 4（时间扫掠 filtration 的漏洞也堵死）**：候选——用时间扫掠的下星 filtration
+（= 在线因果 merge tree，`a_online_persistence`）。它确实含时间信息（birth/death 的时间
+位置）。但它提取的是**特征**（何时 birth/death、何种 prominence）；而"速率/动量"是这些特征
+上的**几何泛函**（两个度量的商或积分），不是拓扑不变量本身。**PH 给"何时/何物"，几何给
+"多快"。** 动量不可约地是后者。
+
+**Step 5（520 的经验封口）**：路径空间 (t,p) Rips PH（把时间编入度量的最直接尝试）已被
+520号 L0+L2 双重否决——σ_p/σ_t 是伪装的自由参数，**不存在同时保幅度 + 保时间的归一化**
+（σ_t→∞ 端纯幅度时间盲，σ_t≈Δt 端幅度被抹除）。
+
+### 结论与最小扩展
+
+**纯拓扑因果动量不变量不存在。** 最小扩展 = 在拓扑提取的特征（merge tree bars / H1 loops）
+上**附加度量结构**并取速率/积分——这是**几何（度量/测度）**，不是纯拓扑。
+
+| 缠论判据 | PH 能否纯拓扑地做 | 正确归属 |
+|---------|-----------------|---------|
+| 级别判断（数据内在涌现） | ✅ 能 | 在线 merge tree log-gap 横切（520 已 L2 兑现，自动涌现3级） |
+| 中枢结构监视 | ✅ 能 | H1 loop 相空间往返（§6，PH 独立贡献） |
+| 真假买点（创新低否定） | ⚠️ 部分（创新低必要条件可算） | PH 给结构必要条件，确认仍需力度（§12） |
+| **动量衰竭（背驰）** | ❌ **定理级不能** | **MACD（时间积分 + 0轴跨段IIR记忆），或几何速率泛函 over PH特征** |
+
+### 对 Stop-Guard 注入任务队列的裁定（521号下游推论）
+
+- **模块2 `a_momentum_topology.py`**：命名"动量拓扑"即 workaround 陷阱（声明拓扑不具备的
+  能力，090号）。若实现须重命名为"**几何动量 over 拓扑特征**"，显式标注几何非拓扑，作为
+  生成态证伪探针合法（testing-override + 231号否定性结果价值），作为"纯拓扑统一框架"非法。
+- **模块4 "三闸门统一 PH 流程"**：前提（PH 统一含动量）证伪。降级为"**双闸门 PH（级别 +
+  中枢结构）+ MACD 动量闸**"。
+- **§6 架构**（PH 监视 + MACD 力度）被定理再次强化——范畴区分（拓扑 vs 几何），非工程选择。
+
+### L2 实测确认（本 session 复跑，2026-05-27）
+
+定理是 L0（承重结论）；以下 L2 实测**经验印证架构**，不作为承重证据（小样本欠功效）。
+
+| 闸门 | 脚本 | 结果 | 判读 |
+|------|------|------|------|
+| **级别**（数据涌现） | `tencent_online_levels.py` | ✅ σ-free 在线 merge tree 自动涌现 3 级（根+2叶，无预设阈值/周期）；在线 diagram ≡ 批量 sublevel **完全一致**（max\|Δ\|=0.00e+00） | **正面**：级别闸成立，因果不牺牲精度（规避 520-P2 的 σ 自由参数陷阱） |
+| 真假买点对照 | `tencent_truefalse_bsp_backtest.py` | n=26，基础率 0.731；MACD/sublevel/路径空间 lift 全**不显著**（噪声内） | **欠功效**：三过滤器统计不可区分，既不证实也不推翻 §8/520 |
+| 区间套真假区分 | `tencent_real_vs_fake_buypoints.py` | REAL=1/FAKE=10，n_REAL=1 使 AUC 统计无意义 | **欠功效**：单 REAL 样本，"★有区分力"是小样本伪信号（合成确认偏差） |
+| **三闸门统一流程**（模块4，521架构） | `tencent_three_gate_ph_flow.py` | n=26：单独MACD 0.800(+0.069) / 单独PH 0.867(+0.136) / **联合 MACD∧PH 0.833(+0.103，召回0.53)**——全不显著 | **欠功效**：联合**未显著优于**单独 MACD → §5"联合"假设**仍未验证**（不声称）。级别闸 PH 涌现3级✅ |
+
+**结论**：L2 经验层在级别/中枢结构上**正面**（PH 拓扑贡献成立），在动量/真假买点上**欠功效**
+（无 L2 信号推翻 §14/521 的 L0 定理）。完美对齐 521 架构——PH 做级别+中枢结构，动量必须 MACD。
+真正的动量/真假买点 L3 裁决需多标的大样本（剩余缺口，诚实标注）。
+
+---
+
+### 14.7 模块1-4 完整实装与 L2 实测（2026-05-27 续，521号架构下）
+
+按 521号下游裁定实装四模块（命名/定位已遵守 521号，**未声称纯拓扑动量**）：
+
+| 模块 | 文件 | 定位（521号） | 测试 |
+|------|------|-------------|------|
+| 模块1 PH-中枢 | `src/newchan/a_ph_zhongshu.py` | PH 结构闸（纯 PH，§6 监视层合法） | 13 ✓ |
+| 模块2 几何动量 over 拓扑特征 | `src/newchan/a_geometric_momentum.py`（原名"动量拓扑"按 521号重命名） | over-MACD-hist 拓扑泛函，**非**纯拓扑动量 | 10 ✓ |
+| 模块3 参数鲁棒性 | `scripts/tencent_param_robustness.py` | persistence 泛函 vs 面积泛函（都 over MACD） | 7 ✓ |
+| 模块4 三闸门 | `scripts/tencent_three_gates_ph.py` | 双闸门 PH(中枢) + MACD 动量闸 | 7 ✓ |
+
+**模块1（PH-中枢）定义澄清（定理类，§7.3 必然）**：merge tree 价格区间包含是**链式**
+（elder rule 使内部摆动严格变窄），任务字面"父 bar ≥3 直接 children"在 700 上检测到
+**0 个**中枢（无任何节点有 ≥3 直接 children）。严格等价形式 = **同一 persistence 层内
+时间连续、价格两两重叠的 ≥3 个 bars**，重叠区 [max births, min deaths] = 缠论 ZD/ZG。
+合成中枢 [20,10,18,11,17,12,19,5,8,2] → ZD/ZG=[12,17] ✓（与缠论中枢标准识别同构，
+级别由 persistence log-gap 横切给出而非预选周期）。
+
+**模块3（正向 L2 增量，522号）**：腾讯 700 日线 5 个背驰对 + 30min 3 个。persistence
+泛函（over MACD hist）的背驰判定比积分泛函（面积）**更抗 MACD 参数变化**（参数集
+8-21-5 / 12-26-9 / 20-40-9）：
+
+| 指标 | 拓扑泛函(persistence) | 积分泛函(面积) |
+|------|----------------------|---------------|
+| 背驰 bool 判定翻转率（日线） | **0%** | **60%** |
+| 背驰比值 CV 中位（日线） | 0.123 | 0.535 |
+| 背驰比值 CV（30min, 弱L3） | 0.016~0.034 | 0.042~0.458 |
+
+→ 与 521号**不冲突**（两泛函都 over 同一 MACD 几何动量，非"拓扑 vs 几何"）；是 521号
+架构内的正向增量：**MACD 背驰判据用 persistence 泛函比积分泛函参数更稳**。caveat：
+bottleneck 因归一化自由度仅作参照（520号 σ 教训）。
+
+**模块4（否定 L2，印证 521号）**：纯 PH 三闸门标记真底 idx23 = **失败**（TP=0 零区分力
+——把含真底的全部候选判为非真底，83% 准确率仅来自类别不平衡）。idx23 三闸门全 ✗ 诊断：
+- 闸门①趋势 ✗：段内 PH 中枢=0（idx2→23 急跌，无 ≥3 摆动重叠的盘整中枢）；
+- 闸门②背驰 ✗：动量 C 段(4.45→10.70) > A 段（**加速下跌**，非衰减）；
+- 闸门③同步 ✗：数据起点附近，无历史大级别下跌段可做区间套对比。
+
+**根因（深刻）**：三闸门是"趋势背驰 1B"的形式化，而 idx23 属于**急跌反转/盘整背驰**型底
+（缠师第24课区分趋势背驰 vs 盘整背驰），不在三闸门覆盖范围——其真底性质来自"急跌耗尽
++ 反弹 56%"（事后），非事前趋势背驰结构。这从 L2 印证 521号（纯拓扑/单一趋势背驰判据
+不能覆盖全部底型），延续 §5/520。
+
+> **认识论等级**：四模块算法 = L0；模块3 正向 = L2（日线+30min 弱 L3）；模块4 否定 = L2
+> （单标的日线，样本小，否定性结果价值在缩小有效域边界——231号）。模块1 中枢↔缠论
+> 对应的逐笔 ground-truth 吻合度仍缺（剩余 L2 缺口，需时间索引的一禅中枢真值）。
+
+---
+
+## 15-16（保留——待异质源恢复）
+
+§15（其他数学工具评估，编排者问题1）与 §16（缠论的拓扑性质严格证明，编排者问题2）需要
+**异质否定源**（Gemini）独立分析，不可由 Claude 自产冒充（030a 异质性要求）。当前 **Gemini
+对本项目 403 硬封禁**（"Your project has been denied access"，所有模型 GA+preview 均确认，
+2026-05-27）。
+
+就绪状态（API 恢复后单命令复跑，串行）：
+- §15：`python -m newchan.gemini decide "<工具评估主题>" --context-file /tmp/ctx_q1_tools.md --verbose`
+- §16：`python -m newchan.gemini derive "<缠论拓扑命题>" --domain "Algebraic Topology + Combinatorial Topology + Order Theory + Category Theory" --context-file /tmp/ctx_q2_topology.md --verbose`
+
+替代路径：经编排者授权可改用 `codex-challenger`（OpenAI，独立异质源）跑 §15/§16，
+产出明确标注"源 = Codex 而非 Gemini"。
+
+---
+
+## 17. PH 统一框架的边界与操盘架构（521/522/523 综合）
+
+§13/§14（521 号）证明纯拓扑因果动量不变量不存在；§5/§8/§9/§12 + 523 号反复证明各种
+"非 MACD 动量替代"（重置 EMA、路径空间 Rips、段间 σ、静态结构基线）均失败。本节综合
+这些已结算结果，给出 **PH（形态学层）** 与 **MACD（动力学层）** 的本体论分野与操盘架构。
+
+### 17.1 形态学层（PH，无参数）覆盖
+
+PH 的无参数构造覆盖缠论的**纯几何/结构**判据（笔、段、中枢在第24课前都是纯几何对象）：
+
+| 缠论结构 | PH 构造 | 无参数依据 |
+|---------|---------|-----------|
+| **级别识别** | persistence 分布 log-gap 横切（§4） | 分布间隙由数据自定，非预设周期 |
+| **中枢计数** | merge tree ≥3 同级子节点重叠（`detect_zhongshu`） | 重叠/同量级判据由结构定义（§6） |
+| **趋势 vs 盘整分类** | 中枢个数：≥2 同向中枢=趋势，1 中枢=盘整 | 中枢计数的直接推论 |
+| **区间套收敛 → 买点候选定位** | barcode 嵌套（§7 真区间套树）τ 横切对齐 | 0 时间嵌套违例，递归内在（§7.1） |
+| **高级别走势完整性** | online merge tree **alive vs settled**（§10） | 因果 settle 判据 L0 定理（§10.1） |
+
+关键：**高级别 component 仍 alive = 高级别走势未完成**——这是"假收敛过滤"的**结构前置
+条件**（§10 在线因果 merge tree 的直接应用）。
+
+### 17.2 动力学层（MACD，参数依赖）覆盖
+
+MACD 覆盖缠论的**力度/动量**判据（第24课才引入，需时间度量 + 跨段移动基准）：
+
+| 缠论判据 | MACD 构造 | 为何 PH 不能替代 |
+|---------|----------|-----------------|
+| **A 段 vs C 段力度比较 → 背驰确认** | 红绿柱面积（相对 0 轴=移动 EMA） | 521 号定理：动量需时间度量；523 号：静态基线正交失败 |
+
+### 17.3 操盘决策规则（形态学 × 动力学）
+
+将两层组合为操盘条件（结构前置由 PH 提供，力度确认由 MACD 提供）：
+
+1. **趋势结构（≥2 中枢）+ 区间套收敛 + MACD 背驰 → 买点充分条件**
+   （形态学定位候选 + 动力学确认衰竭，两层都满足）。
+2. **盘整结构（1 中枢）→ 区间套收敛 + MACD 信号仅为必要条件，不充分**
+   （盘整内的背驰不构成趋势级买点，缺第二中枢的趋势结构前提）。
+3. **高级别 component 仍 alive → 次级别区间套收敛大概率假收敛**
+   （§10 因果完整性前置：高级别未 settle，次级别的收敛会被高级别运动证伪）。
+
+> 认识论标注：规则 1-3 的**结构前置条件**（中枢计数、区间套、alive/settled）是 PH 的
+> L0/L1 产出；**力度确认**是 MACD（§14.7 L2）；"充分/必要"的操盘判定整体为 L2
+> 操作意义层（§3 编排者给定），跨标的 L3 未做。
+
+### 17.4 不可消除的分野（521/523 号）
+
+- **形态学（拓扑/结构）与动力学（力度/动量）是本体论上的两个层**，不是同一对象的两种
+  度量。形态学问"走势长什么样、嵌套到哪一级、走势完没完成"；动力学问"推进力多强、衰竭没"。
+- **PH 覆盖形态学，MACD 覆盖动力学**，二者唯一的**交叉点在"趋势结构下的背驰"**——
+  形态学提供"这是趋势 + 候选买点位置"，动力学提供"此处力度是否衰竭"。
+- **这是缠论本身的结构，不是工具局限**：笔/段/中枢在第1-23课是**纯几何**对象（同一律、
+  分型、笔段划分、中枢重叠——皆无力度概念）；**第24课才引入力度（背驰）**作为独立的
+  动力学判据。PH 无参数地复刻了前者（几何），却**定义上**无法产生后者（521 号：拓扑
+  不变量丢弃时间；523 号：静态基线与动量正交）。工具的分野**忠实映射了缠论自身概念发生
+  顺序的分野**——几何在先，力度在后，两者不可相互归约。
+
+**谱系引用**：521 号（纯拓扑动量不存在——动力学层不可由拓扑产生）、523 号（静态结构基线
+正交失败 + 第24课面积=动量强度裁定 + 鲁棒≠有效）、522 号（同一 MACD 几何的 over-hist
+泛函参数鲁棒性，动力学层内部改进）、520 号（路径空间 PH 否决，非 MACD 替代失败的同构先例）；
+§5/§6/§13/§14（persistence_theory）；archive/pending-012（PH=结构监视层）、pending-013
+（PH 不能扬弃 MACD）。
 
 ---
 

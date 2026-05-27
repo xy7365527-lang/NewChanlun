@@ -2509,6 +2509,26 @@ nodes:
   status: 生成态
   type: domain
   file: pending/pending-012-ph-operational-position-vs-chanlun.md
+- id: '520'
+  title: 路径空间(t,p)Rips PH 被否决——σ是伪装的自由参数, H0退化为最大单根速度, 时间盲解在因果在线merge tree而非Rips
+  status: 已结算
+  type: 概念发现
+  file: settled/520-path-space-ph-refuted.md
+- id: '521'
+  title: 纯拓扑因果动量不变量不存在——动量是拓扑特征上的几何速率泛函, 最小扩展=度量结构(§13定理推论)
+  status: 已结算
+  type: 概念发现
+  file: settled/521-pure-topo-momentum-impossible.md
+- id: '522'
+  title: persistence泛函比积分泛函(MACD面积)更抗参数变化——521号架构内MACD动量的over-hist泛函选择(L2正向, 翻转率0%vs60%)
+  status: 已结算
+  type: 概念发现
+  file: settled/522-persistence-functional-param-robust.md
+- id: '523'
+  title: 中枢基线偏离积分不能平替MACD——静态结构0轴无法复刻移动EMA基线的跨段路径记忆(L2否定, §5原因二正交验证); 附编排者裁定第24课面积=动量强度(force_norm)
+  status: 已结算
+  type: 概念发现
+  file: settled/523-zhongshu-baseline-deviation-cannot-replace-macd.md
 edges:
   depends_on:
   - from: '136'
@@ -5219,6 +5239,22 @@ edges:
     to: '378'
   - from: pending-012-ph-operational-position-vs-chanlun
     to: '231'
+  - from: '520'
+    to: '378'
+  - from: '520'
+    to: '239'
+  - from: '521'
+    to: '520'
+  - from: '521'
+    to: '239'
+  - from: '522'
+    to: '521'
+  - from: '522'
+    to: '378'
+  - from: '523'
+    to: '521'
+  - from: '523'
+    to: '239'
   triggered:
   - from: '005'
     to: 005a
@@ -6816,6 +6852,36 @@ edges:
   - between:
     - pending-011-topo-divergence-vs-yichan-alignment-gap
     - pending-012-ph-operational-position-vs-chanlun
+  - between:
+    - '231'
+    - '520'
+  - between:
+    - '482'
+    - '520'
+  - between:
+    - '231'
+    - '521'
+  - between:
+    - '378'
+    - '521'
+  - between:
+    - '231'
+    - '522'
+  - between:
+    - '520'
+    - '522'
+  - between:
+    - '239'
+    - '522'
+  - between:
+    - '522'
+    - '523'
+  - between:
+    - '231'
+    - '523'
+  - between:
+    - '520'
+    - '523'
   tensions_with:
   - between:
     - '007'
