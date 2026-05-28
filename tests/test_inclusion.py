@@ -15,7 +15,10 @@ import pandas as pd
 import pytest
 
 from newchan.a_inclusion import merge_inclusion
-from newchan.a_assertions import assert_inclusion_no_residual
+from newchan.a_assertions import (
+    assert_inclusion_direction_rule,
+    assert_inclusion_no_residual,
+)
 
 
 # =====================================================================
@@ -199,6 +202,23 @@ class TestDirectionRule:
         assert m["high"].iloc[0] == 20.0
         assert m["low"].iloc[0] == 4.0   # max(1,2,3,4)
         assert r == [(0, 3)]
+
+    def test_dir_none_uses_previous_bar_body_for_down_merge(self):
+        """dir=None 且前一根为阴线时，包含按 DOWN 合并并通过断言参考实现。"""
+        df = pd.DataFrame({
+            "open":  [10, 9],
+            "high":  [20, 19],
+            "low":   [1, 2],
+            "close": [5, 6],
+        })
+
+        m, r = merge_inclusion(df)
+
+        assert len(m) == 1
+        assert m["high"].iloc[0] == 19.0
+        assert m["low"].iloc[0] == 1.0
+        assert r == [(0, 1)]
+        assert assert_inclusion_direction_rule(df, m, r).ok is True
 
     def test_direction_switch(self):
         """方向在 UP→DOWN 之间切换时，合并行为随之切换。"""

@@ -86,7 +86,10 @@ def _simulate_inclusion(raw_highs, raw_lows, raw_opens, raw_closes):
         right_inc = curr_h >= last_h and curr_l <= last_l
 
         if left_inc or right_inc:
-            effective_up = dir_state != "DOWN"
+            if dir_state is not None:
+                effective_up = dir_state == "UP"
+            else:
+                effective_up = float(last[3]) >= float(last[0])
             if effective_up:
                 last[1] = max(last_h, curr_h)
                 last[2] = max(last_l, curr_l)

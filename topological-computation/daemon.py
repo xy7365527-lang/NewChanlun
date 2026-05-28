@@ -1278,10 +1278,12 @@ class TopologicalDaemon:
         # Use count-based diff (O(1)) instead of set-based diff (O(E))
         # Graph.add_edge appends to _edges list, so new edges are always at tail
         _need_diff = self._persist or self._shared_layer is not None
+        new_settled: list = []
         if _need_diff:
             pre_vid_count = len(self.k_full._vertices)
             pre_edge_count = len(self.k_full._edges)
             pre_vid_keys = set(self.k_full._vertices.keys())  # snapshot: mutable Graph needs copy
+            pre_settled_count = len(self.settlement.settled_cycles)
             # Track K_active vertex statuses to detect fold state changes
             pre_active_statuses = {
                 vid: v.status for vid, v in self.k_active.vertices.items()
@@ -1293,6 +1295,8 @@ class TopologicalDaemon:
         self.k_active = self.engine.k_active
         self.k_full = self.engine.k_full
         self.terrain = self.engine.terrain
+        if _need_diff:
+            new_settled = self.settlement.settled_cycles[pre_settled_count:]
 
         # Sync S_net from engine (traversal co-occurrence writeback may have updated it)
         if self.snet_activation is not None and self.snet_activation.s_net is not self.snet:
