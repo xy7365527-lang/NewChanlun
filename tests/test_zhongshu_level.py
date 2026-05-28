@@ -366,7 +366,7 @@ class TestMovesFromLevelZhongshus:
                 comp_start=3, comp_end=5, comp_count=3,
                 settled=True,
                 break_comp=6, break_direction="down",
-                gg=17.0, dd=3.0, level_id=1,
+                gg=19.0, dd=3.0, level_id=1,
             ),
         ]
 
