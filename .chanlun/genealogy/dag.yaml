@@ -2529,6 +2529,31 @@ nodes:
   status: 已结算
   type: 概念发现
   file: settled/523-zhongshu-baseline-deviation-cannot-replace-macd.md
+- id: pending-014-chanlun-ph-categorical-relation
+  title: ''
+  status: 生成态
+  type: domain
+  file: pending/pending-014-chanlun-ph-categorical-relation.md
+- id: pending-015-settle-unification
+  title: 缠论形态学≅(H0 merge tree, R)——从§18投影否定到settle阶梯统一; 完备基底+选择(非高维投影); R=正则化算子(包含处理+特征序列+最小跨度归并);
+    走势必完美=merge tree完备覆盖+settle不可逆; pending-014 enriched S 幸存方向的形式化(L0猜想, P1-P3待证)
+  status: settled
+  settled_classification: 定理
+  settled_date: 2026-05-30
+  settlement_note: F1/F2/F3实现层→settled/524；P1-P3同构命题→真异质源gpt-5.5定理级否证(as stated为假);
+    存活5点修复→候选pending-016待编排者扫描
+  type: domain
+  file: archive/pending-015-settle-unification.md
+- id: '524'
+  title: §19 settle统一框架的实装层缺口——裸树sublevel半完备(F1)+端点标准化破坏persistence几何保证(F2)；深层形式P1-P3同构外部依赖有界开放
+  status: 已结算
+  type: 概念发现
+  file: settled/524-settle-unification-implementation-gaps.md
+- id: '525'
+  title: 中枢组件局部完成性——原文(第17/18课)否定'递归链完整到底'作为有效性判据 + 笔中枢退化基底路径([新缠论:选择])
+  status: 已结算
+  type: 概念发现
+  file: settled/525-zhongshu-component-local-completion.md
 edges:
   depends_on:
   - from: '136'
@@ -5255,6 +5280,48 @@ edges:
     to: '521'
   - from: '523'
     to: '239'
+  - from: pending-014-chanlun-ph-categorical-relation
+    to: pending-012
+  - from: pending-014-chanlun-ph-categorical-relation
+    to: pending-013
+  - from: pending-014-chanlun-ph-categorical-relation
+    to: '521'
+  - from: pending-014-chanlun-ph-categorical-relation
+    to: '523'
+  - from: pending-014-chanlun-ph-categorical-relation
+    to: '239'
+  - from: pending-014-chanlun-ph-categorical-relation
+    to: '231'
+  - from: pending-014-chanlun-ph-categorical-relation
+    to: '230'
+  - from: pending-015-settle-unification
+    to: pending-014-chanlun-ph-categorical-relation
+  - from: pending-015-settle-unification
+    to: pending-012
+  - from: pending-015-settle-unification
+    to: '239'
+  - from: pending-015-settle-unification
+    to: '231'
+  - from: pending-015-settle-unification
+    to: '230'
+  - from: pending-015-settle-unification
+    to: 089
+  - from: '524'
+    to: pending-015-settle-unification
+  - from: '524'
+    to: '204'
+  - from: '524'
+    to: '202'
+  - from: '524'
+    to: '231'
+  - from: '524'
+    to: 090
+  - from: '525'
+    to: '123'
+  - from: '525'
+    to: '006'
+  - from: '525'
+    to: '107'
   triggered:
   - from: '005'
     to: 005a
@@ -6882,6 +6949,30 @@ edges:
   - between:
     - '520'
     - '523'
+  - between:
+    - pending-011-topo-divergence-vs-yichan-alignment-gap
+    - pending-014-chanlun-ph-categorical-relation
+  - between:
+    - pending-011-topo-divergence-vs-yichan-alignment-gap
+    - pending-015-settle-unification
+  - between:
+    - pending-013
+    - pending-015-settle-unification
+  - between:
+    - '520'
+    - '524'
+  - between:
+    - '521'
+    - '524'
+  - between:
+    - '239'
+    - '524'
+  - between:
+    - '010'
+    - '525'
+  - between:
+    - '001'
+    - '525'
   tensions_with:
   - between:
     - '007'
