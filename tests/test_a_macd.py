@@ -101,3 +101,75 @@ class TestMacdAreaForRange:
         macd_df = compute_macd(df)
         result = macd_area_for_range(macd_df, -5, 100)
         assert result["n_bars"] == 10
+
+
+# ── OnlineMacdState 等价性 ────────────────────────────────────────
+
+
+class TestOnlineMacdState:
+    def test_equivalence_with_compute_macd(self):
+        """OnlineMacdState 逐根更新结果 ≡ compute_macd 批量结果（L0 恒等式）。"""
+        from datetime import datetime, timezone
+        from newchan.a_macd import OnlineMacdState
+
+        rng = np.random.default_rng(42)
+        closes = (rng.random(80) * 100 + 200).tolist()
+        dates = [datetime(2020, 1, 1, tzinfo=timezone.utc)] * len(closes)
+
+        state = OnlineMacdState()
+        for c, d in zip(closes, dates):
+            state.update(c, d)
+
+        df_batch = compute_macd(pd.DataFrame({"close": closes}))
+        df_online = state.to_dataframe()
+
+        np.testing.assert_allclose(
+            df_online["macd"].values, df_batch["macd"].values, atol=1e-10,
+        )
+        np.testing.assert_allclose(
+            df_online["signal"].values, df_batch["signal"].values, atol=1e-10,
+        )
+        np.testing.assert_allclose(
+            df_online["hist"].values, df_batch["hist"].values, atol=1e-10,
+        )
+
+    def test_reset_clears_state(self):
+        """reset() 后 n_bars=0 且再次 update 从头开始。"""
+        from datetime import datetime, timezone
+        from newchan.a_macd import OnlineMacdState
+
+        state = OnlineMacdState()
+        ts = datetime(2020, 1, 1, tzinfo=timezone.utc)
+        for c in [100.0, 101.0, 102.0]:
+            state.update(c, ts)
+        assert state.n_bars == 3
+        state.reset()
+        assert state.n_bars == 0
+        state.update(100.0, ts)
+        assert state.n_bars == 1
+
+    def test_incremental_matches_stepwise(self):
+        """逐步追加 vs 一次性批量：结果相同。"""
+        from datetime import datetime, timezone
+        from newchan.a_macd import OnlineMacdState
+
+        closes = [float(i) for i in range(1, 31)]
+        ts = datetime(2020, 1, 1, tzinfo=timezone.utc)
+
+        # 一次性
+        state_all = OnlineMacdState()
+        for c in closes:
+            state_all.update(c, ts)
+
+        # 分两批
+        state_step = OnlineMacdState()
+        for c in closes[:15]:
+            state_step.update(c, ts)
+        for c in closes[15:]:
+            state_step.update(c, ts)
+
+        np.testing.assert_allclose(
+            state_all.to_dataframe()["hist"].values,
+            state_step.to_dataframe()["hist"].values,
+            atol=1e-12,
+        )

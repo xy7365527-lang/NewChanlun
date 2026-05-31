@@ -2,9 +2,15 @@
 
 MACD 是"指标力度"，不参与结构断言；只作为输出与买卖点/显示依据。
 使用 pandas ewm 实现，不依赖 TA-Lib。
+
+OnlineMacdState：增量 EMA 状态机（O(1)/bar），消除全量重算路径。
+认识论：L0——EMA 递推关系 EMA_t = α·x_t + (1-α)·EMA_{t-1} 是数学恒等式。
 """
 
 from __future__ import annotations
+
+from dataclasses import dataclass, field
+from datetime import datetime
 
 import numpy as np
 import pandas as pd
@@ -80,6 +86,93 @@ def compute_log_macd(
         "signal": signal_line,
         "hist": hist,
     }, index=df_raw.index)
+
+
+class OnlineMacdState:
+    """增量 EMA 状态机——每 bar O(1) 更新，消除全量 pandas ewm 重算。
+
+    保留完整历史列表，`to_dataframe()` 返回与 `compute_macd` 等价的 DataFrame，
+    供 `macd_area_for_range` 按位置索引做范围查询。
+
+    使用方式：
+        state = OnlineMacdState()
+        for close, ts in stream:
+            state.update(close, ts)
+        df = state.to_dataframe()   # 等价于 compute_macd(df_raw)
+
+    认识论：L0——EMA 递推是数学恒等式，与 pandas ewm(adjust=False) 完全等价。
+    """
+
+    def __init__(
+        self,
+        fast: int = 12,
+        slow: int = 26,
+        signal: int = 9,
+    ) -> None:
+        self._alpha_fast = 2.0 / (fast + 1)
+        self._alpha_slow = 2.0 / (slow + 1)
+        self._alpha_sig = 2.0 / (signal + 1)
+        self._ema_fast: float | None = None
+        self._ema_slow: float | None = None
+        self._signal_val: float | None = None
+        # 历史列表，用于 to_dataframe() 的 iloc 范围查询
+        self._macd_hist: list[float] = []
+        self._signal_hist: list[float] = []
+        self._hist_hist: list[float] = []
+        self._ts_hist: list[datetime] = []
+
+    def update(self, close: float, ts: datetime) -> tuple[float, float, float]:
+        """摄入一根 bar 的 close，返回 (macd, signal, hist)。O(1)。"""
+        a_f = self._alpha_fast
+        a_s = self._alpha_slow
+        a_g = self._alpha_sig
+
+        if self._ema_fast is None:
+            self._ema_fast = close
+            self._ema_slow = close
+        else:
+            self._ema_fast = a_f * close + (1 - a_f) * self._ema_fast
+            self._ema_slow = a_s * close + (1 - a_s) * self._ema_slow
+
+        macd = self._ema_fast - self._ema_slow
+
+        if self._signal_val is None:
+            self._signal_val = macd
+        else:
+            self._signal_val = a_g * macd + (1 - a_g) * self._signal_val
+
+        hist = macd - self._signal_val
+
+        self._macd_hist.append(macd)
+        self._signal_hist.append(self._signal_val)
+        self._hist_hist.append(hist)
+        self._ts_hist.append(ts)
+
+        return macd, self._signal_val, hist
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """返回历史 DataFrame（与 compute_macd 格式完全一致），供 macd_area_for_range 使用。"""
+        return pd.DataFrame(
+            {
+                "macd": self._macd_hist,
+                "signal": self._signal_hist,
+                "hist": self._hist_hist,
+            },
+            index=pd.DatetimeIndex(self._ts_hist),
+        )
+
+    def reset(self) -> None:
+        self._ema_fast = None
+        self._ema_slow = None
+        self._signal_val = None
+        self._macd_hist.clear()
+        self._signal_hist.clear()
+        self._hist_hist.clear()
+        self._ts_hist.clear()
+
+    @property
+    def n_bars(self) -> int:
+        return len(self._macd_hist)
 
 
 def macd_area_for_range(

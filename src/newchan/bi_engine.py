@@ -38,6 +38,9 @@ class BiEngineSnapshot:
     events: list[DomainEvent]
     n_merged: int
     n_fractals: int
+    # merged → raw 索引映射（下游背驰 MACD 面积计算需要，见
+    # a_divergence_v1._compute_force / engine_vs_tv_comparison.md §7.4）。
+    merged_to_raw: list[tuple[int, int]] = field(default_factory=list)
 
 
 class BiEngine:
@@ -65,10 +68,12 @@ class BiEngine:
         stroke_mode: str = "new",
         min_strict_sep: int = 5,
         reset_dir_on_fractal: bool = False,
+        new_raw_gap_min: int = 3,
     ) -> None:
         self._stroke_mode = stroke_mode
         self._min_strict_sep = min_strict_sep
         self._reset_dir_on_fractal = reset_dir_on_fractal
+        self._new_raw_gap_min = new_raw_gap_min
 
         # 累积的原始 bar 数据（用于构造 DataFrame）
         self._bar_ohlc: list[list[float]] = []  # [open, high, low, close]
@@ -106,10 +111,12 @@ class BiEngine:
         self._event_seq = 0
         self._checker.reset()
 
-    def _run_pipeline(self, bar: Bar) -> tuple[list[Stroke], list[Fractal], int]:
+    def _run_pipeline(
+        self, bar: Bar,
+    ) -> tuple[list[Stroke], list[Fractal], int, list[tuple[int, int]]]:
         """执行全量纯函数管线：inclusion → fractals → strokes。
 
-        Returns (strokes, fractals, n_merged)。
+        Returns (strokes, fractals, n_merged, merged_to_raw)。
         """
         df = _build_df(self._bar_ohlc, self._bar_timestamps)
         df_merged, _merged_to_raw = merge_inclusion(
@@ -122,8 +129,9 @@ class BiEngine:
             mode=self._stroke_mode,
             min_strict_sep=self._min_strict_sep,
             merged_to_raw=_merged_to_raw,
+            new_raw_gap_min=self._new_raw_gap_min,
         )
-        return strokes, fractals, len(df_merged)
+        return strokes, fractals, len(df_merged), _merged_to_raw
 
     def _diff_and_check(
         self, strokes: list[Stroke], bar_idx: int, bar_ts: float,
@@ -158,7 +166,7 @@ class BiEngine:
         self._bar_timestamps.append(bar.ts)
 
         bar_ts = _dt_to_epoch(bar.ts)
-        strokes, fractals, n_merged = self._run_pipeline(bar)
+        strokes, fractals, n_merged, merged_to_raw = self._run_pipeline(bar)
         events = self._diff_and_check(strokes, self._bar_idx, bar_ts)
 
         self._prev_strokes = strokes
@@ -170,6 +178,7 @@ class BiEngine:
             events=events,
             n_merged=n_merged,
             n_fractals=len(fractals),
+            merged_to_raw=merged_to_raw,
         )
 
 

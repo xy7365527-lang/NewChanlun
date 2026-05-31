@@ -10,6 +10,8 @@ BiEngine → SegmentEngine → ZhongshuEngine → MoveEngine → **BuySellPointE
 
 from __future__ import annotations
 
+import pandas as pd
+
 from newchan.a_buysellpoint_v1 import BuySellPoint, buysellpoints_from_level
 from newchan.a_divergence_v1 import divergences_from_moves_v1
 from newchan.core.recursion.buysellpoint_state import (
@@ -72,9 +74,19 @@ class BuySellPointEngine:
         move_snap: MoveSnapshot,
         zs_snap: ZhongshuSnapshot,
         seg_snap: SegmentSnapshot,
+        *,
+        df_macd: pd.DataFrame | None = None,
+        merged_to_raw: list[tuple[int, int]] | None = None,
     ) -> BuySellPointSnapshot:
-        """处理一组上游快照，产生买卖点事件。"""
-        curr_bsps = self._compute_buysellpoints(move_snap, zs_snap, seg_snap)
+        """处理一组上游快照，产生买卖点事件。
+
+        df_macd / merged_to_raw：传入时趋势背驰用 MACD 三维度（T2/T6/T7）判定，
+        否则退化为价格振幅 fallback（见 a_divergence_v1._compute_force）。两者
+        都默认 None 以保持原有调用方行为不变（engine_vs_tv_comparison.md §7.4）。
+        """
+        curr_bsps = self._compute_buysellpoints(
+            move_snap, zs_snap, seg_snap, df_macd, merged_to_raw,
+        )
         events = self._diff_and_advance(curr_bsps, move_snap)
         self._prev_bsps = curr_bsps
 
@@ -90,6 +102,8 @@ class BuySellPointEngine:
         move_snap: MoveSnapshot,
         zs_snap: ZhongshuSnapshot,
         seg_snap: SegmentSnapshot,
+        df_macd: pd.DataFrame | None = None,
+        merged_to_raw: list[tuple[int, int]] | None = None,
     ) -> list[BuySellPoint]:
         """计算背驰 + 全量买卖点。"""
         divergences = divergences_from_moves_v1(
@@ -97,6 +111,8 @@ class BuySellPointEngine:
             zs_snap.zhongshus,
             move_snap.moves,
             self._level_id,
+            df_macd=df_macd,
+            merged_to_raw=merged_to_raw,
         )
         return buysellpoints_from_level(
             seg_snap.segments,

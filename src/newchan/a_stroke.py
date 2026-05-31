@@ -167,12 +167,18 @@ def _check_gap(
     use_new_bi: bool,
     min_gap: int,
     merged_to_raw: list[tuple[int, int]] | None,
+    new_raw_gap_min: int = 3,
 ) -> bool:
-    """§4.3 gap 检查：宽笔/严笔/新笔三种模式。"""
+    """§4.3 gap 检查：宽笔/严笔/新笔三种模式。
+
+    new_raw_gap_min：新笔模式下 raw_gap 的下限（默认 3，缠师《忽闻台风可休市》
+    新笔定义；调用时可传 4 收紧以过滤噪声笔，对齐 TV 宽笔，见
+    analysis/engine_vs_tv_comparison.md §2.4）。默认值不变以保证现有行为不回归。
+    """
     merged_gap = cand.idx - start.idx
     if use_new_bi:
         raw_gap = merged_to_raw[cand.idx][0] - merged_to_raw[start.idx][1] - 1  # type: ignore[index]
-        return merged_gap >= 2 and raw_gap >= 3
+        return merged_gap >= 2 and raw_gap >= new_raw_gap_min
     return merged_gap >= min_gap
 
 
@@ -226,8 +232,13 @@ def strokes_from_fractals(
     mode: str = "new",
     min_strict_sep: int = 5,
     merged_to_raw: list[tuple[int, int]] | None = None,
+    new_raw_gap_min: int = 3,
 ) -> list[Stroke]:
-    """从分型序列构造笔。最后一笔 confirmed=False，连续性保证 strokes[i].i1 == strokes[i+1].i0。"""
+    """从分型序列构造笔。最后一笔 confirmed=False，连续性保证 strokes[i].i1 == strokes[i+1].i0。
+
+    new_raw_gap_min：新笔模式 raw_gap 下限（默认 3）。调用方可传 4 收紧过滤噪声笔
+    （见 _check_gap）。默认值保持不变以保证现有测试不回归。
+    """
     fxs = enforce_alternation(dedupe_fractals(fractals))
     if len(fxs) < 2:
         return []
@@ -251,7 +262,7 @@ def strokes_from_fractals(
             j += 1
             continue
 
-        if not _check_gap(start, cand, use_new_bi, min_gap, merged_to_raw):
+        if not _check_gap(start, cand, use_new_bi, min_gap, merged_to_raw, new_raw_gap_min):
             j += 1
             continue
 
