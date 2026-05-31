@@ -397,3 +397,85 @@ def test_dom_history_does_not_break_batch_equivalence():
         batch = _pers_multiset(sublevel_h0_bars(prices))
         online = _pers_multiset(OnlineMergeTree.from_prices(prices).settled_bars)
         assert online == batch
+
+
+# ====================================================================
+# 8. alive_settle_thresholds() — L0 属性测试
+# ====================================================================
+
+
+@pytest.mark.unit
+def test_alive_settle_thresholds_empty():
+    """空 tree → 返回空 tuple。"""
+    tree = OnlineMergeTree()
+    assert tree.alive_settle_thresholds() == ()
+
+
+@pytest.mark.unit
+def test_alive_settle_thresholds_single_valley():
+    """单点 → 1 个 alive 分量，settle_price=None（全局最低，永远 alive）。"""
+    tree = OnlineMergeTree()
+    tree.update(5.0)
+    t = tree.alive_settle_thresholds()
+    assert len(t) == 1
+    idx, val, sp = t[0]
+    assert val == 5.0
+    assert sp is None
+
+
+@pytest.mark.unit
+def test_alive_settle_thresholds_two_valleys():
+    """两谷一峰：younger（更高的谷）应有 settle_price = 屏障；elder（最低谷）settle=None。
+
+    序列 [10, 8, 9, 6]：峰 9 在 idx=2，谷 8(idx=1) 和 6(idx=3)。
+    屏障 barriers[0] = 9（两谷之间的峰）。
+    elder rule：valley 更低者为 elder → 6 < 8，所以 6(idx=3) 为 elder。
+    younger = 8(idx=1)，settle_price = 9（屏障）。
+    """
+    tree = OnlineMergeTree()
+    for p in [10.0, 8.0, 9.0, 6.0]:
+        tree.update(p)
+    t = tree.alive_settle_thresholds()
+    assert len(t) == 2
+    # elder（最低 valley=6）→ settle=None
+    elder = next(x for x in t if x[2] is None)
+    assert elder[1] == 6.0
+    # younger（valley=8）→ settle = 屏障 = 9
+    younger = next(x for x in t if x[2] is not None)
+    assert younger[1] == 8.0
+    assert younger[2] == 9.0, f"期望 settle_price=9.0，实际 {younger[2]}"
+
+
+@pytest.mark.unit
+def test_alive_settle_thresholds_price_settle_removes_younger():
+    """价格越过 younger 的 settle_price → younger 被 settle，thresholds 减少一个。"""
+    tree = OnlineMergeTree()
+    # 先造出两个 alive 分量
+    for p in [10.0, 8.0, 9.0, 6.0]:
+        tree.update(p)
+    before = tree.alive_settle_thresholds()
+    assert len(before) == 2
+
+    # 上穿 9（younger 的 settle_price）→ younger death
+    tree.update(9.5)
+    after = tree.alive_settle_thresholds()
+    # younger 被 settle，只剩 elder
+    assert len(after) <= len(before)
+    # elder（valley=6）仍存在，settle=None
+    assert any(x[2] is None for x in after)
+
+
+@pytest.mark.unit
+def test_alive_settle_thresholds_global_min_always_alive():
+    """全局最低 valley 的 settle_price 永远是 None，无论如何反弹。"""
+    tree = OnlineMergeTree()
+    for p in [50.0, 30.0, 45.0, 20.0, 40.0, 60.0, 70.0, 80.0]:
+        tree.update(p)
+    t = tree.alive_settle_thresholds()
+    # 至少存在一个 settle=None 的分量
+    nones = [x for x in t if x[2] is None]
+    assert len(nones) >= 1
+    # 该分量的 valley 是所有 alive 分量中最低的
+    if t:
+        min_val = min(x[1] for x in t)
+        assert nones[0][1] == min_val

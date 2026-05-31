@@ -305,10 +305,10 @@ class OnlineMergeTree:
 
     __slots__ = (
         "_prices", "_stack", "_barrier_val", "_barrier_idx", "_settled",
-        "_prev", "_running_max", "_dom_hist",
+        "_prev", "_running_max", "_dom_hist", "_track_dominant",
     )
 
-    def __init__(self) -> None:
+    def __init__(self, *, track_dominant: bool = True) -> None:
         self._prices: list[float] = []
         self._stack: list[_Comp] = []
         self._barrier_val: list[float] = []   # 屏障 peak 值，严格递减（栈底→栈顶）
@@ -319,6 +319,11 @@ class OnlineMergeTree:
         # 主导 alive 分量历史 (n_points, dom_persistence, dom_span, dom_birth_idx)
         # —— 供 trend_health 计算 persistence 增长率（趋势健康度）。
         self._dom_hist: list[tuple[int, float, int, int]] = []
+        # track_dominant=False 跳过每根 bar 的 _record_dom（其 _component_extent 在
+        # cap=running_max 下扫描近全程 → O(n²)）。仅当**不使用 trend_health /
+        # level_switch_event** 时关闭——它们依赖 _dom_hist。max_alive_persistence /
+        # alive_settle_thresholds / settle 产出均不受影响（O(栈深)，与 _dom_hist 无关）。
+        self._track_dominant = track_dominant
 
     # ---------------------------------------------------------------
     # 流式入口
@@ -340,7 +345,8 @@ class OnlineMergeTree:
         if not self._stack:
             self._stack.append(_Comp(p, t))
             self._prev = p
-            self._record_dom()
+            if self._track_dominant:
+                self._record_dom()
             return ()
 
         prev = self._prev
@@ -373,7 +379,8 @@ class OnlineMergeTree:
             self._stack.append(_Comp(p, t))
 
         self._prev = p
-        self._record_dom()
+        if self._track_dominant:
+            self._record_dom()
         return tuple(self._settled[settle_start:])
 
     def _record_dom(self) -> None:
@@ -607,6 +614,86 @@ class OnlineMergeTree:
             new_dominant_birth_idx=new_idx,
             old_dominant_died=old_died,
         )
+
+    # ---------------------------------------------------------------
+    # 因果 settle 屏障（alive→settled 触发阈值，§7.5 升级方向的操盘读出）
+    # ---------------------------------------------------------------
+
+    @property
+    def last_price(self) -> float | None:
+        """最近一根 K 线的 close（无数据返回 None）——供 settle gap 计算。"""
+        return self._prices[-1] if self._prices else None
+
+    @property
+    def running_max(self) -> float | None:
+        """当前运行最高价 cap（无数据返回 None）——alive 分量 death 估计的上界。"""
+        return self._running_max if self._prices else None
+
+    @property
+    def max_alive_persistence(self) -> float:
+        """当前最大 alive persistence = cap − 最低 alive valley（O(栈深)，只读）。
+
+        所有 alive 分量共享 cap（运行最高价），故 persistence 最大者 = valley 最低者。
+        等价于 current_barcode().alive_bars[0].persistence，但**不构造/排序整个快照**
+        （O(栈深) vs O(总特征数·log)）——供流式 LEVEL_UPGRADE 检测高频调用。
+        无 alive 分量返回 0.0。
+        """
+        if not self._stack:
+            return 0.0
+        lowest = min(c.val for c in self._stack)
+        return self._running_max - lowest
+
+    def alive_settle_thresholds(self) -> tuple[tuple[int, float, float | None], ...]:
+        """对每个 alive 分量返回 (birth_idx, birth_price, settle_price)。
+
+        settle_price = 价格上升到该屏障值时，该分量作为 **younger**（elder rule 下
+        valley 更高者）被合并、死亡因果确定（settle）的鞍点价。这正是模块顶部"因果
+        settle 判据"在操盘侧的读出：alive 下跌分量要 settle，反弹必须升到 settle_price。
+
+        **全局最低分量**（级联合并的最终幸存者，栈底 valley 最低者）返回
+        ``settle_price=None``——它是所有合并的 elder，**反弹永远不能使其 settle**
+        （只在 finalize 封顶时因序列终止而确定）。这与 §7.5"栈底=全局最低 valley，
+        永远 alive 直到 finalize"一致，也是 §17.3 规则3"高级别下跌未完成→反弹大概率
+        假收敛"的拓扑根据——不要把它伪装成可被反弹 settle（声明膨胀，090号）。
+
+        实现：对当前 alive 栈做一次**只读 dry-run**——假设价格升到 +∞，按 update()
+        的级联顺序（栈顶最小屏障先触及）依次合并，记录每个 younger 分量死亡的屏障价。
+        不改动任何内部状态（纯只读）。
+
+        认识论等级：L0（merge tree 的确定性属性，与 _merge_top 的 elder rule 同构）。
+
+        Returns
+        -------
+        tuple[tuple[int, float, float | None], ...]
+            每个 alive 分量一项 (birth_idx, birth_price, settle_price)，按栈序
+            （时间从左到右）。
+        """
+        n = len(self._stack)
+        if n == 0:
+            return ()
+        # 栈快照（只读，不碰 self._stack）
+        vals = [c.val for c in self._stack]
+        idxs = [c.idx for c in self._stack]
+        barriers = self._barrier_val  # len = n-1，严格递减（栈底→栈顶）
+        settle: dict[int, float | None] = {ix: None for ix in idxs}
+        if n == 1:
+            return ((idxs[0], vals[0], None),)
+        # 从栈顶最小屏障向栈底级联：右侧幸存者累积左移（与 _merge_top 同构）。
+        right_val = vals[-1]
+        right_idx = idxs[-1]
+        for j in range(n - 2, -1, -1):
+            bv = barriers[j]
+            left_val = vals[j]
+            left_idx = idxs[j]
+            # elder rule：valley 更低者存活；right.val >= left.val → right 为 younger
+            if right_val >= left_val:
+                settle[right_idx] = bv          # right 死亡于屏障 bv
+                right_val, right_idx = left_val, left_idx
+            else:
+                settle[left_idx] = bv           # left 死亡于屏障 bv
+                # right 仍为幸存者（不变）
+        # 循环结束，right_idx = 全局最低分量，settle 保持 None
+        return tuple((ix, v, settle[ix]) for ix, v in zip(idxs, vals))
 
     # ---------------------------------------------------------------
     # 便捷构造
