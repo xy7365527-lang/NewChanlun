@@ -1,8 +1,8 @@
 # 中枢（Zhongshu / Center / 走势中枢）
 
-**版本**: v1.3
+**版本**: v1.4
 **状态**: 已结算
-**最后更新**: 2026-02-16
+**最后更新**: 2026-05-31
 **原文依据**: 第17课、第20课、第49课
 
 ---
@@ -197,7 +197,9 @@
 ### 代码位置
 
 - **主算法**：`src/newchan/a_zhongshu_v1.py`
-  - `zhongshu_from_segments(segments: list[Segment]) -> list[Zhongshu]`
+  - `zhongshu_from_segments(segments: list[Segment]) -> list[Zhongshu]`（段中枢）
+  - `zhongshu_from_strokes(strokes: list[Stroke]) -> list[Zhongshu]`（笔中枢，[新缠论:选择] 525号）
+  - 两者共享 `_scan_zhongshu` 滑窗算法，差异仅在过滤条件与时间锚
   - 采用固定区间法：前三段确定 [ZD, ZG]，后续段只判延伸不改区间
 
 - **事件引擎**：`src/newchan/core/recursion/zhongshu_engine.py`
@@ -329,13 +331,19 @@ class Zhongshu:
 - v0 `a_trendtype_v0.py` 的 `_centers_relation()` 包含 `"higher_center"` 分类判定，可作参照
 - 不涉及 [新缠论]，原文定义无歧义
 
-### ~~3. "笔不裁决"与中枢组件~~ → ✅ 已结算
+### ~~3. "笔不裁决"与中枢组件~~ → ✅ 已结算（525号边界澄清）
 
-**结算结论**：中枢组件必须是线段（次级别走势类型），笔不可作为中枢组件。
+**结算结论**：**段中枢**（线段级中枢）的组件必须是线段（次级别走势类型），笔不可作为**段中枢**组件。
 - 递归定义明确：中枢 = 至少三个连续**次级别走势类型**重叠
 - 线段是第一递归层级的"次级别走势类型"，笔是结构元素非走势类型
-- `definitions.yaml` 中 `禁止 Stroke(笔不裁决)` 正确
-- 当前实现输入为 `list[Segment]`，与定义一致
+- `definitions.yaml` 中 `禁止 Stroke(笔不裁决)` 在段中枢语境正确
+- `zhongshu_from_segments` 输入为 `list[Segment]`，与段中枢定义一致
+
+> **⚠️ 525号边界澄清（2026-05-31）**：本结论的有效域是**段中枢**。增加一条独立路径——
+> **笔中枢**（`zhongshu_from_strokes`，[新缠论:选择]）：把笔当作"最低不可分解级别的单位"
+> （类比第17课"三根单位K线重叠"，把单位从 K线 提升为笔），三笔重叠构成笔中枢。
+> 此处笔是**终端递归单位**，不是"次级别走势类型组件"——**不违反**"笔不裁决"（后者禁止笔作
+> 段中枢组件）。笔级别走势可作为更高级别中枢组件。详见 `settled/525`。
 
 ---
 
@@ -468,6 +476,11 @@ class Zhongshu:
 
 **更新日志**
 
+- 2026-05-31: v1.4 525号原文考据修正（第17/18课）：
+  - #3「笔不裁决」边界澄清——有效域限定为**段中枢**；增加独立的**笔中枢**路径
+    （`zhongshu_from_strokes`，[新缠论:选择]，笔=最低不可分解级别的单位，不违反笔不裁决）
+  - 代码位置补充 `zhongshu_from_strokes`（共享 `_scan_zhongshu` 滑窗，`zhongshu_from_segments` 行为不变）
+  - 关联 `settled/525` + `analysis/zhongshu_recursion_strictness.md`
 - 2026-02-16: v1.3 /ritual 正式结算：三问题全部结算，真实数据验证通过
 - 2026-02-16: v1.2 结算问题 #2（扩展充要条件）
   - 走势类型模块(a_move_v1.py)已实现，可以评估扩展的实际处理
