@@ -55,7 +55,10 @@ class Divergence:
     force_c : float
         C 段力度。
     confirmed : bool
-        背驰是否已确认（C 段完成后确认）。
+        背驰判定是否成立（力度/MACD 三维度比较通过即为 True）。
+        注意：confirmed 表示"背驰已确认"，**不**表示"走势已完成"。
+        v1 管线中任一被构造的 Divergence 都已通过比较，故恒为 True；
+        走势完成验证由下游 BuySellPoint.settled 承载（与 Move.settled 对齐）。
     dif_peak_a : float
         A 段 DIF 峰值（T6 维度）。无 MACD 时为 0.0。
     dif_peak_c : float

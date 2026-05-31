@@ -1,11 +1,22 @@
-"""maimai #2: 买卖点 confirmed 语义对齐测试。
+"""买卖点 confirmed / settled 语义测试（confirmed-fix，maimai #2 v0.7 翻转）。
 
-核心主张 [旧缠论]：
-    BSP.confirmed 应反映所属走势类型（Move）是否已完成，
-    而非段（Segment）结构是否稳定。
+核心主张 [旧缠论]（修订后）：
+    BSP.confirmed = 买卖点**自身**的确认条件（可操作信号），与走势是否完成无关。
+    BSP.settled   = 覆盖该买卖点的走势类型（Move）是否已完成（事后验证）。
 
-Type 1 已正确（confirmed = div.confirmed = move.settled）。
-Type 2 和 Type 3 当前使用 seg.confirmed，需改为 Move.settled。
+旧设计（maimai #2）将 confirmed 绑定到 Move.settled，导致走势末端（实盘当下）
+的所有买卖点 confirmed 恒为 False —— 买卖点的目的恰恰是在走势完成**之前**入场。
+本次修订将两个概念解耦：
+
+- Type1（第17/24课）：candidate = 背驰存在（面积开始缩小）；
+  confirmed = 面积比 force_c/force_a ≤ TYPE1_CONFIRM_RATIO（面积比低于阈值）。
+- Type2（第17/21课）：candidate = confirmed = 次级别回调/反弹不创新极值（同步）。
+- Type3（第20课）：candidate = 中枢突破后回试不破边界；
+  confirmed = 回试段之后出现 break_direction 方向的延续段（回试结束、走势延续）。
+- 三者 settled 一律 = 覆盖段的 Move.settled（无 Move 覆盖时降级 False）。
+
+谱系：candidate-fix（candidate/confirmed 时间分离）；confirmed-fix（maimai #2 翻转）；
+005b 对象否定对象。
 """
 
 from __future__ import annotations
@@ -32,7 +43,7 @@ class _Seg:
     i1: int = 0
     s0: int = 0
     s1: int = 0
-    confirmed: bool = False  # 段结构确认，与 Move.settled 无关
+    confirmed: bool = False  # 段结构确认，与 BSP confirmed/settled 均无关
 
 
 # ── 辅助构造器 ────────────────────────────────────────
@@ -68,9 +79,9 @@ def _make_divergence(
     center_idx: int,
     seg_c_start: int,
     seg_c_end: int,
-    confirmed: bool,
+    confirmed: bool = True,
 ) -> Divergence:
-    """构造最小 trend Divergence。"""
+    """构造最小 trend Divergence（confirmed 现恒为 True：背驰存在即确认）。"""
     return Divergence(
         kind="trend",
         direction=direction,
@@ -111,344 +122,284 @@ def _make_zhongshu(
 
 
 # ═══════════════════════════════════════════════════════════
-# Type 2 confirmed 语义
+# Type 2 confirmed / settled 语义
 # ═══════════════════════════════════════════════════════════
 
 
 class TestType2ConfirmedSemantic:
-    """Type 2 BSP confirmed 应来自 Move.settled，而非 Segment.confirmed。"""
+    """Type 2: confirmed = 回调/反弹不创新极值；settled = Move.settled。"""
 
-    def _build_type2_scenario(
-        self, move_settled: bool, callback_seg_confirmed: bool
-    ) -> list:
+    def _build_type2_buy_scenario(
+        self, move_settled: bool, callback_low: float,
+    ) -> tuple[list, list, list, list]:
         """构造 Type 2 Buy 场景。
 
         结构：
-        - seg[0]: 下跌段 (趋势尾段，背驰段 C end)
-        - seg[1]: 上涨段 (反弹)
-        - seg[2]: 下跌段 (回调 = Type 2 Buy 所在段)
+        - seg[0]: 下跌段（趋势尾段，背驰段 C end）→ 1B，price = seg[0].low = 45
+        - seg[1]: 上涨段（反弹）
+        - seg[2]: 下跌段（回调 = 2B 所在段），callback_low 控制是否创新低
 
-        Move 覆盖 seg[0..2]，settled 参数控制。
-        callback_seg_confirmed 控制 seg[2].confirmed。
+        callback_low > 45 → 不创新低 → 2B confirmed=True；否则 confirmed=False。
+        move_settled 控制 settled（与 confirmed 解耦）。
         """
         segments = [
             _Seg(direction="down", high=60.0, low=45.0, i0=0, i1=5),
             _Seg(direction="up", high=65.0, low=50.0, i0=5, i1=10),
-            _Seg(
-                direction="down",
-                high=62.0,
-                low=52.0,
-                i0=10,
-                i1=15,
-                confirmed=callback_seg_confirmed,
-            ),
+            _Seg(direction="down", high=62.0, low=callback_low, i0=10, i1=15),
         ]
-
         zhongshus = [
             _make_zhongshu(seg_start=0, seg_end=2, zd=50.0, zg=60.0),
             _make_zhongshu(seg_start=2, seg_end=4, zd=48.0, zg=58.0),
         ]
-
         moves = [
             _make_trend_move(
-                direction="down",
-                seg_start=0,
-                seg_end=2,
-                zs_start=0,
-                zs_end=1,
-                settled=move_settled,
+                direction="down", seg_start=0, seg_end=2,
+                zs_start=0, zs_end=1, settled=move_settled,
             ),
         ]
-
         divergences = [
             _make_divergence(
-                direction="bottom",
-                center_idx=1,
-                seg_c_start=0,
-                seg_c_end=0,
-                confirmed=move_settled,  # div.confirmed tracks move.settled
+                direction="bottom", center_idx=1,
+                seg_c_start=0, seg_c_end=0,
             ),
         ]
-
         return segments, zhongshus, moves, divergences
 
-    def test_type2_buy_confirmed_from_move_settled_true(self):
-        """Move.settled=True, seg.confirmed=False → BSP.confirmed 应为 True。"""
-        segments, zhongshus, moves, divergences = self._build_type2_scenario(
-            move_settled=True, callback_seg_confirmed=False,
+    def test_type2_buy_confirmed_decoupled_from_settled(self):
+        """回调不创新低 → confirmed=True，即使走势未完成（move.settled=False）。"""
+        segments, zhongshus, moves, divergences = self._build_type2_buy_scenario(
+            move_settled=False, callback_low=52.0,  # 52 > 45 → 不创新低
         )
         bsps = buysellpoints_from_level(segments, zhongshus, moves, divergences, 1)
-        type2_bsps = [b for b in bsps if b.kind == "type2"]
-        assert len(type2_bsps) >= 1, "应检测到 Type 2 Buy"
-        # 核心断言：confirmed 来自 Move.settled，不是 seg.confirmed
-        assert type2_bsps[0].confirmed is True
+        type2 = [b for b in bsps if b.kind == "type2"]
+        assert len(type2) == 1
+        # 核心：confirmed 来自买卖点自身条件（不创新低），与 Move.settled 解耦
+        assert type2[0].confirmed is True
+        assert type2[0].settled is False  # 走势未完成
 
-    def test_type2_buy_confirmed_from_move_settled_false(self):
-        """Move.settled=False, seg.confirmed=True → BSP.confirmed 应为 False。"""
-        segments, zhongshus, moves, divergences = self._build_type2_scenario(
-            move_settled=False, callback_seg_confirmed=True,
+    def test_type2_buy_settled_tracks_move(self):
+        """走势完成 → settled=True；confirmed 同样 True。"""
+        segments, zhongshus, moves, divergences = self._build_type2_buy_scenario(
+            move_settled=True, callback_low=52.0,
         )
         bsps = buysellpoints_from_level(segments, zhongshus, moves, divergences, 1)
-        type2_bsps = [b for b in bsps if b.kind == "type2"]
-        assert len(type2_bsps) >= 1, "应检测到 Type 2 Buy"
-        # 核心断言：即使段 confirmed=True，Move 未 settled → BSP 不 confirmed
-        assert type2_bsps[0].confirmed is False
+        type2 = [b for b in bsps if b.kind == "type2"]
+        assert len(type2) == 1
+        assert type2[0].confirmed is True
+        assert type2[0].settled is True
 
-    def test_type2_sell_confirmed_from_move(self):
-        """Type 2 Sell confirmed 同样应来自 Move.settled。"""
-        # 上涨趋势场景
+    def test_type2_buy_unconfirmed_when_new_low(self):
+        """回调创新低（low < 1B low）→ confirmed=False（候选但未确认）。"""
+        segments, zhongshus, moves, divergences = self._build_type2_buy_scenario(
+            move_settled=True, callback_low=40.0,  # 40 < 45 → 创新低
+        )
+        bsps = buysellpoints_from_level(segments, zhongshus, moves, divergences, 1)
+        type2 = [b for b in bsps if b.kind == "type2"]
+        assert len(type2) == 1
+        # 创新低 → 不满足"不创新低"确认条件
+        assert type2[0].confirmed is False
+        # settled 仍跟随 Move（走势完成验证独立于 confirmed）
+        assert type2[0].settled is True
+
+    def test_type2_sell_confirmed_decoupled_from_settled(self):
+        """2S：反弹不创新高 → confirmed=True，settled 跟随 Move（此处未完成）。"""
         segments = [
             _Seg(direction="up", high=80.0, low=60.0, i0=0, i1=5),
             _Seg(direction="down", high=75.0, low=55.0, i0=5, i1=10),
-            _Seg(
-                direction="up",
-                high=78.0,
-                low=58.0,
-                i0=10,
-                i1=15,
-                confirmed=True,  # 段 confirmed
-            ),
+            _Seg(direction="up", high=78.0, low=58.0, i0=10, i1=15),  # high 78 < 1S high 80
         ]
-
         zhongshus = [
             _make_zhongshu(seg_start=0, seg_end=2, zd=60.0, zg=70.0),
             _make_zhongshu(seg_start=2, seg_end=4, zd=62.0, zg=72.0),
         ]
-
         moves = [
             _make_trend_move(
-                direction="up",
-                seg_start=0,
-                seg_end=2,
-                zs_start=0,
-                zs_end=1,
-                settled=False,  # Move 未完成
+                direction="up", seg_start=0, seg_end=2,
+                zs_start=0, zs_end=1, settled=False,
             ),
         ]
-
         divergences = [
             _make_divergence(
-                direction="top",
-                center_idx=1,
-                seg_c_start=0,
-                seg_c_end=0,
-                confirmed=False,  # tracks move.settled
+                direction="top", center_idx=1, seg_c_start=0, seg_c_end=0,
             ),
         ]
-
         bsps = buysellpoints_from_level(segments, zhongshus, moves, divergences, 1)
-        type2_bsps = [b for b in bsps if b.kind == "type2"]
-        assert len(type2_bsps) >= 1, "应检测到 Type 2 Sell"
-        assert type2_bsps[0].confirmed is False
+        type2 = [b for b in bsps if b.kind == "type2"]
+        assert len(type2) == 1
+        assert type2[0].confirmed is True   # 78 <= 80，不创新高
+        assert type2[0].settled is False    # 走势未完成
 
 
 # ═══════════════════════════════════════════════════════════
-# Type 3 confirmed 语义
+# Type 3 confirmed / settled 语义
 # ═══════════════════════════════════════════════════════════
 
 
 class TestType3ConfirmedSemantic:
-    """Type 3 BSP confirmed 应来自 Move.settled，而非 Segment.confirmed。"""
+    """Type 3 (candidate-fix): confirmed = 回试后延续段存在；settled = Move.settled。
+
+    回试不破（low>ZG / high<ZD）使 BSP 进入列表作为 candidate；回试段之后出现
+    break_direction 方向的延续段时才 confirmed（回试结束、走势延续）。
+    """
 
     def _build_type3_scenario(
-        self,
-        move_settled: bool,
-        pullback_seg_confirmed: bool,
-        break_direction: str = "up",
-    ) -> list:
-        """构造 Type 3 Buy 场景。
+        self, move_settled: bool, break_direction: str = "up",
+        with_move: bool = True, with_continuation: bool = False,
+    ) -> tuple[list, list, list]:
+        """构造 Type 3 Buy 场景（回试段 low=66 > ZG=60 → 3B 成立）。
 
-        结构：
-        - zhongshu[0]: settled, break_direction="up", break_seg=3
-        - seg[3]: 上涨段（离开段）
-        - seg[4]: 下跌段（回试段），low > ZG → 3B
+        with_continuation=True 时追加回试段后的向上延续段（seg[5]）→ 触发 confirmed。
         """
         segments = [
             _Seg(direction="down", high=60.0, low=50.0, i0=0, i1=5),
             _Seg(direction="up", high=65.0, low=55.0, i0=5, i1=10),
             _Seg(direction="down", high=63.0, low=52.0, i0=10, i1=15),
             _Seg(direction="up", high=75.0, low=62.0, i0=15, i1=20),  # 离开段
-            _Seg(
-                direction="down",
-                high=72.0,
-                low=66.0,  # low=66 > ZG=60 → 3B
-                i0=20,
-                i1=25,
-                confirmed=pullback_seg_confirmed,
-            ),
+            _Seg(direction="down", high=72.0, low=66.0, i0=20, i1=25),  # 回试段
         ]
-
+        if with_continuation:
+            segments.append(_Seg(direction="up", high=82.0, low=70.0, i0=25, i1=30))  # 延续段
         zhongshus = [
             _make_zhongshu(
-                seg_start=0,
-                seg_end=2,
-                zd=52.0,
-                zg=60.0,
-                settled=True,
-                break_direction=break_direction,
-                break_seg=3,
+                seg_start=0, seg_end=2, zd=52.0, zg=60.0,
+                settled=True, break_direction=break_direction, break_seg=3,
             ),
         ]
-
-        # Move 覆盖中枢+后续段
-        moves = [
-            _make_trend_move(
-                direction="up" if break_direction == "up" else "down",
-                seg_start=0,
-                seg_end=4,
-                zs_start=0,
-                zs_end=0,
-                settled=move_settled,
-            ),
-        ]
-
+        moves = []
+        if with_move:
+            moves = [
+                _make_trend_move(
+                    direction="up" if break_direction == "up" else "down",
+                    seg_start=0, seg_end=len(segments) - 1, zs_start=0, zs_end=0,
+                    settled=move_settled,
+                ),
+            ]
         return segments, zhongshus, moves
 
-    def test_type3_buy_confirmed_from_move_settled_true(self):
-        """Move.settled=True, seg.confirmed=False → BSP.confirmed 应为 True。"""
+    def test_type3_candidate_when_no_continuation(self):
+        """回试不破但无延续段 → candidate（confirmed=False），即使走势未完成。"""
+        segments, zhongshus, moves = self._build_type3_scenario(move_settled=False)
+        bsps = buysellpoints_from_level(segments, zhongshus, moves, [], 1)
+        type3 = [b for b in bsps if b.kind == "type3"]
+        assert len(type3) == 1
+        assert type3[0].confirmed is False  # 候选：延续段未出现
+        assert type3[0].settled is False    # 走势未完成
+
+    def test_type3_confirmed_when_continuation_exists(self):
+        """回试后出现向上延续段 → confirmed=True。"""
         segments, zhongshus, moves = self._build_type3_scenario(
-            move_settled=True, pullback_seg_confirmed=False,
+            move_settled=False, with_continuation=True,
         )
         bsps = buysellpoints_from_level(segments, zhongshus, moves, [], 1)
-        type3_bsps = [b for b in bsps if b.kind == "type3"]
-        assert len(type3_bsps) >= 1, "应检测到 Type 3 Buy"
-        assert type3_bsps[0].confirmed is True
+        type3 = [b for b in bsps if b.kind == "type3"]
+        assert len(type3) == 1
+        assert type3[0].confirmed is True
 
-    def test_type3_buy_confirmed_from_move_settled_false(self):
-        """Move.settled=False, seg.confirmed=True → BSP.confirmed 应为 False。"""
+    def test_type3_settled_tracks_move(self):
+        """走势完成 → settled=True（独立于 confirmed）。"""
         segments, zhongshus, moves = self._build_type3_scenario(
-            move_settled=False, pullback_seg_confirmed=True,
+            move_settled=True, with_continuation=True,
         )
         bsps = buysellpoints_from_level(segments, zhongshus, moves, [], 1)
-        type3_bsps = [b for b in bsps if b.kind == "type3"]
-        assert len(type3_bsps) >= 1, "应检测到 Type 3 Buy"
-        assert type3_bsps[0].confirmed is False
+        type3 = [b for b in bsps if b.kind == "type3"]
+        assert len(type3) == 1
+        assert type3[0].confirmed is True
+        assert type3[0].settled is True
 
-    def test_type3_sell_confirmed_from_move(self):
-        """Type 3 Sell confirmed 同样应来自 Move.settled。"""
+    def test_type3_no_move_candidate_settled_false(self):
+        """无 Move 覆盖 + 无延续段 → confirmed=False（候选），settled 降级 False。"""
+        segments, zhongshus, moves = self._build_type3_scenario(
+            move_settled=False, with_move=False,
+        )
+        bsps = buysellpoints_from_level(segments, zhongshus, moves, [], 1)
+        type3 = [b for b in bsps if b.kind == "type3"]
+        assert len(type3) == 1
+        assert type3[0].confirmed is False
+        assert type3[0].settled is False
+
+    def test_type3_sell_candidate_then_confirmed(self):
+        """3S：回抽不破（high<ZD）→ candidate；出现向下延续段 → confirmed。"""
         segments = [
             _Seg(direction="up", high=70.0, low=60.0, i0=0, i1=5),
             _Seg(direction="down", high=65.0, low=55.0, i0=5, i1=10),
             _Seg(direction="up", high=68.0, low=58.0, i0=10, i1=15),
             _Seg(direction="down", high=50.0, low=40.0, i0=15, i1=20),  # 离开段
-            _Seg(
-                direction="up",
-                high=53.0,  # high=53 < ZD=55 → 3S
-                low=45.0,
-                i0=20,
-                i1=25,
-                confirmed=True,  # 段 confirmed
-            ),
+            _Seg(direction="up", high=53.0, low=45.0, i0=20, i1=25),  # 回抽 high 53 < ZD 55
         ]
-
         zhongshus = [
             _make_zhongshu(
-                seg_start=0,
-                seg_end=2,
-                zd=55.0,
-                zg=65.0,
-                settled=True,
-                break_direction="down",
-                break_seg=3,
+                seg_start=0, seg_end=2, zd=55.0, zg=65.0,
+                settled=True, break_direction="down", break_seg=3,
             ),
         ]
-
         moves = [
             _make_trend_move(
-                direction="down",
-                seg_start=0,
-                seg_end=4,
-                zs_start=0,
-                zs_end=0,
-                settled=False,  # Move 未完成
+                direction="down", seg_start=0, seg_end=4,
+                zs_start=0, zs_end=0, settled=False,
             ),
         ]
-
+        # 无延续段 → candidate
         bsps = buysellpoints_from_level(segments, zhongshus, moves, [], 1)
-        type3_bsps = [b for b in bsps if b.kind == "type3"]
-        assert len(type3_bsps) >= 1, "应检测到 Type 3 Sell"
-        assert type3_bsps[0].confirmed is False
+        type3 = [b for b in bsps if b.kind == "type3"]
+        assert len(type3) == 1
+        assert type3[0].confirmed is False
+        assert type3[0].settled is False
 
-    def test_type3_no_move_covers_fallback_false(self):
-        """当没有 Move 覆盖回试段时，confirmed 应降级为 False。"""
-        segments = [
-            _Seg(direction="down", high=60.0, low=50.0, i0=0, i1=5),
-            _Seg(direction="up", high=65.0, low=55.0, i0=5, i1=10),
-            _Seg(direction="down", high=63.0, low=52.0, i0=10, i1=15),
-            _Seg(direction="up", high=75.0, low=62.0, i0=15, i1=20),
-            _Seg(
-                direction="down",
-                high=72.0,
-                low=66.0,
-                i0=20,
-                i1=25,
-                confirmed=True,  # 段自身 confirmed
-            ),
-        ]
-
-        zhongshus = [
-            _make_zhongshu(
-                seg_start=0,
-                seg_end=2,
-                zd=52.0,
-                zg=60.0,
-                settled=True,
-                break_direction="up",
-                break_seg=3,
-            ),
-        ]
-
-        # 没有 Move
-        moves = []
-
-        bsps = buysellpoints_from_level(segments, zhongshus, moves, [], 1)
-        type3_bsps = [b for b in bsps if b.kind == "type3"]
-        assert len(type3_bsps) >= 1, "应检测到 Type 3 Buy"
-        # 无 Move 覆盖 → confirmed 安全降级为 False
-        assert type3_bsps[0].confirmed is False
+        # 追加向下延续段（seg[5]）→ confirmed
+        segments.append(_Seg(direction="down", high=44.0, low=35.0, i0=25, i1=30))
+        bsps2 = buysellpoints_from_level(segments, zhongshus, moves, [], 1)
+        type3b = [b for b in bsps2 if b.kind == "type3"]
+        assert len(type3b) == 1
+        assert type3b[0].confirmed is True
 
 
 # ═══════════════════════════════════════════════════════════
-# Type 1 confirmed 不变（回归保护）
+# Type 1 confirmed / settled 语义
 # ═══════════════════════════════════════════════════════════
 
 
-class TestType1ConfirmedRegression:
-    """Type 1 confirmed 已正确来自 div.confirmed，验证不退化。"""
+class TestType1ConfirmedSemantic:
+    """Type 1: confirmed = 背驰确认（div 存在即成立）；settled = Move.settled。"""
 
-    def test_type1_confirmed_from_divergence(self):
-        """Type 1 BSP.confirmed = Divergence.confirmed。"""
+    def _build_type1_scenario(self, move_settled: bool):
         segments = [
             _Seg(direction="down", high=60.0, low=45.0, i0=0, i1=5),
         ]
-
         zhongshus = [
             _make_zhongshu(seg_start=0, seg_end=2, zd=50.0, zg=60.0),
             _make_zhongshu(seg_start=2, seg_end=4, zd=48.0, zg=58.0),
         ]
-
         moves = [
             _make_trend_move(
-                direction="down",
-                seg_start=0,
-                seg_end=4,
-                zs_start=0,
-                zs_end=1,
-                settled=True,
+                direction="down", seg_start=0, seg_end=4,
+                zs_start=0, zs_end=1, settled=move_settled,
             ),
         ]
-
         divergences = [
             _make_divergence(
-                direction="bottom",
-                center_idx=1,
-                seg_c_start=0,
-                seg_c_end=0,
-                confirmed=True,
+                direction="bottom", center_idx=1, seg_c_start=0, seg_c_end=0,
             ),
         ]
+        return segments, zhongshus, moves, divergences
 
+    def test_type1_confirmed_from_divergence_decoupled(self):
+        """背驰存在 → confirmed=True，即使走势未完成（settled=False）。"""
+        segments, zhongshus, moves, divergences = self._build_type1_scenario(
+            move_settled=False,
+        )
         bsps = buysellpoints_from_level(segments, zhongshus, moves, divergences, 1)
-        type1_bsps = [b for b in bsps if b.kind == "type1"]
-        assert len(type1_bsps) >= 1
-        assert type1_bsps[0].confirmed is True
+        type1 = [b for b in bsps if b.kind == "type1"]
+        assert len(type1) >= 1
+        assert type1[0].confirmed is True
+        assert type1[0].settled is False
+
+    def test_type1_settled_tracks_move(self):
+        """走势完成 → settled=True。"""
+        segments, zhongshus, moves, divergences = self._build_type1_scenario(
+            move_settled=True,
+        )
+        bsps = buysellpoints_from_level(segments, zhongshus, moves, divergences, 1)
+        type1 = [b for b in bsps if b.kind == "type1"]
+        assert len(type1) >= 1
+        assert type1[0].confirmed is True
+        assert type1[0].settled is True

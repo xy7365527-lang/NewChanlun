@@ -11,8 +11,8 @@ TestType3Detection（检测正确性）
 TestType3EdgeCases（边界情况）
   5. test_type3_unsettled_zhongshu_skip — 中枢未 settled，跳过
   6. test_type3_no_break_direction_skip — 无 break_direction，跳过
-  7. test_type3_confirmed_from_move_settled — confirmed 来自 Move.settled
-  8. test_type3_no_move_confirmed_false — 无 Move 覆盖，confirmed=False
+  7. test_type3_confirmed_when_continuation_exists — candidate-fix：回试后延续段存在 → confirmed
+  8. test_type3_candidate_when_no_continuation — candidate-fix：无延续段 → 仅候选 confirmed=False
 """
 
 from dataclasses import dataclass
@@ -199,15 +199,22 @@ class TestType3Detection:
 class TestType3EdgeCases:
     """Type 3 买卖点边界情况。"""
 
-    def _build_standard_3b_segments(self):
-        """构造标准 3B 的 5 段结构（复用）。"""
-        return [
+    def _build_standard_3b_segments(self, with_continuation: bool = False):
+        """构造标准 3B 的段结构（复用）。
+
+        with_continuation=True 时追加回试段之后的向上延续段（seg[5]），
+        用于触发 candidate-fix 的 confirmed（回试结束、走势延续）。
+        """
+        segs = [
             _Seg(direction="down", high=60.0, low=50.0, i0=0, i1=5),
             _Seg(direction="up", high=65.0, low=55.0, i0=5, i1=10),
             _Seg(direction="down", high=63.0, low=52.0, i0=10, i1=15),
             _Seg(direction="up", high=75.0, low=62.0, i0=15, i1=20),   # 离开段
             _Seg(direction="down", high=72.0, low=66.0, i0=20, i1=25), # 回试段 low=66 > zg=60
         ]
+        if with_continuation:
+            segs.append(_Seg(direction="up", high=80.0, low=70.0, i0=25, i1=30))  # 延续段
+        return segs
 
     def test_type3_unsettled_zhongshu_skip(self):
         """中枢未 settled -> 跳过，无 type3 产出。"""
@@ -244,9 +251,12 @@ class TestType3EdgeCases:
 
         assert len(type3_bsps) == 0
 
-    def test_type3_confirmed_from_move_settled(self):
-        """confirmed 来自 Move.settled：有 Move 覆盖 pullback_idx 且 settled=True。"""
-        segments = self._build_standard_3b_segments()
+    def test_type3_confirmed_when_continuation_exists(self):
+        """candidate-fix：回试段之后出现向上延续段 → confirmed=True（回试不破被后续结构确认）。
+
+        settled 独立于 confirmed：此处 Move 覆盖 seg[0..5] 且 settled=True → settled=True。
+        """
+        segments = self._build_standard_3b_segments(with_continuation=True)
 
         zhongshus = [
             _make_zhongshu(
@@ -255,21 +265,20 @@ class TestType3EdgeCases:
             ),
         ]
 
-        # Move 覆盖 seg[0..4]，settled=True
         moves = [
             Move(
                 kind="consolidation",
                 direction="up",
                 seg_start=0,
-                seg_end=4,
+                seg_end=5,
                 zs_start=0,
                 zs_end=0,
                 zs_count=1,
                 settled=True,
-                high=75.0,
+                high=80.0,
                 low=50.0,
                 first_seg_s0=0,
-                last_seg_s1=25,
+                last_seg_s1=30,
             ),
         ]
 
@@ -277,11 +286,16 @@ class TestType3EdgeCases:
         type3_bsps = [b for b in bsps if b.kind == "type3"]
 
         assert len(type3_bsps) == 1
-        assert type3_bsps[0].confirmed is True
+        assert type3_bsps[0].confirmed is True   # 延续段存在 → 回试不破确认
+        assert type3_bsps[0].settled is True     # Move.settled
 
-    def test_type3_no_move_confirmed_false(self):
-        """无 Move 覆盖 pullback_idx -> confirmed=False。"""
-        segments = self._build_standard_3b_segments()
+    def test_type3_candidate_when_no_continuation(self):
+        """candidate-fix：回试段为最后一段、无延续段 → confirmed=False（仅候选）。
+
+        回试不破（low=66 > zg=60）使 BSP 进入列表作为 candidate，但右侧延续尚未出现，
+        故 confirmed=False。无 Move 覆盖 → settled=False。
+        """
+        segments = self._build_standard_3b_segments()  # 无延续段，回试段 seg[4] 为末段
 
         zhongshus = [
             _make_zhongshu(
@@ -290,9 +304,9 @@ class TestType3EdgeCases:
             ),
         ]
 
-        # moves 为空
         bsps = buysellpoints_from_level(segments, zhongshus, moves=[], divergences=[], level_id=1)
         type3_bsps = [b for b in bsps if b.kind == "type3"]
 
         assert len(type3_bsps) == 1
-        assert type3_bsps[0].confirmed is False
+        assert type3_bsps[0].confirmed is False  # 候选：回试不破但延续段未出现
+        assert type3_bsps[0].settled is False    # 无 Move 覆盖

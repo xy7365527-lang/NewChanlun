@@ -473,63 +473,67 @@ class TestOverlapNone:
 # =====================================================================
 
 class TestTBD2ConfirmedPropagation:
-    """[TBD-2] confirmed 状态从 Divergence 传递到 Type1 BSP。
+    """candidate-fix：Type1 的 confirmed 由背驰面积比决定（与 div.confirmed 解耦）。
 
-    当前决策：BSP.confirmed = div.confirmed（跟随背驰确认态）。
-    翻转条件：若走势完成与背驰不等价，需引入独立的 move_completed 状态。
+    新决策：BSP.confirmed = (force_c/force_a ≤ TYPE1_CONFIRM_RATIO)。
+    背驰存在（force_c < force_a）即 candidate；面积比低于阈值（默认 0.9）才 confirmed。
+    旧契约 BSP.confirmed = div.confirmed 在 v1 管线中恒为 True（candidate+confirm 同 bar），
+    被本次 candidate-fix 翻转。翻转条件：若操盘要求面积比阈值变化，调整 TYPE1_CONFIRM_RATIO。
     """
 
-    def test_type1_buy_confirmed_true(self):
-        """div.confirmed=True → BSP.confirmed=True。"""
+    def test_type1_buy_confirmed_strong_divergence(self):
+        """强背驰（面积比 50/500=0.1 ≤ 0.9）→ BSP.confirmed=True，与 div.confirmed 无关。"""
         segs, zss, mvs, divs = _make_downtrend_with_divergence()
 
-        # 替换 divergence 为 confirmed=True 版本
-        div_confirmed = Divergence(
+        # div.confirmed 故意设 False，验证 confirmed 由面积比而非 div.confirmed 决定
+        div_strong = Divergence(
             kind="trend", direction="bottom", level_id=1,
             seg_a_start=3, seg_a_end=6, seg_c_start=10, seg_c_end=10,
-            center_idx=1, force_a=500.0, force_c=50.0, confirmed=True,
+            center_idx=1, force_a=500.0, force_c=50.0, confirmed=False,
         )
 
-        bsps = buysellpoints_from_level(segs, zss, mvs, [div_confirmed], level_id=1)
+        bsps = buysellpoints_from_level(segs, zss, mvs, [div_strong], level_id=1)
         t1_buys = [bp for bp in bsps if bp.kind == "type1" and bp.side == "buy"]
         assert len(t1_buys) == 1
         assert t1_buys[0].confirmed is True
 
-    def test_type1_buy_confirmed_false(self):
-        """div.confirmed=False → BSP.confirmed=False。"""
+    def test_type1_buy_candidate_weak_divergence(self):
+        """弱背驰（面积比 95/100=0.95 > 0.9）→ candidate only，BSP.confirmed=False。"""
         segs, zss, mvs, divs = _make_downtrend_with_divergence()
-        # 原始数据中 div.confirmed=False
-        bsps = buysellpoints_from_level(segs, zss, mvs, divs, level_id=1)
+        # 面积比 0.95 落在 (0.9, 1.0)：背驰存在（候选）但面积未充分缩小（未确认）
+        div_weak = Divergence(
+            kind="trend", direction="bottom", level_id=1,
+            seg_a_start=3, seg_a_end=6, seg_c_start=10, seg_c_end=10,
+            center_idx=1, force_a=100.0, force_c=95.0, confirmed=True,
+        )
+        bsps = buysellpoints_from_level(segs, zss, mvs, [div_weak], level_id=1)
         t1_buys = [bp for bp in bsps if bp.kind == "type1" and bp.side == "buy"]
         assert len(t1_buys) == 1
         assert t1_buys[0].confirmed is False
 
 
 class TestTBD3Type2ConfirmedIndependence:
-    """[TBD-3] Type2 的 confirmed 跟随回调段而非 Type1。
+    """confirmed-fix：Type2 的 confirmed 由"次级别回调不创新极值"决定。
 
-    当前决策：type2.confirmed = callback_seg.confirmed。
-    翻转条件：若确认时机需要后续走势验证，需引入额外状态机。
+    修订决策：type2.confirmed = (回调 low ≥ 1B low)（不创新低），
+    与 callback_seg.confirmed（段结构确认）及 Type1 均无关。
+    1B 在 seg10，price = seg10.low = 40。
     """
 
-    def test_type2_confirmed_follows_callback_not_type1(self):
-        """Type1.confirmed=True，但回调段 confirmed=False → Type2.confirmed=False。
-
-        这验证了 Type2 的确认是独立路径，不从 Type1 继承。
-        """
+    def test_type2_confirmed_by_not_new_low_independent_of_seg(self):
+        """回调不创新低（48 ≥ 40）→ Type2.confirmed=True，与 callback_seg.confirmed 无关。"""
         segs, zss, mvs, divs = _make_downtrend_with_divergence()
 
-        # 让 divergence confirmed=True → Type1 将是 confirmed
         div_confirmed = Divergence(
             kind="trend", direction="bottom", level_id=1,
             seg_a_start=3, seg_a_end=6, seg_c_start=10, seg_c_end=10,
             center_idx=1, force_a=500.0, force_c=50.0, confirmed=True,
         )
 
-        # 添加后续段用于 Type2 检测（默认 confirmed=True）
+        # 回调段 low=48 ≥ 1B low=40 → 不创新低；段自身 confirmed=False 故意设错向
         segs_ext = list(segs) + [
             _seg(11, 11, 110, 130, "up", 60, 46, confirmed=True),     # 反弹段
-            _seg(12, 12, 130, 140, "down", 55, 48, confirmed=False),  # 回调段: confirmed=False
+            _seg(12, 12, 130, 140, "down", 55, 48, confirmed=False),  # 回调段 low=48
         ]
 
         bsps = buysellpoints_from_level(segs_ext, zss, mvs, [div_confirmed], level_id=1)
@@ -537,10 +541,31 @@ class TestTBD3Type2ConfirmedIndependence:
         t2_buys = [bp for bp in bsps if bp.kind == "type2" and bp.side == "buy"]
 
         assert len(t1_buys) == 1
-        assert t1_buys[0].confirmed is True   # Type1 跟随 div
-
+        assert t1_buys[0].confirmed is True
         assert len(t2_buys) == 1
-        assert t2_buys[0].confirmed is False   # Type2 跟随回调段，非 Type1
+        # confirmed 由"不创新低"决定，与 callback_seg.confirmed(=False) 无关
+        assert t2_buys[0].confirmed is True
+
+    def test_type2_unconfirmed_when_new_low(self):
+        """回调创新低（38 < 40）→ Type2.confirmed=False（候选但未确认）。"""
+        segs, zss, mvs, divs = _make_downtrend_with_divergence()
+
+        div_confirmed = Divergence(
+            kind="trend", direction="bottom", level_id=1,
+            seg_a_start=3, seg_a_end=6, seg_c_start=10, seg_c_end=10,
+            center_idx=1, force_a=500.0, force_c=50.0, confirmed=True,
+        )
+
+        # 回调段 low=38 < 1B low=40 → 创新低
+        segs_ext = list(segs) + [
+            _seg(11, 11, 110, 130, "up", 60, 46, confirmed=True),
+            _seg(12, 12, 130, 140, "down", 55, 38, confirmed=True),
+        ]
+
+        bsps = buysellpoints_from_level(segs_ext, zss, mvs, [div_confirmed], level_id=1)
+        t2_buys = [bp for bp in bsps if bp.kind == "type2" and bp.side == "buy"]
+        assert len(t2_buys) == 1
+        assert t2_buys[0].confirmed is False
 
 
 class TestTBD1StrictCriterion:

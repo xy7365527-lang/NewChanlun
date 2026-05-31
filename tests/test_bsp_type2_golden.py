@@ -387,7 +387,8 @@ class TestType2Detection:
     # ── 6. test_type2_no_move_covers_callback ───────────────
 
     def test_type2_no_move_covers_callback(self):
-        """回调段无 Move 覆盖 → confirmed=False。
+        """confirmed-fix：回调段无 Move 覆盖 → settled=False，但 confirmed 仍由
+        "不创新低"决定（callback low=48 ≥ 1B low=45 → confirmed=True）。
 
         结构同标准 2B，但 trend Move 仅覆盖到 seg_end=0（不覆盖回调段 seg[2]）。
         """
@@ -428,4 +429,5 @@ class TestType2Detection:
 
         type2_bsps = [b for b in bsps if b.kind == "type2"]
         assert len(type2_bsps) == 1, f"应产生 1 个 Type 2 Buy，实际: {type2_bsps}"
-        assert type2_bsps[0].confirmed is False
+        assert type2_bsps[0].confirmed is True   # 不创新低
+        assert type2_bsps[0].settled is False    # 无 Move 覆盖回调段

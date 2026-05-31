@@ -404,9 +404,12 @@ def _detect_trend_divergence(
     if not _trend_t4_check(segments, zs_last, df_macd, merged_to_raw, move_zs_indices[-1]):
         return None
 
+    # 背驰确认 = 三维度比较成立（第24课）。Divergence 对象仅在 _check_three_dim_divergence
+    # 通过时才被构造，因此其存在即代表背驰已确认 —— confirmed=True，与走势是否完成（move.settled）无关。
+    # 走势完成验证由下游 BSP.settled 承载（见 a_buysellpoint_v1）。
     return _compare_and_build(
         segments, move.direction, a_start, a_end, c_start, c_end,
-        move_zs_indices[-1], "trend", level_id, move.settled,
+        move_zs_indices[-1], "trend", level_id, True,
         df_macd, merged_to_raw,
     )
 
@@ -471,9 +474,11 @@ def _detect_consolidation_divergence(
             continue
         a_idx = exits[-2]
         c_idx = exits[-1]
+        # 盘整背驰确认 = 同向离开力度衰竭比较成立（第25课）。同趋势背驰：
+        # Divergence 存在即确认，confirmed=True，与 move.settled 解耦。
         result = _compare_and_build(
             segments, direction, a_idx, a_idx, c_idx, c_idx,
-            move.zs_start, "consolidation", level_id, move.settled,
+            move.zs_start, "consolidation", level_id, True,
             df_macd, merged_to_raw,
         )
         if result is not None:

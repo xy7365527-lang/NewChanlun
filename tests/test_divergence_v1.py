@@ -175,7 +175,8 @@ class TestTrendDivergenceV1:
         assert d.seg_c_start == 10
         assert d.seg_c_end == 10
         assert d.center_idx == 1  # 最后中枢索引
-        assert d.confirmed is False  # move.settled=False
+        # confirmed-fix：背驰存在即确认（三维度比较已通过），与 move.settled 解耦 → 恒 True
+        assert d.confirmed is True
 
     def test_downtrend_divergence_detected(self):
         segs, zss, mvs = _make_downtrend_v1()
@@ -430,8 +431,8 @@ class TestConsolidationDivergenceV1:
         assert len(cons_divs) == 1
         assert cons_divs[0].confirmed is True
 
-    def test_confirmed_false_from_unsettled_move(self):
-        """move.settled=False → divergence.confirmed=False。"""
+    def test_confirmed_decoupled_from_unsettled_move(self):
+        """confirmed-fix：盘整背驰存在即确认（confirmed=True），与 move.settled 解耦。"""
         segments = [
             _seg(0, 0, 0, 10, "down", 58, 52),
             _seg(1, 1, 10, 20, "up", 58, 52),
@@ -456,7 +457,8 @@ class TestConsolidationDivergenceV1:
         divs = divergences_from_moves_v1(segments, zhongshus, moves, level_id=1)
         cons_divs = [d for d in divs if d.kind == "consolidation"]
         assert len(cons_divs) == 1
-        assert cons_divs[0].confirmed is False
+        # confirmed-fix：背驰存在即确认，与 move.settled 解耦 → 恒 True
+        assert cons_divs[0].confirmed is True
 
     # ── C4: 等力度 → 无背驰 ──
 

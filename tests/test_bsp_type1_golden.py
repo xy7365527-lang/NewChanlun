@@ -173,12 +173,13 @@ class TestType1Detection:
         type1 = [b for b in bsps if b.kind == "type1"]
         assert len(type1) == 0
 
-    def test_type1_confirmed_true(self) -> None:
-        """div.confirmed=True 时 BSP.confirmed=True。"""
+    def test_type1_confirmed_strong_area_ratio(self) -> None:
+        """candidate-fix：面积比 80/100=0.8 ≤ 0.9 → BSP.confirmed=True（与 div.confirmed 无关）。"""
         segments = [_Seg(direction="down", high=60.0, low=45.0, i0=0, i1=5)]
         zhongshus = [_make_zhongshu(0, 2, 50.0, 60.0), _make_zhongshu(2, 4, 48.0, 58.0)]
         moves = [_make_trend_move(direction="down", zs_start=0, zs_end=1)]
-        divergences = [_make_divergence(direction="bottom", center_idx=1, seg_c_end=0, confirmed=True)]
+        # div.confirmed 故意设 False，验证 confirmed 由面积比决定
+        divergences = [_make_divergence(direction="bottom", center_idx=1, seg_c_end=0, confirmed=False)]
 
         bsps = buysellpoints_from_level(segments, zhongshus, moves, divergences, level_id=1)
 
@@ -186,12 +187,17 @@ class TestType1Detection:
         assert len(type1) == 1
         assert type1[0].confirmed is True
 
-    def test_type1_confirmed_false(self) -> None:
-        """div.confirmed=False 时 BSP.confirmed=False。"""
+    def test_type1_candidate_weak_area_ratio(self) -> None:
+        """candidate-fix：面积比 95/100=0.95 > 0.9 → 候选，BSP.confirmed=False。"""
         segments = [_Seg(direction="down", high=60.0, low=45.0, i0=0, i1=5)]
         zhongshus = [_make_zhongshu(0, 2, 50.0, 60.0), _make_zhongshu(2, 4, 48.0, 58.0)]
         moves = [_make_trend_move(direction="down", zs_start=0, zs_end=1)]
-        divergences = [_make_divergence(direction="bottom", center_idx=1, seg_c_end=0, confirmed=False)]
+        # 弱背驰：force_c/force_a = 0.95 落在 (0.9, 1.0)
+        divergences = [Divergence(
+            kind="trend", direction="bottom", level_id=1,
+            seg_a_start=0, seg_a_end=1, seg_c_start=0, seg_c_end=0,
+            center_idx=1, force_a=100.0, force_c=95.0, confirmed=True,
+        )]
 
         bsps = buysellpoints_from_level(segments, zhongshus, moves, divergences, level_id=1)
 
