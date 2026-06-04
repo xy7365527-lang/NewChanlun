@@ -5,9 +5,9 @@
 核心规则（冻结 v1 spec）：
 - 盘整 = 包含恰好 1 个走势中枢
 - 趋势 = 包含 2+ 个依次同向走势中枢
-  - 上涨：C2.ZD > C1.ZG（后枢固定区间下沿 严格高于 前枢固定区间上沿）
-  - 下跌：C2.ZG < C1.ZD（后枢固定区间上沿 严格低于 前枢固定区间下沿）
-- 固定区间不递升/递降的相邻中枢 → 截断为不同 move
+  - 上涨：C2.DD > C1.GG（后枢波动下界 严格高于 前枢波动上界）
+  - 下跌：C2.GG < C1.DD（后枢波动上界 严格低于 前枢波动下界）
+- 波动区间不递升/递降的相邻中枢 → 截断为不同 move
 """
 
 from __future__ import annotations
@@ -65,14 +65,27 @@ class Move:
     last_seg_s1: int = 0
 
 
+def _has_wave_bounds(c: Zhongshu) -> bool:
+    """历史 Zhongshu 可能没有持久化 DD/GG，默认值为 0.0。"""
+    return c.dd != 0.0 or c.gg != 0.0
+
+
+def _upper_bound(c: Zhongshu) -> float:
+    return c.gg if _has_wave_bounds(c) else c.zg
+
+
+def _lower_bound(c: Zhongshu) -> float:
+    return c.dd if _has_wave_bounds(c) else c.zd
+
+
 def _is_ascending(c1: Zhongshu, c2: Zhongshu) -> bool:
-    """后枢 ZD 严格高于 前枢 ZG → 上涨延续（固定区间递升）。"""
-    return c2.zd > c1.zg
+    """后枢 DD 严格高于 前枢 GG → 上涨延续（中心定理二）。"""
+    return _lower_bound(c2) > _upper_bound(c1)
 
 
 def _is_descending(c1: Zhongshu, c2: Zhongshu) -> bool:
-    """后枢 ZG 严格低于 前枢 ZD → 下跌延续（固定区间递降）。"""
-    return c2.zg < c1.zd
+    """后枢 GG 严格低于 前枢 DD → 下跌延续（中心定理二）。"""
+    return _upper_bound(c2) < _lower_bound(c1)
 
 
 def _filter_settled(zhongshus: list[Zhongshu]) -> tuple[list[int], list[Zhongshu]]:
@@ -140,8 +153,8 @@ def _group_to_move(
         seg_start=first_zs.seg_start, seg_end=base_seg_end,
         zs_start=settled_indices[offsets[0]], zs_end=settled_indices[offsets[-1]],
         zs_count=zs_count, settled=True,
-        high=max(zs.gg for zs in group_centers),
-        low=min(zs.dd for zs in group_centers),
+        high=max(_upper_bound(zs) for zs in group_centers),
+        low=min(_lower_bound(zs) for zs in group_centers),
         first_seg_s0=first_zs.first_seg_s0, last_seg_s1=last_zs.last_seg_s1,
     )
 

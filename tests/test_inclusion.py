@@ -186,6 +186,20 @@ class TestDirectionRule:
         assert m["high"].iloc[0] == 20.0
         assert m["low"].iloc[0] == 2.0  # max(1,2)=2, 不是 min
 
+    def test_dir_none_defaults_up_even_when_first_bar_is_bearish(self):
+        """dir=None 的默认方向不应由首根 K 线阴阳线改写。"""
+        df = pd.DataFrame({
+            "open":  [20, 15, 18],
+            "high":  [20, 19, 21],
+            "low":   [1, 2, 1.5],
+            "close": [5, 10, 20],
+        })
+        m, r = merge_inclusion(df)
+        assert len(m) == 1
+        assert m["high"].iloc[0] == 21.0
+        assert m["low"].iloc[0] == 2.0
+        assert r == [(0, 2)]
+
     def test_chain_default_up(self):
         """dir=None 全程包含链 → 持续按 UP 合并。"""
         df = pd.DataFrame({

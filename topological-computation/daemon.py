@@ -1281,6 +1281,7 @@ class TopologicalDaemon:
         if _need_diff:
             pre_vid_count = len(self.k_full._vertices)
             pre_edge_count = len(self.k_full._edges)
+            pre_settled_count = len(self.settlement.settled_cycles)
             pre_vid_keys = set(self.k_full._vertices.keys())  # snapshot: mutable Graph needs copy
             # Track K_active vertex statuses to detect fold state changes
             pre_active_statuses = {
@@ -1379,6 +1380,7 @@ class TopologicalDaemon:
         # Compute graph diffs using count-based tail slice — O(new) instead of O(E)
         new_vids: set[str] = set()
         new_edges_list: list = []
+        new_settled: list = []
         if _need_diff:
             # New vertices: keys not in pre snapshot
             for vid in self.k_full._vertices:
@@ -1386,6 +1388,12 @@ class TopologicalDaemon:
                     new_vids.add(vid)
             # New edges: tail slice (Graph.add_edge appends)
             new_edges_list = self.k_full._edges[pre_edge_count:]
+            # New settlements are persisted in JSONL only, but SharedLayer still
+            # needs the per-step delta to publish settlement_event blocks.
+            assert len(self.settlement.settled_cycles) >= pre_settled_count, (
+                "settled_cycles must be append-only during a daemon step"
+            )
+            new_settled = self.settlement.settled_cycles[pre_settled_count:]
 
         # Persist graph state changes (always, not just for significant events)
         if self._persist:
