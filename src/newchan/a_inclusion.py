@@ -82,12 +82,12 @@ def _merge_loop(
         )
 
         if has_inclusion:
-            if dir_state is not None:
-                effective_up = dir_state == "UP"
+            if dir_state in (None, "UP"):
+                effective_up = True
+            elif dir_state == "DOWN":
+                effective_up = False
             else:
-                # dir 未确定时，用前一根 merged bar 的 close vs open 推断方向
-                # 这避免了默认 UP 偏置导致的过度合并
-                effective_up = last[3] >= last[0]  # close >= open → 阳线 → UP
+                raise ValueError(f"unknown inclusion direction: {dir_state!r}")
             if effective_up:
                 last[1] = max(last_h, curr_h)
                 last[2] = max(last_l, curr_l)
@@ -105,7 +105,7 @@ def _merge_loop(
             buf.append([opens[i], curr_h, curr_l, closes[i], i, i])
 
             if reset_dir_on_fractal:
-                # 方向翻转时重置：让下一次包含用默认 UP 处理，
+                # 方向翻转时重置：让下一次包含回到 §2.3 的默认 UP，
                 # 避免长趋势方向锁定掩盖反转信号
                 if prev_dir is not None and dir_state != prev_dir:
                     dir_state = None
