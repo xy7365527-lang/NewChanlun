@@ -1278,6 +1278,7 @@ class TopologicalDaemon:
         # Use count-based diff (O(1)) instead of set-based diff (O(E))
         # Graph.add_edge appends to _edges list, so new edges are always at tail
         _need_diff = self._persist or self._shared_layer is not None
+        pre_settled_count = len(self.settlement.settled_cycles)
         if _need_diff:
             pre_vid_count = len(self.k_full._vertices)
             pre_edge_count = len(self.k_full._edges)
@@ -1386,6 +1387,7 @@ class TopologicalDaemon:
                     new_vids.add(vid)
             # New edges: tail slice (Graph.add_edge appends)
             new_edges_list = self.k_full._edges[pre_edge_count:]
+        new_settled = self.settlement.settled_cycles[pre_settled_count:]
 
         # Persist graph state changes (always, not just for significant events)
         if self._persist:
