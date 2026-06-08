@@ -935,6 +935,88 @@ impl PyRecursiveOrchestrator {
             })
             .collect()
     }
+
+    /// 当前笔总数（O(1)，廉价门控用——避免每 bar 全量 marshal `current_strokes`）。
+    fn stroke_count(&self) -> usize {
+        self.inner.strokes().len()
+    }
+
+    /// 笔 `[k:]` 的终点价 `p1`（bi-PH 只消费新增笔的 p1，O(新增) marshal）。
+    fn strokes_p1_since(&self, k: usize) -> Vec<f64> {
+        let strokes = self.inner.strokes();
+        if k >= strokes.len() {
+            return Vec::new();
+        }
+        strokes[k..].iter().map(|s| s.p1).collect()
+    }
+
+    /// 笔中枢级 confirmed/candidate 买卖点——**直读内部笔，零 stroke marshal**。
+    ///
+    /// 逐位等价于 Python `per_level_bsp.confirmed_bsp_bi_zhongshu(strokes)`：
+    ///   confirmed 笔 → `zhongshu_from_strokes` → `moves_from_zhongshus(num_segments=len)`
+    ///   → `divergences_from_moves_v1(df_macd=None)` → `buysellpoints_from_level`。
+    /// 合并全链为单次 Rust 调用，消除原 Python 端 5 次中间 tuple 列表构造 + 往返
+    /// （profile 测得 Python marshalling 占 bi-zhongshu 总耗时 ~54%）。
+    /// 返回 BspTuple 列表（调用方按 (kind,side,seg_idx) 去重检测新增 confirmed）。
+    #[pyo3(signature = (level_id = 1))]
+    fn current_bi_zhongshu_buysellpoints(&self, level_id: i64) -> Vec<BspTuple> {
+        let strokes = self.inner.strokes();
+        // 过滤 confirmed 笔（per_level_bsp: confirmed = [s for s in strokes if s.confirmed]）。
+        let confirmed: Vec<&stroke::Stroke> = strokes.iter().filter(|s| s.confirmed).collect();
+        if confirmed.len() < 3 {
+            return Vec::new();
+        }
+        // zhongshu_from_strokes 输入: (i0, i1, high, low, confirmed)。
+        let zs_in: Vec<(usize, usize, f64, f64, bool)> = confirmed
+            .iter()
+            .map(|s| (s.i0, s.i1, s.high, s.low, s.confirmed))
+            .collect();
+        let zhongshus = zhongshu::zhongshu_from_strokes(&zs_in);
+        let moves = moves::moves_from_zhongshus(&zhongshus, Some(confirmed.len()));
+        // SegView ← confirmed 笔（笔原生暴露 direction/high/low/i0/i1，525号组件来源无关性）。
+        let segs: Vec<divergence::SegView> = confirmed
+            .iter()
+            .map(|s| divergence::SegView {
+                direction: s.direction,
+                high: s.high,
+                low: s.low,
+                i0: s.i0,
+                i1: s.i1,
+            })
+            .collect();
+        let zss: Vec<divergence::ZsView> = zhongshus
+            .iter()
+            .map(|z| divergence::ZsView {
+                zd: z.zd,
+                zg: z.zg,
+                seg_start: z.seg_start,
+                seg_end: z.seg_end,
+                settled: z.settled,
+            })
+            .collect();
+        let mvs: Vec<divergence::MoveView> = moves
+            .iter()
+            .map(|m| divergence::MoveView {
+                kind: m.kind,
+                direction: m.direction,
+                seg_start: m.seg_start,
+                seg_end: m.seg_end,
+                zs_start: m.zs_start,
+                zs_end: m.zs_end,
+                zs_count: m.zs_count,
+                settled: m.settled,
+            })
+            .collect();
+        let divs = divergence::divergences_from_moves_v1(&segs, &zss, &mvs, level_id, None);
+        let zs_break: Vec<(bool, zhongshu::BreakDir, i64)> = zhongshus
+            .iter()
+            .map(|z| (z.settled, z.break_direction, z.break_seg))
+            .collect();
+        buysellpoint::buysellpoints_from_level(&segs, &zss, &zs_break, &mvs, &divs, level_id)
+            .iter()
+            .map(bsp_to_tuple)
+            .collect()
+    }
 }
 
 /// Python 模块定义。
