@@ -55,6 +55,8 @@ SYMBOL_FILES = {
 
 # I 三 floor 变体（同一信号 pass）：含 bar / 线段起 / 缠师走势级口径。
 _VARIANTS = (("I_bar0", 0), ("I_seg2", LADDER_SEG), ("I_move3", LADDER_MOVE))
+# 硬止损模式（用户指令，2%）：none=无 / A=整体仓位入场价 / B=每FSM切片短差独立。
+_STOP_MODES = ("none", "A", "B")
 
 
 def load_ohlc(path: Path):
@@ -74,7 +76,11 @@ def load_ohlc(path: Path):
     years: list[int] = []
     for idx in range(len(c_in)):
         o, h, l, c = float(o_in[idx]), float(h_in[idx]), float(l_in[idx]), float(c_in[idx])
+        # 删除 nan 与非正价格（≤0 为无效数据：污染 PH/MACD 下游，且令价格阈值止损误触发）。
+        # DX 含 2 根 close=0 垃圾 bar——nan 清洗漏网，会令 c<entry×0.98 误判为暴跌触发止损。
         if math.isnan(o) or math.isnan(h) or math.isnan(l) or math.isnan(c):
+            continue
+        if o <= 0 or h <= 0 or l <= 0 or c <= 0:
             continue
         opens.append(o)
         highs.append(h)
@@ -123,26 +129,32 @@ def run_symbol(symbol: str) -> tuple[str, dict]:
     i_signals = compute_i_signals_rust(opens, highs, lows, closes)
     sig_s = time.time() - t1
 
+    # 每个 floor 跑 3 止损模式（none/A/B）——run_version_i 廉价，i_signals 单次 pass 复用。
     variants: dict[str, dict] = {}
     for tag, floor in _VARIANTS:
-        i_trades, i_extra = run_version_i(i_signals, floor_ladder=floor)
-        im = extended_metrics(i_trades, years)
-        variants[tag] = {
-            "floor": ladder_name(floor),
-            "metrics": _metric_row(im),
-            "excess": round(im["total_compound"] - bh, 4),
-            "fsm_contribution": i_extra["fsm_contribution"],
-            "ladder_attribution": i_extra["ladder_attribution"],
-            "addon_2buy_marks": i_extra["addon_2buy_marks"],
-        }
-        print(
-            f"  [{symbol:4s}/{tag} floor={ladder_name(floor):7s}] "
-            f"复利={im['total_compound']:+11.2f}% 超额={im['total_compound']-bh:+11.2f}% "
-            f"交易={im['n']:4d} 胜率={im['win_rate']:4.0f}% 夏普={im['sharpe']:+.3f} "
-            f"MDD={im['max_dd']:+7.2f}% 降成本笔={im['n_with_cr']}",
-            flush=True,
-        )
-        print(f"        FSM贡献: {i_extra['fsm_contribution']}", flush=True)
+        for sm in _STOP_MODES:
+            key = tag if sm == "none" else f"{tag}_stop{sm}"
+            i_trades, i_extra = run_version_i(
+                i_signals, floor_ladder=floor, stop_mode=sm)
+            im = extended_metrics(i_trades, years)
+            variants[key] = {
+                "floor": ladder_name(floor),
+                "stop_mode": sm,
+                "metrics": _metric_row(im),
+                "excess": round(im["total_compound"] - bh, 4),
+                "fsm_contribution": i_extra["fsm_contribution"],
+                "ladder_attribution": i_extra["ladder_attribution"],
+                "addon_2buy_marks": i_extra["addon_2buy_marks"],
+                "n_core_stops": i_extra["n_core_stops"],
+                "n_voice_stops": i_extra["n_voice_stops"],
+            }
+            print(
+                f"  [{symbol:4s}/{tag} floor={ladder_name(floor):7s} stop={sm:4s}] "
+                f"复利={im['total_compound']:+11.2f}% 超额={im['total_compound']-bh:+11.2f}% "
+                f"交易={im['n']:4d} 夏普={im['sharpe']:+.3f} MDD={im['max_dd']:+7.2f}% "
+                f"核心止损={i_extra['n_core_stops']} voice止损={i_extra['n_voice_stops']}",
+                flush=True,
+            )
     i_s = time.time() - t1
     del i_signals
 
@@ -169,25 +181,29 @@ def _write_report(results: dict) -> None:
     L.append(
         "> 力度口径=价格振幅 fallback（非 MACD，O(N²) 不可行）；bi-zhongshu O(strokes²) + "
         "process_bar O(N²) 为固有复杂度，Rust 仅压常数。\n")
-    L.append("## E vs I（三 floor 变体）对照\n")
-    L.append("| 标的 | bars | BH% | 策略 | 复利% | 超额% | 夏普 | MDD% | 盈亏比 | 交易 | 降成本笔 |")
-    L.append("|------|------|-----|------|-------|-------|------|------|--------|------|----------|")
+    L.append(
+        "> **硬止损（2%）4 组对比**：E（纯信号）/ I（多FSM降成本无止损）/ I+止损A（整体仓位"
+        "基于入场价 entry×0.98 全仓出）/ I+止损B（每FSM切片：核心仓 entry×0.98 全出＋各声部"
+        "开放短差逆向亏2%回补冻结该级别）。每 floor 变体（bar0/seg2/move3）各跑 none/A/B。\n")
+    L.append("## E vs I × 止损（none/A/B）对照\n")
+    L.append("| 标的 | bars | BH% | 策略 | 止损 | 复利% | 超额% | 夏普 | MDD% | 交易 | 核心止损 | voice止损 |")
+    L.append("|------|------|-----|------|------|-------|-------|------|------|------|---------|----------|")
     for s, r in results.items():
         e = r["E"]["metrics"]
-        pf = "∞" if e["profit_factor"] is None else f"{e['profit_factor']:.2f}"
         L.append(
-            f"| {s} | {r['n_bars']:,} | {r['bh']:+.1f} | E基线 | {e['compound']:+.1f} | "
-            f"{r['E']['excess']:+.1f} | {e['sharpe']:+.2f} | {e['max_dd']:+.1f} | {pf} | "
-            f"{e['n']} | — |")
+            f"| {s} | {r['n_bars']:,} | {r['bh']:+.1f} | E基线 | — | {e['compound']:+.1f} | "
+            f"{r['E']['excess']:+.1f} | {e['sharpe']:+.2f} | {e['max_dd']:+.1f} | {e['n']} | — | — |")
         for tag, _ in _VARIANTS:
-            v = r["variants"].get(tag)
-            if not v:
-                continue
-            m = v["metrics"]
-            pf = "∞" if m["profit_factor"] is None else f"{m['profit_factor']:.2f}"
-            L.append(
-                f"| {s} | | | {tag}({v['floor']}) | {m['compound']:+.1f} | {v['excess']:+.1f} | "
-                f"{m['sharpe']:+.2f} | {m['max_dd']:+.1f} | {pf} | {m['n']} | {m['n_with_cr']} |")
+            for sm in _STOP_MODES:
+                key = tag if sm == "none" else f"{tag}_stop{sm}"
+                v = r["variants"].get(key)
+                if not v:
+                    continue
+                m = v["metrics"]
+                L.append(
+                    f"| {s} | | | {tag}({v['floor']}) | {sm} | {m['compound']:+.1f} | "
+                    f"{v['excess']:+.1f} | {m['sharpe']:+.2f} | {m['max_dd']:+.1f} | {m['n']} | "
+                    f"{v['n_core_stops']} | {v['n_voice_stops']} |")
     L.append("")
     L.append("## 每级 FSM 独立贡献度（多重赋格各声部）— I_bar0\n")
     L.append("| 标的 | 级别 | 回收现金 | 短差次数 | slice净增益 |")

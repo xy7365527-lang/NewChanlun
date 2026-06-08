@@ -666,6 +666,7 @@ class _Voice:
     ladder: int
     own_capital: float          # 该声部的机动仓 slice（own_capital）
     fsm: CostReductionFSM
+    stopped: bool = False       # 短差止损后冻结（停止该级别降成本，不影响主仓）
 
     @property
     def recovered(self) -> float:
@@ -676,11 +677,15 @@ class _Voice:
         return len(self.fsm.completed_short_diffs)
 
 
+STOP_FRAC = 0.02  # 硬止损阈值 2%（用户指令）
+
+
 def run_version_i(
     i_signals: list[BarSignalI],
     *,
     floor_ladder: int = MIN_FLOOR_LADDER,
     maneuver_ratio: float = MANEUVER_RATIO,
+    stop_mode: str = "none",
 ) -> tuple[list[CompletedTrade], dict]:
     """floor_ladder / maneuver_ratio 可参数化覆盖，便于在同一信号 pass 上跑多变体对比。
 
@@ -688,6 +693,22 @@ def run_version_i(
     机动仓 = maneuver_ratio×INITIAL_CAPITAL，从总仓划出，在 entry 层以下各降成本级别间
     均分，每级别一个独立 FSM（多声部）。单笔短差量由级别驱动（_level_trade_fraction），
     非固定标量。机动仓是核心仓位的子账户——清仓时其净增益叠加到核心，分母仍是 INITIAL_CAPITAL。
+
+    ═══════════════════════════════════════════════════════════════
+    硬止损（用户指令，2% 阈值）—— `stop_mode` ∈ {"none","A","B"}
+    ═══════════════════════════════════════════════════════════════
+    `stop_mode="none"`（默认）：与原 Version I 逐位一致（E/I 基线不变）。
+
+    - **止损 A（整体仓位 / 基于原始入场价）**：核心仓 `c < entry_price×(1−2%)` → **全仓清出**
+      （主出场，cap 单笔下行）。无独立切片止损。对应用户消息1"方案A：基于原始入场价"。
+    - **止损 B（每 FSM 切片独立 / 用户消息2修正）**：核心仓 `c < entry_price×(1−2%)` 全仓清出
+      **＋** 每个降成本声部独立：其开放短差（已卖出待回补）若 `c > sell_price×(1+2%)`
+      （该短差逆向亏 2%）→ 立即回补该短差并**冻结该级别降成本**（停止该 voice 后续短差），
+      **不影响主仓与其他 voice**（每 FSM 独立管理自己切片的 2% 止损，与多 FSM 独立追踪
+      cost_basis 的架构对称）。核心仓止损方向（下跌）与短差止损方向（上涨）正交，不互相吞没。
+
+    认识论 L2（真实数据）。止损 A 主要影响 MDD（cap 持仓回撤），止损 B 额外影响降成本 alpha
+    （切断逆向短差 churn）。
     """
     n = len(i_signals)
     state = _FLAT
@@ -697,6 +718,10 @@ def run_version_i(
     voices: list[_Voice] = []
     SUB_EXPIRY = _ef.SUB_EXPIRY
     n_addon = 0
+    n_core_stops = 0            # 核心仓 2% 止损触发次数（A/B）
+    n_voice_stops = 0          # voice 短差 2% 止损触发次数（B）
+    _stop_on = stop_mode in ("A", "B")
+    _voice_stop_on = stop_mode == "B"
 
     trades: list[CompletedTrade] = []
     ladder_attribution: dict[int, int] = {}
@@ -790,16 +815,32 @@ def run_version_i(
             elif sig.sell1[arm_ladder]:
                 state = _FLAT  # 入场前归属层顶背驰 → 取消
         elif state == _LONG:
+            # 硬止损 A/B：核心仓跌破 entry×(1−2%) → 全仓清出（先于一切，cap 持仓回撤/MDD）
+            if _stop_on and c < entry_price * (1.0 - STOP_FRAC):
+                n_core_stops += 1
+                _close(i, c, "stop_core_2pct")
             # 主出场：entry 层 confirmed type1 卖点（顶背驰）→ 全仓清出
-            if sig.sell1[entry_ladder]:
+            elif sig.sell1[entry_ladder]:
                 _close(i, c, f"exit_{ladder_name(entry_ladder)}_type1sell")
             else:
                 # 多重赋格降成本：各声部（entry 层以下级别）独立 FSM，
                 # 触发 = 本级别 sell_any(高抛) / buy_any(低吸)。核心仓位不参与短差。
                 for v in voices:
+                    if v.stopped:
+                        continue  # 止损 B 已冻结的声部：停止该级别降成本（不影响主仓/他声部）
                     f = v.fsm
                     has_open = (f.active_short_diff is not None
                                 and f.active_short_diff.is_open)
+                    # 止损 B：开放短差逆向亏 2%（卖出后价格反向上涨 > sell×(1+2%)）→
+                    # 立即回补该短差 + 冻结该级别降成本（每 FSM 独立管理自己切片止损）。
+                    if (_voice_stop_on and has_open
+                            and c > f.active_short_diff.sell_price * (1.0 + STOP_FRAC)
+                            and f.state in _COST_ACTIVE_DIFF_STATES):
+                        v.fsm = transition(f, FsmEvent(
+                            FsmEventType.SUB_LEVEL_BUY_POINT, price=c, level="sub"))
+                        v.stopped = True
+                        n_voice_stops += 1
+                        continue
                     if sig.sell_any[v.ladder] and not has_open and f.state in _COST_OPEN_STATES:
                         v.fsm = transition(f, FsmEvent(
                             FsmEventType.SUB_LEVEL_SELL_POINT, price=c, level="sub"))
@@ -831,6 +872,9 @@ def run_version_i(
         "addon_2buy_marks": n_addon,
         "maneuver_ratio": maneuver_ratio,
         "min_floor_ladder": floor_ladder,
+        "stop_mode": stop_mode,
+        "n_core_stops": n_core_stops,
+        "n_voice_stops": n_voice_stops,
     }
 
 
