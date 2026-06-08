@@ -2579,6 +2579,11 @@ nodes:
   status: 已结算
   type: 知识结晶
   file: settled/530-perf-data-movement-not-language-cross-domain.md
+- id: '531'
+  title: 1min分辨率实验「分辨率不变结构性质」断言的证据基础不足——异质质询待执行
+  status: 生成态
+  type: 矛盾发现
+  file: pending/531-gamma-delta-1m-resolution-invariance-pending.md
 edges:
   depends_on:
   - from: '136'
@@ -5375,6 +5380,12 @@ edges:
     to: '465'
   - from: '530'
     to: '231'
+  - from: '531'
+    to: '294'
+  - from: '531'
+    to: '527'
+  - from: '531'
+    to: '230'
   triggered:
   - from: '005'
     to: 005a
