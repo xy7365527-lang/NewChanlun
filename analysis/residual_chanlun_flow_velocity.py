@@ -29,7 +29,11 @@
 
 ## 时间锚定（关键技术约束）
 
-- L1 走势：tail s0/s1 是基础 bar 索引（已验证）→ 直接 timestamps[s1] 锚定。
+- L1 走势：tail (first_seg_s0, last_seg_s1) 是 **stroke（笔）索引**，不是 bar 索引
+    （已证伪旧 memory："s0/s1 是 bar 索引"是 120k 探针下 strokes≈s1 的混淆假象——
+    2M 全量下 211k stroke 索引全映射进前 211k bar，使 L1 错误挤进 2018-2019）。
+    正确锚定：current_strokes() 返回 (start_bar, end_bar, ...)，建 stroke→bar 映射，
+    move 的 s0→strokes[s0].start_bar、s1→strokes[s1-1].end_bar（s1 视为排他端笔索引）。
 - L2+ 走势：tail s0/s1 是层内局部索引（L2 max≈76、L3 max≈5 vs N=2M，已验证）
     → 无法直接映射时间。改用轻量轮询：每 POLL_INTERVAL bar 记录各级 settled 计数，
     第 k 个 L 级 settled 走势的 settle bar ≈ 计数首次 > k 的轮询 bar（分辨率 POLL_INTERVAL）。
@@ -137,6 +141,20 @@ def stream_and_extract() -> dict:
             print(f"  {i+1:>9,}/{n:,}  cum {time.time()-t0:6.0f}s  "
                   f"strokes={orch.stroke_count():,}", flush=True)
 
+    # stroke→bar 映射（L1 move s0/s1 是 stroke 索引，须经此映射回 bar）
+    strokes = orch.current_strokes()
+    stroke_start = [s[0] for s in strokes]  # 每笔起始 bar
+    stroke_end = [s[1] for s in strokes]    # 每笔结束 bar
+    n_strokes = len(strokes)
+    print(f"[stream] strokes={n_strokes:,}  bar 跨度 {stroke_start[0] if n_strokes else 0}"
+          f"..{stroke_end[-1] if n_strokes else 0}", flush=True)
+
+    def stroke_to_bar_range(s0: int, s1: int) -> tuple[int, int]:
+        """move 的 (起笔 s0, 末笔 s1 排他) stroke 索引 → (起 bar, 末 bar)。"""
+        i0 = min(max(int(s0), 0), n_strokes - 1)
+        i1 = min(max(int(s1) - 1, 0), n_strokes - 1)
+        return stroke_start[i0], stroke_end[i1]
+
     # 最终 move 列表
     final_l1 = [_move_force(m) for m in orch.current_moves()]
     final_higher: dict[int, list[dict]] = {}
@@ -155,14 +173,16 @@ def stream_and_extract() -> dict:
 
     l1_events = []
     for mv in final_l1:
-        s1 = mv["s1"]
+        bar0, bar1 = stroke_to_bar_range(mv["s0"], mv["s1"])
+        dur = int(bar1 - bar0)
         l1_events.append({
-            "level": 1, "settle_ts": ts_at(s1),
+            "level": 1, "settle_ts": ts_at(bar1),
             "kind": mv["kind"], "direction": mv["direction"],
             "settled": mv["settled"], "amplitude": mv["amplitude"],
             "persistence": mv["persistence"],
-            "duration_bars": int(mv["s1"] - mv["s0"]),
-            "impulse": mv["amplitude"] * float(mv["s1"] - mv["s0"]),
+            "start_bar": int(bar0), "settle_bar": int(bar1),
+            "duration_bars": dur,
+            "impulse": mv["amplitude"] * float(dur),
         })
 
     # 时间锚定 L2+：第 k 个 settled 走势 → 计数首次 > k 的轮询 bar

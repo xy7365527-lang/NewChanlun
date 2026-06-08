@@ -326,8 +326,32 @@ def write_report(levels: dict[str, GammaSeries],
                  f"**{h.verdict}** | {h.note} |")
     L.append("")
 
+    # 跨期错配：签名存在但与预期时期不对齐
+    L.append(f"## 6. ★ 跨期错配：签名存在但与预期时期不对齐（级别 {analysis_level}）\n")
+    L.append("『证伪』指**预期的时期-签名对应关系**不成立，**非**签名缺失。"
+             "下表给出每个签名实际占比最高的窗口（峰值期）vs 预期期：\n")
+    sub_windows = ["QE_2020", "INFLATION_2021", "HIKES_2022"]
+    expected_period = {
+        "空转(σ_P=−1)": "QE_2020", "沉没-债券(σ_R=+1领先)": "INFLATION_2021",
+        "走资-代理(全负)": "HIKES_2022",
+    }
+    L.append("| 签名 | 预期峰值期 | 实际峰值期 | 实际峰值占比 | 预期期占比 | 对齐? |")
+    L.append("|------|-----------|-----------|------------|-----------|-------|")
+    for sig in SIGNATURES:
+        fracs = {wk: st[wk].sig_counts[sig] / max(1, st[wk].n_days) for wk in sub_windows}
+        peak_wk = max(fracs, key=fracs.get)
+        exp = expected_period.get(sig, "—")
+        exp_frac = fracs.get(exp, float("nan")) if exp != "—" else float("nan")
+        aligned = "✓" if (exp != "—" and peak_wk == exp) else "✗"
+        exp_s = f"{exp_frac*100:.0f}%" if exp != "—" else "—"
+        L.append(f"| {sig} | {exp} | {peak_wk} | {fracs[peak_wk]*100:.0f}% | {exp_s} | {aligned} |")
+    L.append("")
+    L.append("**读法**：若『实际峰值期≠预期峰值期』，则预设的宏观-病态映射方向错误——"
+             "病态信号真实存在，但出现在不同的宏观阶段（如空转峰值在加息期而非 QE 期），"
+             "这是比『信号缺失』更强的否定性结果（缩小了*时期↦签名*映射的有效域）。\n")
+
     # 三阶段叙事
-    L.append(f"## 6. 三阶段实证叙事（级别 {analysis_level}，数据驱动）\n")
+    L.append(f"## 7. 三阶段实证叙事（级别 {analysis_level}，数据驱动）\n")
     qe, infl, hike = st["QE_2020"], st["INFLATION_2021"], st["HIKES_2022"]
     L.append(f"**2020 QE（{qe.n_days}天）**：σ_P̄={qe.mean_sp:+.2f} σ_C̄={qe.mean_sc:+.2f} "
              f"σ_R̄={qe.mean_sr:+.2f} S̄={qe.mean_polarity:+.2f}；空转占 "
@@ -344,9 +368,12 @@ def write_report(levels: dict[str, GammaSeries],
     n_falsify = sum(1 for h in hyps if h.verdict == "证伪")
     L.append("## 结果包（六要素）\n")
     L.append(f"**结论**：2020-2022 三阶段在 GC 锚 K4 配置空间（分析级别 {analysis_level}）上，"
-             f"预期病态签名 {n_confirm} 确认、{n_falsify} 证伪、{3-n_confirm-n_falsify} 弱。"
-             "**首要发现**：『最高涌现级别 σ』在 1min a0 上窗口内冻结（L3/L4 跨年 move），"
-             "无法检测单年 regime——必须用 L1/L2 才能分辨切换。签名以 Γ=(σ_P,σ_C,σ_R) "
+             f"预期的*宏观阶段↦病态签名*对应关系 {n_confirm} 确认、{n_falsify} 证伪、"
+             f"{3-n_confirm-n_falsify} 弱。**两层发现**：①（方法学）『最高涌现级别 σ』在 1min a0 "
+             "上窗口内冻结（实测全窗口切换率仅 0.9%、访问 6/27 态，L3/L4 跨年 move），"
+             "无法检测单年 regime——必须用 L1/L2（L2 切换率 21.5%、27/27 态）才能分辨切换；"
+             "②（实证）三个预设映射全证伪，但签名**非缺失而是错配**——病态信号真实存在，"
+             "却出现在与预期不同的宏观阶段（见 §6 跨期错配表）。签名以 Γ=(σ_P,σ_C,σ_R) "
              "拓扑谓词给出，逐日由 Rust 缠论递归固定级别 move 方向判定。\n")
     L.append("**定义依据**：σ=527号走势方向态（趋势↑/↓=±1，盘整=0）；固定级别 σ 取该级别"
              "（L1=current_moves；L2/L3=current_recursive level_id）最后一个 move 方向；"
