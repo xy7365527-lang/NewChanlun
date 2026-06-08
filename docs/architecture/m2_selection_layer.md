@@ -1,5 +1,9 @@
 # M2 选股正则化层
 
+> ⚠ **已废弃（2026-06-08）**：本文档描述的是**门控范式**（asset_classifier 硬约束 + omega_regime 置信度调整 + K4 极性共振降级）。该范式已被四条独立证据链 L2 证伪——门控 = 减暴露 = 强趋势中跑输（`project_m2_k4_selection_gate` / `project_omega_regime_falsified` / `project_divergence_gate_entry_exit_falsified` / 多级别 C 路径留存 10%）。
+> **现行设计见 [`m2_selection_redesign.md`](m2_selection_redesign.md)**（alpha 范式：拓扑确认 + C 路径排序 + 递归分解 + ω 正则化 context + 跨国 K4，暴露守恒，谢林式生产）。
+> 本文档保留作历史参照——其 L2 已验证结论（指数做空无 alpha、ω 是真实 regime 信号、折叠商空间排序）已迁移进新设计。
+
 ## 位置
 
 M2 是路线图五个里程碑中的第二个（M1 回测验证 → **M2 选股正则化** → M3 全市场实时信号 → M4 风控与执行 → M5 生产加固）。
