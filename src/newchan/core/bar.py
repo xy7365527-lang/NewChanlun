@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import warnings
 from dataclasses import dataclass
+from datetime import datetime, timezone
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,6 +52,11 @@ class BarV1:
     volume: float = 0.0
     is_closed: bool = True
     stream_id: str = ""
+
+    @property
+    def ts(self) -> datetime:
+        """兼容旧 Bar.ts 接口：bar_time (epoch秒) → datetime(UTC)。"""
+        return datetime.fromtimestamp(self.bar_time, tz=timezone.utc)
 
     def __post_init__(self) -> None:
         if self.bar_time <= 0:

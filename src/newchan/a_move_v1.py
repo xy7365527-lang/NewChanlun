@@ -63,6 +63,9 @@ class Move:
     low: float = 0.0
     first_seg_s0: int = 0
     last_seg_s1: int = 0
+    zg_max: float = 0.0
+    zd_min: float = 0.0
+    persistence: float = 0.0
 
 
 def _is_ascending(c1: Zhongshu, c2: Zhongshu) -> bool:
@@ -143,11 +146,14 @@ def _group_to_move(
         high=max(zs.gg for zs in group_centers),
         low=min(zs.dd for zs in group_centers),
         first_seg_s0=first_zs.first_seg_s0, last_seg_s1=last_zs.last_seg_s1,
+        zg_max=max(zs.zg for zs in group_centers),
+        zd_min=min(zs.zd for zs in group_centers),
     )
 
 
 def moves_from_zhongshus(
     zhongshus: list[Zhongshu],
+    *,
     num_segments: int | None = None,
 ) -> list[Move]:
     """从中枢列表构造 Move（贪心分组，只处理 settled 中枢）。"""

@@ -108,7 +108,11 @@ class TestMacdAreaForRange:
 
 class TestOnlineMacdState:
     def test_equivalence_with_compute_macd(self):
-        """OnlineMacdState 逐根更新结果 ≡ compute_macd 批量结果（L0 恒等式）。"""
+        """OnlineMacdState 逐根更新结果 ≈ compute_macd 批量结果（容差等价，非 bit-exact）。
+
+        两路径浮点末位偏差 ~1e-13（朴素递推 vs pandas ewm 的 FMA 收缩），
+        故用 atol=1e-10 容差断言而非 exact。详见 a_macd.OnlineMacdState docstring。
+        """
         from datetime import datetime, timezone
         from newchan.a_macd import OnlineMacdState
 

@@ -42,6 +42,7 @@ class ZhongshuEngine:
         self._prev_zhongshus: list[Zhongshu] = []
         self._event_seq: int = 0
         self._stream_id = stream_id
+        self._last_seg_key: tuple = ()
 
     @property
     def current_zhongshus(self) -> list[Zhongshu]:
@@ -57,6 +58,7 @@ class ZhongshuEngine:
         """重置引擎到初始状态（用于回放 seek）。"""
         self._prev_zhongshus = []
         self._event_seq = 0
+        self._last_seg_key = ()
 
     def process_segment_snapshot(self, seg_snap: SegmentSnapshot) -> ZhongshuSnapshot:
         """处理一个 SegmentSnapshot，产生 zhongshu 事件。
@@ -71,10 +73,28 @@ class ZhongshuEngine:
         ZhongshuSnapshot
             包含当前中枢列表和本轮产生的中枢事件。
         """
-        # 1. 全量计算中枢
-        curr_zhongshus = zhongshu_from_segments(seg_snap.segments)
+        segs = seg_snap.segments
+        n = len(segs)
+        if n >= 2:
+            s = segs[-2]
+            seg_key = (n, s.s0, s.s1, s.direction)
+        elif n == 1:
+            seg_key = (1, segs[0].s0, segs[0].s1)
+        else:
+            seg_key = (0,)
 
-        # 2. diff 产生事件
+        if seg_key == self._last_seg_key:
+            # 返回引用（见 SegmentEngine 同款优化）：消除安静 bar 的 O(N_zs) 拷贝。
+            return ZhongshuSnapshot(
+                bar_idx=seg_snap.bar_idx,
+                bar_ts=seg_snap.bar_ts,
+                zhongshus=self._prev_zhongshus,
+                events=[],
+            )
+        self._last_seg_key = seg_key
+
+        curr_zhongshus = zhongshu_from_segments(segs)
+
         events = diff_zhongshu(
             self._prev_zhongshus,
             curr_zhongshus,
@@ -84,7 +104,6 @@ class ZhongshuEngine:
         )
         self._event_seq += len(events)
 
-        # 3. 更新状态
         self._prev_zhongshus = curr_zhongshus
 
         return ZhongshuSnapshot(

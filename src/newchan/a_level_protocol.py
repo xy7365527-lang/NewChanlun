@@ -129,11 +129,11 @@ class MoveAsComponent:
 
     @property
     def high(self) -> float:
-        return self._move.high
+        return self._move.zg_max if self._move.zg_max else self._move.high
 
     @property
     def low(self) -> float:
-        return self._move.low
+        return self._move.zd_min if self._move.zd_min else self._move.low
 
     @property
     def direction(self) -> Literal["up", "down"]:

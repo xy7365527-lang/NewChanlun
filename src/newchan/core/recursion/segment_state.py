@@ -149,8 +149,11 @@ def diff_segments(
     bar_idx: int,
     bar_ts: float,
     seq_start: int = 0,
+    known_common_prefix: int = 0,
 ) -> list[DomainEvent]:
     """比较前后两次 Segment 列表，产生域事件。
+
+    known_common_prefix: 跳过前 N 个已知相同的线段（SegmentEngine checkpoint 维护）。
 
     Returns
     -------
@@ -168,4 +171,5 @@ def diff_segments(
         emit_invalidate=_emit_seg_invalidate,
         handle_same_identity=_handle_seg_same_identity,
         handle_new=_handle_seg_new,
+        known_common_prefix=known_common_prefix,
     )

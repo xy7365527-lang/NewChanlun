@@ -239,21 +239,16 @@ class TestStrokeBreakWithoutSegmentFormation:
 # C) 三笔重叠边界情况
 # =====================================================================
 
-class TestThreeStrokeOverlapBoundary:
-    """结算锚验证：新段前三笔的重叠条件。
+class TestCharacteristicSequenceFractalTrigger:
+    """67课：特征序列分型即为线段终结条件。
 
-    三笔重叠 ≡ max(lows) < min(highs)
-    相切（max(lows) == min(highs)）不算重叠。
+    特征序列出现分型 → 线段终结，不额外要求新段三笔重叠。
     """
 
-    def test_exact_touch_no_overlap(self):
-        """三笔刚好相切 → 不算重叠 → 不结算。
+    def test_strong_trend_no_overlap_still_settles(self):
+        """新段三笔无重叠（强趋势跳空递减）→ 只要特征序列有分型，线段仍应终结。
 
-        笔 A: h=15, l=10
-        笔 B: h=20, l=15  ← l=15 == h_A=15
-        笔 C: h=25, l=20
-        max(lows)=20, min(highs)=15 → 20 > 15?
-        不对，重新计算：max(10,15,20)=20, min(15,20,25)=15 → 20 > 15 → 无重叠
+        67课原文："出现特征序列的分型，是线段结束的前提条件。"
         """
         strokes = [
             # 向上段基础
@@ -262,27 +257,18 @@ class TestThreeStrokeOverlapBoundary:
             _s(8, 12, "up", 35, 7),
             _s(12, 16, "down", 32, 10),
             _s(16, 20, "up", 38, 9),
-            # 分型触发后，新段三笔（跳空递增，无重叠）
+            # 分型触发后，新段三笔（跳空递减，无重叠）
             _s(20, 24, "down", 25, 15),   # h=25, l=15
             _s(24, 28, "up", 14, 10),     # h=14, l=10
             _s(28, 32, "down", 9, 5),     # h=9, l=5
             _s(32, 36, "up", 4, 1),       # h=4, l=1
         ]
         segs = segments_from_strokes_v1(strokes)
-        # 如果新段无重叠，旧段应延续
-        if len(segs) >= 2 and segs[0].confirmed:
-            # 如果确实 settled，验证新段有重叠
-            k = segs[0].s1 + 1 if segs[0].break_evidence is None else segs[0].break_evidence.trigger_stroke_k
-            if k + 2 < len(strokes):
-                s1, s2, s3 = strokes[k], strokes[k+1], strokes[k+2]
-                overlap = max(s1.low, s2.low, s3.low) < min(s1.high, s2.high, s3.high)
-                assert overlap, "settled 段的新段三笔必须有重叠"
+        confirmed = [s for s in segs if s.confirmed]
+        assert len(confirmed) >= 1, "特征序列分型应触发断段，无论新段是否有三笔重叠"
 
     def test_clear_overlap_settles(self):
-        """三笔明确重叠 → 结算。
-
-        新段笔全在 10-20 区间内 → max(lows) < min(highs) → 重叠。
-        """
+        """新段有明确重叠 → 当然结算。"""
         strokes = [
             _s(0, 4, "up", 20, 5),
             _s(4, 8, "down", 18, 9),
@@ -296,7 +282,6 @@ class TestThreeStrokeOverlapBoundary:
             _s(32, 36, "up", 15, 12),
         ]
         segs = segments_from_strokes_v1(strokes)
-        # 应至少有 2 段（旧段 settled + 新段）
         if len(segs) >= 2:
             assert segs[0].confirmed
 

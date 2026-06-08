@@ -355,3 +355,75 @@ class TestSegmentEventDeterminism:
         # 所有事件的 seq 应单调递增
         for i in range(1, len(snap.events)):
             assert snap.events[i].seq > snap.events[i - 1].seq
+
+
+# =====================================================================
+# 6) strict vs optimized 延续模式
+# =====================================================================
+
+class TestStrictVsOptimizedExtendMode:
+    """67课严格延续：缺口被 c 封闭时按第一种情况处理。
+
+    构造场景：向上段的特征序列分型有缺口，但 c 元素封闭了缺口。
+    - strict 模式：按 Case 1 处理 → 立即断段
+    - optimized 模式：走 Case 2 → 第二特征序列无分型 → 段延续
+
+    原文依据（67课缠师答疑）：
+    "这里是第一种情况，也就是特征序列缺口被第一笔就封闭的情况"
+    "在第二种情况下，即使封闭，肯定不是被第一个给封闭的，
+     因为这样就变成第一种情况了"
+    """
+
+    def _strokes(self):
+        """向上段，特征序列有缺口且 c 封闭。
+
+        char seq (down strokes):
+          a: [h=12, l=8]  (s1)
+          b: [h=22, l=14] (s3) — gap: b_l(14) >= a_h(12) ✓
+          c: [h=18, l=11] (s5) — top fractal: b_h(22) > a_h(12) ✓, b_h(22) > c_h(18) ✓
+                                  c closes gap: c_l(11) <= a_h(12) ✓
+
+        second char seq (up strokes from s3+1):
+          s4: [h=20, l=13], s6: [h=16, l=9] → only 2 elems → no fractal
+        """
+        return [
+            _s(0,   5,  "up",    15,  5),
+            _s(5,  10,  "down",  12,  8),
+            _s(10, 15,  "up",    25, 10),
+            _s(15, 20,  "down",  22, 14),
+            _s(20, 25,  "up",    20, 13),
+            _s(25, 30,  "down",  18, 11),
+            _s(30, 35,  "up",    16,  9),
+            _s(35, 40,  "down",  14,  6),
+        ]
+
+    def test_strict_produces_more_segments(self):
+        """strict 模式应比 optimized 多断出段。"""
+        strokes = self._strokes()
+        segs_strict = segments_from_strokes_v1(strokes, extend_mode="strict")
+        segs_opt = segments_from_strokes_v1(strokes, extend_mode="optimized")
+        assert len(segs_strict) > len(segs_opt)
+
+    def test_strict_break_at_gap_closed(self):
+        """strict 模式在缺口被 c 封闭处断段。"""
+        strokes = self._strokes()
+        segs = segments_from_strokes_v1(strokes, extend_mode="strict")
+        assert len(segs) >= 2
+        first = segs[0]
+        assert first.direction == "up"
+        assert first.confirmed is True
+        assert first.break_evidence is not None
+        assert first.break_evidence.gap_type == "none"
+
+    def test_optimized_continues_past_gap(self):
+        """optimized 模式在同一位置不断段。"""
+        strokes = self._strokes()
+        segs = segments_from_strokes_v1(strokes, extend_mode="optimized")
+        assert len(segs) == 1
+
+    def test_default_is_strict(self):
+        """默认参数应为 strict。"""
+        strokes = self._strokes()
+        segs_default = segments_from_strokes_v1(strokes)
+        segs_strict = segments_from_strokes_v1(strokes, extend_mode="strict")
+        assert len(segs_default) == len(segs_strict)

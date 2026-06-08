@@ -22,6 +22,7 @@ from newchan.core.recursion.recursive_level_state import (
     diff_level_moves,
     diff_level_zhongshu,
 )
+from newchan.ph_layer import attach_persistence
 
 
 class RecursiveLevelEngine:
@@ -55,6 +56,7 @@ class RecursiveLevelEngine:
         self._prev_moves: list[Move] = []
         self._event_seq: int = 0
         self._stream_id = stream_id
+        self._last_move_key: tuple = ()
 
     @property
     def current_zhongshus(self) -> list[LevelZhongshu]:
@@ -81,6 +83,7 @@ class RecursiveLevelEngine:
         self._prev_zhongshus = []
         self._prev_moves = []
         self._event_seq = 0
+        self._last_move_key = ()
 
     def _compute_zhongshus(
         self, move_snap: MoveSnapshot,
@@ -131,10 +134,37 @@ class RecursiveLevelEngine:
         5. moves_from_level_zhongshus → Move 列表
         6. diff → 走势事件
         """
+        moves = move_snap.moves
+        n = len(moves)
+        if n >= 1:
+            last_m = moves[-1]
+            move_key = (n, last_m.seg_start, last_m.seg_end, last_m.settled)
+        else:
+            move_key = (0,)
+
+        if move_key == self._last_move_key:
+            # 返回引用（见 SegmentEngine 同款优化）：消除安静 bar 的逐层拷贝。
+            return RecursiveLevelSnapshot(
+                bar_idx=move_snap.bar_idx,
+                bar_ts=move_snap.bar_ts,
+                level_id=self._level_id,
+                zhongshus=self._prev_zhongshus,
+                moves=self._prev_moves,
+                zhongshu_events=[],
+                move_events=[],
+            )
+        self._last_move_key = move_key
+
         curr_zhongshus, _ = self._compute_zhongshus(move_snap)
         zs_events = self._diff_zhongshus(curr_zhongshus, move_snap)
 
         curr_moves = moves_from_level_zhongshus(curr_zhongshus)
+        # persistence 附着移入引擎守卫内（与 level-1 MoveEngine 同构）。
+        # 原 recursive_stack 在守卫外每 bar 无条件 attach_persistence；因
+        # "move_key 未变 ⟹ 返回缓存 zhongshus ⟹ persistence 不变"，移入守卫内
+        # 后缓存路径直接复用已附着的 moves，逐位等价（diff 的 equal_fn 忽略
+        # persistence，故 enrich 前后 diff 结果不变）。认识论等级：L0。
+        curr_moves = attach_persistence(curr_moves, curr_zhongshus)
         move_events = self._diff_moves(curr_moves, move_snap)
 
         self._prev_zhongshus = curr_zhongshus

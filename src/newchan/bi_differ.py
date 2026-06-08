@@ -39,10 +39,18 @@ def _same_origin(a: Stroke, b: Stroke) -> bool:
     return a.i0 == b.i0 and a.direction == b.direction
 
 
-def _find_common_prefix_len(prev: list[Stroke], curr: list[Stroke]) -> int:
-    """找 prev 和 curr 的公共前缀长度（confirmed 且字段完全相同）。"""
-    common_len = 0
-    for i in range(min(len(prev), len(curr))):
+def _find_common_prefix_len(
+    prev: list[Stroke],
+    curr: list[Stroke],
+    known_common: int = 0,
+) -> int:
+    """找 prev 和 curr 的公共前缀长度（confirmed 且字段完全相同）。
+
+    known_common: 调用方保证 prev[:known_common] == curr[:known_common]，
+    跳过这部分比较。BiEngine 通过 checkpoint 维护此值。
+    """
+    common_len = known_common
+    for i in range(known_common, min(len(prev), len(curr))):
         if _strokes_equal(prev[i], curr[i]):
             common_len = i + 1
         else:
@@ -99,12 +107,15 @@ def diff_strokes(
     bar_idx: int,
     bar_ts: float,
     seq_start: int = 0,
+    known_common_prefix: int = 0,
 ) -> list[DomainEvent]:
     """比较前后两次 Stroke 快照，产生域事件列表。
 
     按因果顺序：先 invalidate 旧笔，再 settle/candidate/extend 新笔。
+
+    known_common_prefix: 跳过前 N 个已知相同的笔（BiEngine checkpoint 维护）。
     """
-    common_len = _find_common_prefix_len(prev, curr)
+    common_len = _find_common_prefix_len(prev, curr, known_common_prefix)
     emitter = _EventEmitter(bar_idx, bar_ts, seq_start)
 
     for i in range(common_len, len(prev)):

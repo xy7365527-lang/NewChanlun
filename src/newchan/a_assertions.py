@@ -737,21 +737,10 @@ def _seg_check_top_above_bottom(seg, i: int, name: str, enable: bool) -> AssertR
 
 
 def _seg_check_settlement_anchor(seg, strokes, i: int, name: str, enable: bool) -> AssertResult | None:
-    if not (seg.confirmed and seg.break_evidence is not None and strokes):
-        return None
-    k = seg.break_evidence.trigger_stroke_k
-    if k + 2 >= len(strokes):
-        return None
-    s1 = strokes[k]
-    s2 = strokes[k + 1]
-    s3 = strokes[k + 2]
-    overlap_low = max(s1.low, s2.low, s3.low)
-    overlap_high = min(s1.high, s2.high, s3.high)
-    if overlap_low < overlap_high:
-        return None
-    return _check(name, False,
-                  f"Segment[{i}] settlement anchor violated: "
-                  f"new seg strokes[{k},{k+1},{k+2}] no overlap", enable)
+    # 67课：特征序列分型是线段终结的完整条件，不额外要求新段三笔重叠。
+    # 原检查已移除：强趋势中新段前三笔呈阶梯递进导致三笔交集为空，
+    # 但特征序列分型仍然成立，线段应正常终结。
+    return None
 
 
 def _seg_check_kind_constraints(seg, i: int, is_last: bool, name: str, enable: bool) -> AssertResult | None:

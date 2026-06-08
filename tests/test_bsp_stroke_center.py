@@ -97,10 +97,10 @@ class TestBuySellPointOnStrokeCenter:
         zss_c = zhongshu_from_strokes(cand)
         zss_f = zhongshu_from_strokes(conf)
         t3_c = [b for b in buysellpoints_from_level(
-            cand, zss_c, moves_from_zhongshus(zss_c, len(cand)), [], 1)
+            cand, zss_c, moves_from_zhongshus(zss_c, num_segments=len(cand)), [], 1)
             if b.kind == "type3"]
         t3_f = [b for b in buysellpoints_from_level(
-            conf, zss_f, moves_from_zhongshus(zss_f, len(conf)), [], 1)
+            conf, zss_f, moves_from_zhongshus(zss_f, num_segments=len(conf)), [], 1)
             if b.kind == "type3"]
         # 同一终端递归单位级别上，confirmed 仅由结构（延续段）翻转
         assert t3_c[0].confirmed is False

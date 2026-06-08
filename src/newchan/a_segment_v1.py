@@ -1,16 +1,15 @@
 """A 系统 — 线段 v1（从缠论原文定义重写）
 
-缠论原文三条核心规则：
-  1. 线段至少由连续的三笔构成，且起始三笔必须有重叠部分
-  2. 线段被破坏，当且仅当至少被有重叠部分的连续三笔的其中一笔破坏
-  3. 线段被破坏的充要条件就是另一个线段生成
-
-实现方法：
-  - 增量构建特征序列（反向笔），逐笔推进
-  - 标准包含处理（局部方向，和K线包含一致）
-  - 分型触发收段（向上段找顶分型，向下段找底分型）
+特征序列法（67课精确定义）：
+  - 构造标准特征序列（反向笔 + 包含处理）
+  - 向上段找顶分型，向下段找底分型
+  - 第一种情况：分型第一、第二元素间无缺口 → 线段在分型极值处终结
+  - 第二种情况：分型第一、第二元素间有缺口 → 需第二特征序列出现分型
   - 段终点 = 分型中心 b 对应反向笔之前的同向笔 (stroke[k-1])
   - 新段起点 = 分型中心 b 对应的反向笔 (stroke[k])
+
+67课原文："本课，就是把前面'线段破坏的充要条件就是被另一个线段破坏'
+精确化了。因此，以后关于线段的划分，都以此精确的定义为基础。"
 
 规格引用: 缠论.pdf L35-41, L175
 
@@ -220,15 +219,22 @@ def _apply_inclusion(
 
 
 def _has_any_fractal(elements: list[list[float]]) -> bool:
-    """在元素序列中检测是否存在任意分型（顶或底）。"""
+    """在元素序列中检测是否存在任意分型（顶或底）。
+
+    第二特征序列分型检测：67课"第二个序列中的分型，不分第一二种情况，
+    只要有分型就可以"。使用与主特征序列一致的极值条件。
+    """
     n = len(elements)
     for j in range(1, n - 1):
-        a_h, a_l = elements[j - 1][0], elements[j - 1][1]
-        b_h, b_l = elements[j][0], elements[j][1]
-        c_h, c_l = elements[j + 1][0], elements[j + 1][1]
-        if b_h > a_h and b_h > c_h and b_l > a_l and b_l > c_l:
+        b_h = elements[j][0]
+        b_l = elements[j][1]
+        a_h = elements[j - 1][0]
+        a_l = elements[j - 1][1]
+        c_h = elements[j + 1][0]
+        c_l = elements[j + 1][1]
+        if b_h > a_h and b_h > c_h:
             return True
-        if b_l < a_l and b_l < c_l and b_h < a_h and b_h < c_h:
+        if b_l < a_l and b_l < c_l:
             return True
     return False
 
@@ -241,13 +247,21 @@ def _is_fractal_and_gap(
 ) -> tuple[bool, bool]:
     """检测 (a,b,c) 是否构成目标分型，以及 a-b 间是否有缺口。
 
+    特征序列分型仅检查趋势方向上的极值：
+    - 向上段顶分型：b 的 HIGH 高于两侧（反向笔不再创新高 → 趋势转折）
+    - 向下段底分型：b 的 LOW 低于两侧（反向笔不再创新低 → 趋势转折）
+
+    特征序列元素是笔（非单根K线），范围可达数十点。四条件检测
+    在宽幅笔上系统性失效——崩盘笔的 LOW 低于后续笔，但其 HIGH
+    仍是转折信号。
+
     Returns (is_fractal, has_gap).
     """
     if seg_direction == "up":
-        is_fractal = b_h > a_h and b_h > c_h and b_l > a_l and b_l > c_l
+        is_fractal = b_h > a_h and b_h > c_h
         has_gap = b_l >= a_h if is_fractal else False
     else:
-        is_fractal = b_l < a_l and b_l < c_l and b_h < a_h and b_h < c_h
+        is_fractal = b_l < a_l and b_l < c_l
         has_gap = a_l >= b_h if is_fractal else False
     return is_fractal, has_gap
 
@@ -258,7 +272,11 @@ class _FeatureSeqState:
     # 尾窗扫描大小：分型检测只在最近 N 个元素内进行
     TAIL_WINDOW: int = 7
 
-    def __init__(self, seg_direction: str = "up") -> None:
+    def __init__(
+        self,
+        seg_direction: str = "up",
+        extend_mode: str = "strict",
+    ) -> None:
         # 标准特征序列：每个元素 = [high, low, stroke_idx]
         self.std: list[list[float | int]] = []
         # 向上段特征序列（down笔）趋势向上 → 初始 None（默认UP）
@@ -266,6 +284,7 @@ class _FeatureSeqState:
         self.dir_state: str | None = "DOWN" if seg_direction == "down" else None
         self.last_checked: int = 0  # 上次分型检查的起始位置
         self._skip_until_stroke: int = -1  # 跳过 stroke_idx <= 此值的分型
+        self._extend_mode: str = extend_mode
 
     def reset(self, seg_direction: str = "up") -> None:
         self.std = []
@@ -281,8 +300,22 @@ class _FeatureSeqState:
         """
         self._skip_until_stroke = stroke_idx
 
-    def append(self, stroke_idx: int, high: float, low: float) -> None:
-        """增量添加一个反向笔并做包含处理。"""
+    def append(
+        self,
+        stroke_idx: int,
+        high: float,
+        low: float,
+        seg_direction: str = "up",
+        strokes: list | None = None,
+    ) -> None:
+        """增量添加一个反向笔，包含处理遵循71课"假设转折点"规则。
+
+        71课："在这假设的转折点前后那两元素，是不存在包含关系的。"
+
+        当检测到包含关系时，先尝试不合并（保持分离），检查是否形成分型：
+        - 有分型 → 不合并（此处是转折点，两元素属不同特征序列）
+        - 无分型 → 按标准K线包含规则合并
+        """
         if not self.std:
             self.std.append([high, low, stroke_idx])
             return
@@ -295,6 +328,11 @@ class _FeatureSeqState:
         has_inclusion = left_inc or right_inc
 
         if has_inclusion:
+            self.std.append([high, low, stroke_idx])
+            if strokes is not None and self.scan_trigger(seg_direction, strokes) is not None:
+                return
+            self.std.pop()
+
             effective_up = self.dir_state != "DOWN"
             if effective_up:
                 last[0] = max(last_h, high)
@@ -303,7 +341,6 @@ class _FeatureSeqState:
                 last[0] = min(last_h, high)
                 last[1] = min(last_l, low)
             last[2] = stroke_idx
-            # 包含合并修改了尾部元素 → 回退 last_checked 让分型检查覆盖它
             self.last_checked = max(0, len(self.std) - 3)
         else:
             if high > last_h and low > last_l:
@@ -312,22 +349,30 @@ class _FeatureSeqState:
                 self.dir_state = "DOWN"
             self.std.append([high, low, stroke_idx])
 
+    MAX_SECOND_SEQ_SCAN: int = 50
+
     @staticmethod
     def _second_seq_has_fractal(
         strokes: list[Stroke],
         seg_dir: str,
         from_stroke_idx: int,
+        max_scan: int = 50,
     ) -> bool:
         """检查第二特征序列是否存在分型。
 
         第67课第二种情况：特征序列分型的第一、第二元素间有缺口时，
         需要从分型中心开始构建**第二特征序列**（同向笔，即 seg_dir 方向），
         对其独立做包含处理，只要出现任意分型即可。
+
+        扫描窗口限制在 max_scan 笔以内（含双向）。第二特征序列
+        的分型如果存在，应在缺口附近形成。扫描数百笔远处的分型
+        在操作上没有意义，且导致 O(n²) 性能退化。
         """
         elements: list[list[float]] = []
         dir_state: str | None = "DOWN" if seg_dir == "up" else None
+        end_idx = min(from_stroke_idx + 1 + max_scan, len(strokes))
 
-        for i in range(from_stroke_idx + 1, len(strokes)):
+        for i in range(from_stroke_idx + 1, end_idx):
             sk = strokes[i]
             if sk.direction != seg_dir:
                 continue
@@ -365,6 +410,17 @@ class _FeatureSeqState:
             )
             if not is_fractal:
                 continue
+
+            # 67课严格延续：缺口被 c 封闭 → 按第一种情况处理
+            # 原文："特征序列缺口被第一笔就封闭的情况……就变成第一种情况了"
+            if has_gap and self._extend_mode == "strict":
+                if seg_direction == "up":
+                    gap_closed_by_c = c_l <= a_h
+                else:
+                    gap_closed_by_c = c_h >= a_l
+                if gap_closed_by_c:
+                    has_gap = False
+
             if has_gap and not self._second_seq_has_fractal(
                 strokes, seg_direction, b_stroke,
             ):
@@ -414,13 +470,6 @@ def _try_trigger_segment(
             "ep0=%.4f, ep1=%.4f — will be standardized in _make_segment",
             seg_dir, seg_start, end_stroke, ep0_price, ep1_price,
         )
-
-    # 结算锚验证：新段前三笔必须有重叠
-    if k + 2 >= n or not _three_stroke_overlap(
-        strokes[k], strokes[k + 1], strokes[k + 2]
-    ):
-        feat.skip_trigger(k)
-        return None
 
     break_ev = BreakEvidence(
         trigger_stroke_k=k,
@@ -500,20 +549,44 @@ def _emit_segment(
 def segments_from_strokes_v1(
     strokes: list[Stroke],
     min_seg_strokes: int = 3,
+    extend_mode: Literal["strict", "optimized"] = "strict",
+    *,
+    _resume: tuple[list[Segment], int, str] | None = None,
 ) -> list[Segment]:
-    """v1 线段构造：增量特征序列法，逐笔推进检查特征序列分型触发断段。"""
+    """v1 线段构造：增量特征序列法，逐笔推进检查特征序列分型触发断段。
+
+    extend_mode:
+        "strict"    — 67课严格延续：缺口被 c 封闭时按第一种情况处理（段更容易终结）
+        "optimized" — 优化延续：任何缺口都走第二种情况（段更容易延续）
+
+    _resume:
+        增量恢复参数 (pre_segments, seg_start, seg_dir)。
+        从已确认线段的断点处恢复计算，跳过已确认部分。
+        seg_start = 下一段起始笔索引，seg_dir = 下一段方向。
+    """
     n = len(strokes)
     if n < 3:
         return []
 
-    segments: list[Segment] = []
-    seg_start = _find_overlap_start(strokes, 0)
-    if seg_start is None:
-        return []
-
-    seg_dir: Literal["up", "down"] = strokes[seg_start].direction
-    feat = _FeatureSeqState(seg_dir)
-    cursor = seg_start
+    if _resume is not None:
+        pre_segments, resume_start, resume_dir = _resume
+        segments: list[Segment] = list(pre_segments)
+        if resume_start >= n:
+            _finalize_last_segment(segments, strokes, resume_start, resume_dir, min_seg_strokes, n)
+            _ensure_last_unconfirmed(segments, strokes)
+            return segments
+        seg_start: int = resume_start
+        seg_dir: Literal["up", "down"] = resume_dir  # type: ignore[assignment]
+        feat = _FeatureSeqState(seg_dir, extend_mode=extend_mode)
+        cursor: int = seg_start
+    else:
+        segments = []
+        seg_start = _find_overlap_start(strokes, 0)
+        if seg_start is None:
+            return []
+        seg_dir = strokes[seg_start].direction
+        feat = _FeatureSeqState(seg_dir, extend_mode=extend_mode)
+        cursor = seg_start
 
     while cursor < n:
         sk = strokes[cursor]
@@ -522,7 +595,7 @@ def segments_from_strokes_v1(
             cursor += 1
             continue
 
-        feat.append(cursor, sk.high, sk.low)
+        feat.append(cursor, sk.high, sk.low, seg_dir, strokes)
         result = _try_trigger_segment(
             feat, seg_dir, strokes, seg_start, min_seg_strokes, n,
         )

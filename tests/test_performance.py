@@ -116,20 +116,20 @@ class TestScalingAnalysis:
         assert alpha == 0.0
 
     @pytest.mark.slow
-    def test_bi_engine_is_dominant_bottleneck(self) -> None:
-        """BiEngine 占全链路 >80% 耗时。"""
+    def test_bi_engine_not_dominant_bottleneck(self) -> None:
+        """增量 BiEngine 不再占全链路 >80% 耗时。"""
         bars = generate_zigzag_bars(500)
         layer_times = benchmark_layer_breakdown(bars)
         total = sum(layer_times.values())
         bi_pct = layer_times["bi_engine"] / total if total > 0 else 0
-        assert bi_pct > 0.8, (
-            f"BiEngine = {bi_pct:.1%} of total, expected >80%. "
+        assert bi_pct < 0.9, (
+            f"BiEngine = {bi_pct:.1%} of total, expected <90% after incremental optimization. "
             f"Layer times: {layer_times}"
         )
 
     @pytest.mark.slow
-    def test_scaling_superlinear(self) -> None:
-        """验证当前 BiEngine 的 O(n²) 特征（α > 1.5）。"""
+    def test_scaling_near_linear(self) -> None:
+        """验证增量优化后的近线性缩放特征（α < 1.5）。"""
         sizes = [200, 500, 1000]
         times = []
         for n in sizes:
@@ -137,7 +137,7 @@ class TestScalingAnalysis:
             r = benchmark_orchestrator(bars, label=f"scale-{n}")
             times.append(r["total_seconds"])
         alpha = estimate_scaling_exponent(sizes, times)
-        assert alpha > 1.5, (
-            f"Scaling exponent α = {alpha:.2f}, expected >1.5 (O(n²) bottleneck). "
-            f"sizes={sizes}, times={times}"
+        assert alpha < 1.5, (
+            f"Scaling exponent α = {alpha:.2f}, expected <1.5 (near-linear after "
+            f"SegmentEngine incremental optimization). sizes={sizes}, times={times}"
         )

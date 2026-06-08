@@ -41,6 +41,8 @@ testpaths = ["tests"]
 pythonpath = ["src", "scripts"]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "unit: marks tests as fast isolated unit tests",
+    "integration: marks tests as integration tests",
 ]
 asyncio_mode = "auto"
 

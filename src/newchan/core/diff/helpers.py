@@ -57,10 +57,14 @@ def find_common_prefix(
     prev: Sequence[T],
     curr: Sequence[T],
     equal_fn: Callable[[T, T], bool],
+    known_common: int = 0,
 ) -> int:
-    """返回 prev/curr 的公共前缀长度。"""
-    common = 0
-    for i in range(min(len(prev), len(curr))):
+    """返回 prev/curr 的公共前缀长度。
+
+    known_common: 跳过前 N 个已知相同的元素（由调用方 checkpoint 保证）。
+    """
+    common = known_common
+    for i in range(known_common, min(len(prev), len(curr))):
         if equal_fn(prev[i], curr[i]):
             common = i + 1
         else:
@@ -81,8 +85,11 @@ def diff_by_prefix(
     handle_same_identity: Callable[[Callable[..., None], int, T, T], None],
     handle_new: Callable[[Callable[..., None], int, T], None],
     extra_kwargs: dict[str, object] | None = None,
+    known_common_prefix: int = 0,
 ) -> list[DomainEvent]:
     """前缀式 diff 骨架 — segment/zhongshu/move 共用。
+
+    known_common_prefix: 跳过前 N 个已知相同的元素。
 
     Returns
     -------
@@ -93,7 +100,7 @@ def diff_by_prefix(
     seq_box = [seq_start]
     _append = make_appender(events, bar_idx, bar_ts, seq_box, extra_kwargs)
 
-    common_len = find_common_prefix(prev, curr, equal_fn)
+    common_len = find_common_prefix(prev, curr, equal_fn, known_common_prefix)
 
     # prev 后缀 → invalidated（跳过同身份升级项）
     for i in range(common_len, len(prev)):

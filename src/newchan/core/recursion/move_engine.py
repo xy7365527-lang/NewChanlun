@@ -17,6 +17,7 @@ from newchan.a_move_v1 import Move, moves_from_zhongshus
 from newchan.core.recursion.move_state import MoveSnapshot, diff_moves
 from newchan.core.recursion.zhongshu_state import ZhongshuSnapshot
 from newchan.events import DomainEvent
+from newchan.ph_layer import attach_persistence
 
 
 class MoveEngine:
@@ -43,6 +44,7 @@ class MoveEngine:
         self._prev_moves: list[Move] = []
         self._event_seq: int = 0
         self._stream_id = stream_id
+        self._last_zs_key: tuple = ()
 
     @property
     def current_moves(self) -> list[Move]:
@@ -58,6 +60,7 @@ class MoveEngine:
         """重置引擎到初始状态（用于回放 seek）。"""
         self._prev_moves = []
         self._event_seq = 0
+        self._last_zs_key = ()
 
     def process_zhongshu_snapshot(
         self,
@@ -78,10 +81,41 @@ class MoveEngine:
         MoveSnapshot
             包含当前 Move 列表和本轮产生的 move 事件。
         """
-        # 1. 全量计算 Move（传递 num_segments 扩展 C段覆盖）
-        curr_moves = moves_from_zhongshus(zs_snap.zhongshus, num_segments=num_segments)
+        zss = zs_snap.zhongshus
+        n_zs = len(zss)
+        # O(1) settled 推导（替代 O(N_zs)/bar 的 sum + next-reversed 扫描）。
+        # 结构不变量：_scan_zhongshu 的控制流（append→settled 则 continue 否则
+        # break）保证 zss[:-1] 全部 settled，仅 zss[-1] 可能未 settled。
+        # 故 n_settled / last_settled 可由尾元素 O(1) 推导，与全列表扫描逐位等价。
+        # 认识论等级：L0（结构恒等式，零信息增量）。回归测试为正确性闸门。
+        if n_zs == 0:
+            zs_key = (0, 0, num_segments)
+        else:
+            last = zss[-1]
+            if last.settled:
+                n_settled = n_zs
+                last_settled = last
+            else:
+                n_settled = n_zs - 1
+                last_settled = zss[-2] if n_zs >= 2 else None
+            if n_settled >= 1:
+                zs_key = (n_zs, n_settled, last_settled.seg_end, num_segments)
+            else:
+                zs_key = (n_zs, 0, num_segments)
 
-        # 2. diff 产生事件
+        if zs_key == self._last_zs_key:
+            # 返回引用（见 SegmentEngine 同款优化）：消除安静 bar 的 O(N_moves) 拷贝。
+            return MoveSnapshot(
+                bar_idx=zs_snap.bar_idx,
+                bar_ts=zs_snap.bar_ts,
+                moves=self._prev_moves,
+                events=[],
+            )
+        self._last_zs_key = zs_key
+
+        curr_moves = moves_from_zhongshus(zss, num_segments=num_segments)
+        curr_moves = attach_persistence(curr_moves, zss)
+
         events = diff_moves(
             self._prev_moves,
             curr_moves,
@@ -91,7 +125,6 @@ class MoveEngine:
         )
         self._event_seq += len(events)
 
-        # 3. 更新状态
         self._prev_moves = curr_moves
 
         return MoveSnapshot(

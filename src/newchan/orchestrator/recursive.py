@@ -111,6 +111,10 @@ class RecursiveOrchestrator:
         # 事件总线
         self.bus = EventBus()
 
+        # LStar 变更检测
+        self._last_lstar_key: tuple = ()
+        self._cached_lstar: LStar | None = None
+
     @property
     def max_levels(self) -> int:
         """最大递归深度。"""
@@ -126,6 +130,8 @@ class RecursiveOrchestrator:
         self._move_engine.reset()
         self._bsp_engine.reset()
         self._recursive_stack.reset()
+        self._last_lstar_key = ()
+        self._cached_lstar = None
 
     def _collect_events(
         self,
@@ -137,6 +143,16 @@ class RecursiveOrchestrator:
         recursive_snaps: list[RecursiveLevelSnapshot],
     ) -> list[DomainEvent]:
         """收集所有层级的域事件并推入事件总线。"""
+        if (
+            not bi_snap.events
+            and not seg_snap.events
+            and not zs_snap.events
+            and not move_snap.events
+            and not bsp_snap.events
+            and all(not rs.zhongshu_events and not rs.move_events for rs in recursive_snaps)
+        ):
+            return []
+
         all_events: list[DomainEvent] = list(bi_snap.events)
         if seg_snap.events:
             all_events.extend(seg_snap.events)
@@ -147,8 +163,10 @@ class RecursiveOrchestrator:
         if bsp_snap.events:
             all_events.extend(bsp_snap.events)
         for rs in recursive_snaps:
-            all_events.extend(rs.zhongshu_events)
-            all_events.extend(rs.move_events)
+            if rs.zhongshu_events:
+                all_events.extend(rs.zhongshu_events)
+            if rs.move_events:
+                all_events.extend(rs.move_events)
 
         self.bus.push("L1", all_events, stream_id=self._stream_id)
         for rs in recursive_snaps:
@@ -214,8 +232,18 @@ class RecursiveOrchestrator:
             all_events=all_events,
             lstar=None,
         )
-        # 延迟导入避免循环依赖（adapter → recursive → adapter）
-        from newchan.a_level_fsm_adapter import select_lstar_from_recursive_snapshot  # noqa: E402
 
-        snap.lstar = select_lstar_from_recursive_snapshot(snap, bar.close)
+        n_segs = len(seg_snap.segments)
+        n_zs = len(zs_snap.zhongshus)
+        n_moves = len(move_snap.moves)
+        n_rec = len(recursive_snaps)
+        lstar_key = (n_segs, n_zs, n_moves, n_rec)
+        if lstar_key == self._last_lstar_key:
+            snap.lstar = self._cached_lstar
+        else:
+            from newchan.a_level_fsm_adapter import select_lstar_from_recursive_snapshot  # noqa: E402
+            snap.lstar = select_lstar_from_recursive_snapshot(snap, bar.close)
+            self._last_lstar_key = lstar_key
+            self._cached_lstar = snap.lstar
+
         return snap

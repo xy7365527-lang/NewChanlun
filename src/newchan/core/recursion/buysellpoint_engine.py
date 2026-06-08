@@ -53,6 +53,7 @@ class BuySellPointEngine:
         self._event_seq: int = 0
         self._level_id = level_id
         self._stream_id = stream_id
+        self._last_input_key: tuple = ()
 
     @property
     def current_buysellpoints(self) -> list[BuySellPoint]:
@@ -68,6 +69,7 @@ class BuySellPointEngine:
         """重置引擎到初始状态（用于回放 seek）。"""
         self._prev_bsps = []
         self._event_seq = 0
+        self._last_input_key = ()
 
     def process_snapshots(
         self,
@@ -84,6 +86,25 @@ class BuySellPointEngine:
         否则退化为价格振幅 fallback（见 a_divergence_v1._compute_force）。两者
         都默认 None 以保持原有调用方行为不变（engine_vs_tv_comparison.md §7.4）。
         """
+        segs = seg_snap.segments
+        n_seg = len(segs)
+        n_zs = len(zs_snap.zhongshus)
+        n_mv = len(move_snap.moves)
+        if n_seg >= 2:
+            s = segs[-2]
+            input_key = (n_seg, s.s0, s.s1, n_zs, n_mv)
+        else:
+            input_key = (n_seg, n_zs, n_mv)
+
+        if input_key == self._last_input_key:
+            return BuySellPointSnapshot(
+                bar_idx=move_snap.bar_idx,
+                bar_ts=move_snap.bar_ts,
+                buysellpoints=list(self._prev_bsps),
+                events=[],
+            )
+        self._last_input_key = input_key
+
         curr_bsps = self._compute_buysellpoints(
             move_snap, zs_snap, seg_snap, df_macd, merged_to_raw,
         )
