@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chanlun Viewer</title>
+<script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:#131722; color:#d1d4dc; display:flex; height:100vh; }
+#sidebar { width:260px; background:#1e222d; border-right:1px solid #2a2e39; display:flex; flex-direction:column; overflow:hidden; }
+#main { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+.header { padding:8px 16px; background:#1e222d; border-bottom:1px solid #2a2e39; display:flex; align-items:center; gap:12px; flex-shrink:0; }
+.header h1 { font-size:16px; font-weight:600; }
+.header .stats { font-size:12px; color:#787b86; }
+.header .stats span { color:#d1d4dc; }
+.tabs { padding:6px 16px; background:#1e222d; display:flex; gap:6px; border-bottom:1px solid #2a2e39; flex-shrink:0; flex-wrap:wrap; }
+.tab-btn { padding:4px 10px; border:1px solid #2a2e39; background:#131722; color:#787b86; border-radius:3px; cursor:pointer; font-size:11px; }
+.tab-btn:hover { background:#2a2e39; }
+.tab-btn.active { background:#2962ff; color:#fff; border-color:#2962ff; }
+.controls { padding:6px 16px; background:#1e222d; display:flex; gap:10px; align-items:center; font-size:11px; flex-shrink:0; }
+.controls label { display:flex; align-items:center; gap:3px; cursor:pointer; color:#787b86; }
+.controls input[type=checkbox] { accent-color:#2962ff; }
+#chart-main { flex:3; min-height:0; }
+#chart-macd { height:120px; border-top:1px solid #2a2e39; flex-shrink:0; }
+#rec-panel { display:none; padding:8px 16px; font-size:11px; background:#1e222d; border-top:1px solid #2a2e39; max-height:200px; overflow-y:auto; flex-shrink:0; }
+#rec-panel table { border-collapse:collapse; width:100%; }
+#rec-panel th,#rec-panel td { padding:2px 6px; text-align:left; border-bottom:1px solid #2a2e39; }
+#rec-panel th { color:#787b86; }
+.ws-status { padding:4px 8px; border-radius:3px; font-size:11px; }
+.ws-status.connected { background:#1b5e20; color:#66bb6a; }
+.ws-status.disconnected { background:#4a1c1c; color:#ef5350; }
+.ws-status.static { background:#33302a; color:#ffa726; }
+#sidebar h2 { padding:10px 12px; font-size:13px; border-bottom:1px solid #2a2e39; color:#787b86; }
+#ph-barcode { flex:1; padding:8px; overflow-y:auto; }
+.ph-bar { display:flex; align-items:center; gap:6px; padding:2px 0; font-size:10px; }
+.ph-bar-line { height:3px; border-radius:1px; min-width:4px; }
+.ph-bar .pers { color:#787b86; width:40px; text-align:right; }
+#ph-stats { padding:8px 12px; border-top:1px solid #2a2e39; font-size:11px; color:#787b86; }
+.bsp-legend { padding:8px 12px; border-bottom:1px solid #2a2e39; font-size:11px; }
+.bsp-legend div { padding:2px 0; display:flex; align-items:center; gap:6px; }
+.bsp-dot { width:8px; height:8px; border-radius:50%; display:inline-block; }
+</style>
+</head>
+<body>
+
+<div id="sidebar">
+  <h2>PH Persistence Barcode</h2>
+  <div class="bsp-legend">
+    <div><span class="bsp-dot" style="background:#e91e63"></span> Buy (candidate: hollow)</div>
+    <div><span class="bsp-dot" style="background:#2196f3"></span> Sell (candidate: hollow)</div>
+    <div><span class="bsp-dot" style="background:#e91e63;border:2px solid #e91e63;width:4px;height:4px"></span> Confirmed</div>
+    <div><span class="bsp-dot" style="background:#ffd600"></span> Settled</div>
+  </div>
+  <div id="ph-barcode"></div>
+  <div id="ph-stats"></div>
+</div>
+
+<div id="main">
+  <div class="header">
+    <h1 id="title">Chanlun Viewer</h1>
+    <div class="stats" id="stats-bar">Loading...</div>
+    <span class="ws-status static" id="ws-status">Static</span>
+  </div>
+  <div class="tabs" id="tabs-bar">
+    <button class="tab-btn active" onclick="showTab('L1',this)">L1</button>
+  </div>
+  <div class="controls">
+    <label><input type="checkbox" id="cb-strokes" checked onchange="toggleLayer('strokes')"> Strokes</label>
+    <label><input type="checkbox" id="cb-segments" checked onchange="toggleLayer('segments')"> Segments</label>
+    <label><input type="checkbox" id="cb-zhongshus" checked onchange="toggleLayer('zhongshus')"> Zhongshus</label>
+    <label><input type="checkbox" id="cb-bsp" checked onchange="toggleLayer('bsp')"> BSPs</label>
+    <label><input type="checkbox" id="cb-macd" checked onchange="toggleLayer('macd')"> MACD</label>
+    <label style="margin-left:auto">
+      <input type="text" id="ws-url" value="ws://localhost:8765" style="width:160px;background:#131722;border:1px solid #2a2e39;color:#d1d4dc;padding:2px 6px;border-radius:3px;font-size:11px">
+      <button onclick="connectWS()" style="background:#2962ff;color:#fff;border:none;padding:3px 10px;border-radius:3px;cursor:pointer;font-size:11px">Connect</button>
+    </label>
+  </div>
+  <div id="chart-main"></div>
+  <div id="chart-macd"></div>
+  <div id="rec-panel"></div>
+</div>
+
+<script>
+const mainEl = document.getElementById('chart-main');
+const macdEl = document.getElementById('chart-macd');
+
+const chartOpts = {
+  layout: { background: { color:'#131722' }, textColor:'#d1d4dc' },
+  grid: { vertLines: { color:'#1e222d' }, horzLines: { color:'#1e222d' } },
+  crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+  rightPriceScale: { borderColor:'#2a2e39' },
+  timeScale: { borderColor:'#2a2e39', timeVisible:true, secondsVisible:false },
+};
+
+const mainChart = LightweightCharts.createChart(mainEl, chartOpts);
+const macdChart = LightweightCharts.createChart(macdEl, {
+  ...chartOpts,
+  rightPriceScale: { borderColor:'#2a2e39', scaleMargins: { top:0.1, bottom:0.1 } },
+});
+
+let syncingCharts = false;
+mainChart.timeScale().subscribeVisibleTimeRangeChange(range => {
+  if (range && !syncingCharts) { syncingCharts = true; try { macdChart.timeScale().setVisibleRange(range); } catch(e){} syncingCharts = false; }
+});
+macdChart.timeScale().subscribeVisibleTimeRangeChange(range => {
+  if (range && !syncingCharts) { syncingCharts = true; try { mainChart.timeScale().setVisibleRange(range); } catch(e){} syncingCharts = false; }
+});
+
+const candleSeries = mainChart.addCandlestickSeries({
+  upColor:'#26a69a', downColor:'#ef5350',
+  borderUpColor:'#26a69a', borderDownColor:'#ef5350',
+  wickUpColor:'#26a69a', wickDownColor:'#ef5350',
+});
+const strokeSeries = mainChart.addLineSeries({
+  color:'#42a5f5', lineWidth:1, crosshairMarkerVisible:false,
+  lastValueVisible:false, priceLineVisible:false,
+});
+const segSeries = mainChart.addLineSeries({
+  color:'#ff9800', lineWidth:2, crosshairMarkerVisible:false,
+  lastValueVisible:false, priceLineVisible:false,
+});
+
+const macdLineSeries = macdChart.addLineSeries({
+  color:'#2196f3', lineWidth:1, lastValueVisible:false, priceLineVisible:false,
+});
+const signalLineSeries = macdChart.addLineSeries({
+  color:'#ff9800', lineWidth:1, lastValueVisible:false, priceLineVisible:false,
+});
+const histSeries = macdChart.addHistogramSeries({
+  priceFormat: { type:'price', precision:6 },
+  lastValueVisible:false, priceLineVisible:false,
+});
+
+let zsBoxes = [];
+let allOhlc = [];
+let allMarkers = [];
+
+function tsEpoch(s) {
+  const d = new Date(s);
+  return Math.floor(d.getTime() / 1000);
+}
+
+function loadStaticData() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+  input.onchange = e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const data = JSON.parse(ev.target.result);
+      renderData(data);
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+}
+
+function downsampleOhlc(ohlc, maxBars) {
+  if (ohlc.length <= maxBars) return ohlc;
+  const step = Math.ceil(ohlc.length / maxBars);
+  const result = [];
+  for (let i = 0; i < ohlc.length; i += step) {
+    const chunk = ohlc.slice(i, i + step);
+    result.push({
+      t: chunk[0].t, o: chunk[0].o, c: chunk[chunk.length-1].c,
+      h: Math.max(...chunk.map(c => c.h)), l: Math.min(...chunk.map(c => c.l)),
+    });
+  }
+  return result;
+}
+
+function renderData(data) {
+  const symbol = data.meta?.symbol || 'Unknown';
+  document.getElementById('title').textContent = symbol + ' Chanlun';
+
+  const rawOhlc = data.ohlc || [];
+  const ohlc = downsampleOhlc(rawOhlc, 60000);
+  const ohlcLC = ohlc.map(b => ({ time: tsEpoch(b.t), open:b.o, high:b.h, low:b.l, close:b.c }))
+    .filter(b => b.time > 0);
+  candleSeries.setData(ohlcLC);
+  allOhlc = ohlcLC;
+
+  const l1 = data.L1 || {};
+  const strokes = l1.strokes || [];
+  const segments = l1.segments || [];
+  const zhongshus = l1.zhongshus || [];
+  const bsps = l1.bsp || [];
+  const moves = l1.moves || [];
+  const rec = data.recursive || {};
+  const macd = data.macd || [];
+  const ph = data.ph || [];
+
+  // Stats
+  const statsHtml = `Bars: <span>${ohlc.length.toLocaleString()}</span> | ` +
+    `Bi: <span>${strokes.length.toLocaleString()}</span> | ` +
+    `Seg: <span>${segments.length}</span> | ` +
+    `ZS: <span>${zhongshus.length}</span> | ` +
+    `Mv: <span>${moves.length}</span> | ` +
+    `BSP: <span>${bsps.length}</span>`;
+  document.getElementById('stats-bar').innerHTML = statsHtml;
+
+  // Strokes
+  const strokePts = [];
+  strokes.forEach(s => {
+    strokePts.push({ time: tsEpoch(s.t0), value: s.p0 });
+    strokePts.push({ time: tsEpoch(s.t1), value: s.p1 });
+  });
+  const dedupStroke = dedup(strokePts);
+  strokeSeries.setData(dedupStroke);
+
+  // Segments
+  const segPts = [];
+  segments.forEach(s => {
+    segPts.push({ time: tsEpoch(s.t0), value: s.p0 });
+    segPts.push({ time: tsEpoch(s.t1), value: s.p1 });
+  });
+  segSeries.setData(dedup(segPts));
+
+  // Zhongshu boxes
+  zsBoxes = zhongshus.map(z => ({
+    t0: tsEpoch(z.t0), t1: tsEpoch(z.t1), zg: z.zg, zd: z.zd, settled: z.settled,
+  }));
+  zsRenderer.boxes = zsBoxes;
+  zsRenderer._draw();
+
+  // BSP markers with candidate/confirmed/settled styling
+  allMarkers = bsps.map(b => {
+    const isBuy = b.side === 'buy';
+    let color, shape, text;
+    if (b.settled) {
+      color = '#ffd600';
+      shape = isBuy ? 'arrowUp' : 'arrowDown';
+      text = b.kind + ' S';
+    } else if (b.confirmed) {
+      color = isBuy ? '#e91e63' : '#2196f3';
+      shape = isBuy ? 'arrowUp' : 'arrowDown';
+      text = b.kind + ' C';
+    } else {
+      color = isBuy ? 'rgba(233,30,99,0.4)' : 'rgba(33,150,243,0.4)';
+      shape = isBuy ? 'circle' : 'circle';
+      text = b.kind + '?';
+    }
+    return {
+      time: tsEpoch(b.ts), position: isBuy ? 'belowBar' : 'aboveBar',
+      color, shape, text,
+    };
+  });
+  candleSeries.setMarkers(allMarkers);
+
+  // MACD
+  if (macd.length) {
+    const macdPts = macd.map(m => ({ time: tsEpoch(m.t), value: m.m })).filter(p => p.time > 0);
+    const sigPts = macd.map(m => ({ time: tsEpoch(m.t), value: m.s })).filter(p => p.time > 0);
+    const histPts = macd.map((m, i) => {
+      const prev = i > 0 ? macd[i-1].h : 0;
+      return {
+        time: tsEpoch(m.t), value: m.h,
+        color: m.h >= 0 ? (m.h >= prev ? '#26a69a' : '#b2dfdb') : (m.h <= prev ? '#ef5350' : '#ffcdd2'),
+      };
+    }).filter(p => p.time > 0);
+    macdLineSeries.setData(macdPts);
+    signalLineSeries.setData(sigPts);
+    histSeries.setData(histPts);
+  }
+
+  // PH barcode
+  renderPH(ph);
+
+  // Recursive tabs
+  const tabsEl = document.getElementById('tabs-bar');
+  tabsEl.innerHTML = '<button class="tab-btn active" onclick="showTab(\'L1\',this)">L1</button>';
+  Object.keys(rec).forEach(k => {
+    const rv = rec[k];
+    const btn = document.createElement('button');
+    btn.className = 'tab-btn';
+    btn.textContent = `${k} (${rv.zhongshus.length}zs, ${rv.moves.length}mv)`;
+    btn.onclick = () => showTab(k, btn);
+    tabsEl.appendChild(btn);
+  });
+  window._recData = rec;
+
+  mainChart.timeScale().fitContent();
+  macdChart.timeScale().fitContent();
+}
+
+function dedup(pts) {
+  const seen = new Set();
+  const result = [];
+  for (const p of pts) {
+    const k = p.time + ':' + p.value;
+    if (!seen.has(k)) { seen.add(k); result.push(p); }
+  }
+  return result.sort((a,b) => a.time - b.time);
+}
+
+function showTab(key, btn) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  const panel = document.getElementById('rec-panel');
+  if (key === 'L1') { panel.style.display = 'none'; return; }
+  const rd = window._recData?.[key];
+  if (!rd) { panel.style.display = 'none'; return; }
+  let html = `<table><tr><th>#</th><th>ZG</th><th>ZD</th><th>Comp</th><th>Cnt</th><th>S</th></tr>`;
+  rd.zhongshus.forEach((z,i) => {
+    html += `<tr><td>${i}</td><td>${z.zg.toFixed(2)}</td><td>${z.zd.toFixed(2)}</td>` +
+      `<td>${z.comp_s}..${z.comp_e}</td><td>${z.cnt}</td><td>${z.settled?'Y':'N'}</td></tr>`;
+  });
+  html += '</table><br><table><tr><th>#</th><th>Kind</th><th>Dir</th><th>ZS</th><th>Range</th><th>Pers</th><th>S</th></tr>';
+  rd.moves.forEach((m,i) => {
+    const persColor = m.pers > 50 ? '#26a69a' : m.pers > 20 ? '#ffa726' : '#787b86';
+    html += `<tr><td>${i}</td><td>${m.kind}</td><td>${m.dir}</td><td>${m.zs_cnt}</td>` +
+      `<td>${m.l.toFixed(2)}~${m.h.toFixed(2)}</td>` +
+      `<td style="color:${persColor};font-weight:600">${(m.pers||0).toFixed(1)}</td>` +
+      `<td>${m.settled?'Y':'N'}</td></tr>`;
+  });
+  const persValues = rd.moves.filter(m => m.settled && m.pers > 0).map(m => m.pers);
+  if (persValues.length) {
+    const maxP = Math.max(...persValues), minP = Math.min(...persValues), avgP = persValues.reduce((a,b)=>a+b,0)/persValues.length;
+    html += `</table><div style="margin-top:6px;color:#787b86;font-size:11px">` +
+      `Persistence: max=${maxP.toFixed(1)} min=${minP.toFixed(1)} avg=${avgP.toFixed(1)}</div>`;
+  } else {
+    html += '</table>';
+  }
+  panel.innerHTML = html;
+  panel.style.display = 'block';
+}
+
+function toggleLayer(name) {
+  const checked = document.getElementById('cb-' + name).checked;
+  if (name === 'strokes') strokeSeries.applyOptions({ visible: checked });
+  if (name === 'segments') segSeries.applyOptions({ visible: checked });
+  if (name === 'zhongshus') { zsRenderer.visible = checked; zsRenderer._draw(); }
+  if (name === 'bsp') candleSeries.setMarkers(checked ? allMarkers : []);
+  if (name === 'macd') {
+    macdLineSeries.applyOptions({ visible: checked });
+    signalLineSeries.applyOptions({ visible: checked });
+    histSeries.applyOptions({ visible: checked });
+    macdEl.style.display = checked ? 'block' : 'none';
+  }
+}
+
+// Zhongshu canvas overlay
+class ZsRenderer {
+  constructor(chart, series, container) {
+    this.chart = chart; this.series = series; this.boxes = [];
+    this.visible = true;
+    this._canvas = document.createElement('canvas');
+    this._canvas.style.cssText = 'position:absolute;top:0;left:0;pointer-events:none;z-index:1';
+    container.style.position = 'relative';
+    container.appendChild(this._canvas);
+    this._resize();
+    chart.timeScale().subscribeVisibleTimeRangeChange(() => this._draw());
+    new ResizeObserver(() => { this._resize(); this._draw(); }).observe(container);
+  }
+  _resize() {
+    const r = mainEl.getBoundingClientRect();
+    const dpr = devicePixelRatio || 1;
+    this._canvas.width = r.width * dpr; this._canvas.height = r.height * dpr;
+    this._canvas.style.width = r.width+'px'; this._canvas.style.height = r.height+'px';
+    this._ctx = this._canvas.getContext('2d');
+    this._ctx.scale(dpr, dpr);
+  }
+  _draw() {
+    const ctx = this._ctx; if (!ctx) return;
+    const r = mainEl.getBoundingClientRect();
+    ctx.clearRect(0, 0, r.width, r.height);
+    if (!this.visible) return;
+    const ts = this.chart.timeScale();
+    for (const box of this.boxes) {
+      const x0 = ts.timeToCoordinate(box.t0);
+      const x1 = ts.timeToCoordinate(box.t1);
+      const y0 = this.series.priceToCoordinate(box.zg);
+      const y1 = this.series.priceToCoordinate(box.zd);
+      if (x0===null||x1===null||y0===null||y1===null) continue;
+      const xL=Math.min(x0,x1), xR=Math.max(x0,x1), yT=Math.min(y0,y1), yB=Math.max(y0,y1);
+      ctx.fillStyle = box.settled ? 'rgba(33,150,243,0.08)' : 'rgba(255,152,0,0.12)';
+      ctx.strokeStyle = box.settled ? 'rgba(33,150,243,0.35)' : 'rgba(255,152,0,0.45)';
+      ctx.fillRect(xL, yT, Math.max(xR-xL,2), Math.max(yB-yT,2));
+      ctx.lineWidth = 1;
+      ctx.strokeRect(xL, yT, Math.max(xR-xL,2), Math.max(yB-yT,2));
+    }
+  }
+}
+const zsRenderer = new ZsRenderer(mainChart, candleSeries, mainEl);
+
+// PH Barcode rendering
+function renderPH(phBars) {
+  const container = document.getElementById('ph-barcode');
+  const statsEl = document.getElementById('ph-stats');
+  if (!phBars || !phBars.length) {
+    container.innerHTML = '<div style="padding:12px;color:#787b86">No PH data</div>';
+    statsEl.innerHTML = '';
+    return;
+  }
+  const sorted = [...phBars].sort((a,b) => b.pers - a.pers);
+  const maxPers = sorted[0].pers;
+  const top20 = sorted.slice(0, 30);
+
+  container.innerHTML = top20.map((b, i) => {
+    const w = Math.max((b.pers / maxPers) * 180, 4);
+    const alpha = b.settled ? 1.0 : 0.5;
+    const color = b.settled ? `rgba(33,150,243,${alpha})` : `rgba(255,152,0,${alpha})`;
+    return `<div class="ph-bar">
+      <span class="pers">${b.pers.toFixed(1)}</span>
+      <div class="ph-bar-line" style="width:${w}px;background:${color}"></div>
+      <span style="color:#787b86">${b.bp.toFixed(1)}${b.dp !== null ? '~'+b.dp.toFixed(1) : '*'}</span>
+    </div>`;
+  }).join('');
+
+  const totalPers = phBars.reduce((s,b) => s + b.pers, 0);
+  const settledCount = phBars.filter(b => b.settled).length;
+  statsEl.innerHTML = `Bars: ${phBars.length} | Settled: ${settledCount}<br>` +
+    `Total: ${totalPers.toFixed(1)} | Max: ${maxPers.toFixed(1)}`;
+}
+
+// WebSocket
+let ws = null;
+function connectWS() {
+  const url = document.getElementById('ws-url').value;
+  const statusEl = document.getElementById('ws-status');
+  if (ws) { ws.close(); ws = null; }
+  statusEl.className = 'ws-status disconnected'; statusEl.textContent = 'Connecting...';
+  ws = new WebSocket(url);
+  ws.onopen = () => { statusEl.className = 'ws-status connected'; statusEl.textContent = 'Live'; };
+  ws.onclose = () => { statusEl.className = 'ws-status disconnected'; statusEl.textContent = 'Disconnected'; ws = null; };
+  ws.onerror = () => { statusEl.className = 'ws-status disconnected'; statusEl.textContent = 'Error'; };
+  ws.onmessage = e => {
+    const msg = JSON.parse(e.data);
+    if (msg.type === 'full_snapshot') handleSnapshot(msg);
+    else if (msg.type === 'update') handleUpdate(msg);
+  };
+}
+
+function handleSnapshot(msg) {
+  if (msg.ohlc) {
+    const ohlcLC = msg.ohlc.map(b => ({ time: tsEpoch(b.t), open:b.o, high:b.h, low:b.l, close:b.c }));
+    candleSeries.setData(ohlcLC);
+    allOhlc = ohlcLC;
+  }
+  document.getElementById('title').textContent = (msg.symbol || 'Live') + ' Chanlun';
+  if (msg.ph) renderPH(msg.ph);
+  const statsEl = document.getElementById('stats-bar');
+  statsEl.innerHTML = `Strokes: <span>${msg.strokes?.length||0}</span> | ` +
+    `Segs: <span>${msg.segments?.length||0}</span> | ` +
+    `ZS: <span>${msg.zhongshus?.length||0}</span> | ` +
+    `BSP: <span>${msg.bsp?.length||0}</span> | ` +
+    `Stream: <span>${msg.stream_count||0}</span> remaining`;
+  mainChart.timeScale().fitContent();
+}
+
+function handleUpdate(msg) {
+  if (msg.bar) {
+    const b = msg.bar;
+    candleSeries.update({ time: tsEpoch(b.t), open:b.o, high:b.h, low:b.l, close:b.c });
+  }
+  if (msg.macd) {
+    const t = tsEpoch(msg.bar.t);
+    macdLineSeries.update({ time: t, value: msg.macd.m });
+    signalLineSeries.update({ time: t, value: msg.macd.s });
+    const prev = msg.macd._prev_h || 0;
+    histSeries.update({ time: t, value: msg.macd.h,
+      color: msg.macd.h >= 0 ? '#26a69a' : '#ef5350' });
+  }
+  if (msg.stats) {
+    const s = msg.stats;
+    document.getElementById('stats-bar').innerHTML =
+      `Bi: <span>${s.bi}</span> | Seg: <span>${s.seg}</span> | ` +
+      `ZS: <span>${s.zs}</span> | Mv: <span>${s.mv}</span> | BSP: <span>${s.bsp}</span>`;
+  }
+}
+
+// Auto-load from URL params or file input
+const params = new URLSearchParams(location.search);
+const jsonUrl = params.get('data');
+if (jsonUrl) {
+  fetch(jsonUrl).then(r => r.json()).then(renderData).catch(e => {
+    document.getElementById('stats-bar').textContent = 'Failed to load: ' + e.message;
+  });
+} else {
+  document.getElementById('stats-bar').innerHTML =
+    'Drop JSON file or <a href="#" onclick="loadStaticData();return false" style="color:#2962ff">click to load</a> | ' +
+    'Or connect WebSocket for live data';
+}
+
+// Drag & drop
+document.body.addEventListener('dragover', e => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; });
+document.body.addEventListener('drop', e => {
+  e.preventDefault();
+  const file = e.dataTransfer.files[0];
+  if (file && file.name.endsWith('.json')) {
+    const reader = new FileReader();
+    reader.onload = ev => renderData(JSON.parse(ev.target.result));
+    reader.readAsText(file);
+  }
+});
+
+// Resize handler
+new ResizeObserver(() => {
+  mainChart.resize(mainEl.clientWidth, mainEl.clientHeight);
+  macdChart.resize(macdEl.clientWidth, macdEl.clientHeight);
+}).observe(document.getElementById('main'));
+</script>
+</body>
+</html>

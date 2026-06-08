@@ -1,0 +1,741 @@
+# 维度3：加仓逻辑完善 — 在区间套版基础上叠加
+
+## 架构
+
+基线：区间套版。改动仅加仓逻辑：
+
+1. S7b-ii 创新高且不背驰 → 趋势追加仓位（ratio×0.5）
+2. S5a 回调不跌破前低 → 加仓不要求同时有buy BSP
+
+不改的：FSM主流程、退出判断、降成本、区间套、persistence过滤。
+
+### FSM 状态转移
+
+```
+WAIT_ENTRY ──(buy BSP + L2多 + L0确认)──→ ENTRY ──→ HOLDING
+   ↑                                                  │
+   │                                    sell BSP/L1r1↓ │
+ OBSERVE ←── WAIT_DIP ←──────── EVAL ←────────────────┘
+                                  │
+                          不创新高/盘整背驰
+                                  ↓
+                          EXIT → WAIT_ENTRY
+```
+
+### PH三级别信号映射
+
+| PH级别 | 输入 | 更新频率 | 信号用途 |
+|--------|------|---------|---------|
+| L0 | 1min close | 每bar | 区间套精确入场/回调结束确认 |
+| L1 | L1线段端点 | ~数千次 | 降成本+走势完成信号+加仓 |
+| L2 | L1走势端点 | ~数百次 | 方向裁决/紧急清仓 |
+
+## QQQ
+
+- 数据：**728,030** bars (1min)
+- 价格：268.82 → 738.28
+- Buy-and-hold: **+174.64%**
+- 回测耗时：366.9s
+
+### PH 分层统计
+
+| 级别 | 更新次数 | settle总数 | rank-1 settle |
+|------|---------|-----------|---------------|
+| L0 | 728,030 (每bar) | 350,072 | 3962 |
+| L1 | 6,119 | 5,804 | 286 |
+| L2 | 389 | 190 | 25 |
+| **L2 方向翻转** | — | — | **14** |
+| **EVAL** | 触发=19 | 过滤=55 | 过滤率=74% |
+
+### 总体指标
+
+| 指标 | 值 |
+|------|-----|
+| 交易数 | 28（纯多头） |
+| 胜率 | 71.4% |
+| 平均收益 | +1.743% |
+| 复利累计 | **+60.43%** |
+| 最大回撤 | -2.02% |
+| 平均持仓 | 7,121 bars |
+| 有加仓的交易 | 20/28 |
+| 有降成本的交易 | 24/28 |
+| 达到本金回收 | 0/28 |
+| 有段间比较的交易 | 5/28 |
+
+### 交易明细
+
+| # | 入场 | 出场 | 持仓bars | PnL% | 加仓 | 短差 | 向上段数 | 退出原因 | 状态路径 |
+|---|------|------|---------|------|------|------|---------|---------|---------|
+| 1 | 309.96@45988 | 305.43@49505 | 3,517 | -0.35 | 3 | 3 | 0 | bsp_invalidate | ENTRY→HOLDING→WAIT_SUB_ENTRY |
+| 2 | 314.76@50957 | 314.09@56300 | 5,343 | +0.06 | 1 | 4 | 1 | bsp_invalidate | ENTRY→EVAL→HOLDING→WAIT_DIP→WAIT_SUB_ENTRY |
+| 3 | 321.10@67769 | 319.88@67882 | 113 | -0.38 | 0 | 0 | 0 | bsp_invalidate | ENTRY→HOLDING→WAIT_SUB_ENTRY |
+| 4 | 319.30@68027 | 318.33@72362 | 4,335 | +0.11 | 2 | 3 | 1 | bsp_invalidate | ENTRY→EVAL→HOLDING→WAIT_DIP→WAIT_SUB_ENTRY |
+| 5 | 322.83@72765 | 352.97@87747 | 14,982 | +10.39 | 4 | 11 | 1 | bsp_invalidate | ENTRY→EVAL→HOLDING→WAIT_DIP→WAIT_SUB_ENTRY |
+| 6 | 355.71@92150 | 354.25@92162 | 12 | -0.41 | 0 | 0 | 0 | bsp_invalidate | ENTRY→HOLDING→WAIT_SUB_ENTRY |
+| 7 | 358.36@93117 | 365.80@97876 | 4,759 | +2.95 | 1 | 5 | 0 | bsp_invalidate | ENTRY→HOLDING→WAIT_SUB_ENTRY |
+| 8 | 377.67@110027 | 376.68@115656 | 5,629 | +1.63 | 1 | 5 | 1 | bsp_invalidate | ENTRY→EVAL→HOLDING→WAIT_DIP→WAIT_SUB_ENTRY |
+| 9 | 390.34@186088 | 388.55@192317 | 6,229 | +1.23 | 1 | 6 | 0 | bsp_invalidate | ENTRY→HOLDING→WAIT_SUB_ENTRY |
+| 10 | 395.51@196897 | 396.84@208841 | 11,944 | +2.59 | 1 | 14 | 0 | bsp_invalidate | ENTRY→HOLDING→WAIT_SUB_ENTRY |
+| 11 | 413.04@216547 | 419.92@223983 | 7,436 | +3.38 | 1 | 8 | 0 | bsp_invalidate | ENTRY→HOLDING→WAIT_SUB_ENTRY |
+| 12 | 433.67@229370 | 429.72@231925 | 2,555 | +0.49 | 1 | 1 | 0 | bsp_invalidate | ENTRY→HOLDING→WAIT_SUB_ENTRY |
+| 13 | 438.83@236334 | 439.25@243258 | 6,924 | +1.26 | 1 | 4 | 2 | consolidation_divergence | ENTRY→EVAL→HOLDING→WAIT_DIP→WAIT_SUB_ENTRY→WAIT_SUB_EXIT |
+| 14 | 448.55@252551 | 442.59@259485 | 6,934 | +0.22 | 1 | 9 | 0 | bsp_invalidate | ENTRY→HOLDING→WAIT_SUB_ENTRY |
+| 15 | 456.21@288234 | 451.10@293623 | 5,389 | -0.98 | 1 | 5 | 1 | bsp_invalidate | ENTRY→EVAL→HOLDING→WAIT_DIP→WAIT_SUB_ENTRY |
+| 16 | 464.26@296170 | 481.63@308780 | 12,610 | +3.27 | 5 | 13 | 0 | bsp_invalidate | ENTRY→HOLDING→WAIT_SUB_ENTRY |
+| 17 | 490.40@311054 | 489.18@318090 | 7,036 | -0.07 | 2 | 7 | 1 | bsp_invalidate | ENTRY→EVAL→HOLDING→WAIT_DIP→WAIT_SUB_ENTRY |
+| 18 | 520.33@400673 | 524.05@410720 | 10,047 | +2.63 | 1 | 9 | 0 | bsp_invalidate | ENTRY→HOLDING→WAIT_SUB_ENTRY |
+| 19 | 540.25@440555 | 516.63@445662 | 5,107 | -2.02 | 1 | 6 | 1 | bsp_invalidate | ENTRY→EVAL→HOLDING→WAIT_DIP→WAIT_SUB_ENTRY |
+| 20 | 543.85@520909 | 558.27@532548 | 11,639 | +4.08 | 0 | 12 | 2 | consolidation_divergence | ENTRY→EVAL→HOLDING→WAIT_DIP→WAIT_SUB_ENTRY→WAIT_SUB_EXIT |
+| 21 | 561.70@532951 | 565.00@543673 | 10,722 | +0.84 | 1 | 9 | 0 | bsp_invalidate | ENTRY→HOLDING→WAIT_SUB_ENTRY |
+| 22 | 579.93@549160 | 565.70@554420 | 5,260 | -1.05 | 1 | 6 | 1 | bsp_invalidate | ENTRY→EVAL→HOLDING→WAIT_DIP→WAIT_SUB_ENTRY |
+| 23 | 582.25@566235 | 601.49@588515 | 22,280 | +4.90 | 3 | 18 | 2 | bsp_invalidate | ENTRY→EVAL→HOLDING→WAIT_DIP→WAIT_SUB_ENTRY |
+| 24 | 615.91@594522 | 632.76@599903 | 5,381 | +2.90 | 0 | 2 | 2 | no_new_high | ENTRY→EVAL→HOLDING→WAIT_DIP→WAIT_SUB_ENTRY→WAIT_SUB_EXIT |
+| 25 | 617.83@601479 | 617.32@601511 | 32 | -0.08 | 0 | 0 | 0 | bsp_invalidate | ENTRY→HOLDING→WAIT_SUB_ENTRY |
+| 26 | 602.60@603722 | 603.75@603769 | 47 | +0.19 | 0 | 0 | 0 | bsp_invalidate | ENTRY→HOLDING→WAIT_SUB_ENTRY |
+| 27 | 650.02@699743 | 703.67@717492 | 17,749 | +10.54 | 0 | 19 | 3 | consolidation_divergence | ENTRY→EVAL→HOLDING→WAIT_DIP→WAIT_SUB_ENTRY→WAIT_SUB_EXIT |
+| 28 | 734.98@722663 | 738.28@728029 | 5,366 | +0.52 | 0 | 6 | 0 | eod_close | ENTRY→HOLDING→WAIT_SUB_ENTRY |
+
+### FSM 状态分布（按 bar 数）
+
+| 状态 | Bars | 占比 |
+|------|------|------|
+| WAIT_ENTRY | 526,869 | 72.4% |
+| ENTRY | 30 | 0.0% |
+| WAIT_SUB_ENTRY | 1,754 | 0.2% |
+| HOLDING | 192,946 | 26.5% |
+| EVAL | 0 | 0.0% |
+| WAIT_DIP | 6,187 | 0.8% |
+| OBSERVE | 0 | 0.0% |
+| WAIT_SUB_EXIT | 244 | 0.0% |
+| EXIT | 0 | 0.0% |
+
+<details><summary>事件流（600条）</summary>
+
+| Bar | 价格 | 状态 | 事件 |
+|-----|------|------|------|
+| 45,926 | 313.67 | ENTRY | WAIT→ENTRY BSP={1699618109} |
+| 45,927 | 313.83 | WAIT_SUB_ENTRY | ENTRY→WAIT_SUB@313.83 L2dir=1 |
+| 45,988 | 309.96 | HOLDING | SUB_ENTRY_TIMEOUT@309.96 |
+| 46,025 | 309.74 | HOLDING | TRIM@309.74 shares=318.3 |
+| 46,384 | 309.40 | HOLDING | MOVE_SETTLE_SKIP(p=13.26<med=54.06) |
+| 46,714 | 313.12 | HOLDING | ADD_POS@313.12 +48.4 L1ratio=0.150 |
+| 47,157 | 310.23 | HOLDING | TRIM@310.23 shares=369.3 |
+| 47,393 | 308.80 | HOLDING | MOVE_SETTLE_SKIP(p=8.57<med=31.08) |
+| 47,712 | 308.69 | HOLDING | CLOSE_DIFF@308.69 profit=568.73 |
+| 48,006 | 311.37 | HOLDING | ADD_POS@311.37 +55.7 L1ratio=0.150 |
+| 48,740 | 309.02 | HOLDING | TRIM@309.02 shares=424.7 |
+| 49,360 | 306.38 | HOLDING | ADD_POS@306.38 +64.0 L1ratio=0.150 |
+| 49,505 | 305.43 | WAIT_ENTRY | BSP_INVALIDATE@305.43 |
+| 50,895 | 315.00 | ENTRY | WAIT→ENTRY BSP={987157400} |
+| 50,896 | 314.81 | WAIT_SUB_ENTRY | ENTRY→WAIT_SUB@314.81 L2dir=1 |
+| 50,957 | 314.76 | HOLDING | SUB_ENTRY_TIMEOUT@314.76 |
+| 51,694 | 315.66 | HOLDING | TRIM@315.66 shares=316.0 |
+| 52,243 | 321.03 | HOLDING | CLOSE_DIFF@321.03 profit=-1696.92 |
+| 52,737 | 319.50 | HOLDING | TRIM@319.50 shares=292.4 |
+| 52,767 | 319.20 | HOLDING | CLOSE_DIFF@319.20 profit=87.73 |
+| 52,924 | 318.36 | HOLDING | TRIM@318.36 shares=292.4 |
+| 53,510 | 321.52 | HOLDING | MOVE_SETTLE_SKIP(p=14.07<med=61.83) |
+| 53,767 | 319.65 | HOLDING | TRIM@319.65 shares=312.5 |
+| 54,238 | 318.54 | HOLDING | CLOSE_DIFF@318.54 profit=346.89 |
+| 54,689 | 314.50 | WAIT_DIP | →EVAL(move_settle) high=322.17 force=4.65 p=4.65/med=4.34 → WAIT_DIP(U1完成 high=322.17) |
+| 55,783 | 318.10 | HOLDING | DIP_REBUY_DIVERGE@318.10 跌破+盘整背驰 |
+| 56,108 | 317.32 | HOLDING | ADD_POS@317.32 +47.3 L1ratio=0.149 |
+| 56,300 | 314.09 | WAIT_ENTRY | BSP_INVALIDATE@314.09 |
+| 67,707 | 322.18 | ENTRY | WAIT→ENTRY BSP={1666850169, 103427621} |
+| 67,708 | 322.52 | WAIT_SUB_ENTRY | ENTRY→WAIT_SUB@322.52 L2dir=1 |
+| 67,769 | 321.10 | HOLDING | SUB_ENTRY_TIMEOUT@321.10 |
+| 67,882 | 319.88 | WAIT_ENTRY | BSP_INVALIDATE@319.88 |
+| 67,965 | 319.43 | ENTRY | WAIT→ENTRY BSP={414981298} |
+| 67,966 | 319.41 | WAIT_SUB_ENTRY | ENTRY→WAIT_SUB@319.41 L2dir=1 |
+| 68,027 | 319.30 | HOLDING | SUB_ENTRY_TIMEOUT@319.30 |
+| 68,196 | 320.04 | HOLDING | TRIM@320.04 shares=303.0 |
+| 68,316 | 319.31 | HOLDING | CLOSE_DIFF@319.31 profit=221.16 |
+| 68,532 | 321.28 | HOLDING | ADD_POS@321.28 +54.2 L1ratio=0.173 |
+| 68,893 | 322.36 | HOLDING | TRIM@322.36 shares=363.1 |
+| 69,320 | 322.04 | HOLDING | CLOSE_DIFF@322.04 profit=116.19 |
+| 69,405 | 322.46 | HOLDING | TRIM@322.46 shares=363.2 |
+| 69,827 | 322.03 | HOLDING | CLOSE_DIFF@322.03 profit=156.18 |
+| 71,205 | 316.80 | HOLDING | TRIM@316.80 shares=359.0 |
+| 71,368 | 318.03 | WAIT_DIP | →EVAL(move_settle) high=323.62 force=10.29 p=10.29/med=1.90 → WAIT_DIP(U1完成 high=323.62) |
+| 72,003 | 316.08 | HOLDING | DIP_REBUY@316.08 不跌破前低(down_low=315.28 >= prev_low=313.33) |
+| 72,362 | 318.33 | WAIT_ENTRY | BSP_INVALIDATE@318.33 |
+| 72,703 | 323.59 | ENTRY | WAIT→ENTRY BSP={285522146} |
+| 72,704 | 323.61 | WAIT_SUB_ENTRY | ENTRY→WAIT_SUB@323.61 L2dir=1 |
+| 72,765 | 322.83 | HOLDING | SUB_ENTRY_TIMEOUT@322.83 |
+| 73,460 | 323.47 | HOLDING | TRIM@323.47 shares=309.1 |
+| 74,028 | 322.43 | HOLDING | CLOSE_DIFF@322.43 profit=321.44 |
+| 74,074 | 321.91 | HOLDING | TRIM@321.91 shares=307.7 |
+| 74,503 | 321.04 | WAIT_DIP | →EVAL(move_settle) high=324.04 force=6.56 p=6.56/med=2.31 → WAIT_DIP(U1完成 high=324.04) |
+| 74,691 | 324.30 | HOLDING | DIP_REBUY@324.30 不跌破前低(down_low=320.73 >= prev_low=317.48) |
+| 74,864 | 324.55 | HOLDING | TRIM@324.55 shares=307.7 |
+| 74,926 | 324.00 | HOLDING | CLOSE_DIFF@324.00 profit=169.24 |
+| 75,607 | 325.21 | HOLDING | TRIM@325.21 shares=300.9 |
+| 75,993 | 326.14 | HOLDING | CLOSE_DIFF@326.14 profit=-279.86 |
+| 76,441 | 325.48 | HOLDING | TRIM@325.48 shares=308.6 |
+| 76,897 | 326.05 | HOLDING | MOVE_SETTLE_SKIP(p=7.11<med=66.54) |
+| 77,031 | 325.95 | HOLDING | ADD_POS@325.95 +18.2 L1ratio=0.059 |
+| 77,328 | 325.96 | HOLDING | ADD_POS@325.96 +19.3 L1ratio=0.059 |
+| 77,981 | 327.22 | HOLDING | TRIM@327.22 shares=345.4 |
+| 78,031 | 327.75 | HOLDING | CLOSE_DIFF@327.75 profit=-183.04 |
+| 78,440 | 327.44 | HOLDING | TRIM@327.44 shares=340.4 |
+| 78,534 | 327.64 | HOLDING | CLOSE_DIFF@327.64 profit=-68.09 |
+| 78,826 | 328.60 | HOLDING | TRIM@328.60 shares=344.0 |
+| 79,420 | 332.09 | HOLDING | CLOSE_DIFF@332.09 profit=-1200.56 |
+| 80,484 | 336.69 | HOLDING | TRIM@336.69 shares=340.7 |
+| 81,188 | 336.32 | HOLDING | CLOSE_DIFF@336.32 profit=126.06 |
+| 81,552 | 338.07 | HOLDING | MOVE_SETTLE_SKIP(p=15.94<med=77.77) |
+| 82,391 | 333.84 | HOLDING | TRIM@333.84 shares=336.7 |
+| 82,871 | 331.49 | HOLDING | MOVE_SETTLE_SKIP(p=3.35<med=78.44) |
+| 82,996 | 330.63 | HOLDING | CLOSE_DIFF@330.63 profit=1080.97 |
+| 83,632 | 337.79 | HOLDING | ADD_POS@337.79 +38.7 L1ratio=0.111 |
+| 85,792 | 351.01 | HOLDING | TRIM@351.01 shares=365.4 |
+| 86,208 | 349.29 | HOLDING | MOVE_SETTLE_SKIP(p=23.78<med=93.84) |
+| 86,834 | 347.42 | HOLDING | CLOSE_DIFF@347.42 profit=1311.87 |
+| 87,198 | 348.05 | HOLDING | TRIM@348.05 shares=355.8 |
+| 87,236 | 347.99 | HOLDING | CLOSE_DIFF@347.99 profit=21.35 |
+| 87,663 | 352.53 | HOLDING | ADD_POS@352.53 +31.0 L1ratio=0.080 |
+| 87,747 | 352.97 | WAIT_ENTRY | BSP_INVALIDATE@352.97 |
+| 92,088 | 357.55 | ENTRY | WAIT→ENTRY BSP={665482103} |
+| 92,089 | 357.54 | WAIT_SUB_ENTRY | ENTRY→WAIT_SUB@357.54 L2dir=1 |
+| 92,150 | 355.71 | HOLDING | SUB_ENTRY_TIMEOUT@355.71 |
+| 92,162 | 354.25 | WAIT_ENTRY | BSP_INVALIDATE@354.25 |
+| 93,055 | 357.62 | ENTRY | WAIT→ENTRY BSP={909163236} |
+| 93,056 | 357.61 | WAIT_SUB_ENTRY | ENTRY→WAIT_SUB@357.61 L2dir=1 |
+| 93,117 | 358.36 | HOLDING | SUB_ENTRY_TIMEOUT@358.36 |
+| 93,739 | 361.71 | HOLDING | TRIM@361.71 shares=260.5 |
+| 93,922 | 363.24 | HOLDING | CLOSE_DIFF@363.24 profit=-398.53 |
+| 94,011 | 362.72 | HOLDING | TRIM@362.72 shares=276.6 |
+| 94,978 | 366.34 | HOLDING | CLOSE_DIFF@366.34 profit=-1001.44 |
+| 95,575 | 368.10 | HOLDING | TRIM@368.10 shares=277.3 |
+| 95,754 | 370.23 | HOLDING | CLOSE_DIFF@370.23 profit=-590.64 |
+| 95,904 | 369.83 | HOLDING | TRIM@369.83 shares=267.8 |
+| 96,071 | 370.83 | HOLDING | CLOSE_DIFF@370.83 profit=-267.79 |
+| 96,272 | 371.02 | HOLDING | TRIM@371.02 shares=266.7 |
+| 97,237 | 364.91 | HOLDING | MOVE_SETTLE_SKIP(p=23.92<med=111.46) |
+| 97,689 | 366.89 | HOLDING | ADD_POS@366.89 +19.8 L1ratio=0.071 |
+| 97,876 | 365.80 | WAIT_ENTRY | BSP_INVALIDATE@365.80 |
+| 109,965 | 377.16 | ENTRY | WAIT→ENTRY BSP={4111992} |
+| 109,966 | 377.02 | WAIT_SUB_ENTRY | ENTRY→WAIT_SUB@377.02 L2dir=1 |
+| 110,027 | 377.67 | HOLDING | SUB_ENTRY_TIMEOUT@377.67 |
+| 110,916 | 380.20 | HOLDING | TRIM@380.20 shares=258.5 |
+| 111,605 | 380.26 | HOLDING | CLOSE_DIFF@380.26 profit=-15.51 |
+| 111,754 | 381.36 | WAIT_DIP | →EVAL(move_settle) high=382.86 force=18.24 p=18.24/med=4.68 → WAIT_DIP(U1完成 high=382.86) |
+| 111,843 | 382.39 | HOLDING | DIP_REBUY@382.39 不跌破前低(down_low=381.23 >= prev_low=364.62) |
+| 112,060 | 382.55 | HOLDING | TRIM@382.55 shares=263.9 |
+| 112,096 | 382.10 | HOLDING | CLOSE_DIFF@382.10 profit=118.73 |
+| 112,795 | 385.24 | HOLDING | TRIM@385.24 shares=264.2 |
+| 112,977 | 386.31 | HOLDING | CLOSE_DIFF@386.31 profit=-282.71 |
+| 113,388 | 385.11 | HOLDING | TRIM@385.11 shares=254.8 |
+| 114,270 | 378.90 | HOLDING | MOVE_SETTLE_SKIP(p=9.80<med=127.31) |
+| 114,885 | 377.83 | HOLDING | CLOSE_DIFF@377.83 profit=1855.08 |
+| 114,940 | 377.28 | HOLDING | TRIM@377.28 shares=248.7 |
+| 115,159 | 376.99 | HOLDING | CLOSE_DIFF@376.99 profit=72.12 |
+| 115,476 | 376.90 | HOLDING | ADD_POS@376.90 +24.8 L1ratio=0.094 |
+| 115,656 | 376.68 | WAIT_ENTRY | BSP_INVALIDATE@376.68 |
+| 131,228 | 357.95 | ENTRY | WAIT→ENTRY BSP={1073924458} |
+| 131,229 | 358.17 | WAIT_SUB_ENTRY | ENTRY→WAIT_SUB@358.17 L2dir=1 |
+| 131,250 | 358.07 | WAIT_ENTRY | SUB_ENTRY_ABORT:BSP_INV@358.07 |
+| 186,026 | 389.75 | ENTRY | WAIT→ENTRY BSP={77258701} |
+| 186,027 | 389.89 | WAIT_SUB_ENTRY | ENTRY→WAIT_SUB@389.89 L2dir=1 |
+| 186,088 | 390.34 | HOLDING | SUB_ENTRY_TIMEOUT@390.34 |
+| 186,738 | 387.46 | HOLDING | TRIM@387.46 shares=250.2 |
+| 187,452 | 390.52 | HOLDING | CLOSE_DIFF@390.52 profit=-765.76 |
+| 187,547 | 390.47 | HOLDING | MOVE_SETTLE_SKIP(p=7.12<med=67.53) |
+| 188,058 | 389.84 | HOLDING | TRIM@389.84 shares=255.6 |
+| 188,296 | 389.12 | HOLDING | CLOSE_DIFF@389.12 profit=184.05 |
+| 188,427 | 389.31 | HOLDING | TRIM@389.31 shares=255.6 |
+| 188,830 | 390.08 | HOLDING | CLOSE_DIFF@390.08 profit=-196.83 |
+| 189,110 | 389.90 | HOLDING | TRIM@389.90 shares=255.6 |
+| 189,589 | 389.56 | HOLDING | CLOSE_DIFF@389.56 profit=86.91 |
+| 190,433 | 391.27 | HOLDING | TRIM@391.27 shares=252.4 |
+| 190,749 | 390.22 | HOLDING | MOVE_SETTLE_SKIP(p=7.64<med=132.97) |
+| 191,243 | 386.20 | HOLDING | CLOSE_DIFF@386.20 profit=1280.84 |
+| 191,523 | 388.44 | HOLDING | TRIM@388.44 shares=246.0 |
+| 191,773 | 387.58 | HOLDING | CLOSE_DIFF@387.58 profit=211.56 |
+| 192,053 | 389.14 | HOLDING | ADD_POS@389.14 +14.4 L1ratio=0.056 |
+| 192,317 | 388.55 | WAIT_ENTRY | BSP_INVALIDATE@388.55 |
+| 196,835 | 395.32 | ENTRY | WAIT→ENTRY BSP={773048308} |
+| 196,836 | 395.37 | WAIT_SUB_ENTRY | ENTRY→WAIT_SUB@395.37 L2dir=1 |
+| 196,897 | 395.51 | HOLDING | SUB_ENTRY_TIMEOUT@395.51 |
+| 197,341 | 396.43 | HOLDING | TRIM@396.43 shares=244.3 |
+| 198,028 | 400.10 | HOLDING | CLOSE_DIFF@400.10 profit=-896.50 |
+| 198,319 | 399.24 | HOLDING | TRIM@399.24 shares=248.8 |
+| 198,439 | 403.06 | HOLDING | CLOSE_DIFF@403.06 profit=-950.37 |
+| 198,796 | 405.29 | HOLDING | TRIM@405.29 shares=250.3 |
+| 198,906 | 404.56 | HOLDING | CLOSE_DIFF@404.56 profit=182.74 |
+| ... | ... | ... | （共600条，显示前150） |
+</details>
+
+## OKLO
+
+- 数据：**333,613** bars (1min)
+- 价格：18.07 → 63.48
+- Buy-and-hold: **+251.30%**
+- 回测耗时：72.5s
+
+### PH 分层统计
+
+| 级别 | 更新次数 | settle总数 | rank-1 settle |
+|------|---------|-----------|---------------|
+| L0 | 333,613 (每bar) | 154,247 | 730 |
+| L1 | 2,806 | 2,657 | 102 |
+| L2 | 185 | 101 | 12 |
+| **L2 方向翻转** | — | — | **7** |
+| **EVAL** | 触发=6 | 过滤=10 | 过滤率=62% |
+
+### 总体指标
+
+| 指标 | 值 |
+|------|-----|
+| 交易数 | 9（纯多头） |
+| 胜率 | 88.9% |
+| 平均收益 | +13.658% |
+| 复利累计 | **+189.68%** |
+| 最大回撤 | -7.17% |
+| 平均持仓 | 4,778 bars |
+| 有加仓的交易 | 7/9 |
+| 有降成本的交易 | 7/9 |
+| 达到本金回收 | 0/9 |
+| 有段间比较的交易 | 1/9 |
+
+### 交易明细
+
+| # | 入场 | 出场 | 持仓bars | PnL% | 加仓 | 短差 | 向上段数 | 退出原因 | 状态路径 |
+|---|------|------|---------|------|------|------|---------|---------|---------|
+| 1 | 14.77@41153 | 19.11@46795 | 5,642 | +25.05 | 1 | 3 | 1 | bsp_invalidate | ENTRY→EVAL→HOLDING→WAIT_DIP→WAIT_SUB_ENTRY |
+| 2 | 24.54@47223 | 20.33@50552 | 3,329 | -7.17 | 2 | 3 | 1 | bsp_invalidate | ENTRY→EVAL→HOLDING→WAIT_DIP→WAIT_SUB_ENTRY |
+| 3 | 27.15@53192 | 19.57@57372 | 4,180 | +2.77 | 3 | 6 | 1 | bsp_invalidate | ENTRY→EVAL→HOLDING→WAIT_DIP→WAIT_SUB_ENTRY |
+| 4 | 32.57@82333 | 54.69@94200 | 11,867 | +40.92 | 7 | 9 | 2 | bsp_invalidate | ENTRY→EVAL→HOLDING→WAIT_DIP→WAIT_SUB_ENTRY |
+| 5 | 64.15@151396 | 65.64@151540 | 144 | +2.32 | 0 | 0 | 0 | bsp_invalidate | ENTRY→HOLDING→WAIT_SUB_ENTRY |
+| 6 | 75.00@173754 | 76.68@178964 | 5,210 | +2.24 | 5 | 4 | 1 | bsp_invalidate | ENTRY→EVAL→HOLDING→WAIT_DIP→WAIT_SUB_ENTRY |
+| 7 | 64.14@187276 | 64.39@187431 | 155 | +0.39 | 0 | 0 | 0 | bsp_invalidate | ENTRY→HOLDING→WAIT_SUB_ENTRY |
+| 8 | 90.36@199556 | 109.95@207459 | 7,903 | +33.61 | 1 | 7 | 0 | bsp_invalidate | ENTRY→HOLDING→WAIT_SUB_ENTRY |
+| 9 | 144.00@215899 | 168.62@220471 | 4,572 | +22.80 | 2 | 4 | 0 | bsp_invalidate | ENTRY→HOLDING→WAIT_SUB_ENTRY |
+
+### FSM 状态分布（按 bar 数）
+
+| 状态 | Bars | 占比 |
+|------|------|------|
+| WAIT_ENTRY | 290,053 | 86.9% |
+| ENTRY | 9 | 0.0% |
+| WAIT_SUB_ENTRY | 549 | 0.2% |
+| HOLDING | 41,049 | 12.3% |
+| EVAL | 0 | 0.0% |
+| WAIT_DIP | 1,953 | 0.6% |
+| OBSERVE | 0 | 0.0% |
+| WAIT_SUB_EXIT | 0 | 0.0% |
+| EXIT | 0 | 0.0% |
+
+<details><summary>事件流（140条）</summary>
+
+| Bar | 价格 | 状态 | 事件 |
+|-----|------|------|------|
+| 41,091 | 13.08 | ENTRY | WAIT→ENTRY BSP={1146069223} |
+| 41,092 | 13.00 | WAIT_SUB_ENTRY | ENTRY→WAIT_SUB@13.00 L2dir=1 |
+| 41,153 | 14.77 | HOLDING | SUB_ENTRY_TIMEOUT@14.77 |
+| 41,862 | 16.22 | HOLDING | TRIM@16.22 shares=6098.9 |
+| 42,565 | 15.84 | HOLDING | CLOSE_DIFF@15.84 profit=2317.60 |
+| 42,786 | 19.43 | HOLDING | MOVE_SETTLE_SKIP(p=8.58<med=15.15) |
+| 43,016 | 18.46 | HOLDING | TRIM@18.46 shares=6039.6 |
+| 43,450 | 19.91 | HOLDING | CLOSE_DIFF@19.91 profit=-8757.37 |
+| 43,481 | 20.04 | HOLDING | MOVE_SETTLE_SKIP(p=6.51<med=16.18) |
+| 44,516 | 20.63 | HOLDING | TRIM@20.63 shares=6238.4 |
+| 44,992 | 20.44 | HOLDING | CLOSE_DIFF@20.44 profit=1185.30 |
+| 45,323 | 18.34 | WAIT_DIP | →EVAL(move_settle) high=23.05 force=5.85 p=5.85/med=3.16 → WAIT_DIP(U1完成 high=23.05) |
+| 46,744 | 19.14 | HOLDING | DIP_REBUY@19.14 不跌破前低(down_low=17.62 >= prev_low=17.20) |
+| 46,795 | 19.11 | WAIT_ENTRY | BSP_INVALIDATE@19.11 |
+| 47,161 | 24.60 | ENTRY | WAIT→ENTRY BSP={308273581} |
+| 47,162 | 24.50 | WAIT_SUB_ENTRY | ENTRY→WAIT_SUB@24.50 L2dir=1 |
+| 47,223 | 24.54 | HOLDING | SUB_ENTRY_TIMEOUT@24.54 |
+| 47,960 | 23.43 | HOLDING | TRIM@23.43 shares=3928.9 |
+| 48,481 | 26.75 | HOLDING | CLOSE_DIFF@26.75 profit=-13044.05 |
+| 48,715 | 23.60 | HOLDING | TRIM@23.60 shares=3621.6 |
+| 49,561 | 22.99 | HOLDING | CLOSE_DIFF@22.99 profit=2209.17 |
+| 49,609 | 22.92 | HOLDING | TRIM@22.92 shares=3621.6 |
+| 50,300 | 21.43 | WAIT_DIP | →EVAL(move_settle) high=28.12 force=10.00 p=10.00/med=5.26 → WAIT_DIP(U1完成 high=28.12) |
+| 50,307 | 21.52 | HOLDING | DIP_REBUY@21.52 不跌破前低(down_low=21.36 >= prev_low=18.12) |
+| 50,377 | 21.56 | HOLDING | TRIM@21.56 shares=4315.8 |
+| 50,507 | 20.36 | HOLDING | ADD_POS@20.36 +1188.5 L1ratio=0.236 |
+| 50,552 | 20.33 | WAIT_ENTRY | BSP_INVALIDATE@20.33 |
+| 53,130 | 28.02 | ENTRY | WAIT→ENTRY BSP={465952852} |
+| 53,131 | 28.23 | WAIT_SUB_ENTRY | ENTRY→WAIT_SUB@28.23 L2dir=1 |
+| 53,192 | 27.15 | HOLDING | SUB_ENTRY_TIMEOUT@27.15 |
+| 53,314 | 26.42 | HOLDING | ADD_POS@26.42 +1292.2 L1ratio=0.351 |
+| 53,605 | 24.94 | HOLDING | TRIM@24.94 shares=4944.2 |
+| 53,907 | 24.36 | HOLDING | CLOSE_DIFF@24.36 profit=2867.63 |
+| 53,993 | 24.40 | HOLDING | TRIM@24.40 shares=4944.2 |
+| 54,119 | 23.72 | HOLDING | CLOSE_DIFF@23.72 profit=3362.04 |
+| 54,228 | 23.83 | HOLDING | TRIM@23.83 shares=4944.2 |
+| 54,589 | 23.20 | WAIT_DIP | →EVAL(move_settle) high=28.68 force=8.68 p=8.68/med=5.93 → WAIT_DIP(U1完成 high=28.68) |
+| 54,897 | 21.96 | HOLDING | DIP_REBUY@21.96 不跌破前低(down_low=21.83 >= prev_low=20.00) |
+| 55,122 | 22.74 | HOLDING | TRIM@22.74 shares=6678.8 |
+| 55,491 | 23.99 | HOLDING | CLOSE_DIFF@23.99 profit=-8348.44 |
+| 56,100 | 23.94 | HOLDING | TRIM@23.94 shares=6678.8 |
+| 56,142 | 23.71 | HOLDING | CLOSE_DIFF@23.71 profit=1536.11 |
+| 56,427 | 24.00 | HOLDING | TRIM@24.00 shares=6678.8 |
+| 56,700 | 21.99 | HOLDING | CLOSE_DIFF@21.99 profit=13424.29 |
+| 56,759 | 22.40 | HOLDING | TRIM@22.40 shares=6678.8 |
+| 57,138 | 18.72 | HOLDING | ADD_POS@18.72 +2357.9 L1ratio=0.351 |
+| 57,372 | 19.57 | WAIT_ENTRY | BSP_INVALIDATE@19.57 |
+| 82,271 | 31.98 | ENTRY | WAIT→ENTRY BSP={1567619886} |
+| 82,272 | 32.84 | WAIT_SUB_ENTRY | ENTRY→WAIT_SUB@32.84 L2dir=1 |
+| 82,333 | 32.57 | HOLDING | SUB_ENTRY_TIMEOUT@32.57 |
+| 83,207 | 32.37 | HOLDING | TRIM@32.37 shares=2710.5 |
+| 83,593 | 38.78 | HOLDING | CLOSE_DIFF@38.78 profit=-17374.36 |
+| 84,429 | 42.84 | HOLDING | TRIM@42.84 shares=2657.0 |
+| 84,463 | 42.52 | HOLDING | CLOSE_DIFF@42.52 profit=850.23 |
+| 84,755 | 35.90 | HOLDING | TRIM@35.90 shares=2405.3 |
+| 85,820 | 31.29 | HOLDING | MOVE_SETTLE_SKIP(p=19.47<med=37.58) |
+| 86,173 | 33.53 | HOLDING | CLOSE_DIFF@33.53 profit=5700.48 |
+| 86,342 | 34.20 | HOLDING | ADD_POS@34.20 +1059.7 L1ratio=0.345 |
+| 87,232 | 36.11 | HOLDING | ADD_POS@36.11 +1425.4 L1ratio=0.345 |
+| 87,675 | 41.59 | HOLDING | ADD_POS@41.59 +1917.3 L1ratio=0.345 |
+| 88,040 | 41.95 | HOLDING | TRIM@41.95 shares=7401.1 |
+| 88,940 | 43.40 | HOLDING | CLOSE_DIFF@43.40 profit=-10768.57 |
+| 88,990 | 44.60 | WAIT_DIP | →EVAL(move_settle) high=45.21 force=12.21 p=12.21/med=7.38 → WAIT_DIP(U1完成 high=45.21) |
+| 89,005 | 45.42 | HOLDING | DIP_REBUY@45.42 不跌破前低(down_low=44.35 >= prev_low=33.00) |
+| 89,466 | 46.55 | HOLDING | TRIM@46.55 shares=8745.2 |
+| 90,008 | 45.95 | HOLDING | CLOSE_DIFF@45.95 profit=5247.14 |
+| 91,119 | 48.95 | HOLDING | TRIM@48.95 shares=7927.4 |
+| 91,475 | 48.63 | HOLDING | CLOSE_DIFF@48.63 profit=2497.12 |
+| 92,285 | 54.89 | HOLDING | TRIM@54.89 shares=8596.8 |
+| 92,312 | 55.20 | HOLDING | CLOSE_DIFF@55.20 profit=-2665.02 |
+| 92,466 | 54.30 | HOLDING | TRIM@54.30 shares=8596.8 |
+| 93,016 | 52.38 | HOLDING | CLOSE_DIFF@52.38 profit=16462.93 |
+| 93,454 | 50.88 | HOLDING | TRIM@50.88 shares=8037.8 |
+| 93,772 | 52.73 | HOLDING | CLOSE_DIFF@52.73 profit=-14829.79 |
+| 93,829 | 54.11 | WAIT_DIP | →EVAL(move_settle) high=59.11 force=21.28 p=21.28/med=4.49 → WAIT_DIP+ADD(创新高无背驰 +870.7 r=0.098) |
+| 93,903 | 54.91 | HOLDING | DIP_REBUY@54.91 不跌破前低(down_low=53.89 >= prev_low=37.83) |
+| 94,086 | 54.37 | HOLDING | ADD_POS@54.37 +2288.3 L1ratio=0.197 |
+| 94,200 | 54.69 | WAIT_ENTRY | BSP_INVALIDATE@54.69 |
+| 151,334 | 66.80 | ENTRY | WAIT→ENTRY BSP={528094879} |
+| 151,335 | 66.89 | WAIT_SUB_ENTRY | ENTRY→WAIT_SUB@66.89 L2dir=1 |
+| 151,396 | 64.15 | HOLDING | SUB_ENTRY_TIMEOUT@64.15 |
+| 151,540 | 65.64 | WAIT_ENTRY | BSP_INVALIDATE@65.64 |
+| 173,692 | 76.58 | ENTRY | WAIT→ENTRY BSP={1926062708} |
+| 173,693 | 76.66 | WAIT_SUB_ENTRY | ENTRY→WAIT_SUB@76.66 L2dir=1 |
+| 173,754 | 75.00 | HOLDING | SUB_ENTRY_TIMEOUT@75.00 |
+| 173,991 | 72.22 | HOLDING | TRIM@72.22 shares=1231.5 |
+| 174,553 | 75.00 | WAIT_DIP | →EVAL(move_settle) high=77.16 force=15.42 p=15.42/med=5.21 → WAIT_DIP(U1完成 high=77.16) |
+| 174,681 | 77.17 | HOLDING | DIP_REBUY@77.17 不跌破前低(down_low=74.81 >= prev_low=61.74) |
+| 174,693 | 76.95 | HOLDING | ADD_POS@76.95 +105.1 L1ratio=0.073 |
+| 175,060 | 74.46 | HOLDING | TRIM@74.46 shares=1492.0 |
+| 175,622 | 75.20 | HOLDING | CLOSE_DIFF@75.20 profit=-1104.08 |
+| 176,091 | 71.38 | HOLDING | MOVE_SETTLE_SKIP(p=7.32<med=7.93) |
+| 176,122 | 71.57 | HOLDING | MOVE_SETTLE_SKIP(p=7.32<med=7.93) |
+| 176,234 | 71.40 | HOLDING | TRIM@71.40 shares=1437.1 |
+| 176,398 | 75.80 | HOLDING | CLOSE_DIFF@75.80 profit=-6316.06 |
+| 176,627 | 75.22 | HOLDING | ADD_POS@75.22 +166.8 L1ratio=0.109 |
+| 176,907 | 77.59 | HOLDING | ADD_POS@77.59 +184.9 L1ratio=0.109 |
+| 177,024 | 77.30 | HOLDING | TRIM@77.30 shares=1882.2 |
+| 178,300 | 71.49 | HOLDING | MOVE_SETTLE_SKIP(p=9.23<med=74.93) |
+| 178,793 | 76.59 | HOLDING | ADD_POS@76.59 +256.8 L1ratio=0.136 |
+| 178,964 | 76.68 | WAIT_ENTRY | BSP_INVALIDATE@76.68 |
+| 187,214 | 64.98 | ENTRY | WAIT→ENTRY BSP={1974301457} |
+| 187,215 | 65.04 | WAIT_SUB_ENTRY | ENTRY→WAIT_SUB@65.04 L2dir=1 |
+| 187,276 | 64.14 | HOLDING | SUB_ENTRY_TIMEOUT@64.14 |
+| 187,431 | 64.39 | WAIT_ENTRY | BSP_INVALIDATE@64.39 |
+| 199,494 | 88.82 | ENTRY | WAIT→ENTRY BSP={545782922} |
+| 199,495 | 89.23 | WAIT_SUB_ENTRY | ENTRY→WAIT_SUB@89.23 L2dir=1 |
+| 199,556 | 90.36 | HOLDING | SUB_ENTRY_TIMEOUT@90.36 |
+| 200,406 | 91.20 | HOLDING | TRIM@91.20 shares=1045.6 |
+| 200,579 | 94.58 | HOLDING | CLOSE_DIFF@94.58 profit=-3534.22 |
+| 201,126 | 94.68 | HOLDING | TRIM@94.68 shares=1106.0 |
+| 201,832 | 100.44 | HOLDING | CLOSE_DIFF@100.44 profit=-6370.29 |
+| 203,456 | 131.41 | HOLDING | TRIM@131.41 shares=1070.7 |
+| 203,886 | 138.20 | HOLDING | MOVE_SETTLE_SKIP(p=65.27<med=137.34) |
+| 204,334 | 137.28 | HOLDING | TRIM@137.28 shares=1061.5 |
+| 205,165 | 140.50 | HOLDING | CLOSE_DIFF@140.50 profit=-3417.96 |
+| 205,261 | 136.24 | HOLDING | TRIM@136.24 shares=1095.5 |
+| 205,442 | 138.40 | HOLDING | CLOSE_DIFF@138.40 profit=-2366.32 |
+| 205,518 | 136.88 | HOLDING | TRIM@136.88 shares=1095.5 |
+| 206,090 | 110.98 | HOLDING | MOVE_SETTLE_SKIP(p=21.25<med=74.78) |
+| 207,032 | 118.36 | HOLDING | CLOSE_DIFF@118.36 profit=20288.98 |
+| 207,189 | 109.70 | HOLDING | TRIM@109.70 shares=932.0 |
+| 207,376 | 109.15 | HOLDING | CLOSE_DIFF@109.15 profit=512.60 |
+| 207,413 | 110.77 | HOLDING | ADD_POS@110.77 +284.6 L1ratio=0.257 |
+| 207,459 | 109.95 | WAIT_ENTRY | BSP_INVALIDATE@109.95 |
+| 215,837 | 146.72 | ENTRY | WAIT→ENTRY BSP={244261304} |
+| 215,838 | 146.69 | WAIT_SUB_ENTRY | ENTRY→WAIT_SUB@146.69 L2dir=1 |
+| 215,899 | 144.00 | HOLDING | SUB_ENTRY_TIMEOUT@144.00 |
+| 215,927 | 147.00 | HOLDING | TRIM@147.00 shares=621.4 |
+| 216,132 | 158.28 | HOLDING | CLOSE_DIFF@158.28 profit=-7009.70 |
+| 216,282 | 157.66 | HOLDING | ADD_POS@157.66 +92.5 L1ratio=0.133 |
+| 217,096 | 167.76 | HOLDING | TRIM@167.76 shares=720.0 |
+| 217,321 | 170.10 | HOLDING | CLOSE_DIFF@170.10 profit=-1684.70 |
+| 217,570 | 181.14 | HOLDING | MOVE_SETTLE_SKIP(p=44.68<med=170.41) |
+| 218,565 | 172.82 | HOLDING | TRIM@172.82 shares=712.0 |
+| 219,307 | 163.65 | HOLDING | MOVE_SETTLE_SKIP(p=33.57<med=188.33) |
+| 219,699 | 154.48 | HOLDING | CLOSE_DIFF@154.48 profit=13058.24 |
+| 220,103 | 161.23 | HOLDING | TRIM@161.23 shares=694.2 |
+| 220,302 | 163.65 | HOLDING | ADD_POS@163.65 +191.4 L1ratio=0.243 |
+| 220,471 | 168.62 | WAIT_ENTRY | BSP_INVALIDATE@168.62 |
+</details>
+
+## HK700
+
+- 数据：**1,408,882** bars (1min)
+- 价格：11.36 → 458.20
+- Buy-and-hold: **+3933.45%**
+- 回测耗时：524.1s
+
+### PH 分层统计
+
+| 级别 | 更新次数 | settle总数 | rank-1 settle |
+|------|---------|-----------|---------------|
+| L0 | 1,408,882 (每bar) | 463,934 | 2312 |
+| L1 | 5,014 | 4,798 | 184 |
+| L2 | 298 | 141 | 11 |
+| **L2 方向翻转** | — | — | **5** |
+| **EVAL** | 触发=11 | 过滤=24 | 过滤率=69% |
+
+### 总体指标
+
+| 指标 | 值 |
+|------|-----|
+| 交易数 | 14（纯多头） |
+| 胜率 | 71.4% |
+| 平均收益 | +11.730% |
+| 复利累计 | **+304.92%** |
+| 最大回撤 | -9.08% |
+| 平均持仓 | 21,089 bars |
+| 有加仓的交易 | 14/14 |
+| 有降成本的交易 | 14/14 |
+| 达到本金回收 | 0/14 |
+| 有段间比较的交易 | 1/14 |
+
+### 交易明细
+
+| # | 入场 | 出场 | 持仓bars | PnL% | 加仓 | 短差 | 向上段数 | 退出原因 | 状态路径 |
+|---|------|------|---------|------|------|------|---------|---------|---------|
+| 1 | 50.40@289490 | 80.70@375243 | 85,753 | +70.14 | 6 | 9 | 5 | consolidation_divergence | ENTRY→EVAL→HOLDING→WAIT_DIP→WAIT_SUB_ENTRY→WAIT_SUB_EXIT |
+| 2 | 86.80@378953 | 90.50@409439 | 30,486 | +18.45 | 2 | 10 | 0 | bsp_invalidate | ENTRY→HOLDING→WAIT_SUB_ENTRY |
+| 3 | 118.65@428376 | 111.25@438789 | 10,413 | -5.94 | 1 | 2 | 1 | bsp_invalidate | ENTRY→EVAL→HOLDING→WAIT_DIP→WAIT_SUB_ENTRY |
+| 4 | 110.60@441348 | 105.25@443385 | 2,037 | -1.00 | 1 | 1 | 0 | bsp_invalidate | ENTRY→HOLDING→WAIT_SUB_ENTRY |
+| 5 | 119.35@453816 | 109.95@457850 | 4,034 | -2.36 | 1 | 1 | 0 | bsp_invalidate | ENTRY→HOLDING→WAIT_SUB_ENTRY |
+| 6 | 125.25@468695 | 140.55@502832 | 34,137 | +13.50 | 6 | 15 | 1 | bsp_invalidate | ENTRY→EVAL→HOLDING→WAIT_DIP→WAIT_SUB_ENTRY |
+| 7 | 157.05@576835 | 167.75@624082 | 47,247 | +9.13 | 1 | 13 | 1 | bsp_invalidate | ENTRY→EVAL→HOLDING→WAIT_DIP→WAIT_SUB_ENTRY |
+| 8 | 222.50@652147 | 263.40@670541 | 18,394 | +25.52 | 1 | 8 | 0 | bsp_invalidate | ENTRY→HOLDING→WAIT_SUB_ENTRY |
+| 9 | 276.20@672289 | 299.90@682404 | 10,115 | +7.93 | 1 | 3 | 1 | bsp_invalidate | ENTRY→EVAL→HOLDING→WAIT_DIP→WAIT_SUB_ENTRY |
+| 10 | 312.50@685297 | 351.40@704079 | 18,782 | +10.27 | 2 | 6 | 1 | bsp_invalidate | ENTRY→EVAL→HOLDING→WAIT_DIP→WAIT_SUB_ENTRY |
+| 11 | 401.30@711005 | 384.60@719629 | 8,624 | +8.44 | 1 | 5 | 0 | bsp_invalidate | ENTRY→HOLDING→WAIT_SUB_ENTRY |
+| 12 | 482.60@917836 | 490.00@922761 | 4,925 | +1.26 | 1 | 5 | 0 | bsp_invalidate | ENTRY→HOLDING→WAIT_SUB_ENTRY |
+| 13 | 550.00@944469 | 540.80@954533 | 10,064 | -1.13 | 1 | 2 | 1 | bsp_invalidate | ENTRY→EVAL→HOLDING→WAIT_DIP→WAIT_SUB_ENTRY |
+| 14 | 586.80@962569 | 641.60@972802 | 10,233 | +10.00 | 2 | 6 | 0 | bsp_invalidate | ENTRY→HOLDING→WAIT_SUB_ENTRY |
+
+### FSM 状态分布（按 bar 数）
+
+| 状态 | Bars | 占比 |
+|------|------|------|
+| WAIT_ENTRY | 1,112,770 | 79.0% |
+| ENTRY | 14 | 0.0% |
+| WAIT_SUB_ENTRY | 854 | 0.1% |
+| HOLDING | 273,241 | 19.4% |
+| EVAL | 0 | 0.0% |
+| WAIT_DIP | 21,942 | 1.6% |
+| OBSERVE | 0 | 0.0% |
+| WAIT_SUB_EXIT | 61 | 0.0% |
+| EXIT | 0 | 0.0% |
+
+<details><summary>事件流（282条）</summary>
+
+| Bar | 价格 | 状态 | 事件 |
+|-----|------|------|------|
+| 289,428 | 50.50 | ENTRY | WAIT→ENTRY BSP={2113800284} |
+| 289,429 | 50.50 | WAIT_SUB_ENTRY | ENTRY→WAIT_SUB@50.50 L2dir=1 |
+| 289,490 | 50.40 | HOLDING | SUB_ENTRY_TIMEOUT@50.40 |
+| 291,912 | 49.70 | HOLDING | TRIM@49.70 shares=1961.9 |
+| 302,478 | 45.90 | HOLDING | CLOSE_DIFF@45.90 profit=7455.16 |
+| 307,353 | 49.60 | WAIT_DIP | →EVAL(move_settle) high=51.70 force=6.90 p=6.90/med=6.40 → WAIT_DIP(U1完成 high=51.70) |
+| 316,533 | 51.50 | HOLDING | DIP_REBUY@51.50 不跌破前低(down_low=48.40 >= prev_low=44.80) |
+| 320,109 | 48.50 | HOLDING | TRIM@48.50 shares=1915.4 |
+| 324,400 | 46.20 | WAIT_DIP | →EVAL(move_settle) high=52.70 force=8.60 p=8.60/med=7.10 → WAIT_DIP+ADD(创新高无背驰 +186.8 r=0.094) |
+| 326,792 | 46.70 | HOLDING | DIP_REBUY@46.70 不跌破前低(down_low=44.90 >= prev_low=44.10) |
+| 329,386 | 50.00 | HOLDING | ADD_POS@50.00 +485.8 L1ratio=0.188 |
+| 331,116 | 50.30 | HOLDING | TRIM@50.30 shares=2959.4 |
+| 334,063 | 55.10 | HOLDING | CLOSE_DIFF@55.10 profit=-14205.07 |
+| 336,793 | 55.40 | HOLDING | TRIM@55.40 shares=3059.5 |
+| 338,777 | 55.50 | HOLDING | CLOSE_DIFF@55.50 profit=-305.95 |
+| 340,518 | 51.70 | HOLDING | TRIM@51.70 shares=2810.1 |
+| 341,695 | 55.50 | HOLDING | CLOSE_DIFF@55.50 profit=-10678.36 |
+| 341,796 | 57.10 | WAIT_DIP | →EVAL(move_settle) high=58.10 force=13.30 p=13.30/med=5.70 → WAIT_DIP+ADD(创新高无背驰 +173.3 r=0.057) |
+| 341,917 | 56.40 | HOLDING | DIP_REBUY@56.40 不跌破前低(down_low=56.00 >= prev_low=44.80) |
+| 343,058 | 56.70 | HOLDING | TRIM@56.70 shares=3182.1 |
+| 343,399 | 56.10 | HOLDING | CLOSE_DIFF@56.10 profit=1909.25 |
+| 352,110 | 68.50 | HOLDING | TRIM@68.50 shares=3038.4 |
+| 352,332 | 67.70 | HOLDING | CLOSE_DIFF@67.70 profit=2430.72 |
+| 352,795 | 68.70 | HOLDING | TRIM@68.70 shares=3223.6 |
+| 355,033 | 66.20 | HOLDING | CLOSE_DIFF@66.20 profit=8058.89 |
+| 356,878 | 70.40 | WAIT_DIP | →EVAL(move_settle) high=70.10 force=20.40 p=20.40/med=3.80 → WAIT_DIP+ADD(创新高无背驰 +130.5 r=0.040) |
+| 356,973 | 71.10 | HOLDING | DIP_REBUY@71.10 不跌破前低(down_low=69.80 >= prev_low=49.70) |
+| 364,770 | 76.90 | HOLDING | TRIM@76.90 shares=3595.5 |
+| 367,580 | 78.70 | HOLDING | CLOSE_DIFF@78.70 profit=-6471.95 |
+| 368,642 | 77.30 | HOLDING | TRIM@77.30 shares=3401.0 |
+| 372,638 | 75.70 | HOLDING | CLOSE_DIFF@75.70 profit=5441.52 |
+| 375,182 | 80.70 | WAIT_SUB_EXIT | →EVAL(move_settle) high=83.90 force=19.20 p=19.20/med=10.30 → WAIT_SUB_EXIT(盘整背驰 force 19.20<20.40) |
+| 375,243 | 80.70 | WAIT_ENTRY | SUB_EXIT_TIMEOUT@80.70 |
+| 378,891 | 87.50 | ENTRY | WAIT→ENTRY BSP={1299500946} |
+| 378,892 | 87.50 | WAIT_SUB_ENTRY | ENTRY→WAIT_SUB@87.50 L2dir=1 |
+| 378,953 | 86.80 | HOLDING | SUB_ENTRY_TIMEOUT@86.80 |
+| 379,838 | 87.00 | HOLDING | TRIM@87.00 shares=1142.2 |
+| 380,024 | 87.20 | HOLDING | CLOSE_DIFF@87.20 profit=-228.45 |
+| 381,251 | 85.80 | HOLDING | TRIM@85.80 shares=1087.4 |
+| 383,149 | 92.00 | HOLDING | CLOSE_DIFF@92.00 profit=-6742.16 |
+| 383,351 | 92.70 | HOLDING | TRIM@92.70 shares=1090.9 |
+| 385,176 | 90.20 | HOLDING | CLOSE_DIFF@90.20 profit=2727.20 |
+| 385,518 | 92.10 | HOLDING | TRIM@92.10 shares=1090.9 |
+| 386,478 | 97.20 | HOLDING | CLOSE_DIFF@97.20 profit=-5563.48 |
+| 387,966 | 94.20 | HOLDING | TRIM@94.20 shares=1080.9 |
+| 389,456 | 96.80 | HOLDING | MOVE_SETTLE_SKIP(p=27.30<med=94.00) |
+| 389,910 | 93.60 | HOLDING | TRIM@93.60 shares=1131.2 |
+| 390,418 | 95.90 | HOLDING | CLOSE_DIFF@95.90 profit=-2601.85 |
+| 391,198 | 98.20 | HOLDING | MOVE_SETTLE_SKIP(p=11.80<med=51.05) |
+| 393,846 | 106.40 | HOLDING | TRIM@106.40 shares=1170.4 |
+| 395,385 | 114.00 | HOLDING | CLOSE_DIFF@114.00 profit=-8894.88 |
+| 398,194 | 110.60 | HOLDING | TRIM@110.60 shares=1165.6 |
+| 400,708 | 108.40 | HOLDING | MOVE_SETTLE_SKIP(p=26.80<med=57.35) |
+| 405,133 | 99.40 | HOLDING | CLOSE_DIFF@99.40 profit=13055.16 |
+| 405,802 | 97.40 | HOLDING | TRIM@97.40 shares=1116.5 |
+| 407,247 | 98.75 | HOLDING | CLOSE_DIFF@98.75 profit=-1507.27 |
+| 408,073 | 96.55 | HOLDING | TRIM@96.55 shares=1116.5 |
+| 408,783 | 93.75 | HOLDING | MOVE_SETTLE_SKIP(p=10.20<med=16.80) |
+| 409,422 | 91.65 | HOLDING | ADD_POS@91.65 +274.3 L1ratio=0.219 |
+| 409,439 | 90.50 | WAIT_ENTRY | BSP_INVALIDATE@90.50 |
+| 428,314 | 119.10 | ENTRY | WAIT→ENTRY BSP={1685477336} |
+| 428,315 | 119.10 | WAIT_SUB_ENTRY | ENTRY→WAIT_SUB@119.10 L2dir=1 |
+| 428,376 | 118.65 | HOLDING | SUB_ENTRY_TIMEOUT@118.65 |
+| 429,469 | 118.80 | HOLDING | TRIM@118.80 shares=810.6 |
+| 429,983 | 119.35 | HOLDING | CLOSE_DIFF@119.35 profit=-445.84 |
+| 431,636 | 121.50 | HOLDING | TRIM@121.50 shares=822.4 |
+| 432,017 | 123.05 | HOLDING | CLOSE_DIFF@123.05 profit=-1274.79 |
+| 435,026 | 120.20 | HOLDING | TRIM@120.20 shares=823.1 |
+| 436,751 | 117.35 | WAIT_DIP | →EVAL(move_settle) high=123.50 force=11.70 p=11.70/med=6.05 → WAIT_DIP(U1完成 high=123.50) |
+| 438,678 | 112.75 | HOLDING | DIP_REBUY@112.75 不跌破前低(down_low=112.00 >= prev_low=111.80) |
+| 438,789 | 111.25 | WAIT_ENTRY | BSP_INVALIDATE@111.25 |
+| 441,286 | 109.40 | ENTRY | WAIT→ENTRY BSP={1444010681} |
+| 441,287 | 109.60 | WAIT_SUB_ENTRY | ENTRY→WAIT_SUB@109.60 L2dir=1 |
+| 441,348 | 110.60 | HOLDING | SUB_ENTRY_TIMEOUT@110.60 |
+| 441,365 | 110.45 | HOLDING | TRIM@110.45 shares=855.3 |
+| 443,150 | 106.00 | HOLDING | ADD_POS@106.00 +94.1 L1ratio=0.104 |
+| 443,385 | 105.25 | WAIT_ENTRY | BSP_INVALIDATE@105.25 |
+| 453,754 | 119.30 | ENTRY | WAIT→ENTRY BSP={1867672144} |
+| 453,755 | 119.55 | WAIT_SUB_ENTRY | ENTRY→WAIT_SUB@119.55 L2dir=1 |
+| 453,816 | 119.35 | HOLDING | SUB_ENTRY_TIMEOUT@119.35 |
+| 456,029 | 115.30 | HOLDING | TRIM@115.30 shares=819.0 |
+| 457,173 | 109.70 | HOLDING | MOVE_SETTLE_SKIP(p=16.80<med=19.35) |
+| 457,634 | 109.15 | HOLDING | ADD_POS@109.15 +132.8 L1ratio=0.159 |
+| 457,850 | 109.95 | WAIT_ENTRY | BSP_INVALIDATE@109.95 |
+| 468,633 | 124.45 | ENTRY | WAIT→ENTRY BSP={439129090} |
+| 468,634 | 124.65 | WAIT_SUB_ENTRY | ENTRY→WAIT_SUB@124.65 L2dir=1 |
+| 468,695 | 125.25 | HOLDING | SUB_ENTRY_TIMEOUT@125.25 |
+| 470,753 | 124.35 | HOLDING | TRIM@124.35 shares=782.4 |
+| 471,012 | 124.05 | HOLDING | CLOSE_DIFF@124.05 profit=234.72 |
+| 471,415 | 124.70 | HOLDING | TRIM@124.70 shares=794.2 |
+| 471,599 | 124.55 | HOLDING | CLOSE_DIFF@124.55 profit=119.14 |
+| 472,091 | 122.40 | HOLDING | TRIM@122.40 shares=794.2 |
+| 474,856 | 124.05 | HOLDING | MOVE_SETTLE_SKIP(p=15.10<med=65.97) |
+| 475,334 | 124.70 | HOLDING | ADD_POS@124.70 +45.4 L1ratio=0.057 |
+| 477,069 | 123.35 | HOLDING | TRIM@123.35 shares=837.8 |
+| 479,346 | 122.15 | HOLDING | CLOSE_DIFF@122.15 profit=1005.32 |
+| 479,825 | 125.25 | HOLDING | MOVE_SETTLE_SKIP(p=9.20<med=66.47) |
+| 480,282 | 125.35 | HOLDING | ADD_POS@125.35 +48.3 L1ratio=0.057 |
+| 481,043 | 133.40 | HOLDING | TRIM@133.40 shares=888.9 |
+| 481,240 | 134.50 | HOLDING | CLOSE_DIFF@134.50 profit=-977.82 |
+| 482,025 | 131.35 | HOLDING | TRIM@131.35 shares=839.7 |
+| 482,914 | 134.60 | HOLDING | CLOSE_DIFF@134.60 profit=-2729.03 |
+| 483,010 | 136.15 | HOLDING | MOVE_SETTLE_SKIP(p=17.15<med=133.85) |
+| 485,735 | 145.20 | HOLDING | TRIM@145.20 shares=809.5 |
+| 486,139 | 146.45 | HOLDING | CLOSE_DIFF@146.45 profit=-1011.92 |
+| 486,777 | 145.75 | HOLDING | TRIM@145.75 shares=853.2 |
+| 487,544 | 150.35 | HOLDING | MOVE_SETTLE_SKIP(p=28.30<med=82.45) |
+| 487,689 | 150.90 | HOLDING | ADD_POS@150.90 +66.9 L1ratio=0.075 |
+| 488,643 | 149.60 | HOLDING | TRIM@149.60 shares=944.6 |
+| 488,865 | 150.70 | HOLDING | CLOSE_DIFF@150.70 profit=-1039.08 |
+| 489,342 | 149.50 | HOLDING | TRIM@149.50 shares=944.6 |
+| 491,627 | 147.65 | HOLDING | CLOSE_DIFF@147.65 profit=1747.55 |
+| 492,712 | 149.35 | WAIT_DIP | →EVAL(move_settle) high=152.65 force=12.10 p=12.10/med=11.50 → WAIT_DIP(U1完成 high=152.65) |
+| 492,853 | 149.90 | HOLDING | DIP_REBUY@149.90 不跌破前低(down_low=148.80 >= prev_low=140.55) |
+| 492,911 | 150.15 | HOLDING | TRIM@150.15 shares=1012.2 |
+| 495,992 | 144.90 | HOLDING | CLOSE_DIFF@144.90 profit=5314.04 |
+| 497,215 | 144.55 | HOLDING | TRIM@144.55 shares=1012.2 |
+| 497,373 | 144.15 | HOLDING | CLOSE_DIFF@144.15 profit=404.88 |
+| 497,822 | 143.15 | HOLDING | MOVE_SETTLE_SKIP(p=11.15<med=11.20) |
+| 498,076 | 142.15 | HOLDING | TRIM@142.15 shares=964.1 |
+| 498,442 | 141.15 | HOLDING | CLOSE_DIFF@141.15 profit=964.08 |
+| 499,585 | 142.25 | HOLDING | TRIM@142.25 shares=979.7 |
+| 500,267 | 142.30 | HOLDING | CLOSE_DIFF@142.30 profit=-48.98 |
+| 500,870 | 142.90 | HOLDING | TRIM@142.90 shares=979.7 |
+| 501,158 | 145.10 | HOLDING | CLOSE_DIFF@145.10 profit=-2155.27 |
+| 502,022 | 149.70 | HOLDING | ADD_POS@149.70 +99.3 L1ratio=0.096 |
+| 502,721 | 140.55 | HOLDING | ADD_POS@140.55 +108.8 L1ratio=0.096 |
+| 502,832 | 140.55 | WAIT_ENTRY | BSP_INVALIDATE@140.55 |
+| 576,773 | 158.80 | ENTRY | WAIT→ENTRY BSP={1264064818} |
+| 576,774 | 158.80 | WAIT_SUB_ENTRY | ENTRY→WAIT_SUB@158.80 L2dir=1 |
+| 576,835 | 157.05 | HOLDING | SUB_ENTRY_TIMEOUT@157.05 |
+| 578,384 | 158.10 | HOLDING | TRIM@158.10 shares=633.7 |
+| 578,760 | 161.05 | HOLDING | CLOSE_DIFF@161.05 profit=-1869.48 |
+| 582,192 | 162.80 | HOLDING | MOVE_SETTLE_SKIP(p=17.85<med=161.90) |
+| 582,807 | 157.90 | HOLDING | TRIM@157.90 shares=635.4 |
+| 583,315 | 155.40 | HOLDING | CLOSE_DIFF@155.40 profit=1588.42 |
+| 584,519 | 164.90 | HOLDING | MOVE_SETTLE_SKIP(p=9.80<med=85.50) |
+| 585,065 | 160.30 | HOLDING | TRIM@160.30 shares=630.9 |
+| 586,264 | 166.45 | HOLDING | CLOSE_DIFF@166.45 profit=-3880.08 |
+| 587,565 | 170.45 | HOLDING | TRIM@170.45 shares=627.9 |
+| 587,878 | 170.15 | HOLDING | CLOSE_DIFF@170.15 profit=188.38 |
+| 589,223 | 170.90 | HOLDING | TRIM@170.90 shares=633.4 |
+| 589,341 | 171.80 | HOLDING | CLOSE_DIFF@171.80 profit=-570.04 |
+| 590,137 | 172.65 | HOLDING | TRIM@172.65 shares=627.4 |
+| 591,175 | 171.10 | HOLDING | MOVE_SETTLE_SKIP(p=20.65<med=173.40) |
+| 592,669 | 173.40 | HOLDING | CLOSE_DIFF@173.40 profit=-470.53 |
+| 593,284 | 172.45 | HOLDING | TRIM@172.45 shares=636.2 |
+| 594,708 | 181.60 | HOLDING | CLOSE_DIFF@181.60 profit=-5821.13 |
+| 595,001 | 185.45 | HOLDING | TRIM@185.45 shares=610.2 |
+| 595,530 | 186.95 | HOLDING | CLOSE_DIFF@186.95 profit=-915.26 |
+| ... | ... | ... | （共282条，显示前150） |
+</details>
+
+## 维度叠加对比
+
+| 版本 | QQQ | OKLO | HK700 |
+|------|-----|------|-------|
+| 5. 纯做多 | +71.7% | +228% | +292.9% |
+| 7. persistence过滤版 | +58.7% | +194.4% | +313.0% |
+| 7+D2. +区间套定位 | +60.7% | +192.4% | +325.3% |
+| 7+D2+D3. **+加仓完善（本版）** | **+60.4%** | **+189.7%** | **+304.9%** |
+
+## 汇总
+
+| 标的 | Bars | BH% | 复利% | 胜率 | 交易数 | L2翻转 | 加仓 | 降成本 | PW | 段比较 | 耗时 |
+|------|------|-----|------|------|--------|--------|------|--------|-----|--------|------|
+| QQQ | 728,030 | +174.6 | +60.43 | 71% | 28 | 14 | 20/28 | 24/28 | 0/28 | 5/28 | 367s |
+| OKLO | 333,613 | +251.3 | +189.68 | 89% | 9 | 7 | 7/9 | 7/9 | 0/9 | 1/9 | 72s |
+| HK700 | 1,408,882 | +3933.5 | +304.92 | 71% | 14 | 5 | 14/14 | 14/14 | 0/14 | 1/14 | 524s |
+
+## 结果包六要素
+
+**结论**：维度3——加仓逻辑完善对收益的影响。
+
+**定义依据**：
+- 38课S7b-ii：创新高且不背驰 = 趋势力度强劲
+- 38课第30行：分区卷钱 = 不同级别筹码各做各的
+- 趋势追加 ratio×0.5（追涨比1买更保守）
+- S5a 回调不破前低 = 结构性趋势延续确认，不需要额外BSP
+
+**边界条件**：
+- PENDING_EXPIRY = 390 bars
+- 趋势加仓系数 0.5（可调）
+- 加仓在追涨点，风险高于1买入场
+
+**下游推论**：
+- 若加仓版 > 区间套版 → 趋势追加在正确时机产生了额外收益
+- 若加仓版 < 区间套版 → 追涨加仓拉高了成本，被回调吃掉
+- 加仓次数/每笔交易的加仓占比可验证分区卷钱效果
+
+**谱系引用**：
+- 525号：组件局部完成性
+- 526号：a0递归存在论区分
+- 521号：PH纯拓扑无动量
+
+**影响声明**：新建独立回测脚本，不修改引擎代码或旧版回测。
+
+**认识论等级**：L2（真实数据，3标的 1min；可产生否定性结果）。
