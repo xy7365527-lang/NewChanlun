@@ -87,6 +87,9 @@ SPLITS: dict[str, list[tuple[str, float]]] = {
 ES_FILE = "es_1m_databento_10y.json"
 CL_FILE = "cl_1m_databento_10y.json"
 THETA = 0.5     # 不兼容阈值（文档 §3.2.3 默认）
+# ES/CL 起点裁剪到股票数据窗口（2018-05）：剔除无成分股的 2016-2018（无用且增内存峰值）。
+# 联合 Layer B 窗口本就 META-限制到 2021+，2018 起步对 σ 级别涌现充分（3年预热）。
+ES_START = "2018-05-01"
 
 
 # ════════════════════════════════════════════════════════════
@@ -187,7 +190,15 @@ def _worker_ratio_sigma(edge_spec: tuple) -> str:
 
     cl = load_series(CL_FILE)
     if kind == "es_cl":
-        rb = log_envelope_ratio(load_series(ES_FILE), cl, edge_name)
+        es = load_series(ES_FILE)
+        start_ep = _ex_date_epoch(ES_START)
+        m_es = es.ts >= start_ep
+        m_cl = cl.ts >= start_ep
+        es = replace(es, ts=es.ts[m_es], day=es.day[m_es], o=es.o[m_es],
+                     h=es.h[m_es], l=es.l[m_es], c=es.c[m_es])
+        cl = replace(cl, ts=cl.ts[m_cl], day=cl.day[m_cl], o=cl.o[m_cl],
+                     h=cl.h[m_cl], l=cl.l[m_cl], c=cl.c[m_cl])
+        rb = log_envelope_ratio(es, cl, edge_name)
     elif kind == "stock_cl":
         rb = log_envelope_ratio(load_component(arg), cl, edge_name)
     elif kind == "residual":
