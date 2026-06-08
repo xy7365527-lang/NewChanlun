@@ -46,20 +46,9 @@ class TestConfiguration:
         assert CENTER.zero_count == 3
         assert CENTER.node_type == "center"
 
-    def test_degree_corner(self):
-        c = Configuration(WalkDirection.UP, WalkDirection.UP, WalkDirection.UP)
-        assert c.degree == 3
-
-    def test_degree_edge(self):
-        c = Configuration(WalkDirection.UP, WalkDirection.FLAT, WalkDirection.DOWN)
-        assert c.degree == 4
-
-    def test_degree_face(self):
-        c = Configuration(WalkDirection.FLAT, WalkDirection.FLAT, WalkDirection.DOWN)
-        assert c.degree == 5
-
-    def test_degree_center(self):
-        assert CENTER.degree == 6
+    # 注：旧 `Configuration.degree`（按 zero_count 计 3/4/5/6 度）属于 527号判定为
+    # 错误的 54 边位置态模型，已移除。81 边图中每节点度数恒为 6，由
+    # transition.node_degree 承载（见 test_transition.py::test_all_nodes_degree_6）。
 
     def test_label(self):
         c = Configuration(WalkDirection.UP, WalkDirection.FLAT, WalkDirection.DOWN)
@@ -68,7 +57,7 @@ class TestConfiguration:
     def test_frozen(self):
         c = Configuration(WalkDirection.UP, WalkDirection.UP, WalkDirection.UP)
         try:
-            c.sigma_e = WalkDirection.DOWN  # type: ignore
+            c.sigma_p = WalkDirection.DOWN  # type: ignore
             assert False, "应该抛出 FrozenInstanceError"
         except AttributeError:
             pass

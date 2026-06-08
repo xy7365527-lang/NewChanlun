@@ -111,7 +111,7 @@ class DivergenceEvent:
     sign_divergent: bool  # product_sign != fiber_sign
 
     # 配置分量
-    sigma_e: int
+    sigma_p: int
     sigma_c: int
     sigma_r: int
 
@@ -171,7 +171,7 @@ def run_divergence_analysis() -> dict:
                         product_sign=p_sign,
                         fiber_sign=f_sign,
                         sign_divergent=sign_div,
-                        sigma_e=e.value,
+                        sigma_p=e.value,
                         sigma_c=c.value,
                         sigma_r=r.value,
                         fiber_scan_direction=dual.fiber_scan_direction,

@@ -481,7 +481,7 @@ class TestTargetUniverse:
     def test_positive_polarity_equity(self) -> None:
         """polarity > 0 → EQUITY_UNIVERSE。"""
         config = Configuration(
-            sigma_e=WalkDirection.UP,
+            sigma_p=WalkDirection.UP,
             sigma_c=WalkDirection.UP,
             sigma_r=WalkDirection.UP,
         )
@@ -492,7 +492,7 @@ class TestTargetUniverse:
     def test_negative_polarity_rates(self) -> None:
         """polarity < 0 → RATE_UNIVERSE。"""
         config = Configuration(
-            sigma_e=WalkDirection.DOWN,
+            sigma_p=WalkDirection.DOWN,
             sigma_c=WalkDirection.DOWN,
             sigma_r=WalkDirection.DOWN,
         )
@@ -503,7 +503,7 @@ class TestTargetUniverse:
     def test_neutral_polarity_both(self) -> None:
         """polarity == 0 → EQUITY + RATE。"""
         config = Configuration(
-            sigma_e=WalkDirection.UP,
+            sigma_p=WalkDirection.UP,
             sigma_c=WalkDirection.DOWN,
             sigma_r=WalkDirection.FLAT,
         )
@@ -512,9 +512,9 @@ class TestTargetUniverse:
         assert "TLT" in universe
 
     def test_gold_added_when_e_and_c_up(self) -> None:
-        """sigma_e=UP 且 sigma_c=UP → 加入 GLD。"""
+        """sigma_p=UP 且 sigma_c=UP → 加入 GLD。"""
         config = Configuration(
-            sigma_e=WalkDirection.UP,
+            sigma_p=WalkDirection.UP,
             sigma_c=WalkDirection.UP,
             sigma_r=WalkDirection.DOWN,
         )
@@ -528,7 +528,7 @@ class TestScanCandidatesRanking:
     def test_highest_tightness_selected(self) -> None:
         """最高 tightness 的标的被选中。"""
         config = Configuration(
-            sigma_e=WalkDirection.UP,
+            sigma_p=WalkDirection.UP,
             sigma_c=WalkDirection.UP,
             sigma_r=WalkDirection.UP,
         )
@@ -547,7 +547,7 @@ class TestScanCandidatesRanking:
     def test_no_candidates_returns_none(self) -> None:
         """无候选标的 → selected=None。"""
         config = Configuration(
-            sigma_e=WalkDirection.UP,
+            sigma_p=WalkDirection.UP,
             sigma_c=WalkDirection.UP,
             sigma_r=WalkDirection.UP,
         )
@@ -561,7 +561,7 @@ class TestScanCandidatesRanking:
     def test_candidates_sorted_by_tightness(self) -> None:
         """candidates 按 tightness 降序排列。"""
         config = Configuration(
-            sigma_e=WalkDirection.UP,
+            sigma_p=WalkDirection.UP,
             sigma_c=WalkDirection.UP,
             sigma_r=WalkDirection.UP,
         )
@@ -579,7 +579,7 @@ class TestScanCandidatesRanking:
     def test_polarity_filters_universe(self) -> None:
         """负极性不选股票标的。"""
         config = Configuration(
-            sigma_e=WalkDirection.DOWN,
+            sigma_p=WalkDirection.DOWN,
             sigma_c=WalkDirection.DOWN,
             sigma_r=WalkDirection.DOWN,
         )

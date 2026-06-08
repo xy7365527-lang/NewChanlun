@@ -34,10 +34,10 @@ from newchan.topology.fiber_bundle import (
 class TestBasePoint:
     def test_valid_construction(self):
         bp = BasePoint(1, 0)
-        assert bp.sigma_e == 1
+        assert bp.sigma_p == 1
         assert bp.sigma_c == 0
 
-    def test_invalid_sigma_e(self):
+    def test_invalid_sigma_p(self):
         with pytest.raises(ValueError):
             BasePoint(2, 0)
 
@@ -52,31 +52,31 @@ class TestBasePoint:
     def test_frozen(self):
         bp = BasePoint(0, 0)
         with pytest.raises(AttributeError):
-            bp.sigma_e = 1  # type: ignore
+            bp.sigma_p = 1  # type: ignore
 
 
 class TestConnection:
     def test_flat_connection_uniform(self):
         """平坦联络 → 纤维分布均匀。"""
-        conn = Connection(beta_er=0.0, beta_cr=0.0)
+        conn = Connection(beta_pr=0.0, beta_cr=0.0)
         base = BasePoint(1, 1)
         dist = conn.fiber_distribution(base)
         for r in (-1, 0, 1):
             assert abs(dist[r] - 1.0 / 3.0) < 1e-10
 
     def test_flat_connection_is_product(self):
-        conn = Connection(beta_er=0.0, beta_cr=0.0)
+        conn = Connection(beta_pr=0.0, beta_cr=0.0)
         assert conn.is_product()
 
     def test_nontrivial_connection_not_product(self):
-        conn = Connection(beta_er=-0.5, beta_cr=0.1)
+        conn = Connection(beta_pr=-0.5, beta_cr=0.1)
         assert not conn.is_product()
 
     def test_distribution_sums_to_one(self):
         """任意联络参数下，条件分布和为 1。"""
-        for beta_er in [-1.0, -0.5, 0.0, 0.5, 1.0]:
+        for beta_pr in [-1.0, -0.5, 0.0, 0.5, 1.0]:
             for beta_cr in [-1.0, -0.5, 0.0, 0.5, 1.0]:
-                conn = Connection(beta_er=beta_er, beta_cr=beta_cr)
+                conn = Connection(beta_pr=beta_pr, beta_cr=beta_cr)
                 for e in (-1, 0, 1):
                     for c in (-1, 0, 1):
                         base = BasePoint(e, c)
@@ -84,23 +84,23 @@ class TestConnection:
                         total = sum(dist.values())
                         assert abs(total - 1.0) < 1e-10
 
-    def test_negative_beta_er_favors_opposite(self):
-        """beta_er < 0 → sigma_e = +1 时偏好 sigma_r = -1。"""
-        conn = Connection(beta_er=-1.0, beta_cr=0.0)
+    def test_negative_beta_pr_favors_opposite(self):
+        """beta_pr < 0 → sigma_p = +1 时偏好 sigma_r = -1。"""
+        conn = Connection(beta_pr=-1.0, beta_cr=0.0)
         base = BasePoint(1, 0)
         dist = conn.fiber_distribution(base)
         assert dist[-1] > dist[0] > dist[1]
 
     def test_positive_beta_cr_favors_same(self):
         """beta_cr > 0 → sigma_c = +1 时偏好 sigma_r = +1。"""
-        conn = Connection(beta_er=0.0, beta_cr=1.0)
+        conn = Connection(beta_pr=0.0, beta_cr=1.0)
         base = BasePoint(0, 1)
         dist = conn.fiber_distribution(base)
         assert dist[1] > dist[0] > dist[-1]
 
     def test_zero_base_always_uniform(self):
         """底空间原点 (0,0) 上，无论联络参数如何，纤维分布均匀。"""
-        conn = Connection(beta_er=-2.0, beta_cr=3.0)
+        conn = Connection(beta_pr=-2.0, beta_cr=3.0)
         base = BasePoint(0, 0)
         dist = conn.fiber_distribution(base)
         for r in (-1, 0, 1):
@@ -108,10 +108,10 @@ class TestConnection:
 
     def test_logits_linear_in_sigma_r(self):
         """logits 对 sigma_r 的线性性。"""
-        conn = Connection(beta_er=-0.5, beta_cr=0.3)
+        conn = Connection(beta_pr=-0.5, beta_cr=0.3)
         base = BasePoint(1, -1)
         logits = conn.fiber_logits(base)
-        # logit(sigma_r) = beta_er * 1 * sigma_r + beta_cr * (-1) * sigma_r
+        # logit(sigma_r) = beta_pr * 1 * sigma_r + beta_cr * (-1) * sigma_r
         #                 = (-0.5 - 0.3) * sigma_r = -0.8 * sigma_r
         assert abs(logits[-1] - 0.8) < 1e-10
         assert abs(logits[0] - 0.0) < 1e-10
@@ -128,33 +128,33 @@ class TestCalibration:
             for r in (-1, 0, 1)
         }
         conn = calibrate_connection(uniform)
-        assert abs(conn.beta_er) < 0.01
+        assert abs(conn.beta_pr) < 0.01
         assert abs(conn.beta_cr) < 0.01
 
     def test_empty_counts_give_flat(self):
         conn = calibrate_connection({})
-        assert conn.beta_er == 0.0
+        assert conn.beta_pr == 0.0
         assert conn.beta_cr == 0.0
 
-    def test_230_data_beta_er_negative(self):
-        """230号数据 → beta_er < 0（E-R 反向耦合）。"""
+    def test_230_data_beta_pr_negative(self):
+        """230号数据 → beta_pr < 0（E-R 反向耦合）。"""
         conn = calibrate_connection(_230_CONFIG_COUNTS)
-        assert conn.beta_er < 0
+        assert conn.beta_pr < 0
 
     def test_230_data_beta_cr_positive(self):
         """230号数据 → beta_cr > 0（C-R 正向耦合）。"""
         conn = calibrate_connection(_230_CONFIG_COUNTS)
         assert conn.beta_cr > 0
 
-    def test_230_data_beta_er_and_cr_have_correct_signs(self):
-        """beta_er < 0 且 beta_cr > 0，方向与 230号偏相关一致。
+    def test_230_data_beta_pr_and_cr_have_correct_signs(self):
+        """beta_pr < 0 且 beta_cr > 0，方向与 230号偏相关一致。
 
-        注意：|beta_er| 和 |beta_cr| 的大小关系不直接对应偏相关的大小关系。
+        注意：|beta_pr| 和 |beta_cr| 的大小关系不直接对应偏相关的大小关系。
         偏相关是连续收益率的度量，beta 是离散走势方向的条件对数几率比。
         离散化过程改变了耦合强度的排序。
         """
         conn = calibrate_connection(_230_CONFIG_COUNTS)
-        assert conn.beta_er < 0, f"beta_er 应为负（E-R 反向耦合），实际 {conn.beta_er}"
+        assert conn.beta_pr < 0, f"beta_pr 应为负（E-R 反向耦合），实际 {conn.beta_pr}"
         assert conn.beta_cr > 0, f"beta_cr 应为正（C-R 正向耦合），实际 {conn.beta_cr}"
 
 
@@ -267,7 +267,7 @@ class TestFiberBundleConsistencyWith230:
         return default_fiber_bundle()
 
     def test_er_anti_correlation(self, fb):
-        """sigma_e = +1 时，sigma_r = -1 的概率高于 sigma_r = +1。
+        """sigma_p = +1 时，sigma_r = -1 的概率高于 sigma_r = +1。
 
         对应 230号：E-R 偏相关 = -0.336。
         """
@@ -319,7 +319,7 @@ class TestFiberBundleConsistencyWith230:
         """230号最低频配置 (1,-1,1) = 14 次。
 
         在纤维丛结构下，该配置的联合概率应低于 1/27。
-        sigma_e=+1 → 偏好 sigma_r=-1（E-R 反向），但实际 sigma_r=+1。
+        sigma_p=+1 → 偏好 sigma_r=-1（E-R 反向），但实际 sigma_r=+1。
         sigma_c=-1 → 偏好 sigma_r=-1（C-R 正向），但实际 sigma_r=+1。
         双重违背联络 → 低概率。
         """
@@ -339,17 +339,17 @@ class TestFiberBundleConsistencyWith230:
     def test_risk_on_off_asymmetry(self, fb):
         """(+,+,+) vs (-,-,-) 的概率不对称。
 
-        (+,+,+)：sigma_e=+1 偏好 sigma_r=-1，但实际 sigma_r=+1
+        (+,+,+)：sigma_p=+1 偏好 sigma_r=-1，但实际 sigma_r=+1
                  sigma_c=+1 偏好 sigma_r=+1（C-R 正向）
                  E-R 反向 vs C-R 正向的竞争
-        (-,-,-)：sigma_e=-1 偏好 sigma_r=+1，但实际 sigma_r=-1
+        (-,-,-)：sigma_p=-1 偏好 sigma_r=+1，但实际 sigma_r=-1
                  sigma_c=-1 偏好 sigma_r=-1（C-R 正向）
                  E-R 反向 vs C-R 正向的竞争，但方向反转
         """
         p_risk_on = fb.joint_probability(1, 1, 1)
         p_risk_off = fb.joint_probability(-1, -1, -1)
-        # 由于联络的非对称性（|beta_er| ≠ |beta_cr|），两者可能不同
+        # 由于联络的非对称性（|beta_pr| ≠ |beta_cr|），两者可能不同
         # 但由于 softmax 的对称性，实际上应该相等
-        # 因为 logit(+1|+1,+1) = beta_er + beta_cr
-        # 和 logit(-1|-1,-1) = beta_er + beta_cr（符号恰好抵消）
+        # 因为 logit(+1|+1,+1) = beta_pr + beta_cr
+        # 和 logit(-1|-1,-1) = beta_pr + beta_cr（符号恰好抵消）
         assert abs(p_risk_on - p_risk_off) < 1e-10

@@ -61,7 +61,7 @@ def target_universe(config: Configuration) -> tuple[str, ...]:
     - polarity == 0（中性）→ EQUITY_UNIVERSE + RATE_UNIVERSE
       中性 ≠ 反对。K4 中性时，层2的缠论结构独立生效——
       有完备买卖点就可以操作。K4 不提供额外筛选。
-    - sigma_e.UP 且 sigma_c.UP → 额外加入 GLD（Au 同向）
+    - sigma_p.UP 且 sigma_c.UP → 额外加入 GLD（Au 同向）
 
     认识论等级：L2（需真实数据验证的映射规则）。
     """
@@ -74,7 +74,7 @@ def target_universe(config: Configuration) -> tuple[str, ...]:
     else:
         base = EQUITY_UNIVERSE + RATE_UNIVERSE
 
-    if config.sigma_e is WalkDirection.UP and config.sigma_c is WalkDirection.UP:
+    if config.sigma_p is WalkDirection.UP and config.sigma_c is WalkDirection.UP:
         return base + GOLD_UNIVERSE
 
     return base

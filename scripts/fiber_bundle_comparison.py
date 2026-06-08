@@ -161,7 +161,7 @@ def run_comparison(aligned_data: list[dict]) -> dict:
 
         # 构建直积配置
         config = Configuration(
-            sigma_e=WalkDirection(e),
+            sigma_p=WalkDirection(e),
             sigma_c=WalkDirection(c),
             sigma_r=WalkDirection(r),
         )

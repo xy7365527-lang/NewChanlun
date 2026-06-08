@@ -292,7 +292,7 @@ def _config_space_coverage(
 
 
 def _polarity_index_stats(directions: dict[str, np.ndarray]) -> dict[str, Any]:
-    """极性指数 S = sigma_e + sigma_c + sigma_r 的分布统计。"""
+    """极性指数 S = sigma_p + sigma_c + sigma_r 的分布统计。"""
     e_dir = directions["E_dollar"]
     c_dir = directions["C_dollar"]
     r_dir = directions["R_dollar"]
@@ -442,7 +442,7 @@ def run_independence_test() -> dict[str, Any]:
             "partial_correlation": "控制 UUP 收益率后的偏相关（OLS 残差法）",
             "rolling_window": f"{_ROLLING_WINDOW} 日滚动窗口",
             "walk_direction": "20 日均线斜率阈值法（0.5 * std）",
-            "config_space": "三元组 (sigma_e, sigma_c, sigma_r) in {-1,0,+1}^3",
+            "config_space": "三元组 (sigma_p, sigma_c, sigma_r) in {-1,0,+1}^3",
         },
         "timestamp": datetime.now().isoformat(),
     }

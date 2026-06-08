@@ -39,44 +39,44 @@ _BASE_VALUES: tuple[int, ...] = (-1, 0, 1)
 
 @dataclass(frozen=True, slots=True)
 class BasePoint:
-    """底空间 B 中的一个点：(sigma_e, sigma_c)。
+    """底空间 B 中的一个点：(sigma_p, sigma_c)。
 
     E 和 C 构成直积因子（230号：E-C 偏相关 ≈ 0）。
     """
 
-    sigma_e: int
+    sigma_p: int
     sigma_c: int
 
     def __post_init__(self) -> None:
-        if self.sigma_e not in _BASE_VALUES:
-            raise ValueError(f"sigma_e 必须在 {{-1,0,+1}} 内，收到：{self.sigma_e}")
+        if self.sigma_p not in _BASE_VALUES:
+            raise ValueError(f"sigma_p 必须在 {{-1,0,+1}} 内，收到：{self.sigma_p}")
         if self.sigma_c not in _BASE_VALUES:
             raise ValueError(f"sigma_c 必须在 {{-1,0,+1}} 内，收到：{self.sigma_c}")
 
     @property
     def as_tuple(self) -> tuple[int, int]:
-        return (self.sigma_e, self.sigma_c)
+        return (self.sigma_p, self.sigma_c)
 
 
 @dataclass(frozen=True, slots=True)
 class Connection:
     """纤维丛联络：给定底空间点，决定纤维上的条件概率分布。
 
-    模型：P(sigma_r | sigma_e, sigma_c) ∝ exp(beta_er * sigma_e * sigma_r
+    模型：P(sigma_r | sigma_p, sigma_c) ∝ exp(beta_pr * sigma_p * sigma_r
                                                 + beta_cr * sigma_c * sigma_r)
 
-    beta_er < 0 编码 E-R 反向耦合（risk-on/off 跷跷板）。
+    beta_pr < 0 编码 P-R 反向耦合（risk-on/off 跷跷板）。
     beta_cr > 0 编码 C-R 正向耦合（避险同向性）。
 
     Attributes
     ----------
-    beta_er : float
+    beta_pr : float
         E-R 耦合强度。负值 = 反向耦合。
     beta_cr : float
         C-R 耦合强度。正值 = 正向耦合。
     """
 
-    beta_er: float
+    beta_pr: float
     beta_cr: float
 
     def fiber_logits(self, base: BasePoint) -> dict[int, float]:
@@ -85,7 +85,7 @@ class Connection:
         Parameters
         ----------
         base : BasePoint
-            底空间坐标 (sigma_e, sigma_c)。
+            底空间坐标 (sigma_p, sigma_c)。
 
         Returns
         -------
@@ -94,7 +94,7 @@ class Connection:
         """
         return {
             sigma_r: (
-                self.beta_er * base.sigma_e * sigma_r
+                self.beta_pr * base.sigma_p * sigma_r
                 + self.beta_cr * base.sigma_c * sigma_r
             )
             for sigma_r in _FIBER_VALUES
@@ -103,12 +103,12 @@ class Connection:
     def fiber_distribution(self, base: BasePoint) -> dict[int, float]:
         """计算给定底空间点上纤维的条件概率分布。
 
-        P(sigma_r | sigma_e, sigma_c) = softmax(logits)
+        P(sigma_r | sigma_p, sigma_c) = softmax(logits)
 
         Parameters
         ----------
         base : BasePoint
-            底空间坐标 (sigma_e, sigma_c)。
+            底空间坐标 (sigma_p, sigma_c)。
 
         Returns
         -------
@@ -124,9 +124,9 @@ class Connection:
     def is_product(self, tol: float = 1e-6) -> bool:
         """联络是否退化为直积（平坦联络）。
 
-        当 beta_er ≈ 0 且 beta_cr ≈ 0 时，纤维丛退化为直积。
+        当 beta_pr ≈ 0 且 beta_cr ≈ 0 时，纤维丛退化为直积。
         """
-        return abs(self.beta_er) < tol and abs(self.beta_cr) < tol
+        return abs(self.beta_pr) < tol and abs(self.beta_cr) < tol
 
 
 def calibrate_connection(
@@ -134,24 +134,24 @@ def calibrate_connection(
 ) -> Connection:
     """从经验配置频率校准联络参数（条件 MLE）。
 
-    最大化 Π P(sigma_r | sigma_e, sigma_c; beta)，不假设底空间先验。
+    最大化 Π P(sigma_r | sigma_p, sigma_c; beta)，不假设底空间先验。
     """
     total = sum(config_counts.values())
     if total == 0:
-        return Connection(beta_er=0.0, beta_cr=0.0)
+        return Connection(beta_pr=0.0, beta_cr=0.0)
 
     # 按底空间点分组
     base_groups: dict[tuple[int, int], dict[int, int]] = {}
     for (e, c, r), count in config_counts.items():
         base_groups.setdefault((e, c), {})[r] = count
 
-    beta_er = 0.0
+    beta_pr = 0.0
     beta_cr = 0.0
     lr = 0.5
     for _ in range(2000):
-        grad_er = 0.0
+        grad_pr = 0.0
         grad_cr = 0.0
-        conn = Connection(beta_er, beta_cr)
+        conn = Connection(beta_pr, beta_cr)
 
         for (e, c), r_counts in base_groups.items():
             n_base = sum(r_counts.values())
@@ -160,18 +160,18 @@ def calibrate_connection(
             dist = conn.fiber_distribution(BasePoint(e, c))
             # 指数族梯度：n * (empirical_stat - model_stat)
             for r, cnt in r_counts.items():
-                grad_er += (cnt - n_base * dist.get(r, 0.0)) * e * r
+                grad_pr += (cnt - n_base * dist.get(r, 0.0)) * e * r
                 grad_cr += (cnt - n_base * dist.get(r, 0.0)) * c * r
 
-        grad_er /= total
+        grad_pr /= total
         grad_cr /= total
-        beta_er += lr * grad_er
+        beta_pr += lr * grad_pr
         beta_cr += lr * grad_cr
 
-        if abs(grad_er) < 1e-8 and abs(grad_cr) < 1e-8:
+        if abs(grad_pr) < 1e-8 and abs(grad_cr) < 1e-8:
             break
 
-    return Connection(beta_er=beta_er, beta_cr=beta_cr)
+    return Connection(beta_pr=beta_pr, beta_cr=beta_cr)
 
 
 # ── 纤维丛配置空间 ──────────────────────────────────────────
@@ -186,11 +186,11 @@ class FiberBundlePoint:
     Attributes
     ----------
     base : BasePoint
-        底空间坐标 (sigma_e, sigma_c)。
+        底空间坐标 (sigma_p, sigma_c)。
     sigma_r : int
         纤维坐标。
     fiber_prob : float
-        P(sigma_r | sigma_e, sigma_c)，由联络决定。
+        P(sigma_r | sigma_p, sigma_c)，由联络决定。
     """
 
     base: BasePoint
@@ -201,14 +201,14 @@ class FiberBundlePoint:
     def config(self) -> Configuration:
         """转换为 Configuration（向后兼容）。"""
         return Configuration(
-            sigma_e=WalkDirection(self.base.sigma_e),
+            sigma_p=WalkDirection(self.base.sigma_p),
             sigma_c=WalkDirection(self.base.sigma_c),
             sigma_r=WalkDirection(self.sigma_r),
         )
 
     @property
     def as_tuple(self) -> tuple[int, int, int]:
-        return (self.base.sigma_e, self.base.sigma_c, self.sigma_r)
+        return (self.base.sigma_p, self.base.sigma_c, self.sigma_r)
 
     @property
     def polarity(self) -> int:
@@ -293,7 +293,7 @@ class FiberBundleConfigSpace:
     def fiber_over(self, base: BasePoint) -> tuple[FiberBundlePoint, ...]:
         """返回底空间某点上方的整条纤维（3 个点，sigma_r = -1, 0, +1）。"""
         return tuple(
-            self._by_tuple[(base.sigma_e, base.sigma_c, r)]
+            self._by_tuple[(base.sigma_p, base.sigma_c, r)]
             for r in _FIBER_VALUES
         )
 

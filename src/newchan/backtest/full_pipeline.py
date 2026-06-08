@@ -177,13 +177,13 @@ class FullPipelineEngine:
 
         返回 (config_label, polarity)。
 
-        使用 k4_configuration() 直接从 E/$, Au/$, R/$ 三条边推导 Configuration。
+        使用 k4_configuration() 直接从 P/M, Au/$, R/$ 三条边推导 Configuration。
         """
         if _HAS_K4_SCANNER:
             from newchan.topology.k4_scanner import k4_configuration as k4_cfg
             cfg = k4_cfg(snapshots[0], snapshots[1], snapshots[2], level=1)
             pol = polarity_index(cfg)
-            label = f"({_dir_char(cfg.sigma_e)},{_dir_char(cfg.sigma_c)},{_dir_char(cfg.sigma_r)})"
+            label = f"({_dir_char(cfg.sigma_p)},{_dir_char(cfg.sigma_c)},{_dir_char(cfg.sigma_r)})"
             return (label, pol)
 
         # Fallback：从 lstar 推导方向
@@ -194,9 +194,9 @@ class FullPipelineEngine:
             else:
                 directions.append(WalkDirection.FLAT)
 
-        cfg = Configuration(sigma_e=directions[0], sigma_c=directions[1], sigma_r=directions[2])
+        cfg = Configuration(sigma_p=directions[0], sigma_c=directions[1], sigma_r=directions[2])
         pol = polarity_index(cfg)
-        label = f"({_dir_char(cfg.sigma_e)},{_dir_char(cfg.sigma_c)},{_dir_char(cfg.sigma_r)})"
+        label = f"({_dir_char(cfg.sigma_p)},{_dir_char(cfg.sigma_c)},{_dir_char(cfg.sigma_r)})"
         return (label, pol)
 
     def _scan_candidates(
@@ -215,7 +215,7 @@ class FullPipelineEngine:
         if _HAS_STOCK_SCANNER:
             result = scan_candidates(
                 Configuration(
-                    sigma_e=WalkDirection.FLAT,
+                    sigma_p=WalkDirection.FLAT,
                     sigma_c=WalkDirection.FLAT,
                     sigma_r=WalkDirection.FLAT,
                 ),

@@ -37,7 +37,7 @@ from newchan.trading.scanner_pool import (
 def _config(e: int, c: int, r: int) -> Configuration:
     """快速构造 Configuration。"""
     return Configuration(
-        sigma_e=WalkDirection(e),
+        sigma_p=WalkDirection(e),
         sigma_c=WalkDirection(c),
         sigma_r=WalkDirection(r),
     )
@@ -92,13 +92,13 @@ class TestLayer1TargetMatrix:
         assert "rate" in matrix
 
     def test_gold_condition(self) -> None:
-        """sigma_e UP 且 sigma_c UP → 包含 AU。"""
+        """sigma_p UP 且 sigma_c UP → 包含 AU。"""
         cfg = _config(1, 1, -1)  # E=UP, C=UP, polarity=+1
         matrix = layer1_target_matrix(cfg)
         assert "au" in matrix
 
     def test_no_gold_when_condition_not_met(self) -> None:
-        """sigma_e 或 sigma_c 不为 UP → 不包含 AU。"""
+        """sigma_p 或 sigma_c 不为 UP → 不包含 AU。"""
         cfg = _config(1, 0, 1)  # C != UP
         matrix = layer1_target_matrix(cfg)
         assert "au" not in matrix

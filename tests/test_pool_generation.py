@@ -43,7 +43,7 @@ from newchan.trading.scanner_pool import (
 def _config(e: int, c: int, r: int) -> Configuration:
     """快速构造 Configuration。"""
     return Configuration(
-        sigma_e=WalkDirection(e),
+        sigma_p=WalkDirection(e),
         sigma_c=WalkDirection(c),
         sigma_r=WalkDirection(r),
     )
@@ -97,7 +97,7 @@ class TestPassacagliaConditionChain:
         assert matrix == frozenset({"equity", "rate"})
 
     def test_gold_augmentation_requires_both_up(self) -> None:
-        """sigma_e=UP 且 sigma_c=UP → 额外加入 au。"""
+        """sigma_p=UP 且 sigma_c=UP → 额外加入 au。"""
         cfg = _config(1, 1, -1)  # E=UP, C=UP, polarity=+1
         matrix = layer1_target_matrix(cfg)
         assert "au" in matrix
@@ -109,8 +109,8 @@ class TestPassacagliaConditionChain:
         matrix = layer1_target_matrix(cfg)
         assert "au" not in matrix
 
-    def test_no_gold_if_sigma_e_not_up(self) -> None:
-        """sigma_e != UP → 不包含 au。"""
+    def test_no_gold_if_sigma_p_not_up(self) -> None:
+        """sigma_p != UP → 不包含 au。"""
         cfg = _config(0, 1, 0)  # E=FLAT
         matrix = layer1_target_matrix(cfg)
         assert "au" not in matrix
@@ -321,7 +321,7 @@ class TestPassacagliaConstraints:
                     assert len(matrix) >= 1, f"Empty matrix for ({e},{c},{r})"
 
     def test_gold_only_with_risk_on_and_both_up(self) -> None:
-        """au 只在 sigma_e=UP 且 sigma_c=UP 时出现。"""
+        """au 只在 sigma_p=UP 且 sigma_c=UP 时出现。"""
         for e in (-1, 0, 1):
             for c in (-1, 0, 1):
                 for r in (-1, 0, 1):

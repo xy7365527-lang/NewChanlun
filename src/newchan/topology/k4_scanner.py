@@ -4,9 +4,14 @@
 
 概念溯源：ontology-v2-push.md §三
 
-K4 完全图模型：四顶点 E/Au/R/$，六条边。
+K4 完全图模型：正典四顶点 M/P/C/R（330号），六条边。
 D 算子跑在六条边的比价序列上。
-Configuration 三元组（E/$, Au/$, R/$）是六条边信息的压缩视图。
+
+⚠ 消费者层绑定偏离（528号"四套冲突映射"之一，待统一）：本 scanner 的 Configuration
+三元组实际绑定为 (P/M, Au/$, R/$)——即 slot σ_C 绑黄金（Au 折叠通道观测量）、
+slot σ_R 绑利率，而非正典的 σ_C=C/M(广义商品)、σ_R=R/M(不动产)。正典单一真相源见
+topology/data_mapping.py；重写本 scanner 读取单一真相源属 528号下游"复核回测↔实时
+可比性"任务，不在 529号结构重构范围内，此处诚实标注不静默。
 
 映射规则：
 - trend（趋势）→ 保留 direction（"up" → UP, "down" → DOWN）
@@ -68,7 +73,7 @@ def walk_direction_from_snapshot(
     - 无 settled move → FLAT（保守默认）
 
     统一映射：K4 配置状态直接基于 D 算子的走势方向（settled moves），
-    不存在独立的 sigma 映射。config.sigma_e/c/r 和 d_reading.direction
+    不存在独立的 sigma 映射。config.sigma_p/c/r 和 d_reading.direction
     来自同一数据源。
 
     Parameters
@@ -95,14 +100,14 @@ def k4_configuration(
     r_usd_snapshot: RecursiveOrchestratorSnapshot,
     level: int = 0,
 ) -> Configuration:
-    """从三条顶点→现金边（E/$, Au/$, R/$）的快照组合成 K4 Configuration。
+    """从三条顶点→现金边（P/M, Au/$, R/$）的快照组合成 K4 Configuration。
 
     Configuration 是六条边信息的压缩视图，仅使用三条直接对现金的边。
 
     Parameters
     ----------
     e_usd_snapshot : RecursiveOrchestratorSnapshot
-        E/$ (SPY) 快照。
+        P/M (SPY) 快照。
     au_usd_snapshot : RecursiveOrchestratorSnapshot
         Au/$ (GLD) 快照。
     r_usd_snapshot : RecursiveOrchestratorSnapshot
@@ -115,7 +120,7 @@ def k4_configuration(
     Configuration
     """
     return Configuration(
-        sigma_e=walk_direction_from_snapshot(e_usd_snapshot, level),
+        sigma_p=walk_direction_from_snapshot(e_usd_snapshot, level),
         sigma_c=walk_direction_from_snapshot(au_usd_snapshot, level),
         sigma_r=walk_direction_from_snapshot(r_usd_snapshot, level),
     )
@@ -128,15 +133,15 @@ class K4ScanResult:
     Attributes
     ----------
     config : Configuration
-        K4 配置三元组（E/$, Au/$, R/$ 压缩视图）。
+        K4 配置三元组（P/M, Au/$, R/$ 压缩视图）。
     polarity : int
-        极性指数 S = sigma_e + sigma_c + sigma_r。
+        极性指数 S = sigma_p + sigma_c + sigma_r。
     e_au_direction : WalkDirection
         E/Au 边方向。
     e_r_direction : WalkDirection
         E/R 边方向。
     e_usd_direction : WalkDirection
-        E/$ 边方向。
+        P/M 边方向。
     au_r_direction : WalkDirection
         Au/R 边方向。
     au_usd_direction : WalkDirection
@@ -169,7 +174,7 @@ def scan_k4(
 ) -> K4ScanResult:
     """完整的 K4 扫描：从六条边的快照计算配置 + 极性 + 打包结果。
 
-    Configuration 从 E/$, Au/$, R/$ 三条边推导（压缩视图）。
+    Configuration 从 P/M, Au/$, R/$ 三条边推导（压缩视图）。
     六条边的完整方向态全部记录在结果中。
 
     Parameters
@@ -179,7 +184,7 @@ def scan_k4(
     e_r_snapshot : RecursiveOrchestratorSnapshot
         E/R (SPY/TLT) 比价快照。
     e_usd_snapshot : RecursiveOrchestratorSnapshot
-        E/$ (SPY) 快照。
+        P/M (SPY) 快照。
     au_r_snapshot : RecursiveOrchestratorSnapshot
         Au/R (GLD/TLT) 比价快照。
     au_usd_snapshot : RecursiveOrchestratorSnapshot
@@ -200,7 +205,7 @@ def scan_k4(
     au_usd_dir = walk_direction_from_snapshot(au_usd_snapshot, level)
     r_usd_dir = walk_direction_from_snapshot(r_usd_snapshot, level)
 
-    config = Configuration(sigma_e=e_usd_dir, sigma_c=au_usd_dir, sigma_r=r_usd_dir)
+    config = Configuration(sigma_p=e_usd_dir, sigma_c=au_usd_dir, sigma_r=r_usd_dir)
     return K4ScanResult(
         config=config,
         polarity=polarity_index(config),

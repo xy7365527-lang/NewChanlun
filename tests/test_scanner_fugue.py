@@ -60,7 +60,7 @@ def _target(
 
 def _config(e: int = 1, c: int = 1, r: int = 0) -> Configuration:
     return Configuration(
-        sigma_e=WalkDirection(e),
+        sigma_p=WalkDirection(e),
         sigma_c=WalkDirection(c),
         sigma_r=WalkDirection(r),
     )

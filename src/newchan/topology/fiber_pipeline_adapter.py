@@ -107,7 +107,7 @@ def _fiber_polarity(
     base : BasePoint
         底空间坐标。
     fiber_dist : dict[int, float]
-        P(sigma_r | sigma_e, sigma_c)。
+        P(sigma_r | sigma_p, sigma_c)。
     observed_r : int
         实际观测的 sigma_r 值，用于打破概率平局。
 
@@ -125,7 +125,7 @@ def _fiber_polarity(
         mode_r = observed_r
     else:
         mode_r = modes[0]
-    return base.sigma_e + base.sigma_c + mode_r
+    return base.sigma_p + base.sigma_c + mode_r
 
 
 def compute_fiber_correction(
@@ -149,9 +149,9 @@ def compute_fiber_correction(
     if fb is None:
         fb = default_fiber_bundle()
 
-    base = BasePoint(config.sigma_e.value, config.sigma_c.value)
+    base = BasePoint(config.sigma_p.value, config.sigma_c.value)
     fiber_point = fb.get(
-        config.sigma_e.value,
+        config.sigma_p.value,
         config.sigma_c.value,
         config.sigma_r.value,
     )
@@ -319,7 +319,7 @@ def create_fiber_context(
     config = ctx.config  # type: ignore[union-attr]
     correction = compute_fiber_correction(config, fb)
 
-    base = BasePoint(config.sigma_e.value, config.sigma_c.value)
+    base = BasePoint(config.sigma_p.value, config.sigma_c.value)
     fiber_dist = (fb or default_fiber_bundle()).connection.fiber_distribution(base)
     fiber_pol = _fiber_polarity(base, fiber_dist, config.sigma_r.value)
 

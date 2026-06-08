@@ -89,7 +89,7 @@ def _make_k4_state(polarity: int = 3) -> K4State:
         au_r=_make_edge_state("Au/R", "Au", "R", au_dir),
         au_usd=_make_edge_state("Au/$", "Au", "$", au_dir),
         r_usd=_make_edge_state("R/$", "R", "$", r_dir),
-        config=Configuration(sigma_e=e_dir, sigma_c=au_dir, sigma_r=r_dir),
+        config=Configuration(sigma_p=e_dir, sigma_c=au_dir, sigma_r=r_dir),
         polarity=polarity,
     )
 

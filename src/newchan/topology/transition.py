@@ -1,19 +1,30 @@
-"""转换拓扑 — 配置之间的转换规则与路径分析。
+"""转换拓扑 — 配置之间的转换规则与路径分析（81 边图，527号定理）。
 
-概念溯源：ontology-v2-push.md §三.8, §三.9
+概念溯源：254号、527号 σ 本体论冲突结算（定理/吸收）、528号折叠通道重构。
 
-转换拓扑图 G = P3 [] P3 [] P3（笛卡尔积）。
-27 个节点，54 条边。
+## 配置转换拓扑 = 81 边图（527号定理）
 
-相邻 = 只有一条独立边状态改变，且只在相邻态之间跳转
-      （+<->0, -<->0，禁止 +<->-）。
+σ 是**走势方向态**，不是价格位置态。依"走势必完美"（24/29课一级权威）：下跌走势
+settle 后可**直接**转上涨走势，盘整不是必经中间态——故 σ 可 −1 → +1 不经 0。
 
-图的性质：
-  - 直径 = 6
-  - 半径 = 3（中心为 (0,0,0)）
-  - 围长 = 4（最短环）
-  - 二部图（色数 = 2）
-  - 自同构群 |Aut(G)| = 48
+相邻 = **恰好一条独立边的走势方向改变，可改变为任意其他方向**（含 +↔− 直接跳变）。
+每个节点度数 = 3 分量 × 2 个其他方向 = 6。边数 = 27 × 6 / 2 = **81**。
+
+图的性质（重算，527号：旧 54 边性质作废）：
+  - 直径 = 3（最多 3 个分量不同）
+  - 半径 = 3（每个节点偏心率均为 3）
+  - **非二部图**（每个分量的 3 态全连通 = K3，含长度 3 的奇环）
+  - 每个分量子图 = K3（完全图），整图 = K3 □ K3 □ K3（笛卡尔积）
+
+> 527号裁定：旧实现的 54 边图（P3 □ P3 □ P3，禁 +↔−）隐含 σ 是连续位置态，
+> 是**实现错误**——以数学便利（二部/直径6/|Aut|=48）约束本体论 = 有效域膨胀。
+> 该 54 边对象作为纯数学对象无误，但**不是配置转换拓扑**；本次按 no-patch 删除，
+> 不保留为 fallback。若未来确需"价格位置态投影"，另建独立命名模块。
+
+## 距离 = Hamming 距离
+
+配置转换距离 = 走势方向不同的分量个数（config_space.hamming_distance）。
+最短路径数 = k!（k 个不同分量的翻转次序任意，每个一步直达）。
 """
 
 from __future__ import annotations
@@ -28,15 +39,16 @@ from newchan.topology.config_space import (
     Configuration,
     ConfigurationSpace,
     WalkDirection,
-    manhattan_distance,
+    hamming_distance,
     polarity_index,
 )
 
 
 def adjacent(config: Configuration) -> frozenset[Configuration]:
-    """返回与 config 相邻的所有配置。
+    """返回与 config 相邻的所有配置（81 边图，527号）。
 
-    相邻条件：恰好一条独立边改变，且变化为相邻态（+<->0 或 -<->0）。
+    相邻条件：恰好一条独立边的走势方向改变，可改为任意其他方向（含 +↔− 直接跳变）。
+    每个配置有 3 分量 × 2 个其他方向 = 6 个邻居。
 
     Parameters
     ----------
@@ -46,29 +58,29 @@ def adjacent(config: Configuration) -> frozenset[Configuration]:
     Returns
     -------
     frozenset[Configuration]
-        所有相邻配置。
+        所有相邻配置（恒 6 个）。
     """
     result: list[Configuration] = []
     vals = list(config.as_tuple)
 
     for i in range(3):
         original = vals[i]
-        for delta in (-1, +1):
-            new_val = original + delta
-            if -1 <= new_val <= 1:
-                new_vals = list(vals)
-                new_vals[i] = new_val
-                result.append(Configuration(
-                    sigma_e=WalkDirection(new_vals[0]),
-                    sigma_c=WalkDirection(new_vals[1]),
-                    sigma_r=WalkDirection(new_vals[2]),
-                ))
+        for new_val in (-1, 0, 1):
+            if new_val == original:
+                continue
+            new_vals = list(vals)
+            new_vals[i] = new_val
+            result.append(Configuration(
+                sigma_p=WalkDirection(new_vals[0]),
+                sigma_c=WalkDirection(new_vals[1]),
+                sigma_r=WalkDirection(new_vals[2]),
+            ))
 
     return frozenset(result)
 
 
 def is_adjacent(c1: Configuration, c2: Configuration) -> bool:
-    """判断两个配置是否相邻。
+    """判断两个配置是否相邻（恰好一条独立边的走势方向不同）。
 
     Parameters
     ----------
@@ -79,17 +91,14 @@ def is_adjacent(c1: Configuration, c2: Configuration) -> bool:
     -------
     bool
     """
-    diffs = []
-    for a, b in zip(c1.as_tuple, c2.as_tuple):
-        if a != b:
-            diffs.append(abs(a - b))
-    return len(diffs) == 1 and diffs[0] == 1
+    return hamming_distance(c1, c2) == 1
 
 
 def shortest_path(c1: Configuration, c2: Configuration) -> int:
-    """两个配置之间的最短路径长度。
+    """两个配置之间的最短路径长度 = Hamming 距离（527号 81 边图）。
 
-    等于曼哈顿距离：d = sum_k |pos_k(c1) - pos_k(c2)|。
+    每个走势方向不同的分量一步直达（含 +↔− 直跳），故最短路径长度 =
+    不同分量个数。值域 {0, 1, 2, 3}。
 
     Parameters
     ----------
@@ -101,14 +110,14 @@ def shortest_path(c1: Configuration, c2: Configuration) -> int:
     int
         最短路径长度（步数）。
     """
-    return manhattan_distance(c1, c2)
+    return hamming_distance(c1, c2)
 
 
 def shortest_path_count(c1: Configuration, c2: Configuration) -> int:
-    """两个配置之间最短路径的数量。
+    """两个配置之间最短路径的数量 = k!（k = 不同分量个数）。
 
-    = (d1 + d2 + d3)! / (d1! * d2! * d3!)
-    其中 dk 是各轴上需要移动的步数。
+    81 边图中每个不同分量一步直达，k 个不同分量的翻转次序任意排列，
+    每种排列对应一条长度 k 的最短路径，故共 k! 条。
 
     Parameters
     ----------
@@ -120,15 +129,7 @@ def shortest_path_count(c1: Configuration, c2: Configuration) -> int:
     int
         最短路径数量。
     """
-    def _pos(v: int) -> int:
-        return v + 1
-
-    d = [
-        abs(_pos(a) - _pos(b))
-        for a, b in zip(c1.as_tuple, c2.as_tuple)
-    ]
-    total = sum(d)
-    return factorial(total) // (factorial(d[0]) * factorial(d[1]) * factorial(d[2]))
+    return factorial(hamming_distance(c1, c2))
 
 
 @dataclass(frozen=True, slots=True)
@@ -167,7 +168,7 @@ class Path:
 def reachable(config: Configuration, k: int) -> frozenset[Configuration]:
     """从 config 出发 k 步内可达的所有配置。
 
-    使用 BFS，返回距离 <= k 的所有配置。
+    使用 BFS，返回距离 <= k 的所有配置。81 边图直径为 3，k >= 3 时返回全部 27 个。
 
     Parameters
     ----------
@@ -206,7 +207,7 @@ def all_paths(
     c2: Configuration,
     max_k: int,
 ) -> list[Path]:
-    """枚举从 c1 到 c2 的所有路径（长度 <= max_k）。
+    """枚举从 c1 到 c2 的所有简单路径（长度 <= max_k）。
 
     使用 DFS 回溯。为防止组合爆炸，max_k 上限为 12。
 
@@ -243,8 +244,7 @@ def all_paths(
 
         if current == c2 and depth > 0:
             results.append(Path(steps=tuple(stack)))
-            # 不 return，允许继续搜索更长路径（经过 c2 再回来再到 c2）
-            # 但只记录到达 c2 的路径
+            # 不 return，允许继续搜索更长路径
 
         if depth >= max_k:
             return
@@ -287,11 +287,11 @@ def all_shortest_paths(
     return all_paths(c1, c2, max_k=d)
 
 
-# ── 图全局性质 ──────────────────────────────────────────────────
+# ── 图全局性质（81 边图，527号重算）──────────────────────────────
 
 
 def graph_edge_count() -> int:
-    """转换拓扑图的边数（恒为 54）。"""
+    """配置转换拓扑图的边数（恒为 81，527号）。"""
     space = ConfigurationSpace()
     count = 0
     configs = list(space)
@@ -303,7 +303,7 @@ def graph_edge_count() -> int:
 
 
 def graph_diameter() -> int:
-    """转换拓扑图的直径（恒为 6）。"""
+    """配置转换拓扑图的直径（恒为 3，527号）。"""
     space = ConfigurationSpace()
     max_d = 0
     configs = list(space)
@@ -316,10 +316,10 @@ def graph_diameter() -> int:
 
 
 def graph_radius() -> int:
-    """转换拓扑图的半径（恒为 3）。
+    """配置转换拓扑图的半径（恒为 3，527号）。
 
-    半径 = min over v of max over u of d(v, u)。
-    中心节点 (0,0,0) 到任意节点的最大距离为 3。
+    半径 = min over v of max over u of d(v, u)。81 边图中每个节点都存在
+    一个三分量全不同的对端，故偏心率恒为 3，半径 = 3（与直径相等）。
     """
     space = ConfigurationSpace()
     configs = list(space)
@@ -332,43 +332,45 @@ def graph_radius() -> int:
 
 
 def is_bipartite() -> bool:
-    """验证转换拓扑图是二部图。
+    """配置转换拓扑图是否二部图（恒为 False，527号）。
 
-    P3 是二部图，P3 的笛卡尔积仍是二部图。
-    二部划分由 pos(a) + pos(b) + pos(c) 的奇偶性决定。
+    每个分量的 3 个走势方向全连通 = K3（完全图），含长度 3 的奇环，
+    故整图非二部。这是 527号定理对旧 54 边二部图判断的否定。
 
     Returns
     -------
     bool
-        恒为 True。
+        恒为 False。
     """
     space = ConfigurationSpace()
-    for c1 in space:
-        parity1 = sum(v + 1 for v in c1.as_tuple) % 2
-        for c2 in adjacent(c1):
-            parity2 = sum(v + 1 for v in c2.as_tuple) % 2
-            if parity1 == parity2:
-                return False
+    color: dict[tuple[int, int, int], int] = {}
+    for start in space:
+        if start.as_tuple in color:
+            continue
+        color[start.as_tuple] = 0
+        queue: deque[Configuration] = deque([start])
+        while queue:
+            current = queue.popleft()
+            for nb in adjacent(current):
+                if nb.as_tuple not in color:
+                    color[nb.as_tuple] = color[current.as_tuple] ^ 1
+                    queue.append(nb)
+                elif color[nb.as_tuple] == color[current.as_tuple]:
+                    return False
     return True
 
 
-def bipartite_partition() -> tuple[frozenset[Configuration], frozenset[Configuration]]:
-    """返回二部划分。
+def node_degree(config: Configuration) -> int:
+    """配置在转换拓扑图中的度数（81 边图中恒为 6，527号）。
 
-    按 pos 和的奇偶性划分：偶 (14 个) 和奇 (13 个)。
+    Parameters
+    ----------
+    config : Configuration
+        配置。
 
     Returns
     -------
-    tuple[frozenset[Configuration], frozenset[Configuration]]
-        (偶集, 奇集)。
+    int
+        邻居数量（恒为 6）。
     """
-    space = ConfigurationSpace()
-    even: list[Configuration] = []
-    odd: list[Configuration] = []
-    for c in space:
-        parity = sum(v + 1 for v in c.as_tuple) % 2
-        if parity == 0:
-            even.append(c)
-        else:
-            odd.append(c)
-    return frozenset(even), frozenset(odd)
+    return len(adjacent(config))

@@ -44,7 +44,7 @@ def layer1_target_matrix(config: Configuration) -> frozenset[str]:
     - polarity > 0（risk-on） → {"equity"}
     - polarity < 0（risk-off）→ {"rate"}
     - polarity == 0（中性）   → {"equity", "rate"}
-    - sigma_e UP 且 sigma_c UP → 额外加入 "au"
+    - sigma_p UP 且 sigma_c UP → 额外加入 "au"
 
     Parameters
     ----------
@@ -66,7 +66,7 @@ def layer1_target_matrix(config: Configuration) -> frozenset[str]:
     else:
         categories = {"equity", "rate"}
 
-    if config.sigma_e is WalkDirection.UP and config.sigma_c is WalkDirection.UP:
+    if config.sigma_p is WalkDirection.UP and config.sigma_c is WalkDirection.UP:
         categories.add("au")
 
     return frozenset(categories)

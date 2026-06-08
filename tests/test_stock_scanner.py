@@ -19,7 +19,7 @@ from newchan.topology.config_space import Configuration, WalkDirection
 def _cfg(e: int, c: int, r: int) -> Configuration:
     """快速创建 Configuration。"""
     return Configuration(
-        sigma_e=WalkDirection(e),
+        sigma_p=WalkDirection(e),
         sigma_c=WalkDirection(c),
         sigma_r=WalkDirection(r),
     )
@@ -96,7 +96,7 @@ class TestTargetUniverse:
     """target_universe 函数测试。"""
 
     def test_risk_on_returns_equity(self) -> None:
-        """polarity > 0 → EQUITY_UNIVERSE（sigma_e/sigma_c 非双UP时无GLD）。"""
+        """polarity > 0 → EQUITY_UNIVERSE（sigma_p/sigma_c 非双UP时无GLD）。"""
         from newchan.trading.stock_scanner import EQUITY_UNIVERSE, target_universe
 
         # (+,0,0) → polarity = 1, sigma_c != UP → 纯 EQUITY
@@ -105,7 +105,7 @@ class TestTargetUniverse:
         assert result == EQUITY_UNIVERSE
 
     def test_risk_on_full_includes_gold(self) -> None:
-        """(+,+,+) → EQUITY + GOLD（sigma_e=UP 且 sigma_c=UP）。"""
+        """(+,+,+) → EQUITY + GOLD（sigma_p=UP 且 sigma_c=UP）。"""
         from newchan.trading.stock_scanner import (
             EQUITY_UNIVERSE,
             GOLD_UNIVERSE,
@@ -157,10 +157,10 @@ class TestTargetUniverse:
         assert result == RATE_UNIVERSE
 
     def test_gold_augmentation(self) -> None:
-        """sigma_e=UP 且 sigma_c=UP → 包含 GLD。"""
+        """sigma_p=UP 且 sigma_c=UP → 包含 GLD。"""
         from newchan.trading.stock_scanner import GOLD_UNIVERSE, target_universe
 
-        # (+,+,0) → polarity = 2, sigma_e=UP, sigma_c=UP
+        # (+,+,0) → polarity = 2, sigma_p=UP, sigma_c=UP
         config = _cfg(1, 1, 0)
         result = target_universe(config)
         for symbol in GOLD_UNIVERSE:
