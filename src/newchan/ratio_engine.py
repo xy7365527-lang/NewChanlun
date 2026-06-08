@@ -111,3 +111,50 @@ def analyze_batch(
         与输入等长，顺序对应。
     """
     return [analyze_pair(pair, df_a, df_b) for pair, df_a, df_b in items]
+
+
+def _analyze_pair_tuple(
+    item: tuple[EquivalencePair, pd.DataFrame, pd.DataFrame],
+) -> "RatioAnalysis | RatioAnalysisError":
+    """顶层 worker 函数（可 pickle）——multiprocessing 入口。"""
+    pair, df_a, df_b = item
+    return analyze_pair(pair, df_a, df_b)
+
+
+def analyze_batch_parallel(
+    items: list[tuple[EquivalencePair, pd.DataFrame, pd.DataFrame]],
+    *,
+    processes: int | None = None,
+) -> list[RatioAnalysis | RatioAnalysisError]:
+    """批量分析的 multiprocessing 并行版——逐字段等价于 analyze_batch。
+
+    各比价对相互独立（局部依赖原则，275号），天然可并行。结果按输入顺序
+    返回（Pool.map 保序）。并行只改变执行调度，不改变计算结果。
+
+    Parameters
+    ----------
+    items : list[tuple[EquivalencePair, pd.DataFrame, pd.DataFrame]]
+        每个元组为 (pair, df_a, df_b)。
+    processes : int | None
+        进程数。默认 min(len(items), cpu_count)。items 数 ≤ 1 时退化为顺序，
+        避免进程池开销。
+
+    认识论等级：L0（执行调度，计算结果不变）。
+    """
+    import os
+
+    n = len(items)
+    if n == 0:
+        return []
+    if n == 1:
+        return analyze_batch(items)
+
+    if processes is None:
+        processes = min(n, os.cpu_count() or 1)
+    processes = max(1, min(processes, n))
+
+    import multiprocessing as mp
+
+    ctx = mp.get_context("spawn")
+    with ctx.Pool(processes=processes) as pool:
+        return pool.map(_analyze_pair_tuple, items)
