@@ -25,10 +25,11 @@ class TestVertexSources:
         assert s.symbol == "ES"
         assert s.availability is DataAvailability.AVAILABLE
 
-    def test_commodity_is_gap(self):
-        """C 顶点 = 广义商品(DBC)，1min 仍无源，诚实标注为需采集。"""
+    def test_commodity_dbc_available(self):
+        """C 顶点 = DBC（广义商品 ETF），1min 经 TWS 拉取后可用。"""
         s = vertex_source(Vertex.C)
-        assert s.availability is DataAvailability.NEEDS_ACQUISITION
+        assert s.symbol == "DBC"
+        assert s.availability is DataAvailability.AVAILABLE
 
     def test_realestate_vnq_available(self):
         """R 顶点 = VNQ（房地产 ETF），1min 经 TWS 拉取后可用。"""
@@ -50,7 +51,6 @@ class TestFoldChannelSources:
 
 
 class TestDataGaps:
-    def test_gap_is_c_only(self):
-        """诚实缺口清单：R 经 TWS 补齐后，仅剩 C（广义商品 DBC 未拉取）。"""
-        gaps = set(data_gaps())
-        assert gaps == {Vertex.C}
+    def test_no_us_gaps(self):
+        """美国四顶点 1min 全部齐备（C=DBC、R=VNQ 经 TWS 补齐后无缺口）。"""
+        assert data_gaps() == ()

@@ -3,7 +3,7 @@
 填补 M2 管线缺口：
 
     topology/config_space.py
-        Configuration Γ = (σ_e, σ_c, σ_r)  →  polarity_index(Γ) = S ∈ [-3, +3]
+        Configuration Γ = (σ_p, σ_c, σ_r)  →  polarity_index(Γ) = S ∈ [-3, +3]
                             │
                             │  ← 本模块（胶水）
                             ▼

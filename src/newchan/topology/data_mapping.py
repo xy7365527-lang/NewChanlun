@@ -20,10 +20,11 @@ k4_monitor / scanner）必须从此处读取，不得各自硬编码。
 
 ## 数据缺口诚实标注（231号 / no-patch）
 
-R（不动产）的 1min 数据已经 TWS 拉取（VNQ，scripts/tws/fetch_1m_tws.py）补齐。
-C（广义商品 / DBC）在 1min 级别**仍无数据源**——DBC 是 ETF 但当前未拉取，按形式化
-有效域规则诚实标注为 NEEDS_ACQUISITION，**不伪造替代**（不能用油或金静默冒充 C 顶点；
-金/油是折叠通道观测量，不是 C 顶点代理）。如需补 C，可经 TWS 拉取 DBC（同脚本）。
+美国四顶点 M(UUP)/P(ES)/C(DBC)/R(VNQ) 的 1min 数据均已齐备（C/R 经 TWS 拉取）。
+跨经济体（EU/JP/CN）的 C（广义商品）/R（不动产）本币源仍多为缺口（254号 OQ2：
+不动产高度本地化）；中国本土 P(IF)/C(SC)/AU9999 在 IB/databento 均无源（已验证）。
+这些缺口按形式化有效域规则诚实标注，**不伪造替代**。跨国数据规格见
+cross_national_pipeline.py 的 ECONOMY_SPECS。
 """
 
 from __future__ import annotations
@@ -82,10 +83,11 @@ VERTEX_DATA_SOURCES: dict[Vertex, DataSource] = {
     ),
     Vertex.C: DataSource(
         symbol="DBC",
-        description="广义商品指数（商品资本）。折叠通道模型下 C = 纯商品资本，"
-                    "金的结算属性归 Au 折叠通道。",
-        cache_file="",
-        availability=DataAvailability.NEEDS_ACQUISITION,  # 1min 无 DBC 源，诚实标注
+        description="广义商品指数 ETF（商品资本）。折叠通道模型下 C = 纯商品资本，"
+                    "金的结算属性归 Au 折叠通道、不再是 C 代理。1min 经 TWS 拉取"
+                    "（scripts/tws/fetch_1m_tws.py）。",
+        cache_file="dbc_1m_tws.json",
+        availability=DataAvailability.AVAILABLE,
     ),
     Vertex.R: DataSource(
         symbol="VNQ",

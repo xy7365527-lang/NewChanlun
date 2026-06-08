@@ -27,7 +27,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from ib_insync import IB, Stock, util  # noqa: F401
+from ib_insync import IB, ContFuture, Forex, Stock, util  # noqa: F401
 
 _ROOT = Path(__file__).resolve().parents[2]
 CACHE_DIR = _ROOT / "analysis" / "data_cache"
@@ -105,14 +105,26 @@ def fetch(
     start: str,
     out_path: Path,
 ) -> dict[str, list]:
-    if sec_type != "STK":
-        raise ValueError(f"本脚本目前仅支持 STK（ETF/股票）；收到 secType={sec_type}")
-    contract = Stock(symbol, exchange, currency)
+    # secType → 合约 + whatToShow
+    if sec_type == "STK":
+        contract = Stock(symbol, exchange, currency)
+        what_to_show = "TRADES"
+    elif sec_type == "FUT":
+        # 连续合约（成交量展期）。exchange 为期货交易所（如 CFFEX/INE/SGX/OSE/EUREX）。
+        contract = ContFuture(symbol, exchange, currency)
+        what_to_show = "TRADES"
+    elif sec_type == "CASH":
+        # 外汇：symbol 形如 EURUSD / USDCNH；FX 无 TRADES，用 MIDPOINT。
+        contract = Forex(symbol)
+        what_to_show = "MIDPOINT"
+    else:
+        raise ValueError(f"不支持的 secType={sec_type}（仅 STK/FUT/CASH）")
+
     qualified = ib.qualifyContracts(contract)
     if not qualified:
-        raise ValueError(f"无法 qualify 合约 {symbol} {exchange} {currency}")
+        raise ValueError(f"无法 qualify 合约 {symbol} {sec_type} {exchange} {currency}")
     contract = qualified[0]
-    print(f"合约: {contract}", flush=True)
+    print(f"合约: {contract} | whatToShow={what_to_show}", flush=True)
 
     rows = load_existing(out_path)
     start_dt = datetime.strptime(start, "%Y-%m-%d").replace(tzinfo=timezone.utc)
@@ -139,7 +151,7 @@ def fetch(
                 endDateTime=end_str,
                 durationStr="1 M",
                 barSizeSetting="1 min",
-                whatToShow="TRADES",
+                whatToShow=what_to_show,
                 useRTH=True,
                 formatDate=2,  # UTC
             )
