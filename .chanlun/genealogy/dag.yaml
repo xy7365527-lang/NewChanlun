@@ -2554,6 +2554,31 @@ nodes:
   status: 已结算
   type: 概念发现
   file: settled/525-zhongshu-component-local-completion.md
+- id: '526'
+  title: a0确认层与递归层的存在论区分——第65课'操作性意义'与'递归定义的存在性意义'在引擎中的映射
+  status: 已结算
+  type: 概念发现
+  file: settled/526-a0-recursion-ontological-distinction.md
+- id: '527'
+  title: 配置分量σ的本体论冲突——结算为走势方向态(立场B，定理/吸收)，transition.py禁+↔-是实现错误应为81边图
+  status: 已结算
+  type: 矛盾上浮
+  file: settled/527-sigma-ontology-transition-conflict.md
+- id: '528'
+  title: K4顶点映射的四套并存冲突——折叠对象(金/油)被压平成单顶点标签导致跨模块顶点归属相反(定理/吸收，遵守292折叠本体论的实现错误)
+  status: 已结算
+  type: 矛盾上浮
+  file: settled/528-k4-vertex-mapping-fold-flattening.md
+- id: '529'
+  title: K4 折叠通道重构——顶点标签模型→折叠通道模型（528号下游实装）
+  status: 已结算
+  type: 实现
+  file: settled/529-k4-fold-channel-refactor.md
+- id: '530'
+  title: 性能由数据移动模式决定（非语言/规模）——缠论引擎Rust移植域印证逢亮GPU架构域
+  status: 已结算
+  type: 知识结晶
+  file: settled/530-perf-data-movement-not-language-cross-domain.md
 edges:
   depends_on:
   - from: '136'
@@ -5322,6 +5347,34 @@ edges:
     to: '006'
   - from: '525'
     to: '107'
+  - from: '526'
+    to: '123'
+  - from: '526'
+    to: '525'
+  - from: '527'
+    to: '526'
+  - from: '528'
+    to: '292'
+  - from: '528'
+    to: '254'
+  - from: '529'
+    to: '528'
+  - from: '529'
+    to: '292'
+  - from: '529'
+    to: '254'
+  - from: '529'
+    to: '527'
+  - from: '529'
+    to: '330'
+  - from: '530'
+    to: '467'
+  - from: '530'
+    to: '463'
+  - from: '530'
+    to: '465'
+  - from: '530'
+    to: '231'
   triggered:
   - from: '005'
     to: 005a
@@ -6973,6 +7026,39 @@ edges:
   - between:
     - '001'
     - '525'
+  - between:
+    - '006'
+    - '526'
+  - between:
+    - '107'
+    - '526'
+  - between:
+    - '003'
+    - '526'
+  - between:
+    - '230'
+    - '527'
+  - between:
+    - '231'
+    - '527'
+  - between:
+    - '259'
+    - '528'
+  - between:
+    - '330'
+    - '528'
+  - between:
+    - '026'
+    - '528'
+  - between:
+    - '527'
+    - '528'
+  - between:
+    - '259'
+    - '529'
+  - between:
+    - '026'
+    - '529'
   tensions_with:
   - between:
     - '007'

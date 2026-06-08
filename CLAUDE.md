@@ -14,6 +14,10 @@
 ## Language
 Always respond in Chinese-simplified (简体中文).
 
+## 项目总纲领
+
+本项目的顶层路线图见 [`docs/ROADMAP.md`](docs/ROADMAP.md)，定义四大支柱（缠论引擎 / PH 拓扑 / K4 选股 / IBKR 执行）和五个里程碑（M1 回测验证 → M2 选股正则化 → M3 全市场实时信号 → M4 风控与执行 → M5 生产加固），包含每个支柱的当前状态、代码映射和技术依赖图。
+
 ## 缠论资料入口（本仓库）
 
 - **速查/可编码定义**：`缠论知识库.md`

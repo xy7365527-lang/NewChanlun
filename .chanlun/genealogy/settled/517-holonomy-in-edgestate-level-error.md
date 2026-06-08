@@ -1,6 +1,7 @@
 ---
 id: '517'
 number: 517
+date: 2026-04-27
 title: "EdgeState 中 h（和乐）字段的层级错误——边属性与循环属性混淆"
 status: 已结算
 type: 矛盾发现

@@ -1,6 +1,7 @@
 ---
 id: '516'
 number: 516
+date: 2026-04-27
 title: "W4 持仓展开器缺少 Intent_Cycle_Tag——自下而上聚合的本体论错误"
 status: 已结算
 type: 矛盾发现
