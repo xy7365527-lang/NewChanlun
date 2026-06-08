@@ -1,0 +1,28 @@
+[package]
+name = "newchan_rust"
+version = "0.1.0"
+edition = "2021"
+description = "缠论核心引擎的 Rust 重写（逐位等价于 Python 版）"
+
+[lib]
+name = "newchan_rust"
+# cdylib: maturin 构建 Python 扩展模块；rlib: 让纯 Rust 单元测试可以 cargo test
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# extension-module 作为 optional feature：
+#   - maturin build 时启用（见 pyproject.toml [tool.maturin] features）
+#   - cargo test 时不启用（否则链接 libpython 失败）
+pyo3 = { version = "0.23" }
+
+[features]
+default = []
+extension-module = ["pyo3/extension-module"]
+
+[profile.release]
+# 逐位等价硬约束：禁止任何会改变浮点约简顺序的优化。
+# Rust 默认不开启 fast-math（不存在 -ffast-math 等价），LLVM 的浮点重排
+# 受 IEEE-754 语义保护——但显式声明意图，并禁用可能影响的 codegen。
+opt-level = 3
+lto = false
+codegen-units = 16

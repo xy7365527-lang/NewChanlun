@@ -1,0 +1,19 @@
+[build-system]
+requires = ["maturin>=1.5,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "newchan-rust"
+version = "0.1.0"
+description = "缠论核心引擎 Rust 重写"
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
+]
+
+[tool.maturin]
+# 启用 extension-module feature 构建 Python 扩展
+features = ["pyo3/extension-module"]
+# 模块导入名：import newchan_rust
+module-name = "newchan_rust"
