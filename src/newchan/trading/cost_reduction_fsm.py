@@ -9,7 +9,21 @@
   - 攻击1（接受）："初始自有资金"每次新循环独立核算，RESET 事件携带新 own_capital
   - 攻击2（部分接受）：min_operable_level 作为不入语法的外部参数标注
 
-状态：SCANNING → POSITION_OPEN → COST_REDUCING → PRINCIPAL_WITHDRAWN → STOPPED_OUT
+挣股数扩展（缠师第31课/第33课/第43课答疑——三阶段资金管理）：
+  缠师原文（第31课）："成本为0前用机动资金做短差，买入多少就是卖出多少不增加仓位。
+  股票翻倍后出掉部分仓位成本为0后，卖出多少资金就买入多少资金做短差赚股票，仓位是增加的。"
+  缠师第43课答疑："成本为0后，可以用先卖后买的方法，例如20卖1万，19就可以回补1万多股了，
+  这样股数越来越多，前提是这股票还有中长线潜力。"
+
+  存在论区分——两阶段守恒律不同：
+    - 降成本阶段（cost_basis > 0）：短差**股数守恒**，价差利润降低 cost_basis
+    - 挣股数阶段（cost_basis ≤ 0）：短差**金额守恒**，卖出 s 股得现金 V=s·卖价，
+      在更低买价回补 V/买价 股 → 股数净增 = s·(卖价−买价)/买价，cost_basis 锁定为 0
+  触发判据是 cost_basis ≤ 0（缠师"成本为0"的本质形式），非 cumulative_recovered。
+  满仓满融体系下 cost_basis ≤ 0 严格强于 recovered ≥ own_capital（融资成本也归零）。
+
+状态：SCANNING → POSITION_OPEN → COST_REDUCING → PRINCIPAL_WITHDRAWN → EARNING_SHARES → STOPPED_OUT
+      COST_REDUCING/PRINCIPAL_WITHDRAWN 的短差使 cost_basis ≤ 0 → EARNING_SHARES（挣股数）
       任何持仓状态 → STOPPED_OUT（买点失效 = 止损）
       STOPPED_OUT → SCANNING（重置，own_capital 按实际资金重新核算）
 """
@@ -31,8 +45,9 @@ class CostState(Enum):
 
     SCANNING = auto()            # 选股扫描
     POSITION_OPEN = auto()       # 满仓满融建仓完成
-    COST_REDUCING = auto()       # 次级别短差循环运行中
-    PRINCIPAL_WITHDRAWN = auto() # 本金已退出，免费仓位
+    COST_REDUCING = auto()       # 次级别短差循环运行中（股数守恒，降 cost_basis）
+    PRINCIPAL_WITHDRAWN = auto() # 本金已退出（recovered≥own_capital），但 cost_basis 可能仍>0
+    EARNING_SHARES = auto()      # 挣股数阶段（cost_basis≤0，短差金额守恒，total_shares 增长）
     STOPPED_OUT = auto()         # 止损退出
 
 
@@ -241,6 +256,7 @@ def transition(fsm: CostReductionFSM, event: FsmEvent) -> CostReductionFSM:
         CostState.POSITION_OPEN: _handle_position_open,
         CostState.COST_REDUCING: _handle_cost_reducing,
         CostState.PRINCIPAL_WITHDRAWN: _handle_principal_withdrawn,
+        CostState.EARNING_SHARES: _handle_earning_shares,
         CostState.STOPPED_OUT: _handle_stopped_out,
     }
     handler = handlers.get(fsm.state)
@@ -348,10 +364,25 @@ def _close_short_diff(
 
     # cost(t) = cost(t-1) - profit / total_shares
     new_cost = fsm.cost_basis - profit / fsm.total_shares
-    new_recovered = fsm.cumulative_recovered + max(profit, 0.0)
+    # 净现金流入 = profit（可负）。去 max 截断：亏损短差照实扣减累计回收，
+    # 否则 cumulative_recovered 虚高 = 只赚不赔的提款机 bug（与回测脚本审计 A1 同源）。
+    new_recovered = fsm.cumulative_recovered + profit
     new_completed = fsm.completed_short_diffs + (closed,)
 
-    # 检查是否达到本金退出条件
+    # 里程碑判断（cost_basis≤0 严格强于 recovered≥own_capital）：
+    #   ① cost_basis ≤ 0 → 成本归零（含融资）→ 进入挣股数（缠师本质判据）
+    #   ② recovered ≥ own_capital 但 cost_basis > 0 → 本金安全，继续降成本
+    if new_cost <= 0:
+        # 缠师"成本永远为0"：cost_basis 锁定为 0，过冲部分已计入 cumulative_recovered。
+        return _replace(
+            fsm,
+            state=CostState.EARNING_SHARES,
+            cost_basis=0.0,
+            cumulative_recovered=new_recovered,
+            active_short_diff=None,
+            completed_short_diffs=new_completed,
+        )
+
     if new_recovered >= fsm.own_capital:
         return _replace(
             fsm,
@@ -441,6 +472,100 @@ def _handle_principal_withdrawn(
 
     raise IllegalTransitionError(
         f"PRINCIPAL_WITHDRAWN 不接受 {event.event_type.name}"
+    )
+
+
+# ── EARNING_SHARES ───────────────────────────────────────────
+
+
+def _handle_earning_shares(
+    fsm: CostReductionFSM, event: FsmEvent,
+) -> CostReductionFSM:
+    """挣股数阶段（cost_basis≤0）：短差金额守恒，total_shares 增长。
+
+    缠师第43课答疑："成本为0后，可以用先卖后买的方法，例如20卖1万，
+    19就可以回补1万多股了，这样股数越来越多。"
+    """
+    if event.event_type == FsmEventType.BUY_POINT_NEGATED:
+        return _stop_out(fsm, event.price)
+
+    if event.event_type == FsmEventType.MAIN_LEVEL_SELL_POINT:
+        # 超大级别卖点 → 一次性清仓（缠师："等待一个超大级别的卖点，一次性把他砸死"）
+        return _stop_out(fsm, event.price)
+
+    if event.event_type == FsmEventType.LEVEL_UPGRADE:
+        return _level_upgrade(fsm, event.price, event.level)
+
+    if event.event_type == FsmEventType.SUB_LEVEL_SELL_POINT:
+        return _open_earn_diff(fsm, event.price, event.level)
+
+    if event.event_type == FsmEventType.SUB_LEVEL_BUY_POINT:
+        return _close_earn_diff(fsm, event.price, event.level)
+
+    raise IllegalTransitionError(
+        f"EARNING_SHARES 不接受 {event.event_type.name}"
+    )
+
+
+def _open_earn_diff(
+    fsm: CostReductionFSM, sell_price: float, level: str,
+) -> CostReductionFSM:
+    """挣股数·先卖：卖出 sub_ratio 比例股数，total_shares 减少，记录卖出价。
+
+    与降成本 _open_short_diff 的区别：此处真实减仓（金额守恒的"先卖"半步），
+    买回时按卖出金额回补，股数净增。
+    """
+    if fsm.active_short_diff is not None and fsm.active_short_diff.is_open:
+        raise IllegalTransitionError(
+            "已有未完成的挣股数短差循环，不能开启新的"
+        )
+    short_shares = fsm.total_shares * fsm.sub_ratio
+    cycle = ShortDiffCycle(
+        level=level,
+        shares=short_shares,
+        sell_price=sell_price,
+    )
+    return _replace(
+        fsm,
+        total_shares=fsm.total_shares - short_shares,
+        active_short_diff=cycle,
+    )
+
+
+def _close_earn_diff(
+    fsm: CostReductionFSM, buy_price: float, level: str,
+) -> CostReductionFSM:
+    """挣股数·后买：用卖出所得现金（金额守恒）回补，total_shares 净增。
+
+    回补股数 = 卖出金额 / 买回价 = shares·sell_price / buy_price。
+    净增 = 回补股数 − 卖出股数 = shares·(sell_price − buy_price) / buy_price。
+    买价 < 卖价 → 股数增加；买价 > 卖价 → 股数减少（挣股数阶段做错短差亏股数，无截断）。
+    cost_basis 锁定为 0（现金流守恒：卖 V 买 V，净投入不变）。
+    """
+    cycle = fsm.active_short_diff
+    if cycle is None or not cycle.is_open:
+        # 无活跃短差时忽略买点
+        return fsm
+    if buy_price <= 0:
+        raise IllegalTransitionError(f"买回价必须 > 0，收到 {buy_price}")
+
+    sell_amount = cycle.shares * cycle.sell_price
+    bought_shares = sell_amount / buy_price
+    new_total = fsm.total_shares + bought_shares
+
+    closed = ShortDiffCycle(
+        level=cycle.level,
+        shares=cycle.shares,
+        sell_price=cycle.sell_price,
+        buy_price=buy_price,
+        is_open=False,
+    )
+    return _replace(
+        fsm,
+        total_shares=new_total,
+        cost_basis=0.0,
+        active_short_diff=None,
+        completed_short_diffs=fsm.completed_short_diffs + (closed,),
     )
 
 

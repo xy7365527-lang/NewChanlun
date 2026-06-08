@@ -533,3 +533,162 @@ class TestMinOperableLevel:
             level="",
         ))
         assert fsm.min_operable_level == "5min"
+
+
+# ═══════════════════════════════════════════════════════════════
+# 10. 挣股数阶段（cost_basis≤0，金额守恒短差）
+# ═══════════════════════════════════════════════════════════════
+
+
+def _drive_to_earning(
+    *,
+    equity: float = 100.0,
+    price: float = 10.0,
+    sub_ratio: float = 0.3,
+) -> CostReductionFSM:
+    """无融资场景下，反复盈利短差把 cost_basis 降到 ≤0 → EARNING_SHARES。
+
+    无融资（margin=0）时 own_capital = 总投入，cost_basis≤0 与 recovered≥own_capital
+    在同一时刻满足（缠师原典语境）。
+    """
+    fsm = CostReductionFSM.create(
+        own_capital=equity, margin_amount=0.0, sub_ratio=sub_ratio,
+    )
+    fsm = transition(fsm, FsmEvent(
+        event_type=FsmEventType.BUY_POINT_CONFIRMED, price=price, level="30min",
+    ))
+    fsm = transition(fsm, FsmEvent(
+        event_type=FsmEventType.SUB_LEVEL_SELL_POINT, price=30.0, level="5min",
+    ))
+    # 盈利短差（高卖低买）反复，直到成本归零
+    for _ in range(20):
+        fsm = transition(fsm, FsmEvent(
+            event_type=FsmEventType.SUB_LEVEL_BUY_POINT, price=5.0, level="5min",
+        ))
+        if fsm.state == CostState.EARNING_SHARES:
+            break
+        fsm = transition(fsm, FsmEvent(
+            event_type=FsmEventType.SUB_LEVEL_SELL_POINT, price=30.0, level="5min",
+        ))
+    return fsm
+
+
+class TestEarningShares:
+    """挣股数阶段：成本归零后短差金额守恒、股数净增（缠师31/33/43课）。"""
+
+    def test_cost_basis_zero_triggers_earning_shares(self) -> None:
+        """cost_basis ≤ 0 是进入挣股数的本质判据。"""
+        fsm = _drive_to_earning()
+        assert fsm.state == CostState.EARNING_SHARES
+        # 缠师"成本永远为0"：进入时 cost_basis 锁定为 0
+        assert fsm.cost_basis == pytest.approx(0.0)
+
+    def test_earn_short_diff_increases_shares(self) -> None:
+        """高卖低买 → total_shares 净增（与降成本阶段方向相反）。"""
+        fsm = _drive_to_earning()
+        shares_before = fsm.total_shares
+        sub_shares = shares_before * fsm.sub_ratio
+        # 先卖：股数减少
+        fsm = transition(fsm, FsmEvent(
+            event_type=FsmEventType.SUB_LEVEL_SELL_POINT, price=20.0, level="5min",
+        ))
+        assert fsm.total_shares == pytest.approx(shares_before - sub_shares)
+        # 后买（更低价）：金额守恒回补，股数净增
+        fsm = transition(fsm, FsmEvent(
+            event_type=FsmEventType.SUB_LEVEL_BUY_POINT, price=10.0, level="5min",
+        ))
+        assert fsm.total_shares > shares_before
+
+    def test_money_conservation_exact(self) -> None:
+        """精确金额守恒：回补股数 = 卖出金额 / 买回价（缠师43课"20卖1万,19回补1万多股"）。"""
+        fsm = _drive_to_earning()
+        shares_before = fsm.total_shares
+        sub_shares = shares_before * fsm.sub_ratio
+        sell_price, buy_price = 20.0, 10.0
+        fsm = transition(fsm, FsmEvent(
+            event_type=FsmEventType.SUB_LEVEL_SELL_POINT, price=sell_price, level="5min",
+        ))
+        fsm = transition(fsm, FsmEvent(
+            event_type=FsmEventType.SUB_LEVEL_BUY_POINT, price=buy_price, level="5min",
+        ))
+        sell_amount = sub_shares * sell_price
+        bought = sell_amount / buy_price
+        expected_total = (shares_before - sub_shares) + bought
+        assert fsm.total_shares == pytest.approx(expected_total)
+        # 净增 = sub_shares · (sell − buy) / buy
+        net_gain = sub_shares * (sell_price - buy_price) / buy_price
+        assert fsm.total_shares == pytest.approx(shares_before + net_gain)
+
+    def test_earn_cost_basis_stays_zero(self) -> None:
+        """挣股数阶段现金流守恒（卖V买V）→ cost_basis 锁定为 0。"""
+        fsm = _drive_to_earning()
+        fsm = transition(fsm, FsmEvent(
+            event_type=FsmEventType.SUB_LEVEL_SELL_POINT, price=25.0, level="5min",
+        ))
+        fsm = transition(fsm, FsmEvent(
+            event_type=FsmEventType.SUB_LEVEL_BUY_POINT, price=12.0, level="5min",
+        ))
+        assert fsm.cost_basis == pytest.approx(0.0)
+
+    def test_earn_loss_decreases_shares_no_truncation(self) -> None:
+        """挣股数阶段做错短差（低卖高买）→ 股数减少，无 max(0,…) 截断。"""
+        fsm = _drive_to_earning()
+        shares_before = fsm.total_shares
+        # 先卖低、后买高 → 亏股数
+        fsm = transition(fsm, FsmEvent(
+            event_type=FsmEventType.SUB_LEVEL_SELL_POINT, price=10.0, level="5min",
+        ))
+        fsm = transition(fsm, FsmEvent(
+            event_type=FsmEventType.SUB_LEVEL_BUY_POINT, price=20.0, level="5min",
+        ))
+        assert fsm.total_shares < shares_before
+
+    def test_earn_main_sell_point_stops_out(self) -> None:
+        """超大级别卖点 → 一次性清仓（缠师"等待超大级别卖点一次性砸死"）。"""
+        fsm = _drive_to_earning()
+        fsm = transition(fsm, FsmEvent(
+            event_type=FsmEventType.MAIN_LEVEL_SELL_POINT, price=50.0, level="30min",
+        ))
+        assert fsm.state == CostState.STOPPED_OUT
+
+    def test_earn_buy_point_negated_stops_out(self) -> None:
+        """买点失效 = 止损（即便在挣股数阶段）。"""
+        fsm = _drive_to_earning()
+        fsm = transition(fsm, FsmEvent(
+            event_type=FsmEventType.BUY_POINT_NEGATED, price=8.0, level="30min",
+        ))
+        assert fsm.state == CostState.STOPPED_OUT
+
+    def test_earn_double_open_rejected(self) -> None:
+        """挣股数阶段已有未完成短差时，不能再开新的。"""
+        from newchan.trading.cost_reduction_fsm import IllegalTransitionError
+
+        fsm = _drive_to_earning()
+        fsm = transition(fsm, FsmEvent(
+            event_type=FsmEventType.SUB_LEVEL_SELL_POINT, price=20.0, level="5min",
+        ))
+        with pytest.raises(IllegalTransitionError):
+            transition(fsm, FsmEvent(
+                event_type=FsmEventType.SUB_LEVEL_SELL_POINT, price=22.0, level="5min",
+            ))
+
+    def test_principal_withdrawn_distinct_from_earning_under_margin(self) -> None:
+        """满融体系：recovered≥own_capital（本金安全）时 cost_basis 仍>0，未到挣股数。"""
+        # equity=100, margin=100 → total=200, shares=20, cost=10
+        fsm = CostReductionFSM.create(
+            own_capital=100.0, margin_amount=100.0, sub_ratio=0.3,
+        )
+        fsm = transition(fsm, FsmEvent(
+            event_type=FsmEventType.BUY_POINT_CONFIRMED, price=10.0, level="30min",
+        ))
+        fsm = transition(fsm, FsmEvent(
+            event_type=FsmEventType.SUB_LEVEL_SELL_POINT, price=30.0, level="5min",
+        ))
+        # 一笔短差使 recovered 跨过 own_capital(100) 但 cost_basis 仍 >0
+        # sub_shares=6, profit=(30-5)*6=150 ≥100, cost=10-150/20=2.5>0
+        fsm = transition(fsm, FsmEvent(
+            event_type=FsmEventType.SUB_LEVEL_BUY_POINT, price=5.0, level="5min",
+        ))
+        assert fsm.cumulative_recovered >= fsm.own_capital
+        assert fsm.cost_basis > 0
+        assert fsm.state == CostState.PRINCIPAL_WITHDRAWN
