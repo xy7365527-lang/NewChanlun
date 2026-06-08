@@ -16,6 +16,7 @@ E 版本（MODE_SWING_E）：`run_swing_trading(signals, MODE_NONE)`——
 from __future__ import annotations
 
 import json
+import math
 import os
 import sys
 import time
@@ -26,6 +27,7 @@ sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "analysis"))
 
 import fugue_alpha_diagnosis as F  # noqa: E402
+import m1_e_rust_engine as RE  # noqa: E402
 
 DATA_DIR = ROOT / "analysis" / "data_cache"
 
@@ -44,13 +46,28 @@ SYMBOL_FILES = {
 def load_ohlc(
     path: Path,
 ) -> tuple[list[float], list[float], list[float], list[float]]:
+    """加载并清洗：删除任一 OHLC 为 nan 的 bar（缺失 bar=非交易，标准预处理）。
+
+    nan 会污染 MACD/PH/背驰下游（实测 BRN 0.68% nan 致 down_move_settled 分叉、
+    entry_div_ok 雪崩）。删除含 nan 的整根 bar 后，Rust 驱动与 Python compute_signals
+    逐位等价（BRN 清洗后前 150k bit-exact PASS）。
+    """
     raw = json.loads(path.read_text())
-    return (
-        [float(x) for x in raw["opens"]],
-        [float(x) for x in raw["highs"]],
-        [float(x) for x in raw["lows"]],
-        [float(x) for x in raw["closes"]],
-    )
+    o_in, h_in = raw["opens"], raw["highs"]
+    l_in, c_in = raw["lows"], raw["closes"]
+    opens: list[float] = []
+    highs: list[float] = []
+    lows: list[float] = []
+    closes: list[float] = []
+    for o, h, l, c in zip(o_in, h_in, l_in, c_in):
+        o, h, l, c = float(o), float(h), float(l), float(c)
+        if math.isnan(o) or math.isnan(h) or math.isnan(l) or math.isnan(c):
+            continue
+        opens.append(o)
+        highs.append(h)
+        lows.append(l)
+        closes.append(c)
+    return opens, highs, lows, closes
 
 
 def run_symbol(symbol: str) -> tuple[str, dict]:
@@ -61,7 +78,9 @@ def run_symbol(symbol: str) -> tuple[str, dict]:
     bh = (closes[-1] - closes[0]) / closes[0] * 100
 
     t0 = time.time()
-    signals = F.compute_signals(opens, highs, lows, closes)
+    # Rust 引擎驱动（替代 Python compute_signals 的 O(N²) 递归，快 ~23×）。
+    # 逐位等价于 F.compute_signals 的 E 字段（ES 150k / BRN 清洗后 150k bit-exact）。
+    signals = RE.compute_e_signals_rust(opens, highs, lows, closes)
     sig_s = time.time() - t0
 
     t1 = time.time()
