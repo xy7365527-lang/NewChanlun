@@ -32,6 +32,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 import time
 from pathlib import Path
@@ -151,24 +152,20 @@ def run_edge_daily_sigma_rust(
     n = len(c)
     orch = newchan_rust.RecursiveOrchestrator(max_levels=max_levels, stroke_mode="wide")
 
-    # numpy 标量装箱开销大 → 一次性转 list（O(N²) 主开销在 Rust 内，这一步可忽略）
-    ol = o.tolist()
-    hl = h.tolist()
-    ll = l.tolist()
-    cl = c.tolist()
-    dl = day.tolist()
-
+    # 恒定内存迭代：不 tolist（曾导致 5.4M×5列 Python float list ≈1.1GB/worker，
+    # 六路并行叠加触顶内存）。numpy 标量 float() 转换的 Python 层开销相对 Rust
+    # O(N²) 主开销可忽略。
     days_out: list[int] = []
     sigma_out: list[int] = []
     level_out: list[int] = []
     max_lvl_seen = 1
 
     for i in range(n):
-        orch.process_bar(ol[i], hl[i], ll[i], cl[i])
+        orch.process_bar(float(o[i]), float(h[i]), float(l[i]), float(c[i]))
         # 日边界：当前是最后一根，或下一根属于不同 UTC 日
-        if i == n - 1 or dl[i + 1] != dl[i]:
+        if i == n - 1 or day[i + 1] != day[i]:
             sg, lv = emergent_sigma_level(orch)
-            days_out.append(int(dl[i]))
+            days_out.append(int(day[i]))
             sigma_out.append(sg)
             level_out.append(lv)
             if lv > max_lvl_seen:
@@ -182,12 +179,58 @@ def run_edge_daily_sigma_rust(
     )
 
 
-def _worker_rust(args: tuple) -> EdgeDailySigma:
-    """multiprocessing 顶层 worker（spawn 可 pickle）。"""
-    name, day, o, h, l, c, max_levels = args
-    return run_edge_daily_sigma_rust(
-        name, day, o, h, l, c, max_levels=max_levels, verbose=True
+# ════════════════════════════════════════════════════════════
+# 单边结果落盘 / resume（防 87min 工作因末尾崩溃全丢）
+# ════════════════════════════════════════════════════════════
+
+EDGE_CACHE_DIR = ROOT / "analysis" / "data_cache"
+
+
+def edge_cache_path(name: str, years: int) -> Path:
+    """单边 σ 结果 cache 路径（years 区分数据范围，避免错误 resume）。"""
+    safe = name.replace("/", "_")
+    return EDGE_CACHE_DIR / f"_k4edge_{safe}_y{years}.json"
+
+
+def dump_edge_cache(r: EdgeDailySigma, years: int) -> None:
+    edge_cache_path(r.name, years).write_text(json.dumps({
+        "name": r.name, "n_bars": r.n_bars,
+        "days": [int(x) for x in r.days],
+        "sigma": [int(x) for x in r.sigma],
+        "level": [int(x) for x in r.level],
+        "max_level": r.max_level, "elapsed": r.elapsed,
+    }))
+
+
+def load_edge_cache(name: str, years: int) -> EdgeDailySigma | None:
+    p = edge_cache_path(name, years)
+    if not p.exists():
+        return None
+    d = json.loads(p.read_text())
+    return EdgeDailySigma(
+        name=d["name"], n_bars=d["n_bars"], days=d["days"],
+        sigma=d["sigma"], level=d["level"],
+        max_level=d["max_level"], elapsed=d["elapsed"],
     )
+
+
+def _worker_rust(args: tuple) -> EdgeDailySigma:
+    """multiprocessing 顶层 worker（spawn 可 pickle）。
+
+    完成即落盘单边 cache → 即使其他 worker 在末尾崩溃，本边结果不丢、可 resume。
+    Rust 递归异常（panic/资源）显式打印边名后重抛，不静默吞（no-workaround）。
+    """
+    name, day, o, h, l, c, max_levels, years = args
+    try:
+        r = run_edge_daily_sigma_rust(
+            name, day, o, h, l, c, max_levels=max_levels, verbose=True
+        )
+    except BaseException as e:  # noqa: BLE001 — 含 PyO3 PanicException
+        print(f"  !! edge {name} FAILED: {type(e).__name__}: {e}", flush=True)
+        raise
+    dump_edge_cache(r, years)
+    print(f"  {name}: cached → {edge_cache_path(name, years).name}", flush=True)
+    return r
 
 
 def build_ratio_for_edge(

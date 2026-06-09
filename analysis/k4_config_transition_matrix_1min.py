@@ -44,6 +44,7 @@ from analysis.k4_1min_rust_lib import (  # noqa: E402
     EdgeDailySigma,
     _worker_rust,
     build_ratio_for_edge,
+    load_edge_cache,
     load_series,
 )
 
@@ -104,6 +105,24 @@ def empirical_dwell_times(gamma_series: list[tuple[int, int]]) -> dict[int, list
     return runs
 
 
+def sigma_correlation(gamma_series: list[tuple[int, int]]) -> dict:
+    """Γ 三分量 (σ_P,σ_C,σ_R) 的 Pearson 相关矩阵 + 有效自由度。
+
+    检验「共享货币锚 GC 致分量非独立」（gemini 异质否定6 / 230号直积退化）。
+    有效自由度 = 相关矩阵特征值的 participation ratio (Σλ)²/Σλ²。
+    """
+    arr = np.array([index_to_gamma(g) for _, g in gamma_series], dtype=np.float64)
+    C = np.corrcoef(arr.T)
+    ev = np.linalg.eigvalsh(C)
+    pr = float((ev.sum() ** 2) / (ev ** 2).sum())
+    allup = int(sum(1 for r in arr if tuple(r) == (1, 1, 1)))
+    alldn = int(sum(1 for r in arr if tuple(r) == (-1, -1, -1)))
+    return {
+        "corr": C, "eigenvalues": np.sort(ev)[::-1],
+        "participation_ratio": pr, "allup": allup, "alldn": alldn,
+    }
+
+
 def find_absorbing(T: np.ndarray) -> list[int]:
     """严格吸收态：被访问过且所有出边都回到自身（offdiag 行和==0）。"""
     absorbing = []
@@ -147,7 +166,10 @@ def main() -> None:
     for edge in EDGES:
         rb = build_ratio_for_edge(edge, series)
         if args.years > 0:
-            cutoff = int(datetime.now(timezone.utc).timestamp()) - args.years * 365 * 86400
+            # 对齐 UTC 日边界：消除 datetime.now() 秒级漂移导致同日多次运行 n_bars
+            # 不一致、cache resume 永久 miss（codex 异质审查问题6）。
+            cutoff = (int(datetime.now(timezone.utc).timestamp())
+                      - args.years * 365 * 86400) // 86400 * 86400
             mask = rb.ts >= cutoff
             rb = type(rb)(
                 name=rb.name, ts=rb.ts[mask], day=rb.day[mask],
@@ -158,19 +180,25 @@ def main() -> None:
               f"{np.datetime64(int(rb.ts[0]), 's')}..{np.datetime64(int(rb.ts[-1]), 's')}",
               flush=True)
 
-    # ── 六边并行 Rust 缠论递归 ──
-    print(f"\n[3/5] 六边并行 Rust 缠论递归（procs={args.procs}）...", flush=True)
-    job_args = [
-        (rb.name, rb.day, rb.o, rb.h, rb.l, rb.c, 6)
-        for rb in ratios.values()
-    ]
-    ctx = mp.get_context("spawn")
-    with ctx.Pool(processes=args.procs) as pool:
-        results_list: list[EdgeDailySigma] = pool.map(_worker_rust, job_args)
-    edge_results = {r.name: r for r in results_list}
-    for r in results_list:
-        print(f"  {r.name:5s} done: {r.n_bars:>11,} bars, {len(r.days)} days, "
-              f"max_lvl=L{r.max_level}, {r.elapsed:.0f}s", flush=True)
+    # ── 六边并行 Rust 缠论递归（resume：单边落盘，崩溃不丢已完成边）──
+    print(f"\n[3/5] 六边 Rust 缠论递归（procs={args.procs}，resume 可用）...", flush=True)
+    edge_results: dict[str, EdgeDailySigma] = {}
+    todo = []
+    for rb in ratios.values():
+        cached = load_edge_cache(rb.name, args.years)
+        if cached is not None and cached.n_bars == len(rb.c):
+            edge_results[rb.name] = cached
+            print(f"  {rb.name:5s} resumed: {cached.n_bars:>11,} bars, "
+                  f"{len(cached.days)} days, max_lvl=L{cached.max_level}", flush=True)
+        else:
+            todo.append((rb.name, rb.day, rb.o, rb.h, rb.l, rb.c, 6, args.years))
+    if todo:
+        ctx = mp.get_context("spawn")
+        with ctx.Pool(processes=args.procs) as pool:
+            for r in pool.imap_unordered(_worker_rust, todo):
+                edge_results[r.name] = r
+                print(f"  {r.name:5s} done: {r.n_bars:>11,} bars, {len(r.days)} days, "
+                      f"max_lvl=L{r.max_level}, {r.elapsed:.0f}s", flush=True)
 
     # ── 组装逐日 Γ + 转换矩阵 ──
     print("\n[4/5] 组装逐日 Γ=(σ_P,σ_C,σ_R) 并统计转换矩阵 ...", flush=True)
@@ -260,8 +288,10 @@ def write_report(edge_results, gamma_series, level_series, T, state_count,
     L.append("- **引擎**：newchan_rust.RecursiveOrchestrator（Rust，逐位等价 Python 版，~23×）")
     L.append("- **比价**：对数包络 R_high=A_high/B_low, R_low=A_low/B_high（不低估盘内极差）")
     L.append("- **a0**：1min，级别自然涌现，max_levels=6，stroke_mode=wide")
-    L.append("- **σ**：每 UTC 日末取**最高涌现级别**最后一个 move 方向"
-             "（趋势↑=+1/趋势↓=−1/盘整=0，527号走势方向态）")
+    L.append("- **σ**：每 UTC 日末取**最高涌现级别最后一个 move（settled=False，进行中走势）**"
+             "的方向（趋势↑=+1/趋势↓=−1/盘整=0，527号走势方向态）。"
+             "⚠ 这是『进行中走势方向』非『已结算走势方向』——日末后可被反向走势推翻"
+             "（gemini/codex 异质审查收敛点）。zero-lookahead 仍成立（仅依赖已处理 bar）。")
     L.append("- **Γ**：三条 vertex→money 边 (P/M,C/M,R/M) 的 σ 三元组（27 态）")
     L.append("- **转移**：相邻共同交易日 Γ→Γ' 计数")
     L.append("- **zero-lookahead**：每日 σ 仅依赖该日及之前 bar（Rust 流式 process_bar）\n")
@@ -277,17 +307,26 @@ def write_report(edge_results, gamma_series, level_series, T, state_count,
     # 级别构成警示
     if level_series:
         lv_arr = np.array(level_series)
-        L.append("### 级别构成警示\n")
-        L.append("『最高涌现级别 σ』使 Γ 可观测量随时间漂移（早期低级别/晚期高级别）。"
-                 "三条 Γ 边各自最高级别的日频分布：\n")
+        L.append("### ⚠ 异级别 σ 组合警示（核心方法缺陷，非边界条件）\n")
+        L.append("三条 Γ 边各自最高级别的日频分布：\n")
         L.append("| 边 | L1 | L2 | L3 | L4 | L5+ |")
         L.append("|----|----|----|----|----|----|")
+        same_lvl = 0
         for ci, name in enumerate(GAMMA_EDGES):
             col = lv_arr[:, ci]
             counts = [int((col == lv).sum()) for lv in (1, 2, 3, 4)]
             l5p = int((col >= 5).sum())
             L.append(f"| {name} | {counts[0]} | {counts[1]} | {counts[2]} | {counts[3]} | {l5p} |")
+        same_lvl = int(np.sum(lv_arr[:, 0] == lv_arr[:, 1]) & (lv_arr[:, 1] == lv_arr[:, 2]))
+        same_lvl = int(np.sum((lv_arr[:, 0] == lv_arr[:, 1]) & (lv_arr[:, 1] == lv_arr[:, 2])))
         L.append("")
+        L.append(f"> **gemini+codex 异质审查收敛否定**：仅 {same_lvl}/{len(lv_arr)} "
+                 f"（{same_lvl / len(lv_arr) * 100:.0f}%）的交易日三条边处于**同一**涌现级别——"
+                 f"其余 {100 - same_lvl / len(lv_arr) * 100:.0f}% 的日子，Γ 的三个分量来自**不同时间尺度**"
+                 f"的走势（如 σ_P@L3≈1-2年走势 与 σ_C@L4≈5年走势）。这不是『随时间漂移』的边界条件，"
+                 f"而是**逻辑上的苹果比橙子**：Γ 把异级别方向并列为『同日配置』，驻留分布的"
+                 f"『配置粘滞』解释被级别异质性混淆。可证伪：固定全 L3 重跑，若驻留分布显著变则"
+                 f"异级别混合是粘滞性主因。\n")
 
     # 2. 配置停留分布
     L.append(f"## 2. 配置 Γ 停留分布（共 {len(gamma_series)} 交易日，访问 {n_visited}/27 态）\n")
@@ -322,6 +361,13 @@ def write_report(edge_results, gamma_series, level_series, T, state_count,
     L.append(f"- 切换（非对角）转移：{offdiag}（{offdiag / total_trans * 100:.1f}%）")
     L.append(f"- 唯一非零转移对：{len(transitions)}")
     L.append("")
+    # 方法学警示：高对角占比是日频采样伪影，非强粘滞结论
+    L.append(f"> ⚠ **方法学警示（信息增量诚实标注，231号/形式化有效域规则）**："
+             f"{diag / total_trans * 100:.1f}% 对角占比是**日频采样的伪影**——相邻交易日的 Γ "
+             f"高度自相关（走势级别 ≥L3，单日难翻转），故转移矩阵近似单位阵。这**不是**『系统"
+             f"极度粘滞』的强结论，而与逐日重采样同义反复（类比[回测基准不可证伪陷阱]）。"
+             f"真正的信息增量在**切换结构**（§7 路径偏好，仅 {offdiag} 次非对角转移）与"
+             f"**驻留分布**（§6 游程），不在对角占比本身。\n")
 
     # 5. 吸收态
     L.append("## 5. 吸收态分析\n")
