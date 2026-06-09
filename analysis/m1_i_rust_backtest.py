@@ -240,42 +240,79 @@ def main() -> None:
         symbols = [s.strip().upper() for s in only.split(",") if s.strip()]
     workers = int(os.environ.get("BT_WORKERS", "0")) or min(len(symbols), os.cpu_count() or 2)
 
-    print(f"M1 Version I 回测：{len(symbols)} 标的，{workers} 进程并行")
+    # ── 单标的模式（子进程隔离）：跑一个标的，写独立结果文件，退出（释放全部内存）──
+    single = os.environ.get("BT_SINGLE")
+    if single:
+        sym = single.strip().upper()
+        _, out = run_symbol(sym)
+        (DATA_DIR / f"i_result_{sym}.json").write_text(
+            json.dumps({sym: out}, ensure_ascii=False, default=str))
+        print(f"  ✓ {sym} 写入 i_result_{sym}.json", flush=True)
+        return
+
+    # ── 编排器：每标的独立子进程（崩溃隔离 + 续跑 + 内存随进程退出释放）──
+    import subprocess
+
+    print(f"M1 Version I 回测：{len(symbols)} 标的，{workers} 子进程并发（隔离）")
     print(f"标的：{', '.join(symbols)}\n", flush=True)
 
-    results: dict[str, dict] = {}
-    # 增量加载已有结果（断点续跑）
-    if OUT_JSON.exists():
-        try:
-            results = json.loads(OUT_JSON.read_text())
-        except Exception:
-            results = {}
-    pending = [s for s in symbols if s not in results]
-    print(f"待跑：{pending}（已完成：{list(results)}）\n", flush=True)
+    def _done(s: str) -> bool:
+        return (DATA_DIR / f"i_result_{s}.json").exists()
 
+    queue = [s for s in symbols if not _done(s)]
+    print(f"待跑：{queue}（已完成：{[s for s in symbols if _done(s)]}）\n", flush=True)
+
+    logs_dir = ROOT / "analysis" / "logs"
+    logs_dir.mkdir(exist_ok=True)
     t_all = time.time()
-    if workers > 1 and len(pending) > 1:
-        from concurrent.futures import ProcessPoolExecutor
+    running: dict = {}  # Popen -> (sym, logfile)
+    failed: list[str] = []
 
-        with ProcessPoolExecutor(max_workers=workers) as ex:
-            futs = {ex.submit(run_symbol, s): s for s in pending}
-            from concurrent.futures import as_completed
-            for fut in as_completed(futs):
-                sym, out = fut.result()
-                results[sym] = out
-                OUT_JSON.write_text(json.dumps(results, indent=2, ensure_ascii=False, default=str))
-                _write_report(results)
-                print(f"  ✓ {sym} 完成并已写入（{time.time()-t_all:.0f}s）", flush=True)
-    else:
-        for s in pending:
-            _, out = run_symbol(s)
-            results[s] = out
-            OUT_JSON.write_text(json.dumps(results, indent=2, ensure_ascii=False, default=str))
-            _write_report(results)
-            print(f"  ✓ {s} 完成并已写入（{time.time()-t_all:.0f}s）", flush=True)
+    while queue or running:
+        while queue and len(running) < workers:
+            s = queue.pop(0)
+            lf = open(logs_dir / f"sym_{s}.log", "w")
+            env = {**os.environ, "BT_SINGLE": s}
+            env.pop("BT_SYMBOLS", None)
+            p = subprocess.Popen(
+                [sys.executable, str(Path(__file__).resolve())],
+                env=env, stdout=lf, stderr=subprocess.STDOUT)
+            running[p] = (s, lf)
+            print(f"  ▶ {s} 启动（PID {p.pid}，日志 sym_{s}.log）", flush=True)
+        # 轮询完成
+        for p in list(running):
+            rc = p.poll()
+            if rc is None:
+                continue
+            s, lf = running.pop(p)
+            lf.close()
+            if rc == 0 and _done(s):
+                _merge_and_write(symbols)  # 每标的完成即合并刷新总表
+                print(f"  ✓ {s} 完成（rc=0，{time.time()-t_all:.0f}s）", flush=True)
+            else:
+                failed.append(s)
+                print(f"  ✗ {s} 崩溃（rc={rc}，见 sym_{s}.log）——隔离，不影响其他标的", flush=True)
+        time.sleep(5)
 
-    print(f"\n总耗时 {time.time()-t_all:.0f}s（{len(pending)} 标的）")
+    _merge_and_write(symbols)
+    print(f"\n总耗时 {time.time()-t_all:.0f}s")
+    if failed:
+        print(f"⚠ 崩溃标的（需单独诊断）：{failed}")
     print(f"报告：{OUT_MD}\n结果：{OUT_JSON}")
+
+
+def _merge_and_write(symbols: list[str]) -> None:
+    """合并所有 i_result_<sym>.json → 总 JSON + MD 报告（按 symbols 顺序）。"""
+    results: dict[str, dict] = {}
+    for s in symbols:
+        f = DATA_DIR / f"i_result_{s}.json"
+        if f.exists():
+            try:
+                results.update(json.loads(f.read_text()))
+            except Exception:
+                pass
+    OUT_JSON.write_text(json.dumps(results, indent=2, ensure_ascii=False, default=str))
+    _write_report(results)
 
 
 if __name__ == "__main__":
