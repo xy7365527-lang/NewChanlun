@@ -135,8 +135,8 @@ def compute_i_signals_rust(
     bi_dn = PHLevelState.make(); bi_up = PHLevelState.make()
     last_stroke_n = 0
 
-    # BSP 去重 seen-set（segment 笔中枢 / 走势级 / 各递归层）
-    seg_seen: set = set()
+    # BSP 去重 seen-set（走势级 / 各递归层）。
+    # 注：笔中枢级（segment）的 seen-set 已下沉 Rust（bi_zhongshu_new_signals 内部维护）。
     trend_seen: set = set()
     level_seen: dict[int, set] = {}
     # type2_buy 报告口径：current_buysellpoints 中 type2 buy 的状态-diff 首现
@@ -175,9 +175,13 @@ def compute_i_signals_rust(
                     if r1u or nr1u:
                         bi_sell = True
             last_stroke_n = sc
-            # P2 优化：合并全链单次 Rust 调用（直读内部笔，零 stroke marshal）。
-            seg_buy1, seg_sell1, seg_sell_any, seg_buy_any = _scan_new(
-                orch.current_bi_zhongshu_buysellpoints(BI_ZHONGSHU_LEVEL_ID), seg_seen)
+            # P1 优化：O(N) 全链增量 delta 接口——四层增量器 + seen-set/signal_anchor
+            # 下沉 Rust，消除 marshal O(B) + 调用方扫描 O(B) → 端到端 O(N)（替代原
+            # current_bi_zhongshu_buysellpoints 全量重算的 O(strokes²)）。逐位等价于
+            # _scan_new(current_bi_zhongshu_buysellpoints_inc(...), seg_seen)（differential_tests 守卫）。
+            # 调用契约（lib.rs sync_inc）：仅在 stroke_count 增长时调用 → 与本门控一致。
+            seg_buy1, seg_sell1, seg_sell_any, seg_buy_any = \
+                orch.bi_zhongshu_new_signals(BI_ZHONGSHU_LEVEL_ID)
 
         # ── ladder3 走势级：current_buysellpoints 透传（每 bar）──
         bsps_l1 = orch.current_buysellpoints()
