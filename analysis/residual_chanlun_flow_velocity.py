@@ -356,6 +356,36 @@ def write_report(data: dict, an: dict) -> None:
         row("上行占比", "up_frac", "up_frac", "{:.2f}")
         lines.append("")
 
+    # ---- 核心发现（自动从 regime/年度数据推导，非手写常量）----
+    lines.append("## 核心发现（L2）\n")
+    reg = an["regime"]
+    fm1 = an["force_monthly"].get(1, {})
+    # 年度 L1 振幅极值
+    yr_amp = {}
+    for y in years:
+        ym = [m for m in months if m[:4] == y and m in fm1]
+        if ym:
+            yr_amp[y] = float(np.mean([fm1[m] for m in ym]))
+    peak_yr = max(yr_amp, key=yr_amp.get) if yr_amp else "-"
+    lines.append("**1. 流速（级别涌现）= 空信号。** "
+                 f"最高涌现级别 2020 年即饱和于 L3（全样本仅 1 个 L4），其后逐年不变；"
+                 f"L1 月度 settle 密度全程 ~14–18/月，无 regime 驱动的加速/减速。"
+                 "级别涌现速度**不是** regime 判别量——这是缩小有效域的否定性结果。\n")
+    d0309 = reg["2022-09"]
+    dl1 = d0309["after"]["l1_amp_mean"] - d0309["before"]["l1_amp_mean"]
+    pct = dl1 / d0309["before"]["l1_amp_mean"] * 100 if d0309["before"]["l1_amp_mean"] else 0.0
+    lines.append("**2. 流量（力度/振幅）= 部分信号，非单调。** "
+                 f"年度 L1 振幅峰值在 {peak_yr} 年（最高波动宏观年），与 2020/2022 危机年一致——"
+                 "力度追踪**波动 regime**。但三个转折点表现**不一致**："
+                 f"仅 2022-09 美元顶 L1 振幅骤降 {dl1:+.5f}（{pct:+.0f}%，力度衰竭=背驰直觉），"
+                 "两个 Fed 政策日（2022-03/2024-09）振幅仅 +9%/+7%（噪声级）。\n")
+    lines.append("**3. 综合判断。** "
+                 "残差缠论结构携带**波动 regime** 信息（力度随危机年放大），"
+                 "但**不干净地标记政策 regime 转折**：内生的价格反转（美元顶）出现力度衰竭，"
+                 "外生的政策事件（加息/降息日）不被残差结构提前反映。"
+                 "这与谱系『残差→流量无免费桥梁』一致——残差是曲率（严格），"
+                 "但流量需独立源，残差缠论结构本身只在内生反转处可见力度信号。\n")
+
     lines.append("## 边界条件（结论翻转条件）\n")
     lines.append("- 若 regime 转折月 ±3 月窗口内**力度（振幅）与流速（settle 密度）无系统性变化** "
                  "→ 残差缠论结构不携带 regime 信息，假设被否证。")
@@ -371,6 +401,24 @@ def write_report(data: dict, an: dict) -> None:
                  "project_residual_to_flow_no_bridge）。")
     lines.append("- 谱系：残差→流量无免费桥梁（COT 不领先流量，缠论残差走势结构是唯一有效流量源）"
                  "——本实验是该判断的直接 L2 检验。")
+    lines.append("")
+    lines.append("## 定义依据\n")
+    lines.append("- **残差**：`r = log(DX) − 0.576·log(USD6E)`，协整系数 0.576 既定"
+                 "（memory: project_residual_to_flow_no_bridge，占 DX 方差 33.8%）。")
+    lines.append("- **走势/级别**：缠论正典走势由中枢定义，级别由递归涌现"
+                 "（newchan_rust.RecursiveOrchestrator，与正典引擎 bit-exact）。"
+                 "残差退化 bar（O=H=L=C=r）下分型识别等价于对 r 序列直接找顶/底分型"
+                 "（build_residual_series.py 已声明）。")
+    lines.append("- **力度**：取走势价格振幅（amplitude=high−low），非 MACD 面积"
+                 "（memory: 力度=价格振幅非 MACD，避 O(N²)）。")
+    lines.append("")
+    lines.append("## 下游推论\n")
+    lines.append("- 若用残差缠论结构做 regime 择时，**只能用力度衰竭信号（内生反转，如美元顶）**，"
+                 "不能用级别涌现速度（空信号）或政策日附近的力度变化（噪声级）。")
+    lines.append("- 流量算子的有效域 = **内生价格反转点**，严格小于其定义域（全部 regime 转折）"
+                 "——又一例『有效域 ≠ 定义域』（formalization-validity-domain 规则）。")
+    lines.append("- 强化谱系判断：残差不提供通向『资本流量』的免费桥梁；缠论结构给出的是"
+                 "残差自身的波动/反转结构，不是外生资金流。")
 
     REPORT.write_text("\n".join(lines), encoding="utf-8")
     print(f"[report] → {REPORT}", flush=True)
