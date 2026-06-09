@@ -12,6 +12,18 @@
 
 **当前状态**：核心管线已完成，增量计算稳定。**8 层引擎已全量 Rust 重写并逐位等价（bit-exact）**——bi / segment / zhongshu / move / BSP / PH / MACD / RecursiveOrchestrator 八层逐字段移植，PyO3 0.23 + maturin 构建，L1/L2 真实数据上与 Python 实现逐位一致（`rust/src/*.rs` + `tests/test_rust_*_equivalence.py` 九组等价测试）。
 
+**全链路 O(N) 化已完成（本 session 重大进展）**：引擎曾在长序列（BTC 4.6M bars 在 3M+ 后显著变慢）暴露残留 O(N²)。系统性审计后，**五堵 O(N²) 墙逐一拆除，全程 bit-exact**：
+
+| 瓶颈 | 根因 | 修复 | 验证 |
+|------|------|------|------|
+| bi 引擎全量拷贝 | `cp[..base_len].to_vec()` 每次结构变化深拷贝 | 原地维护 + `Arc` 消重复 | OKLO 447K bit-exact |
+| segment resume 回归 | 锚点判据漏冻结更早被跳过缺口的二序列窗口（"40 vs 42 段"） | 判据改 gap_type 无关（`trigger_k+1+MARGIN≤n_strokes`） | OKLO 447K + CL 790K 零发散 |
+| segment 全量重算 | `segments_from_strokes_v1` 仅批量路径，笔尾变化全量 | `SegCheckpoint` + `segments_from_strokes_v1_into` 原地续算尾部 | OKLO 447K 逐 bar |
+| 笔中枢买卖点全链 | `current_bi_zhongshu_buysellpoints` 逐笔全量重算 | `IncrementalBiZhongshuBsp` 四层增量器（O(strokes²)→O(N) delta） | 逐位等价 |
+| 线段级中枢/背驰/BSP | orchestrator 残留 O(n_seg²)，每次结构变化全量重算 | `segment_layers.rs`：稳定边界感知增量器（`stable_count` 前缀缓存 + 有界尾部重算） | OKLO 447K 逐 bar + AAPL 250K |
+
+线段级增量器的 append-only 障碍处理是关键设计：settled 段在 checkpoint 稳定前仍可被修订，故"永久固定"判据从笔级的「settled」收紧为「settled ∧ break_seg < 稳定前缀」。**有效域声明**：增量背驰路径为纯结构性（价格振幅，对应 `enable_macd=False`）；MACD 三维度背驰非有界回溯，不在增量器有效域内，orchestrator 在 `enable_macd` 时回退全量。E 版 `process_bar` 2.14→1.27s，I 版腰斩。
+
 | 组件 | 状态 | 代码位置 |
 |------|------|---------|
 | BiEngine（笔引擎） | ✅ 增量 O(1)/bar，257 个测试 | `bi_engine.py` |
@@ -24,6 +36,7 @@
 | MACD 背驰 v1 | ✅ 面积/DIF 峰值/柱子高度三维度 | `a_divergence_v1.py` |
 | OnlineMacdState（增量 MACD） | ✅ 增量 EMA + 穿透管线 | `a_macd.py` |
 | **Rust 引擎（8 层逐位等价）** | ✅ bi/seg/zs/move/BSP/PH/MACD/Orchestrator bit-exact | `rust/src/*.rs` |
+| **全链路增量化（O(N)）** | ✅ 五堵 O(N²) 墙全拆除，bit-exact | `rust/src/segment_layers.rs`, `orchestrator.rs`, `bi_engine.rs` |
 
 **目标**：作为不可替代的信号源，为回测和实盘提供统一的 `RecursiveOrchestratorSnapshot` 输出。
 
@@ -106,11 +119,14 @@
 
 **阻塞于**：无（当前代码已具备执行条件）
 
-**当前进展**（L2 真实数据，1min 期货/股票）：
+**当前进展**（L2/L3 真实数据，1min 期货/股票/加密货币）：
 - **E 版本（背驰定位器主轴）有正 alpha**：次级别底背驰进场 + L2 趋势顶背驰出场 + 持仓穿越降成本，OKLO 完整时段 +932%（>buy-hold +307%），两标的 E>A>D（背驰门控进出场 D 被证伪——见 memory）
-- **Version I（动态级别归属）完成**：买点归属最高涌现层定出场级别 + 多重赋格降成本，降成本风险改善但仍负贡献（OKLO I+416% < E+455%，regime-dependent 非全标的最优）
-- **否定性结果已沉淀**：降成本提款机 bug（trim 被 max(0,·) 建模为只赚不赔）已定位；ω regime→美股方向被真实数据反向证伪（p=0.069 方向相反）；挣股数阶段在 1min 上空有效域
-- **数据基底**：31.8M bars 1min 纯期货（ES/GC/CL/ZN/6E/BRN/DX）+ Databento 十年历史，消除连续合约拼接前视
+- **E 版本期货全市场首次回测（本 session）**：7 标的（ES/GC/CL/ZN/6E/BRN/DX）10 年 1min，Rust orchestrator 驱动 + 增量落盘 + 28 核并行（修复 O(N²)×5.5M bar 单进程不可行）；E 回测百分位均值 54.4，x=6/7 跑赢随机中位但符号检验 p=0.125 / Fisher p=0.68 全不显著——**跨资产未确立择时 alpha**，弱正方向无法拒绝暴露守恒
+- **BTC 全历史 V-I 回测（本 session）**：4.6M bar（Binance 归档），E +2194%（超额 +814%）≫ BH ≫ I 降成本 +62%——**BTC 史上最强单边，E 首次跑赢 BH**（与股票/期货相反）；降成本多 FSM 在强趋势纯拖累（27→2588 笔 churn）
+- **Version I（动态级别归属）完整版重写（本 session）**：取消 6 阉割，per_level_bsp 真实 type1/2/3 替代近似；多 FSM 核心 + 机动仓级别驱动单笔量；OKLO 447K：E +1006% ≫ I_seg2 +352% > I_move3 +318% > BH > I_bar0 +279%——**数据裁决 segment 为最优 floor**（印证缠师"太小级别短差有害"，bar 级 churn 17424 次毁 −11973%）
+- **V-I 架构审计 + 共享仓位改造（本 session，否定性结果）**：审计判 3/4 正确；slice→共享仓位重构 L2 全面劣于 slice（bar 级 22814 次噪音短差 −666803% 爆仓）——slice 限额掩盖降成本负 alpha，共享满仓暴露真相
+- **否定性结果已沉淀**：降成本提款机 bug（trim 被 max(0,·) 建模为只赚不赔）已定位；ω regime→美股方向被真实数据反向证伪（p=0.069 方向相反）；挣股数阶段在 1min 上空有效域；背驰门控进出场（实验 D）被证伪
+- **数据基底**：31.8M bars 1min 纯期货（ES/GC/CL/ZN/6E/BRN/DX）+ Databento 十年历史 + BTC 4.6M bar Binance 全历史，消除连续合约拼接前视
 
 **交付物**：
 1. **回测管线完整跑通**：`backtest/engine.py` + `backtest/full_pipeline.py` 在多标的、多时段上产出完整交易记录
@@ -118,6 +134,11 @@
 3. **随机门控对照**：相同品种上的随机入场基线，证伪策略 alpha 的来源（非 buy-hold 同义反复）
 4. **前视检查审计**：自动化检测入场价/退出价是否使用了未来数据
 5. **认识论标注**：所有回测结论标注 L2（真实数据验证），附否定性结果
+
+**可证伪性研究分支（本 session，认识论 L2/L3）**：
+- **P1 ⋆=D 否证（残差规范场论）**：假设残差曲率 Hodge star 等于背驰算子 D，L1 和 L2/L3 全否证——`persistence ≡ amplitude` 是代数恒等式（信息增量为零），残差→流量缺金融度规，无免费桥梁（见 memory）
+- **P3 暴露守恒弱成立**：OKLO N=6 功效不够（随机门控第 56 百分位，P 随机≥真实=43.6%）；期货 7 标的 E 联合判决百分位均值 54.4，符号/Fisher 检验全不显著——**门控 alpha 来自 ~92% 暴露而非择时**，门控≈伪装 buy-hold
+- **谱系生产 P0–P6**：研究分支结论结晶为谱系骨架（`analysis/genealogy_production.md` + `genealogy_parts/`）
 
 **关键约束**（memory 记录）：
 - 全历史压缩/超长上行数据上的 buy-hold 比较不可证伪，不作为评判标准
@@ -141,7 +162,8 @@
 - **C 路径 96% alpha 留存**：K4 折叠重构后主轴信号路径的 alpha 保真度验证
 - **递归分解树设计完成**：`topology/decomposition_tree.py` + `docs/architecture/recursive_decomposition_tree.md`，买点动态级别归属的结构化分解
 - **σ 配置态本体修正（527 号）**：transition.py 应为 81 边图（σ 可 −1→+1 跳变），原 54 边图的图论性质建立在错误连续性假设上
-- **否定性结论保留**：K4 门控在 OKLO 2 年毁 alpha（E+932% > E+M2+128%）——选股门控当前为净负贡献，作为可证伪基线沉淀
+- **K4 1min 配置转换矩阵（本 session，进行中）**：GC 货币锚 27 态日级转移矩阵恒定内存迭代 + 单边 resume 落盘——4953 日/访问 24 态/对角 98.2%（采样伪影）/无吸收态/驻留 55 天；核心缺陷仅 48% 同级别。注：1min 期货实验映射为 R=ZN 国债 / C=CL 油（非正典 VNQ/DBC，编排者显式覆盖 528/529），非正典 K4 不可与正典比较
+- **否定性结论保留**：K4 门控在 OKLO 2 年毁 alpha（E+932% > E+M2+128%）——选股门控当前为净负贡献，作为可证伪基线沉淀；多级别 C 路径递归在 OKLO 劣于单级别且均 < E（被证伪）
 
 **交付物**：
 1. **K4→品种池端到端管线**：K4 极性指数 + 折叠等价类 → 商空间排序 → 品种池输出
