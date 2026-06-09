@@ -317,7 +317,6 @@ def write_report(edge_results, gamma_series, level_series, T, state_count,
             counts = [int((col == lv).sum()) for lv in (1, 2, 3, 4)]
             l5p = int((col >= 5).sum())
             L.append(f"| {name} | {counts[0]} | {counts[1]} | {counts[2]} | {counts[3]} | {l5p} |")
-        same_lvl = int(np.sum(lv_arr[:, 0] == lv_arr[:, 1]) & (lv_arr[:, 1] == lv_arr[:, 2]))
         same_lvl = int(np.sum((lv_arr[:, 0] == lv_arr[:, 1]) & (lv_arr[:, 1] == lv_arr[:, 2])))
         L.append("")
         L.append(f"> **gemini+codex 异质审查收敛否定**：仅 {same_lvl}/{len(lv_arr)} "
