@@ -117,7 +117,7 @@ fn scan_zhongshu(confirmed: &[Component]) -> Vec<Zhongshu> {
 /// 增量复用前提：`confirmed[..start_i]` 已产出的 settled 中枢永久固定，
 /// 从 `start_i` 重扫只复现易变尾部。`start_i` 必须 = 最后一个 settled 中枢的续进锚
 /// `max(break_seg-2, seg_end)`（即原循环 settled 后的 `i` 取值），否则破坏 bit-exact。
-fn scan_zhongshu_range(confirmed: &[Component], start_i: usize) -> Vec<Zhongshu> {
+pub(crate) fn scan_zhongshu_range(confirmed: &[Component], start_i: usize) -> Vec<Zhongshu> {
     let n = confirmed.len();
     if n < 3 {
         return Vec::new();
@@ -210,7 +210,7 @@ pub fn zhongshu_from_strokes(strokes: &[(usize, usize, f64, f64, bool)]) -> Vec<
 /// settled 中枢的续进锚 —— 复刻 scan 循环 settled 分支 `i = max(break_seg-2, seg_end)`。
 ///
 /// 仅对 `settled==true` 的中枢有意义（break_seg ≥ 0）。返回下一轮扫描的起点。
-fn resume_index_after(zs: &Zhongshu) -> usize {
+pub(crate) fn resume_index_after(zs: &Zhongshu) -> usize {
     let v = (zs.break_seg - 2).max(zs.seg_end as i64);
     v.max(0) as usize
 }

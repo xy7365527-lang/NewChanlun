@@ -22,11 +22,16 @@ mod moves;
 mod orchestrator;
 mod ph;
 mod segment;
+mod segment_layers;
 mod stroke;
 mod zhongshu;
 
+use std::collections::HashSet;
+
 use pyo3::prelude::*;
 use stroke::{Direction, Stroke};
+
+use buysellpoint::{BspKind, Side};
 
 /// 线段批量入口的输出元组（嵌套以规避 PyO3 元组 ≤12 元素限制）：
 ///   ((s0, s1, i0, i1, dir, high, low, confirmed, kind),
@@ -848,6 +853,15 @@ struct PyRecursiveOrchestrator {
     inc_bz: Option<bi_zhongshu_bsp::IncrementalBiZhongshuBsp>,
     /// 已 push 到 inc_bz 的 confirmed 笔数。
     inc_pushed: usize,
+
+    // ── 走势级（level-1 segment）买卖点 delta 信号：消除调用层每-bar 全量
+    //    current_buysellpoints() marshal + _scan_new 扫描的 B-scaling O(N²) ──
+    /// confirmed 买卖点去重集（复刻 Python `trend_seen`，键 = (kind, side, seg_idx)）。
+    trend_seen: HashSet<(BspKind, Side, i64)>,
+    /// type2 买卖点去重集（复刻 Python `type2_seen`，键 = (seg_idx, move_seg_start)）。
+    trend_type2_seen: HashSet<(i64, i64)>,
+    /// 上次扫描时见到的 bsp_epoch（epoch 未变 ⟹ prev_bsps 逐位不变 ⟹ O(1) 跳过）。
+    trend_last_bsp_epoch: u64,
 }
 
 #[pymethods]
@@ -860,6 +874,7 @@ impl PyRecursiveOrchestrator {
         reset_dir_on_fractal = false,
         new_raw_gap_min = 3,
         enable_macd_divergence = false,
+        enable_bsp = true,
     ))]
     fn new(
         max_levels: i64,
@@ -868,6 +883,7 @@ impl PyRecursiveOrchestrator {
         reset_dir_on_fractal: bool,
         new_raw_gap_min: i64,
         enable_macd_divergence: bool,
+        enable_bsp: bool,
     ) -> Self {
         PyRecursiveOrchestrator {
             inner: orchestrator::RecursiveOrchestrator::new(
@@ -877,9 +893,13 @@ impl PyRecursiveOrchestrator {
                 reset_dir_on_fractal,
                 new_raw_gap_min,
                 enable_macd_divergence,
+                enable_bsp,
             ),
             inc_bz: None,
             inc_pushed: 0,
+            trend_seen: HashSet::new(),
+            trend_type2_seen: HashSet::new(),
+            trend_last_bsp_epoch: 0,
         }
     }
 
@@ -892,6 +912,9 @@ impl PyRecursiveOrchestrator {
         self.inner.reset();
         self.inc_bz = None;
         self.inc_pushed = 0;
+        self.trend_seen.clear();
+        self.trend_type2_seen.clear();
+        self.trend_last_bsp_epoch = 0;
     }
 
     fn current_strokes(
@@ -925,6 +948,15 @@ impl PyRecursiveOrchestrator {
 
     fn current_moves(&self) -> Vec<MoveTuple> {
         self.inner.moves().iter().map(move_to_tuple).collect()
+    }
+
+    /// **走势 settle delta 接口**——返回自上次调用以来新结算的走势（MoveTuple 列表）。
+    ///
+    /// 逐位等价于 E 引擎 `diff_moves(prev_moves, current_moves())` 中 MoveSettleV1 对应的
+    /// settled move。消除每-epoch 全量 `current_moves()` marshal + Python `diff_moves`
+    /// （O(B·n_moves) 超线性 → 端到端 O(n_seg·新结算)）。move_epoch 未变 ⟹ 返回空（O(1)）。
+    fn take_move_settle_events(&mut self) -> Vec<MoveTuple> {
+        self.inner.move_settle_delta().iter().map(move_to_tuple).collect()
     }
 
     fn current_buysellpoints(&self) -> Vec<BspTuple> {
@@ -1056,6 +1088,84 @@ impl PyRecursiveOrchestrator {
             .as_mut()
             .map(|e| e.take_new_signals())
             .unwrap_or((false, false, false, false))
+    }
+
+    /// **走势级（level-1 segment）delta 信号接口**——消除调用层每-bar 全量
+    /// `current_buysellpoints()` marshal + `_scan_new` 扫描的 B-scaling O(N²)。
+    ///
+    /// 逐位等价于 Python `m1_i_rust_engine` 每-bar：
+    ///   `l1_* = _scan_new(current_buysellpoints(), trend_seen)`
+    ///   `type2_buy = (首现 type2 buy in current_buysellpoints(), keyed (seg_idx, move_seg_start))`
+    /// 返回 `(l1_buy1, l1_sell1, l1_sell_any, l1_buy_any, type2_buy)`。
+    ///
+    /// ## O(1) 门控 + delta 原理
+    /// `bsp_epoch` 仅在走势级买卖点层**重算**（bsp_key 变化）时自增。epoch 未变 ⟹
+    /// `inner.buysellpoints()` 逐位不变 ⟹ 上次已扫，本 bar 无新信号 → 直接返回全 false
+    /// （O(1)）。仅 epoch 变化 bar 扫描全量 bsp（共 O(n_seg) 次），seen-set 去重保证
+    /// 每个 (kind,side,seg_idx) / (seg_idx,move_seg_start) 一生只触发一次——与 Python
+    /// 跨 bar seen-set 语义逐字一致。端到端从 O(B·n_bsp) 降到 O(n_seg·n_bsp)（B≫n_seg）。
+    ///
+    /// ## 等价性（状态-事件二象性）
+    /// Python 每 bar 全量扫 + seen 去重 ⟺ 仅在内容变化 bar 扫 + seen 去重：未变 bar 的
+    /// 扫描必然全部命中 seen（无新增）→ 结果恒 false。故门控不改变任何 bar 的信号输出。
+    #[pyo3(signature = (level_id = 1))]
+    fn trend_new_signals(&mut self, level_id: i64) -> (bool, bool, bool, bool, bool) {
+        let _ = level_id; // 走势级 bsp 已由 inner.process_bar 以 self.level_id=1 算妥；保持签名对称。
+        let epoch = self.inner.bsp_epoch();
+        if epoch == self.trend_last_bsp_epoch {
+            return (false, false, false, false, false);
+        }
+        self.trend_last_bsp_epoch = epoch;
+
+        let (mut b1, mut s1, mut sa, mut ba, mut type2_buy) =
+            (false, false, false, false, false);
+        for bp in self.inner.buysellpoints() {
+            // ── _scan_new 部分：confirmed 必需，键 (kind, side, seg_idx) ──
+            if bp.confirmed {
+                let key = (bp.kind, bp.side, bp.seg_idx);
+                if self.trend_seen.insert(key) {
+                    match bp.side {
+                        Side::Buy => {
+                            ba = true;
+                            if bp.kind == BspKind::Type1 {
+                                b1 = true;
+                            }
+                        }
+                        Side::Sell => {
+                            sa = true;
+                            if bp.kind == BspKind::Type1 {
+                                s1 = true;
+                            }
+                        }
+                    }
+                }
+            }
+            // ── type2_buy 部分：不门控 confirmed，键 (seg_idx, move_seg_start) ──
+            if bp.side == Side::Buy && bp.kind == BspKind::Type2 {
+                let key2 = (bp.seg_idx, bp.move_seg_start);
+                if self.trend_type2_seen.insert(key2) {
+                    type2_buy = true;
+                }
+            }
+        }
+        (b1, s1, sa, ba, type2_buy)
+    }
+
+    /// 走势层内容变化纪元（O(1)）。调用层缓存上次值，未变 ⟹ `current_moves()` 逐位不变
+    /// ⟹ 跳过 marshal（消除 E 引擎每-bar `tuple(current_moves())` 的 B-scaling）。
+    fn move_epoch(&self) -> u64 {
+        self.inner.move_epoch()
+    }
+
+    /// 走势级买卖点内容变化纪元（O(1)）。`trend_new_signals` 内部门控用；亦供调用层直接消费。
+    fn bsp_epoch(&self) -> u64 {
+        self.inner.bsp_epoch()
+    }
+
+    /// 递归层内容变化纪元（O(1)）。未变 ⟹ `current_recursive()` 逐位不变 ⟹ 跳过整个
+    /// 递归 marshal + 各层 cache_key 构造 + _scan_new（消除 I 引擎每-bar 递归块的 B-scaling）。
+    fn recursive_epoch(&self) -> u64 {
+        self.inner.recursive_epoch()
     }
 
 }

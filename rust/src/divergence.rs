@@ -473,7 +473,7 @@ pub fn divergences_from_moves_v1(
 
 /// 单 Move 背驰检测（趋势优先，其次盘整）。复刻 `divergences_from_moves_v1` 的 per-move 体。
 /// `macd=None`（bi-zhongshu 路径价格振幅 fallback）。
-fn detect_one(
+pub(crate) fn detect_one(
     segs: &[SegView],
     zss: &[ZsView],
     mv: &MoveView,

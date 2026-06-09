@@ -73,7 +73,7 @@ impl SegKind {
 }
 
 /// 断段证据。对应 Python `BreakEvidence` frozen dataclass。
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct BreakEvidence {
     pub trigger_stroke_k: usize,
     pub fractal_abc: (usize, usize, usize),
@@ -81,7 +81,7 @@ pub struct BreakEvidence {
 }
 
 /// 一段线段。对应 Python `Segment` frozen dataclass。
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Segment {
     pub s0: usize,
     pub s1: usize,
@@ -363,7 +363,9 @@ fn is_fractal_and_gap(
 }
 
 const TAIL_WINDOW: i64 = 7;
-const MAX_SECOND_SEQ_SCAN: usize = 50;
+/// 第二特征序列最大扫描窗口。移植自 `_FeatureSeqState.MAX_SECOND_SEQ_SCAN`。
+/// 同时是 orchestrator 线段检查点稳定性判据的窗口边界（`trigger_k+1+MARGIN<=n`）。
+pub const MAX_SECOND_SEQ_SCAN: usize = 50;
 
 /// 检查第二特征序列是否存在分型。移植自 `_FeatureSeqState._second_seq_has_fractal`。
 fn second_seq_has_fractal(
@@ -683,13 +685,59 @@ pub fn segments_from_strokes_v1(
     if n < 3 {
         return Vec::new();
     }
-
-    let mut segments: Vec<Segment> = Vec::new();
-    let mut seg_start = match find_overlap_start(strokes, 0) {
+    let seg_start = match find_overlap_start(strokes, 0) {
         Some(s) => s,
         None => return Vec::new(),
     };
-    let mut seg_dir = strokes[seg_start].direction;
+    let seg_dir = strokes[seg_start].direction;
+    let mut segments: Vec<Segment> = Vec::new();
+    segments_from_strokes_v1_into(
+        &mut segments,
+        strokes,
+        min_seg_strokes,
+        extend_mode_strict,
+        seg_start,
+        seg_dir,
+    );
+    segments
+}
+
+/// 原地续算线段：从 `(seg_start, seg_dir)` 起运行主循环，向 `segments` **追加**新段并收尾。
+///
+/// 调用契约（resume 场景）：`segments` 已含可复用的不可变前缀（调用方 truncate 到复用边界），
+/// `seg_start` 为下一段（= 前缀**之后**第一个待重算段）的起始笔下标，`seg_dir` 为其方向，
+/// 配 fresh `FeatureSeqState`。此条件与全量计算"发射前一段后、开始下一段时"的状态逐字段一致
+/// （`seg_start = 前段.trigger_k`、`seg_dir = opposite`、feat.reset），故续算逐位等价于全量。
+///
+/// 全量入口传 `seg_start = find_overlap_start(strokes, 0)`、`seg_dir = strokes[seg_start].direction`、
+/// 空 `segments`——退化为原批量路径。
+///
+/// **不可变前缀不被触碰**：主循环只追加（`emit_segment` push），`finalize_last_segment` /
+/// `ensure_last_unconfirmed` 只改 `segments.last()`。当本次至少发射一段时 last 为新段；
+/// 当零发射且尾部过短时 last 落在 `seg_start` 起始的重算段或调用方留下的边界段——由调用方
+/// 保证 `seg_start` 段本身在重算范围内（见 orchestrator 复用 `stable_count-1` 段的设计）。
+pub fn segments_from_strokes_v1_into(
+    segments: &mut Vec<Segment>,
+    strokes: &[Stroke],
+    min_seg_strokes: usize,
+    extend_mode_strict: bool,
+    seg_start: usize,
+    seg_dir: Direction,
+) {
+    let n = strokes.len();
+    if n < 3 {
+        return;
+    }
+    let mut seg_start = seg_start;
+    let mut seg_dir = seg_dir;
+
+    if seg_start >= n {
+        // resume 起点越界：直接收尾（移植 Python `_resume` 的 `resume_start >= n` 分支）。
+        finalize_last_segment(segments, strokes, seg_start, seg_dir, min_seg_strokes, n);
+        ensure_last_unconfirmed(segments, strokes);
+        return;
+    }
+
     let mut feat = FeatureSeqState::new(seg_dir, extend_mode_strict);
     let mut cursor = seg_start;
 
@@ -712,7 +760,7 @@ pub fn segments_from_strokes_v1(
                 continue;
             }
             Some((k, break_ev)) => {
-                emit_segment(&mut segments, strokes, seg_start, seg_dir, k, break_ev);
+                emit_segment(segments, strokes, seg_start, seg_dir, k, break_ev);
                 seg_start = k;
                 seg_dir = opposite;
                 feat.reset(seg_dir);
@@ -721,7 +769,6 @@ pub fn segments_from_strokes_v1(
         }
     }
 
-    finalize_last_segment(&mut segments, strokes, seg_start, seg_dir, min_seg_strokes, n);
-    ensure_last_unconfirmed(&mut segments, strokes);
-    segments
+    finalize_last_segment(segments, strokes, seg_start, seg_dir, min_seg_strokes, n);
+    ensure_last_unconfirmed(segments, strokes);
 }

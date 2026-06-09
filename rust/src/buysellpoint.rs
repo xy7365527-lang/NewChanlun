@@ -141,7 +141,7 @@ impl MoveLookup {
 }
 
 /// 从 start 开始找第一个指定方向的段索引。移植自 `_find_next_seg_by_direction`。
-fn find_next_seg_by_direction(segs: &[SegView], start: i64, direction: Direction) -> Option<i64> {
+pub(crate) fn find_next_seg_by_direction(segs: &[SegView], start: i64, direction: Direction) -> Option<i64> {
     if start < 0 {
         return None;
     }
@@ -155,7 +155,7 @@ fn find_next_seg_by_direction(segs: &[SegView], start: i64, direction: Direction
 }
 
 /// 找包含背驰中枢的趋势 Move 索引。移植自 `_find_assoc_trend_move`。
-fn find_assoc_trend_move(moves: &[MoveView], center_idx: usize, n_zhongshus: usize) -> Option<usize> {
+pub(crate) fn find_assoc_trend_move(moves: &[MoveView], center_idx: usize, n_zhongshus: usize) -> Option<usize> {
     if center_idx >= n_zhongshus {
         return None;
     }
@@ -410,7 +410,7 @@ fn detect_type3(
 }
 
 /// 2B+3B 重合检测。移植自 `_detect_overlap`。
-fn detect_overlap(type2: &mut [BuySellPoint], type3: &mut [BuySellPoint]) {
+pub(crate) fn detect_overlap(type2: &mut [BuySellPoint], type3: &mut [BuySellPoint]) {
     use std::collections::HashMap;
     // (seg_idx, side, level_id) → type3 index
     let mut t3_map: HashMap<(i64, Side, i64), usize> = HashMap::new();
@@ -451,6 +451,142 @@ pub fn buysellpoints_from_level(
     all.extend(type3);
     all.sort_by_key(|bp| bp.seg_idx);
     all
+}
+
+// ════════════════════════════════════════════════════════════
+// 单项构造自由函数（pub(crate)）——供 IncrementalBsp（笔级）+ IncrementalSegBsp（线段级）复用。
+// lookup_find: seg_idx → assoc move 索引（线段级用窗口 lookup，笔级用增量 lookup）。
+// ════════════════════════════════════════════════════════════
+
+/// 单 div 构造 type1（复刻 `detect_type1` 循环体；trend div 由调用方过滤）。
+pub(crate) fn build_type1_bsp(
+    div: &Divergence,
+    segs: &[SegView],
+    zss: &[ZsView],
+    moves: &[MoveView],
+    level_id: i64,
+) -> Option<BuySellPoint> {
+    let assoc_mi = find_assoc_trend_move(moves, div.center_idx, zss.len())?;
+    let assoc = &moves[assoc_mi];
+    let zs = &zss[div.center_idx];
+    let side = if div.direction == DivDir::Bottom { Side::Buy } else { Side::Sell };
+    let seg_idx = div.seg_c_end;
+    let mut price = 0.0;
+    let mut bar_idx: i64 = 0;
+    if seg_idx >= 0 && (seg_idx as usize) < segs.len() {
+        let seg = &segs[seg_idx as usize];
+        price = if side == Side::Buy { seg.low } else { seg.high };
+        bar_idx = seg.i1 as i64;
+    }
+    let confirmed = div.force_a > 0.0 && div.force_c / div.force_a <= TYPE1_CONFIRM_RATIO;
+    Some(BuySellPoint {
+        kind: BspKind::Type1,
+        side,
+        level_id,
+        seg_idx,
+        move_seg_start: assoc.seg_start,
+        divergence_key: Some((
+            div.center_idx,
+            div.seg_c_start.max(0) as usize,
+            div.seg_c_end.max(0) as usize,
+        )),
+        center_zd: zs.zd,
+        center_zg: zs.zg,
+        center_seg_start: Some(zs.seg_start),
+        price,
+        bar_idx,
+        confirmed,
+        settled: assoc.settled,
+        overlaps_with: Overlap::None,
+    })
+}
+
+/// 单 type1 构造 type2（复刻 `detect_type2` 循环体 + `make_type2_point`）。
+pub(crate) fn build_type2_bsp(
+    t1: &BuySellPoint,
+    segs: &[SegView],
+    moves: &[MoveView],
+    level_id: i64,
+    lookup_find: impl Fn(i64) -> Option<usize>,
+) -> Option<BuySellPoint> {
+    let (callback, side) = match t1.side {
+        Side::Buy => {
+            let rebound = find_next_seg_by_direction(segs, t1.seg_idx + 1, Direction::Up)?;
+            let cb = find_next_seg_by_direction(segs, rebound + 1, Direction::Down)?;
+            (cb, Side::Buy)
+        }
+        Side::Sell => {
+            let pullback = find_next_seg_by_direction(segs, t1.seg_idx + 1, Direction::Down)?;
+            let rb = find_next_seg_by_direction(segs, pullback + 1, Direction::Up)?;
+            (rb, Side::Sell)
+        }
+    };
+    let seg = &segs[callback as usize];
+    let price = if side == Side::Buy { seg.low } else { seg.high };
+    let confirmed = if side == Side::Buy { price >= t1.price } else { price <= t1.price };
+    let assoc = lookup_find(callback);
+    Some(BuySellPoint {
+        kind: BspKind::Type2,
+        side,
+        level_id,
+        seg_idx: callback,
+        move_seg_start: t1.move_seg_start,
+        divergence_key: t1.divergence_key,
+        center_zd: t1.center_zd,
+        center_zg: t1.center_zg,
+        center_seg_start: t1.center_seg_start,
+        price,
+        bar_idx: seg.i1 as i64,
+        confirmed,
+        settled: assoc.map(|mi| moves[mi].settled).unwrap_or(false),
+        overlaps_with: Overlap::None,
+    })
+}
+
+/// 单中枢构造 type3（复刻 `detect_type3` 循环体 + `make_type3_point`）。
+pub(crate) fn build_type3_bsp(
+    zs: &ZsView,
+    break_dir: crate::zhongshu::BreakDir,
+    break_seg: i64,
+    segs: &[SegView],
+    moves: &[MoveView],
+    level_id: i64,
+    lookup_find: impl Fn(i64) -> Option<usize>,
+) -> Option<BuySellPoint> {
+    if break_seg < 0 || break_seg >= segs.len() as i64 {
+        return None;
+    }
+    let (opposite, break_direction) = match break_dir {
+        crate::zhongshu::BreakDir::Up => (Direction::Down, Direction::Up),
+        crate::zhongshu::BreakDir::Down => (Direction::Up, Direction::Down),
+        crate::zhongshu::BreakDir::None => return None,
+    };
+    let pullback = find_next_seg_by_direction(segs, break_seg + 1, opposite)?;
+    let pullback_seg = &segs[pullback as usize];
+    let continuation = find_next_seg_by_direction(segs, pullback + 1, break_direction);
+    let confirmed = continuation.is_some();
+    let side = match break_dir {
+        crate::zhongshu::BreakDir::Up if pullback_seg.low > zs.zg => Side::Buy,
+        crate::zhongshu::BreakDir::Down if pullback_seg.high < zs.zd => Side::Sell,
+        _ => return None,
+    };
+    let assoc = lookup_find(pullback);
+    Some(BuySellPoint {
+        kind: BspKind::Type3,
+        side,
+        level_id,
+        seg_idx: pullback,
+        move_seg_start: zs.seg_start as i64,
+        divergence_key: None,
+        center_zd: zs.zd,
+        center_zg: zs.zg,
+        center_seg_start: Some(zs.seg_start),
+        price: if side == Side::Buy { pullback_seg.low } else { pullback_seg.high },
+        bar_idx: pullback_seg.i1 as i64,
+        confirmed,
+        settled: assoc.map(|mi| moves[mi].settled).unwrap_or(false),
+        overlaps_with: Overlap::None,
+    })
 }
 
 // ════════════════════════════════════════════════════════════
@@ -678,7 +814,7 @@ impl IncrementalBsp {
         self.full_bsps.extend_from_slice(&tail[hi..]);
     }
 
-    /// 单 div 构造 type1（复刻 `detect_type1` 循环体，trend div 调用方已过滤）。
+    /// 单 div 构造 type1（委托 build_type1_bsp）。
     fn build_type1(
         &self,
         div: &Divergence,
@@ -686,93 +822,20 @@ impl IncrementalBsp {
         zss: &[ZsView],
         moves: &[MoveView],
     ) -> Option<BuySellPoint> {
-        let assoc_mi = find_assoc_trend_move(moves, div.center_idx, zss.len())?;
-        let assoc = &moves[assoc_mi];
-        let zs = &zss[div.center_idx];
-        let side = if div.direction == DivDir::Bottom {
-            Side::Buy
-        } else {
-            Side::Sell
-        };
-        let seg_idx = div.seg_c_end;
-
-        let mut price = 0.0;
-        let mut bar_idx: i64 = 0;
-        if seg_idx >= 0 && (seg_idx as usize) < segs.len() {
-            let seg = &segs[seg_idx as usize];
-            price = if side == Side::Buy { seg.low } else { seg.high };
-            bar_idx = seg.i1 as i64;
-        }
-        let confirmed = div.force_a > 0.0 && div.force_c / div.force_a <= TYPE1_CONFIRM_RATIO;
-
-        Some(BuySellPoint {
-            kind: BspKind::Type1,
-            side,
-            level_id: self.level_id,
-            seg_idx,
-            move_seg_start: assoc.seg_start,
-            divergence_key: Some((
-                div.center_idx,
-                div.seg_c_start.max(0) as usize,
-                div.seg_c_end.max(0) as usize,
-            )),
-            center_zd: zs.zd,
-            center_zg: zs.zg,
-            center_seg_start: Some(zs.seg_start),
-            price,
-            bar_idx,
-            confirmed,
-            settled: assoc.settled,
-            overlaps_with: Overlap::None,
-        })
+        build_type1_bsp(div, segs, zss, moves, self.level_id)
     }
 
-    /// 单 type1 构造 type2（复刻 `detect_type2` 循环体 + `make_type2_point`，用增量 lookup）。
+    /// 单 type1 构造 type2（委托 build_type2_bsp，用增量 lookup）。
     fn build_type2(
         &self,
         t1: &BuySellPoint,
         segs: &[SegView],
         moves: &[MoveView],
     ) -> Option<BuySellPoint> {
-        let (callback, side) = match t1.side {
-            Side::Buy => {
-                let rebound = find_next_seg_by_direction(segs, t1.seg_idx + 1, Direction::Up)?;
-                let cb = find_next_seg_by_direction(segs, rebound + 1, Direction::Down)?;
-                (cb, Side::Buy)
-            }
-            Side::Sell => {
-                let pullback = find_next_seg_by_direction(segs, t1.seg_idx + 1, Direction::Down)?;
-                let rb = find_next_seg_by_direction(segs, pullback + 1, Direction::Up)?;
-                (rb, Side::Sell)
-            }
-        };
-        let seg = &segs[callback as usize];
-        let price = if side == Side::Buy { seg.low } else { seg.high };
-        let confirmed = if side == Side::Buy {
-            price >= t1.price
-        } else {
-            price <= t1.price
-        };
-        let assoc = self.lookup_find(callback);
-        Some(BuySellPoint {
-            kind: BspKind::Type2,
-            side,
-            level_id: self.level_id,
-            seg_idx: callback,
-            move_seg_start: t1.move_seg_start,
-            divergence_key: t1.divergence_key,
-            center_zd: t1.center_zd,
-            center_zg: t1.center_zg,
-            center_seg_start: t1.center_seg_start,
-            price,
-            bar_idx: seg.i1 as i64,
-            confirmed,
-            settled: assoc.map(|mi| moves[mi].settled).unwrap_or(false),
-            overlaps_with: Overlap::None,
-        })
+        build_type2_bsp(t1, segs, moves, self.level_id, |s| self.lookup_find(s))
     }
 
-    /// 单中枢构造 type3（复刻 `detect_type3` 循环体 + `make_type3_point`，用增量 lookup）。
+    /// 单中枢构造 type3（委托 build_type3_bsp，用增量 lookup）。
     fn build_type3(
         &self,
         zs: &ZsView,
@@ -781,44 +844,8 @@ impl IncrementalBsp {
         segs: &[SegView],
         moves: &[MoveView],
     ) -> Option<BuySellPoint> {
-        if break_seg < 0 || break_seg >= segs.len() as i64 {
-            return None;
-        }
-        let (opposite, break_direction) = match break_dir {
-            crate::zhongshu::BreakDir::Up => (Direction::Down, Direction::Up),
-            crate::zhongshu::BreakDir::Down => (Direction::Up, Direction::Down),
-            crate::zhongshu::BreakDir::None => return None,
-        };
-        let pullback = find_next_seg_by_direction(segs, break_seg + 1, opposite)?;
-        let pullback_seg = &segs[pullback as usize];
-        let continuation = find_next_seg_by_direction(segs, pullback + 1, break_direction);
-        let confirmed = continuation.is_some();
-
-        let side = match break_dir {
-            crate::zhongshu::BreakDir::Up if pullback_seg.low > zs.zg => Side::Buy,
-            crate::zhongshu::BreakDir::Down if pullback_seg.high < zs.zd => Side::Sell,
-            _ => return None,
-        };
-        let assoc = self.lookup_find(pullback);
-        Some(BuySellPoint {
-            kind: BspKind::Type3,
-            side,
-            level_id: self.level_id,
-            seg_idx: pullback,
-            move_seg_start: zs.seg_start as i64,
-            divergence_key: None,
-            center_zd: zs.zd,
-            center_zg: zs.zg,
-            center_seg_start: Some(zs.seg_start),
-            price: if side == Side::Buy {
-                pullback_seg.low
-            } else {
-                pullback_seg.high
-            },
-            bar_idx: pullback_seg.i1 as i64,
-            confirmed,
-            settled: assoc.map(|mi| moves[mi].settled).unwrap_or(false),
-            overlaps_with: Overlap::None,
+        build_type3_bsp(zs, break_dir, break_seg, segs, moves, self.level_id, |s| {
+            self.lookup_find(s)
         })
     }
 

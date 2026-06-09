@@ -7,8 +7,6 @@
 //! event_id 依赖 Python `json.dumps` 的 float canonical 字符串化 + sha256，逐字节
 //! 复刻脆弱，作为独立后续层处理（见 docs/architecture 移植路线）。
 
-use std::sync::Arc;
-
 use crate::fractal::{classify_fractal, Fractal};
 use crate::stroke::{
     build_stroke, check_gap, extend_prev_stroke, is_more_extreme, validate_direction, Stroke,
@@ -136,13 +134,14 @@ pub struct BiEngine {
     cp_j: usize,
     cp_strokes: Vec<Stroke>,
 
-    // ── diff / 快照状态 ──
-    // Arc 共享：unchanged 时复用前缀为 O(1)（架构报告 §5.1「前缀只读共享」），
-    // 消除每 bar 全量拷贝引入的 O(N²)。Arc（非 Rc）以满足 PyO3 pyclass 的 Send。
-    prev_strokes: Arc<Vec<Stroke>>,
-    diff_hint: usize,
+    // ── 快照状态（原地维护，消除每变化全量拷贝稳定前缀的 O(strokes²)）──
     /// 最近一次 process_bar 后的笔快照（对应 Python BiEngineSnapshot.strokes）。
-    snapshot: Arc<Vec<Stroke>>,
+    /// 不可变冻结前缀 `[0, synced_prefix)` 逐位等于 `cp_strokes[..synced_prefix]`，
+    /// 每变化只 truncate 旧尾部 + append 新冻结笔（摊还 O(1)）+ append 易变尾部（O(tail)）。
+    snapshot: Vec<Stroke>,
+    /// 已同步入 snapshot 的冻结前缀长度（= 上次的 base_len = cp_strokes.len()-1）。
+    /// cp_strokes 前缀 `[..len-1]` 永久固定（仅 last 被 extend/push），故单调增不回退。
+    synced_prefix: usize,
 }
 
 impl BiEngine {
@@ -176,9 +175,8 @@ impl BiEngine {
             cp_i: 0,
             cp_j: 1,
             cp_strokes: Vec::new(),
-            prev_strokes: Arc::new(Vec::new()),
-            diff_hint: 0,
-            snapshot: Arc::new(Vec::new()),
+            snapshot: Vec::new(),
+            synced_prefix: 0,
         }
     }
 
@@ -212,9 +210,8 @@ impl BiEngine {
         self.cp_i = 0;
         self.cp_j = 1;
         self.cp_strokes.clear();
-        self.prev_strokes = Arc::new(Vec::new());
-        self.diff_hint = 0;
-        self.snapshot = Arc::new(Vec::new());
+        self.snapshot.clear();
+        self.synced_prefix = 0;
     }
 
     // ================================================================
@@ -376,9 +373,16 @@ impl BiEngine {
         self.fxs.push(fx);
     }
 
-    /// 从检查点恢复，处理 fxs 尾部 + pending，返回完整笔序列。
-    /// 移植自 `_compute_strokes_from_checkpoint`。
-    fn compute_strokes_from_checkpoint(&self) -> Arc<Vec<Stroke>> {
+    /// 从检查点恢复，处理 fxs 尾部 + pending，返回 `(base_len, tail, is_empty)`：
+    /// - `base_len` = 不可变冻结前缀长度（= cp_strokes.len()-1，或 0）。
+    /// - `tail` = 易变尾部笔（首元素为可能被 extend 的 cp 末笔 + 后续新建笔，末笔已置未确认）。
+    /// - `is_empty` = true ⟹ 完整结果为空（语义同原 `Arc::new(Vec::new())`）。
+    ///
+    /// 完整笔序列 ≡ `cp_strokes[..base_len] ++ tail`（is_empty 时为空）。调用方
+    /// （process_bar）据此原地维护 snapshot——只 append 新冻结前缀笔 + 重建尾部，
+    /// 消除原 `cp[..base_len].to_vec()` 每变化 O(base_len) 全量拷贝的 O(strokes²)。
+    /// 移植自 `_compute_strokes_from_checkpoint`（逐位等价，仅去掉全量物化）。
+    fn compute_tail_from_checkpoint(&self) -> (usize, Vec<Stroke>, bool) {
         let pending = self.pending_fractal;
         let fxs = &self.fxs;
         let n_fxs = fxs.len();
@@ -422,7 +426,7 @@ impl BiEngine {
         let total_len = tail_fxs_len + if append_pending { 1 } else { 0 };
 
         if total_len < 2 {
-            return Arc::new(Vec::new());
+            return (0, Vec::new(), true);
         }
 
         // get_fx(idx)：复刻 `tail_fxs[idx] if idx < len(tail_fxs) else pending`。
@@ -519,26 +523,12 @@ impl BiEngine {
         }
 
         if tail.is_empty() {
-            return Arc::new(Vec::new());
+            // tail 空 ⟺ cp_len==0 ⟺ base_len==0（cp 非空时 tail 必含末笔）。
+            return (0, Vec::new(), true);
         }
 
-        // 结果不变 → 复用 prev（Python 返回 prev 引用；Rust Arc::clone，O(1) 共享前缀）。
-        let prev = &self.prev_strokes;
-        let new_len = base_len + tail.len();
-        let t_last = tail.last().unwrap();
-        if prev.len() == new_len
-            && !prev.is_empty()
-            && prev.last().unwrap().i0 == t_last.i0
-            && prev.last().unwrap().i1 == t_last.i1
-            && (prev.last().unwrap().p1 - t_last.p1).abs() < 1e-9
-        {
-            return Arc::clone(prev);
-        }
-
-        // 结果变化 → 构建完整列表。
-        let mut result_strokes: Vec<Stroke> = cp[..base_len].to_vec();
-        result_strokes.extend(tail);
-        Arc::new(result_strokes)
+        // 完整序列 = cp_strokes[..base_len] ++ tail；由 process_bar 原地物化（无全量拷贝）。
+        (base_len, tail, false)
     }
 
     // ================================================================
@@ -551,23 +541,32 @@ impl BiEngine {
         let _new_merged = self.incremental_merge(o, h, l, c);
         let fractals_changed = self.update_fractals();
 
-        if fractals_changed {
-            let strokes = self.compute_strokes_from_checkpoint();
-
-            let unchanged = strokes.len() == self.prev_strokes.len()
-                && (strokes.is_empty() || {
-                    let s = strokes.last().unwrap();
-                    let p = self.prev_strokes.last().unwrap();
-                    s.i1 == p.i1 && s.i0 == p.i0 && (s.p1 - p.p1).abs() < 1e-9
-                });
-
-            if !unchanged {
-                self.prev_strokes = Arc::clone(&strokes);
-            }
-            self.diff_hint = self.cp_strokes.len().saturating_sub(1);
-            self.snapshot = strokes;
-        } else {
-            self.snapshot = Arc::clone(&self.prev_strokes);
+        if !fractals_changed {
+            // 分型未变 ⟹ 笔序列恒不变（checkpoint 输入不变）→ snapshot 原样保留（O(1)）。
+            return;
         }
+
+        let (base_len, tail, is_empty) = self.compute_tail_from_checkpoint();
+
+        if is_empty {
+            // 完整结果为空（语义同原 Arc::new(Vec::new())）：仅出现在 cp 为空的早期，
+            // 此时 synced_prefix 必为 0；clear 与原全量空列表逐位等价。
+            self.snapshot.clear();
+            self.synced_prefix = 0;
+            return;
+        }
+
+        // ── 原地物化 snapshot = cp_strokes[..base_len] ++ tail（摊还 O(tail)）──
+        // 不变量：snapshot[..synced_prefix] ≡ cp_strokes[..synced_prefix]（冻结前缀）。
+        // base_len 单调增（cp_strokes 仅 push/extend-last）⟹ base_len ≥ synced_prefix。
+        debug_assert!(base_len >= self.synced_prefix);
+        self.snapshot.truncate(self.synced_prefix); // 丢弃上次易变尾部，保留冻结前缀
+        if base_len > self.synced_prefix {
+            // 新近冻结的前缀笔（上次的易变尾部已固定）：append（Σ over run = O(n_strokes)）。
+            self.snapshot
+                .extend_from_slice(&self.cp_strokes[self.synced_prefix..base_len]);
+            self.synced_prefix = base_len;
+        }
+        self.snapshot.extend(tail); // 易变尾部（末笔已置未确认）
     }
 }
