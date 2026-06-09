@@ -172,10 +172,8 @@ class CrossInstanceSync:
             "timestamp": block.get("timestamp", 0),
         }
 
-    def _inject_external_operation(self, block: dict) -> None:
-        """Inject an external block's vertices and edges into the local daemon."""
-        graph = self.daemon.k_active
-
+    def _merge_block_into_graph(self, graph: Graph, block: dict) -> Graph:
+        """Merge block vertices/edges into one graph view."""
         # Extract vertices from block
         for vd in block.get("vertices", []):
             vid = vd["id"]
@@ -207,12 +205,20 @@ class CrossInstanceSync:
                     graph = graph.add_edge(e)
                     existing_edges.add(key)
 
+        return graph
+
+    def _inject_external_operation(self, block: dict) -> None:
+        """Inject an external block's vertices and edges into the local daemon."""
+        active_graph = self._merge_block_into_graph(self.daemon.k_active, block)
+        full_graph = self._merge_block_into_graph(self.daemon.k_full, block)
+
         # Update daemon state
-        self.daemon.k_active = graph
-        self.daemon.k_full = graph
+        self.daemon.k_active = active_graph
+        self.daemon.k_full = full_graph
         # Hot-update engine graph reference instead of full re-initialization
         if self.daemon.engine is not None:
-            self.daemon.engine.k_active = graph
+            self.daemon.engine.k_active = active_graph
+            self.daemon.engine.k_full = full_graph
         else:
             self.daemon._initialize_engine()
 

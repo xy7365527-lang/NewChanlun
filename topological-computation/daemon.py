@@ -68,6 +68,14 @@ from proprioception import (
     PROPRIOCEPTION_PREFIX, SELF_NORM_PREFIX,
 )
 
+_SHARED_TOPOLOGY_OPS = frozenset((
+    "fold",
+    "negate",
+    "negate_a",
+    "negate_b",
+    "sublate",
+))
+
 
 # ---------------------------------------------------------------------------
 # 401号: encounter memory node 清除 — "脚印不是宝藏"
@@ -416,7 +424,7 @@ class TopologicalDaemon:
         self._last_position_write_time: float = 0.0
         self._last_position_write_label: str = ""
         self._last_graph_delta_write_time: float = 0.0
-        self._last_settlement_write_count: int = 0
+        self._last_settlement_write_count: int = len(self.settlement.settled_cycles)
         self._last_snet_write_time: float = 0.0
         self._last_snet_active_snapshot: set[str] = set()
 
@@ -1497,9 +1505,12 @@ class TopologicalDaemon:
 
         # Plan C: write sync blocks to SharedLayer (each method self-throttles)
         if self._shared_layer is not None:
+            settled_cycles = self.settlement.settled_cycles
+            new_settled = settled_cycles[self._last_settlement_write_count:]
             self._write_traversal_position(log)
             self._write_graph_delta(log, new_vids, new_edges_list)
             self._write_settlement_event(new_settled)
+            self._last_settlement_write_count = len(settled_cycles)
             self._write_snet_update()
 
     def _write_traversal_position(self, log) -> None:
@@ -1523,7 +1534,7 @@ class TopologicalDaemon:
         elapsed = now - self._last_position_write_time
 
         # Check if a significant event happened this step
-        significant_event = log.operation in ("fold", "negate", "sublate")
+        significant_event = log.operation in _SHARED_TOPOLOGY_OPS
 
         # Throttle: position changed AND (>2s elapsed OR significant event)
         same_position = position_label == self._last_position_write_label
@@ -1552,7 +1563,7 @@ class TopologicalDaemon:
         Throttled: at most once per 3 seconds (unless forced by sublate).
         Includes new vertices and edges created by this step.
         """
-        if not log.operation in ("fold", "negate", "sublate"):
+        if log.operation not in _SHARED_TOPOLOGY_OPS:
             return
         if not new_vids and not new_edges:
             return
