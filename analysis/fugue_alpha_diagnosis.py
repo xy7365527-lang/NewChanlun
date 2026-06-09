@@ -89,17 +89,65 @@ def _fast_alive(tree: OnlineMergeTree) -> _Alive:
     return _Alive(tuple(bars))
 
 
+def _fast_alive_top2(tree: OnlineMergeTree) -> _Alive:
+    """`_fast_alive` 的 top-2 专用快路径——逐位等价于其前 2 条 + 正确 len 语义。
+
+    detect_settle **只**消费 `alive.bars[1].birth_idx` 与 `len(alive.bars) >= 2`，
+    无需全量排序。persistence = cap − val（cap 对所有 alive 共享）⟹ persistence 降序
+    ≡ val 升序；`sorted(reverse=True)` 稳定 ⟹ 同 val 保留栈序（早者在前）。单遍 O(栈深)
+    贪心（严格 `<` 比较 val，等值不替换 ⟹ 复刻稳定降序的 top-2），消除每次全量 sort +
+    每元素 `_AB` namedtuple 构造 + lambda key（O(N^1.6) 墙的主导常数：profile 测 sort 链
+    占 I 总耗时 66%）。
+
+    返回 _Alive：栈深 ≥2 → 恰 2 条（rank0/rank1）；==1 → 1 条；==0 → 空。`len` 语义
+    （≥2 ⟺ 栈深≥2）与 bars[1].birth_idx 均与 `_fast_alive` 逐位一致（其余 rank 无消费者）。
+
+    **有效域**（认识论 L1：管线等价，由 447K 真实数据 bit-exact diff 守卫）：仅当调用方
+    不读 rank≥2 / 不调 `_median_alive_persistence` / `_persistence_ratio` 时等价（即
+    `top2_only=True` 的 PHLevelState）。reference 路径（l1 ratio/median）仍走 `_fast_alive`。
+    """
+    stack = tree._stack
+    n = len(stack)
+    if n == 0:
+        return _Alive(())
+    cap = tree._running_max
+    if n == 1:
+        c = stack[0]
+        return _Alive((_AB(cap - c.val, c.idx),))
+    # rank0 = 最小 val（等值取栈中早者）；rank1 = 次小 val。严格 `<` ⟹ 等值不替换。
+    best = stack[0]
+    best_v = best.val
+    second = None
+    second_v = 0.0
+    for c in stack[1:]:
+        v = c.val
+        if v < best_v:
+            second, second_v = best, best_v
+            best, best_v = c, v
+        elif second is None or v < second_v:
+            second, second_v = c, v
+    assert second is not None
+    return _Alive((
+        _AB(cap - best.val, best.idx),
+        _AB(cap - second.val, second.idx),
+    ))
+
+
 @dataclass
 class PHLevelState:
     tree: OnlineMergeTree
     alive: _Alive
     prev_r1_birth: int | None = None
+    # top2_only：detect_settle 走 _fast_alive_top2（O(栈深) 单遍，无 sort/namedtuple）。
+    # 仅当本 state 的 .alive 不被 rank≥2 消费者读取时启用（bar/bi/l2 proxy PH 满足）。
+    top2_only: bool = False
 
     @staticmethod
-    def make() -> "PHLevelState":
+    def make(top2_only: bool = False) -> "PHLevelState":
         return PHLevelState(
             tree=OnlineMergeTree(track_dominant=False),
             alive=_Alive(()),
+            top2_only=top2_only,
         )
 
     def detect_settle(self, settles: list[MergeBar]) -> tuple[bool, bool]:
@@ -111,7 +159,9 @@ class PHLevelState:
                 if mb.birth_idx == self.prev_r1_birth:
                     rank1 = True
                     break
-        self.alive = _fast_alive(self.tree)
+        self.alive = (
+            _fast_alive_top2(self.tree) if self.top2_only else _fast_alive(self.tree)
+        )
         self.prev_r1_birth = (
             self.alive.bars[1].birth_idx if len(self.alive.bars) >= 2 else None
         )

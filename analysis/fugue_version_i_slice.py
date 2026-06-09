@@ -1,17 +1,12 @@
-"""版本 I（完整版）— 满仓 + 每级独立 BSP + 共享仓位多声部并发短差降成本。
+"""版本 I（完整版，取消全部阉割）— 全仓 + 每级独立 BSP + 多 FSM 多重赋格降成本。
 
 ═══════════════════════════════════════════════════════════════════════
 本次重写：取消 6 个阉割（用户指令）
 ═══════════════════════════════════════════════════════════════════════
-1. **共享仓位多声部并发短差**（用户 2026-06-09 裁定，否定旧 slice 模型）：入场一次满仓
-   100%（total_shares = INITIAL_CAPITAL/price，唯一一份共享仓位）；entry 层以下所有降成本
-   级别**全部作用于同一仓位**，每级别独立维护自己的短差生命周期（多槽 `_SharedFugue.active`），
-   每个短差闭合时 profit 直接写入**共享 cost_basis**。**已废弃的 slice 模型**（核心仓全仓
-   不做短差 + 机动仓 MANEUVER_RATIO 切 disjoint slice 分给各级别独立 FSM）缺陷：短差只作用
-   于 ~10% 机动仓的各 slice，主仓 90% 成本从不下降，且 slice 限额掩盖了降成本的真实负 alpha。
-   新模型让短差以满仓为基准 → 降成本的有效域边界（bar 级噪音的毁灭性）被诚实暴露（见回测）。
-   注：通用 `CostReductionFSM` 是单槽单循环，无法承载多级别并发短差，故 Version I 在本文件内
-   实现共享账本 `_SharedFugue`（复用 `ShortDiffCycle` + profit 公式），零污染全库 FSM 语义。
+1. **单 FSM → 多 FSM**：核心仓位**全仓**（INITIAL_CAPITAL，方向利润底仓，不做短差）；
+   机动仓（MANEUVER_RATIO×总仓，从总仓划出）在 entry 层以下各降成本级别间均分，每级别
+   一个独立 `CostReductionFSM`，各自追踪 cost_basis（多声部 = 多重赋格，每层资金独立——
+   第40课"每一重对应一定资金与筹码"）。不是一个 FSM 管所有级别。
 2. **每层独立 BSP**（经 per_level_bsp 适配层，任务卡强制）：每个 **中枢承载层**（走势 L1 +
    递归 L≥2）都产生真实 confirmed type1/2/3 买卖点——走势级用 `confirmed_bsp_level1`
    （透传引擎 `snap.bsp_snapshot`），递归层用 `confirmed_bsp_for_level`（per_level_bsp 内部
@@ -86,7 +81,7 @@ import json
 import os
 import sys
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
@@ -97,11 +92,13 @@ sys.path.insert(0, str(ROOT / "analysis"))
 from newchan.a_macd import OnlineMacdState  # noqa: E402
 from newchan.events import MoveSettleV1, SegmentSettleV1  # noqa: E402
 from newchan.orchestrator.recursive import RecursiveOrchestrator  # noqa: E402
-# 共享仓位多声部架构（用户 2026-06-09 裁定）：复用 ShortDiffCycle（短差循环 +
-# profit 公式，承自 267号），但**不用** CostReductionFSM——通用 FSM 是单槽单循环
-# （active_short_diff: ShortDiffCycle | None），无法承载"多级别并发短差作用于同一仓位"。
-# Version I 的共享账本（_SharedFugue）在本文件内实现，零污染全库 FSM 的单槽语义。
-from newchan.trading.cost_reduction_fsm import ShortDiffCycle  # noqa: E402
+from newchan.trading.cost_reduction_fsm import (  # noqa: E402
+    CostReductionFSM,
+    CostState,
+    FsmEvent,
+    FsmEventType,
+    transition,
+)
 from newchan.types import Bar  # noqa: E402
 
 import fugue_alpha_diagnosis as _ef  # noqa: E402
@@ -180,6 +177,15 @@ def _level_trade_fraction(ladder: int) -> float:
     step = 0.10
     frac = base + step * max(0, ladder - LADDER_SEG)
     return min(1.0, max(0.05, frac))
+
+
+_COST_OPEN_STATES = frozenset({
+    CostState.POSITION_OPEN, CostState.COST_REDUCING,
+    CostState.PRINCIPAL_WITHDRAWN, CostState.EARNING_SHARES,
+})
+_COST_ACTIVE_DIFF_STATES = frozenset({
+    CostState.COST_REDUCING, CostState.EARNING_SHARES,
+})
 
 
 def ladder_name(ladder: int) -> str:
@@ -642,89 +648,36 @@ def compute_signals_i(
 
 
 # ════════════════════════════════════════════════════════════
-# 共享仓位多声部并发短差（用户 2026-06-09 裁定：否定 slice 模型）
+# 多 FSM 多重赋格降成本（取消单 FSM，阉割#1/#3/#4）
 # ════════════════════════════════════════════════════════════
-#
-# 旧 slice 模型（已废）：核心仓全仓不做短差 + 机动仓 MANEUVER_RATIO 切成 disjoint slice
-#   分给各级别独立 FSM。缺陷：短差只作用于 ~10% 机动仓的各 slice，主仓 90% 成本从不下降，
-#   偏离缠论降成本本意（降的是主仓成本，非某个小 slice 的成本）。
-#
-# 新共享模型（本次）：所有级别的短差作用于**同一个满仓仓位**：
-#   1. 入场一次满仓 100%（total_shares = INITIAL_CAPITAL / price，共享）。
-#   2. 多级别并发：每个 ladder 独立维护自己的短差生命周期（开/未开/待回补），
-#      用 dict[ladder → (ShortDiffCycle, was_earning)] 多槽承载（取代单槽 active_short_diff）。
-#   3. 每个短差闭合时 profit 直接写入**共享 cost_basis**：cost_basis -= profit / total_shares。
-#      cost_basis ≤ 0 → 全仓进入挣股数阶段（earning）。
-#
-# 两阶段守恒律（承自 cost_reduction_fsm 267号，复用 ShortDiffCycle.profit）：
-#   - 降成本阶段（cost_basis>0）：股数守恒——价差 profit 落袋（cumulative_recovered）+ 降
-#     共享 cost_basis，total_shares 不变（满仓上的虚拟高抛低吸价差收集器，多级别并发独立）。
-#   - 挣股数阶段（cost_basis≤0）：金额守恒——卖 V 买 V，total_shares 净增，cost_basis 锁 0。
-#   守恒律由短差 **open 时的阶段**决定（was_earning 标记），不由 close 时的全局阶段决定——
-#   否则降成本阶段开的短差在 earning 阶段 close 会凭空增股（状态不一致 bug）。
 
 _FLAT, _ARMED, _LONG = 0, 1, 2
 
-STOP_FRAC = 0.02  # 硬止损阈值 2%（用户指令）
-
 
 @dataclass
-class _SharedFugue:
-    """共享仓位 + 多声部并发短差账本（用户裁定的正确多重赋格架构）。
+class _Voice:
+    """单个降成本级别的声部：独立 FSM + 机动仓 slice（不是方向核心切片）。
 
-    所有级别短差作用于同一满仓仓位（total_shares / cost_basis 共享，唯一一份）；
-    每个 ladder 在 `active` 中独立持有自己的开放短差（多槽，取代通用 FSM 的单槽）。
+    第40课多重赋格"每一重对应一定的资金与筹码""每一层次独立又在整体中"。
+    voice 只覆盖 entry 层**以下**的降成本级别——entry 层本身是全仓方向核心（不在 voices）。
+    每个 voice 的 FSM own_capital = 机动仓 slice（MANEUVER_RATIO×总仓 均分），
+    sub_ratio = _level_trade_fraction(ladder)（级别驱动单笔量，非固定 0.3）。
     """
-    entry_price: float
-    total_shares: float
-    cost_basis: float
-    cumulative_recovered: float = 0.0
-    earning: bool = False                       # cost_basis≤0 后全局挣股数阶段
-    active: dict = field(default_factory=dict)  # ladder → (ShortDiffCycle, was_earning)
-    completed: list = field(default_factory=list)  # [(ladder, 已闭合 ShortDiffCycle), ...]
-    stopped: set = field(default_factory=set)   # stop_mode B 冻结的 ladder
+    ladder: int
+    own_capital: float          # 该声部的机动仓 slice（own_capital）
+    fsm: CostReductionFSM
+    stopped: bool = False       # 短差止损后冻结（停止该级别降成本，不影响主仓）
 
-    def open_diff(self, ladder: int, frac: float, sell_price: float) -> None:
-        """某级别高抛：该级别无开放短差时开启一个短差（基于共享满仓）。
+    @property
+    def recovered(self) -> float:
+        return self.fsm.cumulative_recovered
 
-        降成本阶段=虚拟（股数守恒，不动 total_shares）；挣股数阶段=真实减仓。
-        """
-        if ladder in self.active or ladder in self.stopped:
-            return
-        shares = self.total_shares * frac
-        if shares <= 0:
-            return
-        cyc = ShortDiffCycle(level=f"L{ladder}", shares=shares, sell_price=sell_price)
-        self.active[ladder] = (cyc, self.earning)
-        if self.earning:
-            self.total_shares -= shares  # 挣股数阶段真实减仓
+    @property
+    def n_diffs(self) -> int:
+        return len(self.fsm.completed_short_diffs)
 
-    def close_diff(self, ladder: int, buy_price: float) -> None:
-        """某级别低吸：闭合该级别短差，profit 写入共享 cost_basis。
 
-        守恒律由 open 时的阶段（was_earning）决定，保证 open/close 同律。
-        """
-        rec = self.active.get(ladder)
-        if rec is None or buy_price <= 0:
-            return
-        cyc, was_earning = rec
-        closed = ShortDiffCycle(
-            level=cyc.level, shares=cyc.shares, sell_price=cyc.sell_price,
-            buy_price=buy_price, is_open=False)
-        if was_earning:
-            # 金额守恒：卖出金额回补，total_shares 净增（买价>卖价则减股），cost_basis 锁 0
-            self.total_shares += cyc.shares * cyc.sell_price / buy_price
-        else:
-            # 股数守恒：价差 profit 落袋 + 降共享 cost_basis
-            profit = closed.profit
-            self.cumulative_recovered += profit
-            if self.total_shares > 0:
-                self.cost_basis -= profit / self.total_shares
-            if self.cost_basis <= 0:
-                self.cost_basis = 0.0
-                self.earning = True
-        del self.active[ladder]
-        self.completed.append((ladder, closed))
+STOP_FRAC = 0.02  # 硬止损阈值 2%（用户指令）
 
 
 def run_version_i(
@@ -734,78 +687,105 @@ def run_version_i(
     maneuver_ratio: float = MANEUVER_RATIO,
     stop_mode: str = "none",
 ) -> tuple[list[CompletedTrade], dict]:
-    """共享仓位多声部并发短差（用户 2026-06-09 裁定，否定 slice 模型）。
+    """floor_ladder / maneuver_ratio 可参数化覆盖，便于在同一信号 pass 上跑多变体对比。
 
-    存在论：入场一次满仓 100%（total_shares = INITIAL_CAPITAL/price，共享）；entry 层以下
-    所有 ladder（≥ floor_ladder）各自独立维护短差生命周期，**全部作用于同一满仓**，
-    每个短差闭合时 profit 直接写入共享 cost_basis（见 `_SharedFugue`）。`maneuver_ratio`
-    在新模型下不再切 slice——保留参数仅为接口兼容（单笔短差量由 `_level_trade_fraction`
-    级别驱动）。清仓总市值 = 满仓市值 + 降成本期间落袋现金，分母 INITIAL_CAPITAL。
+    存在论（考据设计点1/2）：核心仓位**全仓**（INITIAL_CAPITAL，方向利润底仓，不做短差）；
+    机动仓 = maneuver_ratio×INITIAL_CAPITAL，从总仓划出，在 entry 层以下各降成本级别间
+    均分，每级别一个独立 FSM（多声部）。单笔短差量由级别驱动（_level_trade_fraction），
+    非固定标量。机动仓是核心仓位的子账户——清仓时其净增益叠加到核心，分母仍是 INITIAL_CAPITAL。
 
     ═══════════════════════════════════════════════════════════════
     硬止损（用户指令，2% 阈值）—— `stop_mode` ∈ {"none","A","B"}
     ═══════════════════════════════════════════════════════════════
-    `stop_mode="none"`（默认）：无止损。
-    - **止损 A**：仓位 `c < entry_price×(1−2%)` → 全仓清出（cap 持仓下行/MDD）。
-    - **止损 B**：A + 每级别开放短差逆向亏 2%（`c > sell_price×(1+2%)`）→ 回补该短差并
-      冻结该级别降成本（`pos.stopped`），不影响主仓与其他级别（多声部独立止损）。
-    认识论 L2（真实数据）。
+    `stop_mode="none"`（默认）：与原 Version I 逐位一致（E/I 基线不变）。
+
+    - **止损 A（整体仓位 / 基于原始入场价）**：核心仓 `c < entry_price×(1−2%)` → **全仓清出**
+      （主出场，cap 单笔下行）。无独立切片止损。对应用户消息1"方案A：基于原始入场价"。
+    - **止损 B（每 FSM 切片独立 / 用户消息2修正）**：核心仓 `c < entry_price×(1−2%)` 全仓清出
+      **＋** 每个降成本声部独立：其开放短差（已卖出待回补）若 `c > sell_price×(1+2%)`
+      （该短差逆向亏 2%）→ 立即回补该短差并**冻结该级别降成本**（停止该 voice 后续短差），
+      **不影响主仓与其他 voice**（每 FSM 独立管理自己切片的 2% 止损，与多 FSM 独立追踪
+      cost_basis 的架构对称）。核心仓止损方向（下跌）与短差止损方向（上涨）正交，不互相吞没。
+
+    认识论 L2（真实数据）。止损 A 主要影响 MDD（cap 持仓回撤），止损 B 额外影响降成本 alpha
+    （切断逆向短差 churn）。
     """
     n = len(i_signals)
     state = _FLAT
     entry_bar = -1; entry_price = 0.0; entry_ladder = -1; arm_bar = -1
     arm_ladder = LADDER_MOVE
-    pos: _SharedFugue | None = None      # 共享仓位（满仓 + 多声部并发短差）
-    active_levels: list[int] = []        # entry 层以下的并发降成本级别
+    core_shares = 0.0            # 全仓方向核心份额
+    voices: list[_Voice] = []
     SUB_EXPIRY = _ef.SUB_EXPIRY
     n_addon = 0
-    n_core_stops = 0            # 仓位 2% 止损触发次数（A/B）
-    n_voice_stops = 0          # 级别短差 2% 止损触发次数（B）
+    n_core_stops = 0            # 核心仓 2% 止损触发次数（A/B）
+    n_voice_stops = 0          # voice 短差 2% 止损触发次数（B）
     _stop_on = stop_mode in ("A", "B")
     _voice_stop_on = stop_mode == "B"
 
     trades: list[CompletedTrade] = []
     ladder_attribution: dict[int, int] = {}
     ladder_held_bars: dict[int, int] = {}
-    # 每级别累计贡献度（跨所有交易）：按 ladder 归因已闭合短差
-    fsm_recovered: dict[int, float] = {}  # 该级别短差落袋 profit 累计（含负）
-    fsm_diffs: dict[int, int] = {}        # 该级别完成短差次数
-    fsm_short_pnl: dict[int, float] = {}  # 该级别价差收益累计（= profit 累计）
+    # 每级 FSM 累计贡献度（跨所有交易）
+    fsm_recovered: dict[int, float] = {}
+    fsm_diffs: dict[int, int] = {}
+    fsm_short_pnl: dict[int, float] = {}  # 短差净增量（声部终值 − slice 初值）
 
     def _open(bar_idx: int, price: float, el: int) -> None:
-        nonlocal state, entry_bar, entry_price, entry_ladder, pos, active_levels
+        nonlocal state, entry_bar, entry_price, entry_ladder, voices, core_shares
         entry_bar = bar_idx; entry_price = price; entry_ladder = el
-        # 满仓建仓（共享仓位，不切 slice）
-        pos = _SharedFugue(
-            entry_price=price, total_shares=INITIAL_CAPITAL / price, cost_basis=price)
-        # 降成本级别 = entry 层以下所有 ladder（≥ floor_ladder），各级别并发作用于同一仓位。
-        active_levels = list(range(floor_ladder, el))
+        # 全仓方向核心（不做短差，仅 entry 层 type1 卖点主出场）
+        core_shares = INITIAL_CAPITAL / price
+        # 降成本级别 = entry 层以下所有 ladder（≥ floor_ladder）。entry 层本身不降成本。
+        levels = sorted({k for k in range(floor_ladder, el)})
+        maneuver_total = maneuver_ratio * INITIAL_CAPITAL
+        slice_cap = maneuver_total / len(levels) if levels else 0.0
+        voices = []
+        for k in levels:
+            f0 = CostReductionFSM.create(
+                own_capital=slice_cap, margin_amount=0.0,
+                sub_ratio=_level_trade_fraction(k))
+            f = transition(f0, FsmEvent(
+                FsmEventType.BUY_POINT_CONFIRMED, price=price, level=f"L{k}"))
+            voices.append(_Voice(ladder=k, own_capital=slice_cap, fsm=f))
         state = _LONG
 
     def _close(bar_idx: int, price: float, reason: str) -> None:
-        nonlocal state, entry_bar, entry_price, entry_ladder, pos, active_levels
-        if pos is None or entry_price <= 0 or pos.total_shares <= 0:
-            state = _FLAT; pos = None; active_levels = []; return
-        # 清仓前回补所有级别未闭短差（按各短差 open 阶段守恒律）
-        for ladder in list(pos.active.keys()):
-            pos.close_diff(ladder, price)
-        # 清仓总市值 = 满仓市值 + 降成本期间落袋现金（挣股数阶段已并入 total_shares）
-        total_value = pos.total_shares * price + pos.cumulative_recovered
+        nonlocal state, entry_bar, entry_price, entry_ladder, voices, core_shares
+        if entry_price <= 0 or core_shares <= 0:
+            state = _FLAT; voices = []; core_shares = 0.0; return
+        # 全仓方向核心市值
+        total_value = core_shares * price
+        n_short_total = 0; cost_basis_min = float("inf")
+        for v in voices:
+            f = v.fsm
+            # 清仓前回补未闭短差
+            if (f.active_short_diff is not None and f.active_short_diff.is_open
+                    and f.state in _COST_ACTIVE_DIFF_STATES):
+                f = transition(f, FsmEvent(
+                    FsmEventType.SUB_LEVEL_BUY_POINT, price=price, level="sub"))
+            snap = f.snapshot()
+            # 机动 slice 终值 = 回收现金 + 挣得股数×价；净增益 = 终值 − slice 初始投入
+            # （slice 初始投入已计在核心 INITIAL_CAPITAL 内，故只叠加净增益，避免重复计资本）
+            slice_value = snap.cumulative_recovered + snap.total_shares * price
+            slice_gain = slice_value - v.own_capital
+            total_value += slice_gain
+            n_short_total += len(f.completed_short_diffs)
+            cost_basis_min = min(cost_basis_min, snap.cost_basis)
+            # 贡献度累计
+            fsm_recovered[v.ladder] = fsm_recovered.get(v.ladder, 0.0) + snap.cumulative_recovered
+            fsm_diffs[v.ladder] = fsm_diffs.get(v.ladder, 0) + len(f.completed_short_diffs)
+            fsm_short_pnl[v.ladder] = fsm_short_pnl.get(v.ladder, 0.0) + slice_gain
         pnl_pct = (total_value - INITIAL_CAPITAL) / INITIAL_CAPITAL * 100
         held = bar_idx - entry_bar
         trades.append(CompletedTrade(
             entry_bar=entry_bar, entry_price=entry_price, exit_bar=bar_idx,
             exit_price=price, pnl_pct=round(pnl_pct, 4), exit_reason=reason,
-            n_short_diffs=len(pos.completed),
-            cost_basis_at_exit=round(pos.cost_basis, 6)))
-        # 分级贡献度归因（诊断）：按 ladder 聚合已闭合短差
-        for ladder, cyc in pos.completed:
-            fsm_recovered[ladder] = fsm_recovered.get(ladder, 0.0) + cyc.profit
-            fsm_diffs[ladder] = fsm_diffs.get(ladder, 0) + 1
-            fsm_short_pnl[ladder] = fsm_short_pnl.get(ladder, 0.0) + cyc.profit
+            n_short_diffs=n_short_total,
+            cost_basis_at_exit=(0.0 if cost_basis_min == float("inf") else cost_basis_min)))
         ladder_attribution[entry_ladder] = ladder_attribution.get(entry_ladder, 0) + 1
         ladder_held_bars[entry_ladder] = ladder_held_bars.get(entry_ladder, 0) + held
-        state = _FLAT; entry_price = 0.0; entry_ladder = -1; pos = None; active_levels = []
+        state = _FLAT; entry_price = 0.0; entry_ladder = -1; voices = []; core_shares = 0.0
 
     for i in range(n):
         sig = i_signals[i]
@@ -835,7 +815,7 @@ def run_version_i(
             elif sig.sell1[arm_ladder]:
                 state = _FLAT  # 入场前归属层顶背驰 → 取消
         elif state == _LONG:
-            # 硬止损 A/B：仓位跌破 entry×(1−2%) → 全仓清出（先于一切，cap 持仓回撤/MDD）
+            # 硬止损 A/B：核心仓跌破 entry×(1−2%) → 全仓清出（先于一切，cap 持仓回撤/MDD）
             if _stop_on and c < entry_price * (1.0 - STOP_FRAC):
                 n_core_stops += 1
                 _close(i, c, "stop_core_2pct")
@@ -843,29 +823,34 @@ def run_version_i(
             elif sig.sell1[entry_ladder]:
                 _close(i, c, f"exit_{ladder_name(entry_ladder)}_type1sell")
             else:
-                # 多重赋格降成本：各级别（entry 层以下）并发短差，全部作用于同一仓位 pos，
-                # 触发 = 本级别 sell_any(高抛) / buy_any(低吸)。
-                for ladder in active_levels:
-                    if ladder in pos.stopped:
-                        continue  # 止损 B 已冻结的级别（停止该级别降成本，不影响主仓/他级别）
-                    rec = pos.active.get(ladder)
-                    has_open = rec is not None
+                # 多重赋格降成本：各声部（entry 层以下级别）独立 FSM，
+                # 触发 = 本级别 sell_any(高抛) / buy_any(低吸)。核心仓位不参与短差。
+                for v in voices:
+                    if v.stopped:
+                        continue  # 止损 B 已冻结的声部：停止该级别降成本（不影响主仓/他声部）
+                    f = v.fsm
+                    has_open = (f.active_short_diff is not None
+                                and f.active_short_diff.is_open)
                     # 止损 B：开放短差逆向亏 2%（卖出后价格反向上涨 > sell×(1+2%)）→
-                    # 回补该短差 + 冻结该级别降成本（每级别独立止损）。
+                    # 立即回补该短差 + 冻结该级别降成本（每 FSM 独立管理自己切片止损）。
                     if (_voice_stop_on and has_open
-                            and c > rec[0].sell_price * (1.0 + STOP_FRAC)):
-                        pos.close_diff(ladder, c)
-                        pos.stopped.add(ladder)
+                            and c > f.active_short_diff.sell_price * (1.0 + STOP_FRAC)
+                            and f.state in _COST_ACTIVE_DIFF_STATES):
+                        v.fsm = transition(f, FsmEvent(
+                            FsmEventType.SUB_LEVEL_BUY_POINT, price=c, level="sub"))
+                        v.stopped = True
                         n_voice_stops += 1
                         continue
-                    if sig.sell_any[ladder] and not has_open:
-                        pos.open_diff(ladder, _level_trade_fraction(ladder), c)
-                    elif sig.buy_any[ladder] and has_open:
-                        pos.close_diff(ladder, c)
+                    if sig.sell_any[v.ladder] and not has_open and f.state in _COST_OPEN_STATES:
+                        v.fsm = transition(f, FsmEvent(
+                            FsmEventType.SUB_LEVEL_SELL_POINT, price=c, level="sub"))
+                    elif sig.buy_any[v.ladder] and has_open and f.state in _COST_ACTIVE_DIFF_STATES:
+                        v.fsm = transition(f, FsmEvent(
+                            FsmEventType.SUB_LEVEL_BUY_POINT, price=c, level="sub"))
                 if sig.type2_buy:
                     n_addon += 1
 
-    if state == _LONG and pos is not None and pos.total_shares > 0:
+    if state == _LONG and core_shares > 0:
         _close(n - 1, i_signals[-1].close, "eod_close")
 
     avg_held = {
@@ -994,8 +979,7 @@ def _write_report(results: dict) -> None:
     L: list[str] = []
     L.append("# 版本 I（完整版）— 全仓 + 每级独立 BSP + 多 FSM 多重赋格降成本\n")
     L.append(
-        "> 共享仓位多声部（满仓 + entry 层以下各级别并发短差作用于同一 cost_basis）/ "
-        "每中枢层真实 confirmed type1/2/3 BSP"
+        "> 取消 6 阉割：多 FSM（每级独立 cost_basis）/ 每中枢层真实 confirmed type1/2/3 BSP"
         "（经 `per_level_bsp` 适配层：走势级 `confirmed_bsp_level1`、递归层 "
         "`confirmed_bsp_for_level`，**非 move-settle 近似**）/ 含 bar 级（可配置下限）/ "
         "完整跑高层 / 区分机动仓占比 vs 级别驱动单笔量 / 删除伪 267 课号引用。\n")

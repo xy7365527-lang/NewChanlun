@@ -43,8 +43,6 @@ import newchan_rust  # noqa: E402
 import fugue_alpha_diagnosis as F  # noqa: E402
 from newchan.a_macd import OnlineMacdState  # noqa: E402
 from newchan.a_move_v1 import Move  # noqa: E402
-from newchan.core.recursion.move_state import diff_moves  # noqa: E402
-from newchan.events import MoveSettleV1  # noqa: E402
 
 # compute_signals 用 max_levels=2；其余引擎参数取 Python 默认（= Rust 默认）：
 #   stroke_mode="wide", min_strict_sep=5, reset_dir_on_fractal=False,
@@ -133,11 +131,14 @@ def compute_e_signals_rust(
     事件 / L2 PH / MACD 面积 / 背驰记录全部逐字复用，故 E 字段逐位等价。
     """
     n = len(closes)
-    orch = newchan_rust.RecursiveOrchestrator(max_levels=_MAX_LEVELS)
+    # enable_bsp=False：E 只消费 current_moves()（moves 在 bsp 层之前算），不读买卖点/
+    # 递归层 → 跳过它们的 O(n_seg²) 全量重算（纯省，moves 输出不变 ⟹ bit-exact）。
+    orch = newchan_rust.RecursiveOrchestrator(max_levels=_MAX_LEVELS, enable_bsp=False)
 
     # L2 PH（L1 走势 settle 时喂端点）——复用 compute_signals 同款 PHLevelState。
-    l2_down = F.PHLevelState.make()
-    l2_up = F.PHLevelState.make()
+    # top2_only：l2 PH 仅经 detect_settle 读 bars[1].birth_idx → _fast_alive_top2。
+    l2_down = F.PHLevelState.make(top2_only=True)
+    l2_up = F.PHLevelState.make(top2_only=True)
 
     macd = OnlineMacdState()
     pos_cum = 0.0
@@ -148,12 +149,9 @@ def compute_e_signals_rust(
     down_move_hist: list[F.MoveRecord] = []
     up_move_hist: list[F.MoveRecord] = []
 
-    prev_moves: list[Move] = []
-    # tuple 短路：L1 走势极稀疏（100k bar 仅 ~38 moves），99.9% 的 bar moves 不变。
-    # 仅在 current_moves() 元组列表变化时才构造 Move 对象 + 跑 diff_moves（moves
-    # 不变 ⟹ diff 公共前缀=全部 ⟹ 无事件，短路语义等价）。去掉每 bar 全量 Move
-    # 构造（O(N×n_moves) frozen dataclass）这一主开销。
-    prev_tuples: tuple | None = None
+    # 走势 settle 事件由 Rust delta 接口 take_move_settle_events 提供（内部 move_epoch 门控 +
+    # 复刻 diff_moves 的 MoveSettleV1）：消除旧实现每-epoch 全量 current_moves() marshal +
+    # Python diff_moves 的 O(B·n_moves) 超线性，端到端降到 O(n_seg·新结算)。
 
     def _macd_pos_area(a: int, b: int) -> float:
         if b < 0:
@@ -183,12 +181,14 @@ def compute_e_signals_rust(
         neg_cum += -hist if hist < 0 else 0.0
         neg_cum_hist.append(neg_cum)
 
-        # Rust 引擎逐 bar（O(N²) 但快 23×，唯一被替换的部件）。
+        # Rust 引擎逐 bar（结构层全增量；epoch 门控消除调用层 B-scaling marshal）。
         orch.process_bar(opens[i], highs[i], lows[i], c)
-        curr_tuples = tuple(orch.current_moves())
 
-        # tuple 短路：moves 未变 ⟹ 无 settle 事件，跳过 Move 构造 + diff。
-        if curr_tuples == prev_tuples:
+        # 走势 settle delta（Rust 端复刻 diff_moves 的 MoveSettleV1，消除每-epoch 全量
+        # current_moves() marshal + Python diff_moves 的 O(B·n_moves) 超线性）。
+        # take_move_settle_events 内部 move_epoch 门控：未变 ⟹ 返回空（O(1)）。
+        settled_moves = orch.take_move_settle_events()
+        if not settled_moves:
             signals.append(_e_signal(
                 c, False, False,
                 down_move_hist, up_move_hist,
@@ -198,30 +198,14 @@ def compute_e_signals_rust(
                       flush=True)
                 last_progress = i
             continue
-        prev_tuples = curr_tuples
-
-        curr_moves = [_move_from_tuple(t) for t in curr_tuples]
-        # 用 Python orchestrator 内部所用的同一 diff_moves 重建 MoveSettleV1 事件。
-        events = diff_moves(prev_moves, curr_moves, bar_idx=i, bar_ts=0.0)
-        prev_moves = curr_moves
 
         down_move_settled = False
         up_move_settled = False
         l2_flip_short = False
         l2_flip_long = False
 
-        for e in events:
-            if not isinstance(e, MoveSettleV1):
-                continue
-            mv = None
-            for m in curr_moves:
-                if (m.seg_start == e.seg_start
-                        and m.direction == e.direction
-                        and m.settled):
-                    mv = m
-                    break
-            if mv is None:
-                continue
+        for t in settled_moves:
+            mv = _move_from_tuple(t)
             # 走势级背驰记录（与 compute_signals 逐字一致）。
             if mv.direction == "down":
                 down_move_hist.append(F.MoveRecord(

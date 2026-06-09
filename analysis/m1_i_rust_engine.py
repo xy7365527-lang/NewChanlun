@@ -131,21 +131,22 @@ def compute_i_signals_rust(
     orch = R.RecursiveOrchestrator(max_levels=MAX_LEVELS)
 
     # sub-走势 PH 树（bar / bi）—— ladder 0/1 无中枢，PH proxy（逐字同 compute_signals_i）。
-    bar_dn = PHLevelState.make(); bar_up = PHLevelState.make()
-    bi_dn = PHLevelState.make(); bi_up = PHLevelState.make()
+    # top2_only：这些 proxy PH 仅经 detect_settle 读 bars[1].birth_idx（无 rank≥2 /
+    # median / ratio 消费者）→ 走 _fast_alive_top2（消除全量 sort 的 O(N^1.6) 主常数）。
+    bar_dn = PHLevelState.make(top2_only=True); bar_up = PHLevelState.make(top2_only=True)
+    bi_dn = PHLevelState.make(top2_only=True); bi_up = PHLevelState.make(top2_only=True)
     last_stroke_n = 0
 
-    # BSP 去重 seen-set（走势级 / 各递归层）。
-    # 注：笔中枢级（segment）的 seen-set 已下沉 Rust（bi_zhongshu_new_signals 内部维护）。
-    trend_seen: set = set()
+    # BSP 去重 seen-set（递归层 N≥2，仍在 Python；走势级/笔中枢级已下沉 Rust：
+    # trend_new_signals / bi_zhongshu_new_signals 各自内部维护 seen-set + epoch 门控）。
     level_seen: dict[int, set] = {}
-    # type2_buy 报告口径：current_buysellpoints 中 type2 buy 的状态-diff 首现
-    type2_seen: set = set()
 
     max_ladder = LADDER_SEG  # segment 级（笔中枢）已是最低中枢承载层
 
     # 递归层状态缓存（diff 门控：状态不变 ⟺ 无事件 → 跳过重算）
     level_cache: dict[int, tuple] = {}
+    # 递归层 epoch 门控（O(1)）：内容未变 ⟹ 跳过整个 current_recursive() marshal+扫描。
+    last_rec_epoch: int = -1
 
     i_signals: list[BarSignalI] = []
     last_progress = 0
@@ -183,18 +184,12 @@ def compute_i_signals_rust(
             seg_buy1, seg_sell1, seg_sell_any, seg_buy_any = \
                 orch.bi_zhongshu_new_signals(BI_ZHONGSHU_LEVEL_ID)
 
-        # ── ladder3 走势级：current_buysellpoints 透传（每 bar）──
-        bsps_l1 = orch.current_buysellpoints()
-        l1_buy1, l1_sell1, l1_sell_any, l1_buy_any = _scan_new(bsps_l1, trend_seen)
-        # type2_buy（报告口径：type2 buy 状态首现）
-        type2_buy = False
-        for bp in bsps_l1:
-            head = bp[0]
-            if head[1] == "buy" and head[0] == "type2":
-                key = (head[3], head[4])  # (seg_idx, move_seg_start)
-                if key not in type2_seen:
-                    type2_seen.add(key)
-                    type2_buy = True
+        # ── ladder3 走势级：Rust delta 接口（trend_new_signals）──
+        # seen-set（trend + type2）下沉 Rust + bsp_epoch O(1) 门控，消除旧每-bar 全量
+        # current_buysellpoints() marshal + _scan_new 扫描的 B-scaling O(B·n_bsp)。
+        # 逐位等价于 _scan_new(current_buysellpoints(), trend_seen) + type2 首现扫描。
+        l1_buy1, l1_sell1, l1_sell_any, l1_buy_any, type2_buy = \
+            orch.trend_new_signals(BI_ZHONGSHU_LEVEL_ID)
 
         # ── I 分层磁带 ──
         buy1 = [False] * MAX_LADDER
@@ -208,33 +203,40 @@ def compute_i_signals_rust(
         buy1[LADDER_MOVE] = l1_buy1; sell1[LADDER_MOVE] = l1_sell1
         sell_any[LADDER_MOVE] = l1_sell_any; buy_any[LADDER_MOVE] = l1_buy_any
 
-        # ── 递归层（ladder≥4）：状态 diff 门控 + 等价 BSP 管线 ──
-        recursive = orch.current_recursive()  # list[(level_id, [LZS], [Move])]
-        level_moves_map = {lid: mvs for (lid, _z, mvs) in recursive}
-        moves_l1 = None  # current_moves() 懒取——仅 level 2 需重算时
-        for (lid, zhs, mvs) in recursive:
-            ladder = lid + 2
-            if ladder >= MAX_LADDER:
-                continue
-            if ladder > max_ladder:
-                max_ladder = ladder
-            # 状态 diff 门控（状态不变 ⟺ Python move_events/zhongshu_events 均空 → 无新 confirmed）
-            cache_key = (tuple(zhs), tuple(mvs))
-            if level_cache.get(lid) == cache_key:
-                continue
-            level_cache[lid] = cache_key
-            if lid - 1 == 1:
-                if moves_l1 is None:
-                    moves_l1 = orch.current_moves()
-                prev = moves_l1
-            else:
-                prev = level_moves_map.get(lid - 1, [])
-            seen = level_seen.get(lid)
-            if seen is None:
-                seen = set(); level_seen[lid] = seen
-            b1, s1, sa, ba = _scan_new(_level_bsps(prev, zhs, mvs, lid), seen)
-            buy1[ladder] = b1; sell1[ladder] = s1
-            sell_any[ladder] = sa; buy_any[ladder] = ba
+        # ── 递归层（ladder≥4）：recursive_epoch O(1) 门控 + 等价 BSP 管线 ──
+        # 递归内容未变（epoch 不变）⟹ current_recursive() 逐位不变 ⟹ 各层 cache_key
+        # 必命中 → 无新 confirmed → 所有递归层信号本 bar 必为 false，max_ladder 不变。
+        # 故跳过整块（消除每-bar 全量 current_recursive() marshal + cache_key 构造的
+        # B-scaling）。仅递归重算 bar（O(n_l1_moves) 次，稀疏）进入下方扫描。
+        rec_epoch = orch.recursive_epoch()
+        if rec_epoch != last_rec_epoch:
+            last_rec_epoch = rec_epoch
+            recursive = orch.current_recursive()  # list[(level_id, [LZS], [Move])]
+            level_moves_map = {lid: mvs for (lid, _z, mvs) in recursive}
+            moves_l1 = None  # current_moves() 懒取——仅 level 2 需重算时
+            for (lid, zhs, mvs) in recursive:
+                ladder = lid + 2
+                if ladder >= MAX_LADDER:
+                    continue
+                if ladder > max_ladder:
+                    max_ladder = ladder
+                # 状态 diff 门控（状态不变 ⟺ Python move_events/zhongshu_events 均空 → 无新 confirmed）
+                cache_key = (tuple(zhs), tuple(mvs))
+                if level_cache.get(lid) == cache_key:
+                    continue
+                level_cache[lid] = cache_key
+                if lid - 1 == 1:
+                    if moves_l1 is None:
+                        moves_l1 = orch.current_moves()
+                    prev = moves_l1
+                else:
+                    prev = level_moves_map.get(lid - 1, [])
+                seen = level_seen.get(lid)
+                if seen is None:
+                    seen = set(); level_seen[lid] = seen
+                b1, s1, sa, ba = _scan_new(_level_bsps(prev, zhs, mvs, lid), seen)
+                buy1[ladder] = b1; sell1[ladder] = s1
+                sell_any[ladder] = sa; buy_any[ladder] = ba
 
         i_signals.append(BarSignalI(
             close=c, buy1=tuple(buy1), sell1=tuple(sell1),
