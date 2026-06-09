@@ -280,6 +280,12 @@ impl IncrementalBiZhongshu {
     pub fn current(&self) -> &[Zhongshu] {
         &self.zhongshus
     }
+
+    /// 永久固定的 settled 中枢前缀长度（`zhongshus[..stable_count]` 全 settled 不再变）。
+    /// 上层增量（走势/买卖点）的 append-only 稳定边界来源。
+    pub fn stable_count(&self) -> usize {
+        self.stable_count
+    }
 }
 
 #[cfg(test)]

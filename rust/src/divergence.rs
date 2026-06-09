@@ -466,3 +466,85 @@ pub fn divergences_from_moves_v1(
     }
     result
 }
+
+// ════════════════════════════════════════════════════════════
+// 增量背驰引擎 — 消除 `divergences_from_moves_v1` 逐笔全量段遍历 O(S) 的 O(S²) 累积
+// ════════════════════════════════════════════════════════════
+
+/// 单 Move 背驰检测（趋势优先，其次盘整）。复刻 `divergences_from_moves_v1` 的 per-move 体。
+/// `macd=None`（bi-zhongshu 路径价格振幅 fallback）。
+fn detect_one(
+    segs: &[SegView],
+    zss: &[ZsView],
+    mv: &MoveView,
+    level_id: i64,
+) -> Option<Divergence> {
+    detect_trend_divergence(segs, zss, mv, level_id, None)
+        .or_else(|| detect_consolidation_divergence(segs, zss, mv, level_id, None))
+}
+
+/// 增量背驰构造器 —— bit-exact 等价于逐前缀 `divergences_from_moves_v1(.., None)`，摊还 O(1)/笔。
+///
+/// ## 不变量（bit-exact 契约，differential test 守卫）
+/// `current() == divergences_from_moves_v1(segs, zss, moves, level_id, None)`。
+///
+/// ## 增量原理
+/// 背驰为 per-move 计算（每 move 0 或 1 个 div）。closed move（IncrementalMoves 已封闭）的
+/// zs 范围 ∈ settled 前缀、段范围固定 ⟹ div 永久固定。唯一易变的是最后一个 pending move 的
+/// div。故缓存 closed move 的 div + 每次只重算 pending move 的 div。closed move 的 div 在其
+/// 封闭瞬间 detect 一次（依赖全在固定前缀，与后续 segs/zss 增长无关）。
+#[derive(Debug, Clone, Default)]
+pub struct IncrementalDivergences {
+    /// closed move 产生的 div（仅成立的，按 move 顺序；永久固定）。
+    closed_divs: Vec<Divergence>,
+    /// 已 detect 的 closed move 数。
+    processed_closed: usize,
+    /// 上次并入 full_divs 的 closed_divs 长度（增量拼接锚）。
+    prev_closed_div_len: usize,
+    /// 全量 divs = closed_divs + pending move 的 div（增量维护）。
+    full_divs: Vec<Divergence>,
+}
+
+impl IncrementalDivergences {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// 更新背驰列表。
+    ///
+    /// `closed_moves`：永久封闭的 move 前缀（IncrementalMoves.closed_moves，append-only）。
+    /// `pending`：当前最后一个未封闭 move（None = 无 settled 中枢）。
+    /// `segs`/`zss`：当前全量段/中枢视图。
+    pub fn update(
+        &mut self,
+        closed_moves: &[MoveView],
+        pending: Option<&MoveView>,
+        segs: &[SegView],
+        zss: &[ZsView],
+        level_id: i64,
+    ) {
+        // 1. 新封闭 move 的 div detect（一次性，永久固定）。
+        while self.processed_closed < closed_moves.len() {
+            let mv = &closed_moves[self.processed_closed];
+            if let Some(d) = detect_one(segs, zss, mv, level_id) {
+                self.closed_divs.push(d);
+            }
+            self.processed_closed += 1;
+        }
+        // 2. 增量拼接 full_divs = closed_divs + pending div。
+        self.full_divs.truncate(self.prev_closed_div_len);
+        self.full_divs
+            .extend_from_slice(&self.closed_divs[self.prev_closed_div_len..]);
+        self.prev_closed_div_len = self.closed_divs.len();
+        if let Some(p) = pending {
+            if let Some(d) = detect_one(segs, zss, p, level_id) {
+                self.full_divs.push(d);
+            }
+        }
+    }
+
+    /// 当前全量背驰（逐位等价于 `divergences_from_moves_v1(.., None)`）。
+    pub fn current(&self) -> &[Divergence] {
+        &self.full_divs
+    }
+}

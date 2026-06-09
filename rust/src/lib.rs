@@ -12,6 +12,7 @@
 //! `_b_segment_crosses_zero`。背驰 MACD 三维度路径（T2/T6/T7 + T4）随之接通。
 
 mod bi_engine;
+mod bi_zhongshu_bsp;
 mod buysellpoint;
 mod divergence;
 mod fractal;
@@ -843,6 +844,10 @@ type LevelSnapshotTuple = (i64, Vec<LevelZhongshuTuple>, Vec<MoveTuple>);
 #[pyclass(name = "RecursiveOrchestrator")]
 struct PyRecursiveOrchestrator {
     inner: orchestrator::RecursiveOrchestrator,
+    /// 笔中枢买卖点全链增量引擎（lazy 创建；level_id 首次调用时绑定）。
+    inc_bz: Option<bi_zhongshu_bsp::IncrementalBiZhongshuBsp>,
+    /// 已 push 到 inc_bz 的 confirmed 笔数。
+    inc_pushed: usize,
 }
 
 #[pymethods]
@@ -873,6 +878,8 @@ impl PyRecursiveOrchestrator {
                 new_raw_gap_min,
                 enable_macd_divergence,
             ),
+            inc_bz: None,
+            inc_pushed: 0,
         }
     }
 
@@ -883,6 +890,8 @@ impl PyRecursiveOrchestrator {
 
     fn reset(&mut self) {
         self.inner.reset();
+        self.inc_bz = None;
+        self.inc_pushed = 0;
     }
 
     fn current_strokes(
@@ -1016,6 +1025,66 @@ impl PyRecursiveOrchestrator {
             .iter()
             .map(bsp_to_tuple)
             .collect()
+    }
+
+    /// 笔中枢级 confirmed/candidate 买卖点——**全链增量引擎**（消除上一方法的 O(strokes²)）。
+    ///
+    /// 逐位等价于 `current_bi_zhongshu_buysellpoints(level_id)`，但摊还 O(window)/调用：
+    /// confirmed 笔 append-only push 进 `IncrementalBiZhongshuBsp`（四层增量），返回缓存全量。
+    /// confirmed 笔 = snapshot[..len-1]（最后一笔 unconfirmed）；只 push 新增 O(Δ)。
+    ///
+    /// 调用契约：仅在 stroke_count 增长时调用（方向反转 ⟹ 前序 confirmed 笔已永久固定，
+    /// append-only 前提成立）。注：返回全量 marshal O(B)；如只需新信号用
+    /// `bi_zhongshu_new_signals`（delta 接口，端到端 O(N)）。
+    #[pyo3(signature = (level_id = 1))]
+    fn current_bi_zhongshu_buysellpoints_inc(&mut self, level_id: i64) -> Vec<BspTuple> {
+        self.sync_inc(level_id);
+        self.inc_bz
+            .as_ref()
+            .map(|e| e.current().iter().map(bsp_to_tuple).collect())
+            .unwrap_or_default()
+    }
+
+    /// **delta 信号接口**——返回新触发的 confirmed 买卖点信号 (buy1, sell1, sell_any, buy_any)。
+    ///
+    /// 逐位等价于调用方 `_scan_new(current_bi_zhongshu_buysellpoints_inc(level_id), seg_seen)`，
+    /// 但去重 seen 下沉到 Rust + 只扫尾部窗口 → 消除 marshal O(B) + 调用方扫描 O(B)，端到端 O(N)。
+    #[pyo3(signature = (level_id = 1))]
+    fn bi_zhongshu_new_signals(&mut self, level_id: i64) -> (bool, bool, bool, bool) {
+        self.sync_inc(level_id);
+        self.inc_bz
+            .as_mut()
+            .map(|e| e.take_new_signals())
+            .unwrap_or((false, false, false, false))
+    }
+
+}
+
+impl PyRecursiveOrchestrator {
+    /// 同步新增 confirmed 笔到增量引擎（O(Δ)）。三个增量接口共用。
+    ///
+    /// confirmed 笔为 snapshot 前缀（仅末笔 unconfirmed）；append-only push 新增部分。
+    fn sync_inc(&mut self, level_id: i64) {
+        let to_push: Vec<(usize, usize, f64, f64, stroke::Direction)> = {
+            let strokes = self.inner.strokes();
+            let n = strokes.len();
+            let confirmed_count = if n > 0 && !strokes[n - 1].confirmed {
+                n - 1
+            } else {
+                n
+            };
+            strokes[self.inc_pushed.min(confirmed_count)..confirmed_count]
+                .iter()
+                .map(|s| (s.i0, s.i1, s.high, s.low, s.direction))
+                .collect()
+        };
+        let eng = self
+            .inc_bz
+            .get_or_insert_with(|| bi_zhongshu_bsp::IncrementalBiZhongshuBsp::new(level_id));
+        for (i0, i1, high, low, dir) in to_push {
+            eng.push_confirmed_stroke(i0, i1, high, low, dir);
+            self.inc_pushed += 1;
+        }
     }
 }
 
