@@ -35,8 +35,12 @@ SYMBOLS = [s.strip().upper()
 FLOOR = LADDER_SEG
 
 
-def pack_tape(tape) -> "nr.OrganicTape":
-    """BarSignalI 列表 → 列式数组 → Rust OrganicTape（一次 marshal）。"""
+def pack_tape(tape, dir_flips: list | None = None) -> "nr.OrganicTape":
+    """BarSignalI 列表 → 列式数组 → Rust OrganicTape（一次 marshal）。
+
+    dir_flips：v2 D3 稀疏方向行（compute_organic_signals 收集器产出），
+    None = 不传（O0/V3p 不需要；REV 变体在 Rust 侧被 capability guard 拒绝）。
+    """
     n = len(tape)
     closes = [s.close for s in tape]
 
@@ -73,7 +77,7 @@ def pack_tape(tape) -> "nr.OrganicTape":
           flush=True)
     return nr.OrganicTape.from_columns(
         closes, buy1, sell1, sell_any, buy_any, up_settled, max_ladder, type2,
-        bsp_flat, div_flat)
+        bsp_flat, div_flat, dir_flips=dir_flips)
 
 
 def check_symbol(symbol: str) -> None:

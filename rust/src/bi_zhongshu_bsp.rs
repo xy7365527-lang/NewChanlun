@@ -189,6 +189,15 @@ impl IncrementalBiZhongshuBsp {
         &self.segs
     }
 
+    /// 笔级走势尾元素方向（有机赋格 v2 §7 D3 dir_row[2] 镜像读数）。
+    ///
+    /// 只读 surfacing：moves 层增量缓存的尾元素直读，不触碰任何计算路径
+    /// （divergences 接口同先例）。无走势 → None（"无 move 时最后段/笔"的
+    /// 笔侧 fallback 由调用方在 ladder1 行自行提供）。
+    pub fn last_move_direction(&self) -> Option<crate::stroke::Direction> {
+        self.moves.current().last().map(|m| m.direction)
+    }
+
     /// **delta 信号接口**——返回自上次以来新触发的 confirmed 买卖点信号，O(window) 摊还。
     ///
     /// 逐位等价于调用方 `_scan_new(current(), seg_seen)`：遍历 bsp，对 confirmed 且

@@ -206,12 +206,24 @@ def _level_bsps_with_divs(prev_moves: list, level_zhongshus: list,
 
 def compute_organic_signals(
     opens: list[float], highs: list[float], lows: list[float], closes: list[float],
+    dir_flips: list | None = None,
 ) -> list[BarSignalI]:
     """Rust 引擎驱动的 I 磁带 + bsp_events + div_events + up_move_settled。
 
     结构承自 interval_nesting 的 `compute_i_signals_rust_events`（PH 门控 / epoch
     门控 / 递归层 diff 门控逐字一致），布尔流与 Rust delta 接口逐重算点差分守卫。
     背驰来源全部为增量缓存直读（见模块 docstring）。
+
+    dir_flips（v2 D3 方向行，可选收集器；None=零行为变化，磁带逐位不变）：
+    传入 list 时，同一引擎 pass 内追加方向翻转行 (bar, ladder, "up"/"down")：
+      ladder1（笔）：confirmed 笔 p1 差分符号（笔严格交替，2nd 笔起精确）；
+      ladder2（笔中枢）：`bi_zhongshu_last_move_dir`（moves 尾元素只读 surfacing，
+        stroke 增长 bar 门控——与本层事件流同步点）；
+      ladder3（走势级）：`trend_last_move_dir`（move_epoch 门控 O(1)）；
+      ladder≥4（递归层）：current_recursive mvs 尾元素方向（cache-diff 门控——
+        尾 move 方向变化 ⊆ (zhs, mvs) cache 变化，门控完备）。
+    锚语义声明：翻转 bar = 方向的**信号观测时点**（确认滞后与全系统事件时间
+    口径一致）；run_anchor 由消费方（Rust runner）从翻转 bar 导出。
     """
     n = len(closes)
     orch = R.RecursiveOrchestrator(max_levels=MAX_LEVELS)
@@ -230,6 +242,17 @@ def compute_organic_signals(
     level_cache: dict[int, tuple] = {}
     last_rec_epoch: int = -1
     last_trend_epoch: int = -1
+
+    # ── D3 方向行收集状态（dir_flips 非 None 时启用）──
+    d3 = dir_flips is not None
+    last_dir: list = [None] * MAX_LADDER     # ladder → 最后已知方向
+    prev_p1: float | None = None             # ladder1 笔 p1 差分
+    last_move_epoch_d3: int = -1
+
+    def _d3_flip(bar: int, ladder: int, dirn: str | None) -> None:
+        if dirn is not None and dirn != last_dir[ladder]:
+            last_dir[ladder] = dirn
+            dir_flips.append((bar, ladder, dirn))
 
     i_signals: list[BarSignalI] = []
     last_progress = 0
@@ -252,7 +275,12 @@ def compute_organic_signals(
         seg_buy1 = seg_sell1 = seg_sell_any = seg_buy_any = False
         sc = orch.stroke_count()
         if sc > last_stroke_n:
+            d1: str | None = None
             for p1 in orch.strokes_p1_since(last_stroke_n):
+                if d3:
+                    if prev_p1 is not None:
+                        d1 = "up" if p1 > prev_p1 else "down"
+                    prev_p1 = p1
                 if p1 > 0:
                     r1d, nr1d = bi_dn.detect_settle(bi_dn.tree.update(p1))
                     r1u, nr1u = bi_up.detect_settle(bi_up.tree.update(-p1))
@@ -261,6 +289,10 @@ def compute_organic_signals(
                     if r1u or nr1u:
                         bi_sell = True
             last_stroke_n = sc
+            if d3:
+                _d3_flip(i, LADDER_BI, d1)
+                _d3_flip(i, LADDER_SEG,
+                         orch.bi_zhongshu_last_move_dir(BI_ZHONGSHU_LEVEL_ID))
             # BSP 事件流：增量引擎缓存全量 marshal（O(B)/次——事件流的必要
             # 代价，interval_nesting 既有声明）。
             bsps2 = orch.current_bi_zhongshu_buysellpoints_inc(BI_ZHONGSHU_LEVEL_ID)
@@ -296,6 +328,12 @@ def compute_organic_signals(
                 div_seen.setdefault(LADDER_MOVE, set()))
             if dl3:
                 div_by_ladder[LADDER_MOVE] = dl3
+        # D3 ladder3：move_epoch 门控的尾 move 方向读数（O(1)）
+        if d3:
+            me = orch.move_epoch()
+            if me != last_move_epoch_d3:
+                last_move_epoch_d3 = me
+                _d3_flip(i, LADDER_MOVE, orch.trend_last_move_dir())
         # 走势级 move settle（O(1) delta 接口；move_epoch 未变返回空）
         settled_mvs = orch.take_move_settle_events()
         if settled_mvs:
@@ -360,6 +398,9 @@ def compute_organic_signals(
                 sseen_l = settled_seen.setdefault(ladder, set())
                 up_settled[ladder] = _new_settled_up_moves(
                     [m[0] for m in mvs], sseen_l)
+                # D3 递归层：尾 move 方向（cache-diff 门控——方向变化 ⊆ cache 变化）
+                if d3 and mvs:
+                    _d3_flip(i, ladder, mvs[-1][0][1])
 
         if ev_by_ladder:
             rows = [()] * MAX_LADDER

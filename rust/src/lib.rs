@@ -1122,6 +1122,20 @@ impl PyRecursiveOrchestrator {
             .collect()
     }
 
+    /// D3 dir_row[2]：笔级走势尾 move 方向（有机赋格 v2 §7 镜像读数；O(1) 只读
+    /// surfacing，divergences 先例）。调用契约同 `_inc`（stroke_count 增长 bar）。
+    /// 无走势 → None。
+    #[pyo3(signature = (level_id = 1))]
+    fn bi_zhongshu_last_move_dir(&mut self, level_id: i64) -> Option<&'static str> {
+        self.sync_inc(level_id);
+        self.inc_bz.as_ref().and_then(|e| e.last_move_direction()).map(|d| d.as_str())
+    }
+
+    /// D3 dir_row[3]：走势级（L1）尾 move 方向（O(1) 只读）。无走势 → None。
+    fn trend_last_move_dir(&self) -> Option<&'static str> {
+        self.inner.moves().last().map(|m| m.direction.as_str())
+    }
+
     /// 走势级背驰流——inc_seg_div 增量缓存直读（同上格式；O(n_div) marshal/次）。
     ///
     /// 逐位等价于引擎内部 compute_bsps 所消费的 divergences（segments 全量 /
@@ -1319,9 +1333,13 @@ impl PyOrganicTape {
     /// div_flat 行 = (bar, ladder, kind, direction, seg_idx, force_a, force_c, price)
     ///   （side 不传——direction 的纯函数，v1R §2.1）。
     /// 布尔行 = 11 位掩码（Python 侧 sum(1<<k …) 打包）。
-    /// fail-fast：close 非有限、cs 存在而 zd/zg 缺失、非法枚举串、越界索引。
+    /// D3 行（v2，稀疏）：dir_flips = [(bar, ladder, "up"/"down")]（bar 升序，
+    /// 仅方向翻转 bar）；run_high = 密集 n×11 展平（当前信号层不产出 → None）。
+    /// fail-fast：close 非有限、cs 存在而 zd/zg 缺失、非法枚举串、越界/乱序索引。
     #[staticmethod]
     #[allow(clippy::too_many_arguments, clippy::type_complexity)]
+    #[pyo3(signature = (closes, buy1, sell1, sell_any, buy_any, up_settled, max_ladder,
+                        type2_buy, bsp_flat, div_flat, dir_flips = None, run_high = None))]
     fn from_columns(
         closes: Vec<f64>,
         buy1: Vec<u16>,
@@ -1333,6 +1351,8 @@ impl PyOrganicTape {
         type2_buy: Vec<bool>,
         bsp_flat: Vec<(i64, u8, String, String, i64, bool, Option<i64>, Option<f64>, Option<f64>, f64)>,
         div_flat: Vec<(i64, u8, String, String, i64, f64, f64, f64)>,
+        dir_flips: Option<Vec<(i64, u8, String)>>,
+        run_high: Option<Vec<f64>>,
     ) -> PyResult<Self> {
         use trading::tape::{BarSig, SignalTape};
         use trading::types::{BspClass, BspEvent as TBspEvent, DivEvent as TDivEvent, LadderMask, MAX_LADDER};
@@ -1424,7 +1444,44 @@ impl PyOrganicTape {
                 [lad_us]
                 .push(TDivEvent { kind: dkind, direction: dir, seg_idx, force_a, force_c, price });
         }
-        Ok(PyOrganicTape { inner: SignalTape { bars } })
+        let dir_flips_parsed = match dir_flips {
+            None => None,
+            Some(rows) => {
+                let mut out: Vec<(i64, u8, Direction)> = Vec::with_capacity(rows.len());
+                let mut last_bar = -1i64;
+                for (bar, lad, dir) in rows {
+                    if bar < last_bar || (bar as usize) >= n || (lad as usize) >= MAX_LADDER {
+                        return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                            "dir_flips 越界或乱序：bar={bar} ladder={lad}（须 bar 升序）"
+                        )));
+                    }
+                    last_bar = bar;
+                    let d = match dir.as_str() {
+                        "up" => Direction::Up,
+                        "down" => Direction::Down,
+                        _ => {
+                            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                                "非法 dir_flips 方向: {dir:?}"
+                            )))
+                        }
+                    };
+                    out.push((bar, lad, d));
+                }
+                Some(out)
+            }
+        };
+        if let Some(rh) = &run_high {
+            if rh.len() != n * MAX_LADDER {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "run_high 长度须为 n×{MAX_LADDER}：{} vs {}",
+                    rh.len(),
+                    n * MAX_LADDER
+                )));
+            }
+        }
+        Ok(PyOrganicTape {
+            inner: SignalTape { bars, dir_flips: dir_flips_parsed, run_high },
+        })
     }
 
     fn n_bars(&self) -> usize {

@@ -222,11 +222,11 @@ pub fn run_organic(
                 .to_string(),
         );
     }
-    if cfg.sub_anchor != super::config::SubAnchor::Off && !tape.has_dir_row() {
-        return Err("sub_anchor（G1 锚定）要求磁带 dir_row 行（D3）".to_string());
+    if cfg.sub_anchor != super::config::SubAnchor::Off && !tape.has_dir_rows() {
+        return Err("sub_anchor（G1 锚定）要求磁带 dir_flips 行（D3）".to_string());
     }
-    if cfg.tranche && !(tape.has_dir_row() && tape.has_run_anchor()) {
-        return Err("tranche（T4b/T5b 递归建仓）要求磁带 dir_row + run_anchor 行（D3）".to_string());
+    if cfg.tranche && !tape.has_dir_rows() {
+        return Err("tranche（T4b/T5b 递归建仓）要求磁带 dir_flips 行（D3）".to_string());
     }
 
     // MarketMode 穷举（F1 期货实装时新增变体，编译器强制此处表态——v1R §2.2）。
@@ -260,6 +260,13 @@ pub fn run_organic(
     // 空行共享单例（Python NO_LADDER_EVENTS / NO_LADDER_DIVS 的零分配对应）。
     let empty_evs: [Vec<BspEvent>; MAX_LADDER] = Default::default();
     let empty_devs: [Vec<DivEvent>; MAX_LADDER] = Default::default();
+    // D3 滚动状态：稀疏翻转行 → 逐 bar 方向/锚视图（与密集行逐位等价，tape.rs）。
+    let flips: &[(i64, u8, crate::stroke::Direction)] =
+        tape.dir_flips.as_deref().unwrap_or(&[]);
+    let mut flip_ptr = 0usize;
+    let mut dir_state: [Option<crate::stroke::Direction>; MAX_LADDER] = [None; MAX_LADDER];
+    let mut anchor_state: [i64; MAX_LADDER] = [-1; MAX_LADDER];
+    let has_d3 = tape.has_dir_rows();
     // 中枢三态事件缓冲（每 bar 复用，仅 rev 消费路径填充）。
     let collect_center_events = cfg.rev_gate || cfg.tranche;
     let mut center_evs: [Vec<CenterEvent>; MAX_LADDER] = Default::default();
@@ -267,6 +274,14 @@ pub fn run_organic(
     for i in 0..n {
         let sig = &tape.bars[i];
         let c = sig.close;
+
+        // ── D3 滚动状态推进（翻转行 bar 升序；同 bar 信号当 bar 可见）──
+        while flip_ptr < flips.len() && flips[flip_ptr].0 == i as i64 {
+            let (_, lad, dir) = flips[flip_ptr];
+            dir_state[lad as usize] = Some(dir);
+            anchor_state[lad as usize] = i as i64;
+            flip_ptr += 1;
+        }
         let evrows: &[Vec<BspEvent>; MAX_LADDER] =
             sig.bsp_events.as_deref().unwrap_or(&empty_evs);
         let devrows: &[Vec<DivEvent>; MAX_LADDER] =
@@ -288,7 +303,8 @@ pub fn run_organic(
         // ── FatigueGate（v2 点态：rev_gate 时每 bar 每承载层驱动——清空路径(1)
         //    创新高判定是逐 bar 价格事件，不能沿用 v1 的"仅事件 bar"调用门控）──
         if cfg.rev_gate {
-            let run_high = sig.run_high.as_deref().expect("guard 已验证 run_high 行存在");
+            let rh = tape.run_high.as_deref().expect("guard 已验证 run_high 行存在");
+            let run_high = &rh[i * MAX_LADDER..(i + 1) * MAX_LADDER];
             for lad in FIRST_BSP_LADDER..MAX_LADDER {
                 run.gate.observe(
                     lad,
@@ -432,8 +448,8 @@ pub fn run_organic(
                 devs: devrows,
                 buy_any: sig.buy_any,
                 sell_any: sig.sell_any,
-                dir_row: sig.dir_row.as_deref(),
-                run_anchor: sig.run_anchor.as_deref(),
+                dir_row: has_d3.then_some(&dir_state),
+                run_anchor: has_d3.then_some(&anchor_state),
             };
             // frac 快照（11×f64 复制规避闭包对 run.alloc 的跨字段借用）
             let level_frac = run.pos.as_ref().expect("LONG ⇒ pos 存在").level_frac;

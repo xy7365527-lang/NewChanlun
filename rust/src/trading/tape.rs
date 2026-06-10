@@ -1,12 +1,19 @@
 //! SignalTape — 信号磁带（`fugue_version_i.BarSignalI` 的 Rust 形态）。
 //!
 //! 一次构造（PyO3 边界 marshal 一次），多变体共享只读引用——compute-once 原则。
-//! v2 新增行（D3：dir_row/run_anchor/run_high）默认 None：当前磁带
-//! （organic_signals.py）不产出 ⇒ 依赖它们的配置轴在 runner 入口被
-//! capability guard 拒绝（fail-fast，声明=能力）。
+//!
+//! ## D3 行的表示（v2 §7 的稀疏化）
+//! 设计 §7 把 dir_row/run_anchor 列为每 bar 磁带行。本实现取**稀疏翻转行**：
+//! `dir_flips = [(bar, ladder, direction)]`（方向行只在翻转 bar 变化），runner
+//! 维护滚动状态数组——逐 bar 视图与密集行逐位等价，内存从 O(N×11) 降到
+//! O(翻转数)（BRN 2.4M 密集形态 ≈450MB，翻转数 ~10⁴）。
+//! `run_anchor[k]` 由翻转行直接导出（= 该层最近翻转 bar）——anchor 语义 =
+//! 方向 run 的**信号观测起点**（确认滞后与全系统事件时间口径一致）。
+//! run_high（FatigueGate 路径(1) 依赖）保留密集可选列（仅 rev_gate 变体消费，
+//! 当前信号层不产出 → None）。
 //!
 //! NaN 纪律（T7 陷阱）：close 含 NaN 在构造期拒绝；事件 cs 存在时 zd/zg 必须
-//! 同时存在（CenterBook 算术前提，center_book.rs 注释的边界执行点）。
+//! 同时存在（CenterBook 算术前提）。
 
 use super::types::*;
 use crate::stroke::Direction;
@@ -25,16 +32,16 @@ pub struct BarSig {
     pub bsp_events: Option<Box<[Vec<BspEvent>; MAX_LADDER]>>,
     pub div_events: Option<Box<[Vec<DivEvent>; MAX_LADDER]>>,
     pub up_move_settled: LadderMask,
-    // ── v2 D3 行（当前磁带恒 None）──
-    pub dir_row: Option<Box<[Option<Direction>; MAX_LADDER]>>,
-    pub run_anchor: Option<Box<[i64; MAX_LADDER]>>,
-    pub run_high: Option<Box<[f64; MAX_LADDER]>>,
 }
 
 /// 完整磁带。
 #[derive(Debug, Default)]
 pub struct SignalTape {
     pub bars: Vec<BarSig>,
+    /// D3 方向行（稀疏翻转，bar 升序）。None = 信号层未产出（capability guard）。
+    pub dir_flips: Option<Vec<(i64, u8, Direction)>>,
+    /// D3 run 高点行（密集 n×MAX_LADDER 展平）。None = 未产出。
+    pub run_high: Option<Vec<f64>>,
 }
 
 impl SignalTape {
@@ -47,15 +54,11 @@ impl SignalTape {
         self.bars.iter().any(|b| b.div_events.is_some())
     }
 
-    pub fn has_dir_row(&self) -> bool {
-        self.bars.iter().any(|b| b.dir_row.is_some())
-    }
-
-    pub fn has_run_anchor(&self) -> bool {
-        self.bars.iter().any(|b| b.run_anchor.is_some())
+    pub fn has_dir_rows(&self) -> bool {
+        self.dir_flips.is_some()
     }
 
     pub fn has_run_high(&self) -> bool {
-        self.bars.iter().any(|b| b.run_high.is_some())
+        self.run_high.is_some()
     }
 }

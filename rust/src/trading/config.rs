@@ -126,6 +126,10 @@ pub fn variant(name: &str) -> Option<OrganicConfig> {
     match name {
         // V0：≡P5 逐位守卫（trades+trace+counters 三面）
         "V0" | "O0" => Some(base),
+        // V1：rev 裸开（无 G1/tranche/门）——v1 O1v 的 v2 语义类比
+        // （差异仅 C2 osc 不截断 + C5 单 tranche 区间套读出退化为 home 层），
+        // 与在册 O1v 基线（Δ=−63.7/−41.4/−186.2pp）直接可比，隔离 C2 的因果。
+        "V1" => Some(OrganicConfig { rev_mode: true, ..base }),
         // V1f：G1 锚定的独立因果（一次性 frac_k = O1v+G1）
         "V1f" => Some(OrganicConfig {
             rev_mode: true,
