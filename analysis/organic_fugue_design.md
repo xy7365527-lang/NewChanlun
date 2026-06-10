@@ -254,9 +254,17 @@ FatigueMonitor 维护 fatigue[k] = 上级别 u(k) 的衰竭证据集。u(k) = k 
 去重：per-ladder seen-set，键 = (kind, direction, seg_idx)。
 默认 `()`：不消费该字段的全部现有路径（含 run_version_i 的 P1-P7）**逐位不变**。
 产出方：`compute_i_signals_rust_events`（interval_nesting_reverse_backtest.py 中的
-Rust 驱动事件信号层）抽出为公共模块并扩展——divergences 在该管线中已是
-`_level_bsps` 的中间产物，surfacing 而非新计算，每 bar 增量成本≈0。
+Rust 驱动事件信号层）抽出为公共模块并扩展。
 力度口径沿用引擎价格振幅 fallback（非 MACD，O(N²) 不可行——既有诚实声明继承）。
+
+> **成本声明修正（实装时勘误，2026-06-10）**：原稿"divergences 已是中间产物，
+> surfacing 而非新计算，每 bar 增量成本≈0"仅对 **ladder≥4**（递归层，
+> `_level_bsps` 路径）成立。实装发现：ladder2 的 Rust 增量 BSP 引擎
+> （IncrementalBiZhongshuBsp）在内部计算 divergences 但**不暴露**中间产物——
+> 引擎零改动约束下的严格形式 = stroke 增长 bar 用 Rust 纯函数全链重算
+> （current_strokes marshal O(S)/次，摊还 O(S²)）；ladder3 在 bsp_epoch 门控点
+> 用 current_segments/zhongshus/moves 重算（廉价）。实测 OKLO 447K 信号层
+> 17s→402s。详见 `organic_signals.py` docstring 成本声明。
 
 ### 5.2 LevelOperatingUnit（LOU）
 
