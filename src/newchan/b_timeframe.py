@@ -16,7 +16,31 @@ _TF_MAP: dict[str, str] = {
     "1w": "1W",
 }
 
+_TF_SECONDS: dict[str, int] = {
+    "1m": 60,
+    "5m": 5 * 60,
+    "15m": 15 * 60,
+    "30m": 30 * 60,
+    "1h": 60 * 60,
+    "4h": 4 * 60 * 60,
+    "1d": 24 * 60 * 60,
+    "1w": 7 * 24 * 60 * 60,
+}
+
 SUPPORTED_TF = sorted(_TF_MAP.keys())
+
+
+def _infer_source_seconds(index: pd.Index) -> float | None:
+    """从 DatetimeIndex 推断原始 bar 间隔秒数；样本不足时返回 None。"""
+    if not isinstance(index, pd.DatetimeIndex) or len(index) < 2:
+        return None
+
+    ordered = index.sort_values()
+    diffs = ordered.to_series().diff().dropna()
+    positive_diffs = diffs[diffs > pd.Timedelta(0)]
+    if positive_diffs.empty:
+        return None
+    return float(positive_diffs.median().total_seconds())
 
 
 def resample_ohlc(df: pd.DataFrame, display_tf: str) -> pd.DataFrame:
@@ -45,6 +69,14 @@ def resample_ohlc(df: pd.DataFrame, display_tf: str) -> pd.DataFrame:
     if offset is None:
         raise ValueError(
             f"不支持的 display_tf '{display_tf}'，可选: {', '.join(SUPPORTED_TF)}"
+        )
+
+    source_seconds = _infer_source_seconds(df.index)
+    target_seconds = _TF_SECONDS[display_tf]
+    if source_seconds is not None and target_seconds < source_seconds:
+        raise ValueError(
+            "不能重采样到更细周期: "
+            f"源数据约 {source_seconds:g} 秒/bar，目标周期 {display_tf}"
         )
 
     agg: dict[str, str] = {
