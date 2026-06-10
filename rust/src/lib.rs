@@ -1077,6 +1077,91 @@ impl PyRecursiveOrchestrator {
             .unwrap_or_default()
     }
 
+    /// 笔中枢级背驰流——**增量引擎 divs 层缓存直读**（O(n_div) marshal/次，零重算）。
+    ///
+    /// 返回 list[(kind, direction, seg_c_end, force_a, force_c, price)]：
+    ///   kind ∈ {"trend","consolidation"}；direction ∈ {"top","bottom"}；
+    ///   price = 背驰段端点价（top→段 high / bottom→段 low，与 type1 BSP price 同构）。
+    /// 逐位等价于全量 `divergences_from_moves_v1(confirmed笔, 笔中枢, 笔级走势, level_id)`
+    /// （IncrementalDivergences.current() 的等价性契约）。盘整背驰不构造 BSP，
+    /// 此前对调用方完全不可见——本接口是其唯一暴露面（有机赋格 div_events）。
+    /// 调用契约同 `_inc`：仅在 stroke_count 增长时调用（confirmed 笔 append-only）。
+    #[pyo3(signature = (level_id = 1))]
+    fn current_bi_zhongshu_divergences_inc(
+        &mut self,
+        level_id: i64,
+    ) -> Vec<(&'static str, &'static str, i64, f64, f64, f64)> {
+        self.sync_inc(level_id);
+        let e = match self.inc_bz.as_ref() {
+            Some(e) => e,
+            None => return Vec::new(),
+        };
+        let segs = e.stroke_views();
+        e.divergences()
+            .iter()
+            .map(|d| {
+                let idx = d.seg_c_end as usize;
+                let price = if idx < segs.len() {
+                    match d.direction {
+                        divergence::DivDir::Top => segs[idx].high,
+                        divergence::DivDir::Bottom => segs[idx].low,
+                    }
+                } else {
+                    0.0
+                };
+                (
+                    d.kind.as_str(),
+                    d.direction.as_str(),
+                    d.seg_c_end,
+                    d.force_a,
+                    d.force_c,
+                    price,
+                )
+            })
+            .collect()
+    }
+
+    /// 走势级背驰流——inc_seg_div 增量缓存直读（同上格式；O(n_div) marshal/次）。
+    ///
+    /// 逐位等价于引擎内部 compute_bsps 所消费的 divergences（segments 全量 /
+    /// inc 中枢 / prev_moves / macd_ctx=None）。有效域 = enable_macd_divergence=false
+    /// （macd 路径下 inc_seg_div 不更新，直接 panic——契约违例非数据问题）。
+    /// 缓存随 bsp_key 重算更新 → 调用方用 bsp_epoch 门控与 current_buysellpoints 同步。
+    fn current_trend_divergences(
+        &self,
+    ) -> Vec<(&'static str, &'static str, i64, f64, f64, f64)> {
+        if self.inner.macd_divergence_enabled() {
+            panic!(
+                "current_trend_divergences 有效域 = enable_macd_divergence=false（macd \
+                 回退路径走全量 compute_bsps，inc_seg_div 缓存不更新）"
+            );
+        }
+        let segs = self.inner.segments();
+        self.inner
+            .trend_divergences()
+            .iter()
+            .map(|d| {
+                let idx = d.seg_c_end as usize;
+                let price = if idx < segs.len() {
+                    match d.direction {
+                        divergence::DivDir::Top => segs[idx].high,
+                        divergence::DivDir::Bottom => segs[idx].low,
+                    }
+                } else {
+                    0.0
+                };
+                (
+                    d.kind.as_str(),
+                    d.direction.as_str(),
+                    d.seg_c_end,
+                    d.force_a,
+                    d.force_c,
+                    price,
+                )
+            })
+            .collect()
+    }
+
     /// **delta 信号接口**——返回新触发的 confirmed 买卖点信号 (buy1, sell1, sell_any, buy_any)。
     ///
     /// 逐位等价于调用方 `_scan_new(current_bi_zhongshu_buysellpoints_inc(level_id), seg_seen)`，

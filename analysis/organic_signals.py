@@ -11,33 +11,34 @@
     携带趋势背驰），这是 E10（信号层不折叠信息）的最后一块。
   - `BarSignalI.up_move_settled[ladder]`：该层本 bar 是否有新向上 move settle
     （41课 FatigueMonitor 的证据清空触发：创新动力 = 衰竭被市场否定）。
+    域声明：ladder2（笔中枢层）该行恒 False——其唯一消费者 FatigueMonitor
+    的 u(k) ≥ FIRST_BSP_LADDER+1 = 3 不可达 ladder2（u(k) = k 之上最近承载层，
+    k ≥ 2）；笔中枢 move 层未在引擎暴露面（若未来需要，经增量引擎 move 层
+    加只读 accessor，同 divergences 先例）。
 
 布尔流 / bsp_events 与原实现**逐位等价**（差分守卫内嵌：每个重算点把布尔导出与
 Rust delta 接口对比，不等 → RuntimeError）。新字段默认不被旧消费者读取
 （run_version_i 的 P1-P7 逐位不变）。
 
 ═══════════════════════════════════════════════════════════════════════
-各 ladder 背驰来源（Rust 引擎零改动约束下的严格形式）
+各 ladder 背驰来源（全部增量缓存直读，零重算——O(N) 修复后形态）
 ═══════════════════════════════════════════════════════════════════════
-  ladder2（笔中枢）：引擎增量 BSP 接口不暴露中间 divergences → 在 stroke 增长 bar
-    用 Rust 纯函数全链重算（confirmed 笔 → zhongshu_from_strokes →
-    moves_from_zhongshus → divergences_from_moves_v1 → buysellpoints_from_level），
-    与 lib.rs `current_bi_zhongshu_buysellpoints` 逐字同链 → BSP 输出逐位等价
-    （布尔差分守卫复核）。BSP 事件流改由本链产出（替代原 `_inc` 全量 marshal）。
-  ladder3（走势级）：bsp_epoch 门控点上用 current_segments/zhongshus/moves
-    marshal + divergences_from_moves_v1(level_id=1) 重算——与引擎内部
-    compute_bsps 的背驰输入逐字一致（prev_segments 全量 / inc_seg_zs.zhongshus /
-    prev_moves / macd_ctx=None）。
+  ladder2（笔中枢）：`current_bi_zhongshu_divergences_inc`——增量引擎
+    IncrementalBiZhongshuBsp 的 divs 层缓存直读（背驰本就是 BSP 链中间产物，
+    此前算完即弃；接口为本次新增的加法式只读 marshal，O(n_div)/次）。
+    调用门控与 BSP 事件流相同（stroke 增长 bar）。
+  ladder3（走势级）：`current_trend_divergences`——orchestrator inc_seg_div
+    增量缓存直读，bsp_epoch 门控（与 current_buysellpoints 同步点）。
   ladder≥4（递归层）：divergences 本就是 `_level_bsps` 的中间产物，surfacing
     而非新计算（设计 §5.1，增量成本≈0）。
 
-⚠ 成本声明（formalization-validity-domain / 既有 O(S·B) 声明的延伸）：
-  ladder2 背驰链需每个 stroke 增长 bar marshal `current_strokes()`（O(S)/次，
-  摊还 O(S²)）+ 纯函数全链调用。OKLO 447K 实测单次终态 ~16ms（marshal 主导），
-  摊还 ~5-6 分钟/447K。这是"盘整背驰可见性"在引擎零改动约束下的必要代价——
-  增量背驰引擎在 Rust 内部存在但不暴露中间产物。BRN 2.4M 上预期 ~40-60 分钟。
-  注：confirmed 笔 append-only（引擎 inc 调用契约），zs_in/seg_in 增量维护，
-  消除每次 O(S) 的 Python 重构造；marshal 本身不可增量（无窗口接口）。
+发生史（性能修订）：首版 ladder2 在引擎"零改动"约束下用 current_strokes()
+marshal + 纯函数全链重算（O(S²) 摊还，OKLO 447K 信号层 17.8s→402s）。编排者
+否定该成本（O(N) 硬约束："用 epoch 门控或 delta 接口"）——"零改动"前提
+（设计 §6"全部所需事件已可从状态/纯函数得出"）对盘整背驰不成立，故修订为
+加法式只读接口（不触碰任何现有计算路径，引擎 37 项差分测试不变）。
+事件流与 O(S²) 版逐位等价（增量引擎 current() ≡ 全量纯函数的既有契约 +
+本模块 120K 新旧实现流式对比守卫）。
 
 认识论等级：管线等价性 L1（差分守卫 + 新旧磁带逐位对比）；事件流语义 L0
 （透传引擎定义，零新定义）。
@@ -120,38 +121,32 @@ def _scan_events_rust(bsps: list, seen: set) -> tuple[bool, bool, bool, bool, li
 
 
 # ════════════════════════════════════════════════════════════
-# DivergenceTuple 事件扫描器（§5.1 div_events）
+# 背驰事件扫描器（§5.1 div_events；输入 = 扁平 6 元组）
 # ════════════════════════════════════════════════════════════
 
-def _scan_div_events(divs: list, seg_high_low, seen: set) -> list:
-    """DivergenceTuple 列表 → 新背驰事件流（per-ladder seen-set 去重）。
+def _scan_div_events(div_rows: list, seen: set) -> list:
+    """扁平背驰行 → 新背驰事件流（per-ladder seen-set 去重）。
 
-    DivergenceTuple = ((kind, direction, level_id, seg_a_start, seg_a_end,
-                        seg_c_start, seg_c_end, center_idx),
-                       (force_a, force_c, confirmed, dif_peak_a, dif_peak_c,
-                        hist_peak_a, hist_peak_c))
+    输入行 = (kind, direction, seg_c_end, force_a, force_c, price)
+    （Rust `current_*_divergences*` 接口的输出格式；递归层由
+    `_level_bsps_with_divs` 组装为同格式）。
     事件 = (kind, direction, side, seg_idx, force_a, force_c, price)：
       direction 映射：引擎 "top"（向上段衰竭）→ "up"/side="sell"；
                       "bottom" → "down"/side="buy"。
       seg_idx = seg_c_end（背驰段锚）；去重键 = (kind, 引擎direction, seg_c_end)。
-      price = 背驰段端点价（sell→段 high / buy→段 low，与 type1 BSP price 同构；
-      seg_high_low(idx) -> (high, low) 由调用方按该层 segments 序列提供）。
+      price = 背驰段端点价（sell→段 high / buy→段 low，与 type1 BSP price 同构，
+      由产出方按该层 segments 序列计算）。
     """
     out: list = []
-    for d in divs:
-        head = d[0]
-        kind, ddir, seg_c_end = head[0], head[1], head[6]
+    for kind, ddir, seg_c_end, fa, fc, price in div_rows:
         key = (kind, ddir, seg_c_end)
         if key in seen:
             continue
         seen.add(key)
         if ddir == "top":
-            direction, side = "up", "sell"
+            out.append((kind, "up", "sell", seg_c_end, fa, fc, price))
         else:
-            direction, side = "down", "buy"
-        hl = seg_high_low(seg_c_end)
-        price = (hl[0] if side == "sell" else hl[1]) if hl is not None else 0.0
-        out.append((kind, direction, side, seg_c_end, d[1][0], d[1][1], price))
+            out.append((kind, "down", "buy", seg_c_end, fa, fc, price))
     return out
 
 
@@ -179,12 +174,12 @@ def _new_settled_up_moves(mv_heads: list, seen: set) -> bool:
 # ════════════════════════════════════════════════════════════
 
 def _level_bsps_with_divs(prev_moves: list, level_zhongshus: list,
-                          level_moves: list, level_id: int) -> tuple[list, list, list]:
-    """递归层 N≥2 confirmed BSP + 背驰中间产物 + segments 输入。
+                          level_moves: list, level_id: int) -> tuple[list, list]:
+    """递归层 N≥2 confirmed BSP + 背驰中间产物（扁平 6 元组行）。
 
-    与 `m1_i_rust_engine._level_bsps` 逐字同链，仅把 divs/seg_in 一并返回
-    （surfacing 而非新计算——divergences 本就是 BSP 的中间产物）。
-    返回 (bsps, divs, seg_in)。
+    与 `m1_i_rust_engine._level_bsps` 逐字同链，仅把 divs 一并返回并按
+    `_scan_div_events` 输入格式扁平化（surfacing 而非新计算——divergences
+    本就是 BSP 的中间产物）。返回 (bsps, div_rows)。
     """
     seg_in = [(m[0][1], m[1][0], m[1][1], m[1][2], m[1][3]) for m in prev_moves]
     zs5 = [(z[0], z[1], z[2], z[3], z[5]) for z in level_zhongshus]
@@ -194,7 +189,15 @@ def _level_bsps_with_divs(prev_moves: list, level_zhongshus: list,
     div_in = [(d[0][0], d[0][1], d[0][7], d[0][5], d[0][6], d[1][0], d[1][1])
               for d in divs]
     bsps = R.buysellpoints_from_level(seg_in, zs7, mv_in, div_in, level_id)
-    return bsps, divs, seg_in
+    div_rows: list = []
+    for d in divs:
+        idx = d[0][6]
+        if idx < len(seg_in):
+            price = seg_in[idx][1] if d[0][1] == "top" else seg_in[idx][2]
+        else:
+            price = 0.0
+        div_rows.append((d[0][0], d[0][1], idx, d[1][0], d[1][1], price))
+    return bsps, div_rows
 
 
 # ════════════════════════════════════════════════════════════
@@ -208,6 +211,7 @@ def compute_organic_signals(
 
     结构承自 interval_nesting 的 `compute_i_signals_rust_events`（PH 门控 / epoch
     门控 / 递归层 diff 门控逐字一致），布尔流与 Rust delta 接口逐重算点差分守卫。
+    背驰来源全部为增量缓存直读（见模块 docstring）。
     """
     n = len(closes)
     orch = R.RecursiveOrchestrator(max_levels=MAX_LEVELS)
@@ -221,11 +225,6 @@ def compute_organic_signals(
     level_seen: dict[int, set] = {}
     div_seen: dict[int, set] = {}        # ladder → 背驰事件去重
     settled_seen: dict[int, set] = {}    # ladder → settled move 身份键
-
-    # ladder2 背驰链的增量输入（confirmed 笔 append-only，前缀冻结）：
-    # zs_in2 = (i0, i1, high, low, True)；seg_in2 = (direction, high, low, i0, i1)。
-    zs_in2: list = []
-    seg_in2: list = []
 
     max_ladder = LADDER_SEG
     level_cache: dict[int, tuple] = {}
@@ -248,7 +247,7 @@ def compute_organic_signals(
         bar_buy = bar_buy_r1 or bar_buy_nr1
         bar_sell = bar_sell_r1 or bar_sell_nr1
 
-        # ── ladder1 bi PH + ladder2 笔中枢链：仅 stroke 计数增长时 ──
+        # ── ladder1 bi PH + ladder2 笔中枢事件/背驰：仅 stroke 计数增长时 ──
         bi_buy = False; bi_sell = False
         seg_buy1 = seg_sell1 = seg_sell_any = seg_buy_any = False
         sc = orch.stroke_count()
@@ -262,49 +261,20 @@ def compute_organic_signals(
                     if r1u or nr1u:
                         bi_sell = True
             last_stroke_n = sc
-            # ── 笔中枢全链重算（与 lib.rs current_bi_zhongshu_buysellpoints 逐字同链）──
-            # confirmed 笔 append-only：只追加新增（marshal O(S) 不可避免，构造 O(Δ)）。
-            strokes = orch.current_strokes()
-            for s in strokes[len(zs_in2):]:
-                if s[7]:
-                    zs_in2.append((s[0], s[1], s[3], s[4], True))
-                    seg_in2.append((s[2], s[3], s[4], s[0], s[1]))
-            # 运行时守卫（增量追加依赖的引擎不变量）：confirmed 笔是 strokes
-            # 的稳定前缀（仅尾部 unconfirmed）。若不变量破坏，从 len(zs_in2)
-            # 起的尾扫会静默跳过中间新 confirmed 笔 → 此处全量计数复核。
-            n_confirmed = sum(1 for s in strokes if s[7])
-            if len(zs_in2) != n_confirmed:
-                raise RuntimeError(
-                    f"confirmed 笔前缀不变量破坏@bar{i}: 增量缓存 "
-                    f"{len(zs_in2)} ≠ 全量计数 {n_confirmed}")
-            if len(zs_in2) >= 3:
-                zss2 = R.zhongshu_from_strokes(zs_in2)
-                mvs2 = R.moves_from_zhongshus(zss2, len(zs_in2))
-                mv_in2 = [m[0] for m in mvs2]
-                zs5 = [(z[0], z[1], z[2], z[3], z[5]) for z in zss2]
-                divs2 = R.divergences_from_moves_v1(
-                    seg_in2, zs5, mv_in2, BI_ZHONGSHU_LEVEL_ID)
-                zs7 = [(z[0], z[1], z[2], z[3], z[5], z[7], z[6]) for z in zss2]
-                div_in2 = [(d[0][0], d[0][1], d[0][7], d[0][5], d[0][6],
-                            d[1][0], d[1][1]) for d in divs2]
-                bsps2 = R.buysellpoints_from_level(
-                    seg_in2, zs7, mv_in2, div_in2, BI_ZHONGSHU_LEVEL_ID)
-                seg_buy1, seg_sell1, seg_sell_any, seg_buy_any, evs2 = \
-                    _scan_events_rust(bsps2, seg_seen)
-                if evs2:
-                    ev_by_ladder[LADDER_SEG] = evs2
-                dseen = div_seen.setdefault(LADDER_SEG, set())
-                dl2 = _scan_div_events(
-                    divs2,
-                    lambda k, _s=seg_in2: ((_s[k][1], _s[k][2])
-                                           if k < len(_s) else None),
-                    dseen)
-                if dl2:
-                    div_by_ladder[LADDER_SEG] = dl2
-                sseen = settled_seen.setdefault(LADDER_SEG, set())
-                up_settled[LADDER_SEG] = _new_settled_up_moves(mv_in2, sseen)
-            # 差分守卫：布尔导出必须与 Rust delta 接口（增量引擎，旧语义）一致——
-            # 这同时守卫"Python 组合链 ≡ Rust 增量链"的逐位等价。
+            # BSP 事件流：增量引擎缓存全量 marshal（O(B)/次——事件流的必要
+            # 代价，interval_nesting 既有声明）。
+            bsps2 = orch.current_bi_zhongshu_buysellpoints_inc(BI_ZHONGSHU_LEVEL_ID)
+            seg_buy1, seg_sell1, seg_sell_any, seg_buy_any, evs2 = \
+                _scan_events_rust(bsps2, seg_seen)
+            if evs2:
+                ev_by_ladder[LADDER_SEG] = evs2
+            # 背驰事件流：增量引擎 divs 层缓存直读（O(n_div)/次，零重算）
+            dl2 = _scan_div_events(
+                orch.current_bi_zhongshu_divergences_inc(BI_ZHONGSHU_LEVEL_ID),
+                div_seen.setdefault(LADDER_SEG, set()))
+            if dl2:
+                div_by_ladder[LADDER_SEG] = dl2
+            # 差分守卫：布尔导出必须与 Rust delta 接口（旧语义逐位移植）一致
             rb = orch.bi_zhongshu_new_signals(BI_ZHONGSHU_LEVEL_ID)
             if rb != (seg_buy1, seg_sell1, seg_sell_any, seg_buy_any):
                 raise RuntimeError(
@@ -320,21 +290,10 @@ def compute_organic_signals(
                 _scan_events_rust(orch.current_buysellpoints(), trend_seen)
             if evs3:
                 ev_by_ladder[LADDER_MOVE] = evs3
-            # 背驰重算：与引擎内部 compute_bsps 的输入逐字一致
-            # （segments 全量 / inc 中枢 / prev_moves / level_id=1 / macd_ctx=None）。
-            segs3 = orch.current_segments()
-            zss3 = orch.current_zhongshus()
-            mvs3 = orch.current_moves()
-            seg_in3 = [(t[0][4], t[0][5], t[0][6], t[0][2], t[0][3]) for t in segs3]
-            zs5_3 = [(z[0], z[1], z[2], z[3], z[5]) for z in zss3]
-            mv_in3 = [m[0] for m in mvs3]
-            divs3 = R.divergences_from_moves_v1(seg_in3, zs5_3, mv_in3, 1)
-            dseen3 = div_seen.setdefault(LADDER_MOVE, set())
+            # 背驰：inc_seg_div 增量缓存直读（与引擎内部 BSP 同源同步点）
             dl3 = _scan_div_events(
-                divs3,
-                lambda k, _s=seg_in3: ((_s[k][1], _s[k][2])
-                                       if k < len(_s) else None),
-                dseen3)
+                orch.current_trend_divergences(),
+                div_seen.setdefault(LADDER_MOVE, set()))
             if dl3:
                 div_by_ladder[LADDER_MOVE] = dl3
         # 走势级 move settle（O(1) delta 接口；move_epoch 未变返回空）
@@ -388,18 +347,14 @@ def compute_organic_signals(
                 seen = level_seen.get(lid)
                 if seen is None:
                     seen = set(); level_seen[lid] = seen
-                bsps_l, divs_l, seg_in_l = _level_bsps_with_divs(prev, zhs, mvs, lid)
+                bsps_l, div_rows_l = _level_bsps_with_divs(prev, zhs, mvs, lid)
                 b1, s1, sa, ba, evl = _scan_events_rust(bsps_l, seen)
                 buy1[ladder] = b1; sell1[ladder] = s1
                 sell_any[ladder] = sa; buy_any[ladder] = ba
                 if evl:
                     ev_by_ladder[ladder] = evl
-                dseen_l = div_seen.setdefault(ladder, set())
                 dl = _scan_div_events(
-                    divs_l,
-                    lambda k, _si=seg_in_l: ((_si[k][1], _si[k][2])
-                                             if k < len(_si) else None),
-                    dseen_l)
+                    div_rows_l, div_seen.setdefault(ladder, set()))
                 if dl:
                     div_by_ladder[ladder] = dl
                 sseen_l = settled_seen.setdefault(ladder, set())
@@ -428,7 +383,7 @@ def compute_organic_signals(
             bsp_events=bsp_events, div_events=div_events,
             up_move_settled=ums))
 
-        if i - last_progress >= 100_000:
+        if i - last_progress >= 200_000:
             print(f"    [{i / n * 100:5.1f}%] organic signal bar {i:,}/{n:,}",
                   flush=True)
             last_progress = i

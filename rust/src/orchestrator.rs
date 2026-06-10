@@ -34,7 +34,7 @@
 use crate::bi_engine::BiEngine;
 use crate::buysellpoint::{buysellpoints_from_level, BuySellPoint};
 use crate::divergence::{
-    divergences_from_moves_v1, MacdCtx, MoveView, SegView, ZsView,
+    divergences_from_moves_v1, Divergence, MacdCtx, MoveView, SegView, ZsView,
 };
 use crate::segment_layers::{
     IncrementalSegBsp, IncrementalSegDivergences, IncrementalSegZhongshu,
@@ -927,6 +927,17 @@ impl RecursiveOrchestrator {
     }
     pub fn zhongshus(&self) -> &[Zhongshu] {
         self.inc_seg_zs.zhongshus()
+    }
+    /// 走势级背驰（inc_seg_div 增量缓存直读；逐位等价于
+    /// `divergences_from_moves_v1(.., None)`）。只读 surfacing：背驰本就是
+    /// 买卖点层的中间产物（update_bsps_incremental 步骤），此前算完即弃。
+    /// 有效域 = `!enable_macd`（macd 回退路径走全量 compute_bsps，
+    /// inc_seg_div 不更新——调用方经 `macd_divergence_enabled` 判定）。
+    pub fn trend_divergences(&self) -> &[Divergence] {
+        self.inc_seg_div.current()
+    }
+    pub fn macd_divergence_enabled(&self) -> bool {
+        self.enable_macd
     }
     pub fn moves(&self) -> &[Move] {
         &self.prev_moves

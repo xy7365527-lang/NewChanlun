@@ -25,7 +25,7 @@
 use std::collections::HashSet;
 
 use crate::buysellpoint::{BspKind, BuySellPoint, IncrementalBsp, Side};
-use crate::divergence::{IncrementalDivergences, MoveView, SegView, ZsView};
+use crate::divergence::{Divergence, IncrementalDivergences, MoveView, SegView, ZsView};
 use crate::moves::IncrementalMoves;
 use crate::stroke::Direction;
 use crate::zhongshu::{BreakDir, IncrementalBiZhongshu};
@@ -173,6 +173,20 @@ impl IncrementalBiZhongshuBsp {
     /// 当前全量笔中枢买卖点（逐位等价于全量 `buysellpoints_from_level`）。
     pub fn current(&self) -> &[BuySellPoint] {
         self.bsp.current()
+    }
+
+    /// 当前全量背驰（divs 层增量缓存直读；逐位等价于全量
+    /// `divergences_from_moves_v1(.., None)`——见 IncrementalDivergences 文档）。
+    ///
+    /// 只读 surfacing：背驰本就是 BSP 链的中间产物（步骤 6），此前算完即弃。
+    /// 盘整背驰（kind=Consolidation）不构造任何 BSP → 不经此接口对调用方不可见。
+    pub fn divergences(&self) -> &[Divergence] {
+        self.divs.current()
+    }
+
+    /// confirmed 笔 SegView 序列（append-only；背驰段端点价锚定用）。
+    pub fn stroke_views(&self) -> &[SegView] {
+        &self.segs
     }
 
     /// **delta 信号接口**——返回自上次以来新触发的 confirmed 买卖点信号，O(window) 摊还。
