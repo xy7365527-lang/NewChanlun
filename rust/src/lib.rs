@@ -24,6 +24,7 @@ mod ph;
 mod segment;
 mod segment_layers;
 mod stroke;
+mod trading;
 mod zhongshu;
 
 use std::collections::HashSet;
@@ -1283,9 +1284,272 @@ impl PyRecursiveOrchestrator {
     }
 }
 
+// ════════════════════════════════════════════════════════════
+// 有机赋格 v2 交易层绑定（trading/，M1 磁带注入接口）
+// ════════════════════════════════════════════════════════════
+
+/// 信号磁带容器。从列式数组一次性构造（O(N) marshal，每数据集一次），
+/// 之后所有变体回测共享，不再跨边界（compute-once）。
+#[pyclass(name = "OrganicTape")]
+struct PyOrganicTape {
+    inner: trading::tape::SignalTape,
+}
+
+fn parse_bsp_kind(s: &str) -> PyResult<BspKind> {
+    match s {
+        "type1" => Ok(BspKind::Type1),
+        "type2" => Ok(BspKind::Type2),
+        "type3" => Ok(BspKind::Type3),
+        _ => Err(pyo3::exceptions::PyValueError::new_err(format!("非法 BSP kind: {s:?}"))),
+    }
+}
+
+fn parse_side(s: &str) -> PyResult<Side> {
+    match s {
+        "buy" => Ok(Side::Buy),
+        "sell" => Ok(Side::Sell),
+        _ => Err(pyo3::exceptions::PyValueError::new_err(format!("非法 side: {s:?}"))),
+    }
+}
+
+#[pymethods]
+impl PyOrganicTape {
+    /// 列式构造。bsp_flat 行 =
+    ///   (bar, ladder, kind, side, seg_idx, confirmed, cs, zd, zg, price)；
+    /// div_flat 行 = (bar, ladder, kind, direction, seg_idx, force_a, force_c, price)
+    ///   （side 不传——direction 的纯函数，v1R §2.1）。
+    /// 布尔行 = 11 位掩码（Python 侧 sum(1<<k …) 打包）。
+    /// fail-fast：close 非有限、cs 存在而 zd/zg 缺失、非法枚举串、越界索引。
+    #[staticmethod]
+    #[allow(clippy::too_many_arguments, clippy::type_complexity)]
+    fn from_columns(
+        closes: Vec<f64>,
+        buy1: Vec<u16>,
+        sell1: Vec<u16>,
+        sell_any: Vec<u16>,
+        buy_any: Vec<u16>,
+        up_settled: Vec<u16>,
+        max_ladder: Vec<u8>,
+        type2_buy: Vec<bool>,
+        bsp_flat: Vec<(i64, u8, String, String, i64, bool, Option<i64>, Option<f64>, Option<f64>, f64)>,
+        div_flat: Vec<(i64, u8, String, String, i64, f64, f64, f64)>,
+    ) -> PyResult<Self> {
+        use trading::tape::{BarSig, SignalTape};
+        use trading::types::{BspClass, BspEvent as TBspEvent, DivEvent as TDivEvent, LadderMask, MAX_LADDER};
+        let n = closes.len();
+        for (name, len) in [
+            ("buy1", buy1.len()),
+            ("sell1", sell1.len()),
+            ("sell_any", sell_any.len()),
+            ("buy_any", buy_any.len()),
+            ("up_settled", up_settled.len()),
+            ("max_ladder", max_ladder.len()),
+            ("type2_buy", type2_buy.len()),
+        ] {
+            if len != n {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "列长不一致：closes={n} vs {name}={len}"
+                )));
+            }
+        }
+        let mut bars: Vec<BarSig> = (0..n)
+            .map(|i| {
+                BarSig {
+                    close: closes[i],
+                    buy1: LadderMask(buy1[i]),
+                    sell1: LadderMask(sell1[i]),
+                    sell_any: LadderMask(sell_any[i]),
+                    buy_any: LadderMask(buy_any[i]),
+                    max_ladder: max_ladder[i],
+                    type2_buy: type2_buy[i],
+                    up_move_settled: LadderMask(up_settled[i]),
+                    ..Default::default()
+                }
+            })
+            .collect();
+        for (i, &c) in closes.iter().enumerate() {
+            if !c.is_finite() {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "close 含非有限值（bar {i}）——NaN 必须在数据清洗期删除（T7 纪律）"
+                )));
+            }
+        }
+        for (bar, lad, kind, side, seg_idx, confirmed, cs, zd, zg, price) in bsp_flat {
+            let (bar_us, lad_us) = (bar as usize, lad as usize);
+            if bar_us >= n || lad_us >= MAX_LADDER {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "bsp 事件越界：bar={bar} ladder={lad}"
+                )));
+            }
+            if cs.is_some() && (zd.is_none() || zg.is_none()) {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "bsp 事件 cs 存在而 zd/zg 缺失（bar {bar}）——CenterBook 算术前提"
+                )));
+            }
+            let class = BspClass::from_parts(parse_bsp_kind(&kind)?, parse_side(&side)?);
+            bars[bar_us]
+                .bsp_events
+                .get_or_insert_with(|| Box::new(<[Vec<TBspEvent>; MAX_LADDER]>::default()))
+                [lad_us]
+                .push(TBspEvent { class, seg_idx, confirmed, cs, zd, zg, price });
+        }
+        for (bar, lad, kind, direction, seg_idx, force_a, force_c, price) in div_flat {
+            let (bar_us, lad_us) = (bar as usize, lad as usize);
+            if bar_us >= n || lad_us >= MAX_LADDER {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "div 事件越界：bar={bar} ladder={lad}"
+                )));
+            }
+            let dkind = match kind.as_str() {
+                "trend" => divergence::DivKind::Trend,
+                "consolidation" => divergence::DivKind::Consolidation,
+                _ => {
+                    return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                        "非法 div kind: {kind:?}"
+                    )))
+                }
+            };
+            let dir = match direction.as_str() {
+                "up" => Direction::Up,
+                "down" => Direction::Down,
+                _ => {
+                    return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                        "非法 div direction: {direction:?}"
+                    )))
+                }
+            };
+            bars[bar_us]
+                .div_events
+                .get_or_insert_with(|| Box::new(<[Vec<TDivEvent>; MAX_LADDER]>::default()))
+                [lad_us]
+                .push(TDivEvent { kind: dkind, direction: dir, seg_idx, force_a, force_c, price });
+        }
+        Ok(PyOrganicTape { inner: SignalTape { bars } })
+    }
+
+    fn n_bars(&self) -> usize {
+        self.inner.bars.len()
+    }
+}
+
+/// 单变体回测。返回 dict（trades/counters/归因表/diag）。
+/// variant ∈ {V0|O0, V1f, V1r, V2, V3, V3p, V4, VS}（v2 §8.1 矩阵）。
+#[pyfunction]
+#[pyo3(signature = (tape, variant, floor_ladder = 2, stop_mode = "none", diag = false))]
+fn run_organic_rust(
+    py: Python<'_>,
+    tape: &PyOrganicTape,
+    variant: &str,
+    floor_ladder: usize,
+    stop_mode: &str,
+    diag: bool,
+) -> PyResult<PyObject> {
+    use pyo3::types::PyDict;
+    let cfg = trading::config::variant(variant).ok_or_else(|| {
+        pyo3::exceptions::PyValueError::new_err(format!("未知变体: {variant:?}"))
+    })?;
+    let sm = trading::config::StopMode::parse(stop_mode).ok_or_else(|| {
+        pyo3::exceptions::PyValueError::new_err(format!("非法 stop_mode: {stop_mode:?}"))
+    })?;
+    let res = trading::runner::run_organic(&tape.inner, floor_ladder, &cfg, sm, diag)
+        .map_err(pyo3::exceptions::PyValueError::new_err)?;
+
+    let out = PyDict::new(py);
+    let trades: Vec<(i64, f64, i64, f64, f64, String, u32, f64)> = res
+        .trades
+        .iter()
+        .map(|t| {
+            (
+                t.entry_bar,
+                t.entry_price,
+                t.exit_bar,
+                t.exit_price,
+                t.pnl_pct,
+                t.exit_reason.clone(),
+                t.n_short_diffs,
+                t.cost_basis_at_exit,
+            )
+        })
+        .collect();
+    out.set_item("trades", trades)?;
+    let counters = PyDict::new(py);
+    for (k, v) in res.counters.py_items() {
+        counters.set_item(k, v)?;
+    }
+    counters.set_item(
+        "fatigue_open_bars_by_ladder",
+        res.counters.fatigue_open_bars_by_ladder.to_vec(),
+    )?;
+    out.set_item("counters", counters)?;
+    out.set_item("rev_attempts_by_ladder", res.rev_attempts_by_ladder.to_vec())?;
+    out.set_item("rev_opens_by_ladder", res.rev_opens_by_ladder.to_vec())?;
+    out.set_item("ladder_attribution", res.ladder_attribution.to_vec())?;
+    out.set_item("ladder_held_bars", res.ladder_held_bars.to_vec())?;
+    out.set_item("leg_contribution", res.leg_contribution.clone())?;
+    out.set_item("n_addon", res.n_addon)?;
+    out.set_item("n_core_stops", res.n_core_stops)?;
+    match &res.diag {
+        None => out.set_item("diag", py.None())?,
+        Some(diags) => {
+            // 头部 10 元组 + trace 行（6 元组, 7 元组）嵌套（PyO3 元组 ≤12 限制）
+            #[allow(clippy::type_complexity)]
+            let rows: Vec<(
+                (i64, f64, i64, f64, String, usize, f64, f64, f64, bool),
+                Vec<((i64, &'static str, i64, f64, i64, f64), (f64, f64, f64, bool, f64, f64, f64))>,
+            )> = diags
+                .iter()
+                .map(|d| {
+                    let header = (
+                        d.entry_bar,
+                        d.entry_price,
+                        d.exit_bar,
+                        d.exit_price,
+                        d.exit_reason.clone(),
+                        d.entry_ladder,
+                        d.pnl_pct,
+                        d.cost_basis_exit,
+                        d.total_shares_exit,
+                        d.reached_earning,
+                    );
+                    let diffs = d
+                        .diffs
+                        .iter()
+                        .map(|r| {
+                            (
+                                (
+                                    r.slot.py_key(),
+                                    r.slot.leg_kind(),
+                                    r.sell_bar,
+                                    r.sell_price,
+                                    r.buy_bar,
+                                    r.buy_price,
+                                ),
+                                (
+                                    r.shares,
+                                    r.diff,
+                                    r.profit,
+                                    r.was_earning,
+                                    r.shares_delta,
+                                    r.cost_basis_before,
+                                    r.cost_basis_after,
+                                ),
+                            )
+                        })
+                        .collect();
+                    (header, diffs)
+                })
+                .collect();
+            out.set_item("diag", rows)?;
+        }
+    }
+    Ok(out.into())
+}
+
 /// Python 模块定义。
 #[pymodule]
 fn newchan_rust(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_class::<PyOrganicTape>()?;
+    m.add_function(wrap_pyfunction!(run_organic_rust, m)?)?;
     m.add_class::<PyBiEngine>()?;
     m.add_class::<PyOnlineMacdState>()?;
     m.add_class::<PyRecursiveOrchestrator>()?;
