@@ -376,6 +376,24 @@ def test_same_bar_t5_close_then_t1_reopen():
     assert (rev_rows[1]["sell_price"], rev_rows[1]["buy_price"]) == (96.0, 90.0)
 
 
+def test_o1v_master_exit_stays_p5():
+    """O1v 拆解轴：master_seg_end=False 时 master 不被段终结三触发清仓
+    （entry 级 confirmed type3 卖只作 voice T1），出场仍须 sell1。"""
+    tape = entry_prefix() + [
+        # entry 级（3）confirmed type3 卖：rev_mode 默认形态会清仓；O1v 不清
+        bar(102.0, ev={3: [bsp("type3", "sell", 9, True, 30, 90.0, 98.0)],
+                       2: [bsp("type3", "sell", 6, True, 10, 95.0, 99.0)]}),
+        bar(96.0, ev={2: [bsp("type1", "buy", 7, True, 11, 92.0, 96.0)]}),
+        bar(97.0, sell1=(3,)),
+    ]
+    trades_b, _ = _run(tape, OrganicConfig(rev_mode=True, rev_gate=False))
+    trades_v, extra_v = _run(tape, OrganicConfig(rev_mode=True, rev_gate=False,
+                                                 master_seg_end=False))
+    assert trades_b[0].exit_bar == 2          # 捆绑形态：type3 卖 bar 即清仓
+    assert trades_v[0].exit_bar == 4          # O1v：持至 sell1 bar
+    assert extra_v["counters"]["n_rev_open"] == 1   # voice REV 腿照常
+
+
 def test_structure_sizing_no_center_no_leg():
     """O3：sizing=structure 时无存活中枢的层 frac=0 → 开腿被拒（操作权=结构域）。"""
     # 不注册任何中枢（entry_prefix 之外手工构造）——

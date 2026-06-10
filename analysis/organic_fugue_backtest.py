@@ -73,8 +73,8 @@ REF_JSON = DATA_DIR / "interval_nesting_reverse_backtest.json"
 
 SYMBOLS = [s.strip().upper()
            for s in os.environ.get("BT_SYMBOLS", "OKLO,QQQ,BRN").split(",")]
-VARIANTS = ["O1", "O2", "O3", "O4", "O2c", "O2n"]
-EXPLORATORY = {"O2c", "O2n"}
+VARIANTS = ["O1", "O2", "O3", "O4", "O2c", "O2n", "O1v"]
+EXPLORATORY = {"O2c", "O2n", "O1v"}
 FLOOR = LADDER_SEG
 FEE_BPS = (2, 5, 10)
 
@@ -281,6 +281,8 @@ _VAR_DESC = {
     "O4": "O3 + earning 反作用（31课：cost=0 后 master 出场升级）",
     "O2c": "O2 + REV 关腿放宽 candidate（exploratory）",
     "O2n": "O2 + REV 关腿区间套（candidate ∧ 次级别买点，exploratory）",
+    "O1v": "voice-only REV：master 出场保持 P5 sell1，仅声部加 REV 腿"
+           "（rev_mode 捆绑轴的归因拆解，exploratory）",
 }
 
 
@@ -336,7 +338,7 @@ def _write_report(results: dict) -> None:
         L.append(f"| {s} | B0(无短差) | {b0m['total_compound']:+.1f} | "
                  f"{r['B0']['excess']:+.1f} | +0.0 | — | {b0m['max_dd']:+.1f} | "
                  f"{b0m['n']} | — | — | — |")
-        for v in ("P5", "O1", "O2", "O3", "O4", "O2c", "O2n"):
+        for v in ("P5", "O1", "O2", "O3", "O4", "O2c", "O2n", "O1v"):
             src = r["variants"].get(v) or r.get(v)
             if not src:
                 continue
@@ -428,6 +430,7 @@ def _verdict(results: dict) -> dict:
     d_o2 = {s: _delta(results[s], "O2") for s in syms}
     d_o3 = {s: _delta(results[s], "O3") for s in syms}
     d_o4 = {s: _delta(results[s], "O4") for s in syms}
+    d_o1v = {s: _delta(results[s], "O1v") for s in syms}
 
     def npos(d):
         return sum(1 for v in d.values() if v is not None and v > 0)
@@ -467,7 +470,8 @@ def _verdict(results: dict) -> dict:
     else:
         c4 = f"earning 触发 {earning}；O4 vs O3 Δ：{d_o4} vs {d_o3}"
     return {"delta_o1": d_o1, "delta_o2": d_o2, "delta_o3": d_o3,
-            "delta_o4": d_o4, "gate_open_rate_o2": gate_rates,
+            "delta_o4": d_o4, "delta_o1v": d_o1v,
+            "gate_open_rate_o2": gate_rates,
             "earning_triggers": earning, "rev_quality_o2": rev_q,
             "criterion_1": c1, "criterion_3": c3, "criterion_4": c4}
 
@@ -482,7 +486,10 @@ def _result_package(results: dict) -> list[str]:
              f"Δ(O2)={v['delta_o2']}；判据2（门开率前置量）—— O2 门开率 = "
              f"{v['gate_open_rate_o2']}；判据3（规模假设）—— {v['criterion_3']}，"
              f"Δ(O3)={v['delta_o3']}；判据4（earning 假设）—— {v['criterion_4']}。"
-             f"REV 腿独立质量（判据5）：{v['rev_quality_o2']}。\n")
+             f"REV 腿独立质量（判据5）：{v['rev_quality_o2']}。"
+             f"归因拆解（O1v，exploratory）：Δ(O1v)={v['delta_o1v']}——"
+             f"O1v 与 O1 的差 = master 段终结触发扩展的独立贡献"
+             f"（O1v 仅 voice 加 REV 腿，master 出场保持 P5 sell1）。\n")
     L.append("**2. 定义依据**：第38课段终结三触发与三岔买回（T1/T5 映射表，设计 "
              "§2.2）；第41课衰竭门（§2.3，门只约束 OPEN_REV 不约束域腿）；第40课"
              "结构规模（振幅正比为 L0 推导，本回测即其 L2 裁决）；第31/43课两阶段"

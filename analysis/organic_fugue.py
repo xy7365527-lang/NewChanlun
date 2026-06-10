@@ -132,9 +132,16 @@ class OrganicConfig:
 
     有机扩展轴（设计 §5.2/§5.3/§5.4/§5.6）：
       rev_mode   : REV 腿 + 段终结判定（38课三触发：confirmed type1 卖 ∨
-                   div(up,*) 卖侧 ∨ confirmed type3 卖）。该触发集同时作用于
-                   master 出场（§5.2 master 表"同 T1 触发"）——38课段终结判定
-                   是一根轴，不拆分。False 时 master 出场 = sell1（P5 逐字）。
+                   div(up,*) 卖侧 ∨ confirmed type3 卖）。该触发集默认同时
+                   作用于 master 出场（§5.2 master 表"同 T1 触发"）。
+                   False 时 master 出场 = sell1（P5 逐字）。
+      master_seg_end : master 出场是否采用段终结三触发（仅 rev_mode 下有意义；
+                   默认 True = 设计 §5.2 原文形态）。False = master 出场保持
+                   sell1（P5 逐字），仅 voice 加 REV 腿——探索性拆解轴
+                   （O1v）：OKLO 首轮数据显示 rev 腿独立净现金为正而 vs_B0
+                   深负、交易数 220→803，归因指向 master 触发扩展砍暴露而
+                   非 voice REV 腿本身；该混淆必须可分解才能正确裁决 REV
+                   假设的边界条件（formalization-validity-domain）。
       rev_gate   : 41课门。True=OPEN_REV 须 fatigue[u(k)] 非空；False=门不设
                    （O1 消融：测段尺度反向裸 alpha）。master 门恒开（§2.3：
                    master 是最高声部，其卖点本身就是全局衰竭判定）。
@@ -165,6 +172,7 @@ class OrganicConfig:
     osc_buy_sub: bool = False
     # ── 有机扩展轴 ──
     rev_mode: bool = False
+    master_seg_end: bool = True
     rev_gate: bool = False
     rev_close: str = "conf"
     sizing: str = "equal"
@@ -187,6 +195,9 @@ ORGANIC_VARIANTS: dict[str, OrganicConfig] = {
     # 探索性（§8.2 判据6：不进主判决）
     "O2c": OrganicConfig(rev_mode=True, rev_gate=True, rev_close="cand"),
     "O2n": OrganicConfig(rev_mode=True, rev_gate=True, rev_close="nested"),
+    # O1v：voice-only REV（master 出场保持 P5 sell1）——拆解 rev_mode 捆绑轴
+    # 的归因混淆（master 触发扩展 vs voice REV 腿），exploratory
+    "O1v": OrganicConfig(rev_mode=True, master_seg_end=False, rev_gate=False),
 }
 
 
@@ -770,11 +781,12 @@ def run_organic(
                     _close(i, c, f"exit_{ladder_name(exit_lad)}_earning_upgrade")
             else:
                 # master RIDE：段终结判定
-                if cfg.rev_mode:
+                if cfg.rev_mode and cfg.master_seg_end:
                     master_trigger = LevelOperatingUnit.seg_end_trigger(
                         ev_entry, dev_entry) or sig.sell1[entry_ladder]
                 else:
-                    master_trigger = sig.sell1[entry_ladder]  # P5 逐字
+                    # P5 逐字（rev 关，或 O1v：voice-only REV 拆解轴）
+                    master_trigger = sig.sell1[entry_ladder]
                 if master_trigger:
                     if (cfg.earning_reaction and pos.earning):
                         # §5.6：清仓降格为 entry 级 REV 腿（金额守恒挣股数）；
@@ -886,7 +898,8 @@ def run_organic(
             "theta_amp": cfg.theta_amp,
             "same_center_close": cfg.same_center_close,
             "osc_mode": cfg.osc_mode, "osc_buy_sub": cfg.osc_buy_sub,
-            "rev_mode": cfg.rev_mode, "rev_gate": cfg.rev_gate,
+            "rev_mode": cfg.rev_mode, "master_seg_end": cfg.master_seg_end,
+            "rev_gate": cfg.rev_gate,
             "rev_close": cfg.rev_close, "sizing": cfg.sizing,
             "earning_reaction": cfg.earning_reaction,
         },
