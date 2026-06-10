@@ -459,11 +459,18 @@ def _verdict(results: dict) -> dict:
         c1 = "段尺度反向被否证（O1、O2 全负）——框架收缩为 P5+规模轴"
     else:
         c1 = f"混合结果：O1 正 {npos(d_o1)}/{n_sym}，O2 正 {npos(d_o2)}/{n_sym}"
-    # 判据 3
+    # 判据 3（附效应量与框架污染降级检查）
     n3 = sum(1 for s in syms
              if d_o3[s] is not None and d_o2[s] is not None and d_o3[s] > d_o2[s])
-    c3 = (f"结构规模{'成立' if n3 >= max(2, n_sym - 1) and n_sym >= 2 else '不成立'}"
-          f"（Δ(O3)>Δ(O2) 于 {n3}/{n_sym} 标的）")
+    eff3 = {s: (round(d_o3[s] - d_o2[s], 1)
+                if d_o3[s] is not None and d_o2[s] is not None else None)
+            for s in syms}
+    rev_refuted = (npos(d_o1) == 0 and npos(d_o2) == 0)
+    c3 = (f"Δ(O3)>Δ(O2) 于 {n3}/{n_sym} 标的（O3−O2 效应量 pp：{eff3}）")
+    if rev_refuted:
+        c3 += ("。⚠ 降级：本对比在 REV 被否证的框架内进行（O3 的规模轴作用于"
+               "含 REV 腿的声部集），不能据此替换 E8 均分——规模假设需在 P5 框架"
+               "（无 REV）上独立重验才有裁决力")
     # 判据 4
     if all(v == 0 for v in earning.values()):
         c4 = "O4 无定义域（earning 触发率=0，引 complete_fugue/E9 先例诚实落盘）"
@@ -514,13 +521,18 @@ def _result_package(results: dict) -> list[str]:
              "概念分离史；『fatigue/衰竭』作为显式概念此前未单独立谱系条——若后续"
              "发生盘背衰竭 vs 趋势背驰衰竭的概念分离，需新谱系记录（设计 §9-5 预留）。\n")
     L.append("**6. 影响声明**：(a) 新增 `organic_signals.py`（信号层公共模块，"
-             "ladder2 背驰链全量重算成本声明见其 docstring）/ `organic_fugue.py`"
-             "（LOU/FatigueMonitor/SizeAllocator/OrganicLedger/run_organic）/ "
-             "`test_organic_fugue.py`（22 单测）/ 本脚本与报告。(b) "
+             "背驰流 = 增量引擎缓存只读直读，OKLO 447K 信号层 18s）/ "
+             "`organic_fugue.py`（LOU/FatigueMonitor/SizeAllocator/OrganicLedger/"
+             "run_organic）/ `test_organic_fugue.py`（24 单测）/ 本脚本与报告。(b) "
              "`fugue_version_i.BarSignalI` 增 div_events/up_move_settled 默认空字段"
              "（旧消费方 bit-exact）；`interval_nesting_reverse_backtest.py` 信号层"
              "改 import 公共模块（OKLO 447K 新旧磁带逐位对比守卫通过）。(c) Rust "
-             "引擎零改动；`fugue_version_i.run_version_i`/`_SharedFugue` 零改动。"
+             "引擎增**加法式只读 surfacing 接口**（divergences 是 BSP 链既有中间"
+             "产物，算完即弃 → current_bi_zhongshu_divergences_inc / "
+             "current_trend_divergences 暴露；不触碰任何现有计算路径，37 项差分"
+             "测试不变）——设计 §6『零改动』前提（事件均可从现状态/纯函数得出）"
+             "对盘整背驰不成立，经编排者 O(N) 裁决修订（首版全链重算 O(S²) "
+             "402s 被否定）。`run_version_i`/`_SharedFugue` 零改动。"
              "(d) futures 真实空头（INV-3/F1）未实现（设计标注主线外扩展，"
              "run_organic 对 market_mode='futures' 显式抛错）。\n")
     return L
