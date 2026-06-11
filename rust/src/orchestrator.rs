@@ -455,7 +455,8 @@ impl LevelEngine {
             .collect();
 
         let curr_zhongshus = zhongshu_from_components(&comps, self.level_id);
-        let curr_moves = moves_from_level_zhongshus(&curr_zhongshus);
+        // 修复A：num_components = completed 组件数，末组 seg_end 扩展与 level-1 对齐。
+        let curr_moves = moves_from_level_zhongshus(&curr_zhongshus, Some(comps.len()));
         let pv = level_zs_price_views(&curr_zhongshus);
         let curr_moves = attach_persistence(&curr_moves, &pv);
 
@@ -843,12 +844,25 @@ impl RecursiveOrchestrator {
             self.level_id,
             n_seg,
         );
+        // volatile_floor：第一个未 commit move 的 seg_start（moves 空 → 0）。
+        // B2 后易变 div 的 seg_c_end 可远落于 stable_anchor 之前，anchor 须以此为上限。
+        let volatile_floor = self
+            .move_view_mirror
+            .get(self.inc_seg_div.processed_moves())
+            .map(|m| m.seg_start)
+            .unwrap_or(if self.move_view_mirror.is_empty() {
+                0
+            } else {
+                i64::MAX
+            });
         self.inc_bsp.update(
             &self.seg_view_mirror,
             &self.zs_view_mirror,
             &self.zs_break_mirror,
             &self.move_view_mirror,
             self.inc_seg_div.current(),
+            self.inc_seg_div.stable_len(),
+            volatile_floor,
         );
     }
 

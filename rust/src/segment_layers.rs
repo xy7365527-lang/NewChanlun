@@ -222,10 +222,14 @@ impl IncrementalSegDivergences {
     ) {
         let anchor = n_seg as i64 - DIV_WINDOW;
 
-        // 1. commit 新 move（seg_end < anchor，依赖全固定 → div 永久）。按序推进。
+        // 1. commit 新 move（依赖全固定 → div 永久）。按序推进。
+        //    B2 后趋势 C 段窗口可越入下一 settled 中枢覆盖区 ⟹ commit 判据从
+        //    `mv.seg_end < anchor` 收紧为 `detect_dep_end < anchor`（最大段依赖
+        //    含 B2 窗口上限；pending move 窗口无界 = i64::MAX 永不 commit）。
         while self.processed_moves < moves.len() {
             let mv = &moves[self.processed_moves];
-            if mv.seg_end >= 0 && mv.seg_end < anchor {
+            let dep = crate::divergence::detect_dep_end(zss, mv);
+            if mv.seg_end >= 0 && dep < anchor {
                 if let Some(d) = detect_one(segs, zss, mv, level_id) {
                     self.stable_divs.push(d);
                 }
@@ -248,6 +252,19 @@ impl IncrementalSegDivergences {
     /// 当前全量背驰（逐位等价于 `divergences_from_moves_v1(.., None)`）。
     pub fn current(&self) -> &[Divergence] {
         &self.full_divs
+    }
+
+    /// 永久前缀长度（`current()[..stable_len]` 跨调用逐位不变）——
+    /// IncrementalSegBsp 的 div frontier 推进边界来源。单调非减。
+    pub fn stable_len(&self) -> usize {
+        self.stable_divs.len()
+    }
+
+    /// commit frontier：已 commit 的 move 前缀长度（单调非减）。
+    /// `moves[processed_moves]` 即第一个未 commit（易变）move——
+    /// IncrementalSegBsp 的 volatile_floor 来源。
+    pub fn processed_moves(&self) -> usize {
+        self.processed_moves
     }
 }
 
@@ -285,6 +302,10 @@ pub struct IncrementalSegBsp {
     /// seg_idx < stable_anchor 的 bsp（永久固定，按 seg_idx 升序）。
     stable_bsps: Vec<BuySellPoint>,
     stable_anchor: i64,
+    /// div frontier：已确认永久 finalize 的 div 前缀（仅在 divs 永久前缀内推进）。
+    /// B2 后 div.seg_c_end 跨 move 不再全局单调（趋势 C 段可越入下一中枢覆盖区，
+    /// 与后继盘整 div 形成局部逆序）⟹ 不能 partition_point 二分，改单调 frontier。
+    div_done: usize,
     /// 当前全量 bsp（stable + 尾部，缓存供 current() 返回）。
     full_bsps: Vec<BuySellPoint>,
 }
@@ -295,6 +316,7 @@ impl IncrementalSegBsp {
             level_id,
             stable_bsps: Vec::new(),
             stable_anchor: 0,
+            div_done: 0,
             full_bsps: Vec::new(),
         }
     }
@@ -302,10 +324,17 @@ impl IncrementalSegBsp {
     pub fn reset(&mut self) {
         self.stable_bsps.clear();
         self.stable_anchor = 0;
+        self.div_done = 0;
         self.full_bsps.clear();
     }
 
     /// 增量更新买卖点。`divs`：纯结构性背驰（inc_seg_div 输出，macd=None）。
+    /// `divs_stable_len`：divs 的永久前缀长度（`IncrementalSegDivergences::stable_len`）——
+    /// frontier 只在永久前缀内推进（易变尾 div 索引可漂移，不可缓存其位置）。
+    /// `volatile_floor`：第一个未 commit move 的 seg_start（`IncrementalSegDivergences::
+    /// processed_moves` 处 move；moves 空 → 0）——B2 后易变 div 的 C 段极值可远落于
+    /// `n - SAFE_W` 之前，anchor 以此为上限保证 stable 区无易变源（单调：commit
+    /// frontier 前进 ⟹ floor 前进）。
     pub fn update(
         &mut self,
         segs: &[SegView],
@@ -313,9 +342,13 @@ impl IncrementalSegBsp {
         zs_break: &[(bool, BreakDir, i64)],
         moves: &[MoveView],
         divs: &[Divergence],
+        divs_stable_len: usize,
+        volatile_floor: i64,
     ) {
         let n_seg = segs.len();
-        let new_anchor = (n_seg as i64 - BSP_SAFE_W).max(self.stable_anchor);
+        let new_anchor = (n_seg as i64 - BSP_SAFE_W)
+            .min(volatile_floor)
+            .max(self.stable_anchor);
         let src_from = (new_anchor - BSP_SRC_MARGIN).max(0);
 
         // ── 窗口 lookup：seg→move 映射，仅覆盖 [src_from, n_seg)（每次重建，O(窗口)）──
@@ -348,9 +381,15 @@ impl IncrementalSegBsp {
         // ── 尾部 type1：seg_c_end >= stable_anchor（**未 finalize** 的 type1；已 finalize 的
         //    [src_from, stable_anchor) type1 由 stable_t1 提供——二者按 stable_anchor 严格不相交，
         //    避免同一 type1 在 stable_t1+tail_type1 双重计入 → type2 重复（bar 350200 发散根因））。
-        let dstart = divs.partition_point(|d| d.seg_c_end < self.stable_anchor);
+        //    frontier：只越过「永久前缀内且 seg_c_end < stable_anchor」的 div（B2 后
+        //    seg_c_end 非全局单调，不可二分；内层 continue 过滤 frontier 之后的已 finalize 项）。
+        while self.div_done < divs_stable_len.min(divs.len())
+            && divs[self.div_done].seg_c_end < self.stable_anchor
+        {
+            self.div_done += 1;
+        }
         let mut tail_type1: Vec<BuySellPoint> = Vec::new();
-        for div in &divs[dstart..] {
+        for div in &divs[self.div_done..] {
             if div.kind != DivKind::Trend || div.seg_c_end < self.stable_anchor {
                 continue;
             }

@@ -160,13 +160,14 @@ impl IncrementalBiZhongshuBsp {
         self.divs
             .update(closed_mvs, pending_mv, &self.segs, &zviews, self.level_id);
 
-        // 7. 买卖点增量。
+        // 7. 买卖点增量（divs_stable_len = closed div 数，frontier 推进边界）。
         self.bsp.update(
             &self.segs,
             &zviews,
             &zbreak,
             &self.move_views,
             self.divs.current(),
+            self.divs.stable_len(),
         );
     }
 
@@ -401,3 +402,4 @@ mod differential_tests {
         }
     }
 }
+

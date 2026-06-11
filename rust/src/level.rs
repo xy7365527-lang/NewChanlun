@@ -9,10 +9,13 @@
 //! ## 与 level-1（zhongshu.rs / moves.rs）的差异
 //! 1. 输出中枢类型为 `LevelZhongshu`（comp_start/comp_end 同时充当位置与锚，
 //!    因 component_idx == 在 settled 列表中的位置）。
-//! 2. `moves_from_level_zhongshus` **无 num_segments 调整**——末组 seg_end 直接取
-//!    last_zs.comp_end（不像 level-1 的 next_seg_start-1 / num_segments-1 扩展）。
+//! 2. `moves_from_level_zhongshus` 的 seg_end 语义**与 level-1 对齐**（修复A，
+//!    engine_bsp_gap_diagnosis §1.3/§4）：非末组 seg_end = 下一组首中枢 comp_start - 1，
+//!    末组 = num_components - 1。曾直接取 last_zs.comp_end，使趋势背驰 C 段
+//!    （离开最后中枢后的组件）恒空（c_start = comp_end+1 > c_end = comp_end）
+//!    → 递归层 type1/type2 结构性不存在（OKLO 447K 16/16 实证）。
 //! 3. Move.first_seg_s0 = first_zs.comp_start，last_seg_s1 = last_zs.comp_end
-//!    （level-1 用 first_zs.first_seg_s0 / last_zs.last_seg_s1）。
+//!    （level-1 用 first_zs.first_seg_s0 / last_zs.last_seg_s1；锚点不随 seg_end 扩展）。
 //!
 //! ## 逐位等价要点
 //! 与 zhongshu.rs / moves.rs 同：中枢/走势构造**无浮点算术**，只有比较 + 三元
@@ -210,17 +213,31 @@ fn greedy_group(settled_zs: &[LevelZhongshu]) -> Vec<(Vec<usize>, GroupDir)> {
 }
 
 /// 将一个 group 转换为 Move。移植自 `_group_to_move`。
+///
+/// seg_end 扩展语义与 level-1 `moves::group_to_move` 逐字一致（修复A）：
+/// 非末组 = next_seg_start - 1；末组 = num_components - 1（>0 时）。
 fn group_to_move(
     offsets: &[usize],
     direction: GroupDir,
     settled_zs: &[LevelZhongshu],
     settled_indices: &[usize],
+    next_seg_start: Option<i64>,
+    num_components: Option<usize>,
 ) -> Move {
     let first_zs = &settled_zs[offsets[0]];
     let last_zs = &settled_zs[offsets[offsets.len() - 1]];
     let zs_count = offsets.len();
     let zs_start = settled_indices[offsets[0]];
     let zs_end = settled_indices[offsets[offsets.len() - 1]];
+
+    let mut base_seg_end: i64 = last_zs.comp_end as i64;
+    if let Some(nss) = next_seg_start {
+        base_seg_end = nss - 1;
+    } else if let Some(nc) = num_components {
+        if nc > 0 {
+            base_seg_end = nc as i64 - 1;
+        }
+    }
 
     let (kind, move_dir) = if zs_count >= 2 {
         let d = match direction {
@@ -255,7 +272,7 @@ fn group_to_move(
         kind,
         direction: move_dir,
         seg_start: first_zs.comp_start as i64,
-        seg_end: last_zs.comp_end as i64,
+        seg_end: base_seg_end,
         zs_start,
         zs_end,
         zs_count,
@@ -272,7 +289,13 @@ fn group_to_move(
 
 /// 从 LevelZhongshu 列表构造 Move（贪心分组，只处理 settled 中枢）。
 /// 移植自 `moves_from_level_zhongshus`。末组 settled 强制置 False。
-pub fn moves_from_level_zhongshus(zhongshus: &[LevelZhongshu]) -> Vec<Move> {
+///
+/// `num_components`：组件总数（completed 组件序列长度）——末组 seg_end 扩展用，
+/// 与 level-1 `moves_from_zhongshus` 的 num_segments 同义（修复A）。
+pub fn moves_from_level_zhongshus(
+    zhongshus: &[LevelZhongshu],
+    num_components: Option<usize>,
+) -> Vec<Move> {
     let mut settled_indices: Vec<usize> = Vec::new();
     let mut settled_zs: Vec<LevelZhongshu> = Vec::new();
     for (idx, zs) in zhongshus.iter().enumerate() {
@@ -286,10 +309,24 @@ pub fn moves_from_level_zhongshus(zhongshus: &[LevelZhongshu]) -> Vec<Move> {
     }
 
     let groups = greedy_group(&settled_zs);
-    let mut result: Vec<Move> = groups
-        .iter()
-        .map(|(offsets, direction)| group_to_move(offsets, *direction, &settled_zs, &settled_indices))
-        .collect();
+    let n_groups = groups.len();
+    let mut result: Vec<Move> = Vec::with_capacity(n_groups);
+    for (g_idx, (offsets, direction)) in groups.iter().enumerate() {
+        let next_seg_start: Option<i64> = if g_idx < n_groups - 1 {
+            let next_first_offset = groups[g_idx + 1].0[0];
+            Some(settled_zs[next_first_offset].comp_start as i64)
+        } else {
+            None
+        };
+        result.push(group_to_move(
+            offsets,
+            *direction,
+            &settled_zs,
+            &settled_indices,
+            next_seg_start,
+            num_components,
+        ));
+    }
 
     if let Some(last) = result.last_mut() {
         last.settled = false;
@@ -356,7 +393,7 @@ mod tests {
         // 单个未闭合中枢 → settled 列表空 → 无 move。
         let comps = [comp(10.0, 5.0, 0), comp(11.0, 6.0, 1), comp(9.0, 4.0, 2)];
         let zs = zhongshu_from_components(&comps, 2);
-        assert!(moves_from_level_zhongshus(&zs).is_empty());
+        assert!(moves_from_level_zhongshus(&zs, Some(comps.len())).is_empty());
     }
 
     #[test]
@@ -369,15 +406,43 @@ mod tests {
             comp(15.0, 10.0, 3),
         ];
         let zs = zhongshu_from_components(&comps, 2);
-        let mvs = moves_from_level_zhongshus(&zs);
+        let mvs = moves_from_level_zhongshus(&zs, Some(comps.len()));
         assert_eq!(mvs.len(), 1);
         let m = &mvs[0];
         assert_eq!(m.kind, MoveKind::Consolidation);
         assert_eq!(m.direction, Direction::Up); // = 中枢突破方向
         assert!(!m.settled); // 末 move 置 false
         assert_eq!(m.seg_start, 0); // comp_start
-        assert_eq!(m.seg_end, 2); // comp_end
+        assert_eq!(m.seg_end, 3); // 修复A：末组 = num_components - 1（含离开中枢的突破组件）
+        assert_eq!(m.last_seg_s1, 2); // 锚点不扩展：仍 = comp_end
         assert_eq!(m.zg_max, 9.0);
         assert_eq!(m.zd_min, 6.0);
+    }
+
+    #[test]
+    fn fix_a_non_last_move_extends_to_next_group_start() {
+        // 两个反向 settled 中枢 → 两个 move；非末 move 的 seg_end 扩展到
+        // 下一组首中枢 comp_start - 1（level-1 语义对齐，修复A）。
+        let comps = [
+            // 中枢1：[6,9]，被 comp3 向上突破
+            comp(10.0, 5.0, 0),
+            comp(11.0, 6.0, 1),
+            comp(9.0, 4.0, 2),
+            // 中枢2：[16,19]（递升），被 comp6 向下突破
+            comp(20.0, 15.0, 3),
+            comp(21.0, 16.0, 4),
+            comp(19.0, 14.0, 5),
+            comp(3.0, 1.0, 6),
+        ];
+        let zs = zhongshu_from_components(&comps, 2);
+        assert_eq!(zs.len(), 2);
+        assert!(zs[0].settled && zs[1].settled);
+        let mvs = moves_from_level_zhongshus(&zs, Some(comps.len()));
+        // 中枢2 ZD=16 > 中枢1 ZG=9 → 上涨延续 → 单个 trend move（2 中枢）
+        assert_eq!(mvs.len(), 1);
+        assert_eq!(mvs[0].kind, MoveKind::Trend);
+        // 末组：seg_end = num_components - 1 = 6（含离开中枢2的突破组件）
+        assert_eq!(mvs[0].seg_end, 6);
+        assert_eq!(mvs[0].last_seg_s1, 5); // 锚点 = last_zs.comp_end
     }
 }

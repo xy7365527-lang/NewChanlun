@@ -14,6 +14,8 @@
 mod bi_engine;
 mod bi_zhongshu_bsp;
 mod buysellpoint;
+#[cfg(test)]
+mod c_segment_verify;
 mod divergence;
 mod fractal;
 mod level;

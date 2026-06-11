@@ -217,6 +217,71 @@ fn collect_settled_zs_indices(zss: &[ZsView], zs_start: usize, zs_end: usize) ->
     (zs_start..upper).filter(|&i| zss[i].settled).collect()
 }
 
+/// B2（C 段越界极值定义）：`after` 之后第一个 settled 中枢的 seg_end。
+/// None ⟺ 无后继 settled 中枢（pending move），调用方代入 n-1。
+///
+/// 贪心分组对 settled 中枢做连续分划 ⟹ 此中枢恰为下一 move 的首中枢——
+/// C 段搜索窗口允许越入其覆盖区（缠师第24课：背驰段终于走势转折点；
+/// 相邻中枢首尾相接时转折极值落在下一中枢覆盖区内，旧定义 c_start > c_end
+/// 使 C 段在 settle 瞬间归零——见 analysis/engine_bsp_gap_diagnosis.md §2.2 机制二）。
+pub(crate) fn next_settled_zs_seg_end(zss: &[ZsView], after: usize) -> Option<i64> {
+    zss[after + 1..]
+        .iter()
+        .find(|z| z.settled)
+        .map(|z| z.seg_end as i64)
+}
+
+/// B2：窗口 [lo, hi] 内的趋势极值段（down→最低 low，up→最高 high）。
+/// 平值取**首个**（复刻 Python `min`/`max` 返回首个最优元素）。
+fn trend_extreme_seg(
+    segs: &[SegView],
+    lo: usize,
+    hi: usize,
+    direction: crate::stroke::Direction,
+) -> i64 {
+    let mut best = lo;
+    match direction {
+        crate::stroke::Direction::Up => {
+            let mut bv = segs[lo].high;
+            for (k, seg) in segs.iter().enumerate().take(hi + 1).skip(lo + 1) {
+                if seg.high > bv {
+                    bv = seg.high;
+                    best = k;
+                }
+            }
+        }
+        crate::stroke::Direction::Down => {
+            let mut bv = segs[lo].low;
+            for (k, seg) in segs.iter().enumerate().take(hi + 1).skip(lo + 1) {
+                if seg.low < bv {
+                    bv = seg.low;
+                    best = k;
+                }
+            }
+        }
+    }
+    best as i64
+}
+
+/// 增量器 commit 判据：单 move 背驰检测的最大段依赖索引。
+///
+/// trend（zs_count≥2 且范围内 ≥2 settled 中枢）→ max(mv.seg_end, B2 窗口上限)；
+/// 窗口无界（无后继 settled 中枢 ⟹ pending move，上限随 n 增长）→ `i64::MAX`
+/// （不可 commit，留在易变尾每次重算）。其余（盘整/前提不满足）→ mv.seg_end。
+pub(crate) fn detect_dep_end(zss: &[ZsView], mv: &MoveView) -> i64 {
+    if mv.kind != crate::moves::MoveKind::Trend || mv.zs_count < 2 {
+        return mv.seg_end;
+    }
+    let indices = collect_settled_zs_indices(zss, mv.zs_start, mv.zs_end);
+    if indices.len() < 2 {
+        return mv.seg_end;
+    }
+    match next_settled_zs_seg_end(zss, indices[indices.len() - 1]) {
+        Some(e) => mv.seg_end.max(e),
+        None => i64::MAX,
+    }
+}
+
 /// 趋势背驰 A 段 seg 范围（前枢结束+1 → 后枢开始-1，紧邻时退化）。移植自 `_trend_a_segment_range`。
 fn trend_a_segment_range(zs_prev: &ZsView, zs_last: &ZsView) -> (i64, i64) {
     let mut a_start = zs_prev.seg_end as i64 + 1;
@@ -338,11 +403,18 @@ fn detect_trend_divergence(
 
     let (a_start, a_end) = trend_a_segment_range(zs_prev, zs_last);
     let c_start = zs_last.seg_end as i64 + 1;
-    let c_end = mv.seg_end;
     let n = segs.len() as i64;
-    if c_start > c_end || a_start >= n || c_end >= n {
+    // B2（C 段越界极值定义）：C 段不被 mv.seg_end 截断——
+    // 搜索窗口 = [c_start, 下一 settled 中枢 seg_end]（无 → n-1），
+    // C 段终点 = 窗口内趋势极值段（走势转折点，第24课）。
+    let last_idx = indices[indices.len() - 1];
+    let search_end = next_settled_zs_seg_end(zss, last_idx)
+        .unwrap_or(n - 1)
+        .min(n - 1);
+    if c_start > search_end || a_start >= n {
         return None;
     }
+    let c_end = trend_extreme_seg(segs, c_start as usize, search_end as usize, mv.direction);
     // T4 前提（B 段黄白线穿越 0 轴）：有 MACD 时检查，无 MACD 时直接通过。
     if !trend_t4_check(segs, zs_last, macd) {
         return None;
@@ -493,6 +565,11 @@ pub(crate) fn detect_one(
 /// zs 范围 ∈ settled 前缀、段范围固定 ⟹ div 永久固定。唯一易变的是最后一个 pending move 的
 /// div。故缓存 closed move 的 div + 每次只重算 pending move 的 div。closed move 的 div 在其
 /// 封闭瞬间 detect 一次（依赖全在固定前缀，与后续 segs/zss 增长无关）。
+///
+/// **B2 下 closed move 仍永久**：B2 的趋势 C 段窗口上限 = 下一 settled 中枢 seg_end。
+/// move 封闭 ⟺ 后继 settled 中枢存在（greedy 因它封组）；笔级中枢 append-only、
+/// settled 中枢 extent 永久固定、confirmed 笔 append-only ⟹ 窗口与窗口内段在封闭
+/// 瞬间即逐位固定。pending move 无后继 settled 中枢（窗口上限 = n-1 随笔增长）→ 每次重算。
 #[derive(Debug, Clone, Default)]
 pub struct IncrementalDivergences {
     /// closed move 产生的 div（仅成立的，按 move 顺序；永久固定）。
@@ -546,5 +623,11 @@ impl IncrementalDivergences {
     /// 当前全量背驰（逐位等价于 `divergences_from_moves_v1(.., None)`）。
     pub fn current(&self) -> &[Divergence] {
         &self.full_divs
+    }
+
+    /// 永久前缀长度（closed move 的 div 数；`current()[..stable_len]` 跨调用逐位不变）。
+    /// IncrementalBsp 的 div frontier 推进边界来源。单调非减。
+    pub fn stable_len(&self) -> usize {
+        self.closed_divs.len()
     }
 }

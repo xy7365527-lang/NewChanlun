@@ -716,6 +716,9 @@ impl IncrementalBsp {
     }
 
     /// 增量更新买卖点。bit-exact 等价于 `buysellpoints_from_level(...)`。
+    ///
+    /// `divs_stable_len`：divs 的永久前缀长度（`IncrementalDivergences::stable_len`，
+    /// = closed move 的 div 数；末尾 pending div 易变）。frontier 只在永久前缀内推进。
     pub fn update(
         &mut self,
         segs: &[SegView],
@@ -723,21 +726,39 @@ impl IncrementalBsp {
         zs_break: &[(bool, crate::zhongshu::BreakDir, i64)],
         moves: &[MoveView],
         divs: &[Divergence],
+        divs_stable_len: usize,
     ) {
         let n_segs = segs.len();
         self.update_lookup(moves, n_segs);
 
-        let new_anchor = (n_segs as i64 - SAFE_WINDOW).max(self.stable_anchor);
+        // B2 anchor 门控：pending move 的趋势背驰 C 段极值可远落于段数组末端之前
+        // （seg_c_end < n - SAFE_WINDOW），其 type1/type2 源自易变 div，不可 finalize。
+        // pending div 全部 seg 引用 ≥ pending.seg_start（c_start ≥ move 首中枢 seg_start）
+        // ⟹ anchor 以 pending.seg_start 为上限即保证 stable 区无易变源。
+        // pending.seg_start 随 move 封闭单调前进 ⟹ anchor 单调性保持。
+        // moves 为空 → floor=0（未来首 move 的 seg_start ≥ 0，anchor 不得先行越过）。
+        let pending_floor = moves.last().map(|m| m.seg_start).unwrap_or(0);
+        let new_anchor = (n_segs as i64 - SAFE_WINDOW)
+            .min(pending_floor)
+            .max(self.stable_anchor);
         let src_from = (new_anchor - SRC_MARGIN).max(0);
 
-        // ── 尾部 type1：div.seg_c_end >= src_from（frontier 跳过稳定前缀 div）──
-        // div 按 move 顺序 seg_c_end 单调递增 → 跳过的连续前缀全 < src_from（其 type1 已 stable）。
-        while self.div_scan_from < divs.len() && divs[self.div_scan_from].seg_c_end < src_from {
+        // ── 尾部 type1：seg_c_end >= stable_anchor（**未 finalize** 的 type1；已 finalize 的
+        //    [src_from, stable_anchor) type1 由 stable_t1 提供——二者按 stable_anchor 严格
+        //    不相交，避免同一 type1 双重供源 → type2 重复。原边界为 src_from（与 stable_t1
+        //    重叠）：B2 前 closed move 的 type1 结构性不存在（C 段恒空）故不可达；B2 解锁
+        //    持久 type1 后即触发，与 IncrementalSegBsp 的 bar 350200 修复对齐。──
+        // B2 后 seg_c_end 跨 move 不再全局单调（趋势 C 段可越入下一中枢覆盖区，与后继
+        // 盘整 div 局部逆序）⟹ frontier 仅在永久前缀内推进，其后全部重扫
+        // （内层 continue 过滤已 finalize 项）。
+        while self.div_scan_from < divs_stable_len.min(divs.len())
+            && divs[self.div_scan_from].seg_c_end < self.stable_anchor
+        {
             self.div_scan_from += 1;
         }
         let mut tail_type1: Vec<BuySellPoint> = Vec::new();
         for div in &divs[self.div_scan_from..] {
-            if div.kind != DivKind::Trend || div.seg_c_end < src_from {
+            if div.kind != DivKind::Trend || div.seg_c_end < self.stable_anchor {
                 continue;
             }
             if let Some(bp) = self.build_type1(div, segs, zss, moves) {
