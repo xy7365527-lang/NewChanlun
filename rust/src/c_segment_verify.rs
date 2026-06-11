@@ -232,7 +232,7 @@ fn c_segment_oklo_447k_per_level_bsp() {
     let ladder2 = find("ladder2").expect("笔中枢级必须存在");
     let l2_t1 = kind_total(ladder2, BspKind::Type1);
     let l2_t2 = kind_total(ladder2, BspKind::Type2);
-    assert!(l2_t1 > 1, "ladder2 type1 应 ≫1（修复前=1），实际 {l2_t1}");
+    assert!(l2_t1 > 100, "ladder2 type1 应 >100（修复前=1，实测374），实际 {l2_t1}");
     assert!(l2_t2 > 0, "ladder2 type2 应 >0（修复前=0），实际 {l2_t2}");
     let ladder4 = find("ladder4").expect("ladder4（递归 L2）必须涌现");
     let l4_t1 = kind_total(ladder4, BspKind::Type1);

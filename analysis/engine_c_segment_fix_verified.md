@@ -93,6 +93,55 @@ move 的 C 段处理路径差异）。诊断文档自陈"换度量则 373/360 �
 - **不改动**任何引擎源文件——修复代码本身是前 session 产物，本任务只验证。
 - 既有 74 个 Rust 单测全过；新测试默认 ignore，不拖慢常规 cargo test。
 
+## 附：收尾四问（编排者 152 轮中断，最终口径）
+
+**1. C 段修复改了哪些文件？cargo build 通过吗？**
+引擎 6 文件：`rust/src/level.rs`（修复A：seg_end 扩展对齐 level-1）、
+`rust/src/divergence.rs`（修复B2：C 段越界极值窗口 + detect_dep_end）、
+`rust/src/orchestrator.rs`（volatile_floor 接线 + num_components 传参）、
+`rust/src/buysellpoint.rs` / `segment_layers.rs` / `bi_zhongshu_bsp.rs`
+（增量器签名适配），合计 +250/−26 行。Python oracle 同步 4 文件
+（a_divergence_v1 / a_zhongshu_level / recursive_level_engine /
+a_nested_divergence）。**cargo build --release 通过，74 个单测全过**
+（需 PATH 前置 /usr/bin 绕过 cc 劫持）。全部已 commit。
+
+**2. 修复后 type1/type2 数量变化？**（OKLO 447K，confirmed 计数）
+
+| 层 | type1 修复前→后 | type2 修复前→后 |
+|---|---|---|
+| ladder2 笔中枢级 | 1 → **374** | 0 → **360** |
+| ladder3 走势级 L1 | 稀疏 → 60 | → 58 |
+| ladder4 递归 L2 | 0 → **8** | 0 → **8** |
+| ladder5 递归 L3 | 0 → 1 | 0 → 1 |
+
+诊断模拟预测 373/360：type2 精确吻合，type1 +1（模拟近似 vs 真实增量实现）。
+Rust 自验证断言已收紧为 ladder2 type1 > 100、ladder4 type1 > 0、type2 > 0
+（c_segment_verify.rs，实测全过）。笔/线段/中枢层：源码零改动（修复不触
+stroke/segment/zhongshu/bi_engine），结构输出不变。
+
+**3. entry 能到几了？**
+**3 → 4**（rev-paired 工位 commit 9e0504c622）：OKLO 新磁带入场归因
+ladder2 160 / ladder3 32 / **ladder4 3** 笔。tranche 定义域（需 entry≥4）
+从空集变非空：V1r tranche 加码 0→12 次（行为面首读 OKLO −27.4pp，n=12）。
+
+**4. 回测跑了吗？数字？**
+跑了——enginefix 代次三标的全变体在册
+（`rev_v2_paired_backtest_enginefix.json`），O0≡P5 bit-exact 三标的全 PASS：
+
+| 变体 | OKLO（BH+307%）| QQQ（BH+175%）| BRN（BH+87%）|
+|---|---|---|---|
+| P5 基线 | +1088.83% | +100.62% | +28.25% |
+| V2o（仅震荡型）| **+1625.81%**（Δ+537pp）| +89.34%（Δ−11.3pp）| +94.15%（Δ+65.9pp）|
+| V2p（开全 kind）| +670.44%（Δ−418pp）| +66.28%（Δ−34.3pp）| **+185.73%**（Δ+157.5pp）|
+
+核心判决：震荡型腿三标的净现金全正（胜率 51.7-52.5%）；**逃逸型 OKLO/QQQ
+强负但 BRN 转正（+1.66万）**——"逃逸型一致为负"否证收窄为 5/6，kind 消融
+是标的依赖的。V1f OKLO 旧 +607.5pp 被证伪为 C 段 bug 伪影（修复后 +57.6pp）。
+详见 rev_v2_rust_backtest.md / rev_v2_enginefix_impact.md。
+
+**Python 等价测试已按编排者裁决终止**（定义变了，旧 oracle 不适用——
+等价测试无意义；验证主轴 = Rust 自验证 + O0≡P5 守卫 + 三标的回测复现）。
+
 ## 附：任务卡第三/四步状态
 
 - **第三步（REV 配对修正）**：已由前序 commit（bd1e439914）完成——
