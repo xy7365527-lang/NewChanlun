@@ -468,6 +468,14 @@ pub struct Counters {
     /// 41课门拒：父级别（子腿 ladder+1）向下走势无衰竭迹象
     /// （相邻同向段创新低 ∧ 无盘整背驰 = 趋势未完 = 不做反向）。
     pub n_sub_l41_rejects: u64,
+    // ── Sequence38 闭腿三岔分解（2026-06-11 任务，sub_mode=Sequence38；
+    //    归因优先序 盘背买 > 不跌破 > 新下跌背驰——同 bar 共现取最强证据）──
+    /// 段间盘整背驰买点买回（38课:36 分岔2 + 第二段完成的事件证据）。
+    pub n_sub_seq_consbuy_close: u64,
+    /// 不跌破第一段低点买回（38课:36 分岔1；低点未破 ∧ 次级别结构确认）。
+    pub n_sub_seq_nobreak_close: u64,
+    /// 观望出口买回（新的下跌背驰：Trend×Buy ∨ confirmed Buy1）。
+    pub n_sub_seq_newdiv_close: u64,
     /// 子腿闭合对统计（win = profit > 0；含级联强闭）。
     pub sub_pairs: u64,
     pub sub_wins: u64,
@@ -653,6 +661,9 @@ impl Counters {
             ("n_sub_cost_rejects", self.n_sub_cost_rejects),
             ("n_sub_cost_noref_rejects", self.n_sub_cost_noref_rejects),
             ("n_sub_l41_rejects", self.n_sub_l41_rejects),
+            ("n_sub_seq_consbuy_close", self.n_sub_seq_consbuy_close),
+            ("n_sub_seq_nobreak_close", self.n_sub_seq_nobreak_close),
+            ("n_sub_seq_newdiv_close", self.n_sub_seq_newdiv_close),
             ("sub_pairs", self.sub_pairs),
             ("sub_wins", self.sub_wins),
             ("n_c38_enter", self.n_c38_enter),

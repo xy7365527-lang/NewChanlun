@@ -176,11 +176,30 @@ pub struct SubLou {
     /// 实例化时 None：首个观测只建立基准不触发——开腿恒等待一次完整的
     /// Up→Down 翻转（顶分型确认），不在陈旧方向上行动。
     last_dir: Option<Direction>,
+    // ── Sequence38 状态（仅 sub_mode=Sequence38 消费；38课:36 程式）──
+    /// 第一段起点低点参照：节点激活/上次买回以来的 close 运行最低。
+    /// 开腿（先卖）时冻结进 seg1_low；买回后复位为当下 close 重新累计
+    /// （中间循环：程式在 REV 窗口内反复）。
+    run_low: f64,
+    /// 开腿时冻结的"第一段低点"（38课"不跌破第一段低点"的比较基准）。
+    /// None = 未持腿。close 分辨率（low_since_open / RevLeg.low_since_open
+    /// 同口径）。
+    seg1_low: Option<f64>,
+    /// 持腿期 close 运行最低（"不跌破"判据的左操作数；含开腿 bar）。
+    low_since_open: f64,
 }
 
 impl SubLou {
     fn new(ladder: usize, path: RevPath) -> Self {
-        SubLou { ladder, path, child: None, last_dir: None }
+        SubLou {
+            ladder,
+            path,
+            child: None,
+            last_dir: None,
+            run_low: f64::INFINITY,
+            seg1_low: None,
+            low_since_open: f64::INFINITY,
+        }
     }
 
     /// 循环方向 = 深度奇偶（符号交替塔）。
@@ -262,9 +281,20 @@ impl SubLou {
         parent_shares: f64,
         counters: &mut Counters,
     ) {
-        if cfg.sub_mode == SubMode::Fractal {
-            self.step_fractal(cfg, rows, book, c, bar, ledger, home, parent_shares, counters);
-            return;
+        match cfg.sub_mode {
+            SubMode::Fractal => {
+                self.step_fractal(
+                    cfg, rows, book, c, bar, ledger, home, parent_shares, counters,
+                );
+                return;
+            }
+            SubMode::Sequence38 => {
+                self.step_sequence38(
+                    cfg, rows, book, c, bar, ledger, home, parent_shares, counters,
+                );
+                return;
+            }
+            SubMode::Zhongshu => {}
         }
         let k = self.ladder;
         let key = SlotKey::rev_path(home, self.path);
@@ -453,6 +483,124 @@ impl SubLou {
                     DiffSide::Short,
                 ) {
                     counters.n_sub_open += 1;
+                }
+            }
+        }
+    }
+
+    /// Sequence38 模式每 bar 一步——38课向下段程式的段间盘整背驰严格形式
+    /// （2026-06-11 任务；判据原文 38课:36 + 答疑:296，见 SubMode docstring）。
+    ///
+    /// 状态机（向下段先卖后买，方向恒 Short——同 Fractal 论据）：
+    /// - **开腿（先卖）**：本级别 k 或次级别 k−1 的盘整背驰卖点
+    ///   （Consolidation × Sell）——第一段（反弹）的盘整背驰结束点；
+    ///   冻结 seg1_low = run_low（第一段起点低点的 close 分辨率读数）。
+    /// - **闭腿（买回）三岔**（任一为真即买回；计数归因取最强证据）：
+    ///   (1) 段间盘整背驰买点（Consolidation × Buy @ k）；
+    ///   (2) 不跌破第一段低点：low_since_open > seg1_low ∧ 次级别结构
+    ///       确认第二段完成（sub_confirm(k, Buy)——答疑:296 判据本体，
+    ///       非纯几何触线）；
+    ///   (3) 新的下跌背驰（Trend × Buy ∨ confirmed Buy1 @ k）——观望出口。
+    /// - 买回后 run_low 复位为当下 close（中间循环重新累计）。
+    ///
+    /// 与 Zhongshu 模式的差异：无"存活中枢"前置、无 ZG/ZD 边界与振幅
+    /// 经济门——操作域 = 段序列本身（38课程式的域就是同级别分解的段）。
+    /// 与 Fractal 模式的差异（近似 vs 严格的唯一轴）：进出信号源 =
+    /// div 事件流 + 次级别结构确认，非笔级方向行翻转。
+    #[allow(clippy::too_many_arguments)]
+    fn step_sequence38(
+        &mut self,
+        cfg: &OrganicConfig,
+        rows: &BarRows,
+        book: &CenterBook,
+        c: f64,
+        bar: i64,
+        ledger: &mut OrganicLedger,
+        home: usize,
+        parent_shares: f64,
+        counters: &mut Counters,
+    ) {
+        use crate::buysellpoint::Side;
+        let _ = book; // 无中枢依赖：操作域 = 段序列本身（38课程式）
+        let k = self.ladder;
+        let key = SlotKey::rev_path(home, self.path);
+        // 第一段低点参照：close 运行最低（节点激活/上次买回以来；含本 bar）
+        self.run_low = self.run_low.min(c);
+        let evs = &rows.evs[k];
+        let devs = &rows.devs[k];
+        match ledger.open_slot(key).map(|l| l.cycle.shares) {
+            Some(my_shares) => {
+                self.low_since_open = self.low_since_open.min(c);
+                // 子节点递归（深度预算 ∧ 存在论下限 = div 事件流承载下界，
+                // 同 Zhongshu：k−1 ≥ FIRST_BSP_LADDER）
+                if self.path.depth() < cfg.rev_sub_depth
+                    && k >= 1
+                    && k - 1 >= FIRST_BSP_LADDER
+                {
+                    let path = self.path;
+                    let child = self
+                        .child
+                        .get_or_insert_with(|| Box::new(SubLou::new(k - 1, path.child(k - 1))));
+                    child.step(cfg, rows, book, c, bar, ledger, home, my_shares, counters);
+                }
+                // (1) 段间盘整背驰买点
+                let cons_buy = devs
+                    .iter()
+                    .any(|d| d.kind == DivKind::Consolidation && d.side() == Side::Buy);
+                // (2) 不跌破第一段低点 ∧ 次级别结构确认（答疑:296）
+                let nobreak = self
+                    .seg1_low
+                    .is_some_and(|s1| self.low_since_open > s1)
+                    && rows.sub_confirm(k, Side::Buy);
+                // (3) 新的下跌背驰（观望出口）
+                let new_div = devs
+                    .iter()
+                    .any(|d| d.kind == DivKind::Trend && d.side() == Side::Buy)
+                    || evs.iter().any(|e| e.class == BspClass::Buy1 && e.confirmed);
+                if cons_buy || nobreak || new_div {
+                    self.cascade_close_children(home, c, bar, ledger, counters);
+                    Self::close_one(key, c, bar, ledger, counters);
+                    counters.n_sub_close += 1;
+                    if cons_buy {
+                        counters.n_sub_seq_consbuy_close += 1;
+                    } else if nobreak {
+                        counters.n_sub_seq_nobreak_close += 1;
+                    } else {
+                        counters.n_sub_seq_newdiv_close += 1;
+                    }
+                    // 中间循环复位：新一轮第一段低点从当下重新累计
+                    self.seg1_low = None;
+                    self.run_low = c;
+                    self.low_since_open = f64::INFINITY;
+                }
+            }
+            None => {
+                // 开腿：本级别或次级别的盘整背驰卖点
+                let cons_sell = |ds: &[DivEvent]| {
+                    ds.iter()
+                        .any(|d| d.kind == DivKind::Consolidation && d.side() == Side::Sell)
+                };
+                let here = cons_sell(devs);
+                let sub = k >= 1 && cons_sell(&rows.devs[k - 1]);
+                if !(here || sub) {
+                    return;
+                }
+                if ledger.phase.is_earning() {
+                    counters.n_sub_earning_rejects += 1;
+                    return;
+                }
+                // 段尺度锚：无中枢边界——闭腿纯事件/判据驱动（+ 父腿级联强闭）
+                if ledger.open_sub(
+                    key,
+                    parent_shares,
+                    c,
+                    bar,
+                    LegAnchor::SegmentScale,
+                    DiffSide::Short,
+                ) {
+                    counters.n_sub_open += 1;
+                    self.seg1_low = Some(self.run_low);
+                    self.low_since_open = c;
                 }
             }
         }
@@ -1647,7 +1795,7 @@ impl VoiceUnit {
         // 存在论下限按模式分流：Zhongshu 需 k−1 有中枢/买卖点概念
         // （FIRST_BSP_LADDER）；Fractal 只需 k−1 有方向行——bi 级（1）即下限。
         let sub_floor = match cfg.sub_mode {
-            SubMode::Zhongshu => FIRST_BSP_LADDER,
+            SubMode::Zhongshu | SubMode::Sequence38 => FIRST_BSP_LADDER,
             SubMode::Fractal => 1,
         };
         if k < 1 || k - 1 < sub_floor {
@@ -2408,6 +2556,139 @@ mod tests {
         assert_eq!(fx.counters.n_sub_cost_rejects, 0);
         assert_eq!(fx.counters.n_sub_cost_noref_rejects, 0);
         assert_eq!(fx.counters.n_sub_l41_rejects, 0);
+    }
+
+    /// Sequence38 测试驱动：ladder 2 子腿（home=3），可注入 dir 行。
+    fn seq38_step(
+        sub: &mut SubLou,
+        fx: &mut Fixture,
+        dir: &[Option<Direction>; MAX_LADDER],
+        cfg: &OrganicConfig,
+        c: f64,
+        bar: i64,
+    ) {
+        let anchor_row = [0i64; MAX_LADDER];
+        let rows = BarRows {
+            evs: &fx.evs,
+            devs: &fx.devs,
+            buy_any: LadderMask(0),
+            sell_any: LadderMask(0),
+            dir_row: Some(dir),
+            run_anchor: Some(&anchor_row),
+            depth: None,
+            l41: None,
+            trend_row: None,
+        };
+        let (book, counters) = (&fx.book, &mut fx.counters);
+        sub.step(cfg, &rows, book, c, bar, &mut fx.ledger, 3, 50.0, counters);
+    }
+
+    fn cfg_seq38() -> OrganicConfig {
+        OrganicConfig {
+            rev_sub_depth: 1,
+            sub_mode: SubMode::Sequence38,
+            rev_paired: true,
+            ..cfg_rev()
+        }
+    }
+
+    #[test]
+    fn sequence38_opens_on_cons_sell_closes_on_cons_buy() {
+        // 38课:36：第一段盘整背驰结束点先卖；段间盘整背驰买点买回。
+        let mut fx = Fixture::new();
+        let cfg = cfg_seq38();
+        let mut sub = SubLou::new(2, RevPath::single(3).child(2));
+        let dir = [None; MAX_LADDER];
+        // bar0：无事件——只累计 run_low（第一段起点低点参照）
+        seq38_step(&mut sub, &mut fx, &dir, &cfg, 9.0, 0);
+        assert_eq!(fx.counters.n_sub_open, 0);
+        // bar1：本级别盘整背驰卖点 → 开 Short @10
+        fx.devs[2] = vec![dev(DivKind::Consolidation, Direction::Up)];
+        seq38_step(&mut sub, &mut fx, &dir, &cfg, 10.0, 1);
+        assert_eq!(fx.counters.n_sub_open, 1);
+        let key = SlotKey::rev_path(3, RevPath::single(3).child(2));
+        assert!(fx.ledger.open_slot(key).is_some());
+        // bar2：段间盘整背驰买点 → 买回 @9.5，盈利短差
+        fx.devs[2] = vec![dev(DivKind::Consolidation, Direction::Down)];
+        seq38_step(&mut sub, &mut fx, &dir, &cfg, 9.5, 2);
+        assert_eq!(fx.counters.n_sub_close, 1);
+        assert_eq!(fx.counters.n_sub_seq_consbuy_close, 1);
+        assert_eq!(fx.counters.sub_pairs, 1);
+        assert_eq!(fx.counters.sub_wins, 1);
+        assert!(fx.ledger.open_slot(key).is_none());
+        assert!(fx.counters.sub_cash > 0.0);
+        // 全程零中枢依赖：无中枢拒/振幅拒恒 0（Zhongshu 域缺口在此模式无定义）
+        assert_eq!(fx.counters.n_sub_nocenter_rejects, 0);
+        assert_eq!(fx.counters.n_sub_amp_rejects, 0);
+    }
+
+    #[test]
+    fn sequence38_opens_on_sublevel_cons_sell() {
+        // 任务规格：开腿信号 = 本级别**或次级别**的盘整背驰卖点。
+        let mut fx = Fixture::new();
+        let cfg = cfg_seq38();
+        let mut sub = SubLou::new(2, RevPath::single(3).child(2));
+        let dir = [None; MAX_LADDER];
+        fx.devs[1] = vec![dev(DivKind::Consolidation, Direction::Up)];
+        seq38_step(&mut sub, &mut fx, &dir, &cfg, 10.0, 0);
+        assert_eq!(fx.counters.n_sub_open, 1);
+    }
+
+    #[test]
+    fn sequence38_nobreak_close_needs_sub_confirm_and_unbroken_low() {
+        // 38课:36 分岔1 + 答疑:296："不跌破"靠次级别内部结构确认，非几何触线。
+        let mut fx = Fixture::new();
+        let cfg = cfg_seq38();
+        let mut sub = SubLou::new(2, RevPath::single(3).child(2));
+        let mut dir = [None; MAX_LADDER];
+        // bar0：建立第一段低点参照 9.0
+        seq38_step(&mut sub, &mut fx, &dir, &cfg, 9.0, 0);
+        // bar1：盘背卖开 @10（seg1_low 冻结 = 9.0）
+        fx.devs[2] = vec![dev(DivKind::Consolidation, Direction::Up)];
+        seq38_step(&mut sub, &mut fx, &dir, &cfg, 10.0, 1);
+        assert_eq!(fx.counters.n_sub_open, 1);
+        fx.devs[2].clear();
+        // bar2：低点未破（9.5 > 9.0）但无次级别确认 → 持腿（结构确认缺席）
+        seq38_step(&mut sub, &mut fx, &dir, &cfg, 9.5, 2);
+        assert_eq!(fx.counters.n_sub_close, 0);
+        // bar3：次级别（ladder 1）方向行翻 Up = 第二段完成的结构证据 → 买回
+        dir[1] = Some(Direction::Up);
+        seq38_step(&mut sub, &mut fx, &dir, &cfg, 9.5, 3);
+        assert_eq!(fx.counters.n_sub_close, 1);
+        assert_eq!(fx.counters.n_sub_seq_nobreak_close, 1);
+        assert_eq!(fx.counters.sub_wins, 1);
+    }
+
+    #[test]
+    fn sequence38_broken_low_waits_for_new_divergence() {
+        // 38课:36 分岔2/观望：跌破第一段低点后，次级别确认不再是买回理由
+        // ——观望直到段间盘背买或新的下跌背驰（confirmed Buy1）。
+        let mut fx = Fixture::new();
+        let cfg = cfg_seq38();
+        let mut sub = SubLou::new(2, RevPath::single(3).child(2));
+        let mut dir = [None; MAX_LADDER];
+        seq38_step(&mut sub, &mut fx, &dir, &cfg, 9.0, 0);
+        fx.devs[2] = vec![dev(DivKind::Consolidation, Direction::Up)];
+        seq38_step(&mut sub, &mut fx, &dir, &cfg, 10.0, 1);
+        fx.devs[2].clear();
+        // bar2：跌破第一段低点（8.5 < 9.0）
+        seq38_step(&mut sub, &mut fx, &dir, &cfg, 8.5, 2);
+        assert_eq!(fx.counters.n_sub_close, 0);
+        // bar3：次级别翻 Up 但低点已破 → 不跌破分岔失效，继续观望
+        dir[1] = Some(Direction::Up);
+        seq38_step(&mut sub, &mut fx, &dir, &cfg, 8.8, 3);
+        assert_eq!(fx.counters.n_sub_close, 0);
+        // bar4：新的下跌背驰（confirmed Buy1）→ 观望出口买回
+        fx.evs[2] = vec![ev(BspClass::Buy1, true)];
+        seq38_step(&mut sub, &mut fx, &dir, &cfg, 8.6, 4);
+        assert_eq!(fx.counters.n_sub_close, 1);
+        assert_eq!(fx.counters.n_sub_seq_newdiv_close, 1);
+        assert_eq!(fx.counters.n_sub_seq_nobreak_close, 0);
+        // 买回后中间循环复位：再来一轮盘背卖可再开
+        fx.evs[2].clear();
+        fx.devs[2] = vec![dev(DivKind::Consolidation, Direction::Up)];
+        seq38_step(&mut sub, &mut fx, &dir, &cfg, 9.2, 5);
+        assert_eq!(fx.counters.n_sub_open, 2);
     }
 
     /// P1 成本门测试夹具：ladder 2 子腿 + n 个已观测中枢（相对振幅 rel_amp）。

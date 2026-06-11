@@ -348,6 +348,18 @@ pub fn run_organic(
                 .to_string(),
         );
     }
+    if cfg.rev_sub_depth > 0
+        && cfg.sub_mode == super::config::SubMode::Sequence38
+        && !tape.has_dir_rows()
+    {
+        return Err(
+            "sub_mode=Sequence38（段间盘整背驰子腿）要求磁带 dir_flips 行（D3）——
+             '不跌破第一段低点'依赖次级别结构确认（38课答疑:296），其结构
+             证据分量（sub_confirm 的 D3 方向行）无行即缺失，bi 层无事件流
+             时判据退化为纯事件证据 = R1 空定义域反选（不静默降级）"
+                .to_string(),
+        );
+    }
     if cfg.rev_l41_gate && !tape.has_dir_rows() {
         return Err(
             "rev_l41_gate（41课门 REV 主腿形态）要求磁带 dir_flips 行（D3）——
