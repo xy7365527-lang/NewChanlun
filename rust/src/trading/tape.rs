@@ -42,6 +42,10 @@ pub struct SignalTape {
     pub dir_flips: Option<Vec<(i64, u8, Direction)>>,
     /// D3 run 高点行（密集 n×MAX_LADDER 展平）。None = 未产出。
     pub run_high: Option<Vec<f64>>,
+    /// 趋势态行（稀疏翻转，bar 升序；(bar, ladder, is_trend)）。该层尾 move
+    /// kind 的翻转流——is_trend ⟺ kind==Trend（≥2 同向中枢，17课趋势定义）。
+    /// None = 信号层未产出（rev_cycle=Cycle38 的 capability guard 依赖）。
+    pub trend_flips: Option<Vec<(i64, u8, bool)>>,
 }
 
 impl SignalTape {
@@ -60,5 +64,9 @@ impl SignalTape {
 
     pub fn has_run_high(&self) -> bool {
         self.run_high.is_some()
+    }
+
+    pub fn has_trend_rows(&self) -> bool {
+        self.trend_flips.is_some()
     }
 }

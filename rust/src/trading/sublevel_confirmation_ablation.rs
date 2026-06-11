@@ -96,6 +96,7 @@ mod sc_unit {
             run_anchor: Some(anchors),
             depth: None,
             l41: None,
+            trend_row: None,
         }
     }
 

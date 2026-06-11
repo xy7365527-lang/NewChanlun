@@ -153,7 +153,7 @@ pub(super) fn load_tape(sym: &str) -> SignalTape {
         })
         .collect();
     assert_eq!(r.p, r.b.len(), "磁带尾部有未消费字节——格式错位");
-    SignalTape { bars, dir_flips: Some(dir_flips), run_high: None }
+    SignalTape { bars, dir_flips: Some(dir_flips), run_high: None, trend_flips: None }
 }
 
 fn opt_i64(v: Option<i64>) -> String {

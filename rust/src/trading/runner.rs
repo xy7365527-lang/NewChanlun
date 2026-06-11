@@ -21,7 +21,7 @@
 
 use super::allocator::SizeAllocator;
 use super::center_book::CenterBook;
-use super::config::{OrganicConfig, Sizing, StopMode, ThetaMode};
+use super::config::{OrganicConfig, RevCycle, Sizing, StopMode, ThetaMode};
 use super::depth_ref::{DepthRef, DEPTH_REF_WINDOW};
 use super::fatigue_gate::FatigueGate;
 use super::ledger::{LegTrace, OrganicLedger};
@@ -331,6 +331,55 @@ pub fn run_organic(
             cfg.sub_cost_k
         ));
     }
+    if cfg.rev_cycle == RevCycle::Cycle38 {
+        if !cfg.rev_mode {
+            return Err(
+                "rev_cycle=Cycle38 要求 rev_mode=true——循环短差是 REV 族行为，\
+                 rev_mode=false 下循环不可表示"
+                    .to_string(),
+            );
+        }
+        if !tape.has_trend_rows() {
+            return Err(
+                "rev_cycle=Cycle38 要求磁带 trend_flips 行（趋势态）——循环存续
+                 条件 = 宿主尾 move kind==Trend，无行即无存续判据（不提供
+                 方向行代理降级：方向 ≠ 趋势，17课趋势定义是 ≥2 同向中枢）"
+                    .to_string(),
+            );
+        }
+        if !tape.has_dir_rows() {
+            return Err(
+                "rev_cycle=Cycle38 要求磁带 dir_flips 行（D3）——宿主趋势态的
+                 方向分量（kind==Trend ∧ dir==Up）依赖方向行"
+                    .to_string(),
+            );
+        }
+        if cfg.rev_sub_depth > 0 {
+            return Err(
+                "rev_cycle=Cycle38 × rev_sub_depth 组合未定义：循环腿无固定
+                 REV 窗口（逐次开闭），子 LOU 的域语义未设计——显式拒绝"
+                    .to_string(),
+            );
+        }
+        if cfg.tranche {
+            return Err(
+                "rev_cycle=Cycle38 × tranche 组合未定义：循环腿是单 tranche
+                 逐次开闭，递归建仓语义未设计——显式拒绝"
+                    .to_string(),
+            );
+        }
+        if !(cfg.theta_cost_k > 0.0
+            && cfg.theta_cost_k.is_finite()
+            && cfg.friction_rt > 0.0
+            && cfg.friction_rt.is_finite())
+        {
+            return Err(format!(
+                "rev_cycle=Cycle38 成本门要求 theta_cost_k/friction_rt 为正有限数；\
+                 theta_cost_k={} friction_rt={}",
+                cfg.theta_cost_k, cfg.friction_rt
+            ));
+        }
+    }
 
     // MarketMode 穷举（F1 期货实装时新增变体，编译器强制此处表态——v1R §2.2）。
     match cfg.market_mode {
@@ -370,6 +419,11 @@ pub fn run_organic(
     let mut dir_state: [Option<crate::stroke::Direction>; MAX_LADDER] = [None; MAX_LADDER];
     let mut anchor_state: [i64; MAX_LADDER] = [-1; MAX_LADDER];
     let has_d3 = tape.has_dir_rows();
+    // 趋势态滚动状态（稀疏翻转行 → 逐 bar 视图；dir_state 同构）。
+    let tflips: &[(i64, u8, bool)] = tape.trend_flips.as_deref().unwrap_or(&[]);
+    let mut tflip_ptr = 0usize;
+    let mut trend_state: [bool; MAX_LADDER] = [false; MAX_LADDER];
+    let has_trend = tape.has_trend_rows();
     // 中枢三态事件缓冲（每 bar 复用，仅 rev 消费路径填充）。
     let collect_center_events = cfg.rev_gate || cfg.tranche;
     let mut center_evs: [Vec<CenterEvent>; MAX_LADDER] = Default::default();
@@ -397,6 +451,11 @@ pub fn run_organic(
             dir_state[lad as usize] = Some(dir);
             anchor_state[lad as usize] = i as i64;
             flip_ptr += 1;
+        }
+        while tflip_ptr < tflips.len() && tflips[tflip_ptr].0 == i as i64 {
+            let (_, lad, is_trend) = tflips[tflip_ptr];
+            trend_state[lad as usize] = is_trend;
+            tflip_ptr += 1;
         }
         let evrows: &[Vec<BspEvent>; MAX_LADDER] =
             sig.bsp_events.as_deref().unwrap_or(&empty_evs);
@@ -506,6 +565,7 @@ pub fn run_organic(
                 run_anchor: has_d3.then_some(&anchor_state),
                 depth: Some(&depth_ref),
                 l41: trend_exh.as_ref(),
+                trend_row: has_trend.then_some(&trend_state),
             };
 
             // ── master 循环（45课持股持币；C1：出场只认 MasterExitSignal）──

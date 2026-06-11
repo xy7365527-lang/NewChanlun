@@ -25,7 +25,7 @@
 //! 配置在 runner 入口被 capability guard 拒绝。
 
 use super::center_book::CenterBook;
-use super::config::{OrganicConfig, RevClose, SubAnchor, SubMode, ThetaMode};
+use super::config::{OrganicConfig, RevClose, RevCycle, SubAnchor, SubMode, ThetaMode};
 use super::depth_ref::DepthRef;
 use super::fatigue_gate::FatigueGate;
 use super::ledger::{DiffSide, OrganicLedger};
@@ -542,6 +542,11 @@ pub struct BarRows<'a> {
     /// 父级别走势衰竭追踪器（P1 41课门的数据依赖；仅 sub_l41_gate 变体由
     /// runner 提供——sub_l41_gate 读取时 None ⇒ panic，capability 同 depth）。
     pub l41: Option<&'a super::trend_exhaustion::TrendExhaustion>,
+    /// 趋势态行（rev_cycle=Cycle38 的数据依赖）：trend_row[k] ⟺ 该层尾 move
+    /// kind==Trend（≥2 同向中枢，17课趋势定义）。runner 从磁带 trend_flips
+    /// 稀疏翻转行滚动导出；None = 信号层未产出（Cycle38 读取时 panic，
+    /// capability guard 在 runner 入口拒绝）。
+    pub trend_row: Option<&'a [bool; MAX_LADDER]>,
 }
 
 impl BarRows<'_> {
@@ -596,6 +601,9 @@ pub struct VoiceUnit {
     /// 是 k−1 层结构，其 bar 窗口 = k−1 层最近一段 Up run。run 翻 Down 后
     /// 锚保留：盘背触发可晚于次级别拉回起点）。
     sub_up_anchor: Option<i64>,
+    /// 38课循环态（rev_cycle=Cycle38 专用）：true = 宿主（ladder+1）趋势
+    /// 存续期间的循环短差窗口开放。Single 模式恒 false（零接触）。
+    cycle38_on: bool,
 }
 
 impl VoiceUnit {
@@ -607,6 +615,7 @@ impl VoiceUnit {
             sub_sell_bar: None,
             sub_buy_bar: None,
             sub_up_anchor: None,
+            cycle38_on: false,
         }
     }
 
@@ -702,6 +711,15 @@ impl VoiceUnit {
         );
         let evs = &rows.evs[k];
         let devs = &rows.devs[k];
+
+        // ── 38课循环模式（rev_cycle=Cycle38）：替换单次 REV 腿的全部相位
+        //    转换路径（T1/T5/T6/T7/T4b/递归子树都不运行——模式互斥，非叠加）；
+        //    osc 域腿正交（C2）照常运行 ──
+        if cfg.rev_cycle == RevCycle::Cycle38 {
+            self.step_cycle38(cfg, rows, book, c, bar, ledger, frac_of, counters);
+            self.step_osc(cfg, rows, book, c, bar, ledger, frac_of, counters);
+            return;
+        }
 
         // ── 区间套证据记忆推进（R1/R2/R3；每 bar，先于一切判定）──
         if cfg.rev_paired
@@ -842,50 +860,222 @@ impl VoiceUnit {
         }
 
         // ── 域腿子循环 T3/T4（P5 逐字；C2：相位限制取消，任意相位运行）──
-        if cfg.osc_mode {
-            let okey = SlotKey::osc(k);
-            // anchor 是 Copy——复制快照规避 open_slot 借用与 close_diff &mut 冲突
-            match ledger.open_slot(okey).map(|l| l.anchor) {
-                Some(anchor) => match anchor {
-                    LegAnchor::Center { cs, boundary, .. } => {
-                        let o_dead = cs.is_some_and(|s| book.is_dead(k, s));
-                        let sub_buy = k >= 1 && rows.buy_any.get(k - 1);
-                        if o_dead {
-                            ledger.close_diff(okey, c, bar); // 中枢死亡 → 强制回补
-                        } else if boundary.is_some_and(|b| c <= b)
-                            && (!cfg.osc_buy_sub || sub_buy)
-                        {
-                            ledger.close_diff(okey, c, bar);
-                            counters.n_osc_zd_close += 1;
-                        }
+        self.step_osc(cfg, rows, book, c, bar, ledger, frac_of, counters);
+    }
+
+    /// 域腿子循环 T3/T4（P5 逐字，从 step 尾块原样抽出——Single/Cycle38 两模式
+    /// 共用；C2 正交：osc 不在任何相位/循环变体内）。
+    #[allow(clippy::too_many_arguments)]
+    fn step_osc(
+        &mut self,
+        cfg: &OrganicConfig,
+        rows: &BarRows,
+        book: &CenterBook,
+        c: f64,
+        bar: i64,
+        ledger: &mut OrganicLedger,
+        frac_of: &dyn Fn(usize) -> f64,
+        counters: &mut Counters,
+    ) {
+        if !cfg.osc_mode {
+            return;
+        }
+        let k = self.ladder;
+        let okey = SlotKey::osc(k);
+        // anchor 是 Copy——复制快照规避 open_slot 借用与 close_diff &mut 冲突
+        match ledger.open_slot(okey).map(|l| l.anchor) {
+            Some(anchor) => match anchor {
+                LegAnchor::Center { cs, boundary, .. } => {
+                    let o_dead = cs.is_some_and(|s| book.is_dead(k, s));
+                    let sub_buy = k >= 1 && rows.buy_any.get(k - 1);
+                    if o_dead {
+                        ledger.close_diff(okey, c, bar); // 中枢死亡 → 强制回补
+                    } else if boundary.is_some_and(|b| c <= b)
+                        && (!cfg.osc_buy_sub || sub_buy)
+                    {
+                        ledger.close_diff(okey, c, bar);
+                        counters.n_osc_zd_close += 1;
                     }
-                    LegAnchor::SegmentScale => unreachable!(
-                        "osc 槽内不可能有段尺度锚——open 路径只以 Center 锚开 osc 腿；\
-                         此 arm 是类型完备性要求，到达即 bug"
-                    ),
-                },
-                None => {
-                    if let Some(lc) = book.alive(k) {
-                        let sub_sell = k >= 1 && rows.sell_any.get(k - 1);
-                        if !book.is_frozen(k) && k >= 1 && c >= lc.zg && sub_sell
-                            && ledger.open_diff(
-                                okey,
-                                frac_of(k),
-                                c,
-                                bar,
-                                LegAnchor::Center {
-                                    cs: Some(lc.seg_start),
-                                    boundary: Some(lc.zd),
-                                    kind: AnchorKind::Osc,
-                                },
-                            )
-                        {
-                            counters.n_osc_open += 1;
-                        }
+                }
+                LegAnchor::SegmentScale => unreachable!(
+                    "osc 槽内不可能有段尺度锚——open 路径只以 Center 锚开 osc 腿；\
+                     此 arm 是类型完备性要求，到达即 bug"
+                ),
+            },
+            None => {
+                if let Some(lc) = book.alive(k) {
+                    let sub_sell = k >= 1 && rows.sell_any.get(k - 1);
+                    if !book.is_frozen(k) && k >= 1 && c >= lc.zg && sub_sell
+                        && ledger.open_diff(
+                            okey,
+                            frac_of(k),
+                            c,
+                            bar,
+                            LegAnchor::Center {
+                                cs: Some(lc.seg_start),
+                                boundary: Some(lc.zd),
+                                kind: AnchorKind::Osc,
+                            },
+                        )
+                    {
+                        counters.n_osc_open += 1;
                     }
                 }
             }
         }
+    }
+
+    // ════════════════════════════════════════════════════════
+    // 38课循环模式（rev_cycle=Cycle38，2026-06-11 任务）
+    // ════════════════════════════════════════════════════════
+
+    /// 38课循环每 bar 一步。
+    ///
+    /// 严格形式声明（调研报告 §1.1/§4.1，090号近似声明义务）：38课原文的
+    /// 操作对象是**同级别分解段**（该级别走势类型段），进出判据是段内部
+    /// 结构的背驰/盘整背驰 + 位置分支。本实现是其事件流近似：
+    /// - 卖出 = 本级别卖点（confirmed Sell1 ∨ 盘背卖）——与原文"根据其内部
+    ///   结构判断其背驰或盘整背驰结束点，先卖出"**同型**（type1 卖 = 顺向段
+    ///   衰竭的背驰本体，段终结前可见，调研报告 §2.2）；
+    /// - 买回 = 次级别（k−1）买点——原文买回分支"不跌破第一段低点"的判定
+    ///   "需要该段内部结构（次级别）的确认"（38课课间答疑 2007-03-22），
+    ///   次级别买点即该确认的事件流形态；位置分支（跌破后盘整背驰）未实装
+    ///   ——本实现对两分支不加区分地接受次级别买证据（近似边界）；
+    /// - 循环终止 = 宿主（k+1）趋势态翻落——原文"直到下一段向上的走势类型
+    ///   相对前一段不创新高或盘整背驰为止"的 move 层读数：宿主尾 move
+    ///   kind 离开 Trend ∨ direction 离开 Up。
+    ///
+    /// 同 bar 优先级：终止强闭 > 买回 > 卖出（终止是窗口存在性陈述，先于
+    /// 窗口内操作；闭/开在 phase 上自然互斥，同 bar 不开即闭的零深度 churn）。
+    #[allow(clippy::too_many_arguments)]
+    fn step_cycle38(
+        &mut self,
+        cfg: &OrganicConfig,
+        rows: &BarRows,
+        book: &CenterBook,
+        c: f64,
+        bar: i64,
+        ledger: &mut OrganicLedger,
+        frac_of: &dyn Fn(usize) -> f64,
+        counters: &mut Counters,
+    ) {
+        let k = self.ladder;
+        let host = k + 1;
+        let trow = rows.trend_row.expect(
+            "rev_cycle=Cycle38 ⇒ 调用方必提供趋势态行（capability，runner 恒提供）",
+        );
+        // 宿主趋势态：尾 move 是趋势（≥2 同向中枢）∧ 方向向上（向上段运作，
+        // 38课先卖后买短差的存续域；host 越界 = 无宿主可观测 ⇒ 循环不开）。
+        let host_trend =
+            host < MAX_LADDER && trow[host] && rows.dir(host) == Some(Direction::Up);
+
+        if !self.cycle38_on {
+            if self.phase == VoicePhase::UpLeg && host_trend {
+                self.cycle38_on = true;
+                counters.n_c38_enter += 1;
+            } else {
+                return;
+            }
+        } else if !host_trend {
+            // 循环终止：未决腿强闭（卖了必须买回——38课程序内置追价买回），
+            // 退回 RIDE。
+            if self.phase == VoicePhase::DownLeg {
+                self.c38_close_leg(c, bar, ledger, counters);
+                counters.n_c38_forced_close += 1;
+            }
+            self.cycle38_on = false;
+            counters.n_c38_exit += 1;
+            return;
+        }
+
+        match self.phase {
+            VoicePhase::DownLeg => {
+                // 买回：次级别（k−1）买点 = 本级别回调段的次级别结束确认
+                // （38课答疑：'不跌破'靠次级别内部结构确认）。
+                if k >= 1 && rows.buy_any.get(k - 1) {
+                    self.c38_close_leg(c, bar, ledger, counters);
+                    counters.n_c38_close += 1;
+                }
+            }
+            VoicePhase::UpLeg => {
+                let evs = &rows.evs[k];
+                let devs = &rows.devs[k];
+                // 卖出：本级别卖点（震荡型触发集——confirmed Sell1 ∨ 盘背卖；
+                // 逃逸型 Sell3 不入循环，V2o 裁决先验继承）。
+                let sell_sig = evs
+                    .iter()
+                    .any(|e| e.confirmed && matches!(e.class, BspClass::Sell1))
+                    || devs.iter().any(|d| {
+                        d.kind == DivKind::Consolidation && d.direction == Direction::Up
+                    });
+                if !sell_sig {
+                    return;
+                }
+                if book.is_frozen(k) {
+                    counters.n_c38_frozen_rejects += 1;
+                    return;
+                }
+                // 成本门（35课，任务第三步：每条循环短差腿都过）：该层典型
+                // 中枢振幅 θ_q（因果滚动中位数，零前瞻）≥ k 倍往返摩擦。
+                // 参照不可定义 ⇒ 保守拒绝并独立计数（不静默放行先例）。
+                // 41课门（rev_l41_gate）显式不消费——见 RevCycle docstring。
+                use super::config::{SUB_COST_MIN_OBS, SUB_COST_Q};
+                let dr = rows.depth.expect(
+                    "rev_cycle=Cycle38 ⇒ 调用方必提供 DepthRef（capability，runner 恒提供）",
+                );
+                match dr.theta(k, None, SUB_COST_Q, SUB_COST_MIN_OBS) {
+                    Some(theta_q) => {
+                        if theta_q < cfg.theta_cost_k * cfg.friction_rt {
+                            counters.n_c38_cost_rejects += 1;
+                            return;
+                        }
+                    }
+                    None => {
+                        counters.n_c38_cost_noref_rejects += 1;
+                        return;
+                    }
+                }
+                if ledger.open_diff(
+                    SlotKey::rev(k, k),
+                    frac_of(k),
+                    c,
+                    bar,
+                    LegAnchor::SegmentScale,
+                ) {
+                    counters.n_c38_open += 1;
+                    self.rev = Some(RevLeg::new(k, bar, rows.dir(k)));
+                    self.phase = VoicePhase::DownLeg;
+                } else {
+                    counters.n_rev_budget_rejects += 1;
+                }
+            }
+        }
+    }
+
+    /// 循环短差腿闭合 + 对账面计数（win = profit > 0）。
+    fn c38_close_leg(
+        &mut self,
+        c: f64,
+        bar: i64,
+        ledger: &mut OrganicLedger,
+        counters: &mut Counters,
+    ) {
+        if let Some(rev) = self.rev.take() {
+            for t in &rev.tranches {
+                let n0 = ledger.completed.len();
+                ledger.close_diff(SlotKey::rev(self.ladder, t.level), c, bar);
+                if ledger.completed.len() > n0 {
+                    counters.c38_pairs += 1;
+                    let (_, cyc) = ledger.completed.last().expect("close_diff 刚 push");
+                    let profit = cyc.profit();
+                    if profit > 0.0 {
+                        counters.c38_wins += 1;
+                    }
+                    counters.c38_cash += profit;
+                }
+            }
+        }
+        self.phase = VoicePhase::UpLeg;
     }
 
     // ════════════════════════════════════════════════════════
@@ -1570,6 +1760,7 @@ mod tests {
             run_anchor: None,
             depth: None,
             l41: None,
+            trend_row: None,
         }
     }
 
@@ -1623,6 +1814,142 @@ mod tests {
         assert!(fx.ledger.open_slot(SlotKey::rev(2, 2)).is_some());
     }
 
+    /// 38课循环：进入（宿主趋势态）→ 卖点开 → 次级别买点闭 → 同窗口再开 →
+    /// 趋势态翻落强闭退出。循环内可多次开闭是与单次 REV 腿的判别性差异。
+    #[test]
+    fn cycle38_loop_open_close_reopen_and_forced_exit() {
+        let mut fx = Fixture::new();
+        let cfg = OrganicConfig {
+            rev_mode: true,
+            rev_cycle: RevCycle::Cycle38,
+            ..OrganicConfig::default()
+        };
+        // 成本门参照：12 个 1% 振幅中枢（θ_q=1% ≥ 2×10bps 下界）
+        let mut dr = super::super::depth_ref::DepthRef::new(50);
+        for i in 0..12 {
+            fx.book.ingest(
+                2,
+                &[ev_anchored(BspClass::Sell1, true, 100 + i as i64, 9.0, 9.1)],
+                true,
+                None,
+            );
+            dr.observe(&fx.book, 10.0);
+        }
+        let mut trow = [false; MAX_LADDER];
+        let mut dir = [None; MAX_LADDER];
+        let mut v = VoiceUnit::new(2);
+        macro_rules! step {
+            ($buy_mask:expr, $c:expr, $bar:expr) => {{
+                let rows = BarRows {
+                    evs: &fx.evs,
+                    devs: &fx.devs,
+                    buy_any: LadderMask($buy_mask),
+                    sell_any: LadderMask(0),
+                    dir_row: Some(&dir),
+                    run_anchor: None,
+                    depth: Some(&dr),
+                    l41: None,
+                    trend_row: Some(&trow),
+                };
+                v.step(&cfg, &rows, &[], $c, $bar, &mut fx.ledger, &fx.book, &fx.gate,
+                       4, &|_| 0.5, &mut fx.counters);
+            }};
+        }
+        let key = SlotKey::rev(2, 2);
+        // bar0：宿主非趋势态 → 不进入循环（卖点存在也不开）
+        fx.evs[2] = vec![ev(BspClass::Sell1, true)];
+        step!(0, 10.0, 0);
+        assert_eq!(fx.counters.n_c38_enter, 0);
+        assert_eq!(fx.counters.n_c38_open, 0);
+        // bar1：宿主趋势态成立（kind=Trend ∧ dir=Up）→ 进入循环 + 卖点开腿
+        trow[3] = true;
+        dir[3] = Some(Direction::Up);
+        step!(0, 10.0, 1);
+        assert_eq!(fx.counters.n_c38_enter, 1);
+        assert_eq!(fx.counters.n_c38_open, 1);
+        assert_eq!(v.phase, VoicePhase::DownLeg);
+        assert!(fx.ledger.open_slot(key).is_some());
+        // bar2：次级别（ladder1）买点 → 买回（盈利短差），仍在循环内
+        fx.evs[2].clear();
+        step!(1 << 1, 9.5, 2);
+        assert_eq!(fx.counters.n_c38_close, 1);
+        assert_eq!(fx.counters.c38_pairs, 1);
+        assert_eq!(fx.counters.c38_wins, 1);
+        assert_eq!(v.phase, VoicePhase::UpLeg);
+        assert!(fx.ledger.open_slot(key).is_none());
+        assert_eq!(fx.counters.n_c38_exit, 0);
+        // bar3：同循环窗口内再次卖点 → 重开（单次 REV 腿做不到的判别点）
+        fx.evs[2] = vec![ev(BspClass::Sell1, true)];
+        step!(0, 10.2, 3);
+        assert_eq!(fx.counters.n_c38_open, 2);
+        // bar4：宿主趋势态翻落 → 未决腿强闭（亏损短差）+ 退出循环
+        trow[3] = false;
+        fx.evs[2].clear();
+        step!(0, 10.5, 4);
+        assert_eq!(fx.counters.n_c38_forced_close, 1);
+        assert_eq!(fx.counters.n_c38_exit, 1);
+        assert_eq!(fx.counters.c38_pairs, 2);
+        assert_eq!(fx.counters.c38_wins, 1);
+        assert!(fx.ledger.open_slot(key).is_none());
+        // bar5：循环已退出 → 卖点不再开腿
+        fx.evs[2] = vec![ev(BspClass::Sell1, true)];
+        step!(0, 10.0, 5);
+        assert_eq!(fx.counters.n_c38_open, 2);
+        // 成本门全程未拒（参照充足且振幅过下界）
+        assert_eq!(fx.counters.n_c38_cost_rejects, 0);
+        assert_eq!(fx.counters.n_c38_cost_noref_rejects, 0);
+    }
+
+    /// 成本门：warm-up 参照不足 → 保守拒绝（不静默放行）；振幅过薄 → 级别关闭。
+    #[test]
+    fn cycle38_cost_gate_rejects() {
+        for (rel_amp, n_centers, want_cost, want_noref) in
+            [(0.01, 5, 0u64, 1u64), (0.0005, 12, 1, 0)]
+        {
+            let mut fx = Fixture::new();
+            let cfg = OrganicConfig {
+                rev_mode: true,
+                rev_cycle: RevCycle::Cycle38,
+                ..OrganicConfig::default()
+            };
+            let mut dr = super::super::depth_ref::DepthRef::new(50);
+            for i in 0..n_centers {
+                fx.book.ingest(
+                    2,
+                    &[ev_anchored(BspClass::Sell1, true, 100 + i as i64, 9.0,
+                                  9.0 + rel_amp * 10.0)],
+                    true,
+                    None,
+                );
+                dr.observe(&fx.book, 10.0);
+            }
+            let mut trow = [false; MAX_LADDER];
+            trow[3] = true;
+            let mut dir = [None; MAX_LADDER];
+            dir[3] = Some(Direction::Up);
+            let mut v = VoiceUnit::new(2);
+            fx.evs[2] = vec![ev(BspClass::Sell1, true)];
+            let rows = BarRows {
+                evs: &fx.evs,
+                devs: &fx.devs,
+                buy_any: LadderMask(0),
+                sell_any: LadderMask(0),
+                dir_row: Some(&dir),
+                run_anchor: None,
+                depth: Some(&dr),
+                l41: None,
+                trend_row: Some(&trow),
+            };
+            v.step(&cfg, &rows, &[], 10.0, 0, &mut fx.ledger, &fx.book, &fx.gate, 4,
+                   &|_| 0.5, &mut fx.counters);
+            assert_eq!(fx.counters.n_c38_open, 0);
+            assert_eq!(fx.counters.n_c38_cost_rejects, want_cost);
+            assert_eq!(fx.counters.n_c38_cost_noref_rejects, want_noref);
+            // 进入循环本身不被成本门阻止（门在开腿端）
+            assert_eq!(fx.counters.n_c38_enter, 1);
+        }
+    }
+
     #[test]
     fn fractal_sub_cycle_short_diff() {
         // 38课向下段程式笔级直读：Up→Down 翻转（顶分型确认）开 Short 子腿，
@@ -1652,6 +1979,7 @@ mod tests {
                 run_anchor: Some(anchor_row),
                 depth: None,
                 l41: None,
+            trend_row: None,
             };
             let (book, counters) = (&fx.book, &mut fx.counters);
             sub.step(&cfg, &rows, book, c, bar, &mut fx.ledger, 2, 50.0, counters);
@@ -1729,6 +2057,7 @@ mod tests {
                 run_anchor: Some(&anchor_row),
                 depth: Some(&dr),
                 l41: None,
+            trend_row: None,
             };
             sub.step(&cfg, &rows, &fx.book, c, bar, &mut fx.ledger, 3, 50.0, &mut counters);
         };
@@ -1802,6 +2131,7 @@ mod tests {
                     run_anchor: Some(&anchor_row),
                     depth: None,
                     l41: Some(&te),
+                    trend_row: None,
                 };
                 sub.step(
                     &cfg, &rows, &fx.book, c, bar, &mut fx.ledger, 2, 50.0,
@@ -1839,6 +2169,7 @@ mod tests {
                     run_anchor: Some(&anchor_row),
                     depth: None,
                     l41: Some(&te),
+                    trend_row: None,
                 };
                 sub.step(
                     &cfg, &rows, &fx.book, c, bar, &mut fx.ledger, 2, 50.0,
@@ -1936,6 +2267,7 @@ mod tests {
             run_anchor: Some(&anchors),
             depth: None,
             l41: None,
+            trend_row: None,
         };
         v.step(
             &cfg, &rows, &[], 10.0, 1, &mut fx.ledger, &fx.book, &fx.gate, 4,
@@ -1970,6 +2302,7 @@ mod tests {
             run_anchor: Some(&anchors),
             depth: None,
             l41: None,
+            trend_row: None,
         };
         let formed = CenterEvent::Formed { seg_start: 9, zd: 8.0, zg: 9.0 };
         v.step(
@@ -2300,6 +2633,7 @@ mod tests {
                 run_anchor: Some(&anchors),
                 depth: None,
                 l41: None,
+            trend_row: None,
             };
             v.step(
                 &cfg, &rows, &[], 9.6, 1, &mut fx.ledger, &fx.book, &fx.gate, 4,
@@ -2320,6 +2654,7 @@ mod tests {
             run_anchor: Some(&anchors),
             depth: None,
             l41: None,
+            trend_row: None,
         };
         v.step(
             &cfg, &rows, &[], 9.6, 2, &mut fx.ledger, &fx.book, &fx.gate, 4,

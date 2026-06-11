@@ -72,6 +72,21 @@ pub enum ThetaMode {
     AdaptiveQuantile { q: f64, window: usize, min_obs: usize },
 }
 
+/// REV 声部循环模式（38课循环 voice 实装，2026-06-11）。
+///
+/// Single = 在册行为：一次 REV 腿（开一条→闭一条→回 RIDE，腿级配对谓词）。
+/// Cycle38 = 38课循环：宿主（ladder+1）趋势存续期间，voice@k 反复
+/// "本级别卖点→卖出（短差开）→ 次级别（k−1）买点→买回（短差闭）"，
+/// 循环终止 = 宿主趋势态结束（第38课"这个过程可以不断延续下去，直到……
+/// 不创新高或者盘整背驰为止"——趋势态行翻落即终止信号的工程读数）。
+/// 循环存续条件用趋势态（kind==Trend ∧ direction==Up），不用中枢域；
+/// 进出信号用买卖点（BSP/盘背事件流），不用分型（任务硬约束）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RevCycle {
+    Single,
+    Cycle38,
+}
+
 /// REV 开腿锚定强度（C3 消融轴 S）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SubAnchor {
@@ -230,6 +245,15 @@ pub struct OrganicConfig {
     pub sub_cost_gate: bool,
     /// 成本门倍数 k（θ 下限 = k × sub_friction_rt；35课"不够小"的量化档）。
     pub sub_cost_k: f64,
+    /// REV 声部循环模式（38课循环 voice，2026-06-11）。Single = 在册单次腿；
+    /// Cycle38 = 趋势存续期间循环短差（见 RevCycle docstring）。Cycle38 路径
+    /// **不消费 rev_l41_gate**——其语义（宿主趋势未衰竭 ⇒ 拒开反向腿）与
+    /// 循环存续条件（宿主趋势存续 ⇒ 循环开放）正面矛盾；41课时效语义在
+    /// Cycle38 下由 master 出场承载（type1 卖 = 衰竭信号本体，只管 master
+    /// 级别），voice 级别不受限（任务裁决：41课门改绑 master 级别）。
+    /// 每条循环短差腿过成本门（35课：该层典型中枢振幅 θ_q ≥
+    /// theta_cost_k × friction_rt，DepthRef 因果滚动中位数，零前瞻）。
+    pub rev_cycle: RevCycle,
     /// 41课门（41课："大级别走势没有任何衰竭时参与反向小级别买卖点是刀口
     /// 舔血"）。子腿开腿前检查直接父级别（self.ladder+1）走势衰竭状态
     /// （TrendExhaustion，市场性质）：相邻同向（Down）段创新低 ∧ 当前段窗口
@@ -303,6 +327,7 @@ impl Default for OrganicConfig {
             sub_cost_gate: false,
             sub_cost_k: 2.0,
             sub_l41_gate: false,
+            rev_cycle: RevCycle::Single,
         }
     }
 }
@@ -440,6 +465,17 @@ pub fn variant(name: &str) -> Option<OrganicConfig> {
         "V2oa50" => Some(OrganicConfig {
             theta_mode: ThetaMode::AdaptiveQuantile { q: 0.50, window: 50, min_obs: 10 },
             ..variant("V2of").expect("V2of 在上方注册")
+        }),
+        // V2oa25C38：38课循环 voice（2026-06-11 任务）。基线 = V2oa25 默认门；
+        // 差异轴：rev_cycle=Cycle38（趋势存续期循环短差，替换单次 REV 腿）
+        // + rev_l41_gate=false（Cycle38 路径不消费该门——保留 true 是死配置位，
+        // 声明=能力；41课时效语义由循环存续条件 + master 出场承载）。
+        // θ 自适应/成本门下界继承 V2oa25（循环开腿的成本门用同一
+        // theta_cost_k × friction_rt 下界，参照 = 该层因果滚动中位数）。
+        "V2oa25C38" => Some(OrganicConfig {
+            rev_cycle: RevCycle::Cycle38,
+            rev_l41_gate: false,
+            ..variant("V2oa25").expect("V2oa25 在上方注册")
         }),
         // V2oa25F1：默认门 + 笔级分型递归 depth=1 + P1 双门（成本门/41课门的
         // 子腿形态——P0+P1 判决：成本门=亏损有界化，41课门首次非死门）。
@@ -633,6 +669,26 @@ mod tests {
         // 默认门 = V2oa25：41课门开；V2oa50 保持纯自适应（消融对照位）
         assert!(variant("V2oa25").unwrap().rev_l41_gate);
         assert!(!variant("V2oa50").unwrap().rev_l41_gate);
+    }
+
+    #[test]
+    fn cycle38_variant_inherits_v2oa25_with_l41_off() {
+        // 默认全变体 rev_cycle=Single（cycle38 默认关，depth=0 行为不变）
+        assert_eq!(OrganicConfig::default().rev_cycle, RevCycle::Single);
+        assert_eq!(variant("V2oa25").unwrap().rev_cycle, RevCycle::Single);
+        let cfg = variant("V2oa25C38").unwrap();
+        assert_eq!(cfg.rev_cycle, RevCycle::Cycle38);
+        // 41课门改绑 master（Cycle38 不消费 rev_l41_gate ⇒ 显式 false 非死位）
+        assert!(!cfg.rev_l41_gate);
+        // 其余继承 V2oa25：θ 自适应 + 成本门下界 + 震荡型触发集
+        assert_eq!(
+            cfg.theta_mode,
+            ThetaMode::AdaptiveQuantile { q: 0.25, window: 50, min_obs: 10 }
+        );
+        assert!(cfg.rev_mode && cfg.rev_paired && !cfg.rev_escape_open);
+        assert_eq!(cfg.theta_cost_k, 2.0);
+        assert_eq!(cfg.friction_rt, 0.001);
+        assert_eq!(cfg.rev_sub_depth, 0);
     }
 
     #[test]

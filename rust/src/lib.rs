@@ -1147,6 +1147,20 @@ impl PyRecursiveOrchestrator {
         self.inner.moves().last().map(|m| m.direction.as_str())
     }
 
+    /// 趋势态行 trend_row[2]：笔级走势尾 move kind（"trend"/"consolidation"）。
+    /// 38课循环 voice 的宿主趋势态读数（O(1) 只读 surfacing，dir 行同先例）。
+    /// 调用契约同 `_inc`（仅 stroke_count 增长 bar）。无走势 → None。
+    #[pyo3(signature = (level_id = 1))]
+    fn bi_zhongshu_last_move_kind(&mut self, level_id: i64) -> Option<&'static str> {
+        self.sync_inc(level_id);
+        self.inc_bz.as_ref().and_then(|e| e.last_move_kind()).map(|k| k.as_str())
+    }
+
+    /// 趋势态行 trend_row[3]：走势级（L1）尾 move kind（O(1) 只读）。无走势 → None。
+    fn trend_last_move_kind(&self) -> Option<&'static str> {
+        self.inner.moves().last().map(|m| m.kind.as_str())
+    }
+
     /// 走势级背驰流——inc_seg_div 增量缓存直读（同上格式；O(n_div) marshal/次）。
     ///
     /// 逐位等价于引擎内部 compute_bsps 所消费的 divergences（segments 全量 /
@@ -1498,7 +1512,8 @@ impl PyOrganicTape {
     #[staticmethod]
     #[allow(clippy::too_many_arguments, clippy::type_complexity)]
     #[pyo3(signature = (closes, buy1, sell1, sell_any, buy_any, up_settled, max_ladder,
-                        type2_buy, bsp_flat, div_flat, dir_flips = None, run_high = None))]
+                        type2_buy, bsp_flat, div_flat, dir_flips = None, run_high = None,
+                        trend_flips = None))]
     fn from_columns(
         closes: Vec<f64>,
         buy1: Vec<u16>,
@@ -1512,6 +1527,7 @@ impl PyOrganicTape {
         div_flat: Vec<(i64, u8, String, String, i64, f64, f64, f64)>,
         dir_flips: Option<Vec<(i64, u8, String)>>,
         run_high: Option<Vec<f64>>,
+        trend_flips: Option<Vec<(i64, u8, bool)>>,
     ) -> PyResult<Self> {
         use trading::tape::{BarSig, SignalTape};
         use trading::types::{BspClass, BspEvent as TBspEvent, DivEvent as TDivEvent, LadderMask, MAX_LADDER};
@@ -1638,8 +1654,21 @@ impl PyOrganicTape {
                 )));
             }
         }
+        // 趋势态行（38课循环 voice）：(bar, ladder, is_trend)，bar 升序校验同
+        // dir_flips（消费方 runner 单指针滚动推进的前提）。
+        if let Some(rows) = &trend_flips {
+            let mut last_bar = -1i64;
+            for &(bar, lad, _) in rows {
+                if bar < last_bar || (bar as usize) >= n || (lad as usize) >= MAX_LADDER {
+                    return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                        "trend_flips 越界或乱序：bar={bar} ladder={lad}（须 bar 升序）"
+                    )));
+                }
+                last_bar = bar;
+            }
+        }
         Ok(PyOrganicTape {
-            inner: SignalTape { bars, dir_flips: dir_flips_parsed, run_high },
+            inner: SignalTape { bars, dir_flips: dir_flips_parsed, run_high, trend_flips },
         })
     }
 
@@ -1701,6 +1730,7 @@ fn run_organic_rust(
     counters.set_item("rev_esc_net_cash", res.counters.rev_esc_cash)?;
     // 递归子腿聚合净现金（O_sub1 判据直接读数）
     counters.set_item("sub_net_cash", res.counters.sub_cash)?;
+    counters.set_item("c38_net_cash", res.counters.c38_cash)?;
     out.set_item("counters", counters)?;
     out.set_item("rev_attempts_by_ladder", res.rev_attempts_by_ladder.to_vec())?;
     out.set_item("rev_opens_by_ladder", res.rev_opens_by_ladder.to_vec())?;

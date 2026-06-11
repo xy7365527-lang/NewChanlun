@@ -469,11 +469,33 @@ pub struct Counters {
     /// 子腿闭合对统计（win = profit > 0；含级联强闭）。
     pub sub_pairs: u64,
     pub sub_wins: u64,
+    // ── 38课循环 voice 可观测面（2026-06-11 任务，rev_cycle=Cycle38）──
+    /// 进入循环：UpLeg ∧ 宿主（ladder+1）趋势态成立（kind==Trend ∧ dir==Up）。
+    pub n_c38_enter: u64,
+    /// 循环终止：宿主趋势态翻落（38课"不创新高或盘整背驰"的趋势态行读数）。
+    pub n_c38_exit: u64,
+    /// 循环内短差开（本级别卖点：confirmed Sell1 ∨ 盘背卖）。
+    pub n_c38_open: u64,
+    /// 循环内短差闭（次级别 k−1 买点）。
+    pub n_c38_close: u64,
+    /// 循环终止 bar 未决腿强闭（卖了必须买回——38课程序内置追价买回形态）。
+    pub n_c38_forced_close: u64,
+    /// 成本门拒：该层典型中枢振幅 θ_q < theta_cost_k × friction_rt（35课）。
+    pub n_c38_cost_rejects: u64,
+    /// 成本门拒（参照不可定义）：warm-up 样本不足，保守拒绝（不静默放行）。
+    pub n_c38_cost_noref_rejects: u64,
+    /// 开腿拒：本级别冻结（hard type3 已落——G3a 同语义）。
+    pub n_c38_frozen_rejects: u64,
+    /// 循环短差闭合对统计（win = profit > 0；含强闭）。
+    pub c38_pairs: u64,
+    pub c38_wins: u64,
     /// 净现金按类型分解（f64，lib.rs 单独 marshal——py_items 仅 u64）。
     pub rev_osc_cash: f64,
     pub rev_esc_cash: f64,
     /// 子腿聚合净现金（O_sub1 判据的直接读数；f64 同上单独 marshal）。
     pub sub_cash: f64,
+    /// 循环短差聚合净现金（cycle38 总贡献判据；f64 同上单独 marshal）。
+    pub c38_cash: f64,
     // ── REV 腿逐腿日志（trade_behavior 行为分解，2026-06-11 任务）──
     // 仅 rev_paired 路径产出（legacy 腿无 kind/锚概念——声明=能力）。
     // PyO3 不可见：py_items 与 lib.rs marshal 均不含 → 在册对账面零侵入。
@@ -578,6 +600,16 @@ impl Counters {
             ("n_sub_l41_rejects", self.n_sub_l41_rejects),
             ("sub_pairs", self.sub_pairs),
             ("sub_wins", self.sub_wins),
+            ("n_c38_enter", self.n_c38_enter),
+            ("n_c38_exit", self.n_c38_exit),
+            ("n_c38_open", self.n_c38_open),
+            ("n_c38_close", self.n_c38_close),
+            ("n_c38_forced_close", self.n_c38_forced_close),
+            ("n_c38_cost_rejects", self.n_c38_cost_rejects),
+            ("n_c38_cost_noref_rejects", self.n_c38_cost_noref_rejects),
+            ("n_c38_frozen_rejects", self.n_c38_frozen_rejects),
+            ("c38_pairs", self.c38_pairs),
+            ("c38_wins", self.c38_wins),
         ]
     }
 }

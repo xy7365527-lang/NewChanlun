@@ -212,6 +212,14 @@ impl IncrementalBiZhongshuBsp {
         self.moves.current().last().map(|m| m.direction)
     }
 
+    /// 笔级走势尾元素 kind（38课循环 voice 趋势态行 trend_row[2]；2026-06-11）。
+    ///
+    /// 只读 surfacing 同 `last_move_direction`。趋势态 = 尾 move kind==Trend
+    /// （≥2 个同向中枢，17课趋势定义的 move 层读数）。无走势 → None。
+    pub fn last_move_kind(&self) -> Option<crate::moves::MoveKind> {
+        self.moves.current().last().map(|m| m.kind)
+    }
+
     /// **delta 信号接口**——返回自上次以来新触发的 confirmed 买卖点信号，O(window) 摊还。
     ///
     /// 逐位等价于调用方 `_scan_new(current(), seg_seen)`：遍历 bsp，对 confirmed 且
