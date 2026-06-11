@@ -153,6 +153,30 @@ pub enum EntryMode {
     Recursive { base_frac: f64 },
 }
 
+/// master 出场模式（2026-06-11 任务：master 出场事件驱动→状态驱动）。
+///
+/// 范畴背景：BTC 全历史 P5 基线 −45% vs BH +1380%——master 见 entry 级
+/// type1 卖即清仓，在超强单边标的上反复丢掉趋势主体段（递归建仓双标的
+/// 否证已确认"级别确认是状态范畴非事件范畴"；本轴把同一区分应用到出场侧）。
+///
+/// Signal = 在册行为（O0≡P5 零接触面）：entry_ladder 的 confirmed sell1
+/// 即出（事件驱动）。
+/// HoldTrend = 状态驱动（49课"利润最大化"持币不动 + 41课"大级别走势没有
+/// 衰竭时不做反向"）：本级别 sell1 只是必要条件，还需直接父级别
+/// （entry_ladder+1）上行趋势衰竭确认（TrendExhaustion::up_unexhausted
+/// 为 false——相邻同向段创新高 ∧ 无盘整背驰的正面延续证据不成立）才出；
+/// 趋势未衰竭时 master 持仓，sell1 的短差机会由 voice 承载（V2oa25 在册
+/// 逻辑零接触）。证据缺失（段对不可定义）⇒ 不拦截出场——门只在趋势
+/// 明确延续时关，与 rev_l41_gate"证据缺失不拒开"同一保守语义。
+/// HighestOnly = 最激进持仓：只在当前最高涌现层（max_ladder）的 sell1
+/// 出场（31课"历史性大顶"的级别相对化读数——最高级别卖点才是大顶）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExitMode {
+    Signal,
+    HoldTrend,
+    HighestOnly,
+}
+
 /// REV 开腿锚定强度（C3 消融轴 S）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SubAnchor {
@@ -333,6 +357,8 @@ pub struct OrganicConfig {
     pub sub_l41_gate: bool,
     /// master 入场模式（见 EntryMode docstring）。Full = 在册满仓入场。
     pub entry_mode: EntryMode,
+    /// master 出场模式（见 ExitMode docstring）。Signal = 在册 sell1 即出。
+    pub exit_mode: ExitMode,
 }
 
 /// 成本门 θ_q 的分位数（中位数 = 该层"典型"中枢振幅；35课判据是级别的
@@ -401,6 +427,7 @@ impl Default for OrganicConfig {
             rev_cycle: RevCycle::Single,
             rev_cycle_close: RevCycleClose::SubAny,
             entry_mode: EntryMode::Full,
+            exit_mode: ExitMode::Signal,
         }
     }
 }
@@ -719,6 +746,17 @@ pub fn variant(name: &str) -> Option<OrganicConfig> {
             entry_mode: EntryMode::Recursive { base_frac: 0.5 },
             ..variant("V2oa25").expect("V2oa25 在上方注册")
         }),
+        // ── master 出场状态驱动消融（2026-06-11；基线 = V2oa25，单轴 exit_mode）──
+        // ht = HoldTrend（sell1 ∧ 父级别趋势衰竭才出）；ho = HighestOnly
+        // （只认 max_ladder 的 sell1）。voice 短差（V2oa25 REV+域腿）逐位不碰。
+        "V2oa25_ht" => Some(OrganicConfig {
+            exit_mode: ExitMode::HoldTrend,
+            ..variant("V2oa25").expect("V2oa25 在上方注册")
+        }),
+        "V2oa25_ho" => Some(OrganicConfig {
+            exit_mode: ExitMode::HighestOnly,
+            ..variant("V2oa25").expect("V2oa25 在上方注册")
+        }),
         // 消融 R2：Sell2 入段终结触发集（§5.3 矩阵 Sell2 格的表态轴，exploratory）
         "VR2" => Some(OrganicConfig {
             rev_mode: true,
@@ -862,6 +900,27 @@ mod tests {
             let normalized = OrganicConfig { entry_mode: EntryMode::Full, ..cfg };
             assert_eq!(format!("{normalized:?}"), format!("{base:?}"), "{name}");
         }
+    }
+
+    #[test]
+    fn exit_mode_variants_single_axis() {
+        // 默认/在册全变体 exit_mode=Signal（O0≡P5 零接触面）
+        assert_eq!(OrganicConfig::default().exit_mode, ExitMode::Signal);
+        let base = variant("V2oa25").unwrap();
+        assert_eq!(base.exit_mode, ExitMode::Signal);
+        // 两臂只动 exit_mode 一轴——其余字段与 V2oa25 逐位相同
+        for (name, want) in [
+            ("V2oa25_ht", ExitMode::HoldTrend),
+            ("V2oa25_ho", ExitMode::HighestOnly),
+        ] {
+            let cfg = variant(name).unwrap();
+            assert_eq!(cfg.exit_mode, want, "{name}");
+            let normalized = OrganicConfig { exit_mode: ExitMode::Signal, ..cfg };
+            assert_eq!(format!("{normalized:?}"), format!("{base:?}"), "{name}");
+        }
+        // HoldTrend 的数据基础前提：V2oa25 的 rev_l41_gate 已要求 D3 行 +
+        // 实例化 TrendExhaustion——_ht 继承后两者共用同一追踪器
+        assert!(variant("V2oa25_ht").unwrap().rev_l41_gate);
     }
 
     #[test]

@@ -21,7 +21,7 @@
 
 use super::allocator::SizeAllocator;
 use super::center_book::CenterBook;
-use super::config::{EntryMode, OrganicConfig, RevCycle, Sizing, StopMode, ThetaMode};
+use super::config::{EntryMode, ExitMode, OrganicConfig, RevCycle, Sizing, StopMode, ThetaMode};
 use super::depth_ref::{DepthRef, DEPTH_REF_WINDOW};
 use super::fatigue_gate::FatigueGate;
 use super::ledger::{LegTrace, OrganicLedger};
@@ -445,6 +445,25 @@ pub fn run_organic(
         }
     }
 
+    // ── master 出场状态驱动 guard（2026-06-11 任务，exit_mode 轴）──
+    if cfg.exit_mode == ExitMode::HoldTrend && !tape.has_dir_rows() {
+        return Err(
+            "exit_mode=HoldTrend（趋势态出场）要求磁带 dir_flips 行（D3）——
+             父级别 Up 段切分 = 方向行翻转，无行时追踪器恒无段对观测 ⇒
+             up_unexhausted 恒 false ⇒ 静默退化为 Signal 行为（声明=能力，
+             不提供静默降级）"
+                .to_string(),
+        );
+    }
+    if cfg.exit_mode != ExitMode::Signal && cfg.earning_reaction {
+        return Err(
+            "exit_mode≠Signal × earning_reaction 组合未定义：earning 升级出场
+             /REV 腿降格的出场语义建立在 entry 级 sell1 事件驱动之上，状态
+             驱动形态未设计——显式拒绝（Cycle38×tranche 同先例）"
+                .to_string(),
+        );
+    }
+
     // MarketMode 穷举（F1 期货实装时新增变体，编译器强制此处表态——v1R §2.2）。
     match cfg.market_mode {
         super::config::MarketMode::Stock => {}
@@ -506,8 +525,10 @@ pub fn run_organic(
     // 父级别走势衰竭追踪器（41课门；市场性质，与 depth_ref 同置局部变量
     // ——BarRows 持只读借用横跨 LONG 块）。sub_l41_gate（Fractal 子腿，Down
     // 侧）或 rev_l41_gate（REV 主腿，Up 侧）任一变体实例化。
-    let mut trend_exh =
-        (cfg.sub_l41_gate || cfg.rev_l41_gate).then(TrendExhaustion::new);
+    let mut trend_exh = (cfg.sub_l41_gate
+        || cfg.rev_l41_gate
+        || cfg.exit_mode == ExitMode::HoldTrend)
+        .then(TrendExhaustion::new);
 
     for i in 0..n {
         let sig = &tape.bars[i];
@@ -679,17 +700,42 @@ pub fn run_organic(
                 }
             } else {
                 // master RIDE：出场判定（C1——唯一输入是 policy 层 sell1 行；
-                // SCm：sell1 ∧ 次级别卖确认——27课区间套的出场时机细化）
+                // SCm：sell1 ∧ 次级别卖确认——27课区间套的出场时机细化）。
+                // exit_mode 选择判据级别：Signal/HoldTrend = entry 级（在册）；
+                // HighestOnly = 当前最高涌现层（31课"历史性大顶"的级别相对化）
+                let mx_lad = match cfg.exit_mode {
+                    ExitMode::Signal | ExitMode::HoldTrend => entry_ladder,
+                    ExitMode::HighestOnly => {
+                        (sig.max_ladder as usize).min(MAX_LADDER - 1)
+                    }
+                };
                 let sc_m = !cfg.sc_master_exit
-                    || rows.sub_confirm(entry_ladder, crate::buysellpoint::Side::Sell);
-                if sig.sell1.get(entry_ladder) && !sc_m {
+                    || rows.sub_confirm(mx_lad, crate::buysellpoint::Side::Sell);
+                if sig.sell1.get(mx_lad) && !sc_m {
                     run.counters.n_sc_master_holds += 1;
                 }
-                let trigger = MasterExitSignal::from_sell1_row_sub_confirmed(
-                    sig.sell1.get(entry_ladder),
+                let sig_trigger = MasterExitSignal::from_sell1_row_sub_confirmed(
+                    sig.sell1.get(mx_lad),
                     sc_m,
                 )
                 .is_some();
+                // HoldTrend（49课利润最大化 + 41课）：本级别 sell1 只是必要
+                // 条件，还需父级别（entry_ladder+1）上行趋势衰竭——正面延续
+                // 证据（相邻同向段创新高 ∧ 无盘整背驰）成立时拦截出场持仓，
+                // sell1 的短差机会由 voice 承载（在册逻辑零接触）。
+                let trigger = match cfg.exit_mode {
+                    ExitMode::Signal | ExitMode::HighestOnly => sig_trigger,
+                    ExitMode::HoldTrend => {
+                        let unexh = rows
+                            .l41
+                            .expect("guard: HoldTrend ⇒ TrendExhaustion 实例化")
+                            .up_unexhausted(entry_ladder + 1);
+                        if sig_trigger && unexh {
+                            run.counters.n_exit_trend_holds += 1;
+                        }
+                        sig_trigger && !unexh
+                    }
+                };
                 if trigger {
                     let earning =
                         run.pos.as_ref().is_some_and(|p| p.phase.is_earning());
@@ -710,7 +756,20 @@ pub fn run_organic(
                             run.close_position(i as i64, c, &reason);
                         }
                     } else {
-                        let reason = format!("exit_{}_type1sell", ladder_name(entry_ladder));
+                        // reason 按模式区分（Signal 逐字在册——O0≡P5 守卫面）
+                        let reason = match cfg.exit_mode {
+                            ExitMode::Signal => {
+                                format!("exit_{}_type1sell", ladder_name(entry_ladder))
+                            }
+                            ExitMode::HoldTrend => format!(
+                                "exit_{}_type1sell_trendexh",
+                                ladder_name(entry_ladder)
+                            ),
+                            ExitMode::HighestOnly => format!(
+                                "exit_{}_type1sell_highest",
+                                ladder_name(mx_lad)
+                            ),
+                        };
                         run.close_position(i as i64, c, &reason);
                     }
                 } else if cfg.earning_reaction

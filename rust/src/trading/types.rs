@@ -520,6 +520,10 @@ pub struct Counters {
     /// 追加被拒：账本处于 EarningShares——成本概念已不存在，加权均价算术
     /// 未定义（显式拒绝并计数，open_sub 同先例）。
     pub n_rec_entry_earning_rejects: u64,
+    // ── master 出场状态驱动可观测面（2026-06-11 任务，exit_mode=HoldTrend）──
+    /// HoldTrend：entry 级 sell1 触发成立但父级别（entry_ladder+1）上行趋势
+    /// 未衰竭（up_unexhausted），master 出场被拦截持仓的 bar 数。
+    pub n_exit_trend_holds: u64,
     /// 净现金按类型分解（f64，lib.rs 单独 marshal——py_items 仅 u64）。
     pub rev_osc_cash: f64,
     pub rev_esc_cash: f64,
@@ -659,6 +663,7 @@ impl Counters {
             ("n_rec_entry_full", self.n_rec_entry_full),
             ("n_rec_entry_partial_exits", self.n_rec_entry_partial_exits),
             ("n_rec_entry_earning_rejects", self.n_rec_entry_earning_rejects),
+            ("n_exit_trend_holds", self.n_exit_trend_holds),
         ]
     }
 }
