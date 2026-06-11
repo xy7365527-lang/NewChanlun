@@ -1095,6 +1095,7 @@ impl VoiceUnit {
                                 .up_unexhausted(k + 1)
                         {
                             counters.n_osc_l41_rejects += 1;
+                            counters.osc_l41_reject_log.push((k as u8, bar));
                         } else if ledger.open_diff(
                             okey,
                             frac_of(k),

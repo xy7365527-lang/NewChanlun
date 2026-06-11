@@ -1733,6 +1733,8 @@ fn run_organic_rust(
     counters.set_item("c38_net_cash", res.counters.c38_cash)?;
     // 循环短差逐腿 (reason, profit) 日志——按买点类型的 payoff 分布读数
     counters.set_item("c38_close_profits", res.counters.c38_close_profits.clone())?;
+    // 41课域腿门拒开逐事件 (ladder, bar) 日志——regime 分段统计数据基础
+    counters.set_item("osc_l41_reject_log", res.counters.osc_l41_reject_log.clone())?;
     out.set_item("counters", counters)?;
     out.set_item("rev_attempts_by_ladder", res.rev_attempts_by_ladder.to_vec())?;
     out.set_item("rev_opens_by_ladder", res.rev_opens_by_ladder.to_vec())?;

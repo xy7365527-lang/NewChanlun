@@ -564,6 +564,10 @@ pub struct Counters {
     pub n_ledger_sell_noops: u64,
     /// 槽空的 Buy 事件 no-op（"满仓者二买无事可做"读数，26课恒仓推论）。
     pub n_ledger_buy_noops: u64,
+    /// 41课域腿门拒开逐事件日志 (ladder, bar)：regime 分段统计的数据基础
+    /// （拦截率/盈亏按牛熊震荡阶段分解——2026-06-11 追加质询）。仅
+    /// osc_l41_gate 变体非空（门关恒空表）。lib.rs 单独 marshal（list）。
+    pub osc_l41_reject_log: Vec<(u8, i64)>,
     // ── REV 腿逐腿日志（trade_behavior 行为分解，2026-06-11 任务）──
     // 仅 rev_paired 路径产出（legacy 腿无 kind/锚概念——声明=能力）。
     // PyO3 不可见：py_items 与 lib.rs marshal 均不含 → 在册对账面零侵入。
