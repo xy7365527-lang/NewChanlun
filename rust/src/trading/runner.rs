@@ -378,11 +378,11 @@ pub fn run_organic(
             );
         }
     }
-    if cfg.rev_l41_gate && !tape.has_dir_rows() {
+    if (cfg.rev_l41_gate || cfg.osc_l41_gate) && !tape.has_dir_rows() {
         return Err(
-            "rev_l41_gate（41课门 REV 主腿形态）要求磁带 dir_flips 行（D3）——
-             父级别 Up/Down 段切分 = 方向行翻转，无行时追踪器恒无段对观测
-             = 死门（不静默放行）"
+            "rev_l41_gate/osc_l41_gate（41课门 REV 主腿/域腿形态）要求磁带
+             dir_flips 行（D3）——父级别 Up/Down 段切分 = 方向行翻转，无行时
+             追踪器恒无段对观测 = 死门（不静默放行）"
                 .to_string(),
         );
     }
@@ -618,9 +618,11 @@ pub fn run_organic(
     let mut depth_ref = DepthRef::new(depth_window);
     // 父级别走势衰竭追踪器（41课门；市场性质，与 depth_ref 同置局部变量
     // ——BarRows 持只读借用横跨 LONG 块）。sub_l41_gate（Fractal 子腿，Down
-    // 侧）或 rev_l41_gate（REV 主腿，Up 侧）任一变体实例化。
+    // 侧）、rev_l41_gate（REV 主腿，Up 侧）或 osc_l41_gate（域腿，Up 侧）
+    // 任一变体实例化。
     let mut trend_exh = (cfg.sub_l41_gate
         || cfg.rev_l41_gate
+        || cfg.osc_l41_gate
         || cfg.exit_mode == ExitMode::HoldTrend
         || cfg.exit_mode == (ExitMode::Emergent { hold_trend: true }))
         .then(TrendExhaustion::new);

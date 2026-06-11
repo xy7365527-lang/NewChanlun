@@ -372,6 +372,8 @@ pub struct Counters {
     pub n_osc_zd_close: u64,
     /// 49课严格形式（osc_sell3_no_recover）：锚中枢死亡后不回补的持有 bar 数。
     pub n_osc_dead_holds: u64,
+    /// 41课门（域腿，osc_l41_gate）：父级别上行无衰竭被拒的 osc 开腿尝试数。
+    pub n_osc_l41_rejects: u64,
     pub n_rev_attempts: u64,
     pub n_rev_gate_rejects: u64,
     pub n_rev_frozen_rejects: u64,
@@ -615,6 +617,7 @@ impl Counters {
             ("n_osc_open", self.n_osc_open),
             ("n_osc_zd_close", self.n_osc_zd_close),
             ("n_osc_dead_holds", self.n_osc_dead_holds),
+            ("n_osc_l41_rejects", self.n_osc_l41_rejects),
             ("n_rev_attempts", self.n_rev_attempts),
             ("n_rev_gate_rejects", self.n_rev_gate_rejects),
             ("n_rev_frozen_rejects", self.n_rev_frozen_rejects),

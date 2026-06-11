@@ -236,6 +236,16 @@ pub struct OrganicConfig {
     /// 保持卖出状态直到边界触线（更低处）或 master 清算。false = 在册 P5
     /// 行为（死亡即市价回补，O0≡P5 零接触面）。
     pub osc_sell3_no_recover: bool,
+    /// 41课门（域腿形态，osc 加门任务 2026-06-11）：osc 开腿前检查直接父级别
+    /// （ladder+1）向上走势衰竭状态——相邻同向（Up）段创新高 ∧ 当前段窗口内
+    /// 无盘整背驰 = 上涨趋势未完 = 拒开逆向短差。原文依据：41课"大级别走势
+    /// 没有任何衰竭迹象时参与反向小级别买卖点是刀口舔血"（"一切"包括域腿）；
+    /// 49课"中枢向上移动时就应该满仓"（满仓 = 不做逆向短差）。与 rev_l41_gate
+    /// （REV 主腿）同判据同追踪器（up_unexhausted(k+1)），消费点不同——REV 门
+    /// 挡段终结反向腿，本门挡中枢震荡 c≥ZG 卖出腿（强趋势中价格不回 ZD →
+    /// 中枢死亡 → 高位强制买回的结构性亏损路径）。n_osc_l41_rejects 可观测。
+    /// false = 在册 P5 行为（O0≡P5 零接触面）。需要 D3 dir_flips 磁带行。
+    pub osc_l41_gate: bool,
     // ── 有机扩展轴（v2） ──
     pub rev_mode: bool,
     pub sub_anchor: SubAnchor,
@@ -479,6 +489,7 @@ impl Default for OrganicConfig {
             osc_mode: true,
             osc_buy_sub: false,
             osc_sell3_no_recover: false,
+            osc_l41_gate: false,
             rev_mode: false,
             sub_anchor: SubAnchor::Off,
             tranche: false,
@@ -898,6 +909,16 @@ pub fn variant(name: &str) -> Option<OrganicConfig> {
             osc_sell3_no_recover: true,
             ..variant("V2oa25_ht").expect("V2oa25_ht 在上方注册")
         }),
+        // o41：osc 域腿加 41课门（跑输 BH 根因任务 2026-06-11：BTC/GC/ES 凶手
+        // = osc 腿在强趋势中逆向卖出 → 价格不回 ZD → 中枢死亡 → 高位强制买回；
+        // 41课门在册只挂 REV 腿，osc 开腿无门）。判据 = rev_l41_gate 同形
+        // （up_unexhausted(k+1)），消费点 = step_osc 开腿分支。预注册判据：
+        // BTC/GC/ES 的 osc 亏损大幅减少；OKLO/BRN 正 osc 贡献近不变
+        // （趋势衰竭时门放行，震荡 regime 中正常开腿）。
+        "V2oa25_ht_o41" => Some(OrganicConfig {
+            osc_l41_gate: true,
+            ..variant("V2oa25_ht").expect("V2oa25_ht 在上方注册")
+        }),
         // ── 38课位置分支移植（2026-06-11 任务；审计 §4e 唯一缺失项；
         //    基线 = V2oa25_ht。Sequence38 子腿 L2 全正（OKLO+10.2/BRN+4.1pp）
         //    后的主腿判决位——三臂分解组合的两条轴 ──
@@ -1121,6 +1142,20 @@ mod tests {
         // HoldTrend 的数据基础前提：V2oa25 的 rev_l41_gate 已要求 D3 行 +
         // 实例化 TrendExhaustion——_ht 继承后两者共用同一追踪器
         assert!(variant("V2oa25_ht").unwrap().rev_l41_gate);
+    }
+
+    #[test]
+    fn o41_variant_single_axis_on_ht() {
+        // 默认/在册基线 osc_l41_gate=false（O0≡P5 零接触面）
+        assert!(!OrganicConfig::default().osc_l41_gate);
+        let base = variant("V2oa25_ht").unwrap();
+        assert!(!base.osc_l41_gate);
+        // o41 只动 osc_l41_gate 一轴——其余字段与 V2oa25_ht 逐位相同
+        let cfg = variant("V2oa25_ht_o41").unwrap();
+        assert!(cfg.osc_l41_gate && cfg.osc_mode && cfg.rev_l41_gate);
+        assert_eq!(cfg.exit_mode, ExitMode::HoldTrend);
+        let normalized = OrganicConfig { osc_l41_gate: false, ..cfg };
+        assert_eq!(format!("{normalized:?}"), format!("{base:?}"));
     }
 
     #[test]

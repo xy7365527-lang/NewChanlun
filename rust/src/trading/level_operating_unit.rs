@@ -1078,8 +1078,24 @@ impl VoiceUnit {
             None => {
                 if let Some(lc) = book.alive(k) {
                     let sub_sell = k >= 1 && rows.sell_any.get(k - 1);
-                    if !book.is_frozen(k) && k >= 1 && c >= lc.zg && sub_sell
-                        && ledger.open_diff(
+                    if !book.is_frozen(k) && k >= 1 && c >= lc.zg && sub_sell {
+                        // ── 41课门（osc_l41_gate，域腿形态）：直接父级别（k+1）
+                        // 向上走势无衰竭迹象（相邻 Up 段创新高 ∧ 段窗口内无盘整
+                        // 背驰）⇒ 拒开逆向短差——强趋势中价格不回 ZD，中枢死亡
+                        // 后高位强制买回是结构性亏损（49课"中枢向上移动时就应该
+                        // 满仓"）。判据/越界语义同 rev_l41_gate（up_unexhausted
+                        // 对 k+1 ≥ MAX_LADDER 返回 false 放行）。──
+                        if cfg.osc_l41_gate
+                            && rows
+                                .l41
+                                .expect(
+                                    "osc_l41_gate ⇒ 调用方必提供 TrendExhaustion\
+                                     （capability，runner 恒提供）",
+                                )
+                                .up_unexhausted(k + 1)
+                        {
+                            counters.n_osc_l41_rejects += 1;
+                        } else if ledger.open_diff(
                             okey,
                             frac_of(k),
                             c,
@@ -1089,9 +1105,9 @@ impl VoiceUnit {
                                 boundary: Some(lc.zd),
                                 kind: AnchorKind::Osc,
                             },
-                        )
-                    {
-                        counters.n_osc_open += 1;
+                        ) {
+                            counters.n_osc_open += 1;
+                        }
                     }
                 }
             }
@@ -3830,5 +3846,63 @@ mod tests {
         );
         assert_eq!(fx.counters.n_osc_zd_close, 1);
         assert!(fx.ledger.open_slot(SlotKey::osc(2)).is_none());
+    }
+
+    #[test]
+    fn osc_l41_gate_rejects_while_parent_up_trend_unexhausted() {
+        // 41课域腿门：父级别（k+1=3）相邻 Up 段创新高且无盘整背驰 ⇒ osc 拒开；
+        // 盘整背驰出现（衰竭证据）⇒ 门开，osc 正常开腿。
+        let mut fx = Fixture::new();
+        fx.book.ingest(2, &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)], true, None);
+        let cfg = OrganicConfig { osc_l41_gate: true, ..OrganicConfig::default() };
+        let mut te = super::super::trend_exhaustion::TrendExhaustion::new();
+        let devs_empty: [Vec<DivEvent>; MAX_LADDER] = Default::default();
+        // 父级别 ladder 3 走出两个创新高 Up 段（上涨趋势未完）
+        let mut pdir: [Option<Direction>; MAX_LADDER] = [None; MAX_LADDER];
+        pdir[3] = Some(Direction::Up);
+        te.observe(&pdir, &devs_empty, 10.0);
+        pdir[3] = Some(Direction::Down);
+        te.observe(&pdir, &devs_empty, 9.5);
+        pdir[3] = Some(Direction::Up);
+        te.observe(&pdir, &devs_empty, 11.0);
+        assert!(te.up_unexhausted(3));
+
+        let mut v = VoiceUnit::new(2);
+        {
+            let mut rows = empty_rows(&fx.evs, &fx.devs);
+            rows.sell_any = LadderMask(1 << 1); // sub_sell = sell_any[k-1]
+            rows.l41 = Some(&te);
+            v.step(
+                &cfg, &rows, &[], 9.6, 1, &mut fx.ledger, &fx.book, &fx.gate, 4,
+                &|_| 0.5, &mut fx.counters,
+            );
+        }
+        assert_eq!(fx.counters.n_osc_open, 0);
+        assert_eq!(fx.counters.n_osc_l41_rejects, 1);
+        assert!(fx.ledger.open_slot(SlotKey::osc(2)).is_none());
+        // 父级别盘整背驰（Consolidation×Up）→ 衰竭证据成立 → 门开
+        let mut devs: [Vec<DivEvent>; MAX_LADDER] = Default::default();
+        devs[3] = vec![DivEvent {
+            kind: DivKind::Consolidation,
+            direction: Direction::Up,
+            seg_idx: 0,
+            force_a: 0.0,
+            force_c: 0.0,
+            price: 0.0,
+        }];
+        te.observe(&pdir, &devs, 11.1);
+        assert!(!te.up_unexhausted(3));
+        {
+            let mut rows = empty_rows(&fx.evs, &fx.devs);
+            rows.sell_any = LadderMask(1 << 1);
+            rows.l41 = Some(&te);
+            v.step(
+                &cfg, &rows, &[], 9.6, 2, &mut fx.ledger, &fx.book, &fx.gate, 4,
+                &|_| 0.5, &mut fx.counters,
+            );
+        }
+        assert_eq!(fx.counters.n_osc_open, 1);
+        assert_eq!(fx.counters.n_osc_l41_rejects, 1);
+        assert!(fx.ledger.open_slot(SlotKey::osc(2)).is_some());
     }
 }
