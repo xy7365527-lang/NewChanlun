@@ -520,6 +520,13 @@ pub fn run_organic(
                 .to_string(),
         );
     }
+    if cfg.osc_sell3_no_recover && !cfg.osc_mode {
+        return Err(
+            "osc_sell3_no_recover（49课三卖不回补严格形式）仅定义于 osc_mode
+             路径——osc 腿不存在时该位无消费者（声明=能力，显式拒绝）"
+                .to_string(),
+        );
+    }
 
     // MarketMode 穷举（F1 期货实装时新增变体，编译器强制此处表态——v1R §2.2）。
     match cfg.market_mode {

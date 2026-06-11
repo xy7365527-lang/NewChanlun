@@ -231,6 +231,11 @@ pub struct OrganicConfig {
     pub same_center_close: bool,
     pub osc_mode: bool,
     pub osc_buy_sub: bool,
+    /// 49课严格形式（操作判据严格形式审计，2026-06-11）："一旦出现第三类
+    /// 卖点，就不能回补了"——osc 腿在锚中枢死亡（三卖终结）时不强制回补，
+    /// 保持卖出状态直到边界触线（更低处）或 master 清算。false = 在册 P5
+    /// 行为（死亡即市价回补，O0≡P5 零接触面）。
+    pub osc_sell3_no_recover: bool,
     // ── 有机扩展轴（v2） ──
     pub rev_mode: bool,
     pub sub_anchor: SubAnchor,
@@ -439,6 +444,7 @@ impl Default for OrganicConfig {
             same_center_close: true,
             osc_mode: true,
             osc_buy_sub: false,
+            osc_sell3_no_recover: false,
             rev_mode: false,
             sub_anchor: SubAnchor::Off,
             tranche: false,
@@ -828,6 +834,24 @@ pub fn variant(name: &str) -> Option<OrganicConfig> {
         "V2oa25_ht" => Some(OrganicConfig {
             exit_mode: ExitMode::HoldTrend,
             ..variant("V2oa25").expect("V2oa25 在上方注册")
+        }),
+        // ── 操作判据严格形式替换（2026-06-11 审计任务；基线 = V2oa25_ht）──
+        // not6：去 candidate Buy3 预动作（pre_type3=false，T6 预回补 + main 腿
+        // pre 闭腿一并关闭）。原文无 candidate 操作点：三买 = 回抽完成且不回
+        // 中枢的确认（38课答疑:160/180"能回到中枢就不是第三类买点……第二次
+        // 没回，那才是第三类买点"）——回抽进行中的预判不是原文判据；在册
+        // 诊断 t6 预逃逸槽胜率 ≈30% 唯一大负槽（organic fugue 逐笔诊断）。
+        "V2oa25_ht_not6" => Some(OrganicConfig {
+            pre_type3: false,
+            ..variant("V2oa25_ht").expect("V2oa25_ht 在上方注册")
+        }),
+        // o3s：49课严格形式——"在围绕中枢差价时……前提是中枢震荡依旧，一旦
+        // 出现第三类卖点，就不能回补了"。在册 P5 行为（锚中枢死亡即市价强制
+        // 回补）与原文直接冲突；严格形式 = 死亡不回补，保持卖出状态直到
+        // 旧边界触线（更低处兑现）或 master 清算（n_osc_dead_holds 可观测）。
+        "V2oa25_ht_o3s" => Some(OrganicConfig {
+            osc_sell3_no_recover: true,
+            ..variant("V2oa25_ht").expect("V2oa25_ht 在上方注册")
         }),
         "V2oa25_ho" => Some(OrganicConfig {
             exit_mode: ExitMode::HighestOnly,

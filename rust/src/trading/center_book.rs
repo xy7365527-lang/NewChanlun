@@ -27,6 +27,9 @@ pub struct CenterBook {
     last: [Option<LiveCenter>; MAX_LADDER],
     /// ladder → 死亡中枢 seg_start 集（Python `dead_centers`）。
     dead: [Option<HashSet<i64>>; MAX_LADDER],
+    /// ladder → 向下终结（confirmed Sell3 = 三卖）死亡中枢 seg_start 子集
+    /// （49课严格形式 osc_sell3_no_recover 的方向判据；首杀方向）。
+    dead_down: [Option<HashSet<i64>>; MAX_LADDER],
     /// ladder → 冻结中枢 seg_start（Python `frozen`；hard_type3 buy 置位）。
     frozen: [Option<i64>; MAX_LADDER],
     /// 中枢生死/边界事件版本号（SizeAllocator 重算门控）。
@@ -67,6 +70,12 @@ impl CenterBook {
             if ev.confirmed && ev.class.kind() == BspKind::Type3 {
                 if !dead.contains(&cs) {
                     dead.insert(cs);
+                    if ev.class.side() == Side::Sell {
+                        // 三卖终结（向下离开）——49课"不能回补"的方向判据
+                        self.dead_down[ladder]
+                            .get_or_insert_with(HashSet::new)
+                            .insert(cs);
+                    }
                     self.version += 1;
                     if let Some(out) = events_out.as_deref_mut() {
                         // Buy3 = 向上离开后回抽不破 ZG → 中枢向上终结；Sell3 反之。
@@ -143,6 +152,13 @@ impl CenterBook {
 
     pub fn is_dead(&self, ladder: usize, seg_start: i64) -> bool {
         self.dead[ladder].as_ref().is_some_and(|d| d.contains(&seg_start))
+    }
+
+    /// 该中枢是否被三卖（confirmed Sell3，向下离开）终结。49课严格形式的
+    /// 方向判据："一旦出现第三类卖点，就不能回补了"只覆盖向下终结——
+    /// 三买（向上终结）按"中枢向上移动时就应该满仓"必须立即回补。
+    pub fn is_dead_down(&self, ladder: usize, seg_start: i64) -> bool {
+        self.dead_down[ladder].as_ref().is_some_and(|d| d.contains(&seg_start))
     }
 
     pub fn is_frozen(&self, ladder: usize) -> bool {

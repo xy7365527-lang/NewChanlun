@@ -890,13 +890,21 @@ impl VoiceUnit {
                 LegAnchor::Center { cs, boundary, .. } => {
                     let o_dead = cs.is_some_and(|s| book.is_dead(k, s));
                     let sub_buy = k >= 1 && rows.buy_any.get(k - 1);
-                    if o_dead {
+                    // 49课方向判据：只有三卖（向下终结）触发"不能回补"；
+                    // 三买（向上终结）按"中枢向上移动时就应该满仓"立即回补。
+                    let o_dead_down = cfg.osc_sell3_no_recover
+                        && cs.is_some_and(|s| book.is_dead_down(k, s));
+                    if o_dead && !o_dead_down {
                         ledger.close_diff(okey, c, bar); // 中枢死亡 → 强制回补
                     } else if boundary.is_some_and(|b| c <= b)
                         && (!cfg.osc_buy_sub || sub_buy)
                     {
                         ledger.close_diff(okey, c, bar);
                         counters.n_osc_zd_close += 1;
+                    } else if o_dead_down {
+                        // 49课严格形式：三卖后不能回补——保持卖出状态，
+                        // 回补只在更低处（旧 ZD 触线）或 master 清算时发生。
+                        counters.n_osc_dead_holds += 1;
                     }
                 }
                 LegAnchor::SegmentScale => unreachable!(
