@@ -22,7 +22,8 @@
 use super::allocator::SizeAllocator;
 use super::center_book::CenterBook;
 use super::config::{
-    EntryMode, ExitMode, OrganicConfig, RevCycle, Sizing, StopMode, ThetaMode, VoiceMode,
+    EntryMode, ExitMode, OrganicConfig, OscDomain, RevCycle, Sizing, StopMode, ThetaMode,
+    VoiceMode,
 };
 use super::depth_ref::{DepthRef, DEPTH_REF_WINDOW};
 use super::fatigue_gate::FatigueGate;
@@ -383,6 +384,15 @@ pub fn run_organic(
             "rev_l41_gate/osc_l41_gate（41课门 REV 主腿/域腿形态）要求磁带
              dir_flips 行（D3）——父级别 Up/Down 段切分 = 方向行翻转，无行时
              追踪器恒无段对观测 = 死门（不静默放行）"
+                .to_string(),
+        );
+    }
+    if cfg.osc_domain == OscDomain::ConsolidationOnly && !tape.has_trend_rows() {
+        return Err(
+            "osc_domain=ConsolidationOnly（osc 操作域严格化）要求磁带
+             trend_flips 行（趋势态）——域判据 = 锚中枢所在层尾 move
+             kind==Consolidation，无行即无 kind 可读（不提供方向行代理
+             降级：方向 ≠ 趋势，17课趋势定义是 ≥2 同向中枢；Cycle38 同先例）"
                 .to_string(),
         );
     }

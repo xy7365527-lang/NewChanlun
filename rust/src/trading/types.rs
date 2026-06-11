@@ -374,6 +374,10 @@ pub struct Counters {
     pub n_osc_dead_holds: u64,
     /// 41课门（域腿，osc_l41_gate）：父级别上行无衰竭被拒的 osc 开腿尝试数。
     pub n_osc_l41_rejects: u64,
+    /// osc 操作域（osc_domain=ConsolidationOnly）：锚中枢所在走势 kind==Trend
+    /// 时域外不开的 osc 触发点数（对象域定义而非点态门——计数的是"趋势走势
+    /// 中本不存在的操作对象"被在册定义误触发的次数）。
+    pub n_osc_domain_rejects: u64,
     pub n_rev_attempts: u64,
     pub n_rev_gate_rejects: u64,
     pub n_rev_frozen_rejects: u64,
@@ -568,6 +572,10 @@ pub struct Counters {
     /// （拦截率/盈亏按牛熊震荡阶段分解——2026-06-11 追加质询）。仅
     /// osc_l41_gate 变体非空（门关恒空表）。lib.rs 单独 marshal（list）。
     pub osc_l41_reject_log: Vec<(u8, i64)>,
+    /// osc 操作域域外不开逐事件日志 (ladder, bar)：regime 分段统计数据基础
+    /// （l41 日志同构）。仅 osc_domain=ConsolidationOnly 变体非空。
+    /// lib.rs 单独 marshal（list）。
+    pub osc_domain_reject_log: Vec<(u8, i64)>,
     // ── REV 腿逐腿日志（trade_behavior 行为分解，2026-06-11 任务）──
     // 仅 rev_paired 路径产出（legacy 腿无 kind/锚概念——声明=能力）。
     // PyO3 不可见：py_items 与 lib.rs marshal 均不含 → 在册对账面零侵入。
@@ -709,6 +717,7 @@ impl Counters {
             ("n_ledger_closes", self.n_ledger_closes),
             ("n_ledger_sell_noops", self.n_ledger_sell_noops),
             ("n_ledger_buy_noops", self.n_ledger_buy_noops),
+            ("n_osc_domain_rejects", self.n_osc_domain_rejects),
         ]
     }
 }

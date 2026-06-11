@@ -219,6 +219,27 @@ pub enum VoiceMode {
     Ledger,
 }
 
+/// osc 域腿操作域（osc 操作对象定义严格化，2026-06-11 任务）。
+///
+/// 这不是外加门——是 osc 操作对象定义的严格化：38课中枢震荡操作的隐含
+/// 前提是确立的中枢（价格在中枢内反复震荡 = 盘整走势）。趋势走势
+/// （≥2 同向中枢，17课定义）里的中枢不是38课震荡操作的对象——
+/// 49课"中枢向上移动时就应该满仓"（趋势走势不做逆向短差）；
+/// 26课"单边上扬走势，短线最好别做"。
+///
+/// 与 osc_l41_gate 的范畴区分：41课门是**点态条件**（父级别衰竭与否的
+/// bar 级读数，已否证——门拦截是腿延迟非腿消灭，"未衰竭⇒不回ZD"传导链
+/// 断裂）；本轴是**对象域定义**（锚中枢所在走势的 kind，状态范畴）——
+/// 趋势走势中 osc 触发点从定义上不存在，而非被逐点拦截。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OscDomain {
+    /// 在册 P5 行为：任何存活中枢都可开 osc 腿（O0≡P5 零接触面）。
+    Any,
+    /// 38课严格域：仅锚中枢所在走势（本层尾 move）kind==Consolidation
+    /// 时开腿；kind==Trend ⇒ 不开。需要 trend_flips 磁带行（runner guard）。
+    ConsolidationOnly,
+}
+
 /// 有机赋格 v2 配置。P5 继承轴默认值 = P5 逐字（V0≡P5 守卫的基线锚定）。
 #[derive(Debug, Clone)]
 pub struct OrganicConfig {
@@ -246,6 +267,12 @@ pub struct OrganicConfig {
     /// 中枢死亡 → 高位强制买回的结构性亏损路径）。n_osc_l41_rejects 可观测。
     /// false = 在册 P5 行为（O0≡P5 零接触面）。需要 D3 dir_flips 磁带行。
     pub osc_l41_gate: bool,
+    /// osc 操作域（操作对象定义严格化，2026-06-11 任务）：ConsolidationOnly
+    /// = 仅盘整走势的中枢里做震荡短差（38课域内），趋势走势的中枢不开
+    /// （49课满仓要求）。判据 = 锚中枢所在层（k）尾 move kind（trend_row[k]，
+    /// trend_flips 磁带行直接消费——17课趋势定义 ≥2 同向中枢的引擎读数）。
+    /// Any = 在册 P5 行为（O0≡P5 零接触面）。
+    pub osc_domain: OscDomain,
     // ── 有机扩展轴（v2） ──
     pub rev_mode: bool,
     pub sub_anchor: SubAnchor,
@@ -490,6 +517,7 @@ impl Default for OrganicConfig {
             osc_buy_sub: false,
             osc_sell3_no_recover: false,
             osc_l41_gate: false,
+            osc_domain: OscDomain::Any,
             rev_mode: false,
             sub_anchor: SubAnchor::Off,
             tranche: false,
@@ -919,6 +947,17 @@ pub fn variant(name: &str) -> Option<OrganicConfig> {
             osc_l41_gate: true,
             ..variant("V2oa25_ht").expect("V2oa25_ht 在上方注册")
         }),
+        // co：osc 操作域严格化（2026-06-11 任务；o41 点态门否证后的状态范畴
+        // 形态——门拦截是腿延迟非腿消灭，对象域定义才是腿消灭）。只在盘整
+        // 走势的中枢里做震荡短差（38课域内），趋势走势的中枢不开（49课
+        // 满仓 / 26课单边不做短线）。判据 = trend_row[k]（锚中枢所在层尾
+        // move kind，trend_flips 磁带行）。预注册判据：BTC/GC/ES osc 亏损
+        // 消除或大幅减少（趋势中从定义上不开）；OKLO/BRN osc 正贡献保持
+        // （盘整中正常开）；十标的全部 ≥ 基线。
+        "V2oa25_ht_co" => Some(OrganicConfig {
+            osc_domain: OscDomain::ConsolidationOnly,
+            ..variant("V2oa25_ht").expect("V2oa25_ht 在上方注册")
+        }),
         // ── 38课位置分支移植（2026-06-11 任务；审计 §4e 唯一缺失项；
         //    基线 = V2oa25_ht。Sequence38 子腿 L2 全正（OKLO+10.2/BRN+4.1pp）
         //    后的主腿判决位——三臂分解组合的两条轴 ──
@@ -1155,6 +1194,21 @@ mod tests {
         assert!(cfg.osc_l41_gate && cfg.osc_mode && cfg.rev_l41_gate);
         assert_eq!(cfg.exit_mode, ExitMode::HoldTrend);
         let normalized = OrganicConfig { osc_l41_gate: false, ..cfg };
+        assert_eq!(format!("{normalized:?}"), format!("{base:?}"));
+    }
+
+    #[test]
+    fn co_variant_single_axis_on_ht() {
+        // 默认/在册基线 osc_domain=Any（O0≡P5 零接触面）
+        assert_eq!(OrganicConfig::default().osc_domain, OscDomain::Any);
+        let base = variant("V2oa25_ht").unwrap();
+        assert_eq!(base.osc_domain, OscDomain::Any);
+        // co 只动 osc_domain 一轴——其余字段与 V2oa25_ht 逐位相同
+        let cfg = variant("V2oa25_ht_co").unwrap();
+        assert_eq!(cfg.osc_domain, OscDomain::ConsolidationOnly);
+        assert!(cfg.osc_mode && !cfg.osc_l41_gate);
+        assert_eq!(cfg.exit_mode, ExitMode::HoldTrend);
+        let normalized = OrganicConfig { osc_domain: OscDomain::Any, ..cfg };
         assert_eq!(format!("{normalized:?}"), format!("{base:?}"));
     }
 

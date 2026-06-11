@@ -26,7 +26,8 @@
 
 use super::center_book::CenterBook;
 use super::config::{
-    OrganicConfig, RevClose, RevCycle, RevCycleClose, SubAnchor, SubMode, ThetaMode,
+    OrganicConfig, OscDomain, RevClose, RevCycle, RevCycleClose, SubAnchor, SubMode,
+    ThetaMode,
 };
 use super::depth_ref::DepthRef;
 use super::fatigue_gate::FatigueGate;
@@ -1079,13 +1080,33 @@ impl VoiceUnit {
                 if let Some(lc) = book.alive(k) {
                     let sub_sell = k >= 1 && rows.sell_any.get(k - 1);
                     if !book.is_frozen(k) && k >= 1 && c >= lc.zg && sub_sell {
+                        // ── osc 操作域（osc_domain=ConsolidationOnly，操作对象
+                        // 定义严格化）：38课中枢震荡操作的隐含前提是盘整走势
+                        // （价格在确立中枢内反复震荡）；锚中枢所在走势（本层
+                        // 尾 move，trend_row[k]）kind==Trend ⇒ 操作对象不存在，
+                        // 不开（49课"中枢向上移动时就应该满仓"；26课"单边上扬
+                        // 走势，短线最好别做"）。域判定先于一切点态门——对象
+                        // 不存在时门无可拦截之物。──
+                        let in_domain = match cfg.osc_domain {
+                            OscDomain::Any => true,
+                            OscDomain::ConsolidationOnly => {
+                                !rows.trend_row.expect(
+                                    "osc_domain=ConsolidationOnly ⇒ 调用方必提供\
+                                     趋势态行（capability，runner guard 恒拒缺行）",
+                                )[k]
+                            }
+                        };
+                        if !in_domain {
+                            counters.n_osc_domain_rejects += 1;
+                            counters.osc_domain_reject_log.push((k as u8, bar));
+                        }
                         // ── 41课门（osc_l41_gate，域腿形态）：直接父级别（k+1）
                         // 向上走势无衰竭迹象（相邻 Up 段创新高 ∧ 段窗口内无盘整
                         // 背驰）⇒ 拒开逆向短差——强趋势中价格不回 ZD，中枢死亡
                         // 后高位强制买回是结构性亏损（49课"中枢向上移动时就应该
                         // 满仓"）。判据/越界语义同 rev_l41_gate（up_unexhausted
                         // 对 k+1 ≥ MAX_LADDER 返回 false 放行）。──
-                        if cfg.osc_l41_gate
+                        else if cfg.osc_l41_gate
                             && rows
                                 .l41
                                 .expect(
@@ -3905,5 +3926,81 @@ mod tests {
         assert_eq!(fx.counters.n_osc_open, 1);
         assert_eq!(fx.counters.n_osc_l41_rejects, 1);
         assert!(fx.ledger.open_slot(SlotKey::osc(2)).is_some());
+    }
+
+    #[test]
+    fn osc_domain_consolidation_only_blocks_trend_move_opens() {
+        // osc 操作域严格化：锚中枢所在走势（trend_row[k]）kind==Trend ⇒
+        // 操作对象不存在不开；kind==Consolidation ⇒ 38课域内正常开。
+        let mut fx = Fixture::new();
+        fx.book.ingest(2, &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)], true, None);
+        let cfg = OrganicConfig {
+            osc_domain: OscDomain::ConsolidationOnly,
+            ..OrganicConfig::default()
+        };
+        let mut trow = [false; MAX_LADDER];
+        trow[2] = true; // 本层尾 move 是趋势走势
+        let mut v = VoiceUnit::new(2);
+        {
+            let mut rows = empty_rows(&fx.evs, &fx.devs);
+            rows.sell_any = LadderMask(1 << 1); // sub_sell = sell_any[k-1]
+            rows.trend_row = Some(&trow);
+            v.step(
+                &cfg, &rows, &[], 9.6, 1, &mut fx.ledger, &fx.book, &fx.gate, 4,
+                &|_| 0.5, &mut fx.counters,
+            );
+        }
+        assert_eq!(fx.counters.n_osc_open, 0);
+        assert_eq!(fx.counters.n_osc_domain_rejects, 1);
+        assert_eq!(fx.counters.osc_domain_reject_log, vec![(2, 1)]);
+        assert!(fx.ledger.open_slot(SlotKey::osc(2)).is_none());
+        // 尾 move 翻盘整（趋势终结）→ 域内，正常开腿
+        trow[2] = false;
+        {
+            let mut rows = empty_rows(&fx.evs, &fx.devs);
+            rows.sell_any = LadderMask(1 << 1);
+            rows.trend_row = Some(&trow);
+            v.step(
+                &cfg, &rows, &[], 9.6, 2, &mut fx.ledger, &fx.book, &fx.gate, 4,
+                &|_| 0.5, &mut fx.counters,
+            );
+        }
+        assert_eq!(fx.counters.n_osc_open, 1);
+        assert_eq!(fx.counters.n_osc_domain_rejects, 1);
+        assert!(fx.ledger.open_slot(SlotKey::osc(2)).is_some());
+    }
+
+    #[test]
+    fn osc_domain_does_not_constrain_close_path() {
+        // 域只定义开腿对象——已开腿在走势翻趋势后照常按 ZD 触线回补
+        // （闭腿是兑现路径，不是操作对象选择）。
+        let mut fx = Fixture::new();
+        fx.book.ingest(2, &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)], true, None);
+        let cfg = OrganicConfig {
+            osc_domain: OscDomain::ConsolidationOnly,
+            ..OrganicConfig::default()
+        };
+        let mut trow = [false; MAX_LADDER]; // 盘整域内开腿
+        let mut v = VoiceUnit::new(2);
+        {
+            let mut rows = empty_rows(&fx.evs, &fx.devs);
+            rows.sell_any = LadderMask(1 << 1);
+            rows.trend_row = Some(&trow);
+            v.step(
+                &cfg, &rows, &[], 9.6, 1, &mut fx.ledger, &fx.book, &fx.gate, 4,
+                &|_| 0.5, &mut fx.counters,
+            );
+        }
+        assert_eq!(fx.counters.n_osc_open, 1);
+        // 开腿后走势升级为趋势 → 触 ZD 仍回补
+        trow[2] = true;
+        let mut rows = empty_rows(&fx.evs, &fx.devs);
+        rows.trend_row = Some(&trow);
+        v.step(
+            &cfg, &rows, &[], 9.0, 2, &mut fx.ledger, &fx.book, &fx.gate, 4,
+            &|_| 0.5, &mut fx.counters,
+        );
+        assert_eq!(fx.counters.n_osc_zd_close, 1);
+        assert!(fx.ledger.open_slot(SlotKey::osc(2)).is_none());
     }
 }
