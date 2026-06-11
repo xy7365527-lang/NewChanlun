@@ -379,6 +379,21 @@ pub fn run_organic(
                 cfg.theta_cost_k, cfg.friction_rt
             ));
         }
+        if cfg.rev_cycle_close == super::config::RevCycleClose::Paired
+            && (cfg.r2_anchor_zg
+                || cfg.r3_t6_sub_confirm
+                || cfg.sc_t7_close
+                || cfg.buy2_close)
+        {
+            return Err(
+                "rev_cycle_close=Paired × {r2_anchor_zg/r3_t6_sub_confirm/\
+                 sc_t7_close/buy2_close} 组合未定义：Paired 闭腿集是
+                 step_down_paired 在这四位全关时的精确退化形式（T7>T6>同锚
+                 Buy1>ZD），且其证据记忆（sub_buy_bar）在 Cycle38 模式不推进
+                 ——开位即声明膨胀，显式拒绝"
+                    .to_string(),
+            );
+        }
     }
 
     // MarketMode 穷举（F1 期货实装时新增变体，编译器强制此处表态——v1R §2.2）。

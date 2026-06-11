@@ -87,6 +87,33 @@ pub enum RevCycle {
     Cycle38,
 }
 
+/// Cycle38 循环腿的买回（闭腿）判据消融轴（2026-06-11 任务）。
+///
+/// 编排者原则：**区间套无论正反都存在**——卖出端用区间套（大级别定方向 +
+/// 本级别卖点定时机 + 次级别确认精度），买回端也必须先有本级别判据
+/// （同锚 Buy1 / ZD 触线）再谈次级别精度。SubAny（在册 C38base）跳过了
+/// 本级别判据直接用次级别任意买点，违反区间套——已否证（OKLO −472.8pp /
+/// BRN −70.4pp，死因 = 买回级别错配，胜率 33-36%）。
+///
+/// 数据依赖：Buy1/Zd/Paired 的比较基准是开腿时的锚中枢快照（同锚 cs / ZD 线）
+/// ——锚不可定义（无存活中枢）时开腿保守拒绝并计数（n_c38_nocenter_rejects，
+/// 不静默放行先例）。SubAny 不需要锚，开腿路径逐位不变（在册零接触）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RevCycleClose {
+    /// C38base（在册，已否证）：次级别（k−1）任意买点买回。
+    SubAny,
+    /// C38buy1：同锚 confirmed Buy1 买回（V2oa25 单次腿的 T5 配对判据）。
+    Buy1,
+    /// C38zd：ZD 触线买回（几何兑现，V2oa25 单次腿的触线判据）。
+    Zd,
+    /// C38pair：V2oa25 完整配对闭腿集 = T7 confirmed Buy3 > T6 candidate
+    /// Buy3 预回补（pre_type3 轴）> 同锚 confirmed Buy1 > ZD 触线——
+    /// step_down_paired 的 if 链在 V2oa25 配置位下（r2_anchor_zg /
+    /// r3_t6_sub_confirm / sc_t7_close / buy2_close 全关）的精确退化形式。
+    /// "循环版 V2oa25"：循环结构 × 基线闭腿判据的因果分离实验臂。
+    Paired,
+}
+
 /// REV 开腿锚定强度（C3 消融轴 S）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SubAnchor {
@@ -254,6 +281,9 @@ pub struct OrganicConfig {
     /// 每条循环短差腿过成本门（35课：该层典型中枢振幅 θ_q ≥
     /// theta_cost_k × friction_rt，DepthRef 因果滚动中位数，零前瞻）。
     pub rev_cycle: RevCycle,
+    /// Cycle38 买回判据（见 RevCycleClose docstring）。仅 rev_cycle=Cycle38
+    /// 路径消费；Single 模式是死配置位（runner guard 不拒——默认值零接触）。
+    pub rev_cycle_close: RevCycleClose,
     /// 41课门（41课："大级别走势没有任何衰竭时参与反向小级别买卖点是刀口
     /// 舔血"）。子腿开腿前检查直接父级别（self.ladder+1）走势衰竭状态
     /// （TrendExhaustion，市场性质）：相邻同向（Down）段创新低 ∧ 当前段窗口
@@ -328,6 +358,7 @@ impl Default for OrganicConfig {
             sub_cost_k: 2.0,
             sub_l41_gate: false,
             rev_cycle: RevCycle::Single,
+            rev_cycle_close: RevCycleClose::SubAny,
         }
     }
 }
@@ -476,6 +507,26 @@ pub fn variant(name: &str) -> Option<OrganicConfig> {
             rev_cycle: RevCycle::Cycle38,
             rev_l41_gate: false,
             ..variant("V2oa25").expect("V2oa25 在上方注册")
+        }),
+        // ── 38课循环买回判据消融（2026-06-11 任务）：C38base（上方 V2oa25C38，
+        // 次级别任意买点）已否证（OKLO −472.8/BRN −70.4pp，死因 = 买回级别
+        // 错配）。编排者原则"区间套无论正反都存在"——买回端也必须先过本级别
+        // 判据。三臂只动 rev_cycle_close 一轴（开腿触发/成本门/循环存续全同；
+        // 唯一伴随差异 = 锚捕获准入，n_c38_nocenter_rejects 可观测）。──
+        "V2oa25C38buy1" => Some(OrganicConfig {
+            rev_cycle_close: RevCycleClose::Buy1,
+            ..variant("V2oa25C38").expect("V2oa25C38 在上方注册")
+        }),
+        "V2oa25C38zd" => Some(OrganicConfig {
+            rev_cycle_close: RevCycleClose::Zd,
+            ..variant("V2oa25C38").expect("V2oa25C38 在上方注册")
+        }),
+        // C38pair = 循环版 V2oa25：判别 C38pair vs V2oa25 基线 ⇒ 循环结构
+        // 自身的增量价值（> 基线 = 反复操作贡献正 alpha；≤ 基线 = 循环结构
+        // 无增量，38课循环假设在事件流近似下整体关闭）。
+        "V2oa25C38pair" => Some(OrganicConfig {
+            rev_cycle_close: RevCycleClose::Paired,
+            ..variant("V2oa25C38").expect("V2oa25C38 在上方注册")
         }),
         // V2oa25F1：默认门 + 笔级分型递归 depth=1 + P1 双门（成本门/41课门的
         // 子腿形态——P0+P1 判决：成本门=亏损有界化，41课门首次非死门）。
@@ -689,6 +740,34 @@ mod tests {
         assert_eq!(cfg.theta_cost_k, 2.0);
         assert_eq!(cfg.friction_rt, 0.001);
         assert_eq!(cfg.rev_sub_depth, 0);
+    }
+
+    #[test]
+    fn cycle38_close_ablation_variants_single_axis() {
+        // 默认/在册：rev_cycle_close=SubAny（C38base 零接触）
+        assert_eq!(OrganicConfig::default().rev_cycle_close, RevCycleClose::SubAny);
+        let base = variant("V2oa25C38").unwrap();
+        assert_eq!(base.rev_cycle_close, RevCycleClose::SubAny);
+        // 三臂只动 rev_cycle_close 一轴——其余字段与 V2oa25C38 逐位相同
+        for (name, want) in [
+            ("V2oa25C38buy1", RevCycleClose::Buy1),
+            ("V2oa25C38zd", RevCycleClose::Zd),
+            ("V2oa25C38pair", RevCycleClose::Paired),
+        ] {
+            let cfg = variant(name).unwrap();
+            assert_eq!(cfg.rev_cycle_close, want, "{name}");
+            assert_eq!(cfg.rev_cycle, RevCycle::Cycle38, "{name}");
+            let normalized =
+                OrganicConfig { rev_cycle_close: RevCycleClose::SubAny, ..cfg };
+            // Vec 字段（open_kinds）相等 + 标量字段逐位（Debug 串比较——
+            // OrganicConfig 未派生 PartialEq，f64 字段在变体表中全为字面常数）
+            assert_eq!(format!("{normalized:?}"), format!("{base:?}"), "{name}");
+        }
+        // Paired 的前提：V2oa25 配置位下 step_down_paired 闭腿链精确退化为
+        // T7>T6>Buy1>ZD——四个被退化掉的配置位必须全关（否则等价推导失效）
+        assert!(!base.r2_anchor_zg && !base.r3_t6_sub_confirm);
+        assert!(!base.sc_t7_close && !base.buy2_close);
+        assert!(base.pre_type3); // T6 在集合内的前提
     }
 
     #[test]

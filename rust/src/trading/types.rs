@@ -486,6 +486,17 @@ pub struct Counters {
     pub n_c38_cost_noref_rejects: u64,
     /// 开腿拒：本级别冻结（hard type3 已落——G3a 同语义）。
     pub n_c38_frozen_rejects: u64,
+    /// 开腿拒（rev_cycle_close ≠ SubAny 专属）：买回判据的锚中枢不可定义
+    /// （无存活中枢/边界非有限）——同锚 Buy1/ZD 触线没有比较基准，保守拒绝
+    /// （不静默放行先例）。SubAny 恒 0（无锚依赖，开腿路径零接触）。
+    pub n_c38_nocenter_rejects: u64,
+    // ── 38课循环买回判据消融分解（2026-06-11 任务；reason 编码与
+    //    RevCloseLog 同义：7=T7 / 6=T6 / 5=同锚Buy1 / 8=ZD 触线。
+    //    SubAny 闭腿不入分解位（n_c38_close 在册语义不变）──
+    pub n_c38_close_t7: u64,
+    pub n_c38_close_t6: u64,
+    pub n_c38_close_buy1: u64,
+    pub n_c38_close_zd: u64,
     /// 循环短差闭合对统计（win = profit > 0；含强闭）。
     pub c38_pairs: u64,
     pub c38_wins: u64,
@@ -608,6 +619,11 @@ impl Counters {
             ("n_c38_cost_rejects", self.n_c38_cost_rejects),
             ("n_c38_cost_noref_rejects", self.n_c38_cost_noref_rejects),
             ("n_c38_frozen_rejects", self.n_c38_frozen_rejects),
+            ("n_c38_nocenter_rejects", self.n_c38_nocenter_rejects),
+            ("n_c38_close_t7", self.n_c38_close_t7),
+            ("n_c38_close_t6", self.n_c38_close_t6),
+            ("n_c38_close_buy1", self.n_c38_close_buy1),
+            ("n_c38_close_zd", self.n_c38_close_zd),
             ("c38_pairs", self.c38_pairs),
             ("c38_wins", self.c38_wins),
         ]
