@@ -110,6 +110,13 @@ pytest 回归：全套件 4,856 通过；37 个失败全部为既有环境性失
 （pytest-asyncio 缺失的 async 组、`.chanlun/blocks` 仓库状态类），与本修复无关
 （其测试不导入任何被改模块）。
 
+**未完成项（诚实声明）**：`test_bitexact_large_real_streaming`（BZ 真实全量、
+@pytest.mark.slow、Python orchestrator 逐 bar）两次被系统 jetsam 杀进程
+（exit 144，无断言失败输出），未跑完。同层覆盖由以下替代提供：合成 12000 bar
+Python↔Rust 逐 bar 六层 bit-exact（含/不含 MACD 两模式）通过 + 三标的真实数据
+（含 BRN 2.4M bar）organic_signals 差分守卫全程通过（Rust delta 接口 vs 布尔导出
+逐位）+ OKLO 447K 前后捕获不变层 md5 一致。
+
 ---
 
 ## 4. 回测影响（三标的重跑，OKLO 447K / QQQ 728K / BRN 2.42M bar）
