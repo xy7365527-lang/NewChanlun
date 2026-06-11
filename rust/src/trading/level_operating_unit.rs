@@ -81,6 +81,11 @@ pub struct RevLeg {
     pub open_trigger: u8,
     /// 腿生命期内 close 最低价（R3"回拉低点 > ZG"判据；close 分辨率）。
     pub low_since_open: f64,
+    /// Seq38n（rev_seq_nobreak）：开腿时冻结的第一段低点参照 =
+    /// VoiceUnit::rev_run_low（上次配对闭腿以来 close 运行最低——38课:36
+    /// "不跌破第一段低点"的比较基准；Sequence38 子腿 seg1_low 的主腿同构，
+    /// close 分辨率是诚实近似残留）。legacy / Cycle38 腿恒 None。
+    pub seg1_low: Option<f64>,
     /// 递归子 LOU（rev_sub_depth ≥ 1 时在 REV 窗口内实例化；38课程式的
     /// 方向镜像实例——反弹腿先买后卖）。父腿闭合时级联强闭全部子树腿。
     pub sub: Option<Box<SubLou>>,
@@ -102,6 +107,7 @@ impl RevLeg {
             ext_allowed: false,
             open_trigger: 0,
             low_since_open: f64::INFINITY,
+            seg1_low: None,
             sub: None,
             structure_added: false,
             terminated_down_seen: false,
@@ -754,6 +760,11 @@ pub struct VoiceUnit {
     /// 38课循环态（rev_cycle=Cycle38 专用）：true = 宿主（ladder+1）趋势
     /// 存续期间的循环短差窗口开放。Single 模式恒 false（零接触）。
     cycle38_on: bool,
+    /// Seq38n（rev_seq_nobreak）：close 运行最低——节点创建/上次配对闭腿
+    /// 以来（含本 bar）。开腿时冻结进 RevLeg::seg1_low；闭腿后复位为闭腿
+    /// close（38课中间循环：新一轮第一段低点重新累计）。覆盖域 = 本 trade
+    /// 的 LONG 区间（VoiceUnit 逐 trade 重建——与区间套证据记忆同边界）。
+    rev_run_low: f64,
 }
 
 impl VoiceUnit {
@@ -766,6 +777,7 @@ impl VoiceUnit {
             sub_buy_bar: None,
             sub_up_anchor: None,
             cycle38_on: false,
+            rev_run_low: f64::INFINITY,
         }
     }
 
@@ -859,6 +871,9 @@ impl VoiceUnit {
             self.phase == VoicePhase::DownLeg || self.rev.is_none(),
             "不变量：UpLeg ⇒ rev 为空"
         );
+        // 第一段低点参照推进（Seq38n；含本 bar——与 Sequence38 子腿
+        // run_low 同语义。无条件维护：纯状态跟踪，仅 rev_seq_nobreak 消费）。
+        self.rev_run_low = self.rev_run_low.min(c);
         let evs = &rows.evs[k];
         let devs = &rows.devs[k];
 
@@ -1592,10 +1607,14 @@ impl VoiceUnit {
                 zg: log_zg,
                 price: c,
             });
-            self.rev = Some(RevLeg::new_paired(
+            let mut leg = RevLeg::new_paired(
                 k, bar, rows.dir(k), kind, anchor_cs, zd_line, zg_line, ext_allowed,
                 trigger_mask, c,
-            ));
+            );
+            // Seq38n：冻结第一段低点（含本 bar——开腿 bar 的 close 已计入
+            // rev_run_low，与 Sequence38 子腿 seg1_low=run_low 冻结同语义）
+            leg.seg1_low = Some(self.rev_run_low);
+            self.rev = Some(leg);
             self.phase = VoicePhase::DownLeg;
         } else {
             counters.n_rev_budget_rejects += 1;
@@ -1647,6 +1666,8 @@ impl VoiceUnit {
     /// 配对闭腿：T7（confirmed Buy3 回补位）> T6（candidate Buy3 预回补，
     /// pre_type3 轴）> T5（kind 配对 confirmed Buy1：震荡型同锚 / 逃逸型趋势
     /// 配对）> T2c（confirmed Buy2 同规则配对，buy2_close 轴，reason=10）
+    /// > Seq38n（rev_seq_nobreak 轴，reason=11：不跌破第一段低点 ∧ 次级别
+    /// 结构确认——38课:36 分岔1 + 答疑:296，事件证据之后几何触线之前）
     /// > ZD 触线（震荡型专属几何闭腿）。闭腿集穷举——盘背买 / 异锚 Buy1 /
     /// （buy2_close 关时）Buy2 不闭腿（"不接受 kind 不匹配的买点"），其反
     /// 事实以 n_rev_mismatch_holds 计数可观测。
@@ -1723,6 +1744,15 @@ impl VoiceUnit {
                         RevOpenKind::Escape => true,
                     }
             });
+        // Seq38n：38课位置分支——"不跌破第一段低点，重新买入"（38课:36
+        // 分岔1）× 次级别结构确认（答疑:296"不跌破靠次级别判断？——对，
+        // 需要该段内部结构的确认"⇒ 非纯几何触线）。第二段（本腿的向下
+        // 回拉）未破第一段起点低点 ∧ 次级别买侧结构证据本 bar 共现 = 第二
+        // 段完成且整体上涨延续 ⇒ 买回。Sequence38 子腿 nobreak 岔的主腿
+        // 同构（低点参照换 rev_run_low 冻结值）。
+        let seq_nobreak = cfg.rev_seq_nobreak
+            && rev.seg1_low.is_some_and(|s1| low_since_open > s1)
+            && rows.sub_confirm(k, crate::buysellpoint::Side::Buy);
         let zd_touch = zd.is_some_and(|z| c <= z);
         // R2 兑现锚：价格回入原文保证域 [ZD, ZG]（"理论只能保证其回拉原来的
         // 走势中枢"）。zd ≤ zg ⇒ zd_touch ⊆ zg_touch，下方分支序无重叠。
@@ -1754,6 +1784,10 @@ impl VoiceUnit {
             log_close(10, counters);
             self.close_all_paired(kind, c, bar, ledger, counters);
             counters.n_rev_buy2_close += 1;
+        } else if seq_nobreak {
+            log_close(11, counters);
+            self.close_all_paired(kind, c, bar, ledger, counters);
+            counters.n_rev_seq_nobreak_close += 1;
         } else if zg_touch {
             if sub_pullback_done || !ext_allowed {
                 // 基础兑现：保证域内 ∧（次级别回拉已完成 ∨ 无延伸档资格）
@@ -1861,6 +1895,9 @@ impl VoiceUnit {
             }
             self.phase = VoicePhase::UpLeg;
         }
+        // Seq38n 中间循环复位：新一轮第一段低点从闭腿 close 重新累计
+        // （38课程式在 LONG 区间内反复——Sequence38 子腿 run_low=c 同语义）。
+        self.rev_run_low = c;
     }
 
     // ════════════════════════════════════════════════════════
@@ -3038,6 +3075,95 @@ mod tests {
         assert_eq!(fx.counters.rev_osc_pairs, 1);
         assert_eq!(fx.counters.rev_osc_wins, 1); // 卖9.6买9.0
         assert!(fx.counters.rev_osc_cash > 0.0);
+    }
+
+    #[test]
+    fn seq_nobreak_closes_on_held_low_with_sub_confirm() {
+        // Seq38n（rev_seq_nobreak）：bar1 低点 9.0（第一段起点）→ bar2 9.6
+        // Sell1 开腿（seg1_low 冻结 9.0）→ bar3 9.3 回拉不破 ∧ 无次级别
+        // 确认 → 持有；bar4 9.3 次级别买证据（buy_any[k−1]）共现 → reason
+        // 11 闭腿。中枢 [8.5, 9.5]：c=9.3 不触 ZD，分支隔离。
+        let mut fx = Fixture::new();
+        let cfg = OrganicConfig { rev_seq_nobreak: true, ..cfg_paired(0.0) };
+        let mut v = VoiceUnit::new(2);
+        {
+            // bar1：第一段起点低点（UpLeg 空转，仅推进 rev_run_low）
+            let rows = empty_rows(&fx.evs, &fx.devs);
+            v.step(&cfg, &rows, &[], 9.0, 1, &mut fx.ledger, &fx.book, &fx.gate, 4,
+                   &|_| 0.5, &mut fx.counters);
+        }
+        fx.book.ingest(2, &[ev_anchored(BspClass::Sell1, true, 1, 8.5, 9.5)], true, None);
+        fx.evs[2] = vec![ev(BspClass::Sell1, true)];
+        {
+            let rows = empty_rows(&fx.evs, &fx.devs);
+            v.step(&cfg, &rows, &[], 9.6, 2, &mut fx.ledger, &fx.book, &fx.gate, 4,
+                   &|_| 0.5, &mut fx.counters);
+        }
+        assert_eq!(v.phase, VoicePhase::DownLeg);
+        assert_eq!(v.rev.as_ref().unwrap().seg1_low, Some(9.0));
+        fx.evs[2].clear();
+        {
+            // bar3：不破第一段低点但次级别确认缺失 → 持有
+            let rows = empty_rows(&fx.evs, &fx.devs);
+            v.step(&cfg, &rows, &[], 9.3, 3, &mut fx.ledger, &fx.book, &fx.gate, 4,
+                   &|_| 0.5, &mut fx.counters);
+        }
+        assert_eq!(v.phase, VoicePhase::DownLeg);
+        assert_eq!(fx.counters.n_rev_seq_nobreak_close, 0);
+        // bar4：次级别买侧事件证据（sub_confirm 的 buy_any 分量）共现 → 闭腿
+        let rows = BarRows {
+            buy_any: LadderMask(1 << 1),
+            ..empty_rows(&fx.evs, &fx.devs)
+        };
+        v.step(&cfg, &rows, &[], 9.3, 4, &mut fx.ledger, &fx.book, &fx.gate, 4,
+               &|_| 0.5, &mut fx.counters);
+        assert_eq!(v.phase, VoicePhase::UpLeg);
+        assert_eq!(fx.counters.n_rev_seq_nobreak_close, 1);
+        assert_eq!(fx.counters.rev_close_log.last().unwrap().reason, 11);
+        // 中间循环复位：rev_run_low 从闭腿 close 重新累计
+        assert_eq!(v.rev_run_low, 9.3);
+    }
+
+    #[test]
+    fn seq_nobreak_holds_when_seg1_low_broken_or_gate_off() {
+        // 破第一段低点（low_since_open ≤ seg1_low）→ 即使次级别确认共现也
+        // 不闭（分岔1 前提不成立——破位后的出口是盘背买/新下跌背驰，主腿
+        // 形式即 T5/ZD 在册路径）；同场景 rev_seq_nobreak=false → 同样不闭
+        // （O0 零接触：默认位下 seg1_low 纯状态跟踪无消费者）。
+        for gate_on in [true, false] {
+            let mut fx = Fixture::new();
+            let cfg = OrganicConfig { rev_seq_nobreak: gate_on, ..cfg_paired(0.0) };
+            let mut v = VoiceUnit::new(2);
+            {
+                let rows = empty_rows(&fx.evs, &fx.devs);
+                v.step(&cfg, &rows, &[], 9.0, 1, &mut fx.ledger, &fx.book, &fx.gate, 4,
+                       &|_| 0.5, &mut fx.counters);
+            }
+            fx.book.ingest(2, &[ev_anchored(BspClass::Sell1, true, 1, 8.5, 9.5)], true, None);
+            fx.evs[2] = vec![ev(BspClass::Sell1, true)];
+            {
+                let rows = empty_rows(&fx.evs, &fx.devs);
+                v.step(&cfg, &rows, &[], 9.6, 2, &mut fx.ledger, &fx.book, &fx.gate, 4,
+                       &|_| 0.5, &mut fx.counters);
+            }
+            assert_eq!(v.phase, VoicePhase::DownLeg);
+            fx.evs[2].clear();
+            {
+                // bar3：c=8.8 破第一段低点 9.0（不触 ZD=8.5）
+                let rows = empty_rows(&fx.evs, &fx.devs);
+                v.step(&cfg, &rows, &[], 8.8, 3, &mut fx.ledger, &fx.book, &fx.gate, 4,
+                       &|_| 0.5, &mut fx.counters);
+            }
+            // bar4：次级别买证据共现但低点已破 → 持有
+            let rows = BarRows {
+                buy_any: LadderMask(1 << 1),
+                ..empty_rows(&fx.evs, &fx.devs)
+            };
+            v.step(&cfg, &rows, &[], 9.2, 4, &mut fx.ledger, &fx.book, &fx.gate, 4,
+                   &|_| 0.5, &mut fx.counters);
+            assert_eq!(v.phase, VoicePhase::DownLeg, "gate_on={gate_on}");
+            assert_eq!(fx.counters.n_rev_seq_nobreak_close, 0, "gate_on={gate_on}");
+        }
     }
 
     #[test]

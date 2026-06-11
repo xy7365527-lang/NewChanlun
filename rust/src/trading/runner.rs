@@ -360,6 +360,24 @@ pub fn run_organic(
                 .to_string(),
         );
     }
+    if cfg.rev_seq_nobreak {
+        if !cfg.rev_paired || cfg.rev_cycle != RevCycle::Single {
+            return Err(
+                "rev_seq_nobreak（38课位置分支）仅定义于 rev_paired × Single
+                 闭腿路径（step_down_paired）——legacy/Cycle38 模式下该位是
+                 死配置，组合不可表示（不静默 no-op）"
+                    .to_string(),
+            );
+        }
+        if !tape.has_dir_rows() {
+            return Err(
+                "rev_seq_nobreak（38课位置分支）要求磁带 dir_flips 行（D3）——
+                 '不跌破'依赖次级别结构确认（38课答疑:296），sub_confirm 的
+                 D3 方向行分量无行即缺失，判据退化为纯事件证据（不静默降级）"
+                    .to_string(),
+            );
+        }
+    }
     if cfg.rev_l41_gate && !tape.has_dir_rows() {
         return Err(
             "rev_l41_gate（41课门 REV 主腿形态）要求磁带 dir_flips 行（D3）——

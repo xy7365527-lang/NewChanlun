@@ -330,6 +330,16 @@ pub struct OrganicConfig {
     /// 创新低），REV 空腿假设在此被结构性否证 ⇒ 回补。默认 false 时 Buy2
     /// 仍计入 n_rev_mismatch_holds（反事实可观测不变）。仅 rev_paired 消费。
     pub buy2_close: bool,
+    /// Seq38n：38课位置分支入主 REV 腿闭腿集（reason=11；严格形式审计 §4e
+    /// 唯一缺失项的移植，2026-06-11）。原文 38课:36（向下段镜像）："1、不
+    /// 跌破第一段低点，重新买入"；答疑:296"这个'不跌破'是靠次级别判断吗？
+    /// ——对，需要该段内部结构的确认"⇒ 判据 = low_since_open > seg1_low
+    /// ∧ sub_confirm(k, Buy)（非纯几何触线）。seg1_low = 开腿时冻结的
+    /// rev_run_low（上次配对闭腿以来 close 运行最低——第一段起点低点的
+    /// close 分辨率读数，Sequence38 子腿 seg1_low 的主腿同构）。
+    /// 优先序：事件证据（T7/T6/T5/T2c）之后、几何触线（ZG/ZD）之前——
+    /// 结构确认强于几何弱于事件本体。仅 rev_paired 消费（runner guard）。
+    pub rev_seq_nobreak: bool,
     pub sizing: Sizing,
     pub earning_reaction: bool,
     pub market_mode: MarketMode,
@@ -485,6 +495,7 @@ impl Default for OrganicConfig {
             r1_sub_sell_open: false,
             r2_anchor_zg: false,
             r3_t6_sub_confirm: false,
+            rev_seq_nobreak: false,
             sc_entry_strict: false,
             sc_master_exit: false,
             sc_main_open: false,
@@ -886,6 +897,26 @@ pub fn variant(name: &str) -> Option<OrganicConfig> {
         "V2oa25_ht_o3s" => Some(OrganicConfig {
             osc_sell3_no_recover: true,
             ..variant("V2oa25_ht").expect("V2oa25_ht 在上方注册")
+        }),
+        // ── 38课位置分支移植（2026-06-11 任务；审计 §4e 唯一缺失项；
+        //    基线 = V2oa25_ht。Sequence38 子腿 L2 全正（OKLO+10.2/BRN+4.1pp）
+        //    后的主腿判决位——三臂分解组合的两条轴 ──
+        // nb：主 REV 腿闭腿集加入"不跌破第一段低点 × 次级别确认"（单轴）。
+        "V2oa25_ht_nb" => Some(OrganicConfig {
+            rev_seq_nobreak: true,
+            ..variant("V2oa25_ht").expect("V2oa25_ht 在上方注册")
+        }),
+        // seq1：Seq1 子腿（REV 窗口内 k−1 段间盘背短差，sub_mode=Sequence38）
+        // 移上 ht 基线（V2ofSeq1 的判决基线是 V2of——ht 出场下子腿增量待判）。
+        "V2oa25_ht_seq1" => Some(OrganicConfig {
+            rev_sub_depth: 1,
+            sub_mode: SubMode::Sequence38,
+            ..variant("V2oa25_ht").expect("V2oa25_ht 在上方注册")
+        }),
+        // nbseq1：全组合（主腿位置分支 + Seq1 子腿——38课程式两个层位同开）。
+        "V2oa25_ht_nbseq1" => Some(OrganicConfig {
+            rev_seq_nobreak: true,
+            ..variant("V2oa25_ht_seq1").expect("V2oa25_ht_seq1 在上方注册")
         }),
         "V2oa25_ho" => Some(OrganicConfig {
             exit_mode: ExitMode::HighestOnly,

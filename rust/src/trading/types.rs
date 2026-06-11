@@ -444,6 +444,10 @@ pub struct Counters {
     pub n_rev_sell2_open: u64,
     /// T2c：confirmed Buy2 配对闭腿数（reason 10）。
     pub n_rev_buy2_close: u64,
+    // ── 38课位置分支可观测面（2026-06-11 任务，rev_seq_nobreak）──
+    /// Seq38n：不跌破第一段低点 ∧ 次级别结构确认 → 买回（reason 11；
+    /// 38课:36 分岔1 + 答疑:296 的主 REV 腿形式）。
+    pub n_rev_seq_nobreak_close: u64,
     // ── 递归赋格子腿可观测面（2026-06-11 任务，rev_sub_depth ≥ 1）──
     /// 子腿开腿（奇数深度反弹腿先买 / 偶数深度短差先卖）。
     pub n_sub_open: u64,
@@ -587,7 +591,8 @@ pub struct RevOpenLog {
 
 /// REV 腿闭腿日志行。reason: 5=T5 kind配对 Buy1、6=T6 candidate Buy3 预回补、
 /// 7=T7 confirmed Buy3 回补、8=ZD 触线（R2 延伸档触 ZD 同码）、
-/// 9=ZG 兑现（R2 原文保证域锚）、10=T2c confirmed Buy2 配对（buy2_close 轴）。
+/// 9=ZG 兑现（R2 原文保证域锚）、10=T2c confirmed Buy2 配对（buy2_close 轴）、
+/// 11=Seq38n 不跌破第一段低点×次级别确认（rev_seq_nobreak 轴）。
 /// 未出现在本日志的开腿 = 强平
 /// （master 出场/eod，按 (ladder, open_bar) 与开腿日志 join 可识别）。
 #[derive(Debug, Clone)]
@@ -652,6 +657,7 @@ impl Counters {
             ("n_sc_t7_holds", self.n_sc_t7_holds),
             ("n_rev_sell2_open", self.n_rev_sell2_open),
             ("n_rev_buy2_close", self.n_rev_buy2_close),
+            ("n_rev_seq_nobreak_close", self.n_rev_seq_nobreak_close),
             ("n_sub_open", self.n_sub_open),
             ("n_sub_close", self.n_sub_close),
             ("n_sub_forced_close", self.n_sub_forced_close),
