@@ -48,9 +48,10 @@ OUT_JSON = DATA_DIR / "strict_form_backtest.json"
 REF_JSON = DATA_DIR / "master_exit_mode_backtest.json"
 
 SYMBOLS = [s.strip().upper()
-           for s in os.environ.get("BT_SYMBOLS", "OKLO,BRN").split(",")]
+           for s in os.environ.get("BT_SYMBOLS", "OKLO,BRN,CL,BTC,PINS").split(",")]
 FLOOR = int(os.environ.get("BT_FLOOR", str(LADDER_SEG)))
 VARIANTS = ["V2oa25_ht", "V2oa25_ht_not6", "V2oa25_ht_o3s"]
+INITIAL_CAPITAL = 100_000.0
 
 
 def run_cell(rtape, variant: str, years, bh: float, n_bars: int) -> dict:
@@ -79,6 +80,64 @@ def run_cell(rtape, variant: str, years, bh: float, n_bars: int) -> dict:
         "n_osc_zd_close": c["n_osc_zd_close"],
         "n_osc_dead_holds": c["n_osc_dead_holds"],
         "elapsed_s": round(el, 3),
+    }
+
+
+def earning_probe(rtape) -> dict:
+    """降成本/挣股数实现状态探针（diag=True，基线 V2oa25_ht）。
+
+    统计：① 多少笔交易进入 cost_basis≤0（挣股数阶段，reached_earning）；
+    ② earning 笔的仓位变化（入场股数 → 出场股数，AmountConserving 腿的
+    shares_delta 累计）；③ 全体笔的 cost_basis_exit/entry_price 分布
+    （降成本降到入场价的多少比例）；④ T5 疑点计数（earning 后 Share-
+    Conserving 旧腿闭合——守恒律相变可逆性矛盾的可观测面）。
+    """
+    res = nr.run_organic_rust(rtape, "V2oa25_ht", floor_ladder=FLOOR,
+                              stop_mode="none", diag=True)
+    diags = res["diag"] or []
+    c = res["counters"]
+    earn_trades = []
+    cb_ratios = []
+    for header, diffs in diags:
+        (e_bar, e_px, x_bar, _x_px, reason, _e_lad, pnl, cb_exit,
+         shares_exit, reached) = header
+        if e_px > 0:
+            cb_ratios.append(cb_exit / e_px)
+        if reached or cb_exit <= 0:
+            # 腿行 = ((py_key, kind, sell_bar, sell_px, buy_bar, buy_px),
+            #         (shares, diff, profit, was_earning, shares_delta,
+            #          cb_before, cb_after))
+            earn_legs = [d for d in diffs if d[1][3]]
+            entry_shares = INITIAL_CAPITAL / e_px
+            earn_trades.append({
+                "entry_bar": e_bar, "exit_bar": x_bar,
+                "exit_reason": reason, "pnl_pct": pnl,
+                "cost_basis_exit": cb_exit,
+                "entry_shares": round(entry_shares, 4),
+                "total_shares_exit": round(shares_exit, 4),
+                "shares_ratio": round(shares_exit / entry_shares, 6),
+                "n_legs_total": len(diffs),
+                "n_earning_legs": len(earn_legs),
+                "earning_shares_gained": round(
+                    sum(d[1][4] for d in earn_legs), 4),
+            })
+    cb_sorted = sorted(cb_ratios)
+
+    def q(p: float):
+        if not cb_sorted:
+            return None
+        return round(cb_sorted[int(p * (len(cb_sorted) - 1))], 4)
+
+    return {
+        "variant": "V2oa25_ht",
+        "n_trades": len(diags),
+        "n_earning_reached": c["n_earning_reached"],
+        "n_cost_le0": sum(1 for h, _ in diags if h[7] <= 0),
+        "n_t5_shareconserving_after_earning":
+            c["n_t5_shareconserving_after_earning"],
+        "cb_exit_ratio": {"min": q(0.0), "p25": q(0.25), "median": q(0.5),
+                          "p75": q(0.75)},
+        "earning_trades": earn_trades,
     }
 
 
@@ -169,6 +228,15 @@ def process_symbol(symbol: str, prev: dict | None = None) -> dict:
               f" oscZD={pack['n_osc_zd_close']}"
               f" deadHold={pack['n_osc_dead_holds']}"
               f" [{pack['elapsed_s']:.2f}s]", flush=True)
+    if "earning_probe" not in out or force:
+        probe = earning_probe(rtape)
+        out["earning_probe"] = probe
+        print(f"  [earning_probe] 笔={probe['n_trades']}"
+              f" earning={probe['n_earning_reached']}"
+              f" cost≤0={probe['n_cost_le0']}"
+              f" t5疑点={probe['n_t5_shareconserving_after_earning']}"
+              f" cb/entry中位={probe['cb_exit_ratio']['median']}"
+              f" min={probe['cb_exit_ratio']['min']}", flush=True)
     return out
 
 
@@ -178,7 +246,8 @@ def main() -> None:
         results = json.loads(OUT_JSON.read_text())
     for sym in SYMBOLS:
         done = (sym in results
-                and all(v in results[sym].get("cells", {}) for v in VARIANTS))
+                and all(v in results[sym].get("cells", {}) for v in VARIANTS)
+                and "earning_probe" in results[sym])
         if done and os.environ.get("BT_FORCE", "0") != "1":
             print(f"[skip] {sym} 已有全部 cell", flush=True)
             continue
