@@ -26,6 +26,7 @@ pub mod fatigue_gate;
 pub mod ledger;
 pub mod level_operating_unit;
 pub mod master;
+pub mod recursive_position;
 pub mod runner;
 pub mod tape;
 #[cfg(test)]

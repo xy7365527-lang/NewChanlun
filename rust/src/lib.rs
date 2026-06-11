@@ -1800,11 +1800,54 @@ fn run_organic_rust(
     Ok(out.into())
 }
 
+/// 递归建仓回测（RecursivePosition，2026-06-11 任务）。独立入口而非
+/// OrganicConfig 字段——递归建仓与 OrganicLedger 是不同账本范畴（从零建仓
+/// vs 满仓降成本），塞配置位即声明膨胀；run_organic 路径零接触（O0≡P5
+/// 守卫自动满足）。weight ∈ {"exp2", "linear"}。
+#[pyfunction]
+#[pyo3(signature = (tape, floor_ladder = 2, base_frac = 0.1, weight = "exp2", sell_t1_only = false, with_fills = false))]
+fn run_recursive_rust(
+    py: Python<'_>,
+    tape: &PyOrganicTape,
+    floor_ladder: usize,
+    base_frac: f64,
+    weight: &str,
+    sell_t1_only: bool,
+    with_fills: bool,
+) -> PyResult<PyObject> {
+    use pyo3::types::PyDict;
+    use trading::recursive_position::{run_recursive, WeightFn};
+    let wf = WeightFn::parse(weight).ok_or_else(|| {
+        pyo3::exceptions::PyValueError::new_err(format!("非法 weight: {weight:?}"))
+    })?;
+    let res = run_recursive(&tape.inner, floor_ladder, base_frac, wf, sell_t1_only, with_fills)
+        .map_err(pyo3::exceptions::PyValueError::new_err)?;
+    let out = PyDict::new(py);
+    out.set_item("final_return_pct", res.final_return_pct)?;
+    out.set_item("max_dd_pct", res.max_dd_pct)?;
+    out.set_item("avg_invested_frac", res.avg_invested_frac)?;
+    out.set_item("final_invested_frac", res.final_invested_frac)?;
+    out.set_item("turnover", res.turnover)?;
+    out.set_item("buy_fills", res.buy_fills.to_vec())?;
+    out.set_item("buy_noops", res.buy_noops.to_vec())?;
+    out.set_item("buy_starved", res.buy_starved.to_vec())?;
+    out.set_item("sell_clears", res.sell_clears.to_vec())?;
+    out.set_item("sell_noops", res.sell_noops.to_vec())?;
+    let fills: Vec<(i64, u8, u8, f64, f64, f64, f64)> = res
+        .fills
+        .iter()
+        .map(|f| (f.bar, f.ladder, f.side, f.shares, f.price, f.cash_after, f.equity_after))
+        .collect();
+    out.set_item("fills", fills)?;
+    Ok(out.into())
+}
+
 /// Python 模块定义。
 #[pymodule]
 fn newchan_rust(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyOrganicTape>()?;
     m.add_function(wrap_pyfunction!(run_organic_rust, m)?)?;
+    m.add_function(wrap_pyfunction!(run_recursive_rust, m)?)?;
     m.add_class::<PyBiEngine>()?;
     m.add_class::<PyOnlineMacdState>()?;
     m.add_class::<PyRecursiveOrchestrator>()?;
