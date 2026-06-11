@@ -65,6 +65,10 @@ DATA_DIR = ROOT / "analysis" / "data_cache"
 # 写独立结果文件，避免整文件读-改-写竞态（nohup 双实例竞态陷阱先例）。
 # 默认值不变，现有数据路径行为零改动。
 SYMBOL_FILES["CL1S"] = DATA_DIR / "cl_1s_databento_1y.json"
+# BTC 加性注册（2026-06-11 高波动 regime 第三票）：Binance 全历史 1min，
+# parallel-array 含 dates（"YYYY-MM-DD HH:MM:SS"），load_ohlc 原生兼容
+# （nan/非正 OHLC 行 + spike-and-revert 坏 tick 清洗，years=int(d[:4])）。
+SYMBOL_FILES["BTC"] = DATA_DIR / "btc_1m_full.json"
 OUT_JSON = DATA_DIR / os.environ.get(
     "BT_OUT_JSON", "recursive_fugue_depth1.json")
 OUT_MD = DATA_DIR / os.environ.get(
@@ -75,15 +79,19 @@ SYMBOLS = [s.strip().upper()
 # depth=0 基线即 V2of 本体（不另设名）；S1 = REV 窗口内 k−1 反弹腿（中枢域，
 # 已否证 O_sub0 两票）；F1 = 笔级分型短差腿（38课"向下段顶卖底买"直读，
 # 2026-06-11 任务：分型定位进出点，不需要中枢做域）
-VARIANTS = ["V2of", "V2ofS1", "V2ofF1"]
+VARIANTS = [v.strip() for v in os.environ.get(
+    "BT_VARIANTS", "V2of,V2ofS1,V2ofF1").split(",")]
 FLOOR = LADDER_SEG
 
 COUNTER_KEYS = (
     "n_rev_open", "n_rev_open_osc", "n_rev_close_t5", "n_rev_close_t6",
     "n_rev_close_t7", "n_rev_zd_close", "n_rev_depth_rejects",
+    # θ 相对化落地任务（2026-06-11）：自适应回退/成本门下界/41课门可观测面
+    "n_rev_theta_fallbacks", "n_rev_theta_cost_floor", "n_rev_l41_rejects",
     "rev_osc_pairs", "rev_osc_wins", "rev_osc_net_cash",
     "n_sub_open", "n_sub_close", "n_sub_forced_close",
     "n_sub_amp_rejects", "n_sub_nocenter_rejects", "n_sub_earning_rejects",
+    "n_sub_cost_rejects", "n_sub_cost_noref_rejects", "n_sub_l41_rejects",
     "sub_pairs", "sub_wins", "sub_net_cash",
 )
 
@@ -92,8 +100,13 @@ def _leg_stats(diag: list) -> dict:
     """按腿类型聚合（含 rev_sub——_leg_stats_rust 硬编码三类，此处扩展）。"""
     by_leg: dict[str, list] = {"main": [], "osc": [], "rev": [], "rev_sub": []}
     for _header, diffs in diag:
-        for (_key, leg, _sb, sp, _bb, _bp), (_sh, df, pf, *_rest) in diffs:
+        for (key, leg, _sb, sp, _bb, _bp), (_sh, df, pf, *_rest) in diffs:
             by_leg[leg].append((sp, df, pf))
+            # 深度分解（P0-a 编码先例）：py_key = home + 200 + 100×depth
+            # → rev_sub_d1 = 3xx, rev_sub_d2 = 4xx（加性 key，不改既有消费者）
+            if leg == "rev_sub":
+                by_leg.setdefault(f"rev_sub_d{key // 100 - 2}", []).append(
+                    (sp, df, pf))
     out = {}
     for leg, rows in by_leg.items():
         n = len(rows)
@@ -201,6 +214,9 @@ def _verdict(r: dict, depth_variant: str = "V2ofS1") -> tuple[str, str]:
     wr_ok = (wr0 is None) or (wr1 is not None and wr1 >= wr0)
     chain = (f"Δ复利={d:+.2f}pp; 子腿净现金={sub_cash:+.1f}; "
              f"rev胜率 {wr0}%→{wr1}%")
+    # P0-b 引用纪律：子腿 0 次配对求值 ⇒ 判据不可求值（域空），不得写成"被否证"
+    if v1["leg_stats"]["rev_sub"]["n_pairs"] == 0:
+        return f"域空[{depth_variant}]（子腿 0 配对，判据不可求值）", chain
     if d > 0 and sub_cash > 0 and wr_ok:
         return f"O_sub1[{depth_variant}]（递归有效，值得继续）", chain
     return f"O_sub0[{depth_variant}]（否证）", chain

@@ -115,6 +115,23 @@ pub struct OrganicConfig {
     /// θ 取值方式（Fixed = 在册基线；AdaptiveQuantile = 因果滚动分位数）。
     /// 仅 rev_paired 路径消费（legacy 腿无深度门概念）。
     pub theta_mode: ThetaMode,
+    /// 成本门下界倍数 k（θ 相对化落地任务，2026-06-11）：AdaptiveQuantile
+    /// 分支的 θ_eff = max(θ_quantile, k × friction_rt)——分位数可低至任意小
+    /// （高频域中枢振幅趋零），低于 k 倍往返摩擦的门放行的腿期望必负，
+    /// 下界是相对化语义的严格组成部分而非可选项（35课成本门的 REV 主腿形态）。
+    /// 仅 AdaptiveQuantile 分支消费（Fixed 模式 θ 由变体预注册，逐位不变）。
+    pub theta_cost_k: f64,
+    /// 往返摩擦成本（比例）。默认 10bps（卖飞修复 be9.7bps 先例的量级锚定，
+    /// 与 sub_friction_rt 同值不同消费点——本值供 REV 主腿成本门下界）。
+    pub friction_rt: f64,
+    /// 41课门（REV 主腿形态，θ 相对化落地任务）：REV 开腿前检查直接父级别
+    /// （ladder+1）向上走势衰竭状态——相邻同向（Up）段创新高 ∧ 当前段窗口内
+    /// 无盘整背驰 = 上涨趋势未完 = 拒开反向腿（"大级别走势没有任何衰竭时
+    /// 参与反向小级别买卖点是刀口舔血"）。与 sub_l41_gate（Fractal 子腿守
+    /// 父级别 Down 衰竭）镜像；与 rev_gate（FatigueGate，需 run_high 行）
+    /// 数据基础不同——本门用 D3 方向行 + close + div 事件流（磁带已产出）。
+    /// n_rev_l41_rejects 可观测。仅 rev_paired 路径消费。
+    pub rev_l41_gate: bool,
     /// 逃逸型开腿开关（kind 标注的消融轴）：首跑 kind 分解显示逃逸型三标的
     /// 一致为负（OKLO V2p −4.4K / V2f −39.8K，QQQ −10.1K）而震荡型胜率 53%+——
     /// false = 只开震荡型（V2o/V2of）。仅 rev_paired 路径消费。
@@ -256,6 +273,9 @@ impl Default for OrganicConfig {
             rev_paired: false,
             theta_depth: 0.0,
             theta_mode: ThetaMode::Fixed,
+            theta_cost_k: 2.0,
+            friction_rt: 0.001,
+            rev_l41_gate: false,
             rev_escape_open: true,
             r1_sub_sell_open: false,
             r2_anchor_zg: false,
@@ -400,13 +420,30 @@ pub fn variant(name: &str) -> Option<OrganicConfig> {
         // 预注册常数：window=50 / min_obs=10 / q ∈ {0.25, 0.50}——不做标的级
         // 拟合（方案 C 被否定为回测期内前瞻）。theta_depth=0.01 保留为 warm-up
         // 回退值（样本不足时维持基线门，不静默放行）。
+        // ── θ 相对化默认门（2026-06-11 落地任务）：V2oa25 升级为 REV 配对
+        // 路径的默认门——AdaptiveQuantile q=0.25 + 成本门下界
+        // θ_eff = max(θ_q, 2×10bps)（theta_cost_k/friction_rt 默认值，
+        // 在 effective_theta 的 Adaptive 分支无条件生效）+ 41课门
+        // （rev_l41_gate：父级别上行无衰竭拒开反向腿）。
+        // 注意：与首验 V2oa25（纯自适应，OKLO+520/BRN+71.5pp）不逐位可比
+        // ——首验数字在 theta_adaptive_backtest.json 在册，本定义是落地形态。
         "V2oa25" => Some(OrganicConfig {
             theta_mode: ThetaMode::AdaptiveQuantile { q: 0.25, window: 50, min_obs: 10 },
+            rev_l41_gate: true,
             ..variant("V2of").expect("V2of 在上方注册")
         }),
         "V2oa50" => Some(OrganicConfig {
             theta_mode: ThetaMode::AdaptiveQuantile { q: 0.50, window: 50, min_obs: 10 },
             ..variant("V2of").expect("V2of 在上方注册")
+        }),
+        // V2oa25F1：默认门 + 笔级分型递归 depth=1 + P1 双门（成本门/41课门的
+        // 子腿形态——P0+P1 判决：成本门=亏损有界化，41课门首次非死门）。
+        "V2oa25F1" => Some(OrganicConfig {
+            rev_sub_depth: 1,
+            sub_mode: SubMode::Fractal,
+            sub_cost_gate: true,
+            sub_l41_gate: true,
+            ..variant("V2oa25").expect("V2oa25 在上方注册")
         }),
         // ── 盘背递归正则化消融矩阵（2026-06-11；基线 = V2r，三位独立掩码）──
         "V2rR1" => Some(OrganicConfig {
@@ -574,15 +611,35 @@ mod tests {
     fn theta_adaptive_variants_inherit_v2of() {
         let v2of = variant("V2of").unwrap();
         assert_eq!(v2of.theta_mode, ThetaMode::Fixed);
+        assert!(!v2of.rev_l41_gate);
         for (name, q) in [("V2oa25", 0.25), ("V2oa50", 0.50)] {
             let cfg = variant(name).unwrap();
             assert_eq!(
                 cfg.theta_mode,
                 ThetaMode::AdaptiveQuantile { q, window: 50, min_obs: 10 }
             );
-            // 除 theta_mode 外与 V2of 逐位一致（含 θ=1% 回退值）
+            // 与 V2of 逐位一致的继承面（含 θ=1% 回退值）
             assert_eq!(cfg.theta_depth, 0.01);
             assert!(cfg.rev_mode && cfg.rev_paired && !cfg.rev_escape_open);
+            // 成本门下界常数（Adaptive 分支无条件生效）：2 × 10bps = 0.2%
+            assert_eq!(cfg.theta_cost_k, 2.0);
+            assert_eq!(cfg.friction_rt, 0.001);
         }
+        // 默认门 = V2oa25：41课门开；V2oa50 保持纯自适应（消融对照位）
+        assert!(variant("V2oa25").unwrap().rev_l41_gate);
+        assert!(!variant("V2oa50").unwrap().rev_l41_gate);
+    }
+
+    #[test]
+    fn v2oa25f1_inherits_default_gate_plus_fractal_dual_gate() {
+        let cfg = variant("V2oa25F1").unwrap();
+        assert_eq!(
+            cfg.theta_mode,
+            ThetaMode::AdaptiveQuantile { q: 0.25, window: 50, min_obs: 10 }
+        );
+        assert!(cfg.rev_l41_gate);
+        assert_eq!(cfg.rev_sub_depth, 1);
+        assert_eq!(cfg.sub_mode, SubMode::Fractal);
+        assert!(cfg.sub_cost_gate && cfg.sub_l41_gate);
     }
 }

@@ -31,10 +31,11 @@ use crate::stroke::Direction;
 
 use super::types::{DivEvent, MAX_LADDER};
 
-/// 单层 Down 段运行状态。
+/// 单层双向段运行状态（Down 侧守 Fractal 子腿；Up 侧守 REV 开腿——
+/// θ 相对化落地任务 2026-06-11，41课门的镜像形式）。
 #[derive(Debug, Clone, Copy, Default)]
 struct LadderState {
-    /// 该层方向行上一观测（Down 段起点检测）。
+    /// 该层方向行上一观测（段起点检测，双向共用）。
     last_dir: Option<Direction>,
     /// 上一个已完成 Down 段的 close 最低价。
     prev_down_low: Option<f64>,
@@ -42,6 +43,12 @@ struct LadderState {
     cur_down_low: Option<f64>,
     /// 当前 Down 段窗口内已观测盘整背驰（Consolidation×Down）。
     consol_div_seen: bool,
+    /// 上一个已完成 Up 段的 close 最高价。
+    prev_up_high: Option<f64>,
+    /// 当前（或最近完成）Up 段的 close 最高价。
+    cur_up_high: Option<f64>,
+    /// 当前 Up 段窗口内已观测盘整背驰（Consolidation×Up）。
+    consol_up_seen: bool,
 }
 
 /// 全层位走势衰竭追踪器。runner 每 bar 驱动（仅 sub_l41_gate 变体），
@@ -75,6 +82,12 @@ impl TrendExhaustion {
             {
                 st.consol_div_seen = true;
             }
+            if devs[lad]
+                .iter()
+                .any(|d| d.kind == DivKind::Consolidation && d.direction == Direction::Up)
+            {
+                st.consol_up_seen = true;
+            }
             let now = dir_row[lad];
             if now == Some(Direction::Down) {
                 if st.last_dir != Some(Direction::Down) {
@@ -87,6 +100,19 @@ impl TrendExhaustion {
                         Some(low) if c < *low => *low = c,
                         Some(_) => {}
                         None => st.cur_down_low = Some(c),
+                    }
+                }
+            } else if now == Some(Direction::Up) {
+                if st.last_dir != Some(Direction::Up) {
+                    // 新 Up 段起点：上一段高点归档，衰竭证据按段对重置（镜像）
+                    st.prev_up_high = st.cur_up_high.take();
+                    st.cur_up_high = Some(c);
+                    st.consol_up_seen = false;
+                } else {
+                    match st.cur_up_high.as_mut() {
+                        Some(high) if c > *high => *high = c,
+                        Some(_) => {}
+                        None => st.cur_up_high = Some(c),
                     }
                 }
             }
@@ -106,6 +132,19 @@ impl TrendExhaustion {
             && matches!(
                 (st.prev_down_low, st.cur_down_low),
                 (Some(prev), Some(cur)) if cur < prev
+            )
+    }
+
+    /// 41课判据镜像：该层向上走势**无衰竭迹象**（上涨趋势未完——REV 反向腿
+    /// 拒开条件，θ 相对化落地任务）。= 相邻同向（Up）段创新高 ∧ 当前段窗口
+    /// 内无盘整背驰（Consolidation×Up）。ladder 越界（无父级别可观测）或
+    /// 段对不可定义 ⇒ false——判据是正面的趋势延续证据，证据缺失不拒开。
+    pub fn up_unexhausted(&self, ladder: usize) -> bool {
+        let Some(st) = self.states.get(ladder) else { return false };
+        !st.consol_up_seen
+            && matches!(
+                (st.prev_up_high, st.cur_up_high),
+                (Some(prev), Some(cur)) if cur > prev
             )
     }
 }
@@ -156,6 +195,42 @@ mod tests {
         dir[2] = Some(Direction::Down);
         te.observe(&dir, &devs, 7.0);
         assert!(te.down_unexhausted(2)); // 7.0 < 7.9 创新低且证据已重置
+    }
+
+    #[test]
+    fn up_mirror_new_high_without_div_is_unexhausted() {
+        let mut devs: [Vec<DivEvent>; MAX_LADDER] = Default::default();
+        let mut dir: [Option<Direction>; MAX_LADDER] = [None; MAX_LADDER];
+        let mut te = TrendExhaustion::new();
+        // Up 段1：高点 10.0
+        dir[3] = Some(Direction::Up);
+        te.observe(&dir, &devs, 9.0);
+        te.observe(&dir, &devs, 10.0);
+        assert!(!te.up_unexhausted(3)); // 段对不足
+        // 回调 Down 段
+        dir[3] = Some(Direction::Down);
+        te.observe(&dir, &devs, 9.5);
+        // Up 段2：创新高 11.0，无盘整背驰 → 上涨趋势未完
+        dir[3] = Some(Direction::Up);
+        te.observe(&dir, &devs, 9.8);
+        assert!(!te.up_unexhausted(3)); // 尚未创新高
+        te.observe(&dir, &devs, 11.0);
+        assert!(te.up_unexhausted(3));
+        // 段内盘整背驰（Consolidation×Up）→ 衰竭证据成立
+        devs[3] = vec![DivEvent {
+            kind: DivKind::Consolidation,
+            direction: Direction::Up,
+            seg_idx: 0,
+            force_a: 0.0,
+            force_c: 0.0,
+            price: 0.0,
+        }];
+        te.observe(&dir, &devs, 11.1);
+        assert!(!te.up_unexhausted(3));
+        // 越界 ladder：无父级别可观测 ⇒ false（门放行）
+        assert!(!te.up_unexhausted(MAX_LADDER + 5));
+        // Down 侧状态不受 Up 侧推进污染
+        assert!(!te.down_unexhausted(3));
     }
 
     #[test]

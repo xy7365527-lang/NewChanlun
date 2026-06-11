@@ -306,6 +306,14 @@ pub fn run_organic(
                 .to_string(),
         );
     }
+    if cfg.rev_l41_gate && !tape.has_dir_rows() {
+        return Err(
+            "rev_l41_gate（41课门 REV 主腿形态）要求磁带 dir_flips 行（D3）——
+             父级别 Up/Down 段切分 = 方向行翻转，无行时追踪器恒无段对观测
+             = 死门（不静默放行）"
+                .to_string(),
+        );
+    }
     if (cfg.sub_cost_gate || cfg.sub_l41_gate)
         && !(cfg.rev_sub_depth > 0 && cfg.sub_mode == super::config::SubMode::Fractal)
     {
@@ -373,9 +381,11 @@ pub fn run_organic(
         ThetaMode::Fixed => DEPTH_REF_WINDOW,
     };
     let mut depth_ref = DepthRef::new(depth_window);
-    // 父级别走势衰竭追踪器（P1 41课门；市场性质，与 depth_ref 同置局部变量
-    // ——BarRows 持只读借用横跨 LONG 块）。仅 sub_l41_gate 变体实例化。
-    let mut trend_exh = cfg.sub_l41_gate.then(TrendExhaustion::new);
+    // 父级别走势衰竭追踪器（41课门；市场性质，与 depth_ref 同置局部变量
+    // ——BarRows 持只读借用横跨 LONG 块）。sub_l41_gate（Fractal 子腿，Down
+    // 侧）或 rev_l41_gate（REV 主腿，Up 侧）任一变体实例化。
+    let mut trend_exh =
+        (cfg.sub_l41_gate || cfg.rev_l41_gate).then(TrendExhaustion::new);
 
     for i in 0..n {
         let sig = &tape.bars[i];

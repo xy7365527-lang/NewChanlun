@@ -419,6 +419,11 @@ pub struct Counters {
     /// θ 自适应 warm-up 回退：参照集样本 < min_obs ⇒ 使用 cfg.theta_depth
     /// 固定值的开腿尝试数（仅 theta_mode=AdaptiveQuantile 计数）。
     pub n_rev_theta_fallbacks: u64,
+    /// θ 成本门下界触发：分位数 < k×friction_rt，θ_eff 被抬到下界的取值次数
+    /// （仅 AdaptiveQuantile 计数——下界激活 = 该层参照振幅不足覆盖 k 倍往返成本）。
+    pub n_rev_theta_cost_floor: u64,
+    /// 41课门（REV 主腿，rev_l41_gate）：父级别上行无衰竭被拒的开腿尝试数。
+    pub n_rev_l41_rejects: u64,
     // ── 次级别确认完整递归可观测面（2026-06-11 任务，SC 六位）──
     /// SCe：超时 bar 确认仍缺、legacy 会 fallback 入场而 strict 拒绝（每 ARMED 期一次）。
     pub n_sc_entry_expire_skips: u64,
@@ -552,6 +557,8 @@ impl Counters {
             ("n_rev_zg_close", self.n_rev_zg_close),
             ("n_rev_r3_holds", self.n_rev_r3_holds),
             ("n_rev_theta_fallbacks", self.n_rev_theta_fallbacks),
+            ("n_rev_theta_cost_floor", self.n_rev_theta_cost_floor),
+            ("n_rev_l41_rejects", self.n_rev_l41_rejects),
             ("n_sc_entry_expire_skips", self.n_sc_entry_expire_skips),
             ("n_sc_master_holds", self.n_sc_master_holds),
             ("n_sc_main_open_rejects", self.n_sc_main_open_rejects),

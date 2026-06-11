@@ -993,6 +993,20 @@ impl VoiceUnit {
             counters.n_sc_rev_open_rejects += 1;
             return;
         }
+        // ── 41课门（rev_l41_gate，REV 主腿形态）：直接父级别（k+1）向上走势
+        // 无衰竭迹象（相邻 Up 段创新高 ∧ 段窗口内无盘整背驰）⇒ 拒开反向腿
+        // ——"大级别走势没有任何衰竭时参与反向小级别买卖点是刀口舔血"。
+        // 父级别越界（k+1 ≥ MAX_LADDER）由 up_unexhausted 返回 false 放行
+        // （无父级别可观测 = 证据缺失，门只在正面证据成立时关）。
+        if cfg.rev_l41_gate {
+            let te = rows.l41.expect(
+                "rev_l41_gate ⇒ 调用方必提供 TrendExhaustion（capability，runner 恒提供）",
+            );
+            if te.up_unexhausted(k + 1) {
+                counters.n_rev_l41_rejects += 1;
+                return;
+            }
+        }
         match Self::rev_open_verdict(cfg, k, rows, book, gate, entry_ladder) {
             RevOpenVerdict::RejectedSubAnchor => {
                 counters.n_rev_sub_anchor_rejects += 1;
@@ -1097,8 +1111,12 @@ impl VoiceUnit {
     ///
     /// Fixed = cfg.theta_depth 原语义（V2f/V2of/V2r 逐位不变）；
     /// AdaptiveQuantile = 该层因果滚动参照的 q 分位（排除当前锚自身——门槛
-    /// 决策不得是被检对象自身振幅的函数）；参照样本 < min_obs ⇒ 回退
-    /// cfg.theta_depth 并计 n_rev_theta_fallbacks（warm-up 不静默放行）。
+    /// 决策不得是被检对象自身振幅的函数），下界为成本门
+    /// θ_eff = max(θ_quantile, theta_cost_k × friction_rt)（θ 相对化落地
+    /// 任务：分位数可低至任意小，低于 k 倍往返摩擦的门放行期望必负的腿——
+    /// 下界是相对化语义的严格组成部分，n_rev_theta_cost_floor 可观测）；
+    /// 参照样本 < min_obs ⇒ 回退 cfg.theta_depth 并计 n_rev_theta_fallbacks
+    /// （warm-up 不静默放行，固定回退值 1% 本就高于下界）。
     fn effective_theta(
         cfg: &OrganicConfig,
         rows: &BarRows,
@@ -1113,7 +1131,15 @@ impl VoiceUnit {
                     "theta_mode=AdaptiveQuantile ⇒ 调用方必提供 DepthRef（capability）",
                 );
                 match dr.theta(k, anchor_cs, q, min_obs) {
-                    Some(t) => t,
+                    Some(t) => {
+                        let floor = cfg.theta_cost_k * cfg.friction_rt;
+                        if t < floor {
+                            counters.n_rev_theta_cost_floor += 1;
+                            floor
+                        } else {
+                            t
+                        }
+                    }
                     None => {
                         counters.n_rev_theta_fallbacks += 1;
                         cfg.theta_depth
