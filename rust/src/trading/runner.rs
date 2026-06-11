@@ -1143,3 +1143,102 @@ pub fn run_organic(
         run.fsm_recovered.into_iter().map(|(k, (cash, cnt))| (k, cash, cnt)).collect();
     Ok(res)
 }
+
+#[cfg(test)]
+mod ledger_voice_tests {
+    use super::*;
+    use crate::trading::config::variant;
+
+    fn ev(class: BspClass, confirmed: bool) -> BspEvent {
+        BspEvent { class, seg_idx: 0, confirmed, cs: None, zd: None, zg: None, price: 0.0 }
+    }
+
+    fn bar(close: f64) -> crate::trading::tape::BarSig {
+        crate::trading::tape::BarSig { close, ..Default::default() }
+    }
+
+    fn bar_ev(close: f64, lad: usize, e: BspEvent) -> crate::trading::tape::BarSig {
+        let mut b = bar(close);
+        let mut rows: Box<[Vec<BspEvent>; MAX_LADDER]> = Box::default();
+        rows[lad].push(e);
+        b.bsp_events = Some(rows);
+        b.max_ladder = 3;
+        b
+    }
+
+    /// master 入场（buy1@3 布防 + 次级别 buy_any@2 区间套确认）+ 账本 voice
+    /// 操作序列的合成磁带。
+    fn entry_tape(tail: Vec<crate::trading::tape::BarSig>) -> SignalTape {
+        let mut arm = bar(100.0);
+        arm.buy1 = LadderMask(1 << 3);
+        arm.max_ladder = 3;
+        let mut confirm = bar(100.0);
+        confirm.buy_any = LadderMask(1 << 2);
+        confirm.max_ladder = 3;
+        let mut bars = vec![arm, confirm];
+        bars.extend(tail);
+        SignalTape { bars, ..Default::default() }
+    }
+
+    #[test]
+    fn ledger_voice_sell_opens_buy_closes_with_saturation_noops() {
+        // bar2 Sell2 开（裸账本全词汇）→ bar3 Sell1 槽已开 no-op →
+        // bar4 Buy1 闭 → bar5 Buy2 槽空 no-op → eod。
+        let t = entry_tape(vec![
+            bar_ev(110.0, 2, ev(BspClass::Sell2, true)),
+            bar_ev(112.0, 2, ev(BspClass::Sell1, true)),
+            bar_ev(105.0, 2, ev(BspClass::Buy1, true)),
+            bar_ev(106.0, 2, ev(BspClass::Buy2, true)),
+        ]);
+        let cfg = variant("VL").unwrap();
+        let r = run_organic(&t, 2, &cfg, StopMode::None, false).unwrap();
+        assert_eq!(r.counters.n_ledger_opens, 1);
+        assert_eq!(r.counters.n_ledger_sell_noops, 1);
+        assert_eq!(r.counters.n_ledger_closes, 1);
+        assert_eq!(r.counters.n_ledger_buy_noops, 1);
+        assert_eq!(r.trades.len(), 1, "eod_close 收口");
+        // 短差兑现：@110 卖 @105 买回，cost_basis 下降 ⇒ pnl > 纯持有
+        assert_eq!(r.trades[0].n_short_diffs, 1);
+    }
+
+    #[test]
+    fn ledger_voice_candidate_events_not_consumed() {
+        let t = entry_tape(vec![bar_ev(110.0, 2, ev(BspClass::Sell1, false))]);
+        let cfg = variant("VL").unwrap();
+        let r = run_organic(&t, 2, &cfg, StopMode::None, false).unwrap();
+        assert_eq!(r.counters.n_ledger_opens, 0);
+        assert_eq!(r.counters.n_ledger_sell_noops, 0);
+    }
+
+    #[test]
+    fn ledger_sell_t1_only_skips_sell23() {
+        // VLs1：Sell2 被词汇过滤（连 no-op 都不计），Sell1 才开。
+        let t = entry_tape(vec![
+            bar_ev(110.0, 2, ev(BspClass::Sell2, true)),
+            bar_ev(112.0, 2, ev(BspClass::Sell1, true)),
+            bar_ev(105.0, 2, ev(BspClass::Buy1, true)),
+        ]);
+        let cfg = variant("VLs1").unwrap();
+        let r = run_organic(&t, 2, &cfg, StopMode::None, false).unwrap();
+        assert_eq!(r.counters.n_ledger_opens, 1);
+        assert_eq!(r.counters.n_ledger_sell_noops, 0);
+        assert_eq!(r.counters.n_ledger_closes, 1);
+    }
+
+    #[test]
+    fn ledger_guard_rejects_fsm_bits_and_orphan_t1_flag() {
+        let t = entry_tape(vec![bar_ev(110.0, 2, ev(BspClass::Sell1, true))]);
+        // V2oa25（FSM 机制位全开）强行切 Ledger ⇒ 拒绝
+        let bad = OrganicConfig {
+            voice_mode: VoiceMode::Ledger,
+            ..variant("V2oa25").unwrap()
+        };
+        assert!(run_organic(&t, 2, &bad, StopMode::None, false).is_err());
+        // FSM 路径带 ledger_sell_t1_only ⇒ 拒绝（孤儿位）
+        let orphan = OrganicConfig {
+            ledger_sell_t1_only: true,
+            ..OrganicConfig::default()
+        };
+        assert!(run_organic(&t, 2, &orphan, StopMode::None, false).is_err());
+    }
+}
