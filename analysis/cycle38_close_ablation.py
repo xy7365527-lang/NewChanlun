@@ -71,13 +71,42 @@ SYMBOLS = [s.strip().upper()
            for s in os.environ.get("BT_SYMBOLS", "OKLO,BRN").split(",")]
 FLOOR = int(os.environ.get("BT_FLOOR", str(LADDER_SEG)))
 VARIANTS = ["V2oa25", "V2oa25C38", "V2oa25C38buy1", "V2oa25C38zd",
-            "V2oa25C38pair"]
+            "V2oa25C38pair", "V2oa25C38bsp", "V2oa25C38bspzd",
+            "V2oa25C38b1zd"]
 
 C38_KEYS = ("n_c38_enter", "n_c38_exit", "n_c38_open", "n_c38_close",
             "n_c38_forced_close", "n_c38_cost_rejects",
             "n_c38_cost_noref_rejects", "n_c38_frozen_rejects",
             "n_c38_nocenter_rejects", "n_c38_close_t7", "n_c38_close_t6",
-            "n_c38_close_buy1", "n_c38_close_zd", "c38_pairs", "c38_wins")
+            "n_c38_close_buy1", "n_c38_close_zd", "n_c38_close_buy2",
+            "n_c38_close_buy1any", "n_c38_buy1_holds", "n_c38_buy2_holds",
+            "n_c38_buy3_holds", "c38_pairs", "c38_wins")
+
+# 逐腿闭因编码（Rust Counters 分解位 docstring 同义）
+REASON_LABELS = {0: "sub_any", 1: "forced", 5: "buy1_same", 6: "t6_pre3",
+                 7: "buy3", 8: "zd", 10: "buy2", 11: "buy1_any"}
+
+
+def _payoff_by_reason(close_profits: list) -> dict:
+    """逐腿 (reason, profit) → 按买点类型的 payoff 统计（编排者递归因果诊断）。"""
+    by: dict[int, list[float]] = {}
+    for reason, profit in close_profits:
+        by.setdefault(int(reason), []).append(float(profit))
+    out = {}
+    for reason, ps in sorted(by.items()):
+        ps.sort()
+        n = len(ps)
+        out[REASON_LABELS.get(reason, str(reason))] = {
+            "n": n,
+            "wins": sum(1 for p in ps if p > 0),
+            "win_rate": round(sum(1 for p in ps if p > 0) / n, 3),
+            "cash": round(sum(ps), 1),
+            "p25": round(ps[n // 4], 1),
+            "p50": round(ps[n // 2], 1),
+            "p75": round(ps[3 * n // 4], 1),
+            "mean": round(sum(ps) / n, 1),
+        }
+    return out
 REV_KEYS = ("n_rev_attempts", "n_rev_open", "n_rev_open_osc",
             "n_rev_close_t5", "n_rev_close_t6", "n_rev_close_t7",
             "n_rev_zd_close", "n_rev_l41_rejects", "n_rev_depth_rejects",
@@ -130,6 +159,7 @@ def run_cell(rtape, variant: str, years: float, bh: float) -> dict:
         "leg_stats": _leg_stats_rust(res["diag"]),
         "rev_payoff_dist": payoff,
         "counters": {k: c[k] for k in C38_KEYS + REV_KEYS},
+        "payoff_by_reason": _payoff_by_reason(c["c38_close_profits"]),
         "c38_net_cash": round(c["c38_net_cash"], 2),
         "rev_osc_net_cash": round(c["rev_osc_net_cash"], 2),
         "elapsed_s": round(el, 3),

@@ -1731,6 +1731,8 @@ fn run_organic_rust(
     // 递归子腿聚合净现金（O_sub1 判据直接读数）
     counters.set_item("sub_net_cash", res.counters.sub_cash)?;
     counters.set_item("c38_net_cash", res.counters.c38_cash)?;
+    // 循环短差逐腿 (reason, profit) 日志——按买点类型的 payoff 分布读数
+    counters.set_item("c38_close_profits", res.counters.c38_close_profits.clone())?;
     out.set_item("counters", counters)?;
     out.set_item("rev_attempts_by_ladder", res.rev_attempts_by_ladder.to_vec())?;
     out.set_item("rev_opens_by_ladder", res.rev_opens_by_ladder.to_vec())?;

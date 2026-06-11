@@ -112,6 +112,30 @@ pub enum RevCycleClose {
     /// r3_t6_sub_confirm / sc_t7_close / buy2_close 全关）的精确退化形式。
     /// "循环版 V2oa25"：循环结构 × 基线闭腿判据的因果分离实验臂。
     Paired,
+    /// C38bsp（编排者递归因果纠正 2026-06-11）：本级别任意 confirmed 买点
+    /// （Buy3 > Buy2 > Buy1，**任意锚**）买回——买卖点之间有递归因果：
+    /// 一卖后回落，次级别反向运动构造出二买（反弹不创新低=底部确认）或
+    /// 三买（回调不破中枢=回补位），这些涌现的买点即买回机会。"利用所有
+    /// 买卖点"原则的循环形态。candidate Buy3（t6）不入集（在册负槽）。
+    /// 无锚依赖（任意锚买点不需要开腿锚快照）——开腿路径同 SubAny。
+    BspAny,
+    /// C38bspzd：BspAny + ZD 触线几何兜底（买点缺席时的兑现保障）。
+    /// ZD 线需要锚 ⇒ 有锚依赖（开腿同 Buy1/Zd/Paired 路径）。
+    BspAnyZd,
+    /// C38b1zd（**post-hoc 探索臂**，2026-06-11 七臂数据驱动）：兑现型闭因
+    /// 子集 = 任意锚 confirmed Buy1 ∨ ZD 触线——七臂逐腿 payoff 分解显示
+    /// buy1_any（wr 62-64% 两标的）与 zd 是唯二正闭因，buy3（wr 21-27%）/
+    /// t6 是止损型负槽。数据挖掘风险显式声明：本臂是同数据 post-hoc 组合，
+    /// 结论上限 = 探索性（L2），需新标的预注册验证才可升级。
+    Buy1AnyZd,
+}
+
+impl RevCycleClose {
+    /// 闭腿判据是否依赖开腿锚快照（同锚比较基准 / ZD 线）。无依赖的臂
+    /// 开腿不捕获锚（声明=能力：不消费就不要求）。
+    pub fn needs_anchor(self) -> bool {
+        !matches!(self, RevCycleClose::SubAny | RevCycleClose::BspAny)
+    }
 }
 
 /// REV 开腿锚定强度（C3 消融轴 S）。
@@ -528,6 +552,23 @@ pub fn variant(name: &str) -> Option<OrganicConfig> {
             rev_cycle_close: RevCycleClose::Paired,
             ..variant("V2oa25C38").expect("V2oa25C38 在上方注册")
         }),
+        // 编排者递归因果纠正臂（2026-06-11）：一卖→回落→二买/三买涌现即
+        // 买回机会——本级别任意 confirmed 买点（任意锚）买回；bspzd 加
+        // ZD 几何兜底。
+        "V2oa25C38bsp" => Some(OrganicConfig {
+            rev_cycle_close: RevCycleClose::BspAny,
+            ..variant("V2oa25C38").expect("V2oa25C38 在上方注册")
+        }),
+        "V2oa25C38bspzd" => Some(OrganicConfig {
+            rev_cycle_close: RevCycleClose::BspAnyZd,
+            ..variant("V2oa25C38").expect("V2oa25C38 在上方注册")
+        }),
+        // post-hoc 探索臂：兑现型闭因子集（buy1_any + zd，排除 buy3/t6
+        // 止损型负槽）——数据挖掘风险见 RevCycleClose::Buy1AnyZd docstring。
+        "V2oa25C38b1zd" => Some(OrganicConfig {
+            rev_cycle_close: RevCycleClose::Buy1AnyZd,
+            ..variant("V2oa25C38").expect("V2oa25C38 在上方注册")
+        }),
         // V2oa25F1：默认门 + 笔级分型递归 depth=1 + P1 双门（成本门/41课门的
         // 子腿形态——P0+P1 判决：成本门=亏损有界化，41课门首次非死门）。
         "V2oa25F1" => Some(OrganicConfig {
@@ -753,6 +794,9 @@ mod tests {
             ("V2oa25C38buy1", RevCycleClose::Buy1),
             ("V2oa25C38zd", RevCycleClose::Zd),
             ("V2oa25C38pair", RevCycleClose::Paired),
+            ("V2oa25C38bsp", RevCycleClose::BspAny),
+            ("V2oa25C38bspzd", RevCycleClose::BspAnyZd),
+            ("V2oa25C38b1zd", RevCycleClose::Buy1AnyZd),
         ] {
             let cfg = variant(name).unwrap();
             assert_eq!(cfg.rev_cycle_close, want, "{name}");

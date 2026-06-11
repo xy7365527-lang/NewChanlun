@@ -491,12 +491,22 @@ pub struct Counters {
     /// （不静默放行先例）。SubAny 恒 0（无锚依赖，开腿路径零接触）。
     pub n_c38_nocenter_rejects: u64,
     // ── 38课循环买回判据消融分解（2026-06-11 任务；reason 编码与
-    //    RevCloseLog 同义：7=T7 / 6=T6 / 5=同锚Buy1 / 8=ZD 触线。
-    //    SubAny 闭腿不入分解位（n_c38_close 在册语义不变）──
+    //    RevCloseLog 同义：7=confirmed Buy3 / 6=T6 candidate Buy3 /
+    //    5=同锚Buy1 / 8=ZD 触线 / 10=Buy2（BspAny 臂）/ 11=任意锚Buy1
+    //    （BspAny 臂；与 5 同锚区分）。SubAny 闭腿不入分解位（n_c38_close
+    //    在册语义不变）──
     pub n_c38_close_t7: u64,
     pub n_c38_close_t6: u64,
     pub n_c38_close_buy1: u64,
     pub n_c38_close_zd: u64,
+    pub n_c38_close_buy2: u64,
+    pub n_c38_close_buy1any: u64,
+    // ── 反事实可观测（编排者递归因果纠正 2026-06-11：一卖→回落→二买/
+    //    三买涌现即买回机会）：持腿期本级别 confirmed 买点出现但不在当前
+    //    闭腿集内（本 bar 未闭）的 bar 数——量化"被漏掉的买回机会"──
+    pub n_c38_buy1_holds: u64,
+    pub n_c38_buy2_holds: u64,
+    pub n_c38_buy3_holds: u64,
     /// 循环短差闭合对统计（win = profit > 0；含强闭）。
     pub c38_pairs: u64,
     pub c38_wins: u64,
@@ -507,6 +517,10 @@ pub struct Counters {
     pub sub_cash: f64,
     /// 循环短差聚合净现金（cycle38 总贡献判据；f64 同上单独 marshal）。
     pub c38_cash: f64,
+    /// 循环短差逐腿闭合日志 (reason, profit)：reason 编码同上分解位 +
+    /// 0=SubAny 次级别买点 / 1=循环终止强闭——按买点类型的 payoff 分布
+    /// 读数（编排者递归因果诊断的数据基础）。lib.rs 单独 marshal（list）。
+    pub c38_close_profits: Vec<(u8, f64)>,
     // ── REV 腿逐腿日志（trade_behavior 行为分解，2026-06-11 任务）──
     // 仅 rev_paired 路径产出（legacy 腿无 kind/锚概念——声明=能力）。
     // PyO3 不可见：py_items 与 lib.rs marshal 均不含 → 在册对账面零侵入。
@@ -624,6 +638,11 @@ impl Counters {
             ("n_c38_close_t6", self.n_c38_close_t6),
             ("n_c38_close_buy1", self.n_c38_close_buy1),
             ("n_c38_close_zd", self.n_c38_close_zd),
+            ("n_c38_close_buy2", self.n_c38_close_buy2),
+            ("n_c38_close_buy1any", self.n_c38_close_buy1any),
+            ("n_c38_buy1_holds", self.n_c38_buy1_holds),
+            ("n_c38_buy2_holds", self.n_c38_buy2_holds),
+            ("n_c38_buy3_holds", self.n_c38_buy3_holds),
             ("c38_pairs", self.c38_pairs),
             ("c38_wins", self.c38_wins),
         ]

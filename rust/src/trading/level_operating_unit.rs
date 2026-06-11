@@ -984,7 +984,7 @@ impl VoiceUnit {
             // 循环终止：未决腿强闭（卖了必须买回——38课程序内置追价买回），
             // 退回 RIDE。
             if self.phase == VoicePhase::DownLeg {
-                self.c38_close_leg(c, bar, ledger, counters);
+                self.c38_close_leg(1, c, bar, ledger, counters);
                 counters.n_c38_forced_close += 1;
             }
             self.cycle38_on = false;
@@ -1008,6 +1008,9 @@ impl VoiceUnit {
                     }
                 };
                 let evs = &rows.evs[k];
+                let conf = |class: BspClass| {
+                    evs.iter().any(move |e| e.confirmed && e.class == class)
+                };
                 let buy1_paired = || {
                     evs.iter().any(|e| {
                         e.confirmed
@@ -1028,14 +1031,11 @@ impl VoiceUnit {
                     // 推导）：T7 > T6 > 同锚 Buy1 > ZD（step_down_paired 同序；
                     // 闭腿动作全同——同价全闭，优先序只决定 reason 归因）。
                     RevCycleClose::Paired => {
-                        let hard = evs.iter().any(|e| {
-                            e.confirmed && matches!(e.class, BspClass::Buy3)
-                        });
                         let pre = cfg.pre_type3
                             && evs.iter().any(|e| {
                                 !e.confirmed && matches!(e.class, BspClass::Buy3)
                             });
-                        if hard {
+                        if conf(BspClass::Buy3) {
                             Some(7)
                         } else if pre {
                             Some(6)
@@ -1047,16 +1047,61 @@ impl VoiceUnit {
                             None
                         }
                     }
+                    // 递归因果臂（编排者纠正 2026-06-11）：一卖→回落→二买/
+                    // 三买涌现即买回机会——本级别任意 confirmed 买点（任意锚）。
+                    // 归因优先序按结构强度 Buy3（回补位本体）> Buy2（底部确认）
+                    // > Buy1（可能结束）；candidate Buy3 不入集（t6 在册负槽）。
+                    RevCycleClose::BspAny | RevCycleClose::BspAnyZd => {
+                        if conf(BspClass::Buy3) {
+                            Some(7)
+                        } else if conf(BspClass::Buy2) {
+                            Some(10)
+                        } else if conf(BspClass::Buy1) {
+                            Some(11)
+                        } else if cfg.rev_cycle_close == RevCycleClose::BspAnyZd
+                            && zd_touch()
+                        {
+                            Some(8)
+                        } else {
+                            None
+                        }
+                    }
+                    // post-hoc 探索臂（七臂数据驱动）：兑现型闭因子集——
+                    // buy1_any（两标的唯二正闭因之一）+ ZD 几何兑现；
+                    // buy3/t6 止损型负槽显式排除（其反事实入 holds 计数）。
+                    RevCycleClose::Buy1AnyZd => {
+                        if conf(BspClass::Buy1) {
+                            Some(11)
+                        } else if zd_touch() {
+                            Some(8)
+                        } else {
+                            None
+                        }
+                    }
                 };
                 if let Some(reason) = reason {
-                    self.c38_close_leg(c, bar, ledger, counters);
+                    self.c38_close_leg(reason, c, bar, ledger, counters);
                     counters.n_c38_close += 1;
                     match reason {
                         7 => counters.n_c38_close_t7 += 1,
                         6 => counters.n_c38_close_t6 += 1,
                         5 => counters.n_c38_close_buy1 += 1,
                         8 => counters.n_c38_close_zd += 1,
+                        10 => counters.n_c38_close_buy2 += 1,
+                        11 => counters.n_c38_close_buy1any += 1,
                         _ => {} // 0 = SubAny（在册计数语义，无分解位）
+                    }
+                } else {
+                    // 反事实可观测（递归因果诊断）：本级别 confirmed 买点出现
+                    // 但本 bar 未闭腿——被当前闭腿集漏掉的买回机会逐 bar 计数。
+                    if conf(BspClass::Buy1) {
+                        counters.n_c38_buy1_holds += 1;
+                    }
+                    if conf(BspClass::Buy2) {
+                        counters.n_c38_buy2_holds += 1;
+                    }
+                    if conf(BspClass::Buy3) {
+                        counters.n_c38_buy3_holds += 1;
                     }
                 }
             }
@@ -1099,12 +1144,13 @@ impl VoiceUnit {
                         return;
                     }
                 }
-                // 锚解析（rev_cycle_close ≠ SubAny 的数据依赖）：本级别买回
-                // 判据的比较基准 = 卖点所在存活中枢快照——与 rev_paired_open
-                // 震荡型同一锚来源（账本是当前真相，事件自带 cs 可能陈旧）。
-                // 锚不可定义 ⇒ 保守拒绝并计数（不静默放行先例）。SubAny 无锚
-                // 依赖，开腿路径逐位不变（在册 C38base 零接触）。
-                let anchor = if cfg.rev_cycle_close == RevCycleClose::SubAny {
+                // 锚解析（needs_anchor 臂的数据依赖）：本级别买回判据的比较
+                // 基准 = 卖点所在存活中枢快照——与 rev_paired_open 震荡型
+                // 同一锚来源（账本是当前真相，事件自带 cs 可能陈旧）。
+                // 锚不可定义 ⇒ 保守拒绝并计数（不静默放行先例）。SubAny/
+                // BspAny 无锚依赖（任意锚买点不消费锚快照），不捕获不拒绝
+                // （声明=能力；SubAny 开腿路径逐位不变，在册零接触）。
+                let anchor = if !cfg.rev_cycle_close.needs_anchor() {
                     None
                 } else {
                     match book.alive(k) {
@@ -1151,9 +1197,12 @@ impl VoiceUnit {
         }
     }
 
-    /// 循环短差腿闭合 + 对账面计数（win = profit > 0）。
+    /// 循环短差腿闭合 + 对账面计数（win = profit > 0）+ 逐腿 (reason, profit)
+    /// 日志（按买点类型的 payoff 分布读数；reason 编码见 Counters 分解位
+    /// docstring，1 = 循环终止强闭）。
     fn c38_close_leg(
         &mut self,
+        reason: u8,
         c: f64,
         bar: i64,
         ledger: &mut OrganicLedger,
@@ -1171,6 +1220,7 @@ impl VoiceUnit {
                         counters.c38_wins += 1;
                     }
                     counters.c38_cash += profit;
+                    counters.c38_close_profits.push((reason, profit));
                 }
             }
         }
@@ -2189,6 +2239,73 @@ mod tests {
         }
     }
 
+    /// 递归因果臂（BspAny）：本级别任意 confirmed 买点（任意锚 Buy1/Buy2/
+    /// Buy3）闭腿且归因正确；candidate Buy3 与次级别买点不闭；闭腿集外的
+    /// confirmed 买点在其他臂被反事实计数（holds）。
+    #[test]
+    fn cycle38_close_bspany_recursive_causality() {
+        type Probe = (Vec<BspEvent>, fn(&Counters) -> u64, bool);
+        let probes: Vec<Probe> = vec![
+            // 一卖→回落→三买涌现（回补位本体）
+            (vec![ev(BspClass::Buy3, true)], |c| c.n_c38_close_t7, true),
+            // 一卖→回落→二买涌现（底部确认）——任意锚
+            (vec![ev_anchored(BspClass::Buy2, true, 999, 8.0, 8.5)],
+             |c| c.n_c38_close_buy2, true),
+            // 任意锚 Buy1（同锚要求取消——reason 11 与同锚 5 区分）
+            (vec![ev_anchored(BspClass::Buy1, true, 50, 8.0, 8.5)],
+             |c| c.n_c38_close_buy1any, true),
+            // candidate Buy3 不入集（t6 在册负槽）
+            (vec![ev(BspClass::Buy3, false)], |c| c.n_c38_close, false),
+        ];
+        for (close_evs, counter_of, expect_close) in probes {
+            let cfg = cfg_c38(RevCycleClose::BspAny);
+            let (mut fx, mut v, dr) = c38_close_fixture();
+            fx.evs[2] = vec![ev(BspClass::Sell1, true)];
+            c38_step(&mut fx, &mut v, &dr, &cfg, 0, 10.0, 0);
+            assert_eq!(fx.counters.n_c38_open, 1);
+            fx.evs[2] = close_evs;
+            c38_step(&mut fx, &mut v, &dr, &cfg, 0, 9.5, 1);
+            if expect_close {
+                assert_eq!(fx.counters.n_c38_close, 1);
+                assert_eq!(counter_of(&fx.counters), 1);
+                // 逐腿日志携带 (reason, profit)
+                assert_eq!(fx.counters.c38_close_profits.len(), 1);
+                assert!(fx.counters.c38_close_profits[0].1 > 0.0);
+            } else {
+                assert_eq!(counter_of(&fx.counters), 0);
+                assert_eq!(v.phase, VoicePhase::DownLeg);
+            }
+        }
+        // 反事实 holds：Zd 臂持腿期 confirmed Buy2 出现但不在闭腿集 → 计数
+        let cfg = cfg_c38(RevCycleClose::Zd);
+        let (mut fx, mut v, dr) = c38_close_fixture();
+        fx.evs[2] = vec![ev(BspClass::Sell1, true)];
+        c38_step(&mut fx, &mut v, &dr, &cfg, 0, 10.0, 0);
+        fx.evs[2] = vec![ev_anchored(BspClass::Buy2, true, 999, 8.0, 8.5)];
+        c38_step(&mut fx, &mut v, &dr, &cfg, 0, 9.5, 1);
+        assert_eq!(fx.counters.n_c38_close, 0);
+        assert_eq!(fx.counters.n_c38_buy2_holds, 1);
+        assert_eq!(fx.counters.n_c38_buy1_holds, 0);
+    }
+
+    /// BspAnyZd：买点缺席时 ZD 触线兜底闭腿。
+    #[test]
+    fn cycle38_close_bspanyzd_geometric_floor() {
+        let cfg = cfg_c38(RevCycleClose::BspAnyZd);
+        let (mut fx, mut v, dr) = c38_close_fixture();
+        fx.evs[2] = vec![ev(BspClass::Sell1, true)];
+        c38_step(&mut fx, &mut v, &dr, &cfg, 0, 10.0, 0);
+        assert_eq!(fx.counters.n_c38_open, 1);
+        fx.evs[2].clear();
+        // 未触线无买点 → 持腿
+        c38_step(&mut fx, &mut v, &dr, &cfg, 0, 9.5, 1);
+        assert_eq!(fx.counters.n_c38_close, 0);
+        // 触 ZD（9.0）→ 兜底闭腿
+        c38_step(&mut fx, &mut v, &dr, &cfg, 0, 9.0, 2);
+        assert_eq!(fx.counters.n_c38_close, 1);
+        assert_eq!(fx.counters.n_c38_close_zd, 1);
+    }
+
     /// 锚不可定义（存活中枢被 confirmed Sell3 终结）⇒ 非 SubAny 变体开腿
     /// 保守拒绝并计数；SubAny 同条件照常开（无锚依赖，在册零接触）。
     #[test]
@@ -2197,7 +2314,11 @@ mod tests {
             (RevCycleClose::Buy1, 0u64, 1u64),
             (RevCycleClose::Zd, 0, 1),
             (RevCycleClose::Paired, 0, 1),
+            (RevCycleClose::BspAnyZd, 0, 1),
+            (RevCycleClose::Buy1AnyZd, 0, 1),
+            // 无锚依赖臂：任意锚买点不消费锚快照 ⇒ 不捕获不拒绝
             (RevCycleClose::SubAny, 1, 0),
+            (RevCycleClose::BspAny, 1, 0),
         ] {
             let cfg = cfg_c38(close);
             let (mut fx, mut v, dr) = c38_close_fixture();
