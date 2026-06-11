@@ -65,9 +65,12 @@ OUT_JSON = DATA_DIR / "master_exit_climb_backtest.json"
 REF_JSON = DATA_DIR / "master_exit_mode_backtest.json"
 
 SYMBOLS = [s.strip().upper()
-           for s in os.environ.get("BT_SYMBOLS", "OKLO,BRN,CL,BTC").split(",")]
+           for s in os.environ.get("BT_SYMBOLS", "OKLO,BRN,CL,BTC,PINS").split(",")]
 FLOOR = int(os.environ.get("BT_FLOOR", str(LADDER_SEG)))
-VARIANTS = ["V2oa25", "V2oa25_ht", "V2oa25_cl", "V2oa25_clht"]
+# em = Emergent（编排者纠正后的形态：出场级别 = 持仓走势的涌现级别归属，
+# 方向行逐层向上递归，无状态）。第一版 _cl/_clht（Climb，全局 max_ladder
+# 爬梯 = 外部参数设计缺陷）已删除，其否证 cell 保留在 JSON 作谱系记录。
+VARIANTS = ["V2oa25", "V2oa25_ht", "V2oa25_em", "V2oa25_emht"]
 # 在册对账臂（master_exit_mode_backtest.json 已有 cell 的变体）
 REF_VARIANTS = {"V2oa25", "V2oa25_ht"}
 
@@ -91,7 +94,7 @@ def run_cell(rtape, variant: str, years: float, bh: float, n_bars: int) -> dict:
         "avg_hold_bars": round(hold_bars / len(raw), 1) if raw else None,
         "exposure": round(hold_bars / n_bars, 4),
         "n_exit_trend_holds": c["n_exit_trend_holds"],
-        "n_exit_climbs": c["n_exit_climbs"],
+        "n_exit_emergent_bars": c["n_exit_emergent_bars"],
         "n_short_diffs_total": sum(t[6] for t in raw),
         "elapsed_s": round(el, 3),
     }
@@ -187,7 +190,7 @@ def process_symbol(symbol: str, prev: dict | None = None) -> dict:
               f" Δ(base)={pack['delta_vs_v2oa25']:+8.1f}pp 笔={m['n']:4d}"
               f" 胜率={m['win_rate']:.2f} MDD={m['max_dd']:.1f}%"
               f" 暴露={pack['exposure']:.2f}"
-              f" climbs={pack['n_exit_climbs']}"
+              f" em_bars={pack.get('n_exit_emergent_bars', pack.get('n_exit_climbs'))}"
               f" holds={pack['n_exit_trend_holds']}"
               f" [{pack['elapsed_s']:.2f}s]", flush=True)
     return out

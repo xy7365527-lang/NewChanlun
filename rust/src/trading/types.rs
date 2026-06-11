@@ -524,9 +524,10 @@ pub struct Counters {
     /// HoldTrend：entry 级 sell1 触发成立但父级别（entry_ladder+1）上行趋势
     /// 未衰竭（up_unexhausted），master 出场被拦截持仓的 bar 数。
     pub n_exit_trend_holds: u64,
-    /// Climb：出场级别爬梯事件数（exit_ladder 升级次数，每次升级 +1——
-    /// 与 exit reason 中的 ladder 名联用可读出"爬到多高"分布）。
-    pub n_exit_climbs: u64,
+    /// Emergent：持仓中走势级别归属高于 entry 级的 bar 数（mx_lad >
+    /// entry_ladder 的 LONG bar 计数——归属活性读数；归属到多高的分布
+    /// 由 exit reason 中的 ladder 名读出）。
+    pub n_exit_emergent_bars: u64,
     /// 净现金按类型分解（f64，lib.rs 单独 marshal——py_items 仅 u64）。
     pub rev_osc_cash: f64,
     pub rev_esc_cash: f64,
@@ -538,6 +539,15 @@ pub struct Counters {
     /// 0=SubAny 次级别买点 / 1=循环终止强闭——按买点类型的 payoff 分布
     /// 读数（编排者递归因果诊断的数据基础）。lib.rs 单独 marshal（list）。
     pub c38_close_profits: Vec<(u8, f64)>,
+    // ── 账本 voice 可观测面（2026-06-11 并发赋格最小实验，voice_mode=Ledger）──
+    /// 账本开腿：confirmed Sell@k 且槽空 → 卖出 frac_k（清 slice）。
+    pub n_ledger_opens: u64,
+    /// 账本闭腿：confirmed Buy@k 且槽开 → 买回（填 slice）。
+    pub n_ledger_closes: u64,
+    /// 槽已开的 Sell 事件 no-op（"清至 0 幂等"的饱和算术读数）。
+    pub n_ledger_sell_noops: u64,
+    /// 槽空的 Buy 事件 no-op（"满仓者二买无事可做"读数，26课恒仓推论）。
+    pub n_ledger_buy_noops: u64,
     // ── REV 腿逐腿日志（trade_behavior 行为分解，2026-06-11 任务）──
     // 仅 rev_paired 路径产出（legacy 腿无 kind/锚概念——声明=能力）。
     // PyO3 不可见：py_items 与 lib.rs marshal 均不含 → 在册对账面零侵入。
@@ -667,7 +677,11 @@ impl Counters {
             ("n_rec_entry_partial_exits", self.n_rec_entry_partial_exits),
             ("n_rec_entry_earning_rejects", self.n_rec_entry_earning_rejects),
             ("n_exit_trend_holds", self.n_exit_trend_holds),
-            ("n_exit_climbs", self.n_exit_climbs),
+            ("n_exit_emergent_bars", self.n_exit_emergent_bars),
+            ("n_ledger_opens", self.n_ledger_opens),
+            ("n_ledger_closes", self.n_ledger_closes),
+            ("n_ledger_sell_noops", self.n_ledger_sell_noops),
+            ("n_ledger_buy_noops", self.n_ledger_buy_noops),
         ]
     }
 }

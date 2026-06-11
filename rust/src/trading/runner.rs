@@ -21,7 +21,9 @@
 
 use super::allocator::SizeAllocator;
 use super::center_book::CenterBook;
-use super::config::{EntryMode, ExitMode, OrganicConfig, RevCycle, Sizing, StopMode, ThetaMode};
+use super::config::{
+    EntryMode, ExitMode, OrganicConfig, RevCycle, Sizing, StopMode, ThetaMode, VoiceMode,
+};
 use super::depth_ref::{DepthRef, DEPTH_REF_WINDOW};
 use super::fatigue_gate::FatigueGate;
 use super::ledger::{LegTrace, OrganicLedger};
@@ -107,9 +109,6 @@ struct Run {
     entry_bar: i64,
     entry_price: f64,
     entry_ladder: usize,
-    /// Climb 模式的动态出场级别（入场时 = entry_ladder，随高层趋势结构
-    /// 涌现单调上升；仅 ExitMode::Climb 路径读取）。
-    exit_ladder: usize,
     arm_bar: i64,
     arm_ladder: usize,
     pos: Option<OrganicLedger>,
@@ -132,7 +131,6 @@ impl Run {
         self.entry_bar = bar;
         self.entry_price = price;
         self.entry_ladder = el;
-        self.exit_ladder = el;
         self.active_levels = (self.floor_ladder..el).collect();
         let n_sub = self.active_levels.len();
         let level_frac = if n_sub > 0 { 1.0 / n_sub as f64 } else { 0.0 };
@@ -459,29 +457,66 @@ pub fn run_organic(
                 .to_string(),
         );
     }
-    if matches!(cfg.exit_mode, ExitMode::Climb { .. }) {
-        if !tape.has_trend_rows() {
-            return Err(
-                "exit_mode=Climb（出场级别爬梯）要求磁带 trend_flips 行——
-                 爬梯条件 = 高层 kind==Trend（17课 ≥2 同向中枢），无行即无
-                 趋势结构判据（不提供方向行代理降级：方向 ≠ 趋势，Cycle38
-                 guard 同先例）"
-                    .to_string(),
-            );
-        }
-        if !tape.has_dir_rows() {
-            return Err(
-                "exit_mode=Climb 要求磁带 dir_flips 行（D3）——趋势结构的
-                 方向分量（dir==Up）依赖方向行（Cycle38 宿主趋势态同先例）"
-                    .to_string(),
-            );
-        }
+    if matches!(cfg.exit_mode, ExitMode::Emergent { .. }) && !tape.has_dir_rows() {
+        return Err(
+            "exit_mode=Emergent（出场级别 = 持仓走势的涌现级别归属）要求磁带
+             dir_flips 行（D3）——归属判据 = 父级别方向行连续 Up 的逐层递归，
+             无行即无涌现读数（不提供 max_ladder 全局塔高代理降级：塔高是
+             外部参数非走势自身涌现，第一版 Climb 设计缺陷先例）"
+                .to_string(),
+        );
+    }
+    // ── master 入场级别下限 guard（2026-06-11 任务，entry_min_ladder 轴）──
+    if cfg.entry_min_ladder != 0
+        && !(FIRST_BSP_LADDER..MAX_LADDER).contains(&cfg.entry_min_ladder)
+    {
+        return Err(format!(
+            "entry_min_ladder 必须为 0（无约束）或落在 [{FIRST_BSP_LADDER}, \
+             {MAX_LADDER})（BSP 承载层区间）；entry_min_ladder={}",
+            cfg.entry_min_ladder
+        ));
     }
     if cfg.exit_mode != ExitMode::Signal && cfg.earning_reaction {
         return Err(
             "exit_mode≠Signal × earning_reaction 组合未定义：earning 升级出场
              /REV 腿降格的出场语义建立在 entry 级 sell1 事件驱动之上，状态
              驱动形态未设计——显式拒绝（Cycle38×tranche 同先例）"
+                .to_string(),
+        );
+    }
+
+    // ── 账本 voice guard（2026-06-11 并发赋格最小实验）──
+    // Ledger 是裸账本消费（无相位/无锚/无门/无配对）：FSM 与 main 腿的全部
+    // 机制位在账本路径不被消费，保留非关闭值即声明膨胀（090号）——显式拒绝。
+    if cfg.voice_mode == VoiceMode::Ledger {
+        let fsm_bits_off = !cfg.rev_mode
+            && !cfg.tranche
+            && cfg.rev_sub_depth == 0
+            && cfg.rev_cycle == RevCycle::Single
+            && !cfg.earning_reaction
+            && !cfg.sc_main_open
+            && !cfg.sc_main_close
+            && !cfg.sc_t7_close
+            && cfg.open_kinds.is_empty()
+            && !cfg.hard_type3
+            && !cfg.pre_type3
+            && !cfg.center_gate
+            && !cfg.same_center_close
+            && !cfg.osc_mode;
+        if !fsm_bits_off {
+            return Err(
+                "voice_mode=Ledger 是裸账本消费（无相位/无锚/无门）——FSM/main 腿
+                 机制位（rev_mode/tranche/rev_sub_depth/rev_cycle/earning_reaction/
+                 SC 位/open_kinds/hard_type3/pre_type3/center_gate/
+                 same_center_close/osc_mode）必须全关：账本路径不消费这些位，
+                 保留即声明膨胀"
+                    .to_string(),
+            );
+        }
+    } else if cfg.ledger_sell_t1_only {
+        return Err(
+            "ledger_sell_t1_only 仅定义于 voice_mode=Ledger 路径（FSM 路径
+             不消费该位——声明=能力，显式拒绝）"
                 .to_string(),
         );
     }
@@ -503,7 +538,6 @@ pub fn run_organic(
         entry_bar: -1,
         entry_price: 0.0,
         entry_ladder: usize::MAX,
-        exit_ladder: usize::MAX,
         arm_bar: -1,
         arm_ladder: LADDER_MOVE,
         pos: None,
@@ -551,7 +585,7 @@ pub fn run_organic(
     let mut trend_exh = (cfg.sub_l41_gate
         || cfg.rev_l41_gate
         || cfg.exit_mode == ExitMode::HoldTrend
-        || cfg.exit_mode == (ExitMode::Climb { hold_trend: true }))
+        || cfg.exit_mode == (ExitMode::Emergent { hold_trend: true }))
         .then(TrendExhaustion::new);
 
     for i in 0..n {
@@ -622,14 +656,16 @@ pub fn run_organic(
         let max_l = (sig.max_ladder as usize + 1).min(MAX_LADDER);
 
         if run.state == FLAT {
-            // 取最高 buy1 层（Python 升序扫描覆盖 hi）
+            // 取最高 buy1 层（Python 升序扫描覆盖 hi）。entry_min_ladder 只抬高
+            // 布防下界（对称升级轴）——ARMED 升级/区间套次级别确认零改动。
+            let arm_floor = FIRST_BSP_LADDER.max(cfg.entry_min_ladder);
             let mut hi: i64 = -1;
-            for k in FIRST_BSP_LADDER..max_l {
+            for k in arm_floor..max_l {
                 if sig.buy1.get(k) {
                     hi = k as i64;
                 }
             }
-            if hi >= FIRST_BSP_LADDER as i64 {
+            if hi >= arm_floor as i64 {
                 run.state = ARMED;
                 run.arm_bar = i as i64;
                 run.arm_ladder = hi as usize;
@@ -681,22 +717,6 @@ pub fn run_organic(
                 trend_row: has_trend.then_some(&trend_state),
             };
 
-            // ── Climb：出场级别动态爬梯（2026-06-11 任务）。预注册判据：
-            // max_ladder > exit_ladder ∧ 该层趋势结构（trend_state[top] ∧
-            // dir==Up——Cycle38 宿主趋势态先例）⇒ exit_ladder = max_ladder。
-            // 单调上升，不降级；爬梯先于本 bar 出场判定（出场判据即刻升级，
-            // 旧级别 sell1 的短差机会由 voice 承载——HoldTrend 同语义）。──
-            if matches!(cfg.exit_mode, ExitMode::Climb { .. }) {
-                let top = (sig.max_ladder as usize).min(MAX_LADDER - 1);
-                if top > run.exit_ladder
-                    && trend_state[top]
-                    && dir_state[top] == Some(crate::stroke::Direction::Up)
-                {
-                    run.exit_ladder = top;
-                    run.counters.n_exit_climbs += 1;
-                }
-            }
-
             // ── master 循环（45课持股持币；C1：出场只认 MasterExitSignal）──
             if run.stop_on && c < run.entry_price * (1.0 - STOP_FRAC) {
                 run.res.n_core_stops += 1;
@@ -743,13 +763,38 @@ pub fn run_organic(
                 // SCm：sell1 ∧ 次级别卖确认——27课区间套的出场时机细化）。
                 // exit_mode 选择判据级别：Signal/HoldTrend = entry 级（在册）；
                 // HighestOnly = 当前最高涌现层（31课"历史性大顶"的级别相对化）；
-                // Climb = 动态爬梯级别（高层趋势结构确认后的升级读数）
+                // Emergent = 持仓走势的级别归属——从 entry 级向上，父级别
+                // 当前段为持仓期间生长出的 Up 段（dir==Up ∧ 段锚 ≥
+                // entry_bar）的连续最高层。两个条件缺一不可：
+                //   dir==Up 单独成立 = "市场环境向上"（牛市全塔 Up，链
+                //   直通塔顶 = HighestOnly 退化——本判据第一版缺陷，OKLO
+                //   em_bars=292K/447K 暴露）；
+                //   anchor ≥ entry_bar = 该 Up 段在持仓期间被父级别同级别
+                //   分解确认 = 它是由持仓走势自身生长出来的（中枢扩展/
+                //   新中枢形成 → 走势级别上升的方向行投影）。
+                // 无状态每 bar 重读，高层翻转归属即时回落——保留出场能力。
+                // 与入场区间套对称：入场看 buy1 涌现级别，出场看走势涌现
+                // 级别。不用 max_ladder 全局塔高——塔高是外部参数非走势
+                // 自身涌现（第一版 Climb 设计缺陷）。
                 let mx_lad = match cfg.exit_mode {
                     ExitMode::Signal | ExitMode::HoldTrend => entry_ladder,
                     ExitMode::HighestOnly => {
                         (sig.max_ladder as usize).min(MAX_LADDER - 1)
                     }
-                    ExitMode::Climb { .. } => run.exit_ladder,
+                    ExitMode::Emergent { .. } => {
+                        let mut lad = entry_ladder;
+                        while lad + 1 < max_l
+                            && dir_state[lad + 1]
+                                == Some(crate::stroke::Direction::Up)
+                            && anchor_state[lad + 1] >= run.entry_bar
+                        {
+                            lad += 1;
+                        }
+                        if lad > entry_ladder {
+                            run.counters.n_exit_emergent_bars += 1;
+                        }
+                        lad
+                    }
                 };
                 let sc_m = !cfg.sc_master_exit
                     || rows.sub_confirm(mx_lad, crate::buysellpoint::Side::Sell);
@@ -766,11 +811,11 @@ pub fn run_organic(
                 // 证据（相邻同向段创新高 ∧ 无盘整背驰）成立时拦截出场持仓，
                 // sell1 的短差机会由 voice 承载（在册逻辑零接触）。
                 // 衰竭确认的父级别：HoldTrend = entry_ladder+1（静态在册）；
-                // Climb{ht} = exit_ladder+1（随爬梯动态上移——出场判据升到
+                // Emergent{ht} = mx_lad+1（随归属动态上移——出场判据归属到
                 // 哪一级，衰竭就在哪一级的直接父级别上确认）。
                 let ht_parent = match cfg.exit_mode {
                     ExitMode::HoldTrend => Some(entry_ladder + 1),
-                    ExitMode::Climb { hold_trend: true } => Some(run.exit_ladder + 1),
+                    ExitMode::Emergent { hold_trend: true } => Some(mx_lad + 1),
                     _ => None,
                 };
                 let trigger = match ht_parent {
@@ -778,7 +823,7 @@ pub fn run_organic(
                     Some(parent) => {
                         let unexh = rows
                             .l41
-                            .expect("guard: HoldTrend/Climb{ht} ⇒ TrendExhaustion 实例化")
+                            .expect("guard: HoldTrend/Emergent{ht} ⇒ TrendExhaustion 实例化")
                             .up_unexhausted(parent);
                         if sig_trigger && unexh {
                             run.counters.n_exit_trend_holds += 1;
@@ -819,12 +864,12 @@ pub fn run_organic(
                                 "exit_{}_type1sell_highest",
                                 ladder_name(mx_lad)
                             ),
-                            ExitMode::Climb { hold_trend: false } => format!(
-                                "exit_{}_type1sell_climb",
+                            ExitMode::Emergent { hold_trend: false } => format!(
+                                "exit_{}_type1sell_emergent",
                                 ladder_name(mx_lad)
                             ),
-                            ExitMode::Climb { hold_trend: true } => format!(
-                                "exit_{}_type1sell_climbht",
+                            ExitMode::Emergent { hold_trend: true } => format!(
+                                "exit_{}_type1sell_emergentht",
                                 ladder_name(mx_lad)
                             ),
                         };
@@ -900,6 +945,56 @@ pub fn run_organic(
             let frac_of =
                 move |k: usize| -> f64 { if structure { alloc_frac[k] } else { level_frac } };
             let pos = run.pos.as_mut().expect("LONG ⇒ pos 存在");
+
+            // ── 账本 voice（voice_mode=Ledger，2026-06-11 并发赋格最小实验）──
+            // voice@k 的唯一状态 = 腿槽占用（资源状态）；每个 confirmed BSP
+            // 直接饱和执行：Sell@k 且槽空 → 卖出 frac_k（清 slice），Buy@k
+            // 且槽开 → 买回（填 slice）。无相位过滤、无锚比较、无门谓词。
+            // 同 bar 多事件按磁带序（ladder 升序、层内事件序）确定性消费。
+            // master 出场时 close_position 的强制清腿在册逻辑自动覆盖账本槽。
+            if cfg.voice_mode == VoiceMode::Ledger {
+                for &ladder in &run.active_levels {
+                    let key = SlotKey::main(ladder);
+                    for e in &evrows[ladder] {
+                        if !e.confirmed {
+                            continue;
+                        }
+                        match e.class.side() {
+                            crate::buysellpoint::Side::Sell => {
+                                if cfg.ledger_sell_t1_only && e.class != BspClass::Sell1 {
+                                    continue;
+                                }
+                                if pos.open_slot(key).is_none() {
+                                    if pos.open_diff(
+                                        key,
+                                        frac_of(ladder),
+                                        c,
+                                        i as i64,
+                                        LegAnchor::SegmentScale,
+                                    ) {
+                                        run.counters.n_ledger_opens += 1;
+                                    }
+                                } else {
+                                    run.counters.n_ledger_sell_noops += 1;
+                                }
+                            }
+                            crate::buysellpoint::Side::Buy => {
+                                if pos.open_slot(key).is_some() {
+                                    pos.close_diff(key, c, i as i64);
+                                    run.counters.n_ledger_closes += 1;
+                                } else {
+                                    run.counters.n_ledger_buy_noops += 1;
+                                }
+                            }
+                        }
+                    }
+                }
+                if sig.type2_buy {
+                    run.res.n_addon += 1;
+                }
+                continue;
+            }
+
             for vi in 0..run.voices.len() {
                 let ladder = run.voices[vi].ladder;
                 let evs = &evrows[ladder];

@@ -170,21 +170,24 @@ pub enum EntryMode {
 /// 明确延续时关，与 rev_l41_gate"证据缺失不拒开"同一保守语义。
 /// HighestOnly = 最激进持仓：只在当前最高涌现层（max_ladder）的 sell1
 /// 出场（31课"历史性大顶"的级别相对化读数——最高级别卖点才是大顶）。
-/// Climb = 出场级别动态爬梯（2026-06-11 任务）：入场时 exit_ladder =
-/// entry_ladder；每 bar 若 max_ladder > exit_ladder 且该层有趋势结构
-/// （trend_state[max_ladder] ∧ dir==Up——Cycle38 宿主趋势态先例，17课
-/// ≥2 同向中枢，需 trend_flips 磁带行）则 exit_ladder = max_ladder；
-/// master 出场判据 = sell1 @ exit_ladder。与 HighestOnly 的区分：爬梯
-/// 要求高层趋势结构**确认**才升级，高层无趋势时保持原级别出场能力
-/// ——不是伪装 buy-hold（HighestOnly 否证先例）。hold_trend=true 组合
-/// HoldTrend 语义：sell1 @ exit_ladder ∧ 父级别（exit_ladder+1，动态）
-/// 上行趋势衰竭才出。
+/// Emergent = 出场级别跟随持仓走势自身的涌现级别（2026-06-11 编排者
+/// 纠正后的形态；第一版 Climb 用全局 max_ladder 做爬梯目标 = 预设外部
+/// 参数，违反"级别从下到上涌现"原则，已删除——设计缺陷与否证记录见
+/// analysis/master_exit_climb_results.md）。
+/// 判据（无状态，每 bar 重读，零额外机制——引擎递归塔的自我复制本身
+/// 就是级别涌现）：出场级别 = 从 entry_ladder 向上、父级别方向行连续
+/// Up 的最高层。父级别当前段向上 = 持仓走势已被父级别同级别分解识别
+/// 为其向上段的组成部分 = 走势归属升一层；逐层递归。与入场区间套对称：
+/// 入场看 buy1 涌现在哪个级别，出场看当前走势涌现到哪个级别。高层
+/// 翻转/无结构时归属即时回落——保留出场能力（≠HighestOnly 伪装
+/// buy-hold）。需 dir_flips 磁带行。hold_trend=true 组合 HoldTrend
+/// 语义：sell1 @ 归属级别 ∧ 其直接父级别（动态）上行趋势衰竭才出。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExitMode {
     Signal,
     HoldTrend,
     HighestOnly,
-    Climb { hold_trend: bool },
+    Emergent { hold_trend: bool },
 }
 
 /// REV 开腿锚定强度（C3 消融轴 S）。
@@ -196,6 +199,24 @@ pub enum SubAnchor {
     Direction,
     /// D 强锚定：次级别反向中枢已形成（消融轴 S）。
     CenterFormed,
+}
+
+/// voice 消费方式（2026-06-11 并发赋格最小可验证实验；deep_think Part II
+/// §17 开放问题3"控制状态剥离"的最小化形态）。
+///
+/// Fsm = 在册行为（O0≡P5 零接触面）：main 腿（带门带锚）+ VoiceUnit
+/// 状态机（RIDE/REV/OSC 相位、配对、θ门、41课门）。
+/// Ledger = 裸账本（Part II §15"voice 不是机器，是一个有门的账本"——
+/// 最小实验连门都不留）：voice@k 的唯一状态 = 腿槽占用（资源状态），
+/// 每个 confirmed BSP 事件直接饱和执行——Sell@k 且槽空 → 卖出 frac_k
+/// （清 slice），Buy@k 且槽开 → 买回（填 slice）。无相位过滤、无锚比较、
+/// 无门谓词、无配对记忆。master 满仓持有/出场逻辑零接触——递归建仓
+/// 双标的否证的暴露塌缩死因（slice 占用时间 ≪ 趋势长度）由 master 满仓
+/// 兜底规避，本轴只隔离 voice 消费方式的因果。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VoiceMode {
+    Fsm,
+    Ledger,
 }
 
 /// 有机赋格 v2 配置。P5 继承轴默认值 = P5 逐字（V0≡P5 守卫的基线锚定）。
@@ -369,6 +390,24 @@ pub struct OrganicConfig {
     pub entry_mode: EntryMode,
     /// master 出场模式（见 ExitMode docstring）。Signal = 在册 sell1 即出。
     pub exit_mode: ExitMode,
+    /// master 入场级别下限（2026-06-11 入场侧调研：BTC 死因 = segment 级
+    /// 出场→重入循环 1254 次每次期望为负——exit_reasons 直方图显示 86% 入场
+    /// 落在 ladder=2）。FLAT 态只对 ≥ 本值的 confirmed buy1 布防（ARMED 升级
+    /// 与区间套次级别确认零改动——次级别确认本来就在 arm_ladder 之下）。
+    /// 出场判据级别 = entry_ladder（不变式），故本轴是**对称**升级：入场出场
+    /// 同级上移，不违反 Climb 否证的"出场判据级别不可高于入场级别"定理。
+    /// 0 = 无约束（在册行为，O0≡P5 零接触面：扫描下界 = FIRST_BSP_LADDER）。
+    /// 语义映射：3 = move(L1) 级、4 = recL2 级。高层 buy1 未涌现期不布防
+    /// （首笔入场 bar 合法变晚——级别涌现是数据性质，不提供低层代理降级）。
+    pub entry_min_ladder: usize,
+    /// voice 消费方式（见 VoiceMode docstring）。Fsm = 在册行为。
+    /// Ledger ⇒ main 腿/FSM 机制位必须全关（runner guard 强制——账本路径
+    /// 不消费这些位，保留非关闭值即声明膨胀）。
+    pub voice_mode: VoiceMode,
+    /// 账本 voice 卖侧词汇收缩：仅 confirmed Sell1 开腿（递归建仓 s1 臂
+    /// 教训的镜像——Sell2/Sell3 是结构内确认/中枢离开点，在强趋势中开腿
+    /// 是纯打断）。仅 voice_mode=Ledger 路径消费（guard 强制）。
+    pub ledger_sell_t1_only: bool,
 }
 
 /// 成本门 θ_q 的分位数（中位数 = 该层"典型"中枢振幅；35课判据是级别的
@@ -438,6 +477,9 @@ impl Default for OrganicConfig {
             rev_cycle_close: RevCycleClose::SubAny,
             entry_mode: EntryMode::Full,
             exit_mode: ExitMode::Signal,
+            entry_min_ladder: 0,
+            voice_mode: VoiceMode::Fsm,
+            ledger_sell_t1_only: false,
         }
     }
 }
@@ -575,6 +617,30 @@ pub fn variant(name: &str) -> Option<OrganicConfig> {
         "V2oa50" => Some(OrganicConfig {
             theta_mode: ThetaMode::AdaptiveQuantile { q: 0.50, window: 50, min_obs: 10 },
             ..variant("V2of").expect("V2of 在上方注册")
+        }),
+        // ── 并发赋格最小可验证实验（2026-06-11；deep_think Part II §17
+        // 开放问题3 的最小化形态）。VL = 裸账本 voice：每个 confirmed BSP
+        // 直接饱和执行（Sell 开=卖出 frac_k、Buy 闭=买回），无相位/无锚/
+        // 无门/无配对。master Full 入场 + Signal 出场在册路径零接触——
+        // 与 V2oa25（FSM voice）同 master 同磁带可比，差额 = FSM 控制状态
+        // + 门谓词的联合信息含量。main 腿不消费的位全部显式关闭
+        // （声明=能力；runner guard 强制）。──
+        "VL" => Some(OrganicConfig {
+            voice_mode: VoiceMode::Ledger,
+            open_kinds: vec![],
+            hard_type3: false,
+            pre_type3: false,
+            center_gate: false,
+            same_center_close: false,
+            osc_mode: false,
+            ..base
+        }),
+        // VLs1：卖侧词汇收缩消融（仅 confirmed Sell1 开）——递归建仓 s1 臂
+        // 的镜像：Sell2/Sell3 是结构内确认/中枢离开点，非趋势终结信号。
+        // VL−VLs1 差额 = 卖侧词汇宽度的独立因果。
+        "VLs1" => Some(OrganicConfig {
+            ledger_sell_t1_only: true,
+            ..variant("VL").expect("VL 在上方注册")
         }),
         // V2oa25C38：38课循环 voice（2026-06-11 任务）。基线 = V2oa25 默认门；
         // 差异轴：rev_cycle=Cycle38（趋势存续期循环短差，替换单次 REV 腿）
@@ -767,15 +833,37 @@ pub fn variant(name: &str) -> Option<OrganicConfig> {
             exit_mode: ExitMode::HighestOnly,
             ..variant("V2oa25").expect("V2oa25 在上方注册")
         }),
-        // cl = Climb（出场级别动态爬梯：高层趋势结构确认才升级出场判据）；
-        // clht = Climb + HoldTrend 组合（爬梯级别 sell1 ∧ 动态父级别趋势
-        // 衰竭确认）。voice 短差（V2oa25 REV+域腿）逐位不碰。
-        "V2oa25_cl" => Some(OrganicConfig {
-            exit_mode: ExitMode::Climb { hold_trend: false },
+        // em = Emergent（出场级别 = 持仓走势的涌现级别归属，方向行逐层
+        // 向上递归）；emht = Emergent + HoldTrend 组合（归属级别 sell1 ∧
+        // 动态父级别趋势衰竭确认）。voice 短差（V2oa25 REV+域腿）逐位不碰。
+        "V2oa25_em" => Some(OrganicConfig {
+            exit_mode: ExitMode::Emergent { hold_trend: false },
             ..variant("V2oa25").expect("V2oa25 在上方注册")
         }),
-        "V2oa25_clht" => Some(OrganicConfig {
-            exit_mode: ExitMode::Climb { hold_trend: true },
+        "V2oa25_emht" => Some(OrganicConfig {
+            exit_mode: ExitMode::Emergent { hold_trend: true },
+            ..variant("V2oa25").expect("V2oa25 在上方注册")
+        }),
+        // ── master 入场级别下限（2026-06-11；基线 = V2oa25，单轴 entry_min_ladder）──
+        // e3 = move(L1) 级入场（BTC 在册分布 188 笔）/ e4 = recL2 级（17 笔，
+        // 稀疏对照臂）；ht 组合 = 与新默认候选 HoldTrend 的合取。出场级别
+        // 自动 = 入场级别（对称升级）。voice（V2oa25 REV+域腿）逐位不碰。
+        "V2oa25_e3" => Some(OrganicConfig {
+            entry_min_ladder: 3,
+            ..variant("V2oa25").expect("V2oa25 在上方注册")
+        }),
+        "V2oa25_e3ht" => Some(OrganicConfig {
+            entry_min_ladder: 3,
+            exit_mode: ExitMode::HoldTrend,
+            ..variant("V2oa25").expect("V2oa25 在上方注册")
+        }),
+        "V2oa25_e4" => Some(OrganicConfig {
+            entry_min_ladder: 4,
+            ..variant("V2oa25").expect("V2oa25 在上方注册")
+        }),
+        "V2oa25_e4ht" => Some(OrganicConfig {
+            entry_min_ladder: 4,
+            exit_mode: ExitMode::HoldTrend,
             ..variant("V2oa25").expect("V2oa25 在上方注册")
         }),
         // 消融 R2：Sell2 入段终结触发集（§5.3 矩阵 Sell2 格的表态轴，exploratory）
@@ -933,8 +1021,8 @@ mod tests {
         for (name, want) in [
             ("V2oa25_ht", ExitMode::HoldTrend),
             ("V2oa25_ho", ExitMode::HighestOnly),
-            ("V2oa25_cl", ExitMode::Climb { hold_trend: false }),
-            ("V2oa25_clht", ExitMode::Climb { hold_trend: true }),
+            ("V2oa25_em", ExitMode::Emergent { hold_trend: false }),
+            ("V2oa25_emht", ExitMode::Emergent { hold_trend: true }),
         ] {
             let cfg = variant(name).unwrap();
             assert_eq!(cfg.exit_mode, want, "{name}");
@@ -944,6 +1032,31 @@ mod tests {
         // HoldTrend 的数据基础前提：V2oa25 的 rev_l41_gate 已要求 D3 行 +
         // 实例化 TrendExhaustion——_ht 继承后两者共用同一追踪器
         assert!(variant("V2oa25_ht").unwrap().rev_l41_gate);
+    }
+
+    #[test]
+    fn entry_min_ladder_variants_single_axis() {
+        // 默认/在册全变体 entry_min_ladder=0（O0≡P5 零接触面）
+        assert_eq!(OrganicConfig::default().entry_min_ladder, 0);
+        let base = variant("V2oa25").unwrap();
+        assert_eq!(base.entry_min_ladder, 0);
+        // 四臂只动 entry_min_ladder（+_ht 臂的 exit_mode）——其余逐位同 V2oa25
+        for (name, min_lad, exit) in [
+            ("V2oa25_e3", 3usize, ExitMode::Signal),
+            ("V2oa25_e3ht", 3, ExitMode::HoldTrend),
+            ("V2oa25_e4", 4, ExitMode::Signal),
+            ("V2oa25_e4ht", 4, ExitMode::HoldTrend),
+        ] {
+            let cfg = variant(name).unwrap();
+            assert_eq!(cfg.entry_min_ladder, min_lad, "{name}");
+            assert_eq!(cfg.exit_mode, exit, "{name}");
+            let normalized = OrganicConfig {
+                entry_min_ladder: 0,
+                exit_mode: ExitMode::Signal,
+                ..cfg
+            };
+            assert_eq!(format!("{normalized:?}"), format!("{base:?}"), "{name}");
+        }
     }
 
     #[test]
