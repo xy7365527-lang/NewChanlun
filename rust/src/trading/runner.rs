@@ -15,8 +15,9 @@
 //! - rev_gate ⇒ run_high 行（C7 清空路径(1) 的数据依赖）；
 //! - sub_anchor≠Off ⇒ dir_row 行（G1）；
 //! - tranche ⇒ dir_row + run_anchor 行（T4b/T5b）。
-//! 当前磁带（organic_signals.py）无 D3 行 ⇒ 可运行配置 = V0/V3′ 与
-//! sub_anchor=Off 的 rev 变体；D3 行是 M2 信号层工位（引擎零改动边界）。
+//! 当前磁带（organic_signals.py）已产出 D3 方向行（dir_flips 稀疏翻转，
+//! tape.rs）⇒ sub_anchor/tranche 变体可运行；仅 run_high 行仍未产出 ⇒
+//! rev_gate 变体 fail-fast（M2 信号层工位，引擎零改动边界）。
 
 use super::allocator::SizeAllocator;
 use super::center_book::CenterBook;
