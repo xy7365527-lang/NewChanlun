@@ -64,10 +64,14 @@ from organic_fugue_rust_check import pack_tape  # noqa: E402
 from organic_signals import compute_organic_signals  # noqa: E402
 
 DATA_DIR = ROOT / "analysis" / "data_cache"
-OUT_JSON = DATA_DIR / "rev_v2_paired_backtest.json"
+# BT_TAG：磁带语义代次隔离（C段修复后引擎的重跑用 BT_TAG=enginefix 落新文件，
+# 旧磁带在册结果不可被增量混写——tape_fp 守卫的文件级补充）。
+_TAG = os.environ.get("BT_TAG", "")
+_SUF = f"_{_TAG}" if _TAG else ""
+OUT_JSON = DATA_DIR / f"rev_v2_paired_backtest{_SUF}.json"
 # 自动表格落 data_cache；终版报告 analysis/rev_v2_paired_backtest.md 为手工定稿
 # （含事故记录与判据裁定），脚本不得覆写。
-OUT_MD = DATA_DIR / "rev_v2_paired_backtest_tables.md"
+OUT_MD = DATA_DIR / f"rev_v2_paired_backtest_tables{_SUF}.md"
 
 SYMBOLS = [s.strip().upper()
            for s in os.environ.get("BT_SYMBOLS", "OKLO,QQQ,BRN").split(",")]
