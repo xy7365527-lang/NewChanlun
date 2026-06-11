@@ -293,16 +293,19 @@ def compute_organic_signals(
                 _d3_flip(i, LADDER_BI, d1)
                 _d3_flip(i, LADDER_SEG,
                          orch.bi_zhongshu_last_move_dir(BI_ZHONGSHU_LEVEL_ID))
-            # BSP 事件流：增量引擎缓存全量 marshal（O(B)/次——事件流的必要
-            # 代价，interval_nesting 既有声明）。
-            bsps2 = orch.current_bi_zhongshu_buysellpoints_inc(BI_ZHONGSHU_LEVEL_ID)
+            # BSP 事件流：delta 接口（事件 seen 下沉 Rust + 尾窗扫描）。
+            # 旧形态"全量 marshal O(B)/次"在期货长序列上是 O(S×B) 主导项
+            # （BRN 1.2M profile：marshal+扫描 ~95% wall），delta 后 O(新事件)/次。
+            # 逐位等价于 _scan_events_rust(current_..._inc(), seg_seen)（等价性
+            # 证明见 Rust take_new_events docstring；BRN/OKLO 磁带差分守卫复核）。
             seg_buy1, seg_sell1, seg_sell_any, seg_buy_any, evs2 = \
-                _scan_events_rust(bsps2, seg_seen)
+                orch.take_bi_zhongshu_bsp_events(BI_ZHONGSHU_LEVEL_ID)
             if evs2:
                 ev_by_ladder[LADDER_SEG] = evs2
-            # 背驰事件流：增量引擎 divs 层缓存直读（O(n_div)/次，零重算）
+            # 背驰事件流：delta 接口（同上；_scan_div_events 保留为 direction→side
+            # 格式映射器，其 seen 对已去重输入恒未命中）
             dl2 = _scan_div_events(
-                orch.current_bi_zhongshu_divergences_inc(BI_ZHONGSHU_LEVEL_ID),
+                orch.take_bi_zhongshu_div_events(BI_ZHONGSHU_LEVEL_ID),
                 div_seen.setdefault(LADDER_SEG, set()))
             if dl2:
                 div_by_ladder[LADDER_SEG] = dl2

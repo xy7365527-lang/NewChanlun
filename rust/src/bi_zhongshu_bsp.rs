@@ -54,6 +54,15 @@ pub struct IncrementalBiZhongshuBsp {
     seen: HashSet<(BspKind, Side, i64)>,
     /// 信号扫描锚（seg_idx < signal_anchor 的 bsp confirmed 终态已扫，不重扫）。
     signal_anchor: i64,
+    /// 事件流去重集合（复刻调用方 _scan_events_rust 的 seen；键含 confirmed——
+    /// candidate/confirmed 分别入流一次）。
+    events_seen: HashSet<(BspKind, Side, i64, bool)>,
+    /// 事件流扫描锚（语义同 signal_anchor；独立推进——两接口调用时序解耦）。
+    events_anchor: i64,
+    /// 背驰事件流去重集合（复刻调用方 _scan_div_events 的 seen）。
+    div_seen: HashSet<(crate::divergence::DivKind, crate::divergence::DivDir, i64)>,
+    /// 背驰事件流扫描锚（= 上次 divs.stable_len()，closed 前缀冻结边界）。
+    div_anchor: usize,
 }
 
 impl IncrementalBiZhongshuBsp {
@@ -72,6 +81,10 @@ impl IncrementalBiZhongshuBsp {
             prev_zs_stable: 0,
             seen: HashSet::new(),
             signal_anchor: 0,
+            events_seen: HashSet::new(),
+            events_anchor: 0,
+            div_seen: HashSet::new(),
+            div_anchor: 0,
         }
     }
 
@@ -241,6 +254,111 @@ impl IncrementalBiZhongshuBsp {
         // finalize 边界之前 confirmed 终态确定 → 推进信号锚，下次不重扫。
         self.signal_anchor = self.bsp.stable_anchor();
         (b1, s1, sa, ba)
+    }
+
+    /// **事件流 delta 接口**——返回 (buy1, sell1, sell_any, buy_any, 新事件行)，O(window) 摊还。
+    ///
+    /// 逐位等价于调用方 `_scan_events_rust(全量 marshal, seg_seen)`（organic_signals）：
+    /// 去重键 (kind, side, seg_idx, confirmed)——candidate/confirmed 分别入流一次；
+    /// 事件行 = (kind, side, seg_idx, confirmed, center_seg_start, center_zd, center_zg, price)；
+    /// 布尔仅由新 confirmed 事件置位。消除每-stroke-bar 全量 marshal O(B) + 调用方
+    /// 扫描 O(B) 的 O(S×B) 项（期货长序列主导项，BRN 1.2M profile 实测 ~95% wall）。
+    ///
+    /// ## 尾窗等价性
+    /// seg_idx < events_anchor 的 bsp 行已 finalize（stable_anchor 之前字段冻结）⟹
+    /// 其曾出现过的全部 (kind,side,seg_idx,confirmed) 键均已在历次调用入 seen ⟹
+    /// 全量重扫必然全部命中 seen（零新事件）。bsps 按 seg_idx 升序 → 尾窗输出顺序
+    /// 与全量扫描的新事件子序列逐位一致。
+    #[allow(clippy::type_complexity)]
+    pub fn take_new_events(
+        &mut self,
+    ) -> (
+        bool,
+        bool,
+        bool,
+        bool,
+        Vec<(&'static str, &'static str, i64, bool, Option<usize>, f64, f64, f64)>,
+    ) {
+        let bsps = self.bsp.current();
+        let (mut b1, mut s1, mut sa, mut ba) = (false, false, false, false);
+        let mut events = Vec::new();
+        let start = bsps.partition_point(|bp| bp.seg_idx < self.events_anchor);
+        for bp in &bsps[start..] {
+            let key = (bp.kind, bp.side, bp.seg_idx, bp.confirmed);
+            if self.events_seen.contains(&key) {
+                continue;
+            }
+            self.events_seen.insert(key);
+            events.push((
+                bp.kind.as_str(),
+                bp.side.as_str(),
+                bp.seg_idx,
+                bp.confirmed,
+                bp.center_seg_start,
+                bp.center_zd,
+                bp.center_zg,
+                bp.price,
+            ));
+            if !bp.confirmed {
+                continue;
+            }
+            match bp.side {
+                Side::Buy => {
+                    ba = true;
+                    if bp.kind == BspKind::Type1 {
+                        b1 = true;
+                    }
+                }
+                Side::Sell => {
+                    sa = true;
+                    if bp.kind == BspKind::Type1 {
+                        s1 = true;
+                    }
+                }
+            }
+        }
+        self.events_anchor = self.bsp.stable_anchor();
+        (b1, s1, sa, ba, events)
+    }
+
+    /// **背驰事件流 delta 接口**——返回新背驰行，O(window) 摊还。
+    ///
+    /// 行格式 = (kind, direction, seg_c_end, force_a, force_c, price)，与
+    /// `current_bi_zhongshu_divergences_inc` marshal 同构；去重键
+    /// (kind, direction, seg_c_end)（复刻调用方 _scan_div_events 的 seen）。
+    /// 尾窗 = [div_anchor..]：divs[..stable_len] 为 closed 冻结前缀（行不可变 ⟹
+    /// 其键已在历次调用入 seen），div_anchor 推进到本次 stable_len。
+    pub fn take_new_div_rows(
+        &mut self,
+    ) -> Vec<(&'static str, &'static str, i64, f64, f64, f64)> {
+        let divs = self.divs.current();
+        let mut out = Vec::new();
+        for d in &divs[self.div_anchor.min(divs.len())..] {
+            let key = (d.kind, d.direction, d.seg_c_end);
+            if self.div_seen.contains(&key) {
+                continue;
+            }
+            self.div_seen.insert(key);
+            let idx = d.seg_c_end as usize;
+            let price = if idx < self.segs.len() {
+                match d.direction {
+                    crate::divergence::DivDir::Top => self.segs[idx].high,
+                    crate::divergence::DivDir::Bottom => self.segs[idx].low,
+                }
+            } else {
+                0.0
+            };
+            out.push((
+                d.kind.as_str(),
+                d.direction.as_str(),
+                d.seg_c_end,
+                d.force_a,
+                d.force_c,
+                price,
+            ));
+        }
+        self.div_anchor = self.divs.stable_len();
+        out
     }
 }
 

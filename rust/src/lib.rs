@@ -1192,6 +1192,49 @@ impl PyRecursiveOrchestrator {
             .unwrap_or((false, false, false, false))
     }
 
+    /// **事件流 delta 接口**——marshal 只含新事件（消除期货长序列 O(S×B) 主导项）。
+    ///
+    /// 返回 (buy1, sell1, sell_any, buy_any, list[event])，event =
+    /// (kind, side, seg_idx, confirmed, center_seg_start, center_zd, center_zg, price)。
+    /// 逐位等价于调用方
+    /// `_scan_events_rust(current_bi_zhongshu_buysellpoints_inc(level_id), seg_seen)`
+    /// （organic_signals）：seen 下沉 Rust + 尾窗扫描（等价性证明见
+    /// `IncrementalBiZhongshuBsp::take_new_events`）。调用契约同 `_inc`
+    /// （仅 stroke_count 增长 bar）。
+    #[allow(clippy::type_complexity)]
+    #[pyo3(signature = (level_id = 1))]
+    fn take_bi_zhongshu_bsp_events(
+        &mut self,
+        level_id: i64,
+    ) -> (
+        bool,
+        bool,
+        bool,
+        bool,
+        Vec<(&'static str, &'static str, i64, bool, Option<usize>, f64, f64, f64)>,
+    ) {
+        self.sync_inc(level_id);
+        self.inc_bz
+            .as_mut()
+            .map(|e| e.take_new_events())
+            .unwrap_or_default()
+    }
+
+    /// **背驰事件流 delta 接口**——marshal 只含新背驰行（行格式与
+    /// `current_bi_zhongshu_divergences_inc` 同构；去重键 (kind, direction, seg_c_end)
+    /// 下沉 Rust）。调用契约同 `_inc`（仅 stroke_count 增长 bar）。
+    #[pyo3(signature = (level_id = 1))]
+    fn take_bi_zhongshu_div_events(
+        &mut self,
+        level_id: i64,
+    ) -> Vec<(&'static str, &'static str, i64, f64, f64, f64)> {
+        self.sync_inc(level_id);
+        self.inc_bz
+            .as_mut()
+            .map(|e| e.take_new_div_rows())
+            .unwrap_or_default()
+    }
+
     /// **走势级（level-1 segment）delta 信号接口**——消除调用层每-bar 全量
     /// `current_buysellpoints()` marshal + `_scan_new` 扫描的 B-scaling O(N²)。
     ///
@@ -1542,6 +1585,8 @@ fn run_organic_rust(
     // rev_paired 按开腿类型净现金（f64——py_items 仅承载 u64）
     counters.set_item("rev_osc_net_cash", res.counters.rev_osc_cash)?;
     counters.set_item("rev_esc_net_cash", res.counters.rev_esc_cash)?;
+    // 递归子腿聚合净现金（O_sub1 判据直接读数）
+    counters.set_item("sub_net_cash", res.counters.sub_cash)?;
     out.set_item("counters", counters)?;
     out.set_item("rev_attempts_by_ladder", res.rev_attempts_by_ladder.to_vec())?;
     out.set_item("rev_opens_by_ladder", res.rev_opens_by_ladder.to_vec())?;
@@ -1550,6 +1595,8 @@ fn run_organic_rust(
     out.set_item("leg_contribution", res.leg_contribution.clone())?;
     out.set_item("n_addon", res.n_addon)?;
     out.set_item("n_core_stops", res.n_core_stops)?;
+    // 锚中枢相对振幅调研日志（θ 自适应任务；diag=false 时为空表）。
+    out.set_item("center_amp_log", res.center_amp_log.clone())?;
     match &res.diag {
         None => out.set_item("diag", py.None())?,
         Some(diags) => {

@@ -21,7 +21,7 @@
 //! 5. seg 索引算术用 i64 复刻 Python int（a_end = zs_last.seg_start-1 可为负，退化分支处理）。
 
 /// 背驰类型。对应 Python Literal["trend", "consolidation"]。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DivKind {
     Trend,
     Consolidation,
@@ -37,7 +37,7 @@ impl DivKind {
 }
 
 /// 背驰方向。对应 Python Literal["top", "bottom"]。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DivDir {
     Top,
     Bottom,
