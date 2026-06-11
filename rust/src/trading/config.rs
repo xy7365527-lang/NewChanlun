@@ -238,7 +238,10 @@ pub fn variant(name: &str) -> Option<OrganicConfig> {
             ..base
         }),
         // V2of：仅震荡型 + 深度门 θ=1%。
-        "V2of" => Some(OrganicConfig {
+        // V2r 为其别名（C段修复后全量重跑任务，2026-06-11）：只接 type1/盘背卖
+        // 开 REV（= 震荡型，逃逸型 Sell3 关）+ 振幅 θ_depth=1% + kind 配对闭腿
+        // ——任务规格与 V2of 配置逐位相同，别名而非复制（O0/V0 同一先例）。
+        "V2of" | "V2r" => Some(OrganicConfig {
             rev_mode: true,
             rev_paired: true,
             theta_depth: 0.01,

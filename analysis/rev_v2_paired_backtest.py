@@ -76,7 +76,7 @@ OUT_MD = DATA_DIR / f"rev_v2_paired_backtest_tables{_SUF}.md"
 SYMBOLS = [s.strip().upper()
            for s in os.environ.get("BT_SYMBOLS", "OKLO,QQQ,BRN").split(",")]
 # V2o/V2of：kind 标注首跑数据驱动的消融（逃逸型三标的一致为负 → 关逃逸型）
-VARIANTS = ["V1f", "V2p", "V2f", "V2o", "V2of"]
+VARIANTS = ["V1f", "V2p", "V2f", "V2o", "V2of", "V2r"]
 FLOOR = LADDER_SEG
 
 COUNTER_KEYS = (
