@@ -88,6 +88,10 @@ pub struct OrganicLedger {
     pub phase: LedgerPhase,
     pub level_frac: f64,
     pub cumulative_recovered: f64,
+    /// 未部署现金（master 入场侧递归建仓，entry_mode=Recursive）。
+    /// Full 模式恒 0.0——close 的 total_value 加 0.0 位等价（O0≡P5 零接触）。
+    /// 资金守恒：部署现金 + 本值 = INITIAL_CAPITAL（add_entry_tranche 单向流出）。
+    pub undeployed_cash: f64,
     /// 开放腿，插入序存储（bit-exact 硬前提，模块 docstring）。
     legs: Vec<(SlotKey, OpenLeg)>,
     /// 闭合腿（槽键 + 循环），报告归因用。
@@ -108,12 +112,49 @@ impl OrganicLedger {
             phase: LedgerPhase::CostReduction { cost_basis: entry_price },
             level_frac,
             cumulative_recovered: 0.0,
+            undeployed_cash: 0.0,
             legs: Vec::new(),
             completed: Vec::new(),
             n_open_rejects_zero: 0,
             n_t5_shareconserving_after_earning: 0,
             trace: if with_trace { Some(Vec::new()) } else { None },
             diff_open: Vec::new(),
+        }
+    }
+
+    /// 部分入场账本（master 入场侧递归建仓）：deployed_cash 按入场价买入，
+    /// reserve_cash 保留为未部署现金（计入 close 的 total_value）。
+    pub fn with_reserve(
+        entry_price: f64,
+        deployed_cash: f64,
+        reserve_cash: f64,
+        level_frac: f64,
+        with_trace: bool,
+    ) -> Self {
+        let mut led =
+            OrganicLedger::new(entry_price, deployed_cash / entry_price, level_frac, with_trace);
+        led.undeployed_cash = reserve_cash;
+        led
+    }
+
+    /// 追加入场 tranche（master 递归建仓）：cash 按 price 买入，cost_basis
+    /// 更新为加权均价 (cb×S_old + cash)/S_new。EarningShares 拒绝——成本
+    /// 概念已不存在，加权均价算术未定义（调用方计数，open_sub 同先例）。
+    /// cash 超出未部署现金拒绝（资金守恒：调用方负责 min 钳制）。
+    pub fn add_entry_tranche(&mut self, cash: f64, price: f64) -> bool {
+        if cash <= 0.0 || price <= 0.0 || cash > self.undeployed_cash {
+            return false;
+        }
+        match &mut self.phase {
+            LedgerPhase::EarningShares => false,
+            LedgerPhase::CostReduction { cost_basis } => {
+                let shares_add = cash / price;
+                let s_new = self.total_shares + shares_add;
+                *cost_basis = (*cost_basis * self.total_shares + cash) / s_new;
+                self.total_shares = s_new;
+                self.undeployed_cash -= cash;
+                true
+            }
         }
     }
 
@@ -393,6 +434,37 @@ mod tests {
         assert!(led.phase.is_earning());
         assert!(!led.open_sub(key, 50.0, 5.0, 3, anchor(), DiffSide::Long));
         assert!(led.open_slot(key).is_none());
+    }
+
+    #[test]
+    fn with_reserve_and_tranche_weighted_avg() {
+        // 入场 20% @100（200 股），追加 30% @120 → 均价 = 56000/450 = 124.44…
+        // 资金守恒：undeployed 100000−20000−30000 = 50000
+        let mut led = OrganicLedger::with_reserve(100.0, 20_000.0, 80_000.0, 1.0, false);
+        assert_eq!(led.total_shares, 200.0);
+        assert_eq!(led.phase.cost_basis(), 100.0);
+        assert_eq!(led.undeployed_cash, 80_000.0);
+        assert!(led.add_entry_tranche(30_000.0, 120.0));
+        assert_eq!(led.total_shares, 450.0);
+        assert_eq!(led.undeployed_cash, 50_000.0);
+        // cb = (100×200 + 30000)/450 = 50000/450
+        assert!((led.phase.cost_basis() - 50_000.0 / 450.0).abs() < 1e-12);
+        // 超额追加拒绝（资金守恒）
+        assert!(!led.add_entry_tranche(50_001.0, 100.0));
+        // 补满到 0
+        assert!(led.add_entry_tranche(50_000.0, 100.0));
+        assert_eq!(led.undeployed_cash, 0.0);
+        assert_eq!(led.total_shares, 950.0);
+    }
+
+    #[test]
+    fn tranche_rejected_in_earning_phase() {
+        let mut led = OrganicLedger::with_reserve(1.0, 50_000.0, 50_000.0, 1.0, false);
+        assert!(led.open_diff(SlotKey::osc(2), 1.0, 10.0, 1, anchor()));
+        led.close_diff(SlotKey::osc(2), 5.0, 2); // 相变 earning
+        assert!(led.phase.is_earning());
+        assert!(!led.add_entry_tranche(10_000.0, 5.0));
+        assert_eq!(led.undeployed_cash, 50_000.0); // 拒绝不动现金
     }
 
     #[test]

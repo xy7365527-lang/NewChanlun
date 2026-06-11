@@ -510,6 +510,16 @@ pub struct Counters {
     /// 循环短差闭合对统计（win = profit > 0；含强闭）。
     pub c38_pairs: u64,
     pub c38_wins: u64,
+    // ── master 入场侧递归建仓可观测面（2026-06-11 任务，entry_mode=Recursive）──
+    /// 入场后更高级别 confirmed buy1 触发的追加 tranche 数（不含初始入场）。
+    pub n_rec_entry_fills: u64,
+    /// 达到满仓（undeployed_cash 流干）的持仓数。
+    pub n_rec_entry_full: u64,
+    /// 未满仓即出场的持仓数（close 时 undeployed_cash > 0）。
+    pub n_rec_entry_partial_exits: u64,
+    /// 追加被拒：账本处于 EarningShares——成本概念已不存在，加权均价算术
+    /// 未定义（显式拒绝并计数，open_sub 同先例）。
+    pub n_rec_entry_earning_rejects: u64,
     /// 净现金按类型分解（f64，lib.rs 单独 marshal——py_items 仅 u64）。
     pub rev_osc_cash: f64,
     pub rev_esc_cash: f64,
@@ -645,6 +655,10 @@ impl Counters {
             ("n_c38_buy3_holds", self.n_c38_buy3_holds),
             ("c38_pairs", self.c38_pairs),
             ("c38_wins", self.c38_wins),
+            ("n_rec_entry_fills", self.n_rec_entry_fills),
+            ("n_rec_entry_full", self.n_rec_entry_full),
+            ("n_rec_entry_partial_exits", self.n_rec_entry_partial_exits),
+            ("n_rec_entry_earning_rejects", self.n_rec_entry_earning_rejects),
         ]
     }
 }

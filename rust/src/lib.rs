@@ -1741,6 +1741,8 @@ fn run_organic_rust(
     out.set_item("leg_contribution", res.leg_contribution.clone())?;
     out.set_item("n_addon", res.n_addon)?;
     out.set_item("n_core_stops", res.n_core_stops)?;
+    // master 递归建仓成交日志（entry_mode=Full 恒空表——在册对账面零侵入）。
+    out.set_item("rec_fills", res.rec_fills.clone())?;
     // 锚中枢相对振幅调研日志（θ 自适应任务；diag=false 时为空表）。
     out.set_item("center_amp_log", res.center_amp_log.clone())?;
     match &res.diag {

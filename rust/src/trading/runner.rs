@@ -21,7 +21,7 @@
 
 use super::allocator::SizeAllocator;
 use super::center_book::CenterBook;
-use super::config::{OrganicConfig, RevCycle, Sizing, StopMode, ThetaMode};
+use super::config::{EntryMode, OrganicConfig, RevCycle, Sizing, StopMode, ThetaMode};
 use super::depth_ref::{DepthRef, DEPTH_REF_WINDOW};
 use super::fatigue_gate::FatigueGate;
 use super::ledger::{LegTrace, OrganicLedger};
@@ -81,6 +81,10 @@ pub struct RunResult {
     /// 锚中枢相对振幅调研日志（每中枢一行 (ladder, seg_start, (ZG−ZD)/c)，
     /// 延伸取最终观测值；仅 diag=true 落盘——θ 自适应任务的分布调研面）。
     pub center_amp_log: Vec<(u8, i64, f64)>,
+    /// master 递归建仓成交日志 (bar, ladder, frac, price)——含初始入场档
+    /// 与每次追加档（entry_mode=Full 恒空表）。按 trade 的 [entry_bar,
+    /// exit_bar] 区间切分可重建逐仓入场过程（均价/档数/到满仓 bar 数）。
+    pub rec_fills: Vec<(i64, u8, f64, f64)>,
 }
 
 const FLAT: u8 = 0;
@@ -90,6 +94,14 @@ const LONG: u8 = 2;
 struct Run {
     floor_ladder: usize,
     stop_on: bool,
+    entry_mode: EntryMode,
+    // ── 递归入场状态（entry_mode=Recursive；Full 模式为满仓哨兵）──
+    /// 已消费的最高确认级别（追加只认 > 本值的 buy1——级别确认升级）。
+    fill_ladder: usize,
+    /// 已部署资金比例（唯一真相源 = pos.undeployed_cash，本值为其导出量）。
+    filled_frac: f64,
+    /// 下一档追加 quota（exp2 翻倍）。
+    next_quota: f64,
     // ── 仓位状态（Python 平行变量组的逐字镜像）──
     state: u8,
     entry_bar: i64,
@@ -120,12 +132,34 @@ impl Run {
         self.active_levels = (self.floor_ladder..el).collect();
         let n_sub = self.active_levels.len();
         let level_frac = if n_sub > 0 { 1.0 / n_sub as f64 } else { 0.0 };
-        self.pos = Some(OrganicLedger::new(
-            price,
-            INITIAL_CAPITAL / price,
-            level_frac,
-            self.with_diag,
-        ));
+        self.pos = Some(match self.entry_mode {
+            EntryMode::Full => OrganicLedger::new(
+                price,
+                INITIAL_CAPITAL / price,
+                level_frac,
+                self.with_diag,
+            ),
+            EntryMode::Recursive { base_frac } => {
+                let deployed = INITIAL_CAPITAL * base_frac;
+                self.res.rec_fills.push((bar, el as u8, base_frac, price));
+                OrganicLedger::with_reserve(
+                    price,
+                    deployed,
+                    INITIAL_CAPITAL - deployed,
+                    level_frac,
+                    self.with_diag,
+                )
+            }
+        });
+        self.fill_ladder = el;
+        self.filled_frac = match self.entry_mode {
+            EntryMode::Full => 1.0,
+            EntryMode::Recursive { base_frac } => base_frac,
+        };
+        self.next_quota = match self.entry_mode {
+            EntryMode::Full => 0.0,
+            EntryMode::Recursive { base_frac } => base_frac * 2.0,
+        };
         self.voices = self.active_levels.iter().map(|&k| VoiceUnit::new(k)).collect();
         self.master_state = MasterState::Ride;
         self.state = LONG;
@@ -153,7 +187,13 @@ impl Run {
         for key in pos.open_keys() {
             pos.close_diff(key, price, bar);
         }
-        let total_value = pos.total_shares * price + pos.cumulative_recovered;
+        // undeployed_cash：Full 模式恒 0.0（+0.0 位等价，O0≡P5 零接触）；
+        // Recursive 未满仓出场时未部署现金按原值计入（资金守恒）。
+        let total_value =
+            pos.total_shares * price + pos.cumulative_recovered + pos.undeployed_cash;
+        if pos.undeployed_cash > 0.0 {
+            self.counters.n_rec_entry_partial_exits += 1;
+        }
         let pnl_pct = (total_value - INITIAL_CAPITAL) / INITIAL_CAPITAL * 100.0;
         let held = bar - self.entry_bar;
         self.res.trades.push(TradeRec {
@@ -396,6 +436,15 @@ pub fn run_organic(
         }
     }
 
+    if let EntryMode::Recursive { base_frac } = cfg.entry_mode {
+        if !(base_frac > 0.0 && base_frac < 1.0 && base_frac.is_finite()) {
+            return Err(format!(
+                "entry_mode=Recursive 要求 0 < base_frac < 1（base_frac=1 是 Full
+                 的冗余表示——声明=能力，显式拒绝）；base_frac={base_frac}"
+            ));
+        }
+    }
+
     // MarketMode 穷举（F1 期货实装时新增变体，编译器强制此处表态——v1R §2.2）。
     match cfg.market_mode {
         super::config::MarketMode::Stock => {}
@@ -405,6 +454,10 @@ pub fn run_organic(
     let mut run = Run {
         floor_ladder,
         stop_on: stop_mode.is_on(),
+        entry_mode: cfg.entry_mode,
+        fill_ladder: usize::MAX,
+        filled_frac: 1.0,
+        next_quota: 0.0,
         state: FLAT,
         entry_bar: -1,
         entry_price: 0.0,
@@ -685,6 +738,41 @@ pub fn run_organic(
 
             if run.state != LONG {
                 continue; // master 已清仓
+            }
+
+            // ── master 递归建仓追加（entry_mode=Recursive；2026-06-11 任务）──
+            // 更高级别 confirmed buy1 = 转折的级别确认升级 → 追加下一档 quota
+            // （exp2 翻倍）；buy1 落在当前最高涌现层 = "最高级别确认" → 补满
+            // 剩余全部。出场（entry_ladder 的 sell1）与 voice 声部零改动。
+            if matches!(run.entry_mode, EntryMode::Recursive { .. }) && run.filled_frac < 1.0 {
+                let mut k_hi: Option<usize> = None;
+                for k in (run.fill_ladder + 1)..max_l {
+                    if sig.buy1.get(k) {
+                        k_hi = Some(k);
+                    }
+                }
+                if let Some(k) = k_hi {
+                    let pos = run.pos.as_mut().expect("LONG ⇒ pos 存在");
+                    let cash = if k == sig.max_ladder as usize {
+                        pos.undeployed_cash // 最高级别确认 → 补满
+                    } else {
+                        (INITIAL_CAPITAL * run.next_quota).min(pos.undeployed_cash)
+                    };
+                    if pos.add_entry_tranche(cash, c) {
+                        run.fill_ladder = k;
+                        run.next_quota *= 2.0;
+                        run.counters.n_rec_entry_fills += 1;
+                        run.res.rec_fills.push((i as i64, k as u8, cash / INITIAL_CAPITAL, c));
+                        if pos.undeployed_cash <= 0.0 {
+                            run.filled_frac = 1.0;
+                            run.counters.n_rec_entry_full += 1;
+                        } else {
+                            run.filled_frac = 1.0 - pos.undeployed_cash / INITIAL_CAPITAL;
+                        }
+                    } else {
+                        run.counters.n_rec_entry_earning_rejects += 1;
+                    }
+                }
             }
 
             // ── voice 声部（main 腿 = P4 离开段腿；osc/rev = VoiceUnit）──

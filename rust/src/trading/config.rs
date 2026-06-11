@@ -138,6 +138,21 @@ impl RevCycleClose {
     }
 }
 
+/// master 入场模式（2026-06-11 任务：master 入场侧递归建仓）。
+///
+/// Full = 在册行为：区间套确认 bar 一次性满仓（O0≡P5 零接触面）。
+/// Recursive = 同一入场 bar 只部署 base_frac，此后更高级别 confirmed buy1
+/// 逐档追加（quota 翻倍——RecursivePosition WeightFn::Exp2 同构：级别时间
+/// 尺度几何递增的镜像；26课"级别的意义基本只和买卖量有关"），buy1 落在
+/// 当前最高涌现层 = "最高级别确认" → 补满剩余全部。入场触发/出场逻辑
+/// 零改动：仍区间套确认 bar 开仓（同 bar 同价）、entry_ladder 的 sell1
+/// 一次性全清（未部署现金计入 close 的 total_value——资金守恒）。
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum EntryMode {
+    Full,
+    Recursive { base_frac: f64 },
+}
+
 /// REV 开腿锚定强度（C3 消融轴 S）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SubAnchor {
@@ -316,6 +331,8 @@ pub struct OrganicConfig {
     /// 序列 + div 事件流（当前磁带已产出），非 run_high 行（未产出，
     /// rev_gate fail-fast）。仅 Fractal 子腿消费。
     pub sub_l41_gate: bool,
+    /// master 入场模式（见 EntryMode docstring）。Full = 在册满仓入场。
+    pub entry_mode: EntryMode,
 }
 
 /// 成本门 θ_q 的分位数（中位数 = 该层"典型"中枢振幅；35课判据是级别的
@@ -383,6 +400,7 @@ impl Default for OrganicConfig {
             sub_l41_gate: false,
             rev_cycle: RevCycle::Single,
             rev_cycle_close: RevCycleClose::SubAny,
+            entry_mode: EntryMode::Full,
         }
     }
 }
@@ -686,6 +704,21 @@ pub fn variant(name: &str) -> Option<OrganicConfig> {
             sub_l41_gate: true,
             ..variant("V2ofF1").expect("V2ofF1 在上方注册")
         }),
+        // ── master 入场侧递归建仓（2026-06-11；基线 = V2oa25，单轴 entry_mode）──
+        // base_frac 三档：0.2（深递归，最多 3 档追加）/ 1/3 / 0.5（浅递归）。
+        // voice（V2oa25 REV+域腿）逐位不碰——唯一差异轴是 master 入场过程。
+        "V2oa25_rec" => Some(OrganicConfig {
+            entry_mode: EntryMode::Recursive { base_frac: 0.2 },
+            ..variant("V2oa25").expect("V2oa25 在上方注册")
+        }),
+        "V2oa25_rec3" => Some(OrganicConfig {
+            entry_mode: EntryMode::Recursive { base_frac: 1.0 / 3.0 },
+            ..variant("V2oa25").expect("V2oa25 在上方注册")
+        }),
+        "V2oa25_rec5" => Some(OrganicConfig {
+            entry_mode: EntryMode::Recursive { base_frac: 0.5 },
+            ..variant("V2oa25").expect("V2oa25 在上方注册")
+        }),
         // 消融 R2：Sell2 入段终结触发集（§5.3 矩阵 Sell2 格的表态轴，exploratory）
         "VR2" => Some(OrganicConfig {
             rev_mode: true,
@@ -812,6 +845,23 @@ mod tests {
         assert!(!base.r2_anchor_zg && !base.r3_t6_sub_confirm);
         assert!(!base.sc_t7_close && !base.buy2_close);
         assert!(base.pre_type3); // T6 在集合内的前提
+    }
+
+    #[test]
+    fn recursive_entry_variants_single_axis() {
+        // 默认/在册全变体 entry_mode=Full（O0≡P5 零接触面）
+        assert_eq!(OrganicConfig::default().entry_mode, EntryMode::Full);
+        let base = variant("V2oa25").unwrap();
+        assert_eq!(base.entry_mode, EntryMode::Full);
+        // 三臂只动 entry_mode 一轴——其余字段与 V2oa25 逐位相同
+        for (name, frac) in
+            [("V2oa25_rec", 0.2), ("V2oa25_rec3", 1.0 / 3.0), ("V2oa25_rec5", 0.5)]
+        {
+            let cfg = variant(name).unwrap();
+            assert_eq!(cfg.entry_mode, EntryMode::Recursive { base_frac: frac }, "{name}");
+            let normalized = OrganicConfig { entry_mode: EntryMode::Full, ..cfg };
+            assert_eq!(format!("{normalized:?}"), format!("{base:?}"), "{name}");
+        }
     }
 
     #[test]
