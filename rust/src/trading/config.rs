@@ -88,6 +88,17 @@ pub struct OrganicConfig {
     pub rev_close: RevClose,
     /// C6 §5.3 Sell2 格：默认 no-op；消融轴 R2 显式表态位。
     pub sell2_trigger: bool,
+    /// REV 配对修正（2026-06-10 编排者任务）：开腿 kind 展开（震荡型/逃逸型）
+    /// + 闭腿配对（同锚 confirmed Buy1 / Buy3 回补 / ZD 触线，拒 kind 不匹配）。
+    /// false = legacy 段终结三触发 + buy_any 盲闭（V1/V1f 形态，对照基线）。
+    pub rev_paired: bool,
+    /// 深度门槛：开 REV 前要求锚中枢振幅 (ZG−ZD)/price ≥ θ_depth（初值 1%）。
+    /// 0.0 = 门关（V2p：配对修正的独立因果隔离位）。仅 rev_paired 路径消费。
+    pub theta_depth: f64,
+    /// 逃逸型开腿开关（kind 标注的消融轴）：首跑 kind 分解显示逃逸型三标的
+    /// 一致为负（OKLO V2p −4.4K / V2f −39.8K，QQQ −10.1K）而震荡型胜率 53%+——
+    /// false = 只开震荡型（V2o/V2of）。仅 rev_paired 路径消费。
+    pub rev_escape_open: bool,
     pub sizing: Sizing,
     pub earning_reaction: bool,
     pub market_mode: MarketMode,
@@ -112,6 +123,9 @@ impl Default for OrganicConfig {
             rev_gate: false,
             rev_close: RevClose::Conf,
             sell2_trigger: false,
+            rev_paired: false,
+            theta_depth: 0.0,
+            rev_escape_open: true,
             sizing: Sizing::Equal,
             earning_reaction: false,
             market_mode: MarketMode::Stock,
@@ -195,6 +209,40 @@ pub fn variant(name: &str) -> Option<OrganicConfig> {
             sub_anchor: SubAnchor::Direction,
             tranche: true,
             rev_close: RevClose::Nested,
+            ..base
+        }),
+        // V2p：REV 配对修正（kind 展开开腿 + 配对闭腿），深度门关——
+        // 隔离配对修正自身的因果（V2f−V2p = 深度门独立贡献）。
+        // sub_anchor=Off：G1 方向锚定已按预注册条件否证（t6 占比 3/3 上升），
+        // 配对修正的"存活中枢"条件是其替代锚定。
+        "V2p" => Some(OrganicConfig {
+            rev_mode: true,
+            rev_paired: true,
+            theta_depth: 0.0,
+            ..base
+        }),
+        // V2f：配对修正 + 深度门槛 θ=1%（2026-06-10 任务主变体）。
+        "V2f" => Some(OrganicConfig {
+            rev_mode: true,
+            rev_paired: true,
+            theta_depth: 0.01,
+            ..base
+        }),
+        // V2o：配对修正，仅震荡型开腿（逃逸型关——kind 标注首跑数据驱动的
+        // 消融：逃逸型三标的一致为负，见 rev_v2_paired_backtest.md）。
+        "V2o" => Some(OrganicConfig {
+            rev_mode: true,
+            rev_paired: true,
+            theta_depth: 0.0,
+            rev_escape_open: false,
+            ..base
+        }),
+        // V2of：仅震荡型 + 深度门 θ=1%。
+        "V2of" => Some(OrganicConfig {
+            rev_mode: true,
+            rev_paired: true,
+            theta_depth: 0.01,
+            rev_escape_open: false,
             ..base
         }),
         // 消融 R2：Sell2 入段终结触发集（§5.3 矩阵 Sell2 格的表态轴，exploratory）

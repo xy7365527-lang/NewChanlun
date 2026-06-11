@@ -152,6 +152,21 @@ impl BspClass {
     }
 }
 
+/// REV 开腿信号类型（配对修正轴 `rev_paired`，2026-06-10 编排者任务）。
+///
+/// 诊断根因：v1/V1f 的 REV 腿与域腿 type1卖→type3买（67.9% 卖飞）同根因——
+/// 信号层 kind 折叠 + 盲配对（seg_end 三触发折叠为一个无差别触发，闭腿端
+/// buy_any 无差别回补）。修正 = kind 展开：
+/// - **震荡型**：confirmed Sell1 / 盘整背驰卖，且所在中枢存活——反向走势在
+///   存活中枢语境内，ZD 触线回补几何有效（域腿 77% 胜率的同一机制）。
+/// - **逃逸型**：confirmed Sell3（中枢向下终结）——价格已离开中枢，无 ZD
+///   触线目标，闭腿走趋势配对（confirmed Buy1）或 Buy3 回补位。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RevOpenKind {
+    Oscillation,
+    Escape,
+}
+
 /// BSP 事件（BarSignalI.bsp_events 单元素的类型化）。
 /// cs/zd/zg 独立 Option（Python 元组语义保真，见模块 docstring）。
 #[derive(Debug, Clone, Copy)]
@@ -323,6 +338,28 @@ pub struct Counters {
     pub n_rev_struct_close: u64,
     pub n_t5_shareconserving_after_earning: u64,
     pub fatigue_open_bars_by_ladder: [u64; MAX_LADDER],
+    // ── rev_paired 配对修正可观测面（2026-06-10 编排者任务）──
+    /// 震荡型开腿（confirmed Sell1/盘背 × 存活中枢 × 深度门过）。
+    pub n_rev_open_osc: u64,
+    /// 逃逸型开腿（confirmed Sell3 × 深度门过）。
+    pub n_rev_open_esc: u64,
+    /// 开腿拒：震荡型无存活中枢 / 逃逸型事件缺 zd/zg / 边界非有限。
+    pub n_rev_nocenter_rejects: u64,
+    /// 开腿拒：中枢振幅 (ZG−ZD)/price < θ_depth，或震荡型 c ≤ ZD（零利润空间）。
+    pub n_rev_depth_rejects: u64,
+    /// ZD 触线闭腿（震荡型专属，域腿同机制）。
+    pub n_rev_zd_close: u64,
+    /// kind/锚不匹配持仓 bar 数：legacy T5 谓词（Buy2/盘背买/异锚Buy1）会闭、
+    /// 配对谓词拒——"不接受 kind 不匹配的买点"的反事实计数。
+    pub n_rev_mismatch_holds: u64,
+    /// 按开腿类型分解的闭合对统计（win = profit > 0）。
+    pub rev_osc_pairs: u64,
+    pub rev_osc_wins: u64,
+    pub rev_esc_pairs: u64,
+    pub rev_esc_wins: u64,
+    /// 净现金按类型分解（f64，lib.rs 单独 marshal——py_items 仅 u64）。
+    pub rev_osc_cash: f64,
+    pub rev_esc_cash: f64,
 }
 
 impl Counters {
@@ -353,6 +390,16 @@ impl Counters {
             ("n_rev_tranche_closes", self.n_rev_tranche_closes),
             ("n_rev_struct_close", self.n_rev_struct_close),
             ("n_t5_shareconserving_after_earning", self.n_t5_shareconserving_after_earning),
+            ("n_rev_open_osc", self.n_rev_open_osc),
+            ("n_rev_open_esc", self.n_rev_open_esc),
+            ("n_rev_nocenter_rejects", self.n_rev_nocenter_rejects),
+            ("n_rev_depth_rejects", self.n_rev_depth_rejects),
+            ("n_rev_zd_close", self.n_rev_zd_close),
+            ("n_rev_mismatch_holds", self.n_rev_mismatch_holds),
+            ("rev_osc_pairs", self.rev_osc_pairs),
+            ("rev_osc_wins", self.rev_osc_wins),
+            ("rev_esc_pairs", self.rev_esc_pairs),
+            ("rev_esc_wins", self.rev_esc_wins),
         ]
     }
 }

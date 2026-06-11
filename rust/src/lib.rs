@@ -1537,6 +1537,9 @@ fn run_organic_rust(
         "fatigue_open_bars_by_ladder",
         res.counters.fatigue_open_bars_by_ladder.to_vec(),
     )?;
+    // rev_paired 按开腿类型净现金（f64——py_items 仅承载 u64）
+    counters.set_item("rev_osc_net_cash", res.counters.rev_osc_cash)?;
+    counters.set_item("rev_esc_net_cash", res.counters.rev_esc_cash)?;
     out.set_item("counters", counters)?;
     out.set_item("rev_attempts_by_ladder", res.rev_attempts_by_ladder.to_vec())?;
     out.set_item("rev_opens_by_ladder", res.rev_opens_by_ladder.to_vec())?;

@@ -228,6 +228,13 @@ pub fn run_organic(
     if cfg.tranche && !tape.has_dir_rows() {
         return Err("tranche（T4b/T5b 递归建仓）要求磁带 dir_flips 行（D3）".to_string());
     }
+    if cfg.rev_paired && cfg.tranche {
+        return Err(
+            "rev_paired × tranche 组合未定义：配对闭腿（同锚 Buy1/ZD 触线）是腿级
+             谓词，per-tranche 锚语义未设计——显式拒绝，不提供静默降级"
+                .to_string(),
+        );
+    }
 
     // MarketMode 穷举（F1 期货实装时新增变体，编译器强制此处表态——v1R §2.2）。
     match cfg.market_mode {
@@ -541,7 +548,7 @@ pub fn run_organic(
                 if cfg.rev_mode
                     && run.voices[vi].phase == VoicePhase::UpLeg
                     && (!evs.is_empty() || !devs.is_empty())
-                    && VoiceUnit::seg_end_trigger(cfg, evs, devs)
+                    && VoiceUnit::rev_open_signal(cfg, evs, devs)
                 {
                     run.res.rev_attempts_by_ladder[ladder] += 1;
                 }

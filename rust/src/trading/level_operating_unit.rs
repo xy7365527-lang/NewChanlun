@@ -29,6 +29,7 @@ use super::config::{OrganicConfig, RevClose, SubAnchor};
 use super::fatigue_gate::FatigueGate;
 use super::ledger::OrganicLedger;
 use super::types::*;
+use crate::buysellpoint::BspKind;
 use crate::divergence::DivKind;
 use crate::stroke::Direction;
 
@@ -55,6 +56,15 @@ pub struct RevLeg {
     /// 按 level 升序 append-only；close_upto 只截断前缀（C4 不变式）。
     pub tranches: Vec<RevTranche>,
     pub open_bar: i64,
+    /// rev_paired：开腿信号类型标注（任务要求"震荡型/逃逸型"可观测）。
+    /// None = legacy 腿（段终结三触发开，无 kind 概念——声明=能力）。
+    pub open_kind: Option<RevOpenKind>,
+    /// rev_paired：开腿锚中枢 seg_start（震荡型=存活中枢快照；逃逸型=被
+    /// 终结中枢——T5 同锚判定的比较基准）。legacy 腿恒 None。
+    pub anchor_cs: Option<i64>,
+    /// rev_paired：ZD 触线回补价。仅震荡型携带——逃逸型开腿时价格已在
+    /// 中枢下方，"触线"在开腿 bar 即真，作为闭腿条件会退化为零深度 churn。
+    pub zd: Option<f64>,
     // ── T4b (a)/(b) 一次性触发标记（模块 docstring 解读注记）──
     structure_added: bool,
     terminated_down_seen: bool,
@@ -66,10 +76,24 @@ impl RevLeg {
         RevLeg {
             tranches: vec![RevTranche { level: home, last_dir: dir }],
             open_bar: bar,
+            open_kind: None,
+            anchor_cs: None,
+            zd: None,
             structure_added: false,
             terminated_down_seen: false,
             trend_added: false,
         }
+    }
+
+    fn new_paired(
+        home: usize,
+        bar: i64,
+        dir: Option<Direction>,
+        kind: RevOpenKind,
+        anchor_cs: Option<i64>,
+        zd: Option<f64>,
+    ) -> Self {
+        RevLeg { open_kind: Some(kind), anchor_cs, zd, ..RevLeg::new(home, bar, dir) }
     }
 
     pub fn max_level(&self) -> usize {
@@ -225,7 +249,11 @@ impl VoiceUnit {
         let devs = &rows.devs[k];
 
         // ── DownLeg：T7 > T6 > T5 > T5b（关腿端）──
-        if self.phase == VoicePhase::DownLeg {
+        if self.phase == VoicePhase::DownLeg && cfg.rev_paired {
+            // 配对闭腿（任务 2026-06-10）：闭腿集 = {Buy3 回补, 同锚 confirmed
+            // Buy1, ZD 触线}，恰好三条——T5b 防悬挂不在集合内（闭腿集穷举）。
+            self.step_down_paired(cfg, rows, c, bar, ledger, counters);
+        } else if self.phase == VoicePhase::DownLeg {
             let hard = evs.iter().any(|e| matches!(e.class, BspClass::Buy3) && e.confirmed);
             let pre = cfg.pre_type3
                 && evs.iter().any(|e| matches!(e.class, BspClass::Buy3) && !e.confirmed);
@@ -266,7 +294,10 @@ impl VoiceUnit {
         }
 
         // ── UpLeg：T1（REV 开腿）/ T2（拒因分计数）──
-        if self.phase == VoicePhase::UpLeg
+        if self.phase == VoicePhase::UpLeg && cfg.rev_mode && cfg.rev_paired {
+            // 配对开腿（任务 2026-06-10）：kind 展开 + 深度门槛。
+            self.rev_paired_open(cfg, rows, book, gate, entry_ladder, c, bar, ledger, frac_of, counters);
+        } else if self.phase == VoicePhase::UpLeg
             && cfg.rev_mode
             && (!evs.is_empty() || !devs.is_empty())
             && Self::seg_end_trigger(cfg, evs, devs)
@@ -346,6 +377,246 @@ impl VoiceUnit {
                     }
                 }
             }
+        }
+    }
+
+    // ════════════════════════════════════════════════════════
+    // 配对修正机制（rev_paired，2026-06-10 编排者任务）
+    // ════════════════════════════════════════════════════════
+
+    /// 开腿信号谓词（runner per-ladder attempt 计数与 step 内部共用同一谓词）。
+    /// 配对模式 kind 展开：confirmed Sell1 / 盘背卖（震荡型候选）∨ confirmed
+    /// Sell3（逃逸型候选）。legacy 模式 = 段终结三触发原样。
+    /// 注：趋势背驰卖（DivKind::Trend）不再是独立触发——它是 Sell1 的引擎
+    /// 前体，等 Sell1 事件本体（与 T5 的 DivBuy(trend) no-op 同一纪律）；
+    /// "段终结瞬间盲开"的主通道（无确认 div 即开）在配对模式不存在。
+    pub fn rev_open_signal(cfg: &OrganicConfig, evs: &[BspEvent], devs: &[DivEvent]) -> bool {
+        if !cfg.rev_paired {
+            return Self::seg_end_trigger(cfg, evs, devs);
+        }
+        evs.iter().any(|e| {
+            e.confirmed
+                && match e.class {
+                    BspClass::Sell1 => true,
+                    BspClass::Sell3 => cfg.rev_escape_open,
+                    _ => false,
+                }
+        }) || devs
+            .iter()
+            .any(|d| d.kind == DivKind::Consolidation && d.direction == Direction::Up)
+    }
+
+    /// 配对开腿：kind 展开（震荡型/逃逸型）→ 共通守卫（G1/G2/G3a，与 legacy
+    /// 同序）→ 中枢/锚解析 → 深度门槛 → open。
+    ///
+    /// 锚解析裁决（单一真相源纪律）：震荡型"该卖点所在中枢存活"以
+    /// `CenterBook::alive(k)` 判定并取其快照为锚——与 P5 域腿开腿的锚来源
+    /// 完全一致（事件自带 cs 可能指向陈旧中枢，账本是当前真相）。逃逸型的
+    /// 锚 = Sell3 事件自带的被终结中枢（confirmed Sell3 在本 bar ingest 已
+    /// 使其死亡，alive(k) 必为 None——两分支天然互斥）。
+    #[allow(clippy::too_many_arguments)]
+    fn rev_paired_open(
+        &mut self,
+        cfg: &OrganicConfig,
+        rows: &BarRows,
+        book: &CenterBook,
+        gate: &FatigueGate,
+        entry_ladder: usize,
+        c: f64,
+        bar: i64,
+        ledger: &mut OrganicLedger,
+        frac_of: &dyn Fn(usize) -> f64,
+        counters: &mut Counters,
+    ) {
+        let k = self.ladder;
+        let evs = &rows.evs[k];
+        let devs = &rows.devs[k];
+        if evs.is_empty() && devs.is_empty() {
+            return;
+        }
+        let esc_ev = if cfg.rev_escape_open {
+            evs.iter().find(|e| e.confirmed && matches!(e.class, BspClass::Sell3))
+        } else {
+            // V2o/V2of 消融：逃逸型开腿关（kind 标注首跑数据：逃逸型三标的
+            // 一致为负）。Sell3 仍照常进 CenterBook（中枢死亡 ⇒ 震荡型分支
+            // 的 alive 检查自然拒绝——不开任何腿，非降级为震荡型）。
+            None
+        };
+        let osc_sig = evs.iter().any(|e| e.confirmed && matches!(e.class, BspClass::Sell1))
+            || devs
+                .iter()
+                .any(|d| d.kind == DivKind::Consolidation && d.direction == Direction::Up);
+        if esc_ev.is_none() && !osc_sig {
+            return;
+        }
+        counters.n_rev_attempts += 1;
+        match Self::rev_open_verdict(cfg, k, rows, book, gate, entry_ladder) {
+            RevOpenVerdict::RejectedSubAnchor => {
+                counters.n_rev_sub_anchor_rejects += 1;
+                return;
+            }
+            RevOpenVerdict::RejectedGate => {
+                counters.n_rev_gate_rejects += 1;
+                return;
+            }
+            RevOpenVerdict::RejectedFrozen => {
+                counters.n_rev_frozen_rejects += 1;
+                return;
+            }
+            RevOpenVerdict::Open => {}
+        }
+        // kind 解析：逃逸型优先（Sell3 是更强的结构陈述；同 bar 共现时中枢
+        // 已死，震荡型分支的 alive 检查本就不可达）。
+        let (kind, anchor_cs, zd_line, depth_ok) = if let Some(e) = esc_ev {
+            let (Some(zd), Some(zg)) = (e.zd, e.zg) else {
+                counters.n_rev_nocenter_rejects += 1;
+                return;
+            };
+            if !(zd.is_finite() && zg.is_finite()) {
+                counters.n_rev_nocenter_rejects += 1;
+                return;
+            }
+            (RevOpenKind::Escape, e.cs, None, (zg - zd) / c >= cfg.theta_depth)
+        } else {
+            let Some(lc) = book.alive(k) else {
+                counters.n_rev_nocenter_rejects += 1;
+                return;
+            };
+            if !(lc.zd.is_finite() && lc.zg.is_finite()) {
+                counters.n_rev_nocenter_rejects += 1;
+                return;
+            }
+            // c ≤ ZD：触线条件在开腿 bar 即真 = 零利润空间（退化深度），并入深度拒。
+            let ok = (lc.zg - lc.zd) / c >= cfg.theta_depth && c > lc.zd;
+            (RevOpenKind::Oscillation, Some(lc.seg_start), Some(lc.zd), ok)
+        };
+        if !depth_ok {
+            counters.n_rev_depth_rejects += 1;
+            return;
+        }
+        let akind = AnchorKind::Bsp(match kind {
+            RevOpenKind::Oscillation => BspKind::Type1,
+            RevOpenKind::Escape => BspKind::Type3,
+        });
+        if ledger.open_diff(
+            SlotKey::rev(k, k),
+            frac_of(k),
+            c,
+            bar,
+            LegAnchor::Center { cs: anchor_cs, boundary: zd_line, kind: akind },
+        ) {
+            counters.n_rev_open += 1;
+            match kind {
+                RevOpenKind::Oscillation => counters.n_rev_open_osc += 1,
+                RevOpenKind::Escape => counters.n_rev_open_esc += 1,
+            }
+            self.rev = Some(RevLeg::new_paired(k, bar, rows.dir(k), kind, anchor_cs, zd_line));
+            self.phase = VoicePhase::DownLeg;
+        } else {
+            counters.n_rev_budget_rejects += 1;
+        }
+    }
+
+    /// 配对闭腿：T7（confirmed Buy3 回补位）> T6（candidate Buy3 预回补，
+    /// pre_type3 轴）> T5（kind 配对 confirmed Buy1：震荡型同锚 / 逃逸型趋势
+    /// 配对）> ZD 触线（震荡型专属几何闭腿）。闭腿集穷举——Buy2 / 盘背买 /
+    /// 异锚 Buy1 不闭腿（"不接受 kind 不匹配的买点"），其反事实以
+    /// n_rev_mismatch_holds 计数可观测。
+    fn step_down_paired(
+        &mut self,
+        cfg: &OrganicConfig,
+        rows: &BarRows,
+        c: f64,
+        bar: i64,
+        ledger: &mut OrganicLedger,
+        counters: &mut Counters,
+    ) {
+        let k = self.ladder;
+        let evs = &rows.evs[k];
+        let devs = &rows.devs[k];
+        let Some(rev) = self.rev.as_ref() else {
+            debug_assert!(false, "不变量：DownLeg ⇒ rev 存在");
+            return;
+        };
+        let kind = rev.open_kind.expect("不变量：rev_paired 腿必携带 open_kind");
+        let anchor_cs = rev.anchor_cs;
+        let zd = rev.zd;
+        let hard = evs.iter().any(|e| matches!(e.class, BspClass::Buy3) && e.confirmed);
+        let pre = cfg.pre_type3
+            && evs.iter().any(|e| matches!(e.class, BspClass::Buy3) && !e.confirmed);
+        let buy1_paired = evs.iter().any(|e| {
+            e.confirmed
+                && matches!(e.class, BspClass::Buy1)
+                && match kind {
+                    // 同锚中枢内的 confirmed type1 买（Option 等值含 None==None，
+                    // 但震荡型 anchor_cs 恒 Some——开腿锚取自存活中枢快照）
+                    RevOpenKind::Oscillation => e.cs == anchor_cs,
+                    // 逃逸型：锚中枢已被终结，反向趋势的底背驰买点必然携带
+                    // 新中枢锚（或无锚）——同锚要求会使腿除逃逸外不可闭合，
+                    // 镜像复刻盲配对死锁。趋势配对 = Sell3 逃逸 ↔ Buy1 衰竭。
+                    RevOpenKind::Escape => true,
+                }
+        });
+        let zd_touch = zd.is_some_and(|z| c <= z);
+        if hard {
+            self.close_all_paired(kind, c, bar, ledger, counters);
+            counters.n_rev_close_t7 += 1;
+        } else if pre {
+            self.close_all_paired(kind, c, bar, ledger, counters);
+            counters.n_rev_close_t6 += 1;
+        } else if buy1_paired {
+            self.close_all_paired(kind, c, bar, ledger, counters);
+            counters.n_rev_close_t5 += 1;
+        } else if zd_touch {
+            self.close_all_paired(kind, c, bar, ledger, counters);
+            counters.n_rev_zd_close += 1;
+        } else {
+            // kind/锚不匹配反事实：legacy T5 谓词会在本 bar 闭腿而配对谓词拒。
+            let sub_buy = k >= 1 && rows.buy_any.get(k - 1);
+            if Self::buy_trigger_at(cfg, evs, devs, sub_buy) {
+                counters.n_rev_mismatch_holds += 1;
+            }
+        }
+    }
+
+    /// 配对模式全腿闭合 + 按开腿类型记账（win = profit > 0）。
+    /// 配对闭腿信号是腿级的（反向段终结陈述），全 tranche 一次闭合；
+    /// tranche×rev_paired 组合已在 runner 入口拒绝（每 tranche 同锚语义未定义）。
+    fn close_all_paired(
+        &mut self,
+        kind: RevOpenKind,
+        c: f64,
+        bar: i64,
+        ledger: &mut OrganicLedger,
+        counters: &mut Counters,
+    ) {
+        if let Some(rev) = self.rev.take() {
+            for t in &rev.tranches {
+                let n0 = ledger.completed.len();
+                ledger.close_diff(SlotKey::rev(self.ladder, t.level), c, bar);
+                if ledger.completed.len() > n0 {
+                    counters.n_rev_tranche_closes += 1;
+                    let (_, cyc) = ledger.completed.last().expect("close_diff 刚 push");
+                    let profit = cyc.profit();
+                    match kind {
+                        RevOpenKind::Oscillation => {
+                            counters.rev_osc_pairs += 1;
+                            if profit > 0.0 {
+                                counters.rev_osc_wins += 1;
+                            }
+                            counters.rev_osc_cash += profit;
+                        }
+                        RevOpenKind::Escape => {
+                            counters.rev_esc_pairs += 1;
+                            if profit > 0.0 {
+                                counters.rev_esc_wins += 1;
+                            }
+                            counters.rev_esc_cash += profit;
+                        }
+                    }
+                }
+            }
+            self.phase = VoicePhase::UpLeg;
         }
     }
 
@@ -728,6 +999,218 @@ mod tests {
             &|_| 0.2, &mut fx.counters,
         );
         assert_eq!(fx.counters.n_rev_tranche_adds, 1);
+    }
+
+    fn cfg_paired(theta: f64) -> OrganicConfig {
+        OrganicConfig {
+            rev_mode: true,
+            rev_paired: true,
+            theta_depth: theta,
+            ..OrganicConfig::default()
+        }
+    }
+
+    #[test]
+    fn paired_osc_open_anchors_alive_center_and_closes_at_zd() {
+        // 震荡型：confirmed Sell1 × 存活中枢 [9.0, 9.5] → 开腿锚 ZD=9.0；
+        // 触线 c≤9.0 → 闭腿（n_rev_zd_close），按类型记账。
+        let mut fx = Fixture::new();
+        fx.book.ingest(2, &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)], true, None);
+        fx.evs[2] = vec![ev(BspClass::Sell1, true)];
+        let mut v = VoiceUnit::new(2);
+        {
+            let rows = empty_rows(&fx.evs, &fx.devs);
+            v.step(
+                &cfg_paired(0.0), &rows, &[], 9.6, 1, &mut fx.ledger, &fx.book, &fx.gate, 4,
+                &|_| 0.5, &mut fx.counters,
+            );
+        }
+        assert_eq!(v.phase, VoicePhase::DownLeg);
+        assert_eq!(fx.counters.n_rev_open_osc, 1);
+        let leg = v.rev.as_ref().unwrap();
+        assert_eq!(leg.open_kind, Some(RevOpenKind::Oscillation));
+        assert_eq!(leg.anchor_cs, Some(1));
+        assert_eq!(leg.zd, Some(9.0));
+        // 无事件 bar：c=9.0 触线 → 闭腿
+        fx.evs[2].clear();
+        let rows = empty_rows(&fx.evs, &fx.devs);
+        v.step(
+            &cfg_paired(0.0), &rows, &[], 9.0, 2, &mut fx.ledger, &fx.book, &fx.gate, 4,
+            &|_| 0.5, &mut fx.counters,
+        );
+        assert_eq!(v.phase, VoicePhase::UpLeg);
+        assert_eq!(fx.counters.n_rev_zd_close, 1);
+        assert_eq!(fx.counters.rev_osc_pairs, 1);
+        assert_eq!(fx.counters.rev_osc_wins, 1); // 卖9.6买9.0
+        assert!(fx.counters.rev_osc_cash > 0.0);
+    }
+
+    #[test]
+    fn paired_rejects_mismatched_buys_accepts_same_anchor_buy1() {
+        // 闭腿配对：Buy2 / 盘背买 / 异锚 Buy1 不闭（mismatch_holds 计数），
+        // 同锚 confirmed Buy1 闭（T5）。
+        let mut fx = Fixture::new();
+        fx.book.ingest(2, &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)], true, None);
+        fx.evs[2] = vec![ev(BspClass::Sell1, true)];
+        let mut v = VoiceUnit::new(2);
+        {
+            let rows = empty_rows(&fx.evs, &fx.devs);
+            v.step(
+                &cfg_paired(0.0), &rows, &[], 9.6, 1, &mut fx.ledger, &fx.book, &fx.gate, 4,
+                &|_| 0.5, &mut fx.counters,
+            );
+        }
+        assert_eq!(v.phase, VoicePhase::DownLeg);
+        // Buy2（kind 不匹配）+ 异锚 Buy1（cs=99 ≠ 锚 1）→ 不闭
+        fx.evs[2] = vec![
+            ev(BspClass::Buy2, true),
+            ev_anchored(BspClass::Buy1, true, 99, 8.0, 8.5),
+        ];
+        {
+            let rows = empty_rows(&fx.evs, &fx.devs);
+            v.step(
+                &cfg_paired(0.0), &rows, &[], 9.3, 2, &mut fx.ledger, &fx.book, &fx.gate, 4,
+                &|_| 0.5, &mut fx.counters,
+            );
+        }
+        assert_eq!(v.phase, VoicePhase::DownLeg);
+        assert_eq!(fx.counters.n_rev_mismatch_holds, 1);
+        // 同锚 confirmed Buy1（cs=1）→ T5 闭腿
+        fx.evs[2] = vec![ev_anchored(BspClass::Buy1, true, 1, 9.0, 9.5)];
+        let rows = empty_rows(&fx.evs, &fx.devs);
+        v.step(
+            &cfg_paired(0.0), &rows, &[], 9.2, 3, &mut fx.ledger, &fx.book, &fx.gate, 4,
+            &|_| 0.5, &mut fx.counters,
+        );
+        assert_eq!(v.phase, VoicePhase::UpLeg);
+        assert_eq!(fx.counters.n_rev_close_t5, 1);
+        assert_eq!(fx.counters.rev_osc_pairs, 1);
+    }
+
+    #[test]
+    fn paired_escape_opens_on_sell3_no_zd_line_closes_on_any_buy1() {
+        // 逃逸型：confirmed Sell3（中枢死亡）→ 开腿无 ZD 线；
+        // c 低于死中枢 ZD 不触发闭腿；任意锚 confirmed Buy1 闭（趋势配对）。
+        let mut fx = Fixture::new();
+        // 中枢 [9.0,9.5] 先存活，confirmed Sell3 将其向下终结
+        fx.book.ingest(2, &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)], true, None);
+        fx.book.ingest(2, &[ev_anchored(BspClass::Sell3, true, 1, 9.0, 9.5)], true, None);
+        assert!(fx.book.alive(2).is_none());
+        fx.evs[2] = vec![ev_anchored(BspClass::Sell3, true, 1, 9.0, 9.5)];
+        let mut v = VoiceUnit::new(2);
+        {
+            let rows = empty_rows(&fx.evs, &fx.devs);
+            v.step(
+                &cfg_paired(0.0), &rows, &[], 8.8, 1, &mut fx.ledger, &fx.book, &fx.gate, 4,
+                &|_| 0.5, &mut fx.counters,
+            );
+        }
+        assert_eq!(v.phase, VoicePhase::DownLeg);
+        assert_eq!(fx.counters.n_rev_open_esc, 1);
+        let leg = v.rev.as_ref().unwrap();
+        assert_eq!(leg.open_kind, Some(RevOpenKind::Escape));
+        assert_eq!(leg.zd, None);
+        // 无事件 + 价格更低 → 无 ZD 线，不闭
+        fx.evs[2].clear();
+        {
+            let rows = empty_rows(&fx.evs, &fx.devs);
+            v.step(
+                &cfg_paired(0.0), &rows, &[], 8.0, 2, &mut fx.ledger, &fx.book, &fx.gate, 4,
+                &|_| 0.5, &mut fx.counters,
+            );
+        }
+        assert_eq!(v.phase, VoicePhase::DownLeg);
+        // 异锚 confirmed Buy1（新中枢 cs=7）→ 趋势配对闭腿
+        fx.evs[2] = vec![ev_anchored(BspClass::Buy1, true, 7, 7.5, 7.9)];
+        let rows = empty_rows(&fx.evs, &fx.devs);
+        v.step(
+            &cfg_paired(0.0), &rows, &[], 7.8, 3, &mut fx.ledger, &fx.book, &fx.gate, 4,
+            &|_| 0.5, &mut fx.counters,
+        );
+        assert_eq!(v.phase, VoicePhase::UpLeg);
+        assert_eq!(fx.counters.n_rev_close_t5, 1);
+        assert_eq!(fx.counters.rev_esc_pairs, 1);
+        assert_eq!(fx.counters.rev_esc_wins, 1); // 卖8.8买7.8
+    }
+
+    #[test]
+    fn paired_depth_gate_rejects_shallow_center() {
+        // 深度门：中枢 [9.0, 9.005] 振幅/价 ≈0.05% < θ=1% → 拒，计数。
+        let mut fx = Fixture::new();
+        fx.book.ingest(2, &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.005)], true, None);
+        fx.evs[2] = vec![ev(BspClass::Sell1, true)];
+        let mut v = VoiceUnit::new(2);
+        let rows = empty_rows(&fx.evs, &fx.devs);
+        v.step(
+            &cfg_paired(0.01), &rows, &[], 9.1, 1, &mut fx.ledger, &fx.book, &fx.gate, 4,
+            &|_| 0.5, &mut fx.counters,
+        );
+        assert_eq!(v.phase, VoicePhase::UpLeg);
+        assert_eq!(fx.counters.n_rev_depth_rejects, 1);
+        assert_eq!(fx.counters.n_rev_open, 0);
+    }
+
+    #[test]
+    fn paired_osc_requires_alive_center() {
+        // 震荡型无存活中枢（孤证 confirmed Sell1）→ nocenter 拒。
+        let mut fx = Fixture::new();
+        fx.evs[2] = vec![ev(BspClass::Sell1, true)];
+        let mut v = VoiceUnit::new(2);
+        let rows = empty_rows(&fx.evs, &fx.devs);
+        v.step(
+            &cfg_paired(0.0), &rows, &[], 9.6, 1, &mut fx.ledger, &fx.book, &fx.gate, 4,
+            &|_| 0.5, &mut fx.counters,
+        );
+        assert_eq!(v.phase, VoicePhase::UpLeg);
+        assert_eq!(fx.counters.n_rev_nocenter_rejects, 1);
+        assert_eq!(fx.counters.n_rev_open, 0);
+    }
+
+    #[test]
+    fn paired_escape_off_does_not_open_on_sell3() {
+        // V2o 消融：rev_escape_open=false 时 confirmed Sell3 不开腿，
+        // 也不降级为震荡型（中枢已死 ⇒ alive 检查拒）。
+        let mut fx = Fixture::new();
+        fx.book.ingest(2, &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)], true, None);
+        fx.book.ingest(2, &[ev_anchored(BspClass::Sell3, true, 1, 9.0, 9.5)], true, None);
+        fx.evs[2] = vec![ev_anchored(BspClass::Sell3, true, 1, 9.0, 9.5)];
+        let cfg = OrganicConfig { rev_escape_open: false, ..cfg_paired(0.0) };
+        let mut v = VoiceUnit::new(2);
+        let rows = empty_rows(&fx.evs, &fx.devs);
+        v.step(
+            &cfg, &rows, &[], 8.8, 1, &mut fx.ledger, &fx.book, &fx.gate, 4,
+            &|_| 0.5, &mut fx.counters,
+        );
+        assert_eq!(v.phase, VoicePhase::UpLeg);
+        assert_eq!(fx.counters.n_rev_open, 0);
+        assert_eq!(fx.counters.n_rev_attempts, 0); // 信号谓词同步排除 Sell3
+    }
+
+    #[test]
+    fn paired_buy3_escape_close_still_works() {
+        // Buy3 回补位闭腿（恢复暴露）在配对模式保留（T7）。
+        let mut fx = Fixture::new();
+        fx.book.ingest(2, &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)], true, None);
+        fx.evs[2] = vec![ev(BspClass::Sell1, true)];
+        let mut v = VoiceUnit::new(2);
+        {
+            let rows = empty_rows(&fx.evs, &fx.devs);
+            v.step(
+                &cfg_paired(0.0), &rows, &[], 9.6, 1, &mut fx.ledger, &fx.book, &fx.gate, 4,
+                &|_| 0.5, &mut fx.counters,
+            );
+        }
+        assert_eq!(v.phase, VoicePhase::DownLeg);
+        fx.evs[2] = vec![ev(BspClass::Buy3, true)];
+        let rows = empty_rows(&fx.evs, &fx.devs);
+        v.step(
+            &cfg_paired(0.0), &rows, &[], 9.8, 2, &mut fx.ledger, &fx.book, &fx.gate, 4,
+            &|_| 0.5, &mut fx.counters,
+        );
+        assert_eq!(v.phase, VoicePhase::UpLeg);
+        assert_eq!(fx.counters.n_rev_close_t7, 1);
+        assert_eq!(fx.counters.rev_osc_pairs, 1);
+        assert_eq!(fx.counters.rev_osc_wins, 0); // 卖9.6买9.8 亏损回补
     }
 
     #[test]
