@@ -19,11 +19,21 @@
 
 use super::types::*;
 
+/// 短差循环方向（递归赋格符号交替塔，2026-06-11 任务）。
+/// Short = 先卖后买（P5/REV 在册全部腿）；Long = 先买后卖（奇数深度子腿：
+/// 反向走势窗口内的反弹段操作）。profit 公式两侧同为 (sell−buy)×shares。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DiffSide {
+    Short,
+    Long,
+}
+
 /// 开放短差循环（`ShortDiffCycle` is_open=True 的类型化）。
+/// open_price：Short 腿 = 卖出价（旧 sell_price 语义不变）；Long 腿 = 买入价。
 #[derive(Debug, Clone, Copy)]
 pub struct OpenCycle {
     pub shares: f64,
-    pub sell_price: f64,
+    pub open_price: f64,
 }
 
 /// 已闭合短差循环。profit() 只在此类型上存在——
@@ -42,13 +52,15 @@ impl ClosedCycle {
     }
 }
 
-/// 开放腿记录：循环 + open 时刻冻结的守恒律 + 锚点。
+/// 开放腿记录：循环 + open 时刻冻结的守恒律 + 锚点 + 方向。
 #[derive(Debug, Clone, Copy)]
 pub struct OpenLeg {
     pub cycle: OpenCycle,
     /// open 时刻的账本阶段（Python `was_earning`），close 时 match 穷举。
     pub law: ConservationLaw,
     pub anchor: LegAnchor,
+    /// 循环方向（在册路径恒 Short；Long 仅 rev_sub_depth ≥ 1 子腿）。
+    pub side: DiffSide,
 }
 
 /// 腿 trace 记录（diag 模式；Python trace dict 12 字段逐一对应）。
@@ -139,7 +151,15 @@ impl OrganicLedger {
         } else {
             ConservationLaw::ShareConserving
         };
-        self.legs.push((key, OpenLeg { cycle: OpenCycle { shares, sell_price }, law, anchor }));
+        self.legs.push((
+            key,
+            OpenLeg {
+                cycle: OpenCycle { shares, open_price: sell_price },
+                law,
+                anchor,
+                side: DiffSide::Short,
+            },
+        ));
         if self.phase.is_earning() {
             self.total_shares -= shares;
         }
@@ -149,26 +169,80 @@ impl OrganicLedger {
         true
     }
 
-    /// 闭腿（低吸/REV 买回）。守恒律 match 穷举——第三种守恒律不可静默引入。
-    pub fn close_diff(&mut self, key: SlotKey, buy_price: f64, bar: i64) {
+    /// 子腿开腿（递归赋格，绝对股数预算——预算基 = 父腿敞口，非 total_shares
+    /// 比例；设计报告 §3.3 "budget(node) = 父层在本节点域内释放的敞口"）。
+    /// side=Long：先买后卖（奇数深度反弹腿）；side=Short：先卖后买（偶数深度）。
+    ///
+    /// EarningShares 阶段拒绝：金额守恒（卖 V 买 V）对 Long 循环（买 V 卖 V′）
+    /// 的 total_shares 算术未定义——声明=能力，显式拒绝（调用方计数），
+    /// 不静默降级。仅 ShareConserving（名义短差，profit 降 cost_basis）开腿。
+    pub fn open_sub(
+        &mut self,
+        key: SlotKey,
+        shares: f64,
+        price: f64,
+        bar: i64,
+        anchor: LegAnchor,
+        side: DiffSide,
+    ) -> bool {
+        if self.open_slot(key).is_some() {
+            return false;
+        }
+        if shares <= 0.0 {
+            self.n_open_rejects_zero += 1;
+            return false;
+        }
+        if self.phase.is_earning() {
+            return false; // 调用方计 n_sub_earning_rejects
+        }
+        self.legs.push((
+            key,
+            OpenLeg {
+                cycle: OpenCycle { shares, open_price: price },
+                law: ConservationLaw::ShareConserving,
+                anchor,
+                side,
+            },
+        ));
+        if self.trace.is_some() {
+            self.diff_open.push((key, bar));
+        }
+        true
+    }
+
+    /// 闭腿（Short 腿低吸买回 / Long 腿反弹顶卖出——close_price 按 side 解读）。
+    /// 守恒律 match 穷举——第三种守恒律不可静默引入。
+    pub fn close_diff(&mut self, key: SlotKey, close_price: f64, bar: i64) {
         let Some(pos_idx) = self.legs.iter().position(|(k, _)| *k == key) else {
             return;
         };
-        if buy_price <= 0.0 {
+        if close_price <= 0.0 {
             return;
         }
         let (_, leg) = self.legs.remove(pos_idx);
         let cb_before = self.phase.cost_basis();
         let shares_before = self.total_shares;
-        let closed = ClosedCycle {
-            shares: leg.cycle.shares,
-            sell_price: leg.cycle.sell_price,
-            buy_price,
+        let closed = match leg.side {
+            DiffSide::Short => ClosedCycle {
+                shares: leg.cycle.shares,
+                sell_price: leg.cycle.open_price,
+                buy_price: close_price,
+            },
+            DiffSide::Long => ClosedCycle {
+                shares: leg.cycle.shares,
+                sell_price: close_price,
+                buy_price: leg.cycle.open_price,
+            },
         };
         match leg.law {
             ConservationLaw::AmountConserving => {
                 // INV-2 金额守恒：卖 V 买 V，total_shares 净增（phase 已是 Earning）。
-                self.total_shares += leg.cycle.shares * leg.cycle.sell_price / buy_price;
+                // Long 腿不可达：open_sub 拒绝 earning 开腿（构造保证）。
+                assert!(
+                    leg.side == DiffSide::Short,
+                    "AmountConserving × Long 不可表示（open_sub 构造保证），到达即 bug"
+                );
+                self.total_shares += leg.cycle.shares * leg.cycle.open_price / close_price;
             }
             ConservationLaw::ShareConserving => {
                 // 股数守恒：profit 落袋 + 降共享 cost_basis；≤0 → 单向相变。
@@ -194,22 +268,27 @@ impl OrganicLedger {
         let was_earning = matches!(leg.law, ConservationLaw::AmountConserving);
         self.completed.push((key, closed));
         if self.trace.is_some() {
-            let sell_bar = self
+            let open_bar = self
                 .diff_open
                 .iter()
                 .position(|(k, _)| *k == key)
                 .map(|i| self.diff_open.remove(i).1)
                 .unwrap_or(-1);
+            // Short：开=卖、闭=买（Python 逐字）；Long：开=买、闭=卖。
+            let (sell_bar, buy_bar) = match leg.side {
+                DiffSide::Short => (open_bar, bar),
+                DiffSide::Long => (bar, open_bar),
+            };
             let cb_after = self.phase.cost_basis();
             let shares_delta = self.total_shares - shares_before;
             self.trace.as_mut().expect("trace 已判 Some").push(LegTrace {
                 slot: key,
                 sell_bar,
                 sell_price: closed.sell_price,
-                buy_bar: bar,
-                buy_price,
+                buy_bar,
+                buy_price: closed.buy_price,
                 shares: closed.shares,
-                diff: closed.sell_price - buy_price,
+                diff: closed.sell_price - closed.buy_price,
                 profit: closed.profit(),
                 was_earning,
                 shares_delta,
@@ -283,6 +362,37 @@ mod tests {
         assert!(led.open_diff(SlotKey::main(2), 0.5, 110.0, 1, anchor()));
         led.close_diff(SlotKey::main(2), 0.0, 2); // 非正价
         assert!(led.open_slot(SlotKey::main(2)).is_some());
+    }
+
+    #[test]
+    fn sub_long_cycle_profit_reduces_cost_basis() {
+        // Long 子腿（先买后卖）：买 100 卖 110，50 股 → profit=+500 →
+        // cost_basis 100 − 500/100 = 95（与 Short 同一守恒算术）
+        let key = SlotKey::rev_path(3, RevPath::single(3).child(2));
+        let mut led = OrganicLedger::new(100.0, 100.0, 0.5, true);
+        assert!(led.open_sub(key, 50.0, 100.0, 1, anchor(), DiffSide::Long));
+        led.close_diff(key, 110.0, 2);
+        assert_eq!(led.phase.cost_basis(), 95.0);
+        assert_eq!(led.cumulative_recovered, 500.0);
+        assert_eq!(led.total_shares, 100.0);
+        let tr = &led.trace.as_ref().unwrap()[0];
+        assert_eq!(tr.profit, 500.0);
+        assert_eq!((tr.buy_price, tr.sell_price), (100.0, 110.0));
+        assert_eq!((tr.buy_bar, tr.sell_bar), (1, 2)); // 开=买 bar、闭=卖 bar
+        let (_, cyc) = led.completed.last().unwrap();
+        assert_eq!(cyc.profit(), 500.0);
+    }
+
+    #[test]
+    fn sub_open_rejected_in_earning_phase() {
+        // EarningShares 下 open_sub 拒绝（金额守恒对 Long 循环未定义）
+        let key = SlotKey::rev_path(3, RevPath::single(3).child(2));
+        let mut led = OrganicLedger::new(1.0, 100.0, 1.0, false);
+        assert!(led.open_diff(SlotKey::osc(2), 1.0, 10.0, 1, anchor()));
+        led.close_diff(SlotKey::osc(2), 5.0, 2); // 相变 earning
+        assert!(led.phase.is_earning());
+        assert!(!led.open_sub(key, 50.0, 5.0, 3, anchor(), DiffSide::Long));
+        assert!(led.open_slot(key).is_none());
     }
 
     #[test]

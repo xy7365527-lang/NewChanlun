@@ -1,0 +1,156 @@
+{
+ "symbol": "BRN",
+ "n_bars": 2418058,
+ "bh": 87.38,
+ "tape_fp": {
+  "bsp": 63977,
+  "div": 46751,
+  "flips": 117573
+ },
+ "variants": {
+  "V2of": {
+   "metrics": {
+    "n": 910,
+    "win_rate": 60.43956043956044,
+    "total_compound": 48.01529067555717,
+    "sharpe": 0.03046498452278286,
+    "max_dd": -59.96830011399547
+   },
+   "leg_stats": {
+    "main": {
+     "n_pairs": 236,
+     "win_rate": 54.2,
+     "avg_diff_pct": 0.0887,
+     "net_cash": 18067.1
+    },
+    "osc": {
+     "n_pairs": 704,
+     "win_rate": 72.4,
+     "avg_diff_pct": -0.2272,
+     "net_cash": -51924.8
+    },
+    "rev": {
+     "n_pairs": 77,
+     "win_rate": 58.4,
+     "avg_diff_pct": 0.2954,
+     "net_cash": 13368.6
+    }
+   },
+   "counters": {
+    "n_rev_open": 77,
+    "n_sub_open": 0,
+    "n_sub_close": 0,
+    "n_sub_forced_close": 0,
+    "n_sub_earning_rejects": 0,
+    "sub_pairs": 0,
+    "sub_wins": 0,
+    "sub_net_cash": 0.0
+   },
+   "elapsed_s": 0.064
+  },
+  "V2ofF1": {
+   "metrics": {
+    "n": 910,
+    "win_rate": 60.43956043956044,
+    "total_compound": 58.724807873474006,
+    "sharpe": 0.033641890348311124,
+    "max_dd": -57.55495379263048
+   },
+   "leg_stats": {
+    "main": {
+     "n_pairs": 236,
+     "win_rate": 54.2,
+     "avg_diff_pct": 0.0887,
+     "net_cash": 18067.1
+    },
+    "osc": {
+     "n_pairs": 704,
+     "win_rate": 72.4,
+     "avg_diff_pct": -0.2272,
+     "net_cash": -51924.8
+    },
+    "rev": {
+     "n_pairs": 77,
+     "win_rate": 58.4,
+     "avg_diff_pct": 0.2954,
+     "net_cash": 13368.6
+    },
+    "rev_sub_d1": {
+     "n_pairs": 59,
+     "win_rate": 54.2,
+     "avg_diff_pct": 0.1859,
+     "net_cash": 6153.5
+    }
+   },
+   "counters": {
+    "n_rev_open": 77,
+    "n_sub_open": 59,
+    "n_sub_close": 37,
+    "n_sub_forced_close": 22,
+    "n_sub_earning_rejects": 0,
+    "sub_pairs": 59,
+    "sub_wins": 32,
+    "sub_net_cash": 6153.45961277691
+   },
+   "elapsed_s": 0.065
+  },
+  "V2ofF2": {
+   "metrics": {
+    "n": 910,
+    "win_rate": 60.43956043956044,
+    "total_compound": 58.84345782245415,
+    "sharpe": 0.03366892226393187,
+    "max_dd": -57.55495379263048
+   },
+   "leg_stats": {
+    "main": {
+     "n_pairs": 236,
+     "win_rate": 54.2,
+     "avg_diff_pct": 0.0887,
+     "net_cash": 18067.1
+    },
+    "osc": {
+     "n_pairs": 704,
+     "win_rate": 72.4,
+     "avg_diff_pct": -0.2272,
+     "net_cash": -51924.8
+    },
+    "rev": {
+     "n_pairs": 77,
+     "win_rate": 58.4,
+     "avg_diff_pct": 0.2954,
+     "net_cash": 13368.6
+    },
+    "rev_sub_d1": {
+     "n_pairs": 59,
+     "win_rate": 54.2,
+     "avg_diff_pct": 0.1859,
+     "net_cash": 6153.5
+    },
+    "rev_sub_d2": {
+     "n_pairs": 1,
+     "win_rate": 100.0,
+     "avg_diff_pct": 0.1965,
+     "net_cash": 95.5
+    }
+   },
+   "counters": {
+    "n_rev_open": 77,
+    "n_sub_open": 60,
+    "n_sub_close": 38,
+    "n_sub_forced_close": 22,
+    "n_sub_earning_rejects": 0,
+    "sub_pairs": 60,
+    "sub_wins": 33,
+    "sub_net_cash": 6248.918497271657
+   },
+   "elapsed_s": 0.066
+  }
+ },
+ "verdict": {
+  "delta_d1_vs_d0_pp": 10.71,
+  "delta_d2_vs_d1_pp": 0.12,
+  "delta_d2_vs_d0_pp": 10.83,
+  "preregistered_pass": true
+ }
+}

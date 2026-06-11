@@ -21,10 +21,18 @@
 pub mod allocator;
 pub mod center_book;
 pub mod config;
+pub mod depth_ref;
 pub mod fatigue_gate;
 pub mod ledger;
 pub mod level_operating_unit;
 pub mod master;
 pub mod runner;
 pub mod tape;
+#[cfg(test)]
+mod consolidation_ablation;
+#[cfg(test)]
+mod sublevel_confirmation_ablation;
+#[cfg(test)]
+mod trade_behavior;
+pub mod trend_exhaustion;
 pub mod types;

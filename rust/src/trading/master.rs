@@ -26,6 +26,14 @@ impl MasterExitSignal {
     pub fn from_sell1_row(sell1_at_policy_ladder: bool) -> Option<Self> {
         sell1_at_policy_ladder.then_some(MasterExitSignal { _priv: () })
     }
+
+    /// sc_master_exit（次级别确认完整递归，2026-06-11）：sell1 行 ∧ 次级别
+    /// 卖侧确认。触发类型仍是 sell1 单一来源——确认是 27课区间套对出场
+    /// **时机**的细化，不是新触发源：532号类型隔离不被破坏（输入仍是布尔行，
+    /// 没有事件流构造路径，"给 master 喂三触发"依旧不可表示）。
+    pub fn from_sell1_row_sub_confirmed(sell1: bool, sub_confirm: bool) -> Option<Self> {
+        Self::from_sell1_row(sell1 && sub_confirm)
+    }
 }
 
 /// earning 反作用下 master 自身的相位（45课持股持币；K5 v1 §5.6 语义零改动）。

@@ -21,12 +21,14 @@
 
 use super::allocator::SizeAllocator;
 use super::center_book::CenterBook;
-use super::config::{OrganicConfig, Sizing, StopMode};
+use super::config::{OrganicConfig, Sizing, StopMode, ThetaMode};
+use super::depth_ref::{DepthRef, DEPTH_REF_WINDOW};
 use super::fatigue_gate::FatigueGate;
 use super::ledger::{LegTrace, OrganicLedger};
 use super::level_operating_unit::{BarRows, VoicePhase, VoiceUnit};
 use super::master::{MasterExitSignal, MasterState};
 use super::tape::SignalTape;
+use super::trend_exhaustion::TrendExhaustion;
 use super::types::*;
 
 /// 完成交易记录（Python `CompletedTrade` 逐字段）。
@@ -76,6 +78,9 @@ pub struct RunResult {
     pub n_addon: u64,
     pub n_core_stops: u64,
     pub diag: Option<Vec<TradeDiag>>,
+    /// 锚中枢相对振幅调研日志（每中枢一行 (ladder, seg_start, (ZG−ZD)/c)，
+    /// 延伸取最终观测值；仅 diag=true 落盘——θ 自适应任务的分布调研面）。
+    pub center_amp_log: Vec<(u8, i64, f64)>,
 }
 
 const FLAT: u8 = 0;
@@ -236,6 +241,88 @@ pub fn run_organic(
                 .to_string(),
         );
     }
+    if (cfg.r1_sub_sell_open || cfg.r2_anchor_zg || cfg.r3_t6_sub_confirm) && !cfg.rev_paired {
+        return Err(
+            "R1/R2/R3（盘背递归正则化）仅定义于 rev_paired 路径——legacy 腿无
+             kind/锚概念，组合不可表示"
+                .to_string(),
+        );
+    }
+    if (cfg.sell2_open || cfg.buy2_close) && !cfg.rev_paired {
+        return Err(
+            "T2o/T2c（type2 开闭腿轴）仅定义于 rev_paired 路径——配对语义
+             （震荡型同锚/逃逸型任意）在 legacy 腿上不可表示"
+                .to_string(),
+        );
+    }
+    if cfg.r1_sub_sell_open && !tape.has_dir_rows() {
+        return Err(
+            "r1_sub_sell_open（C段窗口判定）要求磁带 dir_flips 行（D3）——
+             次级别 Up run 锚是窗口起点的数据基础（不提供同 bar 共现降级）"
+                .to_string(),
+        );
+    }
+    let sc_any = cfg.sc_entry_strict
+        || cfg.sc_master_exit
+        || cfg.sc_main_open
+        || cfg.sc_main_close
+        || cfg.sc_rev_open
+        || cfg.sc_t7_close;
+    if sc_any && !tape.has_dir_rows() {
+        return Err(
+            "SC 位（次级别确认完整递归）要求磁带 dir_flips 行（D3）——结构证据是
+             bi 层确认的唯一数据基础（纯事件证据 = R1 空定义域反选，消融判决 §3.1）"
+                .to_string(),
+        );
+    }
+    if cfg.sc_rev_open && !cfg.rev_paired {
+        return Err(
+            "sc_rev_open 仅定义于 rev_paired 路径（与 R 位同先例——legacy 腿
+             开腿语义不在本任务作用域）"
+                .to_string(),
+        );
+    }
+    if cfg.rev_sub_depth > 0 && !cfg.rev_paired {
+        return Err(
+            "rev_sub_depth（递归子 LOU）仅定义于 rev_paired 路径——legacy 腿无
+             kind/锚概念，子腿配对闭腿不可表示（R/SC 位同先例）"
+                .to_string(),
+        );
+    }
+    if cfg.rev_sub_depth + 1 > MAX_REV_DEPTH {
+        return Err(format!(
+            "rev_sub_depth={} 超出路径键容量（MAX_REV_DEPTH={MAX_REV_DEPTH}：\
+             路径 = 1 父段 + depth 子段）",
+            cfg.rev_sub_depth
+        ));
+    }
+    if cfg.rev_sub_depth > 0
+        && cfg.sub_mode == super::config::SubMode::Fractal
+        && !tape.has_dir_rows()
+    {
+        return Err(
+            "sub_mode=Fractal（笔级分型子腿）要求磁带 dir_flips 行（D3）——
+             顶/底分型确认信号 = 方向行翻转，无行即无信号源"
+                .to_string(),
+        );
+    }
+    if (cfg.sub_cost_gate || cfg.sub_l41_gate)
+        && !(cfg.rev_sub_depth > 0 && cfg.sub_mode == super::config::SubMode::Fractal)
+    {
+        return Err(
+            "sub_cost_gate/sub_l41_gate（P1 双门）仅定义于 Fractal 子腿路径
+             （rev_sub_depth > 0 ∧ sub_mode=Fractal）——Zhongshu 模式的逐锚
+             2×sub_friction_rt 经济门已是其成本门形态，组合不可表示"
+                .to_string(),
+        );
+    }
+    if cfg.sub_cost_gate && !(cfg.sub_cost_k > 0.0 && cfg.sub_cost_k.is_finite()) {
+        return Err(format!(
+            "sub_cost_gate 要求 sub_cost_k 为正有限数（成本门下限 = k×friction）；\
+             sub_cost_k={}",
+            cfg.sub_cost_k
+        ));
+    }
 
     // MarketMode 穷举（F1 期货实装时新增变体，编译器强制此处表态——v1R §2.2）。
     match cfg.market_mode {
@@ -278,6 +365,17 @@ pub fn run_organic(
     // 中枢三态事件缓冲（每 bar 复用，仅 rev 消费路径填充）。
     let collect_center_events = cfg.rev_gate || cfg.tranche;
     let mut center_evs: [Vec<CenterEvent>; MAX_LADDER] = Default::default();
+    // 锚中枢振幅因果参照（θ 自适应深度门 + 振幅分布调研日志）。局部变量而非
+    // Run 字段——BarRows 持其只读借用横跨 LONG 块，与 close_position(&mut run)
+    // 的字段借用不相容。
+    let depth_window = match cfg.theta_mode {
+        ThetaMode::AdaptiveQuantile { window, .. } => window,
+        ThetaMode::Fixed => DEPTH_REF_WINDOW,
+    };
+    let mut depth_ref = DepthRef::new(depth_window);
+    // 父级别走势衰竭追踪器（P1 41课门；市场性质，与 depth_ref 同置局部变量
+    // ——BarRows 持只读借用横跨 LONG 块）。仅 sub_l41_gate 变体实例化。
+    let mut trend_exh = cfg.sub_l41_gate.then(TrendExhaustion::new);
 
     for i in 0..n {
         let sig = &tape.bars[i];
@@ -295,6 +393,11 @@ pub fn run_organic(
         let devrows: &[Vec<DivEvent>; MAX_LADDER] =
             sig.div_events.as_deref().unwrap_or(&empty_devs);
 
+        // ── 走势衰竭追踪（P1 41课门；市场性质，全态每 bar 驱动）──
+        if let Some(te) = trend_exh.as_mut() {
+            te.observe(&dir_state, devrows, c);
+        }
+
         // ── 中枢生命周期账本（每 bar，市场性质；Python 逐字含 sentinel 守卫）──
         if collect_center_events {
             for row in center_evs.iter_mut() {
@@ -306,6 +409,8 @@ pub fn run_organic(
                 let out = if collect_center_events { Some(&mut center_evs[lad]) } else { None };
                 run.book.ingest(lad, &evrows[lad], cfg.hard_type3, out);
             }
+            // 振幅参照观测（市场性质，与持仓状态无关；边界变化才记录）。
+            depth_ref.observe(&run.book, c);
         }
 
         // ── FatigueGate（v2 点态：rev_gate 时每 bar 每承载层驱动——清空路径(1)
@@ -357,7 +462,15 @@ pub fn run_organic(
             let sub_mask = (1u16 << run.arm_ladder) - 1;
             let mut do_enter = sig.buy_any.0 & sub_mask != 0;
             if !do_enter && (i as i64 - run.arm_bar) > SUB_EXPIRY {
-                do_enter = true;
+                if cfg.sc_entry_strict {
+                    // SCe：严格区间套——超时不强制入场，继续等待次级别确认
+                    // 或 sell1 撤防（27课：无次级别把握的买点不操作）。
+                    if (i as i64 - run.arm_bar) == SUB_EXPIRY + 1 {
+                        run.counters.n_sc_entry_expire_skips += 1;
+                    }
+                } else {
+                    do_enter = true;
+                }
             }
             if do_enter {
                 run.open_position(i as i64, c, run.arm_ladder);
@@ -372,6 +485,18 @@ pub fn run_organic(
             let entry_ladder = run.entry_ladder;
             let ev_entry = &evrows[entry_ladder];
             let dev_entry = &devrows[entry_ladder];
+            // rows 构造前移到 master 段之前（SC 位的 sub_confirm 数据视图；
+            // 纯引用结构，零拷贝——voice 循环共用同一实例）。
+            let rows = BarRows {
+                evs: evrows,
+                devs: devrows,
+                buy_any: sig.buy_any,
+                sell_any: sig.sell_any,
+                dir_row: has_d3.then_some(&dir_state),
+                run_anchor: has_d3.then_some(&anchor_state),
+                depth: Some(&depth_ref),
+                l41: trend_exh.as_ref(),
+            };
 
             // ── master 循环（45课持股持币；C1：出场只认 MasterExitSignal）──
             if run.stop_on && c < run.entry_price * (1.0 - STOP_FRAC) {
@@ -398,17 +523,35 @@ pub fn run_organic(
                 }
                 // 升级出场（31课"历史性大顶"的级别相对化）在 REV 态同样有效
                 let exit_lad = (entry_ladder + 1).min(sig.max_ladder as usize);
+                let sc_m = !cfg.sc_master_exit
+                    || rows.sub_confirm(exit_lad, crate::buysellpoint::Side::Sell);
+                if exit_lad > entry_ladder && sig.sell1.get(exit_lad) && !sc_m {
+                    run.counters.n_sc_master_holds += 1;
+                }
                 if exit_lad > entry_ladder
-                    && MasterExitSignal::from_sell1_row(sig.sell1.get(exit_lad)).is_some()
+                    && MasterExitSignal::from_sell1_row_sub_confirmed(
+                        sig.sell1.get(exit_lad),
+                        sc_m,
+                    )
+                    .is_some()
                 {
                     run.counters.n_exit_upgraded += 1;
                     let reason = format!("exit_{}_earning_upgrade", ladder_name(exit_lad));
                     run.close_position(i as i64, c, &reason);
                 }
             } else {
-                // master RIDE：出场判定（C1——唯一输入是 policy 层 sell1 行）
-                let trigger =
-                    MasterExitSignal::from_sell1_row(sig.sell1.get(entry_ladder)).is_some();
+                // master RIDE：出场判定（C1——唯一输入是 policy 层 sell1 行；
+                // SCm：sell1 ∧ 次级别卖确认——27课区间套的出场时机细化）
+                let sc_m = !cfg.sc_master_exit
+                    || rows.sub_confirm(entry_ladder, crate::buysellpoint::Side::Sell);
+                if sig.sell1.get(entry_ladder) && !sc_m {
+                    run.counters.n_sc_master_holds += 1;
+                }
+                let trigger = MasterExitSignal::from_sell1_row_sub_confirmed(
+                    sig.sell1.get(entry_ladder),
+                    sc_m,
+                )
+                .is_some();
                 if trigger {
                     let earning =
                         run.pos.as_ref().is_some_and(|p| p.phase.is_earning());
@@ -436,8 +579,17 @@ pub fn run_organic(
                     && run.pos.as_ref().is_some_and(|p| p.phase.is_earning())
                 {
                     let exit_lad = (entry_ladder + 1).min(sig.max_ladder as usize);
+                    let sc_u = !cfg.sc_master_exit
+                        || rows.sub_confirm(exit_lad, crate::buysellpoint::Side::Sell);
+                    if exit_lad > entry_ladder && sig.sell1.get(exit_lad) && !sc_u {
+                        run.counters.n_sc_master_holds += 1;
+                    }
                     if exit_lad > entry_ladder
-                        && MasterExitSignal::from_sell1_row(sig.sell1.get(exit_lad)).is_some()
+                        && MasterExitSignal::from_sell1_row_sub_confirmed(
+                            sig.sell1.get(exit_lad),
+                            sc_u,
+                        )
+                        .is_some()
                     {
                         run.counters.n_exit_upgraded += 1;
                         let reason = format!("exit_{}_earning_upgrade", ladder_name(exit_lad));
@@ -451,14 +603,6 @@ pub fn run_organic(
             }
 
             // ── voice 声部（main 腿 = P4 离开段腿；osc/rev = VoiceUnit）──
-            let rows = BarRows {
-                evs: evrows,
-                devs: devrows,
-                buy_any: sig.buy_any,
-                sell_any: sig.sell_any,
-                dir_row: has_d3.then_some(&dir_state),
-                run_anchor: has_d3.then_some(&anchor_state),
-            };
             // frac 快照（11×f64 复制规避闭包对 run.alloc 的跨字段借用）
             let level_frac = run.pos.as_ref().expect("LONG ⇒ pos 存在").level_frac;
             let structure = cfg.sizing == Sizing::Structure;
@@ -479,19 +623,34 @@ pub fn run_organic(
                             LegAnchor::Center { cs, .. } => cs,
                             LegAnchor::SegmentScale => None,
                         };
-                        let normal = evs.iter().any(|e| {
+                        let normal_raw = evs.iter().any(|e| {
                             e.confirmed
                                 && matches!(e.class, BspClass::Buy1)
                                 && (!cfg.same_center_close || e.cs == anchor_cs)
                         });
+                        // SCc：同锚 Buy1 闭腿 ∧ 次级别买确认（27课区间套的
+                        // 买回时机细化；pre/hard type3 通道不受 SCc 影响）
+                        let normal = normal_raw
+                            && (!cfg.sc_main_close
+                                || rows.sub_confirm(ladder, crate::buysellpoint::Side::Buy));
+                        if normal_raw && !normal {
+                            run.counters.n_sc_main_close_holds += 1;
+                        }
                         let pre = cfg.pre_type3
                             && evs
                                 .iter()
                                 .any(|e| !e.confirmed && matches!(e.class, BspClass::Buy3));
-                        let hard = cfg.hard_type3
+                        // SC7：main hard（confirmed Buy3）∧ 次级别买确认
+                        let hard_raw = cfg.hard_type3
                             && evs
                                 .iter()
                                 .any(|e| e.confirmed && matches!(e.class, BspClass::Buy3));
+                        let hard = hard_raw
+                            && (!cfg.sc_t7_close
+                                || rows.sub_confirm(ladder, crate::buysellpoint::Side::Buy));
+                        if hard_raw && !hard {
+                            run.counters.n_sc_t7_holds += 1;
+                        }
                         if normal {
                             pos.close_diff(mkey, c, i as i64);
                             run.counters.n_close_normal += 1;
@@ -530,6 +689,14 @@ pub fn run_organic(
                                 run.counters.n_open_gate_rejects += 1;
                                 continue;
                             }
+                        }
+                        // SCo：降成本腿卖开 ∧ 次级别卖确认（27课区间套的
+                        // 卖出时机细化——次级别向上走势结束证据）
+                        if cfg.sc_main_open
+                            && !rows.sub_confirm(ladder, crate::buysellpoint::Side::Sell)
+                        {
+                            run.counters.n_sc_main_open_rejects += 1;
+                            continue;
                         }
                         pos.open_diff(
                             mkey,
@@ -584,6 +751,9 @@ pub fn run_organic(
 
     let mut res = run.res;
     res.counters = run.counters;
+    if diag {
+        res.center_amp_log = depth_ref.take_log();
+    }
     res.leg_contribution =
         run.fsm_recovered.into_iter().map(|(k, (cash, cnt))| (k, cash, cnt)).collect();
     Ok(res)

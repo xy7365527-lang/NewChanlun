@@ -58,13 +58,57 @@ impl LadderMask {
     }
 }
 
+/// REV 路径键容量（递归赋格深度上限 = MAX_REV_DEPTH − 1）。
+/// 数据界：depth = k − FIRST_BSP_LADDER ≤ 2（设计报告 §4.3），4 留一档余量。
+pub const MAX_REV_DEPTH: usize = 4;
+
+/// REV 槽的路径键（递归赋格任务，2026-06-11）。定长数组保 Copy/Hash。
+///
+/// `segs[0]` = tranche 确认级别（与旧 `Rev(usize)` 同义——深度 0 时本类型
+/// 是旧编码的同构替换，py_key/leg_kind 投影逐位不变）；
+/// `segs[1..len]` = 嵌套子 LOU 的级别坐标（深度 n 的子腿，符号交替塔
+/// (−1)^n：奇数深度 = 反弹腿先买后卖，偶数深度 = 短差先卖后买）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct RevPath {
+    segs: [u8; MAX_REV_DEPTH],
+    len: u8,
+}
+
+impl RevPath {
+    /// 单段路径（= 旧 `Rev(level)` 语义）。
+    pub fn single(level: usize) -> Self {
+        debug_assert!(level < 256);
+        let mut segs = [0u8; MAX_REV_DEPTH];
+        segs[0] = level as u8;
+        RevPath { segs, len: 1 }
+    }
+
+    /// 追加一级（子 LOU 腿）。容量满时 panic——调用方（runner capability
+    /// guard）保证 rev_sub_depth + 1 ≤ MAX_REV_DEPTH，到达即 bug。
+    pub fn child(self, sub_level: usize) -> Self {
+        assert!(
+            (self.len as usize) < MAX_REV_DEPTH,
+            "RevPath 容量耗尽：guard 必须拒绝 rev_sub_depth ≥ MAX_REV_DEPTH"
+        );
+        let mut segs = self.segs;
+        segs[self.len as usize] = sub_level as u8;
+        RevPath { segs, len: self.len + 1 }
+    }
+
+    /// 递归深度（0 = 普通 REV 腿；n = 第 n 层子腿）。
+    pub fn depth(self) -> usize {
+        self.len as usize - 1
+    }
+}
+
 /// 腿类别。Python 槽键算术（ladder / +100 / +200）的类型化替代。
-/// `Rev(usize)` 携带 tranche 确认级别（C4：级别隔离自然延伸到 tranche 级）。
+/// `Rev(RevPath)` 携带 tranche 确认级别 + 嵌套子腿路径（递归赋格任务：
+/// C4 级别隔离延伸到 tranche 级 + 任意深度子 LOU 坐标）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum LegClass {
     Main,
     Osc,
-    Rev(usize),
+    Rev(RevPath),
 }
 
 /// 账本槽键。
@@ -82,26 +126,34 @@ impl SlotKey {
         SlotKey { ladder, leg: LegClass::Osc }
     }
     pub fn rev(home: usize, level: usize) -> Self {
-        SlotKey { ladder: home, leg: LegClass::Rev(level) }
+        SlotKey { ladder: home, leg: LegClass::Rev(RevPath::single(level)) }
+    }
+
+    /// 路径键构造（递归子腿）。
+    pub fn rev_path(home: usize, path: RevPath) -> Self {
+        SlotKey { ladder: home, leg: LegClass::Rev(path) }
     }
 
     /// Python 整数槽键投影（trace/归因报告兼容：main=ladder / osc=+100 / rev=+200）。
     /// Rev tranche 的 level 不进键投影（Python v1 单 rev 槽无对应物；level 由
-    /// `leg_name` 单列报告）。
+    /// `leg_name` 单列报告）。递归子腿（depth ≥ 1）无 Python oracle——投影
+    /// 显式扩区为 +200+100×depth（depth1=+300），与在册 +200 区不混表
+    /// （Python parity 边界重划，设计报告 §5.1）。
     pub fn py_key(self) -> i64 {
         match self.leg {
             LegClass::Main => self.ladder as i64,
             LegClass::Osc => self.ladder as i64 + 100,
-            LegClass::Rev(_) => self.ladder as i64 + 200,
+            LegClass::Rev(p) => self.ladder as i64 + 200 + 100 * p.depth() as i64,
         }
     }
 
-    /// 腿类型名（trace `leg` 字段：与 Python `leg_kind` 逐字）。
+    /// 腿类型名（trace `leg` 字段：与 Python `leg_kind` 逐字；递归子腿新词）。
     pub fn leg_kind(self) -> &'static str {
         match self.leg {
             LegClass::Main => "main",
             LegClass::Osc => "osc",
-            LegClass::Rev(_) => "rev",
+            LegClass::Rev(p) if p.depth() == 0 => "rev",
+            LegClass::Rev(_) => "rev_sub",
         }
     }
 }
@@ -357,9 +409,105 @@ pub struct Counters {
     pub rev_osc_wins: u64,
     pub rev_esc_pairs: u64,
     pub rev_esc_wins: u64,
+    // ── 盘背递归正则化消融可观测面（2026-06-11 任务，R1/R2/R3）──
+    /// R1 拒：盘背触发存在但次级别 Sell 证据不在 C 段窗口内（且无其他触发源）。
+    pub n_rev_r1_rejects: u64,
+    /// R2 兑现：ZG 触线闭腿（reason 9，原文保证域兑现）。
+    pub n_rev_zg_close: u64,
+    /// R3 持有：candidate Buy3 出现但次级别"回跌不重回"证据缺失，t6 被抑制的 bar 数。
+    pub n_rev_r3_holds: u64,
+    /// θ 自适应 warm-up 回退：参照集样本 < min_obs ⇒ 使用 cfg.theta_depth
+    /// 固定值的开腿尝试数（仅 theta_mode=AdaptiveQuantile 计数）。
+    pub n_rev_theta_fallbacks: u64,
+    // ── 次级别确认完整递归可观测面（2026-06-11 任务，SC 六位）──
+    /// SCe：超时 bar 确认仍缺、legacy 会 fallback 入场而 strict 拒绝（每 ARMED 期一次）。
+    pub n_sc_entry_expire_skips: u64,
+    /// SCm：sell1 行真但次级别卖确认缺，master 出场被延迟的 bar 数。
+    pub n_sc_master_holds: u64,
+    /// SCo：合格卖事件存在但次级别卖确认缺，main 开腿被拒次数。
+    pub n_sc_main_open_rejects: u64,
+    /// SCc：同锚 confirmed Buy1 出现但次级别买确认缺，main 闭腿被延迟的 bar 数。
+    pub n_sc_main_close_holds: u64,
+    /// SCr：REV 开腿触发存在但次级别卖确认缺，开腿被拒次数。
+    pub n_sc_rev_open_rejects: u64,
+    /// SC7：confirmed Buy3 出现但次级别买确认缺，回补被延迟的 bar 数。
+    pub n_sc_t7_holds: u64,
+    // ── type2 消融可观测面（2026-06-11 任务，T2o/T2c）──
+    /// T2o：trigger 掩码含 bit3（confirmed Sell2 参与触发）的开腿数。
+    pub n_rev_sell2_open: u64,
+    /// T2c：confirmed Buy2 配对闭腿数（reason 10）。
+    pub n_rev_buy2_close: u64,
+    // ── 递归赋格子腿可观测面（2026-06-11 任务，rev_sub_depth ≥ 1）──
+    /// 子腿开腿（奇数深度反弹腿先买 / 偶数深度短差先卖）。
+    pub n_sub_open: u64,
+    /// 子腿信号闭腿（配对镜像谓词；不含级联强闭）。
+    pub n_sub_close: u64,
+    /// 子腿级联强闭（父腿闭合时未决子树腿的强制平仓）。
+    pub n_sub_forced_close: u64,
+    /// 开腿拒：子级别中枢振幅 < 2×sub_friction_rt（经济终止条件）。
+    pub n_sub_amp_rejects: u64,
+    /// 开腿拒：子级别无存活中枢（反弹腿的锚域不存在）。
+    pub n_sub_nocenter_rejects: u64,
+    /// 开腿拒：账本处于 EarningShares——金额守恒对先买后卖循环未定义
+    /// （声明=能力：显式拒绝并计数，不静默降级为另一守恒律）。
+    pub n_sub_earning_rejects: u64,
+    // ── P1 双门可观测面（2026-06-11 任务，Fractal 子腿）──
+    /// 成本门拒：该层典型中枢振幅 θ_q < sub_cost_k × sub_friction_rt
+    /// （35课：波幅不够覆盖往返成本的级别自动关闭）。
+    pub n_sub_cost_rejects: u64,
+    /// 成本门拒（参照不可定义）：θ_q 无参照集——bi 级无中枢事件流 /
+    /// warm-up 样本 < SUB_COST_MIN_OBS，保守拒绝（不静默放行先例）。
+    pub n_sub_cost_noref_rejects: u64,
+    /// 41课门拒：父级别（子腿 ladder+1）向下走势无衰竭迹象
+    /// （相邻同向段创新低 ∧ 无盘整背驰 = 趋势未完 = 不做反向）。
+    pub n_sub_l41_rejects: u64,
+    /// 子腿闭合对统计（win = profit > 0；含级联强闭）。
+    pub sub_pairs: u64,
+    pub sub_wins: u64,
     /// 净现金按类型分解（f64，lib.rs 单独 marshal——py_items 仅 u64）。
     pub rev_osc_cash: f64,
     pub rev_esc_cash: f64,
+    /// 子腿聚合净现金（O_sub1 判据的直接读数；f64 同上单独 marshal）。
+    pub sub_cash: f64,
+    // ── REV 腿逐腿日志（trade_behavior 行为分解，2026-06-11 任务）──
+    // 仅 rev_paired 路径产出（legacy 腿无 kind/锚概念——声明=能力）。
+    // PyO3 不可见：py_items 与 lib.rs marshal 均不含 → 在册对账面零侵入。
+    pub rev_open_log: Vec<RevOpenLog>,
+    pub rev_close_log: Vec<RevCloseLog>,
+}
+
+/// REV 腿开腿日志行（rev_paired_open 开腿成功点记录）。
+#[derive(Debug, Clone)]
+pub struct RevOpenLog {
+    pub ladder: u8,
+    pub bar: i64,
+    /// 0 = 震荡型（Oscillation），1 = 逃逸型（Escape）。
+    pub kind: u8,
+    /// 开腿触发位掩码：bit0 = confirmed Sell1（type1 卖），
+    /// bit1 = 盘整背驰卖（DivKind::Consolidation × Up），bit2 = confirmed Sell3，
+    /// bit3 = confirmed Sell2（T2o 轴，sell2_open）。
+    pub trigger: u8,
+    /// 锚中枢 seg_start（震荡型=存活中枢快照；逃逸型=被终结中枢）。
+    pub anchor_cs: Option<i64>,
+    /// 锚中枢边界（震荡型恒 Some；逃逸型 RevLeg.zd=None 不触线，此处仍记录
+    /// 事件自带边界供振幅分析）。
+    pub zd: Option<f64>,
+    pub zg: Option<f64>,
+    pub price: f64,
+}
+
+/// REV 腿闭腿日志行。reason: 5=T5 kind配对 Buy1、6=T6 candidate Buy3 预回补、
+/// 7=T7 confirmed Buy3 回补、8=ZD 触线（R2 延伸档触 ZD 同码）、
+/// 9=ZG 兑现（R2 原文保证域锚）、10=T2c confirmed Buy2 配对（buy2_close 轴）。
+/// 未出现在本日志的开腿 = 强平
+/// （master 出场/eod，按 (ladder, open_bar) 与开腿日志 join 可识别）。
+#[derive(Debug, Clone)]
+pub struct RevCloseLog {
+    pub ladder: u8,
+    pub open_bar: i64,
+    pub bar: i64,
+    pub reason: u8,
+    pub price: f64,
 }
 
 impl Counters {
@@ -400,6 +548,29 @@ impl Counters {
             ("rev_osc_wins", self.rev_osc_wins),
             ("rev_esc_pairs", self.rev_esc_pairs),
             ("rev_esc_wins", self.rev_esc_wins),
+            ("n_rev_r1_rejects", self.n_rev_r1_rejects),
+            ("n_rev_zg_close", self.n_rev_zg_close),
+            ("n_rev_r3_holds", self.n_rev_r3_holds),
+            ("n_rev_theta_fallbacks", self.n_rev_theta_fallbacks),
+            ("n_sc_entry_expire_skips", self.n_sc_entry_expire_skips),
+            ("n_sc_master_holds", self.n_sc_master_holds),
+            ("n_sc_main_open_rejects", self.n_sc_main_open_rejects),
+            ("n_sc_main_close_holds", self.n_sc_main_close_holds),
+            ("n_sc_rev_open_rejects", self.n_sc_rev_open_rejects),
+            ("n_sc_t7_holds", self.n_sc_t7_holds),
+            ("n_rev_sell2_open", self.n_rev_sell2_open),
+            ("n_rev_buy2_close", self.n_rev_buy2_close),
+            ("n_sub_open", self.n_sub_open),
+            ("n_sub_close", self.n_sub_close),
+            ("n_sub_forced_close", self.n_sub_forced_close),
+            ("n_sub_amp_rejects", self.n_sub_amp_rejects),
+            ("n_sub_nocenter_rejects", self.n_sub_nocenter_rejects),
+            ("n_sub_earning_rejects", self.n_sub_earning_rejects),
+            ("n_sub_cost_rejects", self.n_sub_cost_rejects),
+            ("n_sub_cost_noref_rejects", self.n_sub_cost_noref_rejects),
+            ("n_sub_l41_rejects", self.n_sub_l41_rejects),
+            ("sub_pairs", self.sub_pairs),
+            ("sub_wins", self.sub_wins),
         ]
     }
 }
@@ -450,5 +621,26 @@ mod tests {
         assert_eq!(SlotKey::main(2).py_key(), 2);
         assert_eq!(SlotKey::osc(3).py_key(), 103);
         assert_eq!(SlotKey::rev(2, 4).py_key(), 202);
+    }
+
+    #[test]
+    fn rev_path_keys_and_depth() {
+        // 深度 0 = 旧编码逐位投影（O0≡P5 守卫面：py_key/leg_kind 不变）
+        let p0 = RevPath::single(3);
+        assert_eq!(p0.depth(), 0);
+        assert_eq!(SlotKey::rev_path(3, p0), SlotKey::rev(3, 3));
+        assert_eq!(SlotKey::rev_path(3, p0).leg_kind(), "rev");
+        // 深度 1 子腿：py_key 扩区 +300，leg_kind 新词
+        let p1 = p0.child(2);
+        assert_eq!(p1.depth(), 1);
+        assert_eq!(SlotKey::rev_path(3, p1).py_key(), 303);
+        assert_eq!(SlotKey::rev_path(3, p1).leg_kind(), "rev_sub");
+        // 路径键互异（同 home 不同路径不混槽）
+        assert_ne!(SlotKey::rev_path(3, p1), SlotKey::rev_path(3, p0));
+        assert_ne!(SlotKey::rev_path(3, p1), SlotKey::rev_path(3, p0.child(1)));
+        // 深度 2：符号交替塔的下一层
+        let p2 = p1.child(1);
+        assert_eq!(p2.depth(), 2);
+        assert_eq!(SlotKey::rev_path(3, p2).py_key(), 403);
     }
 }

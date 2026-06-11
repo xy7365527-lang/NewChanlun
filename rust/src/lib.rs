@@ -865,6 +865,11 @@ struct PyRecursiveOrchestrator {
     trend_type2_seen: HashSet<(i64, i64)>,
     /// 上次扫描时见到的 bsp_epoch（epoch 未变 ⟹ prev_bsps 逐位不变 ⟹ O(1) 跳过）。
     trend_last_bsp_epoch: u64,
+    /// 走势级事件流去重集（复刻调用方 _scan_events_rust 的 seen；键含 confirmed——
+    /// candidate/confirmed 分别入流一次。与 trend_seen 独立——两接口调用时序解耦）。
+    trend_ev_seen: HashSet<(BspKind, Side, i64, bool)>,
+    /// 走势级背驰事件流去重集（复刻调用方 _scan_div_events 的 seen）。
+    trend_div_seen: HashSet<(divergence::DivKind, divergence::DivDir, i64)>,
 }
 
 #[pymethods]
@@ -903,6 +908,8 @@ impl PyRecursiveOrchestrator {
             trend_seen: HashSet::new(),
             trend_type2_seen: HashSet::new(),
             trend_last_bsp_epoch: 0,
+            trend_ev_seen: HashSet::new(),
+            trend_div_seen: HashSet::new(),
         }
     }
 
@@ -918,6 +925,8 @@ impl PyRecursiveOrchestrator {
         self.trend_seen.clear();
         self.trend_type2_seen.clear();
         self.trend_last_bsp_epoch = 0;
+        self.trend_ev_seen.clear();
+        self.trend_div_seen.clear();
     }
 
     fn current_strokes(
@@ -1294,6 +1303,111 @@ impl PyRecursiveOrchestrator {
             }
         }
         (b1, s1, sa, ba, type2_buy)
+    }
+
+    /// **走势级事件流 delta 接口**——marshal 只含新事件（ladder3 残留 O(N²) 项：
+    /// 每 bsp_epoch 变化 bar 全量 `current_buysellpoints()` marshal + Python 全量扫描，
+    /// CL 2.5M profile 实测两项 ~5.1s 且随 B 二次增长）。
+    ///
+    /// 返回 (buy1, sell1, sell_any, buy_any, list[event])，event =
+    /// (kind, side, seg_idx, confirmed, center_seg_start, center_zd, center_zg, price)。
+    /// 逐位等价于调用方 `_scan_events_rust(current_buysellpoints(), trend_seen)`
+    /// （organic_signals）：去重键 (kind,side,seg_idx,confirmed)，candidate/confirmed
+    /// 分别入流一次；布尔仅由新 confirmed 事件置位（与 `trend_new_signals` 3 元键的
+    /// 等价性：confirmed 事件 4 元键新 ⟺ 该 3 元键首次以 confirmed 出现）。
+    /// Rust 侧全量扫但只在 epoch 变化 bar 被调用（共 O(n_seg) 次）——与
+    /// `trend_new_signals` 同款成本结构 O(n_seg·n_bsp)，消除的是 marshal O(B) +
+    /// Python 逐元素扫描。调用契约：仅 bsp_epoch 变化 bar 调用（调用层既有门控）。
+    #[allow(clippy::type_complexity)]
+    fn take_trend_bsp_events(
+        &mut self,
+    ) -> (
+        bool,
+        bool,
+        bool,
+        bool,
+        Vec<(&'static str, &'static str, i64, bool, Option<usize>, f64, f64, f64)>,
+    ) {
+        let (mut b1, mut s1, mut sa, mut ba) = (false, false, false, false);
+        let mut events = Vec::new();
+        for bp in self.inner.buysellpoints() {
+            let key = (bp.kind, bp.side, bp.seg_idx, bp.confirmed);
+            if self.trend_ev_seen.contains(&key) {
+                continue;
+            }
+            self.trend_ev_seen.insert(key);
+            events.push((
+                bp.kind.as_str(),
+                bp.side.as_str(),
+                bp.seg_idx,
+                bp.confirmed,
+                bp.center_seg_start,
+                bp.center_zd,
+                bp.center_zg,
+                bp.price,
+            ));
+            if !bp.confirmed {
+                continue;
+            }
+            match bp.side {
+                Side::Buy => {
+                    ba = true;
+                    if bp.kind == BspKind::Type1 {
+                        b1 = true;
+                    }
+                }
+                Side::Sell => {
+                    sa = true;
+                    if bp.kind == BspKind::Type1 {
+                        s1 = true;
+                    }
+                }
+            }
+        }
+        (b1, s1, sa, ba, events)
+    }
+
+    /// **走势级背驰事件流 delta 接口**——行格式与 `current_trend_divergences` 同构
+    /// （(kind, direction, seg_c_end, force_a, force_c, price)），去重键
+    /// (kind, direction, seg_c_end) 下沉 Rust，marshal 只含新行。
+    /// 有效域同源接口：enable_macd_divergence=false（macd 路径 inc_seg_div 不更新，
+    /// 直接 panic——契约违例非数据问题）。调用契约：仅 bsp_epoch 变化 bar 调用。
+    fn take_trend_div_events(
+        &mut self,
+    ) -> Vec<(&'static str, &'static str, i64, f64, f64, f64)> {
+        if self.inner.macd_divergence_enabled() {
+            panic!(
+                "take_trend_div_events 有效域 = enable_macd_divergence=false（macd \
+                 回退路径走全量 compute_bsps，inc_seg_div 缓存不更新）"
+            );
+        }
+        let segs = self.inner.segments();
+        let mut out = Vec::new();
+        for d in self.inner.trend_divergences() {
+            let key = (d.kind, d.direction, d.seg_c_end);
+            if self.trend_div_seen.contains(&key) {
+                continue;
+            }
+            self.trend_div_seen.insert(key);
+            let idx = d.seg_c_end as usize;
+            let price = if idx < segs.len() {
+                match d.direction {
+                    divergence::DivDir::Top => segs[idx].high,
+                    divergence::DivDir::Bottom => segs[idx].low,
+                }
+            } else {
+                0.0
+            };
+            out.push((
+                d.kind.as_str(),
+                d.direction.as_str(),
+                d.seg_c_end,
+                d.force_a,
+                d.force_c,
+                price,
+            ));
+        }
+        out
     }
 
     /// 走势层内容变化纪元（O(1)）。调用层缓存上次值，未变 ⟹ `current_moves()` 逐位不变

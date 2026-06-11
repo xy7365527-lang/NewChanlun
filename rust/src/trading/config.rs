@@ -56,6 +56,22 @@ pub enum Sizing {
     Structure,
 }
 
+/// 深度门 θ 的取值方式（2026-06-11 θ 自适应任务）。
+///
+/// 严格性裁定（三方案对比，analysis/theta_adaptive_results.md §2）：
+///   方案A（锚自身振幅的分位数）= 自指退化（单个数无分位数）；
+///   方案C（标的级全样本固定分位数）= 回测期内前瞻（用未来中枢定过去门槛）；
+///   方案B（因果滚动分位数，本枚举 AdaptiveQuantile）= 最严格——零前瞻、
+///   零标的级拟合，q/window/min_obs 为预注册变体常数。
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ThetaMode {
+    /// θ ≡ cfg.theta_depth（在册基线语义，V2f/V2of/V2r 不变）。
+    Fixed,
+    /// θ_t(k) = 该层最近 window 个中枢相对振幅的 q 分位（nearest-rank，
+    /// 排除当前锚自身）；样本 < min_obs 回退 cfg.theta_depth。
+    AdaptiveQuantile { q: f64, window: usize, min_obs: usize },
+}
+
 /// REV 开腿锚定强度（C3 消融轴 S）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SubAnchor {
@@ -94,16 +110,130 @@ pub struct OrganicConfig {
     pub rev_paired: bool,
     /// 深度门槛：开 REV 前要求锚中枢振幅 (ZG−ZD)/price ≥ θ_depth（初值 1%）。
     /// 0.0 = 门关（V2p：配对修正的独立因果隔离位）。仅 rev_paired 路径消费。
+    /// theta_mode=AdaptiveQuantile 时本值降为 warm-up 回退值。
     pub theta_depth: f64,
+    /// θ 取值方式（Fixed = 在册基线；AdaptiveQuantile = 因果滚动分位数）。
+    /// 仅 rev_paired 路径消费（legacy 腿无深度门概念）。
+    pub theta_mode: ThetaMode,
     /// 逃逸型开腿开关（kind 标注的消融轴）：首跑 kind 分解显示逃逸型三标的
     /// 一致为负（OKLO V2p −4.4K / V2f −39.8K，QQQ −10.1K）而震荡型胜率 53%+——
     /// false = 只开震荡型（V2o/V2of）。仅 rev_paired 路径消费。
     pub rev_escape_open: bool,
+    // ── 盘背递归正则化消融位（2026-06-11 任务；调研报告
+    //    analysis/consolidation_div_regularization_research.md §4）──
+    /// R1：盘背卖开腿要求次级别 Sell 侧证据（卖侧背驰 ∪ confirmed Sell1）落在
+    /// 次级别最近 Up run 窗口内（≈ 本级别 C 段，27课区间套一步收缩）。
+    /// 仅约束盘背触发源（bit1）；Sell1 触发的震荡型开腿不受影响。
+    /// 需要 D3 dir_flips 行（run_anchor 给窗口起点）。仅 rev_paired 路径消费。
+    pub r1_sub_sell_open: bool,
+    /// R2：震荡型兑现锚 ZD→ZG（对齐原文保证域"理论只能保证其回拉原来的走势
+    /// 中枢"，第24课/编纂版第四节）。ZD 降为条件延伸目标：触 ZG 时次级别回拉
+    /// 走势尚未完成（腿生命期内无次级别买侧证据）且延伸档门过（中枢振幅 ≥ θ）
+    /// 则持有至 ZD/次级别买证据。深度门语义同步：(c−ZG)/c ≥ θ（可兑现段）。
+    /// 仅 rev_paired 震荡型消费。
+    pub r2_anchor_zg: bool,
+    /// R3：t6 预回补（candidate Buy3）要求次级别"回跌不重回中枢"已成立证据：
+    /// 腿生命期内次级别买侧证据已出现 ∧ 回拉低点 > ZG。证据缺失时 t6 不触发
+    /// （T7 confirmed Buy3 不变）。仅 rev_paired 震荡型消费。
+    pub r3_t6_sub_confirm: bool,
+    // ── 次级别确认完整递归消融位（2026-06-11 任务；27课区间套延拓到全部
+    //    操作点。统一谓词 BarRows::sub_confirm = 同 bar 事件证据 ∨ D3 方向行
+    //    结构证据——非 R1 的窗口记忆形式，bi 层有 D3 行故有效域非空）──
+    /// SCe：ARMED→入场取消 SUB_EXPIRY 超时 fallback——无次级别买确认不入场
+    /// （type1 买开仓的严格区间套；超时后继续等待直到确认或 sell1 撤防）。
+    pub sc_entry_strict: bool,
+    /// SCm：master type1 卖出场（含 earning 升级出场）要求次级别卖侧确认
+    /// （次级别向上走势结束证据）。确认缺失时本 bar 持有（出场延迟可观测）。
+    pub sc_master_exit: bool,
+    /// SCo：main 降成本腿卖开（type1/type2 卖）要求次级别卖侧确认。
+    pub sc_main_open: bool,
+    /// SCc：main 腿同锚 confirmed Buy1 闭腿（normal）要求次级别买侧确认
+    /// （次级别向下走势结束证据）。pre/hard type3 通道不受影响。
+    pub sc_main_close: bool,
+    /// SCr：REV 开腿（rev_paired 全触发源）要求次级别卖侧确认。与 R1 的差异：
+    /// R1 = 窗口记忆 + 仅事件证据（k=2 空定义域反选，已否证）；SCr = 同 bar
+    /// 共现 + D3 方向行（bi 层有效域非空）。仅 rev_paired 路径消费。
+    pub sc_rev_open: bool,
+    /// SC7：confirmed Buy3 回补（main hard / REV T7）要求次级别买侧确认
+    /// （24课"回抽不破"的次级别形式）。candidate Buy3（t6/pre）不加确认——
+    /// R3 判决先例：抑制 t6 只把出场漏到更差价位。预注册风险：与 R3 同构
+    /// （延迟 type3 通道出场），若 REV 净恶化即否证。
+    pub sc_t7_close: bool,
+    // ── type2 消融位（2026-06-11 任务；C段修复后 type2 0→数百解锁）──
+    /// T2o：confirmed Sell2 入配对开腿震荡型触发集（17课对称/定律一：type2 卖
+    /// = type1 卖后次级别下跌结束再上涨不创新高的结束点——顶部确认，比 Sell1
+    /// 更确认的反向段开启信号）。锚解析与 Sell1 同路径（alive 中枢 + 深度门），
+    /// trigger 掩码 bit3。仅 rev_paired 路径消费；与 legacy 轴 `sell2_trigger`
+    /// 互不相通。
+    pub sell2_open: bool,
+    /// T2c：confirmed Buy2 入配对闭腿集（reason=10），配对规则镜像 Buy1：
+    /// 震荡型同锚（e.cs == 锚 cs）/ 逃逸型任意锚。定律一：type2 由次级别
+    /// type1 构成——type1 买说"下跌可能结束"，type2 买说"确实结束"（回落不
+    /// 创新低），REV 空腿假设在此被结构性否证 ⇒ 回补。默认 false 时 Buy2
+    /// 仍计入 n_rev_mismatch_holds（反事实可观测不变）。仅 rev_paired 消费。
+    pub buy2_close: bool,
     pub sizing: Sizing,
     pub earning_reaction: bool,
     pub market_mode: MarketMode,
     /// T4b-(c) run_anchor 归属容差（设计未给值的实现常数，显式化为配置而非魔数）。
     pub t4b_anchor_margin: i64,
+    // ── 递归赋格（2026-06-11 任务；analysis/recursive_fugue_ultimate_design.md）──
+    /// REV 腿内嵌套子 LOU 的最大深度。0 = 在册行为（无子腿，O0≡P5/V2of 零接触）；
+    /// 1 = voice REV 窗口内 k−1 级别反弹腿（深度1 L2 实验）。符号交替塔：
+    /// 奇数深度先买后卖，偶数深度先卖后买。仅 rev_paired 路径消费（runner guard）。
+    /// 递归终止 = 深度预算 ∧ 子级别 ≥ FIRST_BSP_LADDER ∧ 振幅 ≥ 2×sub_friction_rt。
+    pub rev_sub_depth: usize,
+    /// 子腿往返摩擦成本（比例）。经济终止条件：子级别锚中枢相对振幅
+    /// (ZG−ZD)/c < 2×本值 ⇒ 拒开（期望必负，设计报告 §4.1 经济下限）。
+    /// 默认 0.001（≈10bps 往返，卖飞修复 be9.7bps 先例的量级锚定）。
+    /// 仅 Zhongshu 模式消费（Fractal 无中枢振幅可测——分型即信号）。
+    pub sub_friction_rt: f64,
+    /// 子腿操作锚模式（2026-06-11 笔级分型任务）。
+    /// Zhongshu = 在册行为（开闭腿以 k−1 存活中枢 ZG/ZD 为域——O_sub0 两票
+    /// 否证的对象：74% 宿主被"无中枢"拒，父腿趋势运行中子域不可定义）；
+    /// Fractal = 38课向下段程式的笔级直读："顶卖底买"以 D3 方向行翻转为
+    /// 进出点（翻 Down=顶分型确认→卖，翻 Up=底分型确认→买回），不需要
+    /// 中枢域。原文依据：第38课"根据其内部结构可以判断其背驰或盘整背驰
+    /// 结束点，先卖出……不跌破第一段低点，重新买入"——操作锚是段/笔的
+    /// 转折点，非中枢边界。仅 rev_sub_depth > 0 时消费。
+    pub sub_mode: SubMode,
+    // ── P1 双门（2026-06-11 任务；Fractal 子腿的 35课成本门 + 41课门）──
+    /// 成本门（35课："交易成本+交易误差相对波幅不够小的级别，长期操作没有
+    /// 意义"）。Fractal 子腿无逐腿锚振幅可测（分型即信号），级别可操作性
+    /// 用该层中枢振幅的因果滚动中位数 θ_q（DepthRef，零前瞻）度量：
+    /// θ_eff = max(θ_q, sub_cost_k × sub_friction_rt)；级别可操作 ⟺
+    /// θ_q ≥ θ_eff ⟺ θ_q ≥ k×friction——典型振幅不够覆盖 k 倍往返成本的
+    /// 级别自动关闭（n_sub_cost_rejects 可观测）。参照不可定义的级别
+    /// （bi 级无中枢事件流 / warm-up 样本不足）保守拒绝并独立计数
+    /// （n_sub_cost_noref_rejects，"不静默放行"先例）。仅 Fractal 消费
+    /// （Zhongshu 模式的逐锚 2×sub_friction_rt 经济门已是其成本门形态）。
+    pub sub_cost_gate: bool,
+    /// 成本门倍数 k（θ 下限 = k × sub_friction_rt；35课"不够小"的量化档）。
+    pub sub_cost_k: f64,
+    /// 41课门（41课："大级别走势没有任何衰竭时参与反向小级别买卖点是刀口
+    /// 舔血"）。子腿开腿前检查直接父级别（self.ladder+1）走势衰竭状态
+    /// （TrendExhaustion，市场性质）：相邻同向（Down）段创新低 ∧ 当前段窗口
+    /// 内无盘整背驰 = 趋势未完 = 拒开（n_sub_l41_rejects 可观测）。
+    /// 与 rev_gate（C7 FatigueGate）的差异：数据基础是 D3 方向行 + close
+    /// 序列 + div 事件流（当前磁带已产出），非 run_high 行（未产出，
+    /// rev_gate fail-fast）。仅 Fractal 子腿消费。
+    pub sub_l41_gate: bool,
+}
+
+/// 成本门 θ_q 的分位数（中位数 = 该层"典型"中枢振幅；35课判据是级别的
+/// 常态波幅，非尾部）。预注册常数，不做标的级拟合（方案 C 前瞻否定先例）。
+pub const SUB_COST_Q: f64 = 0.5;
+/// 成本门参照集最小样本数（与 θ 自适应变体 min_obs=10 同值——warm-up 期
+/// 参照不可定义，保守拒绝不静默放行）。
+pub const SUB_COST_MIN_OBS: usize = 10;
+
+/// 递归子腿的操作锚模式（见 `OrganicConfig::sub_mode`）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SubMode {
+    /// 中枢域锚（在册）：开腿需 k−1 存活中枢，ZG/ZD 为边界。
+    Zhongshu,
+    /// 笔级分型锚（38课直读）：方向行翻转为进出点，存在论下限 = bi 级。
+    Fractal,
 }
 
 impl Default for OrganicConfig {
@@ -125,11 +255,29 @@ impl Default for OrganicConfig {
             sell2_trigger: false,
             rev_paired: false,
             theta_depth: 0.0,
+            theta_mode: ThetaMode::Fixed,
             rev_escape_open: true,
+            r1_sub_sell_open: false,
+            r2_anchor_zg: false,
+            r3_t6_sub_confirm: false,
+            sc_entry_strict: false,
+            sc_master_exit: false,
+            sc_main_open: false,
+            sc_main_close: false,
+            sc_rev_open: false,
+            sc_t7_close: false,
+            sell2_open: false,
+            buy2_close: false,
             sizing: Sizing::Equal,
             earning_reaction: false,
             market_mode: MarketMode::Stock,
             t4b_anchor_margin: 0,
+            rev_sub_depth: 0,
+            sub_friction_rt: 0.001,
+            sub_mode: SubMode::Zhongshu,
+            sub_cost_gate: false,
+            sub_cost_k: 2.0,
+            sub_l41_gate: false,
         }
     }
 }
@@ -248,6 +396,126 @@ pub fn variant(name: &str) -> Option<OrganicConfig> {
             rev_escape_open: false,
             ..base
         }),
+        // ── θ 自适应深度门（2026-06-11 任务；基线 = V2of/V2r 的 θ=1% 固定门）──
+        // 预注册常数：window=50 / min_obs=10 / q ∈ {0.25, 0.50}——不做标的级
+        // 拟合（方案 C 被否定为回测期内前瞻）。theta_depth=0.01 保留为 warm-up
+        // 回退值（样本不足时维持基线门，不静默放行）。
+        "V2oa25" => Some(OrganicConfig {
+            theta_mode: ThetaMode::AdaptiveQuantile { q: 0.25, window: 50, min_obs: 10 },
+            ..variant("V2of").expect("V2of 在上方注册")
+        }),
+        "V2oa50" => Some(OrganicConfig {
+            theta_mode: ThetaMode::AdaptiveQuantile { q: 0.50, window: 50, min_obs: 10 },
+            ..variant("V2of").expect("V2of 在上方注册")
+        }),
+        // ── 盘背递归正则化消融矩阵（2026-06-11；基线 = V2r，三位独立掩码）──
+        "V2rR1" => Some(OrganicConfig {
+            r1_sub_sell_open: true,
+            ..variant("V2r").expect("V2r 在上方注册")
+        }),
+        "V2rR2" => Some(OrganicConfig {
+            r2_anchor_zg: true,
+            ..variant("V2r").expect("V2r 在上方注册")
+        }),
+        "V2rR3" => Some(OrganicConfig {
+            r3_t6_sub_confirm: true,
+            ..variant("V2r").expect("V2r 在上方注册")
+        }),
+        "V2rR12" => Some(OrganicConfig {
+            r1_sub_sell_open: true,
+            r2_anchor_zg: true,
+            ..variant("V2r").expect("V2r 在上方注册")
+        }),
+        "V2rR123" => Some(OrganicConfig {
+            r1_sub_sell_open: true,
+            r2_anchor_zg: true,
+            r3_t6_sub_confirm: true,
+            ..variant("V2r").expect("V2r 在上方注册")
+        }),
+        // ── 次级别确认完整递归消融矩阵（2026-06-11；基线 = V2r，六位独立掩码）──
+        "V2rSCe" => Some(OrganicConfig {
+            sc_entry_strict: true,
+            ..variant("V2r").expect("V2r 在上方注册")
+        }),
+        "V2rSCm" => Some(OrganicConfig {
+            sc_master_exit: true,
+            ..variant("V2r").expect("V2r 在上方注册")
+        }),
+        "V2rSCo" => Some(OrganicConfig {
+            sc_main_open: true,
+            ..variant("V2r").expect("V2r 在上方注册")
+        }),
+        "V2rSCc" => Some(OrganicConfig {
+            sc_main_close: true,
+            ..variant("V2r").expect("V2r 在上方注册")
+        }),
+        "V2rSCr" => Some(OrganicConfig {
+            sc_rev_open: true,
+            ..variant("V2r").expect("V2r 在上方注册")
+        }),
+        "V2rSC7" => Some(OrganicConfig {
+            sc_t7_close: true,
+            ..variant("V2r").expect("V2r 在上方注册")
+        }),
+        "V2rSCall" => Some(OrganicConfig {
+            sc_entry_strict: true,
+            sc_master_exit: true,
+            sc_main_open: true,
+            sc_main_close: true,
+            sc_rev_open: true,
+            sc_t7_close: true,
+            ..variant("V2r").expect("V2r 在上方注册")
+        }),
+        // ── type2 消融矩阵（2026-06-11；基线 = V2r，开腿/闭腿两位独立掩码）──
+        "V2rT2o" => Some(OrganicConfig {
+            sell2_open: true,
+            ..variant("V2r").expect("V2r 在上方注册")
+        }),
+        "V2rT2c" => Some(OrganicConfig {
+            buy2_close: true,
+            ..variant("V2r").expect("V2r 在上方注册")
+        }),
+        "V2rT2" => Some(OrganicConfig {
+            sell2_open: true,
+            buy2_close: true,
+            ..variant("V2r").expect("V2r 在上方注册")
+        }),
+        // ── 递归赋格深度1（2026-06-11；基线 = V2of，O_sub1/O_sub0 预注册判据）──
+        // depth=0 即 V2of 本体（基线不另设名）；S1 = REV 腿内挂 k−1 反弹腿。
+        "V2ofS1" => Some(OrganicConfig {
+            rev_sub_depth: 1,
+            ..variant("V2of").expect("V2of 在上方注册")
+        }),
+        // F1 = REV 窗口内 k−1 笔级分型短差腿（38课"向下段顶卖底买"直读，
+        // 不需要中枢域——O_sub0 否证的"无中枢拒"在此模式无定义域缺口）。
+        "V2ofF1" => Some(OrganicConfig {
+            rev_sub_depth: 1,
+            sub_mode: SubMode::Fractal,
+            ..variant("V2of").expect("V2of 在上方注册")
+        }),
+        // F2 = 分型子腿再嵌一层（depth=2：子腿开放窗口内 k−2 级分型短差，
+        // step_fractal 递归预算 path.depth() < rev_sub_depth ∧ k ≥ 2；
+        // P0-a 任务 2026-06-11，预注册判据 depth2 > depth1）。
+        "V2ofF2" => Some(OrganicConfig {
+            rev_sub_depth: 2,
+            sub_mode: SubMode::Fractal,
+            ..variant("V2of").expect("V2of 在上方注册")
+        }),
+        // ── P1 双门四格消融（2026-06-11；基线 = V2ofF1 裸分型子腿）──
+        // c = 仅成本门（35课）；g = 仅41课门；cg = 双门。
+        "V2ofF1c" => Some(OrganicConfig {
+            sub_cost_gate: true,
+            ..variant("V2ofF1").expect("V2ofF1 在上方注册")
+        }),
+        "V2ofF1g" => Some(OrganicConfig {
+            sub_l41_gate: true,
+            ..variant("V2ofF1").expect("V2ofF1 在上方注册")
+        }),
+        "V2ofF1cg" => Some(OrganicConfig {
+            sub_cost_gate: true,
+            sub_l41_gate: true,
+            ..variant("V2ofF1").expect("V2ofF1 在上方注册")
+        }),
         // 消融 R2：Sell2 入段终结触发集（§5.3 矩阵 Sell2 格的表态轴，exploratory）
         "VR2" => Some(OrganicConfig {
             rev_mode: true,
@@ -279,5 +547,42 @@ mod tests {
     fn o0_alias() {
         assert!(variant("O0").is_some());
         assert!(variant("nonexistent").is_none());
+    }
+
+    #[test]
+    fn p1_dual_gate_variants_inherit_v2off1() {
+        // 四格消融：裸（V2ofF1）门位全关；c/g/cg 仅差门位（其余逐位同基线）
+        let base = variant("V2ofF1").unwrap();
+        assert!(!base.sub_cost_gate && !base.sub_l41_gate);
+        assert_eq!(base.sub_cost_k, 2.0);
+        assert_eq!(base.sub_friction_rt, 0.001);
+        for (name, cost, l41) in [
+            ("V2ofF1c", true, false),
+            ("V2ofF1g", false, true),
+            ("V2ofF1cg", true, true),
+        ] {
+            let cfg = variant(name).unwrap();
+            assert_eq!(cfg.sub_cost_gate, cost, "{name}");
+            assert_eq!(cfg.sub_l41_gate, l41, "{name}");
+            assert_eq!(cfg.rev_sub_depth, 1);
+            assert_eq!(cfg.sub_mode, SubMode::Fractal);
+            assert_eq!(cfg.sub_cost_k, 2.0);
+        }
+    }
+
+    #[test]
+    fn theta_adaptive_variants_inherit_v2of() {
+        let v2of = variant("V2of").unwrap();
+        assert_eq!(v2of.theta_mode, ThetaMode::Fixed);
+        for (name, q) in [("V2oa25", 0.25), ("V2oa50", 0.50)] {
+            let cfg = variant(name).unwrap();
+            assert_eq!(
+                cfg.theta_mode,
+                ThetaMode::AdaptiveQuantile { q, window: 50, min_obs: 10 }
+            );
+            // 除 theta_mode 外与 V2of 逐位一致（含 θ=1% 回退值）
+            assert_eq!(cfg.theta_depth, 0.01);
+            assert!(cfg.rev_mode && cfg.rev_paired && !cfg.rev_escape_open);
+        }
     }
 }

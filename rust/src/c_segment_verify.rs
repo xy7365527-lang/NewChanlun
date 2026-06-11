@@ -238,3 +238,95 @@ fn c_segment_oklo_447k_per_level_bsp() {
     let l4_t1 = kind_total(ladder4, BspKind::Type1);
     assert!(l4_t1 > 0, "ladder4 type1 应 >0（修复前=0 全 type3），实际 {l4_t1}");
 }
+
+/// tranche 重验（任务卡【tranche递归建仓重验】）：
+/// 旧结论（`_rev_tranche_path2_section.md`）——tranche 目标区间
+/// `(home, entry_ladder−1]`，entry_ladder = 进场 bar 最高 **confirmed type1 BUY**
+/// 的 ladder（= buy1 掩码最高位）。旧 buy1 ladder 集合恒为 {2,3} ⟹ entry≤3 ⟹
+/// 区间 (2,2]=∅，是 buy1≤3 的定理。本测捕获 **(kind, side, confirmed) 三元计数**
+/// （上一测仅 (kind,confirmed) 折叠了 side），直接判定 ladder≥4 是否存在
+/// confirmed type1 buy（= buy1 掩码进位到 ≥4 ⟹ entry 上限 3→4 ⟹ 区间 (2,3] 非空）。
+///
+/// 与生产信号层 `organic_signals.compute_organic_signals` 同口径：buy1[ladder]
+/// 由 `_scan_events_rust` 在该 ladder 出现 **confirmed type1 buy** BSP 时置位
+/// （`_level_bsps_with_divs`→`buysellpoints_from_level`，与本测 `level_bsps` 同链）。
+/// 纯 Rust 闭环（无 Python/PyO3）。
+#[test]
+#[ignore = "长测试：OKLO 447K 全量逐 bar，显式运行"]
+fn c_segment_oklo_447k_tranche_side_split() {
+    let bars = load_ohlc();
+    assert_eq!(bars.len(), 447_739, "OKLO 447K 全时段");
+
+    let mut orch = RecursiveOrchestrator::new(8, "wide", 5, false, 3, false, true);
+    for b in &bars {
+        orch.process_bar(b[0], b[1], b[2], b[3]);
+    }
+
+    // ladder → BSP 集合（与上一测同口径构造）。
+    let mut per_level: Vec<(usize, Vec<BuySellPoint>)> =
+        vec![(2, bi_zhongshu_bsps(&orch)), (3, orch.buysellpoints().to_vec())];
+    let snaps = orch.recursive().to_vec();
+    let l1_moves = orch.moves().to_vec();
+    for (i, snap) in snaps.iter().enumerate() {
+        let prev_moves: &[Move] = if i == 0 { &l1_moves } else { &snaps[i - 1].moves };
+        let bsps = level_bsps(prev_moves, &snap.zhongshus, &snap.moves, snap.level_id);
+        per_level.push(((snap.level_id + 2) as usize, bsps));
+    }
+
+    // confirmed type1 BUY 计数（= buy1 掩码源），逐 ladder。
+    let mut buy1_ladders: Vec<usize> = Vec::new();
+    let mut report = String::from("{\n");
+    report.push_str(&format!("  \"n_bars\": {},\n", bars.len()));
+    report.push_str("  \"per_ladder\": {\n");
+    let n = per_level.len();
+    for (idx, (ladder, bsps)) in per_level.iter().enumerate() {
+        let cnt = |k: BspKind, s: crate::buysellpoint::Side, conf: bool| {
+            bsps.iter()
+                .filter(|b| b.kind == k && b.side == s && b.confirmed == conf)
+                .count()
+        };
+        let t1_buy_conf = cnt(BspKind::Type1, crate::buysellpoint::Side::Buy, true);
+        let t1_sell_conf = cnt(BspKind::Type1, crate::buysellpoint::Side::Sell, true);
+        let t2_buy_conf = cnt(BspKind::Type2, crate::buysellpoint::Side::Buy, true);
+        if t1_buy_conf > 0 {
+            buy1_ladders.push(*ladder);
+        }
+        println!(
+            "ladder{ladder}: type1_buy_confirmed={t1_buy_conf} \
+             type1_sell_confirmed={t1_sell_conf} type2_buy_confirmed={t2_buy_conf}"
+        );
+        let comma = if idx + 1 < n { "," } else { "" };
+        report.push_str(&format!(
+            "    \"ladder{ladder}\": {{\"type1_buy_confirmed\": {t1_buy_conf}, \
+             \"type1_sell_confirmed\": {t1_sell_conf}, \
+             \"type2_buy_confirmed\": {t2_buy_conf}}}{comma}\n"
+        ));
+    }
+    report.push_str("  },\n");
+    let entry_cap = buy1_ladders.iter().max().copied().unwrap_or(0);
+    let tranche_lo = 2usize; // home = floor = LADDER_SEG（旧报告 rev home k=2）
+    let tranche_nonempty = entry_cap > tranche_lo + 1; // 区间 (lo, entry−1] 非空 ⟺ entry−1 > lo
+    let tranche_layers = entry_cap.saturating_sub(tranche_lo + 1);
+    report.push_str(&format!("  \"buy1_ladders\": {buy1_ladders:?},\n"));
+    report.push_str(&format!("  \"entry_cap\": {entry_cap},\n"));
+    report.push_str(&format!("  \"tranche_interval\": \"({tranche_lo}, {}]\",\n",
+        entry_cap.saturating_sub(1)));
+    report.push_str(&format!("  \"tranche_nonempty\": {tranche_nonempty},\n"));
+    report.push_str(&format!("  \"tranche_layers\": {tranche_layers}\n"));
+    report.push_str("}\n");
+    println!("buy1_ladders={buy1_ladders:?} entry_cap={entry_cap} \
+              tranche_nonempty={tranche_nonempty} layers={tranche_layers}");
+
+    let out = Path::new(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../analysis/data_cache/tranche_recheck_side_split.json"
+    ));
+    fs::write(out, &report).expect("写 tranche 重验结果失败");
+    println!("已落盘: {}", out.display());
+
+    // 判据：旧定理 buy1⊆{2,3} 是否被打破（entry 上限是否 3→4）。
+    assert!(
+        buy1_ladders.contains(&4),
+        "tranche 解锁需 ladder4 出现 confirmed type1 buy（旧恒空），实际 buy1_ladders={buy1_ladders:?}"
+    );
+}
