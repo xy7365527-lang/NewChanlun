@@ -295,6 +295,34 @@ def _build_divergence(
     )
 
 
+def _next_settled_zs_seg_end(zhongshus: list[Zhongshu], after: int) -> int | None:
+    """B2（C 段越界极值定义）：`after` 之后第一个 settled 中枢的 seg_end。
+
+    贪心分组对 settled 中枢做连续分划 ⟹ 此中枢恰为下一 move 的首中枢——
+    C 段搜索窗口允许越入其覆盖区（第24课：背驰段终于走势转折点；相邻中枢
+    首尾相接时转折极值落在下一中枢覆盖区内，旧定义 c_start > c_end 使 C 段
+    在 settle 瞬间归零——见 analysis/engine_bsp_gap_diagnosis.md §2.2 机制二）。
+    None ⟺ 无后继 settled 中枢（pending move），调用方代入 n-1。
+    """
+    for k in range(after + 1, len(zhongshus)):
+        if zhongshus[k].settled:
+            return zhongshus[k].seg_end
+    return None
+
+
+def _trend_extreme_seg(
+    segments: list, lo: int, hi: int, direction: str,
+) -> int:
+    """B2：窗口 [lo, hi] 内的趋势极值段（down→最低 low，up→最高 high）。
+
+    平值取首个（`min`/`max` 返回首个最优元素，与 Rust 严格比较保持一致）。
+    """
+    rng = range(lo, hi + 1)
+    if direction == "down":
+        return min(rng, key=lambda k: segments[k].low)
+    return max(rng, key=lambda k: segments[k].high)
+
+
 def _trend_a_segment_range(zs_prev: Zhongshu, zs_last: Zhongshu) -> tuple[int, int]:
     """计算趋势背驰 A 段的 seg 范围（前中枢结束 → 后中枢开始）。"""
     a_start = zs_prev.seg_end + 1
@@ -377,7 +405,8 @@ def _detect_trend_divergence(
     1. move.kind == "trend" 且 zs_count >= 2
     2. 取 move 范围内最后两个 settled 中枢
     3. A 段 = 前中枢结束到后中枢开始
-    4. C 段 = 后中枢结束到 move 终点
+    4. C 段 = 后中枢结束+1 到 趋势极值段（B2：搜索窗口越界到下一 settled
+       中枢 seg_end，不被 move.seg_end 截断——背驰段终于走势转折点，第24课）
     5. T4 前提：B 段黄白线穿越 0 轴（仅有 MACD 时）
     6. 三维度 OR 判定（beichi.md #2 已结算）：
        - T2: force_c < force_a（面积）
@@ -397,9 +426,15 @@ def _detect_trend_divergence(
 
     a_start, a_end = _trend_a_segment_range(zs_prev, zs_last)
     c_start = zs_last.seg_end + 1
-    c_end = move.seg_end
-    if c_start > c_end or a_start >= len(segments) or c_end >= len(segments):
+    n = len(segments)
+    # B2（C 段越界极值定义）：C 段不被 move.seg_end 截断——
+    # 搜索窗口 = [c_start, 下一 settled 中枢 seg_end]（无 → n-1），
+    # C 段终点 = 窗口内趋势极值段（走势转折点，第24课）。
+    nxt = _next_settled_zs_seg_end(zhongshus, move_zs_indices[-1])
+    search_end = min(nxt if nxt is not None else n - 1, n - 1)
+    if c_start > search_end or a_start >= n:
         return None
+    c_end = _trend_extreme_seg(segments, c_start, search_end, move.direction)
 
     if not _trend_t4_check(segments, zs_last, df_macd, merged_to_raw, move_zs_indices[-1]):
         return None

@@ -217,13 +217,25 @@ def _group_to_move(
     direction: str,
     settled_zs: list[LevelZhongshu],
     settled_indices: list[int],
+    next_seg_start: int | None,
+    num_components: int | None,
 ) -> Move:
-    """将一个 group 转换为 Move。"""
+    """将一个 group 转换为 Move。
+
+    seg_end 扩展语义与 level-1 `a_move_v1._group_to_move` 逐字一致（修复A）：
+    非末组 = next_seg_start - 1；末组 = num_components - 1（>0 时）。
+    """
     first_zs = settled_zs[offsets[0]]
     last_zs = settled_zs[offsets[-1]]
     zs_count = len(offsets)
     zs_start = settled_indices[offsets[0]]
     zs_end = settled_indices[offsets[-1]]
+
+    base_seg_end = last_zs.comp_end
+    if next_seg_start is not None:
+        base_seg_end = next_seg_start - 1
+    elif num_components is not None and num_components > 0:
+        base_seg_end = num_components - 1
 
     if zs_count >= 2:
         kind: Literal["consolidation", "trend"] = "trend"
@@ -237,7 +249,7 @@ def _group_to_move(
         kind=kind,
         direction=move_dir,
         seg_start=first_zs.comp_start,
-        seg_end=last_zs.comp_end,
+        seg_end=base_seg_end,
         zs_start=zs_start,
         zs_end=zs_end,
         zs_count=zs_count,
@@ -251,8 +263,20 @@ def _group_to_move(
     )
 
 
-def moves_from_level_zhongshus(zhongshus: list[LevelZhongshu]) -> list[Move]:
-    """从 LevelZhongshu 列表构造 Move。"""
+def moves_from_level_zhongshus(
+    zhongshus: list[LevelZhongshu],
+    *,
+    num_components: int | None = None,
+) -> list[Move]:
+    """从 LevelZhongshu 列表构造 Move。
+
+    Parameters
+    ----------
+    num_components : int | None
+        组件总数（completed 组件序列长度）——末组 seg_end 扩展用，与 level-1
+        `moves_from_zhongshus` 的 num_segments 同义（修复A：递归层 move 边界
+        对齐 level-1，消除趋势背驰 C 段恒空——engine_bsp_gap_diagnosis §1.3）。
+    """
     settled_indices: list[int] = []
     settled_zs: list[LevelZhongshu] = []
     for idx, zs in enumerate(zhongshus):
@@ -264,10 +288,17 @@ def moves_from_level_zhongshus(zhongshus: list[LevelZhongshu]) -> list[Move]:
         return []
 
     groups = _greedy_group_zhongshus(settled_zs)
-    result = [
-        _group_to_move(offsets, direction, settled_zs, settled_indices)
-        for offsets, direction in groups
-    ]
+    result: list[Move] = []
+    for g_idx, (offsets, direction) in enumerate(groups):
+        if g_idx < len(groups) - 1:
+            next_first_offset = groups[g_idx + 1][0][0]
+            next_seg_start: int | None = settled_zs[next_first_offset].comp_start
+        else:
+            next_seg_start = None
+        result.append(_group_to_move(
+            offsets, direction, settled_zs, settled_indices,
+            next_seg_start, num_components,
+        ))
 
     if result:
         result[-1] = replace(result[-1], settled=False)

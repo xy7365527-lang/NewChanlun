@@ -652,11 +652,21 @@ class TestNestedDivergenceE2E:
             assert top_div.force_a > top_div.force_c
 
     def test_e2e_chain_divergences_are_trend_type(self):
-        """嵌套链中每个有效 Divergence 都是趋势背驰。"""
+        """嵌套链中每个有效 Divergence 都是趋势背驰，且全链同向。
+
+        B2（C 段越界极值）前，主上涨场景只可能出现 top 链（其余 C 段恒空）；
+        B2 解锁次级反向走势的合法背驰后，可出现独立的 bottom 链。区间套定理
+        要求的是**链内同向**（逐级定位同一转折点），不是全场景单向。
+        """
         snap = self._build_full_scenario()
         results = nested_divergence_search(snap)
+        top_chain_seen = False
         for nd in results:
+            top_dir = nd.chain[0][1].direction
+            if top_dir == "top":
+                top_chain_seen = True
             for level_id, div in nd.chain:
                 if div is not None:
                     assert div.kind == "trend"
-                    assert div.direction == "top"  # up trend → top divergence
+                    assert div.direction == top_dir  # 区间套同向链定理
+        assert top_chain_seen  # 主上涨场景的 top 链仍在

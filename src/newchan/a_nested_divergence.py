@@ -155,11 +155,23 @@ def _level_trend_ac_segments(
         a_start = a_end = zs_prev.comp_end
 
     c_start = zs_last.comp_end + 1
-    c_end = move.seg_end
-    if c_start > c_end:
+    n = len(components)
+    # B2（C 段越界极值定义，与 a_divergence_v1._detect_trend_divergence 同一概念
+    # 同一定义）：搜索窗口 = [c_start, 下一 settled 中枢 comp_end]（无 → n-1），
+    # C 段终点 = 窗口内趋势极值组件（走势转折点，第24课）。
+    nxt: int | None = None
+    for k in range(move_zs_indices[-1] + 1, len(zhongshus)):
+        if zhongshus[k].settled:
+            nxt = zhongshus[k].comp_end
+            break
+    search_end = min(nxt if nxt is not None else n - 1, n - 1)
+    if c_start > search_end or a_start >= n:
         return None
-    if a_start >= len(components) or c_end >= len(components):
-        return None
+    rng = range(c_start, search_end + 1)
+    if move.direction == "down":
+        c_end = min(rng, key=lambda k: components[k].low)
+    else:
+        c_end = max(rng, key=lambda k: components[k].high)
 
     return a_start, a_end, c_start, c_end
 
@@ -357,8 +369,15 @@ def _drill_down_mid_levels(
     top_level: int,
     snap: RecursiveOrchestratorSnapshot,
     current_range: tuple[int, int],
+    direction: str,
 ) -> tuple[list[tuple[int, Divergence | None]], tuple[int, int]]:
-    """逐级向下搜索中间级别，返回 (chain_entries, narrowed_range)。"""
+    """逐级向下搜索中间级别，返回 (chain_entries, narrowed_range)。
+
+    `direction`：高级别背驰方向（top/bottom）。区间套逐级定位**同一个**转折点
+    （第27课），链中各级背驰必然同向——反向背驰属于范围内次级别回调的力竭，
+    不指向同一转折。此过滤在 C 段恒空时代不可达（范围内次级背驰几乎不存在），
+    B2/修复A 解锁次级背驰后成为必要。
+    """
     chain: list[tuple[int, Divergence | None]] = []
     for mid_level in range(top_level - 1, 1, -1):
         mid_idx = mid_level - 2
@@ -371,6 +390,7 @@ def _drill_down_mid_levels(
         matched = _filter_divs_in_range(
             mid_divs, mid_components, mid_level, snap, current_range,
         )
+        matched = [d for d in matched if d.direction == direction]
         if not matched:
             break
         mid_div = matched[-1]  # 取最后一个（最新的）
@@ -386,10 +406,14 @@ def _drill_down_mid_levels(
 def _finalize_with_level1(
     snap: RecursiveOrchestratorSnapshot,
     current_range: tuple[int, int],
+    direction: str,
     df_macd: pd.DataFrame | None,
     merged_to_raw: list[tuple[int, int]] | None,
 ) -> tuple[tuple[int, Divergence] | None, tuple[int, int]]:
-    """level=1 最终检测（完整 MACD 支持），返回 (chain_entry, final_range)。"""
+    """level=1 最终检测（完整 MACD 支持），返回 (chain_entry, final_range)。
+
+    `direction` 过滤同 `_drill_down_mid_levels`（区间套同向链定理）。
+    """
     l1_divs = divergences_in_bar_range(
         snap.seg_snapshot.segments,
         snap.zs_snapshot.zhongshus,
@@ -399,6 +423,7 @@ def _finalize_with_level1(
         df_macd=df_macd,
         merged_to_raw=merged_to_raw,
     )
+    l1_divs = [d for d in l1_divs if d.direction == direction]
     if l1_divs:
         final_range = _div_to_bar_range(l1_divs[-1], 1, snap)
         return (1, l1_divs[-1]), final_range
@@ -419,11 +444,13 @@ def _build_nested_chain(
         return None
 
     chain: list[tuple[int, Divergence | None]] = [(top_level, top_div)]
-    mid_chain, current_range = _drill_down_mid_levels(top_level, snap, bar_range)
+    mid_chain, current_range = _drill_down_mid_levels(
+        top_level, snap, bar_range, top_div.direction,
+    )
     chain.extend(mid_chain)
 
     l1_entry, final_range = _finalize_with_level1(
-        snap, current_range, df_macd, merged_to_raw,
+        snap, current_range, top_div.direction, df_macd, merged_to_raw,
     )
     if l1_entry is not None:
         chain.append(l1_entry)

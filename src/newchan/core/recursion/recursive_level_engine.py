@@ -155,10 +155,13 @@ class RecursiveLevelEngine:
             )
         self._last_move_key = move_key
 
-        curr_zhongshus, _ = self._compute_zhongshus(move_snap)
+        curr_zhongshus, components = self._compute_zhongshus(move_snap)
         zs_events = self._diff_zhongshus(curr_zhongshus, move_snap)
 
-        curr_moves = moves_from_level_zhongshus(curr_zhongshus)
+        # 修复A：num_components = completed 组件数，末组 seg_end 扩展与 level-1 对齐。
+        curr_moves = moves_from_level_zhongshus(
+            curr_zhongshus, num_components=len(components),
+        )
         # persistence 附着移入引擎守卫内（与 level-1 MoveEngine 同构）。
         # 原 recursive_stack 在守卫外每 bar 无条件 attach_persistence；因
         # "move_key 未变 ⟹ 返回缓存 zhongshus ⟹ persistence 不变"，移入守卫内
