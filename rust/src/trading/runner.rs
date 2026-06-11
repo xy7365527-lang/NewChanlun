@@ -107,6 +107,9 @@ struct Run {
     entry_bar: i64,
     entry_price: f64,
     entry_ladder: usize,
+    /// Climb 模式的动态出场级别（入场时 = entry_ladder，随高层趋势结构
+    /// 涌现单调上升；仅 ExitMode::Climb 路径读取）。
+    exit_ladder: usize,
     arm_bar: i64,
     arm_ladder: usize,
     pos: Option<OrganicLedger>,
@@ -129,6 +132,7 @@ impl Run {
         self.entry_bar = bar;
         self.entry_price = price;
         self.entry_ladder = el;
+        self.exit_ladder = el;
         self.active_levels = (self.floor_ladder..el).collect();
         let n_sub = self.active_levels.len();
         let level_frac = if n_sub > 0 { 1.0 / n_sub as f64 } else { 0.0 };
@@ -455,6 +459,24 @@ pub fn run_organic(
                 .to_string(),
         );
     }
+    if matches!(cfg.exit_mode, ExitMode::Climb { .. }) {
+        if !tape.has_trend_rows() {
+            return Err(
+                "exit_mode=Climb（出场级别爬梯）要求磁带 trend_flips 行——
+                 爬梯条件 = 高层 kind==Trend（17课 ≥2 同向中枢），无行即无
+                 趋势结构判据（不提供方向行代理降级：方向 ≠ 趋势，Cycle38
+                 guard 同先例）"
+                    .to_string(),
+            );
+        }
+        if !tape.has_dir_rows() {
+            return Err(
+                "exit_mode=Climb 要求磁带 dir_flips 行（D3）——趋势结构的
+                 方向分量（dir==Up）依赖方向行（Cycle38 宿主趋势态同先例）"
+                    .to_string(),
+            );
+        }
+    }
     if cfg.exit_mode != ExitMode::Signal && cfg.earning_reaction {
         return Err(
             "exit_mode≠Signal × earning_reaction 组合未定义：earning 升级出场
@@ -481,6 +503,7 @@ pub fn run_organic(
         entry_bar: -1,
         entry_price: 0.0,
         entry_ladder: usize::MAX,
+        exit_ladder: usize::MAX,
         arm_bar: -1,
         arm_ladder: LADDER_MOVE,
         pos: None,
@@ -527,7 +550,8 @@ pub fn run_organic(
     // 侧）或 rev_l41_gate（REV 主腿，Up 侧）任一变体实例化。
     let mut trend_exh = (cfg.sub_l41_gate
         || cfg.rev_l41_gate
-        || cfg.exit_mode == ExitMode::HoldTrend)
+        || cfg.exit_mode == ExitMode::HoldTrend
+        || cfg.exit_mode == (ExitMode::Climb { hold_trend: true }))
         .then(TrendExhaustion::new);
 
     for i in 0..n {
@@ -657,6 +681,22 @@ pub fn run_organic(
                 trend_row: has_trend.then_some(&trend_state),
             };
 
+            // ── Climb：出场级别动态爬梯（2026-06-11 任务）。预注册判据：
+            // max_ladder > exit_ladder ∧ 该层趋势结构（trend_state[top] ∧
+            // dir==Up——Cycle38 宿主趋势态先例）⇒ exit_ladder = max_ladder。
+            // 单调上升，不降级；爬梯先于本 bar 出场判定（出场判据即刻升级，
+            // 旧级别 sell1 的短差机会由 voice 承载——HoldTrend 同语义）。──
+            if matches!(cfg.exit_mode, ExitMode::Climb { .. }) {
+                let top = (sig.max_ladder as usize).min(MAX_LADDER - 1);
+                if top > run.exit_ladder
+                    && trend_state[top]
+                    && dir_state[top] == Some(crate::stroke::Direction::Up)
+                {
+                    run.exit_ladder = top;
+                    run.counters.n_exit_climbs += 1;
+                }
+            }
+
             // ── master 循环（45课持股持币；C1：出场只认 MasterExitSignal）──
             if run.stop_on && c < run.entry_price * (1.0 - STOP_FRAC) {
                 run.res.n_core_stops += 1;
@@ -702,12 +742,14 @@ pub fn run_organic(
                 // master RIDE：出场判定（C1——唯一输入是 policy 层 sell1 行；
                 // SCm：sell1 ∧ 次级别卖确认——27课区间套的出场时机细化）。
                 // exit_mode 选择判据级别：Signal/HoldTrend = entry 级（在册）；
-                // HighestOnly = 当前最高涌现层（31课"历史性大顶"的级别相对化）
+                // HighestOnly = 当前最高涌现层（31课"历史性大顶"的级别相对化）；
+                // Climb = 动态爬梯级别（高层趋势结构确认后的升级读数）
                 let mx_lad = match cfg.exit_mode {
                     ExitMode::Signal | ExitMode::HoldTrend => entry_ladder,
                     ExitMode::HighestOnly => {
                         (sig.max_ladder as usize).min(MAX_LADDER - 1)
                     }
+                    ExitMode::Climb { .. } => run.exit_ladder,
                 };
                 let sc_m = !cfg.sc_master_exit
                     || rows.sub_confirm(mx_lad, crate::buysellpoint::Side::Sell);
@@ -723,13 +765,21 @@ pub fn run_organic(
                 // 条件，还需父级别（entry_ladder+1）上行趋势衰竭——正面延续
                 // 证据（相邻同向段创新高 ∧ 无盘整背驰）成立时拦截出场持仓，
                 // sell1 的短差机会由 voice 承载（在册逻辑零接触）。
-                let trigger = match cfg.exit_mode {
-                    ExitMode::Signal | ExitMode::HighestOnly => sig_trigger,
-                    ExitMode::HoldTrend => {
+                // 衰竭确认的父级别：HoldTrend = entry_ladder+1（静态在册）；
+                // Climb{ht} = exit_ladder+1（随爬梯动态上移——出场判据升到
+                // 哪一级，衰竭就在哪一级的直接父级别上确认）。
+                let ht_parent = match cfg.exit_mode {
+                    ExitMode::HoldTrend => Some(entry_ladder + 1),
+                    ExitMode::Climb { hold_trend: true } => Some(run.exit_ladder + 1),
+                    _ => None,
+                };
+                let trigger = match ht_parent {
+                    None => sig_trigger,
+                    Some(parent) => {
                         let unexh = rows
                             .l41
-                            .expect("guard: HoldTrend ⇒ TrendExhaustion 实例化")
-                            .up_unexhausted(entry_ladder + 1);
+                            .expect("guard: HoldTrend/Climb{ht} ⇒ TrendExhaustion 实例化")
+                            .up_unexhausted(parent);
                         if sig_trigger && unexh {
                             run.counters.n_exit_trend_holds += 1;
                         }
@@ -767,6 +817,14 @@ pub fn run_organic(
                             ),
                             ExitMode::HighestOnly => format!(
                                 "exit_{}_type1sell_highest",
+                                ladder_name(mx_lad)
+                            ),
+                            ExitMode::Climb { hold_trend: false } => format!(
+                                "exit_{}_type1sell_climb",
+                                ladder_name(mx_lad)
+                            ),
+                            ExitMode::Climb { hold_trend: true } => format!(
+                                "exit_{}_type1sell_climbht",
                                 ladder_name(mx_lad)
                             ),
                         };

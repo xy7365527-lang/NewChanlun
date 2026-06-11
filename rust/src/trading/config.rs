@@ -170,11 +170,21 @@ pub enum EntryMode {
 /// 明确延续时关，与 rev_l41_gate"证据缺失不拒开"同一保守语义。
 /// HighestOnly = 最激进持仓：只在当前最高涌现层（max_ladder）的 sell1
 /// 出场（31课"历史性大顶"的级别相对化读数——最高级别卖点才是大顶）。
+/// Climb = 出场级别动态爬梯（2026-06-11 任务）：入场时 exit_ladder =
+/// entry_ladder；每 bar 若 max_ladder > exit_ladder 且该层有趋势结构
+/// （trend_state[max_ladder] ∧ dir==Up——Cycle38 宿主趋势态先例，17课
+/// ≥2 同向中枢，需 trend_flips 磁带行）则 exit_ladder = max_ladder；
+/// master 出场判据 = sell1 @ exit_ladder。与 HighestOnly 的区分：爬梯
+/// 要求高层趋势结构**确认**才升级，高层无趋势时保持原级别出场能力
+/// ——不是伪装 buy-hold（HighestOnly 否证先例）。hold_trend=true 组合
+/// HoldTrend 语义：sell1 @ exit_ladder ∧ 父级别（exit_ladder+1，动态）
+/// 上行趋势衰竭才出。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExitMode {
     Signal,
     HoldTrend,
     HighestOnly,
+    Climb { hold_trend: bool },
 }
 
 /// REV 开腿锚定强度（C3 消融轴 S）。
@@ -757,6 +767,17 @@ pub fn variant(name: &str) -> Option<OrganicConfig> {
             exit_mode: ExitMode::HighestOnly,
             ..variant("V2oa25").expect("V2oa25 在上方注册")
         }),
+        // cl = Climb（出场级别动态爬梯：高层趋势结构确认才升级出场判据）；
+        // clht = Climb + HoldTrend 组合（爬梯级别 sell1 ∧ 动态父级别趋势
+        // 衰竭确认）。voice 短差（V2oa25 REV+域腿）逐位不碰。
+        "V2oa25_cl" => Some(OrganicConfig {
+            exit_mode: ExitMode::Climb { hold_trend: false },
+            ..variant("V2oa25").expect("V2oa25 在上方注册")
+        }),
+        "V2oa25_clht" => Some(OrganicConfig {
+            exit_mode: ExitMode::Climb { hold_trend: true },
+            ..variant("V2oa25").expect("V2oa25 在上方注册")
+        }),
         // 消融 R2：Sell2 入段终结触发集（§5.3 矩阵 Sell2 格的表态轴，exploratory）
         "VR2" => Some(OrganicConfig {
             rev_mode: true,
@@ -908,10 +929,12 @@ mod tests {
         assert_eq!(OrganicConfig::default().exit_mode, ExitMode::Signal);
         let base = variant("V2oa25").unwrap();
         assert_eq!(base.exit_mode, ExitMode::Signal);
-        // 两臂只动 exit_mode 一轴——其余字段与 V2oa25 逐位相同
+        // 四臂只动 exit_mode 一轴——其余字段与 V2oa25 逐位相同
         for (name, want) in [
             ("V2oa25_ht", ExitMode::HoldTrend),
             ("V2oa25_ho", ExitMode::HighestOnly),
+            ("V2oa25_cl", ExitMode::Climb { hold_trend: false }),
+            ("V2oa25_clht", ExitMode::Climb { hold_trend: true }),
         ] {
             let cfg = variant(name).unwrap();
             assert_eq!(cfg.exit_mode, want, "{name}");
