@@ -98,6 +98,8 @@ struct Run {
     floor_ladder: usize,
     stop_on: bool,
     entry_mode: EntryMode,
+    /// entry 级完整声部（NRF E 轴）：active_levels 上界含 entry 级。
+    entry_voice: bool,
     // ── 递归入场状态（entry_mode=Recursive；Full 模式为满仓哨兵）──
     /// 已消费的最高确认级别（追加只认 > 本值的 buy1——级别确认升级）。
     fill_ladder: usize,
@@ -132,7 +134,10 @@ impl Run {
         self.entry_bar = bar;
         self.entry_price = price;
         self.entry_ladder = el;
-        self.active_levels = (self.floor_ladder..el).collect();
+        // E 轴（entry_voice）：entry 级与其余声部全同构（[floor, entry] 闭区间）；
+        // 在册行为 = [floor, entry) 半开区间（O0≡P5 零接触）。
+        let top = if self.entry_voice { el + 1 } else { el };
+        self.active_levels = (self.floor_ladder..top.min(MAX_LADDER)).collect();
         let n_sub = self.active_levels.len();
         let level_frac = if n_sub > 0 { 1.0 / n_sub as f64 } else { 0.0 };
         self.pos = Some(match self.entry_mode {
@@ -396,13 +401,27 @@ pub fn run_organic(
                 .to_string(),
         );
     }
-    if (cfg.sub_cost_gate || cfg.sub_l41_gate)
+    if cfg.sub_l41_gate
         && !(cfg.rev_sub_depth > 0 && cfg.sub_mode == super::config::SubMode::Fractal)
     {
         return Err(
-            "sub_cost_gate/sub_l41_gate（P1 双门）仅定义于 Fractal 子腿路径
-             （rev_sub_depth > 0 ∧ sub_mode=Fractal）——Zhongshu 模式的逐锚
-             2×sub_friction_rt 经济门已是其成本门形态，组合不可表示"
+            "sub_l41_gate（P1 41课门）仅定义于 Fractal 子腿路径
+             （rev_sub_depth > 0 ∧ sub_mode=Fractal）——其余模式无消费者，
+             组合不可表示"
+                .to_string(),
+        );
+    }
+    if cfg.sub_cost_gate
+        && !(cfg.rev_sub_depth > 0
+            && matches!(
+                cfg.sub_mode,
+                super::config::SubMode::Fractal | super::config::SubMode::CounterSeg
+            ))
+    {
+        return Err(
+            "sub_cost_gate（35课成本门）仅定义于 Fractal/CounterSeg 子腿路径
+             （rev_sub_depth > 0）——Zhongshu 模式的逐锚 2×sub_friction_rt
+             经济门已是其成本门形态，组合不可表示"
                 .to_string(),
         );
     }
@@ -484,6 +503,26 @@ pub fn run_organic(
                 "entry_mode=Recursive 要求 0 < base_frac < 1（base_frac=1 是 Full
                  的冗余表示——声明=能力，显式拒绝）；base_frac={base_frac}"
             ));
+        }
+    }
+
+    // ── entry 级完整声部 guard（嵌套递归并发赋格 E 轴，2026-06-12 任务）──
+    if cfg.entry_voice {
+        if cfg.exit_mode == ExitMode::Signal {
+            return Err(
+                "entry_voice × exit_mode=Signal 组合是死配置：master 在 voice
+                 之前对 entry 级 sell1 清仓，voice@entry 永远收不到事件——
+                 entry 级声部要求状态驱动出场（HoldTrend/Emergent）拦截窗口
+                 存在（声明=能力，显式拒绝）"
+                    .to_string(),
+            );
+        }
+        if !cfg.rev_mode {
+            return Err(
+                "entry_voice 要求 rev_mode=true——entry 级 sell1 的配额短差
+                 由 REV 腿承载（44课:50），rev_mode=false 下本轴无承载对象"
+                    .to_string(),
+            );
         }
     }
 
@@ -599,6 +638,7 @@ pub fn run_organic(
         floor_ladder,
         stop_on: stop_mode.is_on(),
         entry_mode: cfg.entry_mode,
+        entry_voice: cfg.entry_voice,
         fill_ladder: usize::MAX,
         filled_frac: 1.0,
         next_quota: 0.0,

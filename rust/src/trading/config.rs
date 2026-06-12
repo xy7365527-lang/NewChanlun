@@ -478,6 +478,21 @@ pub struct OrganicConfig {
     /// 语义映射：3 = move(L1) 级、4 = recL2 级。高层 buy1 未涌现期不布防
     /// （首笔入场 bar 合法变晚——级别涌现是数据性质，不提供低层代理降级）。
     pub entry_min_ladder: usize,
+    /// entry 级完整声部（嵌套递归并发赋格 E 轴，2026-06-12 任务）：
+    /// active_levels 从 [floor, entry) 扩为 [floor, entry]——entry 级与其余
+    /// 声部全同构（main/osc/rev 三类腿；"每一层的结构完全同构"）。
+    /// 44课级别门的嵌套形态：master 满仓入场保暴露（positional 扁平分层
+    /// 否证的死因矫正——入场侧不拆），entry 级 sell1 在 master 被出场门
+    /// （HoldTrend/Emergent 趋势延续证据）拦截持仓时，由 voice@entry 承载
+    /// 为配额反向腿（44课:50"先出一部分……如果没有出现上一段所说的情况，
+    /// 就可以回补，权当弄了一个短差"的逐字形态）。master 真实出场时
+    /// close_position 强制清腿在册逻辑自动覆盖（义务闭腿）。
+    /// 要求 exit_mode ≠ Signal（Signal 下 master 在 voice 之前清仓，本轴
+    /// 是死配置——runner guard 拒绝）。false = 在册行为（O0≡P5 零接触）。
+    /// **L2 判决（2026-06-12，nested_recursive_fugue_results.md）：双标的
+    /// 否证**——OKLO −513pp / BTC −410pp（entry 级 main/rev 腿在强趋势中
+    /// 反向段不回撤 ⇒ 短差失血，与 osc 僵尸同构）。保留为否证在案配置位。
+    pub entry_voice: bool,
     /// voice 消费方式（见 VoiceMode docstring）。Fsm = 在册行为。
     /// Ledger ⇒ main 腿/FSM 机制位必须全关（runner guard 强制——账本路径
     /// 不消费这些位，保留非关闭值即声明膨胀）。
@@ -542,6 +557,25 @@ pub enum SubMode {
     /// vs 段间盘整背驰（div 事件流 + 次级别结构确认）。
     /// 存在论下限 = FIRST_BSP_LADDER（div 事件流的承载下界，同 Zhongshu）。
     Sequence38,
+    /// 反向线段腿（嵌套递归并发赋格的**严格形式**，2026-06-12 任务；
+    /// 设计 `analysis/nested_recursive_fugue_design.md` §2.3/§2.5）。
+    /// 操作对象 = 父腿反向走势窗口内、本级别的反向走势类型（用户结构第3层：
+    /// "反向线段内部的反向线段，又在次次级别是一个直接的多单"），进出恒用
+    /// **本级别自己的买卖点**（"每一层都通过买卖点操作"）：
+    /// - **开腿** = 本级别反向段起点买卖点：奇数深度（Long）confirmed Buy1 ∨
+    ///   盘背买；偶数深度（Short）镜像——符号交替塔 (−1)ⁿ；
+    /// - **闭腿** = 本级别反向段终点买卖点（开腿的镜像侧）：confirmed
+    ///   Sell1/Buy1 ∨ 盘背卖/买 ∨ confirmed type3（中枢离开终结段）。
+    ///   恒 confirmed——candidate 不是原文操作点（not6 先例）。
+    /// 与三个在册模式的差异（各自否证死因的逐点拆除）：
+    /// - vs Zhongshu（O_sub0 两票否证）：**无"存活中枢"前置、无 ZG/ZD 边界
+    ///   与振幅域门**——父腿前提（反向段运行）不再否定子腿前提；
+    /// - vs Fractal（OKLO −73.8pp，近似实现）：信号源 = 本级别 BSP/盘背
+    ///   事件流，非笔级方向行翻转（a0 近似死因矫正）；
+    /// - vs Sequence38：方向遵守符号交替塔（38课程式的方向镜像），非恒 Short。
+    /// 递归终止三范畴：深度预算 ∧ 存在论下限 FIRST_BSP_LADDER（笔 = a0，
+    /// 62/77/78课）∧ 35课成本门（sub_cost_gate：θ_q ≥ sub_cost_k×friction）。
+    CounterSeg,
 }
 
 impl Default for OrganicConfig {
@@ -600,6 +634,7 @@ impl Default for OrganicConfig {
             entry_mode: EntryMode::Full,
             exit_mode: ExitMode::Signal,
             entry_min_ladder: 0,
+            entry_voice: false,
             voice_mode: VoiceMode::Fsm,
             ledger_sell_t1_only: false,
             ledger_domain_gate: false,
@@ -1095,6 +1130,62 @@ pub fn variant(name: &str) -> Option<OrganicConfig> {
             exit_mode: ExitMode::Emergent { hold_trend: true },
             ..variant("V2oa25").expect("V2oa25 在上方注册")
         }),
+        // ── 嵌套递归并发多重赋格（NRF，2026-06-12 任务；设计
+        // analysis/nested_recursive_fugue_design.md + positional 否证矫正）。
+        // 三条正交轴长在 V2oa25_emht（在册最优出场基座）上。
+        // **L2 判决（nested_recursive_fugue_results.md）**：E 轴双标的否证
+        // （OKLO −513/BTC −410pp）；S 轴 regime 函数（OKLO +110pp/BTC −12pp，
+        // 深度2 在 BTC 真实涌现 288 腿）；Q 轴第六例 regime 分裂
+        // （OKLO +2301% 新高 / BTC −105% 爆仓）。保留为否证在案配置位。──
+        "NRF1" => Some(OrganicConfig {
+            entry_voice: true,
+            ..variant("V2oa25_emht").expect("V2oa25_emht 在上方注册")
+        }),
+        // S 轴（NRF2 = NRF1 + 反向线段子腿严格形式）：深度2 = 数据界
+        // （设计 §4.3），符号交替塔 (−1)ⁿ，开闭恒用本级别买卖点，
+        // 35课成本门 = 递归经济终止（sub_cost_gate）。
+        "NRF2" => Some(OrganicConfig {
+            rev_sub_depth: 2,
+            sub_mode: SubMode::CounterSeg,
+            sub_cost_gate: true,
+            ..variant("NRF1").expect("NRF1 在上方注册")
+        }),
+        // Q 轴（NRF2q = NRF2 + 配额涌现候选 B）：40课结构规模——配额 ∝
+        // 该层存活中枢相对振幅占比（26课"级别=买卖量"的连续化；与"绝对
+        // 不加仓"无冲突：配额只定反向腿卖出规模，不对多头仓位再平衡）。
+        "NRF2q" => Some(OrganicConfig {
+            sizing: Sizing::Structure,
+            ..variant("NRF2").expect("NRF2 在上方注册")
+        }),
+        // Q 轴单因隔离臂（NRF2q 是 E×S×Q 合取——本臂隔离 Sizing::Structure
+        // 在无 entry 声部/无子腿时的独立贡献）。
+        "V2oa25_emht_q" => Some(OrganicConfig {
+            sizing: Sizing::Structure,
+            ..variant("V2oa25_emht").expect("V2oa25_emht 在上方注册")
+        }),
+        // BTC 域 scco 合成臂（osc 白名单在册：BTC 负域须 sc+co，否则 osc
+        // 失血掩盖出场轴效应；emht×scco 合测 = btc_vs_bh 解法假设3，
+        // L2 实测仅 +7.5pp 近零）。
+        "V2oa25_emht_scco" => Some(OrganicConfig {
+            osc_shift_close: true,
+            osc_domain: OscDomain::ConsolidationOnly,
+            ..variant("V2oa25_emht").expect("V2oa25_emht 在上方注册")
+        }),
+        "NRF1_scco" => Some(OrganicConfig {
+            osc_shift_close: true,
+            osc_domain: OscDomain::ConsolidationOnly,
+            ..variant("NRF1").expect("NRF1 在上方注册")
+        }),
+        "NRF2_scco" => Some(OrganicConfig {
+            osc_shift_close: true,
+            osc_domain: OscDomain::ConsolidationOnly,
+            ..variant("NRF2").expect("NRF2 在上方注册")
+        }),
+        "NRF2q_scco" => Some(OrganicConfig {
+            osc_shift_close: true,
+            osc_domain: OscDomain::ConsolidationOnly,
+            ..variant("NRF2q").expect("NRF2q 在上方注册")
+        }),
         // ── master 入场级别下限（2026-06-11；基线 = V2oa25，单轴 entry_min_ladder）──
         // e3 = move(L1) 级入场（BTC 在册分布 188 笔）/ e4 = recL2 级（17 笔，
         // 稀疏对照臂）；ht 组合 = 与新默认候选 HoldTrend 的合取。出场级别
@@ -1389,6 +1480,61 @@ mod tests {
                 ..cfg
             };
             assert_eq!(format!("{normalized:?}"), format!("{base:?}"), "{name}");
+        }
+    }
+
+    #[test]
+    fn nrf_variants_axis_decomposition() {
+        // 在册基线 entry_voice=false（O0≡P5 零接触面）
+        assert!(!OrganicConfig::default().entry_voice);
+        assert!(!variant("V2oa25_emht").unwrap().entry_voice);
+        // NRF1 = V2oa25_emht + entry_voice 单轴
+        let emht = variant("V2oa25_emht").unwrap();
+        let nrf1 = variant("NRF1").unwrap();
+        assert!(nrf1.entry_voice);
+        assert_eq!(nrf1.exit_mode, ExitMode::Emergent { hold_trend: true });
+        let normalized = OrganicConfig { entry_voice: false, ..nrf1.clone() };
+        assert_eq!(format!("{normalized:?}"), format!("{emht:?}"));
+        // NRF2 = NRF1 + {rev_sub_depth=2, CounterSeg, sub_cost_gate} 三位
+        let nrf2 = variant("NRF2").unwrap();
+        assert_eq!(nrf2.rev_sub_depth, 2);
+        assert_eq!(nrf2.sub_mode, SubMode::CounterSeg);
+        assert!(nrf2.sub_cost_gate && !nrf2.sub_l41_gate);
+        let normalized = OrganicConfig {
+            rev_sub_depth: 0,
+            sub_mode: SubMode::Zhongshu,
+            sub_cost_gate: false,
+            ..nrf2.clone()
+        };
+        assert_eq!(format!("{normalized:?}"), format!("{nrf1:?}"));
+        // NRF2q = NRF2 + sizing Structure 单轴；emht_q = emht + 同单轴
+        let nrf2q = variant("NRF2q").unwrap();
+        assert_eq!(nrf2q.sizing, Sizing::Structure);
+        let normalized = OrganicConfig { sizing: Sizing::Equal, ..nrf2q };
+        assert_eq!(format!("{normalized:?}"), format!("{nrf2:?}"));
+        let emht_q = variant("V2oa25_emht_q").unwrap();
+        let normalized = OrganicConfig { sizing: Sizing::Equal, ..emht_q };
+        assert_eq!(format!("{normalized:?}"), format!("{emht:?}"));
+        // scco 合成臂 = 各自基臂 + {sc, co} 两位
+        for (name, base) in [
+            ("V2oa25_emht_scco", "V2oa25_emht"),
+            ("NRF1_scco", "NRF1"),
+            ("NRF2_scco", "NRF2"),
+            ("NRF2q_scco", "NRF2q"),
+        ] {
+            let cfg = variant(name).unwrap();
+            assert!(cfg.osc_shift_close, "{name}");
+            assert_eq!(cfg.osc_domain, OscDomain::ConsolidationOnly, "{name}");
+            let normalized = OrganicConfig {
+                osc_shift_close: false,
+                osc_domain: OscDomain::Any,
+                ..cfg
+            };
+            assert_eq!(
+                format!("{normalized:?}"),
+                format!("{:?}", variant(base).unwrap()),
+                "{name}"
+            );
         }
     }
 

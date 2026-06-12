@@ -301,6 +301,12 @@ impl SubLou {
                 );
                 return;
             }
+            SubMode::CounterSeg => {
+                self.step_counterseg(
+                    cfg, rows, book, c, bar, ledger, home, parent_shares, counters,
+                );
+                return;
+            }
             SubMode::Zhongshu => {}
         }
         let k = self.ladder;
@@ -609,6 +615,114 @@ impl SubLou {
                     counters.n_sub_open += 1;
                     self.seg1_low = Some(self.run_low);
                     self.low_since_open = c;
+                }
+            }
+        }
+    }
+
+    /// CounterSeg 闭腿判据——本级别反向段**终点**的买卖点（开腿的镜像侧，
+    /// 恒 confirmed；candidate 不是原文操作点，not6 先例）。
+    /// Long 腿（奇数深度，持反弹段）：confirmed Sell1 ∨ 盘背卖 ∨ confirmed
+    /// Sell3（中枢向下离开 = 向上反向段终结的更强结构陈述）；Short 镜像。
+    fn counterseg_close_trigger(&self, evs: &[BspEvent], devs: &[DivEvent]) -> bool {
+        let (t1, t3, div_dir) = match self.side() {
+            DiffSide::Long => (BspClass::Sell1, BspClass::Sell3, Direction::Up),
+            DiffSide::Short => (BspClass::Buy1, BspClass::Buy3, Direction::Down),
+        };
+        evs.iter().any(|e| e.confirmed && (e.class == t1 || e.class == t3))
+            || devs
+                .iter()
+                .any(|d| d.kind == DivKind::Consolidation && d.direction == div_dir)
+    }
+
+    /// CounterSeg 模式每 bar 一步——嵌套递归并发赋格的严格形式子腿
+    /// （2026-06-12 任务；判据见 `SubMode::CounterSeg` docstring）。
+    ///
+    /// 操作对象 = 父腿反向走势窗口内、本级别的反向走势类型，进出恒用本级别
+    /// 买卖点：开腿 = `open_trigger`（Zhongshu 模式同一谓词——confirmed
+    /// type1 ∨ 盘背，符号交替塔定方向侧），闭腿 = `counterseg_close_trigger`
+    /// （镜像侧 + type3 终结）。与 Zhongshu 模式的唯一拆除 = 中枢域前置
+    /// （alive 中枢 / ZG-ZD 边界 / 振幅域门）——O_sub0 否证根因"父腿前提
+    /// 否定子腿前提"在此模式无承载位；级别可操作性由 35课成本门
+    /// （sub_cost_gate，DepthRef 因果滚动中位数）独立判定。
+    /// 段尺度锚：无中枢边界——闭腿纯事件驱动（+ 父腿级联强闭）。
+    #[allow(clippy::too_many_arguments)]
+    fn step_counterseg(
+        &mut self,
+        cfg: &OrganicConfig,
+        rows: &BarRows,
+        book: &CenterBook,
+        c: f64,
+        bar: i64,
+        ledger: &mut OrganicLedger,
+        home: usize,
+        parent_shares: f64,
+        counters: &mut Counters,
+    ) {
+        let _ = book; // 本模式无中枢依赖（中枢域前置已拆除）；仅透传给子节点
+        let k = self.ladder;
+        let key = SlotKey::rev_path(home, self.path);
+        let evs = &rows.evs[k];
+        let devs = &rows.devs[k];
+        match ledger.open_slot(key).map(|l| l.cycle.shares) {
+            Some(my_shares) => {
+                // 子节点递归（深度预算 ∧ 存在论下限：笔 = a0，62/77/78课——
+                // k−1 < FIRST_BSP_LADDER 即无中枢/买卖点概念，递归自然终止）
+                if self.path.depth() < cfg.rev_sub_depth
+                    && k >= 1
+                    && k - 1 >= FIRST_BSP_LADDER
+                {
+                    let path = self.path;
+                    let child = self
+                        .child
+                        .get_or_insert_with(|| Box::new(SubLou::new(k - 1, path.child(k - 1))));
+                    child.step(cfg, rows, book, c, bar, ledger, home, my_shares, counters);
+                }
+                if self.counterseg_close_trigger(evs, devs) {
+                    // 级联不变式：本腿闭合先平掉全部子树腿（子域随本腿消失）
+                    self.cascade_close_children(home, c, bar, ledger, counters);
+                    Self::close_one(key, c, bar, ledger, counters);
+                    counters.n_sub_close += 1;
+                }
+            }
+            None => {
+                if (evs.is_empty() && devs.is_empty()) || !self.open_trigger(evs, devs) {
+                    return;
+                }
+                if ledger.phase.is_earning() {
+                    counters.n_sub_earning_rejects += 1;
+                    return;
+                }
+                // ── 35课成本门（递归经济终止）：本级别典型中枢振幅 θ_q
+                // （DepthRef 因果滚动中位数，零前瞻）≥ sub_cost_k×friction
+                // 才可操作；参照不可定义 ⇒ 保守拒绝（不静默放行）。──
+                if cfg.sub_cost_gate {
+                    let dr = rows.depth.expect(
+                        "sub_cost_gate ⇒ 调用方必提供 DepthRef（capability，runner 恒提供）",
+                    );
+                    use super::config::{SUB_COST_MIN_OBS, SUB_COST_Q};
+                    match dr.theta(k, None, SUB_COST_Q, SUB_COST_MIN_OBS) {
+                        Some(theta_q) => {
+                            if theta_q < cfg.sub_cost_k * cfg.sub_friction_rt {
+                                counters.n_sub_cost_rejects += 1;
+                                return;
+                            }
+                        }
+                        None => {
+                            counters.n_sub_cost_noref_rejects += 1;
+                            return;
+                        }
+                    }
+                }
+                if ledger.open_sub(
+                    key,
+                    parent_shares,
+                    c,
+                    bar,
+                    LegAnchor::SegmentScale,
+                    self.side(),
+                ) {
+                    counters.n_sub_open += 1;
                 }
             }
         }
@@ -1901,7 +2015,7 @@ impl VoiceUnit {
         // 存在论下限按模式分流：Zhongshu 需 k−1 有中枢/买卖点概念
         // （FIRST_BSP_LADDER）；Fractal 只需 k−1 有方向行——bi 级（1）即下限。
         let sub_floor = match cfg.sub_mode {
-            SubMode::Zhongshu | SubMode::Sequence38 => FIRST_BSP_LADDER,
+            SubMode::Zhongshu | SubMode::Sequence38 | SubMode::CounterSeg => FIRST_BSP_LADDER,
             SubMode::Fractal => 1,
         };
         if k < 1 || k - 1 < sub_floor {
